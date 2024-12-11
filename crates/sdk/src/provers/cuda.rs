@@ -6,8 +6,9 @@ use sp1_prover::{components::DefaultProverComponents, SP1Prover};
 use super::ProverType;
 use crate::install::try_install_circuit_artifacts;
 use crate::{
-    provers::ProofOpts, Prover, SP1Context, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues,
-    SP1ProvingKey, SP1VerifyingKey,
+    proof::{SP1Proof, SP1ProofKind, SP1ProofWithPublicValues},
+    provers::{ProofOpts, Prover, ProverType},
+    SP1Context, SP1ProvingKey, SP1VerifyingKey,
 };
 
 /// An implementation of [crate::ProverClient] that can generate proofs locally using CUDA.

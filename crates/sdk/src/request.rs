@@ -1,6 +1,11 @@
-use crate::SP1ProofWithPublicValues;
+use crate::mode::Mode;
+use crate::opts::ProofOpts;
+use crate::proof::SP1ProofWithPublicValues;
+use crate::prover::Prover;
 use anyhow::Result;
-use std::future::Future;
+use sp1_core_machine::io::SP1Stdin;
+use sp1_prover::SP1ProvingKey;
+use std::future::{Future, IntoFuture};
 use std::pin::Pin;
 
 pub trait ProofRequest {
@@ -9,20 +14,42 @@ pub trait ProofRequest {
     ) -> Pin<Box<dyn Future<Output = Result<SP1ProofWithPublicValues>> + Send + 'static>>;
 }
 
-pub struct DynProofRequest<'a> {
-    inner: Box<dyn ProofRequest + 'a>,
+pub struct DynProofRequest<'a, 'b> {
+    prover: &'a dyn Prover,
+    elf: &'b [u8],
+    pk: SP1ProvingKey,
+    stdin: SP1Stdin,
+    opts: ProofOpts,
 }
 
-impl<'a> DynProofRequest<'a> {
-    pub fn new<T: ProofRequest + 'a>(request: T) -> Self {
-        Self { inner: Box::new(request) }
+impl<'a, 'b> DynProofRequest<'a, 'b> {
+    pub fn proof_type(mut self, mode: Mode) -> Self {
+        self.opts.mode = mode;
+        self
+    }
+
+    pub fn timeout(mut self, timeout: u64) -> Self {
+        self.opts.timeout = timeout;
+        self
+    }
+
+    pub fn cycle_limit(mut self, cycle_limit: u64) -> Self {
+        self.opts.cycle_limit = cycle_limit;
+        self
     }
 }
 
-impl<'a> ProofRequest for DynProofRequest<'a> {
-    fn run(
-        self,
-    ) -> Pin<Box<dyn Future<Output = Result<SP1ProofWithPublicValues>> + Send + 'static>> {
-        self.inner.run()
+impl<'a, 'b> DynProofRequest<'a, 'b> {
+    fn run(self) -> Result<SP1ProofWithPublicValues> {
+        self.prover.prove_with_options(self.elf, self.pk, self.stdin, self.opts)
+    }
+}
+
+impl<'a, 'b> IntoFuture for DynProofRequest<'a, 'b> {
+    type Output = Result<SP1ProofWithPublicValues>;
+    type IntoFuture = Pin<Box<dyn Future<Output = Self::Output> + Send + 'a>>;
+
+    fn into_future(self) -> Self::IntoFuture {
+        Box::pin(async move { self.run() })
     }
 }

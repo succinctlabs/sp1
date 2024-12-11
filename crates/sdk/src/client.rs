@@ -1,12 +1,14 @@
-use sp1_prover::components::DefaultProverComponents;
-
-use crate::{local::LocalProver, network::NetworkProver, Prover};
+use crate::{
+    local::{LocalProver, LocalProverBuilder},
+    network::{NetworkProver, NetworkProverBuilder},
+    prover::Prover,
+};
 use std::env;
 
 pub struct None;
 
 pub struct ProverClient {
-    inner: Box<dyn Prover<DefaultProverComponents>>,
+    inner: Box<dyn Prover>,
 }
 
 pub struct ProverClientBuilder<T> {
@@ -25,11 +27,11 @@ impl ProverClient {
 }
 
 impl ProverClientBuilder<None> {
-    pub fn local(self) -> ProverClientBuilder<LocalProver> {
+    pub fn local(self) -> ProverClientBuilder<LocalProverBuilder> {
         ProverClientBuilder { inner_builder: LocalProver::builder() }
     }
 
-    pub fn network(self) -> ProverClientBuilder<NetworkProver> {
+    pub fn network(self) -> ProverClientBuilder<NetworkProverBuilder> {
         ProverClientBuilder { inner_builder: NetworkProver::builder() }
     }
 
@@ -41,13 +43,13 @@ impl ProverClientBuilder<None> {
     }
 }
 
-impl ProverClientBuilder<LocalProver> {
+impl ProverClientBuilder<LocalProverBuilder> {
     pub fn build(self) -> ProverClient {
         ProverClient { inner: Box::new(self.inner_builder.build()) }
     }
 }
 
-impl ProverClientBuilder<NetworkProver> {
+impl ProverClientBuilder<NetworkProverBuilder> {
     pub fn with_rpc_url(mut self, url: String) -> Self {
         self.inner_builder = self.inner_builder.with_rpc_url(url);
         self

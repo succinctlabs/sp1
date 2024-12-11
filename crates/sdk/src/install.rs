@@ -10,7 +10,7 @@ use {
     std::{cmp::min, io::Write, process::Command},
 };
 
-use crate::SP1_CIRCUIT_VERSION;
+use sp1_prover::SP1_CIRCUIT_VERSION;
 
 /// The base URL for the S3 bucket containing the circuit artifacts.
 pub const CIRCUIT_ARTIFACTS_URL_BASE: &str = "https://sp1-circuits.s3-us-east-2.amazonaws.com";

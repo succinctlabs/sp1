@@ -1,32 +1,40 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use serde::de::DeserializeOwned;
+use sp1_core_executor::{ExecutionReport, SP1Context};
 use sp1_core_machine::io::SP1Stdin;
-use sp1_prover::{SP1ProvingKey, SP1VerifyingKey, SP1_CIRCUIT_VERSION};
+use sp1_prover::components::DefaultProverComponents;
+use sp1_prover::{SP1Prover, SP1ProvingKey, SP1VerifyingKey, SP1_CIRCUIT_VERSION};
 use std::future::{Future, IntoFuture};
 use std::pin::Pin;
 
 use crate::mode::Mode;
-use crate::network_v2::FulfillmentStrategy;
-use crate::network_v2::{Error, RequestId, VerifyingKeyHash};
+use crate::opts::ProofOpts;
+use crate::prover::Prover;
+use crate::provers::SP1VerificationError;
 use crate::request::ProofRequest;
-use crate::{network_v2::NetworkClient, CpuProver, SP1ProofWithPublicValues};
+
+use crate::network_v2::FulfillmentStrategy;
+use crate::network_v2::DEFAULT_PROVER_NETWORK_RPC;
+use crate::network_v2::{Error, RequestId, VerifyingKeyHash};
+use crate::{network_v2::NetworkClient, proof::SP1ProofWithPublicValues};
 
 pub struct NetworkProver {
-    cpu_prover: CpuProver,
+    prover: SP1Prover<DefaultProverComponents>,
     network_client: NetworkClient,
+}
+
+pub struct NetworkProverBuilder {
+    rpc_url: Option<String>,
+    private_key: Option<String>,
 }
 
 impl NetworkProver {
     pub fn new(rpc_url: String, private_key: String) -> Self {
         Self {
-            cpu_prover: CpuProver::new(),
+            prover: SP1Prover::new(),
             network_client: NetworkClient::new(&private_key).with_rpc_url(rpc_url),
         }
-    }
-
-    pub fn cpu_prover(&self) -> &CpuProver {
-        &self.cpu_prover
     }
 
     pub fn with_mode(mut self, mode: Mode) -> Self {
@@ -96,32 +104,35 @@ impl NetworkProver {
         todo!()
     }
 
-    // // Ensure the program is registered.
-    // let vk_hash = self.register_program(&request.pk.vk, &request.pk.elf).await?;
-
-    // // Get the configured settings.
-    // let stdin = request.stdin;
-    // let version = request.version;
-    // let mode = request.mode;
-    // let strategy = request.fulfillment_strategy.unwrap_or(DEFAULT_FULFILLMENT_STRATEGY);
-    // let timeout_secs = Self::get_timeout_secs(request.timeout_sec);
-    // let cycle_limit = self.get_cycle_limit(
-    // 	&request.pk.elf,
-    // 	&stdin,
-    // 	request.cycle_limit,
-    // 	request.skip_simulation,
-    // )?;
-
-    // // Request the proof.
-    // let request_id = self
-    // 	.request_proof(&vk_hash, &stdin, version, mode, strategy, timeout_secs, cycle_limit)
-    // 	.await?;
-
-    // // Wait for the proof to be generated.
-    // self.wait_proof(&request_id, timeout_secs).await
-
     pub fn prove_with_options(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> NetworkProofRequest {
         NetworkProofRequest::new(self, pk, stdin)
+    }
+
+    pub fn builder() -> NetworkProverBuilder {
+        NetworkProverBuilder::new()
+    }
+}
+
+impl NetworkProverBuilder {
+    pub fn new() -> Self {
+        Self { rpc_url: None, private_key: None }
+    }
+
+    pub fn with_rpc_url(mut self, url: String) -> Self {
+        self.rpc_url = Some(url);
+        self
+    }
+
+    pub fn with_private_key(mut self, key: String) -> Self {
+        self.private_key = Some(key);
+        self
+    }
+
+    pub fn build(self) -> NetworkProver {
+        NetworkProver::new(
+            self.rpc_url.unwrap_or_default(DEFAULT_PROVER_NETWORK_RPC),
+            self.private_key.expect("private key is required"),
+        )
     }
 }
 
@@ -151,8 +162,58 @@ impl<'a> NetworkProofRequest<'a> {
             skip_simulation: false,
         }
     }
+
+    pub fn with_mode(mut self, mode: Mode) -> Self {
+        self.mode = mode;
+        self
+    }
+
+    pub fn with_timeout(mut self, timeout: u64) -> Self {
+        self.timeout_sec = Some(timeout);
+        self
+    }
+
+    pub fn with_strategy(mut self, strategy: FulfillmentStrategy) -> Self {
+        self.fulfillment_strategy = Some(strategy);
+        self
+    }
+
     pub async fn run(self) -> Result<SP1ProofWithPublicValues> {
-        self.prover.prove_with_options(&self.pk, self.stdin).await
+        // Ensure the program is registered
+        let vk_hash = self.prover.register_program(&self.pk.vk, &self.pk.elf).await?;
+
+        // Get configured settings
+        let strategy = self.fulfillment_strategy.unwrap_or(FulfillmentStrategy::Hosted);
+        let timeout_secs = self.timeout_sec.unwrap_or(3600); // Default 1 hour
+        let cycle_limit = self.prover.get_cycle_limit(
+            &self.pk.elf,
+            &self.stdin,
+            self.cycle_limit,
+            self.skip_simulation,
+        )?;
+
+        // Request the proof
+        let request_id = self
+            .prover
+            .request_proof(
+                &vk_hash,
+                &self.stdin,
+                &self.version,
+                self.mode,
+                strategy,
+                timeout_secs,
+                cycle_limit,
+            )
+            .await?;
+
+        // Wait for proof generation - specify the return type explicitly
+        let proof: SP1ProofWithPublicValues = self
+            .prover
+            .wait_proof(&request_id, timeout_secs)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to wait for proof: {}", e))?;
+
+        Ok(proof)
     }
 }
 
@@ -167,15 +228,48 @@ impl<'a> IntoFuture for NetworkProofRequest<'a> {
 
 #[async_trait]
 impl Prover for NetworkProver {
-    fn cpu_prover(&self) -> &CpuProver {
-        self.cpu_prover()
+    async fn setup(&self, elf: &[u8]) -> Result<(SP1ProvingKey, SP1VerifyingKey)> {
+        self.prover.setup(elf).map_err(anyhow::Error::from)
     }
 
-    async fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1ProofWithPublicValues> {
-        self.prove_with_options(pk, stdin).await
+    async fn execute(&self, elf: &[u8], stdin: SP1Stdin) -> Result<ExecutionReport> {
+        let (_, report) = self.prover.execute(elf, &stdin, SP1Context::default())?;
+        Ok(report)
+    }
+
+    async fn prove_with_options(
+        &self,
+        pk: &SP1ProvingKey,
+        stdin: &SP1Stdin,
+        opts: &ProofOpts,
+    ) -> Result<SP1ProofWithPublicValues> {
+        let request = NetworkProofRequest::new(self, pk, stdin.clone())
+            .with_mode(opts.mode)
+            .with_timeout(opts.timeout);
+        request.run().await
+    }
+
+    #[cfg(feature = "blocking")]
+    fn prove_with_options_sync(
+        &self,
+        pk: &SP1ProvingKey,
+        stdin: &SP1Stdin,
+        opts: &ProofOpts,
+    ) -> Result<SP1ProofWithPublicValues> {
+        let request = NetworkProofRequest::new(self, pk, stdin.clone());
+        request.run()
+    }
+
+    async fn verify(
+        &self,
+        proof: &SP1ProofWithPublicValues,
+        vk: &SP1VerifyingKey,
+    ) -> Result<(), SP1VerificationError> {
+        self.prover.verify(proof, vk)
     }
 }
 
+#[cfg(feature = "blocking")]
 impl ProofRequest for NetworkProofRequest<'_> {
     async fn run(self) -> Result<SP1ProofWithPublicValues> {
         self.prover.prove_with_options(&self.pk, self.stdin).await
