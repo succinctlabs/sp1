@@ -196,7 +196,7 @@ pub enum ExecutionError {
     HaltWithNonZeroExitCode(u32),
 
     /// The execution failed with an invalid memory access.
-    #[error("invalid memory access for address address {0} and address {1}")]
+    #[error("invalid memory access for opcode {0} and address {1}")]
     InvalidMemoryAccess(Opcode, u32),
 
     /// The execution failed with an unimplemented syscall.
@@ -651,7 +651,6 @@ impl<'a> Executor<'a> {
             prev_record.timestamp,
         )
     }
-
     /// Write a word to memory and create an access record.
     pub fn mw(
         &mut self,
