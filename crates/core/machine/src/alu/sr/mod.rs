@@ -97,6 +97,9 @@ pub struct ShiftRightCols<T> {
     /// The second input operand.
     pub c: Word<T>,
 
+    /// Flag indicating whether `a` is not register 0.
+    pub op_a_not_0: T,
+
     /// A boolean array whose `i`th element indicates whether `num_bits_to_shift = i`.
     pub shift_by_n_bits: [T; BYTE_SIZE],
 
@@ -221,6 +224,7 @@ impl ShiftRightChip {
             cols.a = Word::from(event.a);
             cols.b = Word::from(event.b);
             cols.c = Word::from(event.c);
+            cols.op_a_not_0 = F::from_bool(!event.op_a_0);
 
             cols.b_msb = F::from_canonical_u32((event.b >> 31) & 1);
 
@@ -452,9 +456,10 @@ where
 
         // The 4 least significant bytes must match a. The 4 most significant bytes of result may be
         // inaccurate.
+        // This check is only done when `op_a_not_0 == 1`.
         {
             for i in 0..WORD_SIZE {
-                builder.assert_eq(local.a[i], local.bit_shift_result[i]);
+                builder.when(local.op_a_not_0).assert_eq(local.a[i], local.bit_shift_result[i]);
             }
         }
 
@@ -489,6 +494,11 @@ where
             }
         }
 
+        // SAFETY: All selectors `is_srl`, `is_sra` are checked to be boolean.
+        // Each "real" row has exactly one selector turned on, as `is_real = is_srl + is_sra` is boolean.
+        // All interactions are done with multiplicity `is_real`.
+        // Therefore, the `opcode` matches the corresponding opcode.
+
         // Check that the operation flags are boolean.
         builder.assert_bool(local.is_srl);
         builder.assert_bool(local.is_sra);
@@ -498,6 +508,15 @@ where
         builder.assert_eq(local.is_srl + local.is_sra, local.is_real);
 
         // Receive the arguments.
+        // SAFETY: This checks the following.
+        // - `next_pc = pc + 4`
+        // - `num_extra_cycles = 0`
+        // - `op_a_val` is constrained by the chip when `op_a_not_0 == 1`
+        // - `op_a_not_0` is correct, due to the sent `op_a_0` being equal to `1 - op_a_not_0`
+        // - `op_a_immutable = 0`
+        // - `is_memory = 0`
+        // - `is_syscall = 0`
+        // - `is_halt = 0`
         builder.receive_instruction(
             AB::Expr::zero(),
             AB::Expr::zero(),
@@ -509,12 +528,15 @@ where
             local.a,
             local.b,
             local.c,
+            AB::Expr::one() - local.op_a_not_0,
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
             local.is_real,
         );
+
+        builder.when(local.op_a_not_0).assert_one(local.is_real);
     }
 }
 
@@ -531,7 +553,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.shift_right_events = vec![AluEvent::new(0, Opcode::SRL, 6, 12, 1)];
+        shard.shift_right_events = vec![AluEvent::new(0, Opcode::SRL, 6, 12, 1, false)];
         let chip = ShiftRightChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -582,7 +604,7 @@ mod tests {
         ];
         let mut shift_events: Vec<AluEvent> = Vec::new();
         for t in shifts.iter() {
-            shift_events.push(AluEvent::new(0, t.0, t.1, t.2, t.3));
+            shift_events.push(AluEvent::new(0, t.0, t.1, t.2, t.3, false));
         }
         let mut shard = ExecutionRecord::default();
         shard.shift_right_events = shift_events;

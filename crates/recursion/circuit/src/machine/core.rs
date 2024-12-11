@@ -85,10 +85,10 @@ pub struct SP1RecursiveVerifier<C: Config, SC: BabyBearFriConfig> {
 impl<C, SC> SP1RecursiveVerifier<C, SC>
 where
     SC: BabyBearFriConfigVariable<
-            C,
-            FriChallengerVariable = DuplexChallengerVariable<C>,
-            DigestVariable = [Felt<BabyBear>; DIGEST_SIZE],
-        >,
+        C,
+        FriChallengerVariable = DuplexChallengerVariable<C>,
+        DigestVariable = [Felt<BabyBear>; DIGEST_SIZE],
+    >,
     C: CircuitConfig<F = SC::Val, EF = SC::Challenge, Bit = Felt<BabyBear>>,
     <SC::ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>: Clone,
 {

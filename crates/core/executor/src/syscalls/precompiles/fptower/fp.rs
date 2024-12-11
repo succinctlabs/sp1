@@ -90,7 +90,7 @@ impl<P: FpOpField> Syscall for FpOpSyscall<P> {
                 };
 
                 let syscall_event =
-                    rt.rt.syscall_event(clk, None, syscall_code, arg1, arg2, rt.next_pc);
+                    rt.rt.syscall_event(clk, None, None, syscall_code, arg1, arg2, rt.next_pc);
                 rt.add_precompile_event(
                     syscall_code_key,
                     syscall_event,
@@ -106,7 +106,7 @@ impl<P: FpOpField> Syscall for FpOpSyscall<P> {
                 };
 
                 let syscall_event =
-                    rt.rt.syscall_event(clk, None, syscall_code, arg1, arg2, rt.next_pc);
+                    rt.rt.syscall_event(clk, None, None, syscall_code, arg1, arg2, rt.next_pc);
                 rt.add_precompile_event(
                     syscall_code_key,
                     syscall_event,

@@ -20,13 +20,15 @@ pub struct AluEvent {
     pub b: u32,
     /// The third operand value.
     pub c: u32,
+    /// Whether the first operand is register 0.
+    pub op_a_0: bool,
 }
 
 impl AluEvent {
     /// Create a new [`AluEvent`].
     #[must_use]
-    pub fn new(pc: u32, opcode: Opcode, a: u32, b: u32, c: u32) -> Self {
-        Self { pc, opcode, a, b, c }
+    pub fn new(pc: u32, opcode: Opcode, a: u32, b: u32, c: u32, op_a_0: bool) -> Self {
+        Self { pc, opcode, a, b, c, op_a_0 }
     }
 }
 
@@ -168,12 +170,14 @@ pub struct AUIPCEvent {
     pub b: u32,
     /// The third operand value.
     pub c: u32,
+    /// Whether the first operand is register 0.
+    pub op_a_0: bool,
 }
 
 impl AUIPCEvent {
     /// Create a new [`AUIPCEvent`].
     #[must_use]
-    pub fn new(pc: u32, opcode: Opcode, a: u32, b: u32, c: u32) -> Self {
-        Self { pc, opcode, a, b, c }
+    pub fn new(pc: u32, opcode: Opcode, a: u32, b: u32, c: u32, op_a_0: bool) -> Self {
+        Self { pc, opcode, a, b, c, op_a_0 }
     }
 }

@@ -15,6 +15,7 @@ __SP1_HOSTDEV__ void event_to_row(const AluEvent& event, ShiftLeftCols<decltype(
     word_from_le_bytes<F>(cols.a, a);
     word_from_le_bytes<F>(cols.b, b);
     word_from_le_bytes<F>(cols.c, c);
+    cols.op_a_not_0 = F::from_bool(!event.op_a_0);
     cols.is_real = F::one().val;
     for (uintptr_t i = 0; i < BYTE_SIZE; ++i) {
         cols.c_least_sig_byte[i] = F::from_canonical_u32((event.c >> i) & 1).val;

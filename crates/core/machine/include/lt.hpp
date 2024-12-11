@@ -16,6 +16,7 @@ __SP1_HOSTDEV__ void event_to_row(const AluEvent& event, LtCols<F>& cols) {
     word_from_le_bytes<F>(cols.a, a);
     word_from_le_bytes<F>(cols.b, b);
     word_from_le_bytes<F>(cols.c, c);
+    cols.op_a_not_0 = F::from_bool(!event.op_a_0);
 
     // If this is SLT, mask the MSB of b & c before computing cols.bits.
     uint8_t masked_b = b[3] & 0x7f;

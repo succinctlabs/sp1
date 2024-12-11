@@ -35,10 +35,14 @@ where
         let public_values: &PublicValues<Word<AB::PublicVar>, AB::PublicVar> =
             public_values_slice.as_slice().borrow();
 
+        // We represent the `clk` with a 16 bit limb and a 8 bit limb.
+        // The range checks for these limbs are done in `eval_shard_clk`.
         let clk =
             AB::Expr::from_canonical_u32(1u32 << 16) * local.clk_8bit_limb + local.clk_16bit_limb;
 
         // Program constraints.
+        // SAFETY: `local.is_real` is checked to be boolean in `eval_is_real`.
+        // The `pc` and `instruction` is taken from the `ProgramChip`, where these are preprocessed.
         builder.send_program(local.pc, local.instruction, local.is_real);
 
         // Register constraints.
@@ -46,6 +50,9 @@ where
 
         // Assert the shard and clk to send.  Only the memory and syscall instructions need the
         // actual shard and clk values for memory access evals.
+        // SAFETY: The usage of `builder.if_else` requires `is_memory + is_syscall` to be boolean.
+        // The correctness of `is_memory` and `is_syscall` will be checked in the opcode specific chips.
+        // In these correct cases, `is_memory + is_syscall` will be always boolean.
         let expected_shard_to_send =
             builder.if_else(local.is_memory + local.is_syscall, local.shard, AB::Expr::zero());
         let expected_clk_to_send =
@@ -54,6 +61,16 @@ where
         builder.when(local.is_real).assert_eq(local.clk_to_send, expected_clk_to_send);
 
         // Send the instruction.
+        // SAFETY: `local.is_real` is checked to be boolean in `eval_is_real`.
+        // The `shard`, `clk`, `pc` are constrained throughout the CpuChip.
+        // The `local.instruction.opcode`, `local.instruction.op_a_0` are from the ProgramChip.
+        // The `local.op_b_val()` and `local.op_c_val()` are constrained in `eval_registers` in the CpuChip.
+        // Therefore, opcode specific chips that will receive this instruction need to the following.
+        // - For an instruction with a valid opcode, exactly one opcode specific chip can receive the instruction.
+        // - The `next_pc`, `num_extra_cycles`, `op_a_val`, `op_a_immutable`, `is_memory`, `is_syscall`, `is_halt` are constrained correctly.
+        // Note that in this case, `shard_to_send` and `clk_to_send` will be correctly constrained as well.
+        // If `instruction.op_a_0 == 1`, then `eval_registers` enforces `op_a_val() == 0`.
+        // Therefore, in this case, `op_a_val` doesn't need to be constrained in the opcode specific chips.
         builder.send_instruction(
             local.shard_to_send,
             local.clk_to_send,
@@ -66,6 +83,7 @@ where
             local.op_c_val(),
             local.instruction.op_a_0,
             local.op_a_immutable,
+            local.is_memory,
             local.is_syscall,
             local.is_halt,
             local.is_real,
@@ -111,6 +129,7 @@ impl CpuChip {
         builder.when_transition().when(next.is_real).assert_eq(local.shard, next.shard);
 
         // Verify that the shard value is within 16 bits.
+        // SAFETY: `local.is_real` is checked to be boolean in `eval_is_real`.
         builder.send_byte(
             AB::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
             local.shard,
@@ -124,6 +143,7 @@ impl CpuChip {
 
         // We already assert that `local.clk < 2^24`. `num_extra_cycles` is an entry of a word and
         // therefore less than `2^8`, this means that the sum cannot overflow in a 31 bit field.
+        // The default clk increment is also `4`, equal to `DEFAULT_PC_INC`.
         let expected_next_clk =
             clk.clone() + AB::Expr::from_canonical_u32(DEFAULT_PC_INC) + local.num_extra_cycles;
 
@@ -132,6 +152,7 @@ impl CpuChip {
         builder.when_transition().when(next.is_real).assert_eq(expected_next_clk, next_clk);
 
         // Range check that the clk is within 24 bits using it's limb values.
+        // SAFETY: `local.is_real` is checked to be boolean in `eval_is_real`.
         builder.eval_range_check_24bits(
             clk,
             local.clk_16bit_limb,
@@ -155,6 +176,7 @@ impl CpuChip {
         // Verify the public value's start pc.
         builder.when_first_row().assert_eq(public_values.start_pc, local.pc);
 
+        // Verify that the next row's `pc` is the current row's `next_pc`.
         builder.when_transition().when(next.is_real).assert_eq(local.next_pc, next.pc);
 
         // Verify the public value's next pc.  We need to handle two cases:

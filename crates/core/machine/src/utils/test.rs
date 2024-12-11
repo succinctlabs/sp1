@@ -17,24 +17,27 @@ use super::prove_core;
 
 /// The canonical entry point for testing a [`Program`] and [`SP1Stdin`] with a [`MachineProver`].
 pub fn run_test<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
-    program: Program,
+    mut program: Program,
     inputs: SP1Stdin,
 ) -> Result<SP1PublicValues, MachineVerificationError<BabyBearPoseidon2>> {
-    // let shape_config = CoreShapeConfig::<BabyBear>::default();
-    // shape_config.fix_preprocessed_shape(&mut program).unwrap();
+    let shape_config = CoreShapeConfig::<BabyBear>::default();
+    shape_config.fix_preprocessed_shape(&mut program).unwrap();
 
     let runtime = tracing::debug_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Executor::new(program, SP1CoreOpts::default());
-        // runtime.maximal_shapes =
-        //     Some(shape_config.maximal_core_shapes().into_iter().map(|s| s.inner).collect());
+        runtime.maximal_shapes = Some(
+            shape_config
+                .maximal_core_shapes(SP1CoreOpts::default().shard_size.ilog2() as usize)
+                .into_iter()
+                .collect(),
+        );
         runtime.write_vecs(&inputs.buffer);
         runtime.run().unwrap();
         runtime
     });
     let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
 
-    // let _ = run_test_core::<P>(runtime, inputs, Some(&shape_config))?;
-    let _ = run_test_core::<P>(runtime, inputs, None)?;
+    let _ = run_test_core::<P>(runtime, inputs, Some(&shape_config))?;
     Ok(public_values)
 }
 

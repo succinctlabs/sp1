@@ -14,6 +14,7 @@ __SP1_HOSTDEV__ void event_to_row(const AluEvent& event, ShiftRightCols<decltype
         write_word_from_u32<F>(cols.a, event.a);
         write_word_from_u32<F>(cols.b, event.b);
         write_word_from_u32<F>(cols.c, event.c);
+        cols.op_a_not_0 = F::from_bool(!event.op_a_0);
         cols.b_msb = F::from_canonical_u32((event.b >> 31) & 1).val;
         cols.is_srl = F::from_bool(event.opcode == Opcode::SRL).val;
         cols.is_sra = F::from_bool(event.opcode == Opcode::SRA).val;
