@@ -56,6 +56,10 @@ impl SP1ProverOpts {
         opts.core_opts.split_opts.sha_compress /= divisor;
         opts.core_opts.split_opts.memory /= divisor;
 
+        opts.recursion_opts.shard_batch_size = 2;
+        opts.recursion_opts.records_and_traces_channel_capacity = 1;
+        opts.recursion_opts.trace_gen_workers = 1;
+
         opts
     }
 

@@ -497,7 +497,8 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
 
 fn derive_cluster_from_maximal_shape(shape: &Shape<RiscvAirId>) -> ShapeCluster<RiscvAirId> {
     // We first define a heuristic to derive the log heights from the maximal shape.
-    let min_log2_height_threshold = 18;
+    let log2_gap_from_21 = 21 - shape.log2_height(&RiscvAirId::Cpu).unwrap();
+    let min_log2_height_threshold = 18 - log2_gap_from_21;
     let log2_height_buffer = 10;
     let heuristic = |maximal_log2_height: Option<usize>, min_offset: usize| {
         if let Some(maximal_log2_height) = maximal_log2_height {
