@@ -116,7 +116,7 @@ impl<F: PrimeField32> MachineProgram<F> for Program {
             .par_bridge()
             .map(|(&addr, &word)| {
                 let values = [
-                    (InteractionKind::Global as u32) << 24,
+                    (InteractionKind::Memory as u32) << 16,
                     0,
                     addr,
                     word & 255,

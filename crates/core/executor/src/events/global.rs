@@ -10,4 +10,6 @@ pub struct GlobalInteractionEvent {
     pub message: [u32; 7],
     /// Whether the interaction is received or sent.
     pub is_receive: bool,
+    /// The kind of the interaction event.
+    pub kind: u8,
 }

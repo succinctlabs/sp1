@@ -335,9 +335,8 @@ pub fn eval_permutation_constraints<'a, F, AB>(
         builder.when_last_row().assert_eq_ext(*perm_local.last().unwrap(), *local_cumulative_sum);
     }
 
-    // Handle global permutations.
-    //
-    // TODO: FIX HARDCODED OFFSETS
+    // Handle global cumulative sums.
+    // If the chip's scope is `InteractionScope::Global`, the last row's final 14 columns is equal to the global cumulative sum.
     let global_cumulative_sum = builder.global_cumulative_sum();
     if commit_scope == InteractionScope::Global {
         for i in 0..7 {

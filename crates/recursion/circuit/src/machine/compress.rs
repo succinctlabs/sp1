@@ -158,7 +158,7 @@ where
             let zero: Felt<_> = builder.eval(C::F::zero());
             challenger.observe(builder, zero);
 
-            // Observe the main commitment and public values.
+            // Observe the public values.
             challenger.observe_slice(
                 builder,
                 shard_proof.public_values[0..machine.num_pv_elts()].iter().copied(),
@@ -449,9 +449,11 @@ where
                 *bit = *next_bit;
             }
 
+            // Add the global cumulative sums to the vector.
             global_cumulative_sums.push(current_public_values.global_cumulative_sum);
         }
 
+        // Sum all the global cumulative sum of the proofs.
         let global_cumulative_sum = builder.sum_digest_v2(global_cumulative_sums);
 
         // Update the global values from the last accumulated values.

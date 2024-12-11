@@ -50,8 +50,6 @@ impl SyscallChip {
     }
 }
 
-pub const SYSCALL_INITIAL_DIGEST_POS_COPY: usize = 60;
-
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
@@ -59,11 +57,8 @@ pub struct SyscallCols<T: Copy> {
     /// The shard number of the syscall.
     pub shard: T,
 
-    /// The bottom 16 bits of clk of the syscall.
-    pub clk_16: T,
-
-    /// The top 8 bits of clk of the syscall.
-    pub clk_8: T,
+    /// The clk of the syscall.
+    pub clk: T,
 
     /// The syscall_id of the syscall.
     pub syscall_id: T,
@@ -104,22 +99,10 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
         let events = events
             .iter()
             .filter(|e| e.syscall_code.should_send() == 1)
-            .map(|event| {
-                let clk_16 = ((event.clk & 65535) as u16) as u32;
-                let clk_8 = ((event.clk >> 16) as u8) as u32;
-
-                GlobalInteractionEvent {
-                    message: [
-                        event.shard,
-                        clk_16,
-                        clk_8,
-                        event.syscall_id,
-                        event.arg1,
-                        event.arg2,
-                        0,
-                    ],
-                    is_receive: self.shard_kind == SyscallShardKind::Precompile,
-                }
+            .map(|event| GlobalInteractionEvent {
+                message: [event.shard, event.clk, event.syscall_id, event.arg1, event.arg2, 0, 0],
+                is_receive: self.shard_kind == SyscallShardKind::Precompile,
+                kind: InteractionKind::Syscall as u8,
             })
             .collect_vec();
         output.global_interaction_events.extend(events);
@@ -149,13 +132,8 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
             let mut row = [F::zero(); NUM_SYSCALL_COLS];
             let cols: &mut SyscallCols<F> = row.as_mut_slice().borrow_mut();
 
-            debug_assert!(syscall_event.clk < (1 << 24));
-            let clk_16 = (syscall_event.clk & 65535) as u16;
-            let clk_8 = (syscall_event.clk >> 16) as u8;
-
             cols.shard = F::from_canonical_u32(syscall_event.shard);
-            cols.clk_16 = F::from_canonical_u16(clk_16);
-            cols.clk_8 = F::from_canonical_u8(clk_8);
+            cols.clk = F::from_canonical_u32(syscall_event.clk);
             cols.syscall_id = F::from_canonical_u32(syscall_event.syscall_code.syscall_id());
             cols.arg1 = F::from_canonical_u32(syscall_event.arg1);
             cols.arg2 = F::from_canonical_u32(syscall_event.arg2);
@@ -226,6 +204,9 @@ where
         let local = main.row_slice(0);
         let local: &SyscallCols<AB::Var> = (*local).borrow();
 
+        // Constrain that `local.is_real` is boolean.
+        builder.assert_bool(local.is_real);
+
         builder.assert_eq(
             local.is_real * local.is_real * local.is_real,
             local.is_real * local.is_real * local.is_real,
@@ -235,7 +216,7 @@ where
             SyscallShardKind::Core => {
                 builder.receive_syscall(
                     local.shard,
-                    local.clk_16 + local.clk_8 * AB::Expr::from_canonical_u32(1 << 16),
+                    local.clk,
                     local.syscall_id,
                     local.arg1,
                     local.arg2,
@@ -243,19 +224,20 @@ where
                     InteractionScope::Local,
                 );
 
-                // Send the interaction to the global table.
+                // Send the "send interaction" to the global table.
                 builder.send(
                     AirInteraction::new(
                         vec![
                             local.shard.into(),
-                            local.clk_16.into(),
-                            local.clk_8.into(),
+                            local.clk.into(),
                             local.syscall_id.into(),
                             local.arg1.into(),
                             local.arg2.into(),
                             AB::Expr::zero(),
-                            local.is_real.into() * AB::Expr::one(),
-                            local.is_real.into() * AB::Expr::zero(),
+                            AB::Expr::zero(),
+                            AB::Expr::one(),
+                            AB::Expr::zero(),
+                            AB::Expr::from_canonical_u8(InteractionKind::Syscall as u8),
                         ],
                         local.is_real.into(),
                         InteractionKind::Global,
@@ -266,7 +248,7 @@ where
             SyscallShardKind::Precompile => {
                 builder.send_syscall(
                     local.shard,
-                    local.clk_16 + local.clk_8 * AB::Expr::from_canonical_u32(1 << 16),
+                    local.clk,
                     local.syscall_id,
                     local.arg1,
                     local.arg2,
@@ -274,19 +256,20 @@ where
                     InteractionScope::Local,
                 );
 
-                // Send the interaction to the global table.
+                // Send the "receive interaction" to the global table.
                 builder.send(
                     AirInteraction::new(
                         vec![
                             local.shard.into(),
-                            local.clk_16.into(),
-                            local.clk_8.into(),
+                            local.clk.into(),
                             local.syscall_id.into(),
                             local.arg1.into(),
                             local.arg2.into(),
                             AB::Expr::zero(),
-                            local.is_real.into() * AB::Expr::zero(),
-                            local.is_real.into() * AB::Expr::one(),
+                            AB::Expr::zero(),
+                            AB::Expr::zero(),
+                            AB::Expr::one(),
+                            AB::Expr::from_canonical_u8(InteractionKind::Syscall as u8),
                         ],
                         local.is_real.into(),
                         InteractionKind::Global,

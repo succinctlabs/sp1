@@ -1,6 +1,5 @@
 use std::{borrow::Borrow, mem::transmute};
 
-use crate::air::WordAirBuilder;
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
@@ -23,13 +22,7 @@ use sp1_stark::{
 use std::borrow::BorrowMut;
 
 use crate::{
-    operations::{
-        poseidon2::{
-            air::{eval_external_round, eval_internal_rounds},
-            NUM_EXTERNAL_ROUNDS,
-        },
-        GlobalAccumulationOperation, GlobalInteractionOperation,
-    },
+    operations::{GlobalAccumulationOperation, GlobalInteractionOperation},
     utils::{indices_arr, next_power_of_two, zeroed_f_vec},
 };
 use sp1_derive::AlignedBorrow;
@@ -46,7 +39,7 @@ const GLOBAL_COL_MAP: GlobalCols<usize> = make_col_map();
 
 pub const GLOBAL_INITIAL_DIGEST_POS: usize = GLOBAL_COL_MAP.accumulation.initial_digest[0].0[0];
 
-pub const GLOBAL_INITIAL_DIGEST_POS_COPY: usize = 376;
+pub const GLOBAL_INITIAL_DIGEST_POS_COPY: usize = 377;
 
 #[repr(C)]
 pub struct Ghost {
@@ -60,6 +53,7 @@ pub struct GlobalChip;
 #[repr(C)]
 pub struct GlobalCols<T: Copy> {
     pub message: [T; 7],
+    pub kind: T,
     pub interaction: GlobalInteractionOperation<T>,
     pub is_receive: T,
     pub is_send: T,
@@ -130,11 +124,12 @@ impl<F: PrimeField32> MachineAir<F> for GlobalChip {
                     let cols: &mut GlobalCols<F> = row.borrow_mut();
                     let event: &GlobalInteractionEvent = &events[idx];
                     cols.message = event.message.map(F::from_canonical_u32);
+                    cols.kind = F::from_canonical_u8(event.kind);
                     cols.interaction.populate(
                         SepticBlock(event.message),
                         event.is_receive,
                         true,
-                        InteractionKind::Global,
+                        event.kind,
                     );
                     cols.is_real = F::one();
                     if event.is_receive {
@@ -214,7 +209,14 @@ where
         let next = main.row_slice(1);
         let next: &GlobalCols<AB::Var> = (*next).borrow();
 
-        // Receive the arguments.
+        // Receive the arguments, which consists of 7 message columns, `is_send`, `is_receive`, and `kind`.
+        // In MemoryGlobal, MemoryLocal, Syscall chips, `is_send`, `is_receive`, `kind` are sent with correct constant values.
+        // For a global send interaction, `is_send = 1` and `is_receive = 0` are used.
+        // For a global receive interaction, `is_send = 0` and `is_receive = 1` are used.
+        // For a memory global interaction, `kind = InteractionKind::Memory` is used.
+        // For a syscall global interaction, `kind = InteractionKind::Syscall` is used.
+        // Therefore, `is_send`, `is_receive` are already known to be boolean, and `kind` is also known to be a `u8` value.
+        // Note that `local.is_real` is constrained to be boolean in `eval_single_digest`.
         builder.receive(
             AirInteraction::new(
                 vec![
@@ -227,6 +229,7 @@ where
                     local.message[6].into(),
                     local.is_send.into(),
                     local.is_receive.into(),
+                    local.kind.into(),
                 ],
                 local.is_real.into(),
                 InteractionKind::Global,
@@ -242,7 +245,7 @@ where
             local.is_receive.into(),
             local.is_send.into(),
             local.is_real,
-            InteractionKind::Global,
+            local.kind,
         );
 
         // Evaluate the accumulation.
@@ -254,16 +257,6 @@ where
             local.accumulation,
             next.accumulation,
         );
-
-        // Constraint the permutation.
-        for r in 0..NUM_EXTERNAL_ROUNDS {
-            eval_external_round(builder, &local.interaction.permutation.permutation, r);
-        }
-        eval_internal_rounds(builder, &local.interaction.permutation.permutation);
-
-        // Range check the first element in the message to be "small" so that we can encode
-        // the interaction kind in the upper 8 bits.
-        builder.slice_range_check_u16(&local.message[0..1], local.is_real);
     }
 }
 

@@ -134,7 +134,6 @@ impl<F: Field, const N: usize> GlobalAccumulationOperation<F, N> {
         builder.when_transition().when_not(local_is_real[N - 1]).assert_zero(next_is_real[0]);
 
         // Next, constrain the accumulation.
-        // Constrain that the first `initial_digest` is the starting point.
         let initial_digest = SepticCurve::<AB::Expr> {
             x: SepticExtension::<AB::Expr>::from_base_fn(|i| {
                 local_accumulation.initial_digest[0][i].into()
@@ -162,10 +161,10 @@ impl<F: Field, const N: usize> GlobalAccumulationOperation<F, N> {
             }),
         };
 
-        let starting_digest = SepticDigest::<AB::Expr>::zero().0;
-
-        builder.when_first_row().assert_septic_ext_eq(initial_digest.x.clone(), starting_digest.x);
-        builder.when_first_row().assert_septic_ext_eq(initial_digest.y.clone(), starting_digest.y);
+        // Constrain that the first `initial_digest` is the zero digest.
+        let zero_digest = SepticDigest::<AB::Expr>::zero().0;
+        builder.when_first_row().assert_septic_ext_eq(initial_digest.x.clone(), zero_digest.x);
+        builder.when_first_row().assert_septic_ext_eq(initial_digest.y.clone(), zero_digest.y);
 
         // Constrain that when `is_real = 1`, addition is being carried out, and when `is_real = 0`, the sum remains the same.
         for i in 0..N {
@@ -173,7 +172,8 @@ impl<F: Field, const N: usize> GlobalAccumulationOperation<F, N> {
                 if i == 0 { initial_digest.clone() } else { ith_cumulative_sum(i - 1) };
             let point_to_add = ith_point_to_add(i);
             let next_sum = ith_cumulative_sum(i);
-            // If `is_real == 1`, current_sum + point_to_add == next_sum must hold.
+            // If `local_is_real[i] == 1`, current_sum + point_to_add == next_sum must hold.
+            // To do this, constrain that `sum_checker_x` and `sum_checker_y` are both zero when `is_real == 1`.
             let sum_checker_x = SepticCurve::<AB::Expr>::sum_checker_x(
                 current_sum.clone(),
                 point_to_add.clone(),
@@ -187,7 +187,9 @@ impl<F: Field, const N: usize> GlobalAccumulationOperation<F, N> {
             let witnessed_sum_checker_x = SepticExtension::<AB::Expr>::from_base_fn(|idx| {
                 local_accumulation.sum_checker[i].0[idx].into()
             });
+            // Since `sum_checker_x` is degree 3, we constrain it to be equal to `witnessed_sum_checker_x` first.
             builder.assert_septic_ext_eq(sum_checker_x, witnessed_sum_checker_x.clone());
+            // Now we can constrain that when `local_is_real[i] == 1`, the two `sum_checker` values are both zero.
             builder
                 .when(local_is_real[i])
                 .assert_septic_ext_eq(witnessed_sum_checker_x, SepticExtension::<AB::Expr>::zero());
