@@ -10,7 +10,7 @@ use anyhow::Result;
 use backoff::{future::retry, ExponentialBackoff};
 use serde::de::DeserializeOwned;
 use sp1_core_machine::io::SP1Stdin;
-use sp1_prover::{components::DefaultProverComponents, SP1Prover, SP1_CIRCUIT_VERSION};
+use sp1_prover::{components::CpuProverComponents, SP1Prover, SP1_CIRCUIT_VERSION};
 use sp1_stark::SP1ProverOpts;
 use tonic::Code;
 
@@ -202,7 +202,7 @@ impl NetworkProver {
     }
 }
 
-impl Prover<DefaultProverComponents> for NetworkProver {
+impl Prover<CpuProverComponents> for NetworkProver {
     fn id(&self) -> ProverType {
         ProverType::Network
     }
@@ -231,7 +231,7 @@ impl Prover<DefaultProverComponents> for NetworkProver {
 /// Warns if `opts` or `context` are not default values, since they are currently unsupported.
 fn warn_if_not_default(opts: &SP1ProverOpts, context: &SP1Context) {
     let _guard = tracing::warn_span!("network_prover").entered();
-    if opts != &SP1ProverOpts::default() {
+    if opts != &SP1ProverOpts::auto() {
         tracing::warn!("non-default opts will be ignored: {:?}", opts.core_opts);
         tracing::warn!("custom SP1ProverOpts are currently unsupported by the network prover");
     }

@@ -32,7 +32,7 @@ pub mod utils {
 use cfg_if::cfg_if;
 pub use proof::*;
 pub use provers::SP1VerificationError;
-use sp1_prover::components::DefaultProverComponents;
+use sp1_prover::components::CpuProverComponents;
 
 #[cfg(any(feature = "network", feature = "network-v2"))]
 use {std::future::Future, tokio::task::block_in_place};
@@ -51,7 +51,7 @@ pub use sp1_prover::{
 /// A client for interacting with SP1.
 pub struct ProverClient {
     /// The underlying prover implementation.
-    pub prover: Box<dyn Prover<DefaultProverComponents>>,
+    pub prover: Box<dyn Prover<CpuProverComponents>>,
 }
 
 impl ProverClient {

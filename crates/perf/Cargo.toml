@@ -8,10 +8,11 @@ license = { workspace = true }
 repository = { workspace = true }
 keywords = { workspace = true }
 categories = { workspace = true }
+default-run = "sp1-perf"
 
 [dependencies]
 sp1-prover = { workspace = true }
-sp1-core-executor = { workspace = true, features = ["programs", "bigint-rug"] }
+sp1-core-executor = { workspace = true, features = ["programs"] }
 sp1-core-machine = { workspace = true }
 sp1-sdk = { workspace = true }
 p3-baby-bear = { workspace = true }
@@ -26,6 +27,15 @@ clap = { version = "4.5.9", features = ["derive"] }
 bincode = "1.3.3"
 time = "0.3.26"
 
+[[bin]]
+name = "sp1-perf"
+path = "src/main.rs"
+
+[[bin]]
+name = "sp1-perf-executor"
+path = "src/executor.rs"
+
 [features]
+bigint-rug = ["sp1-core-executor/bigint-rug"]
 native-gnark = ["sp1-sdk/native-gnark"]
 network-v2 = ["sp1-sdk/network-v2"]

@@ -18,7 +18,7 @@ use crate::{
         emit_auipc_dependency, emit_branch_dependencies, emit_divrem_dependencies,
         emit_jump_dependencies, emit_memory_dependencies,
     },
-    estimate_riscv_event_counts,
+    estimate_riscv_event_counts, estimate_riscv_lde_size,
     events::{
         AUIPCEvent, AluEvent, BranchEvent, CpuEvent, JumpEvent, MemInstrEvent,
         MemoryAccessPosition, MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryReadRecord,
@@ -26,6 +26,7 @@ use crate::{
     },
     hook::{HookEnv, HookRegistry},
     memory::{Entry, Memory},
+    pad_rv32im_event_counts,
     record::{ExecutionRecord, MemoryAccessRecord},
     report::ExecutionReport,
     state::{ExecutionState, ForkState},
@@ -52,8 +53,6 @@ pub enum DeferredProofVerification {
     /// Skip verification of deferred proofs
     Disabled,
 }
-
-const CHECK_CYCLE: usize = 16;
 
 /// An executor for the SP1 RISC-V zkVM.
 ///
@@ -149,10 +148,19 @@ pub struct Executor<'a> {
     pub maximal_shapes: Option<Vec<Shape<RiscvAirId>>>,
 
     /// The costs of the program.
-    pub costs: HashMap<RiscvAirId, usize>,
+    pub costs: HashMap<RiscvAirId, u64>,
 
     /// Skip deferred proof verification.
     pub deferred_proof_verification: DeferredProofVerification,
+
+    /// The frequency to check the stopping condition.
+    pub shape_check_frequency: u64,
+
+    /// Early exit if the estimate LDE size is too big.
+    pub lde_size_check: bool,
+
+    /// The maximum LDE size to allow.
+    pub lde_size_threshold: u64,
 }
 
 /// The different modes the executor can run in.
@@ -297,7 +305,10 @@ impl<'a> Executor<'a> {
             uninitialized_memory_checkpoint: Memory::default(),
             local_memory_access: HashMap::new(),
             maximal_shapes: None,
-            costs,
+            costs: costs.into_iter().map(|(k, v)| (k, v as u64)).collect(),
+            shape_check_frequency: 16,
+            lde_size_check: false,
+            lde_size_threshold: 0,
         }
     }
 
@@ -685,6 +696,17 @@ impl<'a> Executor<'a> {
                 entry.insert(MemoryRecord { value: *value, shard: 0, timestamp: 0 })
             }
         };
+
+        // We update the local memory counter in two cases:
+        //  1. This is the first time the address is touched, this corresponds to the
+        //     condition record.shard != shard.
+        //  2. The address is being accessed in a syscall. In this case, we need to send it. We use
+        //     local_memory_access to detect this. *WARNING*: This means that we are counting
+        //     on the .is_some() condition to be true only in the SyscallContext.
+        if !self.unconstrained && (record.shard != shard || local_memory_access.is_some()) {
+            self.local_counts.local_mem += 1;
+        }
+
         let prev_record = *record;
         record.value = value;
         record.shard = shard;
@@ -707,6 +729,7 @@ impl<'a> Executor<'a> {
                     final_mem_access: *record,
                 });
         }
+
         // Construct the memory write record.
         MemoryWriteRecord::new(
             record.value,
@@ -769,16 +792,6 @@ impl<'a> Executor<'a> {
                 entry.insert(MemoryRecord { value: *value, shard: 0, timestamp: 0 })
             }
         };
-
-        // We update the local memory counter in two cases:
-        //  1. This is the first time the address is touched, this corresponds to the
-        //     condition record.shard != shard.
-        //  2. The address is being accessed in a syscall. In this case, we need to send it. We use
-        //     local_memory_access to detect this. *WARNING*: This means that we are counting
-        //     on the .is_some() condition to be true only in the SyscallContext.
-        if !self.unconstrained && (record.shard != shard || local_memory_access.is_some()) {
-            self.local_counts.local_mem += 1;
-        }
 
         let prev_record = *record;
         record.value = value;
@@ -1624,7 +1637,7 @@ impl<'a> Executor<'a> {
             //
             // If we're close to not fitting, early stop the shard to ensure we don't OOM.
             let mut shape_match_found = true;
-            if self.state.global_clk % (CHECK_CYCLE as u64) == 0 {
+            if self.state.global_clk % self.shape_check_frequency == 0 {
                 // Estimate the number of events in the trace.
                 let event_counts = estimate_riscv_event_counts(
                     (self.state.clk >> 2) as u64,
@@ -1633,7 +1646,21 @@ impl<'a> Executor<'a> {
                     *self.local_counts.event_counts,
                 );
 
-                if let Some(maximal_shapes) = &self.maximal_shapes {
+                // Check if the LDE size is too large.
+                if self.lde_size_check {
+                    let padded_event_counts =
+                        pad_rv32im_event_counts(event_counts, self.shape_check_frequency);
+                    let padded_lde_size = estimate_riscv_lde_size(padded_event_counts, &self.costs);
+                    if padded_lde_size > self.lde_size_threshold {
+                        tracing::warn!(
+                            "stopping shard early due to lde size: {} gb",
+                            (padded_lde_size as u64) / 1_000_000_000
+                        );
+                        shape_match_found = false;
+                    }
+                }
+                // Check if we're too "close" to a maximal shape.
+                else if let Some(maximal_shapes) = &self.maximal_shapes {
                     let distance = |threshold: usize, count: usize| {
                         (count != 0).then(|| threshold - count).unwrap_or(usize::MAX)
                     };
@@ -1660,21 +1687,22 @@ impl<'a> Executor<'a> {
                                 break;
                             }
 
-                            distances.push(distance(threshold, count));
+                            distances.push((air, distance(threshold, count)));
                         }
 
                         if shape_too_small {
                             continue;
                         }
 
-                        let l_infinity = distances.into_iter().min().unwrap();
-                        if l_infinity >= 2 * CHECK_CYCLE {
+                        let l_infinity = distances.clone().into_iter().map(|x| x.1).min().unwrap();
+                        if l_infinity >= 32 * (self.shape_check_frequency as usize) {
                             shape_match_found = true;
                             break;
                         }
                     }
 
                     if !shape_match_found {
+                        self.record.counts = Some(event_counts);
                         log::warn!(
                             "stopping shard early due to no shapes fitting: \
                             clk: {},

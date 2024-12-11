@@ -1,7 +1,7 @@
 use sp1_core_executor::{ExecutionReport, HookEnv, SP1ContextBuilder};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_primitives::io::SP1PublicValues;
-use sp1_prover::{components::DefaultProverComponents, SP1ProvingKey};
+use sp1_prover::{components::CpuProverComponents, SP1ProvingKey};
 
 use anyhow::{Ok, Result};
 use sp1_stark::{SP1CoreOpts, SP1ProverOpts};
@@ -12,7 +12,7 @@ use crate::{provers::ProofOpts, Prover, SP1ProofKind, SP1ProofWithPublicValues};
 /// Builder to prepare and configure execution of a program on an input.
 /// May be run with [Self::run].
 pub struct Execute<'a> {
-    prover: &'a dyn Prover<DefaultProverComponents>,
+    prover: &'a dyn Prover<CpuProverComponents>,
     context_builder: SP1ContextBuilder<'a>,
     elf: &'a [u8],
     stdin: SP1Stdin,
@@ -24,7 +24,7 @@ impl<'a> Execute<'a> {
     /// Prefer using [ProverClient::execute](super::ProverClient::execute).
     /// See there for more documentation.
     pub fn new(
-        prover: &'a dyn Prover<DefaultProverComponents>,
+        prover: &'a dyn Prover<CpuProverComponents>,
         elf: &'a [u8],
         stdin: SP1Stdin,
     ) -> Self {
@@ -80,7 +80,7 @@ impl<'a> Execute<'a> {
 /// Builder to prepare and configure proving execution of a program on an input.
 /// May be run with [Self::run].
 pub struct Prove<'a> {
-    prover: &'a dyn Prover<DefaultProverComponents>,
+    prover: &'a dyn Prover<CpuProverComponents>,
     kind: SP1ProofKind,
     context_builder: SP1ContextBuilder<'a>,
     pk: &'a SP1ProvingKey,
@@ -96,7 +96,7 @@ impl<'a> Prove<'a> {
     /// Prefer using [ProverClient::prove](super::ProverClient::prove).
     /// See there for more documentation.
     pub fn new(
-        prover: &'a dyn Prover<DefaultProverComponents>,
+        prover: &'a dyn Prover<CpuProverComponents>,
         pk: &'a SP1ProvingKey,
         stdin: SP1Stdin,
     ) -> Self {
@@ -198,12 +198,6 @@ impl<'a> Prove<'a> {
     /// Set the shard batch size for proving.
     pub fn shard_batch_size(mut self, value: usize) -> Self {
         self.core_opts.shard_batch_size = value;
-        self
-    }
-
-    /// Set whether we should reconstruct commitments while proving.
-    pub fn reconstruct_commitments(mut self, value: bool) -> Self {
-        self.core_opts.reconstruct_commitments = value;
         self
     }
 

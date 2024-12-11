@@ -129,17 +129,23 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             .iter()
             .map(|(name, domain, _)| {
                 let i = chip_ordering[name];
+                if name != &chips[i].name() {
+                    return Err(VerificationError::PreprocessedChipIdMismatch(
+                        name.clone(),
+                        chips[i].name(),
+                    ));
+                }
                 let values = opened_values.chips[i].preprocessed.clone();
                 if !chips[i].local_only() {
-                    (
+                    Ok((
                         *domain,
                         vec![(zeta, values.local), (domain.next_point(zeta).unwrap(), values.next)],
-                    )
+                    ))
                 } else {
-                    (*domain, vec![(zeta, values.local)])
+                    Ok((*domain, vec![(zeta, values.local)]))
                 }
             })
-            .collect::<Vec<_>>();
+            .collect::<Result<Vec<_>, _>>()?;
 
         let main_domains_points_and_opens = trace_domains
             .iter()
@@ -464,6 +470,8 @@ pub enum VerificationError<SC: StarkGenericConfig> {
     MissingCpuChip,
     /// The length of the chip opening does not match the expected length.
     ChipOpeningLengthMismatch,
+    /// The preprocessed chip id does not match the claimed opening id.
+    PreprocessedChipIdMismatch(String, String),
     /// Cumulative sums error
     CumulativeSumsError(&'static str),
 }
@@ -516,6 +524,9 @@ impl<SC: StarkGenericConfig> Debug for VerificationError<SC> {
             VerificationError::ChipOpeningLengthMismatch => {
                 write!(f, "Chip opening length mismatch")
             }
+            VerificationError::PreprocessedChipIdMismatch(expected, actual) => {
+                write!(f, "Preprocessed chip id mismatch: expected {}, got {}", expected, actual)
+            }
             VerificationError::CumulativeSumsError(s) => write!(f, "cumulative sums error: {}", s),
         }
     }
@@ -541,6 +552,9 @@ impl<SC: StarkGenericConfig> Display for VerificationError<SC> {
                 write!(f, "Chip opening length mismatch")
             }
             VerificationError::CumulativeSumsError(s) => write!(f, "cumulative sums error: {}", s),
+            VerificationError::PreprocessedChipIdMismatch(expected, actual) => {
+                write!(f, "Preprocessed chip id mismatch: expected {}, got {}", expected, actual)
+            }
         }
     }
 }

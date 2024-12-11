@@ -1,16 +1,16 @@
-name: Testing Suite (Prover)
+name: Testing Suite (Executor)
 
 on:
   workflow_dispatch:
     inputs:
-      cpu_workloads:
-        description: "list of cpu workloads to run"
+      simple_workloads:
+        description: "list of simple executor workloads to run"
         required: true
-      cuda_workloads:
-        description: "list of cuda workloads to run"
+      checkpoint_workloads:
+        description: "list of checkpoint executor workloads to run"
         required: true
-      network_workloads:
-        description: "list of network workloads to run"
+      trace_workloads:
+        description: "list of trace executor workloads to run"
         required: true
   merge_group:
 
@@ -19,13 +19,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  test-cpu:
-    if: ${{ fromJSON(github.event.inputs.cpu_workloads)[0] != null }}
+  test-simple-executor:
+    if: ${{ fromJSON(github.event.inputs.simple_workloads)[0] != null }}
     strategy:
       fail-fast: false
       matrix:
-        workload: ${{ fromJSON(github.event.inputs.cpu_workloads) }}
-    name: ${{ matrix.workload }} (cpu)
+        workload: ${{ fromJSON(github.event.inputs.simple_workloads) }}
+    name: ${{ matrix.workload }} (simple executor)
     runs-on:
       [
         "runs-on",
@@ -60,35 +60,29 @@ jobs:
           cargo install --locked --force --path .
           cargo clean
 
-      - name: Install m4
-        run: |
-          sudo apt-get install m4
-
       - name: Run sp1-perf
         uses: actions-rs/cargo@v1
         with:
           command: run
           toolchain: 1.81.0
-          args: --release -p sp1-perf -- --program workdir/program.bin --stdin workdir/stdin.bin --prover-mode cpu
+          args: --release -p sp1-perf --bin sp1-perf-executor -- --program workdir/program.bin --stdin workdir/stdin.bin --executor-mode simple
         env:
           RUST_LOG: info
           VERIFY_VK: false
           RUSTFLAGS: -Copt-level=3 -Ctarget-cpu=native
           RUST_BACKTRACE: 1
 
-  test-cuda:
-    if: ${{ fromJSON(github.event.inputs.cuda_workloads)[0] != null }}
+  test-checkpoint-executor:
+    if: ${{ fromJSON(github.event.inputs.checkpoint_workloads)[0] != null }}
     strategy:
       fail-fast: false
       matrix:
-        workload: ${{ fromJSON(github.event.inputs.cuda_workloads) }}
-    name: ${{ matrix.workload }} (gpu)
+        workload: ${{ fromJSON(github.event.inputs.checkpoint_workloads) }}
+    name: ${{ matrix.workload }} (checkpoint executor)
     runs-on:
       [
         "runs-on",
-        "family=g6.4xlarge",
-        "hdd=200",
-        "ami=ami-0a63dc9cb9e934ba3",
+        "runner=64cpu-linux-x64",
         "spot=false",
         "run-id=${{ github.run_id }}",
       ]
@@ -119,34 +113,29 @@ jobs:
           cargo install --locked --force --path .
           cargo clean
 
-      - name: Install m4
-        run: |
-          sudo apt-get install m4
-
       - name: Run sp1-perf
         uses: actions-rs/cargo@v1
         with:
           command: run
           toolchain: 1.81.0
-          args: --release -p sp1-perf -- --program workdir/program.bin --stdin workdir/stdin.bin --prover-mode cuda
+          args: --release -p sp1-perf --bin sp1-perf-executor -- --program workdir/program.bin --stdin workdir/stdin.bin --executor-mode checkpoint
         env:
-          RUST_LOG: debug
+          RUST_LOG: info
           VERIFY_VK: false
           RUSTFLAGS: -Copt-level=3 -Ctarget-cpu=native
           RUST_BACKTRACE: 1
-          SP1_PROVER: cuda
 
-  test-network:
-    if: ${{ fromJSON(github.event.inputs.network_workloads)[0] != null }}
+  test-trace-executor:
+    if: ${{ fromJSON(github.event.inputs.trace_workloads)[0] != null }}
     strategy:
       fail-fast: false
       matrix:
-        workload: ${{ fromJSON(github.event.inputs.network_workloads) }}
-    name: ${{ matrix.workload }} (network)
+        workload: ${{ fromJSON(github.event.inputs.trace_workloads) }}
+    name: ${{ matrix.workload }} (trace executor)
     runs-on:
       [
         "runs-on",
-        "runner=16cpu-linux-x64",
+        "runner=64cpu-linux-x64",
         "spot=false",
         "run-id=${{ github.run_id }}",
       ]
@@ -170,12 +159,6 @@ jobs:
           aws s3 cp s3://sp1-testing-suite/${{ matrix.workload }}/program.bin workdir/program.bin
           aws s3 cp s3://sp1-testing-suite/${{ matrix.workload }}/stdin.bin workdir/stdin.bin
 
-      - name: Clean Cargo cache
-        uses: actions-rs/cargo@v1
-        with:
-          command: clean
-          toolchain: 1.81.0
-
       - name: Install SP1 toolchain from repo
         run: |
           cargo run -p sp1-cli -- prove install-toolchain
@@ -188,13 +171,9 @@ jobs:
         with:
           command: run
           toolchain: 1.81.0
-          args: --release -p sp1-perf --features "native-gnark" -- --program workdir/program.bin --stdin workdir/stdin.bin --prover-mode network
+          args: --release -p sp1-perf --bin sp1-perf-executor -- --program workdir/program.bin --stdin workdir/stdin.bin --executor-mode trace
         env:
           RUST_LOG: info
           VERIFY_VK: false
           RUSTFLAGS: -Copt-level=3 -Ctarget-cpu=native
           RUST_BACKTRACE: 1
-          SP1_PROVER: network
-          SP1_PRIVATE_KEY: ${{ secrets.SP1_PRIVATE_KEY }}
-          PROVER_NETWORK_RPC: "https://rpc-staging.succinct.xyz"
-          

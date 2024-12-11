@@ -78,6 +78,11 @@ impl<K: Clone + Eq + Hash + FromStr> Shape<K> {
         self.inner.contains_key(key)
     }
 
+    /// Insert a key-height pair into the shape.
+    pub fn insert(&mut self, key: K, height: usize) {
+        self.inner.insert(key, height);
+    }
+
     /// Whether the shape includes a given AIR.
     ///
     /// TODO: Deprecate by adding `air.id()`.
@@ -91,6 +96,15 @@ impl<K: Clone + Eq + Hash + FromStr> Shape<K> {
     /// Get an iterator over the shape.
     pub fn iter(&self) -> impl Iterator<Item = (&K, &usize)> {
         self.inner.iter().sorted_by_key(|(_, v)| *v)
+    }
+
+    /// Estimate the lde size.
+    ///
+    /// WARNING: This is a heuristic, it may not be completely accurate. To be 100% sure that they
+    /// OOM, you should run the shape through the prover.
+    #[must_use]
+    pub fn estimate_lde_size(&self, costs: &HashMap<K, usize>) -> usize {
+        self.iter().map(|(k, h)| costs[k] * (1 << h)).sum()
     }
 }
 

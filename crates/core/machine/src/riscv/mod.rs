@@ -461,6 +461,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         vec![
             (RiscvAirId::MemoryGlobalInit, record.global_memory_initialize_events.len()),
             (RiscvAirId::MemoryGlobalFinalize, record.global_memory_finalize_events.len()),
+            // TODO: this is duplicated in core_heights and the logic seems wrong.
             (
                 RiscvAirId::Global,
                 record.global_memory_finalize_events.len()

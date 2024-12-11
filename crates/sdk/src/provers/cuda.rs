@@ -1,7 +1,7 @@
 use anyhow::Result;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_cuda::SP1CudaProver;
-use sp1_prover::{components::DefaultProverComponents, SP1Prover};
+use sp1_prover::{components::CpuProverComponents, SP1Prover};
 
 use super::ProverType;
 use crate::{
@@ -11,7 +11,7 @@ use crate::{
 
 /// An implementation of [crate::ProverClient] that can generate proofs locally using CUDA.
 pub struct CudaProver {
-    prover: SP1Prover<DefaultProverComponents>,
+    prover: SP1Prover<CpuProverComponents>,
     cuda_prover: SP1CudaProver,
 }
 
@@ -23,7 +23,7 @@ impl CudaProver {
     }
 }
 
-impl Prover<DefaultProverComponents> for CudaProver {
+impl Prover<CpuProverComponents> for CudaProver {
     fn id(&self) -> ProverType {
         ProverType::Cuda
     }
@@ -33,7 +33,7 @@ impl Prover<DefaultProverComponents> for CudaProver {
         (pk, vk)
     }
 
-    fn sp1_prover(&self) -> &SP1Prover<DefaultProverComponents> {
+    fn sp1_prover(&self) -> &SP1Prover<CpuProverComponents> {
         &self.prover
     }
 

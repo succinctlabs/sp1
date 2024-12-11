@@ -9,16 +9,14 @@ use sp1_stark::{shape::Shape, SP1CoreOpts};
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
-    #[clap(short, long, value_delimiter = ',')]
-    list: Vec<PathBuf>,
-    #[clap(short, long, value_delimiter = ',')]
+    #[clap(short, long, value_delimiter = ' ')]
+    list: Vec<String>,
+    #[clap(short, long, value_delimiter = ' ')]
     shard_sizes: Vec<usize>,
     #[clap(short, long)]
     initial: Option<PathBuf>,
     #[clap(short, long, default_value = "maximal_shapes.json")]
     output: Option<PathBuf>,
-    #[clap(short, long, default_value = "false")]
-    reset: bool,
 }
 
 fn collect_maximal_shapes(
@@ -33,6 +31,12 @@ fn collect_maximal_shapes(
     executor.write_vecs(&stdin.buffer);
     for (proof, vkey) in stdin.proofs.iter() {
         executor.write_proof(proof.clone(), vkey.clone());
+    }
+
+    // Use this to make sure we don't collect too many shapes that will just OOM out of the box.
+    if opts.shard_size == 1 << 22 {
+        executor.lde_size_check = true;
+        executor.lde_size_threshold = 14 * 1_000_000_000;
     }
 
     // Collect the maximal shapes.
@@ -54,6 +58,7 @@ fn collect_maximal_shapes(
             }
         }
     }
+
     maximal_shapes
 }
 
@@ -84,7 +89,7 @@ fn main() {
     let args = Args::parse();
 
     // Setup the options.
-    let mut opts = SP1CoreOpts::default();
+    let mut opts = SP1CoreOpts { shard_batch_size: 1, ..Default::default() };
 
     // Load the initial maximal shapes.
     let mut all_maximal_shapes: BTreeMap<usize, Vec<Shape<RiscvAirId>>> =
@@ -103,15 +108,6 @@ fn main() {
             BTreeMap::new()
         };
 
-    // Reset the maximal shapes if requested.
-    if args.reset {
-        for log_shard_size in args.shard_sizes.iter() {
-            if let Some(m) = all_maximal_shapes.get_mut(log_shard_size) {
-                *m = Vec::new();
-            }
-        }
-    }
-
     // Print the initial maximal shapes.
     for log_shard_size in args.shard_sizes.iter() {
         tracing::info!(
@@ -126,7 +122,6 @@ fn main() {
     let program_list = args.list;
     for s3_path in program_list {
         // Download program and stdin files from S3.
-        let s3_path = s3_path.to_string_lossy().into_owned();
         tracing::info!("download elf and input for {}", s3_path);
 
         // Download program.bin.
@@ -170,7 +165,7 @@ fn main() {
             let new_context = SP1Context::default();
             let s3_path = s3_path.clone();
             rayon::spawn(move || {
-                opts.set_shard_size(1 << log_shard_size);
+                opts.shard_size = 1 << log_shard_size;
                 let maximal_shapes = collect_maximal_shapes(&elf, &stdin, opts, new_context);
                 tracing::info!(
                     "there are {} maximal shapes for {} for log shard size {}",
