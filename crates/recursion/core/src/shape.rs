@@ -49,27 +49,15 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize>
 {
     pub fn fix_shape(&self, program: &mut RecursionProgram<F>) {
         let heights = RecursionAir::<F, DEGREE>::heights(program);
-        // Get the allowed shape with a minimal hamming distance from the current shape.
-        let mut min_distance = usize::MAX;
+
         let mut closest_shape = None;
         for shape in self.allowed_shapes.iter() {
-            let mut distance = 0;
-            let mut is_valid = true;
             for (name, height) in heights.iter() {
-                let next_power_of_two = height.next_power_of_two();
-                let allowed_log_height = shape.get(name).unwrap();
-                let allowed_height = 1 << allowed_log_height;
-                if next_power_of_two != allowed_height {
-                    distance += 1;
-                }
-                if next_power_of_two > allowed_height {
-                    is_valid = false;
+                if *height > (1 << shape.get(name).unwrap()) {
+                    continue;
                 }
             }
-            if is_valid && distance < min_distance {
-                min_distance = distance;
-                closest_shape = Some(shape.clone());
-            }
+            closest_shape = Some(shape.clone());
         }
 
         if let Some(shape) = closest_shape {
@@ -137,9 +125,9 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
         let allowed_shapes = [
             [
                 (mem_var.clone(), 19),
-                (select.clone(), 20),
-                (mem_const.clone(), 18),
-                (batch_fri.clone(), 21),
+                (select.clone(), 19),
+                (mem_const.clone(), 17),
+                (batch_fri.clone(), 19),
                 (base_alu.clone(), 16),
                 (ext_alu.clone(), 16),
                 (exp_reverse_bits_len.clone(), 18),
@@ -148,9 +136,9 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
             ],
             [
                 (mem_var.clone(), 19),
-                (select.clone(), 19),
-                (mem_const.clone(), 17),
-                (batch_fri.clone(), 19),
+                (select.clone(), 20),
+                (mem_const.clone(), 18),
+                (batch_fri.clone(), 21),
                 (base_alu.clone(), 16),
                 (ext_alu.clone(), 16),
                 (exp_reverse_bits_len.clone(), 18),
