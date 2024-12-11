@@ -19,17 +19,24 @@ async fn main() {
     let mut stdin = SP1Stdin::new();
     stdin.write(&n);
 
-    dotenv().ok();
+    // dotenv().ok();
 
-    let rpc_url = std::env::var("PROVER_NETWORK_RPC").unwrap();
-    let private_key = std::env::var("SP1_PRIVATE_KEY").unwrap();
+    // let rpc_url = std::env::var("PROVER_NETWORK_RPC").unwrap();
+    // let private_key = std::env::var("SP1_PRIVATE_KEY").unwrap();
 
     // Generate the proof, using the specified network configuration.
+    // let client = ProverClient::builder()
+    //     .network()
+    //     .with_rpc_url(rpc_url)
+    //     .with_private_key(private_key)
+    //     .build();
+
+    // Or use old env var behavior
+
     let client = ProverClient::builder()
-        .network()
-        .with_rpc_url(rpc_url)
-        .with_private_key(private_key)
-        .build();
+        .from_env();
+
+    // let client = ProverClient::new();
 
     // Generate the proving key and verifying key for the given program.
     let (pk, vk) = client.setup(ELF).await;

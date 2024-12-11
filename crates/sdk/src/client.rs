@@ -1,6 +1,7 @@
 use crate::{
     local::{LocalProver, LocalProverBuilder},
     network::{NetworkProver, NetworkProverBuilder},
+    network_v2::DEFAULT_PROVER_NETWORK_RPC,
     opts::ProofOpts,
     proof::SP1ProofWithPublicValues,
     prover::Prover,
@@ -28,7 +29,28 @@ impl ProverClient {
 
     #[deprecated(note = "Use ProverClient::builder() instead")]
     pub fn new() -> Self {
-        Self::builder().from_env()
+        Self::create_from_env()
+    }
+
+    fn create_from_env() -> Self {
+        match env::var("SP1_PROVER").unwrap_or("local".to_string()).as_str() {
+            "network" => {
+                let rpc_url = env::var("PROVER_NETWORK_RPC")
+                    .unwrap_or_else(|_| DEFAULT_PROVER_NETWORK_RPC.to_string());
+                let private_key = env::var("SP1_PRIVATE_KEY").unwrap_or_default();
+
+                let network_prover = NetworkProver::builder()
+                    .with_rpc_url(rpc_url)
+                    .with_private_key(private_key)
+                    .build();
+
+                ProverClient { inner: Box::new(network_prover) }
+            }
+            _ => {
+                let local_prover = LocalProver::builder().build();
+                ProverClient { inner: Box::new(local_prover) }
+            }
+        }
     }
 
     pub async fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
@@ -76,10 +98,7 @@ impl ProverClientBuilder<None> {
     }
 
     pub fn from_env(self) -> ProverClient {
-        match env::var("SP1_PROVER").unwrap_or("local".to_string()).as_str() {
-            "network" => self.network().build(),
-            _ => self.local().build(),
-        }
+        ProverClient::create_from_env()
     }
 }
 
