@@ -249,8 +249,8 @@ impl NetworkProver {
 
     pub fn prove_with_options<'a>(
         &'a self,
-        pk: &'a SP1ProvingKey,
-        stdin: &'a SP1Stdin,
+        pk: Arc<SP1ProvingKey>,
+        stdin: SP1Stdin,
     ) -> NetworkProofRequest<'a> {
         NetworkProofRequest::new(self, pk, stdin)
     }
@@ -306,7 +306,7 @@ pub struct NetworkProofRequest<'a> {
 }
 
 impl<'a> NetworkProofRequest<'a> {
-    pub fn new(prover: &'a NetworkProver, pk: &'a SP1ProvingKey, stdin: &'a SP1Stdin) -> Self {
+    pub fn new(prover: &'a NetworkProver, pk: Arc<SP1ProvingKey>, stdin: SP1Stdin) -> Self {
         Self {
             prover,
             pk,
@@ -391,23 +391,27 @@ impl<'a> IntoFuture for NetworkProofRequest<'a> {
 #[async_trait]
 impl Prover for NetworkProver {
     async fn setup(&self, elf: Arc<[u8]>) -> Arc<SP1ProvingKey> {
-        let elf = elf.to_vec();
         let prover = Arc::clone(&self.prover);
-        task::spawn_blocking(move || prover.setup(&elf)).await.unwrap()
+        let result = task::spawn_blocking(move || {
+            let (pk, _vk) = prover.setup(&elf);
+            Arc::new(pk)
+        })
+        .await
+        .unwrap();
+        result
     }
 
     #[cfg(feature = "blocking")]
     fn setup_sync(&self, elf: &[u8]) -> Arc<SP1ProvingKey> {
-        self.prover.setup(elf)
+        let (pk, _vk) = self.prover.setup(elf);
+        Arc::new(pk)
     }
 
     async fn execute(
         &self,
-        elf: &[u8],
-        stdin: &SP1Stdin,
+        elf: Arc<[u8]>,
+        stdin: SP1Stdin,
     ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
-        let elf = elf.to_vec();
-        let stdin = stdin.clone();
         let prover = Arc::clone(&self.prover);
         task::spawn_blocking(move || prover.execute(&elf, &stdin, SP1Context::default()))
             .await
@@ -418,16 +422,16 @@ impl Prover for NetworkProver {
     fn execute_sync(
         &self,
         elf: &[u8],
-        stdin: &SP1Stdin,
+        stdin: SP1Stdin,
     ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
-        self.prover.execute(elf, stdin, SP1Context::default())
+        self.prover.execute(elf, &stdin, SP1Context::default())
     }
 
     async fn prove_with_options(
         &self,
-        pk: &SP1ProvingKey,
-        stdin: &SP1Stdin,
-        opts: &ProofOpts,
+        pk: Arc<SP1ProvingKey>,
+        stdin: SP1Stdin,
+        opts: ProofOpts,
     ) -> Result<SP1ProofWithPublicValues> {
         let request = NetworkProofRequest::new(self, pk, stdin)
             .with_mode(opts.mode)
@@ -440,8 +444,8 @@ impl Prover for NetworkProver {
     fn prove_with_options_sync(
         &self,
         pk: &SP1ProvingKey,
-        stdin: &SP1Stdin,
-        opts: &ProofOpts,
+        stdin: SP1Stdin,
+        opts: ProofOpts,
     ) -> Result<SP1ProofWithPublicValues> {
         let request = NetworkProofRequest::new(self, pk, stdin)
             .with_mode(opts.mode)
@@ -452,11 +456,9 @@ impl Prover for NetworkProver {
 
     async fn verify(
         &self,
-        proof: &SP1ProofWithPublicValues,
-        vk: &SP1VerifyingKey,
+        proof: Arc<SP1ProofWithPublicValues>,
+        vk: Arc<SP1VerifyingKey>,
     ) -> Result<(), SP1VerificationError> {
-        let proof = proof.clone();
-        let vk = vk.clone();
         let prover = Arc::clone(&self.prover);
         task::spawn_blocking(move || verify::verify(&prover, SP1_CIRCUIT_VERSION, &proof, &vk))
             .await

@@ -7,6 +7,7 @@ use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::SP1ProvingKey;
 use std::future::{Future, IntoFuture};
 use std::pin::Pin;
+use std::sync::Arc;
 
 /// The default timeout seconds for a proof request to be generated (4 hours).
 pub const DEFAULT_TIMEOUT: u64 = 14400;
@@ -16,16 +17,16 @@ pub const DEFAULT_CYCLE_LIMIT: u64 = 100_000_000;
 
 pub struct DynProofRequest<'a> {
     prover: &'a dyn Prover,
-    pk: &'a SP1ProvingKey,
-    stdin: &'a SP1Stdin,
+    pk: Arc<SP1ProvingKey>,
+    stdin: SP1Stdin,
     opts: ProofOpts,
 }
 
 impl<'a> DynProofRequest<'a> {
     pub fn new(
         prover: &'a dyn Prover,
-        pk: &'a SP1ProvingKey,
-        stdin: &'a SP1Stdin,
+        pk: Arc<SP1ProvingKey>,
+        stdin: SP1Stdin,
         opts: ProofOpts,
     ) -> Self {
         Self { prover, pk, stdin, opts }
@@ -63,7 +64,7 @@ impl<'a> DynProofRequest<'a> {
 
     #[cfg(feature = "blocking")]
     fn run(self) -> Result<SP1ProofWithPublicValues> {
-        self.prover.prove_with_options_sync(&self.pk, &self.stdin, &self.opts)
+        self.prover.prove_with_options_sync(&self.pk, self.stdin, self.opts)
     }
 }
 
@@ -72,6 +73,6 @@ impl<'a> IntoFuture for DynProofRequest<'a> {
     type IntoFuture = Pin<Box<dyn Future<Output = Self::Output> + Send + 'a>>;
 
     fn into_future(self) -> Self::IntoFuture {
-        self.prover.prove_with_options(&self.pk, &self.stdin, &self.opts)
+        Box::pin(self.prover.prove_with_options(self.pk, self.stdin, self.opts))
     }
 }

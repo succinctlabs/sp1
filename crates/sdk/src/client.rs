@@ -12,7 +12,7 @@ use sp1_core_executor::{ExecutionError, ExecutionReport};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_primitives::io::SP1PublicValues;
 use sp1_prover::{SP1ProvingKey, SP1VerifyingKey};
-use std::env;
+use std::{env, sync::Arc};
 
 pub struct None;
 
@@ -51,26 +51,26 @@ impl ProverClient {
         }
     }
 
-    pub async fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
+    pub async fn setup(&self, elf: Arc<[u8]>) -> (Arc<SP1ProvingKey>) {
         self.inner.setup(elf).await
     }
 
     pub async fn execute(
         &self,
-        elf: &[u8],
-        stdin: &SP1Stdin,
+        elf: Arc<[u8]>,
+        stdin: SP1Stdin,
     ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
         self.inner.execute(elf, stdin).await
     }
 
-    pub fn prove<'a>(&'a self, pk: &'a SP1ProvingKey, stdin: &'a SP1Stdin) -> DynProofRequest<'a> {
+    pub fn prove<'a>(&'a self, pk: Arc<SP1ProvingKey>, stdin: SP1Stdin) -> DynProofRequest<'a> {
         DynProofRequest::new(&*self.inner, pk, stdin, ProofOpts::default())
     }
 
     pub async fn verify(
         &self,
-        proof: &SP1ProofWithPublicValues,
-        vk: &SP1VerifyingKey,
+        proof: Arc<SP1ProofWithPublicValues>,
+        vk: Arc<SP1VerifyingKey>,
     ) -> Result<(), crate::provers::SP1VerificationError> {
         self.inner.verify(proof, vk).await
     }
