@@ -1,5 +1,5 @@
 use anyhow::Result;
-use sp1_eval::evaluate_performance;
+use sp1_perf::evaluate_performance;
 use sp1_prover::components::DefaultProverComponents;
 use sp1_stark::SP1ProverOpts;
 
