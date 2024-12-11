@@ -80,6 +80,9 @@ pub struct MulCols<T> {
     /// The second input operand.
     pub c: Word<T>,
 
+    /// Flag indicating whether `a` is not register 0.
+    pub op_a_not_0: T,
+
     /// Trace.
     pub carry: [T; LONG_WORD_SIZE],
 
@@ -203,6 +206,7 @@ impl MulChip {
 
         let mut b = b_word.to_vec();
         let mut c = c_word.to_vec();
+        cols.op_a_not_0 = F::from_bool(!event.op_a_0);
 
         // Handle b and c's signs.
         {
@@ -368,12 +372,16 @@ where
         };
 
         // Compare the product's appropriate bytes with that of the result.
+        // This constraint is only done when `op_a_not_0 == 1`.
         {
             let is_lower = local.is_mul;
             let is_upper = local.is_mulh + local.is_mulhu + local.is_mulhsu;
             for i in 0..WORD_SIZE {
-                builder.when(is_lower).assert_eq(product[i], local.a[i]);
-                builder.when(is_upper.clone()).assert_eq(product[i + WORD_SIZE], local.a[i]);
+                builder.when(local.op_a_not_0).when(is_lower).assert_eq(product[i], local.a[i]);
+                builder
+                    .when(local.op_a_not_0)
+                    .when(is_upper.clone())
+                    .assert_eq(product[i + WORD_SIZE], local.a[i]);
             }
         }
 
@@ -399,9 +407,14 @@ where
         builder.when(local.b_sign_extend).assert_eq(local.b_msb, one.clone());
         builder.when(local.c_sign_extend).assert_eq(local.c_msb, one.clone());
 
+        // SAFETY: All selectors `is_mul`, `is_mulh`, `is_mulhu`, `is_mulhsu` are checked to be boolean.
+        // Also, the multiplicity `is_real` is checked to be boolean, and `is_real = 0` leads to no interactions.
+        // Each "real" row has exactly one selector turned on, as constrained below.
+        // Therefore, in "real" rows, the `opcode` matches the corresponding opcode.
+
         // Calculate the opcode.
         let opcode = {
-            // Exactly one of the op codes must be on.
+            // Exactly one of the opcodes must be on.
             builder
                 .when(local.is_real)
                 .assert_one(local.is_mul + local.is_mulh + local.is_mulhu + local.is_mulhsu);
@@ -427,6 +440,15 @@ where
         }
 
         // Receive the arguments.
+        // SAFETY: This checks the following.
+        // - `next_pc = pc + 4`
+        // - `num_extra_cycles = 0`
+        // - `op_a_val` is constrained by the chip when `op_a_not_0 == 1`
+        // - `op_a_not_0` is correct, due to the sent `op_a_0` being equal to `1 - op_a_not_0`
+        // - `op_a_immutable = 0`
+        // - `is_memory = 0`
+        // - `is_syscall = 0`
+        // - `is_halt = 0`
         builder.receive_instruction(
             AB::Expr::zero(),
             AB::Expr::zero(),
@@ -437,12 +459,15 @@ where
             local.a,
             local.b,
             local.c,
+            AB::Expr::one() - local.op_a_not_0,
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
             local.is_real,
         );
+
+        builder.when(local.op_a_not_0).assert_one(local.is_real);
     }
 }
 
@@ -464,7 +489,14 @@ mod tests {
         // Fill mul_events with 10^7 MULHSU events.
         let mut mul_events: Vec<AluEvent> = Vec::new();
         for _ in 0..10i32.pow(7) {
-            mul_events.push(AluEvent::new(0, Opcode::MULHSU, 0x80004000, 0x80000000, 0xffff8000));
+            mul_events.push(AluEvent::new(
+                0,
+                Opcode::MULHSU,
+                0x80004000,
+                0x80000000,
+                0xffff8000,
+                false,
+            ));
         }
         shard.mul_events = mul_events;
         let chip = MulChip::default();
@@ -533,12 +565,12 @@ mod tests {
             (Opcode::MULH, 0xffffffff, 0x00000001, 0xffffffff),
         ];
         for t in mul_instructions.iter() {
-            mul_events.push(AluEvent::new(0, t.0, t.1, t.2, t.3));
+            mul_events.push(AluEvent::new(0, t.0, t.1, t.2, t.3, false));
         }
 
         // Append more events until we have 1000 tests.
         for _ in 0..(1000 - mul_instructions.len()) {
-            mul_events.push(AluEvent::new(0, Opcode::MUL, 1, 1, 1));
+            mul_events.push(AluEvent::new(0, Opcode::MUL, 1, 1, 1, false));
         }
 
         shard.mul_events = mul_events;

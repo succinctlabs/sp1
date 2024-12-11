@@ -76,6 +76,10 @@ name = "find_recursion_shapes"
 path = "scripts/find_recursion_shapes.rs"
 
 [[bin]]
+name = "test_shape_fixing"
+path = "scripts/test_shape_fixing.rs"
+
+[[bin]]
 name = "post_trusted_setup"
 path = "scripts/post_trusted_setup.rs"
 

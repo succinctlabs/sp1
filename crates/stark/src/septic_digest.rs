@@ -5,19 +5,19 @@ use p3_field::{AbstractExtensionField, AbstractField, Field};
 use serde::{Deserialize, Serialize};
 use std::iter::Sum;
 
-/// The x-coordinate for a curve point used as a starting cumulative sum for global permutation trace generation.
+/// The x-coordinate for a curve point used as a starting cumulative sum for global permutation trace generation, derived from `sqrt(2)`.
 pub const CURVE_CUMULATIVE_SUM_START_X: [u32; 7] =
     [0x1434213, 0x5623730, 0x9504880, 0x1688724, 0x2096980, 0x7856967, 0x1875376];
 
-/// The y-coordinate for a curve point used as a starting cumulative sum for global permutation trace generation.
+/// The y-coordinate for a curve point used as a starting cumulative sum for global permutation trace generation, derived from `sqrt(2)`.
 pub const CURVE_CUMULATIVE_SUM_START_Y: [u32; 7] =
     [885797405, 1130275556, 567836311, 52700240, 239639200, 442612155, 1839439733];
 
-/// The x-coordinate for a curve point used as a starting random point for digest accumulation.
+/// The x-coordinate for a curve point used as a starting random point for digest accumulation, derived from `sqrt(3)`.
 pub const DIGEST_SUM_START_X: [u32; 7] =
     [0x1742050, 0x8075688, 0x7729352, 0x7446341, 0x5058723, 0x6694280, 0x5253810];
 
-/// The y-coordinate for a curve point used as a starting random point for digest accumulation.
+/// The y-coordinate for a curve point used as a starting random point for digest accumulation, derived from `sqrt(3)`.
 pub const DIGEST_SUM_START_Y: [u32; 7] =
     [462194069, 1842131493, 281651264, 1684885851, 483907222, 1097389352, 1648978901];
 
@@ -76,6 +76,8 @@ impl<F: Field> Sum for SepticDigest<F> {
 
 #[cfg(test)]
 mod test {
+    use crate::septic_curve::{CURVE_WITNESS_DUMMY_POINT_X, CURVE_WITNESS_DUMMY_POINT_Y};
+
     use super::*;
     use p3_baby_bear::BabyBear;
     #[test]
@@ -92,6 +94,14 @@ mod test {
             SepticExtension::from_base_fn(|i| BabyBear::from_canonical_u32(DIGEST_SUM_START_X[i]));
         let y: SepticExtension<BabyBear> =
             SepticExtension::from_base_fn(|i| BabyBear::from_canonical_u32(DIGEST_SUM_START_Y[i]));
+        let point = SepticCurve { x, y };
+        assert!(point.check_on_point());
+        let x: SepticExtension<BabyBear> = SepticExtension::from_base_fn(|i| {
+            BabyBear::from_canonical_u32(CURVE_WITNESS_DUMMY_POINT_X[i])
+        });
+        let y: SepticExtension<BabyBear> = SepticExtension::from_base_fn(|i| {
+            BabyBear::from_canonical_u32(CURVE_WITNESS_DUMMY_POINT_Y[i])
+        });
         let point = SepticCurve { x, y };
         assert!(point.check_on_point());
     }

@@ -60,5 +60,6 @@ pub(crate) fn assert_complete<C: Config<F = BabyBear>>(
             .assert_felt_eq(is_complete * (*end_digest_word - *deferred_digest_word), C::F::zero());
     }
 
+    // The global cumulative sum should sum be equal to the zero digest.
     builder.assert_digest_zero_v2(is_complete, *global_cumulative_sum);
 }

@@ -978,7 +978,7 @@ impl<'a> Executor<'a> {
         self.emit_cpu(clk, next_pc, a, b, c, record, exit_code);
 
         if instruction.is_alu_instruction() {
-            self.emit_alu_event(instruction.opcode, a, b, c);
+            self.emit_alu_event(instruction.opcode, a, b, c, op_a_0);
         } else if instruction.is_memory_load_instruction()
             || instruction.is_memory_store_instruction()
         {
@@ -988,9 +988,9 @@ impl<'a> Executor<'a> {
         } else if instruction.is_jump_instruction() {
             self.emit_jump_event(instruction.opcode, a, b, c, op_a_0, next_pc);
         } else if instruction.is_auipc_instruction() {
-            self.emit_auipc_event(instruction.opcode, a, b, c);
+            self.emit_auipc_event(instruction.opcode, a, b, c, op_a_0);
         } else if instruction.is_ecall_instruction() {
-            self.emit_syscall_event(clk, record.a, syscall_code, b, c, next_pc);
+            self.emit_syscall_event(clk, record.a, op_a_0, syscall_code, b, c, next_pc);
         } else {
             unreachable!()
         }
@@ -1024,8 +1024,8 @@ impl<'a> Executor<'a> {
     }
 
     /// Emit an ALU event.
-    fn emit_alu_event(&mut self, opcode: Opcode, a: u32, b: u32, c: u32) {
-        let event = AluEvent { pc: self.state.pc, opcode, a, b, c };
+    fn emit_alu_event(&mut self, opcode: Opcode, a: u32, b: u32, c: u32, op_a_0: bool) {
+        let event = AluEvent { pc: self.state.pc, opcode, a, b, c, op_a_0 };
         match opcode {
             Opcode::ADD => {
                 self.record.add_events.push(event);
@@ -1113,8 +1113,8 @@ impl<'a> Executor<'a> {
 
     /// Emit an AUIPC event.
     #[inline]
-    fn emit_auipc_event(&mut self, opcode: Opcode, a: u32, b: u32, c: u32) {
-        let event = AUIPCEvent::new(self.state.pc, opcode, a, b, c);
+    fn emit_auipc_event(&mut self, opcode: Opcode, a: u32, b: u32, c: u32, op_a_0: bool) {
+        let event = AUIPCEvent::new(self.state.pc, opcode, a, b, c, op_a_0);
         self.record.auipc_events.push(event);
         emit_auipc_dependency(self, event);
     }
@@ -1126,6 +1126,7 @@ impl<'a> Executor<'a> {
         &self,
         clk: u32,
         a_record: Option<MemoryRecordEnum>,
+        op_a_0: Option<bool>,
         syscall_code: SyscallCode,
         arg1: u32,
         arg2: u32,
@@ -1135,6 +1136,13 @@ impl<'a> Executor<'a> {
             Some(MemoryRecordEnum::Write(record)) => (record, true),
             _ => (MemoryWriteRecord::default(), false),
         };
+
+        // If op_a_0 is None, then we assume it is not register 0.  Note that this will happen
+        // for syscall events that are created within the precompiles' execute function.  Those events will be
+        // added to precompile tables, which wouldn't use the op_a_0 field.  Note that we can't make
+        // the op_a_0 field an Option<bool> in SyscallEvent because of the cbindgen.
+        let op_a_0 = op_a_0.unwrap_or(false);
+
         SyscallEvent {
             shard: self.shard(),
             clk,
@@ -1142,6 +1150,7 @@ impl<'a> Executor<'a> {
             next_pc,
             a_record: write,
             a_record_is_real: is_real,
+            op_a_0,
             syscall_code,
             syscall_id: syscall_code.syscall_id(),
             arg1,
@@ -1155,12 +1164,14 @@ impl<'a> Executor<'a> {
         &mut self,
         clk: u32,
         a_record: Option<MemoryRecordEnum>,
+        op_a_0: bool,
         syscall_code: SyscallCode,
         arg1: u32,
         arg2: u32,
         next_pc: u32,
     ) {
-        let syscall_event = self.syscall_event(clk, a_record, syscall_code, arg1, arg2, next_pc);
+        let syscall_event =
+            self.syscall_event(clk, a_record, Some(op_a_0), syscall_code, arg1, arg2, next_pc);
 
         self.record.syscall_events.push(syscall_event);
     }
@@ -1389,6 +1400,13 @@ impl<'a> Executor<'a> {
         instruction: &Instruction,
     ) -> Result<(u32, u32, u32), ExecutionError> {
         let (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
+
+        // Check that the address is in the valid range. Specifically it is not within the register's
+        // addr range and within babybear field.
+        if !(addr > Register::X31 as u32 && addr <= 0x78000000_u32) {
+            return Err(ExecutionError::InvalidMemoryAccess(Opcode::LB, addr));
+        }
+
         let a = match instruction.opcode {
             Opcode::LB => ((memory_read_value >> ((addr % 4) * 8)) & 0xFF) as i8 as i32 as u32,
             Opcode::LH => {
@@ -1422,6 +1440,13 @@ impl<'a> Executor<'a> {
         instruction: &Instruction,
     ) -> Result<(u32, u32, u32), ExecutionError> {
         let (a, b, c, addr, memory_read_value) = self.store_rr(instruction);
+
+        // Check that the address is in the valid range. Specifically it is not within the register's
+        // addr range and within babybear field.
+        if !(addr > Register::X31 as u32 && addr <= 0x78000000_u32) {
+            return Err(ExecutionError::InvalidMemoryAccess(Opcode::LB, addr));
+        }
+
         let memory_store_value = match instruction.opcode {
             Opcode::SB => {
                 let shift = (addr % 4) * 8;
@@ -1648,7 +1673,7 @@ impl<'a> Executor<'a> {
                         }
 
                         let l_infinity = distances.clone().into_iter().map(|x| x.1).min().unwrap();
-                        if l_infinity >= 2 * (self.shape_check_frequency as usize) {
+                        if l_infinity >= 32 * (self.shape_check_frequency as usize) {
                             shape_match_found = true;
                             break;
                         }

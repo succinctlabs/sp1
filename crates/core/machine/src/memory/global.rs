@@ -81,6 +81,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
                     ((event.value >> 24) & 255) as u32,
                 ],
                 is_receive,
+                kind: InteractionKind::Memory as u8,
             }
         });
         output.global_interaction_events.extend(events);
@@ -190,8 +191,6 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
     }
 }
 
-pub const MEMORY_GLOBAL_INITIAL_DIGEST_POS_COPY: usize = 161;
-
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
 pub struct MemoryInitCols<T: Copy> {
@@ -242,6 +241,7 @@ where
         let next = main.row_slice(1);
         let next: &MemoryInitCols<AB::Var> = (*next).borrow();
 
+        // Constrain that `local.is_real` is boolean.
         builder.assert_bool(local.is_real);
         for i in 0..32 {
             builder.assert_bool(local.value[i]);
@@ -260,10 +260,7 @@ where
         let value = [byte1, byte2, byte3, byte4];
 
         if self.kind == MemoryChipType::Initialize {
-            let mut values = vec![AB::Expr::zero(), AB::Expr::zero(), local.addr.into()];
-            values.extend(value.clone().map(Into::into));
-
-            // Send the interaction to the global table.
+            // Send the "send interaction" to the global table.
             builder.send(
                 AirInteraction::new(
                     vec![
@@ -274,8 +271,9 @@ where
                         value[1].clone(),
                         value[2].clone(),
                         value[3].clone(),
-                        local.is_real.into() * AB::Expr::one(),
-                        local.is_real.into() * AB::Expr::zero(),
+                        AB::Expr::one(),
+                        AB::Expr::zero(),
+                        AB::Expr::from_canonical_u8(InteractionKind::Memory as u8),
                     ],
                     local.is_real.into(),
                     InteractionKind::Global,
@@ -283,10 +281,7 @@ where
                 InteractionScope::Local,
             );
         } else {
-            let mut values = vec![local.shard.into(), local.timestamp.into(), local.addr.into()];
-            values.extend(value.clone());
-
-            // Send the interaction to the global table.
+            // Send the "receive interaction" to the global table.
             builder.send(
                 AirInteraction::new(
                     vec![
@@ -297,8 +292,9 @@ where
                         value[1].clone(),
                         value[2].clone(),
                         value[3].clone(),
-                        local.is_real.into() * AB::Expr::zero(),
-                        local.is_real.into() * AB::Expr::one(),
+                        AB::Expr::zero(),
+                        AB::Expr::one(),
+                        AB::Expr::from_canonical_u8(InteractionKind::Memory as u8),
                     ],
                     local.is_real.into(),
                     InteractionKind::Global,

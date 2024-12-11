@@ -42,13 +42,16 @@ pub struct LtCols<T> {
     pub is_sltu: T,
 
     /// The output operand.
-    pub a: Word<T>,
+    pub a: T,
 
     /// The first input operand.
     pub b: Word<T>,
 
     /// The second input operand.
     pub c: Word<T>,
+
+    /// Whether the first operand is not register 0.
+    pub op_a_not_0: T,
 
     /// Boolean flag to indicate which byte pair differs if the operands are not equal.
     pub byte_flags: [T; 4],
@@ -177,9 +180,10 @@ impl LtChip {
 
         cols.pc = F::from_canonical_u32(event.pc);
 
-        cols.a = Word(a.map(F::from_canonical_u8));
+        cols.a = F::from_canonical_u8(a[0]);
         cols.b = Word(b.map(F::from_canonical_u8));
         cols.c = Word(c.map(F::from_canonical_u8));
+        cols.op_a_not_0 = F::from_bool(!event.op_a_0);
 
         // If this is SLT, mask the MSB of b & c before computing cols.bits.
         let masked_b = b[3] & 0x7f;
@@ -241,7 +245,7 @@ impl LtChip {
         cols.bit_b = cols.msb_b * cols.is_slt;
         cols.bit_c = cols.msb_c * cols.is_slt;
 
-        assert_eq!(cols.a[0], cols.bit_b * (F::one() - cols.bit_c) + cols.is_sign_eq * cols.sltu);
+        assert_eq!(cols.a, cols.bit_b * (F::one() - cols.bit_c) + cols.is_sign_eq * cols.sltu);
 
         blu.add_byte_lookup_event(ByteLookupEvent {
             opcode: ByteOpcode::LTU,
@@ -335,14 +339,11 @@ where
         // Assert the final result `a` is correct.
 
         // Check that `a[0]` is set correctly.
-        builder.assert_eq(
-            local.a[0],
+        // This check is done only when `op_a_not_0 == 1`.
+        builder.when(local.op_a_not_0).assert_eq(
+            local.a,
             local.bit_b * (AB::Expr::one() - local.bit_c) + local.is_sign_eq * local.sltu,
         );
-        // Check the 3 most significant bytes of 'a' are zero.
-        builder.assert_zero(local.a[1]);
-        builder.assert_zero(local.a[2]);
-        builder.assert_zero(local.a[3]);
 
         // Verify that the byte equality flags are set correctly, i.e. all are boolean and only
         // at most a single byte flag is set.
@@ -423,16 +424,26 @@ where
 
         // Constrain the operation flags.
 
+        // SAFETY: All selectors `is_slt`, `is_sltu` are checked to be boolean.
+        // Each "real" row has exactly one selector turned on, as `is_real = is_slt + is_sltu` is boolean.
+        // Therefore, the `opcode` matches the corresponding opcode.
+
         // Check that the operation flags are boolean.
         builder.assert_bool(local.is_slt);
         builder.assert_bool(local.is_sltu);
         // Check that at most one of the operation flags is set.
-        //
-        // *remark*: this is not strictly necessary since it's also covered by the bus multiplicity
-        // but this is included here to make sure the condition is met.
         builder.assert_bool(local.is_slt + local.is_sltu);
 
         // Receive the arguments.
+        // SAFETY: This checks the following.
+        // - `next_pc = pc + 4`
+        // - `num_extra_cycles = 0`
+        // - `op_a_val` is constrained by the chip when `op_a_not_0 == 1`
+        // - `op_a_not_0` is correct, due to the sent `op_a_0` being equal to `1 - op_a_not_0`
+        // - `op_a_immutable = 0`
+        // - `is_memory = 0`
+        // - `is_syscall = 0`
+        // - `is_halt = 0`
         builder.receive_instruction(
             AB::Expr::zero(),
             AB::Expr::zero(),
@@ -441,9 +452,10 @@ where
             AB::Expr::zero(),
             local.is_slt * AB::F::from_canonical_u32(Opcode::SLT as u32)
                 + local.is_sltu * AB::F::from_canonical_u32(Opcode::SLTU as u32),
-            local.a,
+            Word::extend_var::<AB>(local.a),
             local.b,
             local.c,
+            AB::Expr::one() - local.op_a_not_0,
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
@@ -467,7 +479,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 2)];
+        shard.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 2, false)];
         let chip = LtChip::default();
         let generate_trace = chip.generate_trace(&shard, &mut ExecutionRecord::default());
         let trace: RowMajorMatrix<BabyBear> = generate_trace;
@@ -495,21 +507,21 @@ mod tests {
         const NEG_4: u32 = 0b11111111111111111111111111111100;
         shard.lt_events = vec![
             // 0 == 3 < 2
-            AluEvent::new(0, Opcode::SLT, 0, 3, 2),
+            AluEvent::new(0, Opcode::SLT, 0, 3, 2, false),
             // 1 == 2 < 3
-            AluEvent::new(0, Opcode::SLT, 1, 2, 3),
+            AluEvent::new(0, Opcode::SLT, 1, 2, 3, false),
             // 0 == 5 < -3
-            AluEvent::new(0, Opcode::SLT, 0, 5, NEG_3),
+            AluEvent::new(0, Opcode::SLT, 0, 5, NEG_3, false),
             // 1 == -3 < 5
-            AluEvent::new(0, Opcode::SLT, 1, NEG_3, 5),
+            AluEvent::new(0, Opcode::SLT, 1, NEG_3, 5, false),
             // 0 == -3 < -4
-            AluEvent::new(0, Opcode::SLT, 0, NEG_3, NEG_4),
+            AluEvent::new(0, Opcode::SLT, 0, NEG_3, NEG_4, false),
             // 1 == -4 < -3
-            AluEvent::new(0, Opcode::SLT, 1, NEG_4, NEG_3),
+            AluEvent::new(0, Opcode::SLT, 1, NEG_4, NEG_3, false),
             // 0 == 3 < 3
-            AluEvent::new(0, Opcode::SLT, 0, 3, 3),
+            AluEvent::new(0, Opcode::SLT, 0, 3, 3, false),
             // 0 == -3 < -3
-            AluEvent::new(0, Opcode::SLT, 0, NEG_3, NEG_3),
+            AluEvent::new(0, Opcode::SLT, 0, NEG_3, NEG_3, false),
         ];
 
         prove_babybear_template(&mut shard);
@@ -522,17 +534,17 @@ mod tests {
         const LARGE: u32 = 0b11111111111111111111111111111101;
         shard.lt_events = vec![
             // 0 == 3 < 2
-            AluEvent::new(0, Opcode::SLTU, 0, 3, 2),
+            AluEvent::new(0, Opcode::SLTU, 0, 3, 2, false),
             // 1 == 2 < 3
-            AluEvent::new(0, Opcode::SLTU, 1, 2, 3),
+            AluEvent::new(0, Opcode::SLTU, 1, 2, 3, false),
             // 0 == LARGE < 5
-            AluEvent::new(0, Opcode::SLTU, 0, LARGE, 5),
+            AluEvent::new(0, Opcode::SLTU, 0, LARGE, 5, false),
             // 1 == 5 < LARGE
-            AluEvent::new(0, Opcode::SLTU, 1, 5, LARGE),
+            AluEvent::new(0, Opcode::SLTU, 1, 5, LARGE, false),
             // 0 == 0 < 0
-            AluEvent::new(0, Opcode::SLTU, 0, 0, 0),
+            AluEvent::new(0, Opcode::SLTU, 0, 0, 0, false),
             // 0 == LARGE < LARGE
-            AluEvent::new(0, Opcode::SLTU, 0, LARGE, LARGE),
+            AluEvent::new(0, Opcode::SLTU, 0, LARGE, LARGE, false),
         ];
 
         prove_babybear_template(&mut shard);

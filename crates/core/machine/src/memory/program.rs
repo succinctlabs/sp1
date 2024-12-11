@@ -125,6 +125,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryProgramChip {
                     (word >> 24) & 255,
                 ],
                 is_receive: false,
+                kind: InteractionKind::Memory as u8,
             });
         });
 
@@ -237,6 +238,7 @@ where
                     prep_local.value[3].into(),
                     prep_local.is_real.into() * AB::Expr::zero(),
                     prep_local.is_real.into() * AB::Expr::one(),
+                    AB::Expr::from_canonical_u8(InteractionKind::Memory as u8),
                 ],
                 prep_local.is_real.into(),
                 InteractionKind::Global,

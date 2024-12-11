@@ -112,6 +112,9 @@ pub struct DivRemCols<T> {
     /// The second input operand.
     pub c: Word<T>,
 
+    /// Whether the first operand is not register 0.
+    pub op_a_not_0: T,
+
     /// Results of dividing `b` by `c`.
     pub quotient: Word<T>,
 
@@ -229,6 +232,7 @@ impl<F: PrimeField32> MachineAir<F> for DivRemChip {
                 cols.a = Word::from(event.a);
                 cols.b = Word::from(event.b);
                 cols.c = Word::from(event.c);
+                cols.op_a_not_0 = F::from_bool(!event.op_a_0);
                 cols.is_real = F::one();
                 cols.is_divu = F::from_bool(event.opcode == Opcode::DIVU);
                 cols.is_remu = F::from_bool(event.opcode == Opcode::REMU);
@@ -438,6 +442,7 @@ where
                 AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
+                AB::Expr::zero(),
                 local.is_real,
             );
 
@@ -466,6 +471,7 @@ where
                 Word(upper_half),
                 local.quotient,
                 local.c,
+                AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
@@ -559,9 +565,16 @@ where
         }
 
         // a must equal remainder or quotient depending on the opcode.
+        // This is only enforced when `op_a_not_0 == 1`.
         for i in 0..WORD_SIZE {
-            builder.when(local.is_divu + local.is_div).assert_eq(local.quotient[i], local.a[i]);
-            builder.when(local.is_remu + local.is_rem).assert_eq(local.remainder[i], local.a[i]);
+            builder
+                .when(local.op_a_not_0)
+                .when(local.is_divu + local.is_div)
+                .assert_eq(local.quotient[i], local.a[i]);
+            builder
+                .when(local.op_a_not_0)
+                .when(local.is_remu + local.is_rem)
+                .assert_eq(local.remainder[i], local.a[i]);
         }
 
         // remainder and b must have the same sign. Due to the intricate nature of sign logic in ZK,
@@ -635,6 +648,7 @@ where
                 AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
+                AB::Expr::zero(),
                 local.abs_c_alu_event,
             );
             builder.send_instruction(
@@ -647,6 +661,7 @@ where
                 Word([zero.clone(), zero.clone(), zero.clone(), zero.clone()]),
                 local.remainder,
                 local.abs_remainder,
+                AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
@@ -685,6 +700,7 @@ where
             // is_real
 
             // Check that the absolute value selector columns are computed correctly.
+            // This enforces the send multiplicities are zero when `is_real == 0`.
             builder.assert_eq(local.abs_c_alu_event, local.c_neg * local.is_real);
             builder.assert_eq(local.abs_rem_alu_event, local.rem_neg * local.is_real);
 
@@ -700,6 +716,7 @@ where
                 Word([one.clone(), zero.clone(), zero.clone(), zero.clone()]),
                 local.abs_remainder,
                 local.max_abs_c_or_1,
+                AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
@@ -762,6 +779,9 @@ where
         // Receive the arguments.
         {
             // Exactly one of the opcode flags must be on.
+            // SAFETY: All selectors `is_divu`, `is_remu`, `is_div`, `is_rem` are checked to be boolean.
+            // Each row has exactly one selector turned on, as their sum is checked to be one.
+            // Therefore, the `opcode` matches the corresponding opcode of the instruction.
             builder.assert_eq(
                 one.clone(),
                 local.is_divu + local.is_remu + local.is_div + local.is_rem,
@@ -779,6 +799,15 @@ where
                     + local.is_rem * rem
             };
 
+            // SAFETY: This checks the following.
+            // - `next_pc = pc + 4`
+            // - `num_extra_cycles = 0`
+            // - `op_a_val` is constrained by the chip when `op_a_not_0 == 1`
+            // - `op_a_not_0` is correct, due to the sent `op_a_0` being equal to `1 - op_a_not_0`
+            // - `op_a_immutable = 0`
+            // - `is_memory = 0`
+            // - `is_syscall = 0`
+            // - `is_halt = 0`
             builder.receive_instruction(
                 AB::Expr::zero(),
                 AB::Expr::zero(),
@@ -789,12 +818,15 @@ where
                 local.a,
                 local.b,
                 local.c,
+                AB::Expr::one() - local.op_a_not_0,
                 AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
                 local.is_real,
             );
+
+            builder.when(local.op_a_not_0).assert_one(local.is_real);
         }
     }
 }
@@ -813,7 +845,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.divrem_events = vec![AluEvent::new(0, Opcode::DIVU, 2, 17, 3)];
+        shard.divrem_events = vec![AluEvent::new(0, Opcode::DIVU, 2, 17, 3, false)];
         let chip = DivRemChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -866,12 +898,12 @@ mod tests {
             (Opcode::REM, 0, 1 << 31, neg(1)),
         ];
         for t in divrems.iter() {
-            divrem_events.push(AluEvent::new(0, t.0, t.1, t.2, t.3));
+            divrem_events.push(AluEvent::new(0, t.0, t.1, t.2, t.3, false));
         }
 
         // Append more events until we have 1000 tests.
         for _ in 0..(1000 - divrems.len()) {
-            divrem_events.push(AluEvent::new(0, Opcode::DIVU, 1, 1, 1));
+            divrem_events.push(AluEvent::new(0, Opcode::DIVU, 1, 1, 1, false));
         }
 
         let mut shard = ExecutionRecord::default();

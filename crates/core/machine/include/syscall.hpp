@@ -8,8 +8,7 @@ namespace sp1_core_machine_sys::syscall {
     template<class F, class EF7>
     __SP1_HOSTDEV__ void event_to_row(const SyscallEvent* event, const bool is_receive, SyscallCols<F>* cols) {
         cols->shard = F::from_canonical_u32(event->shard);
-        cols->clk_16 = F::from_canonical_u32(event->clk & ((1 << 16) - 1));
-        cols->clk_8 = F::from_canonical_u32((event->clk) >> 16);
+        cols->clk = F::from_canonical_u32(event->clk);
         cols->syscall_id = F::from_canonical_u32(event->syscall_id);
         cols->arg1 = F::from_canonical_u32(event->arg1);
         cols->arg2 = F::from_canonical_u32(event->arg2);

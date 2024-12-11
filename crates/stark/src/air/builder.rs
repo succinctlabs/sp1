@@ -194,6 +194,7 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
         c: Word<impl Into<Self::Expr>>,
         op_a_0: impl Into<Self::Expr>,
         op_a_immutable: impl Into<Self::Expr>,
+        is_memory: impl Into<Self::Expr>,
         is_syscall: impl Into<Self::Expr>,
         is_halt: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
@@ -209,6 +210,7 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
             .chain(c.0.into_iter().map(Into::into))
             .chain(once(op_a_0.into()))
             .chain(once(op_a_immutable.into()))
+            .chain(once(is_memory.into()))
             .chain(once(is_syscall.into()))
             .chain(once(is_halt.into()))
             .collect();
@@ -234,6 +236,7 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
         c: Word<impl Into<Self::Expr>>,
         op_a_0: impl Into<Self::Expr>,
         op_a_immutable: impl Into<Self::Expr>,
+        is_memory: impl Into<Self::Expr>,
         is_syscall: impl Into<Self::Expr>,
         is_halt: impl Into<Self::Expr>,
         multiplicity: impl Into<Self::Expr>,
@@ -249,6 +252,7 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
             .chain(c.0.into_iter().map(Into::into))
             .chain(once(op_a_0.into()))
             .chain(once(op_a_immutable.into()))
+            .chain(once(is_memory.into()))
             .chain(once(is_syscall.into()))
             .chain(once(is_halt.into()))
             .collect();

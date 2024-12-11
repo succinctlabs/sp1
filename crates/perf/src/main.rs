@@ -82,6 +82,9 @@ fn main() {
             let (compress_proof, compress_duration) =
                 time_operation(|| prover.compress(&vk, core_proof.clone(), proofs, opts).unwrap());
 
+            let compress_proof_bytes = bincode::serialize(&compress_proof).unwrap();
+            std::fs::write("compress_proof.bin", compress_proof_bytes).unwrap();
+
             let (_, verify_compressed_duration) =
                 time_operation(|| prover.verify_compressed(&compress_proof, &vk));
 

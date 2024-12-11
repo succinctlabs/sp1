@@ -33,53 +33,31 @@ impl SP1ProverOpts {
     /// We use a soft heuristic based on our understanding of the memory usage in the GPU prover.
     #[must_use]
     pub fn cpu(cpu_ram_gb: usize) -> Self {
-        let mut opts = SP1ProverOpts::default();
-
-        // For each 2^21 shard, we need to reserve pessimistically ~14 GB of memory.
-        //
-        // This means that:
-        // - 0..32 GB of RAM -> ~7 GB of RAM per shard
-        // - 32.. GB of RAM -> ~14 GB of RAM per shard
-        let log2_shard_size = match cpu_ram_gb {
-            0..30 => 20,
-            30.. => 21,
+        let (log2_shard_size, shard_batch_size, log2_divisor) = match cpu_ram_gb {
+            0..33 => (19, 1, 3),
+            33..49 => (20, 1, 2),
+            49..65 => (21, 1, 3),
+            65..81 => (21, 3, 1),
+            81.. => (21, 4, 1),
         };
+
+        let mut opts = SP1ProverOpts::default();
         opts.core_opts.shard_size = 1 << log2_shard_size;
+        opts.core_opts.shard_batch_size = shard_batch_size;
 
-        // To calculate the optimal shard batch size, we estimate the number of shards that would
-        // result in an OOM error. We then divide this number by 2 to get the optimal shard batch
-        // size but we upper bound it by `MAX_SHARD_BATCH_SIZE`.
-        //
-        // We also make sure that the shard batch size is at least 1.
-        let log2_gap_from_21 = 21 - log2_shard_size;
-        let lde_size_gb = 14 / (1 << log2_gap_from_21);
-        let oom_shard_count = (cpu_ram_gb / lde_size_gb) + if cpu_ram_gb > 16 { 1 } else { 0 };
-        let safe_shard_count = std::cmp::min(oom_shard_count - 1, MAX_SHARD_BATCH_SIZE);
-        opts.core_opts.shard_batch_size = std::cmp::max(safe_shard_count, 1);
-
-        // We always have at least 1 record and trace channel to maximally use the prover threads.
-        //
-        // In the CPU setting, the prover is much slower than the record/trace generation, so we
-        // can set these values to be very low.
         opts.core_opts.records_and_traces_channel_capacity = 1;
         opts.core_opts.trace_gen_workers = 1;
 
-        // We then divide all the parameters in the split opts by `1 << log2_gap_from_21` to ensure
-        // the memory / precompile shards also do not OOM.
-        //
-        // There could be some careful logic here to handle `combine_memory_threshold` but we
-        // don't need to do that for now.
-        let log2_factor = match cpu_ram_gb {
-            0..16 => log2_gap_from_21 + 2,
-            16..30 => log2_gap_from_21 + 1,
-            30.. => log2_gap_from_21,
-        };
-        let factor = 1 << log2_factor;
-        opts.core_opts.split_opts.deferred /= factor;
-        opts.core_opts.split_opts.keccak /= factor;
-        opts.core_opts.split_opts.sha_extend /= factor;
-        opts.core_opts.split_opts.sha_compress /= factor;
-        opts.core_opts.split_opts.memory /= factor;
+        let divisor = 1 << log2_divisor;
+        opts.core_opts.split_opts.deferred /= divisor;
+        opts.core_opts.split_opts.keccak /= divisor;
+        opts.core_opts.split_opts.sha_extend /= divisor;
+        opts.core_opts.split_opts.sha_compress /= divisor;
+        opts.core_opts.split_opts.memory /= divisor;
+
+        opts.recursion_opts.shard_batch_size = 2;
+        opts.recursion_opts.records_and_traces_channel_capacity = 1;
+        opts.recursion_opts.trace_gen_workers = 1;
 
         opts
     }
@@ -209,7 +187,7 @@ impl SplitOpts {
     #[must_use]
     pub fn new(deferred_split_threshold: usize) -> Self {
         Self {
-            combine_memory_threshold: 1 << 26,
+            combine_memory_threshold: 1 << 17,
             deferred: deferred_split_threshold,
             keccak: 8 * deferred_split_threshold / 24,
             sha_extend: 32 * deferred_split_threshold / 48,

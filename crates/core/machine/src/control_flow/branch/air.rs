@@ -33,6 +33,9 @@ where
         let local = main.row_slice(0);
         let local: &BranchColumns<AB::Var> = (*local).borrow();
 
+        // SAFETY: All selectors `is_beq`, `is_bne`, `is_blt`, `is_bge`, `is_bltu`, `is_bgeu` are checked to be boolean.
+        // Each "real" row has exactly one selector turned on, as `is_real`, the sum of the six selectors, is boolean.
+        // Therefore, the `opcode` matches the corresponding opcode.
         builder.assert_bool(local.is_beq);
         builder.assert_bool(local.is_bne);
         builder.assert_bool(local.is_blt);
@@ -54,6 +57,14 @@ where
             + local.is_bltu * Opcode::BLTU.as_field::<AB::F>()
             + local.is_bgeu * Opcode::BGEU.as_field::<AB::F>();
 
+        // SAFETY: This checks the following.
+        // - `num_extra_cycles = 0`
+        // - `op_a_val` will be constrained in the CpuChip as `op_a_immutable = 1`
+        // - `op_a_immutable = 1`, as this is a branch instruction
+        // - `is_memory = 0`
+        // - `is_syscall = 0`
+        // - `is_halt = 0`
+        // `next_pc` still has to be constrained, and this is done below.
         builder.receive_instruction(
             AB::Expr::zero(),
             AB::Expr::zero(),
@@ -68,12 +79,17 @@ where
             AB::Expr::one(),
             AB::Expr::zero(),
             AB::Expr::zero(),
+            AB::Expr::zero(),
             is_real.clone(),
         );
 
         // Evaluate program counter constraints.
         {
             // Range check branch_cols.pc and branch_cols.next_pc.
+            // SAFETY: `is_real` is already checked to be boolean.
+            // The `BabyBearWordRangeChecker` assumes that the value is checked to be a valid word.
+            // This is done when the word form is relevant, i.e. when `pc` and `next_pc` are sent to the ADD ALU table.
+            // The ADD ALU table checks the inputs are valid words, when it invokes `AddOperation`.
             BabyBearWordRangeChecker::<AB::F>::range_check(
                 builder,
                 local.pc,
@@ -87,7 +103,7 @@ where
                 is_real.clone(),
             );
 
-            // When we are branching, calculate branch_cols.next_pc <==> branch_cols.pc + c.
+            // When we are branching, assert that local.next_pc <==> local.pc + c.
             builder.send_instruction(
                 AB::Expr::zero(),
                 AB::Expr::zero(),
@@ -98,6 +114,7 @@ where
                 local.next_pc,
                 local.pc,
                 local.op_c_value,
+                AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
                 AB::Expr::zero(),
@@ -114,8 +131,12 @@ where
             // When local.not_branching is true, assert that local.is_real is true.
             builder.when(local.not_branching).assert_one(is_real.clone());
 
+            // To prevent the ALU send above to be non-zero when the row is a padding row.
+            builder.when_not(is_real.clone()).assert_zero(local.is_branching);
+
             // Assert that either we are branching or not branching when the instruction is a
             // branch.
+            // The `next_pc` is constrained in both branching and not branching cases, so it is fully constrained.
             builder.when(is_real.clone()).assert_one(local.is_branching + local.not_branching);
             builder.when(is_real.clone()).assert_bool(local.is_branching);
             builder.when(is_real.clone()).assert_bool(local.not_branching);
@@ -170,10 +191,8 @@ where
             .when(is_real.clone() * local.a_eq_b)
             .assert_word_eq(local.op_a_value, local.op_b_value);
 
-        //  To prevent this ALU send to be arbitrarily large when is_branch_instruction is false.
-        builder.when_not(is_real.clone()).assert_zero(local.is_branching);
-
         // Calculate a_lt_b <==> a < b (using appropriate signedness).
+        // SAFETY: `use_signed_comparison` is boolean, since at most one selector is turned on.
         let use_signed_comparison = local.is_blt + local.is_bge;
         builder.send_instruction(
             AB::Expr::zero(),
@@ -187,6 +206,7 @@ where
             Word::extend_var::<AB>(local.a_lt_b),
             local.op_a_value,
             local.op_b_value,
+            AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
@@ -206,6 +226,7 @@ where
             Word::extend_var::<AB>(local.a_gt_b),
             local.op_b_value,
             local.op_a_value,
+            AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),

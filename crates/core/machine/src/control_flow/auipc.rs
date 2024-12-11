@@ -1,6 +1,6 @@
 use hashbrown::HashMap;
 use itertools::Itertools;
-use p3_air::{Air, BaseAir};
+use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use rayon::iter::{ParallelBridge, ParallelIterator};
@@ -48,6 +48,9 @@ pub struct AUIPCColumns<T> {
     /// The value of the third operand.
     pub op_c_value: Word<T>,
 
+    /// Whether the first operand is not register 0.
+    pub op_a_not_0: T,
+
     /// BabyBear range checker for the program counter.
     pub pc_range_checker: BabyBearWordRangeChecker<T>,
 
@@ -72,6 +75,9 @@ where
         let local = main.row_slice(0);
         let local: &AUIPCColumns<AB::Var> = (*local).borrow();
 
+        // SAFETY: All selectors `is_auipc`, `is_unimp`, `is_ebreak` are checked to be boolean.
+        // Each "real" row has exactly one selector turned on, as `is_real`, the sum of the three selectors, is boolean.
+        // Therefore, the `opcode` matches the corresponding opcode.
         builder.assert_bool(local.is_auipc);
         builder.assert_bool(local.is_unimp);
         builder.assert_bool(local.is_ebreak);
@@ -82,6 +88,15 @@ where
             + AB::Expr::from_canonical_u32(Opcode::UNIMP as u32) * local.is_unimp
             + AB::Expr::from_canonical_u32(Opcode::EBREAK as u32) * local.is_ebreak;
 
+        // SAFETY: This checks the following.
+        // - `next_pc = pc + 4`
+        // - `num_extra_cycles = 0`
+        // - `op_a_val` is constrained by the chip when `op_a_not_0 == 1`
+        // - `op_a_not_0` is correct, due to the sent `op_a_0` being equal to `1 - op_a_not_0`
+        // - `op_a_immutable = 0`
+        // - `is_memory = 0`
+        // - `is_syscall = 0`
+        // - `is_halt = 0`
         builder.receive_instruction(
             AB::Expr::zero(),
             AB::Expr::zero(),
@@ -92,11 +107,12 @@ where
             local.op_a_value,
             local.op_b_value,
             local.op_c_value,
+            AB::Expr::one() - local.op_a_not_0,
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
-            is_real,
+            is_real.clone(),
         );
 
         // Verify that the opcode is never UNIMP or EBREAK.
@@ -104,6 +120,10 @@ where
         builder.assert_zero(local.is_ebreak);
 
         // Range check the pc.
+        // SAFETY: `is_auipc` is already checked to be boolean above.
+        // `BabyBearWordRangeChecker` assumes that the value is already checked to be a valid word.
+        // This is checked implicitly, as the ADD ALU table checks that all inputs are valid words.
+        // This check is done inside the `AddOperation`. Therefore, `pc` is a valid word.
         BabyBearWordRangeChecker::<AB::F>::range_check(
             builder,
             local.pc,
@@ -111,7 +131,7 @@ where
             local.is_auipc.into(),
         );
 
-        // Verify that op_a == pc + op_b.
+        // Verify that op_a == pc + op_b, when `op_a_not_0 == 1`.
         builder.send_instruction(
             AB::Expr::zero(),
             AB::Expr::zero(),
@@ -126,8 +146,12 @@ where
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
-            local.is_auipc,
+            AB::Expr::zero(),
+            local.op_a_not_0,
         );
+
+        // Assert that in padding rows, `op_a_not_0 == 0`, so all interactions are with zero multiplicity.
+        builder.when(local.op_a_not_0).assert_one(is_real);
     }
 }
 
@@ -173,6 +197,7 @@ impl<F: PrimeField32> MachineAir<F> for AuipcChip {
                         cols.op_a_value = event.a.into();
                         cols.op_b_value = event.b.into();
                         cols.op_c_value = event.c.into();
+                        cols.op_a_not_0 = F::from_bool(!event.op_a_0);
                     }
                 });
                 blu

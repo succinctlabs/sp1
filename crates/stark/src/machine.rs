@@ -299,11 +299,9 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
 
         records.iter_mut().for_each(|record| {
             chips.iter().for_each(|chip| {
-                tracing::debug_span!("chip dependencies", chip = chip.name()).in_scope(|| {
-                    let mut output = A::Record::default();
-                    chip.generate_dependencies(record, &mut output);
-                    record.append(&mut output);
-                });
+                let mut output = A::Record::default();
+                chip.generate_dependencies(record, &mut output);
+                record.append(&mut output);
             });
             tracing::debug_span!("register nonces").in_scope(|| record.register_nonces(opts));
         });
