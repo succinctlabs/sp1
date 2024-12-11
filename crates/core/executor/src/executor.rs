@@ -196,8 +196,8 @@ pub enum ExecutionError {
     HaltWithNonZeroExitCode(u32),
 
     /// The execution failed with an invalid memory access.
-    #[error("invalid memory access for address address {0}")]
-    InvalidMemoryAccess(u32),
+    #[error("invalid memory access for address address {0} and address {1}")]
+    InvalidMemoryAccess(Opcode, u32),
 
     /// The execution failed with an unimplemented syscall.
     #[error("unimplemented syscall {0}")]
@@ -1405,20 +1405,20 @@ impl<'a> Executor<'a> {
             Opcode::LB => ((memory_read_value >> ((addr % 4) * 8)) & 0xFF) as i8 as i32 as u32,
             Opcode::LH => {
                 if addr % 2 != 0 {
-                    return Err(ExecutionError::InvalidMemoryAccess(addr));
+                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::LH, addr));
                 }
                 ((memory_read_value >> (((addr / 2) % 2) * 16)) & 0xFFFF) as i16 as i32 as u32
             }
             Opcode::LW => {
                 if addr % 4 != 0 {
-                    return Err(ExecutionError::InvalidMemoryAccess(addr));
+                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::LW, addr));
                 }
                 memory_read_value
             }
             Opcode::LBU => (memory_read_value >> ((addr % 4) * 8)) & 0xFF,
             Opcode::LHU => {
                 if addr % 2 != 0 {
-                    return Err(ExecutionError::InvalidMemoryAccess(addr));
+                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::LHU, addr));
                 }
                 (memory_read_value >> (((addr / 2) % 2) * 16)) & 0xFFFF
             }
@@ -1442,14 +1442,14 @@ impl<'a> Executor<'a> {
             }
             Opcode::SH => {
                 if addr % 2 != 0 {
-                    return Err(ExecutionError::InvalidMemoryAccess(addr));
+                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::SH, addr));
                 }
                 let shift = ((addr / 2) % 2) * 16;
                 ((a & 0xFFFF) << shift) | (memory_read_value & !(0xFFFF << shift))
             }
             Opcode::SW => {
                 if addr % 4 != 0 {
-                    return Err(ExecutionError::InvalidMemoryAccess(addr));
+                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::SW, addr));
                 }
                 a
             }
