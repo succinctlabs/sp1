@@ -10,6 +10,9 @@ pub const WORD_SIZE: usize = 4;
 /// The number of bytes necessary to represent a 64-bit integer.
 pub const LONG_WORD_SIZE: usize = 2 * WORD_SIZE;
 
+/// The Baby Bear prime.
+pub const BABYBEAR_PRIME: u32 = 0x78000001;
+
 /// Converts a slice of words to a byte vector in little endian.
 pub fn words_to_bytes_le_vec(words: &[u32]) -> Vec<u8> {
     words.iter().flat_map(|word| word.to_le_bytes().to_vec()).collect::<Vec<_>>()
