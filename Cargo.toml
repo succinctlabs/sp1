@@ -15,7 +15,6 @@ members = [
   "crates/core/machine",
   "crates/curves",
   "crates/derive",
-  "crates/eval",
   "crates/helper",
   "crates/perf",
   "crates/primitives",
@@ -55,7 +54,6 @@ sp1-core-machine = { path = "crates/core/machine", version = "3.0.0" }
 sp1-core-executor = { path = "crates/core/executor", version = "3.0.0" }
 sp1-curves = { path = "crates/curves", version = "3.0.0" }
 sp1-derive = { path = "crates/derive", version = "3.0.0" }
-sp1-eval = { path = "crates/eval", version = "3.0.0" }
 sp1-helper = { path = "crates/helper", version = "3.0.0", default-features = false }
 sp1-primitives = { path = "crates/primitives", version = "3.0.0" }
 sp1-prover = { path = "crates/prover", version = "3.0.0" }
