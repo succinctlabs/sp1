@@ -125,9 +125,9 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
         let allowed_shapes = [
             [
                 (mem_var.clone(), 19),
-                (select.clone(), 19),
-                (mem_const.clone(), 17),
-                (batch_fri.clone(), 19),
+                (select.clone(), 20),
+                (mem_const.clone(), 18),
+                (batch_fri.clone(), 21),
                 (base_alu.clone(), 16),
                 (ext_alu.clone(), 16),
                 (exp_reverse_bits_len.clone(), 18),
@@ -136,9 +136,9 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
             ],
             [
                 (mem_var.clone(), 19),
-                (select.clone(), 20),
-                (mem_const.clone(), 18),
-                (batch_fri.clone(), 21),
+                (select.clone(), 19),
+                (mem_const.clone(), 17),
+                (batch_fri.clone(), 19),
                 (base_alu.clone(), 16),
                 (ext_alu.clone(), 16),
                 (exp_reverse_bits_len.clone(), 18),
