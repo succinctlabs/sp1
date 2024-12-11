@@ -188,7 +188,7 @@ impl SplitOpts {
     #[must_use]
     pub fn new(deferred_split_threshold: usize) -> Self {
         Self {
-            combine_memory_threshold: 1 << 26,
+            combine_memory_threshold: 1 << 17,
             deferred: deferred_split_threshold,
             keccak: 8 * deferred_split_threshold / 24,
             sha_extend: 32 * deferred_split_threshold / 48,

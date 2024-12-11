@@ -140,7 +140,9 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             }
 
             // No shape found, so return an error.
-            return Err(CoreShapeError::ShapeError(record.stats()));
+            return Err(CoreShapeError::ShapeError(
+                heights.into_iter().map(|(air, height)| (air.to_string(), height)).collect(),
+            ));
         }
 
         // If this is a normal "core" record, try to fix the shape as such.
