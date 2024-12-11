@@ -8,6 +8,7 @@ use std::{
 use clap::ValueEnum;
 use enum_map::EnumMap;
 use hashbrown::HashMap;
+use p3_util::log2_ceil_usize;
 use serde::{Deserialize, Serialize};
 use sp1_stark::{air::PublicValues, shape::Shape, SP1CoreOpts};
 use thiserror::Error;
@@ -1614,12 +1615,19 @@ impl<'a> Executor<'a> {
             let mut shape_match_found = true;
             if self.state.global_clk % self.shape_check_frequency == 0 {
                 // Estimate the number of events in the trace.
-                let event_counts = estimate_riscv_event_counts(
+                let mut event_counts = estimate_riscv_event_counts(
                     (self.state.clk >> 2) as u64,
                     self.local_counts.local_mem as u64,
                     self.local_counts.syscalls_sent as u64,
                     *self.local_counts.event_counts,
                 );
+
+                // If we're using a small shard size, we need to pad the event counts to be
+                // extra careful about OOMing.
+                if log2_ceil_usize(self.opts.shard_batch_size) <= 19 {
+                    event_counts =
+                        pad_rv32im_event_counts(event_counts, self.shape_check_frequency);
+                }
 
                 // Check if the LDE size is too large.
                 if self.lde_size_check {
