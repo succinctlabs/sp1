@@ -17,20 +17,24 @@ fn main() {
     let mut stdin = SP1Stdin::new();
     stdin.write(&n);
 
-    // Create a `ProverClient` method.
-    let client = ProverClient::new();
+    // Generate the proof, using the specified network configuration.
+    let client = ProverClient::builder()
+        .network()
+        .with_rpc_url("https://...".to_string())
+        .with_private_key("0x...".to_string())
+        .build();
 
     // Generate the proving key and verifying key for the given program.
-    let (pk, vk) = client.setup(ELF);
+    let (pk, vk) = client.setup(ELF).await.unwrap();
 
-    // Generate the proof, using the specified network configuration.
+    // Generate the proof.
     let proof_result = client
         .prove(&pk, stdin)
+        .timeout(300)
+        .cycle_limit(1_000_000)
+        .skip_simulation(true)
         .strategy(FulfillmentStrategy::Hosted)
-        .cycle_limit(20_000)
-        .timeout(Duration::from_secs(3600))
-        .skip_simulation()
-        .run();
+        .await;
 
     // Example of handling potential errors.
     let mut proof = match proof_result {

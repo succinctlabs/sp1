@@ -15,15 +15,13 @@ fn main() {
     let mut stdin = SP1Stdin::new();
     stdin.write(&n);
 
-    // Create a `ProverClient` method.
-    let client = ProverClient::new();
+    // Create a local prover with options.
+    let client = ProverClient::builder().local().build();
 
-    // Execute the program using the `ProverClient.execute` method, without generating a proof.
-    let (_, report) = client.execute(ELF, stdin.clone()).run().unwrap();
-    println!("executed program with {} cycles", report.total_instruction_count());
-
-    // Generate the proof for the given program and input.
+    // Generate the proving key and verifying key for the given program.
     let (pk, vk) = client.setup(ELF);
+
+    // Generate the proof.
     let mut proof = client.prove(&pk, stdin).run().unwrap();
 
     println!("generated proof");
