@@ -282,8 +282,8 @@ jobs:
 
       - name: Run Evaluation
         run: |
-          cd crates/eval
-          RUSTFLAGS='-C target-cpu=native' cargo run --release -- \
+          cd crates/perf
+          RUSTFLAGS='-C target-cpu=native' cargo run --bin evaluate --release -- \
             --programs fibonacci,ssz-withdrawals,tendermint \
             --post-to-slack ${{ github.ref == 'refs/heads/dev' }} \
             --slack-channel-id "${{ secrets.SLACK_CHANNEL_ID }}" \
