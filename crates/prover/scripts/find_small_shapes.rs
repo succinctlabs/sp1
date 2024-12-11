@@ -13,6 +13,8 @@ struct Args {
     maximal_shapes_json: PathBuf,
     #[clap(short, long, value_delimiter = ' ')]
     log2_memory_heights: Vec<usize>,
+    #[clap(short, long)]
+    output: PathBuf,
 }
 
 fn main() {
@@ -30,7 +32,10 @@ fn main() {
 
     // For each maximal shape, generate all small shapes by varying the memory heights.
     let mut small_shapes = Vec::new();
-    for (_, shapes) in maximal_shapes.iter() {
+    for (log2_shard_size, shapes) in maximal_shapes.iter() {
+        if *log2_shard_size > 21 {
+            continue;
+        }
         for shape in shapes.iter() {
             for log2_memory_height in args.log2_memory_heights.iter() {
                 let mut small_shape = shape.clone();
@@ -50,5 +55,5 @@ fn main() {
     // Serialize the small shapes.
     let serialized =
         serde_json::to_string(&small_shapes).expect("failed to serialize small shapes");
-    std::fs::write("small_shapes.json", serialized).expect("failed to write small shapes");
+    std::fs::write(&args.output, serialized).expect("failed to write small shapes");
 }

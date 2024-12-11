@@ -27,12 +27,12 @@ use crate::{
 /// These shapes define the "worst-case" shapes for typical shards that are proving `rv32im`
 /// execution. We use a variant of a cartesian product of the allowed log heights to generate
 /// smaller shapes from these ones.
-const MAXIMAL_SHAPES: &[u8] = include_bytes!("maximal_shapes.json");
+const MAXIMAL_SHAPES: &[u8] = include_bytes!("maximal_shapes_v4_0_0_rc_3.json");
 
 /// The set of tiny shapes.
 ///
 /// These shapes are used to optimize performance for smaller programs.
-const SMALL_SHAPES: &[u8] = include_bytes!("small_shapes.json");
+const SMALL_SHAPES: &[u8] = include_bytes!("small_shapes_v4_0_0_rc_3.json");
 
 /// A configuration for what shapes are allowed to be used by the prover.
 #[derive(Debug)]
@@ -588,27 +588,26 @@ pub enum CoreShapeError {
     PrecompileNotIncluded(HashMap<String, usize>),
 }
 
+pub fn create_dummy_program(shape: &Shape<RiscvAirId>) -> Program {
+    let mut program = Program::new(vec![], 1 << 5, 1 << 5);
+    program.preprocessed_shape = Some(shape.clone());
+    program
+}
+
+pub fn create_dummy_record(shape: &Shape<RiscvAirId>) -> ExecutionRecord {
+    let program = std::sync::Arc::new(create_dummy_program(shape));
+    let mut record = ExecutionRecord::new(program);
+    record.shape = Some(shape.clone());
+    record
+}
+
 #[cfg(test)]
 pub mod tests {
-    use std::sync::Arc;
 
     use hashbrown::HashSet;
     use sp1_stark::{Dom, MachineProver, StarkGenericConfig};
 
     use super::*;
-
-    fn create_dummy_program(shape: &Shape<RiscvAirId>) -> Program {
-        let mut program = Program::new(vec![], 1 << 5, 1 << 5);
-        program.preprocessed_shape = Some(shape.clone());
-        program
-    }
-
-    fn create_dummy_record(shape: &Shape<RiscvAirId>) -> ExecutionRecord {
-        let program = Arc::new(create_dummy_program(shape));
-        let mut record = ExecutionRecord::new(program);
-        record.shape = Some(shape.clone());
-        record
-    }
 
     fn try_generate_dummy_proof<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>>>(
         prover: &P,

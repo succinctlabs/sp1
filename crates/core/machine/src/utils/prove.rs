@@ -243,13 +243,14 @@ where
                                 deferred.append(&mut record.defer());
                             }
 
-                            // TODO: double check this logic
+                            // We combine the memory init/finalize events if they are "small"
+                            // and would affect performance.
                             let last_record = if done
-                                && num_cycles < 1 << 26
+                                && num_cycles < 1 << 23
                                 && deferred.global_memory_initialize_events.len()
-                                    < opts.split_opts.memory / 4
+                                    < opts.split_opts.combine_memory_threshold
                                 && deferred.global_memory_finalize_events.len()
-                                    < opts.split_opts.memory / 4
+                                    < opts.split_opts.combine_memory_threshold
                             {
                                 records.last_mut()
                             } else {
