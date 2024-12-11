@@ -171,11 +171,11 @@ fn main() {
             let (_, verify_shrink_duration) =
                 time_operation(|| prover.verify_shrink(&shrink_proof, &vk));
 
-            let (_, wrap_duration) = time_operation(|| server.wrap_bn254(shrink_proof).unwrap());
+            let (wrapped_bn254_proof, wrap_duration) =
+                time_operation(|| server.wrap_bn254(shrink_proof).unwrap());
 
-            // TODO: FIX
-            // let (_, verify_wrap_duration) =
-            //     time_operation(|| prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk));
+            let (_, verify_wrap_duration) =
+                time_operation(|| prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk));
 
             let result = PerfResult {
                 cycles,
@@ -187,7 +187,7 @@ fn main() {
                 shrink_duration,
                 verify_shrink_duration,
                 wrap_duration,
-                ..Default::default()
+                verify_wrap_duration,
             };
 
             println!("{:?}", result);
