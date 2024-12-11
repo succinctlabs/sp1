@@ -109,7 +109,7 @@ impl NetworkProver {
     pub fn prove_with_options<'a>(
         &'a self,
         pk: &'a SP1ProvingKey,
-        stdin: SP1Stdin,
+        stdin: &'a SP1Stdin,
     ) -> NetworkProofRequest<'a> {
         NetworkProofRequest::new(self, pk, stdin)
     }
@@ -145,7 +145,7 @@ impl NetworkProverBuilder {
 pub struct NetworkProofRequest<'a> {
     prover: &'a NetworkProver,
     pk: &'a SP1ProvingKey,
-    stdin: SP1Stdin,
+    stdin: &'a SP1Stdin,
     version: String,
     mode: Mode,
     fulfillment_strategy: Option<FulfillmentStrategy>,
@@ -155,7 +155,7 @@ pub struct NetworkProofRequest<'a> {
 }
 
 impl<'a> NetworkProofRequest<'a> {
-    pub fn new(prover: &'a NetworkProver, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> Self {
+    pub fn new(prover: &'a NetworkProver, pk: &'a SP1ProvingKey, stdin: &'a SP1Stdin) -> Self {
         Self {
             prover,
             pk,
@@ -257,7 +257,7 @@ impl Prover for NetworkProver {
         stdin: &SP1Stdin,
         opts: &ProofOpts,
     ) -> Result<SP1ProofWithPublicValues> {
-        let request = NetworkProofRequest::new(self, pk, stdin.clone())
+        let request = NetworkProofRequest::new(self, pk, stdin)
             .with_mode(opts.mode)
             .with_timeout(opts.timeout)
             .with_cycle_limit(opts.cycle_limit);
@@ -271,7 +271,7 @@ impl Prover for NetworkProver {
         stdin: &SP1Stdin,
         opts: &ProofOpts,
     ) -> Result<SP1ProofWithPublicValues> {
-        let request = NetworkProofRequest::new(self, pk, stdin.clone());
+        let request = NetworkProofRequest::new(self, pk, stdin);
         request.run()
     }
 

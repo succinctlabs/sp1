@@ -2,7 +2,7 @@
 pub enum Mode {
     Execute,
     Core,
-    Compresssed,
+    Compressed,
     Plonk,
     Groth16,
 }

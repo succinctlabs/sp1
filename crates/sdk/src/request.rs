@@ -20,27 +20,40 @@ pub trait ProofRequest {
     ) -> Pin<Box<dyn Future<Output = Result<SP1ProofWithPublicValues>> + Send + 'static>>;
 }
 
-pub struct DynProofRequest<'a, 'b: 'a> {
+pub struct DynProofRequest<'a> {
     prover: &'a dyn Prover,
-    elf: &'b [u8],
-    pk: SP1ProvingKey,
-    stdin: SP1Stdin,
+    pk: &'a SP1ProvingKey,
+    stdin: &'a SP1Stdin,
     opts: ProofOpts,
 }
 
-impl<'a, 'b: 'a> DynProofRequest<'a, 'b> {
+impl<'a> DynProofRequest<'a> {
     pub fn new(
         prover: &'a dyn Prover,
-        elf: &'b [u8],
-        pk: SP1ProvingKey,
-        stdin: SP1Stdin,
+        pk: &'a SP1ProvingKey,
+        stdin: &'a SP1Stdin,
         opts: ProofOpts,
     ) -> Self {
-        Self { prover, elf, pk, stdin, opts }
+        Self { prover, pk, stdin, opts }
     }
 
-    pub fn proof_type(mut self, mode: Mode) -> Self {
-        self.opts.mode = mode;
+    pub fn core(mut self) -> Self {
+        self.opts.mode = Mode::Core;
+        self
+    }
+
+    pub fn compressed(mut self) -> Self {
+        self.opts.mode = Mode::Compressed;
+        self
+    }
+
+    pub fn plonk(mut self) -> Self {
+        self.opts.mode = Mode::Plonk;
+        self
+    }
+
+    pub fn groth16(mut self) -> Self {
+        self.opts.mode = Mode::Groth16;
         self
     }
 
@@ -59,7 +72,7 @@ impl<'a, 'b: 'a> DynProofRequest<'a, 'b> {
     }
 }
 
-impl<'a, 'b: 'a> IntoFuture for DynProofRequest<'a, 'b> {
+impl<'a> IntoFuture for DynProofRequest<'a> {
     type Output = Result<SP1ProofWithPublicValues>;
     type IntoFuture = Pin<Box<dyn Future<Output = Self::Output> + Send + 'a>>;
 

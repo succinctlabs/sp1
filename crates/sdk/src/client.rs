@@ -5,6 +5,7 @@ use crate::{
     opts::ProofOpts,
     proof::SP1ProofWithPublicValues,
     prover::Prover,
+    request::DynProofRequest,
 };
 use anyhow::Result;
 use sp1_core_executor::{ExecutionError, ExecutionReport};
@@ -62,13 +63,17 @@ impl ProverClient {
         self.inner.execute(elf, stdin).await
     }
 
-    pub async fn prove(
-        &self,
-        pk: &SP1ProvingKey,
-        stdin: &SP1Stdin,
-    ) -> Result<SP1ProofWithPublicValues> {
-        let opts = ProofOpts::default();
-        self.inner.prove_with_options(pk, stdin, &opts).await
+    // pub async fn prove(
+    //     &self,
+    //     pk: &SP1ProvingKey,
+    //     stdin: &SP1Stdin,
+    // ) -> Result<SP1ProofWithPublicValues> {
+    //     let opts = ProofOpts::default();
+    //     self.inner.prove_with_options(pk, stdin, &opts).await
+    // }
+
+    pub fn prove<'a>(&'a self, pk: &'a SP1ProvingKey, stdin: &'a SP1Stdin) -> DynProofRequest<'a> {
+        DynProofRequest::new(&*self.inner, pk, stdin, ProofOpts::default())
     }
 
     pub async fn prove_with_options(

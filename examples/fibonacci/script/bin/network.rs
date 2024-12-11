@@ -19,24 +19,27 @@ async fn main() {
     let mut stdin = SP1Stdin::new();
     stdin.write(&n);
 
-    // dotenv().ok();
+    dotenv().ok();
 
-    // let rpc_url = std::env::var("PROVER_NETWORK_RPC").unwrap();
-    // let private_key = std::env::var("SP1_PRIVATE_KEY").unwrap();
+    let rpc_url = std::env::var("PROVER_NETWORK_RPC").unwrap();
+    let private_key = std::env::var("SP1_PRIVATE_KEY").unwrap();
 
-    // Generate the proof, using the specified network configuration.
-    // let client = ProverClient::builder()
-    //     .network()
-    //     .with_rpc_url(rpc_url)
-    //     .with_private_key(private_key)
-    //     .build();
+
+    // let client = ProverClient::builder().local().build();
 
     // Or use old env var behavior
 
     // let client = ProverClient::builder()
     //     .from_env();
 
-    let client = ProverClient::new();
+    // let client = ProverClient::new();
+
+    // Generate the proof, using the specified network configuration.
+    let client = ProverClient::builder()
+        .network()
+        .with_rpc_url(rpc_url)
+        .with_private_key(private_key)
+        .build();
 
     // Generate the proving key and verifying key for the given program.
     let (pk, vk) = client.setup(ELF).await;
@@ -44,10 +47,7 @@ async fn main() {
     // Generate the proof.
     let proof_result = client
         .prove(&pk, &stdin)
-        // .timeout(300)
-        // .cycle_limit(1_000_000)
-        // .skip_simulation(true)
-        // .strategy(FulfillmentStrategy::Hosted)
+        .core()
         .await;
 
     // Example of handling potential errors.

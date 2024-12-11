@@ -8,7 +8,10 @@ use crate::verify;
 
 use anyhow::Result;
 use async_trait::async_trait;
+
+#[cfg(feature = "blocking")]
 use futures::executor;
+
 use sp1_core_executor::{ExecutionError, ExecutionReport, SP1Context};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_primitives::io::SP1PublicValues;
@@ -46,13 +49,13 @@ impl LocalProverBuilder {
 pub struct LocalProofRequest<'a> {
     pub prover: &'a LocalProver,
     pub pk: &'a SP1ProvingKey,
-    pub stdin: SP1Stdin,
+    pub stdin: &'a SP1Stdin,
     pub mode: Mode,
     pub timeout: u64,
 }
 
 impl<'a> LocalProofRequest<'a> {
-    pub fn new(prover: &'a LocalProver, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> Self {
+    pub fn new(prover: &'a LocalProver, pk: &'a SP1ProvingKey, stdin: &'a SP1Stdin) -> Self {
         Self { prover, pk, stdin, timeout: DEFAULT_TIMEOUT, mode: Mode::default() }
     }
 
@@ -97,7 +100,7 @@ impl Prover for LocalProver {
         stdin: &SP1Stdin,
         opts: &ProofOpts,
     ) -> Result<SP1ProofWithPublicValues> {
-        let request = LocalProofRequest::new(self, pk, stdin.clone()).with_timeout(opts.timeout);
+        let request = LocalProofRequest::new(self, pk, stdin).with_timeout(opts.timeout);
         request.run().await
     }
 
@@ -108,7 +111,7 @@ impl Prover for LocalProver {
         stdin: &SP1Stdin,
         opts: &ProofOpts,
     ) -> Result<SP1ProofWithPublicValues> {
-        let request = LocalProofRequest::new(self, pk, stdin.clone()).with_timeout(opts.timeout);
+        let request = LocalProofRequest::new(self, pk, stdin).with_timeout(opts.timeout);
         executor::block_on(request.run())
     }
 
