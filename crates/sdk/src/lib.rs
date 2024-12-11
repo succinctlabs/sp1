@@ -5,13 +5,14 @@
 //! Visit the [Getting Started](https://succinctlabs.github.io/sp1/getting-started.html) section
 //! in the official SP1 documentation for a quick start guide.
 
-mod client;
+pub mod client;
 mod local;
 mod mode;
 mod network;
 mod opts;
 mod prover;
 mod request;
+mod verify;
 
 pub mod action;
 pub mod artifacts;

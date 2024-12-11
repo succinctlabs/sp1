@@ -4,13 +4,14 @@ use crate::proof::SP1ProofWithPublicValues;
 use crate::prover::Prover;
 use crate::provers::SP1VerificationError;
 use crate::request::ProofRequest;
+use crate::verify;
 
 use anyhow::Result;
 use async_trait::async_trait;
 use sp1_core_executor::{ExecutionReport, SP1Context};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::components::DefaultProverComponents;
-use sp1_prover::{SP1Prover, SP1ProvingKey, SP1VerifyingKey};
+use sp1_prover::{SP1Prover, SP1ProvingKey, SP1VerifyingKey, SP1_CIRCUIT_VERSION};
 use std::future::{Future, IntoFuture};
 use std::pin::Pin;
 
@@ -78,8 +79,8 @@ impl<'a> LocalProofRequest<'a> {
 
 #[async_trait]
 impl Prover for LocalProver {
-    async fn setup(&self, elf: &[u8]) -> Result<(SP1ProvingKey, SP1VerifyingKey)> {
-        self.prover.setup(elf).map_err(anyhow::Error::from)
+    async fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
+        self.prover.setup(elf)
     }
 
     async fn execute(&self, elf: &[u8], stdin: SP1Stdin) -> Result<ExecutionReport> {
@@ -113,9 +114,7 @@ impl Prover for LocalProver {
         proof: &SP1ProofWithPublicValues,
         vk: &SP1VerifyingKey,
     ) -> Result<(), SP1VerificationError> {
-        self.prover
-            .verify_proof(proof, vk)
-            .map_err(|e| SP1VerificationError::VerificationFailed(e.to_string()))
+        verify::verify(&self.prover, SP1_CIRCUIT_VERSION, proof, vk)
     }
 }
 

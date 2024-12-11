@@ -1,11 +1,12 @@
 use sp1_sdk::network_v2::{Error, FulfillmentStrategy};
-use sp1_sdk::{include_elf, utils, ProverClient, SP1ProofWithPublicValues, SP1Stdin};
+use sp1_sdk::{include_elf, utils, client::ProverClient, proof::SP1ProofWithPublicValues, SP1Stdin};
 use std::time::Duration;
 
 /// The ELF we want to execute inside the zkVM.
 const ELF: &[u8] = include_elf!("fibonacci-program");
 
-fn main() {
+#[tokio::main]
+async fn main() {
     // Setup logging.
     utils::setup_logger();
 

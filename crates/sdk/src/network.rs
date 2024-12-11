@@ -17,6 +17,7 @@ use crate::request::ProofRequest;
 use crate::network_v2::FulfillmentStrategy;
 use crate::network_v2::DEFAULT_PROVER_NETWORK_RPC;
 use crate::network_v2::{Error, RequestId, VerifyingKeyHash};
+use crate::verify;
 use crate::{network_v2::NetworkClient, proof::SP1ProofWithPublicValues};
 
 pub struct NetworkProver {
@@ -38,7 +39,7 @@ impl NetworkProver {
     }
 
     pub fn with_mode(mut self, mode: Mode) -> Self {
-        self.network_client.mode = mode;
+        self.network_client.mode = mode.into();
         self
     }
 
@@ -104,7 +105,11 @@ impl NetworkProver {
         todo!()
     }
 
-    pub fn prove_with_options(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> NetworkProofRequest {
+    pub fn prove_with_options<'a>(
+        &'a self,
+        pk: &'a SP1ProvingKey,
+        stdin: SP1Stdin,
+    ) -> NetworkProofRequest<'a> {
         NetworkProofRequest::new(self, pk, stdin)
     }
 
@@ -130,22 +135,22 @@ impl NetworkProverBuilder {
 
     pub fn build(self) -> NetworkProver {
         NetworkProver::new(
-            self.rpc_url.unwrap_or_default(DEFAULT_PROVER_NETWORK_RPC),
+            self.rpc_url.unwrap_or_else(|| DEFAULT_PROVER_NETWORK_RPC.to_string()),
             self.private_key.expect("private key is required"),
         )
     }
 }
 
 pub struct NetworkProofRequest<'a> {
-    pub prover: &'a NetworkProver,
-    pub pk: &'a SP1ProvingKey,
-    pub stdin: SP1Stdin,
-    pub version: String,
-    pub mode: Mode,
-    pub fulfillment_strategy: Option<FulfillmentStrategy>,
-    pub timeout_sec: Option<u64>,
-    pub cycle_limit: Option<u64>,
-    pub skip_simulation: bool,
+    prover: &'a NetworkProver,
+    pk: &'a SP1ProvingKey,
+    stdin: SP1Stdin,
+    version: String,
+    mode: Mode,
+    fulfillment_strategy: Option<FulfillmentStrategy>,
+    timeout_sec: Option<u64>,
+    cycle_limit: Option<u64>,
+    skip_simulation: bool,
 }
 
 impl<'a> NetworkProofRequest<'a> {
@@ -175,6 +180,11 @@ impl<'a> NetworkProofRequest<'a> {
 
     pub fn with_strategy(mut self, strategy: FulfillmentStrategy) -> Self {
         self.fulfillment_strategy = Some(strategy);
+        self
+    }
+
+    pub fn with_cycle_limit(mut self, cycle_limit: u64) -> Self {
+        self.cycle_limit = Some(cycle_limit);
         self
     }
 
@@ -228,8 +238,8 @@ impl<'a> IntoFuture for NetworkProofRequest<'a> {
 
 #[async_trait]
 impl Prover for NetworkProver {
-    async fn setup(&self, elf: &[u8]) -> Result<(SP1ProvingKey, SP1VerifyingKey)> {
-        self.prover.setup(elf).map_err(anyhow::Error::from)
+    async fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
+        self.prover.setup(elf)
     }
 
     async fn execute(&self, elf: &[u8], stdin: SP1Stdin) -> Result<ExecutionReport> {
@@ -245,7 +255,8 @@ impl Prover for NetworkProver {
     ) -> Result<SP1ProofWithPublicValues> {
         let request = NetworkProofRequest::new(self, pk, stdin.clone())
             .with_mode(opts.mode)
-            .with_timeout(opts.timeout);
+            .with_timeout(opts.timeout)
+            .with_cycle_limit(opts.cycle_limit);
         request.run().await
     }
 
@@ -265,13 +276,13 @@ impl Prover for NetworkProver {
         proof: &SP1ProofWithPublicValues,
         vk: &SP1VerifyingKey,
     ) -> Result<(), SP1VerificationError> {
-        self.prover.verify(proof, vk)
+        verify::verify(&self.prover, SP1_CIRCUIT_VERSION, proof, vk)
     }
 }
 
 #[cfg(feature = "blocking")]
 impl ProofRequest for NetworkProofRequest<'_> {
     async fn run(self) -> Result<SP1ProofWithPublicValues> {
-        self.prover.prove_with_options(&self.pk, self.stdin).await
+        self.prover.prove_with_options(&self.pk, &self.stdin, &self.opts).await
     }
 }
