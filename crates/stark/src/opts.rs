@@ -34,8 +34,7 @@ impl SP1ProverOpts {
     #[must_use]
     pub fn cpu(cpu_ram_gb: usize) -> Self {
         let (log2_shard_size, shard_batch_size, log2_divisor) = match cpu_ram_gb {
-            0..17 => (19, 1, 3),
-            17..33 => (19, 2, 3),
+            0..33 => (19, 1, 3),
             33..49 => (20, 1, 2),
             49..65 => (21, 2, 1),
             65..81 => (21, 3, 1),

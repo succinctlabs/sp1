@@ -90,7 +90,6 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             heights.extend(RiscvAir::<F>::memory_heights(record));
 
             // Try to find a shape fitting within at least one of the candidate shapes.
-            let log2_shard_size = record.cpu_events.len().next_power_of_two().ilog2() as usize;
             let mut minimal_shape = None;
             let mut minimal_area = usize::MAX;
             let mut minimal_cluster = None;
@@ -101,20 +100,6 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                         minimal_shape = Some(shape);
                         minimal_cluster = Some(i);
                     }
-                    // tracing::info!("Shard Lifted: Index={}, Cluster={}", shard, i);
-                    // for (air, height) in heights.iter() {
-                    //     if let Some(log2_height) = shape.log2_height(air) {
-                    //         tracing::info!(
-                    //             "Chip {:<20}: {:<3} -> {:<3}",
-                    //             air,
-                    //             log2_ceil_usize(*height),
-                    //             log2_height,
-                    //         );
-                    //     }
-                    // }
-
-                    // record.shape.as_mut().unwrap().extend(shape);
-                    // return Ok(());
                 }
             }
 
