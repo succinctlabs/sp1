@@ -1,0 +1,13 @@
+[package]
+name = "secp256k1-program"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+sp1-sdk = { workspace = true }
+secp256k1 = { workspace = true }
+rand = { workspace = true }
+
+[build-dependencies]
+sp1-build = { workspace = true }
