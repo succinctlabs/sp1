@@ -71,7 +71,7 @@ impl ProverClient {
         &self,
         proof: Arc<SP1ProofWithPublicValues>,
         vk: Arc<SP1VerifyingKey>,
-    ) -> Result<(), crate::provers::SP1VerificationError> {
+    ) -> Result<(), crate::local::SP1VerificationError> {
         self.inner.verify(proof, vk).await
     }
 }

@@ -3,21 +3,19 @@ use std::time::{Duration, Instant};
 
 use anyhow::Result;
 use async_trait::async_trait;
-use backoff::{future::retry, Error as BackoffError, ExponentialBackoff};
 use serde::de::DeserializeOwned;
 use sp1_core_executor::{ExecutionError, ExecutionReport, SP1Context};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_primitives::io::SP1PublicValues;
 use sp1_prover::{components::DefaultProverComponents, SP1Prover, SP1_CIRCUIT_VERSION};
 use sp1_prover::{SP1ProvingKey, SP1VerifyingKey};
-use sp1_stark::SP1ProverOpts;
 use std::future::{Future, IntoFuture};
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 use tokio::task;
 use tokio::time::sleep;
-use tonic::Code;
 
+use crate::local::SP1VerificationError;
 use crate::mode::Mode;
 use crate::network_v2::retry::{self, with_retry};
 use crate::network_v2::{
@@ -29,9 +27,8 @@ use crate::network_v2::{
 use crate::opts::ProofOpts;
 use crate::proof::SP1ProofWithPublicValues;
 use crate::prover::Prover;
-use crate::provers::SP1VerificationError;
 use crate::request::{DEFAULT_CYCLE_LIMIT, DEFAULT_TIMEOUT};
-use crate::{block_on, verify};
+use crate::verify;
 
 /// The default fulfillment strategy to use for proof requests.
 pub const DEFAULT_FULFILLMENT_STRATEGY: FulfillmentStrategy = FulfillmentStrategy::Hosted;
@@ -65,9 +62,27 @@ impl NetworkProver {
         }
     }
 
-    /// Sets up the proving key and verifying key for the given ELF.
-    pub fn with_mode(mut self, mode: Mode) -> Self {
-        self.network_client.mode = mode.into();
+    /// Sets the proof mode to core.
+    pub fn core(mut self) -> Self {
+        self.network_client.mode = Mode::Core;
+        self
+    }
+
+    /// Sets the proof mode to compressed.
+    pub fn compressed(mut self) -> Self {
+        self.network_client.mode = Mode::Compressed;
+        self
+    }
+
+    /// Sets the proof mode to plonk.
+    pub fn plonk(mut self) -> Self {
+        self.network_client.mode = Mode::Plonk;
+        self
+    }
+
+    /// Sets the proof mode to groth16.
+    pub fn groth16(mut self) -> Self {
+        self.network_client.mode = Mode::Groth16;
         self
     }
 
@@ -75,8 +90,8 @@ impl NetworkProver {
     ///
     /// This configures the endpoint that will be used for all network operations.
     /// If not set, the default RPC URL will be used.
-    pub fn timeout_secs(mut self, secs: u64) -> Self {
-        self.network_client.timeout_secs = Some(secs);
+    pub fn timeout(mut self, timeout: u64) -> Self {
+        self.network_client.timeout = Some(timeout);
         self
     }
 
@@ -100,7 +115,7 @@ impl NetworkProver {
     ///
     /// See `request_proof` for more details the final cycle limit is determined.
     pub fn strategy(mut self, strategy: FulfillmentStrategy) -> Self {
-        self.network_client.fulfillment_strategy = Some(strategy);
+        self.network_client.strategy = Some(strategy);
         self
     }
 
@@ -154,25 +169,17 @@ impl NetworkProver {
         version: &str,
         mode: ProofMode,
         strategy: FulfillmentStrategy,
-        timeout_secs: u64,
+        timeout: u64,
         cycle_limit: u64,
     ) -> Result<RequestId> {
         // Request the proof with retries.
         let (tx_hash, request_id) = retry::with_retry(
             || async {
                 self.network_client
-                    .request_proof(
-                        vk_hash,
-                        stdin,
-                        version,
-                        mode,
-                        strategy,
-                        timeout_secs,
-                        cycle_limit,
-                    )
+                    .request_proof(vk_hash, stdin, version, mode, strategy, timeout, cycle_limit)
                     .await
             },
-            timeout_secs,
+            timeout,
             "requesting proof",
         )
         .await?;

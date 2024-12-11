@@ -4,6 +4,8 @@ use sp1_core_executor::{SP1Context, SP1ReduceProof};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_stark::{ShardCommitment, ShardOpenedValues, ShardProof, StarkVerifyingKey};
 
+use sp1_prover::SP1Proof;
+
 use anyhow::Result;
 use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, PrimeField};
@@ -11,15 +13,17 @@ use p3_fri::{FriProof, TwoAdicFriPcsProof};
 use sp1_prover::{
     components::DefaultProverComponents,
     verify::{verify_groth16_bn254_public_inputs, verify_plonk_bn254_public_inputs},
-    Groth16Bn254Proof, HashableKey, PlonkBn254Proof, SP1Prover,
+    Groth16Bn254Proof, HashableKey, PlonkBn254Proof, SP1Prover, SP1ProvingKey, SP1VerifyingKey,
 };
 
 use super::{ProofOpts, ProverType};
 
-// /// An implementation of [crate::ProverClient] that can generate mock proofs.
-// pub struct MockProver {
-//     pub(crate) prover: SP1Prover,
-// }
+use crate::{local::SP1VerificationError, proof::SP1ProofWithPublicValues, prover::Prover};
+
+/// An implementation of [crate::ProverClient] that can generate mock proofs.
+pub struct MockProver {
+    pub(crate) prover: SP1Prover,
+}
 
 // impl MockProver {
 //     /// Creates a new [MockProver].

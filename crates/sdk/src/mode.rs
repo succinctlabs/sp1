@@ -16,17 +16,6 @@ impl Default for Mode {
     }
 }
 
-// impl From<SP1ProofKind> for Mode {
-//     fn from(value: SP1ProofKind) -> Self {
-//         match value {
-//             SP1ProofKind::Core => Self::Core,
-//             SP1ProofKind::Compressed => Self::Compressed,
-//             SP1ProofKind::Plonk => Self::Plonk,
-//             SP1ProofKind::Groth16 => Self::Groth16,
-//         }
-//     }
-// }
-
 #[cfg(feature = "network-v2")]
 impl From<Mode> for ProofMode {
     fn from(value: Mode) -> Self {

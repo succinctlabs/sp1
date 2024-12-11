@@ -1,27 +1,25 @@
 use crate::install::try_install_circuit_artifacts;
+use crate::local::ProverType;
+use crate::local::SP1VerificationError;
 use crate::mode::Mode;
 use crate::opts::ProofOpts;
-use crate::proof::{SP1Proof, SP1ProofKind, SP1ProofWithPublicValues};
+use crate::proof::{SP1Proof, SP1ProofWithPublicValues};
 use crate::prover::Prover;
-use crate::provers::SP1VerificationError;
 use crate::request::DEFAULT_TIMEOUT;
 use crate::verify;
 
 use anyhow::Result;
 use async_trait::async_trait;
-
-use sp1_stark::SP1ProverOpts;
-use tokio::task;
-
 use sp1_core_executor::{ExecutionError, ExecutionReport, SP1Context};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_primitives::io::SP1PublicValues;
 use sp1_prover::components::DefaultProverComponents;
 use sp1_prover::{SP1Prover, SP1ProvingKey, SP1VerifyingKey, SP1_CIRCUIT_VERSION};
+use sp1_stark::SP1ProverOpts;
 use std::future::{Future, IntoFuture};
 use std::pin::Pin;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use tokio::task;
 
 pub struct LocalProver {
     prover: Arc<SP1Prover<DefaultProverComponents>>,
@@ -34,6 +32,18 @@ impl LocalProver {
 
     pub fn builder() -> LocalProverBuilder {
         LocalProverBuilder::new()
+    }
+
+    fn id(&self) -> ProverType {
+        ProverType::Mock
+    }
+
+    fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
+        self.prover.setup(elf)
+    }
+
+    fn sp1_prover(&self) -> &SP1Prover {
+        &self.prover
     }
 }
 
@@ -94,6 +104,16 @@ impl<'a> LocalProofRequest<'a> {
 
     pub fn with_timeout(mut self, timeout: u64) -> Self {
         self.timeout = timeout;
+        self
+    }
+
+    pub fn with_version(mut self, version: String) -> Self {
+        self.version = version;
+        self
+    }
+
+    pub fn with_sp1_prover_opts(mut self, opts: SP1ProverOpts) -> Self {
+        self.sp1_prover_opts = opts;
         self
     }
 
@@ -314,18 +334,6 @@ impl<'a> IntoFuture for LocalProofRequest<'a> {
     type IntoFuture = Pin<Box<dyn Future<Output = Self::Output> + Send + 'a>>;
 
     fn into_future(self) -> Self::IntoFuture {
-        // let LocalProofRequest {
-        //     prover,
-        //     ref pk,
-        //     ref stdin,
-        //     mode,
-        //     timeout,
-        //     ref version,
-        //     sp1_prover_opts,
-        //     ref context,
-        // } = self;
-        // let prover = prover.prover.clone();
-
         Box::pin(async move { self.run() })
     }
 }

@@ -31,17 +31,17 @@ async fn main() {
 
     // Or use old env var behavior
 
-    // let client = ProverClient::builder()
-    //     .from_env();
+    let client = ProverClient::builder()
+        .from_env();
 
     // let client = ProverClient::new();
 
     // Generate the proof, using the specified network configuration.
-    let client = ProverClient::builder()
-        .network()
-        .with_rpc_url(rpc_url)
-        .with_private_key(private_key)
-        .build();
+    // let client = ProverClient::builder()
+    //     .network()
+    //     .with_rpc_url(rpc_url)
+    //     .with_private_key(private_key)
+    //     .build();
 
     // Generate the proving key and verifying key for the given program.
     let pk = client.setup(Arc::from(&ELF[..])).await;

@@ -31,15 +31,16 @@ use crate::network_v2::{Error, Signable};
 
 /// The default RPC endpoint for the Succinct prover network.
 pub const DEFAULT_PROVER_NETWORK_RPC: &str = "https://rpc.production.succinct.tools/";
+
 pub struct NetworkClient {
     signer: PrivateKeySigner,
     http: HttpClientWithMiddleware,
     rpc_url: String,
     pub mode: Mode,
-    pub timeout_secs: Option<u64>,
+    pub timeout: Option<u64>,
     pub cycle_limit: Option<u64>,
     pub skip_simulation: bool,
-    pub fulfillment_strategy: Option<FulfillmentStrategy>,
+    pub strategy: Option<FulfillmentStrategy>,
 }
 
 impl NetworkClient {
@@ -58,10 +59,10 @@ impl NetworkClient {
             http: http_client.into(),
             rpc_url: DEFAULT_PROVER_NETWORK_RPC.to_string(),
             mode: Mode::default(),
-            timeout_secs: None,
+            timeout: None,
             cycle_limit: None,
             skip_simulation: false,
-            fulfillment_strategy: None,
+            strategy: None,
         }
     }
 
