@@ -12,6 +12,7 @@ use sp1_prover::{components::DefaultProverComponents, SP1Prover, SP1_CIRCUIT_VER
 use sp1_prover::{SP1ProvingKey, SP1VerifyingKey};
 use sp1_stark::SP1ProverOpts;
 use std::future::{Future, IntoFuture};
+use std::sync::Arc;
 use tokio::runtime::Runtime;
 use tokio::task;
 use tokio::time::sleep;
@@ -46,7 +47,7 @@ pub const STATUS_CHECK_INTERVAL_SECS: u64 = 2;
 
 /// An implementation of [crate::ProverClient] that can generate proofs on a remote RPC server.
 pub struct NetworkProver {
-    prover: SP1Prover<DefaultProverComponents>,
+    prover: Arc<SP1Prover<DefaultProverComponents>>,
     network_client: NetworkClient,
 }
 
@@ -59,7 +60,7 @@ impl NetworkProver {
     /// Creates a new `NetworkProver` with the given private key.
     pub fn new(rpc_url: String, private_key: String) -> Self {
         Self {
-            prover: SP1Prover::new(),
+            prover: Arc::new(SP1Prover::new()),
             network_client: NetworkClient::new(&private_key).with_rpc_url(rpc_url),
         }
     }
@@ -151,7 +152,7 @@ impl NetworkProver {
         vk_hash: &VerifyingKeyHash,
         stdin: &SP1Stdin,
         version: &str,
-        mode: Mode,
+        mode: ProofMode,
         strategy: FulfillmentStrategy,
         timeout_secs: u64,
         cycle_limit: u64,
@@ -164,7 +165,7 @@ impl NetworkProver {
                         vk_hash,
                         stdin,
                         version,
-                        mode.into(),
+                        mode,
                         strategy,
                         timeout_secs,
                         cycle_limit,
@@ -294,11 +295,11 @@ impl NetworkProverBuilder {
 
 pub struct NetworkProofRequest<'a> {
     prover: &'a NetworkProver,
-    pk: &'a SP1ProvingKey,
-    stdin: &'a SP1Stdin,
+    pk: Arc<SP1ProvingKey>,
+    stdin: SP1Stdin,
     version: String,
-    mode: Mode,
-    fulfillment_strategy: FulfillmentStrategy,
+    mode: ProofMode,
+    strategy: FulfillmentStrategy,
     timeout: u64,
     cycle_limit: Option<u64>,
     skip_simulation: bool,
@@ -311,8 +312,8 @@ impl<'a> NetworkProofRequest<'a> {
             pk,
             stdin,
             version: SP1_CIRCUIT_VERSION.to_owned(),
-            mode: Mode::default(),
-            fulfillment_strategy: DEFAULT_FULFILLMENT_STRATEGY,
+            mode: Mode::default().into(),
+            strategy: DEFAULT_FULFILLMENT_STRATEGY,
             timeout: DEFAULT_TIMEOUT,
             cycle_limit: None,
             skip_simulation: false,
@@ -320,17 +321,17 @@ impl<'a> NetworkProofRequest<'a> {
     }
 
     pub fn with_mode(mut self, mode: Mode) -> Self {
-        self.mode = mode;
+        self.mode = mode.into();
         self
     }
 
     pub fn with_timeout(mut self, timeout: u64) -> Self {
-        self.timeout = Some(timeout);
+        self.timeout = timeout;
         self
     }
 
     pub fn with_strategy(mut self, strategy: FulfillmentStrategy) -> Self {
-        self.fulfillment_strategy = Some(strategy);
+        self.strategy = strategy;
         self
     }
 
@@ -339,40 +340,42 @@ impl<'a> NetworkProofRequest<'a> {
         self
     }
 
-    async fn run(self) -> Result<SP1ProofWithPublicValues> {
-        // Ensure the program is registered.
-        let vk_hash = self.prover.register_program(&self.pk.vk, &self.pk.elf).await?;
+    fn run(self) -> Result<SP1ProofWithPublicValues> {
+        Runtime::new().unwrap().block_on(async move {
+            // Ensure the program is registered.
+            let vk_hash = self.prover.register_program(&self.pk.vk, &self.pk.elf).await?;
 
-        // Get the cycle limit.
-        let cycle_limit = self.prover.get_cycle_limit(
-            &self.pk.elf,
-            &self.stdin,
-            self.cycle_limit,
-            self.skip_simulation,
-        )?;
-
-        // Request the proof.
-        let request_id = self
-            .prover
-            .request_proof(
-                &vk_hash,
+            // Get the cycle limit.
+            let cycle_limit = self.prover.get_cycle_limit(
+                &self.pk.elf,
                 &self.stdin,
-                &self.version,
-                self.mode,
-                self.fulfillment_strategy,
-                self.timeout,
-                cycle_limit,
-            )
-            .await?;
+                self.cycle_limit,
+                self.skip_simulation,
+            )?;
 
-        // Wait for proof generation.
-        let proof: SP1ProofWithPublicValues = self
-            .prover
-            .wait_proof(&request_id, self.timeout)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to wait for proof: {}", e))?;
+            // Request the proof.
+            let request_id = self
+                .prover
+                .request_proof(
+                    &vk_hash,
+                    &self.stdin,
+                    &self.version,
+                    self.mode,
+                    self.strategy,
+                    self.timeout,
+                    cycle_limit,
+                )
+                .await?;
 
-        Ok(proof)
+            // Wait for proof generation.
+            let proof: SP1ProofWithPublicValues = self
+                .prover
+                .wait_proof(&request_id, self.timeout)
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to wait for proof: {}", e))?;
+
+            Ok(proof)
+        })
     }
 }
 
@@ -381,18 +384,20 @@ impl<'a> IntoFuture for NetworkProofRequest<'a> {
     type IntoFuture = Pin<Box<dyn Future<Output = Self::Output> + Send + 'a>>;
 
     fn into_future(self) -> Self::IntoFuture {
-        Box::pin(async move { self.run().await })
+        Box::pin(async move { self.run() })
     }
 }
 
 #[async_trait]
 impl Prover for NetworkProver {
-    async fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
-        task::spawn_blocking(move || self.prover.setup(elf)).await.unwrap()
+    async fn setup(&self, elf: Arc<[u8]>) -> Arc<SP1ProvingKey> {
+        let elf = elf.to_vec();
+        let prover = Arc::clone(&self.prover);
+        task::spawn_blocking(move || prover.setup(&elf)).await.unwrap()
     }
 
     #[cfg(feature = "blocking")]
-    fn setup_sync(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
+    fn setup_sync(&self, elf: &[u8]) -> Arc<SP1ProvingKey> {
         self.prover.setup(elf)
     }
 
@@ -401,7 +406,10 @@ impl Prover for NetworkProver {
         elf: &[u8],
         stdin: &SP1Stdin,
     ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
-        task::spawn_blocking(move || self.prover.execute(elf, stdin, SP1Context::default()))
+        let elf = elf.to_vec();
+        let stdin = stdin.clone();
+        let prover = Arc::clone(&self.prover);
+        task::spawn_blocking(move || prover.execute(&elf, &stdin, SP1Context::default()))
             .await
             .unwrap()
     }
@@ -425,7 +433,7 @@ impl Prover for NetworkProver {
             .with_mode(opts.mode)
             .with_timeout(opts.timeout)
             .with_cycle_limit(opts.cycle_limit);
-        request.run().await
+        request.run()
     }
 
     #[cfg(feature = "blocking")]
@@ -447,7 +455,10 @@ impl Prover for NetworkProver {
         proof: &SP1ProofWithPublicValues,
         vk: &SP1VerifyingKey,
     ) -> Result<(), SP1VerificationError> {
-        task::spawn_blocking(move || verify::verify(&self.prover, SP1_CIRCUIT_VERSION, proof, vk))
+        let proof = proof.clone();
+        let vk = vk.clone();
+        let prover = Arc::clone(&self.prover);
+        task::spawn_blocking(move || verify::verify(&prover, SP1_CIRCUIT_VERSION, &proof, &vk))
             .await
             .unwrap()
     }

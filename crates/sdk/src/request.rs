@@ -61,8 +61,9 @@ impl<'a> DynProofRequest<'a> {
         self
     }
 
-    async fn run(self) -> Result<SP1ProofWithPublicValues> {
-        self.prover.prove_with_options(&self.pk, &self.stdin, &self.opts).await
+    #[cfg(feature = "blocking")]
+    fn run(self) -> Result<SP1ProofWithPublicValues> {
+        self.prover.prove_with_options_sync(&self.pk, &self.stdin, &self.opts)
     }
 }
 
@@ -71,6 +72,6 @@ impl<'a> IntoFuture for DynProofRequest<'a> {
     type IntoFuture = Pin<Box<dyn Future<Output = Self::Output> + Send + 'a>>;
 
     fn into_future(self) -> Self::IntoFuture {
-        Box::pin(self.run())
+        self.prover.prove_with_options(&self.pk, &self.stdin, &self.opts)
     }
 }

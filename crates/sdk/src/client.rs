@@ -1,7 +1,7 @@
 use crate::{
     local::{LocalProver, LocalProverBuilder},
-    network::{NetworkProver, NetworkProverBuilder},
     network_v2::DEFAULT_PROVER_NETWORK_RPC,
+    network_v2::{NetworkProver, NetworkProverBuilder},
     opts::ProofOpts,
     proof::SP1ProofWithPublicValues,
     prover::Prover,
@@ -90,9 +90,9 @@ impl ProverClientBuilder<None> {
     }
 }
 
-impl ProverClientBuilder<LocalProverBuilder> {
+impl<T: BuildableProver> ProverClientBuilder<T> {
     pub fn build(self) -> ProverClient {
-        ProverClient { inner: Box::new(self.inner_builder.build()) }
+        ProverClient { inner: self.inner_builder.build_prover() }
     }
 }
 
@@ -106,8 +106,20 @@ impl ProverClientBuilder<NetworkProverBuilder> {
         self.inner_builder = self.inner_builder.private_key(key);
         self
     }
+}
 
-    pub fn build(self) -> ProverClient {
-        ProverClient { inner: Box::new(self.inner_builder.build()) }
+pub trait BuildableProver {
+    fn build_prover(self) -> Box<dyn Prover>;
+}
+
+impl BuildableProver for LocalProverBuilder {
+    fn build_prover(self) -> Box<dyn Prover> {
+        Box::new(self.build())
+    }
+}
+
+impl BuildableProver for NetworkProverBuilder {
+    fn build_prover(self) -> Box<dyn Prover> {
+        Box::new(self.build())
     }
 }

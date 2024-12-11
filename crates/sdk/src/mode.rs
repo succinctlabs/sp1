@@ -1,7 +1,6 @@
 use crate::proof::SP1ProofKind;
 
-#[cfg(feature = "network-v2")]
-use crate::network_v2::proto::ProofMode;
+use crate::network_v2::ProofMode;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mode {
