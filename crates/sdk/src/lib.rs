@@ -8,7 +8,6 @@
 pub mod client;
 mod local;
 mod mode;
-mod network;
 mod opts;
 mod prover;
 mod request;

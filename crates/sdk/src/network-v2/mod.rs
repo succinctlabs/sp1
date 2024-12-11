@@ -1,6 +1,7 @@
 mod client;
 mod error;
 mod prover;
+mod retry;
 mod types;
 #[rustfmt::skip]
 mod proto;
