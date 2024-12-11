@@ -13,7 +13,9 @@ use crate::mode::Mode;
 use crate::opts::ProofOpts;
 use crate::prover::Prover;
 use crate::provers::SP1VerificationError;
-use crate::request::ProofRequest;
+
+use tokio::runtime::Runtime;
+use tokio::task;
 
 use crate::network_v2::FulfillmentStrategy;
 use crate::network_v2::DEFAULT_PROVER_NETWORK_RPC;
@@ -241,9 +243,26 @@ impl<'a> IntoFuture for NetworkProofRequest<'a> {
 #[async_trait]
 impl Prover for NetworkProver {
     async fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
+        task::spawn_blocking(move || self.prover.setup(elf)).await.unwrap()
+    }
+
+    #[cfg(feature = "blocking")]
+    fn setup_sync(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
         self.prover.setup(elf)
     }
+
     async fn execute(
+        &self,
+        elf: &[u8],
+        stdin: &SP1Stdin,
+    ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
+        task::spawn_blocking(move || self.prover.execute(elf, stdin, SP1Context::default()))
+            .await
+            .unwrap()
+    }
+
+    #[cfg(feature = "blocking")]
+    fn execute_sync(
         &self,
         elf: &[u8],
         stdin: &SP1Stdin,
@@ -271,11 +290,25 @@ impl Prover for NetworkProver {
         stdin: &SP1Stdin,
         opts: &ProofOpts,
     ) -> Result<SP1ProofWithPublicValues> {
-        let request = NetworkProofRequest::new(self, pk, stdin);
-        request.run()
+        let request = NetworkProofRequest::new(self, pk, stdin)
+            .with_mode(opts.mode)
+            .with_timeout(opts.timeout)
+            .with_cycle_limit(opts.cycle_limit);
+        Runtime::new().unwrap().block_on(request.run())
     }
 
     async fn verify(
+        &self,
+        proof: &SP1ProofWithPublicValues,
+        vk: &SP1VerifyingKey,
+    ) -> Result<(), SP1VerificationError> {
+        task::spawn_blocking(move || verify::verify(&self.prover, SP1_CIRCUIT_VERSION, proof, vk))
+            .await
+            .unwrap()
+    }
+
+    #[cfg(feature = "blocking")]
+    fn verify_sync(
         &self,
         proof: &SP1ProofWithPublicValues,
         vk: &SP1VerifyingKey,

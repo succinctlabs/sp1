@@ -11,7 +11,17 @@ use crate::{opts::ProofOpts, proof::SP1ProofWithPublicValues, provers::SP1Verifi
 pub trait Prover: Sync {
     async fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey);
 
+    #[cfg(feature = "blocking")]
+    fn setup_sync(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey);
+
     async fn execute(
+        &self,
+        elf: &[u8],
+        stdin: &SP1Stdin,
+    ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError>;
+
+    #[cfg(feature = "blocking")]
+    fn execute_sync(
         &self,
         elf: &[u8],
         stdin: &SP1Stdin,
@@ -33,6 +43,13 @@ pub trait Prover: Sync {
     ) -> Result<SP1ProofWithPublicValues>;
 
     async fn verify(
+        &self,
+        proof: &SP1ProofWithPublicValues,
+        vk: &SP1VerifyingKey,
+    ) -> Result<(), SP1VerificationError>;
+
+    #[cfg(feature = "blocking")]
+    fn verify_sync(
         &self,
         proof: &SP1ProofWithPublicValues,
         vk: &SP1VerifyingKey,

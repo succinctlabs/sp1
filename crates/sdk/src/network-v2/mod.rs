@@ -1,8 +1,6 @@
 mod client;
 mod error;
-mod json;
 mod prover;
-mod sign_message;
 mod types;
 #[rustfmt::skip]
 mod proto;

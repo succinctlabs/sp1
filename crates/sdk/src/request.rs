@@ -14,12 +14,6 @@ pub const DEFAULT_TIMEOUT: u64 = 14400;
 /// The default cycle limit for a proof request.
 pub const DEFAULT_CYCLE_LIMIT: u64 = 100_000_000;
 
-pub trait ProofRequest {
-    fn run(
-        self,
-    ) -> Pin<Box<dyn Future<Output = Result<SP1ProofWithPublicValues>> + Send + 'static>>;
-}
-
 pub struct DynProofRequest<'a> {
     prover: &'a dyn Prover,
     pk: &'a SP1ProvingKey,
