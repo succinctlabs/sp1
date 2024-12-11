@@ -8,6 +8,12 @@ use sp1_prover::SP1ProvingKey;
 use std::future::{Future, IntoFuture};
 use std::pin::Pin;
 
+/// The default timeout seconds for a proof request to be generated (4 hours).
+pub const DEFAULT_TIMEOUT: u64 = 14400;
+
+/// The default cycle limit for a proof request.
+pub const DEFAULT_CYCLE_LIMIT: u64 = 100_000_000;
+
 pub trait ProofRequest {
     fn run(
         self,

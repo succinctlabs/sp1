@@ -33,10 +33,10 @@ async fn main() {
 
     // Or use old env var behavior
 
-    let client = ProverClient::builder()
-        .from_env();
+    // let client = ProverClient::builder()
+    //     .from_env();
 
-    // let client = ProverClient::new();
+    let client = ProverClient::new();
 
     // Generate the proving key and verifying key for the given program.
     let (pk, vk) = client.setup(ELF).await;

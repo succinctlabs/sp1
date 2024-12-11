@@ -3,20 +3,22 @@ use crate::opts::ProofOpts;
 use crate::proof::SP1ProofWithPublicValues;
 use crate::prover::Prover;
 use crate::provers::SP1VerificationError;
-use crate::request::ProofRequest;
+use crate::request::{ProofRequest, DEFAULT_TIMEOUT};
 use crate::verify;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use sp1_core_executor::{ExecutionReport, SP1Context};
+use futures::executor;
+use sp1_core_executor::{ExecutionError, ExecutionReport, SP1Context};
 use sp1_core_machine::io::SP1Stdin;
+use sp1_primitives::io::SP1PublicValues;
 use sp1_prover::components::DefaultProverComponents;
 use sp1_prover::{SP1Prover, SP1ProvingKey, SP1VerifyingKey, SP1_CIRCUIT_VERSION};
 use std::future::{Future, IntoFuture};
 use std::pin::Pin;
 
 pub struct LocalProver {
-    prover: SP1Prover<DefaultProverComponents>,
+    pub prover: SP1Prover<DefaultProverComponents>,
 }
 
 impl LocalProver {
@@ -29,13 +31,11 @@ impl LocalProver {
     }
 }
 
-pub struct LocalProverBuilder {
-    mode: Mode,
-}
+pub struct LocalProverBuilder {}
 
 impl LocalProverBuilder {
     pub fn new() -> Self {
-        Self { mode: Mode::default() }
+        Self {}
     }
 
     pub fn build(self) -> LocalProver {
@@ -53,7 +53,7 @@ pub struct LocalProofRequest<'a> {
 
 impl<'a> LocalProofRequest<'a> {
     pub fn new(prover: &'a LocalProver, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> Self {
-        Self { prover, pk, stdin, timeout: 0, mode: Mode::default() }
+        Self { prover, pk, stdin, timeout: DEFAULT_TIMEOUT, mode: Mode::default() }
     }
 
     pub fn with_mode(mut self, mode: Mode) -> Self {
@@ -83,9 +83,12 @@ impl Prover for LocalProver {
         self.prover.setup(elf)
     }
 
-    async fn execute(&self, elf: &[u8], stdin: SP1Stdin) -> Result<ExecutionReport> {
-        let (_, report) = self.prover.execute(elf, &stdin, SP1Context::default())?;
-        Ok(report)
+    async fn execute(
+        &self,
+        elf: &[u8],
+        stdin: &SP1Stdin,
+    ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
+        self.prover.execute(elf, stdin, SP1Context::default())
     }
 
     async fn prove_with_options(
@@ -106,7 +109,7 @@ impl Prover for LocalProver {
         opts: &ProofOpts,
     ) -> Result<SP1ProofWithPublicValues> {
         let request = LocalProofRequest::new(self, pk, stdin.clone()).with_timeout(opts.timeout);
-        futures::executor::block_on(request.run())
+        executor::block_on(request.run())
     }
 
     async fn verify(
@@ -136,6 +139,6 @@ impl<'a> IntoFuture for LocalProofRequest<'a> {
 #[cfg(feature = "blocking")]
 impl<'a> ProofRequest for LocalProofRequest<'a> {
     fn run(self) -> Result<SP1ProofWithPublicValues> {
-        futures::executor::block_on(self.run())
+        executor::block_on(self.run())
     }
 }

@@ -31,7 +31,7 @@ pub mod utils {
 }
 
 #[cfg(any(feature = "network", feature = "network-v2"))]
-use {std::future::Future, tokio::task::block_in_place};
+use std::future::Future;
 
 pub use sp1_build::include_elf;
 pub use sp1_core_executor::{ExecutionReport, HookEnv, SP1Context, SP1ContextBuilder};
@@ -49,8 +49,6 @@ pub use sp1_prover::{
 #[cfg(any(feature = "network", feature = "network-v2"))]
 pub fn block_on<T>(fut: impl Future<Output = T>) -> T {
     // Handle case if we're already in an tokio runtime.
-
-    use std::future::Future;
 
     use tokio::task::block_in_place;
     if let Ok(handle) = tokio::runtime::Handle::try_current() {

@@ -1,8 +1,9 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use serde::de::DeserializeOwned;
-use sp1_core_executor::{ExecutionReport, SP1Context};
+use sp1_core_executor::{ExecutionError, ExecutionReport, SP1Context};
 use sp1_core_machine::io::SP1Stdin;
+use sp1_primitives::io::SP1PublicValues;
 use sp1_prover::components::DefaultProverComponents;
 use sp1_prover::{SP1Prover, SP1ProvingKey, SP1VerifyingKey, SP1_CIRCUIT_VERSION};
 use std::future::{Future, IntoFuture};
@@ -159,6 +160,7 @@ impl<'a> NetworkProofRequest<'a> {
             prover,
             pk,
             stdin,
+            // TODO fill in defaults
             version: SP1_CIRCUIT_VERSION.to_owned(),
             mode: Mode::default(),
             fulfillment_strategy: None,
@@ -241,10 +243,12 @@ impl Prover for NetworkProver {
     async fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
         self.prover.setup(elf)
     }
-
-    async fn execute(&self, elf: &[u8], stdin: SP1Stdin) -> Result<ExecutionReport> {
-        let (_, report) = self.prover.execute(elf, &stdin, SP1Context::default())?;
-        Ok(report)
+    async fn execute(
+        &self,
+        elf: &[u8],
+        stdin: &SP1Stdin,
+    ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
+        self.prover.execute(elf, stdin, SP1Context::default())
     }
 
     async fn prove_with_options(

@@ -1,4 +1,7 @@
-use crate::mode::Mode;
+use crate::{
+    mode::Mode,
+    request::{DEFAULT_CYCLE_LIMIT, DEFAULT_TIMEOUT},
+};
 
 pub struct ProofOpts {
     pub mode: Mode,
@@ -8,7 +11,6 @@ pub struct ProofOpts {
 
 impl Default for ProofOpts {
     fn default() -> Self {
-        // TODO better defaults
-        Self { mode: Mode::default(), timeout: 10000, cycle_limit: 100000000 }
+        Self { mode: Mode::default(), timeout: DEFAULT_TIMEOUT, cycle_limit: DEFAULT_CYCLE_LIMIT }
     }
 }

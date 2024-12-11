@@ -7,8 +7,9 @@ use crate::{
     prover::Prover,
 };
 use anyhow::Result;
-use sp1_core_executor::ExecutionReport;
+use sp1_core_executor::{ExecutionError, ExecutionReport};
 use sp1_core_machine::io::SP1Stdin;
+use sp1_primitives::io::SP1PublicValues;
 use sp1_prover::{SP1ProvingKey, SP1VerifyingKey};
 use std::env;
 
@@ -39,15 +40,11 @@ impl ProverClient {
                     .unwrap_or_else(|_| DEFAULT_PROVER_NETWORK_RPC.to_string());
                 let private_key = env::var("SP1_PRIVATE_KEY").unwrap_or_default();
 
-                let network_prover = NetworkProver::builder()
-                    .with_rpc_url(rpc_url)
-                    .with_private_key(private_key)
-                    .build();
-
+                let network_prover = NetworkProver::new(rpc_url, private_key);
                 ProverClient { inner: Box::new(network_prover) }
             }
             _ => {
-                let local_prover = LocalProver::builder().build();
+                let local_prover = LocalProver::new();
                 ProverClient { inner: Box::new(local_prover) }
             }
         }
@@ -57,7 +54,11 @@ impl ProverClient {
         self.inner.setup(elf).await
     }
 
-    pub async fn execute(&self, elf: &[u8], stdin: SP1Stdin) -> Result<ExecutionReport> {
+    pub async fn execute(
+        &self,
+        elf: &[u8],
+        stdin: &SP1Stdin,
+    ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
         self.inner.execute(elf, stdin).await
     }
 
