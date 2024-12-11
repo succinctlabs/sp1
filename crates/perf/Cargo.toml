@@ -24,7 +24,7 @@ clap = { version = "4.5.9", features = ["derive"] }
 reqwest = { version = "0.11", features = ["json"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-slack-rust = "0.1"
+slack-rust = "0.0.1-alpha"
 time = "0.3.26"
 tokio = { version = "1.0", features = ["full"] }
 
