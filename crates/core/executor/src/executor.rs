@@ -1624,7 +1624,7 @@ impl<'a> Executor<'a> {
 
                 // If we're using a small shard size, we need to pad the event counts to be
                 // extra careful about OOMing.
-                if log2_ceil_usize(self.opts.shard_batch_size) <= 19 {
+                if log2_ceil_usize(self.opts.shard_size) <= 19 {
                     event_counts =
                         pad_rv32im_event_counts(event_counts, self.shape_check_frequency);
                 }
