@@ -684,7 +684,7 @@ pub mod tests {
         println!("{:?}", costs);
         // write to file
         // Create directory if it doesn't exist
-        let dir = std::path::Path::new("../executor");
+        let dir = std::path::Path::new("../executor/src/artifacts");
         if !dir.exists() {
             std::fs::create_dir_all(dir).unwrap();
         }
