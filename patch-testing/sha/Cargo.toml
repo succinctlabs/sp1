@@ -12,6 +12,7 @@ sp1-sdk.workspace = true
 sha2-v0-9-8 = { version = "0.9.8", package = "sha2" }
 sha2-v0-10-6 = { version = "0.10.6", package = "sha2" }
 rand = "0.8.5"
+sp1-test-macro.workspace = true
 
 [build-dependencies]
 sp1-build.workspace = true
