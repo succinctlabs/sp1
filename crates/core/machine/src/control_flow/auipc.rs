@@ -122,7 +122,7 @@ where
         // Range check the pc.
         // SAFETY: `is_auipc` is already checked to be boolean above.
         // `BabyBearWordRangeChecker` assumes that the value is already checked to be a valid word.
-        // This is checked implicity, as the ADD ALU table checks that all inputs are valid words.
+        // This is checked implicitly, as the ADD ALU table checks that all inputs are valid words.
         // This check is done inside the `AddOperation`. Therefore, `pc` is a valid word.
         BabyBearWordRangeChecker::<AB::F>::range_check(
             builder,
