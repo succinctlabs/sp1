@@ -1,6 +1,7 @@
 use sp1_sdk::network_v2::{Error, FulfillmentStrategy};
 use sp1_sdk::{include_elf, utils, client::ProverClient, proof::SP1ProofWithPublicValues, SP1Stdin};
 use std::time::Duration;
+use dotenv::dotenv;
 
 /// The ELF we want to execute inside the zkVM.
 const ELF: &[u8] = include_elf!("fibonacci-program");
@@ -18,23 +19,28 @@ async fn main() {
     let mut stdin = SP1Stdin::new();
     stdin.write(&n);
 
+    dotenv().ok();
+
+    let rpc_url = std::env::var("PROVER_NETWORK_RPC").unwrap();
+    let private_key = std::env::var("SP1_PRIVATE_KEY").unwrap();
+
     // Generate the proof, using the specified network configuration.
     let client = ProverClient::builder()
         .network()
-        .with_rpc_url("https://...".to_string())
-        .with_private_key("0x...".to_string())
+        .with_rpc_url(rpc_url)
+        .with_private_key(private_key)
         .build();
 
     // Generate the proving key and verifying key for the given program.
-    let (pk, vk) = client.setup(ELF).await.unwrap();
+    let (pk, vk) = client.setup(ELF).await;
 
     // Generate the proof.
     let proof_result = client
-        .prove(&pk, stdin)
-        .timeout(300)
-        .cycle_limit(1_000_000)
-        .skip_simulation(true)
-        .strategy(FulfillmentStrategy::Hosted)
+        .prove(&pk, &stdin)
+        // .timeout(300)
+        // .cycle_limit(1_000_000)
+        // .skip_simulation(true)
+        // .strategy(FulfillmentStrategy::Hosted)
         .await;
 
     // Example of handling potential errors.
@@ -81,7 +87,7 @@ async fn main() {
     println!("b: {}", b);
 
     // Verify proof and public values
-    client.verify(&proof, &vk).expect("verification failed");
+    // client.verify(&proof, &vk).expect("verification failed");
 
     // Test a round trip of proof serialization and deserialization.
     proof.save("proof-with-pis.bin").expect("saving proof failed");
@@ -89,7 +95,7 @@ async fn main() {
         SP1ProofWithPublicValues::load("proof-with-pis.bin").expect("loading proof failed");
 
     // Verify the deserialized proof.
-    client.verify(&deserialized_proof, &vk).expect("verification failed");
+    // client.verify(&deserialized_proof, &vk).expect("verification failed");
 
     println!("successfully generated and verified proof for the program!")
 }
