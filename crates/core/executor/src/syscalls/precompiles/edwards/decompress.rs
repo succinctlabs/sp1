@@ -10,6 +10,7 @@ use sp1_primitives::consts::{bytes_to_words_le, words_to_bytes_le};
 use crate::{
     events::{EdDecompressEvent, MemoryReadRecord, MemoryWriteRecord, PrecompileEvent},
     syscalls::{Syscall, SyscallCode, SyscallContext},
+    ExecutionError,
 };
 
 pub(crate) struct EdwardsDecompressSyscall<E: EdwardsParameters> {
@@ -30,7 +31,7 @@ impl<E: EdwardsParameters> Syscall for EdwardsDecompressSyscall<E> {
         syscall_code: SyscallCode,
         arg1: u32,
         sign: u32,
-    ) -> Option<u32> {
+    ) -> Result<Option<u32>, ExecutionError> {
         let start_clk = rt.clk;
         let slice_ptr = arg1;
         assert!(slice_ptr % 4 == 0, "Pointer must be 4-byte aligned.");
@@ -61,7 +62,7 @@ impl<E: EdwardsParameters> Syscall for EdwardsDecompressSyscall<E> {
             bytes_to_words_le(&decompressed_x_bytes);
 
         // Write decompressed X into slice
-        let x_memory_records_vec = rt.mw_slice(slice_ptr, &decompressed_x_words);
+        let x_memory_records_vec = rt.mw_slice(slice_ptr, &decompressed_x_words)?;
         let x_memory_records: [MemoryWriteRecord; 8] = x_memory_records_vec.try_into().unwrap();
 
         let shard = rt.current_shard();
@@ -79,7 +80,7 @@ impl<E: EdwardsParameters> Syscall for EdwardsDecompressSyscall<E> {
         let syscall_event =
             rt.rt.syscall_event(start_clk, None, syscall_code, arg1, sign, rt.next_pc);
         rt.add_precompile_event(syscall_code, syscall_event, PrecompileEvent::EdDecompress(event));
-        None
+        Ok(None)
     }
 
     fn num_extra_cycles(&self) -> u32 {

@@ -9,6 +9,7 @@ use clap::ValueEnum;
 use enum_map::EnumMap;
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
+use sp1_primitives::consts::BABYBEAR_PRIME;
 use sp1_stark::{air::PublicValues, shape::Shape, SP1CoreOpts};
 use thiserror::Error;
 
@@ -195,8 +196,8 @@ pub enum ExecutionError {
     HaltWithNonZeroExitCode(u32),
 
     /// The execution failed with an invalid memory access.
-    #[error("invalid memory access for opcode {0} and address {1}")]
-    InvalidMemoryAccess(Opcode, u32),
+    #[error("invalid memory access for address address {0}")]
+    InvalidMemoryAccess(u32),
 
     /// The execution failed with an unimplemented syscall.
     #[error("unimplemented syscall {0}")]
@@ -221,13 +222,6 @@ pub enum ExecutionError {
     /// The program ended in unconstrained mode.
     #[error("program ended in unconstrained mode")]
     EndInUnconstrained(),
-}
-
-macro_rules! assert_valid_memory_access {
-    ($addr:expr, $position:expr) => {
-        #[cfg(not(debug_assertions))]
-        {}
-    };
 }
 
 impl<'a> Executor<'a> {
@@ -651,6 +645,7 @@ impl<'a> Executor<'a> {
             prev_record.timestamp,
         )
     }
+
     /// Write a word to memory and create an access record.
     pub fn mw(
         &mut self,
@@ -659,7 +654,13 @@ impl<'a> Executor<'a> {
         shard: u32,
         timestamp: u32,
         local_memory_access: Option<&mut HashMap<u32, MemoryLocalEvent>>,
-    ) -> MemoryWriteRecord {
+    ) -> Result<MemoryWriteRecord, ExecutionError> {
+        // Check that the memory address accessed within babybear field and not within the registers'
+        // address space.  Also check that the address is aligned.
+        if addr % 4 != 0 || addr <= Register::X31 as u32 || addr >= BABYBEAR_PRIME {
+            return Err(ExecutionError::InvalidMemoryAccess(addr));
+        }
+
         // Get the memory record entry.
         let entry = self.state.memory.page_table.entry(addr);
         if self.executor_mode == ExecutorMode::Checkpoint || self.unconstrained {
@@ -731,14 +732,14 @@ impl<'a> Executor<'a> {
         }
 
         // Construct the memory write record.
-        MemoryWriteRecord::new(
+        Ok(MemoryWriteRecord::new(
             record.value,
             record.shard,
             record.timestamp,
             prev_record.value,
             prev_record.shard,
             prev_record.timestamp,
-        )
+        ))
     }
 
     /// Write a word to a register and create an access record.
@@ -880,19 +881,13 @@ impl<'a> Executor<'a> {
 
     /// Read from memory, assuming that all addresses are aligned.
     #[inline]
-    pub fn mr_cpu(&mut self, addr: u32, position: MemoryAccessPosition) -> u32 {
-        // Assert that the address is aligned.
-        assert_valid_memory_access!(addr, position);
+    pub fn mr_cpu(&mut self, addr: u32) -> u32 {
         // Read the address from memory and create a memory read record.
-        let record = self.mr(addr, self.shard(), self.timestamp(&position), None);
+        let record =
+            self.mr(addr, self.shard(), self.timestamp(&MemoryAccessPosition::Memory), None);
         // If we're not in unconstrained mode, record the access for the current cycle.
-        if !self.unconstrained && self.executor_mode == ExecutorMode::Trace {
-            match position {
-                MemoryAccessPosition::A => self.memory_accesses.a = Some(record.into()),
-                MemoryAccessPosition::B => self.memory_accesses.b = Some(record.into()),
-                MemoryAccessPosition::C => self.memory_accesses.c = Some(record.into()),
-                MemoryAccessPosition::Memory => self.memory_accesses.memory = Some(record.into()),
-            }
+        if self.executor_mode == ExecutorMode::Trace {
+            self.memory_accesses.memory = Some(record.into());
         }
         record.value
     }
@@ -900,9 +895,6 @@ impl<'a> Executor<'a> {
     /// Read a register.
     #[inline]
     pub fn rr_cpu(&mut self, register: Register, position: MemoryAccessPosition) -> u32 {
-        // Assert that the address is aligned.
-        assert_valid_memory_access!(register as u32, position);
-
         // Read the address from memory and create a memory read record if in trace mode.
         if self.executor_mode == ExecutorMode::Trace {
             let record = self.rr_traced(register, self.shard(), self.timestamp(&position), None);
@@ -928,41 +920,27 @@ impl<'a> Executor<'a> {
     ///
     /// This function will panic if the address is not aligned or if the memory accesses are already
     /// initialized.
-    pub fn mw_cpu(&mut self, addr: u32, value: u32, position: MemoryAccessPosition) {
-        // Assert that the address is aligned.
-        assert_valid_memory_access!(addr, position);
+    pub fn mw_cpu(&mut self, addr: u32, value: u32) -> Result<(), ExecutionError> {
         // Read the address from memory and create a memory read record.
-        let record = self.mw(addr, value, self.shard(), self.timestamp(&position), None);
+        let record = self.mw(
+            addr,
+            value,
+            self.shard(),
+            self.timestamp(&MemoryAccessPosition::Memory),
+            None,
+        )?;
         // If we're not in unconstrained mode, record the access for the current cycle.
-        if !self.unconstrained && self.executor_mode == ExecutorMode::Trace {
-            match position {
-                MemoryAccessPosition::A => {
-                    debug_assert!(self.memory_accesses.a.is_none());
-                    self.memory_accesses.a = Some(record.into());
-                }
-                MemoryAccessPosition::B => {
-                    debug_assert!(self.memory_accesses.b.is_none());
-                    self.memory_accesses.b = Some(record.into());
-                }
-                MemoryAccessPosition::C => {
-                    debug_assert!(self.memory_accesses.c.is_none());
-                    self.memory_accesses.c = Some(record.into());
-                }
-                MemoryAccessPosition::Memory => {
-                    debug_assert!(self.memory_accesses.memory.is_none());
-                    self.memory_accesses.memory = Some(record.into());
-                }
-            }
+        if self.executor_mode == ExecutorMode::Trace {
+            debug_assert!(self.memory_accesses.memory.is_none());
+            self.memory_accesses.memory = Some(record.into());
         }
+        Ok(())
     }
 
     /// Write to a register.
     pub fn rw_cpu(&mut self, register: Register, value: u32) {
         // The only time we are writing to a register is when it is in operand A.
         let position = MemoryAccessPosition::A;
-
-        // Assert that the address is aligned.
-        assert_valid_memory_access!(register as u32, position);
 
         // Register %x0 should always be 0. See 2.6 Load and Store Instruction on
         // P.18 of the RISC-V spec. We always write 0 to %x0.
@@ -1217,7 +1195,7 @@ impl<'a> Executor<'a> {
         let (rd, rs1, imm) = instruction.i_type();
         let (b, c) = (self.rr_cpu(rs1, MemoryAccessPosition::B), imm);
         let addr = b.wrapping_add(c);
-        let memory_value = self.mr_cpu(align(addr), MemoryAccessPosition::Memory);
+        let memory_value = self.mr_cpu(align(addr));
         (rd, b, c, addr, memory_value)
     }
 
@@ -1415,20 +1393,20 @@ impl<'a> Executor<'a> {
             Opcode::LB => ((memory_read_value >> ((addr % 4) * 8)) & 0xFF) as i8 as i32 as u32,
             Opcode::LH => {
                 if addr % 2 != 0 {
-                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::LH, addr));
+                    return Err(ExecutionError::InvalidMemoryAccess(addr));
                 }
                 ((memory_read_value >> (((addr / 2) % 2) * 16)) & 0xFFFF) as i16 as i32 as u32
             }
             Opcode::LW => {
                 if addr % 4 != 0 {
-                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::LW, addr));
+                    return Err(ExecutionError::InvalidMemoryAccess(addr));
                 }
                 memory_read_value
             }
             Opcode::LBU => (memory_read_value >> ((addr % 4) * 8)) & 0xFF,
             Opcode::LHU => {
                 if addr % 2 != 0 {
-                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::LHU, addr));
+                    return Err(ExecutionError::InvalidMemoryAccess(addr));
                 }
                 (memory_read_value >> (((addr / 2) % 2) * 16)) & 0xFFFF
             }
@@ -1451,20 +1429,20 @@ impl<'a> Executor<'a> {
             }
             Opcode::SH => {
                 if addr % 2 != 0 {
-                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::SH, addr));
+                    return Err(ExecutionError::InvalidMemoryAccess(addr));
                 }
                 let shift = ((addr / 2) % 2) * 16;
                 ((a & 0xFFFF) << shift) | (memory_read_value & !(0xFFFF << shift))
             }
             Opcode::SW => {
                 if addr % 4 != 0 {
-                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::SW, addr));
+                    return Err(ExecutionError::InvalidMemoryAccess(addr));
                 }
                 a
             }
             _ => unreachable!(),
         };
-        self.mw_cpu(align(addr), memory_store_value, MemoryAccessPosition::Memory);
+        self.mw_cpu(align(addr), memory_store_value);
         Ok((a, b, c))
     }
 
@@ -1533,7 +1511,7 @@ impl<'a> Executor<'a> {
                 // Executing a syscall optionally returns a value to write to the t0
                 // register. If it returns None, we just keep the
                 // syscall_id in t0.
-                let res = syscall_impl.execute(&mut precompile_rt, syscall, b, c);
+                let res = syscall_impl.execute(&mut precompile_rt, syscall, b, c)?;
                 let a = if let Some(val) = res { val } else { syscall_id };
 
                 // If the syscall is `HALT` and the exit code is non-zero, return an error.
