@@ -140,6 +140,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
 
             // Try to find the smallest shape fitting within at least one of the candidate shapes.
             let log2_shard_size = record.cpu_events.len().next_power_of_two().ilog2() as usize;
+            println!("log2_shard_size: {}", log2_shard_size);
             let mut minimal_shape = None;
             let mut minimal_area = usize::MAX;
             let mut minimal_cluster = None;
@@ -148,7 +149,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                     if let Some(shape) = cluster.find_shape(&heights) {
                         if self.estimate_lde_size(&shape) < minimal_area {
                             minimal_area = self.estimate_lde_size(&shape);
-                            minimal_shape = Some(shape);
+                            minimal_shape = Some(shape.clone());
                             minimal_cluster = Some(i);
                         }
                     }
@@ -419,7 +420,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
     }
 
     fn estimate_lde_size(&self, shape: &Shape<RiscvAirId>) -> usize {
-        shape.iter().map(|(air, height)| self.costs[air] * height).sum()
+        shape.iter().map(|(air, height)| self.costs[air] * (1 << height)).sum()
     }
 
     // TODO: cleanup..

@@ -1,7 +1,6 @@
 use std::{collections::BTreeMap, path::PathBuf};
 
 use clap::Parser;
-use p3_util::log2_ceil_usize;
 use sp1_core_executor::RiscvAirId;
 use sp1_core_machine::utils::setup_logger;
 use sp1_stark::shape::Shape;
