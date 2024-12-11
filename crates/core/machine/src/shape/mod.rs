@@ -458,12 +458,20 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
 
         // Generate the clusters from the maximal shapes and register them indexed by log2 shard
         //  size.
+        let blacklist = vec![34, 145, 156, 159, 196];
         let mut core_allowed_log2_heights = BTreeMap::new();
         for (log2_shard_size, maximal_shapes) in maximal_shapes {
             let mut clusters = vec![];
 
-            for maximal_shape in maximal_shapes {
-                let cluster = derive_cluster_from_maximal_shape(&maximal_shape);
+            for (i, maximal_shape) in maximal_shapes.iter().enumerate() {
+                // WARNING: This must be tuned carefully.
+                //
+                // This is current hardcoded, but in the future it should be computed dynamically.
+                if log2_shard_size == 21 && blacklist.contains(&i) {
+                    continue;
+                }
+
+                let cluster = derive_cluster_from_maximal_shape(maximal_shape);
                 clusters.push(cluster);
             }
 
