@@ -69,7 +69,12 @@ impl SP1ProverOpts {
         //
         // There could be some careful logic here to handle `combine_memory_threshold` but we
         // don't need to do that for now.
-        let factor = 1 << log2_gap_from_21;
+        let log2_factor = match cpu_ram_gb {
+            0..16 => log2_gap_from_21 + 2,
+            16..30 => log2_gap_from_21 + 1,
+            30.. => log2_gap_from_21,
+        };
+        let factor = 1 << log2_factor;
         opts.core_opts.split_opts.deferred /= factor;
         opts.core_opts.split_opts.keccak /= factor;
         opts.core_opts.split_opts.sha_extend /= factor;
