@@ -36,7 +36,7 @@ impl SP1ProverOpts {
         let (log2_shard_size, shard_batch_size, log2_divisor) = match cpu_ram_gb {
             0..33 => (19, 1, 3),
             33..49 => (20, 1, 2),
-            49..65 => (21, 2, 1),
+            49..65 => (21, 2, 2),
             65..81 => (21, 3, 1),
             81.. => (21, 4, 1),
         };
