@@ -21,15 +21,10 @@ mod tests {
     use sp1_core_executor::{ExecutionRecord, Instruction, Opcode, Program};
     use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, CpuProver, MachineProver, Val};
 
-    use crate::{
-        io::SP1Stdin,
-        riscv::RiscvAir,
-        utils::{run_test, setup_logger},
-    };
+    use crate::{io::SP1Stdin, riscv::RiscvAir, utils::run_test};
 
     #[test]
     fn test_malicious_beq() {
-        setup_logger();
         let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
             Instruction::new(Opcode::ADD, 30, 0, 5, false, true),
