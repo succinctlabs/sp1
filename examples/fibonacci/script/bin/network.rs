@@ -23,8 +23,8 @@ async fn main() {
 
     // dotenv().ok();
 
-    // let rpc_url = std::env::var("PROVER_NETWORK_RPC").unwrap();
-    // let private_key = std::env::var("SP1_PRIVATE_KEY").unwrap();
+    let rpc_url = std::env::var("PROVER_NETWORK_RPC").unwrap();
+    let private_key = std::env::var("SP1_PRIVATE_KEY").unwrap();
 
     // let client = ProverClient::builder()
     //     .from_env();

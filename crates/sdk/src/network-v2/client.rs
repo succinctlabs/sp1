@@ -51,13 +51,13 @@ impl NetworkClient {
         Self { signer, http: http_client.into(), rpc_url: DEFAULT_PROVER_NETWORK_RPC.to_string() }
     }
 
-    /// Update the RPC URL for the client.
+    /// Update the RPC URL on the client.
     pub fn rpc_url(mut self, rpc_url: impl Into<String>) -> Self {
         self.rpc_url = rpc_url.into();
         self
     }
 
-    /// Returns the currently configured RPC endpoint for the Succinct prover network.
+    /// Returns the currently configured RPC URL on the client.
     pub fn get_rpc_url(&self) -> String {
         self.rpc_url.clone()
     }
@@ -100,7 +100,7 @@ impl NetworkClient {
         Ok(res.into_inner().nonce)
     }
 
-    /// Get the verifying key hash from a verifying key.
+    /// Get the verifying key hash from a program's verifying key.
     pub fn get_vk_hash(vk: &SP1VerifyingKey) -> Result<VerifyingKeyHash> {
         let vk_hash_str = vk.bytes32();
         let vk_hash = hex::decode(vk_hash_str.strip_prefix("0x").unwrap_or(&vk_hash_str))?;
