@@ -27,6 +27,7 @@ pub struct ProverClientBuilder<T> {
     inner_builder: T,
 }
 
+#[allow(clippy::new_without_default)]
 impl ProverClient {
     pub fn builder() -> ProverClientBuilder<None> {
         ProverClientBuilder { inner_builder: None }

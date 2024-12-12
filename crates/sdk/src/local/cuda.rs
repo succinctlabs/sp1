@@ -1,31 +1,35 @@
 use anyhow::Result;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_cuda::SP1CudaProver;
+use sp1_prover::SP1_CIRCUIT_VERSION;
 use sp1_prover::{components::DefaultProverComponents, SP1Prover};
 
-use super::ProverType;
 use crate::install::try_install_circuit_artifacts;
+use crate::ProverType;
 use crate::{
     opts::ProofOpts,
     proof::{SP1Proof, SP1ProofKind, SP1ProofWithPublicValues},
-    Prover, SP1Context, SP1ProvingKey, SP1VerifyingKey,
+    SP1Context, SP1ProvingKey, SP1VerifyingKey,
 };
 
 /// An implementation of [crate::ProverClient] that can generate proofs locally using CUDA.
 pub struct CudaProver {
     prover: SP1Prover<DefaultProverComponents>,
     cuda_prover: SP1CudaProver,
+    version: &'static str,
 }
 
 impl CudaProver {
     /// Creates a new [CudaProver].
     pub fn new(prover: SP1Prover) -> Self {
         let cuda_prover = SP1CudaProver::new();
-        Self { prover, cuda_prover: cuda_prover.expect("Failed to initialize CUDA prover") }
+        Self {
+            prover,
+            cuda_prover: cuda_prover.expect("Failed to initialize CUDA prover"),
+            version: SP1_CIRCUIT_VERSION,
+        }
     }
-}
 
-impl Prover<DefaultProverComponents> for CudaProver {
     fn id(&self) -> ProverType {
         ProverType::Cuda
     }
@@ -55,7 +59,7 @@ impl Prover<DefaultProverComponents> for CudaProver {
                 proof: SP1Proof::Core(proof.proof.0),
                 stdin: proof.stdin,
                 public_values: proof.public_values,
-                sp1_version: self.version().to_string(),
+                sp1_version: self.version.to_string(),
             });
         }
 
@@ -70,7 +74,7 @@ impl Prover<DefaultProverComponents> for CudaProver {
                 proof: SP1Proof::Compressed(Box::new(reduce_proof)),
                 stdin,
                 public_values,
-                sp1_version: self.version().to_string(),
+                sp1_version: self.version.to_string(),
             });
         }
 
@@ -94,7 +98,7 @@ impl Prover<DefaultProverComponents> for CudaProver {
                 proof: SP1Proof::Plonk(proof),
                 stdin,
                 public_values,
-                sp1_version: self.version().to_string(),
+                sp1_version: self.version.to_string(),
             });
         } else if kind == SP1ProofKind::Groth16 {
             let groth16_bn254_artifacts = if sp1_prover::build::sp1_dev_mode() {
@@ -111,7 +115,7 @@ impl Prover<DefaultProverComponents> for CudaProver {
                 proof: SP1Proof::Groth16(proof),
                 stdin,
                 public_values,
-                sp1_version: self.version().to_string(),
+                sp1_version: self.version.to_string(),
             });
         }
 

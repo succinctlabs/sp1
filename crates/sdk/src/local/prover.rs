@@ -39,7 +39,7 @@ impl LocalProver {
         pk: &'a Arc<SP1ProvingKey>,
         stdin: SP1Stdin,
     ) -> LocalProofRequest<'a> {
-        LocalProofRequest::new(self, &pk, stdin)
+        LocalProofRequest::new(self, pk, stdin)
     }
 }
 
