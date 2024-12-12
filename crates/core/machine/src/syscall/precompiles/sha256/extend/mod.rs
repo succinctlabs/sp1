@@ -79,7 +79,7 @@ pub mod extend_tests {
         utils::setup_logger();
         let program = sha_extend_program();
         let stdin = SP1Stdin::new();
-        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
+        run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
     }
 
     #[test]
@@ -87,7 +87,7 @@ pub mod extend_tests {
         utils::setup_logger();
         let program = Program::from(SHA2_ELF).unwrap();
         let stdin = SP1Stdin::new();
-        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
+        run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
     }
 
     #[test]
@@ -95,6 +95,6 @@ pub mod extend_tests {
         utils::setup_logger();
         let program = Program::from(SHA_EXTEND_ELF).unwrap();
         let stdin = SP1Stdin::new();
-        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
+        run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
     }
 }

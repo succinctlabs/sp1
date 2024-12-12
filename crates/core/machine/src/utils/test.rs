@@ -1,7 +1,8 @@
 use p3_air::Air;
 use p3_baby_bear::BabyBear;
+use p3_matrix::dense::RowMajorMatrix;
 use serde::{de::DeserializeOwned, Serialize};
-use sp1_core_executor::{Executor, Program, SP1Context};
+use sp1_core_executor::{ExecutionRecord, Executor, Program, SP1Context};
 use sp1_primitives::io::SP1PublicValues;
 use sp1_stark::{
     air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, Com, CpuProver,
@@ -19,6 +20,13 @@ use super::prove_core;
 pub fn run_test<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
     mut program: Program,
     inputs: SP1Stdin,
+    malicious_trace_generator: Option<
+        Box<
+            dyn Fn(&P, &ExecutionRecord) -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)>
+                + Send
+                + Sync,
+        >,
+    >,
 ) -> Result<SP1PublicValues, MachineVerificationError<BabyBearPoseidon2>> {
     let shape_config = CoreShapeConfig::<BabyBear>::default();
     shape_config.fix_preprocessed_shape(&mut program).unwrap();
@@ -37,8 +45,13 @@ pub fn run_test<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
     });
     let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
 
-    let _ = run_test_core::<P>(runtime, inputs, Some(&shape_config))?;
-    Ok(public_values)
+    let result =
+        run_test_core::<P>(runtime, inputs, Some(&shape_config), malicious_trace_generator);
+    if let Err(verification_error) = result {
+        Err(verification_error)
+    } else {
+        Ok(public_values)
+    }
 }
 
 #[allow(unused_variables)]
@@ -46,6 +59,13 @@ pub fn run_test_core<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
     runtime: Executor,
     inputs: SP1Stdin,
     shape_config: Option<&CoreShapeConfig<BabyBear>>,
+    malicious_trace_generator: Option<
+        Box<
+            dyn Fn(&P, &ExecutionRecord) -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)>
+                + Send
+                + Sync,
+        >,
+    >,
 ) -> Result<MachineProof<BabyBearPoseidon2>, MachineVerificationError<BabyBearPoseidon2>> {
     let config = BabyBearPoseidon2::new();
     let machine = RiscvAir::machine(config);
@@ -61,6 +81,7 @@ pub fn run_test_core<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
         SP1CoreOpts::default(),
         SP1Context::default(),
         shape_config,
+        malicious_trace_generator,
     )
     .unwrap();
 

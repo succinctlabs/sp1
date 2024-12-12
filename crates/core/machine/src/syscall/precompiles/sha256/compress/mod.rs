@@ -71,7 +71,7 @@ pub mod compress_tests {
         setup_logger();
         let program = sha_compress_program();
         let stdin = SP1Stdin::new();
-        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
+        run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
     }
 
     #[test]
@@ -79,6 +79,6 @@ pub mod compress_tests {
         setup_logger();
         let program = Program::from(SHA_COMPRESS_ELF).unwrap();
         let stdin = SP1Stdin::new();
-        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
+        run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
     }
 }

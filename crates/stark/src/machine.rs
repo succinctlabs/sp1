@@ -601,3 +601,15 @@ impl<SC: StarkGenericConfig> std::fmt::Display for MachineVerificationError<SC> 
 }
 
 impl<SC: StarkGenericConfig> std::error::Error for MachineVerificationError<SC> {}
+
+impl<SC: StarkGenericConfig> MachineVerificationError<SC> {
+    /// This function will check if the verification error is from constraints failing.
+    pub fn is_constraints_failing(&self) -> bool {
+        matches!(
+            self,
+            MachineVerificationError::InvalidShardProof(VerificationError::OodEvaluationMismatch(
+                _
+            ))
+        )
+    }
+}

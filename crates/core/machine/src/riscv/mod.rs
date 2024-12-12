@@ -697,7 +697,7 @@ pub mod tests {
         utils::setup_logger();
         let program = simple_program();
         let stdin = SP1Stdin::new();
-        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
+        run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
     }
 
     #[test]
@@ -715,7 +715,7 @@ pub mod tests {
                 ];
                 let program = Program::new(instructions, 0, 0);
                 let stdin = SP1Stdin::new();
-                run_test::<CpuProver<_, _>>(program, stdin).unwrap();
+                run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
             }
         }
     }
@@ -730,7 +730,7 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let stdin = SP1Stdin::new();
-        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
+        run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
     }
 
     #[test]
@@ -743,7 +743,7 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let stdin = SP1Stdin::new();
-        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
+        run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
     }
 
     #[test]
@@ -761,7 +761,7 @@ pub mod tests {
                 ];
                 let program = Program::new(instructions, 0, 0);
                 let stdin = SP1Stdin::new();
-                run_test::<CpuProver<_, _>>(program, stdin).unwrap();
+                run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
             }
         }
     }
@@ -778,7 +778,7 @@ pub mod tests {
             ];
             let program = Program::new(instructions, 0, 0);
             let stdin = SP1Stdin::new();
-            run_test::<CpuProver<_, _>>(program, stdin).unwrap();
+            run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
         }
     }
 
@@ -795,7 +795,7 @@ pub mod tests {
             ];
             let program = Program::new(instructions, 0, 0);
             let stdin = SP1Stdin::new();
-            run_test::<CpuProver<_, _>>(program, stdin).unwrap();
+            run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
         }
     }
 
@@ -819,7 +819,7 @@ pub mod tests {
                 ];
                 let program = Program::new(instructions, 0, 0);
                 let stdin = SP1Stdin::new();
-                run_test::<CpuProver<_, _>>(program, stdin).unwrap();
+                run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
             }
         }
     }
@@ -829,7 +829,7 @@ pub mod tests {
         setup_logger();
         let program = fibonacci_program();
         let stdin = SP1Stdin::new();
-        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
+        run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
     }
 
     #[test]
@@ -846,8 +846,18 @@ pub mod tests {
         let machine = RiscvAir::machine(config);
         let prover = CpuProver::new(machine);
         let (pk, vk) = prover.setup(&program);
-        prove_core::<_, _>(&prover, &pk, &vk, program, &stdin, opts, SP1Context::default(), None)
-            .unwrap();
+        prove_core::<_, _>(
+            &prover,
+            &pk,
+            &vk,
+            program,
+            &stdin,
+            opts,
+            SP1Context::default(),
+            None,
+            None,
+        )
+        .unwrap();
     }
 
     #[test]
@@ -861,8 +871,18 @@ pub mod tests {
         let machine = RiscvAir::machine(config);
         let prover = CpuProver::new(machine);
         let (pk, vk) = prover.setup(&program);
-        prove_core::<_, _>(&prover, &pk, &vk, program, &stdin, opts, SP1Context::default(), None)
-            .unwrap();
+        prove_core::<_, _>(
+            &prover,
+            &pk,
+            &vk,
+            program,
+            &stdin,
+            opts,
+            SP1Context::default(),
+            None,
+            None,
+        )
+        .unwrap();
     }
 
     #[test]
@@ -870,7 +890,7 @@ pub mod tests {
         setup_logger();
         let program = simple_memory_program();
         let stdin = SP1Stdin::new();
-        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
+        run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
     }
 
     #[test]
@@ -878,7 +898,7 @@ pub mod tests {
         setup_logger();
         let program = ssz_withdrawals_program();
         let stdin = SP1Stdin::new();
-        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
+        run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
     }
 
     #[test]

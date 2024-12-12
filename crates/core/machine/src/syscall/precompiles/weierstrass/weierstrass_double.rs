@@ -474,7 +474,7 @@ pub mod tests {
         setup_logger();
         let program = Program::from(SECP256K1_DOUBLE_ELF).unwrap();
         let stdin = SP1Stdin::new();
-        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
+        run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
     }
 
     #[test]
@@ -482,7 +482,7 @@ pub mod tests {
         setup_logger();
         let program = Program::from(SECP256R1_DOUBLE_ELF).unwrap();
         let stdin = SP1Stdin::new();
-        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
+        run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
     }
 
     #[test]
@@ -490,7 +490,7 @@ pub mod tests {
         setup_logger();
         let program = Program::from(BN254_DOUBLE_ELF).unwrap();
         let stdin = SP1Stdin::new();
-        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
+        run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
     }
 
     #[test]
@@ -498,6 +498,6 @@ pub mod tests {
         setup_logger();
         let program = Program::from(BLS12381_DOUBLE_ELF).unwrap();
         let stdin = SP1Stdin::new();
-        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
+        run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
     }
 }

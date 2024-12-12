@@ -286,6 +286,6 @@ pub mod tests {
         utils::setup_logger();
         let program = Program::from(ED_DECOMPRESS_ELF).unwrap();
         let stdin = SP1Stdin::new();
-        utils::run_test::<CpuProver<_, _>>(program, stdin).unwrap();
+        utils::run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
     }
 }

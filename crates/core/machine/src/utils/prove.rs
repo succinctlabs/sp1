@@ -49,6 +49,9 @@ pub fn prove_core<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>
     opts: SP1CoreOpts,
     context: SP1Context,
     shape_config: Option<&CoreShapeConfig<SC::Val>>,
+    malicious_trace_generator: Option<
+        Box<dyn Fn(&P, &ExecutionRecord) -> Vec<(String, RowMajorMatrix<Val<SC>>)> + Send + Sync>,
+    >,
 ) -> Result<(MachineProof<SC>, Vec<u8>, u64), SP1CoreProverError>
 where
     SC::Val: PrimeField32,
@@ -69,6 +72,7 @@ where
         shape_config,
         proof_tx,
         shape_tx,
+        malicious_trace_generator,
     )?;
 
     let _: Vec<_> = shape_rx.iter().collect();
@@ -89,6 +93,9 @@ pub fn prove_core_stream<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<S
     shape_config: Option<&CoreShapeConfig<SC::Val>>,
     proof_tx: Sender<ShardProof<SC>>,
     shape_and_done_tx: Sender<(OrderedShape, bool)>,
+    malicious_trace_generator: Option<
+        Box<dyn Fn(&P, &ExecutionRecord) -> Vec<(String, RowMajorMatrix<Val<SC>>)> + Send + Sync>,
+    >, // This is used for failure test cases that generate malicious traces.
 ) -> Result<(Vec<u8>, u64), SP1CoreProverError>
 where
     SC::Val: PrimeField32,
@@ -97,6 +104,10 @@ where
     Com<SC>: Send + Sync,
     PcsProverData<SC>: Send + Sync,
 {
+    let reference: Option<
+        &Box<dyn Fn(&P, &ExecutionRecord) -> Vec<(String, RowMajorMatrix<Val<SC>>)> + Send + Sync>,
+    > = malicious_trace_generator.as_ref();
+
     // Setup the runtime.
     let mut runtime = Executor::with_context(program.clone(), opts, context);
     runtime.maximal_shapes = shape_config.map(|config| {
@@ -322,7 +333,13 @@ where
                             tracing::info_span!("generate main traces", index).in_scope(|| {
                                 main_traces = records
                                     .par_iter()
-                                    .map(|record| prover.generate_traces(record))
+                                    .map(|record| {
+                                        if reference.is_some() {
+                                            reference.unwrap()(prover, record)
+                                        } else {
+                                            prover.generate_traces(record)
+                                        }
+                                    })
                                     .collect::<Vec<_>>();
                             });
 

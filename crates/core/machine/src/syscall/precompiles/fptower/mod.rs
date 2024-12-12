@@ -23,7 +23,7 @@ mod tests {
         utils::setup_logger();
         let program = Program::from(BLS12381_FP_ELF).unwrap();
         let stdin = SP1Stdin::new();
-        utils::run_test::<CpuProver<_, _>>(program, stdin).unwrap();
+        utils::run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
     }
 
     #[test]
@@ -31,7 +31,7 @@ mod tests {
         utils::setup_logger();
         let program = Program::from(BLS12381_FP2_ADDSUB_ELF).unwrap();
         let stdin = SP1Stdin::new();
-        utils::run_test::<CpuProver<_, _>>(program, stdin).unwrap();
+        utils::run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
     }
 
     #[test]
@@ -39,7 +39,7 @@ mod tests {
         utils::setup_logger();
         let program = Program::from(BLS12381_FP2_MUL_ELF).unwrap();
         let stdin = SP1Stdin::new();
-        utils::run_test::<CpuProver<_, _>>(program, stdin).unwrap();
+        utils::run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
     }
 
     #[test]
@@ -47,7 +47,7 @@ mod tests {
         utils::setup_logger();
         let program = Program::from(BN254_FP_ELF).unwrap();
         let stdin = SP1Stdin::new();
-        utils::run_test::<CpuProver<_, _>>(program, stdin).unwrap();
+        utils::run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
     }
 
     #[test]
@@ -55,7 +55,7 @@ mod tests {
         utils::setup_logger();
         let program = Program::from(BN254_FP2_ADDSUB_ELF).unwrap();
         let stdin = SP1Stdin::new();
-        utils::run_test::<CpuProver<_, _>>(program, stdin).unwrap();
+        utils::run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
     }
 
     #[test]
@@ -63,6 +63,6 @@ mod tests {
         utils::setup_logger();
         let program = Program::from(BN254_FP2_MUL_ELF).unwrap();
         let stdin = SP1Stdin::new();
-        utils::run_test::<CpuProver<_, _>>(program, stdin).unwrap();
+        utils::run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
     }
 }

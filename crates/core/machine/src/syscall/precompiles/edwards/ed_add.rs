@@ -333,7 +333,7 @@ mod tests {
         utils::setup_logger();
         let program = Program::from(ED_ADD_ELF).unwrap();
         let stdin = SP1Stdin::new();
-        utils::run_test::<CpuProver<_, _>>(program, stdin).unwrap();
+        utils::run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
     }
 
     #[test]
@@ -341,6 +341,6 @@ mod tests {
         utils::setup_logger();
         let program = Program::from(ED25519_ELF).unwrap();
         let stdin = SP1Stdin::new();
-        utils::run_test::<CpuProver<_, _>>(program, stdin).unwrap();
+        utils::run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
     }
 }
