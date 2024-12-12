@@ -53,6 +53,7 @@ pub struct NetworkProverBuilder {
     private_key: Option<String>,
 }
 
+// #[allow(clippy::new_without_default)]
 impl NetworkProver {
     /// Creates a new `NetworkProver` with the given private key.
     pub fn new(rpc_url: String, private_key: String) -> Self {
@@ -256,8 +257,8 @@ pub struct NetworkProofRequest<'a> {
     prover: &'a NetworkProver,
     pk: &'a Arc<SP1ProvingKey>,
     stdin: SP1Stdin,
-    version: String,
     mode: ProofMode,
+    version: String,
     timeout: u64,
     cycle_limit: Option<u64>,
     skip_simulation: bool,
@@ -270,8 +271,8 @@ impl<'a> NetworkProofRequest<'a> {
             prover,
             pk,
             stdin,
-            version: SP1_CIRCUIT_VERSION.to_owned(),
             mode: Mode::default().into(),
+            version: SP1_CIRCUIT_VERSION.to_string(),
             timeout: DEFAULT_TIMEOUT,
             cycle_limit: None,
             skip_simulation: false,
@@ -304,6 +305,11 @@ impl<'a> NetworkProofRequest<'a> {
         self
     }
 
+    pub fn with_version(mut self, version: String) -> Self {
+        self.version = version;
+        self
+    }
+
     pub fn with_timeout(mut self, timeout: u64) -> Self {
         self.timeout = timeout;
         self
@@ -323,7 +329,7 @@ impl<'a> NetworkProofRequest<'a> {
         self.strategy = strategy;
         self
     }
- 
+
     pub fn run(self) -> Result<SP1ProofWithPublicValues> {
         Runtime::new().unwrap().block_on(async move { self.run_inner().await })
     }
@@ -364,16 +370,6 @@ impl<'a> NetworkProofRequest<'a> {
             .map_err(|e| anyhow::anyhow!("Failed to wait for proof: {}", e))?;
 
         Ok(proof)
-    }
-
-}
-
-impl<'a> IntoFuture for NetworkProofRequest<'a> {
-    type Output = Result<SP1ProofWithPublicValues>;
-    type IntoFuture = Pin<Box<dyn Future<Output = Self::Output> + Send + 'a>>;
-
-    fn into_future(self) -> Self::IntoFuture {
-        Box::pin(async move { self.run_inner().await })
     }
 }
 
@@ -461,6 +457,15 @@ impl Prover for NetworkProver {
         vk: &SP1VerifyingKey,
     ) -> Result<(), SP1VerificationError> {
         verify::verify(&self.prover, SP1_CIRCUIT_VERSION, proof, vk)
+    }
+}
+
+impl<'a> IntoFuture for NetworkProofRequest<'a> {
+    type Output = Result<SP1ProofWithPublicValues>;
+    type IntoFuture = Pin<Box<dyn Future<Output = Self::Output> + Send + 'a>>;
+
+    fn into_future(self) -> Self::IntoFuture {
+        Box::pin(async move { self.run_inner().await })
     }
 }
 

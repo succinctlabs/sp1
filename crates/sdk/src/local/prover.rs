@@ -21,19 +21,33 @@ use std::pin::Pin;
 use std::sync::Arc;
 use tokio::task;
 
+/// An implementation of [crate::ProverClient] that can generate proofs locally.
 pub struct LocalProver {
     prover: Arc<SP1Prover<DefaultProverComponents>>,
 }
 
 impl LocalProver {
+    /// Creates a new `NetworkProver` with the given private key.
     pub fn new() -> Self {
         Self { prover: Arc::new(SP1Prover::new()) }
     }
 
+    /// Creates a new network prover builder. See [`NetworkProverBuilder`] for more details.
     pub fn builder() -> LocalProverBuilder {
         LocalProverBuilder::new()
     }
 
+    /// Get the type of prover.
+    pub fn id(&self) -> ProverType {
+        ProverType::Network
+    }
+
+    /// Get the underlying SP1 prover.
+    pub fn sp1_prover(&self) -> &SP1Prover {
+        &self.prover
+    }
+
+    /// Create a new proof request.
     pub fn prove<'a>(
         &'a self,
         pk: &'a Arc<SP1ProvingKey>,
@@ -46,10 +60,12 @@ impl LocalProver {
 pub struct LocalProverBuilder {}
 
 impl LocalProverBuilder {
+    /// Creates a new local prover builder.
     pub fn new() -> Self {
         Self {}
     }
 
+    /// Builds the prover with the given configuration.
     pub fn build(self) -> LocalProver {
         LocalProver::new()
     }
@@ -60,9 +76,9 @@ pub struct LocalProofRequest<'a> {
     pk: &'a Arc<SP1ProvingKey>,
     stdin: SP1Stdin,
     mode: Mode,
+    version: String,
     timeout: u64,
     cycle_limit: u64,
-    version: String,
     sp1_prover_opts: SP1ProverOpts,
 }
 
@@ -73,9 +89,9 @@ impl<'a> LocalProofRequest<'a> {
             pk,
             stdin,
             mode: Mode::default(),
+            version: SP1_CIRCUIT_VERSION.to_string(),
             timeout: DEFAULT_TIMEOUT,
             cycle_limit: DEFAULT_CYCLE_LIMIT,
-            version: SP1_CIRCUIT_VERSION.to_string(),
             sp1_prover_opts: SP1ProverOpts::default(),
         }
     }
@@ -105,6 +121,11 @@ impl<'a> LocalProofRequest<'a> {
         self
     }
 
+    pub fn with_version(mut self, version: String) -> Self {
+        self.version = version;
+        self
+    }
+
     pub fn with_timeout(mut self, timeout: u64) -> Self {
         self.timeout = timeout;
         self
@@ -115,15 +136,11 @@ impl<'a> LocalProofRequest<'a> {
         self
     }
 
-    pub fn with_version(mut self, version: String) -> Self {
-        self.version = version;
-        self
-    }
-
     pub fn with_sp1_prover_opts(mut self, opts: SP1ProverOpts) -> Self {
         self.sp1_prover_opts = opts;
         self
     }
+
     fn run_inner(
         prover: &SP1Prover<DefaultProverComponents>,
         pk: &SP1ProvingKey,
@@ -236,14 +253,12 @@ impl Prover for LocalProver {
         })
         .await
         .unwrap();
-
         result
     }
 
     #[cfg(feature = "blocking")]
     fn setup_sync(&self, elf: &[u8]) -> Arc<SP1ProvingKey> {
         let (pk, _vk) = self.prover.setup(elf);
-
         Arc::new(pk)
     }
 
@@ -300,7 +315,6 @@ impl Prover for LocalProver {
         vk: Arc<SP1VerifyingKey>,
     ) -> Result<(), SP1VerificationError> {
         let prover = Arc::clone(&self.prover);
-
         task::spawn_blocking(move || verify::verify(&prover, SP1_CIRCUIT_VERSION, &proof, &vk))
             .await
             .unwrap()
