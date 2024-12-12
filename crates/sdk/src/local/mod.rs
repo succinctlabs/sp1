@@ -8,14 +8,10 @@ pub use cuda::CudaProver;
 
 pub use prover::*;
 
-
-use sp1_prover::{
-    CoreSC, InnerSC,
-};
+use sp1_prover::{CoreSC, InnerSC};
 use sp1_stark::MachineVerificationError;
 use strum_macros::EnumString;
 use thiserror::Error;
-
 
 /// The type of prover.
 #[derive(Debug, PartialEq, EnumString)]

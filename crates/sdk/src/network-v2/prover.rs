@@ -58,7 +58,7 @@ impl NetworkProver {
     pub fn new(rpc_url: String, private_key: String) -> Self {
         Self {
             prover: Arc::new(SP1Prover::new()),
-            network_client: NetworkClient::new(&private_key).with_rpc_url(rpc_url),
+            network_client: NetworkClient::new(&private_key).rpc_url(rpc_url),
         }
     }
 
@@ -125,7 +125,7 @@ impl NetworkProver {
 
         log::info!("Created request {} in transaction {}", request_id, tx_hash);
 
-        if self.network_client.rpc_url() == DEFAULT_PROVER_NETWORK_RPC {
+        if self.network_client.get_rpc_url() == DEFAULT_PROVER_NETWORK_RPC {
             log::info!("View in explorer: {}", request_id.explorer_url());
         }
 

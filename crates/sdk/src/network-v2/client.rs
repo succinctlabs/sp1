@@ -67,19 +67,19 @@ impl NetworkClient {
     }
 
     /// Update the RPC URL for the client.
-    pub fn with_rpc_url(mut self, rpc_url: impl Into<String>) -> Self {
+    pub fn rpc_url(mut self, rpc_url: impl Into<String>) -> Self {
         self.rpc_url = rpc_url.into();
         self
     }
 
     /// Returns the currently configured RPC endpoint for the Succinct prover network.
-    pub fn rpc_url(&self) -> String {
+    pub fn get_rpc_url(&self) -> String {
         self.rpc_url.clone()
     }
 
     /// Get a connected RPC client.
     async fn get_rpc(&self) -> Result<ProverNetworkClient<Channel>> {
-        let rpc_url = self.rpc_url();
+        let rpc_url = self.get_rpc_url();
         let mut endpoint = Channel::from_shared(rpc_url.clone())?;
 
         // Check if the URL scheme is HTTPS and configure TLS.
@@ -94,7 +94,7 @@ impl NetworkClient {
 
     /// Get a connected artifact store client.
     async fn get_store(&self) -> Result<ArtifactStoreClient<Channel>> {
-        let rpc_url = self.rpc_url();
+        let rpc_url = self.get_rpc_url();
         let mut endpoint = Channel::from_shared(rpc_url.clone())?;
 
         // Check if the URL scheme is HTTPS and configure TLS.

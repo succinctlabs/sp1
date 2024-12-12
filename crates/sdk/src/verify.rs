@@ -9,7 +9,6 @@ use sp1_stark::{air::PublicValues, Word};
 
 use crate::install::try_install_circuit_artifacts;
 use crate::local::SP1VerificationError;
-use crate::opts::ProofOpts;
 use crate::{proof::SP1Proof, proof::SP1ProofWithPublicValues};
 
 /// Verify that an SP1 proof is valid given its vkey and metadata.
@@ -24,6 +23,7 @@ pub fn verify(
     if bundle.sp1_version != version {
         return Err(SP1VerificationError::VersionMismatch(bundle.sp1_version.clone()));
     }
+
     match &bundle.proof {
         SP1Proof::Core(proof) => {
             let public_values: &PublicValues<Word<_>, _> =
