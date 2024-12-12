@@ -13,6 +13,7 @@ use web_time::Instant;
 
 use crate::riscv::RiscvAir;
 use crate::shape::CoreShapeConfig;
+use crate::utils::test::MaliciousTraceGeneratorType;
 use p3_maybe_rayon::prelude::*;
 use sp1_stark::MachineProvingKey;
 use sp1_stark::StarkVerifyingKey;
@@ -49,9 +50,7 @@ pub fn prove_core<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>
     opts: SP1CoreOpts,
     context: SP1Context,
     shape_config: Option<&CoreShapeConfig<SC::Val>>,
-    malicious_trace_generator: Option<
-        Box<dyn Fn(&P, &ExecutionRecord) -> Vec<(String, RowMajorMatrix<Val<SC>>)> + Send + Sync>,
-    >,
+    malicious_trace_generator: Option<MaliciousTraceGeneratorType<SC::Val, P>>,
 ) -> Result<(MachineProof<SC>, Vec<u8>, u64), SP1CoreProverError>
 where
     SC::Val: PrimeField32,
@@ -93,9 +92,7 @@ pub fn prove_core_stream<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<S
     shape_config: Option<&CoreShapeConfig<SC::Val>>,
     proof_tx: Sender<ShardProof<SC>>,
     shape_and_done_tx: Sender<(OrderedShape, bool)>,
-    malicious_trace_generator: Option<
-        Box<dyn Fn(&P, &ExecutionRecord) -> Vec<(String, RowMajorMatrix<Val<SC>>)> + Send + Sync>,
-    >, // This is used for failure test cases that generate malicious traces.
+    malicious_trace_generator: Option<MaliciousTraceGeneratorType<SC::Val, P>>, // This is used for failure test cases that generate malicious traces.
 ) -> Result<(Vec<u8>, u64), SP1CoreProverError>
 where
     SC::Val: PrimeField32,
@@ -104,9 +101,8 @@ where
     Com<SC>: Send + Sync,
     PcsProverData<SC>: Send + Sync,
 {
-    let reference: Option<
-        &Box<dyn Fn(&P, &ExecutionRecord) -> Vec<(String, RowMajorMatrix<Val<SC>>)> + Send + Sync>,
-    > = malicious_trace_generator.as_ref();
+    let reference: Option<&MaliciousTraceGeneratorType<SC::Val, P>> =
+        malicious_trace_generator.as_ref();
 
     // Setup the runtime.
     let mut runtime = Executor::with_context(program.clone(), opts, context);
