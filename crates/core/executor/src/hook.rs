@@ -6,7 +6,7 @@ use hashbrown::HashMap;
 use sp1_curves::{
     ecdsa::RecoveryId as ecdsaRecoveryId,
     k256::{Invert, RecoveryId, Signature, VerifyingKey},
-    p256::{Invert as p256Invert, Signature as p256Signature, VerifyingKey as p256VerifyingKey},
+    p256::{Signature as p256Signature, VerifyingKey as p256VerifyingKey},
 };
 
 use crate::Executor;
