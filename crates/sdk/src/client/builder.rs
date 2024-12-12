@@ -33,10 +33,6 @@ impl ProverClientBuilder<None> {
     pub fn network(self) -> ProverClientBuilder<NetworkProverBuilder> {
         ProverClientBuilder { inner_builder: NetworkProver::builder() }
     }
-
-    pub fn from_env(self) -> ProverClient {
-        ProverClient::from_env()
-    }
 }
 
 impl<T: BuildableProver> ProverClientBuilder<T> {

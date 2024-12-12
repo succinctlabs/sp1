@@ -1,5 +1,5 @@
 use crate::{
-    local::LocalProver, proof::SP1ProofWithPublicValues, prover::Prover, SP1VerificationError,
+    local::LocalProver, prover::Prover, SP1VerificationError, types::{Elf, SP1ProofWithPublicValues},
 };
 
 #[cfg(feature = "network-v2")]
@@ -10,8 +10,7 @@ use anyhow::Result;
 use sp1_core_executor::{ExecutionError, ExecutionReport};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_primitives::io::SP1PublicValues;
-use sp1_prover::{SP1ProvingKey, SP1VerifyingKey};
-use std::sync::Arc;
+use crate::types::{SP1ProvingKey, SP1VerifyingKey};
 
 #[cfg(feature = "network-v2")]
 use std::env;
@@ -60,27 +59,50 @@ impl ProverClient {
         }
     }
 
-    pub async fn setup(&self, elf: Arc<[u8]>) -> Arc<SP1ProvingKey> {
+    pub async fn setup(&self, elf: &Elf) -> SP1ProvingKey {
         self.inner.setup(elf).await
+    }
+
+    #[cfg(feature = "blocking")]
+    pub async fn blocking_setup(&self, elf: &Elf) -> SP1ProvingKey {
+        self.inner.setup_sync(elf)
     }
 
     pub async fn execute(
         &self,
-        elf: Arc<[u8]>,
+        elf: &Elf,
         stdin: SP1Stdin,
     ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
         self.inner.execute(elf, stdin).await
     }
 
-    pub fn prove<'a>(&'a self, pk: &'a Arc<SP1ProvingKey>, stdin: SP1Stdin) -> DynProofRequest<'a> {
+    #[cfg(feature = "blocking")]
+    pub async fn blocking_execute(
+        &self,
+        elf: &Elf,
+        stdin: SP1Stdin,
+    ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
+        self.inner.execute_sync(elf, stdin)
+    }
+
+    pub fn prove<'a>(&'a self, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> DynProofRequest<'a> {
         DynProofRequest::new(&*self.inner, pk, stdin, ProofOpts::default())
     }
 
     pub async fn verify(
         &self,
-        proof: Arc<SP1ProofWithPublicValues>,
-        vk: Arc<SP1VerifyingKey>,
+        proof: &SP1ProofWithPublicValues,
+        vk: &SP1VerifyingKey,
     ) -> Result<(), SP1VerificationError> {
         self.inner.verify(proof, vk).await
+    }
+
+    #[cfg(feature = "blocking")]
+    pub async fn verify_sync(
+        &self,
+        proof: &SP1ProofWithPublicValues,
+        vk: &SP1VerifyingKey,
+    ) -> Result<(), SP1VerificationError> {
+        self.inner.verify_sync(proof, vk)
     }
 }

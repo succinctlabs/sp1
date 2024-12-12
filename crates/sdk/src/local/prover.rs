@@ -1,5 +1,6 @@
 use crate::install::try_install_circuit_artifacts;
-use crate::proof::{SP1Proof, SP1ProofWithPublicValues};
+use crate::{proof::SP1Proof, SP1ProofWithPublicValues};
+use crate::types::{Elf, SP1ProvingKey, SP1VerifyingKey};
 use crate::prover::Prover;
 use crate::verify;
 use crate::Mode;
@@ -13,12 +14,13 @@ use sp1_core_executor::{ExecutionError, ExecutionReport, SP1Context};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_primitives::io::SP1PublicValues;
 use sp1_prover::components::DefaultProverComponents;
-use sp1_prover::{SP1Prover, SP1ProvingKey, SP1VerifyingKey, SP1_CIRCUIT_VERSION};
+use sp1_prover::{SP1Prover, SP1_CIRCUIT_VERSION};
 use sp1_stark::SP1ProverOpts;
 use std::future::{Future, IntoFuture};
 use std::pin::Pin;
 use std::sync::Arc;
 use tokio::task;
+
 /// An implementation of [crate::ProverClient] that can generate proofs locally.
 pub struct LocalProver {
     prover: Arc<SP1Prover<DefaultProverComponents>>,
@@ -57,7 +59,7 @@ impl LocalProver {
     /// Create a new proof request. See [`LocalProofRequest`] for more details.
     pub fn prove<'a>(
         &'a self,
-        pk: &'a Arc<SP1ProvingKey>,
+        pk: &'a SP1ProvingKey,
         stdin: SP1Stdin,
     ) -> LocalProofRequest<'a> {
         LocalProofRequest::new(self, pk, stdin)
@@ -109,7 +111,7 @@ impl LocalProverBuilder {
 
 pub struct LocalProofRequest<'a> {
     prover: &'a LocalProver,
-    pk: &'a Arc<SP1ProvingKey>,
+    pk: &'a SP1ProvingKey,
     stdin: SP1Stdin,
     mode: Mode,
     version: String,
@@ -120,7 +122,7 @@ pub struct LocalProofRequest<'a> {
 
 impl<'a> LocalProofRequest<'a> {
     /// Creates a new [`LocalProofRequest`] using the prover's configuration and default values.
-    pub fn new(prover: &'a LocalProver, pk: &'a Arc<SP1ProvingKey>, stdin: SP1Stdin) -> Self {
+    pub fn new(prover: &'a LocalProver, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> Self {
         Self {
             prover,
             pk,
@@ -213,12 +215,12 @@ impl<'a> LocalProofRequest<'a> {
             prover.prove_core(pk, &stdin, prover_opts, context)?;
 
         if mode == Mode::Core {
-            return Ok(SP1ProofWithPublicValues {
+            return Ok(crate::proof::SP1ProofWithPublicValues {
                 proof: SP1Proof::Core(proof.proof.0),
                 stdin: proof.stdin,
                 public_values: proof.public_values,
                 sp1_version: version.to_string(),
-            });
+            }.into());
         }
 
         let deferred_proofs =
@@ -229,12 +231,12 @@ impl<'a> LocalProofRequest<'a> {
         let reduce_proof = prover.compress(&pk.vk, proof, deferred_proofs, prover_opts)?;
 
         if mode == Mode::Compressed {
-            return Ok(SP1ProofWithPublicValues {
+            return Ok(crate::proof::SP1ProofWithPublicValues {
                 proof: SP1Proof::Compressed(Box::new(reduce_proof)),
                 stdin,
                 public_values,
                 sp1_version: version,
-            });
+            }.into());
         }
 
         // Generate the shrink proof.
@@ -255,12 +257,12 @@ impl<'a> LocalProofRequest<'a> {
             };
             let proof = prover.wrap_plonk_bn254(outer_proof, &plonk_bn254_artifacts);
 
-            return Ok(SP1ProofWithPublicValues {
+            return Ok(crate::proof::SP1ProofWithPublicValues {
                 proof: SP1Proof::Plonk(proof),
                 stdin,
                 public_values,
                 sp1_version: version.to_string(),
-            });
+            }.into());
         } else if mode == Mode::Groth16 {
             // Generate the Groth16 proof.
             let groth16_bn254_artifacts = if sp1_prover::build::sp1_dev_mode() {
@@ -273,12 +275,12 @@ impl<'a> LocalProofRequest<'a> {
             };
 
             let proof = prover.wrap_groth16_bn254(outer_proof, &groth16_bn254_artifacts);
-            return Ok(SP1ProofWithPublicValues {
+            return Ok(crate::proof::SP1ProofWithPublicValues {
                 proof: SP1Proof::Groth16(proof),
                 stdin,
                 public_values,
                 sp1_version: version.to_string(),
-            });
+            }.into());
         }
 
         unreachable!()
@@ -287,29 +289,34 @@ impl<'a> LocalProofRequest<'a> {
 
 #[async_trait]
 impl Prover for LocalProver {
-    async fn setup(&self, elf: Arc<[u8]>) -> Arc<SP1ProvingKey> {
+    async fn setup(&self, elf: &Elf) -> SP1ProvingKey {
         let prover = Arc::clone(&self.prover);
+        let elf = elf.clone();
 
         task::spawn_blocking(move || {
             let (pk, _vk) = prover.setup(&elf);
-            Arc::new(pk)
+
+            pk
         })
         .await
+        .map(Into::into)
         .unwrap()
     }
 
     #[cfg(feature = "blocking")]
-    fn setup_sync(&self, elf: &[u8]) -> Arc<SP1ProvingKey> {
+    fn setup_sync(&self, elf: &Elf) -> SP1ProvingKey {
         let (pk, _vk) = self.prover.setup(elf);
-        Arc::new(pk)
+
+        pk.into()
     }
 
     async fn execute(
         &self,
-        elf: Arc<[u8]>,
+        elf: &Elf,
         stdin: SP1Stdin,
     ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
         let prover = Arc::clone(&self.prover);
+        let elf = elf.clone();
 
         task::spawn_blocking(move || prover.execute(&elf, &stdin, SP1Context::default()))
             .await
@@ -319,7 +326,7 @@ impl Prover for LocalProver {
     #[cfg(feature = "blocking")]
     fn execute_sync(
         &self,
-        elf: &[u8],
+        elf: &Elf,
         stdin: SP1Stdin,
     ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
         self.prover.execute(elf, &stdin, SP1Context::default())
@@ -327,7 +334,7 @@ impl Prover for LocalProver {
 
     async fn prove_with_options(
         &self,
-        pk: &Arc<SP1ProvingKey>,
+        pk: &SP1ProvingKey,
         stdin: SP1Stdin,
         opts: ProofOpts,
     ) -> Result<SP1ProofWithPublicValues> {
@@ -341,7 +348,7 @@ impl Prover for LocalProver {
     #[cfg(feature = "blocking")]
     fn prove_with_options_sync(
         &self,
-        pk: &Arc<SP1ProvingKey>,
+        pk: &SP1ProvingKey,
         stdin: SP1Stdin,
         opts: ProofOpts,
     ) -> Result<SP1ProofWithPublicValues> {
@@ -354,10 +361,13 @@ impl Prover for LocalProver {
 
     async fn verify(
         &self,
-        proof: Arc<SP1ProofWithPublicValues>,
-        vk: Arc<SP1VerifyingKey>,
+        proof: &SP1ProofWithPublicValues,
+        vk: &SP1VerifyingKey,
     ) -> Result<(), SP1VerificationError> {
         let prover = Arc::clone(&self.prover);
+        let proof = proof.clone();
+        let vk = vk.clone();
+
         task::spawn_blocking(move || verify::verify(&prover, SP1_CIRCUIT_VERSION, &proof, &vk))
             .await
             .unwrap()
@@ -389,7 +399,7 @@ impl<'a> IntoFuture for LocalProofRequest<'a> {
             prover_ops: sp1_prover_opts,
         } = self;
 
-        let pk = Arc::clone(pk);
+        let pk = pk.clone();
         let prover = prover.prover.clone();
 
         Box::pin(async move {

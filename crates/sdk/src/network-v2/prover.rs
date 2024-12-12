@@ -8,7 +8,6 @@ use sp1_core_executor::{ExecutionError, ExecutionReport, SP1Context};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_primitives::io::SP1PublicValues;
 use sp1_prover::{components::DefaultProverComponents, SP1Prover, SP1_CIRCUIT_VERSION};
-use sp1_prover::{SP1ProvingKey, SP1VerifyingKey};
 use std::future::{Future, IntoFuture};
 use std::sync::Arc;
 
@@ -25,11 +24,12 @@ use crate::network_v2::{
     types::{HashType, RequestId, VerifyingKeyHash},
     Error,
 };
-use crate::proof::SP1ProofWithPublicValues;
+use crate::SP1ProofWithPublicValues;
 use crate::prover::Prover;
 use crate::{verify, ProofOpts};
 use crate::{Mode, SP1VerificationError};
 use crate::{DEFAULT_CYCLE_LIMIT, DEFAULT_TIMEOUT};
+use crate::{SP1ProvingKey, SP1VerifyingKey, Elf};
 
 /// The default fulfillment strategy to use for proof requests.
 pub const DEFAULT_FULFILLMENT_STRATEGY: FulfillmentStrategy = FulfillmentStrategy::Hosted;
@@ -401,29 +401,34 @@ impl<'a> NetworkProofRequest<'a> {
 
 #[async_trait]
 impl Prover for NetworkProver {
-    async fn setup(&self, elf: Arc<[u8]>) -> Arc<SP1ProvingKey> {
+    async fn setup(&self, elf: &Elf) -> SP1ProvingKey {
         let prover = Arc::clone(&self.prover);
+        let elf = elf.clone();
 
         task::spawn_blocking(move || {
-            let (pk, _vk) = prover.setup(&elf);
-            Arc::new(pk)
+            let (pk, _) = prover.setup(&elf);
+
+            pk
         })
         .await
+        .map(Into::into)
         .unwrap()
     }
 
     #[cfg(feature = "blocking")]
-    fn setup_sync(&self, elf: &[u8]) -> Arc<SP1ProvingKey> {
+    fn setup_sync(&self, elf: &Elf) -> SP1ProvingKey {
         let (pk, _vk) = self.prover.setup(elf);
-        Arc::new(pk)
+        
+        pk.into()
     }
 
     async fn execute(
         &self,
-        elf: Arc<[u8]>,
+        elf: &Elf,
         stdin: SP1Stdin,
     ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
         let prover = Arc::clone(&self.prover);
+        let elf = elf.clone();
 
         task::spawn_blocking(move || prover.execute(&elf, &stdin, SP1Context::default()))
             .await
@@ -433,7 +438,7 @@ impl Prover for NetworkProver {
     #[cfg(feature = "blocking")]
     fn execute_sync(
         &self,
-        elf: &[u8],
+        elf: &Elf,
         stdin: SP1Stdin,
     ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
         self.prover.execute(elf, &stdin, SP1Context::default())
@@ -441,7 +446,7 @@ impl Prover for NetworkProver {
 
     async fn prove_with_options(
         &self,
-        pk: &Arc<SP1ProvingKey>,
+        pk: &SP1ProvingKey,
         stdin: SP1Stdin,
         opts: ProofOpts,
     ) -> Result<SP1ProofWithPublicValues> {
@@ -455,7 +460,7 @@ impl Prover for NetworkProver {
     #[cfg(feature = "blocking")]
     fn prove_with_options_sync(
         &self,
-        pk: &Arc<SP1ProvingKey>,
+        pk: &SP1ProvingKey,
         stdin: SP1Stdin,
         opts: ProofOpts,
     ) -> Result<SP1ProofWithPublicValues> {
@@ -468,10 +473,13 @@ impl Prover for NetworkProver {
 
     async fn verify(
         &self,
-        proof: Arc<SP1ProofWithPublicValues>,
-        vk: Arc<SP1VerifyingKey>,
+        proof: &SP1ProofWithPublicValues,
+        vk: &SP1VerifyingKey,
     ) -> Result<(), SP1VerificationError> {
         let prover = Arc::clone(&self.prover);
+        let proof = proof.clone();
+        let vk = vk.clone();
+
         task::spawn_blocking(move || verify::verify(&prover, SP1_CIRCUIT_VERSION, &proof, &vk))
             .await
             .unwrap()
