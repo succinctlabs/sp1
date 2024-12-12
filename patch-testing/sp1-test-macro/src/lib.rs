@@ -4,6 +4,64 @@ use syn::parse_macro_input;
 
 mod attr;
 
+
+/// The `sp1_test` attribute is used to define a test case one time, that can be used to test
+/// execution, proof types, and the various provers.
+///
+/// The accepted attrubute arguments are:
+/// - [elf = ] "<elf_name>",
+/// - [prove],
+/// - [gpu].
+///
+/// Passing in any other arguments will result in a compile error.
+/// Tests are broken up into two parts: setup and check.
+///
+/// The way this macro handles this is by expecting a function with the following signature:
+/// ```rust,ignore
+/// fn test_name(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(SP1PublicValues);
+/// ```
+///
+/// The body of `test_name` is the "setup", and the returned `FnOnce(SP1PublicValues)` is the
+/// "check".
+///
+/// Here is a full example of how to use this macro:
+/// ```rust,ignore
+/// #[sp1_test("sha_256_program")]
+/// fn test_expected_digest_rand_times_lte_100_test(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(SP1PublicValues) {
+///    let times = rand::random::<u8>().min(100);
+///
+///    let preimages: Vec<Vec<u8>> = (0..times)
+///        .map(|_| {
+///            let rand_len = rand::random::<u8>();
+///            (0..rand_len).map(|_| rand::random::<u8>()).collect::<Vec<u8>>()
+///        })
+///        .collect();
+///
+///    let digests = preimages
+///        .iter()
+///        .map(|preimage| {
+///            let mut sha256_9_8 = sha2_v0_9_8::Sha256::new();
+///            sha256_9_8.update(preimage);
+///
+///            let mut sha256_10_6 = sha2_v0_10_6::Sha256::new();
+///            sha256_10_6.update(preimage);
+///
+///            (sha256_9_8.finalize().into(), sha256_10_6.finalize().into())
+///        })
+///       .collect::<Vec<([u8; 32], [u8; 32])>>();
+///
+///    stdin.write(&times);
+///    preimages.iter().for_each(|preimage| stdin.write_slice(preimage.as_slice()));
+///
+///    move |mut public| {
+///        let outputs = public.read::<Vec<([u8; 32], [u8; 32])>>();
+///        assert_eq!(digests, outputs);
+///    }
+/// }
+/// ```
+///
+/// Note: You MUST have sp1-sdk in your dependencies, and you MUST have and to use the `gpu`
+/// option, you must have the `cuda` feature enabled on the SDK.
 #[proc_macro_attribute]
 pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
     let options = parse_macro_input!(attr as attr::AttrOptions);
@@ -41,9 +99,9 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     let bounds_check = quote! {
-         fn assert_proper_cb<F: FnOnce(::sp1_sdk::SP1PublicValues)>(cb: &F) {
-                let _ = cb;
-            }
+        fn assert_proper_cb<F: FnOnce(::sp1_sdk::SP1PublicValues)>(cb: &F) {
+            let _ = cb;
+        }
 
         assert_proper_cb(&cb);
     };

@@ -3861,7 +3861,7 @@ dependencies = [
  "sha2 0.9.9",
  "sp1-build",
  "sp1-sdk",
- "sp1-test-macro",
+ "sp1-test",
  "sp1-zkvm",
 ]
 
@@ -4366,7 +4366,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sp1-test-macro"
+name = "sp1-test"
 version = "0.0.1"
 dependencies = [
  "proc-macro2",

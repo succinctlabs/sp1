@@ -1,5 +1,5 @@
 [package]
-name = "sp1-test-macro"
+name = "sp1-test"
 version = "0.0.1"
 description = "The SP1 test macro creates new rust tests for each proof type and prover type."
 edition = "2021"

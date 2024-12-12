@@ -29,7 +29,7 @@ secp256k1 = { version = "0.29", features = ["recovery", "global-context", "rand"
 revm-precompile = { version = "11.0.1", default-features = false, features = ["kzg-rs", "secp256r1"] }
 hex-literal = "0.4.1"
 rand = "0.8.5"
-sp1-test-macro = { path = "./sp1-test-macro/" }
+sp1-test = { path = "./sp1-test-macro/" }
 
 
 # [patch.crates-io]
