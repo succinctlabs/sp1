@@ -3,7 +3,7 @@ use crate::Mode;
 use crate::ProofOpts;
 use crate::proof::{SP1Proof, SP1ProofWithPublicValues};
 use crate::prover::Prover;
-use crate::request::{DEFAULT_CYCLE_LIMIT, DEFAULT_TIMEOUT};
+use crate::{DEFAULT_CYCLE_LIMIT, DEFAULT_TIMEOUT};
 use crate::verify;
 use crate::SP1VerificationError;
 

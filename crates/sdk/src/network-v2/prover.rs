@@ -26,7 +26,7 @@ use crate::network_v2::{
 use crate::ProofOpts;
 use crate::proof::SP1ProofWithPublicValues;
 use crate::prover::Prover;
-use crate::request::{DEFAULT_CYCLE_LIMIT, DEFAULT_TIMEOUT};
+use crate::{DEFAULT_CYCLE_LIMIT, DEFAULT_TIMEOUT};
 use crate::verify;
 use crate::SP1VerificationError;
 

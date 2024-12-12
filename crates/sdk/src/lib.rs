@@ -5,23 +5,6 @@
 //! Visit the [Getting Started](https://succinctlabs.github.io/sp1/getting-started.html) section
 //! in the official SP1 documentation for a quick start guide.
 
-mod client;
-mod prover;
-mod request;
-mod verify;
-
-pub mod artifacts;
-pub mod install;
-
-#[cfg(feature = "network-v2")]
-#[path = "network-v2/mod.rs"]
-pub mod network_v2;
-
-#[cfg(feature = "cuda")]
-pub use crate::local::CudaProver;
-#[cfg(feature = "network-v2")]
-pub use crate::network_v2::NetworkProver;
-
 pub mod local;
 pub mod proof;
 pub mod utils {
@@ -42,6 +25,29 @@ pub use sp1_prover::{
 
 use sp1_stark::MachineVerificationError;
 use thiserror::Error;
+
+mod client;
+mod prover;
+mod verify;
+
+pub mod artifacts;
+pub mod install;
+
+#[cfg(feature = "cuda")]
+pub use crate::local::CudaProver;
+
+#[cfg(feature = "network-v2")]
+pub use crate::network_v2::NetworkProver;
+
+#[cfg(feature = "network-v2")]
+#[path = "network-v2/mod.rs"]
+pub mod network_v2;/// The default timeout seconds for a proof request to be generated (4 hours).
+///
+pub const DEFAULT_TIMEOUT: u64 = 14400;
+
+/// The default cycle limit for a proof request.
+pub const DEFAULT_CYCLE_LIMIT: u64 = 100_000_000;
+
 
 pub struct ProofOpts {
     pub mode: Mode,

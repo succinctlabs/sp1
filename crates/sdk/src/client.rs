@@ -13,7 +13,7 @@ use sp1_core_executor::{ExecutionError, ExecutionReport};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_primitives::io::SP1PublicValues;
 use sp1_prover::{SP1ProvingKey, SP1VerifyingKey};
-use std::{env, sync::Arc};
+use std::sync::Arc;
 use crate::ProofOpts;
 
 mod request;
@@ -37,7 +37,7 @@ impl ProverClient {
 
     fn create_from_env() -> Self {
         #[cfg(feature = "network-v2")]
-        match env::var("SP1_PROVER").unwrap_or("local".to_string()).as_str() {
+        match std::env::var("SP1_PROVER").unwrap_or("local".to_string()).as_str() {
             "network" => {
                 let rpc_url = env::var("PROVER_NETWORK_RPC")
                     .unwrap_or_else(|_| DEFAULT_PROVER_NETWORK_RPC.to_string());
@@ -83,10 +83,3 @@ impl ProverClient {
         self.inner.verify(proof, vk).await
     }
 }
-
-/// The default timeout seconds for a proof request to be generated (4 hours).
-pub const DEFAULT_TIMEOUT: u64 = 14400;
-
-/// The default cycle limit for a proof request.
-pub const DEFAULT_CYCLE_LIMIT: u64 = 100_000_000;
-
