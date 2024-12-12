@@ -1,11 +1,11 @@
 use crate::install::try_install_circuit_artifacts;
 use crate::proof::{SP1Proof, SP1ProofWithPublicValues};
 use crate::prover::Prover;
-use crate::{DEFAULT_CYCLE_LIMIT, DEFAULT_TIMEOUT};
 use crate::verify;
 use crate::Mode;
 use crate::ProofOpts;
 use crate::SP1VerificationError;
+use crate::{DEFAULT_CYCLE_LIMIT, DEFAULT_TIMEOUT};
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -34,7 +34,7 @@ impl Default for LocalProver {
 }
 
 impl LocalProver {
-    /// Creates a new `LocalProver`.
+    /// Creates a new [`LocalProver`].
     ///
     /// Uses default timeout and cycle limit.
     pub fn new() -> Self {
@@ -50,12 +50,12 @@ impl LocalProver {
         LocalProverBuilder::new()
     }
 
-    /// Get the underlying SP1 prover.
+    /// Get the underlying [`SP1Prover`].
     pub fn sp1_prover(&self) -> &SP1Prover {
         &self.prover
     }
 
-    /// Create a new proof request.
+    /// Create a new proof request. See [`LocalProofRequest`] for more details.
     pub fn prove<'a>(
         &'a self,
         pk: &'a Arc<SP1ProvingKey>,
@@ -73,10 +73,11 @@ pub struct LocalProofRequest<'a> {
     version: String,
     timeout: u64,
     cycle_limit: u64,
-    sp1_prover_opts: SP1ProverOpts,
+    prover_ops: SP1ProverOpts,
 }
 
 impl<'a> LocalProofRequest<'a> {
+    /// Creates a new [`LocalProofRequest`].
     pub fn new(prover: &'a LocalProver, pk: &'a Arc<SP1ProvingKey>, stdin: SP1Stdin) -> Self {
         Self {
             prover,
@@ -86,11 +87,11 @@ impl<'a> LocalProofRequest<'a> {
             timeout: prover.timeout,
             cycle_limit: prover.cycle_limit,
             version: SP1_CIRCUIT_VERSION.to_string(),
-            sp1_prover_opts: SP1ProverOpts::default(),
+            prover_ops: SP1ProverOpts::default(),
         }
     }
 
-    fn with_mode(mut self, mode: Mode) -> Self {
+    fn mode(mut self, mode: Mode) -> Self {
         self.mode = mode;
         self
     }
@@ -115,23 +116,23 @@ impl<'a> LocalProofRequest<'a> {
         self
     }
 
-    pub fn with_version(mut self, version: String) -> Self {
+    pub fn version(mut self, version: String) -> Self {
         self.version = version;
         self
     }
 
-    pub fn with_timeout(mut self, timeout: u64) -> Self {
+    pub fn timeout(mut self, timeout: u64) -> Self {
         self.timeout = timeout;
         self
     }
 
-    pub fn with_cycle_limit(mut self, cycle_limit: u64) -> Self {
+    pub fn cycle_limit(mut self, cycle_limit: u64) -> Self {
         self.cycle_limit = cycle_limit;
         self
     }
 
-    pub fn with_sp1_prover_opts(mut self, opts: SP1ProverOpts) -> Self {
-        self.sp1_prover_opts = opts;
+    pub fn prover_opts(mut self, opts: SP1ProverOpts) -> Self {
+        self.prover_ops = opts;
         self
     }
 
@@ -144,7 +145,7 @@ impl<'a> LocalProofRequest<'a> {
             self.timeout,
             self.cycle_limit,
             self.version,
-            self.sp1_prover_opts,
+            self.prover_ops,
         )
     }
 }
@@ -158,13 +159,13 @@ impl<'a> LocalProofRequest<'a> {
         _timeout: u64,
         cycle_limit: u64,
         version: String,
-        sp1_prover_opts: SP1ProverOpts,
+        prover_opts: SP1ProverOpts,
     ) -> Result<SP1ProofWithPublicValues> {
         let context = SP1Context::builder().max_cycles(cycle_limit).build();
 
         // Generate the core proof
         let proof: sp1_prover::SP1ProofWithMetadata<sp1_prover::SP1CoreProofData> =
-            prover.prove_core(pk, &stdin, sp1_prover_opts, context)?;
+            prover.prove_core(pk, &stdin, prover_opts, context)?;
 
         if mode == Mode::Core {
             return Ok(SP1ProofWithPublicValues {
@@ -180,7 +181,7 @@ impl<'a> LocalProofRequest<'a> {
         let public_values = proof.public_values.clone();
 
         // Generate the compressed proof
-        let reduce_proof = prover.compress(&pk.vk, proof, deferred_proofs, sp1_prover_opts)?;
+        let reduce_proof = prover.compress(&pk.vk, proof, deferred_proofs, prover_opts)?;
 
         if mode == Mode::Compressed {
             return Ok(SP1ProofWithPublicValues {
@@ -192,10 +193,10 @@ impl<'a> LocalProofRequest<'a> {
         }
 
         // Generate the shrink proof.
-        let compress_proof = prover.shrink(reduce_proof, sp1_prover_opts)?;
+        let compress_proof = prover.shrink(reduce_proof, prover_opts)?;
 
         // Genenerate the wrap proof.
-        let outer_proof = prover.wrap_bn254(compress_proof, sp1_prover_opts)?;
+        let outer_proof = prover.wrap_bn254(compress_proof, prover_opts)?;
 
         if mode == Mode::Plonk {
             let plonk_bn254_artifacts = if sp1_prover::build::sp1_dev_mode() {
@@ -284,9 +285,9 @@ impl Prover for LocalProver {
         opts: ProofOpts,
     ) -> Result<SP1ProofWithPublicValues> {
         self.prove(pk, stdin)
-            .with_mode(opts.mode)
-            .with_timeout(opts.timeout)
-            .with_cycle_limit(opts.cycle_limit)
+            .mode(opts.mode)
+            .timeout(opts.timeout)
+            .cycle_limit(opts.cycle_limit)
             .await
     }
 
@@ -298,9 +299,9 @@ impl Prover for LocalProver {
         opts: ProofOpts,
     ) -> Result<SP1ProofWithPublicValues> {
         self.prove(pk, stdin)
-            .with_mode(opts.mode)
-            .with_timeout(opts.timeout)
-            .with_cycle_limit(opts.cycle_limit)
+            .mode(opts.mode)
+            .timeout(opts.timeout)
+            .cycle_limit(opts.cycle_limit)
             .run()
     }
 
@@ -338,7 +339,7 @@ impl<'a> IntoFuture for LocalProofRequest<'a> {
             timeout,
             cycle_limit,
             version,
-            sp1_prover_opts,
+            prover_ops: sp1_prover_opts,
         } = self;
 
         let pk = Arc::clone(pk);
@@ -375,11 +376,12 @@ impl Default for LocalProverBuilder {
 }
 
 impl LocalProverBuilder {
+    /// Creates a new [`LocalProverBuilder`].
     pub fn new() -> Self {
         Self { timeout: None, cycle_limit: None }
     }
 
-    pub fn with_timeout(mut self, timeout: u64) -> Self {
+    pub fn timeout(mut self, timeout: u64) -> Self {
         self.timeout = Some(timeout);
         self
     }
