@@ -77,13 +77,18 @@ impl ProverClient {
             "mock" => Self { prover: Box::new(MockProver::new()) },
             "local" => {
                 if option_env!("SP1_OPT_LEVEL_IS_LOW").is_some() {
-                    eprintln!("\n⚠️  WARNING: Local prover is running with low optimization level (dev mode) ⚠️");
-                    eprintln!("This will significantly impact proof generation performance.");
-                    eprintln!("To improve performance, either:");
-                    eprintln!("  1. Use --release flag when running cargo");
-                    eprintln!("  2. Add the following to Cargo.toml:");
-                    eprintln!("     [profile.dev.package.\"*\"]");
-                    eprintln!("     opt-level = 3\n");
+                    eprintln!("\n\
+                        ============================================================================\n\
+                        ⚠️  WARNING: Local prover was compiled with a low optimization level. ⚠️\n\
+                        This will significantly impact proof generation performance.\n\
+                        To improve performance, either:\n\
+                        1. Use --release flag when running cargo\n\
+                        2. Add the following to Cargo.toml:\n\
+                        [profile.dev.package.\"*\"]\n\
+                        opt-level = 3\n\
+                        For more details, see https://doc.rust-lang.org/cargo/reference/profiles.html#opt-level.
+                        ============================================================================\n\
+                    ");
                 }
                 Self {
                     #[cfg(not(feature = "cuda"))]
