@@ -70,23 +70,27 @@ pub struct SP1ProvingKey {
     pub(crate) inner: Arc<sp1_prover::SP1ProvingKey>
 }
 
-impl std::ops::Deref for SP1ProvingKey {
-    type Target = sp1_prover::SP1ProvingKey;
+mod proving_key {
+    use super::*;
 
-    fn deref(&self) -> &Self::Target {
-        &self.inner
+    impl std::ops::Deref for SP1ProvingKey {
+        type Target = sp1_prover::SP1ProvingKey;
+
+        fn deref(&self) -> &Self::Target {
+            &self.inner
+        }
     }
-}
 
-impl Clone for SP1ProvingKey {
-    fn clone(&self) -> Self {
-        Self { inner: Arc::clone(&self.inner) }
+    impl Clone for SP1ProvingKey {
+        fn clone(&self) -> Self {
+            Self { inner: Arc::clone(&self.inner) }
+        }
     }
-}
 
-impl From<sp1_prover::SP1ProvingKey> for SP1ProvingKey {
-    fn from(inner: sp1_prover::SP1ProvingKey) -> Self {
-        Self { inner: Arc::new(inner) }
+    impl From<sp1_prover::SP1ProvingKey> for SP1ProvingKey {
+        fn from(inner: sp1_prover::SP1ProvingKey) -> Self {
+            Self { inner: Arc::new(inner) }
+        }
     }
 }
 
@@ -95,31 +99,35 @@ pub struct SP1ProofWithPublicValues {
     pub(crate) inner: Arc<crate::proof::SP1ProofWithPublicValues>,
 }
 
-impl From<crate::proof::SP1ProofWithPublicValues> for SP1ProofWithPublicValues {
-    fn from(inner: crate::proof::SP1ProofWithPublicValues) -> Self {
-        Self { inner: Arc::new(inner) }
+mod proof {
+    use super::*;
+
+    impl From<crate::proof::SP1ProofWithPublicValues> for SP1ProofWithPublicValues {
+        fn from(inner: crate::proof::SP1ProofWithPublicValues) -> Self {
+            Self { inner: Arc::new(inner) }
+        }
     }
-}
 
-impl Clone for SP1ProofWithPublicValues {
-    fn clone(&self) -> Self {
-        Self { inner: Arc::clone(&self.inner) }
+    impl Clone for SP1ProofWithPublicValues {
+        fn clone(&self) -> Self {
+            Self { inner: Arc::clone(&self.inner) }
+        }
     }
-}
 
-impl std::ops::Deref for SP1ProofWithPublicValues {
-    type Target = crate::proof::SP1ProofWithPublicValues;
+    impl std::ops::Deref for SP1ProofWithPublicValues {
+        type Target = crate::proof::SP1ProofWithPublicValues;
 
-    fn deref(&self) -> &Self::Target {
-        &self.inner
+        fn deref(&self) -> &Self::Target {
+            &self.inner
+        }
     }
-}
 
-impl SP1ProofWithPublicValues {
-    pub fn load(path: impl AsRef<std::path::Path>) -> anyhow::Result<Self> {
-        let inner = crate::proof::SP1ProofWithPublicValues::load(path)?;
+    impl SP1ProofWithPublicValues {
+        pub fn load(path: impl AsRef<std::path::Path>) -> anyhow::Result<Self> {
+            let inner = crate::proof::SP1ProofWithPublicValues::load(path)?;
 
-        Ok(Self { inner: Arc::new(inner) })
+            Ok(Self { inner: Arc::new(inner) })
+        }
     }
 }
 
