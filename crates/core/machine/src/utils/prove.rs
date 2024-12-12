@@ -115,7 +115,7 @@ where
     #[cfg(feature = "debug")]
     let (all_records_tx, all_records_rx) = std::sync::mpsc::channel::<Vec<ExecutionRecord>>();
 
-    // Need to create a reference to a Box, because of the `move` below.
+    // Need to create an optional reference, because of the `move` below.
     let malicious_trace_generator: Option<&MaliciousTraceGeneratorType<SC::Val, P>> =
         malicious_trace_generator.as_ref();
 
@@ -186,7 +186,6 @@ where
         let deferred = Arc::new(Mutex::new(ExecutionRecord::new(program.clone().into())));
         let mut p2_record_and_trace_gen_handles = Vec::new();
         let checkpoints_rx = Arc::new(Mutex::new(checkpoints_rx));
-
         for _ in 0..opts.trace_gen_workers {
             let record_gen_sync = Arc::clone(&p2_record_gen_sync);
             let trace_gen_sync = Arc::clone(&p2_trace_gen_sync);
