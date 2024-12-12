@@ -1,12 +1,12 @@
 use crate::install::try_install_circuit_artifacts;
-use crate::local::ProverType;
-use crate::local::SP1VerificationError;
 use crate::mode::Mode;
 use crate::opts::ProofOpts;
 use crate::proof::{SP1Proof, SP1ProofWithPublicValues};
 use crate::prover::Prover;
-use crate::request::DEFAULT_TIMEOUT;
+use crate::request::{DEFAULT_CYCLE_LIMIT, DEFAULT_TIMEOUT};
 use crate::verify;
+use crate::ProverType;
+use crate::SP1VerificationError;
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -46,7 +46,7 @@ impl LocalProver {
         &self.prover
     }
 
-    pub fn prove(&self, pk: Arc<SP1ProvingKey>, stdin: SP1Stdin) -> LocalProofRequest {
+    pub fn prove(&self, pk: &Arc<SP1ProvingKey>, stdin: SP1Stdin) -> LocalProofRequest {
         LocalProofRequest::new(self, &pk, stdin)
     }
 }
@@ -64,13 +64,14 @@ impl LocalProverBuilder {
 }
 
 pub struct LocalProofRequest<'a> {
-    pub prover: &'a LocalProver,
-    pub pk: &'a Arc<SP1ProvingKey>,
-    pub stdin: SP1Stdin,
-    pub mode: Mode,
-    pub timeout: u64,
-    pub version: String,
-    pub sp1_prover_opts: SP1ProverOpts,
+    prover: &'a LocalProver,
+    pk: &'a Arc<SP1ProvingKey>,
+    stdin: SP1Stdin,
+    mode: Mode,
+    timeout: u64,
+    cycle_limit: u64,
+    version: String,
+    sp1_prover_opts: SP1ProverOpts,
 }
 
 impl<'a> LocalProofRequest<'a> {
@@ -79,14 +80,15 @@ impl<'a> LocalProofRequest<'a> {
             prover,
             pk,
             stdin,
-            timeout: DEFAULT_TIMEOUT,
             mode: Mode::default(),
+            timeout: DEFAULT_TIMEOUT,
+            cycle_limit: DEFAULT_CYCLE_LIMIT,
             version: SP1_CIRCUIT_VERSION.to_string(),
             sp1_prover_opts: SP1ProverOpts::default(),
         }
     }
 
-    pub fn mode(mut self, mode: Mode) -> Self {
+    fn with_mode(mut self, mode: Mode) -> Self {
         self.mode = mode;
         self
     }
@@ -113,6 +115,11 @@ impl<'a> LocalProofRequest<'a> {
 
     pub fn with_timeout(mut self, timeout: u64) -> Self {
         self.timeout = timeout;
+        self
+    }
+
+    pub fn with_cycle_limit(mut self, cycle_limit: u64) -> Self {
+        self.cycle_limit = cycle_limit;
         self
     }
 
@@ -271,30 +278,28 @@ impl Prover for LocalProver {
 
     async fn prove_with_options(
         &self,
-        pk: Arc<SP1ProvingKey>,
+        pk: &Arc<SP1ProvingKey>,
         stdin: SP1Stdin,
         opts: ProofOpts,
     ) -> Result<SP1ProofWithPublicValues> {
-        self.prove(&pk, stdin)
-            .mode(opts.mode)
+        self.prove(pk, stdin)
+            .with_mode(opts.mode)
             .with_timeout(opts.timeout)
-            .with_version(opts.version)
-            .with_sp1_prover_opts(opts.sp1_prover_opts)
+            .with_cycle_limit(opts.cycle_limit)
             .await
     }
 
     #[cfg(feature = "blocking")]
     fn prove_with_options_sync(
         &self,
-        pk: Arc<SP1ProvingKey>,
+        pk: &SP1ProvingKey,
         stdin: SP1Stdin,
         opts: ProofOpts,
     ) -> Result<SP1ProofWithPublicValues> {
         self.prove(&pk, stdin)
-            .mode(opts.mode)
+            .with_mode(opts.mode)
             .with_timeout(opts.timeout)
-            .with_version(opts.version)
-            .with_sp1_prover_opts(opts.sp1_prover_opts)
+            .with_cycle_limit(opts.cycle_limit)
             .run()
     }
 
@@ -340,7 +345,7 @@ impl<'a> IntoFuture for LocalProofRequest<'a> {
             task::spawn_blocking(move || {
                 LocalProofRequest::run_inner(
                     &prover,
-                    &**pk,
+                    &*pk,
                     stdin,
                     mode,
                     timeout,

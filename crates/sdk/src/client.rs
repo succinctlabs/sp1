@@ -1,11 +1,11 @@
 use crate::{
     local::{LocalProver, LocalProverBuilder},
-    network_v2::DEFAULT_PROVER_NETWORK_RPC,
-    network_v2::{NetworkProver, NetworkProverBuilder},
+    network_v2::{NetworkProver, NetworkProverBuilder, DEFAULT_PROVER_NETWORK_RPC},
     opts::ProofOpts,
     proof::SP1ProofWithPublicValues,
     prover::Prover,
     request::DynProofRequest,
+    SP1VerificationError,
 };
 use anyhow::Result;
 use sp1_core_executor::{ExecutionError, ExecutionReport};
@@ -71,7 +71,7 @@ impl ProverClient {
         &self,
         proof: Arc<SP1ProofWithPublicValues>,
         vk: Arc<SP1VerifyingKey>,
-    ) -> Result<(), crate::local::SP1VerificationError> {
+    ) -> Result<(), SP1VerificationError> {
         self.inner.verify(proof, vk).await
     }
 }

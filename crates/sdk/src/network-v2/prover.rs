@@ -15,7 +15,6 @@ use tokio::runtime::Runtime;
 use tokio::task;
 use tokio::time::sleep;
 
-use crate::local::SP1VerificationError;
 use crate::mode::Mode;
 use crate::network_v2::retry::{self, with_retry};
 use crate::network_v2::{
@@ -28,7 +27,8 @@ use crate::opts::ProofOpts;
 use crate::proof::SP1ProofWithPublicValues;
 use crate::prover::Prover;
 use crate::request::{DEFAULT_CYCLE_LIMIT, DEFAULT_TIMEOUT};
-use crate::verify;
+use crate::SP1VerificationError;
+use crate::{verify, ProverType};
 
 /// The default fulfillment strategy to use for proof requests.
 pub const DEFAULT_FULFILLMENT_STRATEGY: FulfillmentStrategy = FulfillmentStrategy::Hosted;
@@ -60,6 +60,26 @@ impl NetworkProver {
             prover: Arc::new(SP1Prover::new()),
             network_client: NetworkClient::new(&private_key).rpc_url(rpc_url),
         }
+    }
+
+    /// Creates a new network prover builder. See [`NetworkProverBuilder`] for more details.
+    pub fn builder() -> NetworkProverBuilder {
+        NetworkProverBuilder::new()
+    }
+
+    /// Get the type of prover.
+    pub fn id(&self) -> ProverType {
+        ProverType::Network
+    }
+
+    /// Get the underlying SP1 prover.
+    pub fn sp1_prover(&self) -> &SP1Prover {
+        &self.prover
+    }
+
+    /// Create a new proof request.
+    pub fn prove(&self, pk: &Arc<SP1ProvingKey>, stdin: SP1Stdin) -> NetworkProofRequest {
+        NetworkProofRequest::new(self, pk, stdin)
     }
 
     /// Get the cycle limit to used for a proof request.
@@ -192,11 +212,6 @@ impl NetworkProver {
             sleep(Duration::from_secs(STATUS_CHECK_INTERVAL_SECS)).await;
         }
     }
-
-    /// Creates a new network prover builder. See [`NetworkProverBuilder`] for more details.
-    pub fn builder() -> NetworkProverBuilder {
-        NetworkProverBuilder::new()
-    }
 }
 
 impl NetworkProverBuilder {
@@ -233,38 +248,33 @@ impl NetworkProverBuilder {
 
 pub struct NetworkProofRequest<'a> {
     prover: &'a NetworkProver,
-    pk: Arc<SP1ProvingKey>,
+    pk: &'a Arc<SP1ProvingKey>,
     stdin: SP1Stdin,
     version: String,
     mode: ProofMode,
-    strategy: FulfillmentStrategy,
     timeout: u64,
     cycle_limit: Option<u64>,
     skip_simulation: bool,
+    strategy: FulfillmentStrategy,
 }
 
 impl<'a> NetworkProofRequest<'a> {
-    pub fn new(prover: &'a NetworkProver, pk: Arc<SP1ProvingKey>, stdin: SP1Stdin) -> Self {
+    pub fn new(prover: &'a NetworkProver, pk: &'a Arc<SP1ProvingKey>, stdin: SP1Stdin) -> Self {
         Self {
             prover,
             pk,
             stdin,
             version: SP1_CIRCUIT_VERSION.to_owned(),
             mode: Mode::default().into(),
-            strategy: DEFAULT_FULFILLMENT_STRATEGY,
             timeout: DEFAULT_TIMEOUT,
             cycle_limit: None,
             skip_simulation: false,
+            strategy: DEFAULT_FULFILLMENT_STRATEGY,
         }
     }
 
-    pub fn groth16(mut self) -> Self {
-        self.mode = ProofMode::Groth16;
-        self
-    }
-
-    pub fn plonk(mut self) -> Self {
-        self.mode = ProofMode::Plonk;
+    fn with_mode(mut self, mode: Mode) -> Self {
+        self.mode = mode.into();
         self
     }
 
@@ -278,13 +288,18 @@ impl<'a> NetworkProofRequest<'a> {
         self
     }
 
-    pub fn with_timeout(mut self, timeout: u64) -> Self {
-        self.timeout = timeout;
+    pub fn plonk(mut self) -> Self {
+        self.mode = ProofMode::Plonk;
         self
     }
 
-    pub fn with_strategy(mut self, strategy: FulfillmentStrategy) -> Self {
-        self.strategy = strategy;
+    pub fn groth16(mut self) -> Self {
+        self.mode = ProofMode::Groth16;
+        self
+    }
+
+    pub fn with_timeout(mut self, timeout: u64) -> Self {
+        self.timeout = timeout;
         self
     }
 
@@ -293,7 +308,18 @@ impl<'a> NetworkProofRequest<'a> {
         self
     }
 
+    pub fn skip_simulation(mut self) -> Self {
+        self.skip_simulation = true;
+        self
+    }
+
+    pub fn with_strategy(mut self, strategy: FulfillmentStrategy) -> Self {
+        self.strategy = strategy;
+        self
+    }
+
     async fn run_inner(self) -> Result<SP1ProofWithPublicValues> {
+        // Register the program.
         let vk_hash = self.prover.register_program(&self.pk.vk, &self.pk.elf).await?;
 
         // Get the cycle limit.
@@ -383,16 +409,15 @@ impl Prover for NetworkProver {
 
     async fn prove_with_options(
         &self,
-        pk: Arc<SP1ProvingKey>,
+        pk: &Arc<SP1ProvingKey>,
         stdin: SP1Stdin,
         opts: ProofOpts,
     ) -> Result<SP1ProofWithPublicValues> {
-        let request = NetworkProofRequest::new(self, pk, stdin)
+        self.prove(pk, stdin)
             .with_mode(opts.mode)
             .with_timeout(opts.timeout)
-            .with_cycle_limit(opts.cycle_limit);
-
-        request.run_inner().await
+            .with_cycle_limit(opts.cycle_limit)
+            .await
     }
 
     #[cfg(feature = "blocking")]
@@ -402,11 +427,11 @@ impl Prover for NetworkProver {
         stdin: SP1Stdin,
         opts: ProofOpts,
     ) -> Result<SP1ProofWithPublicValues> {
-        let request = NetworkProofRequest::new(self, pk, stdin)
+        self.prove(&pk, stdin)
             .with_mode(opts.mode)
             .with_timeout(opts.timeout)
-            .with_cycle_limit(opts.cycle_limit);
-        request.run()
+            .with_cycle_limit(opts.cycle_limit)
+            .run()
     }
 
     async fn verify(

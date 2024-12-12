@@ -8,7 +8,7 @@ use sp1_prover::{SP1CoreProofData, SP1Prover, SP1VerifyingKey};
 use sp1_stark::{air::PublicValues, Word};
 
 use crate::install::try_install_circuit_artifacts;
-use crate::local::SP1VerificationError;
+use crate::SP1VerificationError;
 use crate::{proof::SP1Proof, proof::SP1ProofWithPublicValues};
 
 /// Verify that an SP1 proof is valid given its vkey and metadata.

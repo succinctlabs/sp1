@@ -7,7 +7,7 @@ use sp1_core_machine::io::SP1Stdin;
 use sp1_primitives::io::SP1PublicValues;
 use sp1_prover::{SP1ProvingKey, SP1VerifyingKey};
 
-use crate::{local::SP1VerificationError, opts::ProofOpts, proof::SP1ProofWithPublicValues};
+use crate::{opts::ProofOpts, proof::SP1ProofWithPublicValues, SP1VerificationError};
 
 #[async_trait]
 pub trait Prover: Sync {
@@ -31,7 +31,7 @@ pub trait Prover: Sync {
 
     async fn prove_with_options(
         &self,
-        pk: Arc<SP1ProvingKey>,
+        pk: &Arc<SP1ProvingKey>,
         stdin: SP1Stdin,
         opts: ProofOpts,
     ) -> Result<SP1ProofWithPublicValues>;
