@@ -130,6 +130,7 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
         let prove_name = syn::Ident::new(&format!("{}_prove", test_name), test_name.span());
 
         let prove_fn = quote! {
+            #[cfg(feature = "prove")]
             #[test]
             fn #prove_name() {
                 const ELF: &[u8] = ::sp1_sdk::include_elf!(#elf_name);
@@ -160,6 +161,7 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
         let gpu_prove_name = syn::Ident::new(&format!("{}_gpu_prove", test_name), test_name.span());
 
         let gpu_fn = quote! {
+            #[cfg(feature = "cuda")]
             #[test]
             fn #gpu_name() {
                     const ELF: &[u8] = ::sp1_sdk::include_elf!(#elf_name);
@@ -181,6 +183,7 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
 
         let gpu_prove_fn = if options.prove() {
             Some(quote! {
+                #[cfg(feature = "cuda")]
                 #[test]
                 fn #gpu_prove_name() {
                     const ELF: &[u8] = ::sp1_sdk::include_elf!(#elf_name);
