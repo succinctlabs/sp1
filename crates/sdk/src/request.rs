@@ -73,6 +73,6 @@ impl<'a> IntoFuture for DynProofRequest<'a> {
     type IntoFuture = Pin<Box<dyn Future<Output = Self::Output> + Send + 'a>>;
 
     fn into_future(self) -> Self::IntoFuture {
-        Box::pin(self.prover.prove_with_options(self.pk, self.stdin, self.opts))
+        self.prover.prove_with_options(self.pk, self.stdin, self.opts)
     }
 }

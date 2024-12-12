@@ -87,6 +87,7 @@ network-v2 = [
   "dep:backoff",
 ]
 cuda = ["sp1-cuda"]
+blocking = []
 
 [build-dependencies]
 vergen = { version = "8", default-features = false, features = [

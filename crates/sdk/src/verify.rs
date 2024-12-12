@@ -15,8 +15,8 @@ use strum_macros::EnumString;
 use thiserror::Error;
 
 use crate::install::try_install_circuit_artifacts;
-use crate::opts::ProofOpts;
 use crate::local::SP1VerificationError;
+use crate::opts::ProofOpts;
 use crate::{proof::SP1Proof, proof::SP1ProofKind, proof::SP1ProofWithPublicValues};
 
 /// Verify that an SP1 proof is valid given its vkey and metadata.

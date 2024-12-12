@@ -45,6 +45,10 @@ impl LocalProver {
     fn sp1_prover(&self) -> &SP1Prover {
         &self.prover
     }
+
+    pub fn prove(&self, pk: Arc<SP1ProvingKey>, stdin: SP1Stdin) -> LocalProofRequest {
+        LocalProofRequest::new(self, &pk, stdin)
+    }
 }
 
 pub struct LocalProverBuilder {}
@@ -61,7 +65,7 @@ impl LocalProverBuilder {
 
 pub struct LocalProofRequest<'a> {
     pub prover: &'a LocalProver,
-    pub pk: Arc<SP1ProvingKey>,
+    pub pk: &'a Arc<SP1ProvingKey>,
     pub stdin: SP1Stdin,
     pub mode: Mode,
     pub timeout: u64,
@@ -70,7 +74,7 @@ pub struct LocalProofRequest<'a> {
 }
 
 impl<'a> LocalProofRequest<'a> {
-    pub fn new(prover: &'a LocalProver, pk: Arc<SP1ProvingKey>, stdin: SP1Stdin) -> Self {
+    pub fn new(prover: &'a LocalProver, pk: &'a Arc<SP1ProvingKey>, stdin: SP1Stdin) -> Self {
         Self {
             prover,
             pk,
@@ -117,9 +121,24 @@ impl<'a> LocalProofRequest<'a> {
         self
     }
 
+    pub fn run(self) -> Result<SP1ProofWithPublicValues> {
+        let context = SP1Context::default();
+        Self::run_inner(
+            &self.prover.prover,
+            &**self.pk,
+            self.stdin,
+            self.mode,
+            self.timeout,
+            self.version,
+            self.sp1_prover_opts,
+        )
+    }
+}
+
+impl LocalProver {
     fn run_inner(
-        prover: Arc<SP1Prover<DefaultProverComponents>>,
-        pk: Arc<SP1ProvingKey>,
+        prover: &SP1Prover<DefaultProverComponents>,
+        pk: &SP1ProvingKey,
         stdin: SP1Stdin,
         mode: Mode,
         timeout: u64,
@@ -202,19 +221,6 @@ impl<'a> LocalProofRequest<'a> {
 
         unreachable!()
     }
-
-    pub fn run(self) -> Result<SP1ProofWithPublicValues> {
-        let context = SP1Context::default();
-        Self::run_inner(
-            Arc::clone(&self.prover.prover),
-            self.pk,
-            self.stdin,
-            self.mode,
-            self.timeout,
-            self.version,
-            self.sp1_prover_opts,
-        )
-    }
 }
 
 #[async_trait]
@@ -227,12 +233,14 @@ impl Prover for LocalProver {
         })
         .await
         .unwrap();
+
         result
     }
 
     #[cfg(feature = "blocking")]
     fn setup_sync(&self, elf: &[u8]) -> Arc<SP1ProvingKey> {
         let (pk, _vk) = self.prover.setup(elf);
+
         Arc::new(pk)
     }
 
@@ -262,23 +270,25 @@ impl Prover for LocalProver {
         stdin: SP1Stdin,
         opts: ProofOpts,
     ) -> Result<SP1ProofWithPublicValues> {
-        let prover = Arc::clone(&self.prover);
+        let mut req = self.prove(pk, stdin);
 
-        task::spawn_blocking(move || {
-            let context = SP1Context::default();
+        if let Some(mode) = opts.mode {
+            req.mode = mode;
+        }
 
-            LocalProofRequest::run_inner(
-                prover,
-                pk,
-                stdin,
-                opts.mode,
-                opts.timeout,
-                SP1_CIRCUIT_VERSION.to_string(),
-                SP1ProverOpts::default(),
-            )
-        })
-        .await
-        .unwrap()
+        if let Some(timeout) = opts.timeout {
+            req.timeout = timeout;
+        }
+
+        if let Some(version) = opts.version {
+            req.version = version;
+        }
+
+        if let Some(sp1_prover_opts) = opts.sp1_prover_opts {
+            req.sp1_prover_opts = sp1_prover_opts;
+        }
+
+        req.await
     }
 
     #[cfg(feature = "blocking")]
@@ -288,18 +298,25 @@ impl Prover for LocalProver {
         stdin: SP1Stdin,
         opts: ProofOpts,
     ) -> Result<SP1ProofWithPublicValues> {
-        let context = SP1Context::default();
+        let mut req = self.prove(pk, stdin);
 
-        LocalProofRequest::run_inner(
-            Arc::clone(&self.prover),
-            pk,
-            stdin,
-            opts.mode,
-            opts.timeout,
-            SP1_CIRCUIT_VERSION.to_string(),
-            SP1ProverOpts::default(),
-            context,
-        )
+        if let Some(mode) = opts.mode {
+            req.mode = mode;
+        }
+
+        if let Some(timeout) = opts.timeout {
+            req.timeout = timeout;
+        }
+
+        if let Some(version) = opts.version {
+            req.version = version;
+        }
+
+        if let Some(sp1_prover_opts) = opts.sp1_prover_opts {
+            req.sp1_prover_opts = sp1_prover_opts;
+        }
+
+        req.run()
     }
 
     async fn verify(
@@ -308,6 +325,7 @@ impl Prover for LocalProver {
         vk: Arc<SP1VerifyingKey>,
     ) -> Result<(), SP1VerificationError> {
         let prover = Arc::clone(&self.prover);
+
         task::spawn_blocking(move || verify::verify(&prover, SP1_CIRCUIT_VERSION, &proof, &vk))
             .await
             .unwrap()
@@ -331,9 +349,28 @@ impl Default for LocalProver {
 
 impl<'a> IntoFuture for LocalProofRequest<'a> {
     type Output = Result<SP1ProofWithPublicValues>;
-    type IntoFuture = Pin<Box<dyn Future<Output = Self::Output> + Send + 'a>>;
+    type IntoFuture = Pin<Box<dyn Future<Output = Self::Output>>>;
 
     fn into_future(self) -> Self::IntoFuture {
-        Box::pin(async move { self.run() })
+        let LocalProofRequest { prover, pk, stdin, mode, timeout, version, sp1_prover_opts } = self;
+
+        let pk = Arc::clone(pk);
+        let prover = prover.prover.clone();
+
+        Box::pin(async move {
+            task::spawn_blocking(move || {
+                LocalProofRequest::run_inner(
+                    &prover,
+                    &**pk,
+                    stdin,
+                    mode,
+                    timeout,
+                    version,
+                    sp1_prover_opts,
+                )
+            })
+            .await
+            .expect("To be able to join prove handle")
+        })
     }
 }
