@@ -14,8 +14,8 @@ pub enum Error {
     #[error("Proof request {request_id} is unfulfillable")]
     RequestUnfulfillable { request_id: RequestId },
 
-    #[error("Proof request {request_id} timed out")]
-    RequestTimedOut { request_id: RequestId },
+    #[error("Proof request {request_id} deadline exceeded")]
+    RequestDeadlineExceeded { request_id: RequestId },
 
     #[error("Artifact upload failed: {message}")]
     ArtifactUpload { message: String },

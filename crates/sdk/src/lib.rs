@@ -45,17 +45,7 @@ pub use sp1_prover::{
 };
 
 use sp1_stark::MachineVerificationError;
-use strum_macros::EnumString;
 use thiserror::Error;
-
-/// The type of prover.
-#[derive(Debug, PartialEq, EnumString)]
-pub enum ProverType {
-    Local,
-    Cuda,
-    Mock,
-    Network,
-}
 
 #[derive(Error, Debug)]
 pub enum SP1VerificationError {

@@ -91,7 +91,7 @@ impl ProverClientBuilder<None> {
     pub fn local(self) -> ProverClientBuilder<LocalProverBuilder> {
         ProverClientBuilder { inner_builder: LocalProver::builder() }
     }
-    
+
     #[cfg(feature = "network-v2")]
     pub fn network(self) -> ProverClientBuilder<NetworkProverBuilder> {
         ProverClientBuilder { inner_builder: NetworkProver::builder() }

@@ -67,8 +67,8 @@ async fn main() {
                         eprintln!("Proof request cannot be fulfilled: {}", e);
                         std::process::exit(1);
                     }
-                    Error::RequestTimedOut { .. } => {
-                        eprintln!("Proof request timed out: {}", e);
+                    Error::RequestDeadlineExceeded { .. } => {
+                        eprintln!("Proof request deadline exceeded: {}", e);
                         std::process::exit(1);
                     }
                     _ => {

@@ -5,7 +5,6 @@ use crate::proof::{SP1Proof, SP1ProofWithPublicValues};
 use crate::prover::Prover;
 use crate::request::{DEFAULT_CYCLE_LIMIT, DEFAULT_TIMEOUT};
 use crate::verify;
-use crate::ProverType;
 use crate::SP1VerificationError;
 
 use anyhow::Result;
@@ -35,11 +34,6 @@ impl LocalProver {
     /// Creates a new network prover builder. See [`NetworkProverBuilder`] for more details.
     pub fn builder() -> LocalProverBuilder {
         LocalProverBuilder::new()
-    }
-
-    /// Get the type of prover.
-    pub fn id(&self) -> ProverType {
-        ProverType::Network
     }
 
     /// Get the underlying SP1 prover.
@@ -254,7 +248,7 @@ impl Prover for LocalProver {
             Arc::new(pk)
         })
         .await
-        .unwrap();
+        .unwrap()
     }
 
     #[cfg(feature = "blocking")]

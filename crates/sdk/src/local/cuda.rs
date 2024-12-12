@@ -5,7 +5,6 @@ use sp1_prover::SP1_CIRCUIT_VERSION;
 use sp1_prover::{components::DefaultProverComponents, SP1Prover};
 
 use crate::install::try_install_circuit_artifacts;
-use crate::ProverType;
 use crate::{
     opts::ProofOpts,
     proof::{SP1Proof, SP1ProofKind, SP1ProofWithPublicValues},
@@ -28,10 +27,6 @@ impl CudaProver {
             cuda_prover: cuda_prover.expect("Failed to initialize CUDA prover"),
             version: SP1_CIRCUIT_VERSION,
         }
-    }
-
-    fn id(&self) -> ProverType {
-        ProverType::Cuda
     }
 
     fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {

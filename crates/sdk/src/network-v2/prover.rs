@@ -27,8 +27,8 @@ use crate::opts::ProofOpts;
 use crate::proof::SP1ProofWithPublicValues;
 use crate::prover::Prover;
 use crate::request::{DEFAULT_CYCLE_LIMIT, DEFAULT_TIMEOUT};
+use crate::verify;
 use crate::SP1VerificationError;
-use crate::{verify, ProverType};
 
 /// The default fulfillment strategy to use for proof requests.
 pub const DEFAULT_FULFILLMENT_STRATEGY: FulfillmentStrategy = FulfillmentStrategy::Hosted;
@@ -53,7 +53,6 @@ pub struct NetworkProverBuilder {
     private_key: Option<String>,
 }
 
-// #[allow(clippy::new_without_default)]
 impl NetworkProver {
     /// Creates a new `NetworkProver` with the given private key.
     pub fn new(rpc_url: String, private_key: String) -> Self {
@@ -66,11 +65,6 @@ impl NetworkProver {
     /// Creates a new network prover builder. See [`NetworkProverBuilder`] for more details.
     pub fn builder() -> NetworkProverBuilder {
         NetworkProverBuilder::new()
-    }
-
-    /// Get the type of prover.
-    pub fn id(&self) -> ProverType {
-        ProverType::Network
     }
 
     /// Get the underlying SP1 prover.
@@ -159,37 +153,32 @@ impl NetworkProver {
         Ok(request_id)
     }
 
-    /// Waits for the proof request to be fulfilled by the prover network.
+    /// Waits for the proof request to be fulfilled by the prover network after it has been
+    /// submitted.
     ///
-    /// The proof request must have already been submitted. This function will return a
-    /// `RequestTimedOut` error if the request does not received a response within the timeout.
+    /// Additionally, different failure modes are checked:
+    /// - if the deadline is exceeded, throws a `RequestDeadlineExceeded` error
+    /// - if the request is unexecutable, throws a `RequestUnexecutable` error
+    /// - if the request is unfulfillable, throws a `RequestUnfulfillable` error
     async fn wait_proof<P: DeserializeOwned>(
         &self,
         request_id: &RequestId,
-        timeout_secs: u64,
+        timeout: u64,
     ) -> Result<P, Error> {
         let mut is_assigned = false;
-        let start_time = Instant::now();
-        let timeout = Duration::from_secs(timeout_secs);
 
         loop {
-            // Check if we've exceeded the timeout.
-            if start_time.elapsed() > timeout {
-                return Err(Error::RequestTimedOut { request_id: request_id.clone() });
-            }
-            let remaining_timeout = timeout.saturating_sub(start_time.elapsed());
-
             // Get the status with retries.
             let (status, maybe_proof) = with_retry(
                 || async { self.network_client.get_proof_request_status(request_id).await },
-                remaining_timeout.as_secs(),
+                timeout,
                 "getting proof status",
             )
             .await?;
 
             // Check the deadline.
             if status.deadline < Instant::now().elapsed().as_secs() {
-                return Err(Error::RequestTimedOut { request_id: request_id.clone() });
+                return Err(Error::RequestDeadlineExceeded { request_id: request_id.clone() });
             }
 
             // Check the execution status.
@@ -364,11 +353,8 @@ impl<'a> NetworkProofRequest<'a> {
             .await?;
 
         // Wait for proof generation.
-        let proof: SP1ProofWithPublicValues = self
-            .prover
-            .wait_proof(&request_id, self.timeout)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to wait for proof: {}", e))?;
+        let proof: SP1ProofWithPublicValues =
+            self.prover.wait_proof(&request_id, self.timeout).await?;
 
         Ok(proof)
     }
@@ -432,7 +418,7 @@ impl Prover for NetworkProver {
         stdin: SP1Stdin,
         opts: ProofOpts,
     ) -> Result<SP1ProofWithPublicValues> {
-        self.prove(&pk, stdin)
+        self.prove(pk, stdin)
             .with_mode(opts.mode)
             .with_timeout(opts.timeout)
             .with_cycle_limit(opts.cycle_limit)

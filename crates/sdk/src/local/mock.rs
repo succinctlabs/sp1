@@ -1,14 +1,11 @@
 #![allow(unused_variables)]
 
-
 use sp1_prover::SP1Prover;
 
-
-
-/// An implementation of [crate::ProverClient] that can generate mock proofs.
-pub struct MockProver {
-    pub(crate) prover: SP1Prover,
-}
+// /// An implementation of [crate::ProverClient] that can generate mock proofs.
+// pub struct MockProver {
+//     pub(crate) prover: SP1Prover,
+// }
 
 // impl MockProver {
 //     /// Creates a new [MockProver].
@@ -19,10 +16,6 @@ pub struct MockProver {
 // }
 
 // impl Prover<DefaultProverComponents> for MockProver {
-//     fn id(&self) -> ProverType {
-//         ProverType::Mock
-//     }
-
 //     fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
 //         self.prover.setup(elf)
 //     }
