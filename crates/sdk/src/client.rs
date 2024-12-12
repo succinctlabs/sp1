@@ -51,7 +51,7 @@ impl ProverClient {
         }
     }
 
-    pub async fn setup(&self, elf: Arc<[u8]>) -> (Arc<SP1ProvingKey>) {
+    pub async fn setup(&self, elf: Arc<[u8]>) -> Arc<SP1ProvingKey> {
         self.inner.setup(elf).await
     }
 
@@ -97,12 +97,12 @@ impl<T: BuildableProver> ProverClientBuilder<T> {
 }
 
 impl ProverClientBuilder<NetworkProverBuilder> {
-    pub fn with_rpc_url(mut self, url: String) -> Self {
+    pub fn rpc_url(mut self, url: String) -> Self {
         self.inner_builder = self.inner_builder.rpc_url(url);
         self
     }
 
-    pub fn with_private_key(mut self, key: String) -> Self {
+    pub fn private_key(mut self, key: String) -> Self {
         self.inner_builder = self.inner_builder.private_key(key);
         self
     }

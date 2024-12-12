@@ -62,63 +62,6 @@ impl NetworkProver {
         }
     }
 
-    /// Sets the proof mode to core.
-    pub fn core(mut self) -> Self {
-        self.network_client.mode = Mode::Core;
-        self
-    }
-
-    /// Sets the proof mode to compressed.
-    pub fn compressed(mut self) -> Self {
-        self.network_client.mode = Mode::Compressed;
-        self
-    }
-
-    /// Sets the proof mode to plonk.
-    pub fn plonk(mut self) -> Self {
-        self.network_client.mode = Mode::Plonk;
-        self
-    }
-
-    /// Sets the proof mode to groth16.
-    pub fn groth16(mut self) -> Self {
-        self.network_client.mode = Mode::Groth16;
-        self
-    }
-
-    /// Sets the RPC URL for the prover network.
-    ///
-    /// This configures the endpoint that will be used for all network operations.
-    /// If not set, the default RPC URL will be used.
-    pub fn timeout(mut self, timeout: u64) -> Self {
-        self.network_client.timeout = Some(timeout);
-        self
-    }
-
-    /// Sets the cycle limit for the prover network.
-    ///
-    /// See `get_cycle_limit` for more details the final cycle limit is determined.
-    pub fn cycle_limit(mut self, limit: u64) -> Self {
-        self.network_client.cycle_limit = Some(limit);
-        self
-    }
-
-    /// Skips simulation when determining the cycle limit.
-    ///
-    /// See `get_cycle_limit` for more details the final cycle limit is determined.
-    pub fn skip_simulation(mut self, skip: bool) -> Self {
-        self.network_client.skip_simulation = skip;
-        self
-    }
-
-    /// Sets the fulfillment strategy for the prover network.
-    ///
-    /// See `request_proof` for more details the final cycle limit is determined.
-    pub fn strategy(mut self, strategy: FulfillmentStrategy) -> Self {
-        self.network_client.strategy = Some(strategy);
-        self
-    }
-
     /// Get the cycle limit to used for a proof request.
     ///
     /// The cycle limit is determined according to the following priority:
@@ -152,17 +95,13 @@ impl NetworkProver {
     }
 
     /// Registers a program if it is not already registered.
-    pub async fn register_program(
-        &self,
-        vk: &SP1VerifyingKey,
-        elf: &[u8],
-    ) -> Result<VerifyingKeyHash> {
+    async fn register_program(&self, vk: &SP1VerifyingKey, elf: &[u8]) -> Result<VerifyingKeyHash> {
         self.network_client.register_program(vk, elf).await
     }
 
     /// Requests a proof from the prover network, returning the request ID.
     #[allow(clippy::too_many_arguments)]
-    pub async fn request_proof(
+    async fn request_proof(
         &self,
         vk_hash: &VerifyingKeyHash,
         stdin: &SP1Stdin,
@@ -197,7 +136,7 @@ impl NetworkProver {
     ///
     /// The proof request must have already been submitted. This function will return a
     /// `RequestTimedOut` error if the request does not received a response within the timeout.
-    pub async fn wait_proof<P: DeserializeOwned>(
+    async fn wait_proof<P: DeserializeOwned>(
         &self,
         request_id: &RequestId,
         timeout_secs: u64,
@@ -252,14 +191,6 @@ impl NetworkProver {
 
             sleep(Duration::from_secs(STATUS_CHECK_INTERVAL_SECS)).await;
         }
-    }
-
-    pub fn prove_with_options<'a>(
-        &'a self,
-        pk: Arc<SP1ProvingKey>,
-        stdin: SP1Stdin,
-    ) -> NetworkProofRequest<'a> {
-        NetworkProofRequest::new(self, pk, stdin)
     }
 
     /// Creates a new network prover builder. See [`NetworkProverBuilder`] for more details.
@@ -327,8 +258,23 @@ impl<'a> NetworkProofRequest<'a> {
         }
     }
 
-    pub fn with_mode(mut self, mode: Mode) -> Self {
-        self.mode = mode.into();
+    pub fn groth16(mut self) -> Self {
+        self.mode = ProofMode::Groth16;
+        self
+    }
+
+    pub fn plonk(mut self) -> Self {
+        self.mode = ProofMode::Plonk;
+        self
+    }
+
+    pub fn core(mut self) -> Self {
+        self.mode = ProofMode::Core;
+        self
+    }
+
+    pub fn compressed(mut self) -> Self {
+        self.mode = ProofMode::Compressed;
         self
     }
 
@@ -445,6 +391,7 @@ impl Prover for NetworkProver {
             .with_mode(opts.mode)
             .with_timeout(opts.timeout)
             .with_cycle_limit(opts.cycle_limit);
+
         request.run_inner().await
     }
 
