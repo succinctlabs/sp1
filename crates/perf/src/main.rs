@@ -1,6 +1,5 @@
 use std::{
     env,
-    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -187,22 +186,20 @@ fn main() {
                 prover_builder = prover_builder.rpc_url(rpc_url);
             }
 
-            let pk = Arc::new(pk);
-            let vk = Arc::new(vk);
+            let elf = elf.into();
+            let pk = pk.into();
 
             let prover = prover_builder.private_key(private_key).build();
-            let (_, _) = time_operation(|| prover.execute(Arc::from(&elf[..]), stdin.clone()));
+            let (_, _) = time_operation(|| prover.execute(&elf, stdin.clone()));
 
             let (proof, _) =
                 time_operation(|| prover.prove(&pk, stdin.clone()).groth16().run().unwrap());
-            let proof = Arc::new(proof);
 
-            let (_, _) = time_operation(|| prover.verify(proof, vk.clone()));
+            let (_, _) = time_operation(|| prover.verify(&proof, &vk));
 
             let (proof, _) = time_operation(|| prover.prove(&pk, stdin).plonk().run().unwrap());
-            let proof = Arc::new(proof);
 
-            let (_, _) = time_operation(|| prover.verify(proof, vk));
+            let (_, _) = time_operation(|| prover.verify(&proof, &vk));
         }
         ProverMode::Mock => unreachable!(),
     };

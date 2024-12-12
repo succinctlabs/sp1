@@ -4,7 +4,6 @@ use anyhow::Result;
 use clap::{Args, Parser};
 use sp1_build::{generate_elf_paths, BuildArgs};
 use sp1_sdk::{HashableKey, ProverClient};
-use std::sync::Arc;
 use tokio::runtime::Runtime;
 
 #[derive(Parser)]
@@ -53,7 +52,7 @@ impl VkeyCmd {
 
             // Get the verification key
             let prover = ProverClient::builder().local().build();
-            let pk = rt.block_on(prover.setup(Arc::from(&elf[..])));
+            let pk = rt.block_on(prover.setup(&elf.into()));
 
             // Print the verification key hash
             if let Some(target) = target {
