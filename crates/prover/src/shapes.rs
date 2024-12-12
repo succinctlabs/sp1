@@ -142,6 +142,9 @@ pub fn build_vk_map<C: SP1ProverComponents + 'static>(
     // Setup the prover.
     let mut prover = SP1Prover::<C>::new();
     prover.vk_verification = !dummy;
+    if !dummy {
+        prover.join_programs_map.clear();
+    }
     let prover = Arc::new(prover);
 
     // Get the shape configs.
@@ -333,6 +336,7 @@ impl SP1ProofShape {
         core_shape_config
             .all_shapes()
             .map(Self::Recursion)
+            .take(0)
             .chain((1..=reduce_batch_size).flat_map(|batch_size| {
                 // Weird that we do 1..=reduce_batch_size and also.
                 recursion_shape_config.get_all_shape_combinations(batch_size).map(Self::Compress)
