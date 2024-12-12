@@ -7,6 +7,7 @@ use sp1_curves::{
     ecdsa::RecoveryId as ecdsaRecoveryId,
     k256::{Invert, RecoveryId, Signature, VerifyingKey},
     p256::{Signature as p256Signature, VerifyingKey as p256VerifyingKey},
+    BigUint, Integer
 };
 
 use crate::Executor;
@@ -92,6 +93,7 @@ impl<'a> Default for HookRegistry<'a> {
             (FD_K1_ECRECOVER_HOOK, hookify(hook_k1_ecrecover)),
             (FD_R1_ECRECOVER_HOOK, hookify(hook_r1_ecrecover)),
             (FD_EDDECOMPRESS, hookify(hook_ed_decompress)),
+            (FD_RSA_MUL_MOD, hookify(hook_rsa_mul_mod)),
         ]);
 
         Self { table }
@@ -231,7 +233,23 @@ pub fn hook_r1_ecrecover(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
 
 #[must_use]
 pub fn hook_rsa_mul_mod(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
+    assert_eq!(buf.len(), 256 + 256 + 256, "rsa_mul_mod input should have length 256 + 256 + 256, this is a bug.");
 
+    let prod: &[u8; 512] = buf[..512].try_into().unwrap();
+    let m: &[u8; 256] = buf[512..].try_into().unwrap();
+
+    let prod = BigUint::from_bytes_le(prod);
+    let m = BigUint::from_bytes_le(m);
+
+    let (q, rem) = prod.div_rem(&m);
+
+    let mut rem = rem.to_bytes_le();
+    rem.resize(512, 0);
+
+    let mut q = q.to_bytes_le();
+    q.resize(256, 0);
+
+    vec![rem, q]
 }
 
 #[cfg(test)]

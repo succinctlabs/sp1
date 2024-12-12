@@ -18,6 +18,8 @@ pub const FD_K1_ECRECOVER_HOOK: u32 = 5;
 pub const FD_R1_ECRECOVER_HOOK: u32 = 6;
 /// The file descriptor through which to access `hook_ed_decompress`.
 pub const FD_EDDECOMPRESS: u32 = 8;
+/// The file descriptor through which to access `hook_rsa_mul_mod`.
+pub const FD_RSA_MUL_MOD: u32 = 9;
 
 /// A writer that writes to a file descriptor inside the zkVM.
 struct SyscallWriter {

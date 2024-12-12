@@ -68,7 +68,7 @@ use std::{
 };
 use typenum::Unsigned;
 
-use num::BigUint;
+pub use num::{Integer, BigUint};
 use serde::{de::DeserializeOwned, Serialize};
 
 pub const NUM_WORDS_FIELD_ELEMENT: usize = 8;
