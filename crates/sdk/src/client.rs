@@ -1,25 +1,22 @@
 use crate::{
-    local::LocalProver,
-    proof::SP1ProofWithPublicValues,
-    prover::Prover,
-    SP1VerificationError,
+    local::LocalProver, proof::SP1ProofWithPublicValues, prover::Prover, SP1VerificationError,
 };
 
 #[cfg(feature = "network-v2")]
 use crate::network_v2::{NetworkProver, DEFAULT_PROVER_NETWORK_RPC};
 
+use crate::ProofOpts;
 use anyhow::Result;
 use sp1_core_executor::{ExecutionError, ExecutionReport};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_primitives::io::SP1PublicValues;
 use sp1_prover::{SP1ProvingKey, SP1VerifyingKey};
-use std::sync::Arc;
-use crate::ProofOpts;
+use std::{env, sync::Arc};
 
 mod request;
 pub use request::DynProofRequest;
 mod builder;
-pub use builder::{ProverClientBuilder, None};
+pub use builder::{None, ProverClientBuilder};
 
 pub struct ProverClient {
     inner: Box<dyn Prover>,

@@ -24,8 +24,8 @@ use crate::network_v2::{
 };
 use crate::proof::SP1ProofWithPublicValues;
 use crate::prover::Prover;
-use crate::SP1VerificationError;
 use crate::{verify, ProofOpts};
+use crate::{Mode, SP1VerificationError};
 use crate::{DEFAULT_CYCLE_LIMIT, DEFAULT_TIMEOUT};
 
 /// The default fulfillment strategy to use for proof requests.
@@ -77,7 +77,7 @@ impl NetworkProver {
         &self.prover
     }
 
-    /// Create a new proof request.
+    /// Create a new proof request. See [`NetworkProofRequest`] for more details.
     pub fn prove<'a>(&'a self, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> NetworkProofRequest<'a> {
         NetworkProofRequest::new(self, pk, stdin)
     }
@@ -86,7 +86,7 @@ impl NetworkProver {
 impl NetworkProver {
     /// Get the timeout to used for a proof request.
     ///
-    /// Clamps the given timeout to the minimum [`MIN_TIMEOUT`] and maximum [`MAX_TIMEOUT`] allowed values.
+    /// Clamps the given timeout to the minimum [`MIN_TIMEOUT`] and maximum [`MAX_TIMEOUT`] values.
     pub fn get_timeout(&self) -> u64 {
         self.timeout.clamp(MIN_TIMEOUT, MAX_TIMEOUT)
     }
