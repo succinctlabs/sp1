@@ -15,7 +15,6 @@ use tokio::runtime::Runtime;
 use tokio::task;
 use tokio::time::sleep;
 
-use crate::Mode;
 use crate::network_v2::retry::{self, with_retry};
 use crate::network_v2::{
     client::{NetworkClient, DEFAULT_PROVER_NETWORK_RPC},
@@ -23,21 +22,20 @@ use crate::network_v2::{
     types::{HashType, RequestId, VerifyingKeyHash},
     Error,
 };
-use crate::ProofOpts;
 use crate::proof::SP1ProofWithPublicValues;
 use crate::prover::Prover;
-use crate::{DEFAULT_CYCLE_LIMIT, DEFAULT_TIMEOUT};
-use crate::verify;
 use crate::SP1VerificationError;
+use crate::{verify, ProofOpts};
+use crate::{DEFAULT_CYCLE_LIMIT, DEFAULT_TIMEOUT};
 
 /// The default fulfillment strategy to use for proof requests.
 pub const DEFAULT_FULFILLMENT_STRATEGY: FulfillmentStrategy = FulfillmentStrategy::Hosted;
 
 /// The minimum allowed timeout for a proof request to be fulfilled (10 seconds).
-pub const MIN_TIMEOUT_SECS: u64 = 10;
+pub const MIN_TIMEOUT: u64 = 10;
 
 /// The maximum allowed timeout for a proof request to be fulfilled (24 hours).
-pub const MAX_TIMEOUT_SECS: u64 = 86400;
+pub const MAX_TIMEOUT: u64 = 86400;
 
 /// The number of seconds to wait between checking the status of a proof request.
 pub const STATUS_CHECK_INTERVAL_SECS: u64 = 2;
@@ -47,26 +45,25 @@ pub struct NetworkProver {
     prover: Arc<SP1Prover<DefaultProverComponents>>,
     network_client: NetworkClient,
     timeout: u64,
-    max_cycle_limit: Option<u64>,
-
+    cycles_limit: u64,
 }
 
 pub struct NetworkProverBuilder {
     rpc_url: Option<String>,
     private_key: Option<String>,
     timeout: Option<u64>,
-    max_cycle_limit: Option<u64>,
+    cycle_limit: Option<u64>,
 }
 
 impl NetworkProver {
-    /// Creates a new `NetworkProver` with the given private private_key.
+    /// Creates a new [`NetworkProver`] with the given private private_key.
     /// This function uses default timeout and cycle limit.
     pub fn new(rpc_url: String, private_key: String) -> Self {
         Self {
             prover: Arc::new(SP1Prover::new()),
             network_client: NetworkClient::new(&private_key).rpc_url(rpc_url),
-            timeout: DEFAULT_TIMEOUT, 
-            max_cycle_limit: None,
+            timeout: DEFAULT_TIMEOUT,
+            cycles_limit: DEFAULT_CYCLE_LIMIT,
         }
     }
 
@@ -75,22 +72,25 @@ impl NetworkProver {
         NetworkProverBuilder::new()
     }
 
-    /// Get the underlying SP1 prover.
+    /// Get the underlying [`SP1Prover`].
     pub fn sp1_prover(&self) -> &SP1Prover {
         &self.prover
     }
 
     /// Create a new proof request.
-    pub fn prove<'a>(
-        &'a self,
-        pk: &'a SP1ProvingKey,
-        stdin: SP1Stdin,
-    ) -> NetworkProofRequest<'a> {
+    pub fn prove<'a>(&'a self, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> NetworkProofRequest<'a> {
         NetworkProofRequest::new(self, pk, stdin)
     }
 }
 
 impl NetworkProver {
+    /// Get the timeout to used for a proof request.
+    ///
+    /// Clamps the given timeout to the minimum [`MIN_TIMEOUT`] and maximum [`MAX_TIMEOUT`] allowed values.
+    pub fn get_timeout(&self) -> u64 {
+        self.timeout.clamp(MIN_TIMEOUT, MAX_TIMEOUT)
+    }
+
     /// Get the cycle limit to used for a proof request.
     ///
     /// The cycle limit is determined according to the following priority:
@@ -153,7 +153,6 @@ impl NetworkProver {
         .await?;
 
         log::info!("Created request {} in transaction {}", request_id, tx_hash);
-
         if self.network_client.get_rpc_url() == DEFAULT_PROVER_NETWORK_RPC {
             log::info!("View in explorer: {}", request_id.explorer_url());
         }
@@ -165,9 +164,9 @@ impl NetworkProver {
     /// submitted.
     ///
     /// Additionally, different failure modes are checked:
-    /// - if the deadline is exceeded, throws a `RequestDeadlineExceeded` error
-    /// - if the request is unexecutable, throws a `RequestUnexecutable` error
-    /// - if the request is unfulfillable, throws a `RequestUnfulfillable` error
+    /// - if the deadline is exceeded, throws [`Error::RequestDeadlineExceeded`]
+    /// - if the request is unexecutable, throws [`Error::RequestUnexecutable`]
+    /// - if the request is unfulfillable, throws [`Error::RequestUnfulfillable`]
     async fn wait_proof<P: DeserializeOwned>(
         &self,
         request_id: &RequestId,
@@ -222,7 +221,7 @@ impl NetworkProver {
 impl NetworkProverBuilder {
     /// Creates a new network prover builder.
     pub fn new() -> Self {
-        Self { rpc_url: None, private_key: None, timeout: None, max_cycle_limit: None }
+        Self { rpc_url: None, private_key: None, timeout: None, cycle_limit: None }
     }
 
     /// Sets the RPC URL for the prover network.
@@ -242,23 +241,32 @@ impl NetworkProverBuilder {
         self
     }
 
+    /// Sets the timeout for proof requests.
+    ///
+    /// This is the maximum amount of time to wait for the request to be fulfilled.
     pub fn with_timeout(mut self, timeout: u64) -> Self {
         self.timeout = Some(timeout);
         self
     }
 
-    pub fn with_cycle_limit(mut self, max_cycle_limit: u64) -> Self {
-        self.max_cycle_limit = Some(max_cycle_limit);
+    /// Sets the cycle limit for proof requests.
+    ///
+    /// This is the maximum number of cycles to allow for the execution of the request.
+    pub fn with_cycle_limit(mut self, cycle_limit: u64) -> Self {
+        self.cycle_limit = Some(cycle_limit);
         self
     }
 
     /// Builds the prover with the given configuration.
     pub fn build(self) -> NetworkProver {
-         NetworkProver {
+        NetworkProver {
             prover: Arc::new(SP1Prover::new()),
-            network_client: NetworkClient::new(&self.private_key.expect("A private key set on the builder")).rpc_url(self.rpc_url.expect("An RPC URL set on the builder")),
-            timeout: self.timeout.unwrap_or(DEFAULT_TIMEOUT), 
-            max_cycle_limit: self.max_cycle_limit,
+            network_client: NetworkClient::new(
+                &self.private_key.expect("A private key set on the builder"),
+            )
+            .rpc_url(self.rpc_url.unwrap_or(DEFAULT_PROVER_NETWORK_RPC.to_string())),
+            timeout: self.timeout.unwrap_or(DEFAULT_TIMEOUT),
+            cycles_limit: self.cycle_limit.unwrap_or(DEFAULT_CYCLE_LIMIT),
         }
     }
 }
@@ -284,7 +292,7 @@ impl<'a> NetworkProofRequest<'a> {
             mode: Mode::default().into(),
             version: SP1_CIRCUIT_VERSION.to_string(),
             timeout: prover.timeout,
-            cycle_limit: prover.max_cycle_limit,
+            cycle_limit: Some(prover.cycles_limit),
             skip_simulation: false,
             strategy: DEFAULT_FULFILLMENT_STRATEGY,
         }

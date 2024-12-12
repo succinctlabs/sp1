@@ -3,6 +3,7 @@ use tonic::Status;
 
 use crate::network_v2::types::RequestId;
 
+/// An error that can occur when interacting with the prover network.
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("Program simulation failed")]

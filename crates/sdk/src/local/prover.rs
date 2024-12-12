@@ -1,10 +1,10 @@
 use crate::install::try_install_circuit_artifacts;
-use crate::Mode;
-use crate::ProofOpts;
 use crate::proof::{SP1Proof, SP1ProofWithPublicValues};
 use crate::prover::Prover;
 use crate::{DEFAULT_CYCLE_LIMIT, DEFAULT_TIMEOUT};
 use crate::verify;
+use crate::Mode;
+use crate::ProofOpts;
 use crate::SP1VerificationError;
 
 use anyhow::Result;
@@ -29,15 +29,23 @@ pub struct LocalProver {
 
 impl Default for LocalProver {
     fn default() -> Self {
+        LocalProver::new()
+    }
+}
+
+impl LocalProver {
+    /// Creates a new `LocalProver`.
+    ///
+    /// Uses default timeout and cycle limit.
+    pub fn new() -> Self {
         Self {
             prover: Arc::new(SP1Prover::new()),
             timeout: DEFAULT_TIMEOUT,
             cycle_limit: DEFAULT_CYCLE_LIMIT,
         }
     }
-}
 
-impl LocalProver {
+    /// Creates a new network prover builder. See [`LocalProverBuilder`] for more details.
     pub fn builder() -> LocalProverBuilder {
         LocalProverBuilder::new()
     }
@@ -152,9 +160,7 @@ impl<'a> LocalProofRequest<'a> {
         version: String,
         sp1_prover_opts: SP1ProverOpts,
     ) -> Result<SP1ProofWithPublicValues> {
-        let context = SP1Context::builder()
-            .max_cycles(cycle_limit)
-            .build();
+        let context = SP1Context::builder().max_cycles(cycle_limit).build();
 
         // Generate the core proof
         let proof: sp1_prover::SP1ProofWithMetadata<sp1_prover::SP1CoreProofData> =
@@ -174,8 +180,7 @@ impl<'a> LocalProofRequest<'a> {
         let public_values = proof.public_values.clone();
 
         // Generate the compressed proof
-        let reduce_proof =
-            prover.compress(&pk.vk, proof, deferred_proofs, sp1_prover_opts)?;
+        let reduce_proof = prover.compress(&pk.vk, proof, deferred_proofs, sp1_prover_opts)?;
 
         if mode == Mode::Compressed {
             return Ok(SP1ProofWithPublicValues {
@@ -371,10 +376,7 @@ impl Default for LocalProverBuilder {
 
 impl LocalProverBuilder {
     pub fn new() -> Self {
-        Self {
-            timeout: None,
-            cycle_limit: None,
-        }
+        Self { timeout: None, cycle_limit: None }
     }
 
     pub fn with_timeout(mut self, timeout: u64) -> Self {

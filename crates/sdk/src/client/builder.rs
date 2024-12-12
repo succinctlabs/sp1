@@ -28,7 +28,7 @@ impl ProverClientBuilder<None> {
     pub fn local(self) -> ProverClientBuilder<LocalProverBuilder> {
         ProverClientBuilder { inner_builder: LocalProver::builder() }
     }
-    
+
     #[cfg(feature = "network-v2")]
     pub fn network(self) -> ProverClientBuilder<NetworkProverBuilder> {
         ProverClientBuilder { inner_builder: NetworkProver::builder() }
@@ -46,7 +46,7 @@ impl<T: BuildableProver> ProverClientBuilder<T> {
 
     pub fn with_default_timeout(mut self, timeout: u64) -> Self {
         self.inner_builder = self.inner_builder.with_default_timeout(timeout);
-        self 
+        self
     }
 
     pub fn with_default_cycle_limit(mut self, cycle_limit: u64) -> Self {
@@ -80,7 +80,7 @@ impl BuildableProver for LocalProverBuilder {
     fn build_prover(self) -> Box<dyn Prover> {
         Box::new(self.build())
     }
-    
+
     fn with_default_timeout(self, timeout: u64) -> Self {
         self.with_timeout(timeout)
     }
@@ -96,11 +96,11 @@ impl BuildableProver for NetworkProverBuilder {
         Box::new(self.build())
     }
 
-    fn with_default_cycle_limit(self, cycle_limit: u64) -> Self {
-        self.with_cycle_limit(cycle_limit)
+    fn with_default_timeout(self, timeout: u64) -> Self {
+        self.with_timeout(timeout)
     }
 
-    fn with_default_timeout(self, timeout: u64) -> Self {
-        self.with_timeout(timeout) 
+    fn with_default_cycle_limit(self, cycle_limit: u64) -> Self {
+        self.with_cycle_limit(cycle_limit)
     }
 }

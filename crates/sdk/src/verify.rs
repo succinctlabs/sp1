@@ -12,6 +12,7 @@ use crate::SP1VerificationError;
 use crate::{proof::SP1Proof, proof::SP1ProofWithPublicValues};
 
 /// Verify that an SP1 proof is valid given its vkey and metadata.
+///
 /// For Plonk proofs, verifies that the public inputs of the PlonkBn254 proof match
 /// the hash of the VK and the committed public values of the SP1ProofWithPublicValues.
 pub fn verify(
