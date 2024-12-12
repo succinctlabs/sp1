@@ -117,3 +117,19 @@ pub fn build_program(path: &str) {
 pub fn build_program_with_args(path: &str, args: BuildArgs) {
     build_program_internal(path, Some(args))
 }
+
+/// Returns the raw ELF bytes by the zkVM program target name.
+///
+/// Note that this only works when using `sp1_build::build_program` or
+/// `sp1_build::build_program_with_args` in a build script.
+///
+/// By default, the program target name is the same as the program crate name. However, this might
+/// not be the case for non-standard project structures. For example, placing the entrypoint source
+/// file at `src/bin/my_entry.rs` would result in the program target being named `my_entry`, in
+/// which case the invocation should be `include_elf!("my_entry")` instead.
+#[macro_export]
+macro_rules! include_elf {
+    ($arg:tt) => {{
+        include_bytes!(env!(concat!("SP1_ELF_", $arg)))
+    }};
+}
