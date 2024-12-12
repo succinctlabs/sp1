@@ -278,6 +278,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                     ),
                 ]
             })
+            .filter(|shape| shape[3].1 <= 22)
             .collect::<Vec<_>>()
     }
 
