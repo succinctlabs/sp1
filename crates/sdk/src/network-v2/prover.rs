@@ -40,23 +40,24 @@ pub const MAX_TIMEOUT: u64 = 86400;
 /// The number of seconds to wait between checking the status of a proof request.
 pub const STATUS_CHECK_INTERVAL_SECS: u64 = 2;
 
-/// An implementation of [crate::ProverClient] that can generate proofs on a remote RPC server.
+/// An implementation of [crate::ProverClient] that can generate proofs on the prover network.
 pub struct NetworkProver {
     prover: Arc<SP1Prover<DefaultProverComponents>>,
     network_client: NetworkClient,
     timeout: u64,
-    cycles_limit: u64,
+    cycle_limit: u64,
 }
 
 impl NetworkProver {
-    /// Creates a new [`NetworkProver`] with the given private private_key.
-    /// This function uses default timeout and cycle limit.
+    /// Creates a new [`NetworkProver`] with the given private private_key and RPC URL.
+    ///
+    /// Uses default timeout and cycle limit.
     pub fn new(rpc_url: String, private_key: String) -> Self {
         Self {
             prover: Arc::new(SP1Prover::new()),
             network_client: NetworkClient::new(&private_key).rpc_url(rpc_url),
             timeout: DEFAULT_TIMEOUT,
-            cycles_limit: DEFAULT_CYCLE_LIMIT,
+            cycle_limit: DEFAULT_CYCLE_LIMIT,
         }
     }
 
@@ -210,6 +211,72 @@ impl NetworkProver {
     }
 }
 
+pub struct NetworkProverBuilder {
+    rpc_url: Option<String>,
+    private_key: Option<String>,
+    timeout: Option<u64>,
+    cycle_limit: Option<u64>,
+}
+
+impl Default for NetworkProverBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl NetworkProverBuilder {
+    /// Creates a new [`NetworkProverBuilder`].
+    pub fn new() -> Self {
+        Self { rpc_url: None, private_key: None, timeout: None, cycle_limit: None }
+    }
+
+    /// Sets the RPC URL for the prover network.
+    ///
+    /// This configures the endpoint that will be used for all network operations.
+    /// If not set, the default RPC URL will be used.
+    pub fn rpc_url(mut self, url: String) -> Self {
+        self.rpc_url = Some(url);
+        self
+    }
+
+    /// Sets the private key to use for the prover network.
+    ///
+    /// This is required and must be set before building the prover.
+    pub fn private_key(mut self, key: String) -> Self {
+        self.private_key = Some(key);
+        self
+    }
+
+    /// Sets the timeout for proof requests.
+    ///
+    /// This is the maximum amount of time to wait for the request to be generated.
+    pub fn with_timeout(mut self, timeout: u64) -> Self {
+        self.timeout = Some(timeout);
+        self
+    }
+
+    /// Sets the cycle limit for proof requests.
+    ///
+    /// This is the maximum number of cycles to allow for the execution of the request.
+    pub fn with_cycle_limit(mut self, cycle_limit: u64) -> Self {
+        self.cycle_limit = Some(cycle_limit);
+        self
+    }
+
+    /// Builds the [`NetworkProver`] with the given configuration.
+    pub fn build(self) -> NetworkProver {
+        NetworkProver {
+            prover: Arc::new(SP1Prover::new()),
+            network_client: NetworkClient::new(
+                &self.private_key.expect("A private key set on the builder"),
+            )
+            .rpc_url(self.rpc_url.unwrap_or(DEFAULT_PROVER_NETWORK_RPC.to_string())),
+            timeout: self.timeout.unwrap_or(DEFAULT_TIMEOUT),
+            cycle_limit: self.cycle_limit.unwrap_or(DEFAULT_CYCLE_LIMIT),
+        }
+    }
+}
+
 pub struct NetworkProofRequest<'a> {
     prover: &'a NetworkProver,
     pk: &'a SP1ProvingKey,
@@ -223,6 +290,7 @@ pub struct NetworkProofRequest<'a> {
 }
 
 impl<'a> NetworkProofRequest<'a> {
+    /// Creates a new [`NetworkProofRequest`]  using the prover's configuration and default values.
     pub fn new(prover: &'a NetworkProver, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> Self {
         Self {
             prover,
@@ -231,13 +299,13 @@ impl<'a> NetworkProofRequest<'a> {
             mode: Mode::default().into(),
             version: SP1_CIRCUIT_VERSION.to_string(),
             timeout: prover.timeout,
-            cycle_limit: Some(prover.cycles_limit),
+            cycle_limit: Some(prover.cycle_limit),
             skip_simulation: false,
             strategy: DEFAULT_FULFILLMENT_STRATEGY,
         }
     }
 
-    fn with_mode(mut self, mode: Mode) -> Self {
+    fn mode(mut self, mode: Mode) -> Self {
         self.mode = mode.into();
         self
     }
@@ -263,15 +331,18 @@ impl<'a> NetworkProofRequest<'a> {
     }
 
     pub fn version(mut self, version: String) -> Self {
+    pub fn version(mut self, version: String) -> Self {
         self.version = version;
         self
     }
 
     pub fn timeout(mut self, timeout: u64) -> Self {
+    pub fn timeout(mut self, timeout: u64) -> Self {
         self.timeout = timeout;
         self
     }
 
+    pub fn cycle_limit(mut self, cycle_limit: u64) -> Self {
     pub fn cycle_limit(mut self, cycle_limit: u64) -> Self {
         self.cycle_limit = Some(cycle_limit);
         self
@@ -282,6 +353,7 @@ impl<'a> NetworkProofRequest<'a> {
         self
     }
 
+    pub fn strategy(mut self, strategy: FulfillmentStrategy) -> Self {
     pub fn strategy(mut self, strategy: FulfillmentStrategy) -> Self {
         self.strategy = strategy;
         self
@@ -331,6 +403,7 @@ impl<'a> NetworkProofRequest<'a> {
 impl Prover for NetworkProver {
     async fn setup(&self, elf: Arc<[u8]>) -> Arc<SP1ProvingKey> {
         let prover = Arc::clone(&self.prover);
+
         task::spawn_blocking(move || {
             let (pk, _vk) = prover.setup(&elf);
             Arc::new(pk)
@@ -351,6 +424,7 @@ impl Prover for NetworkProver {
         stdin: SP1Stdin,
     ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
         let prover = Arc::clone(&self.prover);
+
         task::spawn_blocking(move || prover.execute(&elf, &stdin, SP1Context::default()))
             .await
             .unwrap()
@@ -372,7 +446,7 @@ impl Prover for NetworkProver {
         opts: ProofOpts,
     ) -> Result<SP1ProofWithPublicValues> {
         self.prove(pk, stdin)
-            .with_mode(opts.mode)
+            .mode(opts.mode)
             .timeout(opts.timeout)
             .cycle_limit(opts.cycle_limit)
             .await
@@ -386,7 +460,7 @@ impl Prover for NetworkProver {
         opts: ProofOpts,
     ) -> Result<SP1ProofWithPublicValues> {
         self.prove(pk, stdin)
-            .with_mode(opts.mode)
+            .mode(opts.mode)
             .timeout(opts.timeout)
             .cycle_limit(opts.cycle_limit)
             .run()
@@ -419,68 +493,6 @@ impl<'a> IntoFuture for NetworkProofRequest<'a> {
 
     fn into_future(self) -> Self::IntoFuture {
         Box::pin(async move { self.run_inner().await })
-    }
-}
-
-pub struct NetworkProverBuilder {
-    rpc_url: Option<String>,
-    private_key: Option<String>,
-    timeout: Option<u64>,
-    cycle_limit: Option<u64>,
-}
-
-
-#[allow(clippy::new_without_default)]
-impl NetworkProverBuilder {
-    /// Creates a new network prover builder.
-    pub fn new() -> Self {
-        Self { rpc_url: None, private_key: None, timeout: None, cycle_limit: None }
-    }
-
-    /// Sets the RPC URL for the prover network.
-    ///
-    /// This configures the endpoint that will be used for all network operations.
-    /// If not set, the default RPC URL will be used.
-    pub fn rpc_url(mut self, url: String) -> Self {
-        self.rpc_url = Some(url);
-        self
-    }
-
-    /// Sets the private key to use for the prover network.
-    ///
-    /// This is required and must be set before building the prover.
-    pub fn private_key(mut self, key: String) -> Self {
-        self.private_key = Some(key);
-        self
-    }
-
-    /// Sets the timeout for proof requests.
-    ///
-    /// This is the maximum amount of time to wait for the request to be fulfilled.
-    pub fn with_timeout(mut self, timeout: u64) -> Self {
-        self.timeout = Some(timeout);
-        self
-    }
-
-    /// Sets the cycle limit for proof requests.
-    ///
-    /// This is the maximum number of cycles to allow for the execution of the request.
-    pub fn with_cycle_limit(mut self, cycle_limit: u64) -> Self {
-        self.cycle_limit = Some(cycle_limit);
-        self
-    }
-
-    /// Builds the prover with the given configuration.
-    pub fn build(self) -> NetworkProver {
-        NetworkProver {
-            prover: Arc::new(SP1Prover::new()),
-            network_client: NetworkClient::new(
-                &self.private_key.expect("A private key set on the builder"),
-            )
-            .rpc_url(self.rpc_url.unwrap_or(DEFAULT_PROVER_NETWORK_RPC.to_string())),
-            timeout: self.timeout.unwrap_or(DEFAULT_TIMEOUT),
-            cycles_limit: self.cycle_limit.unwrap_or(DEFAULT_CYCLE_LIMIT),
-        }
     }
 }
 
