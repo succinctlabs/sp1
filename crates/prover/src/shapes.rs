@@ -61,7 +61,7 @@ pub fn check_shapes<C: SP1ProverComponents>(
     reduce_batch_size: usize,
     no_precompiles: bool,
     num_compiler_workers: usize,
-    prover: &SP1Prover<C>,
+    prover: &mut SP1Prover<C>,
 ) -> bool {
     let (shape_tx, shape_rx) =
         std::sync::mpsc::sync_channel::<SP1CompressProgramShape>(num_compiler_workers);
@@ -85,7 +85,8 @@ pub fn check_shapes<C: SP1ProverComponents>(
     // The Merkle tree height.
     let height = num_shapes.next_power_of_two().ilog2() as usize;
 
-    // TODO: set the join program map to empty.
+    // Empty the join program map so that we recompute the join program.
+    prover.join_programs_map.clear();
 
     let compress_ok = std::thread::scope(|s| {
         // Initialize compiler workers.

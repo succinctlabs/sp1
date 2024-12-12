@@ -983,17 +983,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 input,
             ))
         })
-        // if self.compress_shape_config.is_some() && !shape_tuning {
-        //     self.join_programs_map.get(&input.shape()).map(Clone::clone).unwrap()
-        // } else {
-        //     // Get the operations.
-        //     Arc::new(compress_program_from_input::<C>(
-        //         self.compress_shape_config.as_ref(),
-        //         &self.compress_prover,
-        //         self.vk_verification,
-        //         input,
-        //     ))
-        // }
     }
 
     pub fn shrink_program(
