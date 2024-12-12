@@ -221,6 +221,7 @@ impl NetworkProver {
     }
 }
 
+#[allow(clippy::new_without_default)]
 impl NetworkProverBuilder {
     /// Creates a new network prover builder.
     pub fn new() -> Self {
@@ -377,13 +378,12 @@ impl<'a> NetworkProofRequest<'a> {
 impl Prover for NetworkProver {
     async fn setup(&self, elf: Arc<[u8]>) -> Arc<SP1ProvingKey> {
         let prover = Arc::clone(&self.prover);
-        let result = task::spawn_blocking(move || {
+        task::spawn_blocking(move || {
             let (pk, _vk) = prover.setup(&elf);
             Arc::new(pk)
         })
         .await
-        .unwrap();
-        result
+        .unwrap()
     }
 
     #[cfg(feature = "blocking")]

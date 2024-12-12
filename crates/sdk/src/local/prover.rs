@@ -59,6 +59,7 @@ impl LocalProver {
 
 pub struct LocalProverBuilder {}
 
+#[allow(clippy::new_without_default)]
 impl LocalProverBuilder {
     /// Creates a new local prover builder.
     pub fn new() -> Self {
@@ -141,6 +142,7 @@ impl<'a> LocalProofRequest<'a> {
         self
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn run_inner(
         prover: &SP1Prover<DefaultProverComponents>,
         pk: &SP1ProvingKey,
@@ -247,13 +249,12 @@ impl<'a> LocalProofRequest<'a> {
 impl Prover for LocalProver {
     async fn setup(&self, elf: Arc<[u8]>) -> Arc<SP1ProvingKey> {
         let prover = Arc::clone(&self.prover);
-        let result = task::spawn_blocking(move || {
+        task::spawn_blocking(move || {
             let (pk, _vk) = prover.setup(&elf);
             Arc::new(pk)
         })
         .await
         .unwrap();
-        result
     }
 
     #[cfg(feature = "blocking")]

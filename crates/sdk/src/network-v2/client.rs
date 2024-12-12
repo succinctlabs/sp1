@@ -15,7 +15,6 @@ use tonic::{
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{HashableKey, SP1VerifyingKey};
 
-use crate::mode::Mode;
 use crate::network_v2::proto::artifact::{
     artifact_store_client::ArtifactStoreClient, CreateArtifactRequest,
 };
@@ -49,11 +48,7 @@ impl NetworkClient {
             .build()
             .unwrap();
 
-        Self {
-            signer,
-            http: http_client.into(),
-            rpc_url: DEFAULT_PROVER_NETWORK_RPC.to_string(),
-        }
+        Self { signer, http: http_client.into(), rpc_url: DEFAULT_PROVER_NETWORK_RPC.to_string() }
     }
 
     /// Update the RPC URL for the client.
