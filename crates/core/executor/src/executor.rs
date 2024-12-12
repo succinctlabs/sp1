@@ -1700,7 +1700,6 @@ impl<'a> Executor<'a> {
     }
 
     #[inline]
-    #[cfg(debug_assertions)]
     fn log(&mut self, _: &Instruction) {
         // Write the current program counter to the trace buffer for the cycle tracer.
         if let Some(ref mut buf) = self.trace_buf {
