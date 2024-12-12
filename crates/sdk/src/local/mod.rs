@@ -8,24 +8,14 @@ pub use cuda::CudaProver;
 
 pub use prover::*;
 
-use itertools::Itertools;
-use p3_field::PrimeField32;
-use std::borrow::Borrow;
 
-use anyhow::Result;
-use sp1_core_executor::SP1Context;
-use sp1_core_machine::{io::SP1Stdin, SP1_CIRCUIT_VERSION};
 use sp1_prover::{
-    components::SP1ProverComponents, CoreSC, InnerSC, SP1CoreProofData, SP1Prover, SP1ProvingKey,
-    SP1VerifyingKey,
+    CoreSC, InnerSC,
 };
-use sp1_stark::{air::PublicValues, MachineVerificationError, Word};
+use sp1_stark::MachineVerificationError;
 use strum_macros::EnumString;
 use thiserror::Error;
 
-use crate::install::try_install_circuit_artifacts;
-use crate::opts::ProofOpts;
-use crate::{proof::SP1Proof, proof::SP1ProofKind, proof::SP1ProofWithPublicValues};
 
 /// The type of prover.
 #[derive(Debug, PartialEq, EnumString)]

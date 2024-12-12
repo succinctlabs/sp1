@@ -1,5 +1,5 @@
 use sp1_sdk::network_v2::{Error, FulfillmentStrategy};
-use sp1_sdk::{include_elf, utils, client::ProverClient, proof::SP1ProofWithPublicValues, SP1Stdin};
+use sp1_sdk::{include_elf, utils, ProverClient, proof::SP1ProofWithPublicValues, SP1Stdin};
 use std::time::Duration;
 use dotenv::dotenv;
 
@@ -37,11 +37,11 @@ async fn main() {
     // let client = ProverClient::new();
 
     // Generate the proof, using the specified network configuration.
-    // let client = ProverClient::builder()
-    //     .network()
-    //     .with_rpc_url(rpc_url)
-    //     .with_private_key(private_key)
-    //     .build();
+    let client = ProverClient::builder()
+        .network()
+        .with_rpc_url(rpc_url)
+        .with_private_key(private_key)
+        .build();
 
     // Generate the proving key and verifying key for the given program.
     let pk = client.setup(Arc::from(&ELF[..])).await;
@@ -51,6 +51,8 @@ async fn main() {
         .prove(pk, stdin)
         .compressed()
         .await;
+
+    let prover = NetworkProver::with
 
     // Example of handling potential errors.
     let mut proof = match proof_result {

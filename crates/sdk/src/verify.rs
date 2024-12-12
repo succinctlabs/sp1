@@ -4,20 +4,13 @@ use sp1_prover::components::DefaultProverComponents;
 use std::borrow::Borrow;
 
 use anyhow::Result;
-use sp1_core_executor::SP1Context;
-use sp1_core_machine::{io::SP1Stdin, SP1_CIRCUIT_VERSION};
-use sp1_prover::{
-    components::SP1ProverComponents, CoreSC, InnerSC, SP1CoreProofData, SP1Prover, SP1ProvingKey,
-    SP1VerifyingKey,
-};
-use sp1_stark::{air::PublicValues, MachineVerificationError, Word};
-use strum_macros::EnumString;
-use thiserror::Error;
+use sp1_prover::{SP1CoreProofData, SP1Prover, SP1VerifyingKey};
+use sp1_stark::{air::PublicValues, Word};
 
 use crate::install::try_install_circuit_artifacts;
 use crate::local::SP1VerificationError;
 use crate::opts::ProofOpts;
-use crate::{proof::SP1Proof, proof::SP1ProofKind, proof::SP1ProofWithPublicValues};
+use crate::{proof::SP1Proof, proof::SP1ProofWithPublicValues};
 
 /// Verify that an SP1 proof is valid given its vkey and metadata.
 /// For Plonk proofs, verifies that the public inputs of the PlonkBn254 proof match

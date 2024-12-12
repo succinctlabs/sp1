@@ -182,7 +182,7 @@ fn main() {
             let skip_simulation =
                 env::var("SKIP_SIMULATION").map(|val| val == "true").unwrap_or_default();
 
-            let mut prover_builder = ProverClient::builder().mode(ProverMode::Network);
+            let mut prover_builder = ProverClient::builder().network();
 
             if let Some(rpc_url) = rpc_url {
                 prover_builder = prover_builder.rpc_url(rpc_url);

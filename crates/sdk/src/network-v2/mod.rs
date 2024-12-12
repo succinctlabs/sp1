@@ -4,6 +4,7 @@ mod prover;
 mod retry;
 mod types;
 #[rustfmt::skip]
+#[allow(clippy::all)]
 mod proto;
 
 pub use client::*;

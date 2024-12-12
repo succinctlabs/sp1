@@ -5,7 +5,7 @@
 //! Visit the [Getting Started](https://succinctlabs.github.io/sp1/getting-started.html) section
 //! in the official SP1 documentation for a quick start guide.
 
-pub mod client;
+mod client;
 mod mode;
 mod opts;
 mod prover;
@@ -18,15 +18,22 @@ pub mod install;
 #[path = "network-v2/mod.rs"]
 pub mod network_v2;
 
-pub mod local;
+#[cfg(feature = "cuda")]
+pub use crate::local::CudaProver;
+#[cfg(feature = "network-v2")]
+pub use crate::network_v2::NetworkProver;
 
+pub mod local;
 pub mod proof;
 pub mod utils {
     pub use sp1_core_machine::utils::setup_logger;
 }
 
-#[cfg(any(feature = "network", feature = "network-v2"))]
-use std::future::Future;
+pub use client::*;
+pub use local::SP1VerificationError;
+pub use proof::*;
+
+// pub use local::{LocalProver, MockProver, Prover};
 
 pub use sp1_build::include_elf;
 pub use sp1_core_executor::{ExecutionReport, HookEnv, SP1Context, SP1ContextBuilder};

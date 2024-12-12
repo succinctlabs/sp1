@@ -1,4 +1,3 @@
-use crate::proof::SP1ProofKind;
 
 use crate::network_v2::ProofMode;
 
