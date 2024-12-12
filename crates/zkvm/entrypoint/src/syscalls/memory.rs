@@ -15,9 +15,21 @@
 // Memory addresses must be lower than BabyBear prime.
 const MAX_MEMORY: usize = 0x78000000;
 
+const RESERVED_SIZE: usize = MAX_MEMORY / 256;
+static mut RESERVED_POS: usize = 0;
+static mut RESERVED_START: usize = 0;
+
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn sys_alloc_aligned(bytes: usize, align: usize) -> *mut u8 {
+    if !align.is_power_of_two() {
+        panic!("Alignment must be power of 2");
+    }
+
+    if bytes.checked_add(align - 1).is_none() {
+        panic!("Memory allocation would overflow");
+    }
+
     extern "C" {
         // https://lld.llvm.org/ELF/linker_script.html#sections-command
         static _end: u8;
@@ -32,6 +44,15 @@ pub unsafe extern "C" fn sys_alloc_aligned(bytes: usize, align: usize) -> *mut u
 
     if heap_pos == 0 {
         heap_pos = unsafe { (&_end) as *const u8 as usize };
+        unsafe {
+            // Check if reserved section would exceed memory limit
+            if heap_pos + RESERVED_SIZE > MAX_MEMORY {
+                panic!("Reserved section would exceed memory limit");
+            }
+            RESERVED_START = heap_pos;
+            RESERVED_POS = heap_pos;
+            heap_pos += RESERVED_SIZE;
+        }
     }
 
     let offset = heap_pos & (align - 1);
@@ -48,4 +69,23 @@ pub unsafe extern "C" fn sys_alloc_aligned(bytes: usize, align: usize) -> *mut u
 
     unsafe { HEAP_POS = heap_pos };
     ptr
+}
+#[allow(clippy::missing_safety_doc)]
+#[no_mangle]
+pub unsafe extern "C" fn sys_alloc_reserved(bytes: usize, align: usize) -> *mut u8 {
+    let mut pos = RESERVED_POS;
+    debug_assert!(align.is_power_of_two());
+
+    let offset = pos & (align - 1);
+    if offset != 0 {
+        pos += align - offset;
+    }
+
+    let new_pos = pos + bytes;
+    if new_pos < pos || new_pos > RESERVED_START + RESERVED_SIZE {
+        panic!("Reserved memory section full");
+    }
+
+    RESERVED_POS = new_pos;
+    pos as *mut u8
 }

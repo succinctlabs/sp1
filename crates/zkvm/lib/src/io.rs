@@ -1,10 +1,7 @@
 #![allow(unused_unsafe)]
-use crate::{syscall_hint_len, syscall_hint_read, syscall_write};
+use crate::{sys_alloc_reserved, syscall_hint_len, syscall_hint_read, syscall_write};
 use serde::{de::DeserializeOwned, Serialize};
-use std::{
-    alloc::Layout,
-    io::{Result, Write},
-};
+use std::io::{Result, Write};
 
 /// The file descriptor for public values.
 pub const FD_PUBLIC_VALUES: u32 = 3;
@@ -43,24 +40,12 @@ impl Write for SyscallWriter {
 /// let data: Vec<u8> = sp1_zkvm::io::read_vec();
 /// ```
 pub fn read_vec() -> Vec<u8> {
-    // Round up to the nearest multiple of 4 so that the memory allocated is in whole words
     let len = unsafe { syscall_hint_len() };
     let capacity = (len + 3) / 4 * 4;
+    let ptr = unsafe { sys_alloc_reserved(capacity, 4) };
 
-    // Allocate a buffer of the required length that is 4 byte aligned
-    let layout = Layout::from_size_align(capacity, 4).expect("vec is too large");
-    let ptr = unsafe { std::alloc::alloc(layout) };
-
-    // SAFETY:
-    // 1. `ptr` was allocated using alloc
-    // 2. We assuume that the VM global allocator doesn't dealloc
-    // 3/6. Size is correct from above
-    // 4/5. Length is 0
-    // 7. Layout::from_size_align already checks this
     let mut vec = unsafe { Vec::from_raw_parts(ptr, 0, capacity) };
 
-    // Read the vec into uninitialized memory. The syscall assumes the memory is uninitialized,
-    // which should be true because the allocator does not dealloc, so a new alloc should be fresh.
     unsafe {
         syscall_hint_read(ptr, len);
         vec.set_len(len);
