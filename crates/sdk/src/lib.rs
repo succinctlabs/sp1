@@ -15,6 +15,7 @@ mod verify;
 pub mod artifacts;
 pub mod install;
 
+#[cfg(feature = "network-v2")]
 #[path = "network-v2/mod.rs"]
 pub mod network_v2;
 

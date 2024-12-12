@@ -1,12 +1,15 @@
 use crate::{
     local::{LocalProver, LocalProverBuilder},
-    network_v2::{NetworkProver, NetworkProverBuilder, DEFAULT_PROVER_NETWORK_RPC},
     opts::ProofOpts,
     proof::SP1ProofWithPublicValues,
     prover::Prover,
     request::DynProofRequest,
     SP1VerificationError,
 };
+
+#[cfg(feature = "network-v2")]
+use crate::network_v2::{NetworkProver, NetworkProverBuilder, DEFAULT_PROVER_NETWORK_RPC};
+
 use anyhow::Result;
 use sp1_core_executor::{ExecutionError, ExecutionReport};
 use sp1_core_machine::io::SP1Stdin;
@@ -35,6 +38,7 @@ impl ProverClient {
     }
 
     fn create_from_env() -> Self {
+        #[cfg(feature = "network-v2")]
         match env::var("SP1_PROVER").unwrap_or("local".to_string()).as_str() {
             "network" => {
                 let rpc_url = env::var("PROVER_NETWORK_RPC")
@@ -48,6 +52,12 @@ impl ProverClient {
                 let local_prover = LocalProver::new();
                 ProverClient { inner: Box::new(local_prover) }
             }
+        }
+
+        #[cfg(not(feature = "network-v2"))]
+        {
+            let local_prover = LocalProver::new();
+            ProverClient { inner: Box::new(local_prover) }
         }
     }
 
@@ -80,7 +90,8 @@ impl ProverClientBuilder<None> {
     pub fn local(self) -> ProverClientBuilder<LocalProverBuilder> {
         ProverClientBuilder { inner_builder: LocalProver::builder() }
     }
-
+    
+    #[cfg(feature = "network-v2")]
     pub fn network(self) -> ProverClientBuilder<NetworkProverBuilder> {
         ProverClientBuilder { inner_builder: NetworkProver::builder() }
     }
@@ -96,6 +107,7 @@ impl<T: BuildableProver> ProverClientBuilder<T> {
     }
 }
 
+#[cfg(feature = "network-v2")]
 impl ProverClientBuilder<NetworkProverBuilder> {
     pub fn rpc_url(mut self, url: String) -> Self {
         self.inner_builder = self.inner_builder.rpc_url(url);
@@ -118,6 +130,7 @@ impl BuildableProver for LocalProverBuilder {
     }
 }
 
+#[cfg(feature = "network-v2")]
 impl BuildableProver for NetworkProverBuilder {
     fn build_prover(self) -> Box<dyn Prover> {
         Box::new(self.build())

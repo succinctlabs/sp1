@@ -34,18 +34,6 @@ impl LocalProver {
         LocalProverBuilder::new()
     }
 
-    fn id(&self) -> ProverType {
-        ProverType::Mock
-    }
-
-    fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
-        self.prover.setup(elf)
-    }
-
-    fn sp1_prover(&self) -> &SP1Prover {
-        &self.prover
-    }
-
     pub fn prove<'a>(
         &'a self,
         pk: &'a Arc<SP1ProvingKey>,

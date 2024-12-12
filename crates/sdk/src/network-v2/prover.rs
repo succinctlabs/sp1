@@ -85,7 +85,9 @@ impl NetworkProver {
     ) -> NetworkProofRequest<'a> {
         NetworkProofRequest::new(self, pk, stdin)
     }
+}
 
+impl NetworkProver {
     /// Get the cycle limit to used for a proof request.
     ///
     /// The cycle limit is determined according to the following priority:
@@ -321,7 +323,13 @@ impl<'a> NetworkProofRequest<'a> {
         self.strategy = strategy;
         self
     }
+ 
+    pub fn run(self) -> Result<SP1ProofWithPublicValues> {
+        Runtime::new().unwrap().block_on(async move { self.run_inner().await })
+    }
+}
 
+impl<'a> NetworkProofRequest<'a> {
     async fn run_inner(self) -> Result<SP1ProofWithPublicValues> {
         // Register the program.
         let vk_hash = self.prover.register_program(&self.pk.vk, &self.pk.elf).await?;
@@ -358,9 +366,6 @@ impl<'a> NetworkProofRequest<'a> {
         Ok(proof)
     }
 
-    fn run(self) -> Result<SP1ProofWithPublicValues> {
-        Runtime::new().unwrap().block_on(async move { self.run_inner().await })
-    }
 }
 
 impl<'a> IntoFuture for NetworkProofRequest<'a> {

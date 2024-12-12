@@ -1,7 +1,7 @@
 use cfg_if::cfg_if;
 use std::path::PathBuf;
 
-#[cfg(any(feature = "network", feature = "network-v2"))]
+#[cfg(feature = "network-v2")]
 use {
     futures::{Future, StreamExt},
     indicatif::{ProgressBar, ProgressStyle},
@@ -42,7 +42,7 @@ pub fn try_install_circuit_artifacts(artifacts_type: &str) -> PathBuf {
         );
     } else {
         cfg_if! {
-            if #[cfg(any(feature = "network", feature = "network-v2"))] {
+            if #[cfg(feature = "network-v2")] {
                 println!(
                     "[sp1] {} circuit artifacts for version {} do not exist at {}. downloading...",
                     artifacts_type,
@@ -60,7 +60,7 @@ pub fn try_install_circuit_artifacts(artifacts_type: &str) -> PathBuf {
 ///
 /// This function will download the latest circuit artifacts from the S3 bucket and extract them
 /// to the directory specified by [groth16_bn254_artifacts_dir()].
-#[cfg(any(feature = "network", feature = "network-v2"))]
+#[cfg(feature = "network-v2")]
 pub fn install_circuit_artifacts(build_dir: PathBuf, artifacts_type: &str) {
     // Create the build directory.
     std::fs::create_dir_all(&build_dir).expect("failed to create build directory");
@@ -90,7 +90,7 @@ pub fn install_circuit_artifacts(build_dir: PathBuf, artifacts_type: &str) {
 }
 
 /// Download the file with a progress bar that indicates the progress.
-#[cfg(any(feature = "network", feature = "network-v2"))]
+#[cfg(feature = "network-v2")]
 pub async fn download_file(
     client: &Client,
     url: &str,
@@ -124,7 +124,7 @@ pub async fn download_file(
 ///
 /// If we're already in a tokio runtime, we'll block in place. Otherwise, we'll create a new
 /// runtime.
-#[cfg(any(feature = "network", feature = "network-v2"))]
+#[cfg(feature = "network-v2")]
 pub fn block_on<T>(fut: impl Future<Output = T>) -> T {
     // Handle case if we're already in an tokio runtime.
 

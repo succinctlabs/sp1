@@ -36,11 +36,6 @@ pub struct NetworkClient {
     signer: PrivateKeySigner,
     http: HttpClientWithMiddleware,
     rpc_url: String,
-    pub mode: Mode,
-    pub timeout: Option<u64>,
-    pub cycle_limit: Option<u64>,
-    pub skip_simulation: bool,
-    pub strategy: Option<FulfillmentStrategy>,
 }
 
 impl NetworkClient {
@@ -58,11 +53,6 @@ impl NetworkClient {
             signer,
             http: http_client.into(),
             rpc_url: DEFAULT_PROVER_NETWORK_RPC.to_string(),
-            mode: Mode::default(),
-            timeout: None,
-            cycle_limit: None,
-            skip_simulation: false,
-            strategy: None,
         }
     }
 

@@ -28,7 +28,7 @@ sp1-cuda = { workspace = true, optional = true }
 sp1-build = { workspace = true }
 futures = "0.3.30"
 bincode = "1.3.3"
-tokio = { version = "1.39.2", features = ["full"], optional = true }
+tokio = { version = "1.39.2", features = ["full"] }
 p3-field = { workspace = true }
 p3-baby-bear = { workspace = true }
 p3-fri = { workspace = true }
@@ -58,27 +58,14 @@ backoff = { version = "0.4", features = ["tokio"], optional = true }
 test-artifacts = { workspace = true }
 
 [features]
-default = ["network"]
+default = ["network-v2"]
 native-gnark = ["sp1-prover/native-gnark"]
-# TODO: Once alloy has a 1.* release, we can likely remove this feature flag, as there will be less 
-# dependency resolution issues.
-network = [
-  "dep:prost",
-  "dep:alloy-sol-types",
-  "dep:tokio",
-  "dep:alloy-signer",
-  "dep:alloy-signer-local",
-  "dep:reqwest",
-  "dep:twirp",
-  "dep:reqwest-middleware",
-]
 network-v2 = [
   "dep:prost",
   "dep:alloy-sol-types",
   "dep:alloy-signer",
   "dep:alloy-signer-local",
   "dep:alloy-primitives",
-  "dep:tokio",
   "dep:alloy-signer",
   "dep:reqwest",
   "dep:twirp",
