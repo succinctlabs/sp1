@@ -770,10 +770,11 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         // Make the compress proof.
         let SP1ReduceProof { vk: compressed_vk, proof: compressed_proof } = reduced_proof;
         let input = SP1CompressWitnessValues {
-            vks_and_proofs: vec![(compressed_vk, compressed_proof)],
+            vks_and_proofs: vec![(compressed_vk.clone(), compressed_proof)],
             is_complete: true,
         };
 
+        assert!(self.recursion_vk_map.contains_key(&compressed_vk.hash_babybear()));
         let input_with_merkle = self.make_merkle_proofs(input);
 
         let program =
