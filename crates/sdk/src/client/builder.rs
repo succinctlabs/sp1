@@ -14,7 +14,6 @@ pub struct ProverClientBuilder<T> {
     inner_builder: T,
 }
 
-
 impl Default for ProverClientBuilder<None> {
     fn default() -> Self {
         Self::new()

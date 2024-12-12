@@ -288,11 +288,11 @@ impl Prover for LocalProver {
     #[cfg(feature = "blocking")]
     fn prove_with_options_sync(
         &self,
-        pk: &SP1ProvingKey,
+        pk: &Arc<SP1ProvingKey>,
         stdin: SP1Stdin,
         opts: ProofOpts,
     ) -> Result<SP1ProofWithPublicValues> {
-        self.prove(&pk, stdin)
+        self.prove(pk, stdin)
             .with_mode(opts.mode)
             .with_timeout(opts.timeout)
             .with_cycle_limit(opts.cycle_limit)

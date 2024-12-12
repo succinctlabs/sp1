@@ -47,7 +47,7 @@ pub struct NetworkProver {
     prover: Arc<SP1Prover<DefaultProverComponents>>,
     network_client: NetworkClient,
     timeout: u64,
-    max_cycle_limit: u64,
+    max_cycle_limit: Option<u64>,
 
 }
 
@@ -66,7 +66,7 @@ impl NetworkProver {
             prover: Arc::new(SP1Prover::new()),
             network_client: NetworkClient::new(&private_key).rpc_url(rpc_url),
             timeout: DEFAULT_TIMEOUT, 
-            max_cycle_limit: DEFAULT_CYCLE_LIMIT,
+            max_cycle_limit: None,
         }
     }
 
@@ -83,7 +83,7 @@ impl NetworkProver {
     /// Create a new proof request.
     pub fn prove<'a>(
         &'a self,
-        pk: &'a Arc<SP1ProvingKey>,
+        pk: &'a SP1ProvingKey,
         stdin: SP1Stdin,
     ) -> NetworkProofRequest<'a> {
         NetworkProofRequest::new(self, pk, stdin)
@@ -258,14 +258,14 @@ impl NetworkProverBuilder {
             prover: Arc::new(SP1Prover::new()),
             network_client: NetworkClient::new(&self.private_key.expect("A private key set on the builder")).rpc_url(self.rpc_url.expect("An RPC URL set on the builder")),
             timeout: self.timeout.unwrap_or(DEFAULT_TIMEOUT), 
-            max_cycle_limit: self.max_cycle_limit.unwrap_or(DEFAULT_CYCLE_LIMIT),
+            max_cycle_limit: self.max_cycle_limit,
         }
     }
 }
 
 pub struct NetworkProofRequest<'a> {
     prover: &'a NetworkProver,
-    pk: &'a Arc<SP1ProvingKey>,
+    pk: &'a SP1ProvingKey,
     stdin: SP1Stdin,
     mode: ProofMode,
     version: String,
@@ -276,15 +276,15 @@ pub struct NetworkProofRequest<'a> {
 }
 
 impl<'a> NetworkProofRequest<'a> {
-    pub fn new(prover: &'a NetworkProver, pk: &'a Arc<SP1ProvingKey>, stdin: SP1Stdin) -> Self {
+    pub fn new(prover: &'a NetworkProver, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> Self {
         Self {
             prover,
             pk,
             stdin,
             mode: Mode::default().into(),
             version: SP1_CIRCUIT_VERSION.to_string(),
-            timeout: DEFAULT_TIMEOUT,
-            cycle_limit: None,
+            timeout: prover.timeout,
+            cycle_limit: prover.max_cycle_limit,
             skip_simulation: false,
             strategy: DEFAULT_FULFILLMENT_STRATEGY,
         }
@@ -434,7 +434,7 @@ impl Prover for NetworkProver {
     #[cfg(feature = "blocking")]
     fn prove_with_options_sync(
         &self,
-        pk: &SP1ProvingKey,
+        pk: &Arc<SP1ProvingKey>,
         stdin: SP1Stdin,
         opts: ProofOpts,
     ) -> Result<SP1ProofWithPublicValues> {

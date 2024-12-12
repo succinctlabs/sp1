@@ -17,18 +17,12 @@ use std::{env, sync::Arc};
 use crate::ProofOpts;
 
 mod request;
-use request::DynProofRequest;
+pub use request::DynProofRequest;
 mod builder;
-use builder::{ProverClientBuilder, None};
+pub use builder::{ProverClientBuilder, None};
 
 pub struct ProverClient {
     inner: Box<dyn Prover>,
-}
-
-impl Default for ProverClient {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 impl ProverClient {

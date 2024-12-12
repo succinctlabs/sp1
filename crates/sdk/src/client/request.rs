@@ -61,7 +61,7 @@ impl<'a> DynProofRequest<'a> {
     }
 
     #[cfg(feature = "blocking")]
-    fn run(self) -> Result<SP1ProofWithPublicValues> {
+    pub fn run(self) -> Result<SP1ProofWithPublicValues> {
         self.prover.prove_with_options_sync(&self.pk, self.stdin, self.opts)
     }
 }

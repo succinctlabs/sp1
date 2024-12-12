@@ -39,7 +39,7 @@ pub trait Prover: Sync {
     #[cfg(feature = "blocking")]
     fn prove_with_options_sync(
         &self,
-        pk: &SP1ProvingKey,
+        pk: &Arc<SP1ProvingKey>,
         stdin: SP1Stdin,
         opts: ProofOpts,
     ) -> Result<SP1ProofWithPublicValues>;
