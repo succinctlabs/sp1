@@ -6,8 +6,6 @@
 //! in the official SP1 documentation for a quick start guide.
 
 mod client;
-mod mode;
-mod opts;
 mod prover;
 mod request;
 mod verify;
@@ -33,8 +31,6 @@ pub mod utils {
 pub use client::*;
 pub use proof::*;
 
-// pub use local::{LocalProver, MockProver, Prover};
-
 pub use sp1_build::include_elf;
 pub use sp1_core_executor::{ExecutionReport, HookEnv, SP1Context, SP1ContextBuilder};
 pub use sp1_core_machine::{io::SP1Stdin, riscv::cost::CostEstimator, SP1_CIRCUIT_VERSION};
@@ -46,6 +42,47 @@ pub use sp1_prover::{
 
 use sp1_stark::MachineVerificationError;
 use thiserror::Error;
+
+pub struct ProofOpts {
+    pub mode: Mode,
+    pub timeout: u64,
+    pub cycle_limit: u64,
+}
+
+impl Default for ProofOpts {
+    fn default() -> Self {
+        Self { mode: Mode::default(), timeout: DEFAULT_TIMEOUT, cycle_limit: DEFAULT_CYCLE_LIMIT }
+    }
+}
+
+#[cfg(feature = "network-v2")]
+use crate::network_v2::ProofMode;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Mode {
+    Core,
+    Compressed,
+    Plonk,
+    Groth16,
+}
+
+impl Default for Mode {
+    fn default() -> Self {
+        Self::Groth16
+    }
+}
+
+#[cfg(feature = "network-v2")]
+impl From<Mode> for ProofMode {
+    fn from(value: Mode) -> Self {
+        match value {
+            Mode::Core => Self::Core,
+            Mode::Compressed => Self::Compressed,
+            Mode::Plonk => Self::Plonk,
+            Mode::Groth16 => Self::Groth16,
+        }
+    }
+}
 
 #[derive(Error, Debug)]
 pub enum SP1VerificationError {

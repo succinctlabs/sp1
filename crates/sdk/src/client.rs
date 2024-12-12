@@ -1,14 +1,12 @@
 use crate::{
-    local::{LocalProver, LocalProverBuilder},
-    opts::ProofOpts,
+    local::LocalProver,
     proof::SP1ProofWithPublicValues,
     prover::Prover,
-    request::DynProofRequest,
     SP1VerificationError,
 };
 
 #[cfg(feature = "network-v2")]
-use crate::network_v2::{NetworkProver, NetworkProverBuilder, DEFAULT_PROVER_NETWORK_RPC};
+use crate::network_v2::{NetworkProver, DEFAULT_PROVER_NETWORK_RPC};
 
 use anyhow::Result;
 use sp1_core_executor::{ExecutionError, ExecutionReport};
@@ -16,21 +14,26 @@ use sp1_core_machine::io::SP1Stdin;
 use sp1_primitives::io::SP1PublicValues;
 use sp1_prover::{SP1ProvingKey, SP1VerifyingKey};
 use std::{env, sync::Arc};
+use crate::ProofOpts;
 
-pub struct None;
+mod request;
+use request::DynProofRequest;
+mod builder;
+use builder::{ProverClientBuilder, None};
 
 pub struct ProverClient {
     inner: Box<dyn Prover>,
 }
 
-pub struct ProverClientBuilder<T> {
-    inner_builder: T,
+impl Default for ProverClient {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
-#[allow(clippy::new_without_default)]
 impl ProverClient {
     pub fn builder() -> ProverClientBuilder<None> {
-        ProverClientBuilder { inner_builder: None }
+        ProverClientBuilder::new()
     }
 
     #[deprecated(note = "Use ProverClient::builder() instead")]
@@ -50,14 +53,14 @@ impl ProverClient {
                 ProverClient { inner: Box::new(network_prover) }
             }
             _ => {
-                let local_prover = LocalProver::new();
+                let local_prover = LocalProver::default();
                 ProverClient { inner: Box::new(local_prover) }
             }
         }
 
         #[cfg(not(feature = "network-v2"))]
         {
-            let local_prover = LocalProver::new();
+            let local_prover = LocalProver::default();
             ProverClient { inner: Box::new(local_prover) }
         }
     }
@@ -87,53 +90,9 @@ impl ProverClient {
     }
 }
 
-impl ProverClientBuilder<None> {
-    pub fn local(self) -> ProverClientBuilder<LocalProverBuilder> {
-        ProverClientBuilder { inner_builder: LocalProver::builder() }
-    }
+/// The default timeout seconds for a proof request to be generated (4 hours).
+pub const DEFAULT_TIMEOUT: u64 = 14400;
 
-    #[cfg(feature = "network-v2")]
-    pub fn network(self) -> ProverClientBuilder<NetworkProverBuilder> {
-        ProverClientBuilder { inner_builder: NetworkProver::builder() }
-    }
+/// The default cycle limit for a proof request.
+pub const DEFAULT_CYCLE_LIMIT: u64 = 100_000_000;
 
-    pub fn from_env(self) -> ProverClient {
-        ProverClient::create_from_env()
-    }
-}
-
-impl<T: BuildableProver> ProverClientBuilder<T> {
-    pub fn build(self) -> ProverClient {
-        ProverClient { inner: self.inner_builder.build_prover() }
-    }
-}
-
-#[cfg(feature = "network-v2")]
-impl ProverClientBuilder<NetworkProverBuilder> {
-    pub fn rpc_url(mut self, url: String) -> Self {
-        self.inner_builder = self.inner_builder.rpc_url(url);
-        self
-    }
-
-    pub fn private_key(mut self, key: String) -> Self {
-        self.inner_builder = self.inner_builder.private_key(key);
-        self
-    }
-}
-
-pub trait BuildableProver {
-    fn build_prover(self) -> Box<dyn Prover>;
-}
-
-impl BuildableProver for LocalProverBuilder {
-    fn build_prover(self) -> Box<dyn Prover> {
-        Box::new(self.build())
-    }
-}
-
-#[cfg(feature = "network-v2")]
-impl BuildableProver for NetworkProverBuilder {
-    fn build_prover(self) -> Box<dyn Prover> {
-        Box::new(self.build())
-    }
-}

@@ -7,7 +7,7 @@ use sp1_core_machine::io::SP1Stdin;
 use sp1_primitives::io::SP1PublicValues;
 use sp1_prover::{SP1ProvingKey, SP1VerifyingKey};
 
-use crate::{opts::ProofOpts, proof::SP1ProofWithPublicValues, SP1VerificationError};
+use crate::{ProofOpts, proof::SP1ProofWithPublicValues, SP1VerificationError};
 
 #[async_trait]
 pub trait Prover: Sync {

@@ -15,7 +15,7 @@ use tokio::runtime::Runtime;
 use tokio::task;
 use tokio::time::sleep;
 
-use crate::mode::Mode;
+use crate::Mode;
 use crate::network_v2::retry::{self, with_retry};
 use crate::network_v2::{
     client::{NetworkClient, DEFAULT_PROVER_NETWORK_RPC},
@@ -23,7 +23,7 @@ use crate::network_v2::{
     types::{HashType, RequestId, VerifyingKeyHash},
     Error,
 };
-use crate::opts::ProofOpts;
+use crate::ProofOpts;
 use crate::proof::SP1ProofWithPublicValues;
 use crate::prover::Prover;
 use crate::request::{DEFAULT_CYCLE_LIMIT, DEFAULT_TIMEOUT};
@@ -46,19 +46,27 @@ pub const STATUS_CHECK_INTERVAL_SECS: u64 = 2;
 pub struct NetworkProver {
     prover: Arc<SP1Prover<DefaultProverComponents>>,
     network_client: NetworkClient,
+    timeout: u64,
+    max_cycle_limit: u64,
+
 }
 
 pub struct NetworkProverBuilder {
     rpc_url: Option<String>,
     private_key: Option<String>,
+    timeout: Option<u64>,
+    max_cycle_limit: Option<u64>,
 }
 
 impl NetworkProver {
-    /// Creates a new `NetworkProver` with the given private key.
+    /// Creates a new `NetworkProver` with the given private private_key.
+    /// This function uses default timeout and cycle limit.
     pub fn new(rpc_url: String, private_key: String) -> Self {
         Self {
             prover: Arc::new(SP1Prover::new()),
             network_client: NetworkClient::new(&private_key).rpc_url(rpc_url),
+            timeout: DEFAULT_TIMEOUT, 
+            max_cycle_limit: DEFAULT_CYCLE_LIMIT,
         }
     }
 
@@ -214,7 +222,7 @@ impl NetworkProver {
 impl NetworkProverBuilder {
     /// Creates a new network prover builder.
     pub fn new() -> Self {
-        Self { rpc_url: None, private_key: None }
+        Self { rpc_url: None, private_key: None, timeout: None, max_cycle_limit: None }
     }
 
     /// Sets the RPC URL for the prover network.
@@ -234,12 +242,24 @@ impl NetworkProverBuilder {
         self
     }
 
+    pub fn with_timeout(mut self, timeout: u64) -> Self {
+        self.timeout = Some(timeout);
+        self
+    }
+
+    pub fn with_cycle_limit(mut self, max_cycle_limit: u64) -> Self {
+        self.max_cycle_limit = Some(max_cycle_limit);
+        self
+    }
+
     /// Builds the prover with the given configuration.
     pub fn build(self) -> NetworkProver {
-        NetworkProver::new(
-            self.rpc_url.unwrap_or_else(|| DEFAULT_PROVER_NETWORK_RPC.to_string()),
-            self.private_key.expect("private key is required"),
-        )
+         NetworkProver {
+            prover: Arc::new(SP1Prover::new()),
+            network_client: NetworkClient::new(&self.private_key.expect("A private key set on the builder")).rpc_url(self.rpc_url.expect("An RPC URL set on the builder")),
+            timeout: self.timeout.unwrap_or(DEFAULT_TIMEOUT), 
+            max_cycle_limit: self.max_cycle_limit.unwrap_or(DEFAULT_CYCLE_LIMIT),
+        }
     }
 }
 

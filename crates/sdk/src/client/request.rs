@@ -1,19 +1,17 @@
-use crate::Mode;
-use crate::ProofOpts;
-use crate::proof::SP1ProofWithPublicValues;
-use crate::prover::Prover;
+use crate::{
+    proof::SP1ProofWithPublicValues,
+    prover::Prover,
+};
+
+
 use anyhow::Result;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::SP1ProvingKey;
+use std::sync::Arc;
+use crate::Mode;
+use crate::ProofOpts;
 use std::future::{Future, IntoFuture};
 use std::pin::Pin;
-use std::sync::Arc;
-
-/// The default timeout seconds for a proof request to be generated (4 hours).
-pub const DEFAULT_TIMEOUT: u64 = 14400;
-
-/// The default cycle limit for a proof request.
-pub const DEFAULT_CYCLE_LIMIT: u64 = 100_000_000;
 
 pub struct DynProofRequest<'a> {
     prover: &'a dyn Prover,
@@ -76,3 +74,4 @@ impl<'a> IntoFuture for DynProofRequest<'a> {
         self.prover.prove_with_options(self.pk, self.stdin, self.opts)
     }
 }
+

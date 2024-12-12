@@ -1,6 +1,6 @@
 use crate::install::try_install_circuit_artifacts;
-use crate::mode::Mode;
-use crate::opts::ProofOpts;
+use crate::Mode;
+use crate::ProofOpts;
 use crate::proof::{SP1Proof, SP1ProofWithPublicValues};
 use crate::prover::Prover;
 use crate::request::{DEFAULT_CYCLE_LIMIT, DEFAULT_TIMEOUT};
@@ -23,15 +23,21 @@ use tokio::task;
 /// An implementation of [crate::ProverClient] that can generate proofs locally.
 pub struct LocalProver {
     prover: Arc<SP1Prover<DefaultProverComponents>>,
+    timeout: u64,
+    cycle_limit: u64,
+}
+
+impl Default for LocalProver {
+    fn default() -> Self {
+        Self {
+            prover: Arc::new(SP1Prover::new()),
+            timeout: DEFAULT_TIMEOUT,
+            cycle_limit: DEFAULT_CYCLE_LIMIT,
+        }
+    }
 }
 
 impl LocalProver {
-    /// Creates a new `NetworkProver` with the given private key.
-    pub fn new() -> Self {
-        Self { prover: Arc::new(SP1Prover::new()) }
-    }
-
-    /// Creates a new network prover builder. See [`NetworkProverBuilder`] for more details.
     pub fn builder() -> LocalProverBuilder {
         LocalProverBuilder::new()
     }
@@ -48,21 +54,6 @@ impl LocalProver {
         stdin: SP1Stdin,
     ) -> LocalProofRequest<'a> {
         LocalProofRequest::new(self, pk, stdin)
-    }
-}
-
-pub struct LocalProverBuilder {}
-
-#[allow(clippy::new_without_default)]
-impl LocalProverBuilder {
-    /// Creates a new local prover builder.
-    pub fn new() -> Self {
-        Self {}
-    }
-
-    /// Builds the prover with the given configuration.
-    pub fn build(self) -> LocalProver {
-        LocalProver::new()
     }
 }
 
@@ -84,9 +75,9 @@ impl<'a> LocalProofRequest<'a> {
             pk,
             stdin,
             mode: Mode::default(),
+            timeout: prover.timeout,
+            cycle_limit: prover.cycle_limit,
             version: SP1_CIRCUIT_VERSION.to_string(),
-            timeout: DEFAULT_TIMEOUT,
-            cycle_limit: DEFAULT_CYCLE_LIMIT,
             sp1_prover_opts: SP1ProverOpts::default(),
         }
     }
@@ -136,22 +127,38 @@ impl<'a> LocalProofRequest<'a> {
         self
     }
 
-    #[allow(clippy::too_many_arguments)]
+    pub fn run(self) -> Result<SP1ProofWithPublicValues> {
+        Self::run_inner(
+            &self.prover.prover,
+            self.pk,
+            self.stdin,
+            self.mode,
+            self.timeout,
+            self.cycle_limit,
+            self.version,
+            self.sp1_prover_opts,
+        )
+    }
+}
+
+impl<'a> LocalProofRequest<'a> {
     fn run_inner(
         prover: &SP1Prover<DefaultProverComponents>,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
         mode: Mode,
-        timeout: u64,
+        _timeout: u64,
         cycle_limit: u64,
         version: String,
         sp1_prover_opts: SP1ProverOpts,
     ) -> Result<SP1ProofWithPublicValues> {
-        let context = SP1Context::default();
+        let context = SP1Context::builder()
+            .max_cycles(cycle_limit)
+            .build();
 
         // Generate the core proof
         let proof: sp1_prover::SP1ProofWithMetadata<sp1_prover::SP1CoreProofData> =
-            prover.prove_core(&pk, &stdin, sp1_prover_opts.clone(), context)?;
+            prover.prove_core(pk, &stdin, sp1_prover_opts, context)?;
 
         if mode == Mode::Core {
             return Ok(SP1ProofWithPublicValues {
@@ -168,7 +175,7 @@ impl<'a> LocalProofRequest<'a> {
 
         // Generate the compressed proof
         let reduce_proof =
-            prover.compress(&pk.vk, proof, deferred_proofs, sp1_prover_opts.clone())?;
+            prover.compress(&pk.vk, proof, deferred_proofs, sp1_prover_opts)?;
 
         if mode == Mode::Compressed {
             return Ok(SP1ProofWithPublicValues {
@@ -223,26 +230,13 @@ impl<'a> LocalProofRequest<'a> {
 
         unreachable!()
     }
-
-    pub fn run(self) -> Result<SP1ProofWithPublicValues> {
-        let context = SP1Context::default();
-        Self::run_inner(
-            &self.prover.prover,
-            &**self.pk,
-            self.stdin,
-            self.mode,
-            self.timeout,
-            self.cycle_limit,
-            self.version,
-            self.sp1_prover_opts,
-        )
-    }
 }
 
 #[async_trait]
 impl Prover for LocalProver {
     async fn setup(&self, elf: Arc<[u8]>) -> Arc<SP1ProvingKey> {
         let prover = Arc::clone(&self.prover);
+
         task::spawn_blocking(move || {
             let (pk, _vk) = prover.setup(&elf);
             Arc::new(pk)
@@ -263,6 +257,7 @@ impl Prover for LocalProver {
         stdin: SP1Stdin,
     ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
         let prover = Arc::clone(&self.prover);
+
         task::spawn_blocking(move || prover.execute(&elf, &stdin, SP1Context::default()))
             .await
             .unwrap()
@@ -325,12 +320,6 @@ impl Prover for LocalProver {
     }
 }
 
-impl Default for LocalProver {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl<'a> IntoFuture for LocalProofRequest<'a> {
     type Output = Result<SP1ProofWithPublicValues>;
     type IntoFuture = Pin<Box<dyn Future<Output = Self::Output> + Send>>;
@@ -354,7 +343,7 @@ impl<'a> IntoFuture for LocalProofRequest<'a> {
             task::spawn_blocking(move || {
                 LocalProofRequest::run_inner(
                     &prover,
-                    &*pk,
+                    &pk,
                     stdin,
                     mode,
                     timeout,
@@ -366,5 +355,43 @@ impl<'a> IntoFuture for LocalProofRequest<'a> {
             .await
             .expect("To be able to join prove handle")
         })
+    }
+}
+
+pub struct LocalProverBuilder {
+    timeout: Option<u64>,
+    cycle_limit: Option<u64>,
+}
+
+impl Default for LocalProverBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl LocalProverBuilder {
+    pub fn new() -> Self {
+        Self {
+            timeout: None,
+            cycle_limit: None,
+        }
+    }
+
+    pub fn with_timeout(mut self, timeout: u64) -> Self {
+        self.timeout = Some(timeout);
+        self
+    }
+
+    pub fn with_cycle_limit(mut self, cycle_limit: u64) -> Self {
+        self.cycle_limit = Some(cycle_limit);
+        self
+    }
+
+    pub fn build(self) -> LocalProver {
+        LocalProver {
+            prover: Arc::new(SP1Prover::new()),
+            timeout: self.timeout.unwrap_or(DEFAULT_TIMEOUT),
+            cycle_limit: self.cycle_limit.unwrap_or(DEFAULT_CYCLE_LIMIT),
+        }
     }
 }

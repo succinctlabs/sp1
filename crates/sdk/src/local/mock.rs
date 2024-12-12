@@ -1,6 +1,5 @@
 #![allow(unused_variables)]
 
-use sp1_prover::SP1Prover;
 
 // /// An implementation of [crate::ProverClient] that can generate mock proofs.
 // pub struct MockProver {
