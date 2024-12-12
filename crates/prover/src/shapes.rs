@@ -137,16 +137,18 @@ pub fn build_vk_map<C: SP1ProverComponents>(
     num_setup_workers: usize,
     indices: Option<Vec<usize>>,
 ) -> (BTreeSet<[BabyBear; DIGEST_SIZE]>, Vec<usize>, usize) {
+    // Setup the prover.
     let mut prover = SP1Prover::<C>::new();
     prover.vk_verification = !dummy;
     let prover = Arc::new(prover);
+
+    // Get the shape configs.
     let core_shape_config = prover.core_shape_config.as_ref().expect("core shape config not found");
     let recursion_shape_config =
         prover.compress_shape_config.as_ref().expect("recursion shape config not found");
 
-    tracing::info!("building compress vk map");
     let (vk_set, panic_indices, height) = if dummy {
-        tracing::warn!("Making a dummy vk map");
+        tracing::warn!("building a dummy vk map");
         let dummy_set = SP1ProofShape::dummy_vk_map(
             core_shape_config,
             recursion_shape_config,
@@ -157,19 +159,22 @@ pub fn build_vk_map<C: SP1ProverComponents>(
         let height = dummy_set.len().next_power_of_two().ilog2() as usize;
         (dummy_set, vec![], height)
     } else {
+        tracing::info!("building vk map");
+
+        // Setup the channels.
         let (vk_tx, vk_rx) = std::sync::mpsc::channel();
         let (shape_tx, shape_rx) =
             std::sync::mpsc::sync_channel::<(usize, SP1CompressProgramShape)>(num_compiler_workers);
         let (program_tx, program_rx) = std::sync::mpsc::sync_channel(num_setup_workers);
         let (panic_tx, panic_rx) = std::sync::mpsc::channel();
 
+        // Setup the mutexes.
         let shape_rx = Mutex::new(shape_rx);
         let program_rx = Mutex::new(program_rx);
 
+        // Generate all the possible shape inputs we encounter in recursion. This may span lift,
+        // join, deferred, shrink, etc.
         let indices_set = indices.map(|indices| indices.into_iter().collect::<HashSet<_>>());
-        // let all_shapes =
-        //     SP1ProofShape::generate(core_shape_config, recursion_shape_config, reduce_batch_size)
-        //         .collect::<BTreeSet<_>>();
         let mut all_shapes = BTreeSet::new();
         let start = std::time::Instant::now();
         for shape in
@@ -177,6 +182,7 @@ pub fn build_vk_map<C: SP1ProverComponents>(
         {
             all_shapes.insert(shape);
         }
+
         let num_shapes = all_shapes.len();
         tracing::info!("number of shapes: {} in {:?}", num_shapes, start.elapsed());
 
@@ -192,6 +198,7 @@ pub fn build_vk_map<C: SP1ProverComponents>(
                 let panic_tx = panic_tx.clone();
                 s.spawn(move || {
                     while let Ok((i, shape)) = shape_rx.lock().unwrap().recv() {
+                        println!("shape: {:?}", shape);
                         let is_shrink = matches!(shape, SP1CompressProgramShape::Shrink(_));
                         let prover = prover.clone();
                         let shape_clone = shape.clone();
@@ -278,10 +285,10 @@ pub fn build_vk_map_to_file<C: SP1ProverComponents>(
     range_start: Option<usize>,
     range_end: Option<usize>,
 ) -> Result<(), VkBuildError> {
+    // Create the build directory if it doesn't exist.
     std::fs::create_dir_all(&build_dir)?;
 
-    tracing::info!("Building vk set");
-
+    // Build the vk map.
     let (vk_set, _, _) = build_vk_map::<C>(
         reduce_batch_size,
         dummy,
@@ -290,14 +297,16 @@ pub fn build_vk_map_to_file<C: SP1ProverComponents>(
         range_start.and_then(|start| range_end.map(|end| (start..end).collect())),
     );
 
+    // Serialize the vk into an ordering.
     let vk_map = vk_set.into_iter().enumerate().map(|(i, vk)| (vk, i)).collect::<BTreeMap<_, _>>();
 
-    tracing::info!("Save the vk set to file");
+    // Create the file to store the vk map.
     let mut file = if dummy {
         File::create(build_dir.join("dummy_vk_map.bin"))?
     } else {
         File::create(build_dir.join("vk_map.bin"))?
     };
+
     Ok(bincode::serialize_into(&mut file, &vk_map)?)
 }
 
@@ -311,6 +320,7 @@ impl SP1ProofShape {
             .all_shapes()
             .map(Self::Recursion)
             .chain((1..=reduce_batch_size).flat_map(|batch_size| {
+                // Weird that we do 1..=reduce_batch_size and also.
                 recursion_shape_config.get_all_shape_combinations(batch_size).map(Self::Compress)
             }))
             .chain(

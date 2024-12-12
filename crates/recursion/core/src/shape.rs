@@ -124,6 +124,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
         // Specify allowed shapes.
 
         let allowed_shapes = [
+            // Fastest shape.
             [
                 (mem_var.clone(), 19),
                 (select.clone(), 19),
@@ -135,6 +136,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
                 (poseidon2_wide.clone(), 17),
                 (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
             ],
+            // Second fastest shape.
             [
                 (mem_var.clone(), 19),
                 (select.clone(), 20),

@@ -278,7 +278,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                     ),
                 ]
             })
-            .collect()
+            .collect::<Vec<_>>()
     }
 
     fn generate_all_shapes_from_allowed_log_heights(
