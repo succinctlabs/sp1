@@ -25,6 +25,7 @@ pub struct ProverClient {
     inner: Box<dyn Prover>,
 }
 
+#[allow(clippy::new_without_default)]
 impl ProverClient {
     pub fn builder() -> ProverClientBuilder<None> {
         ProverClientBuilder::new()

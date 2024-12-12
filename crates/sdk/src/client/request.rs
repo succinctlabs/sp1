@@ -1,17 +1,13 @@
-use crate::{
-    proof::SP1ProofWithPublicValues,
-    prover::Prover,
-};
+use crate::{proof::SP1ProofWithPublicValues, prover::Prover};
 
-
+use crate::Mode;
+use crate::ProofOpts;
 use anyhow::Result;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::SP1ProvingKey;
-use std::sync::Arc;
-use crate::Mode;
-use crate::ProofOpts;
 use std::future::{Future, IntoFuture};
 use std::pin::Pin;
+use std::sync::Arc;
 
 pub struct DynProofRequest<'a> {
     prover: &'a dyn Prover,
@@ -74,4 +70,3 @@ impl<'a> IntoFuture for DynProofRequest<'a> {
         self.prover.prove_with_options(self.pk, self.stdin, self.opts)
     }
 }
-

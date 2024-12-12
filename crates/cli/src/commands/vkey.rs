@@ -52,7 +52,7 @@ impl VkeyCmd {
             file.read_to_end(&mut elf)?;
 
             // Get the verification key
-            let prover = ProverClient::new();
+            let prover = ProverClient::builder().local().build();
             let pk = rt.block_on(prover.setup(Arc::from(&elf[..])));
 
             // Print the verification key hash

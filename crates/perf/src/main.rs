@@ -1,5 +1,6 @@
 use std::{
     env,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -179,8 +180,6 @@ fn main() {
             let private_key = env::var("SP1_PRIVATE_KEY")
                 .expect("SP1_PRIVATE_KEY must be set for remote proving");
             let rpc_url = env::var("PROVER_NETWORK_RPC").ok();
-            let skip_simulation =
-                env::var("SKIP_SIMULATION").map(|val| val == "true").unwrap_or_default();
 
             let mut prover_builder = ProverClient::builder().network();
 
@@ -188,21 +187,22 @@ fn main() {
                 prover_builder = prover_builder.rpc_url(rpc_url);
             }
 
-            if skip_simulation {
-                prover_builder = prover_builder.skip_simulation();
-            }
+            let pk = Arc::new(pk);
+            let vk = Arc::new(vk);
 
             let prover = prover_builder.private_key(private_key).build();
-            let (_, _) = time_operation(|| prover.execute(&elf, stdin.clone()));
+            let (_, _) = time_operation(|| prover.execute(Arc::from(&elf[..]), stdin.clone()));
 
             let (proof, _) =
                 time_operation(|| prover.prove(&pk, stdin.clone()).groth16().run().unwrap());
+            let proof = Arc::new(proof);
 
-            let (_, _) = time_operation(|| prover.verify(&proof, &vk));
+            let (_, _) = time_operation(|| prover.verify(proof, vk.clone()));
 
             let (proof, _) = time_operation(|| prover.prove(&pk, stdin).plonk().run().unwrap());
+            let proof = Arc::new(proof);
 
-            let (_, _) = time_operation(|| prover.verify(&proof, &vk));
+            let (_, _) = time_operation(|| prover.verify(proof, vk));
         }
         ProverMode::Mock => unreachable!(),
     };

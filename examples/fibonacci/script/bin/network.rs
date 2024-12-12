@@ -27,14 +27,8 @@ async fn main() {
     let private_key = std::env::var("SP1_PRIVATE_KEY").unwrap();
 
 
-    // let client = ProverClient::builder().local().build();
-
-    // Or use old env var behavior
-
     let client = ProverClient::builder()
         .from_env();
-
-    // let client = ProverClient::new();
 
     // Generate the proof, using the specified network configuration.
     let client = ProverClient::builder()
@@ -50,9 +44,9 @@ async fn main() {
     let proof_result = client
         .prove(&pk, stdin)
         .compressed()
-        .timeout(10000)
+        .timeout(10)
+        .cycle_limit(20_000)
         .await;
-
 
     // Example of handling potential errors.
     let mut proof = match proof_result {

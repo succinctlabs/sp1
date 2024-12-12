@@ -41,13 +41,13 @@ pub use crate::network_v2::NetworkProver;
 
 #[cfg(feature = "network-v2")]
 #[path = "network-v2/mod.rs"]
-pub mod network_v2;/// The default timeout seconds for a proof request to be generated (4 hours).
+pub mod network_v2;
+/// The default timeout seconds for a proof request to be generated (4 hours).
 ///
 pub const DEFAULT_TIMEOUT: u64 = 14400;
 
 /// The default cycle limit for a proof request.
 pub const DEFAULT_CYCLE_LIMIT: u64 = 100_000_000;
-
 
 pub struct ProofOpts {
     pub mode: Mode,
