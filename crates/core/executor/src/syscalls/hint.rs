@@ -1,4 +1,5 @@
 use super::{Syscall, SyscallCode, SyscallContext};
+use std::collections::VecDeque;
 
 pub(crate) struct HintLenSyscall;
 
@@ -10,14 +11,7 @@ impl Syscall for HintLenSyscall {
         _arg1: u32,
         _arg2: u32,
     ) -> Option<u32> {
-        if ctx.rt.state.input_stream_ptr >= ctx.rt.state.input_stream.len() {
-            panic!(
-                "failed reading stdin due to insufficient input data: input_stream_ptr={}, input_stream_len={}",
-                ctx.rt.state.input_stream_ptr,
-                ctx.rt.state.input_stream.len()
-            );
-        }
-        Some(ctx.rt.state.input_stream[ctx.rt.state.input_stream_ptr].len() as u32)
+        Some(next_len_or_panic(&ctx.rt.state.input_stream))
     }
 }
 
@@ -25,18 +19,15 @@ pub(crate) struct HintReadSyscall;
 
 impl Syscall for HintReadSyscall {
     fn execute(&self, ctx: &mut SyscallContext, _: SyscallCode, ptr: u32, len: u32) -> Option<u32> {
-        if ctx.rt.state.input_stream_ptr >= ctx.rt.state.input_stream.len() {
-            panic!(
-                "failed reading stdin due to insufficient input data: input_stream_ptr={}, input_stream_len={}",
-                ctx.rt.state.input_stream_ptr,
-                ctx.rt.state.input_stream.len()
-            );
-        }
-        let vec = &ctx.rt.state.input_stream[ctx.rt.state.input_stream_ptr];
-        ctx.rt.state.input_stream_ptr += 1;
+        let _ = next_len_or_panic(&ctx.rt.state.input_stream);
+
+        // SAFTEY: We check if we have a vec in the input stream in the previous line.
+        let vec = unsafe { ctx.rt.state.input_stream.pop_front().unwrap_unchecked() };
+
         assert!(!ctx.rt.unconstrained, "hint read should not be used in a unconstrained block");
         assert_eq!(vec.len() as u32, len, "hint input stream read length mismatch");
         assert_eq!(ptr % 4, 0, "hint read address not aligned to 4 bytes");
+
         // Iterate through the vec in 4-byte chunks
         for i in (0..len).step_by(4) {
             // Get each byte in the chunk
@@ -60,4 +51,10 @@ impl Syscall for HintReadSyscall {
         }
         None
     }
+}
+
+fn next_len_or_panic(queue: &VecDeque<Vec<u8>>) -> u32 {
+    queue.front().map(|vec| vec.len() as u32).unwrap_or_else(|| {
+        panic!("Syscall Hint Len failed becasue the input stream is exhausted");
+    })
 }

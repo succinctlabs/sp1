@@ -18,8 +18,14 @@ pub type BoxedHook<'a> = Arc<RwLock<dyn Hook + Send + Sync + 'a>>;
 pub const FD_K1_ECRECOVER_HOOK: u32 = 5;
 /// The file descriptor through which to access `hook_r1_ecrecover`.
 pub const FD_R1_ECRECOVER_HOOK: u32 = 6;
+
+// 7 is used in main
+
 /// The file descriptor through which to access `hook_ed_decompress`.
 pub const FD_EDDECOMPRESS: u32 = 8;
+
+/// The file descriptor through which to access `hook_rsa_mul_mod`.
+pub const FD_RSA_MUL_MOD: u32 = 9;
 
 /// A runtime hook. May be called during execution by writing to a specified file descriptor,
 /// accepting and returning arbitrary data.
@@ -221,6 +227,11 @@ pub fn hook_r1_ecrecover(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
     let s_inverse = s.invert();
 
     vec![vec![1], bytes.to_vec(), s_inverse.to_bytes().to_vec()]
+}
+
+#[must_use]
+pub fn hook_rsa_mul_mod(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
+
 }
 
 #[cfg(test)]
