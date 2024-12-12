@@ -108,11 +108,12 @@ fn main() {
 
     // First, check that the current shrink shape is compatible with the compress shape choice
     // arising from the tuning process above.
+
+    // TODO: set the join program map to empty.
     assert!({
         prover.compress_shape_config = Some(RecursionShapeConfig::from_hash_map(&answer));
         catch_unwind(AssertUnwindSafe(|| {
             prover.shrink_prover.setup(&prover.program_from_shape(
-                true,
                 sp1_prover::shapes::SP1CompressProgramShape::from_proof_shape(
                     SP1ProofShape::Shrink(OrderedShape {
                         inner: answer.clone().into_iter().collect::<Vec<_>>(),
@@ -136,7 +137,6 @@ fn main() {
                 prover.compress_shape_config = Some(RecursionShapeConfig::from_hash_map(&answer));
                 done = catch_unwind(AssertUnwindSafe(|| {
                     prover.shrink_prover.setup(&prover.program_from_shape(
-                        true,
                         sp1_prover::shapes::SP1CompressProgramShape::from_proof_shape(
                             SP1ProofShape::Shrink(OrderedShape {
                                 inner: answer.clone().into_iter().collect::<Vec<_>>(),

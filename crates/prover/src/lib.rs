@@ -351,7 +351,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                     let compress_shape = SP1CompressProgramShape::Recursion(recursion_shape);
 
                     // Insert the program into the cache.
-                    self.program_from_shape(false, compress_shape, None);
+                    self.program_from_shape(compress_shape, None);
                 }
             }
 
@@ -477,10 +477,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                         &mut witness_stream,
                                     );
 
-                                    (
-                                        self.compress_program(false, &input_with_merkle),
-                                        witness_stream,
-                                    )
+                                    (self.compress_program(&input_with_merkle), witness_stream)
                                 }
                             });
 
@@ -974,12 +971,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
     pub fn compress_program(
         &self,
-        shape_tuning: bool, // TODO: document, eugene says its a boolean used for when you're tryning to find the recursion shapes.
         input: &SP1CompressWithVKeyWitnessValues<InnerSC>,
     ) -> Arc<RecursionProgram<BabyBear>> {
-        if self.compress_shape_config.is_some() && !shape_tuning {
-            self.join_programs_map.get(&input.shape()).map(Clone::clone).unwrap()
-        } else {
+        self.join_programs_map.get(&input.shape()).cloned().unwrap_or_else(|| {
+            tracing::warn!("join program not found in map, recomputing join program.");
             // Get the operations.
             Arc::new(compress_program_from_input::<C>(
                 self.compress_shape_config.as_ref(),
@@ -987,7 +982,18 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 self.vk_verification,
                 input,
             ))
-        }
+        })
+        // if self.compress_shape_config.is_some() && !shape_tuning {
+        //     self.join_programs_map.get(&input.shape()).map(Clone::clone).unwrap()
+        // } else {
+        //     // Get the operations.
+        //     Arc::new(compress_program_from_input::<C>(
+        //         self.compress_shape_config.as_ref(),
+        //         &self.compress_prover,
+        //         self.vk_verification,
+        //         input,
+        //     ))
+        // }
     }
 
     pub fn shrink_program(
