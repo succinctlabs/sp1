@@ -17,7 +17,7 @@ pub const DEFAULT_CYCLE_LIMIT: u64 = 100_000_000;
 
 pub struct DynProofRequest<'a> {
     prover: &'a dyn Prover,
-    pk: Arc<SP1ProvingKey>,
+    pk: &'a Arc<SP1ProvingKey>,
     stdin: SP1Stdin,
     opts: ProofOpts,
 }
@@ -25,7 +25,7 @@ pub struct DynProofRequest<'a> {
 impl<'a> DynProofRequest<'a> {
     pub fn new(
         prover: &'a dyn Prover,
-        pk: Arc<SP1ProvingKey>,
+        pk: &'a Arc<SP1ProvingKey>,
         stdin: SP1Stdin,
         opts: ProofOpts,
     ) -> Self {
@@ -73,6 +73,6 @@ impl<'a> IntoFuture for DynProofRequest<'a> {
     type IntoFuture = Pin<Box<dyn Future<Output = Self::Output> + Send + 'a>>;
 
     fn into_future(self) -> Self::IntoFuture {
-        self.prover.prove_with_options(&self.pk, self.stdin, self.opts)
+        self.prover.prove_with_options(self.pk, self.stdin, self.opts)
     }
 }

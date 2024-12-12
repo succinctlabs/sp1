@@ -63,7 +63,7 @@ impl ProverClient {
         self.inner.execute(elf, stdin).await
     }
 
-    pub fn prove<'a>(&'a self, pk: Arc<SP1ProvingKey>, stdin: SP1Stdin) -> DynProofRequest<'a> {
+    pub fn prove<'a>(&'a self, pk: &'a Arc<SP1ProvingKey>, stdin: SP1Stdin) -> DynProofRequest<'a> {
         DynProofRequest::new(&*self.inner, pk, stdin, ProofOpts::default())
     }
 

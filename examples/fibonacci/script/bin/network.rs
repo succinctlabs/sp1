@@ -39,8 +39,8 @@ async fn main() {
     // Generate the proof, using the specified network configuration.
     let client = ProverClient::builder()
         .network()
-        .with_rpc_url(rpc_url)
-        .with_private_key(private_key)
+        .rpc_url(rpc_url)
+        .private_key(private_key)
         .build();
 
     // Generate the proving key and verifying key for the given program.
@@ -48,11 +48,10 @@ async fn main() {
 
     // Generate the proof.
     let proof_result = client
-        .prove(pk, stdin)
+        .prove(&pk, stdin)
         .compressed()
         .await;
 
-    let prover = NetworkProver::with
 
     // Example of handling potential errors.
     let mut proof = match proof_result {

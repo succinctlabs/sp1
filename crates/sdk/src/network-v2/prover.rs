@@ -78,7 +78,11 @@ impl NetworkProver {
     }
 
     /// Create a new proof request.
-    pub fn prove(&self, pk: &Arc<SP1ProvingKey>, stdin: SP1Stdin) -> NetworkProofRequest {
+    pub fn prove<'a>(
+        &'a self,
+        pk: &'a Arc<SP1ProvingKey>,
+        stdin: SP1Stdin,
+    ) -> NetworkProofRequest<'a> {
         NetworkProofRequest::new(self, pk, stdin)
     }
 

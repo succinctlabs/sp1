@@ -46,7 +46,11 @@ impl LocalProver {
         &self.prover
     }
 
-    pub fn prove(&self, pk: &Arc<SP1ProvingKey>, stdin: SP1Stdin) -> LocalProofRequest {
+    pub fn prove<'a>(
+        &'a self,
+        pk: &'a Arc<SP1ProvingKey>,
+        stdin: SP1Stdin,
+    ) -> LocalProofRequest<'a> {
         LocalProofRequest::new(self, &pk, stdin)
     }
 }
@@ -132,28 +136,13 @@ impl<'a> LocalProofRequest<'a> {
         self.sp1_prover_opts = opts;
         self
     }
-
-    pub fn run(self) -> Result<SP1ProofWithPublicValues> {
-        let context = SP1Context::default();
-        Self::run_inner(
-            &self.prover.prover,
-            &**self.pk,
-            self.stdin,
-            self.mode,
-            self.timeout,
-            self.version,
-            self.sp1_prover_opts,
-        )
-    }
-}
-
-impl LocalProver {
     fn run_inner(
         prover: &SP1Prover<DefaultProverComponents>,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
         mode: Mode,
         timeout: u64,
+        cycle_limit: u64,
         version: String,
         sp1_prover_opts: SP1ProverOpts,
     ) -> Result<SP1ProofWithPublicValues> {
@@ -232,6 +221,20 @@ impl LocalProver {
         }
 
         unreachable!()
+    }
+
+    pub fn run(self) -> Result<SP1ProofWithPublicValues> {
+        let context = SP1Context::default();
+        Self::run_inner(
+            &self.prover.prover,
+            &**self.pk,
+            self.stdin,
+            self.mode,
+            self.timeout,
+            self.cycle_limit,
+            self.version,
+            self.sp1_prover_opts,
+        )
     }
 }
 
@@ -333,10 +336,19 @@ impl Default for LocalProver {
 
 impl<'a> IntoFuture for LocalProofRequest<'a> {
     type Output = Result<SP1ProofWithPublicValues>;
-    type IntoFuture = Pin<Box<dyn Future<Output = Self::Output>>>;
+    type IntoFuture = Pin<Box<dyn Future<Output = Self::Output> + Send>>;
 
     fn into_future(self) -> Self::IntoFuture {
-        let LocalProofRequest { prover, pk, stdin, mode, timeout, version, sp1_prover_opts } = self;
+        let LocalProofRequest {
+            prover,
+            pk,
+            stdin,
+            mode,
+            timeout,
+            cycle_limit,
+            version,
+            sp1_prover_opts,
+        } = self;
 
         let pk = Arc::clone(pk);
         let prover = prover.prover.clone();
@@ -349,6 +361,7 @@ impl<'a> IntoFuture for LocalProofRequest<'a> {
                     stdin,
                     mode,
                     timeout,
+                    cycle_limit,
                     version,
                     sp1_prover_opts,
                 )
