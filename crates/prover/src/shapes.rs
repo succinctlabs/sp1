@@ -336,7 +336,6 @@ impl SP1ProofShape {
         core_shape_config
             .all_shapes()
             .map(Self::Recursion)
-            .take(0)
             .chain((1..=reduce_batch_size).flat_map(|batch_size| {
                 // Weird that we do 1..=reduce_batch_size and also.
                 recursion_shape_config.get_all_shape_combinations(batch_size).map(Self::Compress)
