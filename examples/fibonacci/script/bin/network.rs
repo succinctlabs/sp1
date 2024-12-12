@@ -21,14 +21,13 @@ async fn main() {
     let mut stdin = SP1Stdin::new();
     stdin.write(&n);
 
-    dotenv().ok();
+    // dotenv().ok();
 
-    let rpc_url = std::env::var("PROVER_NETWORK_RPC").unwrap();
-    let private_key = std::env::var("SP1_PRIVATE_KEY").unwrap();
+    // let rpc_url = std::env::var("PROVER_NETWORK_RPC").unwrap();
+    // let private_key = std::env::var("SP1_PRIVATE_KEY").unwrap();
 
-
-    let client = ProverClient::builder()
-        .from_env();
+    // let client = ProverClient::builder()
+    //     .from_env();
 
     // Generate the proof, using the specified network configuration.
     let client = ProverClient::builder()
@@ -44,7 +43,7 @@ async fn main() {
     let proof_result = client
         .prove(&pk, stdin)
         .compressed()
-        .timeout(10)
+        .timeout(100)
         .cycle_limit(20_000)
         .await;
 

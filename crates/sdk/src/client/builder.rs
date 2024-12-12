@@ -35,7 +35,7 @@ impl ProverClientBuilder<None> {
     }
 
     pub fn from_env(self) -> ProverClient {
-        ProverClient::create_from_env()
+        ProverClient::from_env()
     }
 }
 

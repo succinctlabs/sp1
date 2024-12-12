@@ -33,10 +33,10 @@ impl ProverClient {
 
     #[deprecated(note = "Use ProverClient::builder() instead")]
     pub fn new() -> Self {
-        Self::create_from_env()
+        Self::from_env()
     }
 
-    fn create_from_env() -> Self {
+    fn from_env() -> Self {
         #[cfg(feature = "network-v2")]
         match std::env::var("SP1_PROVER").unwrap_or("local".to_string()).as_str() {
             "network" => {
