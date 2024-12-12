@@ -97,6 +97,9 @@ extern "C" {
     /// Allocates a buffer aligned to the given alignment.
     pub fn sys_alloc_aligned(bytes: usize, align: usize) -> *mut u8;
 
+    /// Allocates from the reserved memory section
+    pub fn sys_alloc_reserved(bytes: usize, align: usize) -> *mut u8;
+
     /// Decompresses a BLS12-381 point.
     pub fn syscall_bls12381_decompress(point: &mut [u8; 96], is_odd: bool);
 

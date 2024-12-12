@@ -11,46 +11,44 @@ struct FreeBlock {
     next: Option<NonNull<FreeBlock>>,
 }
 
-/// A simple heap allocator with free list.
+// Global free list head stored as raw pointer value
+static FREE_LIST_HEAD: AtomicUsize = AtomicUsize::new(0);
+
+/// A simple heap allocator that supports freeing memory.
 ///
-/// Uses a first-fit strategy with coalescing of adjacent free blocks.
-/// Designed for single-threaded embedded systems with a memory limit of 0x78000000.
-pub struct SimpleAlloc {
-    head: AtomicUsize,  // Stores the raw pointer value of the head FreeBlock
-}
+/// Uses a first-fit strategy for allocation and maintains a free list
+/// for memory reuse. Designed for single-threaded embedded systems
+/// with a memory limit of 0x78000000.
+#[derive(Copy, Clone)]
+pub struct SimpleAlloc;
 
-// SAFETY: The allocator is thread-safe due to atomic operations
-unsafe impl Sync for SimpleAlloc {}
-
+// Implementation detail functions
 impl SimpleAlloc {
-    const fn new() -> Self {
-        Self {
-            head: AtomicUsize::new(0),
-        }
-    }
-
-    unsafe fn add_free_block(&self, ptr: *mut u8, size: usize) {
+    unsafe fn add_free_block(ptr: *mut u8, size: usize) {
         let block = ptr as *mut FreeBlock;
         (*block).size = size;
 
         loop {
-            let current_head = self.head.load(Ordering::Relaxed);
+            let current_head = FREE_LIST_HEAD.load(Ordering::Relaxed);
             (*block).next = NonNull::new(current_head as *mut FreeBlock);
 
-            if self.head.compare_exchange(
-                current_head,
-                block as usize,
-                Ordering::Release,
-                Ordering::Relaxed,
-            ).is_ok() {
+            if FREE_LIST_HEAD
+                .compare_exchange(
+                    current_head,
+                    block as usize,
+                    Ordering::Release,
+                    Ordering::Relaxed,
+                )
+                .is_ok()
+            {
                 break;
             }
         }
     }
 
-    unsafe fn find_block(&self, size: usize, align: usize) -> Option<(*mut u8, usize)> {
+    unsafe fn find_block(size: usize, align: usize) -> Option<(*mut u8, usize)> {
         let mut prev: Option<*mut FreeBlock> = None;
-        let mut current_ptr = self.head.load(Ordering::Acquire) as *mut FreeBlock;
+        let mut current_ptr = FREE_LIST_HEAD.load(Ordering::Acquire) as *mut FreeBlock;
 
         while !current_ptr.is_null() {
             let addr = current_ptr as *mut u8;
@@ -64,7 +62,7 @@ impl SimpleAlloc {
                 match prev {
                     Some(p) => (*p).next = next,
                     None => {
-                        self.head.store(next_raw, Ordering::Release);
+                        FREE_LIST_HEAD.store(next_raw, Ordering::Release);
                     }
                 }
                 return Some((aligned_addr, (*current_ptr).size));
@@ -82,7 +80,7 @@ unsafe impl GlobalAlloc for SimpleAlloc {
         let align = layout.align();
 
         // Try to find a block in free list
-        if let Some((ptr, _)) = self.find_block(size, align) {
+        if let Some((ptr, _)) = Self::find_block(size, align) {
             return ptr;
         }
 
@@ -92,9 +90,10 @@ unsafe impl GlobalAlloc for SimpleAlloc {
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
         let size = layout.size().max(core::mem::size_of::<FreeBlock>());
-        self.add_free_block(ptr, size);
+        Self::add_free_block(ptr, size);
     }
 }
 
-#[global_allocator]
-static ALLOCATOR: SimpleAlloc = SimpleAlloc::new();
+#[used]
+#[no_mangle]
+pub static HEAP_ALLOCATOR: SimpleAlloc = SimpleAlloc;
