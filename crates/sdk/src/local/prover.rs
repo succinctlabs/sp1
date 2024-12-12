@@ -381,7 +381,7 @@ impl LocalProverBuilder {
         Self { timeout: None, cycle_limit: None }
     }
 
-    pub fn timeout(mut self, timeout: u64) -> Self {
+    pub fn with_timeout(mut self, timeout: u64) -> Self {
         self.timeout = Some(timeout);
         self
     }

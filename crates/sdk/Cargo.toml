@@ -20,7 +20,7 @@ reqwest = { version = "0.12.4", default-features = false, features = [
   "rustls-tls",
   "trust-dns",
   "stream",
-], optional = true }
+] }
 anyhow = "1.0.83"
 sp1-prover = { workspace = true }
 sp1-core-machine = { workspace = true }
@@ -67,7 +67,6 @@ network-v2 = [
   "dep:alloy-signer-local",
   "dep:alloy-primitives",
   "dep:alloy-signer",
-  "dep:reqwest",
   "dep:twirp",
   "dep:reqwest-middleware",
   "dep:tonic",

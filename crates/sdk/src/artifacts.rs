@@ -2,7 +2,6 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 
-#[cfg(feature = "network-v2")]
 use {
     futures::StreamExt,
     indicatif::{ProgressBar, ProgressStyle},

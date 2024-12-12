@@ -11,7 +11,10 @@ use sp1_core_executor::{ExecutionError, ExecutionReport};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_primitives::io::SP1PublicValues;
 use sp1_prover::{SP1ProvingKey, SP1VerifyingKey};
-use std::{env, sync::Arc};
+use std::sync::Arc;
+
+#[cfg(feature = "network-v2")]
+use std::env;
 
 mod request;
 pub use request::DynProofRequest;

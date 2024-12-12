@@ -48,13 +48,6 @@ pub struct NetworkProver {
     cycles_limit: u64,
 }
 
-pub struct NetworkProverBuilder {
-    rpc_url: Option<String>,
-    private_key: Option<String>,
-    timeout: Option<u64>,
-    cycle_limit: Option<u64>,
-}
-
 impl NetworkProver {
     /// Creates a new [`NetworkProver`] with the given private private_key.
     /// This function uses default timeout and cycle limit.
@@ -217,60 +210,6 @@ impl NetworkProver {
     }
 }
 
-#[allow(clippy::new_without_default)]
-impl NetworkProverBuilder {
-    /// Creates a new network prover builder.
-    pub fn new() -> Self {
-        Self { rpc_url: None, private_key: None, timeout: None, cycle_limit: None }
-    }
-
-    /// Sets the RPC URL for the prover network.
-    ///
-    /// This configures the endpoint that will be used for all network operations.
-    /// If not set, the default RPC URL will be used.
-    pub fn rpc_url(mut self, url: String) -> Self {
-        self.rpc_url = Some(url);
-        self
-    }
-
-    /// Sets the private key to use for the prover network.
-    ///
-    /// This is required and must be set before building the prover.
-    pub fn private_key(mut self, key: String) -> Self {
-        self.private_key = Some(key);
-        self
-    }
-
-    /// Sets the timeout for proof requests.
-    ///
-    /// This is the maximum amount of time to wait for the request to be fulfilled.
-    pub fn with_timeout(mut self, timeout: u64) -> Self {
-        self.timeout = Some(timeout);
-        self
-    }
-
-    /// Sets the cycle limit for proof requests.
-    ///
-    /// This is the maximum number of cycles to allow for the execution of the request.
-    pub fn with_cycle_limit(mut self, cycle_limit: u64) -> Self {
-        self.cycle_limit = Some(cycle_limit);
-        self
-    }
-
-    /// Builds the prover with the given configuration.
-    pub fn build(self) -> NetworkProver {
-        NetworkProver {
-            prover: Arc::new(SP1Prover::new()),
-            network_client: NetworkClient::new(
-                &self.private_key.expect("A private key set on the builder"),
-            )
-            .rpc_url(self.rpc_url.unwrap_or(DEFAULT_PROVER_NETWORK_RPC.to_string())),
-            timeout: self.timeout.unwrap_or(DEFAULT_TIMEOUT),
-            cycles_limit: self.cycle_limit.unwrap_or(DEFAULT_CYCLE_LIMIT),
-        }
-    }
-}
-
 pub struct NetworkProofRequest<'a> {
     prover: &'a NetworkProver,
     pk: &'a SP1ProvingKey,
@@ -323,17 +262,17 @@ impl<'a> NetworkProofRequest<'a> {
         self
     }
 
-    pub fn with_version(mut self, version: String) -> Self {
+    pub fn version(mut self, version: String) -> Self {
         self.version = version;
         self
     }
 
-    pub fn with_timeout(mut self, timeout: u64) -> Self {
+    pub fn timeout(mut self, timeout: u64) -> Self {
         self.timeout = timeout;
         self
     }
 
-    pub fn with_cycle_limit(mut self, cycle_limit: u64) -> Self {
+    pub fn cycle_limit(mut self, cycle_limit: u64) -> Self {
         self.cycle_limit = Some(cycle_limit);
         self
     }
@@ -343,7 +282,7 @@ impl<'a> NetworkProofRequest<'a> {
         self
     }
 
-    pub fn with_strategy(mut self, strategy: FulfillmentStrategy) -> Self {
+    pub fn strategy(mut self, strategy: FulfillmentStrategy) -> Self {
         self.strategy = strategy;
         self
     }
@@ -434,8 +373,8 @@ impl Prover for NetworkProver {
     ) -> Result<SP1ProofWithPublicValues> {
         self.prove(pk, stdin)
             .with_mode(opts.mode)
-            .with_timeout(opts.timeout)
-            .with_cycle_limit(opts.cycle_limit)
+            .timeout(opts.timeout)
+            .cycle_limit(opts.cycle_limit)
             .await
     }
 
@@ -448,8 +387,8 @@ impl Prover for NetworkProver {
     ) -> Result<SP1ProofWithPublicValues> {
         self.prove(pk, stdin)
             .with_mode(opts.mode)
-            .with_timeout(opts.timeout)
-            .with_cycle_limit(opts.cycle_limit)
+            .timeout(opts.timeout)
+            .cycle_limit(opts.cycle_limit)
             .run()
     }
 
@@ -480,6 +419,68 @@ impl<'a> IntoFuture for NetworkProofRequest<'a> {
 
     fn into_future(self) -> Self::IntoFuture {
         Box::pin(async move { self.run_inner().await })
+    }
+}
+
+pub struct NetworkProverBuilder {
+    rpc_url: Option<String>,
+    private_key: Option<String>,
+    timeout: Option<u64>,
+    cycle_limit: Option<u64>,
+}
+
+
+#[allow(clippy::new_without_default)]
+impl NetworkProverBuilder {
+    /// Creates a new network prover builder.
+    pub fn new() -> Self {
+        Self { rpc_url: None, private_key: None, timeout: None, cycle_limit: None }
+    }
+
+    /// Sets the RPC URL for the prover network.
+    ///
+    /// This configures the endpoint that will be used for all network operations.
+    /// If not set, the default RPC URL will be used.
+    pub fn rpc_url(mut self, url: String) -> Self {
+        self.rpc_url = Some(url);
+        self
+    }
+
+    /// Sets the private key to use for the prover network.
+    ///
+    /// This is required and must be set before building the prover.
+    pub fn private_key(mut self, key: String) -> Self {
+        self.private_key = Some(key);
+        self
+    }
+
+    /// Sets the timeout for proof requests.
+    ///
+    /// This is the maximum amount of time to wait for the request to be fulfilled.
+    pub fn with_timeout(mut self, timeout: u64) -> Self {
+        self.timeout = Some(timeout);
+        self
+    }
+
+    /// Sets the cycle limit for proof requests.
+    ///
+    /// This is the maximum number of cycles to allow for the execution of the request.
+    pub fn with_cycle_limit(mut self, cycle_limit: u64) -> Self {
+        self.cycle_limit = Some(cycle_limit);
+        self
+    }
+
+    /// Builds the prover with the given configuration.
+    pub fn build(self) -> NetworkProver {
+        NetworkProver {
+            prover: Arc::new(SP1Prover::new()),
+            network_client: NetworkClient::new(
+                &self.private_key.expect("A private key set on the builder"),
+            )
+            .rpc_url(self.rpc_url.unwrap_or(DEFAULT_PROVER_NETWORK_RPC.to_string())),
+            timeout: self.timeout.unwrap_or(DEFAULT_TIMEOUT),
+            cycles_limit: self.cycle_limit.unwrap_or(DEFAULT_CYCLE_LIMIT),
+        }
     }
 }
 
