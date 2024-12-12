@@ -86,6 +86,11 @@ impl<'a> LocalProofRequest<'a> {
         }
     }
 
+    pub fn mode(mut self, mode: Mode) -> Self {
+        self.mode = mode;
+        self
+    }
+
     pub fn core(mut self) -> Self {
         self.mode = Mode::Core;
         self
@@ -270,25 +275,12 @@ impl Prover for LocalProver {
         stdin: SP1Stdin,
         opts: ProofOpts,
     ) -> Result<SP1ProofWithPublicValues> {
-        let mut req = self.prove(pk, stdin);
-
-        if let Some(mode) = opts.mode {
-            req.mode = mode;
-        }
-
-        if let Some(timeout) = opts.timeout {
-            req.timeout = timeout;
-        }
-
-        if let Some(version) = opts.version {
-            req.version = version;
-        }
-
-        if let Some(sp1_prover_opts) = opts.sp1_prover_opts {
-            req.sp1_prover_opts = sp1_prover_opts;
-        }
-
-        req.await
+        self.prove(&pk, stdin)
+            .mode(opts.mode)
+            .with_timeout(opts.timeout)
+            .with_version(opts.version)
+            .with_sp1_prover_opts(opts.sp1_prover_opts)
+            .await
     }
 
     #[cfg(feature = "blocking")]
@@ -298,25 +290,12 @@ impl Prover for LocalProver {
         stdin: SP1Stdin,
         opts: ProofOpts,
     ) -> Result<SP1ProofWithPublicValues> {
-        let mut req = self.prove(pk, stdin);
-
-        if let Some(mode) = opts.mode {
-            req.mode = mode;
-        }
-
-        if let Some(timeout) = opts.timeout {
-            req.timeout = timeout;
-        }
-
-        if let Some(version) = opts.version {
-            req.version = version;
-        }
-
-        if let Some(sp1_prover_opts) = opts.sp1_prover_opts {
-            req.sp1_prover_opts = sp1_prover_opts;
-        }
-
-        req.run()
+        self.prove(&pk, stdin)
+            .mode(opts.mode)
+            .with_timeout(opts.timeout)
+            .with_version(opts.version)
+            .with_sp1_prover_opts(opts.sp1_prover_opts)
+            .run()
     }
 
     async fn verify(
