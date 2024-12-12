@@ -11,6 +11,9 @@ use sp1_prover::{components::DefaultProverComponents, SP1Prover, SP1_CIRCUIT_VER
 use sp1_prover::{SP1ProvingKey, SP1VerifyingKey};
 use std::future::{Future, IntoFuture};
 use std::sync::Arc;
+
+// The network client is async, so we need a runtime to block on
+#[cfg(feature = "blocking")]
 use tokio::runtime::Runtime;
 use tokio::task;
 use tokio::time::sleep;
@@ -358,7 +361,8 @@ impl<'a> NetworkProofRequest<'a> {
         self.strategy = strategy;
         self
     }
-
+    
+    #[cfg(feature = "blocking")]
     pub fn run(self) -> Result<SP1ProofWithPublicValues> {
         Runtime::new().unwrap().block_on(async move { self.run_inner().await })
     }

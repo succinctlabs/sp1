@@ -177,7 +177,8 @@ impl<'a> LocalProofRequest<'a> {
         self.prover_ops = opts;
         self
     }
-
+    
+    #[cfg(feature = "blocking")]
     pub fn run(self) -> Result<SP1ProofWithPublicValues> {
         Self::run_inner(
             &self.prover.prover,
@@ -193,7 +194,7 @@ impl<'a> LocalProofRequest<'a> {
 }
 
 impl<'a> LocalProofRequest<'a> {
-    #[allow(clippy::too_many_arguments)
+    #[allow(clippy::too_many_arguments)]
     fn run_inner(
         prover: &SP1Prover<DefaultProverComponents>,
         pk: &SP1ProvingKey,
