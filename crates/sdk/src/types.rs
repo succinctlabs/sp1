@@ -1,8 +1,8 @@
 use sp1_stark::MachineVerificationError;
 use thiserror::Error;
 use std::sync::Arc;
-use serde::{Serialize, Deserialize};
 use crate::{DEFAULT_TIMEOUT, DEFAULT_CYCLE_LIMIT, CoreSC, InnerSC};
+pub use crate::proof::SP1ProofWithPublicValues;
 
 pub use sp1_prover::SP1VerifyingKey;
 
@@ -92,41 +92,10 @@ mod proving_key {
             Self { inner: Arc::new(inner) }
         }
     }
-}
 
-#[derive(Serialize, Deserialize)]
-pub struct SP1ProofWithPublicValues {
-    pub(crate) inner: Arc<crate::proof::SP1ProofWithPublicValues>,
-}
-
-mod proof {
-    use super::*;
-
-    impl From<crate::proof::SP1ProofWithPublicValues> for SP1ProofWithPublicValues {
-        fn from(inner: crate::proof::SP1ProofWithPublicValues) -> Self {
-            Self { inner: Arc::new(inner) }
-        }
-    }
-
-    impl Clone for SP1ProofWithPublicValues {
-        fn clone(&self) -> Self {
-            Self { inner: Arc::clone(&self.inner) }
-        }
-    }
-
-    impl std::ops::Deref for SP1ProofWithPublicValues {
-        type Target = crate::proof::SP1ProofWithPublicValues;
-
-        fn deref(&self) -> &Self::Target {
-            &self.inner
-        }
-    }
-
-    impl SP1ProofWithPublicValues {
-        pub fn load(path: impl AsRef<std::path::Path>) -> anyhow::Result<Self> {
-            let inner = crate::proof::SP1ProofWithPublicValues::load(path)?;
-
-            Ok(Self { inner: Arc::new(inner) })
+    impl SP1ProvingKey {
+        pub fn verifying_key(&self) -> &SP1VerifyingKey {
+            &self.inner.vk
         }
     }
 }

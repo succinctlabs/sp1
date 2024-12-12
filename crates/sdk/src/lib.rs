@@ -50,11 +50,11 @@ pub use sp1_build::include_elf as _include_elf_inner;
 /// which case the invocation should be `include_elf!("my_entry")` instead.
 #[macro_export]
 macro_rules! include_elf {
-    ($arg:tt) => {
+    ($arg:tt) => {{
         let elf_slice = $crate::_include_elf_inner!($arg);
 
-        $crate::types::Elf::from(elf_slice)
-    };
+        $crate::types::Elf::Slice(elf_slice)
+    }};
 }
 
 pub use sp1_core_executor::{ExecutionReport, HookEnv, SP1Context, SP1ContextBuilder};

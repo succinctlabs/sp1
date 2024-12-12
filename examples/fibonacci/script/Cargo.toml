@@ -6,7 +6,7 @@ default-run = "fibonacci-script"
 publish = false
 
 [dependencies]
-sp1-sdk = { workspace = true, features = ["network-v2"] }
+sp1-sdk = { workspace = true, features = ["blocking"] }
 
 hex = "0.4.3"
 tokio = { version = "1.0", features = ["full", "macros"] }

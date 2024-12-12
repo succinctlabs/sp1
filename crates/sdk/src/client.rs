@@ -64,7 +64,7 @@ impl ProverClient {
     }
 
     #[cfg(feature = "blocking")]
-    pub async fn blocking_setup(&self, elf: &Elf) -> SP1ProvingKey {
+    pub fn setup_sync(&self, elf: &Elf) -> SP1ProvingKey {
         self.inner.setup_sync(elf)
     }
 
@@ -77,7 +77,7 @@ impl ProverClient {
     }
 
     #[cfg(feature = "blocking")]
-    pub async fn blocking_execute(
+    pub fn execute_sync(
         &self,
         elf: &Elf,
         stdin: SP1Stdin,
@@ -98,7 +98,7 @@ impl ProverClient {
     }
 
     #[cfg(feature = "blocking")]
-    pub async fn verify_sync(
+    pub fn verify_sync(
         &self,
         proof: &SP1ProofWithPublicValues,
         vk: &SP1VerifyingKey,
