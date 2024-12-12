@@ -5,7 +5,7 @@ use core::sync::atomic::{AtomicUsize, Ordering};
 use crate::syscalls::sys_alloc_aligned;
 
 /// A block in our free list
-#[repr(C)]
+#[repr(C, align(8))]
 struct FreeBlock {
     size: usize,
     next: Option<NonNull<FreeBlock>>,
