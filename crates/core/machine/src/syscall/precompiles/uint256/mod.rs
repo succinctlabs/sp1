@@ -19,7 +19,7 @@ mod tests {
     fn test_uint256_mul() {
         utils::setup_logger();
         let program = Program::from(UINT256_MUL_ELF).unwrap();
-        run_test::<CpuProver<_, _>>(program, SP1Stdin::new(), None).unwrap();
+        run_test::<CpuProver<_, _>>(program, SP1Stdin::new()).unwrap();
     }
 
     #[test]

@@ -697,7 +697,7 @@ pub mod tests {
         utils::setup_logger();
         let program = simple_program();
         let stdin = SP1Stdin::new();
-        run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
@@ -715,7 +715,7 @@ pub mod tests {
                 ];
                 let program = Program::new(instructions, 0, 0);
                 let stdin = SP1Stdin::new();
-                run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
+                run_test::<CpuProver<_, _>>(program, stdin).unwrap();
             }
         }
     }
@@ -730,7 +730,7 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let stdin = SP1Stdin::new();
-        run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
@@ -743,7 +743,7 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let stdin = SP1Stdin::new();
-        run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
@@ -761,7 +761,7 @@ pub mod tests {
                 ];
                 let program = Program::new(instructions, 0, 0);
                 let stdin = SP1Stdin::new();
-                run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
+                run_test::<CpuProver<_, _>>(program, stdin).unwrap();
             }
         }
     }
@@ -778,7 +778,7 @@ pub mod tests {
             ];
             let program = Program::new(instructions, 0, 0);
             let stdin = SP1Stdin::new();
-            run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
+            run_test::<CpuProver<_, _>>(program, stdin).unwrap();
         }
     }
 
@@ -795,7 +795,7 @@ pub mod tests {
             ];
             let program = Program::new(instructions, 0, 0);
             let stdin = SP1Stdin::new();
-            run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
+            run_test::<CpuProver<_, _>>(program, stdin).unwrap();
         }
     }
 
@@ -819,7 +819,7 @@ pub mod tests {
                 ];
                 let program = Program::new(instructions, 0, 0);
                 let stdin = SP1Stdin::new();
-                run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
+                run_test::<CpuProver<_, _>>(program, stdin).unwrap();
             }
         }
     }
@@ -829,7 +829,7 @@ pub mod tests {
         setup_logger();
         let program = fibonacci_program();
         let stdin = SP1Stdin::new();
-        run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
@@ -890,7 +890,7 @@ pub mod tests {
         setup_logger();
         let program = simple_memory_program();
         let stdin = SP1Stdin::new();
-        run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
@@ -898,7 +898,7 @@ pub mod tests {
         setup_logger();
         let program = ssz_withdrawals_program();
         let stdin = SP1Stdin::new();
-        run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]

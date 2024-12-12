@@ -21,7 +21,7 @@ mod tests {
     use sp1_core_executor::{ExecutionRecord, Instruction, Opcode, Program};
     use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, CpuProver, MachineProver, Val};
 
-    use crate::{io::SP1Stdin, riscv::RiscvAir, utils::run_test};
+    use crate::{io::SP1Stdin, riscv::RiscvAir, utils::run_malicious_test};
 
     #[test]
     fn test_malicious_beq() {
@@ -50,7 +50,7 @@ mod tests {
                 prover.generate_traces(&malicious_record)
             };
 
-        let result = run_test::<P>(program, stdin, Some(Box::new(malicious_trace_generator)));
+        let result = run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_generator));
         assert!(result.is_err() && result.unwrap_err().is_constraints_failing());
     }
 }

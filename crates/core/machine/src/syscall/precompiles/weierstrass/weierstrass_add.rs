@@ -442,7 +442,7 @@ mod tests {
         setup_logger();
         let program = Program::from(SECP256K1_ADD_ELF).unwrap();
         let stdin = SP1Stdin::new();
-        run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
@@ -450,7 +450,7 @@ mod tests {
         setup_logger();
         let program = Program::from(SECP256R1_ADD_ELF).unwrap();
         let stdin = SP1Stdin::new();
-        run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
@@ -458,7 +458,7 @@ mod tests {
         setup_logger();
         let program = Program::from(BN254_ADD_ELF).unwrap();
         let stdin = SP1Stdin::new();
-        run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
@@ -466,7 +466,7 @@ mod tests {
         setup_logger();
         let program = Program::from(BN254_MUL_ELF).unwrap();
         let stdin = SP1Stdin::new();
-        run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
@@ -474,7 +474,7 @@ mod tests {
         setup_logger();
         let program = Program::from(SECP256K1_MUL_ELF).unwrap();
         let stdin = SP1Stdin::new();
-        run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
@@ -482,7 +482,7 @@ mod tests {
         setup_logger();
         let program = Program::from(BLS12381_ADD_ELF).unwrap();
         let stdin = SP1Stdin::new();
-        run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
@@ -490,7 +490,7 @@ mod tests {
         setup_logger();
         let program = Program::from(BLS12381_DOUBLE_ELF).unwrap();
         let stdin = SP1Stdin::new();
-        run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
@@ -498,6 +498,6 @@ mod tests {
         setup_logger();
         let program = Program::from(BLS12381_MUL_ELF).unwrap();
         let stdin = SP1Stdin::new();
-        run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 }

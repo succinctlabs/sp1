@@ -101,9 +101,6 @@ where
     Com<SC>: Send + Sync,
     PcsProverData<SC>: Send + Sync,
 {
-    let reference: Option<&MaliciousTraceGeneratorType<SC::Val, P>> =
-        malicious_trace_generator.as_ref();
-
     // Setup the runtime.
     let mut runtime = Executor::with_context(program.clone(), opts, context);
     runtime.maximal_shapes = shape_config.map(|config| {
@@ -117,6 +114,10 @@ where
 
     #[cfg(feature = "debug")]
     let (all_records_tx, all_records_rx) = std::sync::mpsc::channel::<Vec<ExecutionRecord>>();
+
+    // Need to create a reference to a Box, because of the `move` below.
+    let malicious_trace_generator: Option<&MaliciousTraceGeneratorType<SC::Val, P>> =
+        malicious_trace_generator.as_ref();
 
     // Record the start of the process.
     let proving_start = Instant::now();
@@ -185,6 +186,7 @@ where
         let deferred = Arc::new(Mutex::new(ExecutionRecord::new(program.clone().into())));
         let mut p2_record_and_trace_gen_handles = Vec::new();
         let checkpoints_rx = Arc::new(Mutex::new(checkpoints_rx));
+
         for _ in 0..opts.trace_gen_workers {
             let record_gen_sync = Arc::clone(&p2_record_gen_sync);
             let trace_gen_sync = Arc::clone(&p2_trace_gen_sync);
@@ -330,8 +332,8 @@ where
                                 main_traces = records
                                     .par_iter()
                                     .map(|record| {
-                                        if reference.is_some() {
-                                            reference.unwrap()(prover, record)
+                                        if malicious_trace_generator.is_some() {
+                                            malicious_trace_generator.unwrap()(prover, record)
                                         } else {
                                             prover.generate_traces(record)
                                         }

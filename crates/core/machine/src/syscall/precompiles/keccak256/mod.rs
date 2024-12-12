@@ -62,7 +62,7 @@ pub mod permute_tests {
 
         let program = keccak_permute_program();
         let stdin = SP1Stdin::new();
-        utils::run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
+        utils::run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
@@ -70,6 +70,6 @@ pub mod permute_tests {
         utils::setup_logger();
         let program = Program::from(KECCAK_PERMUTE_ELF).unwrap();
         let stdin = SP1Stdin::new();
-        utils::run_test::<CpuProver<_, _>>(program, stdin, None).unwrap();
+        utils::run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 }
