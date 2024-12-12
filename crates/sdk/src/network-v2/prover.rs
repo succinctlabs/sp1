@@ -334,18 +334,15 @@ impl<'a> NetworkProofRequest<'a> {
     }
 
     pub fn version(mut self, version: String) -> Self {
-    pub fn version(mut self, version: String) -> Self {
         self.version = version;
         self
     }
 
     pub fn timeout(mut self, timeout: u64) -> Self {
-    pub fn timeout(mut self, timeout: u64) -> Self {
         self.timeout = timeout;
         self
     }
 
-    pub fn cycle_limit(mut self, cycle_limit: u64) -> Self {
     pub fn cycle_limit(mut self, cycle_limit: u64) -> Self {
         self.cycle_limit = Some(cycle_limit);
         self
@@ -357,11 +354,10 @@ impl<'a> NetworkProofRequest<'a> {
     }
 
     pub fn strategy(mut self, strategy: FulfillmentStrategy) -> Self {
-    pub fn strategy(mut self, strategy: FulfillmentStrategy) -> Self {
         self.strategy = strategy;
         self
     }
-    
+
     #[cfg(feature = "blocking")]
     pub fn run(self) -> Result<SP1ProofWithPublicValues> {
         Runtime::new().unwrap().block_on(async move { self.run_inner().await })

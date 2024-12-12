@@ -177,7 +177,7 @@ impl<'a> LocalProofRequest<'a> {
         self.prover_ops = opts;
         self
     }
-    
+
     #[cfg(feature = "blocking")]
     pub fn run(self) -> Result<SP1ProofWithPublicValues> {
         Self::run_inner(
@@ -408,41 +408,5 @@ impl<'a> IntoFuture for LocalProofRequest<'a> {
             .await
             .expect("To be able to join prove handle")
         })
-    }
-}
-
-pub struct LocalProverBuilder {
-    timeout: Option<u64>,
-    cycle_limit: Option<u64>,
-}
-
-impl Default for LocalProverBuilder {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl LocalProverBuilder {
-    /// Creates a new [`LocalProverBuilder`].
-    pub fn new() -> Self {
-        Self { timeout: None, cycle_limit: None }
-    }
-
-    pub fn with_timeout(mut self, timeout: u64) -> Self {
-        self.timeout = Some(timeout);
-        self
-    }
-
-    pub fn with_cycle_limit(mut self, cycle_limit: u64) -> Self {
-        self.cycle_limit = Some(cycle_limit);
-        self
-    }
-
-    pub fn build(self) -> LocalProver {
-        LocalProver {
-            prover: Arc::new(SP1Prover::new()),
-            timeout: self.timeout.unwrap_or(DEFAULT_TIMEOUT),
-            cycle_limit: self.cycle_limit.unwrap_or(DEFAULT_CYCLE_LIMIT),
-        }
     }
 }

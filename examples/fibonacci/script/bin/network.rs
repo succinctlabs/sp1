@@ -50,6 +50,7 @@ async fn main() {
     let proof_result = client
         .prove(&pk, stdin)
         .compressed()
+        .timeout(10000)
         .await;
 
 
