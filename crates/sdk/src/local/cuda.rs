@@ -1,37 +1,31 @@
 use anyhow::Result;
-use sp1_core_executor::SP1Context;
 use sp1_core_machine::io::SP1Stdin;
+use sp1_cuda::SP1CudaProver;
+use sp1_prover::SP1_CIRCUIT_VERSION;
 use sp1_prover::{components::DefaultProverComponents, SP1Prover};
 
 use crate::install::try_install_circuit_artifacts;
 use crate::{
-    provers::ProofOpts, Prover, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey,
-    SP1VerifyingKey,
+    proof::{SP1Proof, SP1ProofKind, SP1ProofWithPublicValues},
+    ProofOpts, SP1Context, SP1ProvingKey, SP1VerifyingKey,
 };
 
-use super::ProverType;
-
-/// An implementation of [crate::ProverClient] that can generate end-to-end proofs locally.
-pub struct CpuProver {
+/// An implementation of [crate::ProverClient] that can generate proofs locally using CUDA.
+pub struct CudaProver {
     prover: SP1Prover<DefaultProverComponents>,
+    cuda_prover: SP1CudaProver,
+    version: &'static str,
 }
 
-impl CpuProver {
-    /// Creates a new [LocalProver].
-    pub fn new() -> Self {
-        let prover = SP1Prover::new();
-        Self { prover }
-    }
-
-    /// Creates a new [LocalProver] from an existing [SP1Prover].
-    pub fn from_prover(prover: SP1Prover<DefaultProverComponents>) -> Self {
-        Self { prover }
-    }
-}
-
-impl Prover<DefaultProverComponents> for CpuProver {
-    fn id(&self) -> ProverType {
-        ProverType::Cpu
+impl CudaProver {
+    /// Creates a new [CudaProver].
+    pub fn new(prover: SP1Prover) -> Self {
+        let cuda_prover = SP1CudaProver::new();
+        Self {
+            prover,
+            cuda_prover: cuda_prover.expect("Failed to initialize CUDA prover"),
+            version: SP1_CIRCUIT_VERSION,
+        }
     }
 
     fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
@@ -46,19 +40,20 @@ impl Prover<DefaultProverComponents> for CpuProver {
         &'a self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
-        opts: ProofOpts,
-        context: SP1Context<'a>,
+        _opts: ProofOpts,
+        _context: SP1Context<'a>,
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {
+        tracing::warn!("opts and context are ignored for the cuda prover");
+
         // Generate the core proof.
-        let proof: sp1_prover::SP1ProofWithMetadata<sp1_prover::SP1CoreProofData> =
-            self.prover.prove_core(pk, &stdin, opts.sp1_prover_opts, context)?;
+        let proof = self.cuda_prover.prove_core(pk, &stdin)?;
         if kind == SP1ProofKind::Core {
             return Ok(SP1ProofWithPublicValues {
                 proof: SP1Proof::Core(proof.proof.0),
                 stdin: proof.stdin,
                 public_values: proof.public_values,
-                sp1_version: self.version().to_string(),
+                sp1_version: self.version.to_string(),
             });
         }
 
@@ -67,22 +62,21 @@ impl Prover<DefaultProverComponents> for CpuProver {
         let public_values = proof.public_values.clone();
 
         // Generate the compressed proof.
-        let reduce_proof =
-            self.prover.compress(&pk.vk, proof, deferred_proofs, opts.sp1_prover_opts)?;
+        let reduce_proof = self.cuda_prover.compress(&pk.vk, proof, deferred_proofs)?;
         if kind == SP1ProofKind::Compressed {
             return Ok(SP1ProofWithPublicValues {
                 proof: SP1Proof::Compressed(Box::new(reduce_proof)),
                 stdin,
                 public_values,
-                sp1_version: self.version().to_string(),
+                sp1_version: self.version.to_string(),
             });
         }
 
         // Generate the shrink proof.
-        let compress_proof = self.prover.shrink(reduce_proof, opts.sp1_prover_opts)?;
+        let compress_proof = self.cuda_prover.shrink(reduce_proof)?;
 
         // Genenerate the wrap proof.
-        let outer_proof = self.prover.wrap_bn254(compress_proof, opts.sp1_prover_opts)?;
+        let outer_proof = self.cuda_prover.wrap_bn254(compress_proof)?;
 
         if kind == SP1ProofKind::Plonk {
             let plonk_bn254_artifacts = if sp1_prover::build::sp1_dev_mode() {
@@ -94,12 +88,11 @@ impl Prover<DefaultProverComponents> for CpuProver {
                 try_install_circuit_artifacts("plonk")
             };
             let proof = self.prover.wrap_plonk_bn254(outer_proof, &plonk_bn254_artifacts);
-
             return Ok(SP1ProofWithPublicValues {
                 proof: SP1Proof::Plonk(proof),
                 stdin,
                 public_values,
-                sp1_version: self.version().to_string(),
+                sp1_version: self.version.to_string(),
             });
         } else if kind == SP1ProofKind::Groth16 {
             let groth16_bn254_artifacts = if sp1_prover::build::sp1_dev_mode() {
@@ -116,7 +109,7 @@ impl Prover<DefaultProverComponents> for CpuProver {
                 proof: SP1Proof::Groth16(proof),
                 stdin,
                 public_values,
-                sp1_version: self.version().to_string(),
+                sp1_version: self.version.to_string(),
             });
         }
 
@@ -124,8 +117,8 @@ impl Prover<DefaultProverComponents> for CpuProver {
     }
 }
 
-impl Default for CpuProver {
+impl Default for CudaProver {
     fn default() -> Self {
-        Self::new()
+        Self::new(SP1Prover::new())
     }
 }
