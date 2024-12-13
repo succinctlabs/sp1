@@ -231,6 +231,16 @@ pub fn hook_r1_ecrecover(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
     vec![vec![1], bytes.to_vec(), s_inverse.to_bytes().to_vec()]
 }
 
+/// Given the product of some 256-bit numbers and the modulus, this function does a modular
+/// reduction and hints back to the vm in order to constrain it.
+///
+/// # Arguments
+///
+/// * `env` - The environment in which the hook is invoked.
+/// * `buf` - The buffer containing the product and the modulus.
+///
+/// WANRING: This function is used to perform a modular reduction outside of the zkVM context.
+/// These values must be constrained by the zkVM for correctness.
 #[must_use]
 pub fn hook_rsa_mul_mod(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
     assert_eq!(buf.len(), 256 + 256 + 256, "rsa_mul_mod input should have length 256 + 256 + 256, this is a bug.");
@@ -244,11 +254,9 @@ pub fn hook_rsa_mul_mod(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
     let (q, rem) = prod.div_rem(&m);
 
     let mut rem = rem.to_bytes_le();
-    println!("{:?}", rem);
     rem.resize(512, 0);
 
     let mut q = q.to_bytes_le();
-    println!("{:?}", q);
     q.resize(256, 0);
 
     vec![rem, q]
