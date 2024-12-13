@@ -5,18 +5,18 @@ use crate::shape::CoreShapeConfig;
 use itertools::Itertools;
 use k256::sha2::{Digest, Sha256};
 use p3_baby_bear::BabyBear;
-use sp1_core_executor::{programs::tests::*, Executor, MaximalShapes, Program};
-use sp1_stark::SP1CoreOpts;
+use sp1_core_executor::{programs::tests::*, Executor, Program, RiscvAirId};
+use sp1_stark::{shape::Shape, SP1CoreOpts};
 
 fn execute_and_print_hashes(
     program: Program,
-    maximal_shapes: MaximalShapes,
+    maximal_shapes: &[Shape<RiscvAirId>],
     opts: SP1CoreOpts,
     emit_global_memory_events: bool,
 ) {
     // Set up the runtime.
     let mut runtime = Executor::new(program.clone(), opts);
-    runtime.maximal_shapes = Some(maximal_shapes);
+    runtime.maximal_shapes = Some(maximal_shapes.to_vec());
 
     let mut state_hashes = Vec::new();
     loop {
@@ -85,13 +85,13 @@ fn test_checkpoints() {
         // Set a low shard size and batch size to produce many checkpoints and check their consistency.
         let opts =
             SP1CoreOpts { shard_size: 1 << 10, shard_batch_size: 1, ..SP1CoreOpts::default() };
-        let maximal_shapes: MaximalShapes = shape_config
+        let maximal_shapes = shape_config
             .maximal_core_shapes(opts.shard_size.ilog2() as usize)
             .into_iter()
-            .collect::<_>();
+            .collect::<Vec<_>>();
 
-        execute_and_print_hashes(program.clone(), maximal_shapes.clone(), opts, true);
-        execute_and_print_hashes(program.clone(), maximal_shapes, opts, false);
+        execute_and_print_hashes(program.clone(), &maximal_shapes, opts, true);
+        execute_and_print_hashes(program.clone(), &maximal_shapes, opts, false);
         println!("==========================")
     }
 }

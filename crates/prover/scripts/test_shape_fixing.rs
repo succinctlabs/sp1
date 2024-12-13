@@ -29,9 +29,8 @@ fn test_shape_fixing(
 
     // Setup the executor.
     let mut executor = Executor::with_context(program, opts, context);
-    executor.maximal_shapes = Some(
-        shape_config.maximal_core_shapes(log2_ceil_usize(opts.shard_size)).into_iter().collect(),
-    );
+    executor.maximal_shapes =
+        Some(shape_config.maximal_core_shapes(log2_ceil_usize(opts.shard_size)));
     executor.write_vecs(&stdin.buffer);
     for (proof, vkey) in stdin.proofs.iter() {
         executor.write_proof(proof.clone(), vkey.clone());

@@ -194,7 +194,7 @@ impl<T: Copy> Poseidon2Cols<T> for Poseidon2Degree9Cols<T> {
 /// Convert a row to a mutable [`Poseidon2Cols`] instance.
 pub fn permutation_mut<'a, 'b: 'a, T, const DEGREE: usize>(
     row: &'b mut [T],
-) -> Box<&'b mut (dyn Poseidon2Cols<T> + 'a)>
+) -> Box<&mut (dyn Poseidon2Cols<T> + 'a)>
 where
     T: Copy,
 {

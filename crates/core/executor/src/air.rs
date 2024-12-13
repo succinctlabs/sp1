@@ -3,25 +3,19 @@ use std::{
     str::FromStr,
 };
 
-use enum_map::{Enum, EnumMap};
+use enum_map::Enum;
 use serde::{Deserialize, Serialize};
-use sp1_stark::shape::Shape;
 use strum::{EnumIter, IntoEnumIterator};
-use subenum::subenum;
 
 /// RV32IM AIR Identifiers.
 ///
 /// These identifiers are for the various chips in the rv32im prover. We need them in the
 /// executor to compute the memory cost of the current shard of execution.
-///
-/// The [`CoreAirId`]s are the AIRs that are not part of precompile shards and not the program or byte AIR.
-#[subenum(CoreAirId)]
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, EnumIter, PartialOrd, Ord, Enum,
 )]
 pub enum RiscvAirId {
     /// The CPU chip.
-    #[subenum(CoreAirId)]
     Cpu = 0,
     /// The program chip.
     Program = 1,
@@ -74,55 +68,40 @@ pub enum RiscvAirId {
     /// The bls12-381 decompress chip.
     Bls12381Decompress = 25,
     /// The syscall core chip.
-    #[subenum(CoreAirId)]
     SyscallCore = 26,
     /// The syscall precompile chip.
     SyscallPrecompile = 27,
     /// The div rem chip.
-    #[subenum(CoreAirId)]
     DivRem = 28,
     /// The add sub chip.
-    #[subenum(CoreAirId)]
     AddSub = 29,
     /// The bitwise chip.
-    #[subenum(CoreAirId)]
     Bitwise = 30,
     /// The mul chip.
-    #[subenum(CoreAirId)]
     Mul = 31,
     /// The shift right chip.
-    #[subenum(CoreAirId)]
     ShiftRight = 32,
     /// The shift left chip.
-    #[subenum(CoreAirId)]
     ShiftLeft = 33,
     /// The lt chip.
-    #[subenum(CoreAirId)]
     Lt = 34,
     /// The memory instructions chip.
-    #[subenum(CoreAirId)]
     MemoryInstrs = 35,
     /// The auipc chip.
-    #[subenum(CoreAirId)]
     Auipc = 36,
     /// The branch chip.
-    #[subenum(CoreAirId)]
     Branch = 37,
     /// The jump chip.
-    #[subenum(CoreAirId)]
     Jump = 38,
     /// The syscall instructions chip.
-    #[subenum(CoreAirId)]
     SyscallInstrs = 39,
     /// The memory global init chip.
     MemoryGlobalInit = 40,
     /// The memory global finalize chip.
     MemoryGlobalFinalize = 41,
     /// The memory local chip.
-    #[subenum(CoreAirId)]
     MemoryLocal = 42,
     /// The global chip.
-    #[subenum(CoreAirId)]
     Global = 43,
     /// The byte chip.
     Byte = 44,
@@ -151,6 +130,7 @@ impl RiscvAirId {
             RiscvAirId::Global,
         ]
     }
+
     /// Returns the string representation of the AIR.
     #[must_use]
     pub fn as_str(&self) -> &str {
@@ -219,36 +199,5 @@ impl FromStr for RiscvAirId {
 impl Display for RiscvAirId {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         write!(f, "{}", self.as_str())
-    }
-}
-
-/// Defines a set of maximal shapes for generating core proofs.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MaximalShapes {
-    inner: Vec<EnumMap<CoreAirId, u32>>,
-}
-
-impl FromIterator<Shape<RiscvAirId>> for MaximalShapes {
-    fn from_iter<T: IntoIterator<Item = Shape<RiscvAirId>>>(iter: T) -> Self {
-        let mut maximal_shapes = Vec::new();
-        for shape in iter {
-            let mut maximal_shape = EnumMap::<CoreAirId, u32>::default();
-            for (air, height) in shape {
-                if let Ok(core_air) = CoreAirId::try_from(air) {
-                    maximal_shape[core_air] = height as u32;
-                } else if air != RiscvAirId::Program && air != RiscvAirId::Byte {
-                    tracing::warn!("Invalid core air: {air}");
-                }
-            }
-            maximal_shapes.push(maximal_shape);
-        }
-        Self { inner: maximal_shapes }
-    }
-}
-
-impl MaximalShapes {
-    /// Returns an iterator over the maximal shapes.
-    pub fn iter(&self) -> impl Iterator<Item = &EnumMap<CoreAirId, u32>> {
-        self.inner.iter()
     }
 }
