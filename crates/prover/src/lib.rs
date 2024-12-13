@@ -338,6 +338,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                     self.core_shape_config.as_ref(),
                     proof_tx,
                     shape_tx,
+                    None,
                 )
             });
 
