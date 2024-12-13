@@ -190,7 +190,6 @@ mod test {
             opts,
             SP1Context::default(),
             None,
-            None,
         )
         .unwrap();
         let mut public_values = SP1PublicValues::from(&public_values);
