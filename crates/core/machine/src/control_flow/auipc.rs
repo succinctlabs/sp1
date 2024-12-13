@@ -258,14 +258,6 @@ mod tests {
             |prover: &P,
              record: &ExecutionRecord|
              -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
-                for event in record.cpu_events.iter() {
-                    println!("cpu event: {:?}", event);
-                }
-
-                for event in record.auipc_events.iter() {
-                    println!("auipc event: {:?}", event);
-                }
-
                 // Create a malicious record where the BEQ instruction branches incorrectly.
                 let mut malicious_record = record.clone();
                 malicious_record.cpu_events[0].a = 8;
