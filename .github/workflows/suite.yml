@@ -72,7 +72,6 @@ jobs:
           args: --release -p sp1-perf -- --program workdir/program.bin --stdin workdir/stdin.bin --mode cpu
         env:
           RUST_LOG: info
-          VERIFY_VK: false
           RUSTFLAGS: -Copt-level=3 -Ctarget-cpu=native
           RUST_BACKTRACE: 1
 
