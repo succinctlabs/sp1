@@ -566,7 +566,6 @@ pub mod tests {
             opts,
             SP1Context::default(),
             None,
-            None,
         )
         .unwrap();
 

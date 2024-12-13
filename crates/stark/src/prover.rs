@@ -627,15 +627,32 @@ where
     #[allow(clippy::needless_for_each)]
     fn prove(
         &self,
-        _pk: &StarkProvingKey<SC>,
-        _records: Vec<A::Record>,
-        _challenger: &mut SC::Challenger,
-        _opts: <A::Record as MachineRecord>::Config,
+        pk: &StarkProvingKey<SC>,
+        mut records: Vec<A::Record>,
+        challenger: &mut SC::Challenger,
+        opts: <A::Record as MachineRecord>::Config,
     ) -> Result<MachineProof<SC>, Self::Error>
     where
         A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
     {
-        unimplemented!()
+        // Generate dependencies.
+        self.machine().generate_dependencies(&mut records, &opts, None);
+
+        // Observe the preprocessed commitment.
+        pk.observe_into(challenger);
+
+        let shard_proofs = tracing::info_span!("prove_shards").in_scope(|| {
+            records
+                .into_par_iter()
+                .map(|record| {
+                    let named_traces = self.generate_traces(&record);
+                    let shard_data = self.commit(&record, named_traces);
+                    self.open(pk, shard_data, &mut challenger.clone())
+                })
+                .collect::<Result<Vec<_>, _>>()
+        })?;
+
+        Ok(MachineProof { shard_proofs })
     }
 }
 
