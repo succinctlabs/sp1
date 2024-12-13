@@ -46,7 +46,7 @@ mod tests {
 
         type P = CpuProver<BabyBearPoseidon2, RiscvAir<BabyBear>>;
 
-        let malicious_trace_generator =
+        let malicious_trace_pv_generator =
             |prover: &P,
              record: &ExecutionRecord|
              -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
@@ -57,7 +57,7 @@ mod tests {
                 prover.generate_traces(&malicious_record)
             };
 
-        let result = run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_generator));
+        let result = run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
         assert!(result.is_err() && result.unwrap_err().is_constraints_failing());
     }
 
@@ -75,7 +75,7 @@ mod tests {
 
         type P = CpuProver<BabyBearPoseidon2, RiscvAir<BabyBear>>;
 
-        let malicious_trace_generator =
+        let malicious_trace_pv_generator =
             |prover: &P,
              record: &ExecutionRecord|
              -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
@@ -86,7 +86,7 @@ mod tests {
                 prover.generate_traces(&malicious_record)
             };
 
-        let result = run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_generator));
+        let result = run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
         assert!(result.is_err() && result.unwrap_err().is_constraints_failing());
     }
 
@@ -103,7 +103,7 @@ mod tests {
 
         type P = CpuProver<BabyBearPoseidon2, RiscvAir<BabyBear>>;
 
-        let malicious_trace_generator =
+        let malicious_trace_pv_generator =
             |prover: &P,
              record: &ExecutionRecord|
              -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
@@ -121,7 +121,7 @@ mod tests {
                 traces
             };
 
-        let result = run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_generator));
+        let result = run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
         assert!(result.is_err() && result.unwrap_err().is_constraints_failing());
     }
 }

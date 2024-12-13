@@ -16,7 +16,8 @@ use crate::{io::SP1Stdin, riscv::RiscvAir, shape::CoreShapeConfig};
 
 use super::prove_core;
 
-pub(crate) type MaliciousTraceGeneratorType<Val, P> =
+/// This type is the function signature used for malicious trace and public values generators for failure test cases.
+pub(crate) type MaliciousTracePVGeneratorType<Val, P> =
     Box<dyn Fn(&P, &ExecutionRecord) -> Vec<(String, RowMajorMatrix<Val>)> + Send + Sync>;
 
 /// The canonical entry point for testing a [`Program`] and [`SP1Stdin`] with a [`MachineProver`].
@@ -48,7 +49,7 @@ pub fn run_test<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
 pub fn run_malicious_test<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
     mut program: Program,
     inputs: SP1Stdin,
-    malicious_trace_generator: MaliciousTraceGeneratorType<BabyBear, P>,
+    malicious_trace_pv_generator: MaliciousTracePVGeneratorType<BabyBear, P>,
 ) -> Result<SP1PublicValues, MachineVerificationError<BabyBearPoseidon2>> {
     let shape_config = CoreShapeConfig::<BabyBear>::default();
     shape_config.fix_preprocessed_shape(&mut program).unwrap();
@@ -67,8 +68,12 @@ pub fn run_malicious_test<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>
     });
     let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
 
-    let result =
-        run_test_core::<P>(runtime, inputs, Some(&shape_config), Some(malicious_trace_generator));
+    let result = run_test_core::<P>(
+        runtime,
+        inputs,
+        Some(&shape_config),
+        Some(malicious_trace_pv_generator),
+    );
     if let Err(verification_error) = result {
         Err(verification_error)
     } else {
@@ -81,7 +86,7 @@ pub fn run_test_core<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
     runtime: Executor,
     inputs: SP1Stdin,
     shape_config: Option<&CoreShapeConfig<BabyBear>>,
-    malicious_trace_generator: Option<MaliciousTraceGeneratorType<BabyBear, P>>,
+    malicious_trace_pv_generator: Option<MaliciousTracePVGeneratorType<BabyBear, P>>,
 ) -> Result<MachineProof<BabyBearPoseidon2>, MachineVerificationError<BabyBearPoseidon2>> {
     let config = BabyBearPoseidon2::new();
     let machine = RiscvAir::machine(config);
@@ -97,7 +102,7 @@ pub fn run_test_core<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
         SP1CoreOpts::default(),
         SP1Context::default(),
         shape_config,
-        malicious_trace_generator,
+        malicious_trace_pv_generator,
     )
     .unwrap();
 

@@ -109,7 +109,7 @@ where
         );
 
         // HALT ecall and UNIMPL instruction.
-        self.eval_halt_unimpl(builder, local, public_values);
+        self.eval_halt(builder, local, public_values);
     }
 }
 
@@ -288,8 +288,8 @@ impl SyscallInstrsChip {
             .assert_eq(expected_deferred_proofs_digest_element, digest_word.reduce::<AB>());
     }
 
-    /// Constraint related to the halt and unimpl instruction.
-    pub(crate) fn eval_halt_unimpl<AB: SP1AirBuilder>(
+    /// Constraint related to the halt instruction.
+    pub(crate) fn eval_halt<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         local: &SyscallInstrColumns<AB::Var>,
