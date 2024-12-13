@@ -846,8 +846,18 @@ pub mod tests {
         let machine = RiscvAir::machine(config);
         let prover = CpuProver::new(machine);
         let (pk, vk) = prover.setup(&program);
-        prove_core::<_, _>(&prover, &pk, &vk, program, &stdin, opts, SP1Context::default(), None)
-            .unwrap();
+        prove_core::<_, _>(
+            &prover,
+            &pk,
+            &vk,
+            program,
+            &stdin,
+            opts,
+            SP1Context::default(),
+            None,
+            None,
+        )
+        .unwrap();
     }
 
     #[test]
@@ -861,8 +871,18 @@ pub mod tests {
         let machine = RiscvAir::machine(config);
         let prover = CpuProver::new(machine);
         let (pk, vk) = prover.setup(&program);
-        prove_core::<_, _>(&prover, &pk, &vk, program, &stdin, opts, SP1Context::default(), None)
-            .unwrap();
+        prove_core::<_, _>(
+            &prover,
+            &pk,
+            &vk,
+            program,
+            &stdin,
+            opts,
+            SP1Context::default(),
+            None,
+            None,
+        )
+        .unwrap();
     }
 
     #[test]
