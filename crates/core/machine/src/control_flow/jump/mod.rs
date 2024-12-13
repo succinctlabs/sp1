@@ -48,7 +48,7 @@ mod tests {
 
         let malicious_trace_pv_generator =
             |prover: &P,
-             record: &ExecutionRecord|
+             record: &mut ExecutionRecord|
              -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
                 // Create a malicious record where the BEQ instruction branches incorrectly.
                 let mut malicious_record = record.clone();
@@ -57,7 +57,8 @@ mod tests {
                 prover.generate_traces(&malicious_record)
             };
 
-        let result = run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
+        let result =
+            run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
         assert!(result.is_err() && result.unwrap_err().is_constraints_failing());
     }
 
@@ -77,7 +78,7 @@ mod tests {
 
         let malicious_trace_pv_generator =
             |prover: &P,
-             record: &ExecutionRecord|
+             record: &mut ExecutionRecord|
              -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
                 // Create a malicious record where the BEQ instruction branches incorrectly.
                 let mut malicious_record = record.clone();
@@ -86,7 +87,8 @@ mod tests {
                 prover.generate_traces(&malicious_record)
             };
 
-        let result = run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
+        let result =
+            run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
         assert!(result.is_err() && result.unwrap_err().is_constraints_failing());
     }
 
@@ -105,7 +107,7 @@ mod tests {
 
         let malicious_trace_pv_generator =
             |prover: &P,
-             record: &ExecutionRecord|
+             record: &mut ExecutionRecord|
              -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
                 // Modify the branch chip to have a row that has multiple opcode flags set.
                 let mut traces = prover.generate_traces(record);
@@ -121,7 +123,8 @@ mod tests {
                 traces
             };
 
-        let result = run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
+        let result =
+            run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
         assert!(result.is_err() && result.unwrap_err().is_constraints_failing());
     }
 }

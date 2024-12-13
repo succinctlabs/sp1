@@ -49,7 +49,7 @@ mod tests {
 
         let malicious_trace_pv_generator =
             |prover: &P,
-             record: &ExecutionRecord|
+             record: &mut ExecutionRecord|
              -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
                 // Create a malicious record where the incorrect value is saved to memory.
                 let mut malicious_record = record.clone();
@@ -81,7 +81,7 @@ mod tests {
 
             let malicious_trace_pv_generator =
                 |prover: &P,
-                 record: &ExecutionRecord|
+                 record: &mut ExecutionRecord|
                  -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
                     // Create a malicious record where the full word is saved to memory.
                     // The correct memory value is 0xBEEF for SH and 0xEF for SB.
@@ -115,7 +115,7 @@ mod tests {
 
         let malicious_trace_pv_generator =
             |prover: &P,
-             record: &ExecutionRecord|
+             record: &mut ExecutionRecord|
              -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
                 // Create a malicious record where the incorrect value is loaded from memory.
                 let mut malicious_record = record.clone();
@@ -145,7 +145,7 @@ mod tests {
 
             let malicious_trace_pv_generator =
                 |prover: &P,
-                 record: &ExecutionRecord|
+                 record: &mut ExecutionRecord|
                  -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
                     // Create a malicious record where the incorrect value is loaded from memory.
                     // The correct `a` value is 0xFFFFBEEF for LH, 0xFFFFFEF for LB, 0xBEEF for LHU, 0xEF for LBU.
@@ -184,7 +184,7 @@ mod tests {
 
         let malicious_trace_pv_generator =
             |prover: &P,
-             record: &ExecutionRecord|
+             record: &mut ExecutionRecord|
              -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
                 // Modify the branch chip to have a row that has multiple opcode flags set.
                 let mut traces = prover.generate_traces(record);

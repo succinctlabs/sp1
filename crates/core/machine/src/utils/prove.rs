@@ -327,18 +327,22 @@ where
                             all_records_tx.send(records.clone()).unwrap();
 
                             let mut main_traces = Vec::new();
-                            tracing::info_span!("generate main traces", index).in_scope(|| {
-                                main_traces = records
-                                    .par_iter()
-                                    .map(|record| {
-                                        if malicious_trace_pv_generator.is_some() {
-                                            malicious_trace_pv_generator.unwrap()(prover, record)
-                                        } else {
-                                            prover.generate_traces(record)
-                                        }
-                                    })
-                                    .collect::<Vec<_>>();
-                            });
+                            if let Some(malicious_trace_pv_generator) = malicious_trace_pv_generator
+                            {
+                                tracing::info_span!("generate main traces", index).in_scope(|| {
+                                    main_traces = records
+                                        .par_iter_mut()
+                                        .map(|record| malicious_trace_pv_generator(prover, record))
+                                        .collect::<Vec<_>>();
+                                });
+                            } else {
+                                tracing::info_span!("generate main traces", index).in_scope(|| {
+                                    main_traces = records
+                                        .par_iter()
+                                        .map(|record| prover.generate_traces(record))
+                                        .collect::<Vec<_>>();
+                                });
+                            }
 
                             trace_gen_sync.wait_for_turn(index);
 
