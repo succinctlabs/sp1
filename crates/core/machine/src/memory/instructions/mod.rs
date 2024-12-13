@@ -128,8 +128,8 @@ mod tests {
     }
 
     #[test]
-    fn test_malicious_lh_lb() {
-        for opcode in [Opcode::LH, Opcode::LB] {
+    fn test_malicious_lh_lb_lhu_lbu() {
+        for opcode in [Opcode::LH, Opcode::LB, Opcode::LHU, Opcode::LBU] {
             let instructions = vec![
                 Instruction::new(Opcode::ADD, 29, 0, 0xDEADBEEF, false, true), // Set the stored value to 5.
                 Instruction::new(Opcode::ADD, 30, 0, 100, false, true), // Set the address to 100.
@@ -146,7 +146,7 @@ mod tests {
                  record: &ExecutionRecord|
                  -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
                     // Create a malicious record where the incorrect value is loaded from memory.
-                    // The correct `a` value is 0xFFFFBEEF for LH and 0xFFFFFEF for LB.
+                    // The correct `a` value is 0xFFFFBEEF for LH, 0xFFFFFEF for LB, 0xBEEF for LHU, 0xEF for LBU.
                     let mut malicious_record = record.clone();
                     malicious_record.cpu_events[3].a = 0xDEADBEEF;
                     malicious_record.memory_instr_events[1].a = 0xDEADBEEF;
@@ -155,7 +155,16 @@ mod tests {
 
             let result =
                 run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_generator));
-            assert!(result.is_err() && result.unwrap_err().is_local_cumulative_sum_failing());
+
+            match opcode {
+                Opcode::LH | Opcode::LB => assert!(
+                    result.is_err() && result.unwrap_err().is_local_cumulative_sum_failing()
+                ),
+                Opcode::LHU | Opcode::LBU => {
+                    assert!(result.is_err() && result.unwrap_err().is_constraints_failing())
+                }
+                _ => unreachable!(),
+            }
         }
     }
 
