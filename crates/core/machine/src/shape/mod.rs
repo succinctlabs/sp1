@@ -41,7 +41,7 @@ pub struct CoreShapeConfig<F: PrimeField32> {
     partial_core_shapes: BTreeMap<usize, Vec<ShapeCluster<RiscvAirId>>>,
     partial_memory_shapes: ShapeCluster<RiscvAirId>,
     partial_precompile_shapes: HashMap<RiscvAir<F>, (usize, Vec<usize>)>,
-    small_shapes: Vec<ShapeCluster<RiscvAirId>>,
+    partial_small_shapes: Vec<ShapeCluster<RiscvAirId>>,
     costs: HashMap<RiscvAirId, usize>,
 }
 
@@ -93,7 +93,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             let mut minimal_shape = None;
             let mut minimal_area = usize::MAX;
             let mut minimal_cluster = None;
-            for (i, cluster) in self.small_shapes.iter().enumerate() {
+            for (i, cluster) in self.partial_small_shapes.iter().enumerate() {
                 if let Some(shape) = cluster.find_shape(&heights) {
                     if self.estimate_lde_size(&shape) < minimal_area {
                         minimal_area = self.estimate_lde_size(&shape);
@@ -335,6 +335,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         self.partial_core_shapes
             .values()
             .flatten()
+            .chain(self.partial_small_shapes.iter())
             .flat_map(move |allowed_log_heights| {
                 Self::generate_all_shapes_from_allowed_log_heights({
                     let mut log_heights = allowed_log_heights
@@ -426,7 +427,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
 
     // TODO: cleanup..
     pub fn small_program_shapes(&self) -> Vec<OrderedShape> {
-        self.small_shapes
+        self.partial_small_shapes
             .iter()
             .map(|log_heights| {
                 OrderedShape::from_log2_heights(
@@ -450,7 +451,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
         // Load the maximal shapes.
         let maximal_shapes: BTreeMap<usize, Vec<Shape<RiscvAirId>>> =
             serde_json::from_slice(MAXIMAL_SHAPES).unwrap();
-        let tiny_shapes: Vec<Shape<RiscvAirId>> = serde_json::from_slice(SMALL_SHAPES).unwrap();
+        let small_shapes: Vec<Shape<RiscvAirId>> = serde_json::from_slice(SMALL_SHAPES).unwrap();
 
         // Set the allowed preprocessed log2 heights.
         let allowed_preprocessed_log2_heights = HashMap::from([
@@ -510,7 +511,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
             partial_core_shapes: core_allowed_log2_heights,
             partial_memory_shapes: ShapeCluster::new(memory_allowed_log2_heights),
             partial_precompile_shapes: precompile_allowed_log2_heights,
-            small_shapes: tiny_shapes
+            partial_small_shapes: small_shapes
                 .into_iter()
                 .map(|x| {
                     ShapeCluster::new(x.into_iter().map(|(k, v)| (k, vec![Some(v)])).collect())
