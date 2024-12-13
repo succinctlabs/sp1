@@ -1,12 +1,10 @@
-use std::{collections::BTreeMap, path::PathBuf};
+use std::path::PathBuf;
 
 use clap::Parser;
-use p3_baby_bear::BabyBear;
 use sp1_core_machine::utils::setup_logger;
 use sp1_prover::{
     components::CpuProverComponents, shapes::build_vk_map_to_file, REDUCE_BATCH_SIZE,
 };
-use sp1_recursion_core::DIGEST_SIZE;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -35,9 +33,6 @@ fn main() {
     let build_dir = args.build_dir;
     let num_compiler_workers = 1;
     let num_setup_workers = 1;
-
-    let allowed_vk_map: BTreeMap<[BabyBear; DIGEST_SIZE], usize> =
-        bincode::deserialize(include_bytes!("../src/artifacts/vk_map_323226.bin")).unwrap();
 
     build_vk_map_to_file::<CpuProverComponents>(
         build_dir,
