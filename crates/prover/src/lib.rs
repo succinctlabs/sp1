@@ -775,7 +775,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             is_complete: true,
         };
 
-        assert!(self.recursion_vk_map.contains_key(&compressed_vk.hash_babybear()));
         let input_with_merkle = self.make_merkle_proofs(input);
 
         let program =
