@@ -94,11 +94,8 @@ impl<F: PrimeField32> MachineAir<F> for GlobalChip {
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
         let events = &input.global_interaction_events;
         let nb_rows = events.len();
-        println!("nb_rows: {}", nb_rows);
         let size_log2 = input.fixed_log2_rows::<F, _>(self);
-        println!("size_log2: {:?}", size_log2);
         let padded_nb_rows = next_power_of_two(nb_rows, size_log2);
-        println!("padded_nb_rows: {}", padded_nb_rows);
         Some(padded_nb_rows)
     }
 
