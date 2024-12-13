@@ -189,7 +189,7 @@ pub struct LocalCounts {
 }
 
 /// Errors that the [``Executor``] can throw.
-#[derive(Error, Debug, Serialize, Deserialize)]
+#[derive(Error, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ExecutionError {
     /// The execution failed with a non-zero exit code.
     #[error("execution failed with exit code {0}")]
