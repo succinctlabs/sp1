@@ -83,6 +83,7 @@ mod tests {
                  record: &ExecutionRecord|
                  -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
                     // Create a malicious record where the full word is saved to memory.
+                    // The correct memory value is 0xBEEF for SH and 0xEF for SB.
                     let mut malicious_record = record.clone();
                     if let MemoryRecordEnum::Write(mem_write_record) =
                         &mut malicious_record.memory_instr_events[0].mem_access
@@ -124,6 +125,38 @@ mod tests {
 
         let result = run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_generator));
         assert!(result.is_err() && result.unwrap_err().is_constraints_failing());
+    }
+
+    #[test]
+    fn test_malicious_lh_lb() {
+        for opcode in [Opcode::LH, Opcode::LB] {
+            let instructions = vec![
+                Instruction::new(Opcode::ADD, 29, 0, 0xDEADBEEF, false, true), // Set the stored value to 5.
+                Instruction::new(Opcode::ADD, 30, 0, 100, false, true), // Set the address to 100.
+                Instruction::new(Opcode::SW, 29, 30, 0, false, true), // Store the value to memory.
+                Instruction::new(opcode, 25, 30, 0, false, true),     // Load the value from memory.
+            ];
+            let program = Program::new(instructions, 0, 0);
+            let stdin = SP1Stdin::new();
+
+            type P = CpuProver<BabyBearPoseidon2, RiscvAir<BabyBear>>;
+
+            let malicious_trace_generator =
+                |prover: &P,
+                 record: &ExecutionRecord|
+                 -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
+                    // Create a malicious record where the incorrect value is loaded from memory.
+                    // The correct `a` value is 0xFFFFBEEF for LH and 0xFFFFFEF for LB.
+                    let mut malicious_record = record.clone();
+                    malicious_record.cpu_events[3].a = 0xDEADBEEF;
+                    malicious_record.memory_instr_events[1].a = 0xDEADBEEF;
+                    prover.generate_traces(&malicious_record)
+                };
+
+            let result =
+                run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_generator));
+            assert!(result.is_err() && result.unwrap_err().is_local_cumulative_sum_failing());
+        }
     }
 
     #[test]

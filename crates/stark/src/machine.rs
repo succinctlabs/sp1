@@ -612,4 +612,14 @@ impl<SC: StarkGenericConfig> MachineVerificationError<SC> {
             ))
         )
     }
+
+    /// This function will check if the verification error is from local cumulative sum failing.
+    pub fn is_local_cumulative_sum_failing(&self) -> bool {
+        matches!(
+            self,
+            MachineVerificationError::InvalidShardProof(VerificationError::CumulativeSumsError(
+                "local cumulative sum is not zero"
+            ))
+        )
+    }
 }
