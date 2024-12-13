@@ -34,123 +34,130 @@ mod tests {
     };
 
     #[test]
-    fn test_malicious_beq() {
-        let instructions = vec![
-            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
-            Instruction::new(Opcode::ADD, 30, 0, 5, false, true),
-            Instruction::new(Opcode::BEQ, 29, 30, 8, false, true),
-            Instruction::new(Opcode::ADD, 28, 0, 5, false, true),
-            Instruction::new(Opcode::ADD, 28, 0, 5, false, true),
+    fn test_malicious_branches() {
+        struct BranchTestCase {
+            branch_opcode: Opcode,
+            branch_operand_b_value: u32,
+            branch_operand_c_value: u32,
+            incorrect_next_pc: u32,
+        }
+
+        // The PC of the branch instruction is 8, and it will branch to 16 if the condition is true.
+        let branch_test_cases = vec![
+            BranchTestCase {
+                branch_opcode: Opcode::BEQ,
+                branch_operand_b_value: 5,
+                branch_operand_c_value: 5,
+                incorrect_next_pc: 12,
+            },
+            BranchTestCase {
+                branch_opcode: Opcode::BEQ,
+                branch_operand_b_value: 5,
+                branch_operand_c_value: 3,
+                incorrect_next_pc: 16,
+            },
+            BranchTestCase {
+                branch_opcode: Opcode::BNE,
+                branch_operand_b_value: 5,
+                branch_operand_c_value: 5,
+                incorrect_next_pc: 16,
+            },
+            BranchTestCase {
+                branch_opcode: Opcode::BNE,
+                branch_operand_b_value: 5,
+                branch_operand_c_value: 3,
+                incorrect_next_pc: 12,
+            },
+            BranchTestCase {
+                branch_opcode: Opcode::BLTU,
+                branch_operand_b_value: 5,
+                branch_operand_c_value: 3,
+                incorrect_next_pc: 16,
+            },
+            BranchTestCase {
+                branch_opcode: Opcode::BLTU,
+                branch_operand_b_value: 3,
+                branch_operand_c_value: 5,
+                incorrect_next_pc: 12,
+            },
+            BranchTestCase {
+                branch_opcode: Opcode::BLT,
+                branch_operand_b_value: 0xFFFF_FFFF, // This is -1.
+                branch_operand_c_value: 3,
+                incorrect_next_pc: 12,
+            },
+            BranchTestCase {
+                branch_opcode: Opcode::BLT,
+                branch_operand_b_value: 3,
+                branch_operand_c_value: 0xFFFF_FFFF, // This is -1.
+                incorrect_next_pc: 16,
+            },
+            BranchTestCase {
+                branch_opcode: Opcode::BGEU,
+                branch_operand_b_value: 3,
+                branch_operand_c_value: 5,
+                incorrect_next_pc: 16,
+            },
+            BranchTestCase {
+                branch_opcode: Opcode::BGEU,
+                branch_operand_b_value: 5,
+                branch_operand_c_value: 5,
+                incorrect_next_pc: 12,
+            },
+            BranchTestCase {
+                branch_opcode: Opcode::BGEU,
+                branch_operand_b_value: 5,
+                branch_operand_c_value: 3,
+                incorrect_next_pc: 12,
+            },
+            BranchTestCase {
+                branch_opcode: Opcode::BGE,
+                branch_operand_b_value: 0xFFFF_FFFF, // This is -1.
+                branch_operand_c_value: 5,
+                incorrect_next_pc: 16,
+            },
+            BranchTestCase {
+                branch_opcode: Opcode::BGE,
+                branch_operand_b_value: 5,
+                branch_operand_c_value: 5,
+                incorrect_next_pc: 12,
+            },
+            BranchTestCase {
+                branch_opcode: Opcode::BGE,
+                branch_operand_b_value: 3,
+                branch_operand_c_value: 0xFFFF_FFFF, // This is -1.
+                incorrect_next_pc: 12,
+            },
         ];
-        let program = Program::new(instructions, 0, 0);
-        let stdin = SP1Stdin::new();
 
-        type P = CpuProver<BabyBearPoseidon2, RiscvAir<BabyBear>>;
+        for test_case in branch_test_cases {
+            let instructions = vec![
+                Instruction::new(Opcode::ADD, 29, 0, test_case.branch_operand_b_value, false, true),
+                Instruction::new(Opcode::ADD, 30, 0, test_case.branch_operand_c_value, false, true),
+                Instruction::new(test_case.branch_opcode, 29, 30, 8, false, true),
+                Instruction::new(Opcode::ADD, 28, 0, 5, false, true),
+                Instruction::new(Opcode::ADD, 28, 0, 5, false, true),
+            ];
+            let program = Program::new(instructions, 0, 0);
+            let stdin = SP1Stdin::new();
 
-        let malicious_trace_pv_generator =
-            |prover: &P,
-             record: &mut ExecutionRecord|
-             -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
-                // Create a malicious record where the BEQ instruction branches incorrectly.
-                let mut malicious_record = record.clone();
-                malicious_record.cpu_events[2].next_pc = 12;
-                malicious_record.branch_events[0].next_pc = 12;
-                prover.generate_traces(&malicious_record)
-            };
+            type P = CpuProver<BabyBearPoseidon2, RiscvAir<BabyBear>>;
 
-        let result =
-            run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
-        assert!(result.is_err() && result.unwrap_err().is_constraints_failing());
-    }
+            let malicious_trace_pv_generator =
+                move |prover: &P,
+                      record: &mut ExecutionRecord|
+                      -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
+                    // Create a malicious record where the BEQ instruction branches incorrectly.
+                    let mut malicious_record = record.clone();
+                    malicious_record.cpu_events[2].next_pc = test_case.incorrect_next_pc;
+                    malicious_record.branch_events[0].next_pc = test_case.incorrect_next_pc;
+                    prover.generate_traces(&malicious_record)
+                };
 
-    #[test]
-    fn test_malicious_bne() {
-        let instructions = vec![
-            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
-            Instruction::new(Opcode::ADD, 30, 0, 4, false, true),
-            Instruction::new(Opcode::BNE, 29, 30, 8, false, true),
-            Instruction::new(Opcode::ADD, 28, 0, 5, false, true),
-            Instruction::new(Opcode::ADD, 28, 0, 5, false, true),
-        ];
-        let program = Program::new(instructions, 0, 0);
-        let stdin = SP1Stdin::new();
-
-        type P = CpuProver<BabyBearPoseidon2, RiscvAir<BabyBear>>;
-
-        let malicious_trace_pv_generator =
-            |prover: &P,
-             record: &mut ExecutionRecord|
-             -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
-                // Create a malicious record where the BNE instruction branches incorrectly.
-                let mut malicious_record = record.clone();
-                malicious_record.cpu_events[2].next_pc = 12;
-                malicious_record.branch_events[0].next_pc = 12;
-                prover.generate_traces(&malicious_record)
-            };
-
-        let result =
-            run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
-        assert!(result.is_err() && result.unwrap_err().is_constraints_failing());
-    }
-
-    #[test]
-    fn test_malicious_blt() {
-        let instructions = vec![
-            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
-            Instruction::new(Opcode::ADD, 30, 0, 5, false, true),
-            Instruction::new(Opcode::BLT, 29, 30, 8, false, true),
-            Instruction::new(Opcode::ADD, 28, 0, 5, false, true),
-            Instruction::new(Opcode::ADD, 28, 0, 5, false, true),
-        ];
-        let program = Program::new(instructions, 0, 0);
-        let stdin = SP1Stdin::new();
-
-        type P = CpuProver<BabyBearPoseidon2, RiscvAir<BabyBear>>;
-
-        let malicious_trace_pv_generator =
-            |prover: &P,
-             record: &mut ExecutionRecord|
-             -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
-                // Create a malicious record where the BLT instruction branches incorrectly.
-                let mut malicious_record = record.clone();
-                malicious_record.cpu_events[2].next_pc = 16;
-                malicious_record.branch_events[0].next_pc = 16;
-                prover.generate_traces(&malicious_record)
-            };
-
-        let result =
-            run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
-        assert!(result.is_err() && result.unwrap_err().is_constraints_failing());
-    }
-
-    #[test]
-    fn test_malicious_bge() {
-        let instructions = vec![
-            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
-            Instruction::new(Opcode::ADD, 30, 0, 3, false, true),
-            Instruction::new(Opcode::BGE, 29, 30, 8, false, true),
-            Instruction::new(Opcode::ADD, 28, 0, 5, false, true),
-            Instruction::new(Opcode::ADD, 28, 0, 5, false, true),
-        ];
-        let program = Program::new(instructions, 0, 0);
-        let stdin = SP1Stdin::new();
-
-        type P = CpuProver<BabyBearPoseidon2, RiscvAir<BabyBear>>;
-
-        let malicious_trace_pv_generator =
-            |prover: &P,
-             record: &mut ExecutionRecord|
-             -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
-                // Create a malicious record where the BGE instruction branches incorrectly.
-                let mut malicious_record = record.clone();
-                malicious_record.cpu_events[2].next_pc = 12;
-                malicious_record.branch_events[0].next_pc = 12;
-                prover.generate_traces(&malicious_record)
-            };
-
-        let result =
-            run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
-        assert!(result.is_err() && result.unwrap_err().is_constraints_failing());
+            let result =
+                run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
+            assert!(result.is_err() && result.unwrap_err().is_constraints_failing());
+        }
     }
 
     #[test]
