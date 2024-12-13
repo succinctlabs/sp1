@@ -254,20 +254,28 @@ pub struct ProofRequest {
     /// The unix timestamp of when the request was updated.
     #[prost(uint64, tag = "19")]
     pub updated_at: u64,
-    /// The unix timestamp of when the request was fulfilled.
+    /// The unix timestamp of when the request was fulfilled. Only included if
+    /// the request has a fulfillment status of FULFILLED.
     #[prost(uint64, optional, tag = "20")]
     pub fulfilled_at: ::core::option::Option<u64>,
     /// The transaction hash of the request.
     #[prost(bytes = "vec", tag = "21")]
     pub tx_hash: ::prost::alloc::vec::Vec<u8>,
-    /// The cycle count for the request.
+    /// The cycle used during the execution of the request. Only included if the
+    /// request has an execution status of EXECUTED.
     #[prost(uint64, optional, tag = "22")]
     pub cycles: ::core::option::Option<u64>,
-    /// The amount deducted from the fulfiller's balance.
-    #[prost(string, optional, tag = "23")]
-    pub deduction_amount: ::core::option::Option<::prost::alloc::string::String>,
-    /// The amount refunded to the fulfiller's balance.
+    /// The public values hash from the execution of the request. Only included if
+    /// the request has an execution status of EXECUTED.
+    #[prost(bytes = "vec", optional, tag = "23")]
+    pub public_values_hash: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
+    /// The amount deducted from the fulfiller's balance. Only included if the
+    /// request has a fulfillment status of ASSIGNED.
     #[prost(string, optional, tag = "24")]
+    pub deduction_amount: ::core::option::Option<::prost::alloc::string::String>,
+    /// The amount refunded to the fulfiller's balance. Only included if the
+    /// request has a fulfillment status of EXECUTED.
+    #[prost(string, optional, tag = "25")]
     pub refund_amount: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
@@ -293,12 +301,16 @@ pub struct GetProofRequestStatusResponse {
     pub deadline: u64,
     /// The optional transaction hash of the proof fulfill. Only included if the
     /// request has a fulfillment status of FULFILLED.
-    #[prost(bytes = "vec", optional, tag = "5")]
+    #[prost(bytes = "vec", optional, tag = "6")]
     pub fulfill_tx_hash: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
     /// The optional proof URI, where you can download the result of the request.
     /// Only included if the request has a fulfillment status of FULFILLED.
-    #[prost(string, optional, tag = "6")]
+    #[prost(string, optional, tag = "7")]
     pub proof_uri: ::core::option::Option<::prost::alloc::string::String>,
+    /// The optional public values hash from the execution of the request. Only
+    /// included if the request has an execution status of EXECUTED.
+    #[prost(bytes = "vec", optional, tag = "8")]
+    pub public_values_hash: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct GetProofRequestDetailsRequest {
@@ -985,14 +997,17 @@ pub struct Reservation {
     #[prost(uint64, tag = "5")]
     pub created_at: u64,
 }
-#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct GetFilteredReservationsRequest {
+    /// Requester address to filter for.
+    #[prost(bytes = "vec", optional, tag = "1")]
+    pub requester: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
     /// The optional maximum number of reservations to return (default is 10,
     /// maximum is 100).
-    #[prost(uint32, optional, tag = "1")]
+    #[prost(uint32, optional, tag = "2")]
     pub limit: ::core::option::Option<u32>,
     /// The optional page number to return (default is 1).
-    #[prost(uint32, optional, tag = "2")]
+    #[prost(uint32, optional, tag = "3")]
     pub page: ::core::option::Option<u32>,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
