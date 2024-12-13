@@ -67,9 +67,9 @@ impl Syscall for WriteSyscall {
         } else if let Some(mut hook) = rt.hook_registry.get(fd) {
             let res = hook.invoke_hook(rt.hook_env(), slice);
             
-            // todo: this should be cheaper than splice,
-            // but there should be a better way to do this:
-            for item in res {
+            // Write the items in reverse order to the input stream 
+            // to preserve the expected order when reading
+            for item in res.into_iter().rev() {
                 rt.state.input_stream.push_front(item);
             } 
         } else {

@@ -244,9 +244,11 @@ pub fn hook_rsa_mul_mod(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
     let (q, rem) = prod.div_rem(&m);
 
     let mut rem = rem.to_bytes_le();
+    println!("{:?}", rem);
     rem.resize(512, 0);
 
     let mut q = q.to_bytes_le();
+    println!("{:?}", q);
     q.resize(256, 0);
 
     vec![rem, q]
