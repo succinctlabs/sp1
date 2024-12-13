@@ -66,6 +66,39 @@ mod tests {
     }
 
     #[test]
+    fn test_malicious_sh_sb() {
+        for opcode in [Opcode::SH, Opcode::SB] {
+            let instructions = vec![
+                Instruction::new(Opcode::ADD, 29, 0, 0xDEADBEEF, false, true), // Set the stored value to 0xDEADBEEF.
+                Instruction::new(Opcode::ADD, 30, 0, 100, false, true), // Set the address to 100.
+                Instruction::new(opcode, 29, 30, 0, false, true),
+            ];
+            let program = Program::new(instructions, 0, 0);
+            let stdin = SP1Stdin::new();
+
+            type P = CpuProver<BabyBearPoseidon2, RiscvAir<BabyBear>>;
+
+            let malicious_trace_generator =
+                |prover: &P,
+                 record: &ExecutionRecord|
+                 -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
+                    // Create a malicious record where the full word is saved to memory.
+                    let mut malicious_record = record.clone();
+                    if let MemoryRecordEnum::Write(mem_write_record) =
+                        &mut malicious_record.memory_instr_events[0].mem_access
+                    {
+                        mem_write_record.value = 0xDEADBEEF;
+                    }
+                    prover.generate_traces(&malicious_record)
+                };
+
+            let result =
+                run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_generator));
+            assert!(result.is_err() && result.unwrap_err().is_constraints_failing());
+        }
+    }
+
+    #[test]
     fn test_malicious_lw() {
         let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true), // Set the stored value to 5.
