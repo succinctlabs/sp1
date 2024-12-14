@@ -10,7 +10,8 @@ use enum_map::EnumMap;
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
 use sp1_primitives::consts::BABYBEAR_PRIME;
-use sp1_stark::{air::PublicValues, shape::Shape, SP1CoreOpts};
+use sp1_stark::{air::PublicValues, SP1CoreOpts};
+use strum::IntoEnumIterator;
 use thiserror::Error;
 
 use crate::{
@@ -19,11 +20,12 @@ use crate::{
         emit_auipc_dependency, emit_branch_dependencies, emit_divrem_dependencies,
         emit_jump_dependencies, emit_memory_dependencies,
     },
-    estimate_riscv_event_counts, estimate_riscv_lde_size,
+    estimate_riscv_lde_size,
     events::{
         AUIPCEvent, AluEvent, BranchEvent, CpuEvent, JumpEvent, MemInstrEvent,
         MemoryAccessPosition, MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryReadRecord,
         MemoryRecord, MemoryRecordEnum, MemoryWriteRecord, SyscallEvent,
+        NUM_LOCAL_MEMORY_ENTRIES_PER_ROW_EXEC,
     },
     hook::{HookEnv, HookRegistry},
     memory::{Entry, Memory},
@@ -33,7 +35,7 @@ use crate::{
     state::{ExecutionState, ForkState},
     subproof::{DefaultSubproofVerifier, SubproofVerifier},
     syscalls::{default_syscall_map, Syscall, SyscallCode, SyscallContext},
-    Instruction, Opcode, Program, Register, RiscvAirId,
+    CoreAirId, Instruction, MaximalShapes, Opcode, Program, Register, RiscvAirId,
 };
 
 /// The default increment for the program counter.  Is used for all instructions except
@@ -146,7 +148,7 @@ pub struct Executor<'a> {
     pub hook_registry: HookRegistry<'a>,
 
     /// The maximal shapes for the program.
-    pub maximal_shapes: Option<Vec<Shape<RiscvAirId>>>,
+    pub maximal_shapes: Option<MaximalShapes>,
 
     /// The costs of the program.
     pub costs: HashMap<RiscvAirId, u64>,
@@ -162,6 +164,9 @@ pub struct Executor<'a> {
 
     /// The maximum LDE size to allow.
     pub lde_size_threshold: u64,
+
+    /// event counts for the current shard.
+    pub event_counts: EnumMap<RiscvAirId, u64>,
 }
 
 /// The different modes the executor can run in.
@@ -303,6 +308,7 @@ impl<'a> Executor<'a> {
             shape_check_frequency: 16,
             lde_size_check: false,
             lde_size_threshold: 0,
+            event_counts: EnumMap::default(),
         }
     }
 
@@ -1604,7 +1610,7 @@ impl<'a> Executor<'a> {
             let mut shape_match_found = true;
             if self.state.global_clk % self.shape_check_frequency == 0 {
                 // Estimate the number of events in the trace.
-                let event_counts = estimate_riscv_event_counts(
+                self.estimate_riscv_event_counts(
                     (self.state.clk >> 2) as u64,
                     self.local_counts.local_mem as u64,
                     self.local_counts.syscalls_sent as u64,
@@ -1614,7 +1620,7 @@ impl<'a> Executor<'a> {
                 // Check if the LDE size is too large.
                 if self.lde_size_check {
                     let padded_event_counts =
-                        pad_rv32im_event_counts(event_counts, self.shape_check_frequency);
+                        pad_rv32im_event_counts(self.event_counts, self.shape_check_frequency);
                     let padded_lde_size = estimate_riscv_lde_size(padded_event_counts, &self.costs);
                     if padded_lde_size > self.lde_size_threshold {
                         tracing::warn!(
@@ -1633,33 +1639,34 @@ impl<'a> Executor<'a> {
                     shape_match_found = false;
 
                     for shape in maximal_shapes.iter() {
-                        let cpu_threshold = shape.log2_height(&RiscvAirId::Cpu).unwrap();
+                        let cpu_threshold = shape[CoreAirId::Cpu];
                         if self.state.clk > ((1 << cpu_threshold) << 2) {
                             continue;
                         }
 
-                        let mut distances = Vec::new();
+                        let mut l_infinity = usize::MAX;
                         let mut shape_too_small = false;
-                        for air in RiscvAirId::core() {
-                            if air == RiscvAirId::Cpu {
+                        for air in CoreAirId::iter() {
+                            if air == CoreAirId::Cpu {
                                 continue;
                             }
 
-                            let threshold = shape.height(&air).unwrap_or_default();
-                            let count = event_counts[air] as usize;
+                            let threshold = 1 << shape[air];
+                            let count = self.event_counts[RiscvAirId::from(air)] as usize;
                             if count > threshold {
                                 shape_too_small = true;
                                 break;
                             }
 
-                            distances.push((air, distance(threshold, count)));
+                            if distance(threshold, count) < l_infinity {
+                                l_infinity = distance(threshold, count);
+                            }
                         }
 
                         if shape_too_small {
                             continue;
                         }
 
-                        let l_infinity = distances.clone().into_iter().map(|x| x.1).min().unwrap();
                         if l_infinity >= 32 * (self.shape_check_frequency as usize) {
                             shape_match_found = true;
                             break;
@@ -1667,7 +1674,7 @@ impl<'a> Executor<'a> {
                     }
 
                     if !shape_match_found {
-                        self.record.counts = Some(event_counts);
+                        self.record.counts = Some(self.event_counts);
                         log::warn!(
                             "stopping shard early due to no shapes fitting: \
                             clk: {},
@@ -2038,6 +2045,96 @@ impl<'a> Executor<'a> {
 
     fn get_syscall(&mut self, code: SyscallCode) -> Option<&Arc<dyn Syscall>> {
         self.syscall_map.get(&code)
+    }
+
+    /// Maps the opcode counts to the number of events in each air.
+    pub fn estimate_riscv_event_counts(
+        &mut self,
+        cpu_cycles: u64,
+        touched_addresses: u64,
+        syscalls_sent: u64,
+        opcode_counts: EnumMap<Opcode, u64>,
+    ) {
+        // Compute the number of events in the cpu chip.
+        self.event_counts[RiscvAirId::Cpu] = cpu_cycles;
+
+        // Compute the number of events in the add sub chip.
+        self.event_counts[RiscvAirId::AddSub] =
+            opcode_counts[Opcode::ADD] + opcode_counts[Opcode::SUB];
+
+        // Compute the number of events in the mul chip.
+        self.event_counts[RiscvAirId::Mul] = opcode_counts[Opcode::MUL]
+            + opcode_counts[Opcode::MULH]
+            + opcode_counts[Opcode::MULHU]
+            + opcode_counts[Opcode::MULHSU];
+
+        // Compute the number of events in the bitwise chip.
+        self.event_counts[RiscvAirId::Bitwise] =
+            opcode_counts[Opcode::XOR] + opcode_counts[Opcode::OR] + opcode_counts[Opcode::AND];
+
+        // Compute the number of events in the shift left chip.
+        self.event_counts[RiscvAirId::ShiftLeft] = opcode_counts[Opcode::SLL];
+
+        // Compute the number of events in the shift right chip.
+        self.event_counts[RiscvAirId::ShiftRight] =
+            opcode_counts[Opcode::SRL] + opcode_counts[Opcode::SRA];
+
+        // Compute the number of events in the divrem chip.
+        self.event_counts[RiscvAirId::DivRem] = opcode_counts[Opcode::DIV]
+            + opcode_counts[Opcode::DIVU]
+            + opcode_counts[Opcode::REM]
+            + opcode_counts[Opcode::REMU];
+
+        // Compute the number of events in the lt chip.
+        self.event_counts[RiscvAirId::Lt] =
+            opcode_counts[Opcode::SLT] + opcode_counts[Opcode::SLTU];
+
+        // Compute the number of events in the memory local chip.
+        self.event_counts[RiscvAirId::MemoryLocal] =
+            touched_addresses.div_ceil(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW_EXEC as u64);
+
+        // Compute the number of events in the branch chip.
+        self.event_counts[RiscvAirId::Branch] = opcode_counts[Opcode::BEQ]
+            + opcode_counts[Opcode::BNE]
+            + opcode_counts[Opcode::BLT]
+            + opcode_counts[Opcode::BGE]
+            + opcode_counts[Opcode::BLTU]
+            + opcode_counts[Opcode::BGEU];
+
+        // Compute the number of events in the jump chip.
+        self.event_counts[RiscvAirId::Jump] =
+            opcode_counts[Opcode::JAL] + opcode_counts[Opcode::JALR];
+
+        // Compute the number of events in the auipc chip.
+        self.event_counts[RiscvAirId::Auipc] = opcode_counts[Opcode::AUIPC]
+            + opcode_counts[Opcode::UNIMP]
+            + opcode_counts[Opcode::EBREAK];
+
+        // Compute the number of events in the memory instruction chip.
+        self.event_counts[RiscvAirId::MemoryInstrs] = opcode_counts[Opcode::LB]
+            + opcode_counts[Opcode::LH]
+            + opcode_counts[Opcode::LW]
+            + opcode_counts[Opcode::LBU]
+            + opcode_counts[Opcode::LHU]
+            + opcode_counts[Opcode::SB]
+            + opcode_counts[Opcode::SH]
+            + opcode_counts[Opcode::SW];
+
+        // Compute the number of events in the syscall instruction chip.
+        self.event_counts[RiscvAirId::SyscallInstrs] = opcode_counts[Opcode::ECALL];
+
+        // Compute the number of events in the syscall core chip.
+        self.event_counts[RiscvAirId::SyscallCore] = syscalls_sent;
+
+        // Compute the number of events in the global chip.
+        self.event_counts[RiscvAirId::Global] = 2 * touched_addresses + syscalls_sent;
+
+        // Adjust for divrem dependencies.
+        self.event_counts[RiscvAirId::Mul] += self.event_counts[RiscvAirId::DivRem];
+        self.event_counts[RiscvAirId::Lt] += self.event_counts[RiscvAirId::DivRem];
+
+        // Note: we ignore the additional dependencies for addsub, since they are accounted for in
+        // the maximal shapes.
     }
 
     #[inline]
