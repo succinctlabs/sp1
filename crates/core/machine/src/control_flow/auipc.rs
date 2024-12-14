@@ -231,12 +231,11 @@ mod tests {
     use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
     use sp1_core_executor::{
-        events::MemoryRecordEnum, ExecutionError, ExecutionRecord, Executor, Instruction, Opcode,
-        Program,
+        ExecutionError, ExecutionRecord, Executor, Instruction, Opcode, Program,
     };
     use sp1_stark::{
-        air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, CpuProver, MachineProver,
-        SP1CoreOpts, Val,
+        air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, chip_name, CpuProver,
+        MachineProver, SP1CoreOpts, Val,
     };
 
     use crate::{
@@ -248,7 +247,10 @@ mod tests {
 
     #[test]
     fn test_malicious_auipc() {
-        let instructions = vec![Instruction::new(Opcode::AUIPC, 29, 12, 0, true, true)];
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 0, false, false),
+            Instruction::new(Opcode::AUIPC, 29, 12, 0, true, true),
+        ];
         let program = Program::new(instructions, 0, 0);
         let stdin = SP1Stdin::new();
 
@@ -258,21 +260,15 @@ mod tests {
             |prover: &P,
              record: &mut ExecutionRecord|
              -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
-                // Create a malicious record where the BEQ instruction branches incorrectly.
+                // Create a malicious record where the AUIPC instruction result is incorrect.
                 let mut malicious_record = record.clone();
-                malicious_record.cpu_events[0].a = 8;
-                if let Some(MemoryRecordEnum::Write(a_write_record)) =
-                    malicious_record.cpu_events[0].a_record.as_mut()
-                {
-                    a_write_record.value = 8;
-                }
                 malicious_record.auipc_events[0].a = 8;
                 prover.generate_traces(&malicious_record)
             };
 
         let result =
             run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
-        assert!(result.is_err() && result.unwrap_err().is_constraints_failing());
+        assert!(result.is_err() && result.unwrap_err().is_local_cumulative_sum_failing());
     }
 
     #[test]
@@ -289,7 +285,7 @@ mod tests {
              -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
                 // Modify the branch chip to have a row that has multiple opcode flags set.
                 let mut traces = prover.generate_traces(record);
-                let auipc_chip_name = <AuipcChip as MachineAir<BabyBear>>::name(&AuipcChip {});
+                let auipc_chip_name = chip_name!(AuipcChip, BabyBear);
                 for (chip_name, trace) in traces.iter_mut() {
                     if *chip_name == auipc_chip_name {
                         let first_row: &mut [BabyBear] = trace.row_mut(0);
@@ -303,7 +299,8 @@ mod tests {
 
         let result =
             run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
-        assert!(result.is_err() && result.unwrap_err().is_constraints_failing());
+        let auipc_chip_name = chip_name!(AuipcChip, BabyBear);
+        assert!(result.is_err() && result.unwrap_err().is_constraints_failing(&auipc_chip_name));
     }
 
     #[test]

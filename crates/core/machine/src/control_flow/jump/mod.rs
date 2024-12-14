@@ -23,7 +23,8 @@ mod tests {
     use p3_matrix::dense::RowMajorMatrix;
     use sp1_core_executor::{ExecutionRecord, Instruction, Opcode, Program};
     use sp1_stark::{
-        air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, CpuProver, MachineProver, Val,
+        air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, chip_name, CpuProver,
+        MachineProver, Val,
     };
 
     use crate::{
@@ -36,7 +37,7 @@ mod tests {
     #[test]
     fn test_malicious_jal() {
         let instructions = vec![
-            Instruction::new(Opcode::JAL, 29, 12, 0, true, true),
+            Instruction::new(Opcode::JAL, 29, 8, 0, true, true),
             Instruction::new(Opcode::ADD, 30, 0, 5, false, true),
             Instruction::new(Opcode::ADD, 28, 0, 5, false, true),
             Instruction::new(Opcode::ADD, 28, 0, 5, false, true),
@@ -50,16 +51,15 @@ mod tests {
             |prover: &P,
              record: &mut ExecutionRecord|
              -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
-                // Create a malicious record where the BEQ instruction branches incorrectly.
+                // Create a malicious record where the JAL instruction jumps incorrectly.
                 let mut malicious_record = record.clone();
-                malicious_record.cpu_events[0].next_pc = 4;
                 malicious_record.jump_events[0].next_pc = 4;
                 prover.generate_traces(&malicious_record)
             };
 
         let result =
             run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
-        assert!(result.is_err() && result.unwrap_err().is_constraints_failing());
+        assert!(result.is_err() && result.unwrap_err().is_local_cumulative_sum_failing());
     }
 
     #[test]
@@ -82,14 +82,13 @@ mod tests {
              -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
                 // Create a malicious record where the BEQ instruction branches incorrectly.
                 let mut malicious_record = record.clone();
-                malicious_record.cpu_events[1].next_pc = 8;
                 malicious_record.jump_events[0].next_pc = 8;
                 prover.generate_traces(&malicious_record)
             };
 
         let result =
             run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
-        assert!(result.is_err() && result.unwrap_err().is_constraints_failing());
+        assert!(result.is_err() && result.unwrap_err().is_local_cumulative_sum_failing());
     }
 
     #[test]
@@ -111,7 +110,7 @@ mod tests {
              -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
                 // Modify the branch chip to have a row that has multiple opcode flags set.
                 let mut traces = prover.generate_traces(record);
-                let jump_chip_name = <JumpChip as MachineAir<BabyBear>>::name(&JumpChip {});
+                let jump_chip_name = chip_name!(JumpChip, BabyBear);
                 for (chip_name, trace) in traces.iter_mut() {
                     if *chip_name == jump_chip_name {
                         let first_row = trace.row_mut(0);
@@ -125,6 +124,7 @@ mod tests {
 
         let result =
             run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
-        assert!(result.is_err() && result.unwrap_err().is_constraints_failing());
+        let jump_chip_name = chip_name!(JumpChip, BabyBear);
+        assert!(result.is_err() && result.unwrap_err().is_constraints_failing(&jump_chip_name));
     }
 }

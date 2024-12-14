@@ -23,7 +23,8 @@ mod tests {
     use p3_matrix::dense::RowMajorMatrix;
     use sp1_core_executor::{ExecutionRecord, Instruction, Opcode, Program};
     use sp1_stark::{
-        air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, CpuProver, MachineProver, Val,
+        air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, chip_name, CpuProver,
+        MachineProver, Val,
     };
 
     use crate::{
@@ -48,85 +49,85 @@ mod tests {
                 branch_opcode: Opcode::BEQ,
                 branch_operand_b_value: 5,
                 branch_operand_c_value: 5,
-                incorrect_next_pc: 12,
+                incorrect_next_pc: 16, // Correct next PC is 16.
             },
             BranchTestCase {
                 branch_opcode: Opcode::BEQ,
                 branch_operand_b_value: 5,
                 branch_operand_c_value: 3,
-                incorrect_next_pc: 16,
+                incorrect_next_pc: 16, // Correct next PC is 12.
             },
             BranchTestCase {
                 branch_opcode: Opcode::BNE,
                 branch_operand_b_value: 5,
                 branch_operand_c_value: 5,
-                incorrect_next_pc: 16,
+                incorrect_next_pc: 16, // Correct next PC is 12.
             },
             BranchTestCase {
                 branch_opcode: Opcode::BNE,
                 branch_operand_b_value: 5,
                 branch_operand_c_value: 3,
-                incorrect_next_pc: 12,
+                incorrect_next_pc: 12, // Correct next PC is 16.
             },
             BranchTestCase {
                 branch_opcode: Opcode::BLTU,
                 branch_operand_b_value: 5,
                 branch_operand_c_value: 3,
-                incorrect_next_pc: 16,
+                incorrect_next_pc: 16, // Correct next PC is 12.
             },
             BranchTestCase {
                 branch_opcode: Opcode::BLTU,
                 branch_operand_b_value: 3,
                 branch_operand_c_value: 5,
-                incorrect_next_pc: 12,
+                incorrect_next_pc: 12, // Correct next PC is 16.
             },
             BranchTestCase {
                 branch_opcode: Opcode::BLT,
                 branch_operand_b_value: 0xFFFF_FFFF, // This is -1.
                 branch_operand_c_value: 3,
-                incorrect_next_pc: 12,
+                incorrect_next_pc: 12, // Correct next PC is 16.
             },
             BranchTestCase {
                 branch_opcode: Opcode::BLT,
                 branch_operand_b_value: 3,
                 branch_operand_c_value: 0xFFFF_FFFF, // This is -1.
-                incorrect_next_pc: 16,
+                incorrect_next_pc: 16,               // Correct next PC is 12.
             },
             BranchTestCase {
                 branch_opcode: Opcode::BGEU,
                 branch_operand_b_value: 3,
                 branch_operand_c_value: 5,
-                incorrect_next_pc: 16,
+                incorrect_next_pc: 16, // Correct next PC is 12.
             },
             BranchTestCase {
                 branch_opcode: Opcode::BGEU,
                 branch_operand_b_value: 5,
                 branch_operand_c_value: 5,
-                incorrect_next_pc: 12,
+                incorrect_next_pc: 12, // Correct next PC is 16.
             },
             BranchTestCase {
                 branch_opcode: Opcode::BGEU,
                 branch_operand_b_value: 5,
                 branch_operand_c_value: 3,
-                incorrect_next_pc: 12,
+                incorrect_next_pc: 12, // Correct next PC is 16.
             },
             BranchTestCase {
                 branch_opcode: Opcode::BGE,
                 branch_operand_b_value: 0xFFFF_FFFF, // This is -1.
                 branch_operand_c_value: 5,
-                incorrect_next_pc: 16,
+                incorrect_next_pc: 16, // Correct next PC is 12.
             },
             BranchTestCase {
                 branch_opcode: Opcode::BGE,
                 branch_operand_b_value: 5,
                 branch_operand_c_value: 5,
-                incorrect_next_pc: 12,
+                incorrect_next_pc: 12, // Correct next PC is 16.
             },
             BranchTestCase {
                 branch_opcode: Opcode::BGE,
                 branch_operand_b_value: 3,
                 branch_operand_c_value: 0xFFFF_FFFF, // This is -1.
-                incorrect_next_pc: 12,
+                incorrect_next_pc: 12,               // Correct next PC is 16.
             },
         ];
 
@@ -149,14 +150,14 @@ mod tests {
                       -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
                     // Create a malicious record where the BEQ instruction branches incorrectly.
                     let mut malicious_record = record.clone();
-                    malicious_record.cpu_events[2].next_pc = test_case.incorrect_next_pc;
                     malicious_record.branch_events[0].next_pc = test_case.incorrect_next_pc;
                     prover.generate_traces(&malicious_record)
                 };
 
             let result =
                 run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
-            assert!(result.is_err() && result.unwrap_err().is_constraints_failing());
+
+            assert!(result.is_err() && result.unwrap_err().is_local_cumulative_sum_failing());
         }
     }
 
@@ -180,7 +181,7 @@ mod tests {
              -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
                 // Modify the branch chip to have a row that has multiple opcode flags set.
                 let mut traces = prover.generate_traces(record);
-                let branch_chip_name = <BranchChip as MachineAir<BabyBear>>::name(&BranchChip {});
+                let branch_chip_name = chip_name!(BranchChip, BabyBear);
                 for (chip_name, trace) in traces.iter_mut() {
                     if *chip_name == branch_chip_name {
                         let first_row = trace.row_mut(0);
@@ -194,6 +195,7 @@ mod tests {
 
         let result =
             run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
-        assert!(result.is_err() && result.unwrap_err().is_constraints_failing());
+        let branch_chip_name = chip_name!(BranchChip, BabyBear);
+        assert!(result.is_err() && result.unwrap_err().is_constraints_failing(&branch_chip_name));
     }
 }

@@ -10,6 +10,14 @@ use super::InteractionScope;
 
 // TODO: add Id type and also fn id()
 
+#[macro_export]
+/// Macro to get the name of a chip.
+macro_rules! chip_name {
+    ($chip:ident, $field:ty) => {
+        <$chip as MachineAir<$field>>::name(&$chip {})
+    };
+}
+
 /// An AIR that is part of a multi table AIR arithmetization.
 pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
     /// The execution record containing events for producing the air trace.

@@ -25,7 +25,8 @@ mod tests {
         events::MemoryRecordEnum, ExecutionRecord, Instruction, Opcode, Program,
     };
     use sp1_stark::{
-        air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, CpuProver, MachineProver, Val,
+        air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, chip_name, CpuProver,
+        MachineProver, Val,
     };
 
     use crate::{
@@ -96,7 +97,11 @@ mod tests {
 
             match test_case.failure_type {
                 FailureType::ConstraintsFailing => {
-                    assert!(result.is_err() && result.unwrap_err().is_constraints_failing());
+                    let memory_instr_chip_name = chip_name!(MemoryInstructionsChip, BabyBear);
+                    assert!(
+                        result.is_err()
+                            && result.unwrap_err().is_constraints_failing(&memory_instr_chip_name)
+                    );
                 }
                 FailureType::CumulativeSumFailing => {
                     assert!(
@@ -165,7 +170,11 @@ mod tests {
 
             match test_case.failure_type {
                 FailureType::ConstraintsFailing => {
-                    assert!(result.is_err() && result.unwrap_err().is_constraints_failing());
+                    let memory_instr_chip_name = chip_name!(MemoryInstructionsChip, BabyBear);
+                    assert!(
+                        result.is_err()
+                            && result.unwrap_err().is_constraints_failing(&memory_instr_chip_name)
+                    );
                 }
                 FailureType::CumulativeSumFailing => {
                     assert!(
@@ -194,9 +203,7 @@ mod tests {
              -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
                 // Modify the branch chip to have a row that has multiple opcode flags set.
                 let mut traces = prover.generate_traces(record);
-                let memory_instr_chip_name = <MemoryInstructionsChip as MachineAir<BabyBear>>::name(
-                    &MemoryInstructionsChip {},
-                );
+                let memory_instr_chip_name = chip_name!(MemoryInstructionsChip, BabyBear);
                 for (chip_name, trace) in traces.iter_mut() {
                     if *chip_name == memory_instr_chip_name {
                         let first_row: &mut [BabyBear] = trace.row_mut(0);
@@ -211,6 +218,9 @@ mod tests {
 
         let result =
             run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
-        assert!(result.is_err() && result.unwrap_err().is_constraints_failing());
+        let memory_instr_chip_name = chip_name!(MemoryInstructionsChip, BabyBear);
+        assert!(
+            result.is_err() && result.unwrap_err().is_constraints_failing(&memory_instr_chip_name)
+        );
     }
 }
