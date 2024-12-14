@@ -162,7 +162,8 @@ pub fn estimate_riscv_event_counts(
     events_counts[RiscvAirId::SyscallCore] = syscalls_sent;
 
     // Compute the number of events in the global chip.
-    events_counts[RiscvAirId::Global] = 2 * touched_addresses + syscalls_sent;
+    events_counts[RiscvAirId::Global] =
+        2 * touched_addresses + events_counts[RiscvAirId::SyscallInstrs];
 
     // Adjust for divrem dependencies.
     events_counts[RiscvAirId::Mul] += events_counts[RiscvAirId::DivRem];
