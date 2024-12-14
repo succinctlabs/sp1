@@ -26,7 +26,7 @@ mod tests {
         air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, chip_name, CpuProver,
         MachineProver, Val,
     };
-    use sp1_zkvm::syscalls::{COMMIT, HALT, SHA_EXTEND};
+    use sp1_zkvm::syscalls::{COMMIT, COMMIT_DEFERRED_PROOFS, HALT, SHA_EXTEND};
 
     use crate::{
         cpu::{columns::CpuCols, CpuChip},
@@ -166,6 +166,34 @@ mod tests {
              -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
                 println!("record public values: {:?}", record.public_values);
                 record.public_values.committed_value_digest[0] = 10; // The correct value is 40.
+                prover.generate_traces(record)
+            };
+
+        let result =
+            run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
+        let syscall_chip_name = chip_name!(SyscallInstrsChip, BabyBear);
+        assert!(result.is_err() && result.unwrap_err().is_constraints_failing(&syscall_chip_name));
+    }
+
+    #[test]
+    fn test_malicious_commit_deferred() {
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 5, 0, COMMIT_DEFERRED_PROOFS, false, true), // Set the syscall code in register x5.
+            Instruction::new(Opcode::ADD, 10, 0, 0, false, false), // Set the syscall code in register x5.
+            Instruction::new(Opcode::ADD, 11, 0, 40, false, true), // Set the syscall arg1 to 40.
+            Instruction::new(Opcode::ECALL, 5, 10, 11, false, false), // Call the syscall.
+        ];
+        let program = Program::new(instructions, 0, 0);
+        let stdin = SP1Stdin::new();
+
+        type P = CpuProver<BabyBearPoseidon2, RiscvAir<BabyBear>>;
+
+        let malicious_trace_pv_generator =
+            |prover: &P,
+             record: &mut ExecutionRecord|
+             -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
+                println!("record public values: {:?}", record.public_values);
+                record.public_values.deferred_proofs_digest[0] = 10; // The correct value is 40.
                 prover.generate_traces(record)
             };
 
