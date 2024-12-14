@@ -164,7 +164,6 @@ mod tests {
             |prover: &P,
              record: &mut ExecutionRecord|
              -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
-                println!("record public values: {:?}", record.public_values);
                 record.public_values.committed_value_digest[0] = 10; // The correct value is 40.
                 prover.generate_traces(record)
             };
@@ -192,7 +191,6 @@ mod tests {
             |prover: &P,
              record: &mut ExecutionRecord|
              -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
-                println!("record public values: {:?}", record.public_values);
                 record.public_values.deferred_proofs_digest[0] = 10; // The correct value is 40.
                 prover.generate_traces(record)
             };

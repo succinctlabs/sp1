@@ -37,7 +37,7 @@ pub const NUM_ADD_SUB_COLS: usize = size_of::<AddSubCols<u8>>();
 pub struct AddSubChip;
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Default, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Clone, Copy, Debug)]
 #[repr(C)]
 pub struct AddSubCols<T> {
     /// The program counter.
@@ -276,12 +276,21 @@ mod tests {
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
     use rand::{thread_rng, Rng};
-    use sp1_core_executor::{events::AluEvent, ExecutionRecord, Opcode, DEFAULT_PC_INC};
-    use sp1_stark::{air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
+    use sp1_core_executor::{
+        events::AluEvent, ExecutionRecord, Instruction, Opcode, DEFAULT_PC_INC,
+    };
+    use sp1_stark::{
+        air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, chip_name, CpuProver,
+        MachineProver, StarkGenericConfig, Val,
+    };
     use std::sync::LazyLock;
 
     use super::*;
-    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
+    use crate::{
+        io::SP1Stdin,
+        riscv::RiscvAir,
+        utils::{run_malicious_test, uni_stark_prove as prove, uni_stark_verify as verify},
+    };
 
     /// Lazily initialized record for use across multiple tests.
     /// Consists of random `ADD` and `SUB` instructions.
@@ -413,5 +422,57 @@ mod tests {
 
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_ADD_SUB_COLS)
+    }
+
+    #[test]
+    fn test_malicious_add_sub() {
+        const NUM_TESTS: usize = 10;
+
+        for opcode in [Opcode::ADD, Opcode::SUB] {
+            for _ in 0..NUM_TESTS {
+                let op_b = thread_rng().gen_range(0..u32::MAX);
+                let op_c = thread_rng().gen_range(0..u32::MAX);
+                let op_a = thread_rng().gen_range(0..u32::MAX);
+
+                assert!(op_a != op_b + op_c);
+
+                let instructions = vec![
+                    Instruction::new(opcode, 5, op_b, op_c, true, true), // Set the syscall code in register x5.
+                    Instruction::new(Opcode::ADD, 10, 0, 0, false, false), // Set the syscall code in register x5.
+                ];
+                let program = Program::new(instructions, 0, 0);
+                let stdin = SP1Stdin::new();
+
+                type P = CpuProver<BabyBearPoseidon2, RiscvAir<BabyBear>>;
+
+                let malicious_trace_pv_generator = move |prover: &P,
+                                                         record: &mut ExecutionRecord|
+                      -> Vec<(
+                    String,
+                    RowMajorMatrix<Val<BabyBearPoseidon2>>,
+                )> {
+                    let mut traces = prover.generate_traces(record);
+
+                    let add_sub_chip_name = chip_name!(AddSubChip, BabyBear);
+                    for (chip_name, trace) in traces.iter_mut() {
+                        if *chip_name == add_sub_chip_name {
+                            let first_row = trace.row_mut(0);
+                            let first_row: &mut AddSubCols<BabyBear> = first_row.borrow_mut();
+                            first_row.add_operation.value = op_a.into();
+                        }
+                    }
+
+                    traces
+                };
+
+                let result =
+                    run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
+                let add_sub_chip_name = chip_name!(AddSubChip, BabyBear);
+                assert!(
+                    result.is_err()
+                        && result.unwrap_err().is_constraints_failing(&add_sub_chip_name)
+                );
+            }
+        }
     }
 }
