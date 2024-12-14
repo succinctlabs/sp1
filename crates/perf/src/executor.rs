@@ -61,9 +61,9 @@ fn main() {
     let maximal_shapes = shape_config
         .maximal_core_shapes(opts.core_opts.shard_size.ilog2() as usize)
         .into_iter()
-        .collect::<_>();
+        .collect::<Vec<_>>();
 
-    let mut executor = Executor::new(program, opts.core_opts);
+    let mut executor = Executor::new(program, SP1CoreOpts::default());
     executor.maximal_shapes = Some(maximal_shapes);
     executor.write_vecs(&stdin.buffer);
     for (proof, vkey) in stdin.proofs.iter() {
