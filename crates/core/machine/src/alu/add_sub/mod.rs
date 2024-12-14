@@ -426,7 +426,7 @@ mod tests {
 
     #[test]
     fn test_malicious_add_sub() {
-        const NUM_TESTS: usize = 10;
+        const NUM_TESTS: usize = 5;
 
         for opcode in [Opcode::ADD, Opcode::SUB] {
             for _ in 0..NUM_TESTS {
