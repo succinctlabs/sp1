@@ -23,9 +23,10 @@ mod tests {
     use p3_matrix::dense::RowMajorMatrix;
     use sp1_core_executor::{ExecutionRecord, Instruction, Opcode, Program};
     use sp1_stark::{
-        air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, CpuProver, MachineProver, Val,
+        air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, chip_name, CpuProver,
+        MachineProver, Val,
     };
-    use sp1_zkvm::syscalls::{HALT, SHA_EXTEND};
+    use sp1_zkvm::syscalls::{COMMIT, HALT, SHA_EXTEND};
 
     use crate::{
         cpu::{columns::CpuCols, CpuChip},
@@ -39,7 +40,6 @@ mod tests {
     fn test_malicious_next_pc() {
         struct TestCase {
             program: Vec<Instruction>,
-            ecall_idx: usize,
             incorrect_next_pc: u32,
         }
 
@@ -50,7 +50,6 @@ mod tests {
                     Instruction::new(Opcode::ECALL, 5, 10, 11, false, false), // Call the syscall.
                     Instruction::new(Opcode::ADD, 30, 0, 100, false, true),
                 ],
-                ecall_idx: 1,
                 incorrect_next_pc: 8, // The correct next_pc is 0.
             },
             TestCase {
@@ -60,7 +59,6 @@ mod tests {
                     Instruction::new(Opcode::ECALL, 5, 10, 11, false, false), // Call the syscall.
                     Instruction::new(Opcode::ADD, 30, 0, 100, false, true),
                 ],
-                ecall_idx: 2,
                 incorrect_next_pc: 0, // The correct next_pc is 12.
             },
         ];
@@ -81,9 +79,6 @@ mod tests {
                     // There can be multiple shards for programs with syscalls, so need to figure out which
                     // record is for a CPU shard.
                     if !malicious_record.cpu_events.is_empty() {
-                        malicious_record.cpu_events[test_case.ecall_idx].next_pc =
-                            test_case.incorrect_next_pc;
-
                         malicious_record.syscall_events[0].next_pc = test_case.incorrect_next_pc;
                     }
 
@@ -92,8 +87,7 @@ mod tests {
 
             let result =
                 run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
-            let syscall_chip_name =
-                <SyscallInstrsChip as MachineAir<BabyBear>>::name(&SyscallInstrsChip {});
+            let syscall_chip_name = chip_name!(SyscallInstrsChip, BabyBear);
             assert!(
                 result.is_err() && result.unwrap_err().is_constraints_failing(&syscall_chip_name)
             );
@@ -119,9 +113,8 @@ mod tests {
              -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
                 let mut traces = prover.generate_traces(record);
 
-                let cpu_chip_name = <CpuChip as MachineAir<BabyBear>>::name(&CpuChip {});
-                let syscall_chip_name =
-                    <SyscallInstrsChip as MachineAir<BabyBear>>::name(&SyscallInstrsChip {});
+                let cpu_chip_name = chip_name!(CpuChip, BabyBear);
+                let syscall_chip_name = chip_name!(SyscallInstrsChip, BabyBear);
 
                 for (chip_name, trace) in traces.iter_mut() {
                     if *chip_name == cpu_chip_name {
@@ -150,8 +143,35 @@ mod tests {
 
         let result =
             run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
-        let syscall_chip_name =
-            <SyscallInstrsChip as MachineAir<BabyBear>>::name(&SyscallInstrsChip {});
+        let syscall_chip_name = chip_name!(SyscallInstrsChip, BabyBear);
+        assert!(result.is_err() && result.unwrap_err().is_constraints_failing(&syscall_chip_name));
+    }
+
+    #[test]
+    fn test_malicious_commit() {
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 5, 0, COMMIT, false, true), // Set the syscall code in register x5.
+            Instruction::new(Opcode::ADD, 10, 0, 0, false, false), // Set the syscall code in register x5.
+            Instruction::new(Opcode::ADD, 11, 0, 40, false, true), // Set the syscall arg1 to 40.
+            Instruction::new(Opcode::ECALL, 5, 10, 11, false, false), // Call the syscall.
+        ];
+        let program = Program::new(instructions, 0, 0);
+        let stdin = SP1Stdin::new();
+
+        type P = CpuProver<BabyBearPoseidon2, RiscvAir<BabyBear>>;
+
+        let malicious_trace_pv_generator =
+            |prover: &P,
+             record: &mut ExecutionRecord|
+             -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
+                println!("record public values: {:?}", record.public_values);
+                record.public_values.committed_value_digest[0] = 10; // The correct value is 40.
+                prover.generate_traces(record)
+            };
+
+        let result =
+            run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
+        let syscall_chip_name = chip_name!(SyscallInstrsChip, BabyBear);
         assert!(result.is_err() && result.unwrap_err().is_constraints_failing(&syscall_chip_name));
     }
 }
