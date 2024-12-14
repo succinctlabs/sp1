@@ -65,7 +65,6 @@ mod attr;
 #[proc_macro_attribute]
 pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
     let options = parse_macro_input!(attr as attr::AttrOptions);
-    println!("options: {:?}", options);
 
     let mut setup_fn = parse_macro_input!(item as syn::ItemFn);
 
@@ -103,26 +102,26 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
             let _ = cb;
         }
 
-        assert_proper_cb(&cb);
+        assert_proper_cb(&__cb);
     };
 
     let execute_test = quote! {
         #[test]
         fn #test_name() {
-            const ELF: &[u8] = ::sp1_sdk::include_elf!(#elf_name);
+            const __ELF: &[u8] = ::sp1_sdk::include_elf!(#elf_name);
 
-            let client = ::sp1_sdk::ProverClient::new();
-            let mut stdin = ::sp1_sdk::SP1Stdin::new();
+            let __client = ::sp1_sdk::ProverClient::new();
+            let mut __stdin = ::sp1_sdk::SP1Stdin::new();
 
             #setup_fn
 
-            let cb = #setup_name(&mut stdin);
+            let __cb = #setup_name(&mut __stdin);
 
             #bounds_check
 
-            let (public, _) = client.execute(ELF, stdin).run().unwrap();
+            let (__public, _) = __client.execute(__ELF, __stdin).run().unwrap();
 
-            cb(public);
+            __cb(__public);
         }
     };
 
@@ -133,21 +132,21 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
             #[cfg(feature = "prove")]
             #[test]
             fn #prove_name() {
-                const ELF: &[u8] = ::sp1_sdk::include_elf!(#elf_name);
+                const __ELF: &[u8] = ::sp1_sdk::include_elf!(#elf_name);
 
-                let client = ::sp1_sdk::ProverClient::new();
-                let mut stdin = ::sp1_sdk::SP1Stdin::new();
+                let __client = ::sp1_sdk::ProverClient::new();
+                let mut __stdin = ::sp1_sdk::SP1Stdin::new();
 
                 #setup_fn
 
-                let cb = #setup_name(&mut stdin);
+                let __cb = #setup_name(&mut __stdin);
 
                 #bounds_check
 
-                let (pk, _) = client.setup(ELF);
-                let proof = client.prove(&pk, stdin).run().unwrap();
+                let (__pk, _) = __client.setup(ELF);
+                let __proof = __client.prove(&__pk, __stdin).run().unwrap();
 
-                cb(proof.public_values);
+                __cb(__proof.public_values);
             }
         };
 
@@ -164,20 +163,20 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
             #[cfg(feature = "cuda")]
             #[test]
             fn #gpu_name() {
-                    const ELF: &[u8] = ::sp1_sdk::include_elf!(#elf_name);
+                const __ELF: &[u8] = ::sp1_sdk::include_elf!(#elf_name);
 
-                let client = ::sp1_sdk::ProverClient::gpu();
-                let mut stdin = ::sp1_sdk::SP1Stdin::new();
+                let __client = ::sp1_sdk::ProverClient::gpu();
+                let mut __stdin = ::sp1_sdk::SP1Stdin::new();
 
                 #setup_fn
 
-                let cb = #setup_name(&mut stdin);
+                let __cb = #setup_name(&mut __stdin);
 
                 #bounds_check
 
-                let (public, _) = client.execute(ELF, stdin).run().unwrap();
+                let (__public, _) = __client.execute(__ELF, __stdin).run().unwrap();
 
-                cb(public);
+                __cb(public);
             }
         };
 
@@ -186,21 +185,21 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
                 #[cfg(feature = "cuda")]
                 #[test]
                 fn #gpu_prove_name() {
-                    const ELF: &[u8] = ::sp1_sdk::include_elf!(#elf_name);
+                    const __ELF: &[u8] = ::sp1_sdk::include_elf!(#elf_name);
 
-                    let client = ::sp1_sdk::ProverClient::gpu();
-                    let mut stdin = ::sp1_sdk::SP1Stdin::new();
+                    let __client = ::sp1_sdk::ProverClient::gpu();
+                    let mut __stdin = ::sp1_sdk::SP1Stdin::new();
 
                     #setup_fn
 
-                    let cb = #setup_name(&mut stdin);
+                    let __cb = #setup_name(&mut __stdin);
 
                     #bounds_check
 
-                    let (pk, _) = client.setup(ELF);
-                    let proof = client.prove(&pk, stdin).run().unwrap();
+                    let (__pk, _) = __client.setup(ELF);
+                    let __proof = __client.prove(&pk, stdin).run().unwrap();
 
-                    cb(proof.public_values);
+                    __cb(__proof.public_values);
                 }
             })
         } else {

@@ -3716,6 +3716,7 @@ dependencies = [
  "secp256k1",
  "sp1-build",
  "sp1-sdk",
+ "sp1-test",
 ]
 
 [[package]]

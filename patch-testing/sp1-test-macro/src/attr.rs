@@ -1,5 +1,8 @@
-use syn::{parse::{Parse, ParseStream}, Ident, LitStr, Token};
 use proc_macro2::Span;
+use syn::{
+    parse::{Parse, ParseStream},
+    Ident, LitStr, Token,
+};
 
 #[derive(Debug)]
 pub struct AttrOptions(Vec<AttrOption>);
@@ -42,28 +45,29 @@ impl AttrOptions {
 pub enum AttrOption {
     Elf(String),
     Prove,
-    Gpu
+    Gpu,
 }
 
 impl AttrOption {
     fn matches(&self, other: &Self) -> bool {
-        match (self, other) {
-            (AttrOption::Elf(_), AttrOption::Elf(_)) => true,
-            (AttrOption::Prove, AttrOption::Prove) => true,
-            (AttrOption::Gpu, AttrOption::Gpu) => true,
-            _ => false
-        }
+        matches!(
+            (self, other),
+            (AttrOption::Elf(_), AttrOption::Elf(_))
+                | (AttrOption::Prove, AttrOption::Prove)
+                | (AttrOption::Gpu, AttrOption::Gpu)
+        )
     }
 }
-
 
 impl Parse for AttrOptions {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         if input.is_empty() {
-            return Err(input.error("No attribute options provided, expected at least an ELF name."));
+            return Err(
+                input.error("No attribute options provided, expected at least an ELF name.")
+            );
         }
 
-        let mut options = AttrOptions::new(); 
+        let mut options = AttrOptions::new();
         while !input.is_empty() {
             let lookahead = input.lookahead1();
             if lookahead.peek(Ident) {
@@ -85,7 +89,7 @@ impl Parse for AttrOptions {
             } else {
                 return Err(lookahead.error());
             }
-            
+
             // We still have attributes to parse, and they should be separated by commas
             if !input.is_empty() {
                 input.parse::<Token![,]>()?;
@@ -102,6 +106,8 @@ fn handle_ident(ident: &Ident) -> syn::Result<AttrOption> {
         "gpu" => Ok(AttrOption::Gpu),
         // handled above
         "elf" => unreachable!(),
-        _ => Err(syn::Error::new(ident.span(), format!("Found Unknown attribute option {}", ident)))
+        _ => {
+            Err(syn::Error::new(ident.span(), format!("Found Unknown attribute option {}", ident)))
+        }
     }
 }

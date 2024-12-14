@@ -8,6 +8,8 @@ publish.workspace = true
 sp1-sdk = { workspace = true }
 secp256k1 = { workspace = true }
 rand = { workspace = true }
+sp1-test = { workspace = true }
 
 [build-dependencies]
 sp1-build = { workspace = true }
+
