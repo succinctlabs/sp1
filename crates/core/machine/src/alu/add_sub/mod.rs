@@ -437,8 +437,8 @@ mod tests {
                 assert!(op_a != op_b + op_c);
 
                 let instructions = vec![
-                    Instruction::new(opcode, 5, op_b, op_c, true, true), // Set the syscall code in register x5.
-                    Instruction::new(Opcode::ADD, 10, 0, 0, false, false), // Set the syscall code in register x5.
+                    Instruction::new(opcode, 5, op_b, op_c, true, true),
+                    Instruction::new(Opcode::ADD, 10, 0, 0, false, false),
                 ];
                 let program = Program::new(instructions, 0, 0);
                 let stdin = SP1Stdin::new();
