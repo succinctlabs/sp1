@@ -1,5 +1,3 @@
-use std::env;
-
 use p3_air::Air;
 use p3_baby_bear::BabyBear;
 use p3_matrix::dense::RowMajorMatrix;
