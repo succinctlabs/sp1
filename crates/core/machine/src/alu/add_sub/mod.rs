@@ -434,7 +434,7 @@ mod tests {
                 let op_c = thread_rng().gen_range(0..u32::MAX);
                 let op_a = thread_rng().gen_range(0..u32::MAX);
 
-                assert!(op_a != op_b + op_c);
+                assert!(op_a != op_b.wrapping_add(op_c));
 
                 let instructions = vec![
                     Instruction::new(opcode, 5, op_b, op_c, true, true),
