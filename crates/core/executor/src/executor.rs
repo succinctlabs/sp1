@@ -2127,7 +2127,8 @@ impl<'a> Executor<'a> {
         self.event_counts[RiscvAirId::SyscallCore] = syscalls_sent;
 
         // Compute the number of events in the global chip.
-        self.event_counts[RiscvAirId::Global] = 2 * touched_addresses + syscalls_sent;
+        self.event_counts[RiscvAirId::Global] =
+            2 * touched_addresses + self.event_counts[RiscvAirId::SyscallInstrs];
 
         // Adjust for divrem dependencies.
         self.event_counts[RiscvAirId::Mul] += self.event_counts[RiscvAirId::DivRem];
