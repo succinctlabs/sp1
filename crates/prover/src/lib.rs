@@ -1209,7 +1209,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     fn check_for_high_cycles(cycles: u64) {
         if cycles > 100_000_000 {
             tracing::warn!(
-                "high cycle count, consider using the prover network for proof generation: https://docs.succinct.xyz/generating-proofs/prover-network"
+                "high cycle count, consider using the prover network for proof generation: https://docs.succinct.xyz/docs/generating-proofs/prover-network"
             );
         }
     }
