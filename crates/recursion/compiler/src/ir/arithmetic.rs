@@ -92,6 +92,14 @@ pub(crate) trait VarOperations<N> {
     fn mul_var(ptr: *mut (), lhs: Var<N>, rhs: Var<N>) -> Var<N>;
     fn mul_const_var(ptr: *mut (), lhs: Var<N>, rhs: N) -> Var<N>;
 
+    fn perform_operation<T>(
+        ptr: *mut (),
+        handle: *mut (),
+        operation: fn(Var<N>, T, T) -> DslIr,
+        lhs: Var<N>,
+        rhs: T,
+    ) -> Var<N>;
+
     fn var_handle(element: &mut Box<Self>) -> VarHandle<N> {
         VarHandle {
             ptr: element.as_mut() as *mut Self as *mut (),
@@ -220,97 +228,51 @@ pub(crate) trait ExtOperations<F, EF> {
 
 impl<C: Config> VarOperations<C::N> for UnsafeCell<InnerBuilder<C>> {
     fn add_var(ptr: *mut (), lhs: Var<C::N>, rhs: Var<C::N>) -> Var<C::N> {
-        let mut inner = unsafe { ManuallyDrop::new(Box::from_raw(ptr as *mut Self)) };
-        let inner = inner.get_mut();
-        let idx = inner.variable_count;
-        let res = Var::new(idx, lhs.handle);
-        inner.variable_count += 1;
-
-        inner.operations.push(DslIr::AddV(res, lhs, rhs));
-
-        res
+        Self::perform_operation(ptr, lhs.handle, DslIr::AddV, lhs, rhs)
     }
 
     fn sub_var(ptr: *mut (), lhs: Var<C::N>, rhs: Var<C::N>) -> Var<C::N> {
-        let mut inner = unsafe { ManuallyDrop::new(Box::from_raw(ptr as *mut Self)) };
-        let inner = inner.get_mut();
-        let idx = inner.variable_count;
-        let res = Var::new(idx, lhs.handle);
-        inner.variable_count += 1;
-
-        inner.operations.push(DslIr::SubV(res, lhs, rhs));
-
-        res
+        Self::perform_operation(ptr, lhs.handle, DslIr::SubV, lhs, rhs)
     }
 
     fn mul_var(ptr: *mut (), lhs: Var<C::N>, rhs: Var<C::N>) -> Var<C::N> {
-        let mut inner = unsafe { ManuallyDrop::new(Box::from_raw(ptr as *mut Self)) };
-        let inner = inner.get_mut();
-        let idx = inner.variable_count;
-        let res = Var::new(idx, lhs.handle);
-        inner.variable_count += 1;
-
-        inner.operations.push(DslIr::MulV(res, lhs, rhs));
-
-        res
+        Self::perform_operation(ptr, lhs.handle, DslIr::MulV, lhs, rhs)
     }
 
     fn add_const_var(ptr: *mut (), lhs: Var<C::N>, rhs: C::N) -> Var<C::N> {
-        let mut inner = unsafe { ManuallyDrop::new(Box::from_raw(ptr as *mut Self)) };
-        let inner = inner.get_mut();
-        let idx = inner.variable_count;
-        let res = Var::new(idx, lhs.handle);
-        inner.variable_count += 1;
-
-        inner.operations.push(DslIr::AddVI(res, lhs, rhs));
-
-        res
+        Self::perform_operation(ptr, lhs.handle, DslIr::AddVI, lhs, rhs)
     }
 
     fn mul_const_var(ptr: *mut (), lhs: Var<C::N>, rhs: C::N) -> Var<C::N> {
-        let mut inner = unsafe { ManuallyDrop::new(Box::from_raw(ptr as *mut Self)) };
-        let inner = inner.get_mut();
-        let idx = inner.variable_count;
-        let res = Var::new(idx, lhs.handle);
-        inner.variable_count += 1;
-
-        inner.operations.push(DslIr::MulVI(res, lhs, rhs));
-
-        res
+        Self::perform_operation(ptr, lhs.handle, DslIr::MulVI, lhs, rhs)
     }
 
     fn sub_const_var(ptr: *mut (), lhs: C::N, rhs: Var<C::N>) -> Var<C::N> {
-        let mut inner = unsafe { ManuallyDrop::new(Box::from_raw(ptr as *mut Self)) };
-        let inner = inner.get_mut();
-        let idx = inner.variable_count;
-        let res = Var::new(idx, rhs.handle);
-        inner.variable_count += 1;
-
-        inner.operations.push(DslIr::SubVIN(res, lhs, rhs));
-
-        res
+        Self::perform_operation(ptr, rhs.handle, DslIr::SubVIN, lhs, rhs)
     }
 
     fn sub_var_const(ptr: *mut (), lhs: Var<C::N>, rhs: C::N) -> Var<C::N> {
-        let mut inner = unsafe { ManuallyDrop::new(Box::from_raw(ptr as *mut Self)) };
-        let inner = inner.get_mut();
-        let idx = inner.variable_count;
-        let res = Var::new(idx, lhs.handle);
-        inner.variable_count += 1;
-
-        inner.operations.push(DslIr::SubVI(res, lhs, rhs));
-
-        res
+        Self::perform_operation(ptr, lhs.handle, DslIr::SubVI, lhs, rhs)
     }
 
     fn neg_var(ptr: *mut (), lhs: Var<C::N>) -> Var<C::N> {
+        Self::perform_operation(ptr, lhs.handle, DslIr::NegV, lhs, ())
+    }
+
+    fn perform_operation<T>(
+        ptr: *mut (),
+        handle: *mut (),
+        operation: fn(Var<C::N>, T, T) -> DslIr,
+        lhs: Var<C::N>,
+        rhs: T,
+    ) -> Var<C::N> {
         let mut inner = unsafe { ManuallyDrop::new(Box::from_raw(ptr as *mut Self)) };
         let inner = inner.get_mut();
         let idx = inner.variable_count;
-        let res = Var::new(idx, lhs.handle);
+        let res = Var::new(idx, handle);
         inner.variable_count += 1;
 
-        inner.operations.push(DslIr::NegV(res, lhs));
+        inner.operations.push(operation(res, lhs, rhs));
 
         res
     }
