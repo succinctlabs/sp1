@@ -79,8 +79,6 @@ fn strip_hash(name_with_hash: &str) -> String {
     let mut result = re.replace(name_with_hash, "").to_string();
     let re2 = Regex::new(r"^<(.+) as .+>").unwrap();
     result = re2.replace(&result, "$1").to_string();
-    let re2 = Regex::new(r"^<(.+) as .+>").unwrap();
-    result = re2.replace(&result, "$1").to_string();
     let re2 = Regex::new(r"([^\:])<.+>::").unwrap();
     result = re2.replace_all(&result, "$1::").to_string();
     result
