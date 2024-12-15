@@ -254,20 +254,28 @@ pub struct ProofRequest {
     /// The unix timestamp of when the request was updated.
     #[prost(uint64, tag = "19")]
     pub updated_at: u64,
-    /// The unix timestamp of when the request was fulfilled.
+    /// The unix timestamp of when the request was fulfilled. Only included if
+    /// the request has a fulfillment status of FULFILLED.
     #[prost(uint64, optional, tag = "20")]
     pub fulfilled_at: ::core::option::Option<u64>,
     /// The transaction hash of the request.
     #[prost(bytes = "vec", tag = "21")]
     pub tx_hash: ::prost::alloc::vec::Vec<u8>,
-    /// The cycle count for the request.
+    /// The cycle used during the execution of the request. Only included if the
+    /// request has an execution status of EXECUTED.
     #[prost(uint64, optional, tag = "22")]
     pub cycles: ::core::option::Option<u64>,
-    /// The amount deducted from the fulfiller's balance.
-    #[prost(string, optional, tag = "23")]
-    pub deduction_amount: ::core::option::Option<::prost::alloc::string::String>,
-    /// The amount refunded to the fulfiller's balance.
+    /// The public values hash from the execution of the request. Only included if
+    /// the request has an execution status of EXECUTED.
+    #[prost(bytes = "vec", optional, tag = "23")]
+    pub public_values_hash: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
+    /// The amount deducted from the fulfiller's balance. Only included if the
+    /// request has a fulfillment status of ASSIGNED.
     #[prost(string, optional, tag = "24")]
+    pub deduction_amount: ::core::option::Option<::prost::alloc::string::String>,
+    /// The amount refunded to the fulfiller's balance. Only included if the
+    /// request has a fulfillment status of EXECUTED.
+    #[prost(string, optional, tag = "25")]
     pub refund_amount: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
@@ -287,14 +295,22 @@ pub struct GetProofRequestStatusResponse {
     /// The transaction hash of the request.
     #[prost(bytes = "vec", tag = "3")]
     pub request_tx_hash: ::prost::alloc::vec::Vec<u8>,
+    /// The deadline of the request. A request should be ignored if it is past
+    /// its deadline.
+    #[prost(uint64, tag = "4")]
+    pub deadline: u64,
     /// The optional transaction hash of the proof fulfill. Only included if the
     /// request has a fulfillment status of FULFILLED.
-    #[prost(bytes = "vec", optional, tag = "4")]
+    #[prost(bytes = "vec", optional, tag = "6")]
     pub fulfill_tx_hash: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
     /// The optional proof URI, where you can download the result of the request.
     /// Only included if the request has a fulfillment status of FULFILLED.
-    #[prost(string, optional, tag = "5")]
+    #[prost(string, optional, tag = "7")]
     pub proof_uri: ::core::option::Option<::prost::alloc::string::String>,
+    /// The optional public values hash from the execution of the request. Only
+    /// included if the request has an execution status of EXECUTED.
+    #[prost(bytes = "vec", optional, tag = "8")]
+    pub public_values_hash: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct GetProofRequestDetailsRequest {
@@ -556,6 +572,38 @@ pub struct RemoveDelegationResponse {
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
 pub struct RemoveDelegationResponseBody {}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct TerminateDelegationRequest {
+    /// The message format of the body.
+    #[prost(enumeration = "MessageFormat", tag = "1")]
+    pub format: i32,
+    /// The signature of the sender.
+    #[prost(bytes = "vec", tag = "2")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the request.
+    #[prost(message, optional, tag = "3")]
+    pub body: ::core::option::Option<TerminateDelegationRequestBody>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct TerminateDelegationRequestBody {
+    /// The account nonce of the sender.
+    #[prost(uint64, tag = "1")]
+    pub nonce: u64,
+    /// The address of the owner whose delegation to terminate.
+    #[prost(bytes = "vec", tag = "2")]
+    pub owner: ::prost::alloc::vec::Vec<u8>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct TerminateDelegationResponse {
+    /// The transaction hash.
+    #[prost(bytes = "vec", tag = "1")]
+    pub tx_hash: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the response.
+    #[prost(message, optional, tag = "2")]
+    pub body: ::core::option::Option<TerminateDelegationResponseBody>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct TerminateDelegationResponseBody {}
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct AcceptDelegationRequest {
     /// The message format of the body.
@@ -949,14 +997,17 @@ pub struct Reservation {
     #[prost(uint64, tag = "5")]
     pub created_at: u64,
 }
-#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct GetFilteredReservationsRequest {
+    /// Requester address to filter for.
+    #[prost(bytes = "vec", optional, tag = "1")]
+    pub requester: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
     /// The optional maximum number of reservations to return (default is 10,
     /// maximum is 100).
-    #[prost(uint32, optional, tag = "1")]
+    #[prost(uint32, optional, tag = "2")]
     pub limit: ::core::option::Option<u32>,
     /// The optional page number to return (default is 1).
-    #[prost(uint32, optional, tag = "2")]
+    #[prost(uint32, optional, tag = "3")]
     pub page: ::core::option::Option<u32>,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
@@ -1806,6 +1857,26 @@ pub mod prover_network_client {
                 .insert(GrpcMethod::new("network.ProverNetwork", "RemoveDelegation"));
             self.inner.unary(req, path, codec).await
         }
+        /// Terminate a delegation. Only callable by the delegate of a delegation.
+        pub async fn terminate_delegation(
+            &mut self,
+            request: impl tonic::IntoRequest<super::TerminateDelegationRequest>,
+        ) -> std::result::Result<tonic::Response<super::TerminateDelegationResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::new(
+                    tonic::Code::Unknown,
+                    format!("Service was not ready: {}", e.into()),
+                )
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/TerminateDelegation");
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "TerminateDelegation"));
+            self.inner.unary(req, path, codec).await
+        }
         /// Accept a delegation. Only callable by the delegate of a delegation.
         pub async fn accept_delegation(
             &mut self,
@@ -2277,6 +2348,11 @@ pub mod prover_network_server {
             &self,
             request: tonic::Request<super::RemoveDelegationRequest>,
         ) -> std::result::Result<tonic::Response<super::RemoveDelegationResponse>, tonic::Status>;
+        /// Terminate a delegation. Only callable by the delegate of a delegation.
+        async fn terminate_delegation(
+            &self,
+            request: tonic::Request<super::TerminateDelegationRequest>,
+        ) -> std::result::Result<tonic::Response<super::TerminateDelegationResponse>, tonic::Status>;
         /// Accept a delegation. Only callable by the delegate of a delegation.
         async fn accept_delegation(
             &self,
@@ -3108,6 +3184,48 @@ pub mod prover_network_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let method = RemoveDelegationSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/TerminateDelegation" => {
+                    #[allow(non_camel_case_types)]
+                    struct TerminateDelegationSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::TerminateDelegationRequest>
+                        for TerminateDelegationSvc<T>
+                    {
+                        type Response = super::TerminateDelegationResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::TerminateDelegationRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::terminate_delegation(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = TerminateDelegationSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(

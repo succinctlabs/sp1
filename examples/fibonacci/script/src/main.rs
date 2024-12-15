@@ -1,7 +1,7 @@
-use sp1_sdk::{include_elf, utils, ProverClient, SP1ProofWithPublicValues, SP1Stdin};
+use sp1_sdk::{include_elf, utils, ProverClient, SP1ProofWithPublicValues, SP1Stdin, Elf};
 
 /// The ELF we want to execute inside the zkVM.
-const ELF: &[u8] = include_elf!("fibonacci-program");
+const ELF: Elf = include_elf!("fibonacci-program");
 
 fn main() {
     // Setup logging.
@@ -15,15 +15,13 @@ fn main() {
     let mut stdin = SP1Stdin::new();
     stdin.write(&n);
 
-    // Create a `ProverClient` method.
-    let client = ProverClient::new();
+    // Create a local prover with options.
+    let client = ProverClient::builder().local().build();
 
-    // Execute the program using the `ProverClient.execute` method, without generating a proof.
-    let (_, report) = client.execute(ELF, stdin.clone()).run().unwrap();
-    println!("executed program with {} cycles", report.total_instruction_count());
+    // Generate the proving key and verifying key for the given program.
+    let pk = client.setup_sync(&ELF);
 
-    // Generate the proof for the given program and input.
-    let (pk, vk) = client.setup(ELF);
+    // Generate the proof.
     let mut proof = client.prove(&pk, stdin).run().unwrap();
 
     println!("generated proof");
@@ -40,7 +38,7 @@ fn main() {
     println!("b: {}", b);
 
     // Verify proof and public values
-    client.verify(&proof, &vk).expect("verification failed");
+    client.verify_sync(&proof, pk.verifying_key()).expect("verification failed");
 
     // Test a round trip of proof serialization and deserialization.
     proof.save("proof-with-pis.bin").expect("saving proof failed");
@@ -48,7 +46,7 @@ fn main() {
         SP1ProofWithPublicValues::load("proof-with-pis.bin").expect("loading proof failed");
 
     // Verify the deserialized proof.
-    client.verify(&deserialized_proof, &vk).expect("verification failed");
+    client.verify_sync(&deserialized_proof, pk.verifying_key()).expect("verification failed");
 
     println!("successfully generated and verified proof for the program!")
 }

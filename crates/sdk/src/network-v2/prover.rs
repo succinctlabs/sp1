@@ -1,104 +1,147 @@
+use std::pin::Pin;
 use std::time::{Duration, Instant};
 
-use crate::network_v2::client::DEFAULT_PROVER_NETWORK_RPC;
-use crate::{
-    network_v2::client::NetworkClient,
-    network_v2::proto::network::{
-        ExecutionStatus, FulfillmentStatus, FulfillmentStrategy, ProofMode,
-    },
-    NetworkProverBuilder, Prover, SP1Context, SP1ProofKind, SP1ProofWithPublicValues,
-    SP1ProvingKey, SP1VerifyingKey,
-};
 use anyhow::Result;
-use backoff::{future::retry, Error as BackoffError, ExponentialBackoff};
+use async_trait::async_trait;
 use serde::de::DeserializeOwned;
+use sp1_core_executor::{ExecutionError, ExecutionReport, SP1Context};
 use sp1_core_machine::io::SP1Stdin;
+use sp1_primitives::io::SP1PublicValues;
 use sp1_prover::{components::DefaultProverComponents, SP1Prover, SP1_CIRCUIT_VERSION};
-use sp1_stark::SP1ProverOpts;
-use tonic::Code;
+use std::future::{Future, IntoFuture};
+use std::sync::Arc;
 
-use {crate::block_on, tokio::time::sleep};
+// The network client is async, so we need a runtime to block on
+#[cfg(feature = "blocking")]
+use tokio::runtime::Runtime;
+use tokio::task;
+use tokio::time::sleep;
 
-use crate::provers::{CpuProver, ProofOpts, ProverType};
+use crate::network_v2::retry::{self, with_retry};
+use crate::network_v2::{
+    client::{NetworkClient, DEFAULT_PROVER_NETWORK_RPC},
+    proto::network::{ExecutionStatus, FulfillmentStatus, FulfillmentStrategy, ProofMode},
+    types::{HashType, RequestId, VerifyingKeyHash},
+    Error,
+};
+use crate::SP1ProofWithPublicValues;
+use crate::prover::Prover;
+use crate::{verify, ProofOpts};
+use crate::{Mode, SP1VerificationError};
+use crate::{DEFAULT_CYCLE_LIMIT, DEFAULT_TIMEOUT};
+use crate::{SP1ProvingKey, SP1VerifyingKey, Elf};
 
-/// The timeout for a proof request to be fulfilled.
-const TIMEOUT_SECS: u64 = 14400;
+/// The default fulfillment strategy to use for proof requests.
+pub const DEFAULT_FULFILLMENT_STRATEGY: FulfillmentStrategy = FulfillmentStrategy::Hosted;
 
-/// The default cycle limit for a proof request if simulation is skipped.
-const DEFAULT_CYCLE_LIMIT: u64 = 100_000_000;
+/// The minimum allowed timeout for a proof request to be fulfilled (10 seconds).
+pub const MIN_TIMEOUT: u64 = 10;
 
-/// An implementation of [crate::ProverClient] that can generate proofs on a remote RPC server.
+/// The maximum allowed timeout for a proof request to be fulfilled (24 hours).
+pub const MAX_TIMEOUT: u64 = 86400;
+
+/// The number of seconds to wait between checking the status of a proof request.
+pub const STATUS_CHECK_INTERVAL_SECS: u64 = 2;
+
+/// An implementation of [crate::ProverClient] that can generate proofs on the prover network.
 pub struct NetworkProver {
-    client: NetworkClient,
-    local_prover: CpuProver,
-    skip_simulation: bool,
-    strategy: FulfillmentStrategy,
+    prover: Arc<SP1Prover<DefaultProverComponents>>,
+    network_client: NetworkClient,
+    timeout: u64,
+    cycle_limit: u64,
 }
 
 impl NetworkProver {
-    /// Creates a new [NetworkProver] with the given private key.
-    pub fn new(private_key: &str, rpc_url: Option<String>, skip_simulation: bool) -> Self {
-        let version = SP1_CIRCUIT_VERSION;
-        log::info!("Client circuit version: {}", version);
-        let local_prover = CpuProver::new();
-        let client = NetworkClient::new(private_key, rpc_url);
-        Self { client, local_prover, skip_simulation, strategy: FulfillmentStrategy::Hosted }
-    }
-
-    /// Sets the fulfillment strategy for the client. By default, the strategy is set to `Hosted`.
-    pub fn with_strategy(&mut self, strategy: FulfillmentStrategy) {
-        self.strategy = strategy;
+    /// Creates a new [`NetworkProver`] with the given private private_key and RPC URL.
+    ///
+    /// Uses default timeout and cycle limit.
+    pub fn new(rpc_url: String, private_key: String) -> Self {
+        Self {
+            prover: Arc::new(SP1Prover::new()),
+            network_client: NetworkClient::new(&private_key).rpc_url(rpc_url),
+            timeout: DEFAULT_TIMEOUT,
+            cycle_limit: DEFAULT_CYCLE_LIMIT,
+        }
     }
 
     /// Creates a new network prover builder. See [`NetworkProverBuilder`] for more details.
     pub fn builder() -> NetworkProverBuilder {
-        NetworkProverBuilder::default()
+        NetworkProverBuilder::new()
     }
 
-    /// Registers a program if it is not already registered.
-    pub async fn register_program(&self, vk: &SP1VerifyingKey, elf: &[u8]) -> Result<Vec<u8>> {
-        self.client.register_program(vk, elf).await
+    /// Get the underlying [`SP1Prover`].
+    pub fn sp1_prover(&self) -> &SP1Prover {
+        &self.prover
     }
 
-    /// Get the cycle limit, either by simulating or using the default cycle limit.
-    fn get_cycle_limit(&self, elf: &[u8], stdin: &SP1Stdin) -> Result<u64> {
-        if !self.skip_simulation {
-            let (_, report) =
-                self.local_prover.sp1_prover().execute(elf, stdin, Default::default())?;
-            let cycles = report.total_instruction_count();
-            Ok(cycles)
+    /// Create a new proof request. See [`NetworkProofRequest`] for more details.
+    pub fn prove<'a>(&'a self, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> NetworkProofRequest<'a> {
+        NetworkProofRequest::new(self, pk, stdin)
+    }
+}
+
+impl NetworkProver {
+    /// Get the timeout to used for a proof request.
+    ///
+    /// Clamps the given timeout to the minimum [`MIN_TIMEOUT`] and maximum [`MAX_TIMEOUT`] values.
+    pub fn get_timeout(&self) -> u64 {
+        self.timeout.clamp(MIN_TIMEOUT, MAX_TIMEOUT)
+    }
+
+    /// Get the cycle limit to used for a proof request.
+    ///
+    /// The cycle limit is determined according to the following priority:
+    /// 1. If a cycle limit was explicitly set, use the specified value
+    /// 2. If simulation is enabled (default), calculate the limit by simulating
+    /// 3. Otherwise use the default cycle limit
+    #[allow(clippy::must_use_candidate)]
+    fn get_cycle_limit(
+        &self,
+        elf: &[u8],
+        stdin: &SP1Stdin,
+        cycle_limit: Option<u64>,
+        skip_simulation: bool,
+    ) -> Result<u64, Error> {
+        // If cycle_limit was explicitly set, use it.
+        if let Some(limit) = cycle_limit {
+            return Ok(limit);
+        }
+
+        // If simulation is enabled (default), simulate to get the limit.
+        if !skip_simulation {
+            let (_, report) = self
+                .prover
+                .execute(elf, stdin, Default::default())
+                .map_err(|_| Error::SimulationFailed)?;
+            Ok(report.total_instruction_count())
         } else {
+            // Skip simulation was set but no explicit cycle limit, use default.
             Ok(DEFAULT_CYCLE_LIMIT)
         }
     }
 
+    /// Registers a program if it is not already registered.
+    async fn register_program(&self, vk: &SP1VerifyingKey, elf: &[u8]) -> Result<VerifyingKeyHash> {
+        self.network_client.register_program(vk, elf).await
+    }
+
     /// Requests a proof from the prover network, returning the request ID.
-    pub async fn request_proof(
+    #[allow(clippy::too_many_arguments)]
+    async fn request_proof(
         &self,
-        vk_hash: &[u8],
+        vk_hash: &VerifyingKeyHash,
         stdin: &SP1Stdin,
+        version: &str,
         mode: ProofMode,
+        strategy: FulfillmentStrategy,
+        timeout: u64,
         cycle_limit: u64,
-        timeout: Option<Duration>,
-    ) -> Result<Vec<u8>> {
-        // Get the timeout.
-        let timeout_secs = timeout.map(|dur| dur.as_secs()).unwrap_or(TIMEOUT_SECS);
-
-        log::info!("Requesting proof with cycle limit: {}", cycle_limit);
-
+    ) -> Result<RequestId> {
         // Request the proof with retries.
-        let response = with_retry(
+        let (tx_hash, request_id) = retry::with_retry(
             || async {
-                self.client
-                    .request_proof(
-                        vk_hash,
-                        stdin,
-                        mode,
-                        SP1_CIRCUIT_VERSION,
-                        self.strategy,
-                        timeout_secs,
-                        cycle_limit,
-                    )
+                self.network_client
+                    .request_proof(vk_hash, stdin, version, mode, strategy, timeout, cycle_limit)
                     .await
             },
             timeout,
@@ -106,56 +149,47 @@ impl NetworkProver {
         )
         .await?;
 
-        // Log the request ID and transaction hash.
-        let tx_hash_hex = "0x".to_string() + &hex::encode(response.tx_hash);
-        let request_id = response.body.unwrap().request_id;
-        let request_id_hex = "0x".to_string() + &hex::encode(request_id.clone());
-        log::info!("Created request {} in transaction {}", request_id_hex, tx_hash_hex);
-
-        if self.client.rpc_url() == DEFAULT_PROVER_NETWORK_RPC {
-            log::info!("View in explorer: https://network.succinct.xyz/request/{}", request_id_hex);
+        log::info!("Created request {} in transaction {}", request_id, tx_hash);
+        if self.network_client.get_rpc_url() == DEFAULT_PROVER_NETWORK_RPC {
+            log::info!("View in explorer: {}", request_id.explorer_url());
         }
 
         Ok(request_id)
     }
 
-    /// Waits for a proof to be generated and returns the proof. If a timeout is supplied, the
-    /// function will return an error if the proof is not generated within the timeout.
-    pub async fn wait_proof<P: DeserializeOwned>(
+    /// Waits for the proof request to be fulfilled by the prover network after it has been
+    /// submitted.
+    ///
+    /// Additionally, different failure modes are checked:
+    /// - if the deadline is exceeded, throws [`Error::RequestDeadlineExceeded`]
+    /// - if the request is unexecutable, throws [`Error::RequestUnexecutable`]
+    /// - if the request is unfulfillable, throws [`Error::RequestUnfulfillable`]
+    async fn wait_proof<P: DeserializeOwned>(
         &self,
-        request_id: &[u8],
-        timeout: Option<Duration>,
-    ) -> Result<P> {
+        request_id: &RequestId,
+        timeout: u64,
+    ) -> Result<P, Error> {
         let mut is_assigned = false;
-        let start_time = Instant::now();
 
         loop {
-            // Calculate the remaining timeout.
-            if let Some(timeout) = timeout {
-                if start_time.elapsed() > timeout {
-                    return Err(anyhow::anyhow!("Proof request timed out."));
-                }
-            }
-            let remaining_timeout = timeout.map(|t| {
-                let elapsed = start_time.elapsed();
-                if elapsed < t {
-                    t - elapsed
-                } else {
-                    Duration::from_secs(0)
-                }
-            });
-
-            // Get status with retries.
+            // Get the status with retries.
             let (status, maybe_proof) = with_retry(
-                || async { self.client.get_proof_request_status::<P>(request_id).await },
-                remaining_timeout,
-                "getting proof request status",
+                || async { self.network_client.get_proof_request_status(request_id).await },
+                timeout,
+                "getting proof status",
             )
             .await?;
 
+            // Check the deadline.
+            if status.deadline < Instant::now().elapsed().as_secs() {
+                return Err(Error::RequestDeadlineExceeded { request_id: request_id.clone() });
+            }
+
             // Check the execution status.
-            if status.execution_status == ExecutionStatus::Unexecutable as i32 {
-                return Err(anyhow::anyhow!("Proof request is unexecutable"));
+            if let Ok(ExecutionStatus::Unexecutable) =
+                ExecutionStatus::try_from(status.execution_status)
+            {
+                return Err(Error::RequestUnexecutable { request_id: request_id.clone() });
             }
 
             // Check the fulfillment status.
@@ -170,161 +204,378 @@ impl NetworkProver {
                     }
                 }
                 Ok(FulfillmentStatus::Unfulfillable) => {
-                    return Err(anyhow::anyhow!("Proof request is unfulfillable"));
+                    return Err(Error::RequestUnfulfillable { request_id: request_id.clone() });
                 }
                 _ => {}
             }
 
-            sleep(Duration::from_secs(2)).await;
+            sleep(Duration::from_secs(STATUS_CHECK_INTERVAL_SECS)).await;
+        }
+    }
+}
+
+pub struct NetworkProverBuilder {
+    rpc_url: Option<String>,
+    private_key: Option<String>,
+    timeout: Option<u64>,
+    cycle_limit: Option<u64>,
+}
+
+impl Default for NetworkProverBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl NetworkProverBuilder {
+    /// Creates a new [`NetworkProverBuilder`].
+    pub fn new() -> Self {
+        Self { rpc_url: None, private_key: None, timeout: None, cycle_limit: None }
+    }
+
+    /// Sets the RPC URL for the prover network.
+    ///
+    /// This configures the endpoint that will be used for all network operations.
+    /// If not set, the default RPC URL will be used.
+    pub fn rpc_url(mut self, url: String) -> Self {
+        self.rpc_url = Some(url);
+        self
+    }
+
+    /// Sets the private key to use for the prover network.
+    ///
+    /// This is required and must be set before building the prover.
+    pub fn private_key(mut self, key: String) -> Self {
+        self.private_key = Some(key);
+        self
+    }
+
+    /// Sets the timeout for proof requests.
+    ///
+    /// This is the maximum amount of time to wait for the request to be generated.
+    pub fn with_timeout(mut self, timeout: u64) -> Self {
+        self.timeout = Some(timeout);
+        self
+    }
+
+    /// Sets the cycle limit for proof requests.
+    ///
+    /// This is the maximum number of cycles to allow for the execution of the request.
+    pub fn with_cycle_limit(mut self, cycle_limit: u64) -> Self {
+        self.cycle_limit = Some(cycle_limit);
+        self
+    }
+
+    /// Builds the [`NetworkProver`] with the given configuration.
+    pub fn build(self) -> NetworkProver {
+        NetworkProver {
+            prover: Arc::new(SP1Prover::new()),
+            network_client: NetworkClient::new(
+                &self.private_key.expect("A private key set on the builder"),
+            )
+            .rpc_url(self.rpc_url.unwrap_or(DEFAULT_PROVER_NETWORK_RPC.to_string())),
+            timeout: self.timeout.unwrap_or(DEFAULT_TIMEOUT),
+            cycle_limit: self.cycle_limit.unwrap_or(DEFAULT_CYCLE_LIMIT),
+        }
+    }
+}
+
+pub struct NetworkProofRequest<'a> {
+    prover: &'a NetworkProver,
+    pk: &'a SP1ProvingKey,
+    stdin: SP1Stdin,
+    mode: ProofMode,
+    version: String,
+    timeout: u64,
+    cycle_limit: Option<u64>,
+    skip_simulation: bool,
+    strategy: FulfillmentStrategy,
+}
+
+impl<'a> NetworkProofRequest<'a> {
+    /// Creates a new [`NetworkProofRequest`]  using the prover's configuration and default values.
+    pub fn new(prover: &'a NetworkProver, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> Self {
+        Self {
+            prover,
+            pk,
+            stdin,
+            mode: Mode::default().into(),
+            version: SP1_CIRCUIT_VERSION.to_string(),
+            timeout: prover.timeout,
+            cycle_limit: Some(prover.cycle_limit),
+            skip_simulation: false,
+            strategy: DEFAULT_FULFILLMENT_STRATEGY,
         }
     }
 
-    /// Requests a proof from the prover network and waits for it to be generated.
-    pub async fn prove(
+    fn mode(mut self, mode: Mode) -> Self {
+        self.mode = mode.into();
+        self
+    }
+
+    pub fn core(mut self) -> Self {
+        self.mode = ProofMode::Core;
+        self
+    }
+
+    pub fn compressed(mut self) -> Self {
+        self.mode = ProofMode::Compressed;
+        self
+    }
+
+    pub fn plonk(mut self) -> Self {
+        self.mode = ProofMode::Plonk;
+        self
+    }
+
+    pub fn groth16(mut self) -> Self {
+        self.mode = ProofMode::Groth16;
+        self
+    }
+
+    pub fn version(mut self, version: String) -> Self {
+        self.version = version;
+        self
+    }
+
+    pub fn timeout(mut self, timeout: u64) -> Self {
+        self.timeout = timeout;
+        self
+    }
+
+    pub fn cycle_limit(mut self, cycle_limit: u64) -> Self {
+        self.cycle_limit = Some(cycle_limit);
+        self
+    }
+
+    pub fn skip_simulation(mut self) -> Self {
+        self.skip_simulation = true;
+        self
+    }
+
+    pub fn strategy(mut self, strategy: FulfillmentStrategy) -> Self {
+        self.strategy = strategy;
+        self
+    }
+
+    #[cfg(feature = "blocking")]
+    pub fn run(self) -> Result<SP1ProofWithPublicValues> {
+        Runtime::new().unwrap().block_on(async move { self.run_inner().await })
+    }
+}
+
+impl<'a> NetworkProofRequest<'a> {
+    async fn run_inner(self) -> Result<SP1ProofWithPublicValues> {
+        // Register the program.
+        let vk_hash = self.prover.register_program(&self.pk.vk, &self.pk.elf).await?;
+
+        // Get the cycle limit.
+        let cycle_limit = self.prover.get_cycle_limit(
+            &self.pk.elf,
+            &self.stdin,
+            self.cycle_limit,
+            self.skip_simulation,
+        )?;
+
+        // Request the proof.
+        let request_id = self
+            .prover
+            .request_proof(
+                &vk_hash,
+                &self.stdin,
+                &self.version,
+                self.mode,
+                self.strategy,
+                self.timeout,
+                cycle_limit,
+            )
+            .await?;
+
+        // Wait for proof generation.
+        let proof: SP1ProofWithPublicValues =
+            self.prover.wait_proof(&request_id, self.timeout).await?;
+
+        Ok(proof)
+    }
+}
+
+#[async_trait]
+impl Prover for NetworkProver {
+    async fn setup(&self, elf: &Elf) -> SP1ProvingKey {
+        let prover = Arc::clone(&self.prover);
+        let elf = elf.clone();
+
+        task::spawn_blocking(move || {
+            let (pk, _) = prover.setup(&elf);
+
+            pk
+        })
+        .await
+        .map(Into::into)
+        .unwrap()
+    }
+
+    #[cfg(feature = "blocking")]
+    fn setup_sync(&self, elf: &Elf) -> SP1ProvingKey {
+        let (pk, _vk) = self.prover.setup(elf);
+        
+        pk.into()
+    }
+
+    async fn execute(
+        &self,
+        elf: &Elf,
+        stdin: SP1Stdin,
+    ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
+        let prover = Arc::clone(&self.prover);
+        let elf = elf.clone();
+
+        task::spawn_blocking(move || prover.execute(&elf, &stdin, SP1Context::default()))
+            .await
+            .unwrap()
+    }
+
+    #[cfg(feature = "blocking")]
+    fn execute_sync(
+        &self,
+        elf: &Elf,
+        stdin: SP1Stdin,
+    ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
+        self.prover.execute(elf, &stdin, SP1Context::default())
+    }
+
+    async fn prove_with_options(
         &self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
-        mode: ProofMode,
-        timeout: Option<Duration>,
+        opts: ProofOpts,
     ) -> Result<SP1ProofWithPublicValues> {
-        let vk_hash = self.register_program(&pk.vk, &pk.elf).await?;
-        let cycle_limit = self.get_cycle_limit(&pk.elf, &stdin)?;
-        let request_id = self.request_proof(&vk_hash, &stdin, mode, cycle_limit, timeout).await?;
-        self.wait_proof(&request_id, timeout).await
-    }
-}
-
-impl Prover<DefaultProverComponents> for NetworkProver {
-    fn id(&self) -> ProverType {
-        ProverType::Network
+        self.prove(pk, stdin)
+            .mode(opts.mode)
+            .timeout(opts.timeout)
+            .cycle_limit(opts.cycle_limit)
+            .await
     }
 
-    fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
-        self.local_prover.setup(elf)
-    }
-
-    fn sp1_prover(&self) -> &SP1Prover {
-        self.local_prover.sp1_prover()
-    }
-
-    fn prove<'a>(
-        &'a self,
+    #[cfg(feature = "blocking")]
+    fn prove_with_options_sync(
+        &self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
         opts: ProofOpts,
-        context: SP1Context<'a>,
-        kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {
-        warn_if_not_default(&opts.sp1_prover_opts, &context);
-        block_on(self.prove(pk, stdin, kind.into(), opts.timeout))
+        self.prove(pk, stdin)
+            .mode(opts.mode)
+            .timeout(opts.timeout)
+            .cycle_limit(opts.cycle_limit)
+            .run()
+    }
+
+    async fn verify(
+        &self,
+        proof: &SP1ProofWithPublicValues,
+        vk: &SP1VerifyingKey,
+    ) -> Result<(), SP1VerificationError> {
+        let prover = Arc::clone(&self.prover);
+        let proof = proof.clone();
+        let vk = vk.clone();
+
+        task::spawn_blocking(move || verify::verify(&prover, SP1_CIRCUIT_VERSION, &proof, &vk))
+            .await
+            .unwrap()
+    }
+
+    #[cfg(feature = "blocking")]
+    fn verify_sync(
+        &self,
+        proof: &SP1ProofWithPublicValues,
+        vk: &SP1VerifyingKey,
+    ) -> Result<(), SP1VerificationError> {
+        verify::verify(&self.prover, SP1_CIRCUIT_VERSION, proof, vk)
     }
 }
 
-/// Warns if `opts` or `context` are not default values, since they are currently unsupported.
-fn warn_if_not_default(opts: &SP1ProverOpts, context: &SP1Context) {
-    let _guard = tracing::warn_span!("network_prover").entered();
-    if opts != &SP1ProverOpts::default() {
-        tracing::warn!("non-default opts will be ignored: {:?}", opts.core_opts);
-        tracing::warn!("custom SP1ProverOpts are currently unsupported by the network prover");
-    }
-    // Exhaustive match is done to ensure we update the warnings if the types change.
-    let SP1Context { hook_registry, subproof_verifier, .. } = context;
-    if hook_registry.is_some() {
-        tracing::warn!("non-default context.hook_registry will be ignored: {:?}", hook_registry);
-        tracing::warn!("custom runtime hooks are currently unsupported by the network prover");
-        tracing::warn!("proving may fail due to missing hooks");
-    }
-    if subproof_verifier.is_some() {
-        tracing::warn!("non-default context.subproof_verifier will be ignored");
-        tracing::warn!("custom subproof verifiers are currently unsupported by the network prover");
+impl<'a> IntoFuture for NetworkProofRequest<'a> {
+    type Output = Result<SP1ProofWithPublicValues>;
+    type IntoFuture = Pin<Box<dyn Future<Output = Self::Output> + Send + 'a>>;
+
+    fn into_future(self) -> Self::IntoFuture {
+        Box::pin(async move { self.run_inner().await })
     }
 }
 
-impl From<SP1ProofKind> for ProofMode {
-    fn from(value: SP1ProofKind) -> Self {
-        match value {
-            SP1ProofKind::Core => Self::Core,
-            SP1ProofKind::Compressed => Self::Compressed,
-            SP1ProofKind::Plonk => Self::Plonk,
-            SP1ProofKind::Groth16 => Self::Groth16,
-        }
-    }
-}
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+//     use sp1_core_machine::io::SP1Stdin;
 
-/// Execute an async operation with exponential backoff retries.
-pub async fn with_retry<T, F, Fut>(
-    operation: F,
-    timeout: Option<Duration>,
-    operation_name: &str,
-) -> Result<T>
-where
-    F: Fn() -> Fut,
-    Fut: std::future::Future<Output = Result<T>>,
-{
-    let backoff = ExponentialBackoff {
-        initial_interval: Duration::from_secs(1),
-        max_interval: Duration::from_secs(120),
-        max_elapsed_time: timeout,
-        ..Default::default()
-    };
+//     const TEST_PRIVATE_KEY: &str =
+//         "0000000000000000000000000000000000000000000000000000000000000001";
 
-    retry(backoff, || async {
-        match operation().await {
-            Ok(result) => Ok(result),
-            Err(e) => {
-                // Check for tonic status errors.
-                if let Some(status) = e.downcast_ref::<tonic::Status>() {
-                    match status.code() {
-                        Code::Unavailable => {
-                            log::warn!(
-                                "Network temporarily unavailable when {} due to {}, retrying...",
-                                operation_name,
-                                status.message(),
-                            );
-                            Err(BackoffError::transient(e))
-                        }
-                        Code::NotFound => {
-                            log::error!(
-                                "{} not found due to {}",
-                                operation_name,
-                                status.message(),
-                            );
-                            Err(BackoffError::permanent(e))
-                        }
-                        _ => {
-                            log::error!(
-                                "Permanent error encountered when {}: {} ({})",
-                                operation_name,
-                                status.message(),
-                                status.code()
-                            );
-                            Err(BackoffError::permanent(e))
-                        }
-                    }
-                } else {
-                    // Check for common transport errors.
-                    let error_msg = e.to_string().to_lowercase();
-                    let is_transient = error_msg.contains("tls handshake") ||
-                        error_msg.contains("dns error") ||
-                        error_msg.contains("connection reset") ||
-                        error_msg.contains("broken pipe") ||
-                        error_msg.contains("transport error") ||
-                        error_msg.contains("failed to lookup");
+//     #[test]
+//     fn test_proof_opts_configuration() {
+//         let opts = ProofOpts {
+//             timeout: Some(Duration::from_secs(100)),
+//             cycle_limit: Some(1000),
+//             fulfillment_strategy: Some(FulfillmentStrategy::Hosted),
+//             skip_simulation: true,
+//             ..Default::default()
+//         };
 
-                    if is_transient {
-                        log::warn!(
-                            "Transient transport error when {}: {}, retrying...",
-                            operation_name,
-                            error_msg
-                        );
-                        Err(BackoffError::transient(e))
-                    } else {
-                        log::error!("Permanent error when {}: {}", operation_name, error_msg);
-                        Err(BackoffError::permanent(e))
-                    }
-                }
-            }
-        }
-    })
-    .await
-}
+//         assert_eq!(opts.timeout.unwrap().as_secs(), 100);
+//         assert_eq!(opts.cycle_limit.unwrap(), 1000);
+//         assert_eq!(opts.fulfillment_strategy.unwrap(), FulfillmentStrategy::Hosted);
+//         assert!(opts.skip_simulation);
+//     }
+
+//     #[test]
+//     fn test_proof_opts_defaults() {
+//         let opts = ProofOpts::default();
+
+//         assert_eq!(opts.timeout, None);
+//         assert_eq!(opts.cycle_limit, None);
+//         assert_eq!(opts.fulfillment_strategy, None);
+//         assert!(!opts.skip_simulation);
+//     }
+
+//     #[test]
+//     fn test_cycle_limit_handling() {
+//         let prover = NetworkProver::new(TEST_PRIVATE_KEY);
+//         let dummy_stdin = SP1Stdin::default();
+//         let dummy_elf = test_artifacts::FIBONACCI_ELF;
+
+//         // Test with explicit cycle limit
+//         let result = prover.get_cycle_limit(dummy_elf, &dummy_stdin, Some(1000), false);
+//         assert_eq!(result.unwrap(), 1000);
+
+//         // Test with simulation disabled, no explicit limit
+//         let result = prover.get_cycle_limit(dummy_elf, &dummy_stdin, None, true);
+//         assert_eq!(result.unwrap(), DEFAULT_CYCLE_LIMIT);
+
+//         // Test with simulation enabled
+//         let result = prover.get_cycle_limit(dummy_elf, &dummy_stdin, None, false);
+//         assert!(result.is_ok());
+//     }
+
+//     #[test]
+//     fn test_timeout_clamping() {
+//         // Test minimum bound
+//         let timeout_secs = NetworkProver::get_timeout_secs(Some(Duration::from_secs(1)));
+//         assert_eq!(timeout_secs, MIN_TIMEOUT_SECS);
+
+//         // Test maximum bound
+//         let timeout_secs =
+//             NetworkProver::get_timeout_secs(Some(Duration::from_secs(MAX_TIMEOUT_SECS + 1000)));
+//         assert_eq!(timeout_secs, MAX_TIMEOUT_SECS);
+
+//         // Test value within bounds
+//         let valid_timeout = 3600;
+//         let timeout_secs =
+//             NetworkProver::get_timeout_secs(Some(Duration::from_secs(valid_timeout)));
+//         assert_eq!(timeout_secs, valid_timeout);
+
+//         // Test default when None
+//         let timeout_secs = NetworkProver::get_timeout_secs(None);
+//         assert_eq!(timeout_secs, DEFAULT_TIMEOUT_SECS);
+//     }
+// }

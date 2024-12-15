@@ -1,16 +1,15 @@
 use cfg_if::cfg_if;
 use std::path::PathBuf;
 
-#[cfg(any(feature = "network", feature = "network-v2"))]
+#[cfg(feature = "network-v2")]
 use {
-    crate::block_on,
-    futures::StreamExt,
+    futures::{Future, StreamExt},
     indicatif::{ProgressBar, ProgressStyle},
     reqwest::Client,
     std::{cmp::min, io::Write, process::Command},
 };
 
-use crate::SP1_CIRCUIT_VERSION;
+use sp1_prover::SP1_CIRCUIT_VERSION;
 
 /// The base URL for the S3 bucket containing the circuit artifacts.
 pub const CIRCUIT_ARTIFACTS_URL_BASE: &str = "https://sp1-circuits.s3-us-east-2.amazonaws.com";
@@ -43,7 +42,7 @@ pub fn try_install_circuit_artifacts(artifacts_type: &str) -> PathBuf {
         );
     } else {
         cfg_if! {
-            if #[cfg(any(feature = "network", feature = "network-v2"))] {
+            if #[cfg(feature = "network-v2")] {
                 println!(
                     "[sp1] {} circuit artifacts for version {} do not exist at {}. downloading...",
                     artifacts_type,
@@ -61,7 +60,7 @@ pub fn try_install_circuit_artifacts(artifacts_type: &str) -> PathBuf {
 ///
 /// This function will download the latest circuit artifacts from the S3 bucket and extract them
 /// to the directory specified by [groth16_bn254_artifacts_dir()].
-#[cfg(any(feature = "network", feature = "network-v2"))]
+#[cfg(feature = "network-v2")]
 pub fn install_circuit_artifacts(build_dir: PathBuf, artifacts_type: &str) {
     // Create the build directory.
     std::fs::create_dir_all(&build_dir).expect("failed to create build directory");
@@ -91,7 +90,7 @@ pub fn install_circuit_artifacts(build_dir: PathBuf, artifacts_type: &str) {
 }
 
 /// Download the file with a progress bar that indicates the progress.
-#[cfg(any(feature = "network", feature = "network-v2"))]
+#[cfg(feature = "network-v2")]
 pub async fn download_file(
     client: &Client,
     url: &str,
@@ -119,4 +118,22 @@ pub async fn download_file(
     pb.finish();
 
     Ok(())
+}
+
+/// Utility method for blocking on an async function.
+///
+/// If we're already in a tokio runtime, we'll block in place. Otherwise, we'll create a new
+/// runtime.
+#[cfg(feature = "network-v2")]
+pub fn block_on<T>(fut: impl Future<Output = T>) -> T {
+    // Handle case if we're already in an tokio runtime.
+
+    use tokio::task::block_in_place;
+    if let Ok(handle) = tokio::runtime::Handle::try_current() {
+        block_in_place(|| handle.block_on(fut))
+    } else {
+        // Otherwise create a new runtime.
+        let rt = tokio::runtime::Runtime::new().expect("Failed to create a new runtime");
+        rt.block_on(fut)
+    }
 }

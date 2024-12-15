@@ -4,6 +4,7 @@ use anyhow::Result;
 use clap::{Args, Parser};
 use sp1_build::{generate_elf_paths, BuildArgs};
 use sp1_sdk::{HashableKey, ProverClient};
+use tokio::runtime::Runtime;
 
 #[derive(Parser)]
 #[command(name = "vkey", about = "View the verification key hash for a program.")]
@@ -41,6 +42,8 @@ impl VkeyCmd {
             unreachable!()
         };
 
+        let rt = Runtime::new()?;
+
         for (target, elf_path) in elf_paths {
             // Read the elf file contents
             let mut file = File::open(elf_path)?;
@@ -48,14 +51,14 @@ impl VkeyCmd {
             file.read_to_end(&mut elf)?;
 
             // Get the verification key
-            let prover = ProverClient::new();
-            let (_, vk) = prover.setup(&elf);
+            let prover = ProverClient::builder().local().build();
+            let pk = rt.block_on(prover.setup(&elf.into()));
 
             // Print the verification key hash
             if let Some(target) = target {
-                println!("Verification Key Hash for '{target}':\n{}", vk.vk.bytes32());
+                println!("Verification Key Hash for '{target}':\n{}", pk.vk.bytes32());
             } else {
-                println!("Verification Key Hash:\n{}", vk.vk.bytes32());
+                println!("Verification Key Hash:\n{}", pk.vk.bytes32());
             }
         }
 
