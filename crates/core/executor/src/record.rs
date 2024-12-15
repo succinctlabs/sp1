@@ -383,37 +383,22 @@ impl MachineRecord for ExecutionRecord {
     }
 
     fn register_nonces(&mut self, _opts: &Self::Config) {
-        self.add_events.iter().enumerate().for_each(|(i, event)| {
-            self.nonce_lookup[event.lookup_id.0 as usize] = i as u32;
-        });
+        let all_events = [
+            (&self.add_events, 0),
+            (&self.sub_events, self.add_events.len() as u32),
+            (&self.mul_events, 0),
+            (&self.bitwise_events, 0),
+            (&self.shift_left_events, 0),
+            (&self.shift_right_events, 0),
+            (&self.divrem_events, 0),
+            (&self.lt_events, 0),
+        ];
 
-        self.sub_events.iter().enumerate().for_each(|(i, event)| {
-            self.nonce_lookup[event.lookup_id.0 as usize] = (self.add_events.len() + i) as u32;
-        });
-
-        self.mul_events.iter().enumerate().for_each(|(i, event)| {
-            self.nonce_lookup[event.lookup_id.0 as usize] = i as u32;
-        });
-
-        self.bitwise_events.iter().enumerate().for_each(|(i, event)| {
-            self.nonce_lookup[event.lookup_id.0 as usize] = i as u32;
-        });
-
-        self.shift_left_events.iter().enumerate().for_each(|(i, event)| {
-            self.nonce_lookup[event.lookup_id.0 as usize] = i as u32;
-        });
-
-        self.shift_right_events.iter().enumerate().for_each(|(i, event)| {
-            self.nonce_lookup[event.lookup_id.0 as usize] = i as u32;
-        });
-
-        self.divrem_events.iter().enumerate().for_each(|(i, event)| {
-            self.nonce_lookup[event.lookup_id.0 as usize] = i as u32;
-        });
-
-        self.lt_events.iter().enumerate().for_each(|(i, event)| {
-            self.nonce_lookup[event.lookup_id.0 as usize] = i as u32;
-        });
+        for (events, offset) in all_events {
+            events.iter().enumerate().for_each(|(i, event)| {
+                self.nonce_lookup[event.lookup_id.0 as usize] = (offset + i as u32) as u32;
+            });
+        }
     }
 
     /// Retrieves the public values.  This method is needed for the `MachineRecord` trait, since
