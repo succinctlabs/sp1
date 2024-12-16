@@ -6,7 +6,7 @@ use sp1_sdk::SP1PublicValues;
 
 use sp1_test::sp1_test;
 
-#[sp1_test("sha_256_program")]
+#[sp1_test("sha_256_program", gpu, prove)]
 fn test_expected_digest_rand_times_lte_100_test(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(SP1PublicValues) {
     let times = rand::random::<u8>().min(100);
 

@@ -10,5 +10,9 @@ sp1-sdk = { workspace = true }
 tiny-keccak = { workspace = true }
 rand = { workspace = true }
 
+[features]
+prove = []
+gpu = ["sp1-sdk/cuda"]
+
 [build-dependencies]
 sp1-build = { workspace = true }

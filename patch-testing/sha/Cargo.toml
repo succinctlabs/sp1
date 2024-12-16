@@ -14,5 +14,9 @@ sha2-v0-10-6 = { version = "0.10.6", package = "sha2" }
 rand = "0.8.5"
 sp1-test.workspace = true
 
+[features]
+prove = []
+gpu = ["sp1-sdk/cuda"] 
+
 [build-dependencies]
 sp1-build.workspace = true

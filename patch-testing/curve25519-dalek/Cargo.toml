@@ -17,3 +17,7 @@ curve25519-dalek = { workspace = true }
 ed25519-dalek = { workspace = true }
 hex-literal = { workspace = true }
 sp1-zkvm = { workspace = true }
+
+[features]
+prove = []
+gpu = ["sp1-sdk/cuda"]

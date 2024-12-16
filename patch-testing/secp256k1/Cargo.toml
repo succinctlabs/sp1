@@ -10,6 +10,10 @@ secp256k1 = { workspace = true }
 rand = { workspace = true }
 sp1-test = { workspace = true }
 
+[features]
+prove = []
+gpu = ["sp1-sdk/cuda"]
+
 [build-dependencies]
 sp1-build = { workspace = true }
 

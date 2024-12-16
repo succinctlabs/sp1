@@ -155,34 +155,11 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
         None
     };
 
-    let maybe_gpu_tests = if options.gpu() {
-        let gpu_name = syn::Ident::new(&format!("{}_gpu", test_name), test_name.span());
+    let gpu_prove = if options.gpu() {
         let gpu_prove_name = syn::Ident::new(&format!("{}_gpu_prove", test_name), test_name.span());
 
-        let gpu_fn = quote! {
-            #[cfg(feature = "cuda")]
-            #[test]
-            fn #gpu_name() {
-                const __ELF: &[u8] = ::sp1_sdk::include_elf!(#elf_name);
-
-                let __client = ::sp1_sdk::ProverClient::gpu();
-                let mut __stdin = ::sp1_sdk::SP1Stdin::new();
-
-                #setup_fn
-
-                let __cb = #setup_name(&mut __stdin);
-
-                #bounds_check
-
-                let (__public, _) = __client.execute(__ELF, __stdin).run().unwrap();
-
-                __cb(public);
-            }
-        };
-
-        let gpu_prove_fn = if options.prove() {
-            Some(quote! {
-                #[cfg(feature = "cuda")]
+        Some(quote! {
+                #[cfg(all(feature = "prove", feature = "gpu"))]
                 #[test]
                 fn #gpu_prove_name() {
                     const __ELF: &[u8] = ::sp1_sdk::include_elf!(#elf_name);
@@ -202,15 +179,6 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
                     __cb(__proof.public_values);
                 }
             })
-        } else {
-            None
-        };
-
-        Some(quote! {
-            #gpu_fn
-
-            #gpu_prove_fn
-        })
     } else {
         None
     };
@@ -220,7 +188,7 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
 
         #maybe_prove_test
 
-        #maybe_gpu_tests
+        #gpu_prove
     };
 
     TokenStream::from(expanded)
