@@ -11,6 +11,7 @@ p256 = { workspace = true }
 hex-literal = { workspace = true }
 ecdsa-core = { workspace = true }
 rand = { workspace = true }
+sp1-test = { workspace = true }
 
 [features]
 prove = []

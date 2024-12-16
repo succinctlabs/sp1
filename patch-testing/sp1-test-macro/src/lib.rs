@@ -64,6 +64,15 @@ mod attr;
 /// option, you must have the `cuda` feature enabled on the SDK.
 #[proc_macro_attribute]
 pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
+    if attr.is_empty() {
+        return syn::Error::new_spanned(
+            proc_macro2::TokenStream::new(),
+            "The SP1 test attribute requires at least an ELF file to be specified",
+        )
+        .to_compile_error()
+        .into();
+    }
+
     let options = parse_macro_input!(attr as attr::AttrOptions);
 
     let mut setup_fn = parse_macro_input!(item as syn::ItemFn);
@@ -102,26 +111,26 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
             let _ = cb;
         }
 
-        assert_proper_cb(&__cb);
+        assert_proper_cb(&__macro_internal_cb);
     };
 
     let execute_test = quote! {
         #[test]
         fn #test_name() {
-            const __ELF: &[u8] = ::sp1_sdk::include_elf!(#elf_name);
+            const __MACRO_INTERNAL_ELF: &[u8] = ::sp1_sdk::include_elf!(#elf_name);
 
-            let __client = ::sp1_sdk::ProverClient::new();
-            let mut __stdin = ::sp1_sdk::SP1Stdin::new();
+            let __macro_internal_client = ::sp1_sdk::ProverClient::new();
+            let mut __macro_internal_stdin = ::sp1_sdk::SP1Stdin::new();
 
             #setup_fn
 
-            let __cb = #setup_name(&mut __stdin);
+            let __macro_internal_cb = #setup_name(&mut __macro_internal_stdin);
 
             #bounds_check
 
-            let (__public, _) = __client.execute(__ELF, __stdin).run().unwrap();
+            let (__macro_internal_public, _) = __macro_internal_client.execute(__MACRO_INTERNAL_ELF, __macro_internal_stdin).run().unwrap();
 
-            __cb(__public);
+            __macro_internal_cb(__macro_internal_public);
         }
     };
 
@@ -132,21 +141,21 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
             #[cfg(feature = "prove")]
             #[test]
             fn #prove_name() {
-                const __ELF: &[u8] = ::sp1_sdk::include_elf!(#elf_name);
+                const __MACRO_INTERNAL_ELF: &[u8] = ::sp1_sdk::include_elf!(#elf_name);
 
-                let __client = ::sp1_sdk::ProverClient::new();
-                let mut __stdin = ::sp1_sdk::SP1Stdin::new();
+                let __macro_internal_client = ::sp1_sdk::ProverClient::new();
+                let mut __macro_internal_stdin = ::sp1_sdk::SP1Stdin::new();
 
                 #setup_fn
 
-                let __cb = #setup_name(&mut __stdin);
+                let __macro_internal_cb = #setup_name(&mut __macro_internal_stdin);
 
                 #bounds_check
 
-                let (__pk, _) = __client.setup(ELF);
-                let __proof = __client.prove(&__pk, __stdin).run().unwrap();
+                let (__macro_internal_pk, _) = __macro_internal_client.setup(__MACRO_INTERNAL_ELF);
+                let __macro_internal_proof = __macro_internal_client.prove(&__macro_internal_pk, __macro_internal_stdin).run().compressed().unwrap();
 
-                __cb(__proof.public_values);
+                __macro_internal_cb(__macro_internal_proof.public_values);
             }
         };
 
@@ -162,21 +171,21 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
                 #[cfg(all(feature = "prove", feature = "gpu"))]
                 #[test]
                 fn #gpu_prove_name() {
-                    const __ELF: &[u8] = ::sp1_sdk::include_elf!(#elf_name);
+                    const __MACRO_INTERNAL_ELF: &[u8] = ::sp1_sdk::include_elf!(#elf_name);
 
-                    let __client = ::sp1_sdk::ProverClient::gpu();
-                    let mut __stdin = ::sp1_sdk::SP1Stdin::new();
+                    let __macro_internal_client = ::sp1_sdk::ProverClient::gpu();
+                    let mut __macro_internal_stdin = ::sp1_sdk::SP1Stdin::new();
 
                     #setup_fn
 
-                    let __cb = #setup_name(&mut __stdin);
+                    let __macro_internal_cb = #setup_name(&mut __macro_internal_stdin);
 
                     #bounds_check
 
-                    let (__pk, _) = __client.setup(ELF);
-                    let __proof = __client.prove(&pk, stdin).run().unwrap();
+                    let (__macro_internal_pk, _) = __macro_internal_client.setup(__MACRO_INTERNAL_ELF);
+                    let __macro_internal_proof = __macro_internal_client.prove(&pk, stdin).compressed().run().unwrap();
 
-                    __cb(__proof.public_values);
+                    __macro_internal_cb(__macro_internal_proof.public_values);
                 }
             })
     } else {

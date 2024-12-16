@@ -9,6 +9,7 @@ sp1-zkvm = { workspace = true }
 sp1-sdk = { workspace = true }
 tiny-keccak = { workspace = true }
 rand = { workspace = true }
+sp1-test = { workspace = true }
 
 [features]
 prove = []

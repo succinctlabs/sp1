@@ -1,13 +1,12 @@
-use sha2_v0_10_6::Digest as D2;
-
-use sha2_v0_9_8::Digest as D1;
-
-use sp1_sdk::SP1PublicValues;
-
 use sp1_test::sp1_test;
+#[cfg(test)]
+use sp1_sdk::SP1PublicValues;
 
 #[sp1_test("sha_256_program", gpu, prove)]
 fn test_expected_digest_rand_times_lte_100_test(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(SP1PublicValues) {
+    use sha2_v0_10_6::Digest as D2;
+    use sha2_v0_9_8::Digest as D1;
+
     let times = rand::random::<u8>().min(100);
 
     let preimages: Vec<Vec<u8>> = (0..times)

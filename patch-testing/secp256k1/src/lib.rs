@@ -1,15 +1,16 @@
 #[cfg(test)]
-use secp256k1::{Secp256k1, PublicKey, Message};
-
+use secp256k1::{Message, PublicKey, Secp256k1};
 
 #[sp1_test::sp1_test("secp256k1_recover")]
-fn test_recover_rand_lte_100(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
+fn test_recover_rand_lte_100(
+    stdin: &mut sp1_sdk::SP1Stdin,
+) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     let times = rand::random::<u8>().min(100);
 
     stdin.write(&times);
 
     let secp = Secp256k1::new();
- 
+
     let mut pubkeys = Vec::with_capacity(times.into());
     for _ in 0..times {
         let mut rng = rand::thread_rng();
@@ -21,6 +22,8 @@ fn test_recover_rand_lte_100(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_s
         let msg = Message::from_digest_slice(&msg).unwrap();
 
         let signature = secp.sign_ecdsa_recoverable(&msg, &secret);
+
+        assert_eq!(secp.recover_ecdsa(&msg, &signature).unwrap(), public);
 
         let (recid, sig) = signature.serialize_compact();
 
@@ -55,6 +58,8 @@ fn test_verify_rand_lte_100(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sd
 
         let signature = secp.sign_ecdsa(&msg, &secret);
 
+        assert!(secp.verify_ecdsa(&msg, &signature, &public).is_ok());
+
         let msg = msg.as_ref().to_vec();
         let signature = signature.serialize_der().to_vec();
 
@@ -69,3 +74,5 @@ fn test_verify_rand_lte_100(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sd
         }
     }
 }
+
+// add cases for fail verify, although its not patched 

@@ -2215,6 +2215,7 @@ dependencies = [
  "rand",
  "sp1-build",
  "sp1-sdk",
+ "sp1-test",
  "sp1-zkvm",
 ]
 
@@ -2225,6 +2226,7 @@ dependencies = [
  "rand",
  "sp1-build",
  "sp1-sdk",
+ "sp1-test",
  "sp1-zkvm",
  "tiny-keccak",
 ]
@@ -2664,6 +2666,7 @@ dependencies = [
  "rand",
  "sp1-build",
  "sp1-sdk",
+ "sp1-test",
  "sp1-zkvm",
 ]
 

@@ -1,9 +1,8 @@
-#[test]
-fn test_expected_digest_lte_100() {
+#[sp1_test::sp1_test("keccak_patch_test", gpu, prove)]
+fn test_expected_digest_lte_100(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     use tiny_keccak::Hasher;
 
     let times = rand::random::<u8>();
-    let mut stdin = sp1_sdk::SP1Stdin::new();
     stdin.write(&times);
     
     let mut digests = Vec::with_capacity(times as usize);
@@ -22,14 +21,11 @@ fn test_expected_digest_lte_100() {
 
     }
 
-    const ELF: &[u8] = sp1_sdk::include_elf!("keccak_patch_test");
-    let client = sp1_sdk::ProverClient::new();
+    move |mut public| {
+         for digest in digests {
+            let commited = public.read::<[u8; 32]>(); 
 
-    let (mut public, _) = client.execute(ELF, stdin).run().unwrap();
-
-    for digest in digests {
-        let commited = public.read::<[u8; 32]>(); 
-
-        assert_eq!(digest, commited);
+            assert_eq!(digest, commited);
+        }
     }
 }
