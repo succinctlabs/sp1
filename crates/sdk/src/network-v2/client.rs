@@ -20,10 +20,10 @@ use crate::network_v2::proto::artifact::{
 };
 use crate::network_v2::proto::network::{
     prover_network_client::ProverNetworkClient, CreateProgramRequest, CreateProgramRequestBody,
-    CreateProgramResponse, FulfillmentStatus, FulfillmentStrategy, GetNonceRequest,
-    GetProgramRequest, GetProgramResponse, GetProofRequestStatusRequest,
-    GetProofRequestStatusResponse, MessageFormat, ProofMode, RequestProofRequest,
-    RequestProofRequestBody, RequestProofResponse,
+    CreateProgramResponse, FulfillmentStatus, FulfillmentStrategy, GetFilteredProofRequestsRequest,
+    GetFilteredProofRequestsResponse, GetNonceRequest, GetProgramRequest, GetProgramResponse,
+    GetProofRequestStatusRequest, GetProofRequestStatusResponse, MessageFormat, ProofMode,
+    RequestProofRequest, RequestProofRequestBody, RequestProofResponse,
 };
 use crate::network_v2::Signable;
 
@@ -241,6 +241,44 @@ impl NetworkClient {
             .into_inner();
 
         Ok(request_response)
+    }
+
+    /// Get all the proof requests for a given status. Also filter by version if provided.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn get_filtered_proof_requests(
+        &self,
+        version: Option<String>,
+        fulfillment_status: Option<i32>,
+        execution_status: Option<i32>,
+        minimum_deadline: Option<u64>,
+        vk_hash: Option<Vec<u8>>,
+        requester: Option<Vec<u8>>,
+        fulfiller: Option<Vec<u8>>,
+        from: Option<u64>,
+        to: Option<u64>,
+        limit: Option<u32>,
+        page: Option<u32>,
+        mode: Option<i32>,
+    ) -> Result<GetFilteredProofRequestsResponse> {
+        let mut rpc = self.get_rpc().await?;
+        let res = rpc
+            .get_filtered_proof_requests(GetFilteredProofRequestsRequest {
+                version,
+                fulfillment_status,
+                execution_status,
+                minimum_deadline,
+                vk_hash,
+                requester,
+                fulfiller,
+                from,
+                to,
+                limit,
+                page,
+                mode,
+            })
+            .await?
+            .into_inner();
+        Ok(res)
     }
 
     /// Uses the artifact store to to create an artifact, upload the content, and return the URI.
