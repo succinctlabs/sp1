@@ -32,4 +32,3 @@ This command generates static content into the `build` directory and can be serv
 - Code snippets from the repo are made through the [gen script](./gen-code-refs.sh).
     - When adding new code snippets, ensure that the gen script is updated to include the new file.
 - Check out the [Docusaurus documentation](https://docusaurus.io/docs/versioning) versioning information.
-    - You can use the [adjustment](./adjust-version-path.sh) script to adjust the import path in the markdown files after changing the version.

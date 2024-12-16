@@ -1,5 +1,5 @@
-import ProgramMain from "../../static/examples_groth16_program_src_main.rs.mdx";
-import ProgramScript from "../../static/examples_groth16_script_src_main.rs.mdx";
+import ProgramMain from "@site/static/examples_groth16_program_src_main.rs.mdx";
+import ProgramScript from "@site/static/examples_groth16_script_src_main.rs.mdx";
 
 # Offchain Verification
 
