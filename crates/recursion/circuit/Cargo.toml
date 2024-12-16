@@ -56,4 +56,4 @@ test-artifacts = { workspace = true }
 [features]
 native-gnark = ["sp1-recursion-gnark-ffi/native"]
 export-tests = ["dep:test-artifacts"]
-debug = ["sp1-core-machine/debug"]
+debug = ["sp1-core-machine/debug", "sp1-recursion-compiler/debug"]

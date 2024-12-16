@@ -1,4 +1,6 @@
 use crate::*;
+#[cfg(feature = "debug")]
+use backtrace::Backtrace;
 use p3_field::{AbstractExtensionField, AbstractField};
 use serde::{Deserialize, Serialize};
 
@@ -23,6 +25,8 @@ pub enum Instruction<F> {
     HintExt2Felts(HintExt2FeltsInstr<F>),
     CommitPublicValues(Box<CommitPublicValuesInstr<F>>),
     Hint(HintInstr<F>),
+    #[cfg(feature = "debug")]
+    DebugBacktrace(Backtrace),
 }
 
 impl<F: Copy> Instruction<F> {
@@ -120,6 +124,8 @@ impl<F: Copy> Instruction<F> {
                 )
             }
             Instruction::Print(_) => Default::default(),
+            #[cfg(feature = "debug")]
+            Instruction::DebugBacktrace(_) => Default::default(),
             Instruction::HintExt2Felts(HintExt2FeltsInstr { output_addrs_mults, input_addr }) => {
                 (svec![input_addr], output_addrs_mults.iter().map(|(a, _)| *a).collect())
             }

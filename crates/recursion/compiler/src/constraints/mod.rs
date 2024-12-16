@@ -6,10 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
 use self::opcodes::ConstraintOpcode;
-use crate::{
-    ir::{Config, DslIr},
-    prelude::TracedVec,
-};
+use crate::ir::{Config, DslIr};
 
 /// A constraint is an operation and a list of nested arguments.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -70,8 +67,8 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
         tmp_id
     }
 
-    fn emit_inner(&mut self, constraints: &mut Vec<Constraint>, operations: TracedVec<DslIr<C>>) {
-        for (instruction, _) in operations {
+    fn emit_inner(&mut self, constraints: &mut Vec<Constraint>, operations: Vec<DslIr<C>>) {
+        for instruction in operations {
             match instruction {
                 DslIr::ImmV(a, b) => constraints.push(Constraint {
                     opcode: ConstraintOpcode::ImmV,
@@ -416,7 +413,7 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
     }
 
     /// Emit the constraints from a list of operations in the DSL.
-    pub fn emit(&mut self, operations: TracedVec<DslIr<C>>) -> Vec<Constraint> {
+    pub fn emit(&mut self, operations: Vec<DslIr<C>>) -> Vec<Constraint> {
         let mut constraints: Vec<Constraint> = Vec::new();
         self.emit_inner(&mut constraints, operations);
         constraints

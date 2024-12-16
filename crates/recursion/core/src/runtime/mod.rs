@@ -4,6 +4,8 @@ mod opcode;
 mod program;
 mod record;
 
+// Avoid triggering annoying branch of thiserror derive macro.
+use backtrace::Backtrace as Trace;
 use instruction::HintAddCurveInstr;
 pub use instruction::Instruction;
 use instruction::{FieldEltType, HintBitsInstr, HintExt2FeltsInstr, HintInstr, PrintInstr};
@@ -121,12 +123,18 @@ pub struct Runtime<'a, F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
 
 #[derive(Error, Debug)]
 pub enum RuntimeError<F: Debug, EF: Debug> {
-    #[error("attempted to perform base field division {in1:?}/{in2:?} from instruction {instr:?}")]
-    DivFOutOfDomain { in1: F, in2: F, instr: BaseAluInstr<F> },
     #[error(
-        "attempted to perform extension field division {in1:?}/{in2:?} from instruction {instr:?}"
+        "attempted to perform base field division {in1:?}/{in2:?}\n\
+        \tin instruction {instr:#?}\n\
+        \tnearest backtrace:\n{trace:#?}"
     )]
-    DivEOutOfDomain { in1: EF, in2: EF, instr: ExtAluInstr<F> },
+    DivFOutOfDomain { in1: F, in2: F, instr: BaseAluInstr<F>, trace: Option<Trace> },
+    #[error(
+        "attempted to perform extension field division {in1:?}/{in2:?}\n\
+        \tin instruction {instr:#?}\n\
+        \tnearest backtrace:\n{trace:#?}"
+    )]
+    DivEOutOfDomain { in1: EF, in2: EF, instr: ExtAluInstr<F>, trace: Option<Trace> },
     #[error("failed to print to `debug_stdout`: {0}")]
     DebugPrint(#[from] std::io::Error),
     #[error("attempted to read from empty witness stream")]
@@ -203,12 +211,12 @@ where
     /// happens-before relation where reads happen before writes, and memory read from must be
     /// initialized.
     unsafe fn execute_one(
-        env: &ExecEnv<F, Diffusion>,
-        record: &mut ExecutionRecord<F>,
+        state: &mut ExecState<F, Diffusion>,
         witness_stream: Option<&mut VecDeque<Block<F>>>,
         instruction: Instruction<F>,
     ) -> Result<(), RuntimeError<F, EF>> {
-        let ExecEnv { memory, perm, debug_stdout } = env;
+        let ExecEnv { memory, perm, debug_stdout } = state.env;
+        let record = &mut state.record;
         match instruction {
             Instruction::BaseAlu(instr @ BaseAluInstr { opcode, mult: _, addrs }) => {
                 let in1 = memory.mr_unchecked(addrs.in1).val[0];
@@ -226,7 +234,12 @@ where
                             if in1.is_zero() {
                                 AbstractField::one()
                             } else {
-                                return Err(RuntimeError::DivFOutOfDomain { in1, in2, instr });
+                                return Err(RuntimeError::DivFOutOfDomain {
+                                    in1,
+                                    in2,
+                                    instr,
+                                    trace: state.resolve_trace().cloned(),
+                                });
                             }
                         }
                     },
@@ -256,6 +269,7 @@ where
                                     in1: in1_ef,
                                     in2: in2_ef,
                                     instr,
+                                    trace: state.resolve_trace().cloned(),
                                 });
                             }
                         }
@@ -535,6 +549,10 @@ where
                     record.mem_var_events.push(MemEvent { inner: val });
                 }
             }
+            #[cfg(feature = "debug")]
+            Instruction::DebugBacktrace(backtrace) => {
+                state.last_trace = Some(backtrace);
+            }
         }
 
         Ok(())
@@ -551,7 +569,13 @@ where
     ) -> Result<ExecutionRecord<F>, RuntimeError<F, EF>> {
         let fresh_record =
             || ExecutionRecord { program: Arc::clone(root_program), ..Default::default() };
-        let mut record = fresh_record();
+
+        let mut state = ExecState {
+            env: env.clone(),
+            record: fresh_record(),
+            #[cfg(feature = "debug")]
+            last_trace: None,
+        };
 
         for block in &program.seq_blocks {
             match block {
@@ -559,8 +583,7 @@ where
                     for instruction in &basic_block.instrs {
                         unsafe {
                             Self::execute_one(
-                                env,
-                                &mut record,
+                                &mut state,
                                 witness_stream.as_deref_mut(),
                                 instruction.clone(),
                             )
@@ -568,7 +591,7 @@ where
                     }
                 }
                 SeqBlock::Parallel(vec) => {
-                    record.append(
+                    state.record.append(
                         &mut vec
                             .par_iter()
                             .map(|subprogram| {
@@ -584,7 +607,7 @@ where
                 }
             }
         }
-        Ok(record)
+        Ok(state.record)
     }
 
     /// Run the program.
@@ -608,9 +631,80 @@ where
     }
 }
 
-#[derive(Clone)]
-struct ExecEnv<'a, 'b, 'c, F, Diffusion> {
+struct ExecState<'a, 'b, F, Diffusion> {
+    pub env: ExecEnv<'a, 'b, F, Diffusion>,
+    pub record: ExecutionRecord<F>,
+    #[cfg(feature = "debug")]
+    pub last_trace: Option<Trace>,
+}
+
+impl<'a, 'b, F, Diffusion> ExecState<'a, 'b, F, Diffusion> {
+    fn resolve_trace(&mut self) -> Option<&mut Trace> {
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "debug")] {
+                // False positive.
+                #[allow(clippy::manual_inspect)]
+                self.last_trace.as_mut().map(|trace| {
+                    trace.resolve();
+                    trace
+                })
+            } else {
+                None
+            }
+        }
+    }
+}
+
+impl<'a, 'b, F, Diffusion> Clone for ExecState<'a, 'b, F, Diffusion>
+where
+    ExecEnv<'a, 'b, F, Diffusion>: Clone,
+    ExecutionRecord<F>: Clone,
+{
+    fn clone(&self) -> Self {
+        let Self {
+            env,
+            record,
+            #[cfg(feature = "debug")]
+            last_trace,
+        } = self;
+        Self {
+            env: env.clone(),
+            record: record.clone(),
+            #[cfg(feature = "debug")]
+            last_trace: last_trace.clone(),
+        }
+    }
+
+    fn clone_from(&mut self, source: &Self) {
+        let Self {
+            env,
+            record,
+            #[cfg(feature = "debug")]
+            last_trace,
+        } = self;
+        env.clone_from(&source.env);
+        record.clone_from(&source.record);
+        #[cfg(feature = "debug")]
+        last_trace.clone_from(&source.last_trace);
+    }
+}
+
+struct ExecEnv<'a, 'b, F, Diffusion> {
     pub memory: &'a MemVec<F>,
     pub perm: &'a Perm<F, Diffusion>,
-    pub debug_stdout: &'a Mutex<&'b mut Box<dyn Write + Send + 'c>>,
+    pub debug_stdout: &'a Mutex<dyn Write + Send + 'b>,
+}
+
+impl<'a, 'b, F, Diffusion> Clone for ExecEnv<'a, 'b, F, Diffusion> {
+    fn clone(&self) -> Self {
+        let Self { memory, perm, debug_stdout } = self;
+        Self { memory, perm, debug_stdout }
+    }
+
+    fn clone_from(&mut self, source: &Self) {
+        let Self { memory, perm, debug_stdout } = self;
+        memory.clone_from(&source.memory);
+        perm.clone_from(&source.perm);
+        debug_stdout.clone_from(&source.debug_stdout);
+    }
 }

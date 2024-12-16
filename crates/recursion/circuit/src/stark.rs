@@ -522,7 +522,7 @@ pub mod tests {
     };
     use sp1_recursion_compiler::{
         config::{InnerConfig, OuterConfig},
-        ir::{Builder, DslIr, DslIrBlock, TracedVec},
+        ir::{Builder, DslIr, DslIrBlock},
     };
 
     use sp1_core_executor::SP1Context;
