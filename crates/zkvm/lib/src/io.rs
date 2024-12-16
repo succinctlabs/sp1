@@ -16,6 +16,8 @@ pub const FD_HINT: u32 = 4;
 pub const FD_K1_ECRECOVER_HOOK: u32 = 5;
 /// The file descriptor through which to access `hook_r1_ecrecover`.
 pub const FD_R1_ECRECOVER_HOOK: u32 = 6;
+/// The file descriptor through which to access `hook_s_inverse`.
+pub const FD_S_INVERSE: u32 = 7;
 /// The file descriptor through which to access `hook_ed_decompress`.
 pub const FD_EDDECOMPRESS: u32 = 8;
 

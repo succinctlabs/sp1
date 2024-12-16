@@ -3,10 +3,11 @@ use core::fmt::Debug;
 use std::sync::{Arc, RwLock, RwLockWriteGuard};
 
 use hashbrown::HashMap;
+use num::bigint::Sign;
 use sp1_curves::{
     ecdsa::RecoveryId as ecdsaRecoveryId,
     k256::{Invert, RecoveryId, Signature, VerifyingKey},
-    p256::{Signature as p256Signature, VerifyingKey as p256VerifyingKey},
+    p256::{Invert as p256Invert, Signature as p256Signature, VerifyingKey as p256VerifyingKey},
 };
 
 use crate::Executor;
@@ -18,6 +19,8 @@ pub type BoxedHook<'a> = Arc<RwLock<dyn Hook + Send + Sync + 'a>>;
 pub const FD_K1_ECRECOVER_HOOK: u32 = 5;
 /// The file descriptor through which to access `hook_r1_ecrecover`.
 pub const FD_R1_ECRECOVER_HOOK: u32 = 6;
+/// The file descriptor through which to access `hook_s_inverse`.
+pub const FD_S_INVERSE: u32 = 7;
 /// The file descriptor through which to access `hook_ed_decompress`.
 pub const FD_EDDECOMPRESS: u32 = 8;
 
@@ -85,6 +88,7 @@ impl<'a> Default for HookRegistry<'a> {
             // add an assertion to the test `hook_fds_match` below.
             (FD_K1_ECRECOVER_HOOK, hookify(hook_k1_ecrecover)),
             (FD_R1_ECRECOVER_HOOK, hookify(hook_r1_ecrecover)),
+            (FD_S_INVERSE, hookify(hook_s_inverse)),
             (FD_EDDECOMPRESS, hookify(hook_ed_decompress)),
         ]);
 
@@ -152,6 +156,45 @@ pub fn hook_k1_ecrecover(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
     let s_inverse = s.invert();
 
     vec![vec![1], bytes.to_vec(), s_inverse.to_bytes().to_vec()]
+}
+
+/// Recovers s inverse from the signature using the k256 crate or the p256 crate depending on the curve id.
+///
+/// # Arguments
+///
+/// * `env` - The environment in which the hook is invoked.
+/// * `buf` - The buffer containing the signature and message hash.
+///     - The signature is 65 bytes, the first 64 bytes are the signature and the last byte is the
+///       curve ID.
+///
+/// The result is returned as a status and s inverse from the signature.
+///
+/// A status of 0 indicates that the inverse could not be computed.
+///
+/// WARNING: This function is used to recover the inverse of s outside of the zkVM context. These
+/// values must be constrained by the zkVM for correctness.
+#[must_use]
+pub fn hook_s_inverse(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
+    assert_eq!(buf.len(), 65, "s_inverse input should have length 65, this is a bug.");
+    let sig: &[u8; 65] = buf.try_into().unwrap();
+
+    let curve_id = sig[64];
+
+    match curve_id {
+        0 => {
+            let sig = Signature::from_slice(&sig[..64]).unwrap();
+            let (_, s) = sig.split_scalars();
+            let s_inverse = s.invert();
+            vec![vec![1], s_inverse.to_bytes().to_vec()]
+        }
+        1 => {
+            let sig = p256Signature::from_slice(&sig[..64]).unwrap();
+            let (_, s) = sig.split_scalars();
+            let s_inverse = s.invert();
+            vec![vec![1], s_inverse.to_bytes().to_vec()]
+        }
+        _ => vec![vec![0]], // Handle invalid curve_id
+    }
 }
 
 /// Checks if a compressed Edwards point can be decompressed.
@@ -231,6 +274,7 @@ pub mod tests {
     pub fn hook_fds_match() {
         use sp1_zkvm::lib::io;
         assert_eq!(FD_K1_ECRECOVER_HOOK, io::FD_K1_ECRECOVER_HOOK);
+        assert_eq!(FD_S_INVERSE, io::FD_S_INVERSE);
         assert_eq!(FD_R1_ECRECOVER_HOOK, io::FD_R1_ECRECOVER_HOOK);
     }
 
