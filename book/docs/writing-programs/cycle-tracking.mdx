@@ -66,7 +66,7 @@ To profile a program, you simply need to:
 
 If you're executing a larger program (>100M cycles), you should set `TRACE_SAMPLE_RATE` to reduce the size of the trace file. A sample rate of `1000` means that 1 in every 1000 VM cycles is sampled. By default, every cycle is sampled.
 
-Many examples can be found in the repo, such as this ['fibonacci'](https://github.com/succinctlabs/sp1/blob/12f212e386ae4c2da30cf6a61a7d87615d56bdac/examples/fibonacci/script/src/main.rs#L22) script.
+Many examples can be found in the repo, such as this ['fibonacci'](https://github.com/succinctlabs/sp1/blob/dev/examples/fibonacci/script/src/main.rs#L22) script.
 
 Once you have your script it should look like the following: 
 ```rs 
@@ -94,7 +94,7 @@ To view these profiles, we recommend [Samply](https://github.com/mstange/samply)
 ```
 
 Samply uses the Firefox profiler to create a nice visualization of your programs execution.
-![An example screenshot of the Firefox Profiler](../profiling.png)
+![An example screenshot of the Firefox Profiler](@site/static/profiling.png)
 
 #### Interpreting the Profile
 - The "time" measurement in the profiler is actually the number of cycles spent, 
