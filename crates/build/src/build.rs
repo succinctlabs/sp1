@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use cargo_metadata::camino::Utf8PathBuf;
@@ -54,9 +54,9 @@ pub fn execute_build_program(
 }
 
 /// Internal helper function to build the program with or without arguments.
-pub(crate) fn build_program_internal(path: &str, args: Option<BuildArgs>) {
+pub(crate) fn build_program_internal(path: impl AsRef<Path>, args: Option<BuildArgs>) {
     // Get the root package name and metadata.
-    let program_dir = std::path::Path::new(path);
+    let program_dir = path.as_ref().to_path_buf();
     let metadata_file = program_dir.join("Cargo.toml");
     let mut metadata_cmd = cargo_metadata::MetadataCommand::new();
     let metadata = metadata_cmd.manifest_path(metadata_file).exec().unwrap();
@@ -83,7 +83,7 @@ pub(crate) fn build_program_internal(path: &str, args: Option<BuildArgs>) {
     }
 
     // Activate the build command if the dependencies change.
-    cargo_rerun_if_changed(&metadata, program_dir);
+    cargo_rerun_if_changed(&metadata, &program_dir);
 
     // Check if RUSTC_WORKSPACE_WRAPPER is set to clippy-driver (i.e. if `cargo clippy` is the
     // current compiler). If so, don't execute `cargo prove build` because it breaks
