@@ -662,14 +662,17 @@ mod tests {
                     String,
                     RowMajorMatrix<Val<BabyBearPoseidon2>>,
                 )> {
-                    let mut malicious_record = record.clone();
-                    malicious_record.shift_right_events[0].a = op_a;
-                    prover.generate_traces(&malicious_record)
+                    if !record.shift_right_events.is_empty() {
+                        let mut malicious_record = record.clone();
+                        malicious_record.shift_right_events[0].a = op_a;
+                        prover.generate_traces(&malicious_record)
+                    } else {
+                        prover.generate_traces(record)
+                    }
                 };
 
                 let result =
                     run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
-                println!("Result for {:?}: {:?}", opcode, result);
                 let shift_right_chip_name = chip_name!(ShiftRightChip, BabyBear);
                 assert!(
                     result.is_err()

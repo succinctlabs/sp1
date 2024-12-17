@@ -520,14 +520,17 @@ mod tests {
                 move |prover: &P,
                       record: &mut ExecutionRecord|
                       -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
-                    let mut malicious_record = record.clone();
-                    malicious_record.shift_left_events[0].a = op_a;
-                    prover.generate_traces(&malicious_record)
+                    if !record.shift_left_events.is_empty() {
+                        let mut malicious_record = record.clone();
+                        malicious_record.shift_left_events[0].a = op_a;
+                        prover.generate_traces(&malicious_record)
+                    } else {
+                        prover.generate_traces(record)
+                    }
                 };
 
             let result =
                 run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
-            println!("Result for {:?}: {:?}", Opcode::SLL, result);
             let shift_left_chip_name = chip_name!(ShiftLeft, BabyBear);
             assert!(
                 result.is_err()
