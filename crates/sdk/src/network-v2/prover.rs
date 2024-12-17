@@ -215,7 +215,7 @@ impl Prover<DefaultProverComponents> for NetworkProver {
         context: SP1Context<'a>,
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {
-        warn_if_not_default(&opts.sp1_prover_opts, &context);
+        local_opts.warn_if_not_default("network");
         block_on(self.prove(pk, stdin, kind.into(), opts.timeout))
     }
 }

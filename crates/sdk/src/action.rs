@@ -1,6 +1,6 @@
 use crate::{provers::ProveOpts, Prover, SP1ProofKind, SP1ProofWithPublicValues};
 use anyhow::{Ok, Result};
-use sp1_core_executor::{ExecutionReport, HookEnv, SP1Context, SP1ContextBuilder};
+use sp1_core_executor::{ExecutionReport, SP1Context};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_primitives::io::SP1PublicValues;
 use sp1_prover::{components::DefaultProverComponents, SP1ProvingKey};
@@ -11,9 +11,9 @@ use std::time::Duration;
 /// May be run with [Self::run].
 pub struct Execute<'a> {
     prover: &'a dyn Prover<DefaultProverComponents>,
-    context_builder: SP1ContextBuilder<'a>,
     elf: &'a [u8],
     stdin: SP1Stdin,
+    local_opts: LocalProveOpts<'a>,
 }
 
 impl<'a> Execute<'a> {
@@ -26,55 +26,23 @@ impl<'a> Execute<'a> {
         elf: &'a [u8],
         stdin: SP1Stdin,
     ) -> Self {
-        Self { prover, elf, stdin, context_builder: Default::default() }
+        Self { prover, elf, stdin, local_opts: Default::default() }
     }
 
     /// Execute the program on the input, consuming the built action `self`.
     pub fn run(self) -> Result<(SP1PublicValues, ExecutionReport)> {
-        let Self { prover, elf, stdin, mut context_builder } = self;
-        let context = context_builder.build();
-        Ok(prover.sp1_prover().execute(elf, &stdin, context)?)
+        let Self { prover, elf, stdin, local_opts } = self;
+        Ok(prover.sp1_prover().execute(elf, &stdin, local_opts.context)?)
     }
 
-    /// Add a runtime [Hook](super::Hook) into the context.
-    ///
-    /// Hooks may be invoked from within SP1 by writing to the specified file descriptor `fd`
-    /// with [`sp1_zkvm::io::write`], returning a list of arbitrary data that may be read
-    /// with successive calls to [`sp1_zkvm::io::read`].
-    pub fn with_hook(
-        mut self,
-        fd: u32,
-        f: impl FnMut(HookEnv, &[u8]) -> Vec<Vec<u8>> + Send + Sync + 'a,
-    ) -> Self {
-        self.context_builder.hook(fd, f);
-        self
-    }
-
-    /// Avoid registering the default hooks in the runtime.
-    ///
-    /// It is not necessary to call this to override hooks --- instead, simply
-    /// register a hook with the same value of `fd` by calling [`Self::with_hook`].
-    pub fn without_default_hooks(mut self) -> Self {
-        self.context_builder.without_default_hooks();
-        self
-    }
-
-    /// Set the maximum number of cpu cycles to use for execution.
-    ///
-    /// If the cycle limit is exceeded, execution will return
-    /// [`sp1_core_executor::ExecutionError::ExceededCycleLimit`].
-    pub fn max_cycles(mut self, max_cycles: u64) -> Self {
-        self.context_builder.max_cycles(max_cycles);
-        self
-    }
-
-    /// Skip deferred proof verification.
-    pub fn set_skip_deferred_proof_verification(mut self, value: bool) -> Self {
-        self.context_builder.set_skip_deferred_proof_verification(value);
+    /// Set the [LocalProveOpts] for this execution.
+    pub fn with_local_opts(mut self, local_opts: LocalProveOpts<'a>) -> Self {
+        self.local_opts = local_opts;
         self
     }
 }
 
+/// Options to configure execution and proving for the CPU and mock provers.
 #[derive(Default, Clone)]
 pub struct LocalProveOpts<'a> {
     pub(crate) prover_opts: SP1ProverOpts,
@@ -82,24 +50,32 @@ pub struct LocalProveOpts<'a> {
 }
 
 impl<'a> LocalProveOpts<'a> {
+    /// Create a new `LocalProveOpts` with default values.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Set the SP1ProverOpts.
     pub fn prover_opts(mut self, prover_opts: SP1ProverOpts) -> Self {
         self.prover_opts = prover_opts;
         self
     }
 
+    /// Set the SP1Context.
     pub fn context(mut self, context: SP1Context<'a>) -> Self {
         self.context = context;
         self
     }
-    /// Warns if `opts` or `context` are not default values, since they are currently unsupported.
-    pub(crate) fn warn_if_not_default(&self) {
+
+    /// Warns if `opts` or `context` are not default values, since they are currently unsupported by
+    /// certain provers.
+    pub(crate) fn warn_if_not_default(&self, prover_type: &str) {
         if self.prover_opts != SP1ProverOpts::default() {
-            tracing::warn!("non-default opts will be ignored: {:?}", self.prover_opts.core_opts);
-            tracing::warn!("custom SP1ProverOpts are currently unsupported by the network prover");
+            tracing::warn!("non-default opts will be ignored: {:?}", self.prover_opts);
+            tracing::warn!(
+                "custom SP1ProverOpts are currently unsupported by the {} prover",
+                prover_type
+            );
         }
         // Exhaustive match is done to ensure we update the warnings if the types change.
         let SP1Context { hook_registry, subproof_verifier, .. } = &self.context;
@@ -108,28 +84,35 @@ impl<'a> LocalProveOpts<'a> {
                 "non-default context.hook_registry will be ignored: {:?}",
                 hook_registry
             );
-            tracing::warn!("custom runtime hooks are currently unsupported by the network prover");
+            tracing::warn!(
+                "custom runtime hooks are currently unsupported by the {} prover",
+                prover_type
+            );
             tracing::warn!("proving may fail due to missing hooks");
         }
         if subproof_verifier.is_some() {
             tracing::warn!("non-default context.subproof_verifier will be ignored");
             tracing::warn!(
-                "custom subproof verifiers are currently unsupported by the network prover"
+                "custom subproof verifiers are currently unsupported by the {} prover",
+                prover_type
             );
         }
     }
 }
 
+/// Options to configure the network prover.
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
 pub struct NetworkProveOpts {
     pub(crate) timeout: Option<Duration>,
 }
 
 impl NetworkProveOpts {
+    /// Create a new `NetworkProveOpts` with default values.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Set the timeout.
     pub fn timeout(&mut self, timeout: Duration) -> &mut Self {
         self.timeout = Some(timeout);
         self
@@ -206,13 +189,13 @@ impl<'a> Prove<'a> {
         self
     }
 
-    /// Set the local prover options, which are only used in local and mock modes.
+    /// Set the local prover options, which are only used by the local and mock provers.
     pub fn local_opts(mut self, local_opts: LocalProveOpts<'a>) -> Self {
         self.local_opts = Some(local_opts);
         self
     }
 
-    /// Set the network prover options, which are only used in network mode.
+    /// Set the network prover options, which are only used by the network prover.
     pub fn network_opts(mut self, network_opts: NetworkProveOpts) -> Self {
         self.network_opts = Some(network_opts);
         self

@@ -1,6 +1,7 @@
 use std::time::{Duration, Instant};
 
 use super::proto::network::GetProofStatusResponse;
+use crate::action::NetworkProveOpts;
 use crate::provers::{CpuProver, ProveOpts, ProverType};
 use crate::{
     network::{
@@ -143,10 +144,10 @@ impl NetworkProver {
         elf: &[u8],
         stdin: SP1Stdin,
         mode: ProofMode,
-        timeout: Option<Duration>,
+        opts: NetworkProveOpts,
     ) -> Result<SP1ProofWithPublicValues> {
         let proof_id = self.request_proof(elf, stdin, mode).await?;
-        self.wait_proof(&proof_id, timeout).await
+        self.wait_proof(&proof_id, opts.timeout).await
     }
 }
 
@@ -171,8 +172,8 @@ impl Prover<DefaultProverComponents> for NetworkProver {
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {
         let local_opts = &opts.local_opts;
-        local_opts.warn_if_not_default();
-        block_on(self.prove(&pk.elf, stdin, kind.into(), opts.network_opts.timeout))
+        local_opts.warn_if_not_default("network");
+        block_on(self.prove(&pk.elf, stdin, kind.into(), opts.network_opts))
     }
 }
 

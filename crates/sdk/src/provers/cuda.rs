@@ -43,7 +43,7 @@ impl Prover<DefaultProverComponents> for CudaProver {
         opts: ProveOpts<'a>,
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {
-        opts.local_opts.warn_if_not_default();
+        opts.local_opts.warn_if_not_default("cuda");
 
         // Generate the core proof.
         let proof = self.cuda_prover.prove_core(pk, &stdin)?;
