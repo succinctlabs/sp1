@@ -58,9 +58,9 @@ This will log the cycle count for `block name` and include it in the `ExecutionR
 
 ### Profiling a ZKVM program 
 
-Profiling a zkVM program produces a profile ([example link](https://share.firefox.dev/3Om1pzz)) which makes it easy to examine program performance and see exactly where exactly VM cycles are being spent without needing to modify the program at all.
+Profiling a zkVM program produces a useful visualization ([example profile](https://share.firefox.dev/3Om1pzz)) which makes it easy to examine program performance and see exactly where VM cycles are being spent without needing to modify the program at all.
 
-To profile a program, you simply need to:
+To profile a program, you need to:
 1. Enable the profiling feature for `sp1-sdk` in `script/Cargo.toml`
 2. Set the env variable `TRACE_FILE=trace.json` and then call `ProverClient::execute()` in your script.
 
