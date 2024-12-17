@@ -5972,6 +5972,7 @@ dependencies = [
  "backtrace",
  "cbindgen",
  "cc",
+ "cfg-if",
  "ff 0.13.0",
  "glob",
  "hashbrown 0.14.5",

@@ -237,6 +237,8 @@ impl<F> AddAssign<&Instruction<F>> for RecursionAirEventCount {
             }
             Instruction::CommitPublicValues(_) => {}
             Instruction::Print(_) => {}
+            #[cfg(feature = "debug")]
+            Instruction::DebugBacktrace(_) => {}
         }
     }
 }

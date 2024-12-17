@@ -3,12 +3,14 @@ use std::{
     ops::{Deref, Range},
 };
 
+#[cfg(feature = "debug")]
+use backtrace::Backtrace;
 use sp1_recursion_core::air::RecursionPublicValues;
 use sp1_stark::septic_curve::SepticCurve;
 
 use super::{
     Array, CircuitV2FriFoldInput, CircuitV2FriFoldOutput, Config, Ext, Felt, FriFoldInput,
-    MemIndex, Ptr, TracedVec, Usize, Var,
+    MemIndex, Ptr, Usize, Var,
 };
 
 /// An intermeddiate instruction set for implementing programs.
@@ -133,19 +135,19 @@ pub enum DslIr<C: Config> {
     // Control flow.
     /// Executes a for loop with the parameters (start step value, end step value, step size, step
     /// variable, body).
-    For(Box<(Usize<C::N>, Usize<C::N>, C::N, Var<C::N>, TracedVec<DslIr<C>>)>),
+    For(Box<(Usize<C::N>, Usize<C::N>, C::N, Var<C::N>, Vec<DslIr<C>>)>),
     /// Executes an equal conditional branch with the parameters (lhs var, rhs var, then body, else
     /// body).
-    IfEq(Box<(Var<C::N>, Var<C::N>, TracedVec<DslIr<C>>, TracedVec<DslIr<C>>)>),
+    IfEq(Box<(Var<C::N>, Var<C::N>, Vec<DslIr<C>>, Vec<DslIr<C>>)>),
     /// Executes a not equal conditional branch with the parameters (lhs var, rhs var, then body,
     /// else body).
-    IfNe(Box<(Var<C::N>, Var<C::N>, TracedVec<DslIr<C>>, TracedVec<DslIr<C>>)>),
+    IfNe(Box<(Var<C::N>, Var<C::N>, Vec<DslIr<C>>, Vec<DslIr<C>>)>),
     /// Executes an equal conditional branch with the parameters (lhs var, rhs imm, then body, else
     /// body).
-    IfEqI(Box<(Var<C::N>, C::N, TracedVec<DslIr<C>>, TracedVec<DslIr<C>>)>),
+    IfEqI(Box<(Var<C::N>, C::N, Vec<DslIr<C>>, Vec<DslIr<C>>)>),
     /// Executes a not equal conditional branch with the parameters (lhs var, rhs imm, then body,
     /// else body).
-    IfNeI(Box<(Var<C::N>, C::N, TracedVec<DslIr<C>>, TracedVec<DslIr<C>>)>),
+    IfNeI(Box<(Var<C::N>, C::N, Vec<DslIr<C>>, Vec<DslIr<C>>)>),
     /// Break out of a for loop.
     Break,
 
@@ -332,12 +334,16 @@ pub enum DslIr<C: Config> {
     // Structuring IR constructors.
     /// Blocks that may be executed in parallel.
     Parallel(Vec<DslIrBlock<C>>),
+
+    /// Pass a backtrace for debugging.
+    #[cfg(feature = "debug")]
+    DebugBacktrace(Backtrace),
 }
 
 /// A block of instructions.
 #[derive(Clone, Default, Debug)]
 pub struct DslIrBlock<C: Config> {
-    pub ops: TracedVec<DslIr<C>>,
+    pub ops: Vec<DslIr<C>>,
     pub addrs_written: Range<u32>,
 }
 

@@ -553,6 +553,8 @@ where
             DslIr::PrintV(dst) => f(self.print_f(dst)),
             DslIr::PrintF(dst) => f(self.print_f(dst)),
             DslIr::PrintE(dst) => f(self.print_e(dst)),
+            #[cfg(feature = "debug")]
+            DslIr::DebugBacktrace(trace) => f(Instruction::DebugBacktrace(trace)),
             DslIr::CircuitV2HintFelts(output, len) => f(self.hint(output, len)),
             DslIr::CircuitV2HintExts(output, len) => f(self.hint(output, len)),
             DslIr::CircuitExt2Felt(felts, ext) => f(self.ext2felts(felts, ext)),
@@ -576,7 +578,7 @@ where
         let mut seq_blocks = instrs_prefix;
         let mut maybe_bb: Option<BasicBlock<Instruction<C::F>>> = None;
 
-        for op in block.ops.vec {
+        for op in block.ops {
             match op {
                 DslIr::Parallel(par_blocks) => {
                     seq_blocks.extend(maybe_bb.take().map(SeqBlock::Basic));
@@ -689,6 +691,8 @@ where
                 Instruction::Mem(MemInstr { kind: MemAccessKind::Read, .. })
                 | Instruction::CommitPublicValues(_)
                 | Instruction::Print(_) => (),
+                #[cfg(feature = "debug")]
+                Instruction::DebugBacktrace(_) => (),
             }
         }
 
