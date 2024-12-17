@@ -1,11 +1,13 @@
 mod cpu;
 #[cfg(feature = "cuda")]
 mod cuda;
+mod simple;
 mod mock;
 
 pub use cpu::CpuProver;
 #[cfg(feature = "cuda")]
 pub use cuda::CudaProver;
+pub use simple::SimpleProver;
 pub use mock::MockProver;
 
 use itertools::Itertools;
