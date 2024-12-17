@@ -110,11 +110,9 @@ pub fn run_test_core<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
     let machine = RiscvAir::machine(config);
     let (pk, vk) = machine.setup(runtime.program.as_ref());
     let mut challenger = machine.config().challenger();
-    if let Err(e) = machine.verify(&vk, &proof, &mut challenger) {
-        Err(e)
-    } else {
-        Ok(proof)
-    }
+    machine.verify(&vk, &proof, &mut challenger).unwrap();
+
+    Ok(proof)
 }
 
 #[allow(unused_variables)]

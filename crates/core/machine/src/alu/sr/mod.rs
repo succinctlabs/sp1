@@ -662,13 +662,9 @@ mod tests {
                     String,
                     RowMajorMatrix<Val<BabyBearPoseidon2>>,
                 )> {
-                    if !record.shift_right_events.is_empty() {
-                        let mut malicious_record = record.clone();
-                        malicious_record.shift_right_events[0].a = op_a;
-                        prover.generate_traces(&malicious_record)
-                    } else {
-                        prover.generate_traces(record)
-                    }
+                    let mut malicious_record = record.clone();
+                    malicious_record.shift_right_events[0].a = op_a;
+                    prover.generate_traces(&malicious_record)
                 };
 
                 let result =

@@ -520,13 +520,12 @@ mod tests {
                 move |prover: &P,
                       record: &mut ExecutionRecord|
                       -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
-                    if !record.shift_left_events.is_empty() {
-                        let mut malicious_record = record.clone();
-                        malicious_record.shift_left_events[0].a = op_a;
-                        prover.generate_traces(&malicious_record)
-                    } else {
-                        prover.generate_traces(record)
-                    }
+                    println!("test_malicious_sll: Entered malicious trace pv generator");
+                    let mut malicious_record = record.clone();
+                    malicious_record.shift_left_events[0].a = op_a;
+                    let traces = prover.generate_traces(&malicious_record);
+                    println!("test_malicious_sll: Generated traces");
+                    traces
                 };
 
             let result =

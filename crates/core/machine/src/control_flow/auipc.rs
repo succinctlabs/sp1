@@ -268,7 +268,6 @@ mod tests {
 
         let result =
             run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
-        println!("Result for AUIPC is {:?}", result);
         assert!(result.is_err() && result.unwrap_err().is_local_cumulative_sum_failing());
     }
 
