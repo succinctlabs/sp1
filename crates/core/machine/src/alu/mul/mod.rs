@@ -600,7 +600,7 @@ mod tests {
                 let (correct_op_a, op_b, op_c) = if opcode == Opcode::MUL {
                     let op_b = thread_rng().gen_range(0..i32::MAX);
                     let op_c = thread_rng().gen_range(0..i32::MAX);
-                    ((op_b * op_c) as u32, op_b as u32, op_c as u32)
+                    ((op_b.overflowing_mul(op_c).0) as u32, op_b as u32, op_c as u32)
                 } else if opcode == Opcode::MULH {
                     let op_b = thread_rng().gen_range(0..i32::MAX);
                     let op_c = thread_rng().gen_range(0..i32::MAX);
@@ -646,6 +646,7 @@ mod tests {
 
                 let result =
                     run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
+                println!("Result for {:?}: {:?}", opcode, result);
                 let mul_chip_name = chip_name!(MulChip, BabyBear);
                 assert!(
                     result.is_err() && result.unwrap_err().is_constraints_failing(&mul_chip_name)

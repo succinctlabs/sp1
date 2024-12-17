@@ -669,6 +669,7 @@ mod tests {
 
                 let result =
                     run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
+                println!("Result for {:?}: {:?}", opcode, result);
                 let shift_right_chip_name = chip_name!(ShiftRightChip, BabyBear);
                 assert!(
                     result.is_err()
