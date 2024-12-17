@@ -1,25 +1,22 @@
 use std::time::{Duration, Instant};
 
 use crate::network_v2::client::DEFAULT_PROVER_NETWORK_RPC;
+use crate::provers::{CpuProver, ProverType};
+use crate::util::dump_proof_input;
 use crate::{
     network_v2::client::NetworkClient,
     network_v2::proto::network::{
         ExecutionStatus, FulfillmentStatus, FulfillmentStrategy, ProofMode,
     },
-    NetworkProverBuilder, Prover, SP1Context, SP1ProofKind, SP1ProofWithPublicValues,
-    SP1ProvingKey, SP1VerifyingKey,
+    Prover, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
 };
 use anyhow::Result;
 use backoff::{future::retry, Error as BackoffError, ExponentialBackoff};
 use serde::de::DeserializeOwned;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{components::DefaultProverComponents, SP1Prover, SP1_CIRCUIT_VERSION};
-use sp1_stark::SP1ProverOpts;
 use tonic::Code;
-
 use {crate::block_on, tokio::time::sleep};
-
-use crate::provers::{CpuProver, ProofOpts, ProverType};
 
 /// The timeout for a proof request to be fulfilled.
 const TIMEOUT_SECS: u64 = 14400;
@@ -31,28 +28,22 @@ const DEFAULT_CYCLE_LIMIT: u64 = 100_000_000;
 pub struct NetworkProver {
     client: NetworkClient,
     local_prover: CpuProver,
-    skip_simulation: bool,
     strategy: FulfillmentStrategy,
 }
 
 impl NetworkProver {
     /// Creates a new [NetworkProver] with the given private key.
-    pub fn new(private_key: &str, rpc_url: Option<String>, skip_simulation: bool) -> Self {
+    pub fn new(private_key: &str, rpc_url: Option<String>) -> Self {
         let version = SP1_CIRCUIT_VERSION;
         log::info!("Client circuit version: {}", version);
         let local_prover = CpuProver::new();
         let client = NetworkClient::new(private_key, rpc_url);
-        Self { client, local_prover, skip_simulation, strategy: FulfillmentStrategy::Hosted }
+        Self { client, local_prover, strategy: FulfillmentStrategy::Hosted }
     }
 
     /// Sets the fulfillment strategy for the client. By default, the strategy is set to `Hosted`.
     pub fn with_strategy(&mut self, strategy: FulfillmentStrategy) {
         self.strategy = strategy;
-    }
-
-    /// Creates a new network prover builder. See [`NetworkProverBuilder`] for more details.
-    pub fn builder() -> NetworkProverBuilder {
-        NetworkProverBuilder::default()
     }
 
     /// Registers a program if it is not already registered.
@@ -61,8 +52,8 @@ impl NetworkProver {
     }
 
     /// Get the cycle limit, either by simulating or using the default cycle limit.
-    fn get_cycle_limit(&self, elf: &[u8], stdin: &SP1Stdin) -> Result<u64> {
-        if !self.skip_simulation {
+    fn get_cycle_limit(&self, elf: &[u8], stdin: &SP1Stdin, skip_simulation: bool) -> Result<u64> {
+        if !skip_simulation {
             let (_, report) =
                 self.local_prover.sp1_prover().execute(elf, stdin, Default::default())?;
             let cycles = report.total_instruction_count();
@@ -73,7 +64,7 @@ impl NetworkProver {
     }
 
     /// Requests a proof from the prover network, returning the request ID.
-    pub async fn request_proof(
+    pub(crate) async fn request_proof(
         &self,
         vk_hash: &[u8],
         stdin: &SP1Stdin,
@@ -121,7 +112,7 @@ impl NetworkProver {
 
     /// Waits for a proof to be generated and returns the proof. If a timeout is supplied, the
     /// function will return an error if the proof is not generated within the timeout.
-    pub async fn wait_proof<P: DeserializeOwned>(
+    pub(crate) async fn wait_proof<P: DeserializeOwned>(
         &self,
         request_id: &[u8],
         timeout: Option<Duration>,
@@ -180,15 +171,16 @@ impl NetworkProver {
     }
 
     /// Requests a proof from the prover network and waits for it to be generated.
-    pub async fn prove(
+    pub(crate) async fn prove(
         &self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
         mode: ProofMode,
         timeout: Option<Duration>,
+        skip_simulation: bool,
     ) -> Result<SP1ProofWithPublicValues> {
         let vk_hash = self.register_program(&pk.vk, &pk.elf).await?;
-        let cycle_limit = self.get_cycle_limit(&pk.elf, &stdin)?;
+        let cycle_limit = self.get_cycle_limit(&pk.elf, &stdin, skip_simulation)?;
         let request_id = self.request_proof(&vk_hash, &stdin, mode, cycle_limit, timeout).await?;
         self.wait_proof(&request_id, timeout).await
     }
@@ -211,32 +203,9 @@ impl Prover<DefaultProverComponents> for NetworkProver {
         &'a self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
-        opts: ProofOpts,
-        context: SP1Context<'a>,
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {
-        warn_if_not_default(&opts.sp1_prover_opts, &context);
-        block_on(self.prove(pk, stdin, kind.into(), opts.timeout))
-    }
-}
-
-/// Warns if `opts` or `context` are not default values, since they are currently unsupported.
-fn warn_if_not_default(opts: &SP1ProverOpts, context: &SP1Context) {
-    let _guard = tracing::warn_span!("network_prover").entered();
-    if opts != &SP1ProverOpts::default() {
-        tracing::warn!("non-default opts will be ignored: {:?}", opts.core_opts);
-        tracing::warn!("custom SP1ProverOpts are currently unsupported by the network prover");
-    }
-    // Exhaustive match is done to ensure we update the warnings if the types change.
-    let SP1Context { hook_registry, subproof_verifier, .. } = context;
-    if hook_registry.is_some() {
-        tracing::warn!("non-default context.hook_registry will be ignored: {:?}", hook_registry);
-        tracing::warn!("custom runtime hooks are currently unsupported by the network prover");
-        tracing::warn!("proving may fail due to missing hooks");
-    }
-    if subproof_verifier.is_some() {
-        tracing::warn!("non-default context.subproof_verifier will be ignored");
-        tracing::warn!("custom subproof verifiers are currently unsupported by the network prover");
+        block_on(self.prove(pk, stdin, kind.into(), None, false))
     }
 }
 
@@ -327,4 +296,68 @@ where
         }
     })
     .await
+}
+
+/// Builder to prepare and configure proving execution of a program on an input.
+/// May be run with [Self::run].
+pub struct NetworkProve<'a> {
+    prover: &'a NetworkProver,
+    kind: SP1ProofKind,
+    pk: &'a SP1ProvingKey,
+    stdin: SP1Stdin,
+    timeout: Option<Duration>,
+    skip_simulation: bool,
+}
+
+impl<'a> NetworkProve<'a> {
+    /// Prove the execution of the program on the input, consuming the built action `self`.
+    pub async fn run(self) -> Result<SP1ProofWithPublicValues> {
+        let Self { prover, kind, pk, stdin, timeout, skip_simulation } = self;
+
+        dump_proof_input(&pk.elf, &stdin);
+
+        prover.prove(&pk, stdin, kind.into(), timeout, skip_simulation).await
+    }
+
+    /// Set the proof kind to the core mode. This is the default.
+    pub fn core(mut self) -> Self {
+        self.kind = SP1ProofKind::Core;
+        self
+    }
+
+    /// Set the proof kind to the compressed mode.
+    pub fn compressed(mut self) -> Self {
+        self.kind = SP1ProofKind::Compressed;
+        self
+    }
+
+    /// Set the proof mode to the plonk bn254 mode.
+    pub fn plonk(mut self) -> Self {
+        self.kind = SP1ProofKind::Plonk;
+        self
+    }
+
+    /// Set the proof mode to the groth16 bn254 mode.
+    pub fn groth16(mut self) -> Self {
+        self.kind = SP1ProofKind::Groth16;
+        self
+    }
+
+    /// Set the proof mode to the given mode.
+    pub fn mode(mut self, mode: SP1ProofKind) -> Self {
+        self.kind = mode;
+        self
+    }
+
+    /// Set the timeout for the proof's generation.
+    pub fn timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = Some(timeout);
+        self
+    }
+
+    /// Enable skipping the simulation step.
+    pub fn skip_simulation(mut self, skip_simulation: bool) -> Self {
+        self.skip_simulation = skip_simulation;
+        self
+    }
 }

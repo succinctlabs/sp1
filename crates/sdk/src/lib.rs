@@ -12,8 +12,7 @@ pub mod network;
 #[cfg(feature = "network-v2")]
 #[path = "network-v2/mod.rs"]
 pub mod network_v2;
-
-use std::env;
+pub(crate) mod util;
 
 #[cfg(feature = "network")]
 pub use crate::network::prover::NetworkProver as NetworkProverV1;
@@ -33,6 +32,7 @@ use cfg_if::cfg_if;
 pub use proof::*;
 pub use provers::SP1VerificationError;
 use sp1_prover::components::DefaultProverComponents;
+use std::env;
 
 #[cfg(any(feature = "network", feature = "network-v2"))]
 use {std::future::Future, tokio::task::block_in_place};
@@ -260,7 +260,6 @@ impl<'a> SimpleProve<'a> {
 pub struct ProverClientBuilder {
     private_key: Option<String>,
     rpc_url: Option<String>,
-    skip_simulation: bool,
 }
 
 impl ProverClientBuilder {
@@ -273,12 +272,6 @@ impl ProverClientBuilder {
     /// Sets the RPC URL. Only used for network prover.
     pub fn rpc_url(mut self, rpc_url: String) -> Self {
         self.rpc_url = Some(rpc_url);
-        self
-    }
-
-    /// Skips simulation. Only used for network prover.
-    pub fn skip_simulation(mut self) -> Self {
-        self.skip_simulation = true;
         self
     }
 
@@ -311,9 +304,9 @@ impl ProverClientBuilder {
 
                 cfg_if! {
                     if #[cfg(feature = "network-v2")] {
-                        Box::new(NetworkProverV2::new(&private_key, self.rpc_url, self.skip_simulation))
+                        Box::new(NetworkProverV2::new(&private_key, self.rpc_url))
                     } else if #[cfg(feature = "network")] {
-                        Box::new(NetworkProverV1::new(&private_key, self.rpc_url, self.skip_simulation))
+                        Box::new(NetworkProverV1::new(&private_key, self.rpc_url))
                     } else {
                         panic!("network feature is not enabled")
                     }
@@ -338,11 +331,7 @@ impl ProverClientBuilder {
     /// Builds a [NetworkProver] specifically for network proving.
     #[cfg(any(feature = "network", feature = "network-v2"))]
     pub fn network(self) -> NetworkProver {
-        NetworkProver::new(
-            &self.private_key.expect("Private key must be set"),
-            self.rpc_url,
-            self.skip_simulation,
-        )
+        NetworkProver::new(&self.private_key.expect("Private key must be set"), self.rpc_url)
     }
 
     /// Builds a [MockProver] specifically for mock proving.
