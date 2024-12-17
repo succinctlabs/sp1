@@ -61,8 +61,8 @@ impl<F: PrimeField32> MachineAir<F> for CustomOpChip {
     type Record = ExecutionRecord;
     type Program = Program;
 
-    fn name(&self) -> String {
-        "CustomOp".to_string()
+    fn name(&self) -> &'static str {
+        "CustomOp"
     }
 
     fn generate_trace(

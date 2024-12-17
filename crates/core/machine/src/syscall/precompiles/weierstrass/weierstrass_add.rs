@@ -147,12 +147,12 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     type Record = ExecutionRecord;
     type Program = Program;
 
-    fn name(&self) -> String {
+    fn name(&self) -> &'static str {
         match E::CURVE_TYPE {
-            CurveType::Secp256k1 => "Secp256k1AddAssign".to_string(),
-            CurveType::Secp256r1 => "Secp256r1AddAssign".to_string(),
-            CurveType::Bn254 => "Bn254AddAssign".to_string(),
-            CurveType::Bls12381 => "Bls12381AddAssign".to_string(),
+            CurveType::Secp256k1 => "Secp256k1AddAssign",
+            CurveType::Secp256r1 => "Secp256r1AddAssign",
+            CurveType::Bn254 => "Bn254AddAssign",
+            CurveType::Bls12381 => "Bls12381AddAssign",
             _ => panic!("Unsupported curve"),
         }
     }

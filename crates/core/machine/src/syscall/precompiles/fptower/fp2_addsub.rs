@@ -83,10 +83,10 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
 
     type Program = Program;
 
-    fn name(&self) -> String {
+    fn name(&self) -> &'static str {
         match P::FIELD_TYPE {
-            FieldType::Bn254 => "Bn254Fp2AddSubAssign".to_string(),
-            FieldType::Bls12381 => "Bls12831Fp2AddSubAssign".to_string(),
+            FieldType::Bn254 => "Bn254Fp2AddSubAssign",
+            FieldType::Bls12381 => "Bls12831Fp2AddSubAssign",
         }
     }
 

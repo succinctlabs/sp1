@@ -84,7 +84,7 @@ impl Program {
             .map(|shape| {
                 shape
                     .inner
-                    .get(&air.name())
+                    .get(air.name())
                     .unwrap_or_else(|| panic!("Chip {} not found in specified shape", air.name()))
             })
             .copied()

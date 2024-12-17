@@ -89,8 +89,8 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
 
     type Program = RecursionProgram<F>;
 
-    fn name(&self) -> String {
-        "FriFold".to_string()
+    fn name(&self) -> &'static str {
+        "FriFold"
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {

@@ -66,8 +66,8 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
 
     type Program = Program;
 
-    fn name(&self) -> String {
-        "MemoryProgram".to_string()
+    fn name(&self) -> &'static str {
+        "MemoryProgram"
     }
 
     fn preprocessed_width(&self) -> usize {

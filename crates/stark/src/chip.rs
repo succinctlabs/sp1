@@ -186,7 +186,7 @@ where
 
     type Program = A::Program;
 
-    fn name(&self) -> String {
+    fn name(&self) -> &'static str {
         self.air.name()
     }
 

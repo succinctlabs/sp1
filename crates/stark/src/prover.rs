@@ -68,7 +68,7 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
         &self,
         record: &A::Record,
         interaction_scope: InteractionScope,
-    ) -> Vec<(String, RowMajorMatrix<Val<SC>>)> {
+    ) -> Vec<(&'static str, RowMajorMatrix<Val<SC>>)> {
         let shard_chips = self.shard_chips(record).collect::<Vec<_>>();
         let chips = shard_chips
             .iter()
@@ -101,7 +101,7 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
     fn commit(
         &self,
         record: &A::Record,
-        traces: Vec<(String, RowMajorMatrix<Val<SC>>)>,
+        traces: Vec<(&'static str, RowMajorMatrix<Val<SC>>)>,
     ) -> ShardMainData<SC, Self::DeviceMatrix, Self::DeviceProverData>;
 
     /// Observe the main commitment and public values and update the challenger.
@@ -334,10 +334,10 @@ where
     fn commit(
         &self,
         record: &A::Record,
-        mut named_traces: Vec<(String, RowMajorMatrix<Val<SC>>)>,
+        mut named_traces: Vec<(&'static str, RowMajorMatrix<Val<SC>>)>,
     ) -> ShardMainData<SC, Self::DeviceMatrix, Self::DeviceProverData> {
         // Order the chips and traces by trace size (biggest first), and get the ordering map.
-        named_traces.sort_by_key(|(name, trace)| (Reverse(trace.height()), name.clone()));
+        named_traces.sort_by_key(|(name, trace)| (Reverse(trace.height()), *name));
 
         let pcs = self.config().pcs();
 
@@ -353,8 +353,11 @@ where
         let (main_commit, main_data) = pcs.commit(domains_and_traces);
 
         // Get the chip ordering.
-        let chip_ordering =
-            named_traces.iter().enumerate().map(|(i, (name, _))| (name.to_owned(), i)).collect();
+        let chip_ordering = named_traces
+            .iter()
+            .enumerate()
+            .map(|(i, (name, _))| ((*name).to_string(), i))
+            .collect();
 
         let traces = named_traces.into_iter().map(|(_, trace)| trace).collect::<Vec<_>>();
 
@@ -457,7 +460,7 @@ where
                     .zip(all_shard_data.par_iter())
                     .map(|(chip, shard_data)| {
                         let preprocessed_trace =
-                            pk.chip_ordering.get(&chip.name()).map(|&index| &pk.traces[index]);
+                            pk.chip_ordering.get(chip.name()).map(|&index| &pk.traces[index]);
                         let (perm_trace, global_sum, local_sum) = chip.generate_permutation_trace(
                             preprocessed_trace,
                             shard_data.trace,
@@ -535,7 +538,7 @@ where
                     tracing::debug_span!(parent: &parent_span, "compute quotient values for domain")
                         .in_scope(|| {
                             let preprocessed_trace_on_quotient_domains =
-                                pk.chip_ordering.get(&chips[i].name()).map(|&index| {
+                                pk.chip_ordering.get(chips[i].name()).map(|&index| {
                                     pcs.get_evaluations_on_domain(&pk.data, index, *quotient_domain)
                                 });
                             let scope = all_chip_scopes[i];
@@ -714,8 +717,8 @@ where
         let mut main_values =
             Vec::with_capacity(global_chip_ordering.len() + local_chip_ordering.len());
         for chip in chips.iter() {
-            let global_order = global_chip_ordering.get(&chip.name());
-            let local_order = local_chip_ordering.get(&chip.name());
+            let global_order = global_chip_ordering.get(chip.name());
+            let local_order = local_chip_ordering.get(chip.name());
             match (global_order, local_order) {
                 (Some(&global_order), None) => {
                     let global_main_values =
@@ -768,7 +771,7 @@ where
             .map(|(i, ((((main, permutation), quotient), cumulative_sums), log_degree))| {
                 let preprocessed = pk
                     .chip_ordering
-                    .get(&chips[i].name())
+                    .get(chips[i].name())
                     .map(|&index| preprocessed_opened_values[index].clone())
                     .unwrap_or(AirOpenedValues { local: vec![], next: vec![] });
                 ChipOpenedValues {

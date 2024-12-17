@@ -431,8 +431,13 @@ mod tests {
 
         type Program = Program;
 
-        fn name(&self) -> String {
-            format!("FieldOp{:?}", self.operation)
+        fn name(&self) -> &'static str {
+            match self.operation {
+                FieldOperation::Add => "FieldAdd",
+                FieldOperation::Mul => "FieldMul",
+                FieldOperation::Sub => "FieldSub",
+                FieldOperation::Div => "FieldDiv",
+            }
         }
 
         fn generate_trace(
