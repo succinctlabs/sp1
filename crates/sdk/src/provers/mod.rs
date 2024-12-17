@@ -8,25 +8,21 @@ pub use cpu::CpuProver;
 pub use cuda::CudaProver;
 pub use mock::MockProver;
 
+use crate::action::{LocalProveOpts, NetworkProveOpts};
+use crate::install::try_install_circuit_artifacts;
+use crate::{SP1Proof, SP1ProofKind, SP1ProofWithPublicValues};
+use anyhow::Result;
 use itertools::Itertools;
 use p3_field::PrimeField32;
-use std::borrow::Borrow;
-use std::time::Duration;
-
-use anyhow::Result;
-use sp1_core_executor::SP1Context;
 use sp1_core_machine::{io::SP1Stdin, SP1_CIRCUIT_VERSION};
 use sp1_prover::{
     components::SP1ProverComponents, CoreSC, InnerSC, SP1CoreProofData, SP1Prover, SP1ProvingKey,
     SP1VerifyingKey,
 };
-use sp1_stark::{air::PublicValues, MachineVerificationError, SP1ProverOpts, Word};
+use sp1_stark::{air::PublicValues, MachineVerificationError, Word};
+use std::borrow::Borrow;
 use strum_macros::EnumString;
 use thiserror::Error;
-
-use crate::action::{LocalProveOpts, NetworkProveOpts};
-use crate::install::try_install_circuit_artifacts;
-use crate::{SP1Proof, SP1ProofKind, SP1ProofWithPublicValues};
 
 /// The type of prover.
 #[derive(Debug, PartialEq, EnumString)]

@@ -45,7 +45,7 @@ impl Prover<DefaultProverComponents> for CudaProver {
         _context: SP1Context<'a>,
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {
-        tracing::warn!("opts and context are ignored for the cuda prover");
+        warn_if_not_default(&opts.local_opts.prover_opts, &context);
 
         // Generate the core proof.
         let proof = self.cuda_prover.prove_core(pk, &stdin)?;

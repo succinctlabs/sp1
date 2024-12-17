@@ -1,13 +1,11 @@
+use crate::{provers::ProveOpts, Prover, SP1ProofKind, SP1ProofWithPublicValues};
+use anyhow::{Ok, Result};
 use sp1_core_executor::{ExecutionReport, HookEnv, SP1Context, SP1ContextBuilder};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_primitives::io::SP1PublicValues;
 use sp1_prover::{components::DefaultProverComponents, SP1ProvingKey};
-
-use anyhow::{Ok, Result};
-use sp1_stark::{SP1CoreOpts, SP1ProverOpts};
+use sp1_stark::SP1ProverOpts;
 use std::time::Duration;
-
-use crate::{provers::ProveOpts, Prover, SP1ProofKind, SP1ProofWithPublicValues};
 
 /// Builder to prepare and configure execution of a program on an input.
 /// May be run with [Self::run].
@@ -185,11 +183,13 @@ impl<'a> Prove<'a> {
         self
     }
 
+    /// Set the local prover options, which are only used in local and mock modes.
     pub fn local_opts(mut self, local_opts: LocalProveOpts<'a>) -> Self {
         self.local_opts = Some(local_opts);
         self
     }
 
+    /// Set the network prover options, which are only used in network mode.
     pub fn network_opts(mut self, network_opts: NetworkProveOpts) -> Self {
         self.network_opts = Some(network_opts);
         self

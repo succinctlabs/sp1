@@ -1,13 +1,11 @@
-use anyhow::Result;
-use sp1_core_executor::SP1Context;
-use sp1_core_machine::io::SP1Stdin;
-use sp1_prover::{components::DefaultProverComponents, SP1Prover};
-
 use crate::install::try_install_circuit_artifacts;
 use crate::{
     provers::ProveOpts, Prover, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey,
     SP1VerifyingKey,
 };
+use anyhow::Result;
+use sp1_core_machine::io::SP1Stdin;
+use sp1_prover::{components::DefaultProverComponents, SP1Prover};
 
 use super::ProverType;
 
