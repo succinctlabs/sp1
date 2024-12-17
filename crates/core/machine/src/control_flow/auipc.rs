@@ -248,9 +248,8 @@ mod tests {
     #[test]
     fn test_malicious_auipc() {
         let instructions = vec![
-            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
+            Instruction::new(Opcode::AUIPC, 29, 12, 12, true, true),
             Instruction::new(Opcode::ADD, 10, 0, 0, false, false),
-            Instruction::new(Opcode::AUIPC, 29, 12, 0, true, true),
         ];
         let program = Program::new(instructions, 0, 0);
         let stdin = SP1Stdin::new();
@@ -275,7 +274,10 @@ mod tests {
 
     #[test]
     fn test_malicious_multiple_opcode_flags() {
-        let instructions = vec![Instruction::new(Opcode::AUIPC, 29, 12, 0, true, true)];
+        let instructions = vec![
+            Instruction::new(Opcode::AUIPC, 29, 12, 12, true, true),
+            Instruction::new(Opcode::ADD, 10, 0, 0, false, false),
+        ];
         let program = Program::new(instructions, 0, 0);
         let stdin = SP1Stdin::new();
 
