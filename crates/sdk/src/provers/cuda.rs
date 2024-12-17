@@ -1,14 +1,13 @@
+use super::ProverType;
+use crate::install::try_install_circuit_artifacts;
+use crate::{
+    provers::ProveOpts, Prover, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey,
+    SP1VerifyingKey,
+};
 use anyhow::Result;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_cuda::SP1CudaProver;
 use sp1_prover::{components::DefaultProverComponents, SP1Prover};
-
-use super::ProverType;
-use crate::install::try_install_circuit_artifacts;
-use crate::{
-    provers::ProofOpts, Prover, SP1Context, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues,
-    SP1ProvingKey, SP1VerifyingKey,
-};
 
 /// An implementation of [crate::ProverClient] that can generate proofs locally using CUDA.
 pub struct CudaProver {
@@ -41,11 +40,10 @@ impl Prover<DefaultProverComponents> for CudaProver {
         &'a self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
-        _opts: ProofOpts,
-        _context: SP1Context<'a>,
+        opts: ProveOpts<'a>,
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {
-        warn_if_not_default(&opts.local_opts.prover_opts, &context);
+        opts.local_opts.warn_if_not_default();
 
         // Generate the core proof.
         let proof = self.cuda_prover.prove_core(pk, &stdin)?;

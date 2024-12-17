@@ -1,23 +1,19 @@
 use std::time::{Duration, Instant};
 
+use super::proto::network::GetProofStatusResponse;
+use crate::provers::{CpuProver, ProveOpts, ProverType};
 use crate::{
     network::{
         client::NetworkClient,
         proto::network::{ProofMode, ProofStatus},
     },
-    NetworkProverBuilder, Prover, SP1Context, SP1ProofKind, SP1ProofWithPublicValues,
-    SP1ProvingKey, SP1VerifyingKey,
+    NetworkProverBuilder, Prover, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey,
+    SP1VerifyingKey,
 };
 use anyhow::Result;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{components::DefaultProverComponents, SP1Prover, SP1_CIRCUIT_VERSION};
-use sp1_stark::SP1ProverOpts;
-
-use super::proto::network::GetProofStatusResponse;
-
 use {crate::block_on, tokio::time::sleep};
-
-use crate::provers::{CpuProver, ProveOpts, ProverType};
 
 /// Number of consecutive errors to tolerate before returning an error while polling proof status.
 const MAX_CONSECUTIVE_ERRORS: usize = 10;
@@ -175,27 +171,8 @@ impl Prover<DefaultProverComponents> for NetworkProver {
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {
         let local_opts = &opts.local_opts;
-        warn_if_not_default(&local_opts.prover_opts, &local_opts.context);
+        local_opts.warn_if_not_default();
         block_on(self.prove(&pk.elf, stdin, kind.into(), opts.network_opts.timeout))
-    }
-}
-
-/// Warns if `opts` or `context` are not default values, since they are currently unsupported.
-fn warn_if_not_default(opts: &SP1ProverOpts, context: &SP1Context) {
-    if opts != &SP1ProverOpts::default() {
-        tracing::warn!("non-default opts will be ignored: {:?}", opts.core_opts);
-        tracing::warn!("custom SP1ProverOpts are currently unsupported by the network prover");
-    }
-    // Exhaustive match is done to ensure we update the warnings if the types change.
-    let SP1Context { hook_registry, subproof_verifier, .. } = context;
-    if hook_registry.is_some() {
-        tracing::warn!("non-default context.hook_registry will be ignored: {:?}", hook_registry);
-        tracing::warn!("custom runtime hooks are currently unsupported by the network prover");
-        tracing::warn!("proving may fail due to missing hooks");
-    }
-    if subproof_verifier.is_some() {
-        tracing::warn!("non-default context.subproof_verifier will be ignored");
-        tracing::warn!("custom subproof verifiers are currently unsupported by the network prover");
     }
 }
 

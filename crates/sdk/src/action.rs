@@ -95,6 +95,29 @@ impl<'a> LocalProveOpts<'a> {
         self.context = context;
         self
     }
+    /// Warns if `opts` or `context` are not default values, since they are currently unsupported.
+    pub(crate) fn warn_if_not_default(&self) {
+        if self.prover_opts != SP1ProverOpts::default() {
+            tracing::warn!("non-default opts will be ignored: {:?}", self.prover_opts.core_opts);
+            tracing::warn!("custom SP1ProverOpts are currently unsupported by the network prover");
+        }
+        // Exhaustive match is done to ensure we update the warnings if the types change.
+        let SP1Context { hook_registry, subproof_verifier, .. } = &self.context;
+        if hook_registry.is_some() {
+            tracing::warn!(
+                "non-default context.hook_registry will be ignored: {:?}",
+                hook_registry
+            );
+            tracing::warn!("custom runtime hooks are currently unsupported by the network prover");
+            tracing::warn!("proving may fail due to missing hooks");
+        }
+        if subproof_verifier.is_some() {
+            tracing::warn!("non-default context.subproof_verifier will be ignored");
+            tracing::warn!(
+                "custom subproof verifiers are currently unsupported by the network prover"
+            );
+        }
+    }
 }
 
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
