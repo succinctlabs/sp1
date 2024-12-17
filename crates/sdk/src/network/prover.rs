@@ -30,7 +30,7 @@ impl NetworkProver {
         let version = SP1_CIRCUIT_VERSION;
         log::info!("Client circuit version: {}", version);
 
-        let local_prover = CpuProver::new();
+        let local_prover = CpuProver::new(false);
         Self { client: NetworkClient::new(private_key, rpc_url), local_prover }
     }
 

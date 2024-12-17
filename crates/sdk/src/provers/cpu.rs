@@ -1,31 +1,42 @@
 use anyhow::Result;
-use sp1_core_executor::{HookEnv, SP1Context, SP1ContextBuilder};
+use hashbrown::HashMap;
+use p3_baby_bear::BabyBear;
+use p3_field::AbstractField;
+use p3_field::PrimeField;
+use p3_fri::{FriProof, TwoAdicFriPcsProof};
+use sp1_core_executor::{HookEnv, SP1Context, SP1ContextBuilder, SP1ReduceProof};
 use sp1_core_machine::io::SP1Stdin;
+use sp1_prover::verify::{verify_groth16_bn254_public_inputs, verify_plonk_bn254_public_inputs};
 use sp1_prover::{components::DefaultProverComponents, SP1Prover};
-use sp1_stark::{SP1CoreOpts, SP1ProverOpts};
+use sp1_prover::{Groth16Bn254Proof, HashableKey, PlonkBn254Proof};
+use sp1_stark::{
+    SP1CoreOpts, SP1ProverOpts, ShardCommitment, ShardOpenedValues, ShardProof, StarkVerifyingKey,
+};
 
 use crate::install::try_install_circuit_artifacts;
 use crate::{
     Prover, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
 };
 
-use super::ProverType;
+use super::verify_proof;
+use super::{ProverType, SP1VerificationError};
 
-/// An implementation of [crate::ProverClient] that can generate end-to-end proofs locally.
+/// An implementation of [crate::Prover] that can generate end-to-end proofs locally.
 pub struct CpuProver {
     prover: SP1Prover<DefaultProverComponents>,
+    mock: bool,
 }
 
 impl CpuProver {
-    /// Creates a new [LocalProver].
-    pub fn new() -> Self {
+    /// Creates a new [CpuProver].
+    pub fn new(mock: bool) -> Self {
         let prover = SP1Prover::new();
-        Self { prover }
+        Self { prover, mock }
     }
 
-    /// Creates a new [LocalProver] from an existing [SP1Prover].
+    /// Creates a new [CpuProver] from an existing [SP1Prover].
     pub fn from_prover(prover: SP1Prover<DefaultProverComponents>) -> Self {
-        Self { prover }
+        Self { prover, mock: false }
     }
 
     pub(crate) fn prove_impl<'a>(
@@ -36,6 +47,11 @@ impl CpuProver {
         context: SP1Context<'a>,
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {
+        if self.mock {
+            tracing::info!("Using mock prover");
+            return self.mock_proof(&pk, stdin, kind);
+        }
+
         // Generate the core proof.
         let proof: sp1_prover::SP1ProofWithMetadata<sp1_prover::SP1CoreProofData> =
             self.prover.prove_core(pk, &stdin, opts, context)?;
@@ -124,6 +140,120 @@ impl CpuProver {
             recursion_opts: SP1CoreOpts::recursion(),
         }
     }
+
+    fn mock_proof(
+        &self,
+        pk: &SP1ProvingKey,
+        stdin: SP1Stdin,
+        kind: SP1ProofKind,
+    ) -> Result<SP1ProofWithPublicValues> {
+        let context = SP1Context::default();
+        match kind {
+            SP1ProofKind::Core => {
+                let (public_values, _) = self.prover.execute(&pk.elf, &stdin, context)?;
+                Ok(SP1ProofWithPublicValues {
+                    proof: SP1Proof::Core(vec![]),
+                    stdin,
+                    public_values,
+                    sp1_version: self.version().to_string(),
+                })
+            }
+            SP1ProofKind::Compressed => {
+                let (public_values, _) = self.prover.execute(&pk.elf, &stdin, context)?;
+
+                let shard_proof = ShardProof {
+                    commitment: ShardCommitment {
+                        global_main_commit: [BabyBear::zero(); 8].into(),
+                        local_main_commit: [BabyBear::zero(); 8].into(),
+                        permutation_commit: [BabyBear::zero(); 8].into(),
+                        quotient_commit: [BabyBear::zero(); 8].into(),
+                    },
+                    opened_values: ShardOpenedValues { chips: vec![] },
+                    opening_proof: TwoAdicFriPcsProof {
+                        fri_proof: FriProof {
+                            commit_phase_commits: vec![],
+                            query_proofs: vec![],
+                            final_poly: Default::default(),
+                            pow_witness: BabyBear::zero(),
+                        },
+                        query_openings: vec![],
+                    },
+                    chip_ordering: HashMap::new(),
+                    public_values: vec![],
+                };
+
+                let reduce_vk = StarkVerifyingKey {
+                    commit: [BabyBear::zero(); 8].into(),
+                    pc_start: BabyBear::zero(),
+                    chip_information: vec![],
+                    chip_ordering: HashMap::new(),
+                };
+
+                let proof = SP1Proof::Compressed(Box::new(SP1ReduceProof {
+                    vk: reduce_vk,
+                    proof: shard_proof,
+                }));
+
+                Ok(SP1ProofWithPublicValues {
+                    proof,
+                    stdin,
+                    public_values,
+                    sp1_version: self.version().to_string(),
+                })
+            }
+            SP1ProofKind::Plonk => {
+                let (public_values, _) = self.prover.execute(&pk.elf, &stdin, context)?;
+                Ok(SP1ProofWithPublicValues {
+                    proof: SP1Proof::Plonk(PlonkBn254Proof {
+                        public_inputs: [
+                            pk.vk.hash_bn254().as_canonical_biguint().to_string(),
+                            public_values.hash_bn254().to_string(),
+                        ],
+                        encoded_proof: "".to_string(),
+                        raw_proof: "".to_string(),
+                        plonk_vkey_hash: [0; 32],
+                    }),
+                    stdin,
+                    public_values,
+                    sp1_version: self.version().to_string(),
+                })
+            }
+            SP1ProofKind::Groth16 => {
+                let (public_values, _) = self.prover.execute(&pk.elf, &stdin, context)?;
+                Ok(SP1ProofWithPublicValues {
+                    proof: SP1Proof::Groth16(Groth16Bn254Proof {
+                        public_inputs: [
+                            pk.vk.hash_bn254().as_canonical_biguint().to_string(),
+                            public_values.hash_bn254().to_string(),
+                        ],
+                        encoded_proof: "".to_string(),
+                        raw_proof: "".to_string(),
+                        groth16_vkey_hash: [0; 32],
+                    }),
+                    stdin,
+                    public_values,
+                    sp1_version: self.version().to_string(),
+                })
+            }
+        }
+    }
+
+    fn mock_verify(
+        bundle: &SP1ProofWithPublicValues,
+        vkey: &SP1VerifyingKey,
+    ) -> Result<(), SP1VerificationError> {
+        match &bundle.proof {
+            SP1Proof::Plonk(PlonkBn254Proof { public_inputs, .. }) => {
+                verify_plonk_bn254_public_inputs(vkey, &bundle.public_values, public_inputs)
+                    .map_err(SP1VerificationError::Plonk)
+            }
+            SP1Proof::Groth16(Groth16Bn254Proof { public_inputs, .. }) => {
+                verify_groth16_bn254_public_inputs(vkey, &bundle.public_values, public_inputs)
+                    .map_err(SP1VerificationError::Groth16)
+            }
+            _ => Ok(()),
+        }
+    }
 }
 
 impl Prover<DefaultProverComponents> for CpuProver {
@@ -147,11 +277,23 @@ impl Prover<DefaultProverComponents> for CpuProver {
     ) -> Result<SP1ProofWithPublicValues> {
         self.prove_impl(pk, stdin, Default::default(), SP1Context::default(), kind)
     }
+
+    fn verify(
+        &self,
+        bundle: &SP1ProofWithPublicValues,
+        vkey: &SP1VerifyingKey,
+    ) -> Result<(), SP1VerificationError> {
+        if self.mock {
+            tracing::warn!("Using mock verifier");
+            return Self::mock_verify(bundle, vkey);
+        }
+        verify_proof(self.sp1_prover(), self.version(), bundle, vkey)
+    }
 }
 
 impl Default for CpuProver {
     fn default() -> Self {
-        Self::new()
+        Self::new(false)
     }
 }
 

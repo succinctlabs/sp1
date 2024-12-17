@@ -72,7 +72,7 @@ impl ProverClient {
     /// Gets the current version of the SP1 zkVM.
     ///
     /// Note: This is not the same as the version of the SP1 SDK.
-    pub fn version(&self) -> String {
+    pub fn version() -> String {
         SP1_CIRCUIT_VERSION.to_string()
     }
 }
@@ -111,7 +111,7 @@ impl ProverClientBuilder {
     /// Builds a [SimpleProver], using the provided mode.
     pub fn build(self, mode: ProverMode) -> SimpleProver {
         let prover: Box<dyn Prover<DefaultProverComponents>> = match mode {
-            ProverMode::Cpu => Box::new(CpuProver::new()),
+            ProverMode::Cpu => Box::new(CpuProver::new(false)),
             ProverMode::Cuda => {
                 cfg_if! {
                     if #[cfg(feature = "cuda")] {
@@ -134,14 +134,14 @@ impl ProverClientBuilder {
                     }
                 }
             }
-            ProverMode::Mock => Box::new(MockProver::new()),
+            ProverMode::Mock => Box::new(CpuProver::new(true)),
         };
         SimpleProver { prover }
     }
 
     /// Builds a [CpuProver] specifically for local CPU proving.
     pub fn cpu(self) -> CpuProver {
-        CpuProver::new()
+        CpuProver::new(false)
     }
 
     /// Builds a [CudaProver] specifically for local NVIDIA GPU proving.
@@ -156,9 +156,9 @@ impl ProverClientBuilder {
         NetworkProver::new(&self.private_key.expect("Private key must be set"), self.rpc_url)
     }
 
-    /// Builds a [MockProver] specifically for mock proving.
-    pub fn mock(self) -> MockProver {
-        MockProver::new()
+    /// Builds a [CpuProver] specifically for mock proving.
+    pub fn mock(self) -> CpuProver {
+        CpuProver::new(true)
     }
 }
 

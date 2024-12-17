@@ -36,7 +36,7 @@ impl NetworkProver {
     pub fn new(private_key: &str, rpc_url: Option<String>) -> Self {
         let version = SP1_CIRCUIT_VERSION;
         log::info!("Client circuit version: {}", version);
-        let local_prover = CpuProver::new();
+        let local_prover = CpuProver::new(false);
         let client = NetworkClient::new(private_key, rpc_url);
         Self { client, local_prover, strategy: FulfillmentStrategy::Hosted }
     }
