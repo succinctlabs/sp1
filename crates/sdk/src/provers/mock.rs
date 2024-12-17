@@ -1,24 +1,22 @@
 #![allow(unused_variables)]
-use hashbrown::HashMap;
-use sp1_core_executor::{SP1Context, SP1ReduceProof};
-use sp1_core_machine::io::SP1Stdin;
-use sp1_stark::{ShardCommitment, ShardOpenedValues, ShardProof, StarkVerifyingKey};
-
+use super::ProverType;
 use crate::{
     Prover, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerificationError,
     SP1VerifyingKey,
 };
 use anyhow::Result;
+use hashbrown::HashMap;
 use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, PrimeField};
 use p3_fri::{FriProof, TwoAdicFriPcsProof};
+use sp1_core_executor::{SP1Context, SP1ReduceProof};
+use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{
     components::DefaultProverComponents,
     verify::{verify_groth16_bn254_public_inputs, verify_plonk_bn254_public_inputs},
     Groth16Bn254Proof, HashableKey, PlonkBn254Proof, SP1Prover,
 };
-
-use super::{ProofOpts, ProverType};
+use sp1_stark::{ShardCommitment, ShardOpenedValues, ShardProof, StarkVerifyingKey};
 
 /// An implementation of [crate::ProverClient] that can generate mock proofs.
 pub struct MockProver {
@@ -50,10 +48,9 @@ impl Prover<DefaultProverComponents> for MockProver {
         &'a self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
-        opts: ProofOpts,
-        context: SP1Context<'a>,
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {
+        let context = SP1Context::default();
         match kind {
             SP1ProofKind::Core => {
                 let (public_values, _) = self.prover.execute(&pk.elf, &stdin, context)?;

@@ -5,7 +5,6 @@
 //! Visit the [Getting Started](https://succinctlabs.github.io/sp1/getting-started.html) section
 //! in the official SP1 documentation for a quick start guide.
 
-pub mod action;
 pub mod artifacts;
 pub mod install;
 #[cfg(feature = "network")]
@@ -29,6 +28,7 @@ pub mod utils {
     pub use sp1_core_machine::utils::setup_logger;
 }
 
+use anyhow::Result;
 use cfg_if::cfg_if;
 pub use proof::*;
 pub use provers::SP1VerificationError;
@@ -54,152 +54,22 @@ pub struct ProverClient {
     pub prover: Box<dyn Prover<DefaultProverComponents>>,
 }
 
-impl ProverClient {
-    /// Creates a new [ProverClient].
-    ///
-    /// Setting the `SP1_PROVER` environment variable can change the prover used under the hood.
-    /// - `local` (default): Uses [CpuProver] or [CudaProver] if the `cuda` feature is enabled.
-    ///   Recommended for proving end-to-end locally.
-    /// - `mock`: Uses [MockProver]. Recommended for testing and development.
-    /// - `network`: Uses [NetworkProver]. Recommended for outsourcing proof generation to an RPC.
-    ///
-    /// ### Examples
-    ///
-    /// ```no_run
-    /// use sp1_sdk::ProverClient;
-    ///
-    /// std::env::set_var("SP1_PROVER", "local");
-    /// let client = ProverClient::new();
-    /// ```
-    pub fn new() -> Self {
-        #[allow(unreachable_code)]
-        match env::var("SP1_PROVER").unwrap_or("local".to_string()).to_lowercase().as_str() {
-            "mock" => Self { prover: Box::new(MockProver::new()) },
-            "local" => {
-                #[cfg(debug_assertions)]
-                eprintln!("Warning: Local prover in dev mode is not recommended. Proof generation may be slow.");
-                Self {
-                    #[cfg(not(feature = "cuda"))]
-                    prover: Box::new(CpuProver::new()),
-                    #[cfg(feature = "cuda")]
-                    prover: Box::new(CudaProver::new(SP1Prover::new())),
-                }
-            }
-            "network" => {
-                let private_key = env::var("SP1_PRIVATE_KEY")
-                    .expect("SP1_PRIVATE_KEY must be set for remote proving");
-                let rpc_url = env::var("PROVER_NETWORK_RPC").ok();
-                let skip_simulation =
-                    env::var("SKIP_SIMULATION").map(|val| val == "true").unwrap_or_default();
+cfg_if! {
+    if #[cfg(feature = "network-v2")] {
+        type NetworkProver = NetworkProverV2;
+    } else if #[cfg(feature = "network")] {
+        type NetworkProver = NetworkProverV1;
+    }
+}
 
-                cfg_if! {
-                    if #[cfg(feature = "network-v2")] {
-                        Self {
-                            prover: Box::new(NetworkProverV2::new(&private_key, rpc_url, skip_simulation)),
-                        }
-                    } else if #[cfg(feature = "network")] {
-                        Self {
-                            prover: Box::new(NetworkProverV1::new(&private_key, rpc_url, skip_simulation)),
-                        }
-                    } else {
-                        panic!("network feature is not enabled")
-                    }
-                }
-            }
-            _ => panic!(
-                "invalid value for SP1_PROVER environment variable: expected 'local', 'mock', or 'network'"
-            ),
-        }
+impl ProverClient {
+    #[deprecated(since = "4.0.0", note = "use ProverClient::builder().from_env() instead")]
+    pub fn new() -> Self {
+        Self::builder().from_env()
     }
 
-    /// Returns a [ProverClientBuilder] to easily create a [ProverClient].
     pub fn builder() -> ProverClientBuilder {
         ProverClientBuilder::default()
-    }
-
-    /// Creates a new [ProverClient] with the mock prover.
-    ///
-    /// ### Examples
-    ///
-    /// ```no_run
-    /// use sp1_sdk::ProverClient;
-    ///
-    /// let client = ProverClient::mock();
-    /// ```
-    pub fn mock() -> Self {
-        Self { prover: Box::new(MockProver::new()) }
-    }
-
-    /// Creates a new [ProverClient] with the local prover, using the CPU.
-    ///
-    /// ### Examples
-    ///
-    /// ```no_run
-    /// use sp1_sdk::ProverClient;
-    ///
-    /// let client = ProverClient::local();
-    /// ```
-    #[deprecated(note = "Please use `cpu` instead")]
-    pub fn local() -> Self {
-        Self { prover: Box::new(CpuProver::new()) }
-    }
-
-    /// Creates a new [ProverClient] with the local prover, using the CPU.
-    ///
-    /// ### Examples
-    ///
-    /// ```no_run
-    /// use sp1_sdk::ProverClient;
-    ///
-    /// let client = ProverClient::cpu();
-    /// ```
-    pub fn cpu() -> Self {
-        Self { prover: Box::new(CpuProver::new()) }
-    }
-
-    /// Creates a new [ProverClient] with the local prover, using the GPU.
-    ///
-    /// ### Examples
-    ///
-    /// ```no_run
-    /// use sp1_sdk::ProverClient;
-    ///
-    /// let client = ProverClient::cuda();
-    /// ```
-    #[cfg(feature = "cuda")]
-    pub fn cuda() -> Self {
-        Self { prover: Box::new(CudaProver::new(SP1Prover::new())) }
-    }
-
-    /// Creates a new [ProverClient] with the network prover.
-    ///
-    /// ### Examples
-    ///
-    /// ```no_run
-    /// use sp1_sdk::ProverClient;
-    ///
-    /// let private_key = std::env::var("SP1_PRIVATE_KEY").unwrap();
-    /// let rpc_url = std::env::var("PROVER_NETWORK_RPC").ok();
-    /// let skip_simulation =
-    ///     std::env::var("SKIP_SIMULATION").map(|val| val == "true").unwrap_or_default();
-    ///
-    /// let client = ProverClient::network(private_key, rpc_url, skip_simulation);
-    /// ```
-    #[cfg(any(feature = "network", feature = "network-v2"))]
-    pub fn network(private_key: String, rpc_url: Option<String>, skip_simulation: bool) -> Self {
-        cfg_if! {
-            if #[cfg(feature = "network-v2")] {
-                Self {
-                    prover: Box::new(NetworkProverV2::new(&private_key, rpc_url, skip_simulation)),
-                }
-            } else if #[cfg(feature = "network")] {
-                Self {
-                    prover: Box::new(NetworkProverV1::new(&private_key, rpc_url, skip_simulation)),
-                }
-            } else {
-                panic!("network feature is not enabled")
-            }
-        }
     }
 
     /// Prepare to execute the given program on the given input (without generating a proof).
@@ -226,8 +96,8 @@ impl ProverClient {
     /// // Execute the program on the inputs.
     /// let (public_values, report) = client.execute(elf, stdin).run().unwrap();
     /// ```
-    pub fn execute<'a>(&'a self, elf: &'a [u8], stdin: SP1Stdin) -> action::Execute<'a> {
-        action::Execute::new(self.prover.as_ref(), elf, stdin)
+    pub fn execute<'a>(&'a self, elf: &'a [u8], stdin: SP1Stdin) -> SimpleExecute<'a> {
+        SimpleExecute::new(self, elf, stdin)
     }
 
     /// Prepare to prove the execution of the given program with the given input in the default
@@ -259,8 +129,8 @@ impl ProverClient {
     /// // Generate the proof.
     /// let proof = client.prove(&pk, stdin).run().unwrap();
     /// ```
-    pub fn prove<'a>(&'a self, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> action::Prove<'a> {
-        action::Prove::new(self.prover.as_ref(), pk, stdin)
+    pub fn prove<'a>(&'a self, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> SimpleProve<'a> {
+        SimpleProve::new(self.prover.as_ref(), pk, stdin)
     }
 
     /// Verifies that the given proof is valid and matches the given verification key produced by
@@ -316,52 +186,121 @@ impl ProverClient {
 
 impl Default for ProverClient {
     fn default() -> Self {
-        Self::new()
+        Self::builder().from_env()
+    }
+}
+
+/// Builder to prepare and configure proving execution of a program on an input.
+/// May be run with [Self::run].
+pub struct SimpleProve<'a> {
+    prover: &'a dyn Prover<DefaultProverComponents>,
+    kind: SP1ProofKind,
+    pk: &'a SP1ProvingKey,
+    stdin: SP1Stdin,
+}
+
+impl<'a> SimpleProve<'a> {
+    /// Prepare to prove the execution of the given program with the given input.
+    ///
+    /// Prefer using [ProverClient::prove](super::ProverClient::prove).
+    /// See there for more documentation.
+    pub fn new(
+        prover: &'a dyn Prover<DefaultProverComponents>,
+        pk: &'a SP1ProvingKey,
+        stdin: SP1Stdin,
+    ) -> Self {
+        Self { prover, kind: Default::default(), pk, stdin }
+    }
+
+    /// Prove the execution of the program on the input, consuming the built action `self`.
+    pub fn run(self) -> Result<SP1ProofWithPublicValues> {
+        let Self { prover, kind, pk, stdin } = self;
+
+        // Dump the program and stdin to files for debugging if `SP1_DUMP` is set.
+        if std::env::var("SP1_DUMP")
+            .map(|v| v == "1" || v.to_lowercase() == "true")
+            .unwrap_or(false)
+        {
+            let program = pk.elf.clone();
+            std::fs::write("program.bin", program).unwrap();
+            let stdin = bincode::serialize(&stdin).unwrap();
+            std::fs::write("stdin.bin", stdin.clone()).unwrap();
+        }
+
+        prover.prove(pk, stdin, kind)
+    }
+
+    /// Set the proof kind to the core mode. This is the default.
+    pub fn core(mut self) -> Self {
+        self.kind = SP1ProofKind::Core;
+        self
+    }
+
+    /// Set the proof kind to the compressed mode.
+    pub fn compressed(mut self) -> Self {
+        self.kind = SP1ProofKind::Compressed;
+        self
+    }
+
+    /// Set the proof mode to the plonk bn254 mode.
+    pub fn plonk(mut self) -> Self {
+        self.kind = SP1ProofKind::Plonk;
+        self
+    }
+
+    /// Set the proof mode to the groth16 bn254 mode.
+    pub fn groth16(mut self) -> Self {
+        self.kind = SP1ProofKind::Groth16;
+        self
     }
 }
 
 /// Builder type for [`ProverClient`].
 #[derive(Debug, Default)]
 pub struct ProverClientBuilder {
-    mode: Option<ProverMode>,
     private_key: Option<String>,
     rpc_url: Option<String>,
     skip_simulation: bool,
 }
 
 impl ProverClientBuilder {
-    /// Sets the mode of the prover client being created.
-    pub fn mode(mut self, mode: ProverMode) -> Self {
-        self.mode = Some(mode);
-        self
-    }
-
-    ///  Sets the private key.
+    /// Sets the private key. Only used for network prover.
     pub fn private_key(mut self, private_key: String) -> Self {
         self.private_key = Some(private_key);
         self
     }
 
-    /// Sets the RPC URL.
+    /// Sets the RPC URL. Only used for network prover.
     pub fn rpc_url(mut self, rpc_url: String) -> Self {
         self.rpc_url = Some(rpc_url);
         self
     }
 
-    /// Skips simulation.
+    /// Skips simulation. Only used for network prover.
     pub fn skip_simulation(mut self) -> Self {
         self.skip_simulation = true;
         self
     }
 
-    /// Builds a [ProverClient], using the provided private key.
-    pub fn build(self) -> ProverClient {
-        match self.mode.expect("The prover mode is required") {
-            ProverMode::Cpu => ProverClient::cpu(),
+    /// Builds a [ProverClient], filling in unset fields from environment variables.
+    pub fn from_env(mut self) -> ProverClient {
+        let mode = env::var("SP1_PROVER")
+            .unwrap_or_else(|_| "local".to_string())
+            .parse::<ProverMode>()
+            .unwrap_or(ProverMode::Cpu);
+        self.rpc_url = self.rpc_url.or_else(|| env::var("PROVER_NETWORK_RPC").ok());
+        self.private_key = self.private_key.or_else(|| env::var("SP1_PRIVATE_KEY").ok());
+        self.build(mode)
+    }
+
+    /// Builds a [ProverClient], using the provided mode.
+    pub fn build(self, mode: ProverMode) -> ProverClient {
+        let prover: Box<dyn Prover<DefaultProverComponents>> = match mode {
+            ProverMode::Cpu => Box::new(CpuProver::new()),
             ProverMode::Cuda => {
                 cfg_if! {
                     if #[cfg(feature = "cuda")] {
-                        ProverClient::cuda()
+                        Box::new(CudaProver::new(SP1Prover::new()))
                     } else {
                         panic!("cuda feature is not enabled")
                     }
@@ -372,66 +311,67 @@ impl ProverClientBuilder {
 
                 cfg_if! {
                     if #[cfg(feature = "network-v2")] {
-                        ProverClient {
-                            prover: Box::new(NetworkProverV2::new(&private_key, self.rpc_url, self.skip_simulation)),
-                        }
+                        Box::new(NetworkProverV2::new(&private_key, self.rpc_url, self.skip_simulation))
                     } else if #[cfg(feature = "network")] {
-                        ProverClient {
-                            prover: Box::new(NetworkProverV1::new(&private_key, self.rpc_url, self.skip_simulation)),
-                        }
+                        Box::new(NetworkProverV1::new(&private_key, self.rpc_url, self.skip_simulation))
                     } else {
                         panic!("network feature is not enabled")
                     }
                 }
             }
-            ProverMode::Mock => ProverClient::mock(),
-        }
+            ProverMode::Mock => Box::new(MockProver::new()),
+        };
+        ProverClient { prover }
+    }
+
+    /// Builds a [CpuProver] specifically for local CPU proving.
+    pub fn cpu(self) -> CpuProver {
+        CpuProver::new()
+    }
+
+    /// Builds a [CudaProver] specifically for local NVIDIA GPU proving.
+    #[cfg(feature = "cuda")]
+    pub fn cuda(self) -> CudaProver {
+        CudaProver::new(SP1Prover::new())
+    }
+
+    /// Builds a [NetworkProver] specifically for network proving.
+    #[cfg(any(feature = "network", feature = "network-v2"))]
+    pub fn network(self) -> NetworkProver {
+        NetworkProver::new(
+            &self.private_key.expect("Private key must be set"),
+            self.rpc_url,
+            self.skip_simulation,
+        )
+    }
+
+    /// Builds a [MockProver] specifically for mock proving.
+    pub fn mock(self) -> MockProver {
+        MockProver::new()
     }
 }
 
-/// Builder type for network prover.
-#[cfg(any(feature = "network", feature = "network-v2"))]
-#[derive(Debug, Default)]
-pub struct NetworkProverBuilder {
-    private_key: Option<String>,
-    rpc_url: Option<String>,
-    skip_simulation: bool,
+/// Builder to prepare and configure execution of a program on an input.
+/// May be run with [Self::run].
+pub struct SimpleExecute<'a> {
+    prover: &'a ProverClient,
+    elf: &'a [u8],
+    stdin: SP1Stdin,
 }
 
-#[cfg(any(feature = "network", feature = "network-v2"))]
-impl NetworkProverBuilder {
-    ///  Sets the private key.
-    pub fn private_key(mut self, private_key: String) -> Self {
-        self.private_key = Some(private_key);
-        self
+impl<'a> SimpleExecute<'a> {
+    /// Prepare to execute the given program on the given input (without generating a proof).
+    ///
+    /// Prefer using [ProverClient::execute](super::ProverClient::execute).
+    /// See there for more documentation.
+    pub fn new(prover: &'a ProverClient, elf: &'a [u8], stdin: SP1Stdin) -> Self {
+        Self { prover, elf, stdin }
     }
 
-    /// Sets the RPC URL.
-    pub fn rpc_url(mut self, rpc_url: String) -> Self {
-        self.rpc_url = Some(rpc_url);
-        self
-    }
-
-    /// Skips simulation.
-    pub fn skip_simulation(mut self) -> Self {
-        self.skip_simulation = true;
-        self
-    }
-
-    /// Creates a new [NetworkProverV1].
-    #[cfg(feature = "network")]
-    pub fn build(self) -> NetworkProverV1 {
-        let private_key = self.private_key.expect("The private key is required");
-
-        NetworkProverV1::new(&private_key, self.rpc_url, self.skip_simulation)
-    }
-
-    /// Creates a new [NetworkProverV2].
-    #[cfg(feature = "network-v2")]
-    pub fn build_v2(self) -> NetworkProverV2 {
-        let private_key = self.private_key.expect("The private key is required");
-
-        NetworkProverV2::new(&private_key, self.rpc_url, self.skip_simulation)
+    /// Execute the program on the input, consuming the built action `self`.
+    pub fn run(self) -> Result<(SP1PublicValues, ExecutionReport)> {
+        let Self { prover, elf, stdin } = self;
+        Ok(prover.prover.sp1_prover().execute(elf, &stdin, Default::default())?)
     }
 }
 

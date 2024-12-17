@@ -27,22 +27,8 @@ impl CpuProver {
     pub fn from_prover(prover: SP1Prover<DefaultProverComponents>) -> Self {
         Self { prover }
     }
-}
 
-impl Prover<DefaultProverComponents> for CpuProver {
-    fn id(&self) -> ProverType {
-        ProverType::Cpu
-    }
-
-    fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
-        self.prover.setup(elf)
-    }
-
-    fn sp1_prover(&self) -> &SP1Prover<DefaultProverComponents> {
-        &self.prover
-    }
-
-    fn prove<'a>(
+    pub(crate) fn prove_impl<'a>(
         &'a self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
@@ -121,6 +107,29 @@ impl Prover<DefaultProverComponents> for CpuProver {
         }
 
         unreachable!()
+    }
+}
+
+impl Prover<DefaultProverComponents> for CpuProver {
+    fn id(&self) -> ProverType {
+        ProverType::Cpu
+    }
+
+    fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
+        self.prover.setup(elf)
+    }
+
+    fn sp1_prover(&self) -> &SP1Prover<DefaultProverComponents> {
+        &self.prover
+    }
+
+    fn prove<'a>(
+        &'a self,
+        pk: &SP1ProvingKey,
+        stdin: SP1Stdin,
+        kind: SP1ProofKind,
+    ) -> Result<SP1ProofWithPublicValues> {
+        self.prove_impl(pk, stdin, Default::default(), SP1Context::default(), kind)
     }
 }
 
