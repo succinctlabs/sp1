@@ -248,7 +248,8 @@ mod tests {
     #[test]
     fn test_malicious_auipc() {
         let instructions = vec![
-            Instruction::new(Opcode::ADD, 29, 0, 0, false, false),
+            Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
+            Instruction::new(Opcode::ADD, 10, 0, 0, false, false),
             Instruction::new(Opcode::AUIPC, 29, 12, 0, true, true),
         ];
         let program = Program::new(instructions, 0, 0);
@@ -268,6 +269,7 @@ mod tests {
 
         let result =
             run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
+        println!("Result for AUIPC is {:?}", result);
         assert!(result.is_err() && result.unwrap_err().is_local_cumulative_sum_failing());
     }
 

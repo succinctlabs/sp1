@@ -176,7 +176,6 @@ mod tests {
 
             let result =
                 run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
-            println!("Result for opcode {:?} is {:?}", test_case.branch_opcode, result);
 
             match test_case.error_type {
                 ErrorType::LocalCumulativeSumFailing => {
