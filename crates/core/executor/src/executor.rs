@@ -2800,4 +2800,8 @@ mod tests {
         assert_eq!(runtime.register(Register::X12), 0x12346525);
         assert_eq!(runtime.register(Register::X11), 0x65256525);
     }
+
+    fn fede_test() {
+        
+    }
 }

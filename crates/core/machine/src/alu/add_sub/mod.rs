@@ -47,7 +47,7 @@ pub struct AddSubCols<T> {
     /// It's result will be `a` for the add operation and `b` for the sub operation.
     pub add_operation: AddOperation<T>,
 
-    /// The first input operand.  This will be `b` for add operations and `c` for sub operations.
+    /// The first input operand.  This will be `b` for add operations and `a` for sub operations.
     pub operand_1: Word<T>,
 
     /// The second input operand.  This will be `c` for both operations.
@@ -277,7 +277,8 @@ mod tests {
     use p3_matrix::dense::RowMajorMatrix;
     use rand::{thread_rng, Rng};
     use sp1_core_executor::{
-        events::AluEvent, ExecutionRecord, Instruction, Opcode, DEFAULT_PC_INC,
+        events::{AluEvent, MemoryRecordEnum},
+        ExecutionRecord, Instruction, Opcode, DEFAULT_PC_INC,
     };
     use sp1_stark::{
         air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, chip_name, CpuProver,
@@ -430,11 +431,17 @@ mod tests {
 
         for opcode in [Opcode::ADD, Opcode::SUB] {
             for _ in 0..NUM_TESTS {
+                let op_a = thread_rng().gen_range(0..u32::MAX);
                 let op_b = thread_rng().gen_range(0..u32::MAX);
                 let op_c = thread_rng().gen_range(0..u32::MAX);
-                let op_a = thread_rng().gen_range(0..u32::MAX);
 
-                assert!(op_a != op_b.wrapping_add(op_c));
+                let correct_op_a = if opcode == Opcode::ADD {
+                    op_b.wrapping_add(op_c)
+                } else {
+                    op_b.wrapping_sub(op_c)
+                };
+
+                assert!(op_a != correct_op_a);
 
                 let instructions = vec![
                     Instruction::new(opcode, 5, op_b, op_c, true, true),
@@ -451,14 +458,36 @@ mod tests {
                     String,
                     RowMajorMatrix<Val<BabyBearPoseidon2>>,
                 )> {
-                    let mut traces = prover.generate_traces(record);
+                    let mut malicious_record = record.clone();
+                    malicious_record.cpu_events[0].a = op_a;
+                    if let Some(MemoryRecordEnum::Write(mut write_record)) =
+                        malicious_record.cpu_events[0].a_record
+                    {
+                        write_record.value = op_a;
+                    }
+                    if opcode == Opcode::ADD {
+                        malicious_record.add_events[0].a = op_a;
+                    } else if opcode == Opcode::SUB {
+                        malicious_record.sub_events[0].a = op_a;
+                    } else {
+                        unreachable!()
+                    }
+
+                    let mut traces = prover.generate_traces(&malicious_record);
 
                     let add_sub_chip_name = chip_name!(AddSubChip, BabyBear);
                     for (chip_name, trace) in traces.iter_mut() {
                         if *chip_name == add_sub_chip_name {
-                            let first_row = trace.row_mut(0);
+                            // Add the add instructions are added first to the trace, before the sub instructions.
+                            let index = if opcode == Opcode::ADD { 0 } else { 1 };
+
+                            let first_row = trace.row_mut(index);
                             let first_row: &mut AddSubCols<BabyBear> = first_row.borrow_mut();
-                            first_row.add_operation.value = op_a.into();
+                            if opcode == Opcode::ADD {
+                                first_row.add_operation.value = op_a.into();
+                            } else {
+                                first_row.add_operation.value = op_b.into();
+                            }
                         }
                     }
 
@@ -467,6 +496,7 @@ mod tests {
 
                 let result =
                     run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
+                println!("Result for {:?}: {:?}", opcode, result);
                 let add_sub_chip_name = chip_name!(AddSubChip, BabyBear);
                 assert!(
                     result.is_err()

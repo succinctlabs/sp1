@@ -482,7 +482,10 @@ mod tests {
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
     use rand::{thread_rng, Rng};
-    use sp1_core_executor::{events::AluEvent, ExecutionRecord, Instruction, Opcode, Program};
+    use sp1_core_executor::{
+        events::{AluEvent, MemoryRecordEnum},
+        ExecutionRecord, Instruction, Opcode, Program,
+    };
     use sp1_stark::{
         air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, chip_name, CpuProver,
         MachineProver, StarkGenericConfig, Val,
@@ -640,13 +643,18 @@ mod tests {
                     RowMajorMatrix<Val<BabyBearPoseidon2>>,
                 )> {
                     let mut malicious_record = record.clone();
+                    malicious_record.cpu_events[0].a = op_a as u32;
+                    if let Some(MemoryRecordEnum::Write(mut write_record)) =
+                        malicious_record.cpu_events[0].a_record
+                    {
+                        write_record.value = op_a as u32;
+                    }
                     malicious_record.mul_events[0].a = op_a;
                     prover.generate_traces(&malicious_record)
                 };
 
                 let result =
                     run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
-                println!("Result for {:?}: {:?}", opcode, result);
                 let mul_chip_name = chip_name!(MulChip, BabyBear);
                 assert!(
                     result.is_err() && result.unwrap_err().is_constraints_failing(&mul_chip_name)

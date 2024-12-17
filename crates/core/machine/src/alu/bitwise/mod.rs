@@ -244,7 +244,10 @@ mod tests {
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
     use rand::{thread_rng, Rng};
-    use sp1_core_executor::{events::AluEvent, ExecutionRecord, Instruction, Opcode, Program};
+    use sp1_core_executor::{
+        events::{AluEvent, MemoryRecordEnum},
+        ExecutionRecord, Instruction, Opcode, Program,
+    };
     use sp1_stark::{
         air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, CpuProver, MachineProver,
         StarkGenericConfig, Val,
@@ -299,9 +302,15 @@ mod tests {
                 let op_b = thread_rng().gen_range(0..u32::MAX);
                 let op_c = thread_rng().gen_range(0..u32::MAX);
 
-                assert!(op_a != op_b ^ op_c);
-                assert!(op_a != op_b | op_c);
-                assert!(op_a != op_b & op_c);
+                let correct_op_a = if opcode == Opcode::XOR {
+                    op_b ^ op_c
+                } else if opcode == Opcode::OR {
+                    op_b | op_c
+                } else {
+                    op_b & op_c
+                };
+
+                assert!(op_a != correct_op_a);
 
                 let instructions = vec![
                     Instruction::new(opcode, 5, op_b, op_c, true, true),
@@ -319,6 +328,12 @@ mod tests {
                     RowMajorMatrix<Val<BabyBearPoseidon2>>,
                 )> {
                     let mut malicious_record = record.clone();
+                    malicious_record.cpu_events[0].a = op_a;
+                    if let Some(MemoryRecordEnum::Write(mut write_record)) =
+                        malicious_record.cpu_events[0].a_record
+                    {
+                        write_record.value = op_a;
+                    }
                     malicious_record.bitwise_events[0].a = op_a;
                     prover.generate_traces(&malicious_record)
                 };

@@ -480,7 +480,10 @@ mod tests {
     use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
     use rand::{thread_rng, Rng};
-    use sp1_core_executor::{events::AluEvent, ExecutionRecord, Instruction, Opcode, Program};
+    use sp1_core_executor::{
+        events::{AluEvent, MemoryRecordEnum},
+        ExecutionRecord, Instruction, Opcode, Program,
+    };
     use sp1_stark::{
         air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, chip_name, CpuProver,
         MachineProver, StarkGenericConfig, Val,
@@ -571,11 +574,13 @@ mod tests {
                 let op_b = thread_rng().gen_range(0..u32::MAX);
                 let op_c = thread_rng().gen_range(0..u32::MAX);
 
-                let op_a = if opcode == Opcode::SLTU {
+                let correct_op_a = if opcode == Opcode::SLTU {
                     op_b < op_c
                 } else {
                     (op_b as i32) < (op_c as i32)
                 };
+
+                let op_a = !correct_op_a;
 
                 let instructions = vec![
                     Instruction::new(opcode, 5, op_b, op_c, true, true),
@@ -593,14 +598,21 @@ mod tests {
                     String,
                     RowMajorMatrix<Val<BabyBearPoseidon2>>,
                 )> {
-                    let mut traces = prover.generate_traces(record);
+                    let mut malicious_record = record.clone();
+                    malicious_record.cpu_events[0].a = op_a as u32;
+                    if let Some(MemoryRecordEnum::Write(mut write_record)) =
+                        malicious_record.cpu_events[0].a_record
+                    {
+                        write_record.value = op_a as u32;
+                    }
+                    let mut traces = prover.generate_traces(&malicious_record);
 
                     let lt_chip_name = chip_name!(LtChip, BabyBear);
                     for (chip_name, trace) in traces.iter_mut() {
                         if *chip_name == lt_chip_name {
                             let first_row = trace.row_mut(0);
                             let first_row: &mut LtCols<BabyBear> = first_row.borrow_mut();
-                            first_row.a = BabyBear::from_bool(!op_a);
+                            first_row.a = BabyBear::from_bool(op_a);
                         }
                     }
 
