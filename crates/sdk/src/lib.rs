@@ -71,7 +71,28 @@ impl ProverClient {
     /// std::env::set_var("SP1_PROVER", "local");
     /// let client = ProverClient::new();
     /// ```
+    #[deprecated(since = "4.0.0", note = "Use ProverClient::from_env() instead")]
     pub fn new() -> Self {
+        Self::from_env()
+    }
+
+    /// Creates a new [ProverClient].
+    ///
+    /// Setting the `SP1_PROVER` environment variable can change the prover used under the hood.
+    /// - `local` (default): Uses [CpuProver] or [CudaProver] if the `cuda` feature is enabled.
+    ///   Recommended for proving end-to-end locally.
+    /// - `mock`: Uses [MockProver]. Recommended for testing and development.
+    /// - `network`: Uses [NetworkProver]. Recommended for outsourcing proof generation to an RPC.
+    ///
+    /// ### Examples
+    ///
+    /// ```no_run
+    /// use sp1_sdk::ProverClient;
+    ///
+    /// std::env::set_var("SP1_PROVER", "local");
+    /// let client = ProverClient::from_env();
+    /// ```
+    pub fn from_env() -> Self {
         #[allow(unreachable_code)]
         match env::var("SP1_PROVER").unwrap_or("local".to_string()).to_lowercase().as_str() {
             "mock" => Self { prover: Box::new(MockProver::new()) },
@@ -192,12 +213,10 @@ impl ProverClient {
                 Self {
                     prover: Box::new(NetworkProverV2::new(&private_key, rpc_url, skip_simulation)),
                 }
-            } else if #[cfg(feature = "network")] {
+            } else {
                 Self {
                     prover: Box::new(NetworkProverV1::new(&private_key, rpc_url, skip_simulation)),
                 }
-            } else {
-                panic!("network feature is not enabled")
             }
         }
     }
@@ -316,7 +335,7 @@ impl ProverClient {
 
 impl Default for ProverClient {
     fn default() -> Self {
-        Self::new()
+        Self::from_env()
     }
 }
 

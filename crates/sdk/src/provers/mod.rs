@@ -24,6 +24,7 @@ use sp1_stark::{air::PublicValues, MachineVerificationError, SP1ProverOpts, Word
 use strum_macros::EnumString;
 use thiserror::Error;
 
+use crate::action::{LocalProveOpts, NetworkProveOpts};
 use crate::install::try_install_circuit_artifacts;
 use crate::{SP1Proof, SP1ProofKind, SP1ProofWithPublicValues};
 
@@ -38,11 +39,9 @@ pub enum ProverType {
 
 /// Options to configure proof generation.
 #[derive(Clone, Default)]
-pub struct ProofOpts {
-    /// Options to configure the SP1 prover.
-    pub sp1_prover_opts: SP1ProverOpts,
-    /// Optional timeout duration for proof generation.
-    pub timeout: Option<Duration>,
+pub struct ProveOpts<'a> {
+    pub local_opts: LocalProveOpts<'a>,
+    pub network_opts: NetworkProveOpts,
 }
 
 #[derive(Error, Debug)]
@@ -78,8 +77,7 @@ pub trait Prover<C: SP1ProverComponents>: Send + Sync {
         &'a self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
-        opts: ProofOpts,
-        context: SP1Context<'a>,
+        opts: ProveOpts<'a>,
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues>;
 

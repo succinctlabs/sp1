@@ -5,7 +5,7 @@ use sp1_prover::{components::DefaultProverComponents, SP1Prover};
 
 use crate::install::try_install_circuit_artifacts;
 use crate::{
-    provers::ProofOpts, Prover, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey,
+    provers::ProveOpts, Prover, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey,
     SP1VerifyingKey,
 };
 
@@ -46,13 +46,14 @@ impl Prover<DefaultProverComponents> for CpuProver {
         &'a self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
-        opts: ProofOpts,
-        context: SP1Context<'a>,
+        opts: ProveOpts<'a>,
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {
         // Generate the core proof.
+        let opts = opts.local_opts;
+        let context = opts.context;
         let proof: sp1_prover::SP1ProofWithMetadata<sp1_prover::SP1CoreProofData> =
-            self.prover.prove_core(pk, &stdin, opts.sp1_prover_opts, context)?;
+            self.prover.prove_core(pk, &stdin, opts.prover_opts, context)?;
         if kind == SP1ProofKind::Core {
             return Ok(SP1ProofWithPublicValues {
                 proof: SP1Proof::Core(proof.proof.0),
@@ -68,7 +69,7 @@ impl Prover<DefaultProverComponents> for CpuProver {
 
         // Generate the compressed proof.
         let reduce_proof =
-            self.prover.compress(&pk.vk, proof, deferred_proofs, opts.sp1_prover_opts)?;
+            self.prover.compress(&pk.vk, proof, deferred_proofs, opts.prover_opts)?;
         if kind == SP1ProofKind::Compressed {
             return Ok(SP1ProofWithPublicValues {
                 proof: SP1Proof::Compressed(Box::new(reduce_proof)),
@@ -79,10 +80,10 @@ impl Prover<DefaultProverComponents> for CpuProver {
         }
 
         // Generate the shrink proof.
-        let compress_proof = self.prover.shrink(reduce_proof, opts.sp1_prover_opts)?;
+        let compress_proof = self.prover.shrink(reduce_proof, opts.prover_opts)?;
 
         // Genenerate the wrap proof.
-        let outer_proof = self.prover.wrap_bn254(compress_proof, opts.sp1_prover_opts)?;
+        let outer_proof = self.prover.wrap_bn254(compress_proof, opts.prover_opts)?;
 
         if kind == SP1ProofKind::Plonk {
             let plonk_bn254_artifacts = if sp1_prover::build::sp1_dev_mode() {

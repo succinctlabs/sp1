@@ -17,7 +17,7 @@ use super::proto::network::GetProofStatusResponse;
 
 use {crate::block_on, tokio::time::sleep};
 
-use crate::provers::{CpuProver, ProofOpts, ProverType};
+use crate::provers::{CpuProver, ProveOpts, ProverType};
 
 /// Number of consecutive errors to tolerate before returning an error while polling proof status.
 const MAX_CONSECUTIVE_ERRORS: usize = 10;
@@ -171,12 +171,12 @@ impl Prover<DefaultProverComponents> for NetworkProver {
         &'a self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
-        opts: ProofOpts,
-        context: SP1Context<'a>,
+        opts: ProveOpts,
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {
-        warn_if_not_default(&opts.sp1_prover_opts, &context);
-        block_on(self.prove(&pk.elf, stdin, kind.into(), opts.timeout))
+        let local_opts = &opts.local_opts;
+        warn_if_not_default(&local_opts.prover_opts, &local_opts.context);
+        block_on(self.prove(&pk.elf, stdin, kind.into(), opts.network_opts.timeout))
     }
 }
 

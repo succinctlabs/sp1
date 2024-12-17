@@ -18,7 +18,7 @@ use sp1_prover::{
     Groth16Bn254Proof, HashableKey, PlonkBn254Proof, SP1Prover,
 };
 
-use super::{ProofOpts, ProverType};
+use super::{ProveOpts, ProverType};
 
 /// An implementation of [crate::ProverClient] that can generate mock proofs.
 pub struct MockProver {
@@ -50,10 +50,10 @@ impl Prover<DefaultProverComponents> for MockProver {
         &'a self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
-        opts: ProofOpts,
-        context: SP1Context<'a>,
+        opts: ProveOpts<'a>,
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {
+        let context = opts.local_opts.context;
         match kind {
             SP1ProofKind::Core => {
                 let (public_values, _) = self.prover.execute(&pk.elf, &stdin, context)?;
