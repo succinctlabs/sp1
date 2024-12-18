@@ -107,7 +107,7 @@ version = "1.1.0"
 dependencies = [
  "common-test-utils",
  "sp1-curves",
- "sp1-lib 4.0.0-rc.1",
+ "sp1-lib 4.0.0-rc.3",
  "sp1-zkvm",
 ]
 
@@ -150,7 +150,7 @@ name = "bls12381-mul-test"
 version = "1.1.0"
 dependencies = [
  "sp1-derive",
- "sp1-lib 4.0.0-rc.1",
+ "sp1-lib 4.0.0-rc.3",
  "sp1-zkvm",
 ]
 
@@ -160,7 +160,7 @@ version = "1.1.0"
 dependencies = [
  "common-test-utils",
  "sp1-curves",
- "sp1-lib 4.0.0-rc.1",
+ "sp1-lib 4.0.0-rc.3",
  "sp1-zkvm",
 ]
 
@@ -203,7 +203,7 @@ name = "bn254-mul-test"
 version = "1.1.0"
 dependencies = [
  "sp1-derive",
- "sp1-lib 4.0.0-rc.1",
+ "sp1-lib 4.0.0-rc.3",
  "sp1-zkvm",
 ]
 
@@ -245,7 +245,7 @@ name = "common-test-utils"
 version = "1.1.0"
 dependencies = [
  "num-bigint",
- "sp1-lib 4.0.0-rc.1",
+ "sp1-lib 4.0.0-rc.3",
 ]
 
 [[package]]
@@ -1634,7 +1634,7 @@ version = "1.1.0"
 dependencies = [
  "common-test-utils",
  "sp1-curves",
- "sp1-lib 4.0.0-rc.1",
+ "sp1-lib 4.0.0-rc.3",
  "sp1-zkvm",
 ]
 
@@ -1670,7 +1670,7 @@ dependencies = [
  "num",
  "p256",
  "sp1-curves",
- "sp1-lib 4.0.0-rc.1",
+ "sp1-lib 4.0.0-rc.3",
  "sp1-zkvm",
 ]
 
@@ -1691,7 +1691,7 @@ dependencies = [
  "num",
  "p256",
  "sp1-curves",
- "sp1-lib 4.0.0-rc.1",
+ "sp1-lib 4.0.0-rc.3",
  "sp1-zkvm",
 ]
 
@@ -1832,7 +1832,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "cfg-if",
  "curve25519-dalek 4.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1853,7 +1853,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -1885,7 +1885,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "bincode",
  "serde",
@@ -1893,7 +1893,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "bincode",
  "hex",
@@ -1909,7 +1909,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-stark"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "arrayref",
  "hashbrown 0.14.5",
@@ -1952,7 +1952,7 @@ dependencies = [
  "p3-field",
  "rand",
  "sha2 0.10.8",
- "sp1-lib 4.0.0-rc.1",
+ "sp1-lib 4.0.0-rc.3",
  "sp1-primitives",
 ]
 
