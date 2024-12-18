@@ -17,6 +17,8 @@ pub(crate) mod util;
 #[cfg(feature = "network")]
 pub use crate::network::prover::NetworkProver as NetworkProverV1;
 #[cfg(feature = "network-v2")]
+pub use crate::network_v2::proto::network::FulfillmentStrategy;
+#[cfg(feature = "network-v2")]
 pub use crate::network_v2::prover::NetworkProver as NetworkProverV2;
 #[cfg(feature = "cuda")]
 pub use crate::provers::CudaProver;
@@ -59,6 +61,7 @@ cfg_if! {
 
 impl ProverClient {
     #[deprecated(since = "4.0.0", note = "use ProverClient::env() instead")]
+    #[allow(clippy::new_ret_no_self)]
     pub fn new() -> EnvProver {
         Self::env()
     }
@@ -87,6 +90,15 @@ impl ProverClient {
     }
 
     /// Builds a [CpuProver] specifically for local CPU proving.
+    ///
+    /// # Usage
+    /// ```no_run
+    /// use sp1_sdk::ProverClient;
+    ///
+    /// let prover = ProverClient::cpu();
+    /// let (pk, vk) = prover.setup(elf);
+    /// let proof = prover.prove(&pk, stdin).compressed().run().unwrap();
+    /// ```
     pub fn cpu() -> CpuProver {
         CpuProver::new(false)
     }
@@ -124,12 +136,19 @@ impl ProverClient {
 pub struct NetworkProverBuilder {
     private_key: Option<String>,
     rpc_url: Option<String>,
+    #[cfg(feature = "network-v2")]
+    strategy: FulfillmentStrategy,
 }
 
 #[cfg(any(feature = "network", feature = "network-v2"))]
 impl NetworkProverBuilder {
     pub(crate) fn new() -> Self {
-        Self { private_key: None, rpc_url: None }
+        Self {
+            private_key: None,
+            rpc_url: None,
+            #[cfg(feature = "network-v2")]
+            strategy: FulfillmentStrategy::Auction,
+        }
     }
 
     /// Sets the private key.
@@ -141,6 +160,13 @@ impl NetworkProverBuilder {
     /// Sets the RPC URL.
     pub fn rpc_url(mut self, rpc_url: String) -> Self {
         self.rpc_url = Some(rpc_url);
+        self
+    }
+
+    /// Sets the fulfillment strategy for the client. By default, the strategy is set to `Hosted`.
+    #[cfg(feature = "network-v2")]
+    pub fn strategy(mut self, strategy: FulfillmentStrategy) -> Self {
+        self.strategy = strategy;
         self
     }
 
@@ -156,9 +182,10 @@ impl NetworkProverBuilder {
 #[cfg(test)]
 mod tests {
 
+    use crate::CostEstimator;
     use sp1_primitives::io::SP1PublicValues;
 
-    use crate::{utils, CostEstimator, ProverClient, SP1Stdin};
+    use crate::{utils, Prover, ProverClient, SP1Stdin};
 
     #[test]
     fn test_execute() {

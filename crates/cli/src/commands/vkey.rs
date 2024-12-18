@@ -48,7 +48,7 @@ impl VkeyCmd {
             file.read_to_end(&mut elf)?;
 
             // Get the verification key
-            let prover = ProverClient::new();
+            let prover = ProverClient::env();
             let (_, vk) = prover.setup(&elf);
 
             // Print the verification key hash

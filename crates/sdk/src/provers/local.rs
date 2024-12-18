@@ -4,8 +4,10 @@ use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_fri::{FriProof, TwoAdicFriPcsProof};
+use sp1_core_executor::ExecutionReport;
 use sp1_core_executor::{HookEnv, SP1Context, SP1ContextBuilder, SP1ReduceProof};
 use sp1_core_machine::io::SP1Stdin;
+use sp1_primitives::io::SP1PublicValues;
 use sp1_prover::verify::{verify_groth16_bn254_public_inputs, verify_plonk_bn254_public_inputs};
 use sp1_prover::{components::DefaultProverComponents, SP1Prover};
 use sp1_prover::{Groth16Bn254Proof, HashableKey, PlonkBn254Proof};
@@ -14,6 +16,7 @@ use sp1_stark::{
 };
 
 use crate::install::try_install_circuit_artifacts;
+use crate::util::dump_proof_input;
 use crate::{
     Prover, SP1Proof, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
 };
@@ -39,6 +42,25 @@ impl CpuProver {
         Self { prover, mock: false }
     }
 
+    pub fn execute<'a>(&'a self, elf: &'a [u8], stdin: SP1Stdin) -> CpuExecute<'a> {
+        CpuExecute::new(self, elf, stdin)
+    }
+
+    /// Prepare to prove the execution of the given program with the given input in the default
+    /// mode. The returned [CpuProve] may be configured via its methods before running.
+    /// For example, calling [CpuProve::compressed] sets the mode to compressed mode.
+    pub fn prove<'a>(&'a self, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> CpuProve<'a> {
+        CpuProve {
+            prover: self,
+            kind: SP1ProofKind::Core,
+            pk,
+            stdin,
+            context_builder: Default::default(),
+            core_opts: SP1CoreOpts::default(),
+            recursion_opts: SP1CoreOpts::recursion(),
+        }
+    }
+
     pub(crate) fn prove_impl<'a>(
         &'a self,
         pk: &SP1ProvingKey,
@@ -49,7 +71,7 @@ impl CpuProver {
     ) -> Result<SP1ProofWithPublicValues> {
         if self.mock {
             tracing::info!("Using mock prover");
-            return self.mock_proof(&pk, stdin, kind);
+            return self.mock_proof(pk, stdin, kind);
         }
 
         // Generate the core proof.
@@ -82,8 +104,7 @@ impl CpuProver {
         // Generate the shrink proof.
         let compress_proof = self.prover.shrink(reduce_proof, opts)?;
 
-        // Genenerate the wrap proof.
-
+        // Generate the wrap proof.
         let outer_proof = self.prover.wrap_bn254(compress_proof, opts)?;
         if kind == SP1ProofKind::Plonk {
             let plonk_bn254_artifacts = if sp1_prover::build::sp1_dev_mode() {
@@ -122,18 +143,6 @@ impl CpuProver {
         }
 
         unreachable!()
-    }
-
-    pub fn prove<'a>(&'a self, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> CpuProve<'a> {
-        CpuProve {
-            prover: self,
-            kind: SP1ProofKind::Core,
-            pk,
-            stdin,
-            context_builder: Default::default(),
-            core_opts: SP1CoreOpts::default(),
-            recursion_opts: SP1CoreOpts::recursion(),
-        }
     }
 
     fn mock_proof(
@@ -264,8 +273,8 @@ impl Prover<DefaultProverComponents> for CpuProver {
         &self.prover
     }
 
-    fn prove<'a>(
-        &'a self,
+    fn prove(
+        &self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
         kind: SP1ProofKind,
@@ -292,6 +301,66 @@ impl Default for CpuProver {
     }
 }
 
+/// Builder to prepare and configure execution of a program on an input.
+/// May be run with [Self::run].
+pub struct CpuExecute<'a> {
+    prover: &'a CpuProver,
+    context_builder: SP1ContextBuilder<'a>,
+    elf: &'a [u8],
+    stdin: SP1Stdin,
+}
+
+impl<'a> CpuExecute<'a> {
+    fn new(prover: &'a CpuProver, elf: &'a [u8], stdin: SP1Stdin) -> Self {
+        Self { prover, elf, stdin, context_builder: Default::default() }
+    }
+
+    /// Execute the program on the input, consuming the built action `self`.
+    pub fn run(self) -> Result<(SP1PublicValues, ExecutionReport)> {
+        let Self { prover, elf, stdin, mut context_builder } = self;
+        let context = context_builder.build();
+        Ok(prover.sp1_prover().execute(elf, &stdin, context)?)
+    }
+
+    /// Add a runtime [Hook](super::Hook) into the context.
+    ///
+    /// Hooks may be invoked from within SP1 by writing to the specified file descriptor `fd`
+    /// with [`sp1_zkvm::io::write`], returning a list of arbitrary data that may be read
+    /// with successive calls to [`sp1_zkvm::io::read`].
+    pub fn with_hook(
+        mut self,
+        fd: u32,
+        f: impl FnMut(HookEnv, &[u8]) -> Vec<Vec<u8>> + Send + Sync + 'a,
+    ) -> Self {
+        self.context_builder.hook(fd, f);
+        self
+    }
+
+    /// Avoid registering the default hooks in the runtime.
+    ///
+    /// It is not necessary to call this to override hooks --- instead, simply
+    /// register a hook with the same value of `fd` by calling [`Self::with_hook`].
+    pub fn without_default_hooks(mut self) -> Self {
+        self.context_builder.without_default_hooks();
+        self
+    }
+
+    /// Set the maximum number of cpu cycles to use for execution.
+    ///
+    /// If the cycle limit is exceeded, execution will return
+    /// [`sp1_core_executor::ExecutionError::ExceededCycleLimit`].
+    pub fn max_cycles(mut self, max_cycles: u64) -> Self {
+        self.context_builder.max_cycles(max_cycles);
+        self
+    }
+
+    /// Skip deferred proof verification.
+    pub fn set_skip_deferred_proof_verification(mut self, value: bool) -> Self {
+        self.context_builder.set_skip_deferred_proof_verification(value);
+        self
+    }
+}
+
 /// Builder to prepare and configure proving execution of a program on an input.
 /// May be run with [Self::run].
 pub struct CpuProve<'a> {
@@ -312,15 +381,7 @@ impl<'a> CpuProve<'a> {
         let context = context_builder.build();
 
         // Dump the program and stdin to files for debugging if `SP1_DUMP` is set.
-        if std::env::var("SP1_DUMP")
-            .map(|v| v == "1" || v.to_lowercase() == "true")
-            .unwrap_or(false)
-        {
-            let program = pk.elf.clone();
-            std::fs::write("program.bin", program).unwrap();
-            let stdin = bincode::serialize(&stdin).unwrap();
-            std::fs::write("stdin.bin", stdin.clone()).unwrap();
-        }
+        dump_proof_input(&pk.elf, &stdin);
 
         prover.prove_impl(pk, stdin, opts, context, kind)
     }

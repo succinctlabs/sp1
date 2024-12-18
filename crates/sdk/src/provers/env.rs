@@ -1,5 +1,7 @@
 use std::env;
 
+use crate::util::dump_proof_input;
+use crate::{SP1ProofKind, SP1ProofWithPublicValues};
 use anyhow::Result;
 use cfg_if::cfg_if;
 use sp1_core_executor::ExecutionReport;
@@ -7,11 +9,12 @@ use sp1_core_machine::io::SP1Stdin;
 use sp1_primitives::io::SP1PublicValues;
 use sp1_prover::{components::DefaultProverComponents, SP1Prover, SP1ProvingKey, SP1VerifyingKey};
 
-use crate::{SP1ProofKind, SP1ProofWithPublicValues};
-
+#[cfg(feature = "cuda")]
+use super::CudaProver;
 use super::{CpuProver, Prover, ProverType, SP1VerificationError};
 
-/// A simple prover that allows executing programs and generating proofs. The actual implementation
+/// A prover that allows executing programs and generating proofs. The actual implementation depends
+/// on the value of the `SP1_PROVER` environment variable, and other settings may be loaded from env.
 pub struct EnvProver {
     /// The underlying prover implementation.
     pub prover: Box<dyn Prover<DefaultProverComponents>>,
@@ -54,24 +57,6 @@ impl EnvProver {
 
     /// Execute the given program on the given input (without generating a proof). Returns the
     /// public values and execution report of the program after it has been executed.
-    ///
-    /// ### Examples
-    /// ```no_run
-    /// use sp1_sdk::{ProverClient, SP1Context, SP1Stdin};
-    ///
-    /// // Load the program.
-    /// let elf = test_artifacts::FIBONACCI_ELF;
-    ///
-    /// // Initialize the prover client.
-    /// let client = ProverClient::new();
-    ///
-    /// // Setup the inputs.
-    /// let mut stdin = SP1Stdin::new();
-    /// stdin.write(&10usize);
-    ///
-    /// // Execute the program on the inputs.
-    /// let (public_values, report) = client.execute(elf, stdin).unwrap();
-    /// ```
     pub fn execute<'a>(
         &'a self,
         elf: &'a [u8],
@@ -81,13 +66,13 @@ impl EnvProver {
     }
 
     /// Prepare to prove the execution of the given program with the given input in the default
-    /// mode. The returned [action::Prove] may be configured via its methods before running.
-    /// For example, calling [action::Prove::compressed] sets the mode to compressed mode.
+    /// mode. The returned [EnvProve] may be configured via its methods before running.
+    /// For example, calling [EnvProve::compressed] sets the mode to compressed mode.
     ///
-    /// To prove, call [action::Prove::run], which returns a proof of the program's execution.
+    /// To prove, call [EnvProve::run], which returns a proof of the program's execution.
     /// By default the proof generated will not be compressed to constant size.
-    /// To create a more succinct proof, use the [action::Prove::compressed],
-    /// [action::Prove::plonk], or [action::Prove::groth16] methods.
+    /// To create a more succinct proof, use the [EnvProve::compressed],
+    /// [EnvProve::plonk], or [EnvProve::groth16] methods.
     ///
     /// ### Examples
     /// ```no_run
@@ -97,7 +82,7 @@ impl EnvProver {
     /// let elf = test_artifacts::FIBONACCI_ELF;
     ///
     /// // Initialize the prover client.
-    /// let client = ProverClient::new();
+    /// let client = ProverClient::env();
     ///
     /// // Setup the program.
     /// let (pk, vk) = client.setup(elf);
@@ -121,7 +106,7 @@ impl EnvProver {
     /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
     /// let elf = test_artifacts::FIBONACCI_ELF;
-    /// let client = ProverClient::new();
+    /// let client = ProverClient::env();
     /// let (pk, vk) = client.setup(elf);
     /// let mut stdin = SP1Stdin::new();
     /// stdin.write(&10usize);
@@ -138,22 +123,14 @@ impl EnvProver {
 
     /// Setup a program to be proven and verified by the SP1 RISC-V zkVM by computing the proving
     /// and verifying keys.
-    ///
-    /// The proving key and verifying key essentially embed the program, as well as other auxiliary
-    /// data (such as lookup tables) that are used to prove the program's correctness.
-    ///
-    /// ### Examples
-    /// ```no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin};
-    ///
-    /// let elf = test_artifacts::FIBONACCI_ELF;
-    /// let client = ProverClient::new();
-    /// let mut stdin = SP1Stdin::new();
-    /// stdin.write(&10usize);
-    /// let (pk, vk) = client.setup(elf);
-    /// ```
     pub fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
         self.prover.setup(elf)
+    }
+}
+
+impl Default for EnvProver {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -170,8 +147,8 @@ impl Prover<DefaultProverComponents> for EnvProver {
         self.prover.setup(elf)
     }
 
-    fn prove<'a>(
-        &'a self,
+    fn prove(
+        &self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
         kind: SP1ProofKind,
@@ -203,15 +180,7 @@ impl<'a> EnvProve<'a> {
         let Self { prover, kind, pk, stdin } = self;
 
         // Dump the program and stdin to files for debugging if `SP1_DUMP` is set.
-        if std::env::var("SP1_DUMP")
-            .map(|v| v == "1" || v.to_lowercase() == "true")
-            .unwrap_or(false)
-        {
-            let program = pk.elf.clone();
-            std::fs::write("program.bin", program).unwrap();
-            let stdin = bincode::serialize(&stdin).unwrap();
-            std::fs::write("stdin.bin", stdin.clone()).unwrap();
-        }
+        dump_proof_input(&pk.elf, &stdin);
 
         prover.prove(pk, stdin, kind)
     }

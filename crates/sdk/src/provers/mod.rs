@@ -10,6 +10,8 @@ pub use local::CpuProver;
 
 use itertools::Itertools;
 use p3_field::PrimeField32;
+use sp1_core_executor::ExecutionReport;
+use sp1_primitives::io::SP1PublicValues;
 use std::borrow::Borrow;
 use std::time::Duration;
 
@@ -62,19 +64,30 @@ pub enum SP1VerificationError {
 
 /// An implementation of [crate::ProverClient].
 pub trait Prover<C: SP1ProverComponents>: Send + Sync {
+    /// The type of prover.
     fn id(&self) -> ProverType;
 
+    /// The inner SP1Prover struct.
     fn sp1_prover(&self) -> &SP1Prover<C>;
 
+    /// The version of the current SP1 circuit. This is distinct from the sp1-sdk version.
     fn version(&self) -> &str {
         SP1_CIRCUIT_VERSION
     }
 
+    /// Setup a program to be proven and verified by the SP1 RISC-V zkVM by computing the proving
+    /// and verifying keys.
     fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey);
 
+    /// Execute the given program on the given input (without generating a proof). Returns the
+    /// public values and execution report of the program after it has been executed.
+    fn execute(&self, elf: &[u8], stdin: &SP1Stdin) -> Result<(SP1PublicValues, ExecutionReport)> {
+        Ok(self.sp1_prover().execute(elf, stdin, Default::default())?)
+    }
+
     /// Prove the execution of a RISCV ELF with the given inputs, according to the given proof mode.
-    fn prove<'a>(
-        &'a self,
+    fn prove(
+        &self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
         kind: SP1ProofKind,

@@ -34,6 +34,13 @@ impl NetworkProver {
         Self { client: NetworkClient::new(private_key, rpc_url), local_prover }
     }
 
+    /// Prepare to prove the execution of the given program with the given input in the default
+    /// mode. The returned [NetworkProve] may be configured via its methods before running.
+    /// For example, calling [NetworkProve::compressed] sets the mode to compressed mode.
+    pub fn prove<'a>(&'a self, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> NetworkProve<'a> {
+        NetworkProve::new(self, pk, stdin)
+    }
+
     /// Requests a proof from the prover network, returning the proof ID.
     pub(crate) async fn request_proof(
         &self,
@@ -133,7 +140,7 @@ impl NetworkProver {
     }
 
     /// Requests a proof from the prover network and waits for it to be generated.
-    pub(crate) async fn prove(
+    pub(crate) async fn prove_impl(
         &self,
         elf: &[u8],
         stdin: SP1Stdin,
@@ -159,13 +166,13 @@ impl Prover<DefaultProverComponents> for NetworkProver {
         self.local_prover.sp1_prover()
     }
 
-    fn prove<'a>(
-        &'a self,
+    fn prove(
+        &self,
         pk: &SP1ProvingKey,
         stdin: SP1Stdin,
         kind: SP1ProofKind,
     ) -> Result<SP1ProofWithPublicValues> {
-        block_on(self.prove(&pk.elf, stdin, kind.into(), None, false))
+        block_on(self.prove_impl(&pk.elf, stdin, kind.into(), None, false))
     }
 }
 
@@ -192,13 +199,25 @@ pub struct NetworkProve<'a> {
 }
 
 impl<'a> NetworkProve<'a> {
+    fn new(prover: &'a NetworkProver, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> Self {
+        Self { prover, kind: Default::default(), pk, stdin, timeout: None, skip_simulation: false }
+    }
+
     /// Prove the execution of the program on the input, consuming the built action `self`.
-    pub async fn run(self) -> Result<SP1ProofWithPublicValues> {
+    pub async fn run_async(self) -> Result<SP1ProofWithPublicValues> {
         let Self { prover, kind, pk, stdin, timeout, skip_simulation } = self;
 
         dump_proof_input(&pk.elf, &stdin);
 
-        prover.prove(&pk.elf, stdin, kind.into(), timeout, skip_simulation).await
+        prover.prove_impl(&pk.elf, stdin, kind.into(), timeout, skip_simulation).await
+    }
+
+    pub fn run(self) -> Result<SP1ProofWithPublicValues> {
+        let Self { prover, kind, pk, stdin, timeout, skip_simulation } = self;
+
+        dump_proof_input(&pk.elf, &stdin);
+
+        block_on(prover.prove_impl(&pk.elf, stdin, kind.into(), timeout, skip_simulation))
     }
 
     /// Set the proof kind to the core mode. This is the default.
