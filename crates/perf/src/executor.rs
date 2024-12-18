@@ -5,7 +5,7 @@ use p3_baby_bear::BabyBear;
 use sp1_core_executor::{Executor, ExecutorMode, Program};
 use sp1_core_machine::shape::CoreShapeConfig;
 use sp1_sdk::{self, SP1Stdin};
-use sp1_stark::{SP1CoreOpts, SP1ProverOpts};
+use sp1_stark::SP1ProverOpts;
 
 #[derive(Parser, Clone)]
 #[command(about = "Evaluate the performance of SP1 on programs.")]
