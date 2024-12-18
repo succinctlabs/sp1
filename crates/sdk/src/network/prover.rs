@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
 use super::proto::network::GetProofStatusResponse;
-use crate::provers::{CpuProver, ProverType};
+use crate::provers::{LocalProver, ProverType};
 use crate::util::dump_proof_input;
 use crate::{
     network::{
@@ -21,7 +21,7 @@ const MAX_CONSECUTIVE_ERRORS: usize = 10;
 /// An implementation of [crate::ProverClient] that can generate proofs on a remote RPC server.
 pub struct NetworkProver {
     client: NetworkClient,
-    local_prover: CpuProver,
+    local_prover: LocalProver,
 }
 
 impl NetworkProver {
@@ -30,7 +30,7 @@ impl NetworkProver {
         let version = SP1_CIRCUIT_VERSION;
         log::info!("Client circuit version: {}", version);
 
-        let local_prover = CpuProver::new(false);
+        let local_prover = LocalProver::new(false);
         Self { client: NetworkClient::new(private_key, rpc_url), local_prover }
     }
 

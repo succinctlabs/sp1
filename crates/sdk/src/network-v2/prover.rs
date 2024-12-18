@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
 use crate::network_v2::client::DEFAULT_PROVER_NETWORK_RPC;
-use crate::provers::{CpuProver, ProverType};
+use crate::provers::{LocalProver, ProverType};
 use crate::util::dump_proof_input;
 use crate::{
     network_v2::client::NetworkClient,
@@ -27,7 +27,7 @@ const DEFAULT_CYCLE_LIMIT: u64 = 100_000_000;
 /// An implementation of [crate::ProverClient] that can generate proofs on a remote RPC server.
 pub struct NetworkProver {
     client: NetworkClient,
-    local_prover: CpuProver,
+    local_prover: LocalProver,
     strategy: FulfillmentStrategy,
 }
 
@@ -36,7 +36,7 @@ impl NetworkProver {
     pub fn new(private_key: &str, rpc_url: Option<String>) -> Self {
         let version = SP1_CIRCUIT_VERSION;
         log::info!("Client circuit version: {}", version);
-        let local_prover = CpuProver::new(false);
+        let local_prover = LocalProver::new(false);
         let client = NetworkClient::new(private_key, rpc_url);
         Self { client, local_prover, strategy: FulfillmentStrategy::Hosted }
     }

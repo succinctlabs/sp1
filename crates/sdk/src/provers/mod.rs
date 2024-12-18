@@ -1,14 +1,12 @@
-mod cpu;
 #[cfg(feature = "cuda")]
 mod cuda;
-mod mock;
-mod simple;
+mod env;
+mod local;
 
-pub use cpu::CpuProver;
 #[cfg(feature = "cuda")]
 pub use cuda::CudaProver;
-pub use mock::MockProver;
-pub use simple::SimpleProver;
+pub use env::EnvProver;
+pub use local::LocalProver;
 
 use itertools::Itertools;
 use p3_field::PrimeField32;

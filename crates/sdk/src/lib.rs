@@ -29,15 +29,14 @@ pub mod utils {
 
 use cfg_if::cfg_if;
 pub use proof::*;
+use provers::EnvProver;
 pub use provers::SP1VerificationError;
-use provers::SimpleProver;
-use sp1_prover::components::DefaultProverComponents;
 use std::env;
 
 #[cfg(any(feature = "network", feature = "network-v2"))]
 use {std::future::Future, tokio::task::block_in_place};
 
-pub use provers::{CpuProver, MockProver, Prover};
+pub use provers::{LocalProver, Prover};
 
 pub use sp1_build::include_elf;
 pub use sp1_core_executor::{ExecutionReport, HookEnv, SP1Context, SP1ContextBuilder};
@@ -60,9 +59,9 @@ cfg_if! {
 }
 
 impl ProverClient {
-    #[deprecated(since = "4.0.0", note = "use ProverClient::builder().env() instead")]
-    pub fn new() -> SimpleProver {
-        Self::builder().env()
+    #[deprecated(since = "4.0.0", note = "use ProverClient::env() instead")]
+    pub fn new() -> EnvProver {
+        Self::env()
     }
 
     pub fn builder() -> ProverClientBuilder {
@@ -74,6 +73,33 @@ impl ProverClient {
     /// Note: This is not the same as the version of the SP1 SDK.
     pub fn version() -> String {
         SP1_CIRCUIT_VERSION.to_string()
+    }
+
+    /// Builds a [EnvProver], filling in the mode and any unset fields with values from the env.
+    pub fn env() -> EnvProver {
+        EnvProver::new()
+    }
+
+    /// Builds a [LocalProver] specifically for local CPU proving.
+    pub fn local() -> LocalProver {
+        LocalProver::new(false)
+    }
+
+    /// Builds a [CudaProver] specifically for local NVIDIA GPU proving.
+    #[cfg(feature = "cuda")]
+    pub fn cuda() -> CudaProver {
+        CudaProver::new(SP1Prover::new())
+    }
+
+    /// Builds a [NetworkProver] specifically for network proving.
+    #[cfg(any(feature = "network", feature = "network-v2"))]
+    pub fn network() -> NetworkProverBuilder {
+        NetworkProverBuilder::new()
+    }
+
+    /// Builds a [LocalProver] specifically for mock proving.
+    pub fn mock() -> LocalProver {
+        LocalProver::new(true)
     }
 }
 
@@ -96,70 +122,6 @@ impl ProverClientBuilder {
         self.rpc_url = Some(rpc_url);
         self
     }
-
-    /// Builds a [SimpleProver], filling in the mode and any unset fields with values from the env.
-    pub fn env(mut self) -> SimpleProver {
-        let mode = env::var("SP1_PROVER")
-            .unwrap_or_else(|_| "local".to_string())
-            .parse::<ProverMode>()
-            .unwrap_or(ProverMode::Cpu);
-        self.rpc_url = self.rpc_url.or_else(|| env::var("PROVER_NETWORK_RPC").ok());
-        self.private_key = self.private_key.or_else(|| env::var("SP1_PRIVATE_KEY").ok());
-        self.build(mode)
-    }
-
-    /// Builds a [SimpleProver], using the provided mode.
-    pub fn build(self, mode: ProverMode) -> SimpleProver {
-        let prover: Box<dyn Prover<DefaultProverComponents>> = match mode {
-            ProverMode::Cpu => Box::new(CpuProver::new(false)),
-            ProverMode::Cuda => {
-                cfg_if! {
-                    if #[cfg(feature = "cuda")] {
-                        Box::new(CudaProver::new(SP1Prover::new()))
-                    } else {
-                        panic!("cuda feature is not enabled")
-                    }
-                }
-            }
-            ProverMode::Network => {
-                let private_key = self.private_key.expect("The private key is required");
-
-                cfg_if! {
-                    if #[cfg(feature = "network-v2")] {
-                        Box::new(NetworkProverV2::new(&private_key, self.rpc_url))
-                    } else if #[cfg(feature = "network")] {
-                        Box::new(NetworkProverV1::new(&private_key, self.rpc_url))
-                    } else {
-                        panic!("network feature is not enabled")
-                    }
-                }
-            }
-            ProverMode::Mock => Box::new(CpuProver::new(true)),
-        };
-        SimpleProver { prover }
-    }
-
-    /// Builds a [CpuProver] specifically for local CPU proving.
-    pub fn cpu(self) -> CpuProver {
-        CpuProver::new(false)
-    }
-
-    /// Builds a [CudaProver] specifically for local NVIDIA GPU proving.
-    #[cfg(feature = "cuda")]
-    pub fn cuda(self) -> CudaProver {
-        CudaProver::new(SP1Prover::new())
-    }
-
-    /// Builds a [NetworkProver] specifically for network proving.
-    #[cfg(any(feature = "network", feature = "network-v2"))]
-    pub fn network(self) -> NetworkProver {
-        NetworkProver::new(&self.private_key.expect("Private key must be set"), self.rpc_url)
-    }
-
-    /// Builds a [CpuProver] specifically for mock proving.
-    pub fn mock(self) -> CpuProver {
-        CpuProver::new(true)
-    }
 }
 
 /// Utility method for blocking on an async function.
@@ -175,6 +137,38 @@ pub fn block_on<T>(fut: impl Future<Output = T>) -> T {
         // Otherwise create a new runtime.
         let rt = tokio::runtime::Runtime::new().expect("Failed to create a new runtime");
         rt.block_on(fut)
+    }
+}
+
+#[cfg(any(feature = "network", feature = "network-v2"))]
+pub struct NetworkProverBuilder {
+    private_key: Option<String>,
+    rpc_url: Option<String>,
+}
+
+#[cfg(any(feature = "network", feature = "network-v2"))]
+impl NetworkProverBuilder {
+    pub(crate) fn new() -> Self {
+        Self { private_key: None, rpc_url: None }
+    }
+
+    /// Sets the private key. Only used for network prover.
+    pub fn private_key(mut self, private_key: String) -> Self {
+        self.private_key = Some(private_key);
+        self
+    }
+
+    /// Sets the RPC URL. Only used for network prover.
+    pub fn rpc_url(mut self, rpc_url: String) -> Self {
+        self.rpc_url = Some(rpc_url);
+        self
+    }
+
+    pub fn build(self) -> NetworkProver {
+        let private_key = self.private_key.unwrap_or_else(|| {
+            env::var("SP1_PRIVATE_KEY").expect("Private key must be provided through `NetworkProverBuilder::private_key` or the SP1_PRIVATE_KEY environment variable.")
+        });
+        NetworkProver::new(&private_key, self.rpc_url)
     }
 }
 

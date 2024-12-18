@@ -22,19 +22,19 @@ use super::verify_proof;
 use super::{ProverType, SP1VerificationError};
 
 /// An implementation of [crate::Prover] that can generate end-to-end proofs locally.
-pub struct CpuProver {
+pub struct LocalProver {
     prover: SP1Prover<DefaultProverComponents>,
     mock: bool,
 }
 
-impl CpuProver {
-    /// Creates a new [CpuProver].
+impl LocalProver {
+    /// Creates a new [LocalProver].
     pub fn new(mock: bool) -> Self {
         let prover = SP1Prover::new();
         Self { prover, mock }
     }
 
-    /// Creates a new [CpuProver] from an existing [SP1Prover].
+    /// Creates a new [LocalProver] from an existing [SP1Prover].
     pub fn from_prover(prover: SP1Prover<DefaultProverComponents>) -> Self {
         Self { prover, mock: false }
     }
@@ -256,7 +256,7 @@ impl CpuProver {
     }
 }
 
-impl Prover<DefaultProverComponents> for CpuProver {
+impl Prover<DefaultProverComponents> for LocalProver {
     fn id(&self) -> ProverType {
         ProverType::Cpu
     }
@@ -291,7 +291,7 @@ impl Prover<DefaultProverComponents> for CpuProver {
     }
 }
 
-impl Default for CpuProver {
+impl Default for LocalProver {
     fn default() -> Self {
         Self::new(false)
     }
@@ -300,7 +300,7 @@ impl Default for CpuProver {
 /// Builder to prepare and configure proving execution of a program on an input.
 /// May be run with [Self::run].
 pub struct CpuProve<'a> {
-    prover: &'a CpuProver,
+    prover: &'a LocalProver,
     kind: SP1ProofKind,
     context_builder: SP1ContextBuilder<'a>,
     pk: &'a SP1ProvingKey,

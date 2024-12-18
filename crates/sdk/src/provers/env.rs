@@ -1,4 +1,7 @@
+use std::env;
+
 use anyhow::Result;
+use cfg_if::cfg_if;
 use sp1_core_executor::ExecutionReport;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_primitives::io::SP1PublicValues;
@@ -6,15 +9,49 @@ use sp1_prover::{components::DefaultProverComponents, SP1Prover, SP1ProvingKey, 
 
 use crate::{SP1ProofKind, SP1ProofWithPublicValues};
 
-use super::{Prover, ProverType, SP1VerificationError};
+use super::{LocalProver, Prover, ProverType, SP1VerificationError};
 
 /// A simple prover that allows executing programs and generating proofs. The actual implementation
-pub struct SimpleProver {
+pub struct EnvProver {
     /// The underlying prover implementation.
     pub prover: Box<dyn Prover<DefaultProverComponents>>,
 }
 
-impl SimpleProver {
+impl EnvProver {
+    pub fn new() -> Self {
+        let mode = env::var("SP1_PROVER").unwrap_or_else(|_| "local".to_string());
+
+        let prover: Box<dyn Prover<DefaultProverComponents>> = match mode.as_str() {
+            "local" => Box::new(LocalProver::new(false)),
+            "cuda" => {
+                cfg_if! {
+                    if #[cfg(feature = "cuda")] {
+                        Box::new(CudaProver::new(SP1Prover::new()))
+                    } else {
+                        panic!("cuda sp1-sdk feature is not enabled")
+                    }
+                }
+            }
+            "network" => {
+                let rpc_url = env::var("PROVER_NETWORK_RPC").ok();
+                let private_key = env::var("SP1_PRIVATE_KEY").expect("SP1_PRIVATE_KEY must be set");
+
+                cfg_if! {
+                    if #[cfg(feature = "network-v2")] {
+                        Box::new(crate::NetworkProverV2::new(&private_key, rpc_url))
+                    } else if #[cfg(feature = "network")] {
+                        Box::new(crate::NetworkProverV1::new(&private_key, rpc_url))
+                    } else {
+                        panic!("network sp1-sdk feature is not enabled")
+                    }
+                }
+            }
+            "mock" => Box::new(LocalProver::new(true)),
+            _ => panic!("invalid SP1_PROVER value"),
+        };
+        EnvProver { prover }
+    }
+
     /// Execute the given program on the given input (without generating a proof). Returns the
     /// public values and execution report of the program after it has been executed.
     ///
@@ -120,7 +157,7 @@ impl SimpleProver {
     }
 }
 
-impl Prover<DefaultProverComponents> for SimpleProver {
+impl Prover<DefaultProverComponents> for EnvProver {
     fn id(&self) -> ProverType {
         self.prover.id()
     }
