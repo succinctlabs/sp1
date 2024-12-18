@@ -507,8 +507,7 @@ mod tests {
 
             let correct_op_a = op_b << (op_c & 0x1F);
 
-            // assert!(op_a != correct_op_a);
-            let op_a = correct_op_a;
+            assert!(op_a != correct_op_a);
 
             let instructions = vec![
                 Instruction::new(Opcode::SLL, 5, op_b, op_c, true, true),
@@ -537,12 +536,11 @@ mod tests {
 
             let result =
                 run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
-            println!("Result for {:?}: {:?}", Opcode::SLL, result);
-            // let shift_left_chip_name = chip_name!(ShiftLeft, BabyBear);
-            // assert!(
-            //     result.is_err()
-            //         && result.unwrap_err().is_constraints_failing(&shift_left_chip_name)
-            // );
+            let shift_left_chip_name = chip_name!(ShiftLeft, BabyBear);
+            assert!(
+                result.is_err()
+                    && result.unwrap_err().is_constraints_failing(&shift_left_chip_name)
+            );
         }
     }
 }
