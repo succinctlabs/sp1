@@ -3,12 +3,12 @@
 #[allow(dead_code)]
 #[allow(missing_docs)]
 pub mod tests {
-    use crate::{Instruction, Opcode, Program};
-
-    pub use test_artifacts::{
+    use test_artifacts::{
         FIBONACCI_ELF, KECCAK_PERMUTE_ELF, PANIC_ELF, SECP256R1_ADD_ELF, SECP256R1_DOUBLE_ELF,
         U256XU2048_MUL_ELF,
     };
+
+    use crate::{Instruction, Opcode, Program};
 
     #[must_use]
     pub fn simple_program() -> Program {

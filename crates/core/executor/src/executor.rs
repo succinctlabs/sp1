@@ -2801,7 +2801,29 @@ mod tests {
         assert_eq!(runtime.register(Register::X11), 0x65256525);
     }
 
-    fn fede_test() {
-        
+    #[test]
+    #[should_panic]
+    fn test_invalid_address_access_sw() {
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 20, false, true),
+            Instruction::new(Opcode::SW, 0, 29, 0, false, true),
+        ];
+
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Executor::new(program, SP1CoreOpts::default());
+        runtime.run().unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_invalid_address_access_lw() {
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 20, false, true),
+            Instruction::new(Opcode::LW, 29, 29, 0, false, true),
+        ];
+
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Executor::new(program, SP1CoreOpts::default());
+        runtime.run().unwrap();
     }
 }
