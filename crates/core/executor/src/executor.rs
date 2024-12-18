@@ -1,10 +1,7 @@
-use std::{
-    fs::File,
-    io::{BufWriter, Write},
-    str::FromStr,
-    sync::Arc,
-};
+use std::{fs::File, io::BufWriter, str::FromStr, sync::Arc};
 
+#[cfg(feature = "profiling")]
+use crate::profiler::Profiler;
 use clap::ValueEnum;
 use enum_map::EnumMap;
 use hashbrown::HashMap;
@@ -47,11 +44,6 @@ pub const UNUSED_PC: u32 = 1;
 
 /// The maximum number of instructions in a program.
 pub const MAX_PROGRAM_SIZE: usize = 1 << 22;
-
-#[cfg(feature = "profiling")]
-use crate::profiler::Profiler;
-#[cfg(feature = "profiling")]
-use std::{fs::File, io::BufWriter};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// Whether to verify deferred proofs during execution.
