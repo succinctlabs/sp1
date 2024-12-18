@@ -31,7 +31,7 @@ impl Groth16Verifier {
     ///
     /// ```ignore
     /// use sp1_sdk::ProverClient;
-    /// let client = ProverClient::new();
+    /// let client = ProverClient::env();
     /// let (pk, vk) = client.setup(ELF);
     /// let sp1_vkey_hash = vk.bytes32();
     /// ```

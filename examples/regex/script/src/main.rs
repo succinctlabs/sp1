@@ -18,7 +18,7 @@ fn main() {
     stdin.write(&target_string);
 
     // Generate the proof for the given program and input.
-    let client = ProverClient::new();
+    let client = ProverClient::env();
     let (pk, vk) = client.setup(REGEX_IO_ELF);
     let mut proof = client.prove(&pk, stdin).run().expect("proving failed");
 

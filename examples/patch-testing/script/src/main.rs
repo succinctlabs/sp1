@@ -8,7 +8,7 @@ pub fn main() {
 
     let stdin = SP1Stdin::new();
 
-    let client = ProverClient::new();
+    let client = ProverClient::env();
     let (_, report) = client.execute(PATCH_TEST_ELF, stdin).run().expect("executing failed");
 
     // Confirm there was at least 1 SHA_COMPUTE syscall.

@@ -24,7 +24,7 @@ fn main() {
     sp1_sdk::utils::setup_logger();
 
     // Initialize the proving client.
-    let client = ProverClient::new();
+    let client = ProverClient::env();
 
     // Setup the proving and verifying keys.
     let (aggregation_pk, _) = client.setup(AGGREGATION_ELF);

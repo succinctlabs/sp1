@@ -14,7 +14,7 @@ fn main() {
     stdin.write(&n);
 
     // Generate and verify the proof
-    let client = ProverClient::new();
+    let client = ProverClient::env();
     let (pk, vk) = client.setup(ELF);
     let mut proof = client.prove(&pk, stdin).run().unwrap();
 

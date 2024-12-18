@@ -8,7 +8,7 @@ fn main() {
     utils::setup_logger();
 
     let stdin = SP1Stdin::new();
-    let client = ProverClient::new();
+    let client = ProverClient::env();
     let (pk, vk) = client.setup(ELF);
     let proof = client.prove(&pk, stdin).run().expect("proving failed");
 

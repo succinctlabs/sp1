@@ -14,7 +14,7 @@ fn main() {
     stdin.write(&n);
 
     // Set up the pk and vk.
-    let client = ProverClient::new();
+    let client = ProverClient::env();
     let (pk, vk) = client.setup(ELF);
     println!("vk: {:?}", vk.bytes32());
 

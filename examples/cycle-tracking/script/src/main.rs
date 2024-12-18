@@ -9,7 +9,7 @@ fn main() {
     utils::setup_logger();
 
     // Execute the normal program.
-    let client = ProverClient::new();
+    let client = ProverClient::env();
     let (_, _) = client.execute(NORMAL_ELF, SP1Stdin::new()).run().expect("proving failed");
 
     // Execute the report program.

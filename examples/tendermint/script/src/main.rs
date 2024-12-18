@@ -41,7 +41,7 @@ pub fn main() {
     // let encoded: Vec<u8> = bincode::serialize(&light_block_1).unwrap();
     // let decoded: LightBlock = bincode::deserialize(&encoded[..]).unwrap();
 
-    let client = ProverClient::new();
+    let client = ProverClient::env();
     let (pk, vk) = client.setup(TENDERMINT_ELF);
 
     client.execute(TENDERMINT_ELF, stdin.clone()).run().expect("proving failed");
