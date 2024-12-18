@@ -41,7 +41,7 @@ jobs:
         run: |
           cargo run -p sp1-cli -- prove install-toolchain
           cd crates/cli
-          cargo install --locked --force --path .
+          cargo install --force --locked --path .
           cargo clean
 
       - name: Run cargo check
@@ -85,7 +85,7 @@ jobs:
         run: |
           cargo run -p sp1-cli -- prove install-toolchain
           cd crates/cli
-          cargo install --locked --force --path .
+          cargo install --force --locked --path .
           cargo clean
 
       - name: Run cargo check
@@ -122,7 +122,7 @@ jobs:
         run: |
           cargo run -p sp1-cli -- prove install-toolchain
           cd crates/cli
-          cargo install --locked --force --path .
+          cargo install --force --locked --path .
           cargo clean
 
       - name: Run cargo fmt
@@ -165,7 +165,7 @@ jobs:
         run: |
           cargo run -p sp1-cli -- prove install-toolchain
           cd crates/cli
-          cargo install --locked --force --path .
+          cargo install --force --locked --path .
           cargo clean
 
       - name: Check workspace no features
@@ -209,7 +209,7 @@ jobs:
         run: |
           cargo run -p sp1-cli -- prove install-toolchain
           cd crates/cli
-          cargo install --locked --force --path .
+          cargo install --force --locked --path .
           cargo clean
 
       - name: Run cargo fmt
@@ -243,7 +243,7 @@ jobs:
         run: |
           cargo run -p sp1-cli -- prove install-toolchain
           cd crates/cli
-          cargo install --locked --force --path .
+          cargo install --force --locked --path .
           cargo clean
 
       - name: Run cargo prove new
@@ -277,7 +277,7 @@ jobs:
         run: |
           cargo run -p sp1-cli -- prove install-toolchain
           cd crates/cli
-          cargo install --locked --force --path .
+          cargo install --force --locked --path .
           cargo clean
 
       - name: Run Evaluation

@@ -219,7 +219,11 @@ dependencies = [
  "alloy-sol-types",
  "serde",
  "serde_json",
+<<<<<<< HEAD
  "thiserror 1.0.69",
+=======
+ "thiserror 1.0.68",
+>>>>>>> origin/dev
  "tracing",
 ]
 
@@ -241,7 +245,11 @@ dependencies = [
  "async-trait",
  "auto_impl",
  "futures-utils-wasm",
+<<<<<<< HEAD
  "thiserror 1.0.69",
+=======
+ "thiserror 1.0.68",
+>>>>>>> origin/dev
 ]
 
 [[package]]
@@ -426,7 +434,11 @@ dependencies = [
  "auto_impl",
  "elliptic-curve",
  "k256",
+<<<<<<< HEAD
  "thiserror 1.0.69",
+=======
+ "thiserror 1.0.68",
+>>>>>>> origin/dev
 ]
 
 [[package]]
@@ -442,7 +454,11 @@ dependencies = [
  "async-trait",
  "k256",
  "rand 0.8.5",
+<<<<<<< HEAD
  "thiserror 1.0.69",
+=======
+ "thiserror 1.0.68",
+>>>>>>> origin/dev
 ]
 
 [[package]]
@@ -1155,6 +1171,7 @@ dependencies = [
  "semver 1.0.23",
  "serde",
  "serde_json",
+<<<<<<< HEAD
  "thiserror 1.0.69",
 ]
 
@@ -1175,6 +1192,9 @@ dependencies = [
  "syn 2.0.90",
  "tempfile",
  "toml",
+=======
+ "thiserror 1.0.68",
+>>>>>>> origin/dev
 ]
 
 [[package]]
@@ -1665,6 +1685,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "debugid"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bef552e6f588e446098f6ba40d89ac146c8c7b64aade83c051ee00bb5d2bc18d"
+dependencies = [
+ "uuid",
+]
+
+[[package]]
 name = "der"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1865,7 +1894,11 @@ dependencies = [
  "rand_core 0.6.4",
  "serde",
  "sha2 0.9.9",
+<<<<<<< HEAD
  "thiserror 1.0.69",
+=======
+ "thiserror 1.0.68",
+>>>>>>> origin/dev
  "zeroize",
 ]
 
@@ -2246,6 +2279,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d758ba1b47b00caf47f24925c0074ecb20d6dfcffe7f6d53395c0465674841a"
 
 [[package]]
+name = "gecko_profile"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "890852c7e1e02bc6758e325d6b1e0236e4fbf21b492f585ce4d4715be54b4c6a"
+dependencies = [
+ "debugid",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "generic-array"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2303,6 +2347,17 @@ name = "glob"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2fabcfbdc87f4758337ca535fb41a6d701b65693ce38287d856d1674551ec9b"
+
+[[package]]
+name = "goblin"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b363a30c165f666402fe6a3024d3bec7ebc898f96a4a23bd1c99f8dbf3f4f47"
+dependencies = [
+ "log",
+ "plain",
+ "scroll",
+]
 
 [[package]]
 name = "groth16-verifier-program"
@@ -3882,7 +3937,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "879952a81a83930934cbf1786752d6dedc3b1f29e8f8fb2ad1d0a36f377cf442"
 dependencies = [
  "memchr",
+<<<<<<< HEAD
  "thiserror 1.0.69",
+=======
+ "thiserror 1.0.68",
+>>>>>>> origin/dev
  "ucd-trie",
 ]
 
@@ -3946,6 +4005,12 @@ name = "pkg-config"
 version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "953ec861398dccce10c670dfeaf3ec4911ca479e9c02154b3a215178c5f566f2"
+
+[[package]]
+name = "plain"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b4596b6d070b27117e987119b4dac604f3c58cfb0b191112e24771b2faeac1a6"
 
 [[package]]
 name = "portable-atomic"
@@ -4142,7 +4207,11 @@ dependencies = [
  "rustc-hash 2.1.0",
  "rustls",
  "socket2",
+<<<<<<< HEAD
  "thiserror 2.0.4",
+=======
+ "thiserror 1.0.68",
+>>>>>>> origin/dev
  "tokio",
  "tracing",
 ]
@@ -4161,7 +4230,11 @@ dependencies = [
  "rustls",
  "rustls-pki-types",
  "slab",
+<<<<<<< HEAD
  "thiserror 2.0.4",
+=======
+ "thiserror 1.0.68",
+>>>>>>> origin/dev
  "tinyvec",
  "tracing",
  "web-time",
@@ -4328,7 +4401,11 @@ checksum = "ba009ff324d1fc1b900bd1fdb31564febe58a8ccc8a6fdbb93b543d33b13ca43"
 dependencies = [
  "getrandom",
  "libredox",
+<<<<<<< HEAD
  "thiserror 1.0.69",
+=======
+ "thiserror 1.0.68",
+>>>>>>> origin/dev
 ]
 
 [[package]]
@@ -4446,7 +4523,11 @@ dependencies = [
  "http",
  "reqwest",
  "serde",
+<<<<<<< HEAD
  "thiserror 1.0.69",
+=======
+ "thiserror 1.0.68",
+>>>>>>> origin/dev
  "tower-service",
 ]
 
@@ -4459,7 +4540,11 @@ dependencies = [
  "reth-execution-errors",
  "reth-primitives",
  "reth-storage-errors",
+<<<<<<< HEAD
  "thiserror 1.0.69",
+=======
+ "thiserror 1.0.68",
+>>>>>>> origin/dev
 ]
 
 [[package]]
@@ -4553,7 +4638,11 @@ dependencies = [
  "reth-execution-errors",
  "reth-fs-util",
  "reth-storage-errors",
+<<<<<<< HEAD
  "thiserror 1.0.69",
+=======
+ "thiserror 1.0.68",
+>>>>>>> origin/dev
 ]
 
 [[package]]
@@ -4637,7 +4726,11 @@ dependencies = [
  "reth-revm",
  "revm",
  "revm-primitives",
+<<<<<<< HEAD
  "thiserror 1.0.69",
+=======
+ "thiserror 1.0.68",
+>>>>>>> origin/dev
  "tracing",
 ]
 
@@ -4676,7 +4769,11 @@ source = "git+https://github.com/sp1-patches/reth?tag=rsp-20240830#260c7ed2c9374
 dependencies = [
  "serde",
  "serde_json",
+<<<<<<< HEAD
  "thiserror 1.0.69",
+=======
+ "thiserror 1.0.68",
+>>>>>>> origin/dev
 ]
 
 [[package]]
@@ -4688,7 +4785,11 @@ dependencies = [
  "alloy-rlp",
  "enr",
  "serde_with",
+<<<<<<< HEAD
  "thiserror 1.0.69",
+=======
+ "thiserror 1.0.68",
+>>>>>>> origin/dev
  "url",
 ]
 
@@ -4745,7 +4846,11 @@ dependencies = [
  "reth-trie-common",
  "revm-primitives",
  "serde",
+<<<<<<< HEAD
  "thiserror 1.0.69",
+=======
+ "thiserror 1.0.68",
+>>>>>>> origin/dev
 ]
 
 [[package]]
@@ -4780,7 +4885,11 @@ dependencies = [
  "modular-bitfield",
  "reth-codecs",
  "serde",
+<<<<<<< HEAD
  "thiserror 1.0.69",
+=======
+ "thiserror 1.0.68",
+>>>>>>> origin/dev
 ]
 
 [[package]]
@@ -5128,7 +5237,11 @@ dependencies = [
  "rlp",
  "rsp-primitives",
  "serde",
+<<<<<<< HEAD
  "thiserror 1.0.69",
+=======
+ "thiserror 1.0.68",
+>>>>>>> origin/dev
 ]
 
 [[package]]
@@ -5377,6 +5490,26 @@ name = "scopeguard"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
+
+[[package]]
+name = "scroll"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6ab8598aa408498679922eff7fa985c25d58a90771bd6be794434c5277eab1a6"
+dependencies = [
+ "scroll_derive",
+]
+
+[[package]]
+name = "scroll_derive"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f81c2fde025af7e69b1d1420531c8a8811ca898919db177141a85313b1cb932"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.87",
+]
 
 [[package]]
 name = "sdd"
@@ -5748,8 +5881,11 @@ dependencies = [
  "elf",
  "enum-map",
  "eyre",
+ "gecko_profile",
+ "goblin",
  "hashbrown 0.14.5",
  "hex",
+ "indicatif",
  "itertools 0.13.0",
  "log",
  "nohash-hasher",
@@ -5759,6 +5895,7 @@ dependencies = [
  "p3-maybe-rayon",
  "rand 0.8.5",
  "rrs-succinct",
+ "rustc-demangle",
  "serde",
  "serde_json",
  "sp1-curves",
@@ -5766,7 +5903,11 @@ dependencies = [
  "sp1-stark",
  "strum",
  "strum_macros",
+<<<<<<< HEAD
  "thiserror 1.0.69",
+=======
+ "thiserror 1.0.68",
+>>>>>>> origin/dev
  "tiny-keccak",
  "tracing",
  "typenum",
@@ -5820,7 +5961,11 @@ dependencies = [
  "strum",
  "strum_macros",
  "tempfile",
+<<<<<<< HEAD
  "thiserror 1.0.69",
+=======
+ "thiserror 1.0.68",
+>>>>>>> origin/dev
  "tracing",
  "tracing-forest",
  "tracing-subscriber",
@@ -5960,7 +6105,11 @@ dependencies = [
  "sp1-recursion-core",
  "sp1-recursion-gnark-ffi",
  "sp1-stark",
+<<<<<<< HEAD
  "thiserror 1.0.69",
+=======
+ "thiserror 1.0.68",
+>>>>>>> origin/dev
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
@@ -6052,7 +6201,11 @@ dependencies = [
  "sp1-primitives",
  "sp1-stark",
  "static_assertions",
+<<<<<<< HEAD
  "thiserror 1.0.69",
+=======
+ "thiserror 1.0.68",
+>>>>>>> origin/dev
  "tracing",
  "vec_map",
  "zkhash",
@@ -6125,7 +6278,11 @@ dependencies = [
  "strum",
  "strum_macros",
  "tempfile",
+<<<<<<< HEAD
  "thiserror 1.0.69",
+=======
+ "thiserror 1.0.68",
+>>>>>>> origin/dev
  "tokio",
  "tracing",
  "twirp-rs",
@@ -6568,16 +6725,28 @@ version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6aaf5339b578ea85b50e080feb250a3e8ae8cfcdff9a461c9ec2904bc923f52"
 dependencies = [
+<<<<<<< HEAD
  "thiserror-impl 1.0.69",
+=======
+ "thiserror-impl 1.0.68",
+>>>>>>> origin/dev
 ]
 
 [[package]]
 name = "thiserror"
+<<<<<<< HEAD
 version = "2.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2f49a1853cf82743e3b7950f77e0f4d622ca36cf4317cba00c767838bac8d490"
 dependencies = [
  "thiserror-impl 2.0.4",
+=======
+version = "2.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c006c85c7651b3cf2ada4584faa36773bd07bac24acfb39f3c431b36d7e667aa"
+dependencies = [
+ "thiserror-impl 2.0.3",
+>>>>>>> origin/dev
 ]
 
 [[package]]
@@ -6600,6 +6769,17 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.90",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "2.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f077553d607adc1caf65430528a576c757a71ed73944b66ebb58ef2bbd243568"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.87",
 ]
 
 [[package]]
@@ -6887,7 +7067,11 @@ checksum = "ee40835db14ddd1e3ba414292272eddde9dad04d3d4b65509656414d1c42592f"
 dependencies = [
  "ansi_term",
  "smallvec",
+<<<<<<< HEAD
  "thiserror 1.0.69",
+=======
+ "thiserror 1.0.68",
+>>>>>>> origin/dev
  "tracing",
  "tracing-subscriber",
 ]
@@ -6943,7 +7127,11 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+<<<<<<< HEAD
  "thiserror 1.0.69",
+=======
+ "thiserror 1.0.68",
+>>>>>>> origin/dev
  "tokio",
  "tower",
  "url",
@@ -7043,6 +7231,12 @@ name = "utf8parse"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
+
+[[package]]
+name = "uuid"
+version = "1.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8c5f0a0af699448548ad1a2fbf920fb4bee257eae39953ba95cb84891a0446a"
 
 [[package]]
 name = "valuable"
