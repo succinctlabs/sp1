@@ -76,8 +76,20 @@ impl ProverClient {
         match env::var("SP1_PROVER").unwrap_or("local".to_string()).to_lowercase().as_str() {
             "mock" => Self { prover: Box::new(MockProver::new()) },
             "local" => {
-                #[cfg(debug_assertions)]
-                eprintln!("Warning: Local prover in dev mode is not recommended. Proof generation may be slow.");
+                if option_env!("SP1_OPT_LEVEL_IS_LOW").is_some() {
+                    eprintln!("\n\
+                        ============================================================================\n\
+                        ⚠️  WARNING: Local prover was compiled with a low optimization level. ⚠️\n\
+                        This will significantly impact proof generation performance.\n\
+                        To improve performance, either:\n\
+                        1. Use --release flag when running cargo\n\
+                        2. Add the following to Cargo.toml:\n\
+                        [profile.dev.package.\"*\"]\n\
+                        opt-level = 3\n\
+                        For more details, see https://doc.rust-lang.org/cargo/reference/profiles.html#opt-level.
+                        ============================================================================\n\
+                    ");
+                }
                 Self {
                     #[cfg(not(feature = "cuda"))]
                     prover: Box::new(CpuProver::new()),
