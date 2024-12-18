@@ -420,7 +420,10 @@ where
 #[cfg(test)]
 mod tests {
 
+    use std::borrow::BorrowMut;
+
     use crate::{
+        alu::ShiftLeftCols,
         io::SP1Stdin,
         riscv::RiscvAir,
         utils::{run_malicious_test, uni_stark_prove as prove, uni_stark_verify as verify},
@@ -530,8 +533,17 @@ mod tests {
                     {
                         write_record.value = op_a as u32;
                     }
-                    malicious_record.shift_left_events[0].a = op_a;
-                    prover.generate_traces(&malicious_record)
+                    let mut traces = prover.generate_traces(&malicious_record);
+                    let shift_left_chip_name = chip_name!(ShiftLeft, BabyBear);
+                    for (name, trace) in traces.iter_mut() {
+                        if *name == shift_left_chip_name {
+                            let first_row = trace.row_mut(0);
+                            let first_row: &mut ShiftLeftCols<BabyBear> = first_row.borrow_mut();
+                            first_row.a = op_a.into();
+                        }
+                    }
+
+                    traces
                 };
 
             let result =
