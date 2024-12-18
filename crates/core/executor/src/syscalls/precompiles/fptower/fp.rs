@@ -32,12 +32,11 @@ impl<P: FpOpField> Syscall for FpOpSyscall<P> {
     ) -> Option<u32> {
         let clk = rt.clk;
         let x_ptr = arg1;
-        if x_ptr % 4 != 0 {
-            panic!();
-        }
         let y_ptr = arg2;
-        if y_ptr % 4 != 0 {
-            panic!();
+        // Need to check alignment
+        if x_ptr % 4 > 0 || y_ptr % 4 > 0 {
+            eprintln!("FpOpSyscall: alignment violation");
+            return rt.invariant_violated();
         }
 
         let num_words = <P as NumWords>::WordsFieldElement::USIZE;
@@ -46,8 +45,17 @@ impl<P: FpOpField> Syscall for FpOpSyscall<P> {
         let (y_memory_records, y) = rt.mr_slice(y_ptr, num_words);
 
         let modulus = &BigUint::from_bytes_le(P::MODULUS);
-        let a = BigUint::from_slice(&x) % modulus;
-        let b = BigUint::from_slice(&y) % modulus;
+        let a = BigUint::from_slice(&x);
+        if &a >= modulus {
+            eprintln!("FpOpSyscall: a >= modulus, invariant violation");
+            return rt.invariant_violated();
+        }
+
+        let b = BigUint::from_slice(&y);
+        if &b >= modulus {
+            eprintln!("FpOpSyscall: b >= modulus, invariant violation");
+            return rt.invariant_violated();
+        }
 
         let result = match self.op {
             FieldOperation::Add => (a + b) % modulus,

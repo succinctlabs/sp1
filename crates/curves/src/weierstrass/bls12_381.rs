@@ -111,8 +111,15 @@ impl WeierstrassParameters for Bls12381Parameters {
     }
 }
 
-pub fn bls12381_decompress<E: EllipticCurve>(bytes_be: &[u8], sign_bit: u32) -> AffinePoint<E> {
-    let mut g1_bytes_be: [u8; 48] = bytes_be.try_into().unwrap();
+pub fn bls12381_decompress<E: EllipticCurve>(
+    bytes_be: &[u8],
+    sign_bit: u32,
+) -> Option<AffinePoint<E>> {
+    let mut g1_bytes_be: [u8; 48] = bytes_be
+        .try_into()
+        .inspect_err(|e| eprintln!("Unexpected Error: bls12381_decompress {}", e))
+        .ok()?;
+
     let mut flags = COMPRESSION_FLAG;
     if sign_bit == 1 {
         flags |= Y_IS_ODD_FLAG;
@@ -127,7 +134,7 @@ pub fn bls12381_decompress<E: EllipticCurve>(bytes_be: &[u8], sign_bit: u32) -> 
     let y_str = point.gety().to_string();
     let y = BigUint::from_str_radix(y_str.as_str(), 16).unwrap();
 
-    AffinePoint::new(x, y)
+    Some(AffinePoint::new(x, y))
 }
 
 pub fn bls12381_sqrt(a: &BigUint) -> BigUint {
@@ -185,7 +192,7 @@ mod tests {
 
                 (result, is_odd)
             };
-            assert_eq!(point, bls12381_decompress(&compressed_point, is_odd));
+            assert_eq!(point, bls12381_decompress(&compressed_point, is_odd).unwrap());
 
             // Double the point to create a "random" point for the next iteration.
             point = point.clone().sw_double();

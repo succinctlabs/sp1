@@ -152,6 +152,8 @@ pub trait EllipticCurve: EllipticCurveParameters {
     /// Returns the negative of a point on the curve.
     fn ec_neg(p: &AffinePoint<Self>) -> AffinePoint<Self>;
 
+    fn is_valid_point(p: &AffinePoint<Self>) -> bool;
+
     /// Returns the number of bits needed to represent a scalar in the group.
     fn nb_scalar_bits() -> usize {
         Self::BaseField::NB_LIMBS * Self::BaseField::NB_BITS_PER_LIMB
