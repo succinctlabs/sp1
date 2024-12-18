@@ -32,11 +32,10 @@ pub use proof::*;
 use provers::EnvProver;
 pub use provers::SP1VerificationError;
 use std::env;
+pub use util::block_on;
 
 #[cfg(any(feature = "network", feature = "network-v2"))]
-use {std::future::Future, tokio::task::block_in_place};
-
-pub use provers::{LocalProver, Prover};
+pub use provers::{CpuProver, Prover};
 
 pub use sp1_build::include_elf;
 pub use sp1_core_executor::{ExecutionReport, HookEnv, SP1Context, SP1ContextBuilder};
@@ -64,10 +63,6 @@ impl ProverClient {
         Self::env()
     }
 
-    pub fn builder() -> ProverClientBuilder {
-        ProverClientBuilder::default()
-    }
-
     /// Gets the current version of the SP1 zkVM.
     ///
     /// Note: This is not the same as the version of the SP1 SDK.
@@ -75,14 +70,25 @@ impl ProverClient {
         SP1_CIRCUIT_VERSION.to_string()
     }
 
-    /// Builds a [EnvProver], filling in the mode and any unset fields with values from the env.
+    /// Builds an [EnvProver], which loads the mode and any settings from the environment.
+    ///
+    /// # Usage
+    /// ```no_run
+    /// use sp1_sdk::ProverClient;
+    ///
+    /// std::env::set_var("SP1_PROVER", "network");
+    /// std::env::set_var("SP1_PRIVATE_KEY", "...");
+    /// let prover = ProverClient::env();
+    /// let (pk, vk) = prover.setup(elf);
+    /// let proof = prover.prove(&pk, stdin).compressed().run().unwrap();
+    /// ```
     pub fn env() -> EnvProver {
         EnvProver::new()
     }
 
-    /// Builds a [LocalProver] specifically for local CPU proving.
-    pub fn local() -> LocalProver {
-        LocalProver::new(false)
+    /// Builds a [CpuProver] specifically for local CPU proving.
+    pub fn cpu() -> CpuProver {
+        CpuProver::new(false)
     }
 
     /// Builds a [CudaProver] specifically for local NVIDIA GPU proving.
@@ -97,49 +103,23 @@ impl ProverClient {
         NetworkProverBuilder::new()
     }
 
-    /// Builds a [LocalProver] specifically for mock proving.
-    pub fn mock() -> LocalProver {
-        LocalProver::new(true)
+    /// Builds a [CpuProver] specifically for mock proving.
+    pub fn mock() -> CpuProver {
+        CpuProver::new(true)
     }
 }
 
-/// Builder type for [`ProverClient`].
-#[derive(Debug, Default)]
-pub struct ProverClientBuilder {
-    private_key: Option<String>,
-    rpc_url: Option<String>,
-}
-
-impl ProverClientBuilder {
-    /// Sets the private key. Only used for network prover.
-    pub fn private_key(mut self, private_key: String) -> Self {
-        self.private_key = Some(private_key);
-        self
-    }
-
-    /// Sets the RPC URL. Only used for network prover.
-    pub fn rpc_url(mut self, rpc_url: String) -> Self {
-        self.rpc_url = Some(rpc_url);
-        self
-    }
-}
-
-/// Utility method for blocking on an async function.
+/// A builder for [`NetworkProver`].
 ///
-/// If we're already in a tokio runtime, we'll block in place. Otherwise, we'll create a new
-/// runtime.
-#[cfg(any(feature = "network", feature = "network-v2"))]
-pub fn block_on<T>(fut: impl Future<Output = T>) -> T {
-    // Handle case if we're already in an tokio runtime.
-    if let Ok(handle) = tokio::runtime::Handle::try_current() {
-        block_in_place(|| handle.block_on(fut))
-    } else {
-        // Otherwise create a new runtime.
-        let rt = tokio::runtime::Runtime::new().expect("Failed to create a new runtime");
-        rt.block_on(fut)
-    }
-}
-
+/// This builder is obtained via [`ProverClient::network()`] and allows setting
+/// network-specific proving options like RPC URL and private key.
+///
+/// # Example
+/// ```
+/// let prover = ProverClient::network()
+///     .private_key("my_private_key")
+///     .build();
+/// ```
 #[cfg(any(feature = "network", feature = "network-v2"))]
 pub struct NetworkProverBuilder {
     private_key: Option<String>,
@@ -152,18 +132,19 @@ impl NetworkProverBuilder {
         Self { private_key: None, rpc_url: None }
     }
 
-    /// Sets the private key. Only used for network prover.
+    /// Sets the private key.
     pub fn private_key(mut self, private_key: String) -> Self {
         self.private_key = Some(private_key);
         self
     }
 
-    /// Sets the RPC URL. Only used for network prover.
+    /// Sets the RPC URL.
     pub fn rpc_url(mut self, rpc_url: String) -> Self {
         self.rpc_url = Some(rpc_url);
         self
     }
 
+    /// Builds a [NetworkProver].
     pub fn build(self) -> NetworkProver {
         let private_key = self.private_key.unwrap_or_else(|| {
             env::var("SP1_PRIVATE_KEY").expect("Private key must be provided through `NetworkProverBuilder::private_key` or the SP1_PRIVATE_KEY environment variable.")

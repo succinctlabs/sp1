@@ -9,7 +9,7 @@ use sp1_prover::{components::DefaultProverComponents, SP1Prover, SP1ProvingKey, 
 
 use crate::{SP1ProofKind, SP1ProofWithPublicValues};
 
-use super::{LocalProver, Prover, ProverType, SP1VerificationError};
+use super::{CpuProver, Prover, ProverType, SP1VerificationError};
 
 /// A simple prover that allows executing programs and generating proofs. The actual implementation
 pub struct EnvProver {
@@ -22,7 +22,7 @@ impl EnvProver {
         let mode = env::var("SP1_PROVER").unwrap_or_else(|_| "local".to_string());
 
         let prover: Box<dyn Prover<DefaultProverComponents>> = match mode.as_str() {
-            "local" => Box::new(LocalProver::new(false)),
+            "local" => Box::new(CpuProver::new(false)),
             "cuda" => {
                 cfg_if! {
                     if #[cfg(feature = "cuda")] {
@@ -46,7 +46,7 @@ impl EnvProver {
                     }
                 }
             }
-            "mock" => Box::new(LocalProver::new(true)),
+            "mock" => Box::new(CpuProver::new(true)),
             _ => panic!("invalid SP1_PROVER value"),
         };
         EnvProver { prover }
@@ -109,8 +109,8 @@ impl EnvProver {
     /// // Generate the proof.
     /// let proof = client.prove(&pk, stdin).run().unwrap();
     /// ```
-    pub fn prove<'a>(&'a self, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> SimpleProve<'a> {
-        SimpleProve::new(self.prover.as_ref(), pk, stdin)
+    pub fn prove<'a>(&'a self, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> EnvProve<'a> {
+        EnvProve::new(self.prover.as_ref(), pk, stdin)
     }
 
     /// Verifies that the given proof is valid and matches the given verification key produced by
@@ -182,14 +182,14 @@ impl Prover<DefaultProverComponents> for EnvProver {
 
 /// Builder to prepare and configure proving execution of a program on an input.
 /// May be run with [Self::run].
-pub struct SimpleProve<'a> {
+pub struct EnvProve<'a> {
     prover: &'a dyn Prover<DefaultProverComponents>,
     kind: SP1ProofKind,
     pk: &'a SP1ProvingKey,
     stdin: SP1Stdin,
 }
 
-impl<'a> SimpleProve<'a> {
+impl<'a> EnvProve<'a> {
     fn new(
         prover: &'a dyn Prover<DefaultProverComponents>,
         pk: &'a SP1ProvingKey,

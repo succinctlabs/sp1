@@ -6,7 +6,7 @@ mod local;
 #[cfg(feature = "cuda")]
 pub use cuda::CudaProver;
 pub use env::EnvProver;
-pub use local::LocalProver;
+pub use local::CpuProver;
 
 use itertools::Itertools;
 use p3_field::PrimeField32;

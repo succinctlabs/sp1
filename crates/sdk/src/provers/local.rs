@@ -22,19 +22,19 @@ use super::verify_proof;
 use super::{ProverType, SP1VerificationError};
 
 /// An implementation of [crate::Prover] that can generate end-to-end proofs locally.
-pub struct LocalProver {
+pub struct CpuProver {
     prover: SP1Prover<DefaultProverComponents>,
     mock: bool,
 }
 
-impl LocalProver {
-    /// Creates a new [LocalProver].
+impl CpuProver {
+    /// Creates a new [CpuProver].
     pub fn new(mock: bool) -> Self {
         let prover = SP1Prover::new();
         Self { prover, mock }
     }
 
-    /// Creates a new [LocalProver] from an existing [SP1Prover].
+    /// Creates a new [CpuProver] from an existing [SP1Prover].
     pub fn from_prover(prover: SP1Prover<DefaultProverComponents>) -> Self {
         Self { prover, mock: false }
     }
@@ -124,15 +124,10 @@ impl LocalProver {
         unreachable!()
     }
 
-    pub fn prove<'a>(
-        &'a self,
-        pk: &'a SP1ProvingKey,
-        stdin: SP1Stdin,
-        kind: SP1ProofKind,
-    ) -> CpuProve<'a> {
+    pub fn prove<'a>(&'a self, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> CpuProve<'a> {
         CpuProve {
             prover: self,
-            kind,
+            kind: SP1ProofKind::Core,
             pk,
             stdin,
             context_builder: Default::default(),
@@ -256,7 +251,7 @@ impl LocalProver {
     }
 }
 
-impl Prover<DefaultProverComponents> for LocalProver {
+impl Prover<DefaultProverComponents> for CpuProver {
     fn id(&self) -> ProverType {
         ProverType::Cpu
     }
@@ -291,7 +286,7 @@ impl Prover<DefaultProverComponents> for LocalProver {
     }
 }
 
-impl Default for LocalProver {
+impl Default for CpuProver {
     fn default() -> Self {
         Self::new(false)
     }
@@ -300,7 +295,7 @@ impl Default for LocalProver {
 /// Builder to prepare and configure proving execution of a program on an input.
 /// May be run with [Self::run].
 pub struct CpuProve<'a> {
-    prover: &'a LocalProver,
+    prover: &'a CpuProver,
     kind: SP1ProofKind,
     context_builder: SP1ContextBuilder<'a>,
     pk: &'a SP1ProvingKey,
