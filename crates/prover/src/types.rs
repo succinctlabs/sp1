@@ -1,4 +1,4 @@
-use std::{fs::File, path::Path, str::FromStr};
+use std::{fs::File, path::Path};
 
 use anyhow::Result;
 use clap::ValueEnum;
@@ -207,20 +207,6 @@ pub enum ProverMode {
     Network,
     #[value(skip)]
     Mock,
-}
-
-impl FromStr for ProverMode {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "cpu" => Ok(Self::Cpu),
-            "cuda" => Ok(Self::Cuda),
-            "network" => Ok(Self::Network),
-            "mock" => Ok(Self::Mock),
-            _ => Err(anyhow::anyhow!("invalid prover mode")),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
