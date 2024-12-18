@@ -197,7 +197,7 @@ impl Profiler {
     }
 
     /// Simple check to makes sure we have valid main function that lasts
-    /// for most of the exeuction time.
+    /// for most of the execution time.
     fn check_samples(&self) {
         let Some(main_idx) = self.main_idx else {
             eprintln!("Warning: The `main` function is not present in the Elf file, this is likely caused by using the wrong Elf file");
