@@ -44,3 +44,6 @@ crates/prover/vk
 
 # Example legacy elf
 examples/elf 
+
+# C++
+.vscode/c_cpp_properties.json
