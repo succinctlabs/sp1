@@ -2170,6 +2170,7 @@ pub const fn align(addr: u32) -> u32 {
 mod tests {
 
     use sp1_stark::SP1CoreOpts;
+    use sp1_zkvm::syscalls::SHA_COMPRESS;
 
     use crate::programs::tests::{
         fibonacci_program, panic_program, secp256r1_add_program, secp256r1_double_program,
@@ -2820,6 +2821,21 @@ mod tests {
         let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 20, false, true),
             Instruction::new(Opcode::LW, 29, 29, 0, false, true),
+        ];
+
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Executor::new(program, SP1CoreOpts::default());
+        runtime.run().unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_invalid_address_syscall() {
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 5, 0, SHA_COMPRESS, false, true),
+            Instruction::new(Opcode::ADD, 10, 0, 10, false, true),
+            Instruction::new(Opcode::ADD, 11, 10, 20, false, true),
+            Instruction::new(Opcode::ECALL, 5, 10, 11, false, false),
         ];
 
         let program = Program::new(instructions, 0, 0);
