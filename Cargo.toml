@@ -67,10 +67,7 @@ sp1-sdk = { path = "crates/sdk", version = "4.0.0-rc.3" }
 sp1-cuda = { path = "crates/cuda", version = "4.0.0-rc.3" }
 sp1-stark = { path = "crates/stark", version = "4.0.0-rc.3" }
 sp1-lib = { path = "crates/zkvm/lib", version = "4.0.0-rc.3", default-features = false }
-
-# NOTE: The version in this crate is manually set to 3.0.1 right now. When upgrading SP1 versions,
-# make sure to update this crate.
-sp1-zkvm = { path = "crates/zkvm/entrypoint", version = "3.0.1", default-features = false }
+sp1-zkvm = { path = "crates/zkvm/entrypoint", version = "4.0.0-rc.3", default-features = false }
 
 # For testing.
 test-artifacts = { path = "crates/test-artifacts", version = "4.0.0-rc.3" }
