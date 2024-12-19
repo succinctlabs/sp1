@@ -11,7 +11,7 @@ use crate::network::builder::NetworkProverBuilder;
 pub struct ProverClient;
 
 impl ProverClient {
-    /// Creates a new [EnvProver] from the environment.
+    /// Creates a new [`EnvProver`] from the environment.
     ///
     /// # Example
     /// ```no_run
@@ -24,11 +24,11 @@ impl ProverClient {
     /// ```
     #[deprecated(since = "4.0.0", note = "use `ProverClient::from_env()` instead")]
     #[allow(clippy::new_ret_no_self)]
-    pub fn new() -> EnvProver {
+    #[must_use] pub fn new() -> EnvProver {
         Self::from_env()
     }
 
-    /// Builds an [EnvProver], which loads the mode and any settings from the environment.
+    /// Builds an [`EnvProver`], which loads the mode and any settings from the environment.
     ///
     /// # Usage
     /// ```no_run
@@ -40,12 +40,12 @@ impl ProverClient {
     /// let (pk, vk) = prover.setup(elf);
     /// let proof = prover.prove(&pk, stdin).compressed().run().unwrap();
     /// ```
-    pub fn from_env() -> EnvProver {
+    #[must_use] pub fn from_env() -> EnvProver {
         EnvProver::new()
     }
 
-    /// Creates a new [ProverClientBuilder] so that you can configure the prover client.
-    pub fn builder() -> ProverClientBuilder {
+    /// Creates a new [`ProverClientBuilder`] so that you can configure the prover client.
+    #[must_use] pub fn builder() -> ProverClientBuilder {
         ProverClientBuilder
     }
 }
@@ -54,7 +54,7 @@ impl ProverClient {
 pub struct ProverClientBuilder;
 
 impl ProverClientBuilder {
-    /// Builds a [CpuProver] specifically for mock proving.
+    /// Builds a [`CpuProver`] specifically for mock proving.
     ///
     /// # Example
     /// ```no_run
@@ -64,11 +64,11 @@ impl ProverClientBuilder {
     /// let (pk, vk) = prover.setup(elf);
     /// let proof = prover.prove(&pk, stdin).compressed().run().unwrap();
     /// ```
-    pub fn mock(&self) -> CpuProverBuilder {
+    #[must_use] pub fn mock(&self) -> CpuProverBuilder {
         CpuProverBuilder { mock: true }
     }
 
-    /// Builds a [CpuProver] specifically for local CPU proving.
+    /// Builds a [`CpuProver`] specifically for local CPU proving.
     ///
     /// # Usage
     /// ```no_run
@@ -78,11 +78,11 @@ impl ProverClientBuilder {
     /// let (pk, vk) = prover.setup(elf);
     /// let proof = prover.prove(&pk, stdin).compressed().run().unwrap();
     /// ```
-    pub fn cpu(&self) -> CpuProverBuilder {
+    #[must_use] pub fn cpu(&self) -> CpuProverBuilder {
         CpuProverBuilder { mock: false }
     }
 
-    /// Builds a [CudaProver] specifically for local proving on NVIDIA GPUs.
+    /// Builds a [`CudaProver`] specifically for local proving on NVIDIA GPUs.
     ///
     /// # Example
     /// ```no_run
@@ -92,11 +92,11 @@ impl ProverClientBuilder {
     /// let (pk, vk) = prover.setup(elf);
     /// let proof = prover.prove(&pk, stdin).compressed().run().unwrap();
     /// ```
-    pub fn cuda(&self) -> CudaProverBuilder {
+    #[must_use] pub fn cuda(&self) -> CudaProverBuilder {
         CudaProverBuilder
     }
 
-    /// Builds a [NetworkProver] specifically for proving on the network.
+    /// Builds a [`NetworkProver`] specifically for proving on the network.
     ///
     /// # Example
     /// ```no_run
@@ -107,7 +107,7 @@ impl ProverClientBuilder {
     /// let proof = prover.prove(&pk, stdin).compressed().run().unwrap();
     /// ```
     #[cfg(feature = "network")]
-    pub fn network(&self) -> NetworkProverBuilder {
+    #[must_use] pub fn network(&self) -> NetworkProverBuilder {
         NetworkProverBuilder { private_key: None, rpc_url: None }
     }
 }

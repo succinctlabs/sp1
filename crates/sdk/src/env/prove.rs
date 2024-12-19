@@ -5,7 +5,7 @@ use sp1_prover::{components::CpuProverComponents, SP1ProvingKey};
 use crate::{Prover, SP1ProofMode, SP1ProofWithPublicValues};
 
 /// Builder to prepare and configure proving execution of a program on an input.
-/// May be run with [Self::run].
+/// May be run with [`Self::run`].
 pub struct EnvProveBuilder<'a> {
     pub(crate) prover: &'a dyn Prover<CpuProverComponents>,
     pub(crate) mode: SP1ProofMode,
@@ -14,7 +14,7 @@ pub struct EnvProveBuilder<'a> {
 }
 
 impl<'a> EnvProveBuilder<'a> {
-    /// Set the proof kind to [SP1ProofMode::Core] mode.
+    /// Set the proof kind to [`SP1ProofMode::Core`] mode.
     ///
     /// # Details
     /// This is the default mode for the prover. The proofs grow linearly in size with the number
@@ -32,11 +32,11 @@ impl<'a> EnvProveBuilder<'a> {
         self
     }
 
-    /// Set the proof kind to [SP1ProofMode::Compressed] mode.
+    /// Set the proof kind to [`SP1ProofMode::Compressed`] mode.
     ///
     /// # Details
     /// This mode produces a proof that is of constant size, regardless of the number of cycles. It
-    /// takes longer to prove than [SP1ProofMode::Core] due to the need to recursively aggregate
+    /// takes longer to prove than [`SP1ProofMode::Core`] due to the need to recursively aggregate
     /// proofs into a single proof.
     ///
     /// # Example
@@ -51,12 +51,12 @@ impl<'a> EnvProveBuilder<'a> {
         self
     }
 
-    /// Set the proof mode to [SP1ProofMode::Plonk] mode.
+    /// Set the proof mode to [`SP1ProofMode::Plonk`] mode.
     ///
     /// # Details
     /// This mode produces a const size PLONK proof that can be verified on chain for roughly ~300k
     /// gas. This mode is useful for producing a maximally small proof that can be verified on
-    /// chain. For more efficient SNARK wrapping, you can use the [SP1ProofMode::Groth16] mode but
+    /// chain. For more efficient SNARK wrapping, you can use the [`SP1ProofMode::Groth16`] mode but
     /// this mode is more .
     ///
     /// # Example
@@ -71,7 +71,7 @@ impl<'a> EnvProveBuilder<'a> {
         self
     }
 
-    /// Set the proof mode to [SP1ProofMode::Groth16] mode.
+    /// Set the proof mode to [`SP1ProofMode::Groth16`] mode.
     ///
     /// # Details
     /// This mode produces a Groth16 proof that can be verified on chain for roughly ~100k gas. This
@@ -89,7 +89,7 @@ impl<'a> EnvProveBuilder<'a> {
         self
     }
 
-    /// Set the proof mode to the given [SP1ProofMode].
+    /// Set the proof mode to the given [`SP1ProofMode`].
     ///
     /// # Details
     /// This method is useful for setting the proof mode to a custom mode.

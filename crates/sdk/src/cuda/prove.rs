@@ -12,7 +12,7 @@ use crate::{Prover, SP1ProofMode, SP1ProofWithPublicValues};
 /// A builder for proving a program on the CUDA.
 ///
 /// This builder provides a typed interface for configuring the SP1 RISC-V prover. The builder is
-/// used for only the [crate::cuda::CudaProver] client type.
+/// used for only the [`crate::cuda::CudaProver`] client type.
 pub struct CudaProveBuilder<'a> {
     pub(crate) prover: &'a CudaProver,
     pub(crate) mode: SP1ProofMode,
@@ -21,7 +21,7 @@ pub struct CudaProveBuilder<'a> {
 }
 
 impl<'a> CudaProveBuilder<'a> {
-    /// Set the proof kind to [SP1ProofMode::Core] mode.
+    /// Set the proof kind to [`SP1ProofMode::Core`] mode.
     ///
     /// # Details
     /// This is the default mode for the prover. The proofs grow linearly in size with the number
@@ -34,16 +34,16 @@ impl<'a> CudaProveBuilder<'a> {
     ///     .core()
     ///     .run();
     /// ```
-    pub fn core(mut self) -> Self {
+    #[must_use] pub fn core(mut self) -> Self {
         self.mode = SP1ProofMode::Core;
         self
     }
 
-    /// Set the proof kind to [SP1ProofMode::Compressed] mode.
+    /// Set the proof kind to [`SP1ProofMode::Compressed`] mode.
     ///
     /// # Details
     /// This mode produces a proof that is of constant size, regardless of the number of cycles. It
-    /// takes longer to prove than [SP1ProofMode::Core] due to the need to recursively aggregate
+    /// takes longer to prove than [`SP1ProofMode::Core`] due to the need to recursively aggregate
     /// proofs into a single proof.
     ///
     /// # Example
@@ -53,17 +53,17 @@ impl<'a> CudaProveBuilder<'a> {
     ///     .compressed()
     ///     .run();
     /// ```
-    pub fn compressed(mut self) -> Self {
+    #[must_use] pub fn compressed(mut self) -> Self {
         self.mode = SP1ProofMode::Compressed;
         self
     }
 
-    /// Set the proof mode to [SP1ProofMode::Plonk] mode.
+    /// Set the proof mode to [`SP1ProofMode::Plonk`] mode.
     ///
     /// # Details
     /// This mode produces a const size PLONK proof that can be verified on chain for roughly ~300k
     /// gas. This mode is useful for producing a maximally small proof that can be verified on
-    /// chain. For more efficient SNARK wrapping, you can use the [SP1ProofMode::Groth16] mode but
+    /// chain. For more efficient SNARK wrapping, you can use the [`SP1ProofMode::Groth16`] mode but
     /// this mode is more .
     ///
     /// # Example
@@ -73,12 +73,12 @@ impl<'a> CudaProveBuilder<'a> {
     ///     .plonk()
     ///     .run();
     /// ```
-    pub fn plonk(mut self) -> Self {
+    #[must_use] pub fn plonk(mut self) -> Self {
         self.mode = SP1ProofMode::Plonk;
         self
     }
 
-    /// Set the proof mode to [SP1ProofMode::Groth16] mode.
+    /// Set the proof mode to [`SP1ProofMode::Groth16`] mode.
     ///
     /// # Details
     /// This mode produces a Groth16 proof that can be verified on chain for roughly ~100k gas. This
@@ -91,12 +91,12 @@ impl<'a> CudaProveBuilder<'a> {
     ///     .groth16()
     ///     .run();
     /// ```
-    pub fn groth16(mut self) -> Self {
+    #[must_use] pub fn groth16(mut self) -> Self {
         self.mode = SP1ProofMode::Groth16;
         self
     }
 
-    /// Set the proof mode to the given [SP1ProofMode].
+    /// Set the proof mode to the given [`SP1ProofMode`].
     ///
     /// # Details
     /// This method is useful for setting the proof mode to a custom mode.
@@ -108,7 +108,7 @@ impl<'a> CudaProveBuilder<'a> {
     ///     .mode(SP1ProofMode::Groth16)
     ///     .run();
     /// ```
-    pub fn mode(mut self, mode: SP1ProofMode) -> Self {
+    #[must_use] pub fn mode(mut self, mode: SP1ProofMode) -> Self {
         self.mode = mode;
         self
     }

@@ -38,7 +38,7 @@ pub struct NetworkClient {
 }
 
 impl NetworkClient {
-    /// Creates a new [NetworkClient] with the given private key and rpc url.
+    /// Creates a new [`NetworkClient`] with the given private key and rpc url.
     ///
     /// # Example
     /// ```rust,no_run
@@ -95,17 +95,14 @@ impl NetworkClient {
         let vk_hash = Self::get_vk_hash(vk)?;
 
         // Try to get the existing program.
-        match self.get_program(&vk_hash).await? {
-            Some(_) => {
-                // The program already exists.
-                Ok(vk_hash)
-            }
-            None => {
-                // The program doesn't exist, create it.
-                self.create_program(&vk_hash, vk, elf).await?;
-                log::info!("Registered program 0x{}", hex::encode(vk_hash.clone()));
-                Ok(vk_hash)
-            }
+        if (self.get_program(&vk_hash).await?).is_some() {
+            // The program already exists.
+            Ok(vk_hash)
+        } else {
+            // The program doesn't exist, create it.
+            self.create_program(&vk_hash, vk, elf).await?;
+            log::info!("Registered program 0x{}", hex::encode(vk_hash.clone()));
+            Ok(vk_hash)
         }
     }
 
@@ -211,9 +208,9 @@ impl NetworkClient {
     /// # Details
     /// * `vk_hash`: The verifying key hash of the program to prove. Used to identify the program.
     /// * `stdin`: The standard input to provide to the program.
-    /// * `mode`: The [ProofMode] to use.
+    /// * `mode`: The [`ProofMode`] to use.
     /// * `version`: The version of the SP1 circuits to use.
-    /// * `strategy`: The [FulfillmentStrategy] to use.
+    /// * `strategy`: The [`FulfillmentStrategy`] to use.
     /// * `timeout_secs`: The timeout for the proof request in seconds.
     /// * `cycle_limit`: The cycle limit for the proof request.
     ///
@@ -247,7 +244,7 @@ impl NetworkClient {
         let nonce = self.get_nonce().await?;
         let request_body = RequestProofRequestBody {
             nonce,
-            version: format!("sp1-{}", version),
+            version: format!("sp1-{version}"),
             vk_hash: vk_hash.to_vec(),
             mode: mode.into(),
             strategy: strategy.into(),

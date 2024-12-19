@@ -18,7 +18,7 @@ pub struct CreateArtifactResponse {
 pub mod artifact_store_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
     use tonic::codegen::http::Uri;
-    use tonic::codegen::*;
+    use tonic::codegen::{Body, Bytes, CompressionEncoding, GrpcMethod, InterceptedService, StdError, http};
     #[derive(Debug, Clone)]
     pub struct ArtifactStoreClient<T> {
         inner: tonic::client::Grpc<T>,
@@ -123,7 +123,7 @@ pub mod artifact_store_client {
 /// Generated server implementations.
 pub mod artifact_store_server {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
-    use tonic::codegen::*;
+    use tonic::codegen::{Arc, Body, BoxFuture, CompressionEncoding, Context, EnabledCompressionEncodings, InterceptedService, Poll, StdError, async_trait, empty_body, http};
     /// Generated trait containing gRPC methods that should be implemented for use with ArtifactStoreServer.
     #[async_trait]
     pub trait ArtifactStore: std::marker::Send + std::marker::Sync + 'static {

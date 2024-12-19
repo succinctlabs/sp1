@@ -7,6 +7,8 @@ pub mod prover;
 mod sign_message;
 #[rustfmt::skip]
 #[allow(missing_docs)]
+#[allow(clippy::default_trait_access)]
+#[allow(clippy::too_many_lines)]
 pub mod proto;
 pub mod builder;
 pub mod prove;

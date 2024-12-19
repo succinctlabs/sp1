@@ -26,7 +26,7 @@ pub struct NetworkProveBuilder<'a> {
 }
 
 impl<'a> NetworkProveBuilder<'a> {
-    /// Set the proof kind to [SP1ProofMode::Core] mode.
+    /// Set the proof kind to [`SP1ProofMode::Core`] mode.
     ///
     /// # Details
     /// This is the default mode for the prover. The proofs grow linearly in size with the number
@@ -39,16 +39,16 @@ impl<'a> NetworkProveBuilder<'a> {
     ///     .core()
     ///     .run();
     /// ```
-    pub fn core(mut self) -> Self {
+    #[must_use] pub fn core(mut self) -> Self {
         self.mode = SP1ProofMode::Core;
         self
     }
 
-    /// Set the proof kind to [SP1ProofMode::Compressed] mode.
+    /// Set the proof kind to [`SP1ProofMode::Compressed`] mode.
     ///
     /// # Details
     /// This mode produces a proof that is of constant size, regardless of the number of cycles. It
-    /// takes longer to prove than [SP1ProofMode::Core] due to the need to recursively aggregate
+    /// takes longer to prove than [`SP1ProofMode::Core`] due to the need to recursively aggregate
     /// proofs into a single proof.
     ///
     /// # Example
@@ -58,17 +58,17 @@ impl<'a> NetworkProveBuilder<'a> {
     ///     .compressed()
     ///     .run();
     /// ```
-    pub fn compressed(mut self) -> Self {
+    #[must_use] pub fn compressed(mut self) -> Self {
         self.mode = SP1ProofMode::Compressed;
         self
     }
 
-    /// Set the proof mode to [SP1ProofMode::Plonk] mode.
+    /// Set the proof mode to [`SP1ProofMode::Plonk`] mode.
     ///
     /// # Details
     /// This mode produces a const size PLONK proof that can be verified on chain for roughly ~300k
     /// gas. This mode is useful for producing a maximally small proof that can be verified on
-    /// chain. For more efficient SNARK wrapping, you can use the [SP1ProofMode::Groth16] mode but
+    /// chain. For more efficient SNARK wrapping, you can use the [`SP1ProofMode::Groth16`] mode but
     /// this mode is more .
     ///
     /// # Example
@@ -78,12 +78,12 @@ impl<'a> NetworkProveBuilder<'a> {
     ///     .plonk()
     ///     .run();
     /// ```
-    pub fn plonk(mut self) -> Self {
+    #[must_use] pub fn plonk(mut self) -> Self {
         self.mode = SP1ProofMode::Plonk;
         self
     }
 
-    /// Set the proof mode to [SP1ProofMode::Groth16] mode.
+    /// Set the proof mode to [`SP1ProofMode::Groth16`] mode.
     ///
     /// # Details
     /// This mode produces a Groth16 proof that can be verified on chain for roughly ~100k gas. This
@@ -96,12 +96,12 @@ impl<'a> NetworkProveBuilder<'a> {
     ///     .groth16()
     ///     .run();
     /// ```
-    pub fn groth16(mut self) -> Self {
+    #[must_use] pub fn groth16(mut self) -> Self {
         self.mode = SP1ProofMode::Groth16;
         self
     }
 
-    /// Set the proof mode to the given [SP1ProofMode].
+    /// Set the proof mode to the given [`SP1ProofMode`].
     ///
     /// # Details
     /// This method is useful for setting the proof mode to a custom mode.
@@ -113,7 +113,7 @@ impl<'a> NetworkProveBuilder<'a> {
     ///     .mode(SP1ProofMode::Groth16)
     ///     .run();
     /// ```
-    pub fn mode(mut self, mode: SP1ProofMode) -> Self {
+    #[must_use] pub fn mode(mut self, mode: SP1ProofMode) -> Self {
         self.mode = mode;
         self
     }
@@ -122,7 +122,7 @@ impl<'a> NetworkProveBuilder<'a> {
     ///
     /// # Details
     /// This method sets the timeout for the proof's generation. If the proof is not generated
-    /// within the timeout, the [NetworkProveBuilder::run] will return an error.
+    /// within the timeout, the [`NetworkProveBuilder::run`] will return an error.
     ///
     /// # Example
     /// ```rust,no_run
@@ -131,7 +131,7 @@ impl<'a> NetworkProveBuilder<'a> {
     ///     .timeout(Duration::from_secs(60))
     ///     .run();
     /// ```
-    pub fn timeout(mut self, timeout: Duration) -> Self {
+    #[must_use] pub fn timeout(mut self, timeout: Duration) -> Self {
         self.timeout = Some(timeout);
         self
     }
@@ -151,7 +151,7 @@ impl<'a> NetworkProveBuilder<'a> {
     ///     .skip_simulation(true)
     ///     .run();
     /// ```
-    pub fn skip_simulation(mut self, skip_simulation: bool) -> Self {
+    #[must_use] pub fn skip_simulation(mut self, skip_simulation: bool) -> Self {
         self.skip_simulation = skip_simulation;
         self
     }
@@ -167,7 +167,7 @@ impl<'a> NetworkProveBuilder<'a> {
     ///     .strategy(FulfillmentStrategy::Hosted)
     ///     .build();
     /// ```
-    pub fn strategy(mut self, strategy: FulfillmentStrategy) -> Self {
+    #[must_use] pub fn strategy(mut self, strategy: FulfillmentStrategy) -> Self {
         self.strategy = strategy;
         self
     }
@@ -198,7 +198,7 @@ impl<'a> NetworkProveBuilder<'a> {
 
         sp1_dump(&pk.elf, &stdin);
 
-        block_on(prover.prove_impl(pk, &stdin, mode.into(), strategy, timeout, skip_simulation))
+        block_on(prover.prove_impl(pk, &stdin, mode, strategy, timeout, skip_simulation))
     }
 
     /// Run the prover with the built arguments asynchronously.
@@ -227,6 +227,6 @@ impl<'a> NetworkProveBuilder<'a> {
 
         sp1_dump(&pk.elf, &stdin);
 
-        prover.prove_impl(pk, &stdin, mode.into(), strategy, timeout, skip_simulation).await
+        prover.prove_impl(pk, &stdin, mode, strategy, timeout, skip_simulation).await
     }
 }

@@ -10,7 +10,7 @@ use anyhow::Result;
 use execute::CpuExecuteBuilder;
 use hashbrown::HashMap;
 use p3_baby_bear::BabyBear;
-use p3_field::{AbstractField, PrimeField};
+use p3_field::{extension::BinomialExtensionField, AbstractField, PrimeField};
 use p3_fri::{FriProof, TwoAdicFriPcsProof};
 use prove::CpuProveBuilder;
 use sp1_core_executor::{SP1Context, SP1ContextBuilder, SP1ReduceProof};
@@ -40,11 +40,13 @@ pub struct CpuProver {
 
 impl CpuProver {
     /// Creates a new [`CpuProver`].
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Creates a new [`CpuProver`] in mock mode.
+    #[must_use]
     pub fn mock() -> Self {
         Self { prover: SP1Prover::new(), mock: true }
     }
@@ -52,7 +54,7 @@ impl CpuProver {
     /// Creates a new [`CpuExecuteBuilder`] for simulating the execution of a program on the CPU.
     ///
     /// # Details
-    /// The builder is used for both the [crate::cpu::CpuProver] and [crate::CudaProver] client
+    /// The builder is used for both the [`crate::cpu::CpuProver`] and [`crate::CudaProver`] client
     /// types.
     ///
     /// # Example
@@ -74,7 +76,7 @@ impl CpuProver {
     /// Creates a new [`CpuProveBuilder`] for proving a program on the CPU.
     ///
     /// # Details
-    /// The builder is used for only the [crate::cpu::CpuProver] client type.
+    /// The builder is used for only the [`crate::cpu::CpuProver`] client type.
     ///
     /// # Example
     /// ```rust,no_run
@@ -178,6 +180,7 @@ impl CpuProver {
         }
     }
 
+    #[allow(clippy::needless_pass_by_value)]
     pub(crate) fn mock_prove_impl(
         &self,
         pk: &SP1ProvingKey,
@@ -209,7 +212,7 @@ impl CpuProver {
                         fri_proof: FriProof {
                             commit_phase_commits: vec![],
                             query_proofs: vec![],
-                            final_poly: Default::default(),
+                            final_poly: BinomialExtensionField::default(),
                             pow_witness: BabyBear::zero(),
                         },
                         query_openings: vec![],
@@ -244,8 +247,8 @@ impl CpuProver {
                             pk.vk.hash_bn254().as_canonical_biguint().to_string(),
                             public_values.hash_bn254().to_string(),
                         ],
-                        encoded_proof: "".to_string(),
-                        raw_proof: "".to_string(),
+                        encoded_proof: String::new(),
+                        raw_proof: String::new(),
                         plonk_vkey_hash: [0; 32],
                     }),
                     public_values,
@@ -260,8 +263,8 @@ impl CpuProver {
                             pk.vk.hash_bn254().as_canonical_biguint().to_string(),
                             public_values.hash_bn254().to_string(),
                         ],
-                        encoded_proof: "".to_string(),
-                        raw_proof: "".to_string(),
+                        encoded_proof: String::new(),
+                        raw_proof: String::new(),
                         groth16_vkey_hash: [0; 32],
                     }),
                     public_values,
@@ -304,7 +307,7 @@ impl Prover<CpuProverComponents> for CpuProver {
         stdin: &SP1Stdin,
         mode: SP1ProofMode,
     ) -> Result<SP1ProofWithPublicValues> {
-        self.prove_impl(pk, stdin, Default::default(), SP1Context::default(), mode)
+        self.prove_impl(pk, stdin, SP1ProverOpts::default(), SP1Context::default(), mode)
     }
 
     fn verify(

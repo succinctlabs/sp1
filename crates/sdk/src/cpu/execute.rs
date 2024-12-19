@@ -11,7 +11,7 @@ use sp1_prover::{components::CpuProverComponents, SP1Prover};
 /// A builder for simulating the execution of a program on the CPU.
 ///
 /// This builder providers a typed interface for configuring the SP1 RISC-V executor. The builder
-/// is used for all the different variants of the [crate::ProverClient].
+/// is used for all the different variants of the [`crate::ProverClient`].
 pub struct CpuExecuteBuilder<'a> {
     pub(crate) elf: &'a [u8],
     pub(crate) stdin: SP1Stdin,
@@ -20,7 +20,7 @@ pub struct CpuExecuteBuilder<'a> {
 }
 
 impl<'a> CpuExecuteBuilder<'a> {
-    /// Add a executor [sp1_core_executor::Hook] into the context.
+    /// Add a executor [`sp1_core_executor::Hook`] into the context.
     ///
     /// # Arguments
     /// * `fd` - The file descriptor that triggers this execution hook.
@@ -41,6 +41,7 @@ impl<'a> CpuExecuteBuilder<'a> {
     ///     })
     ///     .run();
     /// ```
+    #[must_use]
     pub fn with_hook(
         mut self,
         fd: u32,
@@ -67,6 +68,7 @@ impl<'a> CpuExecuteBuilder<'a> {
     ///     .cycle_limit(1000000)
     ///     .run();
     /// ```
+    #[must_use]
     pub fn cycle_limit(mut self, max_cycles: u64) -> Self {
         self.context_builder.max_cycles(max_cycles);
         self
@@ -89,6 +91,7 @@ impl<'a> CpuExecuteBuilder<'a> {
     ///     .deferred_proof_verification(false)
     ///     .run();
     /// ```
+    #[must_use]
     pub fn deferred_proof_verification(mut self, value: bool) -> Self {
         self.context_builder.set_skip_deferred_proof_verification(!value);
         self

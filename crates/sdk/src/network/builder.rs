@@ -1,12 +1,13 @@
 //! # Network Prover Builder
 //!
-//! This module provides a builder for the [NetworkProver].
+//! This module provides a builder for the [`NetworkProver`].
 
 use crate::NetworkProver;
 
-/// A builder for the [NetworkProver].
+/// A builder for the [`NetworkProver`].
 ///
-/// The builder is used to configure the [NetworkProver] before it is built.
+/// The builder is used to configure the [`NetworkProver`] before it is built.
+#[derive(Default)]
 pub struct NetworkProverBuilder {
     pub(crate) private_key: Option<String>,
     pub(crate) rpc_url: Option<String>,
@@ -25,7 +26,7 @@ impl NetworkProverBuilder {
     ///     .private_key("...")
     ///     .build();
     /// ```
-    pub fn private_key(mut self, private_key: String) -> Self {
+    #[must_use] pub fn private_key(mut self, private_key: String) -> Self {
         self.private_key = Some(private_key);
         self
     }
@@ -43,15 +44,15 @@ impl NetworkProverBuilder {
     ///     .rpc_url("...")
     ///     .build();
     /// ```
-    pub fn rpc_url(mut self, rpc_url: String) -> Self {
+    #[must_use] pub fn rpc_url(mut self, rpc_url: String) -> Self {
         self.rpc_url = Some(rpc_url);
         self
     }
 
-    /// Builds a [NetworkProver].
+    /// Builds a [`NetworkProver`].
     ///
     /// # Details
-    /// This method will build a [NetworkProver] with the given parameters. If the private key is
+    /// This method will build a [`NetworkProver`] with the given parameters. If the private key is
     /// not provided, the method will look for the `NETWORK_PRIVATE_KEY` environment variable.
     ///
     /// # Example
@@ -62,7 +63,7 @@ impl NetworkProverBuilder {
     ///     .rpc_url("...")
     ///     .build();
     /// ```
-    pub fn build(self) -> NetworkProver {
+    #[must_use] pub fn build(self) -> NetworkProver {
         let private_key = match self.private_key {
             Some(private_key) => private_key,
             None => std::env::var("NETWORK_PRIVATE_KEY").expect(
@@ -83,8 +84,3 @@ impl NetworkProverBuilder {
     }
 }
 
-impl Default for NetworkProverBuilder {
-    fn default() -> Self {
-        Self { private_key: None, rpc_url: None }
-    }
-}

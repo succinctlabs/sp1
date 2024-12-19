@@ -23,7 +23,7 @@ use crate::{SP1ProofMode, SP1ProofWithPublicValues};
 /// A prover that can execute programs and generate proofs with a different implementation based on
 /// the value of certain environment variables.
 ///
-/// The environment variables are described in [EnvProver::new].
+/// The environment variables are described in [`EnvProver::new`].
 pub struct EnvProver {
     pub(crate) prover: Box<dyn Prover<CpuProverComponents>>,
 }
@@ -35,13 +35,13 @@ impl EnvProver {
     /// - `SP1_PROVER`: The type of prover to use. Must be one of `mock`, `local`, `cuda`, or `network`.
     /// - `NETWORK_PRIVATE_KEY`: The private key to use for the network prover.
     /// - `NETWORK_RPC_URL`: The RPC URL to use for the network prover.
+    #[must_use]
     pub fn new() -> Self {
-        let mode = match env::var("SP1_PROVER") {
-            Ok(mode) => mode,
-            Err(_) => {
-                log::warn!("SP1_PROVER environment variable not set, defaulting to 'cpu'");
-                "cpu".to_string()
-            }
+        let mode = if let Ok(mode) = env::var("SP1_PROVER") {
+            mode
+        } else {
+            log::warn!("SP1_PROVER environment variable not set, defaulting to 'cpu'");
+            "cpu".to_string()
         };
 
         let prover: Box<dyn Prover<CpuProverComponents>> = match mode.as_str() {
@@ -72,9 +72,8 @@ impl EnvProver {
                 }
             }
             _ => panic!(
-                "Invalid SP1_PROVER value. Expected one of: mock, cpu, cuda, or network. Got: '{}'.\n\
-                Please set the SP1_PROVER environment variable to one of the supported values.",
-                mode
+                "Invalid SP1_PROVER value. Expected one of: mock, cpu, cuda, or network. Got: '{mode}'.\n\
+                Please set the SP1_PROVER environment variable to one of the supported values."
             ),
         };
         EnvProver { prover }
@@ -83,7 +82,7 @@ impl EnvProver {
     /// Creates a new [`CpuExecuteBuilder`] for simulating the execution of a program on the CPU.
     ///
     /// # Details
-    /// The builder is used for both the [crate::cpu::CpuProver] and [crate::CudaProver] client
+    /// The builder is used for both the [`crate::cpu::CpuProver`] and [`crate::CudaProver`] client
     /// types.
     ///
     /// # Example
@@ -93,19 +92,20 @@ impl EnvProver {
     ///     .run()
     ///     .unwrap();
     /// ```
+    #[must_use]
     pub fn execute<'a>(&'a self, elf: &'a [u8], stdin: SP1Stdin) -> CpuExecuteBuilder<'a> {
         CpuExecuteBuilder {
-            prover: &self.prover.inner(),
+            prover: self.prover.inner(),
             elf,
-            stdin: stdin.clone(),
+            stdin,
             context_builder: SP1ContextBuilder::default(),
         }
     }
 
-    /// Creates a new [EnvProve] for proving a program on the CPU.
+    /// Creates a new [`EnvProve`] for proving a program on the CPU.
     ///
     /// # Details
-    /// The builder is used for only the [crate::cpu::CpuProver] client type.
+    /// The builder is used for only the [`crate::cpu::CpuProver`] client type.
     ///
     /// # Example
     /// ```rust,no_run
@@ -114,12 +114,13 @@ impl EnvProver {
     ///     .core()
     ///     .run();
     /// ```
+    #[must_use]
     pub fn prove<'a>(&'a self, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> EnvProveBuilder<'a> {
         EnvProveBuilder { prover: self.prover.as_ref(), mode: SP1ProofMode::Core, pk, stdin }
     }
 
     /// Verifies that the given proof is valid and matches the given verification key produced by
-    /// [Self::setup].
+    /// [`Self::setup`].
     ///
     /// ### Examples
     /// ```no_run
@@ -143,6 +144,7 @@ impl EnvProver {
 
     /// Setup a program to be proven and verified by the SP1 RISC-V zkVM by computing the proving
     /// and verifying keys.
+    #[must_use]
     pub fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
         self.prover.setup(elf)
     }

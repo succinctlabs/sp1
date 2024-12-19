@@ -1120,19 +1120,19 @@ pub enum MessageFormat {
     Json = 2,
 }
 impl MessageFormat {
-    /// String value of the enum field names used in the ProtoBuf definition.
+    /// String value of the enum field names used in the `ProtoBuf` definition.
     ///
     /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
+    /// (if the `ProtoBuf` definition does not change) and safe for programmatic use.
+    #[must_use] pub fn as_str_name(&self) -> &'static str {
         match self {
             Self::UnspecifiedMessageFormat => "UNSPECIFIED_MESSAGE_FORMAT",
             Self::Binary => "BINARY",
             Self::Json => "JSON",
         }
     }
-    /// Creates an enum from field names used in the ProtoBuf definition.
-    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+    /// Creates an enum from field names used in the `ProtoBuf` definition.
+    #[must_use] pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "UNSPECIFIED_MESSAGE_FORMAT" => Some(Self::UnspecifiedMessageFormat),
             "BINARY" => Some(Self::Binary),
@@ -1167,11 +1167,11 @@ pub enum ProofMode {
     Groth16 = 4,
 }
 impl ProofMode {
-    /// String value of the enum field names used in the ProtoBuf definition.
+    /// String value of the enum field names used in the `ProtoBuf` definition.
     ///
     /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
+    /// (if the `ProtoBuf` definition does not change) and safe for programmatic use.
+    #[must_use] pub fn as_str_name(&self) -> &'static str {
         match self {
             Self::UnspecifiedProofMode => "UNSPECIFIED_PROOF_MODE",
             Self::Core => "CORE",
@@ -1180,8 +1180,8 @@ impl ProofMode {
             Self::Groth16 => "GROTH16",
         }
     }
-    /// Creates an enum from field names used in the ProtoBuf definition.
-    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+    /// Creates an enum from field names used in the `ProtoBuf` definition.
+    #[must_use] pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "UNSPECIFIED_PROOF_MODE" => Some(Self::UnspecifiedProofMode),
             "CORE" => Some(Self::Core),
@@ -1219,11 +1219,11 @@ pub enum FulfillmentStrategy {
     Auction = 3,
 }
 impl FulfillmentStrategy {
-    /// String value of the enum field names used in the ProtoBuf definition.
+    /// String value of the enum field names used in the `ProtoBuf` definition.
     ///
     /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
+    /// (if the `ProtoBuf` definition does not change) and safe for programmatic use.
+    #[must_use] pub fn as_str_name(&self) -> &'static str {
         match self {
             Self::UnspecifiedFulfillmentStrategy => "UNSPECIFIED_FULFILLMENT_STRATEGY",
             Self::Hosted => "HOSTED",
@@ -1231,8 +1231,8 @@ impl FulfillmentStrategy {
             Self::Auction => "AUCTION",
         }
     }
-    /// Creates an enum from field names used in the ProtoBuf definition.
-    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+    /// Creates an enum from field names used in the `ProtoBuf` definition.
+    #[must_use] pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "UNSPECIFIED_FULFILLMENT_STRATEGY" => Some(Self::UnspecifiedFulfillmentStrategy),
             "HOSTED" => Some(Self::Hosted),
@@ -1269,11 +1269,11 @@ pub enum FulfillmentStatus {
     Unfulfillable = 4,
 }
 impl FulfillmentStatus {
-    /// String value of the enum field names used in the ProtoBuf definition.
+    /// String value of the enum field names used in the `ProtoBuf` definition.
     ///
     /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
+    /// (if the `ProtoBuf` definition does not change) and safe for programmatic use.
+    #[must_use] pub fn as_str_name(&self) -> &'static str {
         match self {
             Self::UnspecifiedFulfillmentStatus => "UNSPECIFIED_FULFILLMENT_STATUS",
             Self::Requested => "REQUESTED",
@@ -1282,8 +1282,8 @@ impl FulfillmentStatus {
             Self::Unfulfillable => "UNFULFILLABLE",
         }
     }
-    /// Creates an enum from field names used in the ProtoBuf definition.
-    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+    /// Creates an enum from field names used in the `ProtoBuf` definition.
+    #[must_use] pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "UNSPECIFIED_FULFILLMENT_STATUS" => Some(Self::UnspecifiedFulfillmentStatus),
             "REQUESTED" => Some(Self::Requested),
@@ -1319,11 +1319,11 @@ pub enum ExecutionStatus {
     Unexecutable = 3,
 }
 impl ExecutionStatus {
-    /// String value of the enum field names used in the ProtoBuf definition.
+    /// String value of the enum field names used in the `ProtoBuf` definition.
     ///
     /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
+    /// (if the `ProtoBuf` definition does not change) and safe for programmatic use.
+    #[must_use] pub fn as_str_name(&self) -> &'static str {
         match self {
             Self::UnspecifiedExecutionStatus => "UNSPECIFIED_EXECUTION_STATUS",
             Self::Unexecuted => "UNEXECUTED",
@@ -1331,8 +1331,8 @@ impl ExecutionStatus {
             Self::Unexecutable => "UNEXECUTABLE",
         }
     }
-    /// Creates an enum from field names used in the ProtoBuf definition.
-    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+    /// Creates an enum from field names used in the `ProtoBuf` definition.
+    #[must_use] pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "UNSPECIFIED_EXECUTION_STATUS" => Some(Self::UnspecifiedExecutionStatus),
             "UNEXECUTED" => Some(Self::Unexecuted),
@@ -1373,11 +1373,11 @@ pub enum BalanceOperation {
     Bid = 6,
 }
 impl BalanceOperation {
-    /// String value of the enum field names used in the ProtoBuf definition.
+    /// String value of the enum field names used in the `ProtoBuf` definition.
     ///
     /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
-    pub fn as_str_name(&self) -> &'static str {
+    /// (if the `ProtoBuf` definition does not change) and safe for programmatic use.
+    #[must_use] pub fn as_str_name(&self) -> &'static str {
         match self {
             Self::UnspecifiedBalanceChangeOperation => "UNSPECIFIED_BALANCE_CHANGE_OPERATION",
             Self::Deposit => "DEPOSIT",
@@ -1388,8 +1388,8 @@ impl BalanceOperation {
             Self::Bid => "BID",
         }
     }
-    /// Creates an enum from field names used in the ProtoBuf definition.
-    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+    /// Creates an enum from field names used in the `ProtoBuf` definition.
+    #[must_use] pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "UNSPECIFIED_BALANCE_CHANGE_OPERATION" => Some(Self::UnspecifiedBalanceChangeOperation),
             "DEPOSIT" => Some(Self::Deposit),
@@ -1406,7 +1406,7 @@ impl BalanceOperation {
 pub mod prover_network_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
     use tonic::codegen::http::Uri;
-    use tonic::codegen::*;
+    use tonic::codegen::{Body, Bytes, CompressionEncoding, GrpcMethod, InterceptedService, StdError, http};
     #[derive(Debug, Clone)]
     pub struct ProverNetworkClient<T> {
         inner: tonic::client::Grpc<T>,
@@ -2181,7 +2181,7 @@ pub mod prover_network_client {
 /// Generated server implementations.
 pub mod prover_network_server {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
-    use tonic::codegen::*;
+    use tonic::codegen::{Arc, Body, BoxFuture, CompressionEncoding, Context, EnabledCompressionEncodings, InterceptedService, Poll, StdError, async_trait, empty_body, http};
     /// Generated trait containing gRPC methods that should be implemented for use with ProverNetworkServer.
     #[async_trait]
     pub trait ProverNetwork: std::marker::Send + std::marker::Sync + 'static {

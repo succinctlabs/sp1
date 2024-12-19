@@ -37,7 +37,7 @@ impl CudaProver {
     /// Creates a new [`CpuExecuteBuilder`] for simulating the execution of a program on the CPU.
     ///
     /// # Details
-    /// The builder is used for both the [crate::cpu::CpuProver] and [crate::CudaProver] client
+    /// The builder is used for both the [`crate::cpu::CpuProver`] and [`crate::CudaProver`] client
     /// types.
     ///
     /// # Example
@@ -59,7 +59,7 @@ impl CudaProver {
     /// Creates a new [`CudaProveBuilder`] for proving a program on the CUDA.
     ///
     /// # Details
-    /// The builder is used for only the [crate::CudaProver] client type.
+    /// The builder is used for only the [`crate::CudaProver`] client type.
     ///
     /// # Example
     /// ```rust,no_run

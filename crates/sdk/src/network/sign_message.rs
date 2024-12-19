@@ -83,6 +83,7 @@ macro_rules! impl_signed_message {
 impl_signed_message!(RequestProofRequest);
 impl_signed_message!(FulfillProofRequest);
 
+#[allow(clippy::needless_pass_by_value)]
 pub fn recover_sender_raw(
     signature: Vec<u8>,
     message: Vec<u8>,

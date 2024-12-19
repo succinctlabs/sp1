@@ -7,7 +7,7 @@ use std::borrow::Borrow;
 use anyhow::Result;
 use itertools::Itertools;
 use p3_field::PrimeField32;
-use sp1_core_executor::ExecutionReport;
+use sp1_core_executor::{ExecutionReport, SP1Context};
 use sp1_core_machine::{io::SP1Stdin, SP1_CIRCUIT_VERSION};
 use sp1_primitives::io::SP1PublicValues;
 use sp1_prover::{
@@ -22,7 +22,7 @@ use crate::{SP1Proof, SP1ProofMode, SP1ProofWithPublicValues};
 
 /// A basic set of primitives that each prover variant must implement.
 pub trait Prover<C: SP1ProverComponents>: Send + Sync {
-    /// The inner [SP1Prover] struct used by the prover.
+    /// The inner [`SP1Prover`] struct used by the prover.
     fn inner(&self) -> &SP1Prover<C>;
 
     /// The version of the current SP1 circuit.
@@ -35,7 +35,7 @@ pub trait Prover<C: SP1ProverComponents>: Send + Sync {
 
     /// Executes the program on the given input.
     fn execute(&self, elf: &[u8], stdin: &SP1Stdin) -> Result<(SP1PublicValues, ExecutionReport)> {
-        Ok(self.inner().execute(elf, stdin, Default::default())?)
+        Ok(self.inner().execute(elf, stdin, SP1Context::default())?)
     }
 
     /// Proves the given program on the given input in the given proof mode.
@@ -47,8 +47,8 @@ pub trait Prover<C: SP1ProverComponents>: Send + Sync {
     ) -> Result<SP1ProofWithPublicValues>;
 
     /// Verify that an SP1 proof is valid given its vkey and metadata.
-    /// For Plonk proofs, verifies that the public inputs of the PlonkBn254 proof match
-    /// the hash of the VK and the committed public values of the SP1ProofWithPublicValues.
+    /// For Plonk proofs, verifies that the public inputs of the `PlonkBn254` proof match
+    /// the hash of the VK and the committed public values of the `SP1ProofWithPublicValues`.
     fn verify(
         &self,
         bundle: &SP1ProofWithPublicValues,
@@ -58,7 +58,7 @@ pub trait Prover<C: SP1ProverComponents>: Send + Sync {
     }
 }
 
-/// An error that occurs when calling [Prover::verify].
+/// An error that occurs when calling [`Prover::verify`].
 #[derive(Error, Debug)]
 pub enum SP1VerificationError {
     /// An error that occurs when the public values are invalid.

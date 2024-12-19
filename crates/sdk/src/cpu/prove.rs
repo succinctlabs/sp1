@@ -14,7 +14,7 @@ use crate::{SP1ProofMode, SP1ProofWithPublicValues};
 /// A builder for proving a program on the CPU.
 ///
 /// This builder provides a typed interface for configuring the SP1 RISC-V prover. The builder is
-/// used for only the [crate::cpu::CpuProver] client type.
+/// used for only the [`crate::cpu::CpuProver`] client type.
 pub struct CpuProveBuilder<'a> {
     pub(crate) prover: &'a CpuProver,
     pub(crate) mode: SP1ProofMode,
@@ -27,7 +27,7 @@ pub struct CpuProveBuilder<'a> {
 }
 
 impl<'a> CpuProveBuilder<'a> {
-    /// Set the proof kind to [SP1ProofKind::Core] mode.
+    /// Set the proof kind to [`SP1ProofKind::Core`] mode.
     ///
     /// # Details
     /// This is the default mode for the prover. The proofs grow linearly in size with the number
@@ -40,16 +40,17 @@ impl<'a> CpuProveBuilder<'a> {
     ///     .core()
     ///     .run();
     /// ```
+    #[must_use]
     pub fn core(mut self) -> Self {
         self.mode = SP1ProofMode::Core;
         self
     }
 
-    /// Set the proof kind to [SP1ProofKind::Compressed] mode.
+    /// Set the proof kind to [`SP1ProofKind::Compressed`] mode.
     ///
     /// # Details
     /// This mode produces a proof that is of constant size, regardless of the number of cycles. It
-    /// takes longer to prove than [SP1ProofKind::Core] due to the need to recursively aggregate
+    /// takes longer to prove than [`SP1ProofKind::Core`] due to the need to recursively aggregate
     /// proofs into a single proof.
     ///
     /// # Example
@@ -59,17 +60,18 @@ impl<'a> CpuProveBuilder<'a> {
     ///     .compressed()
     ///     .run();
     /// ```
+    #[must_use]
     pub fn compressed(mut self) -> Self {
         self.mode = SP1ProofMode::Compressed;
         self
     }
 
-    /// Set the proof mode to [SP1ProofKind::Plonk] mode.
+    /// Set the proof mode to [`SP1ProofKind::Plonk`] mode.
     ///
     /// # Details
     /// This mode produces a const size PLONK proof that can be verified on chain for roughly ~300k
     /// gas. This mode is useful for producing a maximally small proof that can be verified on
-    /// chain. For more efficient SNARK wrapping, you can use the [SP1ProofKind::Groth16] mode but
+    /// chain. For more efficient SNARK wrapping, you can use the [`SP1ProofKind::Groth16`] mode but
     /// this mode is more .
     ///
     /// # Example
@@ -79,12 +81,13 @@ impl<'a> CpuProveBuilder<'a> {
     ///     .plonk()
     ///     .run();
     /// ```
+    #[must_use]
     pub fn plonk(mut self) -> Self {
         self.mode = SP1ProofMode::Plonk;
         self
     }
 
-    /// Set the proof mode to [SP1ProofKind::Groth16] mode.
+    /// Set the proof mode to [`SP1ProofKind::Groth16`] mode.
     ///
     /// # Details
     /// This mode produces a Groth16 proof that can be verified on chain for roughly ~100k gas. This
@@ -97,12 +100,13 @@ impl<'a> CpuProveBuilder<'a> {
     ///     .groth16()
     ///     .run();
     /// ```
+    #[must_use]
     pub fn groth16(mut self) -> Self {
         self.mode = SP1ProofMode::Groth16;
         self
     }
 
-    /// Set the proof mode to the given [SP1ProofKind].
+    /// Set the proof mode to the given [`SP1ProofKind`].
     ///
     /// # Details
     /// This method is useful for setting the proof mode to a custom mode.
@@ -114,6 +118,7 @@ impl<'a> CpuProveBuilder<'a> {
     ///     .mode(SP1ProofMode::Groth16)
     ///     .run();
     /// ```
+    #[must_use]
     pub fn mode(mut self, mode: SP1ProofMode) -> Self {
         self.mode = mode;
         self
@@ -134,6 +139,7 @@ impl<'a> CpuProveBuilder<'a> {
     ///     .shard_size(1 << 16)
     ///     .run();
     /// ```
+    #[must_use]
     pub fn shard_size(mut self, value: usize) -> Self {
         assert!(value.is_power_of_two(), "shard size must be a power of 2");
         self.core_opts.shard_size = value;
@@ -153,6 +159,7 @@ impl<'a> CpuProveBuilder<'a> {
     ///     .shard_batch_size(4)
     ///     .run();
     /// ```
+    #[must_use]
     pub fn shard_batch_size(mut self, value: usize) -> Self {
         self.core_opts.shard_batch_size = value;
         self
@@ -171,6 +178,7 @@ impl<'a> CpuProveBuilder<'a> {
     ///     .cycle_limit(1000000)
     ///     .run();
     /// ```
+    #[must_use]
     pub fn cycle_limit(mut self, cycle_limit: u64) -> Self {
         self.context_builder.max_cycles(cycle_limit);
         self
@@ -189,6 +197,7 @@ impl<'a> CpuProveBuilder<'a> {
     ///     .deferred_proof_verification(false)
     ///     .run();
     /// ```
+    #[must_use]
     pub fn deferred_proof_verification(mut self, value: bool) -> Self {
         self.context_builder.set_skip_deferred_proof_verification(value);
         self
@@ -218,10 +227,10 @@ impl<'a> CpuProveBuilder<'a> {
         crate::utils::sp1_dump(&pk.elf, &stdin);
 
         // Run the prover.
-        if !mock {
-            prover.prove_impl(pk, &stdin, opts, context, mode)
-        } else {
+        if mock {
             prover.mock_prove_impl(pk, stdin, mode)
+        } else {
+            prover.prove_impl(pk, &stdin, opts, context, mode)
         }
     }
 }

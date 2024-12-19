@@ -1,6 +1,6 @@
 //! # Network Prover
 //!
-//! This module provides an implementation of the [crate::Prover] trait that can generate proofs
+//! This module provides an implementation of the [`crate::Prover`] trait that can generate proofs
 //! on a remote RPC server.
 
 use std::time::{Duration, Instant};
@@ -18,21 +18,21 @@ use crate::{
 use anyhow::Result;
 use backoff::{future::retry, Error as BackoffError, ExponentialBackoff};
 use serde::de::DeserializeOwned;
-use sp1_core_executor::SP1ContextBuilder;
+use sp1_core_executor::{SP1Context, SP1ContextBuilder};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{components::CpuProverComponents, SP1Prover, SP1_CIRCUIT_VERSION};
 use tonic::Code;
 
 use {crate::utils::block_on, tokio::time::sleep};
 
-/// An implementation of [crate::ProverClient] that can generate proofs on a remote RPC server.
+/// An implementation of [`crate::ProverClient`] that can generate proofs on a remote RPC server.
 pub struct NetworkProver {
     pub(crate) client: NetworkClient,
     pub(crate) prover: CpuProver,
 }
 
 impl NetworkProver {
-    /// Creates a new [NetworkProver] with the given private key.
+    /// Creates a new [`NetworkProver`] with the given private key.
     ///
     /// # Details
     /// * `private_key`: The Secp256k1 private key to use for signing requests.
@@ -42,6 +42,7 @@ impl NetworkProver {
     /// ```rust,no_run
     /// let prover = NetworkProver::new("...", "...");
     /// ```
+    #[must_use]
     pub fn new(private_key: &str, rpc_url: &str) -> Self {
         let prover = CpuProver::new();
         let client = NetworkClient::new(private_key, rpc_url);
@@ -63,7 +64,7 @@ impl NetworkProver {
     /// ```
     pub fn execute<'a>(&'a self, elf: &'a [u8], stdin: &SP1Stdin) -> CpuExecuteBuilder<'a> {
         CpuExecuteBuilder {
-            prover: &self.prover.inner(),
+            prover: self.prover.inner(),
             elf,
             stdin: stdin.clone(),
             context_builder: SP1ContextBuilder::default(),
@@ -122,7 +123,7 @@ impl NetworkProver {
         timeout: Option<Duration>,
     ) -> Result<Vec<u8>> {
         // Get the timeout.
-        let timeout_secs = timeout.map(|dur| dur.as_secs()).unwrap_or(DEFAULT_TIMEOUT_SECS);
+        let timeout_secs = timeout.map_or(DEFAULT_TIMEOUT_SECS, |dur| dur.as_secs());
 
         // Log the request.
         log::info!("Requesting proof:");
@@ -187,11 +188,7 @@ impl NetworkProver {
             }
             let remaining_timeout = timeout.map(|t| {
                 let elapsed = start_time.elapsed();
-                if elapsed < t {
-                    t - elapsed
-                } else {
-                    Duration::from_secs(0)
-                }
+                if elapsed < t { t - elapsed } else { Duration::from_secs(0) }
             });
 
             // Get status with retries.
@@ -239,20 +236,20 @@ impl NetworkProver {
         skip_simulation: bool,
     ) -> Result<SP1ProofWithPublicValues> {
         let vk_hash = self.register_program(&pk.vk, &pk.elf).await?;
-        let cycle_limit = self.get_cycle_limit(&pk.elf, &stdin, skip_simulation)?;
+        let cycle_limit = self.get_cycle_limit(&pk.elf, stdin, skip_simulation)?;
         let request_id = self
-            .request_proof(&vk_hash, &stdin, mode.into(), strategy, cycle_limit, timeout)
+            .request_proof(&vk_hash, stdin, mode.into(), strategy, cycle_limit, timeout)
             .await?;
         self.wait_proof(&request_id, timeout).await
     }
 
     fn get_cycle_limit(&self, elf: &[u8], stdin: &SP1Stdin, skip_simulation: bool) -> Result<u64> {
-        if !skip_simulation {
-            let (_, report) = self.prover.inner().execute(elf, stdin, Default::default())?;
+        if skip_simulation {
+            Ok(DEFAULT_CYCLE_LIMIT)
+        } else {
+            let (_, report) = self.prover.inner().execute(elf, stdin, SP1Context::default())?;
             let cycles = report.total_instruction_count();
             Ok(cycles)
-        } else {
-            Ok(DEFAULT_CYCLE_LIMIT)
         }
     }
 }

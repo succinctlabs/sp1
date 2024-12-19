@@ -56,12 +56,13 @@ impl SP1ProofWithPublicValues {
             .map_err(Into::into)
     }
 
-    /// The proof in the byte encoding the onchain verifiers accepts for [SP1ProofMode::Groth16] and
-    /// [SP1ProofMode::Plonk] proofs.
+    /// The proof in the byte encoding the onchain verifiers accepts for [`SP1ProofMode::Groth16`] and
+    /// [`SP1ProofMode::Plonk`] proofs.
     ///
     /// # Details
     /// The bytes consist of the first four bytes of Groth16/Plonk vkey hash followed by the encoded
     /// proof, in a form optimized for onchain verification.
+    #[must_use]
     pub fn bytes(&self) -> Vec<u8> {
         match &self.proof {
             SP1Proof::Plonk(plonk_proof) => {
@@ -105,11 +106,11 @@ mod tests {
             proof: SP1Proof::Plonk(PlonkBn254Proof {
                 encoded_proof: "ab".to_string(),
                 plonk_vkey_hash: [0; 32],
-                public_inputs: ["".to_string(), "".to_string()],
-                raw_proof: "".to_string(),
+                public_inputs: [String::new(), String::new()],
+                raw_proof: String::new(),
             }),
             public_values: SP1PublicValues::new(),
-            sp1_version: "".to_string(),
+            sp1_version: String::new(),
         };
         let expected_bytes = [vec![0, 0, 0, 0], hex::decode("ab").unwrap()].concat();
         assert_eq!(plonk_proof.bytes(), expected_bytes);
@@ -121,11 +122,11 @@ mod tests {
             proof: SP1Proof::Groth16(Groth16Bn254Proof {
                 encoded_proof: "ab".to_string(),
                 groth16_vkey_hash: [0; 32],
-                public_inputs: ["".to_string(), "".to_string()],
-                raw_proof: "".to_string(),
+                public_inputs: [String::new(), String::new()],
+                raw_proof: String::new(),
             }),
             public_values: SP1PublicValues::new(),
-            sp1_version: "".to_string(),
+            sp1_version: String::new(),
         };
         let expected_bytes = [vec![0, 0, 0, 0], hex::decode("ab").unwrap()].concat();
         assert_eq!(groth16_proof.bytes(), expected_bytes);
@@ -135,13 +136,13 @@ mod tests {
     fn test_mock_plonk_proof_bytes() {
         let mock_plonk_proof = SP1ProofWithPublicValues {
             proof: SP1Proof::Plonk(PlonkBn254Proof {
-                encoded_proof: "".to_string(),
+                encoded_proof: String::new(),
                 plonk_vkey_hash: [0; 32],
-                public_inputs: ["".to_string(), "".to_string()],
-                raw_proof: "".to_string(),
+                public_inputs: [String::new(), String::new()],
+                raw_proof: String::new(),
             }),
             public_values: SP1PublicValues::new(),
-            sp1_version: "".to_string(),
+            sp1_version: String::new(),
         };
         assert_eq!(mock_plonk_proof.bytes(), Vec::<u8>::new());
     }
@@ -150,13 +151,13 @@ mod tests {
     fn test_mock_groth16_proof_bytes() {
         let mock_groth16_proof = SP1ProofWithPublicValues {
             proof: SP1Proof::Groth16(Groth16Bn254Proof {
-                encoded_proof: "".to_string(),
+                encoded_proof: String::new(),
                 groth16_vkey_hash: [0; 32],
-                public_inputs: ["".to_string(), "".to_string()],
-                raw_proof: "".to_string(),
+                public_inputs: [String::new(), String::new()],
+                raw_proof: String::new(),
             }),
             public_values: SP1PublicValues::new(),
-            sp1_version: "".to_string(),
+            sp1_version: String::new(),
         };
         assert_eq!(mock_groth16_proof.bytes(), Vec::<u8>::new());
     }
@@ -169,8 +170,8 @@ mod tests {
         let core_proof = SP1ProofWithPublicValues {
             proof: SP1Proof::Core(vec![]),
             public_values: SP1PublicValues::new(),
-            sp1_version: "".to_string(),
+            sp1_version: String::new(),
         };
-        core_proof.bytes();
+        println!("{:?}", core_proof.bytes());
     }
 }
