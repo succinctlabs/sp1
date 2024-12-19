@@ -140,7 +140,6 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
 
             // Try to find the smallest shape fitting within at least one of the candidate shapes.
             let log2_shard_size = record.cpu_events.len().next_power_of_two().ilog2() as usize;
-            println!("log2_shard_size: {}", log2_shard_size);
             let mut minimal_shape = None;
             let mut minimal_area = usize::MAX;
             let mut minimal_cluster = None;

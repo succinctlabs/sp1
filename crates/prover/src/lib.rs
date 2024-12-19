@@ -743,13 +743,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
             // Wait for all the provers to finish.
             drop(input_tx);
-            tracing::info!("dropped input_tx");
-
             drop(record_and_trace_tx);
-            tracing::info!("dropped record_and_trace_tx");
-
             drop(proofs_tx);
-            tracing::info!("dropped proofs_tx");
 
             for handle in prover_handles {
                 handle.join().unwrap();

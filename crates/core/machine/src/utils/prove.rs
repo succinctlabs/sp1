@@ -211,7 +211,6 @@ where
                                 });
 
                             // Trace the checkpoint and reconstruct the execution records.
-                            log::info!("generated {} records", records.len());
                             *report_aggregate.lock().unwrap() += report;
                             checkpoint
                                 .seek(SeekFrom::Start(0))
@@ -235,8 +234,6 @@ where
                                 record.public_values = *state;
                             }
 
-                            tracing::info!("Records length:{}, done: {}", records.len(), done);
-
                             // Defer events that are too expensive to include in every shard.
                             let mut deferred = deferred.lock().unwrap();
                             for record in records.iter_mut() {
@@ -256,7 +253,6 @@ where
                             } else {
                                 None
                             };
-                            tracing::info!("last record is some: {:?}", last_record.is_some());
 
                             // See if any deferred shards are ready to be committed to.
                             let mut deferred = deferred.split(done, last_record, opts.split_opts);
