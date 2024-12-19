@@ -107,6 +107,25 @@ changes that are split across multiple commits.
 That said, if you have a number of commits that are "checkpoints" and don't represent a single logical change, please
 squash those together.
 
+**Conventional Commit Messages and PR Titles:**
+To ensure consistency and aid in automated tooling (such as changelog generation), please follow the
+[Conventional Commits](https://www.conventionalcommits.org/) style for commit messages and PR titles. Prefix your commit
+messages and PR titles with one of the following types:
+
+- **feat:** for new features
+- **fix:** for bug fixes
+- **docs:** for documentation-only changes
+- **refactor:** for code changes that neither fix a bug nor add a feature
+- **chore:** for changes to the build process or auxiliary tools
+- **test:** for adding or updating tests
+
+For example:
+- `docs: Update README with corrected links`
+- `fix: Resolve race condition in event loop`
+
+If your pull request title does not contain a valid prefix, automated checks may fail. You can amend your commit and
+force-push to correct this before merging.
+
 #### Opening the pull request
 
 From within GitHub, opening a new pull request will present you with a template that should be filled out. Please try
