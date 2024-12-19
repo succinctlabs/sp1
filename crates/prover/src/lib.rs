@@ -305,12 +305,16 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             BabyBearPoseidon2,
             RiscvAir<BabyBear>,
         >>::DeviceProvingKey,
-        program: Program,
+        mut program: Program,
         stdin: &SP1Stdin,
         opts: SP1ProverOpts,
         mut context: SP1Context<'a>,
     ) -> Result<SP1CoreProof, SP1CoreProverError> {
         context.subproof_verifier.replace(Arc::new(self));
+
+        if let Some(core_shape_config) = &self.core_shape_config {
+            core_shape_config.fix_preprocessed_shape(&mut program).unwrap();
+        }
 
         // Launch two threads to simultaneously prove the core and compile the first few
         // recursion programs in parallel.
@@ -1617,7 +1621,6 @@ pub mod tests {
         // docker image which has a different API than the current. So we need to wait until the
         // next release (v1.2.0+), and then switch it back.
         let prover = SP1Prover::<CpuProverComponents>::new();
-
         test_e2e_prover::<CpuProverComponents>(&prover, elf, SP1Stdin::default(), opts, Test::All)
     }
 

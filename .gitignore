@@ -46,9 +46,9 @@ crates/prover/vk
 # Example legacy elf
 examples/elf 
 
-# C++
-.vscode/c_cpp_properties.json
-
 # Example fibonacci groth16 / plonk proofs
 examples/fibonacci/fibonacci-groth16.bin
 examples/fibonacci/fibonacci-plonk.bin
+
+# C++
+.vscode/c_cpp_properties.json

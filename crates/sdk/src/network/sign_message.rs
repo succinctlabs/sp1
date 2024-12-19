@@ -1,9 +1,11 @@
+#![allow(deprecated)]
+
 use alloy_primitives::{Address, Signature};
 use prost::Message;
 use thiserror::Error;
 
-use crate::network_v2::json::{format_json_message, JsonFormatError};
-use crate::network_v2::proto::network::{FulfillProofRequest, MessageFormat, RequestProofRequest};
+use crate::network::proto::network::{FulfillProofRequest, MessageFormat, RequestProofRequest};
+use crate::network::utils::{format_json_message, JsonFormatError};
 
 #[allow(dead_code)]
 pub trait SignedMessage {
@@ -83,6 +85,7 @@ macro_rules! impl_signed_message {
 impl_signed_message!(RequestProofRequest);
 impl_signed_message!(FulfillProofRequest);
 
+#[allow(clippy::needless_pass_by_value)]
 pub fn recover_sender_raw(
     signature: Vec<u8>,
     message: Vec<u8>,
