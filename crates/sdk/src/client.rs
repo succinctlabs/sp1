@@ -10,9 +10,6 @@ use crate::network::builder::NetworkProverBuilder;
 /// An entrypoint for interacting with the prover for the SP1 RISC-V zkVM.
 pub struct ProverClient;
 
-/// A builder to define which proving client to use.
-pub struct ProverClientBuilder;
-
 impl ProverClient {
     /// Creates a new [EnvProver] from the environment.
     ///
@@ -52,6 +49,9 @@ impl ProverClient {
         ProverClientBuilder
     }
 }
+
+/// A builder to define which proving client to use.
+pub struct ProverClientBuilder;
 
 impl ProverClientBuilder {
     /// Builds a [CpuProver] specifically for mock proving.
