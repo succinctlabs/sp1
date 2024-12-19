@@ -26,6 +26,7 @@ use precompiles::{
     fptower::{Fp2AddSubSyscall, Fp2MulSyscall, FpOpSyscall},
     keccak256::permute::Keccak256PermuteSyscall,
     sha256::{compress::Sha256CompressSyscall, extend::Sha256ExtendSyscall},
+    u256x2048_mul::U256xU2048MulSyscall,
     uint256::Uint256MulSyscall,
     weierstrass::{
         add::WeierstrassAddAssignSyscall, decompress::WeierstrassDecompressSyscall,
@@ -39,6 +40,7 @@ use sp1_curves::{
         bls12_381::{Bls12381, Bls12381BaseField},
         bn254::{Bn254, Bn254BaseField},
         secp256k1::Secp256k1,
+        secp256r1::Secp256r1,
     },
 };
 use unconstrained::{EnterUnconstrainedSyscall, ExitUnconstrainedSyscall};
@@ -109,6 +111,21 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Arc<dyn Syscall>> {
         Arc::new(WeierstrassDecompressSyscall::<Secp256k1>::new()),
     );
 
+    syscall_map.insert(
+        SyscallCode::SECP256R1_ADD,
+        Arc::new(WeierstrassAddAssignSyscall::<Secp256r1>::new()),
+    );
+
+    syscall_map.insert(
+        SyscallCode::SECP256R1_DOUBLE,
+        Arc::new(WeierstrassDoubleAssignSyscall::<Secp256r1>::new()),
+    );
+
+    syscall_map.insert(
+        SyscallCode::SECP256R1_DECOMPRESS,
+        Arc::new(WeierstrassDecompressSyscall::<Secp256r1>::new()),
+    );
+
     syscall_map
         .insert(SyscallCode::BN254_ADD, Arc::new(WeierstrassAddAssignSyscall::<Bn254>::new()));
 
@@ -128,6 +145,8 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Arc<dyn Syscall>> {
     );
 
     syscall_map.insert(SyscallCode::UINT256_MUL, Arc::new(Uint256MulSyscall));
+
+    syscall_map.insert(SyscallCode::U256XU2048_MUL, Arc::new(U256xU2048MulSyscall));
 
     syscall_map.insert(
         SyscallCode::BLS12381_FP_ADD,

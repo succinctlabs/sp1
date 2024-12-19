@@ -35,7 +35,12 @@ impl<E: EllipticCurve> Syscall for WeierstrassDecompressSyscall<E> {
                 syscall_event,
                 PrecompileEvent::Secp256k1Decompress(event),
             ),
-            CurveType::Bls12381 => rt.add_precompile_event(
+            CurveType::Secp256r1 => rt.record_mut().add_precompile_event(
+                syscall_code,
+                syscall_event,
+                PrecompileEvent::Secp256r1Decompress(event),
+            ),
+            CurveType::Bls12381 => rt.record_mut().add_precompile_event(
                 syscall_code,
                 syscall_event,
                 PrecompileEvent::Bls12381Decompress(event),

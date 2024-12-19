@@ -69,6 +69,12 @@ impl<'a> Execute<'a> {
         self.context_builder.max_cycles(max_cycles);
         self
     }
+
+    /// Skip deferred proof verification.
+    pub fn set_skip_deferred_proof_verification(mut self, value: bool) -> Self {
+        self.context_builder.set_skip_deferred_proof_verification(value);
+        self
+    }
 }
 
 /// Builder to prepare and configure proving execution of a program on an input.
@@ -215,6 +221,12 @@ impl<'a> Prove<'a> {
     /// This parameter is only used when the prover is run in network mode.
     pub fn timeout(mut self, timeout: Duration) -> Self {
         self.timeout = Some(timeout);
+        self
+    }
+
+    /// Set the skip deferred proof verification flag.
+    pub fn set_skip_deferred_proof_verification(mut self, value: bool) -> Self {
+        self.context_builder.set_skip_deferred_proof_verification(value);
         self
     }
 }

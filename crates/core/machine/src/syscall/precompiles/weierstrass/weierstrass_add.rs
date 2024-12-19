@@ -150,6 +150,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     fn name(&self) -> String {
         match E::CURVE_TYPE {
             CurveType::Secp256k1 => "Secp256k1AddAssign".to_string(),
+            CurveType::Secp256r1 => "Secp256r1AddAssign".to_string(),
             CurveType::Bn254 => "Bn254AddAssign".to_string(),
             CurveType::Bls12381 => "Bls12381AddAssign".to_string(),
             _ => panic!("Unsupported curve"),
@@ -159,6 +160,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
         let events = match E::CURVE_TYPE {
             CurveType::Secp256k1 => &input.get_precompile_events(SyscallCode::SECP256K1_ADD),
+            CurveType::Secp256r1 => &input.get_precompile_events(SyscallCode::SECP256R1_ADD),
             CurveType::Bn254 => &input.get_precompile_events(SyscallCode::BN254_ADD),
             CurveType::Bls12381 => &input.get_precompile_events(SyscallCode::BLS12381_ADD),
             _ => panic!("Unsupported curve"),
@@ -174,6 +176,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                 let mut blu = Vec::new();
                 ops.iter().for_each(|(_, op)| match op {
                     PrecompileEvent::Secp256k1Add(event)
+                    | PrecompileEvent::Secp256r1Add(event)
                     | PrecompileEvent::Bn254Add(event)
                     | PrecompileEvent::Bls12381Add(event) => {
                         let mut row = zeroed_f_vec(num_cols);
@@ -199,6 +202,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     ) -> RowMajorMatrix<F> {
         let events = match E::CURVE_TYPE {
             CurveType::Secp256k1 => input.get_precompile_events(SyscallCode::SECP256K1_ADD),
+            CurveType::Secp256r1 => input.get_precompile_events(SyscallCode::SECP256R1_ADD),
             CurveType::Bn254 => input.get_precompile_events(SyscallCode::BN254_ADD),
             CurveType::Bls12381 => input.get_precompile_events(SyscallCode::BLS12381_ADD),
             _ => panic!("Unsupported curve"),
@@ -234,6 +238,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                     let cols: &mut WeierstrassAddAssignCols<F, E::BaseField> = row.borrow_mut();
                     match &events[idx].1 {
                         PrecompileEvent::Secp256k1Add(event)
+                        | PrecompileEvent::Secp256r1Add(event)
                         | PrecompileEvent::Bn254Add(event)
                         | PrecompileEvent::Bls12381Add(event) => {
                             Self::populate_row(event, cols, &mut new_byte_lookup_events);
@@ -268,6 +273,9 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             match E::CURVE_TYPE {
                 CurveType::Secp256k1 => {
                     !shard.get_precompile_events(SyscallCode::SECP256K1_ADD).is_empty()
+                }
+                CurveType::Secp256r1 => {
+                    !shard.get_precompile_events(SyscallCode::SECP256R1_ADD).is_empty()
                 }
                 CurveType::Bn254 => !shard.get_precompile_events(SyscallCode::BN254_ADD).is_empty(),
                 CurveType::Bls12381 => {
@@ -397,6 +405,9 @@ where
             CurveType::Secp256k1 => {
                 AB::F::from_canonical_u32(SyscallCode::SECP256K1_ADD.syscall_id())
             }
+            CurveType::Secp256r1 => {
+                AB::F::from_canonical_u32(SyscallCode::SECP256R1_ADD.syscall_id())
+            }
             CurveType::Bn254 => AB::F::from_canonical_u32(SyscallCode::BN254_ADD.syscall_id()),
             CurveType::Bls12381 => {
                 AB::F::from_canonical_u32(SyscallCode::BLS12381_ADD.syscall_id())
@@ -455,19 +466,24 @@ mod tests {
 
     use sp1_core_executor::Program;
     use sp1_stark::CpuProver;
-
-    use crate::utils::{
-        run_test, setup_logger,
-        tests::{
-            BLS12381_ADD_ELF, BLS12381_DOUBLE_ELF, BLS12381_MUL_ELF, BN254_ADD_ELF, BN254_MUL_ELF,
-            SECP256K1_ADD_ELF, SECP256K1_MUL_ELF,
-        },
+    use test_artifacts::{
+        BLS12381_ADD_ELF, BLS12381_DOUBLE_ELF, BLS12381_MUL_ELF, BN254_ADD_ELF, BN254_MUL_ELF,
+        SECP256K1_ADD_ELF, SECP256K1_MUL_ELF, SECP256R1_ADD_ELF,
     };
+
+    use crate::utils::{run_test, setup_logger};
 
     #[test]
     fn test_secp256k1_add_simple() {
         setup_logger();
         let program = Program::from(SECP256K1_ADD_ELF).unwrap();
+        run_test::<CpuProver<_, _>>(program).unwrap();
+    }
+
+    #[test]
+    fn test_secp256r1_add_simple() {
+        setup_logger();
+        let program = Program::from(SECP256R1_ADD_ELF).unwrap();
         run_test::<CpuProver<_, _>>(program).unwrap();
     }
 

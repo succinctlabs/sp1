@@ -57,13 +57,14 @@
 
 - [FAQ](./generating-proofs/sp1-sdk-faq.md)
 
-# Onchain Verification
+# Verification
 
-- [Setup](./onchain-verification/getting-started.md)
+- [On-chain Verification](./verification/onchain/getting-started.md)
 
-- [Solidity Verifier](./onchain-verification/solidity-sdk.md)
+  - [Solidity Verifier](./verification/onchain/solidity-sdk.md)
+  - [Contract Addresses](./verification/onchain/contract-addresses.md)
 
-- [Contract Addresses](./onchain-verification/contract-addresses.md)
+- [Off-chain Verification](./verification/off-chain-verification.md)
 
 # Developers
 
@@ -71,6 +72,6 @@
 
 - [Usage in CI](./developers/usage-in-ci.md)
 
-- [RV32IM Specification](./developers/rv32im-specification.md)
+- [RV32IM Deviations](./developers/rv32im-deviations.md)
 
 - [Building Circuit Artifacts](./developers/building-circuit-artifacts.md)

@@ -55,6 +55,11 @@ impl CostEstimator for ExecutionReport {
             (k256_decompress_events as u64) * costs[&RiscvAirDiscriminants::K256Decompress];
         total_chips += 1;
 
+        let p256_decompress_events = self.syscall_counts[SyscallCode::SECP256R1_DECOMPRESS];
+        total_area +=
+            (p256_decompress_events as u64) * costs[&RiscvAirDiscriminants::P256Decompress];
+        total_chips += 1;
+
         let secp256k1_add_events = self.syscall_counts[SyscallCode::SECP256K1_ADD];
         total_area += (secp256k1_add_events as u64) * costs[&RiscvAirDiscriminants::Secp256k1Add];
         total_chips += 1;
@@ -62,6 +67,15 @@ impl CostEstimator for ExecutionReport {
         let secp256k1_double_events = self.syscall_counts[SyscallCode::SECP256K1_DOUBLE];
         total_area +=
             (secp256k1_double_events as u64) * costs[&RiscvAirDiscriminants::Secp256k1Double];
+        total_chips += 1;
+
+        let secp256r1_add_events = self.syscall_counts[SyscallCode::SECP256R1_ADD];
+        total_area += (secp256r1_add_events as u64) * costs[&RiscvAirDiscriminants::Secp256r1Add];
+        total_chips += 1;
+
+        let secp256r1_double_events = self.syscall_counts[SyscallCode::SECP256R1_DOUBLE];
+        total_area +=
+            (secp256r1_double_events as u64) * costs[&RiscvAirDiscriminants::Secp256r1Double];
         total_chips += 1;
 
         let keccak256_permute_events = self.syscall_counts[SyscallCode::KECCAK_PERMUTE];
@@ -87,6 +101,10 @@ impl CostEstimator for ExecutionReport {
 
         let uint256_mul_events = self.syscall_counts[SyscallCode::UINT256_MUL];
         total_area += (uint256_mul_events as u64) * costs[&RiscvAirDiscriminants::Uint256Mul];
+        total_chips += 1;
+
+        let u256xu2048_mul_events = self.syscall_counts[SyscallCode::U256XU2048_MUL];
+        total_area += (u256xu2048_mul_events as u64) * costs[&RiscvAirDiscriminants::U256x2048Mul];
         total_chips += 1;
 
         let bls12381_fp_events = self.syscall_counts[SyscallCode::BLS12381_FP_ADD]

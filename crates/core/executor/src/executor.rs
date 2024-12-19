@@ -1,9 +1,3 @@
-use std::{
-    fs::File,
-    io::{BufWriter, Write},
-    sync::Arc,
-};
-
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
 use sp1_stark::SP1CoreOpts;
@@ -25,6 +19,22 @@ use crate::{
     syscalls::{default_syscall_map, Syscall, SyscallCode, SyscallContext},
     Instruction, Opcode, Program, Register,
 };
+
+#[cfg(feature = "profiling")]
+use crate::profiler::Profiler;
+#[cfg(feature = "profiling")]
+use std::{fs::File, io::BufWriter};
+
+use std::sync::Arc;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Whether to verify deferred proofs during execution.
+pub enum DeferredProofVerification {
+    /// Verify deferred proofs during execution.
+    Enabled,
+    /// Skip verification of deferred proofs
+    Disabled,
+}
 
 /// An executor for the SP1 RISC-V zkVM.
 ///
@@ -80,6 +90,9 @@ pub struct Executor<'a> {
     /// The maximum number of cpu cycles to use for execution.
     pub max_cycles: Option<u64>,
 
+    /// Skip deferred proof verification.
+    pub deferred_proof_verification: DeferredProofVerification,
+
     /// The state of the execution.
     pub state: ExecutionState,
 
@@ -98,8 +111,11 @@ pub struct Executor<'a> {
     /// A buffer for stdout and stderr IO.
     pub io_buf: HashMap<u32, String>,
 
-    /// A buffer for writing trace events to a file.
-    pub trace_buf: Option<BufWriter<File>>,
+    /// The ZKVM program profiler.
+    ///
+    /// Keeps track of the number of cycles spent in each function.
+    #[cfg(feature = "profiling")]
+    pub profiler: Option<(Profiler, BufWriter<File>)>,
 
     /// The state of the runtime when in unconstrained mode.
     pub unconstrained_state: ForkState,
@@ -178,11 +194,53 @@ impl<'a> Executor<'a> {
         Self::with_context(program, opts, SP1Context::default())
     }
 
+    /// Create a new runtime for the program, and setup the profiler if `TRACE_FILE` env var is set
+    /// and the feature flag `profiling` is enabled.
+    #[must_use]
+    pub fn with_context_and_elf(
+        opts: SP1CoreOpts,
+        context: SP1Context<'a>,
+        elf_bytes: &[u8],
+    ) -> Self {
+        let program = Program::from(elf_bytes).expect("Failed to create program from ELF bytes");
+
+        #[cfg(not(feature = "profiling"))]
+        return Self::with_context(program, opts, context);
+
+        #[cfg(feature = "profiling")]
+        {
+            let mut this = Self::with_context(program, opts, context);
+
+            let trace_buf = std::env::var("TRACE_FILE").ok().map(|file| {
+                let file = File::create(file).unwrap();
+                BufWriter::new(file)
+            });
+
+            if let Some(trace_buf) = trace_buf {
+                println!("Profiling enabled");
+
+                let sample_rate = std::env::var("TRACE_SAMPLE_RATE")
+                    .ok()
+                    .and_then(|rate| {
+                        println!("Profiling sample rate: {rate}");
+                        rate.parse::<u32>().ok()
+                    })
+                    .unwrap_or(1);
+
+                this.profiler = Some((
+                    Profiler::new(elf_bytes, sample_rate as u64)
+                        .expect("Failed to create profiler"),
+                    trace_buf,
+                ));
+            }
+
+            this
+        }
+    }
+
     /// Create a new runtime from a program, options, and a context.
     ///
-    /// # Panics
-    ///
-    /// This function may panic if it fails to create the trace file if `TRACE_FILE` is set.
+    /// Note: This function *will not* set up the profiler.
     #[must_use]
     pub fn with_context(program: Program, opts: SP1CoreOpts, context: SP1Context<'a>) -> Self {
         // Create a shared reference to the program.
@@ -190,14 +248,6 @@ impl<'a> Executor<'a> {
 
         // Create a default record with the program.
         let record = ExecutionRecord::new(program.clone());
-
-        // If `TRACE_FILE`` is set, initialize the trace buffer.
-        let trace_buf = if let Ok(trace_file) = std::env::var("TRACE_FILE") {
-            let file = File::create(trace_file).unwrap();
-            Some(BufWriter::new(file))
-        } else {
-            None
-        };
 
         // Determine the maximum number of cycles for any syscall.
         let syscall_map = default_syscall_map();
@@ -218,7 +268,8 @@ impl<'a> Executor<'a> {
             shard_batch_size: opts.shard_batch_size as u32,
             cycle_tracker: HashMap::new(),
             io_buf: HashMap::new(),
-            trace_buf,
+            #[cfg(feature = "profiling")]
+            profiler: None,
             unconstrained: false,
             unconstrained_state: ForkState::default(),
             syscall_map,
@@ -231,6 +282,11 @@ impl<'a> Executor<'a> {
             hook_registry,
             opts,
             max_cycles: context.max_cycles,
+            deferred_proof_verification: if context.skip_deferred_proof_verification {
+                DeferredProofVerification::Disabled
+            } else {
+                DeferredProofVerification::Enabled
+            },
             memory_checkpoint: PagedMemory::new_preallocated(),
             uninitialized_memory_checkpoint: PagedMemory::new_preallocated(),
             local_memory_access: HashMap::new(),
@@ -1173,7 +1229,6 @@ impl<'a> Executor<'a> {
         let instruction = self.fetch();
 
         // Log the current state of the runtime.
-        #[cfg(debug_assertions)]
         self.log(&instruction);
 
         // Execute the instruction.
@@ -1449,6 +1504,12 @@ impl<'a> Executor<'a> {
         self.executor_mode = ExecutorMode::Simple;
         self.print_report = true;
         while !self.execute()? {}
+
+        #[cfg(feature = "profiling")]
+        if let Some((profiler, writer)) = self.profiler.take() {
+            profiler.write(writer).expect("Failed to write profile to output file");
+        }
+
         Ok(())
     }
 
@@ -1461,6 +1522,12 @@ impl<'a> Executor<'a> {
         self.executor_mode = ExecutorMode::Trace;
         self.print_report = true;
         while !self.execute()? {}
+
+        #[cfg(feature = "profiling")]
+        if let Some((profiler, writer)) = self.profiler.take() {
+            profiler.write(writer).expect("Failed to write profile to output file");
+        }
+
         Ok(())
     }
 
@@ -1559,11 +1626,6 @@ impl<'a> Executor<'a> {
             }
         }
 
-        // Flush trace buf
-        if let Some(ref mut buf) = self.trace_buf {
-            buf.flush().unwrap();
-        }
-
         // Ensure that all proofs and input bytes were read, otherwise warn the user.
         if self.state.proof_stream_ptr != self.state.proof_stream.len() {
             tracing::warn!(
@@ -1631,12 +1693,11 @@ impl<'a> Executor<'a> {
     }
 
     #[inline]
-    #[cfg(debug_assertions)]
     fn log(&mut self, _: &Instruction) {
-        // Write the current program counter to the trace buffer for the cycle tracer.
-        if let Some(ref mut buf) = self.trace_buf {
+        #[cfg(feature = "profiling")]
+        if let Some((ref mut profiler, _)) = self.profiler {
             if !self.unconstrained {
-                buf.write_all(&u32::to_be_bytes(self.state.pc)).unwrap();
+                profiler.record(self.state.global_clk, self.state.pc as u64);
             }
         }
 
@@ -1669,8 +1730,8 @@ mod tests {
     use sp1_stark::SP1CoreOpts;
 
     use crate::programs::tests::{
-        fibonacci_program, panic_program, simple_memory_program, simple_program,
-        ssz_withdrawals_program,
+        fibonacci_program, panic_program, secp256r1_add_program, secp256r1_double_program,
+        simple_memory_program, simple_program, ssz_withdrawals_program, u256xu2048_mul_program,
     };
 
     use crate::Register;
@@ -1695,6 +1756,27 @@ mod tests {
     #[test]
     fn test_fibonacci_program_run() {
         let program = fibonacci_program();
+        let mut runtime = Executor::new(program, SP1CoreOpts::default());
+        runtime.run().unwrap();
+    }
+
+    #[test]
+    fn test_secp256r1_add_program_run() {
+        let program = secp256r1_add_program();
+        let mut runtime = Executor::new(program, SP1CoreOpts::default());
+        runtime.run().unwrap();
+    }
+
+    #[test]
+    fn test_secp256r1_double_program_run() {
+        let program = secp256r1_double_program();
+        let mut runtime = Executor::new(program, SP1CoreOpts::default());
+        runtime.run().unwrap();
+    }
+
+    #[test]
+    fn test_u256xu2048_mul() {
+        let program = u256xu2048_mul_program();
         let mut runtime = Executor::new(program, SP1CoreOpts::default());
         runtime.run().unwrap();
     }

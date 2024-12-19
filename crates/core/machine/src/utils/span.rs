@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt::Display, hash::Hash, iter::once};
 
-use sp1_core_executor::events::sorted_table_lines;
+use sp1_core_executor::events::{format_table_line, sorted_table_lines};
 use thiserror::Error;
 
 /// A builder to create a [`Span`].
@@ -109,19 +109,22 @@ where
 
     /// Calculate the total number of items counted by this span and its children.
     pub fn total(&self) -> usize {
-        self.cts.values().cloned().chain(self.children.iter().map(|x| x.total())).sum()
+        // Counts are already added from children.
+        self.cts.values().cloned().sum()
     }
 
     /// Format and yield lines describing this span. Appropriate for logging.
     pub fn lines(&self) -> Vec<String> {
         let Self { name, cts: instr_cts, children } = self;
+        let (width, lines) = sorted_table_lines(instr_cts);
+        let lines = lines.map(|(label, count)| format_table_line(&width, &label, count));
 
         once(format!("{}", name))
             .chain(
                 children
                     .iter()
                     .flat_map(|c| c.lines())
-                    .chain(sorted_table_lines(instr_cts))
+                    .chain(lines)
                     .map(|line| format!("│  {line}")),
             )
             .chain(once(format!("└╴ {} total", self.total())))

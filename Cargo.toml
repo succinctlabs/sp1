@@ -2,6 +2,7 @@
 version = "3.0.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
+rust-version = "1.79"
 repository = "https://github.com/succinctlabs/sp1"
 keywords = ["sp1", "succinct", "zero-knowledge", "zkvm"]
 categories = ["cryptography"]
@@ -30,6 +31,7 @@ members = [
   "crates/verifier",
   "crates/stark",
   "crates/zkvm/*",
+  "crates/test-artifacts",
 ]
 exclude = ["examples/target"]
 resolver = "2"
@@ -66,10 +68,12 @@ sp1-sdk = { path = "crates/sdk", version = "3.0.0" }
 sp1-cuda = { path = "crates/cuda", version = "3.0.0" }
 sp1-stark = { path = "crates/stark", version = "3.0.0" }
 sp1-lib = { path = "crates/zkvm/lib", version = "3.0.0", default-features = false }
-
 # NOTE: The version in this crate is manually set to 3.0.1 right now. When upgrading SP1 versions,
 # make sure to update this crate.
 sp1-zkvm = { path = "crates/zkvm/entrypoint", version = "3.0.1", default-features = false }
+
+# For testing.
+test-artifacts = { path = "crates/test-artifacts", version = "3.0.0" }
 
 # p3
 # p3-air = "0.1.4-succinct"
@@ -137,7 +141,20 @@ p3-bn254-fr = { git = "https://github.com/Plonky3/Plonky3", branch = "sp1-v4" }
 # p3-maybe-rayon = { path = "../Plonky3/maybe-rayon" }
 # p3-bn254-fr = { path = "../Plonky3/bn254-fr" }
 
+# misc
+hashbrown = "0.14.5"
+itertools = "0.13.0"
+serde = "1.0.204"
+serde_json = "1.0.132"
+tracing = "0.1.40"
+tracing-subscriber = "0.3.18"
+
 [workspace.metadata.typos]
 # TODO: Fix in next version since CommitCommitedValuesDigest is retained since it's present in constraints.json
-default.extend-ignore-re = ["Jo-Philipp Wich", "SubEIN", "DivEIN", "CommitCommitedValuesDigest"]
+default.extend-ignore-re = [
+  "Jo-Philipp Wich",
+  "SubEIN",
+  "DivEIN",
+  "CommitCommitedValuesDigest",
+]
 default.extend-ignore-words-re = ["(?i)groth", "TRE"]

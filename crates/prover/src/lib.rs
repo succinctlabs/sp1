@@ -206,7 +206,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let vk_verification =
             env::var("VERIFY_VK").map(|v| v.eq_ignore_ascii_case("true")).unwrap_or(false);
 
-        tracing::info!("vk verification: {}", vk_verification);
+        tracing::debug!("vk verification: {}", vk_verification);
 
         // Read the shapes from the shapes directory and deserialize them into memory.
         let allowed_vk_map: BTreeMap<[BabyBear; DIGEST_SIZE], usize> = if vk_verification {
@@ -273,9 +273,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         mut context: SP1Context<'a>,
     ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
         context.subproof_verifier.replace(Arc::new(self));
-        let program = self.get_program(elf).unwrap();
         let opts = SP1CoreOpts::default();
-        let mut runtime = Executor::with_context(program, opts, context);
+        let mut runtime = Executor::with_context_and_elf(opts, context, elf);
+
         runtime.write_vecs(&stdin.buffer);
         for (proof, vkey) in stdin.proofs.iter() {
             runtime.write_proof(proof.clone(), vkey.clone());
@@ -1412,11 +1412,10 @@ pub mod tests {
         opts: SP1ProverOpts,
     ) -> Result<()> {
         // Test program which proves the Keccak-256 hash of various inputs.
-        let keccak_elf = include_bytes!("../../../tests/keccak256/elf/riscv32im-succinct-zkvm-elf");
+        let keccak_elf = test_artifacts::KECCAK256_ELF;
 
         // Test program which verifies proofs of a vkey and a list of committed inputs.
-        let verify_elf =
-            include_bytes!("../../../tests/verify-proof/elf/riscv32im-succinct-zkvm-elf");
+        let verify_elf = test_artifacts::VERIFY_PROOF_ELF;
 
         tracing::info!("initializing prover");
         let prover = SP1Prover::<C>::new();
@@ -1511,7 +1510,7 @@ pub mod tests {
     #[test]
     #[serial]
     fn test_e2e() -> Result<()> {
-        let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
+        let elf = test_artifacts::FIBONACCI_ELF;
         setup_logger();
         let opts = SP1ProverOpts::default();
         // TODO(mattstam): We should Test::Plonk here, but this uses the existing
@@ -1534,5 +1533,15 @@ pub mod tests {
     fn test_e2e_with_deferred_proofs() -> Result<()> {
         setup_logger();
         test_e2e_with_deferred_proofs_prover::<DefaultProverComponents>(SP1ProverOpts::default())
+    }
+
+    #[test]
+    fn test_deterministic_setup() {
+        setup_logger();
+        let prover = SP1Prover::<DefaultProverComponents>::new();
+        let program = test_artifacts::FIBONACCI_ELF;
+        let (pk, _) = prover.setup(program);
+        let pk2 = prover.setup(program).0;
+        assert_eq!(pk.pk.commit, pk2.pk.commit);
     }
 }

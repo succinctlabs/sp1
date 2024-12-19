@@ -366,11 +366,9 @@ impl Middleware for LoggingMiddleware {
 #[cfg(feature = "protobuf")]
 #[cfg(test)]
 mod tests {
-    use sp1_core_machine::{
-        reduce::SP1ReduceProof,
-        utils::{setup_logger, tests::FIBONACCI_ELF},
-    };
+    use sp1_core_machine::{reduce::SP1ReduceProof, utils::setup_logger};
     use sp1_prover::{components::DefaultProverComponents, InnerSC, SP1CoreProof, SP1Prover};
+    use test_artifacts::FIBONACCI_ELF;
     use twirp::{url::Url, Client};
 
     use crate::{
