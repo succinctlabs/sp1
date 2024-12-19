@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use clap::Parser;
 use sp1_core_machine::utils::setup_logger;
 use sp1_prover::{
-    components::DefaultProverComponents, shapes::build_vk_map_to_file, REDUCE_BATCH_SIZE,
+    components::CpuProverComponents, shapes::build_vk_map_to_file, REDUCE_BATCH_SIZE,
 };
 
 #[derive(Parser, Debug)]
@@ -37,7 +37,7 @@ fn main() {
     let range_start = args.start;
     let range_end = args.end;
 
-    build_vk_map_to_file::<DefaultProverComponents>(
+    build_vk_map_to_file::<CpuProverComponents>(
         build_dir,
         reduce_batch_size,
         dummy,

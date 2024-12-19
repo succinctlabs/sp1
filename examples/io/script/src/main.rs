@@ -23,7 +23,7 @@ fn main() {
     stdin.write(&q);
 
     // Generate the proof for the given program.
-    let client = ProverClient::new();
+    let client = ProverClient::from_env();
     let (pk, vk) = client.setup(ELF);
     let mut proof = client.prove(&pk, stdin).run().unwrap();
 

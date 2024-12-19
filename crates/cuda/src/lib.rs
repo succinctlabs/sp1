@@ -367,7 +367,7 @@ impl Middleware for LoggingMiddleware {
 #[cfg(test)]
 mod tests {
     use sp1_core_machine::{reduce::SP1ReduceProof, utils::setup_logger};
-    use sp1_prover::{components::DefaultProverComponents, InnerSC, SP1CoreProof, SP1Prover};
+    use sp1_prover::{components::CpuProverComponents, InnerSC, SP1CoreProof, SP1Prover};
     use test_artifacts::FIBONACCI_ELF;
     use twirp::{url::Url, Client};
 
@@ -380,7 +380,7 @@ mod tests {
     fn test_client() {
         setup_logger();
 
-        let prover = SP1Prover::<DefaultProverComponents>::new();
+        let prover = SP1Prover::<CpuProverComponents>::new();
         let client = SP1CudaProver::new().expect("Failed to create SP1CudaProver");
         let (pk, vk) = prover.setup(FIBONACCI_ELF);
 
@@ -414,7 +414,7 @@ mod tests {
         let client =
             Client::from_base_url(Url::parse("http://localhost:3000/twirp/").unwrap()).unwrap();
 
-        let prover = SP1Prover::<DefaultProverComponents>::new();
+        let prover = SP1Prover::<CpuProverComponents>::new();
         let (pk, vk) = prover.setup(FIBONACCI_ELF);
         let payload = ProveCoreRequestPayload { pk, stdin: SP1Stdin::new() };
         let request =

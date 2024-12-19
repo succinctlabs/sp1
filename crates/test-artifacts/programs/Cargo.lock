@@ -107,7 +107,7 @@ version = "1.1.0"
 dependencies = [
  "common-test-utils",
  "sp1-curves",
- "sp1-lib 3.0.0",
+ "sp1-lib 3.4.0",
  "sp1-zkvm",
 ]
 
@@ -150,7 +150,7 @@ name = "bls12381-mul-test"
 version = "1.1.0"
 dependencies = [
  "sp1-derive",
- "sp1-lib 3.0.0",
+ "sp1-lib 3.4.0",
  "sp1-zkvm",
 ]
 
@@ -160,7 +160,7 @@ version = "1.1.0"
 dependencies = [
  "common-test-utils",
  "sp1-curves",
- "sp1-lib 3.0.0",
+ "sp1-lib 3.4.0",
  "sp1-zkvm",
 ]
 
@@ -203,7 +203,7 @@ name = "bn254-mul-test"
 version = "1.1.0"
 dependencies = [
  "sp1-derive",
- "sp1-lib 3.0.0",
+ "sp1-lib 3.4.0",
  "sp1-zkvm",
 ]
 
@@ -245,7 +245,7 @@ name = "common-test-utils"
 version = "1.1.0"
 dependencies = [
  "num-bigint",
- "sp1-lib 3.0.0",
+ "sp1-lib 3.4.0",
 ]
 
 [[package]]
@@ -344,44 +344,18 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek"
 version = "4.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97fb8b7c4503de7d6ae7b42ab72a5a59857b4c937ec27a3d4539dba95b5ab2be"
-dependencies = [
- "cfg-if",
- "cpufeatures",
- "curve25519-dalek-derive 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "fiat-crypto",
- "rustc_version",
- "subtle",
- "zeroize",
-]
-
-[[package]]
-name = "curve25519-dalek"
-version = "4.1.3"
 source = "git+https://github.com/sp1-patches/curve25519-dalek?branch=patch-curve25519-v4.1.3#1d73fd95f1a76bee8f46643cf78bbccc1fb06ede"
 dependencies = [
  "anyhow",
  "cfg-if",
  "cpufeatures",
- "curve25519-dalek-derive 0.1.1 (git+https://github.com/sp1-patches/curve25519-dalek?branch=patch-curve25519-v4.1.3)",
+ "curve25519-dalek-derive",
  "digest 0.10.7",
  "fiat-crypto",
  "rustc_version",
  "sp1-lib 1.2.0",
  "subtle",
  "zeroize",
-]
-
-[[package]]
-name = "curve25519-dalek-derive"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f46882e17999c6cc590af592290432be3bce0428cb0d5f8b6715e4dc7b383eb3"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.87",
 ]
 
 [[package]]
@@ -613,7 +587,7 @@ name = "ed25519-dalek"
 version = "2.1.1"
 source = "git+https://github.com/sp1-patches/curve25519-dalek?branch=patch-curve25519-v4.1.3#1d73fd95f1a76bee8f46643cf78bbccc1fb06ede"
 dependencies = [
- "curve25519-dalek 4.1.3 (git+https://github.com/sp1-patches/curve25519-dalek?branch=patch-curve25519-v4.1.3)",
+ "curve25519-dalek",
  "ed25519",
  "serde",
  "sha2 0.10.8",
@@ -1634,7 +1608,7 @@ version = "1.1.0"
 dependencies = [
  "common-test-utils",
  "sp1-curves",
- "sp1-lib 3.0.0",
+ "sp1-lib 3.4.0",
  "sp1-zkvm",
 ]
 
@@ -1670,7 +1644,7 @@ dependencies = [
  "num",
  "p256",
  "sp1-curves",
- "sp1-lib 3.0.0",
+ "sp1-lib 3.4.0",
  "sp1-zkvm",
 ]
 
@@ -1691,7 +1665,7 @@ dependencies = [
  "num",
  "p256",
  "sp1-curves",
- "sp1-lib 3.0.0",
+ "sp1-lib 3.4.0",
  "sp1-zkvm",
 ]
 
@@ -1832,10 +1806,9 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
-version = "3.0.0"
+version = "3.4.0"
 dependencies = [
  "cfg-if",
- "curve25519-dalek 4.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "dashu",
  "elliptic-curve 0.13.8",
  "generic-array 1.1.0",
@@ -1853,7 +1826,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "3.0.0"
+version = "3.4.0"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -1875,14 +1848,6 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "3.0.0"
-dependencies = [
- "bincode",
- "serde",
-]
-
-[[package]]
-name = "sp1-lib"
 version = "3.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c1aa18834c58df127706eb2fb2ea6e2892dbf0361d6b2485bf7b3fbd5f8b8c3c"
@@ -1892,8 +1857,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp1-lib"
+version = "3.4.0"
+dependencies = [
+ "bincode",
+ "serde",
+]
+
+[[package]]
 name = "sp1-primitives"
-version = "3.0.0"
+version = "3.4.0"
 dependencies = [
  "bincode",
  "hex",
@@ -1909,7 +1882,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-stark"
-version = "3.0.0"
+version = "3.4.0"
 dependencies = [
  "arrayref",
  "hashbrown 0.14.5",
@@ -1941,7 +1914,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "3.0.1"
+version = "3.4.0"
 dependencies = [
  "cfg-if",
  "getrandom",
@@ -1951,7 +1924,7 @@ dependencies = [
  "p3-field",
  "rand",
  "sha2 0.10.8",
- "sp1-lib 3.0.0",
+ "sp1-lib 3.4.0",
  "sp1-primitives",
 ]
 

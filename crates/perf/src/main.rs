@@ -6,8 +6,8 @@ use std::{
 use clap::{command, Parser};
 use sp1_cuda::SP1CudaProver;
 use sp1_prover::HashableKey;
-use sp1_prover::{components::DefaultProverComponents, ProverMode};
-use sp1_sdk::{self, ProverClient, SP1Context, SP1Prover, SP1Stdin};
+use sp1_prover::{components::CpuProverComponents, ProverMode};
+use sp1_sdk::{self, Prover, ProverClient, SP1Context, SP1Prover, SP1Stdin};
 use sp1_stark::SP1ProverOpts;
 use test_artifacts::VERIFY_PROOF_ELF;
 
@@ -52,7 +52,7 @@ fn main() {
     let stdin = std::fs::read(args.stdin).expect("failed to read stdin");
     let stdin: SP1Stdin = bincode::deserialize(&stdin).expect("failed to deserialize stdin");
 
-    let prover = SP1Prover::<DefaultProverComponents>::new();
+    let prover = SP1Prover::<CpuProverComponents>::new();
     let (pk, vk) = prover.setup(&elf);
     let cycles = sp1_prover::utils::get_cycles(&elf, &stdin);
     let opts = SP1ProverOpts::default();
@@ -182,25 +182,29 @@ fn main() {
             let skip_simulation =
                 env::var("SKIP_SIMULATION").map(|val| val == "true").unwrap_or_default();
 
-            let mut prover_builder = ProverClient::builder().mode(ProverMode::Network);
+            let mut prover_builder = ProverClient::network();
 
             if let Some(rpc_url) = rpc_url {
                 prover_builder = prover_builder.rpc_url(rpc_url);
             }
 
-            if skip_simulation {
-                prover_builder = prover_builder.skip_simulation();
-            }
-
             let prover = prover_builder.private_key(private_key).build();
-            let (_, _) = time_operation(|| prover.execute(&elf, stdin.clone()));
+            let (_, _) = time_operation(|| prover.execute(&elf, &stdin));
 
-            let (proof, _) =
-                time_operation(|| prover.prove(&pk, stdin.clone()).groth16().run().unwrap());
+            let (proof, _) = time_operation(|| {
+                prover
+                    .prove(&pk, stdin.clone())
+                    .groth16()
+                    .skip_simulation(skip_simulation)
+                    .run()
+                    .unwrap()
+            });
 
             let (_, _) = time_operation(|| prover.verify(&proof, &vk));
 
-            let (proof, _) = time_operation(|| prover.prove(&pk, stdin).plonk().run().unwrap());
+            let (proof, _) = time_operation(|| {
+                prover.prove(&pk, stdin).plonk().skip_simulation(skip_simulation).run().unwrap()
+            });
 
             let (_, _) = time_operation(|| prover.verify(&proof, &vk));
         }

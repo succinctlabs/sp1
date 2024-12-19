@@ -33,7 +33,7 @@ pub(crate) struct PlonkVerifyingKey {
     pub(crate) commitment_constraint_indexes: Vec<usize>,
 }
 
-/// Verifies a PLONK proof using algebraic inputs.
+/// Verifies a PLONK proof
 ///
 /// # Arguments
 ///
@@ -44,7 +44,7 @@ pub(crate) struct PlonkVerifyingKey {
 /// # Returns
 ///
 /// * `Result<bool, PlonkError>` - Returns true if the proof is valid, or an error if verification fails
-pub(crate) fn verify_plonk_algebraic(
+pub(crate) fn verify_plonk_raw(
     vk: &PlonkVerifyingKey,
     proof: &PlonkProof,
     public_inputs: &[Fr],

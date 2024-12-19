@@ -24,4 +24,4 @@ time = "0.3.26"
 
 [features]
 native-gnark = ["sp1-sdk/native-gnark"]
-network-v2 = ["sp1-sdk/network-v2"]
+network = ["sp1-sdk/network"]

@@ -2,8 +2,8 @@ use alloy_primitives::{Address, Signature};
 use prost::Message;
 use thiserror::Error;
 
-use crate::network_v2::json::{format_json_message, JsonFormatError};
-use crate::network_v2::proto::network::{FulfillProofRequest, MessageFormat, RequestProofRequest};
+use crate::network::proto::network::{FulfillProofRequest, MessageFormat, RequestProofRequest};
+use crate::network::utils::{format_json_message, JsonFormatError};
 
 #[allow(dead_code)]
 pub trait SignedMessage {

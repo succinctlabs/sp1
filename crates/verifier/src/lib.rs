@@ -1,7 +1,7 @@
 //! This crate provides verifiers for SP1 Groth16 and Plonk BN254 proofs in a no-std environment.
-//! It is patched for efficient verification within the SP1 zkVM context.
+//! It is patched for efficient verification within the SP1 ZKVM context.
 
-#![cfg_attr(not(any(feature = "std", test)), no_std)]
+#![cfg_attr(not(feature = "std"), no_std)]
 extern crate alloc;
 
 use lazy_static::lazy_static;
@@ -26,9 +26,6 @@ pub use utils::*;
 pub use groth16::error::Groth16Error;
 pub use groth16::Groth16Verifier;
 mod groth16;
-
-#[cfg(feature = "ark")]
-pub use groth16::ark_converter::*;
 
 pub use plonk::error::PlonkError;
 pub use plonk::PlonkVerifier;

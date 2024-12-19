@@ -1,14 +1,15 @@
-use anyhow::Result;
-use clap::Parser;
-use dirs::home_dir;
-use rand::{distributions::Alphanumeric, Rng};
-use reqwest::Client;
-use sp1_sdk::artifacts::download_file;
 use std::{
     fs::{self},
     io::Read,
     process::Command,
 };
+
+use anyhow::Result;
+use clap::Parser;
+use dirs::home_dir;
+use rand::{distributions::Alphanumeric, Rng};
+use reqwest::Client;
+use sp1_sdk::install::download_file;
 
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;

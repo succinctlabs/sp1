@@ -197,31 +197,32 @@ impl Profiler {
     }
 
     /// Simple check to makes sure we have valid main function that lasts
-    /// for most of the exeuction time.
+    /// for most of the execution time.
     fn check_samples(&self) {
         let Some(main_idx) = self.main_idx else {
-            eprintln!("Warning: The `main` function is not present in the Elf file, this is likely caused by using the wrong Elf file");
+            eprintln!(
+                "Warning: The `main` function is not present in the Elf file, this is likely caused by using the wrong Elf file"
+            );
             return;
         };
 
-        let main_count =
-            self.samples
-                .iter()
-                .filter(|s| {
-                    s.stack.iter().any(|f| {
-                        if let Frame::Label(idx) = f {
-                            *idx == main_idx
-                        } else {
-                            false
-                        }
-                    })
-                })
-                .count();
+        let main_count = self
+            .samples
+            .iter()
+            .filter(|s| {
+                s.stack
+                    .iter()
+                    .any(|f| if let Frame::Label(idx) = f { *idx == main_idx } else { false })
+            })
+            .count();
 
         #[allow(clippy::cast_precision_loss)]
         let main_ratio = main_count as f64 / self.samples.len() as f64;
         if main_ratio < 0.9 {
-            eprintln!("Warning: This trace appears to be invalid. The `main` function is present in only {:.2}% of the samples, this is likely caused by the using the wrong Elf file", main_ratio * 100.0);
+            eprintln!(
+                "Warning: This trace appears to be invalid. The `main` function is present in only {:.2}% of the samples, this is likely caused by the using the wrong Elf file",
+                main_ratio * 100.0
+            );
         }
     }
 }
