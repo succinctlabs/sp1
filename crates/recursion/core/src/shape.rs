@@ -64,7 +64,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize>
 
             // Otherwise, this is the closest shape.
             closest_shape = Some(shape.clone());
-            break;
+            // break; TODO: FIX, this is a huge performance optimization
         }
 
         if let Some(shape) = closest_shape {
