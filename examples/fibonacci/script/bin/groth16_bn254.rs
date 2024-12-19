@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 use sp1_sdk::{include_elf, utils, HashableKey, ProverClient, SP1Stdin};
-=======
-use sp1_sdk::{utils, HashableKey, ProverClient, SP1Stdin};
->>>>>>> origin/main
 
 /// The ELF we want to execute inside the zkVM.
 const ELF: &[u8] = include_elf!("fibonacci-program");
@@ -18,11 +14,7 @@ fn main() {
     stdin.write(&n);
 
     // Set up the pk and vk.
-<<<<<<< HEAD
-    let client = ProverClient::env();
-=======
-    let client = ProverClient::new();
->>>>>>> origin/main
+    let client = ProverClient::from_env();
     let (pk, vk) = client.setup(ELF);
     println!("vk: {:?}", vk.bytes32());
 
