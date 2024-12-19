@@ -78,6 +78,8 @@ network = [
 ]
 cuda = ["sp1-cuda"]
 
+profiling = ["sp1-core-executor/profiling"]
+
 [build-dependencies]
 vergen = { version = "8", default-features = false, features = [
   "build",
