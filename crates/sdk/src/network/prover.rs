@@ -210,7 +210,11 @@ impl NetworkProver {
             }
             let remaining_timeout = timeout.map(|t| {
                 let elapsed = start_time.elapsed();
-                if elapsed < t { t - elapsed } else { Duration::from_secs(0) }
+                if elapsed < t {
+                    t - elapsed
+                } else {
+                    Duration::from_secs(0)
+                }
             });
 
             // Get status with retries.
