@@ -188,7 +188,7 @@ dependencies = [
  "alloy-sol-types",
  "serde",
  "serde_json",
- "thiserror 1.0.69",
+ "thiserror",
  "tracing",
 ]
 
@@ -210,7 +210,7 @@ dependencies = [
  "async-trait",
  "auto_impl",
  "futures-utils-wasm",
- "thiserror 1.0.69",
+ "thiserror",
 ]
 
 [[package]]
@@ -317,7 +317,7 @@ dependencies = [
  "auto_impl",
  "elliptic-curve",
  "k256",
- "thiserror 1.0.69",
+ "thiserror",
 ]
 
 [[package]]
@@ -333,7 +333,7 @@ dependencies = [
  "async-trait",
  "k256",
  "rand 0.8.5",
- "thiserror 1.0.69",
+ "thiserror",
 ]
 
 [[package]]
@@ -495,54 +495,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ark-bn254"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a22f4561524cd949590d78d7d4c5df8f592430d221f7f3c9497bbafd8972120f"
-dependencies = [
- "ark-ec",
- "ark-ff 0.4.2",
- "ark-std 0.4.0",
-]
-
-[[package]]
-name = "ark-crypto-primitives"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f3a13b34da09176a8baba701233fdffbaa7c1b1192ce031a3da4e55ce1f1a56"
-dependencies = [
- "ark-ec",
- "ark-ff 0.4.2",
- "ark-relations",
- "ark-serialize 0.4.2",
- "ark-snark",
- "ark-std 0.4.0",
- "blake2",
- "derivative",
- "digest 0.10.7",
- "rayon",
- "sha2 0.10.8",
-]
-
-[[package]]
-name = "ark-ec"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "defd9a439d56ac24968cca0571f598a61bc8c55f71d50a89cda591cb750670ba"
-dependencies = [
- "ark-ff 0.4.2",
- "ark-poly",
- "ark-serialize 0.4.2",
- "ark-std 0.4.0",
- "derivative",
- "hashbrown 0.13.2",
- "itertools 0.10.5",
- "num-traits",
- "rayon",
- "zeroize",
-]
-
-[[package]]
 name = "ark-ff"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -576,7 +528,6 @@ dependencies = [
  "num-bigint 0.4.6",
  "num-traits",
  "paste",
- "rayon",
  "rustc_version 0.4.1",
  "zeroize",
 ]
@@ -627,48 +578,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ark-groth16"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "20ceafa83848c3e390f1cbf124bc3193b3e639b3f02009e0e290809a501b95fc"
-dependencies = [
- "ark-crypto-primitives",
- "ark-ec",
- "ark-ff 0.4.2",
- "ark-poly",
- "ark-relations",
- "ark-serialize 0.4.2",
- "ark-std 0.4.0",
- "rayon",
-]
-
-[[package]]
-name = "ark-poly"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d320bfc44ee185d899ccbadfa8bc31aab923ce1558716e1997a1e74057fe86bf"
-dependencies = [
- "ark-ff 0.4.2",
- "ark-serialize 0.4.2",
- "ark-std 0.4.0",
- "derivative",
- "hashbrown 0.13.2",
- "rayon",
-]
-
-[[package]]
-name = "ark-relations"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "00796b6efc05a3f48225e59cb6a2cda78881e7c390872d5786aaf112f31fb4f0"
-dependencies = [
- "ark-ff 0.4.2",
- "ark-std 0.4.0",
- "tracing",
- "tracing-subscriber 0.2.25",
-]
-
-[[package]]
 name = "ark-serialize"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -684,33 +593,9 @@ version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "adb7b85a02b83d2f22f89bd5cac66c9c89474240cb6207cb1efc16d098e822a5"
 dependencies = [
- "ark-serialize-derive",
  "ark-std 0.4.0",
  "digest 0.10.7",
  "num-bigint 0.4.6",
-]
-
-[[package]]
-name = "ark-serialize-derive"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae3281bc6d0fd7e549af32b52511e1302185bd688fd3359fa36423346ff682ea"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "ark-snark"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "84d3cc6833a335bb8a600241889ead68ee89a3cf8448081fb7694c0fe503da63"
-dependencies = [
- "ark-ff 0.4.2",
- "ark-relations",
- "ark-serialize 0.4.2",
- "ark-std 0.4.0",
 ]
 
 [[package]]
@@ -731,7 +616,6 @@ checksum = "94893f1e0c6eeab764ade8dc4c0db24caf4fe7cbbaafc0eba0a9030f447b5185"
 dependencies = [
  "num-traits",
  "rand 0.8.5",
- "rayon",
 ]
 
 [[package]]
@@ -1308,7 +1192,7 @@ dependencies = [
  "semver 1.0.23",
  "serde",
  "serde_json",
- "thiserror 1.0.69",
+ "thiserror",
 ]
 
 [[package]]
@@ -1732,32 +1616,6 @@ dependencies = [
  "pkg-config",
  "vcpkg",
  "windows-sys 0.52.0",
-]
-
-[[package]]
-name = "curve25519-dalek"
-version = "4.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97fb8b7c4503de7d6ae7b42ab72a5a59857b4c937ec27a3d4539dba95b5ab2be"
-dependencies = [
- "cfg-if",
- "cpufeatures",
- "curve25519-dalek-derive",
- "fiat-crypto",
- "rustc_version 0.4.1",
- "subtle",
- "zeroize",
-]
-
-[[package]]
-name = "curve25519-dalek-derive"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f46882e17999c6cc590af592290432be3bce0428cb0d5f8b6715e4dc7b383eb3"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.87",
 ]
 
 [[package]]
@@ -2234,12 +2092,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fiat-crypto"
-version = "0.2.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
-
-[[package]]
 name = "fixed-hash"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2652,15 +2504,6 @@ name = "hashbrown"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
-
-[[package]]
-name = "hashbrown"
-version = "0.13.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43a3c133739dddd0d2990f9a4bdf8eb4b21ef50e4851ca85ab661199821d510e"
-dependencies = [
- "ahash",
-]
 
 [[package]]
 name = "hashbrown"
@@ -4179,7 +4022,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "879952a81a83930934cbf1786752d6dedc3b1f29e8f8fb2ad1d0a36f377cf442"
 dependencies = [
  "memchr",
- "thiserror 1.0.69",
+ "thiserror",
  "ucd-trie",
 ]
 
@@ -4525,7 +4368,7 @@ dependencies = [
  "rustc-hash 2.0.0",
  "rustls 0.23.16",
  "socket2",
- "thiserror 1.0.69",
+ "thiserror",
  "tokio",
  "tracing",
 ]
@@ -4542,7 +4385,7 @@ dependencies = [
  "rustc-hash 2.0.0",
  "rustls 0.23.16",
  "slab",
- "thiserror 1.0.69",
+ "thiserror",
  "tinyvec",
  "tracing",
 ]
@@ -4703,7 +4546,7 @@ checksum = "ba009ff324d1fc1b900bd1fdb31564febe58a8ccc8a6fdbb93b543d33b13ca43"
 dependencies = [
  "getrandom 0.2.15",
  "libredox",
- "thiserror 1.0.69",
+ "thiserror",
 ]
 
 [[package]]
@@ -4811,7 +4654,7 @@ dependencies = [
  "http 1.1.0",
  "reqwest",
  "serde",
- "thiserror 1.0.69",
+ "thiserror",
  "tower-service",
 ]
 
@@ -5295,7 +5138,7 @@ checksum = "c7715380eec75f029a4ef7de39a9200e0a63823176b759d055b613f5a87df6a6"
 dependencies = [
  "percent-encoding",
  "serde",
- "thiserror 1.0.69",
+ "thiserror",
 ]
 
 [[package]]
@@ -5541,7 +5384,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-build"
-version = "3.0.0"
+version = "3.4.0"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -5552,7 +5395,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-cli"
-version = "3.0.0"
+version = "3.4.0"
 dependencies = [
  "anstyle",
  "anyhow",
@@ -5581,7 +5424,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-executor"
-version = "3.0.0"
+version = "3.4.0"
 dependencies = [
  "bincode",
  "bytemuck",
@@ -5611,7 +5454,7 @@ dependencies = [
  "strum",
  "strum_macros",
  "test-artifacts",
- "thiserror 1.0.69",
+ "thiserror",
  "tiny-keccak",
  "tracing",
  "typenum",
@@ -5620,7 +5463,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-machine"
-version = "3.0.0"
+version = "3.4.0"
 dependencies = [
  "bincode",
  "cfg-if",
@@ -5659,18 +5502,18 @@ dependencies = [
  "strum_macros",
  "tempfile",
  "test-artifacts",
- "thiserror 1.0.69",
+ "thiserror",
  "tiny-keccak",
  "tracing",
  "tracing-forest",
- "tracing-subscriber 0.3.18",
+ "tracing-subscriber",
  "typenum",
  "web-time",
 ]
 
 [[package]]
 name = "sp1-cuda"
-version = "3.0.0"
+version = "3.4.0"
 dependencies = [
  "bincode",
  "ctrlc",
@@ -5688,10 +5531,9 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
-version = "3.0.0"
+version = "3.4.0"
 dependencies = [
  "cfg-if",
- "curve25519-dalek",
  "dashu",
  "elliptic-curve",
  "generic-array 1.1.0",
@@ -5711,7 +5553,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "3.0.0"
+version = "3.4.0"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -5719,7 +5561,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-eval"
-version = "3.0.0"
+version = "3.4.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5737,17 +5579,9 @@ dependencies = [
 
 [[package]]
 name = "sp1-helper"
-version = "3.0.0"
+version = "3.4.0"
 dependencies = [
  "sp1-build",
-]
-
-[[package]]
-name = "sp1-lib"
-version = "3.0.0"
-dependencies = [
- "bincode",
- "serde",
 ]
 
 [[package]]
@@ -5761,8 +5595,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp1-lib"
+version = "3.4.0"
+dependencies = [
+ "bincode",
+ "serde",
+]
+
+[[package]]
 name = "sp1-perf"
-version = "3.0.0"
+version = "3.4.0"
 dependencies = [
  "bincode",
  "clap",
@@ -5778,7 +5620,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "3.0.0"
+version = "3.4.0"
 dependencies = [
  "bincode",
  "hex",
@@ -5794,7 +5636,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-prover"
-version = "3.0.0"
+version = "3.4.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5823,15 +5665,15 @@ dependencies = [
  "sp1-recursion-gnark-ffi",
  "sp1-stark",
  "test-artifacts",
- "thiserror 1.0.69",
+ "thiserror",
  "tracing",
  "tracing-appender",
- "tracing-subscriber 0.3.18",
+ "tracing-subscriber",
 ]
 
 [[package]]
 name = "sp1-recursion-circuit"
-version = "3.0.0"
+version = "3.4.0"
 dependencies = [
  "ff 0.13.0",
  "hashbrown 0.14.5",
@@ -5868,7 +5710,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-compiler"
-version = "3.0.0"
+version = "3.4.0"
 dependencies = [
  "backtrace",
  "criterion",
@@ -5893,7 +5735,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-core"
-version = "3.0.0"
+version = "3.4.0"
 dependencies = [
  "backtrace",
  "ff 0.13.0",
@@ -5920,7 +5762,7 @@ dependencies = [
  "sp1-primitives",
  "sp1-stark",
  "static_assertions",
- "thiserror 1.0.69",
+ "thiserror",
  "tracing",
  "vec_map",
  "zkhash",
@@ -5928,7 +5770,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-derive"
-version = "3.0.0"
+version = "3.4.0"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -5936,7 +5778,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-cli"
-version = "3.0.0"
+version = "3.4.0"
 dependencies = [
  "bincode",
  "clap",
@@ -5945,7 +5787,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-ffi"
-version = "3.0.0"
+version = "3.4.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5969,7 +5811,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-sdk"
-version = "3.0.0"
+version = "3.4.0"
 dependencies = [
  "alloy-primitives",
  "alloy-signer",
@@ -6006,7 +5848,7 @@ dependencies = [
  "strum_macros",
  "tempfile",
  "test-artifacts",
- "thiserror 1.0.69",
+ "thiserror",
  "tokio",
  "tonic",
  "tracing",
@@ -6016,7 +5858,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-stark"
-version = "3.0.0"
+version = "3.4.0"
 dependencies = [
  "arrayref",
  "hashbrown 0.14.5",
@@ -6049,13 +5891,8 @@ dependencies = [
 
 [[package]]
 name = "sp1-verifier"
-version = "3.0.0"
+version = "3.4.0"
 dependencies = [
- "ark-bn254",
- "ark-ec",
- "ark-ff 0.4.2",
- "ark-groth16",
- "ark-serialize 0.4.2",
  "hex",
  "lazy_static",
  "num-bigint 0.4.6",
@@ -6063,12 +5900,12 @@ dependencies = [
  "sha2 0.10.8",
  "sp1-sdk",
  "substrate-bn-succinct",
- "thiserror 2.0.3",
+ "thiserror-no-std",
 ]
 
 [[package]]
 name = "sp1-zkvm"
-version = "3.0.1"
+version = "3.4.0"
 dependencies = [
  "cfg-if",
  "getrandom 0.2.15",
@@ -6078,7 +5915,7 @@ dependencies = [
  "p3-field",
  "rand 0.8.5",
  "sha2 0.10.8",
- "sp1-lib 3.0.0",
+ "sp1-lib 3.4.0",
  "sp1-primitives",
 ]
 
@@ -6397,7 +6234,7 @@ dependencies = [
 
 [[package]]
 name = "test-artifacts"
-version = "3.0.0"
+version = "3.4.0"
 dependencies = [
  "sp1-build",
 ]
@@ -6419,16 +6256,7 @@ version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6aaf5339b578ea85b50e080feb250a3e8ae8cfcdff9a461c9ec2904bc923f52"
 dependencies = [
- "thiserror-impl 1.0.69",
-]
-
-[[package]]
-name = "thiserror"
-version = "2.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c006c85c7651b3cf2ada4584faa36773bd07bac24acfb39f3c431b36d7e667aa"
-dependencies = [
- "thiserror-impl 2.0.3",
+ "thiserror-impl",
 ]
 
 [[package]]
@@ -6443,14 +6271,23 @@ dependencies = [
 ]
 
 [[package]]
-name = "thiserror-impl"
-version = "2.0.3"
+name = "thiserror-impl-no-std"
+version = "2.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f077553d607adc1caf65430528a576c757a71ed73944b66ebb58ef2bbd243568"
+checksum = "58e6318948b519ba6dc2b442a6d0b904ebfb8d411a3ad3e07843615a72249758"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.87",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "thiserror-no-std"
+version = "2.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a3ad459d94dd517257cc96add8a43190ee620011bb6e6cdc82dafd97dfafafea"
+dependencies = [
+ "thiserror-impl-no-std",
 ]
 
 [[package]]
@@ -6789,9 +6626,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3566e8ce28cc0a3fe42519fc80e6b4c943cc4c8cef275620eb8dac2d3d4e06cf"
 dependencies = [
  "crossbeam-channel",
- "thiserror 1.0.69",
+ "thiserror",
  "time 0.3.36",
- "tracing-subscriber 0.3.18",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -6823,9 +6660,9 @@ checksum = "ee40835db14ddd1e3ba414292272eddde9dad04d3d4b65509656414d1c42592f"
 dependencies = [
  "ansi_term",
  "smallvec",
- "thiserror 1.0.69",
+ "thiserror",
  "tracing",
- "tracing-subscriber 0.3.18",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -6846,15 +6683,6 @@ checksum = "ee855f1f400bd0e5c02d150ae5de3840039a3f54b025156404e34c23c03f47c3"
 dependencies = [
  "log",
  "once_cell",
- "tracing-core",
-]
-
-[[package]]
-name = "tracing-subscriber"
-version = "0.2.25"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e0d2eaa99c3c2e41547cfa109e910a68ea03823cccad4a0525dcbc9b01e8c71"
-dependencies = [
  "tracing-core",
 ]
 
@@ -6896,7 +6724,7 @@ dependencies = [
  "log",
  "rand 0.8.5",
  "sha1 0.10.6",
- "thiserror 1.0.69",
+ "thiserror",
  "url",
  "utf-8",
 ]
@@ -6926,7 +6754,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
- "thiserror 1.0.69",
+ "thiserror",
  "tokio",
  "tower 0.5.1",
  "url",

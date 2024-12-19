@@ -1,7 +1,14 @@
+<<<<<<< HEAD
 use sp1_sdk::{include_elf, utils, HashableKey, ProverClient, SP1Stdin};
 
 /// The ELF we want to execute inside the zkVM.
 const ELF: &[u8] = include_elf!("fibonacci-program");
+=======
+use sp1_sdk::{utils, HashableKey, ProverClient, SP1Stdin};
+
+/// The ELF we want to execute inside the zkVM.
+const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
+>>>>>>> origin/main
 
 fn main() {
     // Setup logging.
@@ -14,7 +21,11 @@ fn main() {
     stdin.write(&n);
 
     // Set up the pk and vk.
+<<<<<<< HEAD
     let client = ProverClient::env();
+=======
+    let client = ProverClient::new();
+>>>>>>> origin/main
     let (pk, vk) = client.setup(ELF);
     println!("vk: {:?}", vk.bytes32());
 
