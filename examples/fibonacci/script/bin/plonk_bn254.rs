@@ -19,7 +19,7 @@ fn main() {
     println!("vk: {:?}", vk.bytes32());
 
     // Generate the Plonk proof.
-    let proof = client.prove(&pk, stdin).plonk().run().unwrap();
+    let proof = client.prove(&pk, &stdin).plonk().run().unwrap();
     println!("generated proof");
 
     // Get the public values as bytes.
