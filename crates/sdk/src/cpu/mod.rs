@@ -118,7 +118,7 @@ impl CpuProver {
         context: SP1Context<'a>,
         mode: SP1ProofMode,
     ) -> Result<SP1ProofWithPublicValues> {
-        let program = Program::from(&pk.elf).unwrap();
+        let program = self.prover.get_program(&pk.elf);
 
         // If we're in mock mode, return a mock proof.
         if self.mock {

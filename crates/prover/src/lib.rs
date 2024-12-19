@@ -312,10 +312,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     ) -> Result<SP1CoreProof, SP1CoreProverError> {
         context.subproof_verifier.replace(Arc::new(self));
 
-        if let Some(core_shape_config) = &self.core_shape_config {
-            core_shape_config.fix_preprocessed_shape(&mut program).unwrap();
-        }
-
         // Launch two threads to simultaneously prove the core and compile the first few
         // recursion programs in parallel.
         let span = tracing::Span::current().clone();
