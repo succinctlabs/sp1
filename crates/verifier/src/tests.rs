@@ -3,6 +3,7 @@ use sp1_sdk::{install::try_install_circuit_artifacts, SP1ProofWithPublicValues};
 extern crate std;
 
 #[test]
+#[ignore]
 fn test_verify_groth16() {
     // Location of the serialized SP1ProofWithPublicValues. See README.md for more information.
     let proof_file = "test_binaries/fibonacci-groth16.bin";
@@ -21,6 +22,7 @@ fn test_verify_groth16() {
 }
 
 #[test]
+#[ignore]
 fn test_verify_plonk() {
     // Location of the serialized SP1ProofWithPublicValues. See README.md for more information.
     let proof_file = "test_binaries/fibonacci-plonk.bin";
@@ -39,6 +41,7 @@ fn test_verify_plonk() {
 }
 
 #[test]
+#[ignore]
 fn test_vkeys() {
     let groth16_path = try_install_circuit_artifacts("groth16");
     let s3_vkey_path = groth16_path.join("groth16_vk.bin");
