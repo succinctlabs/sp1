@@ -1,3 +1,7 @@
+//! # CUDA Proving
+//!
+//! This module provides a builder for proving a program on the CUDA.
+
 use anyhow::Result;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{components::CpuProverComponents, SP1ProvingKey};
@@ -5,6 +9,10 @@ use sp1_prover::{components::CpuProverComponents, SP1ProvingKey};
 use super::CudaProver;
 use crate::{Prover, SP1ProofMode, SP1ProofWithPublicValues};
 
+/// A builder for proving a program on the CUDA.
+///
+/// This builder provides a typed interface for configuring the SP1 RISC-V prover. The builder is
+/// used for only the [crate::cuda::CudaProver] client type.
 pub struct CudaProveBuilder<'a> {
     pub(crate) prover: &'a CudaProver,
     pub(crate) mode: SP1ProofMode,
@@ -21,7 +29,7 @@ impl<'a> CudaProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let client = ProverClient::cuda();
+    /// let client = ProverClient::builder().cuda().build();
     /// let builder = client.prove(pk, stdin)
     ///     .core()
     ///     .run();
@@ -40,7 +48,7 @@ impl<'a> CudaProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let client = ProverClient::cuda();
+    /// let client = ProverClient::builder().cuda().build();
     /// let builder = client.prove(pk, stdin)
     ///     .compressed()
     ///     .run();
@@ -60,7 +68,7 @@ impl<'a> CudaProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let client = ProverClient::cuda();
+    /// let client = ProverClient::builder().cuda().build();
     /// let builder = client.prove(pk, stdin)
     ///     .plonk()
     ///     .run();
@@ -78,7 +86,7 @@ impl<'a> CudaProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let client = ProverClient::cuda();
+    /// let client = ProverClient::builder().cuda().build();
     /// let builder = client.prove(pk, stdin)
     ///     .groth16()
     ///     .run();
@@ -95,7 +103,7 @@ impl<'a> CudaProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let client = ProverClient::gpu();
+    /// let client = ProverClient::builder().cuda().build();
     /// let builder = client.prove(pk, stdin)
     ///     .mode(SP1ProofMode::Groth16)
     ///     .run();
@@ -113,7 +121,7 @@ impl<'a> CudaProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let client = ProverClient::gpu();
+    /// let client = ProverClient::builder().cuda().build();
     /// let (proof, public_values) = client.prove(pk, stdin)
     ///     .run()
     ///     .unwrap();

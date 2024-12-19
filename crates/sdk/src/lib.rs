@@ -77,7 +77,7 @@ mod tests {
     #[test]
     fn test_execute() {
         utils::setup_logger();
-        let client = ProverClient::cpu();
+        let client = ProverClient::builder().cpu().build();
         let elf = test_artifacts::FIBONACCI_ELF;
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
@@ -89,7 +89,7 @@ mod tests {
     #[should_panic]
     fn test_execute_panic() {
         utils::setup_logger();
-        let client = ProverClient::cpu();
+        let client = ProverClient::builder().cpu().build();
         let elf = test_artifacts::PANIC_ELF;
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
@@ -100,7 +100,7 @@ mod tests {
     #[test]
     fn test_cycle_limit_fail() {
         utils::setup_logger();
-        let client = ProverClient::cpu();
+        let client = ProverClient::builder().cpu().build();
         let elf = test_artifacts::PANIC_ELF;
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
@@ -110,7 +110,7 @@ mod tests {
     #[test]
     fn test_e2e_core() {
         utils::setup_logger();
-        let client = ProverClient::cpu();
+        let client = ProverClient::builder().cpu().build();
         let elf = test_artifacts::FIBONACCI_ELF;
         let (pk, vk) = client.setup(elf);
         let mut stdin = SP1Stdin::new();
@@ -130,7 +130,7 @@ mod tests {
     #[test]
     fn test_e2e_compressed() {
         utils::setup_logger();
-        let client = ProverClient::cpu();
+        let client = ProverClient::builder().cpu().build();
         let elf = test_artifacts::FIBONACCI_ELF;
         let (pk, vk) = client.setup(elf);
         let mut stdin = SP1Stdin::new();
@@ -150,7 +150,7 @@ mod tests {
     #[test]
     fn test_e2e_prove_plonk() {
         utils::setup_logger();
-        let client = ProverClient::cpu();
+        let client = ProverClient::builder().cpu().build();
         let elf = test_artifacts::FIBONACCI_ELF;
         let (pk, vk) = client.setup(elf);
         let mut stdin = SP1Stdin::new();
@@ -170,7 +170,7 @@ mod tests {
     #[test]
     fn test_e2e_prove_plonk_mock() {
         utils::setup_logger();
-        let client = ProverClient::mock();
+        let client = ProverClient::builder().mock().build();
         let elf = test_artifacts::FIBONACCI_ELF;
         let (pk, vk) = client.setup(elf);
         let mut stdin = SP1Stdin::new();

@@ -35,7 +35,7 @@ impl<'a> CpuProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let client = ProverClient::cpu();
+    /// let client = ProverClient::builder().cpu().build();
     /// let builder = client.prove(pk, stdin)
     ///     .core()
     ///     .run();
@@ -74,7 +74,7 @@ impl<'a> CpuProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let client = ProverClient::cpu();
+    /// let client = ProverClient::builder().cpu().build();
     /// let builder = client.prove(pk, stdin)
     ///     .plonk()
     ///     .run();
@@ -92,7 +92,7 @@ impl<'a> CpuProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let client = ProverClient::cpu();
+    /// let client = ProverClient::builder().cpu().build();
     /// let builder = client.prove(pk, stdin)
     ///     .groth16()
     ///     .run();
@@ -109,7 +109,7 @@ impl<'a> CpuProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let client = ProverClient::cpu();
+    /// let client = ProverClient::builder().cpu().build();
     /// let builder = client.prove(pk, stdin)
     ///     .mode(SP1ProofMode::Groth16)
     ///     .run();
@@ -129,7 +129,7 @@ impl<'a> CpuProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let client = ProverClient::cpu();
+    /// let client = ProverClient::builder().cpu().build();
     /// let builder = client.prove(pk, stdin)
     ///     .shard_size(1 << 16)
     ///     .run();
@@ -148,7 +148,7 @@ impl<'a> CpuProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let client = ProverClient::cpu();
+    /// let client = ProverClient::builder().cpu().build();
     /// let builder = client.prove(pk, stdin)
     ///     .shard_batch_size(4)
     ///     .run();
@@ -184,7 +184,7 @@ impl<'a> CpuProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let client = ProverClient::cpu();
+    /// let client = ProverClient::builder().cpu().build();
     /// let builder = client.prove(pk, stdin)
     ///     .deferred_proof_verification(false)
     ///     .run();
@@ -202,7 +202,7 @@ impl<'a> CpuProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let client = ProverClient::cpu();
+    /// let client = ProverClient::builder().cpu().build();
     /// let (proof, public_values) = client.prove(pk, stdin)
     ///     .run()
     ///     .unwrap();

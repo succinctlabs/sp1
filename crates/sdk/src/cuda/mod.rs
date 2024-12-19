@@ -2,7 +2,8 @@
 //!
 //! A prover that uses the CUDA to execute and prove programs.
 
-mod prove;
+pub mod builder;
+pub mod prove;
 
 use anyhow::Result;
 use prove::CudaProveBuilder;
@@ -41,7 +42,7 @@ impl CudaProver {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let client = ProverClient::cpu();
+    /// let client = ProverClient::builder().cuda().build();
     /// let (public_values, execution_report) = client.execute(elf, stdin)
     ///     .run()
     ///     .unwrap();
@@ -62,7 +63,7 @@ impl CudaProver {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let client = ProverClient::cuda();
+    /// let client = ProverClient::builder().cuda().build();
     /// let (proof, public_values) = client.prove(pk, stdin)
     ///     .run()
     ///     .unwrap();

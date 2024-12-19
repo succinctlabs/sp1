@@ -2,17 +2,16 @@
 //!
 //! A client for interacting with the prover for the SP1 RISC-V zkVM.
 
-use sp1_prover::SP1_CIRCUIT_VERSION;
-
-use crate::cpu::CpuProver;
-use crate::cuda::CudaProver;
+use crate::cpu::builder::CpuProverBuilder;
+use crate::cuda::builder::CudaProverBuilder;
 use crate::env::EnvProver;
 use crate::network::builder::NetworkProverBuilder;
 
-use sp1_prover::SP1Prover;
-
-/// A client for interacting with the prover for the SP1 RISC-V zkVM.
+/// An entrypoint for interacting with the prover for the SP1 RISC-V zkVM.
 pub struct ProverClient;
+
+/// A builder to define which proving client to use.
+pub struct ProverClientBuilder;
 
 impl ProverClient {
     /// Creates a new [EnvProver] from the environment.
@@ -32,18 +31,6 @@ impl ProverClient {
         Self::from_env()
     }
 
-    /// Gets the current version of the SP1 RISC-V zkVM.
-    ///
-    /// # Example
-    /// ```no_run
-    /// use sp1_sdk::ProverClient;
-    ///
-    /// let version = ProverClient::version();
-    /// ```
-    pub fn version() -> String {
-        SP1_CIRCUIT_VERSION.to_string()
-    }
-
     /// Builds an [EnvProver], which loads the mode and any settings from the environment.
     ///
     /// # Usage
@@ -60,18 +47,25 @@ impl ProverClient {
         EnvProver::new()
     }
 
+    /// Creates a new [ProverClientBuilder] so that you can configure the prover client.
+    pub fn builder() -> ProverClientBuilder {
+        ProverClientBuilder
+    }
+}
+
+impl ProverClientBuilder {
     /// Builds a [CpuProver] specifically for mock proving.
     ///
     /// # Example
     /// ```no_run
     /// use sp1_sdk::ProverClient;
     ///
-    /// let prover = ProverClient::mock();
+    /// let prover = ProverClient::builder().mock().build();
     /// let (pk, vk) = prover.setup(elf);
     /// let proof = prover.prove(&pk, stdin).compressed().run().unwrap();
     /// ```
-    pub fn mock() -> CpuProver {
-        CpuProver::mock()
+    pub fn mock(&self) -> CpuProverBuilder {
+        CpuProverBuilder { mock: true }
     }
 
     /// Builds a [CpuProver] specifically for local CPU proving.
@@ -80,12 +74,12 @@ impl ProverClient {
     /// ```no_run
     /// use sp1_sdk::ProverClient;
     ///
-    /// let prover = ProverClient::cpu();
+    /// let prover = ProverClient::builder().cpu().build();
     /// let (pk, vk) = prover.setup(elf);
     /// let proof = prover.prove(&pk, stdin).compressed().run().unwrap();
     /// ```
-    pub fn cpu() -> CpuProver {
-        CpuProver::new()
+    pub fn cpu(&self) -> CpuProverBuilder {
+        CpuProverBuilder { mock: false }
     }
 
     /// Builds a [CudaProver] specifically for local proving on NVIDIA GPUs.
@@ -98,8 +92,8 @@ impl ProverClient {
     /// let (pk, vk) = prover.setup(elf);
     /// let proof = prover.prove(&pk, stdin).compressed().run().unwrap();
     /// ```
-    pub fn cuda() -> CudaProver {
-        CudaProver::new(SP1Prover::new())
+    pub fn cuda(&self) -> CudaProverBuilder {
+        CudaProverBuilder
     }
 
     /// Builds a [NetworkProver] specifically for proving on the network.
@@ -113,7 +107,7 @@ impl ProverClient {
     /// let proof = prover.prove(&pk, stdin).compressed().run().unwrap();
     /// ```
     #[cfg(feature = "network")]
-    pub fn network() -> NetworkProverBuilder {
+    pub fn network(&self) -> NetworkProverBuilder {
         NetworkProverBuilder { private_key: None, rpc_url: None }
     }
 }

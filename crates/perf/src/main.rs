@@ -1,7 +1,4 @@
-use std::{
-    env,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 use clap::{command, Parser};
 use sp1_cuda::SP1CudaProver;
@@ -176,34 +173,17 @@ fn main() {
             println!("{:?}", result);
         }
         ProverMode::Network => {
-            let private_key = env::var("SP1_PRIVATE_KEY")
-                .expect("SP1_PRIVATE_KEY must be set for remote proving");
-            let rpc_url = env::var("PROVER_NETWORK_RPC").ok();
-            let skip_simulation =
-                env::var("SKIP_SIMULATION").map(|val| val == "true").unwrap_or_default();
-
-            let mut prover_builder = ProverClient::network();
-
-            if let Some(rpc_url) = rpc_url {
-                prover_builder = prover_builder.rpc_url(rpc_url);
-            }
-
-            let prover = prover_builder.private_key(private_key).build();
+            let prover = ProverClient::builder().network().build();
             let (_, _) = time_operation(|| prover.execute(&elf, &stdin));
 
             let (proof, _) = time_operation(|| {
-                prover
-                    .prove(&pk, stdin.clone())
-                    .groth16()
-                    .skip_simulation(skip_simulation)
-                    .run()
-                    .unwrap()
+                prover.prove(&pk, stdin.clone()).groth16().skip_simulation(true).run().unwrap()
             });
 
             let (_, _) = time_operation(|| prover.verify(&proof, &vk));
 
             let (proof, _) = time_operation(|| {
-                prover.prove(&pk, stdin).plonk().skip_simulation(skip_simulation).run().unwrap()
+                prover.prove(&pk, stdin).plonk().skip_simulation(true).run().unwrap()
             });
 
             let (_, _) = time_operation(|| prover.verify(&proof, &vk));

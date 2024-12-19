@@ -2,6 +2,7 @@
 //!
 //! A prover that uses the CPU to execute and prove programs.
 
+pub mod builder;
 pub mod execute;
 pub mod prove;
 
@@ -56,7 +57,7 @@ impl CpuProver {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let client = ProverClient::cpu();
+    /// let client = ProverClient::builder().cpu().build();
     /// let (public_values, execution_report) = client.execute(elf, stdin)
     ///     .run()
     ///     .unwrap();
@@ -77,7 +78,7 @@ impl CpuProver {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let client = ProverClient::cpu();
+    /// let client = ProverClient::builder().cpu().build();
     /// let builder = client.prove(pk, stdin)
     ///     .core()
     ///     .run();

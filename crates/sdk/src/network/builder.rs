@@ -21,7 +21,7 @@ impl NetworkProverBuilder {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let prover = ProverClient::network()
+    /// let prover = ProverClient::builder().network().build();
     ///     .private_key("...")
     ///     .build();
     /// ```
@@ -38,7 +38,8 @@ impl NetworkProverBuilder {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let prover = ProverClient::network()
+    /// let prover = ProverClient::builder()
+    ///     .network()
     ///     .rpc_url("...")
     ///     .build();
     /// ```
@@ -55,7 +56,8 @@ impl NetworkProverBuilder {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let prover = ProverClient::network()
+    /// let prover = ProverClient::builder()
+    ///     .network()
     ///     .private_key("...")
     ///     .rpc_url("...")
     ///     .build();
