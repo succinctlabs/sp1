@@ -18,8 +18,8 @@ pub(crate) fn sp1_dump(elf: &[u8], stdin: &SP1Stdin) {
 ///
 /// If we're already in a tokio runtime, we'll block in place. Otherwise, we'll create a new
 /// runtime.
-#[cfg(any(feature = "network", feature = "network"))]
-pub fn block_on<T>(fut: impl std::future::Future<Output = T>) -> T {
+#[cfg(feature = "network")]
+pub(crate) fn block_on<T>(fut: impl std::future::Future<Output = T>) -> T {
     use tokio::task::block_in_place;
 
     // Handle case if we're already in an tokio runtime.

@@ -11,7 +11,7 @@ use sp1_prover::{components::CpuProverComponents, SP1Prover};
 /// A builder for simulating the execution of a program on the CPU.
 ///
 /// This builder providers a typed interface for configuring the SP1 RISC-V executor. The builder
-/// is used for both the [crate::cpu::CpuProver] and [crate::CudaProver] client types.
+/// is used for all the different variants of the [crate::ProverClient].
 pub struct CpuExecuteBuilder<'a> {
     pub(crate) elf: &'a [u8],
     pub(crate) stdin: SP1Stdin,

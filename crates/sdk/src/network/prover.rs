@@ -23,7 +23,7 @@ use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{components::CpuProverComponents, SP1Prover, SP1_CIRCUIT_VERSION};
 use tonic::Code;
 
-use {crate::block_on, tokio::time::sleep};
+use {crate::utils::block_on, tokio::time::sleep};
 
 /// An implementation of [crate::ProverClient] that can generate proofs on a remote RPC server.
 pub struct NetworkProver {

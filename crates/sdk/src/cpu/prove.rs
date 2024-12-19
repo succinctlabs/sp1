@@ -23,6 +23,7 @@ pub struct CpuProveBuilder<'a> {
     pub(crate) stdin: SP1Stdin,
     pub(crate) core_opts: SP1CoreOpts,
     pub(crate) recursion_opts: SP1CoreOpts,
+    pub(crate) mock: bool,
 }
 
 impl<'a> CpuProveBuilder<'a> {
@@ -208,7 +209,8 @@ impl<'a> CpuProveBuilder<'a> {
     /// ```
     pub fn run(self) -> Result<SP1ProofWithPublicValues> {
         // Get the arguments.
-        let Self { prover, mode, pk, stdin, mut context_builder, core_opts, recursion_opts } = self;
+        let Self { prover, mode, pk, stdin, mut context_builder, core_opts, recursion_opts, mock } =
+            self;
         let opts = SP1ProverOpts { core_opts, recursion_opts };
         let context = context_builder.build();
 
@@ -216,6 +218,10 @@ impl<'a> CpuProveBuilder<'a> {
         crate::utils::sp1_dump(&pk.elf, &stdin);
 
         // Run the prover.
-        prover.prove_impl(pk, &stdin, opts, context, mode)
+        if !mock {
+            prover.prove_impl(pk, &stdin, opts, context, mode)
+        } else {
+            prover.mock_prove_impl(pk, stdin, mode)
+        }
     }
 }

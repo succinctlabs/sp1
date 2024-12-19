@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 #[cfg(any(feature = "network", feature = "network"))]
 use {
-    crate::block_on,
+    crate::utils::block_on,
     futures::StreamExt,
     indicatif::{ProgressBar, ProgressStyle},
     reqwest::Client,

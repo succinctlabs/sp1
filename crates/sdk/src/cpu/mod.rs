@@ -91,6 +91,7 @@ impl CpuProver {
             context_builder: SP1ContextBuilder::default(),
             core_opts: SP1CoreOpts::default(),
             recursion_opts: SP1CoreOpts::recursion(),
+            mock: self.mock,
         }
     }
 

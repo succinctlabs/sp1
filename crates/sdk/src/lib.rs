@@ -34,7 +34,7 @@ pub mod install;
 pub mod network;
 pub mod proof;
 pub mod prover;
-pub(crate) mod utils;
+pub mod utils;
 
 // Re-export the client.
 pub use crate::client::ProverClient;
@@ -65,7 +65,7 @@ pub use sp1_prover::{
 };
 
 // Re-export the utilities.
-pub use utils::{block_on, setup_logger};
+pub use utils::setup_logger;
 
 #[cfg(test)]
 mod tests {

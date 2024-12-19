@@ -17,7 +17,7 @@ impl NetworkProverBuilder {
     ///
     /// # Details
     /// Sets the private key that will be used sign requests sent to the network. By default, the
-    /// private key is read from the `SUCCINCT_PRIVATE_KEY` environment variable.
+    /// private key is read from the `NETWORK_PRIVATE_KEY` environment variable.
     ///
     /// # Example
     /// ```rust,no_run
@@ -34,7 +34,7 @@ impl NetworkProverBuilder {
     ///
     /// # Details
     /// The URL determintes the network that the client will connect to. By default, the URL is
-    /// read from the `SUCCINCT_RPC_URL` environment variable.
+    /// read from the `NETWORK_RPC_URL` environment variable.
     ///
     /// # Example
     /// ```rust,no_run
@@ -51,7 +51,7 @@ impl NetworkProverBuilder {
     ///
     /// # Details
     /// This method will build a [NetworkProver] with the given parameters. If the private key is
-    /// not provided, the method will look for the `SP1_PRIVATE_KEY` environment variable.
+    /// not provided, the method will look for the `NETWORK_PRIVATE_KEY` environment variable.
     ///
     /// # Example
     /// ```rust,no_run

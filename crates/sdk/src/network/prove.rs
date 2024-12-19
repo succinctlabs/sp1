@@ -8,7 +8,9 @@ use anyhow::Result;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::SP1ProvingKey;
 
-use crate::{block_on, utils::sp1_dump, NetworkProver, SP1ProofMode, SP1ProofWithPublicValues};
+use crate::{
+    utils::block_on, utils::sp1_dump, NetworkProver, SP1ProofMode, SP1ProofWithPublicValues,
+};
 
 use super::proto::network::FulfillmentStrategy;
 
@@ -184,7 +186,15 @@ impl<'a> NetworkProveBuilder<'a> {
     ///     .unwrap();
     /// ```
     pub fn run(self) -> Result<SP1ProofWithPublicValues> {
-        let Self { prover, mode, pk, stdin, timeout, strategy, skip_simulation } = self;
+        let Self { prover, mode, pk, stdin, timeout, strategy, mut skip_simulation } = self;
+
+        // Check for deprecated environment variable
+        if let Ok(val) = std::env::var("SKIP_SIMULATION") {
+            eprintln!(
+                "Warning: SKIP_SIMULATION environment variable is deprecated. Please use .skip_simulation() instead."
+            );
+            skip_simulation = matches!(val.to_lowercase().as_str(), "true" | "1");
+        }
 
         sp1_dump(&pk.elf, &stdin);
 
@@ -205,7 +215,15 @@ impl<'a> NetworkProveBuilder<'a> {
     ///     .unwrap();
     /// ```
     pub async fn run_async(self) -> Result<SP1ProofWithPublicValues> {
-        let Self { prover, mode, pk, stdin, timeout, strategy, skip_simulation } = self;
+        let Self { prover, mode, pk, stdin, timeout, strategy, mut skip_simulation } = self;
+
+        // Check for deprecated environment variable
+        if let Ok(val) = std::env::var("SKIP_SIMULATION") {
+            eprintln!(
+                "Warning: SKIP_SIMULATION environment variable is deprecated. Please use .skip_simulation() instead."
+            );
+            skip_simulation = matches!(val.to_lowercase().as_str(), "true" | "1");
+        }
 
         sp1_dump(&pk.elf, &stdin);
 
