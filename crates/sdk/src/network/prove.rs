@@ -49,7 +49,7 @@ impl<'a> NetworkProveBuilder<'a> {
     /// # Details
     /// This mode produces a proof that is of constant size, regardless of the number of cycles. It
     /// takes longer to prove than [SP1ProofMode::Core] due to the need to recursively aggregate
-    /// proofs inot a single proof.
+    /// proofs into a single proof.
     ///
     /// # Example
     /// ```rust,no_run

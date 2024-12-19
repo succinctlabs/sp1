@@ -33,7 +33,7 @@ impl NetworkProverBuilder {
     /// Sets the remote procedure call URL.
     ///
     /// # Details
-    /// The URL determintes the network that the client will connect to. By default, the URL is
+    /// The URL determines the network that the client will connect to. By default, the URL is
     /// read from the `NETWORK_RPC_URL` environment variable.
     ///
     /// # Example

@@ -80,7 +80,7 @@ impl<'a> CpuExecuteBuilder<'a> {
     /// # Details
     /// If set to `true`, the executor will skip the deferred proof verification step. This is useful
     /// for reducing the execution time of the program and optimistically assuming that the
-    /// deferred proofs are corect.
+    /// deferred proofs are correct.
     ///
     /// # Example
     /// ```rust,no_run

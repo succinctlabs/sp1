@@ -23,7 +23,7 @@ use crate::{SP1ProofMode, SP1ProofWithPublicValues};
 /// A prover that can execute programs and generate proofs with a different implementation based on
 /// the value of certain environment variables.
 ///
-/// The enviroment variables are described in [EnvProver::new].
+/// The environment variables are described in [EnvProver::new].
 pub struct EnvProver {
     pub(crate) prover: Box<dyn Prover<CpuProverComponents>>,
 }
