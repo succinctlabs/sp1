@@ -56,13 +56,17 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize>
 
         for shape in self.allowed_shapes.iter() {
             // If any of the heights is greater than the shape, continue.
+            let mut valid = true;
             for (name, height) in heights.iter() {
                 if *height > (1 << shape.get(name).unwrap()) {
-                    continue;
+                    valid = false;
                 }
             }
 
-            // Otherwise, this is the closest shape.
+            if !valid {
+                continue;
+            }
+
             closest_shape = Some(shape.clone());
             break;
         }
