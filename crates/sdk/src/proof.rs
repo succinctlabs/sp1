@@ -162,7 +162,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "only Plonk and Groth16 proofs are verifiable onchain")]
+    #[should_panic(
+        expected = "Proof type Discriminant(0) is not supported for onchain verification. Only Plonk and Groth16 proofs are verifiable onchain"
+    )]
     fn test_core_proof_bytes_unimplemented() {
         let core_proof = SP1ProofWithPublicValues {
             proof: SP1Proof::Core(vec![]),
