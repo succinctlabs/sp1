@@ -114,6 +114,18 @@ pub type CompressAir<F> = RecursionAir<F, COMPRESS_DEGREE>;
 pub type ShrinkAir<F> = RecursionAir<F, SHRINK_DEGREE>;
 pub type WrapAir<F> = RecursionAir<F, WRAP_DEGREE>;
 
+#[allow(clippy::type_complexity)]
+enum TracesOrInput {
+    ProgramRecordTraces(
+        Box<(
+            Arc<RecursionProgram<BabyBear>>,
+            ExecutionRecord<BabyBear>,
+            Vec<(String, RowMajorMatrix<BabyBear>)>,
+        )>,
+    ),
+    CircuitWitness(Box<SP1CircuitWitness>),
+}
+
 /// A end-to-end prover implementation for the SP1 RISC-V zkVM.
 pub struct SP1Prover<C: SP1ProverComponents = CpuProverComponents> {
     /// The machine used for proving the core step.
@@ -667,7 +679,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
             // Spawn a worker that sends the first layer inputs to a bounded channel.
             let input_sync = Arc::new(TurnBasedSync::new());
-            let (input_tx, input_rx) = sync_channel::<(usize, usize, SP1CircuitWitness)>(
+            let (input_tx, input_rx) = sync_channel::<(usize, usize, SP1CircuitWitness, bool)>(
                 opts.recursion_opts.checkpoints_channel_capacity,
             );
             let input_tx = Arc::new(Mutex::new(input_tx));
@@ -677,7 +689,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 s.spawn(move || {
                     for (index, input) in first_layer_inputs.into_iter().enumerate() {
                         input_sync.wait_for_turn(index);
-                        input_tx.lock().unwrap().send((index, 0, input)).unwrap();
+                        input_tx.lock().unwrap().send((index, 0, input, false)).unwrap();
                         input_sync.advance_turn();
                     }
                 });
@@ -686,13 +698,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             // Spawn workers who generate the records and traces.
             let record_and_trace_sync = Arc::new(TurnBasedSync::new());
             let (record_and_trace_tx, record_and_trace_rx) =
-                sync_channel::<(
-                    usize,
-                    usize,
-                    Arc<RecursionProgram<BabyBear>>,
-                    ExecutionRecord<BabyBear>,
-                    Vec<(String, RowMajorMatrix<BabyBear>)>,
-                )>(opts.recursion_opts.records_and_traces_channel_capacity);
+                sync_channel::<(usize, usize, TracesOrInput)>(
+                    opts.recursion_opts.records_and_traces_channel_capacity,
+                );
             let record_and_trace_tx = Arc::new(Mutex::new(record_and_trace_tx));
             let record_and_trace_rx = Arc::new(Mutex::new(record_and_trace_rx));
             let input_rx = Arc::new(Mutex::new(input_rx));
@@ -705,7 +713,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                     let _span = span.enter();
                     loop {
                         let received = { input_rx.lock().unwrap().recv() };
-                        if let Ok((index, height, input)) = received {
+                        if let Ok((index, height, input, false)) = received {
                             // Get the program and witness stream.
                             let (program, witness_stream) = tracing::debug_span!(
                                 "get program and witness stream"
@@ -776,7 +784,29 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             record_and_trace_tx
                                 .lock()
                                 .unwrap()
-                                .send((index, height, program, record, traces))
+                                .send((
+                                    index,
+                                    height,
+                                    TracesOrInput::ProgramRecordTraces(Box::new((
+                                        program, record, traces,
+                                    ))),
+                                ))
+                                .unwrap();
+
+                            // Advance the turn.
+                            record_and_trace_sync.advance_turn();
+                        } else if let Ok((index, height, input, true)) = received {
+                            record_and_trace_sync.wait_for_turn(index);
+
+                            // Send the record and traces to the worker.
+                            record_and_trace_tx
+                                .lock()
+                                .unwrap()
+                                .send((
+                                    index,
+                                    height,
+                                    TracesOrInput::CircuitWitness(Box::new(input)),
+                                ))
                                 .unwrap();
 
                             // Advance the turn.
@@ -806,7 +836,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                     let _span = span.enter();
                     loop {
                         let received = { record_and_trace_rx.lock().unwrap().recv() };
-                        if let Ok((index, height, program, record, traces)) = received {
+                        if let Ok((index, height, TracesOrInput::ProgramRecordTraces(boxed_prt))) = received {
+                            let (program, record, traces) = *boxed_prt;
                             tracing::debug_span!("batch").in_scope(|| {
                                 // Get the keys.
                                 let (pk, vk) = tracing::debug_span!("Setup compress program")
@@ -874,7 +905,22 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                                 // Advance the turn.
                                 prover_sync.advance_turn();
                             });
-                        } else {
+                        } else if let Ok((index, height, TracesOrInput::CircuitWitness(witness_box))) = received {
+                            let witness = *witness_box;
+                            if let SP1CircuitWitness::Compress(inner_witness) = witness {
+                                let SP1CompressWitnessValues { vks_and_proofs, is_complete: _ } = inner_witness;
+                                assert!(vks_and_proofs.len()==1);
+                                let (vk, proof) = vks_and_proofs.last().unwrap();
+                        // Wait for our turn to update the state.
+                        prover_sync.wait_for_turn(index);
+
+                        // Send the proof.
+                        proofs_tx.lock().unwrap().send((index, height, vk.clone(), proof.clone())).unwrap();
+
+                        // Advance the turn.
+                        prover_sync.advance_turn();
+                        }
+                    } else {
                             break;
                         }
                     }
@@ -934,7 +980,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             input_tx
                                 .lock()
                                 .unwrap()
-                                .send((count, next_input_height, input))
+                                .send((count, next_input_height, input, is_last))
                                 .unwrap();
                             input_sync.advance_turn();
                             count += 1;
