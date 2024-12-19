@@ -9,7 +9,7 @@ fn main() {
     utils::setup_logger();
 
     // Execute the normal program.
-    let client = ProverClient::env();
+    let client = ProverClient::from_env();
     let (_, _) = client.execute(NORMAL_ELF, SP1Stdin::new()).run().expect("proving failed");
 
     // Execute the report program.
@@ -17,5 +17,8 @@ fn main() {
 
     // Get the "setup" cycle count from the report program.
     let setup_cycles = report.cycle_tracker.get("setup").unwrap();
-    println!("Using cycle-tracker-report saves the number of cycles to the cycle-tracker mapping in the report.\nHere's the number of cycles used by the setup: {}", setup_cycles);
+    println!(
+        "Using cycle-tracker-report saves the number of cycles to the cycle-tracker mapping in the report.\nHere's the number of cycles used by the setup: {}",
+        setup_cycles
+    );
 }

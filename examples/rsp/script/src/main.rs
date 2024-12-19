@@ -31,7 +31,7 @@ fn main() {
     let client_input = load_input_from_cache(CHAIN_ID_ETH_MAINNET, 20526624);
 
     // Generate the proof.
-    let client = ProverClient::env();
+    let client = ProverClient::from_env();
 
     // Setup the proving key and verification key.
     let (pk, vk) = client.setup(include_elf!("rsp-program"));

@@ -126,7 +126,7 @@ impl EnvProver {
     /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
     /// let elf = test_artifacts::FIBONACCI_ELF;
-    /// let client = ProverClient::env();
+    /// let client = ProverClient::from_env();
     /// let (pk, vk) = client.setup(elf);
     /// let mut stdin = SP1Stdin::new();
     /// stdin.write(&10usize);

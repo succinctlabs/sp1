@@ -23,11 +23,7 @@ fn generate_fibonacci_proof() -> (Vec<u8>, Vec<u8>, String) {
     stdin.write(&n);
 
     // Create a `ProverClient`.
-<<<<<<< HEAD
-    let client = ProverClient::env();
-=======
-    let client = ProverClient::new();
->>>>>>> origin/main
+    let client = ProverClient::from_env();
 
     // Generate the groth16 proof for the Fibonacci program.
     let (pk, vk) = client.setup(FIBONACCI_ELF);
@@ -50,11 +46,7 @@ fn main() {
     stdin.write(&vk);
 
     // Create a `ProverClient`.
-<<<<<<< HEAD
-    let client = ProverClient::env();
-=======
-    let client = ProverClient::new();
->>>>>>> origin/main
+    let client = ProverClient::from_env();
 
     // Execute the program using the `ProverClient.execute` method, without generating a proof.
     let (_, report) = client.execute(GROTH16_ELF, stdin.clone()).run().unwrap();

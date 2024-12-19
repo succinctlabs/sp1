@@ -81,7 +81,7 @@ fn main() {
     sp1_sdk::utils::setup_logger();
 
     // Setup the prover client.
-    let client = ProverClient::env();
+    let client = ProverClient::from_env();
 
     // Setup the program.
     let (_, vk) = client.setup(FIBONACCI_ELF);
