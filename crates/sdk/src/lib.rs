@@ -137,7 +137,7 @@ mod tests {
         stdin.write(&10usize);
 
         // Generate proof & verify.
-        let mut proof = client.prove(&pk, stdin).compressed().run().unwrap();
+        let mut proof = client.prove(&pk, &stdin).compressed().run().unwrap();
         client.verify(&proof, &vk).unwrap();
 
         // Test invalid public values.
@@ -157,7 +157,7 @@ mod tests {
         stdin.write(&10usize);
 
         // Generate proof & verify.
-        let mut proof = client.prove(&pk, stdin).plonk().run().unwrap();
+        let mut proof = client.prove(&pk, &stdin).plonk().run().unwrap();
         client.verify(&proof, &vk).unwrap();
 
         // Test invalid public values.
@@ -175,7 +175,7 @@ mod tests {
         let (pk, vk) = client.setup(elf);
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
-        let proof = client.prove(&pk, stdin).plonk().run().unwrap();
+        let proof = client.prove(&pk, &stdin).plonk().run().unwrap();
         client.verify(&proof, &vk).unwrap();
     }
 }
