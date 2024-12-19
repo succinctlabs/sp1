@@ -23,6 +23,10 @@ impl CpuProverBuilder {
     /// let prover = ProverClient::builder().mock().build();
     /// ```
     pub fn build(self) -> CpuProver {
-        if self.mock { CpuProver::mock() } else { CpuProver::new() }
+        if self.mock {
+            CpuProver::mock()
+        } else {
+            CpuProver::new()
+        }
     }
 }
