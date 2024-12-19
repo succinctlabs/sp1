@@ -1,3 +1,5 @@
+#[cfg(feature = "profiling")]
+use std::{fs::File, io::BufWriter};
 use std::{str::FromStr, sync::Arc};
 
 #[cfg(feature = "profiling")]
