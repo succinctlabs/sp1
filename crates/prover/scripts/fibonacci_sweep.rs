@@ -46,10 +46,9 @@ fn main() {
     let elf = test_artifacts::FIBONACCI_ELF;
     let (pk, vk) = prover.setup(elf);
 
-    let mut lines = vec![
-        "iterations,shard_size,batch_size,leaf_proving_duration,recursion_proving_duration"
-            .to_string(),
-    ];
+    let mut lines =
+        vec!["iterations,shard_size,batch_size,leaf_proving_duration,recursion_proving_duration"
+            .to_string()];
     for (shard_size, iterations, batch_size) in iproduct!(shard_sizes, iterations, batch_sizes) {
         tracing::info!(
             "running: shard_size={}, iterations={}, batch_size={}",

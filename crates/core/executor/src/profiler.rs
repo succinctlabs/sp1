@@ -206,15 +206,15 @@ impl Profiler {
             return;
         };
 
-        let main_count =
-            self.samples
-                .iter()
-                .filter(|s| {
-                    s.stack
-                        .iter()
-                        .any(|f| if let Frame::Label(idx) = f { *idx == main_idx } else { false })
-                })
-                .count();
+        let main_count = self
+            .samples
+            .iter()
+            .filter(|s| {
+                s.stack
+                    .iter()
+                    .any(|f| if let Frame::Label(idx) = f { *idx == main_idx } else { false })
+            })
+            .count();
 
         #[allow(clippy::cast_precision_loss)]
         let main_ratio = main_count as f64 / self.samples.len() as f64;
