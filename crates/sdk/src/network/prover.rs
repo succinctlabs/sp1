@@ -1,264 +1,362 @@
+//! # Network Prover
+//!
+//! This module provides an implementation of the [crate::Prover] trait that can generate proofs
+//! on a remote RPC server.
+
 use std::time::{Duration, Instant};
 
-use super::proto::network::GetProofStatusResponse;
-use crate::provers::{CpuProver, ProverType};
-use crate::util::dump_proof_input;
+use super::prove::NetworkProveBuilder;
+use super::DEFAULT_CYCLE_LIMIT;
+use crate::cpu::execute::CpuExecuteBuilder;
+use crate::cpu::CpuProver;
+use crate::network::{DEFAULT_PROVER_NETWORK_RPC, DEFAULT_TIMEOUT_SECS};
 use crate::{
-    network::{
-        client::NetworkClient,
-        proto::network::{ProofMode, ProofStatus},
-    },
-    Prover, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
+    network::client::NetworkClient,
+    network::proto::network::{ExecutionStatus, FulfillmentStatus, FulfillmentStrategy, ProofMode},
+    Prover, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
 };
 use anyhow::Result;
+use backoff::{future::retry, Error as BackoffError, ExponentialBackoff};
+use serde::de::DeserializeOwned;
+use sp1_core_executor::SP1ContextBuilder;
 use sp1_core_machine::io::SP1Stdin;
-use sp1_prover::{components::DefaultProverComponents, SP1Prover, SP1_CIRCUIT_VERSION};
-use {crate::block_on, tokio::time::sleep};
+use sp1_prover::{components::CpuProverComponents, SP1Prover, SP1_CIRCUIT_VERSION};
+use tonic::Code;
 
-/// Number of consecutive errors to tolerate before returning an error while polling proof status.
-const MAX_CONSECUTIVE_ERRORS: usize = 10;
+use {crate::block_on, tokio::time::sleep};
 
 /// An implementation of [crate::ProverClient] that can generate proofs on a remote RPC server.
 pub struct NetworkProver {
-    client: NetworkClient,
-    local_prover: CpuProver,
+    pub(crate) client: NetworkClient,
+    pub(crate) prover: CpuProver,
 }
 
 impl NetworkProver {
     /// Creates a new [NetworkProver] with the given private key.
-    pub fn new(private_key: &str, rpc_url: Option<String>) -> Self {
-        let version = SP1_CIRCUIT_VERSION;
-        log::info!("Client circuit version: {}", version);
-
-        let local_prover = CpuProver::new(false);
-        Self { client: NetworkClient::new(private_key, rpc_url), local_prover }
+    ///
+    /// # Details
+    /// * `private_key`: The Secp256k1 private key to use for signing requests.
+    /// * `rpc_url`: The rpc url to use for the prover network.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// let prover = NetworkProver::new("...", "...");
+    /// ```
+    pub fn new(private_key: &str, rpc_url: &str) -> Self {
+        let prover = CpuProver::new();
+        let client = NetworkClient::new(private_key, rpc_url);
+        Self { client, prover }
     }
 
-    /// Prepare to prove the execution of the given program with the given input in the default
-    /// mode. The returned [NetworkProve] may be configured via its methods before running.
-    /// For example, calling [NetworkProve::compressed] sets the mode to compressed mode.
-    pub fn prove<'a>(&'a self, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> NetworkProve<'a> {
-        NetworkProve::new(self, pk, stdin)
+    /// Creates a new [`CpuExecuteBuilder`] for simulating the execution of a program on the CPU.
+    ///
+    /// # Details
+    /// Note that this does not use the network in any capacity. The method is provided for
+    /// convenience.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// let client = ProverClient::cpu();
+    /// let (public_values, execution_report) = client.execute(elf, stdin)
+    ///     .run()
+    ///     .unwrap();
+    /// ```
+    pub fn execute<'a>(&'a self, elf: &'a [u8], stdin: &SP1Stdin) -> CpuExecuteBuilder<'a> {
+        CpuExecuteBuilder {
+            prover: &self.prover.inner(),
+            elf,
+            stdin: stdin.clone(),
+            context_builder: SP1ContextBuilder::default(),
+        }
     }
 
-    /// Requests a proof from the prover network, returning the proof ID.
+    /// A request to generate a proof for a given proving key and input.
+    ///
+    /// # Details
+    /// * `pk`: The proving key to use for the proof.
+    /// * `stdin`: The input to use for the proof.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// let prover = NetworkProver::new("...", "...");
+    /// let proof = prover.prove(pk, stdin).run().await?;
+    /// ```
+    pub fn prove<'a>(&'a self, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> NetworkProveBuilder<'a> {
+        NetworkProveBuilder {
+            prover: self,
+            mode: SP1ProofMode::Core,
+            pk,
+            stdin,
+            timeout: None,
+            strategy: FulfillmentStrategy::Hosted,
+            skip_simulation: false,
+        }
+    }
+
+    /// Registers a program if it is not already registered.
+    ///
+    /// # Details
+    /// * `vk`: The verifying key to use for the program.
+    /// * `elf`: The elf to use for the program.
+    ///
+    /// Note that this method requires that the user honestly registers the program (i.e., the elf
+    /// matches the vk).
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// let prover = NetworkProver::new("...", "...");
+    /// let vk_hash = prover.register_program(vk, elf).await?;
+    /// ```
+    pub async fn register_program(&self, vk: &SP1VerifyingKey, elf: &[u8]) -> Result<Vec<u8>> {
+        self.client.register_program(vk, elf).await
+    }
+
+    /// Requests a proof from the prover network, returning the request ID.
     pub(crate) async fn request_proof(
         &self,
-        elf: &[u8],
-        stdin: SP1Stdin,
+        vk_hash: &[u8],
+        stdin: &SP1Stdin,
         mode: ProofMode,
-        skip_simulation: bool,
-    ) -> Result<String> {
-        let client = &self.client;
+        strategy: FulfillmentStrategy,
+        cycle_limit: u64,
+        timeout: Option<Duration>,
+    ) -> Result<Vec<u8>> {
+        // Get the timeout.
+        let timeout_secs = timeout.map(|dur| dur.as_secs()).unwrap_or(DEFAULT_TIMEOUT_SECS);
 
-        if !skip_simulation {
-            let (_, report) =
-                self.local_prover.sp1_prover().execute(elf, &stdin, Default::default())?;
-            log::info!("Simulation complete, cycles: {}", report.total_instruction_count());
-        } else {
-            log::info!("Skipping simulation");
+        // Log the request.
+        log::info!("Requesting proof:");
+        log::info!("├─ Cycle limit: {}", cycle_limit);
+        log::info!("├─ Proof mode: {:?}", mode);
+        log::info!("├─ Strategy: {:?}", strategy);
+        log::info!("├─ Timeout: {} seconds", timeout_secs);
+        log::info!("└─ Circuit version: {}", SP1_CIRCUIT_VERSION);
+
+        // Request the proof with retries.
+        let response = with_retry(
+            || async {
+                self.client
+                    .request_proof(
+                        vk_hash,
+                        stdin,
+                        mode,
+                        SP1_CIRCUIT_VERSION,
+                        strategy,
+                        timeout_secs,
+                        cycle_limit,
+                    )
+                    .await
+            },
+            timeout,
+            "requesting proof",
+        )
+        .await?;
+
+        // Log the request ID and transaction hash.
+        let tx_hash_hex = "0x".to_string() + &hex::encode(response.tx_hash);
+        let request_id = response.body.unwrap().request_id;
+        let request_id_hex = "0x".to_string() + &hex::encode(request_id.clone());
+        log::info!("Created request {} in transaction {}", request_id_hex, tx_hash_hex);
+
+        if self.client.rpc_url == DEFAULT_PROVER_NETWORK_RPC {
+            log::info!(
+                "View request status at: https://network.succinct.xyz/request/{}",
+                request_id_hex
+            );
         }
 
-        let proof_id = client.create_proof(elf, &stdin, mode, SP1_CIRCUIT_VERSION).await?;
-        log::info!("Created {}", proof_id);
-
-        if self.client.is_using_prover_network {
-            log::info!("View in explorer: https://explorer.succinct.xyz/{}", proof_id);
-        }
-        Ok(proof_id)
+        Ok(request_id)
     }
 
     /// Waits for a proof to be generated and returns the proof. If a timeout is supplied, the
     /// function will return an error if the proof is not generated within the timeout.
-    pub(crate) async fn wait_proof(
+    pub(crate) async fn wait_proof<P: DeserializeOwned>(
         &self,
-        proof_id: &str,
+        request_id: &[u8],
         timeout: Option<Duration>,
-    ) -> Result<SP1ProofWithPublicValues> {
-        let client = &self.client;
-        let mut is_claimed = false;
+    ) -> Result<P> {
+        let mut is_assigned = false;
         let start_time = Instant::now();
-        let mut consecutive_errors = 0;
+
         loop {
+            // Calculate the remaining timeout.
             if let Some(timeout) = timeout {
                 if start_time.elapsed() > timeout {
-                    return Err(anyhow::anyhow!("Proof generation timed out."));
+                    return Err(anyhow::anyhow!("proof request timed out."));
                 }
             }
+            let remaining_timeout = timeout.map(|t| {
+                let elapsed = start_time.elapsed();
+                if elapsed < t { t - elapsed } else { Duration::from_secs(0) }
+            });
 
-            let result = client.get_proof_status(proof_id).await;
+            // Get status with retries.
+            let (status, maybe_proof) = with_retry(
+                || async { self.client.get_proof_request_status::<P>(request_id).await },
+                remaining_timeout,
+                "getting proof request status",
+            )
+            .await?;
 
-            if let Err(e) = result {
-                consecutive_errors += 1;
-                log::warn!(
-                    "Failed to get proof status ({}/{}): {:?}",
-                    consecutive_errors,
-                    MAX_CONSECUTIVE_ERRORS,
-                    e
-                );
-                if consecutive_errors == MAX_CONSECUTIVE_ERRORS {
-                    return Err(anyhow::anyhow!(
-                        "Proof generation failed: {} consecutive errors.",
-                        MAX_CONSECUTIVE_ERRORS
-                    ));
-                }
-                continue;
+            // Check the execution status.
+            if status.execution_status == ExecutionStatus::Unexecutable as i32 {
+                return Err(anyhow::anyhow!("proof request is unexecutable"));
             }
-            consecutive_errors = 0;
 
-            let (status, maybe_proof) = result.unwrap();
-
-            match status.status() {
-                ProofStatus::ProofFulfilled => {
+            // Check the fulfillment status.
+            match FulfillmentStatus::try_from(status.fulfillment_status) {
+                Ok(FulfillmentStatus::Fulfilled) => {
                     return Ok(maybe_proof.unwrap());
                 }
-                ProofStatus::ProofClaimed => {
-                    if !is_claimed {
-                        log::info!("Proof request claimed, proving...");
-                        is_claimed = true;
+                Ok(FulfillmentStatus::Assigned) => {
+                    if !is_assigned {
+                        log::info!("proof request assigned, proving...");
+                        is_assigned = true;
                     }
                 }
-                ProofStatus::ProofUnclaimed => {
-                    return Err(anyhow::anyhow!(
-                        "Proof generation failed: {}",
-                        status.unclaim_description()
-                    ));
+                Ok(FulfillmentStatus::Unfulfillable) => {
+                    return Err(anyhow::anyhow!("proof request is unfulfillable"));
                 }
                 _ => {}
             }
+
             sleep(Duration::from_secs(2)).await;
         }
-    }
-
-    /// Get the status and the proof if available of a given proof request. The proof is returned
-    /// only if the status is Fulfilled.
-    pub async fn get_proof_status(
-        &self,
-        proof_id: &str,
-    ) -> Result<(GetProofStatusResponse, Option<SP1ProofWithPublicValues>)> {
-        self.client.get_proof_status(proof_id).await
     }
 
     /// Requests a proof from the prover network and waits for it to be generated.
     pub(crate) async fn prove_impl(
         &self,
-        elf: &[u8],
-        stdin: SP1Stdin,
-        mode: ProofMode,
+        pk: &SP1ProvingKey,
+        stdin: &SP1Stdin,
+        mode: SP1ProofMode,
+        strategy: FulfillmentStrategy,
         timeout: Option<Duration>,
         skip_simulation: bool,
     ) -> Result<SP1ProofWithPublicValues> {
-        let proof_id = self.request_proof(elf, stdin, mode, skip_simulation).await?;
-        self.wait_proof(&proof_id, timeout).await
+        let vk_hash = self.register_program(&pk.vk, &pk.elf).await?;
+        let cycle_limit = self.get_cycle_limit(&pk.elf, &stdin, skip_simulation)?;
+        let request_id = self
+            .request_proof(&vk_hash, &stdin, mode.into(), strategy, cycle_limit, timeout)
+            .await?;
+        self.wait_proof(&request_id, timeout).await
+    }
+
+    fn get_cycle_limit(&self, elf: &[u8], stdin: &SP1Stdin, skip_simulation: bool) -> Result<u64> {
+        if !skip_simulation {
+            let (_, report) = self.prover.inner().execute(elf, stdin, Default::default())?;
+            let cycles = report.total_instruction_count();
+            Ok(cycles)
+        } else {
+            Ok(DEFAULT_CYCLE_LIMIT)
+        }
     }
 }
 
-impl Prover<DefaultProverComponents> for NetworkProver {
-    fn id(&self) -> ProverType {
-        ProverType::Network
-    }
-
+impl Prover<CpuProverComponents> for NetworkProver {
     fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
-        self.local_prover.setup(elf)
+        self.prover.setup(elf)
     }
 
-    fn sp1_prover(&self) -> &SP1Prover {
-        self.local_prover.sp1_prover()
+    fn inner(&self) -> &SP1Prover {
+        self.prover.inner()
     }
 
     fn prove(
         &self,
         pk: &SP1ProvingKey,
-        stdin: SP1Stdin,
-        kind: SP1ProofKind,
+        stdin: &SP1Stdin,
+        mode: SP1ProofMode,
     ) -> Result<SP1ProofWithPublicValues> {
-        block_on(self.prove_impl(&pk.elf, stdin, kind.into(), None, false))
+        block_on(self.prove_impl(pk, stdin, mode, FulfillmentStrategy::Hosted, None, false))
     }
 }
 
-impl From<SP1ProofKind> for ProofMode {
-    fn from(value: SP1ProofKind) -> Self {
+impl From<SP1ProofMode> for ProofMode {
+    fn from(value: SP1ProofMode) -> Self {
         match value {
-            SP1ProofKind::Core => Self::Core,
-            SP1ProofKind::Compressed => Self::Compressed,
-            SP1ProofKind::Plonk => Self::Plonk,
-            SP1ProofKind::Groth16 => Self::Groth16,
+            SP1ProofMode::Core => Self::Core,
+            SP1ProofMode::Compressed => Self::Compressed,
+            SP1ProofMode::Plonk => Self::Plonk,
+            SP1ProofMode::Groth16 => Self::Groth16,
         }
     }
 }
 
-/// Builder to prepare and configure proving execution of a program on an input.
-/// May be run with [Self::run].
-pub struct NetworkProve<'a> {
-    prover: &'a NetworkProver,
-    kind: SP1ProofKind,
-    pk: &'a SP1ProvingKey,
-    stdin: SP1Stdin,
+/// Execute an async operation with exponential backoff retries.
+pub async fn with_retry<T, F, Fut>(
+    operation: F,
     timeout: Option<Duration>,
-    skip_simulation: bool,
-}
+    operation_name: &str,
+) -> Result<T>
+where
+    F: Fn() -> Fut,
+    Fut: std::future::Future<Output = Result<T>>,
+{
+    let backoff = ExponentialBackoff {
+        initial_interval: Duration::from_secs(1),
+        max_interval: Duration::from_secs(120),
+        max_elapsed_time: timeout,
+        ..Default::default()
+    };
 
-impl<'a> NetworkProve<'a> {
-    fn new(prover: &'a NetworkProver, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> Self {
-        Self { prover, kind: Default::default(), pk, stdin, timeout: None, skip_simulation: false }
-    }
+    retry(backoff, || async {
+        match operation().await {
+            Ok(result) => Ok(result),
+            Err(e) => {
+                // Check for tonic status errors.
+                if let Some(status) = e.downcast_ref::<tonic::Status>() {
+                    match status.code() {
+                        Code::Unavailable => {
+                            log::warn!(
+                                "Network temporarily unavailable when {} due to {}, retrying...",
+                                operation_name,
+                                status.message(),
+                            );
+                            Err(BackoffError::transient(e))
+                        }
+                        Code::NotFound => {
+                            log::error!(
+                                "{} not found due to {}",
+                                operation_name,
+                                status.message(),
+                            );
+                            Err(BackoffError::permanent(e))
+                        }
+                        _ => {
+                            log::error!(
+                                "Permanent error encountered when {}: {} ({})",
+                                operation_name,
+                                status.message(),
+                                status.code()
+                            );
+                            Err(BackoffError::permanent(e))
+                        }
+                    }
+                } else {
+                    // Check for common transport errors.
+                    let error_msg = e.to_string().to_lowercase();
+                    let is_transient = error_msg.contains("tls handshake") ||
+                        error_msg.contains("dns error") ||
+                        error_msg.contains("connection reset") ||
+                        error_msg.contains("broken pipe") ||
+                        error_msg.contains("transport error") ||
+                        error_msg.contains("failed to lookup");
 
-    /// Prove the execution of the program on the input, consuming the built action `self`.
-    pub async fn run_async(self) -> Result<SP1ProofWithPublicValues> {
-        let Self { prover, kind, pk, stdin, timeout, skip_simulation } = self;
-
-        dump_proof_input(&pk.elf, &stdin);
-
-        prover.prove_impl(&pk.elf, stdin, kind.into(), timeout, skip_simulation).await
-    }
-
-    pub fn run(self) -> Result<SP1ProofWithPublicValues> {
-        let Self { prover, kind, pk, stdin, timeout, skip_simulation } = self;
-
-        dump_proof_input(&pk.elf, &stdin);
-
-        block_on(prover.prove_impl(&pk.elf, stdin, kind.into(), timeout, skip_simulation))
-    }
-
-    /// Set the proof kind to the core mode. This is the default.
-    pub fn core(mut self) -> Self {
-        self.kind = SP1ProofKind::Core;
-        self
-    }
-
-    /// Set the proof kind to the compressed mode.
-    pub fn compressed(mut self) -> Self {
-        self.kind = SP1ProofKind::Compressed;
-        self
-    }
-
-    /// Set the proof mode to the plonk bn254 mode.
-    pub fn plonk(mut self) -> Self {
-        self.kind = SP1ProofKind::Plonk;
-        self
-    }
-
-    /// Set the proof mode to the groth16 bn254 mode.
-    pub fn groth16(mut self) -> Self {
-        self.kind = SP1ProofKind::Groth16;
-        self
-    }
-
-    /// Set the proof mode to the given mode.
-    pub fn mode(mut self, mode: SP1ProofKind) -> Self {
-        self.kind = mode;
-        self
-    }
-
-    /// Set the timeout for the proof's generation.
-    pub fn timeout(mut self, timeout: Duration) -> Self {
-        self.timeout = Some(timeout);
-        self
-    }
-
-    /// Enable skipping the simulation step.
-    pub fn skip_simulation(mut self, skip_simulation: bool) -> Self {
-        self.skip_simulation = skip_simulation;
-        self
-    }
+                    if is_transient {
+                        log::warn!(
+                            "Transient transport error when {}: {}, retrying...",
+                            operation_name,
+                            error_msg
+                        );
+                        Err(BackoffError::transient(e))
+                    } else {
+                        log::error!("Permanent error when {}: {}", operation_name, error_msg);
+                        Err(BackoffError::permanent(e))
+                    }
+                }
+            }
+        }
+    })
+    .await
 }

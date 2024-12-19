@@ -6,7 +6,7 @@ use std::{
 use clap::{command, Parser};
 use sp1_cuda::SP1CudaProver;
 use sp1_prover::HashableKey;
-use sp1_prover::{components::DefaultProverComponents, ProverMode};
+use sp1_prover::{components::CpuProverComponents, ProverMode};
 use sp1_sdk::{self, Prover, ProverClient, SP1Context, SP1Prover, SP1Stdin};
 use sp1_stark::SP1ProverOpts;
 use test_artifacts::VERIFY_PROOF_ELF;
@@ -52,7 +52,7 @@ fn main() {
     let stdin = std::fs::read(args.stdin).expect("failed to read stdin");
     let stdin: SP1Stdin = bincode::deserialize(&stdin).expect("failed to deserialize stdin");
 
-    let prover = SP1Prover::<DefaultProverComponents>::new();
+    let prover = SP1Prover::<CpuProverComponents>::new();
     let (pk, vk) = prover.setup(&elf);
     let cycles = sp1_prover::utils::get_cycles(&elf, &stdin);
     let opts = SP1ProverOpts::default();

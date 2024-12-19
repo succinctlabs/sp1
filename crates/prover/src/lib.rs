@@ -81,7 +81,7 @@ use tracing::instrument;
 pub use types::*;
 use utils::{sp1_committed_values_digest_bn254, sp1_vkey_digest_bn254, words_to_bytes};
 
-use components::{DefaultProverComponents, SP1ProverComponents};
+use components::{CpuProverComponents, SP1ProverComponents};
 
 pub use sp1_core_machine::SP1_CIRCUIT_VERSION;
 
@@ -115,7 +115,7 @@ pub type ShrinkAir<F> = RecursionAir<F, SHRINK_DEGREE>;
 pub type WrapAir<F> = RecursionAir<F, WRAP_DEGREE>;
 
 /// A end-to-end prover implementation for the SP1 RISC-V zkVM.
-pub struct SP1Prover<C: SP1ProverComponents = DefaultProverComponents> {
+pub struct SP1Prover<C: SP1ProverComponents = CpuProverComponents> {
     /// The machine used for proving the core step.
     pub core_prover: C::CoreProver,
 
@@ -1516,14 +1516,8 @@ pub mod tests {
         // TODO(mattstam): We should Test::Plonk here, but this uses the existing
         // docker image which has a different API than the current. So we need to wait until the
         // next release (v1.2.0+), and then switch it back.
-        let prover = SP1Prover::<DefaultProverComponents>::new();
-        test_e2e_prover::<DefaultProverComponents>(
-            &prover,
-            elf,
-            SP1Stdin::default(),
-            opts,
-            Test::All,
-        )
+        let prover = SP1Prover::<CpuProverComponents>::new();
+        test_e2e_prover::<CpuProverComponents>(&prover, elf, SP1Stdin::default(), opts, Test::All)
     }
 
     /// Tests an end-to-end workflow of proving a program across the entire proof generation
@@ -1532,13 +1526,13 @@ pub mod tests {
     #[serial]
     fn test_e2e_with_deferred_proofs() -> Result<()> {
         setup_logger();
-        test_e2e_with_deferred_proofs_prover::<DefaultProverComponents>(SP1ProverOpts::default())
+        test_e2e_with_deferred_proofs_prover::<CpuProverComponents>(SP1ProverOpts::default())
     }
 
     #[test]
     fn test_deterministic_setup() {
         setup_logger();
-        let prover = SP1Prover::<DefaultProverComponents>::new();
+        let prover = SP1Prover::<CpuProverComponents>::new();
         let program = test_artifacts::FIBONACCI_ELF;
         let (pk, _) = prover.setup(program);
         let pk2 = prover.setup(program).0;

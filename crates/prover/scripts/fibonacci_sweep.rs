@@ -5,7 +5,7 @@ use std::{fs::File, io::BufWriter, io::Write, time::Instant};
 use itertools::iproduct;
 use sp1_core_executor::SP1Context;
 use sp1_core_machine::io::SP1Stdin;
-use sp1_prover::components::DefaultProverComponents;
+use sp1_prover::components::CpuProverComponents;
 use sp1_prover::SP1Prover;
 use sp1_stark::SP1ProverOpts;
 use tracing_subscriber::EnvFilter;
@@ -37,7 +37,7 @@ fn main() {
     std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
 
     // Initialize prover.
-    let prover = SP1Prover::<DefaultProverComponents>::new();
+    let prover = SP1Prover::<CpuProverComponents>::new();
 
     // Setup sweep.
     let iterations = [480000u32];
@@ -46,9 +46,10 @@ fn main() {
     let elf = test_artifacts::FIBONACCI_ELF;
     let (pk, vk) = prover.setup(elf);
 
-    let mut lines =
-        vec!["iterations,shard_size,batch_size,leaf_proving_duration,recursion_proving_duration"
-            .to_string()];
+    let mut lines = vec![
+        "iterations,shard_size,batch_size,leaf_proving_duration,recursion_proving_duration"
+            .to_string(),
+    ];
     for (shard_size, iterations, batch_size) in iproduct!(shard_sizes, iterations, batch_sizes) {
         tracing::info!(
             "running: shard_size={}, iterations={}, batch_size={}",

@@ -1,13 +1,17 @@
+//! # SP1 Install
+//!
+//! A library for installing the SP1 circuit artifacts.
+
 use cfg_if::cfg_if;
 use std::path::PathBuf;
 
-#[cfg(any(feature = "network", feature = "network-v2"))]
+#[cfg(any(feature = "network", feature = "network"))]
 use {
     crate::block_on,
     futures::StreamExt,
     indicatif::{ProgressBar, ProgressStyle},
     reqwest::Client,
-    std::{cmp::min, io::Write, process::Command},
+    std::{cmp::min, process::Command},
 };
 
 use crate::SP1_CIRCUIT_VERSION;
@@ -43,7 +47,7 @@ pub fn try_install_circuit_artifacts(artifacts_type: &str) -> PathBuf {
         );
     } else {
         cfg_if! {
-            if #[cfg(any(feature = "network", feature = "network-v2"))] {
+            if #[cfg(any(feature = "network", feature = "network"))] {
                 println!(
                     "[sp1] {} circuit artifacts for version {} do not exist at {}. downloading...",
                     artifacts_type,
@@ -61,7 +65,7 @@ pub fn try_install_circuit_artifacts(artifacts_type: &str) -> PathBuf {
 ///
 /// This function will download the latest circuit artifacts from the S3 bucket and extract them
 /// to the directory specified by [groth16_bn254_artifacts_dir()].
-#[cfg(any(feature = "network", feature = "network-v2"))]
+#[cfg(any(feature = "network", feature = "network"))]
 pub fn install_circuit_artifacts(build_dir: PathBuf, artifacts_type: &str) {
     // Create the build directory.
     std::fs::create_dir_all(&build_dir).expect("failed to create build directory");
@@ -91,11 +95,11 @@ pub fn install_circuit_artifacts(build_dir: PathBuf, artifacts_type: &str) {
 }
 
 /// Download the file with a progress bar that indicates the progress.
-#[cfg(any(feature = "network", feature = "network-v2"))]
+#[cfg(any(feature = "network", feature = "network"))]
 pub async fn download_file(
     client: &Client,
     url: &str,
-    file: &mut tempfile::NamedTempFile,
+    file: &mut impl std::io::Write,
 ) -> std::result::Result<(), String> {
     let res = client.get(url).send().await.or(Err(format!("Failed to GET from '{}'", &url)))?;
 

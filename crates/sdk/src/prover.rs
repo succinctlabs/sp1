@@ -1,96 +1,49 @@
-#[cfg(feature = "cuda")]
-mod cuda;
-mod env;
-mod local;
+//! # SP1 Prover Trait
+//!
+//! A trait that each prover variant must implement.
 
-#[cfg(feature = "cuda")]
-pub use cuda::CudaProver;
-pub use env::EnvProver;
-pub use local::CpuProver;
+use std::borrow::Borrow;
 
+use anyhow::Result;
 use itertools::Itertools;
 use p3_field::PrimeField32;
 use sp1_core_executor::ExecutionReport;
-use sp1_primitives::io::SP1PublicValues;
-use std::borrow::Borrow;
-use std::time::Duration;
-
-use anyhow::Result;
 use sp1_core_machine::{io::SP1Stdin, SP1_CIRCUIT_VERSION};
+use sp1_primitives::io::SP1PublicValues;
 use sp1_prover::{
     components::SP1ProverComponents, CoreSC, InnerSC, SP1CoreProofData, SP1Prover, SP1ProvingKey,
     SP1VerifyingKey,
 };
-use sp1_stark::{air::PublicValues, MachineVerificationError, SP1ProverOpts, Word};
-use strum_macros::EnumString;
+use sp1_stark::{air::PublicValues, MachineVerificationError, Word};
 use thiserror::Error;
 
 use crate::install::try_install_circuit_artifacts;
-use crate::{SP1Proof, SP1ProofKind, SP1ProofWithPublicValues};
+use crate::{SP1Proof, SP1ProofMode, SP1ProofWithPublicValues};
 
-/// The type of prover.
-#[derive(Debug, PartialEq, EnumString)]
-pub enum ProverType {
-    Cpu,
-    Cuda,
-    Mock,
-    Network,
-}
-
-/// Options to configure proof generation.
-#[derive(Clone, Default)]
-pub struct ProofOpts {
-    /// Options to configure the SP1 prover.
-    pub sp1_prover_opts: SP1ProverOpts,
-    /// Optional timeout duration for proof generation.
-    pub timeout: Option<Duration>,
-}
-
-#[derive(Error, Debug)]
-pub enum SP1VerificationError {
-    #[error("Invalid public values")]
-    InvalidPublicValues,
-    #[error("Version mismatch")]
-    VersionMismatch(String),
-    #[error("Core machine verification error: {0}")]
-    Core(MachineVerificationError<CoreSC>),
-    #[error("Recursion verification error: {0}")]
-    Recursion(MachineVerificationError<InnerSC>),
-    #[error("Plonk verification error: {0}")]
-    Plonk(anyhow::Error),
-    #[error("Groth16 verification error: {0}")]
-    Groth16(anyhow::Error),
-}
-
-/// An implementation of [crate::ProverClient].
+/// A basic set of primitives that each prover variant must implement.
 pub trait Prover<C: SP1ProverComponents>: Send + Sync {
-    /// The type of prover.
-    fn id(&self) -> ProverType;
+    /// The inner [SP1Prover] struct used by the prover.
+    fn inner(&self) -> &SP1Prover<C>;
 
-    /// The inner SP1Prover struct.
-    fn sp1_prover(&self) -> &SP1Prover<C>;
-
-    /// The version of the current SP1 circuit. This is distinct from the sp1-sdk version.
+    /// The version of the current SP1 circuit.
     fn version(&self) -> &str {
         SP1_CIRCUIT_VERSION
     }
 
-    /// Setup a program to be proven and verified by the SP1 RISC-V zkVM by computing the proving
-    /// and verifying keys.
+    /// Generate the proving and verifying keys for the given program.
     fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey);
 
-    /// Execute the given program on the given input (without generating a proof). Returns the
-    /// public values and execution report of the program after it has been executed.
+    /// Executes the program on the given input.
     fn execute(&self, elf: &[u8], stdin: &SP1Stdin) -> Result<(SP1PublicValues, ExecutionReport)> {
-        Ok(self.sp1_prover().execute(elf, stdin, Default::default())?)
+        Ok(self.inner().execute(elf, stdin, Default::default())?)
     }
 
-    /// Prove the execution of a RISCV ELF with the given inputs, according to the given proof mode.
+    /// Proves the given program on the given input in the given proof mode.
     fn prove(
         &self,
         pk: &SP1ProvingKey,
-        stdin: SP1Stdin,
-        kind: SP1ProofKind,
+        stdin: &SP1Stdin,
+        mode: SP1ProofMode,
     ) -> Result<SP1ProofWithPublicValues>;
 
     /// Verify that an SP1 proof is valid given its vkey and metadata.
@@ -101,8 +54,31 @@ pub trait Prover<C: SP1ProverComponents>: Send + Sync {
         bundle: &SP1ProofWithPublicValues,
         vkey: &SP1VerifyingKey,
     ) -> Result<(), SP1VerificationError> {
-        verify_proof(self.sp1_prover(), self.version(), bundle, vkey)
+        verify_proof(self.inner(), self.version(), bundle, vkey)
     }
+}
+
+/// An error that occurs when calling [Prover::verify].
+#[derive(Error, Debug)]
+pub enum SP1VerificationError {
+    /// An error that occurs when the public values are invalid.
+    #[error("Invalid public values")]
+    InvalidPublicValues,
+    /// An error that occurs when the SP1 version does not match the version of the circuit.
+    #[error("Version mismatch")]
+    VersionMismatch(String),
+    /// An error that occurs when the core machine verification fails.
+    #[error("Core machine verification error: {0}")]
+    Core(MachineVerificationError<CoreSC>),
+    /// An error that occurs when the recursion verification fails.
+    #[error("Recursion verification error: {0}")]
+    Recursion(MachineVerificationError<InnerSC>),
+    /// An error that occurs when the Plonk verification fails.
+    #[error("Plonk verification error: {0}")]
+    Plonk(anyhow::Error),
+    /// An error that occurs when the Groth16 verification fails.
+    #[error("Groth16 verification error: {0}")]
+    Groth16(anyhow::Error),
 }
 
 pub(crate) fn verify_proof<C: SP1ProverComponents>(
@@ -111,9 +87,11 @@ pub(crate) fn verify_proof<C: SP1ProverComponents>(
     bundle: &SP1ProofWithPublicValues,
     vkey: &SP1VerifyingKey,
 ) -> Result<(), SP1VerificationError> {
+    // Check that the SP1 version matches the version of the currentcircuit.
     if bundle.sp1_version != version {
         return Err(SP1VerificationError::VersionMismatch(bundle.sp1_version.clone()));
     }
+
     match &bundle.proof {
         SP1Proof::Core(proof) => {
             let public_values: &PublicValues<Word<_>, _> =
