@@ -1903,6 +1903,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "debugid"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bef552e6f588e446098f6ba40d89ac146c8c7b64aade83c051ee00bb5d2bc18d"
+dependencies = [
+ "uuid",
+]
+
+[[package]]
 name = "der"
 version = "0.7.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2460,6 +2469,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d758ba1b47b00caf47f24925c0074ecb20d6dfcffe7f6d53395c0465674841a"
 
 [[package]]
+name = "gecko_profile"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "890852c7e1e02bc6758e325d6b1e0236e4fbf21b492f585ce4d4715be54b4c6a"
+dependencies = [
+ "debugid",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "gen_ops"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2572,6 +2592,17 @@ name = "goblin"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b363a30c165f666402fe6a3024d3bec7ebc898f96a4a23bd1c99f8dbf3f4f47"
+dependencies = [
+ "log",
+ "plain",
+ "scroll",
+]
+
+[[package]]
+name = "goblin"
+version = "0.9.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "53ab3f32d1d77146981dea5d6b1e8fe31eedcb7013e5e00d6ccd1259a4b4d923"
 dependencies = [
  "log",
  "plain",
@@ -5600,7 +5631,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-build"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -5611,7 +5642,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-cli"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "anstyle",
  "anyhow",
@@ -5619,7 +5650,7 @@ dependencies = [
  "clap",
  "ctrlc",
  "dirs",
- "goblin",
+ "goblin 0.8.2",
  "hex",
  "indicatif",
  "prettytable-rs",
@@ -5640,7 +5671,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-executor"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "bincode",
  "bytemuck",
@@ -5648,8 +5679,11 @@ dependencies = [
  "elf",
  "enum-map",
  "eyre",
+ "gecko_profile",
+ "goblin 0.9.2",
  "hashbrown 0.14.5",
  "hex",
+ "indicatif",
  "itertools 0.13.0",
  "log",
  "nohash-hasher",
@@ -5660,6 +5694,7 @@ dependencies = [
  "p3-util",
  "rand 0.8.5",
  "rrs-succinct",
+ "rustc-demangle",
  "serde",
  "serde_json",
  "sp1-curves",
@@ -5679,7 +5714,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-machine"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "bincode",
  "cbindgen",
@@ -5738,7 +5773,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-cuda"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "bincode",
  "ctrlc",
@@ -5756,7 +5791,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "cfg-if",
  "curve25519-dalek",
@@ -5779,7 +5814,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -5787,7 +5822,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-eval"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5805,7 +5840,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-helper"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "sp1-build",
 ]
@@ -5822,7 +5857,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "bincode",
  "serde",
@@ -5830,7 +5865,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-perf"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "bincode",
  "clap",
@@ -5850,7 +5885,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "bincode",
  "hex",
@@ -5866,7 +5901,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-prover"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5905,7 +5940,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-circuit"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "ff 0.13.0",
  "hashbrown 0.14.5",
@@ -5942,7 +5977,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-compiler"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "backtrace",
  "criterion",
@@ -5967,7 +6002,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-core"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "backtrace",
  "cbindgen",
@@ -6011,7 +6046,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-derive"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -6019,7 +6054,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-cli"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "bincode",
  "clap",
@@ -6028,7 +6063,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-ffi"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "anyhow",
  "bincode",
@@ -6052,7 +6087,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-sdk"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "alloy-primitives",
  "alloy-signer",
@@ -6077,6 +6112,7 @@ dependencies = [
  "reqwest",
  "reqwest-middleware",
  "serde",
+ "serde_json",
  "sp1-build",
  "sp1-core-executor",
  "sp1-core-machine",
@@ -6098,7 +6134,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-stark"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "arrayref",
  "hashbrown 0.14.5",
@@ -6132,7 +6168,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-verifier"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "ark-bn254",
  "ark-ec",
@@ -6151,7 +6187,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "3.0.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "cfg-if",
  "getrandom 0.2.15",
@@ -6161,7 +6197,7 @@ dependencies = [
  "p3-field",
  "rand 0.8.5",
  "sha2 0.10.8",
- "sp1-lib 4.0.0-rc.1",
+ "sp1-lib 4.0.0-rc.3",
  "sp1-primitives",
 ]
 
@@ -6486,7 +6522,7 @@ dependencies = [
 
 [[package]]
 name = "test-artifacts"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "sp1-build",
 ]
@@ -7160,6 +7196,12 @@ name = "utf8parse"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
+
+[[package]]
+name = "uuid"
+version = "1.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8c5f0a0af699448548ad1a2fbf920fb4bee257eae39953ba95cb84891a0446a"
 
 [[package]]
 name = "valuable"

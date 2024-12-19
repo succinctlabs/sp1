@@ -40,6 +40,8 @@ pub const SHA_EXTEND_ELF: &[u8] = include_elf!("sha-extend-test");
 
 pub const SHA2_ELF: &[u8] = include_elf!("sha2-test");
 
+pub const SSZ_WITHDRAWALS_ELF: &[u8] = include_elf!("ssz-withdrawals-test");
+
 pub const BN254_ADD_ELF: &[u8] = include_elf!("bn254-add-test");
 
 pub const BN254_DOUBLE_ELF: &[u8] = include_elf!("bn254-double-test");

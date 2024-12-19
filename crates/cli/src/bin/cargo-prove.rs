@@ -3,7 +3,7 @@ use clap::{Parser, Subcommand};
 use sp1_cli::{
     commands::{
         build::BuildCmd, build_toolchain::BuildToolchainCmd,
-        install_toolchain::InstallToolchainCmd, new::NewCmd, trace::TraceCmd, vkey::VkeyCmd,
+        install_toolchain::InstallToolchainCmd, new::NewCmd, vkey::VkeyCmd,
     },
     SP1_VERSION_MESSAGE,
 };
@@ -27,7 +27,6 @@ pub enum ProveCliCommands {
     Build(BuildCmd),
     BuildToolchain(BuildToolchainCmd),
     InstallToolchain(InstallToolchainCmd),
-    Trace(TraceCmd),
     Vkey(VkeyCmd),
 }
 
@@ -39,7 +38,6 @@ fn main() -> Result<()> {
         ProveCliCommands::Build(cmd) => cmd.run(),
         ProveCliCommands::BuildToolchain(cmd) => cmd.run(),
         ProveCliCommands::InstallToolchain(cmd) => cmd.run(),
-        ProveCliCommands::Trace(cmd) => cmd.run(),
         ProveCliCommands::Vkey(cmd) => cmd.run(),
     }
 }

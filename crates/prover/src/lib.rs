@@ -285,9 +285,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         mut context: SP1Context<'a>,
     ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
         context.subproof_verifier.replace(Arc::new(self));
-        let program = self.get_program(elf).unwrap();
         let opts = SP1CoreOpts::default();
-        let mut runtime = Executor::with_context(program, opts, context);
+        let mut runtime = Executor::with_context_and_elf(opts, context, elf);
+
         runtime.write_vecs(&stdin.buffer);
         for (proof, vkey) in stdin.proofs.iter() {
             runtime.write_proof(proof.clone(), vkey.clone());
@@ -1630,14 +1630,4 @@ pub mod tests {
         setup_logger();
         test_e2e_with_deferred_proofs_prover::<CpuProverComponents>(SP1ProverOpts::auto())
     }
-
-    // #[test]
-    // fn test_deterministic_setup() {
-    //     setup_logger();
-    //     let prover = SP1Prover::<DefaultProverComponents>::new();
-    //     let program = test_artifacts::FIBONACCI_ELF;
-    //     let (pk, vk) = prover.setup(&program);
-    //     let pk2 = prover.setup(&program).0;
-    //     assert_eq!(pk.pk.commit, pk2.pk.commit);
-    // }
 }

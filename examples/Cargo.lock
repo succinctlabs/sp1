@@ -5729,7 +5729,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-build"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -5740,7 +5740,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-executor"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "bincode",
  "bytemuck",
@@ -5757,6 +5757,7 @@ dependencies = [
  "p3-baby-bear",
  "p3-field",
  "p3-maybe-rayon",
+ "p3-util",
  "rand 0.8.5",
  "rrs-succinct",
  "serde",
@@ -5766,6 +5767,7 @@ dependencies = [
  "sp1-stark",
  "strum",
  "strum_macros",
+ "subenum",
  "thiserror 1.0.69",
  "tiny-keccak",
  "tracing",
@@ -5775,7 +5777,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-machine"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "bincode",
  "cbindgen",
@@ -5830,7 +5832,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-cuda"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "bincode",
  "ctrlc",
@@ -5845,7 +5847,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "cfg-if",
  "curve25519-dalek",
@@ -5866,7 +5868,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -5907,7 +5909,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "bincode",
  "serde",
@@ -5915,7 +5917,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "bincode",
  "hex",
@@ -5931,7 +5933,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-prover"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5948,6 +5950,7 @@ dependencies = [
  "p3-field",
  "p3-matrix",
  "p3-symmetric",
+ "p3-util",
  "rayon",
  "serde",
  "serde_json",
@@ -5968,7 +5971,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-circuit"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "hashbrown 0.14.5",
  "itertools 0.13.0",
@@ -6000,9 +6003,8 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-compiler"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
- "backtrace",
  "itertools 0.13.0",
  "p3-baby-bear",
  "p3-bn254-fr",
@@ -6020,11 +6022,12 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-core"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "backtrace",
  "cbindgen",
  "cc",
+ "cfg-if",
  "ff 0.13.0",
  "glob",
  "hashbrown 0.14.5",
@@ -6060,7 +6063,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-derive"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -6068,7 +6071,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-ffi"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "anyhow",
  "bincode",
@@ -6092,7 +6095,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-sdk"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "alloy-signer",
  "alloy-signer-local",
@@ -6115,6 +6118,7 @@ dependencies = [
  "reqwest",
  "reqwest-middleware",
  "serde",
+ "serde_json",
  "sp1-build",
  "sp1-core-executor",
  "sp1-core-machine",
@@ -6134,7 +6138,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-stark"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "arrayref",
  "hashbrown 0.14.5",
@@ -6167,7 +6171,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-verifier"
-version = "4.0.0-rc.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "hex",
  "lazy_static",
@@ -6188,7 +6192,7 @@ dependencies = [
  "p3-field",
  "rand 0.8.5",
  "sha2 0.10.8",
- "sp1-lib 4.0.0-rc.1",
+ "sp1-lib 4.0.0-rc.3",
  "sp1-primitives",
 ]
 
@@ -6321,6 +6325,18 @@ dependencies = [
  "quote",
  "rustversion",
  "syn 2.0.90",
+]
+
+[[package]]
+name = "subenum"
+version = "1.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4f5d5dfb8556dd04017db5e318bbeac8ab2b0c67b76bf197bfb79e9b29f18ecf"
+dependencies = [
+ "heck 0.4.1",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]
