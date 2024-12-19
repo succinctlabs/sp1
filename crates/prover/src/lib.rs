@@ -305,7 +305,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             BabyBearPoseidon2,
             RiscvAir<BabyBear>,
         >>::DeviceProvingKey,
-        mut program: Program,
+        program: Program,
         stdin: &SP1Stdin,
         opts: SP1ProverOpts,
         mut context: SP1Context<'a>,

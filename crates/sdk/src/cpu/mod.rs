@@ -13,7 +13,7 @@ use p3_baby_bear::BabyBear;
 use p3_field::{extension::BinomialExtensionField, AbstractField, PrimeField};
 use p3_fri::{FriProof, TwoAdicFriPcsProof};
 use prove::CpuProveBuilder;
-use sp1_core_executor::{Program, SP1Context, SP1ContextBuilder, SP1ReduceProof};
+use sp1_core_executor::{SP1Context, SP1ContextBuilder, SP1ReduceProof};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{
     components::CpuProverComponents,
