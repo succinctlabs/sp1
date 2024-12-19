@@ -42,8 +42,13 @@ impl CudaProver {
     ///
     /// # Example
     /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
     /// let client = ProverClient::builder().cuda().build();
-    /// let (public_values, execution_report) = client.execute(elf, stdin)
+    /// let (public_values, execution_report) = client.execute(elf, &stdin)
     ///     .run()
     ///     .unwrap();
     /// ```
@@ -63,13 +68,19 @@ impl CudaProver {
     ///
     /// # Example
     /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
     /// let client = ProverClient::builder().cuda().build();
-    /// let (proof, public_values) = client.prove(pk, stdin)
+    /// let (pk, vk) = client.setup(elf);
+    /// let proof = client.prove(&pk, &stdin)
     ///     .run()
     ///     .unwrap();
     /// ```
-    pub fn prove<'a>(&'a self, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> CudaProveBuilder<'a> {
-        CudaProveBuilder { prover: self, mode: SP1ProofMode::Core, pk, stdin }
+    pub fn prove<'a>(&'a self, pk: &'a SP1ProvingKey, stdin: &'a SP1Stdin) -> CudaProveBuilder<'a> {
+        CudaProveBuilder { prover: self, mode: SP1ProofMode::Core, pk, stdin: stdin.clone() }
     }
 }
 

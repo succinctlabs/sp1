@@ -24,7 +24,8 @@ impl ProverClient {
     /// ```
     #[deprecated(since = "4.0.0", note = "use `ProverClient::from_env()` instead")]
     #[allow(clippy::new_ret_no_self)]
-    #[must_use] pub fn new() -> EnvProver {
+    #[must_use]
+    pub fn new() -> EnvProver {
         Self::from_env()
     }
 
@@ -32,20 +33,26 @@ impl ProverClient {
     ///
     /// # Usage
     /// ```no_run
-    /// use sp1_sdk::ProverClient;
+    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
     ///
     /// std::env::set_var("SP1_PROVER", "network");
-    /// std::env::set_var("SP1_PRIVATE_KEY", "...");
+    /// std::env::set_var("NETWORK_PRIVATE_KEY", "...");
     /// let prover = ProverClient::from_env();
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
     /// let (pk, vk) = prover.setup(elf);
-    /// let proof = prover.prove(&pk, stdin).compressed().run().unwrap();
+    /// let proof = prover.prove(&pk, &stdin).compressed().run().unwrap();
     /// ```
-    #[must_use] pub fn from_env() -> EnvProver {
+    #[must_use]
+    pub fn from_env() -> EnvProver {
         EnvProver::new()
     }
 
     /// Creates a new [`ProverClientBuilder`] so that you can configure the prover client.
-    #[must_use] pub fn builder() -> ProverClientBuilder {
+    #[must_use]
+    pub fn builder() -> ProverClientBuilder {
         ProverClientBuilder
     }
 }
@@ -58,13 +65,17 @@ impl ProverClientBuilder {
     ///
     /// # Example
     /// ```no_run
-    /// use sp1_sdk::ProverClient;
+    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
     ///
     /// let prover = ProverClient::builder().mock().build();
     /// let (pk, vk) = prover.setup(elf);
-    /// let proof = prover.prove(&pk, stdin).compressed().run().unwrap();
+    /// let proof = prover.prove(&pk, &stdin).compressed().run().unwrap();
     /// ```
-    #[must_use] pub fn mock(&self) -> CpuProverBuilder {
+    #[must_use]
+    pub fn mock(&self) -> CpuProverBuilder {
         CpuProverBuilder { mock: true }
     }
 
@@ -72,13 +83,17 @@ impl ProverClientBuilder {
     ///
     /// # Usage
     /// ```no_run
-    /// use sp1_sdk::ProverClient;
+    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
     ///
     /// let prover = ProverClient::builder().cpu().build();
     /// let (pk, vk) = prover.setup(elf);
-    /// let proof = prover.prove(&pk, stdin).compressed().run().unwrap();
+    /// let proof = prover.prove(&pk, &stdin).compressed().run().unwrap();
     /// ```
-    #[must_use] pub fn cpu(&self) -> CpuProverBuilder {
+    #[must_use]
+    pub fn cpu(&self) -> CpuProverBuilder {
         CpuProverBuilder { mock: false }
     }
 
@@ -86,13 +101,17 @@ impl ProverClientBuilder {
     ///
     /// # Example
     /// ```no_run
-    /// use sp1_sdk::ProverClient;
+    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
     ///
-    /// let prover = ProverClient::cuda();
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let prover = ProverClient::builder().cuda().build();
     /// let (pk, vk) = prover.setup(elf);
-    /// let proof = prover.prove(&pk, stdin).compressed().run().unwrap();
+    /// let proof = prover.prove(&pk, &stdin).compressed().run().unwrap();
     /// ```
-    #[must_use] pub fn cuda(&self) -> CudaProverBuilder {
+    #[must_use]
+    pub fn cuda(&self) -> CudaProverBuilder {
         CudaProverBuilder
     }
 
@@ -100,14 +119,18 @@ impl ProverClientBuilder {
     ///
     /// # Example
     /// ```no_run
-    /// use sp1_sdk::ProverClient;
+    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
     ///
-    /// let prover = ProverClient::network().build();
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let prover = ProverClient::builder().network().build();
     /// let (pk, vk) = prover.setup(elf);
-    /// let proof = prover.prove(&pk, stdin).compressed().run().unwrap();
+    /// let proof = prover.prove(&pk, &stdin).compressed().run().unwrap();
     /// ```
     #[cfg(feature = "network")]
-    #[must_use] pub fn network(&self) -> NetworkProverBuilder {
+    #[must_use]
+    pub fn network(&self) -> NetworkProverBuilder {
         NetworkProverBuilder { private_key: None, rpc_url: None }
     }
 }

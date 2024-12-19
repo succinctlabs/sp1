@@ -33,8 +33,13 @@ impl<'a> CpuExecuteBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
     /// let client = ProverClient::builder().cpu().build();
-    /// let builder = client.execute(elf, stdin)
+    /// let builder = client.execute(elf, &stdin)
     ///     .with_hook(1, |env, data| {
     ///         println!("Hook triggered with data: {:?}", data);
     ///         vec![vec![1, 2, 3]]
@@ -63,8 +68,13 @@ impl<'a> CpuExecuteBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
     /// let client = ProverClient::builder().cpu().build();
-    /// let builder = client.execute(elf, stdin)
+    /// let builder = client.execute(elf, &stdin)
     ///     .cycle_limit(1000000)
     ///     .run();
     /// ```
@@ -86,8 +96,13 @@ impl<'a> CpuExecuteBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
     /// let client = ProverClient::builder().cpu().build();
-    /// let builder = client.execute(elf, stdin)
+    /// let builder = client.execute(elf, &stdin)
     ///     .deferred_proof_verification(false)
     ///     .run();
     /// ```
@@ -105,8 +120,13 @@ impl<'a> CpuExecuteBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
     /// let client = ProverClient::builder().cpu().build();
-    /// let (public_values, execution_report) = client.execute(elf, stdin)
+    /// let (public_values, execution_report) = client.execute(elf, &stdin)
     ///     .run()
     ///     .unwrap();
     /// ```

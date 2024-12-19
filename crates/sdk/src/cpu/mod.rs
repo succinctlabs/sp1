@@ -59,8 +59,13 @@ impl CpuProver {
     ///
     /// # Example
     /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
     /// let client = ProverClient::builder().cpu().build();
-    /// let (public_values, execution_report) = client.execute(elf, stdin)
+    /// let (public_values, execution_report) = client.execute(elf, &stdin)
     ///     .run()
     ///     .unwrap();
     /// ```
@@ -80,17 +85,23 @@ impl CpuProver {
     ///
     /// # Example
     /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
     /// let client = ProverClient::builder().cpu().build();
-    /// let builder = client.prove(pk, stdin)
+    /// let (pk, vk) = client.setup(elf);
+    /// let builder = client.prove(&pk, &stdin)
     ///     .core()
     ///     .run();
     /// ```
-    pub fn prove<'a>(&'a self, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> CpuProveBuilder<'a> {
+    pub fn prove<'a>(&'a self, pk: &'a SP1ProvingKey, stdin: &SP1Stdin) -> CpuProveBuilder<'a> {
         CpuProveBuilder {
             prover: self,
             mode: SP1ProofMode::Core,
             pk,
-            stdin,
+            stdin: stdin.clone(),
             context_builder: SP1ContextBuilder::default(),
             core_opts: SP1CoreOpts::default(),
             recursion_opts: SP1CoreOpts::recursion(),

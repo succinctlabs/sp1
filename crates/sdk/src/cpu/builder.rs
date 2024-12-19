@@ -20,13 +20,12 @@ impl CpuProverBuilder {
     ///
     /// # Example
     /// ```rust,no_run
+    /// use sp1_sdk::ProverClient;
+    ///
     /// let prover = ProverClient::builder().mock().build();
     /// ```
-    #[must_use] pub fn build(self) -> CpuProver {
-        if self.mock {
-            CpuProver::mock()
-        } else {
-            CpuProver::new()
-        }
+    #[must_use]
+    pub fn build(self) -> CpuProver {
+        if self.mock { CpuProver::mock() } else { CpuProver::new() }
     }
 }

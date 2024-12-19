@@ -40,6 +40,8 @@ impl NetworkProver {
     ///
     /// # Example
     /// ```rust,no_run
+    /// use sp1_sdk::NetworkProver;
+    ///
     /// let prover = NetworkProver::new("...", "...");
     /// ```
     #[must_use]
@@ -57,8 +59,13 @@ impl NetworkProver {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let client = ProverClient::cpu();
-    /// let (public_values, execution_report) = client.execute(elf, stdin)
+    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().cpu().build();
+    /// let (public_values, execution_report) = client.execute(elf, &stdin)
     ///     .run()
     ///     .unwrap();
     /// ```
@@ -79,15 +86,25 @@ impl NetworkProver {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let prover = NetworkProver::new("...", "...");
-    /// let proof = prover.prove(pk, stdin).run().await?;
+    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().network().build();
+    /// let (pk, vk) = client.setup(elf);
+    /// let proof = client.prove(&pk, &stdin).run();
     /// ```
-    pub fn prove<'a>(&'a self, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> NetworkProveBuilder<'a> {
+    pub fn prove<'a>(
+        &'a self,
+        pk: &'a SP1ProvingKey,
+        stdin: &'a SP1Stdin,
+    ) -> NetworkProveBuilder<'a> {
         NetworkProveBuilder {
             prover: self,
             mode: SP1ProofMode::Core,
             pk,
-            stdin,
+            stdin: stdin.clone(),
             timeout: None,
             strategy: FulfillmentStrategy::Hosted,
             skip_simulation: false,
@@ -105,8 +122,13 @@ impl NetworkProver {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let prover = NetworkProver::new("...", "...");
-    /// let vk_hash = prover.register_program(vk, elf).await?;
+    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let client = ProverClient::builder().network().build();
+    /// let (pk, vk) = client.setup(elf);
+    ///
+    /// let vk_hash = client.register_program(&vk, elf);
     /// ```
     pub async fn register_program(&self, vk: &SP1VerifyingKey, elf: &[u8]) -> Result<Vec<u8>> {
         self.client.register_program(vk, elf).await

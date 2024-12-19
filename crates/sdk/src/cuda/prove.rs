@@ -29,12 +29,19 @@ impl<'a> CudaProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
     /// let client = ProverClient::builder().cuda().build();
-    /// let builder = client.prove(pk, stdin)
+    /// let (pk, vk) = client.setup(elf);
+    /// let builder = client.prove(&pk, &stdin)
     ///     .core()
     ///     .run();
     /// ```
-    #[must_use] pub fn core(mut self) -> Self {
+    #[must_use]
+    pub fn core(mut self) -> Self {
         self.mode = SP1ProofMode::Core;
         self
     }
@@ -48,12 +55,19 @@ impl<'a> CudaProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
     /// let client = ProverClient::builder().cuda().build();
-    /// let builder = client.prove(pk, stdin)
+    /// let (pk, vk) = client.setup(elf);
+    /// let builder = client.prove(&pk, &stdin)
     ///     .compressed()
     ///     .run();
     /// ```
-    #[must_use] pub fn compressed(mut self) -> Self {
+    #[must_use]
+    pub fn compressed(mut self) -> Self {
         self.mode = SP1ProofMode::Compressed;
         self
     }
@@ -68,12 +82,19 @@ impl<'a> CudaProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
     /// let client = ProverClient::builder().cuda().build();
-    /// let builder = client.prove(pk, stdin)
+    /// let (pk, vk) = client.setup(elf);
+    /// let builder = client.prove(&pk, &stdin)
     ///     .plonk()
     ///     .run();
     /// ```
-    #[must_use] pub fn plonk(mut self) -> Self {
+    #[must_use]
+    pub fn plonk(mut self) -> Self {
         self.mode = SP1ProofMode::Plonk;
         self
     }
@@ -86,12 +107,19 @@ impl<'a> CudaProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
     /// let client = ProverClient::builder().cuda().build();
-    /// let builder = client.prove(pk, stdin)
+    /// let (pk, vk) = client.setup(elf);
+    /// let builder = client.prove(&pk, &stdin)
     ///     .groth16()
     ///     .run();
     /// ```
-    #[must_use] pub fn groth16(mut self) -> Self {
+    #[must_use]
+    pub fn groth16(mut self) -> Self {
         self.mode = SP1ProofMode::Groth16;
         self
     }
@@ -103,12 +131,19 @@ impl<'a> CudaProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, SP1ProofMode, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
     /// let client = ProverClient::builder().cuda().build();
-    /// let builder = client.prove(pk, stdin)
+    /// let (pk, vk) = client.setup(elf);
+    /// let builder = client.prove(&pk, &stdin)
     ///     .mode(SP1ProofMode::Groth16)
     ///     .run();
     /// ```
-    #[must_use] pub fn mode(mut self, mode: SP1ProofMode) -> Self {
+    #[must_use]
+    pub fn mode(mut self, mode: SP1ProofMode) -> Self {
         self.mode = mode;
         self
     }
@@ -121,8 +156,14 @@ impl<'a> CudaProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
     /// let client = ProverClient::builder().cuda().build();
-    /// let (proof, public_values) = client.prove(pk, stdin)
+    /// let (pk, vk) = client.setup(elf);
+    /// let proof = client.prove(&pk, &stdin)
     ///     .run()
     ///     .unwrap();
     /// ```

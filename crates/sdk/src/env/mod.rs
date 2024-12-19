@@ -87,17 +87,22 @@ impl EnvProver {
     ///
     /// # Example
     /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
     /// let client = ProverClient::from_env();
-    /// let (public_values, execution_report) = client.execute(elf, stdin)
+    /// let (public_values, execution_report) = client.execute(elf, &stdin)
     ///     .run()
     ///     .unwrap();
     /// ```
     #[must_use]
-    pub fn execute<'a>(&'a self, elf: &'a [u8], stdin: SP1Stdin) -> CpuExecuteBuilder<'a> {
+    pub fn execute<'a>(&'a self, elf: &'a [u8], stdin: &SP1Stdin) -> CpuExecuteBuilder<'a> {
         CpuExecuteBuilder {
             prover: self.prover.inner(),
             elf,
-            stdin,
+            stdin: stdin.clone(),
             context_builder: SP1ContextBuilder::default(),
         }
     }
@@ -109,14 +114,25 @@ impl EnvProver {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let client = ProverClient::cpu();
-    /// let builder = client.prove(pk, stdin)
+    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::from_env();
+    /// let (pk, vk) = client.setup(elf);
+    /// let builder = client.prove(&pk, &stdin)
     ///     .core()
     ///     .run();
     /// ```
     #[must_use]
-    pub fn prove<'a>(&'a self, pk: &'a SP1ProvingKey, stdin: SP1Stdin) -> EnvProveBuilder<'a> {
-        EnvProveBuilder { prover: self.prover.as_ref(), mode: SP1ProofMode::Core, pk, stdin }
+    pub fn prove<'a>(&'a self, pk: &'a SP1ProvingKey, stdin: &'a SP1Stdin) -> EnvProveBuilder<'a> {
+        EnvProveBuilder {
+            prover: self.prover.as_ref(),
+            mode: SP1ProofMode::Core,
+            pk,
+            stdin: stdin.clone(),
+        }
     }
 
     /// Verifies that the given proof is valid and matches the given verification key produced by
@@ -127,11 +143,11 @@ impl EnvProver {
     /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
     /// let elf = test_artifacts::FIBONACCI_ELF;
+    /// let stdin = SP1Stdin::new();
+    ///
     /// let client = ProverClient::from_env();
     /// let (pk, vk) = client.setup(elf);
-    /// let mut stdin = SP1Stdin::new();
-    /// stdin.write(&10usize);
-    /// let proof = client.prove(&pk, stdin).run().unwrap();
+    /// let proof = client.prove(&pk, &stdin).run().unwrap();
     /// client.verify(&proof, &vk).unwrap();
     /// ```
     pub fn verify(

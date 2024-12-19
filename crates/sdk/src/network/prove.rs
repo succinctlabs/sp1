@@ -34,12 +34,19 @@ impl<'a> NetworkProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let client = ProverClient::network().build();
-    /// let builder = client.prove(pk, stdin)
+    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().network().build();
+    /// let (pk, vk) = client.setup(elf);
+    /// let builder = client.prove(&pk, &stdin)
     ///     .core()
     ///     .run();
     /// ```
-    #[must_use] pub fn core(mut self) -> Self {
+    #[must_use]
+    pub fn core(mut self) -> Self {
         self.mode = SP1ProofMode::Core;
         self
     }
@@ -53,12 +60,19 @@ impl<'a> NetworkProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let client = ProverClient::network().build();
-    /// let builder = client.prove(pk, stdin)
+    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().network().build();
+    /// let (pk, vk) = client.setup(elf);
+    /// let builder = client.prove(&pk, &stdin)
     ///     .compressed()
     ///     .run();
     /// ```
-    #[must_use] pub fn compressed(mut self) -> Self {
+    #[must_use]
+    pub fn compressed(mut self) -> Self {
         self.mode = SP1ProofMode::Compressed;
         self
     }
@@ -73,12 +87,19 @@ impl<'a> NetworkProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let client = ProverClient::network().build();
-    /// let builder = client.prove(pk, stdin)
+    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().network().build();
+    /// let (pk, vk) = client.setup(elf);
+    /// let builder = client.prove(&pk, &stdin)
     ///     .plonk()
     ///     .run();
     /// ```
-    #[must_use] pub fn plonk(mut self) -> Self {
+    #[must_use]
+    pub fn plonk(mut self) -> Self {
         self.mode = SP1ProofMode::Plonk;
         self
     }
@@ -91,12 +112,19 @@ impl<'a> NetworkProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let client = ProverClient::network().build();
-    /// let builder = client.prove(pk, stdin)
+    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().network().build();
+    /// let (pk, vk) = client.setup(elf);
+    /// let builder = client.prove(&pk, &stdin)
     ///     .groth16()
     ///     .run();
     /// ```
-    #[must_use] pub fn groth16(mut self) -> Self {
+    #[must_use]
+    pub fn groth16(mut self) -> Self {
         self.mode = SP1ProofMode::Groth16;
         self
     }
@@ -108,12 +136,19 @@ impl<'a> NetworkProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let client = ProverClient::network().build();
-    /// let builder = client.prove(pk, stdin)
+    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover, SP1ProofMode};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().network().build();
+    /// let (pk, vk) = client.setup(elf);
+    /// let builder = client.prove(&pk, &stdin)
     ///     .mode(SP1ProofMode::Groth16)
     ///     .run();
     /// ```
-    #[must_use] pub fn mode(mut self, mode: SP1ProofMode) -> Self {
+    #[must_use]
+    pub fn mode(mut self, mode: SP1ProofMode) -> Self {
         self.mode = mode;
         self
     }
@@ -126,12 +161,20 @@ impl<'a> NetworkProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let client = ProverClient::network().build();
-    /// let builder = client.prove(pk, stdin)
+    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
+    /// use std::time::Duration;
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().network().build();
+    /// let (pk, vk) = client.setup(elf);
+    /// let builder = client.prove(&pk, &stdin)
     ///     .timeout(Duration::from_secs(60))
     ///     .run();
     /// ```
-    #[must_use] pub fn timeout(mut self, timeout: Duration) -> Self {
+    #[must_use]
+    pub fn timeout(mut self, timeout: Duration) -> Self {
         self.timeout = Some(timeout);
         self
     }
@@ -146,12 +189,19 @@ impl<'a> NetworkProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let client = ProverClient::network().build();
-    /// let builder = client.prove(pk, stdin)
+    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().network().build();
+    /// let (pk, vk) = client.setup(elf);
+    /// let builder = client.prove(&pk, &stdin)
     ///     .skip_simulation(true)
     ///     .run();
     /// ```
-    #[must_use] pub fn skip_simulation(mut self, skip_simulation: bool) -> Self {
+    #[must_use]
+    pub fn skip_simulation(mut self, skip_simulation: bool) -> Self {
         self.skip_simulation = skip_simulation;
         self
     }
@@ -163,11 +213,20 @@ impl<'a> NetworkProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let prover = ProverClient::network()
+    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover, network::FulfillmentStrategy};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().network().build();
+    /// let (pk, vk) = client.setup(elf);
+    /// let proof = client.prove(&pk, &stdin)
     ///     .strategy(FulfillmentStrategy::Hosted)
-    ///     .build();
+    ///     .run()
+    ///     .unwrap();
     /// ```
-    #[must_use] pub fn strategy(mut self, strategy: FulfillmentStrategy) -> Self {
+    #[must_use]
+    pub fn strategy(mut self, strategy: FulfillmentStrategy) -> Self {
         self.strategy = strategy;
         self
     }
@@ -180,8 +239,14 @@ impl<'a> NetworkProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let client = ProverClient::network().build();
-    /// let proof = client.prove(pk, stdin)
+    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().network().build();
+    /// let (pk, vk) = client.setup(elf);
+    /// let proof = client.prove(&pk, &stdin)
     ///     .run()
     ///     .unwrap();
     /// ```
@@ -208,11 +273,15 @@ impl<'a> NetworkProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let client = ProverClient::network().build();
-    /// let proof = client.prove(pk, stdin)
-    ///     .run_async()
-    ///     .await
-    ///     .unwrap();
+    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().network().build();
+    /// let (pk, vk) = client.setup(elf);
+    /// let proof = client.prove(&pk, &stdin)
+    ///     .run_async();
     /// ```
     pub async fn run_async(self) -> Result<SP1ProofWithPublicValues> {
         let Self { prover, mode, pk, stdin, timeout, strategy, mut skip_simulation } = self;

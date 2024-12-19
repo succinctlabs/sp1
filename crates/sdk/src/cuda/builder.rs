@@ -20,9 +20,12 @@ impl CudaProverBuilder {
     ///
     /// # Example
     /// ```rust,no_run
+    /// use sp1_sdk::ProverClient;
+    ///
     /// let prover = ProverClient::builder().cuda().build();
     /// ```
-    #[must_use] pub fn build(self) -> CudaProver {
+    #[must_use]
+    pub fn build(self) -> CudaProver {
         CudaProver::new(SP1Prover::new())
     }
 }

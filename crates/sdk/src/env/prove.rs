@@ -22,8 +22,14 @@ impl<'a> EnvProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
     /// let client = ProverClient::from_env();
-    /// let builder = client.prove(pk, stdin)
+    /// let (pk, vk) = client.setup(elf);
+    /// let builder = client.prove(&pk, &stdin)
     ///     .core()
     ///     .run();
     /// ```
@@ -41,8 +47,14 @@ impl<'a> EnvProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
     /// let client = ProverClient::from_env();
-    /// let builder = client.prove(pk, stdin)
+    /// let (pk, vk) = client.setup(elf);
+    /// let builder = client.prove(&pk, &stdin)
     ///     .compressed()
     ///     .run();
     /// ```
@@ -61,8 +73,14 @@ impl<'a> EnvProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
     /// let client = ProverClient::from_env();
-    /// let builder = client.prove(pk, stdin)
+    /// let (pk, vk) = client.setup(elf);
+    /// let builder = client.prove(&pk, &stdin)
     ///     .plonk()
     ///     .run();
     /// ```
@@ -79,8 +97,14 @@ impl<'a> EnvProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
     /// let client = ProverClient::from_env();
-    /// let builder = client.prove(pk, stdin)
+    /// let (pk, vk) = client.setup(elf);
+    /// let builder = client.prove(&pk, &stdin)
     ///     .groth16()
     ///     .run();
     /// ```
@@ -96,8 +120,14 @@ impl<'a> EnvProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover, SP1ProofMode};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
     /// let client = ProverClient::from_env();
-    /// let builder = client.prove(pk, stdin)
+    /// let (pk, vk) = client.setup(elf);
+    /// let builder = client.prove(&pk, &stdin)
     ///     .mode(SP1ProofMode::Groth16)
     ///     .run();
     /// ```
@@ -114,8 +144,14 @@ impl<'a> EnvProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
     /// let client = ProverClient::from_env();
-    /// let (proof, public_values) = client.prove(pk, stdin)
+    /// let (pk, vk) = client.setup(elf);
+    /// let proof = client.prove(&pk, &stdin)
     ///     .run()
     ///     .unwrap();
     /// ```

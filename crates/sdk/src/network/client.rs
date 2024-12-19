@@ -39,11 +39,6 @@ pub struct NetworkClient {
 
 impl NetworkClient {
     /// Creates a new [`NetworkClient`] with the given private key and rpc url.
-    ///
-    /// # Example
-    /// ```rust,no_run
-    /// let client = NetworkClient::new("...", "...");
-    /// ```
     pub fn new(private_key: impl Into<String>, rpc_url: impl Into<String>) -> Self {
         let signer = PrivateKeySigner::from_str(&private_key.into()).unwrap();
         let client = reqwest::Client::builder()
@@ -55,12 +50,6 @@ impl NetworkClient {
     }
 
     /// Get the latest nonce for this account's address.
-    ///
-    /// # Example
-    /// ```rust,no_run
-    /// let client = NetworkClient::new("...", "...");
-    /// let nonce = client.get_nonce().await?;
-    /// ```
     pub async fn get_nonce(&self) -> Result<u64> {
         let mut rpc = self.prover_network_client().await?;
         let res =
@@ -72,12 +61,6 @@ impl NetworkClient {
     ///
     /// # Details
     /// The verifying key hash is used to identify a program.
-    ///
-    /// # Example
-    /// ```rust,no_run
-    /// let client = NetworkClient::new("...", "...");
-    /// let vk_hash = client.get_vk_hash(&vk).await?;
-    /// ```
     pub fn get_vk_hash(vk: &SP1VerifyingKey) -> Result<Vec<u8>> {
         let vk_hash_str = vk.bytes32();
         let vk_hash = hex::decode(vk_hash_str.strip_prefix("0x").unwrap_or(&vk_hash_str))?;
@@ -85,12 +68,6 @@ impl NetworkClient {
     }
 
     /// Registers a program with the network if it is not already registered.
-    ///
-    /// # Example
-    /// ```rust,no_run
-    /// let client = NetworkClient::new("...", "...");
-    /// let vk_hash = client.register_program(&vk, &elf).await?;
-    /// ```
     pub async fn register_program(&self, vk: &SP1VerifyingKey, elf: &[u8]) -> Result<Vec<u8>> {
         let vk_hash = Self::get_vk_hash(vk)?;
 
@@ -110,12 +87,6 @@ impl NetworkClient {
     ///
     /// # Details
     /// Returns `None` if the program does not exist.
-    ///
-    /// # Example
-    /// ```rust,no_run
-    /// let client = NetworkClient::new("...", "...");
-    /// let program = client.get_program(&vk_hash).await?;
-    /// ```
     pub async fn get_program(&self, vk_hash: &[u8]) -> Result<Option<GetProgramResponse>> {
         let mut rpc = self.prover_network_client().await?;
         match rpc.get_program(GetProgramRequest { vk_hash: vk_hash.to_vec() }).await {
@@ -126,12 +97,6 @@ impl NetworkClient {
     }
 
     /// Creates a new program on the network.
-    ///
-    /// # Example
-    /// ```rust,no_run
-    /// let client = NetworkClient::new("...", "...");
-    /// let program = client.create_program(&vk_hash, &vk, &elf).await?;
-    /// ```
     pub async fn create_program(
         &self,
         vk_hash: &[u8],
@@ -169,12 +134,6 @@ impl NetworkClient {
     ///
     /// # Details
     /// If the status is Fulfilled, the proof is also returned.
-    ///
-    /// # Example
-    /// ```rust,no_run
-    /// let client = NetworkClient::new("...", "...");
-    /// let (status, proof) = client.get_proof_request_status(&request_id).await?;
-    /// ```
     pub async fn get_proof_request_status<P: DeserializeOwned>(
         &self,
         request_id: &[u8],
@@ -213,12 +172,6 @@ impl NetworkClient {
     /// * `strategy`: The [`FulfillmentStrategy`] to use.
     /// * `timeout_secs`: The timeout for the proof request in seconds.
     /// * `cycle_limit`: The cycle limit for the proof request.
-    ///
-    /// # Example
-    /// ```rust,no_run
-    /// let client = NetworkClient::new("...", "...");
-    /// let response = client.request_proof(&vk_hash, &stdin, mode, version, strategy, timeout_secs, cycle_limit).await?;
-    /// ```
     #[allow(clippy::too_many_arguments)]
     pub async fn request_proof(
         &self,

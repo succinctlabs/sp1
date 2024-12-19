@@ -22,12 +22,15 @@ impl NetworkProverBuilder {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let prover = ProverClient::builder().network().build();
+    /// use sp1_sdk::{ProverClient};
+    ///
+    /// let prover = ProverClient::builder().network()
     ///     .private_key("...")
     ///     .build();
     /// ```
-    #[must_use] pub fn private_key(mut self, private_key: String) -> Self {
-        self.private_key = Some(private_key);
+    #[must_use]
+    pub fn private_key(mut self, private_key: &str) -> Self {
+        self.private_key = Some(private_key.to_string());
         self
     }
 
@@ -39,13 +42,16 @@ impl NetworkProverBuilder {
     ///
     /// # Example
     /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient};
+    ///
     /// let prover = ProverClient::builder()
     ///     .network()
     ///     .rpc_url("...")
     ///     .build();
     /// ```
-    #[must_use] pub fn rpc_url(mut self, rpc_url: String) -> Self {
-        self.rpc_url = Some(rpc_url);
+    #[must_use]
+    pub fn rpc_url(mut self, rpc_url: &str) -> Self {
+        self.rpc_url = Some(rpc_url.to_string());
         self
     }
 
@@ -57,13 +63,16 @@ impl NetworkProverBuilder {
     ///
     /// # Example
     /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient};
+    ///
     /// let prover = ProverClient::builder()
     ///     .network()
     ///     .private_key("...")
     ///     .rpc_url("...")
     ///     .build();
     /// ```
-    #[must_use] pub fn build(self) -> NetworkProver {
+    #[must_use]
+    pub fn build(self) -> NetworkProver {
         let private_key = match self.private_key {
             Some(private_key) => private_key,
             None => std::env::var("NETWORK_PRIVATE_KEY").expect(
@@ -83,4 +92,3 @@ impl NetworkProverBuilder {
         NetworkProver::new(&private_key, &rpc_url)
     }
 }
-

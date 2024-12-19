@@ -117,7 +117,7 @@ mod tests {
         stdin.write(&10usize);
 
         // Generate proof & verify.
-        let mut proof = client.prove(&pk, stdin).run().unwrap();
+        let mut proof = client.prove(&pk, &stdin).run().unwrap();
         client.verify(&proof, &vk).unwrap();
 
         // Test invalid public values.

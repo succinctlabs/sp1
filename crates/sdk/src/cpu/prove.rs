@@ -35,8 +35,14 @@ impl<'a> CpuProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
     /// let client = ProverClient::builder().cpu().build();
-    /// let builder = client.prove(pk, stdin)
+    /// let (pk, vk) = client.setup(elf);
+    /// let builder = client.prove(&pk, &stdin)
     ///     .core()
     ///     .run();
     /// ```
@@ -55,8 +61,14 @@ impl<'a> CpuProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let client = ProverClient::cpu();
-    /// let builder = client.prove(pk, stdin)
+    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().cpu().build();
+    /// let (pk, vk) = client.setup(elf);
+    /// let builder = client.prove(&pk, &stdin)
     ///     .compressed()
     ///     .run();
     /// ```
@@ -76,8 +88,14 @@ impl<'a> CpuProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
     /// let client = ProverClient::builder().cpu().build();
-    /// let builder = client.prove(pk, stdin)
+    /// let (pk, vk) = client.setup(elf);
+    /// let builder = client.prove(&pk, &stdin)
     ///     .plonk()
     ///     .run();
     /// ```
@@ -95,8 +113,14 @@ impl<'a> CpuProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
     /// let client = ProverClient::builder().cpu().build();
-    /// let builder = client.prove(pk, stdin)
+    /// let (pk, vk) = client.setup(elf);
+    /// let builder = client.prove(&pk, &stdin)
     ///     .groth16()
     ///     .run();
     /// ```
@@ -113,8 +137,14 @@ impl<'a> CpuProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover, SP1ProofMode};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
     /// let client = ProverClient::builder().cpu().build();
-    /// let builder = client.prove(pk, stdin)
+    /// let (pk, vk) = client.setup(elf);
+    /// let builder = client.prove(&pk, &stdin)
     ///     .mode(SP1ProofMode::Groth16)
     ///     .run();
     /// ```
@@ -134,8 +164,14 @@ impl<'a> CpuProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
     /// let client = ProverClient::builder().cpu().build();
-    /// let builder = client.prove(pk, stdin)
+    /// let (pk, vk) = client.setup(elf);
+    /// let builder = client.prove(&pk, &stdin)
     ///     .shard_size(1 << 16)
     ///     .run();
     /// ```
@@ -154,8 +190,14 @@ impl<'a> CpuProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
     /// let client = ProverClient::builder().cpu().build();
-    /// let builder = client.prove(pk, stdin)
+    /// let (pk, vk) = client.setup(elf);
+    /// let builder = client.prove(&pk, &stdin)
     ///     .shard_batch_size(4)
     ///     .run();
     /// ```
@@ -173,8 +215,14 @@ impl<'a> CpuProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let client = ProverClient::cpu();
-    /// let builder = client.prove(pk, stdin)
+    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().cpu().build();
+    /// let (pk, vk) = client.setup(elf);
+    /// let builder = client.prove(&pk, &stdin)
     ///     .cycle_limit(1000000)
     ///     .run();
     /// ```
@@ -192,8 +240,14 @@ impl<'a> CpuProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
     /// let client = ProverClient::builder().cpu().build();
-    /// let builder = client.prove(pk, stdin)
+    /// let (pk, vk) = client.setup(elf);
+    /// let builder = client.prove(&pk, &stdin)
     ///     .deferred_proof_verification(false)
     ///     .run();
     /// ```
@@ -211,8 +265,14 @@ impl<'a> CpuProveBuilder<'a> {
     ///
     /// # Example
     /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
     /// let client = ProverClient::builder().cpu().build();
-    /// let (proof, public_values) = client.prove(pk, stdin)
+    /// let (pk, vk) = client.setup(elf);
+    /// let proof = client.prove(&pk, &stdin)
     ///     .run()
     ///     .unwrap();
     /// ```
