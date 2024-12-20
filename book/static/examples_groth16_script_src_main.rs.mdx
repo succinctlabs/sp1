@@ -50,7 +50,7 @@ fn main() {
     let client = ProverClient::new();
 
     // Execute the program using the `ProverClient.execute` method, without generating a proof.
-    let (_, report) = client.execute(GROTH16_ELF, stdin.clone()).run().unwrap();
+    let (_, report) = client.execute(GROTH16_ELF, &stdin).run().unwrap();
     println!("executed groth16 program with {} cycles", report.total_instruction_count());
     println!("{}", report);
 }

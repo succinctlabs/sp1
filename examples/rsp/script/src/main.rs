@@ -42,8 +42,7 @@ fn main() {
     stdin.write_vec(buffer);
 
     // Only execute the program.
-    let (mut public_values, execution_report) =
-        client.execute(&pk.elf, stdin.clone()).run().unwrap();
+    let (mut public_values, execution_report) = client.execute(&pk.elf, &stdin).run().unwrap();
     println!(
         "Finished executing the block in {} cycles",
         execution_report.total_instruction_count()

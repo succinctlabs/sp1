@@ -44,7 +44,7 @@ pub fn main() {
     let client = ProverClient::from_env();
     let (pk, vk) = client.setup(TENDERMINT_ELF);
 
-    client.execute(TENDERMINT_ELF, stdin.clone()).run().expect("proving failed");
+    client.execute(TENDERMINT_ELF, &stdin).run().expect("proving failed");
 
     let proof = client.prove(&pk, stdin).run().expect("proving failed");
 
