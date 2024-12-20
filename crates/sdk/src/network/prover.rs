@@ -308,10 +308,9 @@ impl NetworkProver {
 
     /// The cycle limit is determined according to the following priority:
     ///
-    /// # Details
-    /// 1. If a cycle limit was explicitly set, use the specified value.
-    /// 2. If simulation is enabled (it is by default), calculate the limit by simulating the
-    ///    execution of the program.
+    /// 1. If a cycle limit was explicitly set by the requester, use the specified value.
+    /// 2. If simulation is enabled, calculate the limit by simulating the
+    ///    execution of the program. This is the default behavior.
     /// 3. Otherwise, use the default cycle limit ([`DEFAULT_CYCLE_LIMIT`]).
     fn get_cycle_limit(
         &self,
