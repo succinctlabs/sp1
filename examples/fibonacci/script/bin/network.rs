@@ -1,3 +1,4 @@
+use sp1_sdk::network::Error;
 use sp1_sdk::{include_elf, utils, ProverClient, SP1ProofWithPublicValues, SP1Stdin};
 
 /// The ELF we want to execute inside the zkVM.
@@ -18,13 +19,39 @@ fn main() {
     // Create a `ProverClient` method.
     let client = ProverClient::from_env();
 
-    // Execute the program using the `ProverClient.execute` method, without generating a proof.
-    let (_, report) = client.execute(ELF, &stdin).run().unwrap();
-    println!("executed program with {} cycles", report.total_instruction_count());
-
     // Generate the proof for the given program and input.
     let (pk, vk) = client.setup(ELF);
-    let proof = client.prove(&pk, &stdin).run().unwrap();
+    let proof_result = client.prove(&pk, &stdin).compressed().run();
+
+    // Handle possible prover network errors.
+    let mut proof = match proof_result {
+        Ok(proof) => proof,
+        Err(e) => {
+            if let Some(network_error) = e.downcast_ref::<Error>() {
+                match network_error {
+                    Error::SimulationFailed {
+                        eprintln!("Program cannot be simulated: {}", e);
+                        std::process::exit(1);
+                    }
+                    Error::RequestUnexecutable { request_id: _ } => {
+                        eprintln!("Program is unexecutable: {}", e);
+                        std::process::exit(1);
+                    }
+                    Error::RequestUnfulfillable { request_id: _ } => {
+                        eprintln!("Proof request cannot be fulfilled: {}", e);
+                        std::process::exit(1);
+                    }
+                    _ => {
+                        eprintln!("Unexpected error: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            } else {
+                eprintln!("Unexpected error: {}", e);
+                std::process::exit(1);
+            }
+        }
+    };
 
     println!("generated proof");
 
