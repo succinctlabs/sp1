@@ -109,6 +109,7 @@ impl NetworkProver {
             timeout: None,
             strategy: FulfillmentStrategy::Hosted,
             skip_simulation: false,
+            cycle_limit: None,
         }
     }
 
@@ -281,9 +282,10 @@ impl NetworkProver {
         strategy: FulfillmentStrategy,
         timeout: Option<Duration>,
         skip_simulation: bool,
+        cycle_limit: Option<u64>,
     ) -> Result<Vec<u8>> {
         let vk_hash = self.register_program(&pk.vk, &pk.elf).await?;
-        let cycle_limit = self.get_cycle_limit(&pk.elf, stdin, skip_simulation)?;
+        let cycle_limit = self.get_cycle_limit(cycle_limit, &pk.elf, stdin, skip_simulation)?;
         self.request_proof(&vk_hash, stdin, mode.into(), strategy, cycle_limit, timeout).await
     }
 
@@ -296,13 +298,32 @@ impl NetworkProver {
         strategy: FulfillmentStrategy,
         timeout: Option<Duration>,
         skip_simulation: bool,
+        cycle_limit: Option<u64>,
     ) -> Result<SP1ProofWithPublicValues> {
-        let request_id =
-            self.request_proof_impl(pk, stdin, mode, strategy, timeout, skip_simulation).await?;
+        let request_id = self
+            .request_proof_impl(pk, stdin, mode, strategy, timeout, skip_simulation, cycle_limit)
+            .await?;
         self.wait_proof(&request_id, timeout).await
     }
 
-    fn get_cycle_limit(&self, elf: &[u8], stdin: &SP1Stdin, skip_simulation: bool) -> Result<u64> {
+    /// The cycle limit is determined according to the following priority:
+    ///
+    /// # Details
+    /// 1. If a cycle limit was explicitly set, use the specified value.
+    /// 2. If simulation is enabled (it is by default), calculate the limit by simulating the
+    ///    execution of the program.
+    /// 3. Otherwise, use the default cycle limit ([`DEFAULT_CYCLE_LIMIT`]).
+    fn get_cycle_limit(
+        &self,
+        cycle_limit: Option<u64>,
+        elf: &[u8],
+        stdin: &SP1Stdin,
+        skip_simulation: bool,
+    ) -> Result<u64> {
+        if let Some(cycle_limit) = cycle_limit {
+            return Ok(cycle_limit);
+        }
+
         if skip_simulation {
             Ok(DEFAULT_CYCLE_LIMIT)
         } else {
@@ -328,7 +349,7 @@ impl Prover<CpuProverComponents> for NetworkProver {
         stdin: &SP1Stdin,
         mode: SP1ProofMode,
     ) -> Result<SP1ProofWithPublicValues> {
-        block_on(self.prove_impl(pk, stdin, mode, FulfillmentStrategy::Hosted, None, false))
+        block_on(self.prove_impl(pk, stdin, mode, FulfillmentStrategy::Hosted, None, false, None))
     }
 }
 
