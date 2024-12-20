@@ -36,6 +36,9 @@ pub mod proof;
 pub mod prover;
 pub mod utils;
 
+// Re-export alloy primitives B256, which is used in the network module.
+pub use alloy_primitives::B256;
+
 // Re-export the client.
 pub use crate::client::ProverClient;
 

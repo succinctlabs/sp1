@@ -4,6 +4,7 @@
 
 use std::time::Duration;
 
+use alloy_primitives::B256;
 use anyhow::Result;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::SP1ProvingKey;
@@ -283,7 +284,34 @@ impl<'a> NetworkProveBuilder<'a> {
     ///     .request()
     ///     .unwrap();
     /// ```
-    pub async fn request(self) -> Result<Vec<u8>> {
+    pub fn request(self) -> Result<B256> {
+        let Self { prover, mode, pk, stdin, timeout, strategy, skip_simulation, cycle_limit } =
+            self;
+        block_on(prover.request_proof_impl(pk, &stdin, mode, strategy, timeout, skip_simulation, cycle_limit))
+    }
+
+    /// Request a proof from the prover network asynchronously.
+    ///
+    /// # Details
+    /// This method will request a proof from the prover network asynchronously. If the prover fails
+    /// to request a proof, the method will return an error. It will not wait for the proof to be
+    /// generated.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().network().build();
+    /// let (pk, vk) = client.setup(elf);
+    /// let request_id = client.prove(&pk, &stdin)
+    ///     .request_async()
+    ///     .await
+    ///     .unwrap();
+    /// ```
+    pub async fn request_async(self) -> Result<B256> {
         let Self { prover, mode, pk, stdin, timeout, strategy, skip_simulation, cycle_limit } =
             self;
         prover
