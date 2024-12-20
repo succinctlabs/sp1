@@ -251,7 +251,7 @@ impl<'a> NetworkProveBuilder<'a> {
     ///     .unwrap();
     /// ```
     pub async fn request(self) -> Result<Vec<u8>> {
-        let Self { prover, mode, pk, stdin, timeout, strategy, mut skip_simulation } = self;
+        let Self { prover, mode, pk, stdin, timeout, strategy, skip_simulation } = self;
         prover.request_proof_impl(pk, &stdin, mode, strategy, timeout, skip_simulation).await
     }
 
