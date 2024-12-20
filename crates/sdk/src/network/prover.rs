@@ -149,10 +149,10 @@ impl NetworkProver {
     /// let client = ProverClient::builder().network().build();
     /// let (status, maybe_proof) = client.get_proof_status(&request_id).await?;   
     /// ```
-    pub async fn get_proof_status<P: DeserializeOwned>(
+    pub async fn get_proof_status(
         &self,
         request_id: &[u8],
-    ) -> Result<(GetProofRequestStatusResponse, Option<P>)> {
+    ) -> Result<(GetProofRequestStatusResponse, Option<SP1ProofWithPublicValues>)> {
         self.client.get_proof_request_status(request_id).await
     }
 
