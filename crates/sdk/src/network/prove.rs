@@ -285,9 +285,7 @@ impl<'a> NetworkProveBuilder<'a> {
     ///     .unwrap();
     /// ```
     pub fn request(self) -> Result<B256> {
-        let Self { prover, mode, pk, stdin, timeout, strategy, skip_simulation, cycle_limit } =
-            self;
-        block_on(prover.request_proof_impl(pk, &stdin, mode, strategy, timeout, skip_simulation, cycle_limit))
+        block_on(self.request_async())
     }
 
     /// Request a proof from the prover network asynchronously.
@@ -339,28 +337,7 @@ impl<'a> NetworkProveBuilder<'a> {
     ///     .unwrap();
     /// ```
     pub fn run(self) -> Result<SP1ProofWithPublicValues> {
-        let Self { prover, mode, pk, stdin, timeout, strategy, mut skip_simulation, cycle_limit } =
-            self;
-
-        // Check for deprecated environment variable
-        if let Ok(val) = std::env::var("SKIP_SIMULATION") {
-            eprintln!(
-                "Warning: SKIP_SIMULATION environment variable is deprecated. Please use .skip_simulation() instead."
-            );
-            skip_simulation = matches!(val.to_lowercase().as_str(), "true" | "1");
-        }
-
-        sp1_dump(&pk.elf, &stdin);
-
-        block_on(prover.prove_impl(
-            pk,
-            &stdin,
-            mode,
-            strategy,
-            timeout,
-            skip_simulation,
-            cycle_limit,
-        ))
+        block_on(self.run_async())
     }
 
     /// Run the prover with the built arguments asynchronously.
