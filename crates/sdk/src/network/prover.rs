@@ -9,6 +9,7 @@ use super::prove::NetworkProveBuilder;
 use super::DEFAULT_CYCLE_LIMIT;
 use crate::cpu::execute::CpuExecuteBuilder;
 use crate::cpu::CpuProver;
+use crate::network::proto::network::GetProofRequestStatusResponse;
 use crate::network::{Error, DEFAULT_PROVER_NETWORK_RPC, DEFAULT_TIMEOUT_SECS};
 use crate::{
     network::client::NetworkClient,

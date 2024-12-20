@@ -4,7 +4,6 @@
 
 pub mod client;
 pub mod prover;
-mod sign_message;
 #[rustfmt::skip]
 #[allow(missing_docs)]
 #[allow(clippy::default_trait_access)]

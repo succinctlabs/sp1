@@ -284,8 +284,11 @@ impl<'a> NetworkProveBuilder<'a> {
     ///     .unwrap();
     /// ```
     pub async fn request(self) -> Result<Vec<u8>> {
-        let Self { prover, mode, pk, stdin, timeout, strategy, skip_simulation, cycle_limit } = self;
-        prover.request_proof_impl(pk, &stdin, mode, strategy, timeout, skip_simulation, cycle_limit).await
+        let Self { prover, mode, pk, stdin, timeout, strategy, skip_simulation, cycle_limit } =
+            self;
+        prover
+            .request_proof_impl(pk, &stdin, mode, strategy, timeout, skip_simulation, cycle_limit)
+            .await
     }
 
     /// Run the prover with the built arguments.
@@ -308,7 +311,8 @@ impl<'a> NetworkProveBuilder<'a> {
     ///     .unwrap();
     /// ```
     pub fn run(self) -> Result<SP1ProofWithPublicValues> {
-        let Self { prover, mode, pk, stdin, timeout, strategy, mut skip_simulation, cycle_limit } = self;
+        let Self { prover, mode, pk, stdin, timeout, strategy, mut skip_simulation, cycle_limit } =
+            self;
 
         // Check for deprecated environment variable
         if let Ok(val) = std::env::var("SKIP_SIMULATION") {
@@ -320,7 +324,15 @@ impl<'a> NetworkProveBuilder<'a> {
 
         sp1_dump(&pk.elf, &stdin);
 
-        block_on(prover.prove_impl(pk, &stdin, mode, strategy, timeout, skip_simulation, cycle_limit))
+        block_on(prover.prove_impl(
+            pk,
+            &stdin,
+            mode,
+            strategy,
+            timeout,
+            skip_simulation,
+            cycle_limit,
+        ))
     }
 
     /// Run the prover with the built arguments asynchronously.
@@ -341,7 +353,8 @@ impl<'a> NetworkProveBuilder<'a> {
     ///     .run_async();
     /// ```
     pub async fn run_async(self) -> Result<SP1ProofWithPublicValues> {
-        let Self { prover, mode, pk, stdin, timeout, strategy, mut skip_simulation, cycle_limit } = self;
+        let Self { prover, mode, pk, stdin, timeout, strategy, mut skip_simulation, cycle_limit } =
+            self;
 
         // Check for deprecated environment variable
         if let Ok(val) = std::env::var("SKIP_SIMULATION") {
