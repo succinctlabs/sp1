@@ -283,7 +283,31 @@ impl<'a> NetworkProveBuilder<'a> {
     ///     .request()
     ///     .unwrap();
     /// ```
-    pub async fn request(self) -> Result<Vec<u8>> {
+    pub fn request(self) -> Result<Vec<u8>> {
+        block_on(self.request_async())
+    }
+
+    /// Request a proof from the prover network asynchronously.
+    ///
+    /// # Details
+    /// This method will request a proof from the prover network. If the prover fails to request
+    /// a proof, the method will return an error. It will not wait for the proof to be generated.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().network().build();
+    /// let (pk, vk) = client.setup(elf);
+    /// let request_id = client.prove(&pk, &stdin)
+    ///     .request_async()
+    ///     .await
+    ///     .unwrap();
+    /// ```
+    pub async fn request_async(self) -> Result<Vec<u8>> {
         let Self { prover, mode, pk, stdin, timeout, strategy, skip_simulation, cycle_limit } =
             self;
         prover
@@ -311,28 +335,7 @@ impl<'a> NetworkProveBuilder<'a> {
     ///     .unwrap();
     /// ```
     pub fn run(self) -> Result<SP1ProofWithPublicValues> {
-        let Self { prover, mode, pk, stdin, timeout, strategy, mut skip_simulation, cycle_limit } =
-            self;
-
-        // Check for deprecated environment variable
-        if let Ok(val) = std::env::var("SKIP_SIMULATION") {
-            eprintln!(
-                "Warning: SKIP_SIMULATION environment variable is deprecated. Please use .skip_simulation() instead."
-            );
-            skip_simulation = matches!(val.to_lowercase().as_str(), "true" | "1");
-        }
-
-        sp1_dump(&pk.elf, &stdin);
-
-        block_on(prover.prove_impl(
-            pk,
-            &stdin,
-            mode,
-            strategy,
-            timeout,
-            skip_simulation,
-            cycle_limit,
-        ))
+        block_on(self.run_async())
     }
 
     /// Run the prover with the built arguments asynchronously.
@@ -350,7 +353,9 @@ impl<'a> NetworkProveBuilder<'a> {
     /// let client = ProverClient::builder().network().build();
     /// let (pk, vk) = client.setup(elf);
     /// let proof = client.prove(&pk, &stdin)
-    ///     .run_async();
+    ///     .run_async()
+    ///     .await
+    ///     .unwrap();
     /// ```
     pub async fn run_async(self) -> Result<SP1ProofWithPublicValues> {
         let Self { prover, mode, pk, stdin, timeout, strategy, mut skip_simulation, cycle_limit } =
