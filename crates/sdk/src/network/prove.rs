@@ -23,6 +23,7 @@ pub struct NetworkProveBuilder<'a> {
     pub(crate) timeout: Option<Duration>,
     pub(crate) strategy: FulfillmentStrategy,
     pub(crate) skip_simulation: bool,
+    pub(crate) cycle_limit: Option<u64>,
 }
 
 impl<'a> NetworkProveBuilder<'a> {
@@ -231,6 +232,62 @@ impl<'a> NetworkProveBuilder<'a> {
         self
     }
 
+    /// Sets the cycle limit for the proof request.
+    ///
+    /// # Details
+    /// The cycle limit determines the maximum number of cycles that the program should take to
+    /// execute. By default, the cycle limit is determined by simulating the program locally.
+    /// However, you can manually set it if you know the exact cycle count needed and want to skip
+    /// the simulation step locally.
+    ///
+    /// The cycle limit ensures that a prover on the network will stop generating a proof once the
+    /// cycle limit is reached, which prevents DoS attacks.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().network().build();
+    /// let (pk, vk) = client.setup(elf);
+    /// let proof = client.prove(&pk, &stdin)
+    ///     .cycle_limit(1_000_000) // Set 1M cycle limit.
+    ///     .skip_simulation(true)  // Skip simulation since the limit is set manually.
+    ///     .run()
+    ///     .unwrap();
+    /// ```
+    #[must_use]
+    pub fn cycle_limit(mut self, cycle_limit: u64) -> Self {
+        self.cycle_limit = Some(cycle_limit);
+        self
+    }
+
+    /// Request a proof from the prover network.
+    ///
+    /// # Details
+    /// This method will request a proof from the prover network. If the prover fails to request
+    /// a proof, the method will return an error. It will not wait for the proof to be generated.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().network().build();
+    /// let (pk, vk) = client.setup(elf);
+    /// let request_id = client.prove(&pk, &stdin)
+    ///     .request()
+    ///     .unwrap();
+    /// ```
+    pub async fn request(self) -> Result<Vec<u8>> {
+        let Self { prover, mode, pk, stdin, timeout, strategy, skip_simulation, cycle_limit } = self;
+        prover.request_proof_impl(pk, &stdin, mode, strategy, timeout, skip_simulation, cycle_limit).await
+    }
+
     /// Run the prover with the built arguments.
     ///
     /// # Details
@@ -251,7 +308,7 @@ impl<'a> NetworkProveBuilder<'a> {
     ///     .unwrap();
     /// ```
     pub fn run(self) -> Result<SP1ProofWithPublicValues> {
-        let Self { prover, mode, pk, stdin, timeout, strategy, mut skip_simulation } = self;
+        let Self { prover, mode, pk, stdin, timeout, strategy, mut skip_simulation, cycle_limit } = self;
 
         // Check for deprecated environment variable
         if let Ok(val) = std::env::var("SKIP_SIMULATION") {
@@ -263,7 +320,7 @@ impl<'a> NetworkProveBuilder<'a> {
 
         sp1_dump(&pk.elf, &stdin);
 
-        block_on(prover.prove_impl(pk, &stdin, mode, strategy, timeout, skip_simulation))
+        block_on(prover.prove_impl(pk, &stdin, mode, strategy, timeout, skip_simulation, cycle_limit))
     }
 
     /// Run the prover with the built arguments asynchronously.
@@ -284,7 +341,7 @@ impl<'a> NetworkProveBuilder<'a> {
     ///     .run_async();
     /// ```
     pub async fn run_async(self) -> Result<SP1ProofWithPublicValues> {
-        let Self { prover, mode, pk, stdin, timeout, strategy, mut skip_simulation } = self;
+        let Self { prover, mode, pk, stdin, timeout, strategy, mut skip_simulation, cycle_limit } = self;
 
         // Check for deprecated environment variable
         if let Ok(val) = std::env::var("SKIP_SIMULATION") {
@@ -296,6 +353,6 @@ impl<'a> NetworkProveBuilder<'a> {
 
         sp1_dump(&pk.elf, &stdin);
 
-        prover.prove_impl(pk, &stdin, mode, strategy, timeout, skip_simulation).await
+        prover.prove_impl(pk, &stdin, mode, strategy, timeout, skip_simulation, cycle_limit).await
     }
 }
