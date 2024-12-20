@@ -235,10 +235,13 @@ impl<'a> NetworkProveBuilder<'a> {
     /// Sets the cycle limit for the proof request.
     ///
     /// # Details
-    /// The cycle limit determines the maximum number of cycles that the program can execute.
-    /// By default, the cycle limit is determined by simulating the program locally. However,
-    /// you can manually set it if you know the exact cycle count needed and want to skip the
-    /// simulation step locally.
+    /// The cycle limit determines the maximum number of cycles that the program should take to
+    /// execute. By default, the cycle limit is determined by simulating the program locally.
+    /// However, you can manually set it if you know the exact cycle count needed and want to skip
+    /// the simulation step locally.
+    ///
+    /// The cycle limit ensures that a prover on the network will stop generating a proof once the
+    /// cycle limit is reached, which prevents DoS attacks.
     ///
     /// # Example
     /// ```rust,no_run
@@ -250,8 +253,8 @@ impl<'a> NetworkProveBuilder<'a> {
     /// let client = ProverClient::builder().network().build();
     /// let (pk, vk) = client.setup(elf);
     /// let proof = client.prove(&pk, &stdin)
-    ///     .cycle_limit(1_000_000) // Set 1M cycle limit
-    ///     .skip_simulation(true)  // Skip simulation since we set limit manually
+    ///     .cycle_limit(1_000_000) // Set 1M cycle limit.
+    ///     .skip_simulation(true)  // Skip simulation since the limit is set manually.
     ///     .run()
     ///     .unwrap();
     /// ```
