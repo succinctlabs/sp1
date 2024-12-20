@@ -54,7 +54,7 @@ fn main() {
     // Generate the proof for the given program and input.
     let client = ProverClient::from_env();
     let (pk, vk) = client.setup(RSA_ELF);
-    let proof = client.prove(&pk, stdin).run().expect("proving failed");
+    let proof = client.prove(&pk, &stdin).run().expect("proving failed");
 
     // Verify proof.
     client.verify(&proof, &vk).expect("verification failed");
