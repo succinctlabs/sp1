@@ -23,7 +23,7 @@ care about **verification cost / proof size**, but not onchain verification. Com
 
 ```rust
 let client = ProverClient::new();
-client.prove(&pk, stdin).compressed().run().unwrap();
+client.prove(&pk, &stdin).compressed().run().unwrap();
 ```
 
 ## Groth16 (Recommended)
@@ -34,7 +34,7 @@ The trusted setup for the Groth16 circuit keys uses the [Aztec Ignition ceremony
 
 ```rust
 let client = ProverClient::new();
-client.prove(&pk, stdin).groth16().run().unwrap();
+client.prove(&pk, &stdin).groth16().run().unwrap();
 ```
 
 ## PLONK
@@ -45,5 +45,5 @@ PLONK does not require a trusted setup.
 
 ```rust
 let client = ProverClient::new();
-client.prove(&pk, stdin).plonk().run().unwrap();
+client.prove(&pk, &stdin).plonk().run().unwrap();
 ```

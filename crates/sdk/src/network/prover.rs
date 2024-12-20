@@ -10,7 +10,7 @@ use super::DEFAULT_CYCLE_LIMIT;
 use crate::cpu::execute::CpuExecuteBuilder;
 use crate::cpu::CpuProver;
 use crate::network::proto::network::GetProofRequestStatusResponse;
-use crate::network::{Error, DEFAULT_PROVER_NETWORK_RPC, DEFAULT_TIMEOUT_SECS};
+use crate::network::{Error, DEFAULT_NETWORK_RPC_URL, DEFAULT_TIMEOUT_SECS};
 use crate::{
     network::client::NetworkClient,
     network::proto::network::{ExecutionStatus, FulfillmentStatus, FulfillmentStrategy, ProofMode},
@@ -203,7 +203,7 @@ impl NetworkProver {
         let request_id_hex = "0x".to_string() + &hex::encode(request_id.clone());
         log::info!("Created request {} in transaction {}", request_id_hex, tx_hash_hex);
 
-        if self.client.rpc_url == DEFAULT_PROVER_NETWORK_RPC {
+        if self.client.rpc_url == DEFAULT_NETWORK_RPC_URL {
             log::info!(
                 "View request status at: https://network.succinct.xyz/request/{}",
                 request_id_hex

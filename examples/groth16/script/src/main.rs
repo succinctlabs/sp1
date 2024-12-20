@@ -28,7 +28,7 @@ fn generate_fibonacci_proof() -> (Vec<u8>, Vec<u8>, String) {
     // Generate the groth16 proof for the Fibonacci program.
     let (pk, vk) = client.setup(FIBONACCI_ELF);
     println!("vk: {:?}", vk.bytes32());
-    let proof = client.prove(&pk, stdin).groth16().run().unwrap();
+    let proof = client.prove(&pk, &stdin).groth16().run().unwrap();
     (proof.bytes(), proof.public_values.to_vec(), vk.bytes32())
 }
 

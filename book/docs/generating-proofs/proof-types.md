@@ -23,7 +23,7 @@ care about **verification cost / proof size**, but not onchain verification. Com
 
 ```rust,noplayground
 let client = ProverClient::from_env();
-client.prove(&pk, stdin).compressed().run().unwrap();
+client.prove(&pk, &stdin).compressed().run().unwrap();
 ```
 
 ## Groth16 (Recommended)
@@ -45,5 +45,5 @@ PLONK does not require a trusted setup and reuses contributions from the Aztec I
 
 ```rust,noplayground
 let client = ProverClient::from_env();
-client.prove(&pk, stdin).plonk().run().unwrap();
+client.prove(&pk, &stdin).plonk().run().unwrap();
 ```
