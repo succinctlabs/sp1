@@ -41,7 +41,6 @@ fn test_verify_plonk() {
 }
 
 #[test]
-#[ignore]
 fn test_vkeys() {
     let groth16_path = try_install_circuit_artifacts("groth16");
     let s3_vkey_path = groth16_path.join("groth16_vk.bin");
