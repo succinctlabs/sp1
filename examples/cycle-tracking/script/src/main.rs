@@ -10,10 +10,11 @@ fn main() {
 
     // Execute the normal program.
     let client = ProverClient::from_env();
-    let (_, _) = client.execute(NORMAL_ELF, SP1Stdin::new()).run().expect("proving failed");
+    let stdin = SP1Stdin::new();
+    let (_, _) = client.execute(NORMAL_ELF, &stdin).run().expect("proving failed");
 
     // Execute the report program.
-    let (_, report) = client.execute(REPORT_ELF, SP1Stdin::new()).run().expect("proving failed");
+    let (_, report) = client.execute(REPORT_ELF, &stdin).run().expect("proving failed");
 
     // Get the "setup" cycle count from the report program.
     let setup_cycles = report.cycle_tracker.get("setup").unwrap();
