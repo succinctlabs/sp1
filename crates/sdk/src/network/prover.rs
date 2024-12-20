@@ -282,7 +282,7 @@ impl NetworkProver {
         }
     }
 
-    /// Requests a proof from the prover network.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn request_proof_impl(
         &self,
         pk: &SP1ProvingKey,
@@ -298,7 +298,7 @@ impl NetworkProver {
         self.request_proof(&vk_hash, stdin, mode.into(), strategy, cycle_limit, timeout).await
     }
 
-    /// Requests a proof from the prover network and waits for it to be generated.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn prove_impl(
         &self,
         pk: &SP1ProvingKey,
