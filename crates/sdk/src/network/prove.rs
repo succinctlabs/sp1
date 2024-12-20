@@ -241,7 +241,7 @@ impl<'a> NetworkProveBuilder<'a> {
     /// the simulation step locally.
     ///
     /// The cycle limit ensures that a prover on the network will stop generating a proof once the
-    /// cycle limit is reached, which prevents `DoS` attacks.
+    /// cycle limit is reached, which prevents denial of service attacks.
     ///
     /// # Example
     /// ```rust,no_run
