@@ -243,7 +243,7 @@ impl NetworkProver {
             let (status, maybe_proof) = with_retry(
                 || async { self.client.get_proof_request_status(request_id).await },
                 remaining_timeout,
-                "getting proof status",
+                "getting proof request status",
             )
             .await?;
 
