@@ -248,7 +248,7 @@ jobs:
 
       - name: Run cargo prove new
         run: |
-          cargo prove new fibonacci --version dev --evm
+          cargo prove new fibonacci --evm
 
       - name: Build program and run script
         run: |
