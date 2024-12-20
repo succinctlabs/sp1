@@ -29,10 +29,6 @@ fn main() {
         Err(e) => {
             if let Some(network_error) = e.downcast_ref::<Error>() {
                 match network_error {
-                    Error::SimulationFailed {
-                        eprintln!("Program cannot be simulated: {}", e);
-                        std::process::exit(1);
-                    }
                     Error::RequestUnexecutable { request_id: _ } => {
                         eprintln!("Program is unexecutable: {}", e);
                         std::process::exit(1);
