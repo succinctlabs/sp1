@@ -10,7 +10,7 @@ use super::prove::NetworkProveBuilder;
 use super::DEFAULT_CYCLE_LIMIT;
 use crate::cpu::execute::CpuExecuteBuilder;
 use crate::cpu::CpuProver;
-use crate::network::{DEFAULT_PROVER_NETWORK_RPC, DEFAULT_TIMEOUT_SECS};
+use crate::network::{Error, DEFAULT_PROVER_NETWORK_RPC, DEFAULT_TIMEOUT_SECS};
 use crate::{
     network::client::NetworkClient,
     network::proto::network::{ExecutionStatus, FulfillmentStatus, FulfillmentStrategy, ProofMode},
@@ -215,7 +215,7 @@ impl NetworkProver {
 
     /// Waits for a proof to be generated and returns the proof. If a timeout is supplied, the
     /// function will return an error if the proof is not generated within the timeout.
-    pub(crate) async fn wait_proof<P: DeserializeOwned>(
+    pub async fn wait_proof<P: DeserializeOwned>(
         &self,
         request_id: &[u8],
         timeout: Option<Duration>,
@@ -227,7 +227,7 @@ impl NetworkProver {
             // Calculate the remaining timeout.
             if let Some(timeout) = timeout {
                 if start_time.elapsed() > timeout {
-                    return Err(anyhow::anyhow!("proof request timed out."));
+                    return Err(Error::RequestTimedOut { request_id: request_id.to_vec() }.into());
                 }
             }
             let remaining_timeout = timeout.map(|t| {
@@ -239,17 +239,24 @@ impl NetworkProver {
                 }
             });
 
-            // Get status with retries.
+            // Get the status with retries.
             let (status, maybe_proof) = with_retry(
-                || async { self.client.get_proof_request_status::<P>(request_id).await },
+                || async { self.client.get_proof_request_status(request_id).await },
                 remaining_timeout,
-                "getting proof request status",
+                "getting proof status",
             )
             .await?;
 
+            // Check the deadline.
+            if status.deadline < Instant::now().elapsed().as_secs() {
+                return Err(Error::RequestTimedOut { request_id: request_id.to_vec() }.into());
+            }
+
             // Check the execution status.
-            if status.execution_status == ExecutionStatus::Unexecutable as i32 {
-                return Err(anyhow::anyhow!("proof request is unexecutable"));
+            if let Ok(ExecutionStatus::Unexecutable) =
+                ExecutionStatus::try_from(status.execution_status)
+            {
+                return Err(Error::RequestUnexecutable { request_id: request_id.to_vec() }.into());
             }
 
             // Check the fulfillment status.
@@ -259,12 +266,14 @@ impl NetworkProver {
                 }
                 Ok(FulfillmentStatus::Assigned) => {
                     if !is_assigned {
-                        log::info!("proof request assigned, proving...");
+                        log::info!("Proof request assigned, proving...");
                         is_assigned = true;
                     }
                 }
                 Ok(FulfillmentStatus::Unfulfillable) => {
-                    return Err(anyhow::anyhow!("proof request is unfulfillable"));
+                    return Err(
+                        Error::RequestUnfulfillable { request_id: request_id.to_vec() }.into()
+                    );
                 }
                 _ => {}
             }
@@ -326,9 +335,11 @@ impl NetworkProver {
         if skip_simulation {
             Ok(DEFAULT_CYCLE_LIMIT)
         } else {
-            let (_, report) = self.prover.inner().execute(elf, stdin, SP1Context::default())?;
-            let cycles = report.total_instruction_count();
-            Ok(cycles)
+            self.prover
+                .inner()
+                .execute(elf, stdin, SP1Context::default())
+                .map(|(_, report)| report.total_instruction_count())
+                .map_err(|_| Error::SimulationFailed.into())
         }
     }
 }

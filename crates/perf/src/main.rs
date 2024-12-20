@@ -177,13 +177,13 @@ fn main() {
             let (_, _) = time_operation(|| prover.execute(&elf, &stdin));
 
             let (proof, _) = time_operation(|| {
-                prover.prove(&pk, stdin.clone()).groth16().skip_simulation(true).run().unwrap()
+                prover.prove(&pk, &stdin).groth16().skip_simulation(true).run().unwrap()
             });
 
             let (_, _) = time_operation(|| prover.verify(&proof, &vk));
 
             let (proof, _) = time_operation(|| {
-                prover.prove(&pk, stdin).plonk().skip_simulation(true).run().unwrap()
+                prover.prove(&pk, &stdin).plonk().skip_simulation(true).run().unwrap()
             });
 
             let (_, _) = time_operation(|| prover.verify(&proof, &vk));

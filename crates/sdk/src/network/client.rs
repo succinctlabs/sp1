@@ -20,14 +20,14 @@ use tonic::{
 
 use super::utils::Signable;
 use crate::network::proto::artifact::{
-    artifact_store_client::ArtifactStoreClient, CreateArtifactRequest,
+    artifact_store_client::ArtifactStoreClient, ArtifactType, CreateArtifactRequest,
 };
 use crate::network::proto::network::{
     prover_network_client::ProverNetworkClient, CreateProgramRequest, CreateProgramRequestBody,
-    CreateProgramResponse, FulfillmentStatus, FulfillmentStrategy, GetNonceRequest,
-    GetProgramRequest, GetProgramResponse, GetProofRequestStatusRequest,
-    GetProofRequestStatusResponse, MessageFormat, ProofMode, RequestProofRequest,
-    RequestProofRequestBody, RequestProofResponse,
+    CreateProgramResponse, FulfillmentStatus, FulfillmentStrategy, GetFilteredProofRequestsRequest,
+    GetFilteredProofRequestsResponse, GetNonceRequest, GetProgramRequest, GetProgramResponse,
+    GetProofRequestStatusRequest, GetProofRequestStatusResponse, MessageFormat, ProofMode,
+    RequestProofRequest, RequestProofRequestBody, RequestProofResponse,
 };
 
 /// A client for interacting with the network.
@@ -105,7 +105,8 @@ impl NetworkClient {
     ) -> Result<CreateProgramResponse> {
         // Create the program artifact.
         let mut store = self.artifact_store_client().await?;
-        let program_uri = self.create_artifact_with_content(&mut store, &elf).await?;
+        let program_uri =
+            self.create_artifact_with_content(&mut store, ArtifactType::Program, &elf).await?;
 
         // Serialize the verifying key.
         let vk_encoded = bincode::serialize(&vk)?;
@@ -128,6 +129,44 @@ impl NetworkClient {
             })
             .await?
             .into_inner())
+    }
+
+    /// Get all the proof requests that meet the filter criteria.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn get_filtered_proof_requests(
+        &self,
+        version: Option<String>,
+        fulfillment_status: Option<i32>,
+        execution_status: Option<i32>,
+        minimum_deadline: Option<u64>,
+        vk_hash: Option<Vec<u8>>,
+        requester: Option<Vec<u8>>,
+        fulfiller: Option<Vec<u8>>,
+        from: Option<u64>,
+        to: Option<u64>,
+        limit: Option<u32>,
+        page: Option<u32>,
+        mode: Option<i32>,
+    ) -> Result<GetFilteredProofRequestsResponse> {
+        let mut rpc = self.prover_network_client().await?;
+        let res = rpc
+            .get_filtered_proof_requests(GetFilteredProofRequestsRequest {
+                version,
+                fulfillment_status,
+                execution_status,
+                minimum_deadline,
+                vk_hash,
+                requester,
+                fulfiller,
+                from,
+                to,
+                limit,
+                page,
+                mode,
+            })
+            .await?
+            .into_inner();
+        Ok(res)
     }
 
     /// Get the status of a given proof.
@@ -190,7 +229,8 @@ impl NetworkClient {
 
         // Create the stdin artifact.
         let mut store = self.artifact_store_client().await?;
-        let stdin_uri = self.create_artifact_with_content(&mut store, &stdin).await?;
+        let stdin_uri =
+            self.create_artifact_with_content(&mut store, ArtifactType::Stdin, &stdin).await?;
 
         // Send the request.
         let mut rpc = self.prover_network_client().await?;
@@ -248,10 +288,14 @@ impl NetworkClient {
     pub(crate) async fn create_artifact_with_content<T: Serialize>(
         &self,
         store: &mut ArtifactStoreClient<Channel>,
+        artifact_type: ArtifactType,
         item: &T,
     ) -> Result<String> {
         let signature = self.signer.sign_message_sync("create_artifact".as_bytes())?;
-        let request = CreateArtifactRequest { signature: signature.as_bytes().to_vec() };
+        let request = CreateArtifactRequest {
+            artifact_type: artifact_type.into(),
+            signature: signature.as_bytes().to_vec(),
+        };
         let response = store.create_artifact(request).await?.into_inner();
 
         let presigned_url = response.artifact_presigned_url;

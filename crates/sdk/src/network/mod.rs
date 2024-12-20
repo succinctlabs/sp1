@@ -11,8 +11,11 @@ mod sign_message;
 #[allow(clippy::too_many_lines)]
 pub mod proto;
 pub mod builder;
+mod error;
 pub mod prove;
 pub mod utils;
+
+pub use error::*;
 
 pub use crate::network::client::NetworkClient;
 pub use crate::network::proto::network::FulfillmentStrategy;
