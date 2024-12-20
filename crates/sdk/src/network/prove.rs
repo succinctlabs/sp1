@@ -231,6 +231,30 @@ impl<'a> NetworkProveBuilder<'a> {
         self
     }
 
+    /// Request a proof from the prover network.
+    ///
+    /// # Details
+    /// This method will request a proof from the prover network. If the prover fails to request
+    /// a proof, the method will return an error. It will not wait for the proof to be generated.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().network().build();
+    /// let (pk, vk) = client.setup(elf);
+    /// let request_id = client.prove(&pk, &stdin)
+    ///     .request()
+    ///     .unwrap();
+    /// ```
+    pub fn request(self) -> Result<Vec<u8>> {
+        let Self { prover, mode, pk, stdin, timeout, strategy, mut skip_simulation } = self;
+        prover.request_proof_impl(pk, &stdin, mode, strategy, timeout, skip_simulation)
+    }
+
     /// Run the prover with the built arguments.
     ///
     /// # Details

@@ -272,6 +272,21 @@ impl NetworkProver {
         }
     }
 
+    /// Requests a proof from the prover network.
+    pub(crate) async fn request_proof_impl(
+        &self,
+        pk: &SP1ProvingKey,
+        stdin: &SP1Stdin,
+        mode: SP1ProofMode,
+        strategy: FulfillmentStrategy,
+        timeout: Option<Duration>,
+        skip_simulation: bool,
+    ) -> Result<Vec<u8>> {
+        let vk_hash = self.register_program(&pk.vk, &pk.elf).await?;
+        let cycle_limit = self.get_cycle_limit(&pk.elf, stdin, skip_simulation)?;
+        self.request_proof(&vk_hash, stdin, mode, strategy, cycle_limit, timeout).await
+    }
+
     /// Requests a proof from the prover network and waits for it to be generated.
     pub(crate) async fn prove_impl(
         &self,
@@ -282,10 +297,8 @@ impl NetworkProver {
         timeout: Option<Duration>,
         skip_simulation: bool,
     ) -> Result<SP1ProofWithPublicValues> {
-        let vk_hash = self.register_program(&pk.vk, &pk.elf).await?;
-        let cycle_limit = self.get_cycle_limit(&pk.elf, stdin, skip_simulation)?;
         let request_id = self
-            .request_proof(&vk_hash, stdin, mode.into(), strategy, cycle_limit, timeout)
+            .request_proof_impl(pk, stdin, mode, strategy, timeout, skip_simulation)
             .await?;
         self.wait_proof(&request_id, timeout).await
     }
