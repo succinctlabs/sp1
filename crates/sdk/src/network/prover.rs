@@ -5,6 +5,7 @@
 
 use std::time::{Duration, Instant};
 
+use super::proto::network::GetProofRequestStatusResponse;
 use super::prove::NetworkProveBuilder;
 use super::DEFAULT_CYCLE_LIMIT;
 use crate::cpu::execute::CpuExecuteBuilder;
@@ -134,6 +135,26 @@ impl NetworkProver {
         self.client.register_program(vk, elf).await
     }
 
+    /// Gets the status of a proof request.
+    ///
+    /// # Details
+    /// * `request_id`: The request ID to get the status of.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient}
+    ///
+    /// let request_id = vec![1u8; 32];
+    /// let client = ProverClient::builder().network().build();
+    /// let (status, maybe_proof) = client.get_proof_status(&request_id).await?;   
+    /// ```
+    pub async fn get_proof_status<P: DeserializeOwned>(
+        &self,
+        request_id: &[u8],
+    ) -> Result<(GetProofRequestStatusResponse, Option<P>)> {
+        self.client.get_proof_request_status(request_id).await
+    }
+
     /// Requests a proof from the prover network, returning the request ID.
     pub(crate) async fn request_proof(
         &self,
@@ -210,7 +231,11 @@ impl NetworkProver {
             }
             let remaining_timeout = timeout.map(|t| {
                 let elapsed = start_time.elapsed();
-                if elapsed < t { t - elapsed } else { Duration::from_secs(0) }
+                if elapsed < t {
+                    t - elapsed
+                } else {
+                    Duration::from_secs(0)
+                }
             });
 
             // Get status with retries.

@@ -26,6 +26,10 @@ impl CpuProverBuilder {
     /// ```
     #[must_use]
     pub fn build(self) -> CpuProver {
-        if self.mock { CpuProver::mock() } else { CpuProver::new() }
+        if self.mock {
+            CpuProver::mock()
+        } else {
+            CpuProver::new()
+        }
     }
 }
