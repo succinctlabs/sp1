@@ -1,427 +1,191 @@
 #!/usr/bin/env bash
-
-# Reference: https://github.com/foundry-rs/foundry/blob/master/foundryup/foundryup
-
 set -eo pipefail
 
-BASE_DIR=$HOME
-SP1_DIR=${SP1_DIR:-"$BASE_DIR/.sp1"}
+BASE_DIR="$HOME"
+SP1_DIR="${SP1_DIR:-"$BASE_DIR/.sp1"}"
 SP1_BIN_DIR="$SP1_DIR/bin"
-mkdir -p $SP1_BIN_DIR
+mkdir -p "$SP1_BIN_DIR"
 
-BINS=(cargo-prove)
-
+BINS=("cargo-prove")
 export RUSTFLAGS="-C target-cpu=native"
+
+need_cmd() { command -v "$1" &>/dev/null || err "Command '$1' not found"; }
+check_url() {
+  local url="$1"
+  curl --head --silent --fail "$url" --output /dev/null 2>/dev/null || {
+    err "Unable to access: $url"
+  }
+}
+download() { curl -#LS "$1" -o "${2:-/dev/stdout}"; }
 
 main() {
   need_cmd git
   need_cmd curl
 
-  while [[ -n $1 ]]; do
-    case $1 in
-        --)
-            shift; break;;
-        
-        -r|--repo)        
-            shift
-            check_required_arg "--repo" "$1"
-            SP1UP_REPO=$1;;
-            
-        -b|--branch)      
-            shift
-            check_required_arg "--branch" "$1"
-            SP1UP_BRANCH=$1;;
-            
-        -v|--version)     
-            shift
-            check_required_arg "--version" "$1"
-            SP1UP_VERSION=$1;;
-            
-        -p|--path)        
-            shift
-            check_required_arg "--path" "$1"
-            SP1UP_LOCAL_REPO=$1;;
-            
-        -P|--pr)          
-            shift
-            check_required_arg "--pr" "$1"
-            SP1UP_PR=$1;;
-            
-        -C|--commit)      
-            shift
-            check_required_arg "--commit" "$1"
-            SP1UP_COMMIT=$1;;
-            
-        -c|--c-toolchain) SP1UP_C_TOOLCHAIN=true;;
-        
-        --arch)           
-            shift
-            check_required_arg "--arch" "$1"
-            SP1UP_ARCH=$1;;
-            
-        --platform)       
-            shift
-            check_required_arg "--platform" "$1"
-            SP1UP_PLATFORM=$1;;
-            
-        -t|--token)       
-            shift
-            check_required_arg "--token" "$1"
-            GITHUB_TOKEN=$1;;
-            
-        -h|--help)
-            usage
-            exit 0
-            ;;
-            
-        *)
-            warn "unknown option: $1"
-            usage
-            exit 1
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -r|--repo) SP1UP_REPO="$2"; shift ;;
+      -b|--branch) SP1UP_BRANCH="$2"; shift ;;
+      -v|--version) SP1UP_VERSION="$2"; shift ;;
+      -p|--path) SP1UP_LOCAL_REPO="$2"; shift ;;
+      -P|--pr) SP1UP_PR="$2"; shift ;;
+      -C|--commit) SP1UP_COMMIT="$2"; shift ;;
+      -c|--c-toolchain) SP1UP_C_TOOLCHAIN=true ;;
+      --arch) SP1UP_ARCH="$2"; shift ;;
+      --platform) SP1UP_PLATFORM="$2"; shift ;;
+      -t|--token) GITHUB_TOKEN="$2"; shift ;;
+      -h|--help) usage; exit 0 ;;
+      *) err "Unknown option: $1" ;;
     esac
     shift
   done
 
-  # Print the banner after successfully parsing args
   banner
-
-  if [ -n "$SP1UP_PR" ]; then
-    if [ -z "$SP1UP_BRANCH" ]; then
-      SP1UP_BRANCH="refs/pull/$SP1UP_PR/head"
-    else
-      err "can't use --pr and --branch at the same time"
-    fi
-  fi
-
-  # Installs sp1 from a local repository if --path parameter is provided
+  [[ -n "$SP1UP_PR" && -z "$SP1UP_BRANCH" ]] && SP1UP_BRANCH="refs/pull/$SP1UP_PR/head"
+  
   if [[ -n "$SP1UP_LOCAL_REPO" ]]; then
     need_cmd cargo
-
-    # Ignore branches/versions as we do not want to modify local git state
-    if [ -n "$SP1UP_REPO" ] || [ -n "$SP1UP_BRANCH" ] || [ -n "$SP1UP_VERSION" ]; then
-      warn "--branch, --version, and --repo arguments are ignored during local install"
-    fi
-
-    # Enter local repo and build
-    say "installing from $SP1UP_LOCAL_REPO"
-    cd "$SP1UP_LOCAL_REPO"
-    ensure cargo build --bins --release # need 4 speed
-
+    warn "--repo, --branch, and --version are ignored for local installs"
+    cd "$SP1UP_LOCAL_REPO" && cargo build --bins --release
     for bin in "${BINS[@]}"; do
-      # Remove prior installations if they exist
       rm -f "$SP1_BIN_DIR/$bin"
-      # Symlink from local repo binaries to bin dir
-      ensure ln -s "$PWD/target/release/$bin" "$SP1_BIN_DIR/$bin"
+      ln -s "$PWD/target/release/$bin" "$SP1_BIN_DIR/$bin"
     done
-
     say "done!"
     exit 0
   fi
 
-  SP1UP_REPO=${SP1UP_REPO:-succinctlabs/sp1}
+  SP1UP_REPO="${SP1UP_REPO:-succinctlabs/sp1}"
+  SP1UP_VERSION="${SP1UP_VERSION:-latest}"
 
-  # Install by downloading binaries
   if [[ "$SP1UP_REPO" == "succinctlabs/sp1" && -z "$SP1UP_BRANCH" && -z "$SP1UP_COMMIT" ]]; then
-    SP1UP_VERSION=${SP1UP_VERSION:-latest}
-    SP1UP_TAG=$SP1UP_VERSION
-
-    if [[ "$SP1UP_VERSION" == [[:digit:]]* ]]; then
-      # Add v prefix
-      SP1UP_VERSION="v${SP1UP_VERSION}"
-      SP1UP_TAG="${SP1UP_VERSION}"
-    fi
-
-    say "installing SP1 (version ${SP1UP_VERSION}, tag ${SP1UP_TAG})"
+    SP1UP_TAG="v$SP1UP_VERSION"
+    say "installing SP1 $SP1UP_TAG"
 
     determine_platform
     determine_architecture
 
-    # Compute the URL of the release tarball in the sp1 repository.
     RELEASE_URL="https://github.com/${SP1UP_REPO}/releases/download/${SP1UP_TAG}/"
     BIN_ARCHIVE_URL="${RELEASE_URL}cargo_prove_${SP1UP_VERSION}_${PLATFORM}_${ARCHITECTURE}.$EXT"
 
-    check_url "$BIN_ARCHIVE_URL" "binary"
-
-    # Download and extract the binaries archive
-    say "downloading latest cargo-prove"
-    if [ "$PLATFORM" = "win32" ]; then
-      tmp="$(mktemp -d 2>/dev/null || echo ".")/cargo-prove.zip"
-      ensure download "$BIN_ARCHIVE_URL" "$tmp"
-      ensure unzip "$tmp" -d "$SP1_BIN_DIR"
+    check_url "$BIN_ARCHIVE_URL"
+    say "downloading cargo-prove"
+    if [[ "$PLATFORM" == "win32" ]]; then
+      tmp=$(mktemp -d)/cargo-prove.zip
+      download "$BIN_ARCHIVE_URL" "$tmp"
+      unzip "$tmp" -d "$SP1_BIN_DIR"
       rm -f "$tmp"
     else
-      ensure download "$BIN_ARCHIVE_URL" | ensure tar -xzC "$SP1_BIN_DIR"
+      download "$BIN_ARCHIVE_URL" | tar -xzC "$SP1_BIN_DIR"
     fi
 
     for bin in "${BINS[@]}"; do
       bin_path="$SP1_BIN_DIR/$bin"
-
-      # Print installed msg
       say "installed - $(ensure "$bin_path" prove --version)"
-
-      # Check if the default path of the binary is not in SP1_BIN_DIR
-      which_path="$(command -v "$bin" || true)"
-      if [ -n "$which_path" ] && [ "$which_path" != "$bin_path" ]; then
-        warn ""
-        cat 1>&2 <<EOF
-There are multiple binaries with the name '$bin' present in your 'PATH'.
-This may be the result of installing '$bin' using another method,
-like Cargo or other package managers.
-You may need to run 'rm $which_path' or move '$SP1_BIN_DIR'
-in your 'PATH' to allow the newly installed version to take precedence!
-
-EOF
-      fi
     done
 
     say "installing rust toolchain"
-    if [ -n "$GITHUB_TOKEN" ]; then
-      ensure "$bin_path" prove install-toolchain --token "$GITHUB_TOKEN"
-    else
-      ensure "$bin_path" prove install-toolchain
-    fi
-    say "installed rust toolchain"
+    install_rust_toolchain
   else
-    # Install by cloning the repo with the provided branch/tag
     need_cmd cargo
-    SP1UP_BRANCH=${SP1UP_BRANCH:-main}
+    SP1UP_BRANCH="${SP1UP_BRANCH:-main}"
     REPO_PATH="$SP1_DIR/$SP1UP_REPO"
 
-    # If repo path does not exist, grab the author from the repo, make a directory in .foundry, cd to it and clone.
-    if [ ! -d "$REPO_PATH" ]; then
-      AUTHOR="$(echo "$SP1UP_REPO" | cut -d'/' -f1 -)"
-      ensure mkdir -p "$SP1_DIR/$AUTHOR"
-      cd "$SP1_DIR/$AUTHOR"
-      ensure git clone "https://github.com/$SP1UP_REPO"
-    fi
-
-    # Force checkout, discarding any local changes
+    [[ ! -d "$REPO_PATH" ]] && git clone "https://github.com/$SP1UP_REPO" "$REPO_PATH"
     cd "$REPO_PATH"
-    ensure git fetch origin "${SP1UP_BRANCH}:remotes/origin/${SP1UP_BRANCH}"
-    ensure git checkout "origin/${SP1UP_BRANCH}"
+    git fetch origin "$SP1UP_BRANCH" && git checkout "origin/$SP1UP_BRANCH"
+    [[ -n "$SP1UP_COMMIT" ]] && git checkout "$SP1UP_COMMIT"
 
-    # If set, checkout specific commit from branch
-    if [ -n "$SP1UP_COMMIT" ]; then
-      say "installing at commit $SP1UP_COMMIT"
-      ensure git checkout "$SP1UP_COMMIT"
-    fi
-
-    # Build the repo and install the binaries locally to the .sp1 bin directory.
-    ensure cargo build --bins --release
+    cargo build --bins --release
     for bin in "${BINS[@]}"; do
       for try_path in target/release/$bin target/release/$bin.exe; do
-        if [ -f "$try_path" ]; then
-          [ -e "$SP1_BIN_DIR/$bin" ] && warn "overwriting existing $bin in $SP1_BIN_DIR"
-          mv -f "$try_path" "$SP1_BIN_DIR"
-        fi
+        [[ -f "$try_path" ]] && mv -f "$try_path" "$SP1_BIN_DIR"
       done
     done
   fi
 
-  if [ "$SP1UP_C_TOOLCHAIN" = true ]; then
-    install_c_toolchain
-  fi
-
+  [[ "$SP1UP_C_TOOLCHAIN" = true ]] && install_c_toolchain
   say "done!"
 }
 
-# Downloads the C++ toolchain for RISC-V and creates a symlink to it at SP1_BIN_DIR/riscv32-unknown-elf-gcc
+install_rust_toolchain() {
+  local toolchain_cmd="$bin_path prove install-toolchain"
+  if [[ -n "$GITHUB_TOKEN" ]]; then
+    toolchain_cmd="$toolchain_cmd --token $GITHUB_TOKEN"
+  fi
+  ensure "$toolchain_cmd"
+}
+
 install_c_toolchain() {
   say "installing C++ toolchain for RISC-V"
-
   determine_platform
   determine_architecture
 
   case $PLATFORM in
-    linux)
-      case $ARCHITECTURE in
-        amd64) TOOLCHAIN_URL="https://github.com/risc0/toolchain/releases/download/2022.03.25/riscv32im-linux-x86_64.tar.xz" ;;
-        *) err "unsupported architecture for Linux: $ARCHITECTURE" ;;
-      esac
-      ;;
-    darwin)
-      case $ARCHITECTURE in
-        arm64) TOOLCHAIN_URL="https://github.com/risc0/toolchain/releases/download/2022.03.25/riscv32im-osx-arm64.tar.xz" ;;
-        amd64) TOOLCHAIN_URL="https://github.com/risc0/toolchain/releases/download/2022.03.25/riscv32im-osx-x86_64.tar.xz" ;;
-        *) err "unsupported architecture for macOS: $ARCHITECTURE" ;;
-      esac
-      ;;
-    win32)
-      case $ARCHITECTURE in
-        amd64) TOOLCHAIN_URL="https://github.com/risc0/toolchain/releases/download/2022.03.25/riscv32im-windows-x86_64.tar.xz" ;;
-        *) err "unsupported architecture for Windows: $ARCHITECTURE" ;;
-      esac
-      ;;
-    *)
-      err "unsupported platform: $PLATFORM"
-      ;;
+    linux) TOOLCHAIN_URL="https://github.com/risc0/toolchain/releases/download/2022.03.25/riscv32im-linux-x86_64.tar.xz" ;;
+    darwin) TOOLCHAIN_URL="https://github.com/risc0/toolchain/releases/download/2022.03.25/riscv32im-osx-x86_64.tar.xz" ;;
+    win32) TOOLCHAIN_URL="https://github.com/risc0/toolchain/releases/download/2022.03.25/riscv32im-windows-x86_64.tar.xz" ;;
+    *) err "unsupported platform: $PLATFORM" ;;
   esac
 
-  TOOLCHAIN_ARCHIVE="/tmp/$(basename $TOOLCHAIN_URL)"
+  TOOLCHAIN_ARCHIVE="/tmp/$(basename "$TOOLCHAIN_URL")"
   TOOLCHAIN_INSTALL_DIR="$SP1_DIR/riscv"
+  download "$TOOLCHAIN_URL" "$TOOLCHAIN_ARCHIVE"
 
-  # Always re-download the RISC-V GCC prebuilt binary archive
-  ensure download "$TOOLCHAIN_URL" "$TOOLCHAIN_ARCHIVE"
-
-  # Create the ~/.sp1 and TOOLCHAIN_INSTALL_DIR directories if they don't exist
   mkdir -p "$TOOLCHAIN_INSTALL_DIR"
-
-  # Extract the downloaded archive into the target directory
-  if [ "$PLATFORM" = "win32" ]; then
-    ensure unzip "$TOOLCHAIN_ARCHIVE" -d "$TOOLCHAIN_INSTALL_DIR" >/dev/null 2>&1
-  else
-    ensure tar -xvf "$TOOLCHAIN_ARCHIVE" -C "$TOOLCHAIN_INSTALL_DIR" >/dev/null 2>&1
-  fi
+  tar -xvf "$TOOLCHAIN_ARCHIVE" -C "$TOOLCHAIN_INSTALL_DIR" >/dev/null 2>&1
   rm -f "$TOOLCHAIN_ARCHIVE"
 
-  # Find the actual location of the gcc binary and create a symlink to it in SP1_BIN_DIR
   GCC_PATH=$(find "$TOOLCHAIN_INSTALL_DIR" -name 'riscv32-unknown-elf-gcc' -type f | head -n 1)
-  if [ -z "$GCC_PATH" ]; then
-    err "riscv32-unknown-elf-gcc not found in extracted archive"
-  fi
-  ln -sf "$GCC_PATH" "$SP1_BIN_DIR/riscv32-unknown-elf-gcc"
+  [[ -z "$GCC_PATH" ]] && err "riscv32-unknown-elf-gcc not found"
 
-  # Set environment variables for the RISC-V toolchain
+  ln -sf "$GCC_PATH" "$SP1_BIN_DIR/riscv32-unknown-elf-gcc"
   export PATH="$SP1_BIN_DIR:$PATH"
   export CC_riscv32im_succinct_zkvm_elf="$SP1_BIN_DIR/riscv32-unknown-elf-gcc"
 
-  say "installed C++ toolchain for RISC-V and set environment variables"
+  say "installed C++ toolchain for RISC-V"
 }
 
 determine_platform() {
   uname_s=$(uname -s)
   PLATFORM=$(tolower "${SP1UP_PLATFORM:-$uname_s}")
   case $PLATFORM in
-    linux) ;;
-    darwin|mac*)
-      PLATFORM="darwin"
-      ;;
-    mingw*|win*)
-      PLATFORM="win32"
-      ;;
-    *)
-      err "unsupported platform: $PLATFORM"
-      ;;
+    linux|darwin|win32) ;;
+    *) err "unsupported platform: $PLATFORM" ;;
   esac
-  EXT="tar.gz"
-  if [ "$PLATFORM" = "win32" ]; then
-    EXT="zip"
-  fi
-}
-
-# Function to check URL and provide friendly error message
-check_url() {
-    local url="$1"
-    local description="$2"
-    
-    if ! curl --head --silent --fail "$url" --output /dev/null 2> /dev/null; then
-        echo "Error: Unable to access the $description at: $url" >&2
-        echo "Please check:" >&2
-        echo "  - Your internet connection" >&2
-        echo "  - If the version '${SP1UP_VERSION}' exists" >&2
-        echo "  - If the repository '${SP1UP_REPO}' is correct" >&2
-        echo "  - If the tag '${SP1UP_TAG}' exists" >&2
-        return 1
-    fi
-    return 0
-}
-
-# Function to handle required argument validation
-check_required_arg() {
-    local option=$1
-    local value=$2
-    
-    if [[ -z $value ]]; then
-        warn "Error: $option requires a value"
-        usage
-        exit 1
-    fi
+  EXT="$([[ "$PLATFORM" == "win32" ]] && echo "zip" || echo "tar.gz")"
 }
 
 determine_architecture() {
   uname_m=$(uname -m)
   ARCHITECTURE=$(tolower "${SP1UP_ARCH:-$uname_m}")
-  if [ "${ARCHITECTURE}" = "x86_64" ]; then
-    # Redirect stderr to /dev/null to avoid printing errors if non Rosetta.
-    if [ "$(sysctl -n sysctl.proc_translated 2>/dev/null)" = "1" ]; then
-      ARCHITECTURE="arm64" # Rosetta.
-    else
-      ARCHITECTURE="amd64" # Intel.
-    fi
-  elif [ "${ARCHITECTURE}" = "arm64" ] || [ "${ARCHITECTURE}" = "aarch64" ]; then
-    ARCHITECTURE="arm64" # Arm.
-  else
-    ARCHITECTURE="amd64" # Amd.
-  fi
+  [[ "$ARCHITECTURE" == "x86_64" ]] && ARCHITECTURE="amd64"
+  [[ "$ARCHITECTURE" == "arm64" || "$ARCHITECTURE" == "aarch64" ]] && ARCHITECTURE="arm64"
 }
 
 usage() {
-  cat 1>&2 <<EOF
-The installer for the SP1.
-
-Update or revert to a specific SP1 version with ease.
-
-USAGE:
-    sp1up <OPTIONS>
-
-OPTIONS:
-    -h, --help        Print help information
-    -v, --version     Install a specific version
-    -b, --branch      Install a specific branch
-    -P, --pr          Install a specific Pull Request
-    -C, --commit      Install a specific commit
-    -r, --repo        Install from a remote GitHub repo (uses default branch if no other options are set)
-    -p, --path        Install a local repository
-    -c, --c-toolchain Install a C++ toolchain for RISC-V (needed building programs that bind to C code)
-    --arch            Install a specific architecture (supports amd64 and arm64)
-    --platform        Install a specific platform (supports win32, linux, and darwin)
-    -t, --token       GitHub token to use for avoiding API rate limits
+  cat <<EOF
+Usage: sp1up [options]
+Options:
+  -h, --help        Print help information
+  -v, --version     Install a specific version
+  -b, --branch      Install a specific branch
+  -P, --pr          Install a specific Pull Request
+  -C, --commit      Install a specific commit
+  -r, --repo        Install from a remote GitHub repo
+  -p, --path        Install a local repository
+  -c, --c-toolchain Install a C++ toolchain for RISC-V
+  --arch            Install a specific architecture (amd64, arm64)
+  --platform        Install a specific platform (win32, linux, darwin)
+  -t, --token       GitHub token for API rate limits
 EOF
 }
 
-say() {
-  printf "sp1up: %s\n" "$1"
-}
-
-warn() {
-  say "warning: ${1}" >&2
-}
-
-err() {
-  say "$1" >&2
-  exit 1
-}
-
-tolower() {
-  echo "$1" | awk '{print tolower($0)}'
-}
-
-need_cmd() {
-  if ! check_cmd "$1"; then
-    err "need '$1' (command not found)"
-  fi
-}
-
-check_cmd() {
-  command -v "$1" &>/dev/null
-}
-
-# Run a command that should never fail. If the command fails execution
-# will immediately terminate with an error showing the failing command.
-ensure() {
-  if ! "$@"; then err "command failed: $*"; fi
-}
-
-# Downloads $1 into $2 or stdout
-download() {
-  if [ -n "$2" ]; then
-    # output into $2
-    curl -#o "$2" -L "$1"
-  else
-    # output to stdout
-    curl -#LS "$1"
-  fi
-}
+say() { printf "sp1up: %s\n" "$1"; }
+warn() { say "warning: $1" >&2; }
+err() { say "$1" >&2; exit 1; }
+tolower() { echo "$1" | awk '{print tolower($0)}'; }
+ensure() { "$@" || err "command failed: $*"; }
 
 # Banner Function for sp1 
 banner() {
