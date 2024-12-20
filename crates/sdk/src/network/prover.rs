@@ -5,7 +5,6 @@
 
 use std::time::{Duration, Instant};
 
-use super::proto::network::GetProofRequestStatusResponse;
 use super::prove::NetworkProveBuilder;
 use super::DEFAULT_CYCLE_LIMIT;
 use crate::cpu::execute::CpuExecuteBuilder;
