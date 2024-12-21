@@ -46,7 +46,6 @@ pub const fn num_weierstrass_double_cols<P: FieldParameters + NumWords>() -> usi
 pub struct WeierstrassDoubleAssignCols<T, P: FieldParameters + NumWords> {
     pub is_real: T,
     pub shard: T,
-    pub nonce: T,
     pub clk: T,
     pub p_ptr: T,
     pub p_access: GenericArray<MemoryWriteCols<T>, P::WordsCurvePoint>,
@@ -75,7 +74,6 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDoubleAssignChip<E> {
 
     fn populate_field_ops<F: PrimeField32>(
         blu_events: &mut Vec<ByteLookupEvent>,
-        shard: u32,
         cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField>,
         p_x: BigUint,
         p_y: BigUint,
@@ -87,17 +85,15 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDoubleAssignChip<E> {
             // slope_numerator = a + (p.x * p.x) * 3.
             let slope_numerator = {
                 let p_x_squared =
-                    cols.p_x_squared.populate(blu_events, shard, &p_x, &p_x, FieldOperation::Mul);
+                    cols.p_x_squared.populate(blu_events, &p_x, &p_x, FieldOperation::Mul);
                 let p_x_squared_times_3 = cols.p_x_squared_times_3.populate(
                     blu_events,
-                    shard,
                     &p_x_squared,
                     &BigUint::from(3u32),
                     FieldOperation::Mul,
                 );
                 cols.slope_numerator.populate(
                     blu_events,
-                    shard,
                     &a,
                     &p_x_squared_times_3,
                     FieldOperation::Add,
@@ -107,7 +103,6 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDoubleAssignChip<E> {
             // slope_denominator = 2 * y.
             let slope_denominator = cols.slope_denominator.populate(
                 blu_events,
-                shard,
                 &BigUint::from(2u32),
                 &p_y,
                 FieldOperation::Mul,
@@ -115,7 +110,6 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDoubleAssignChip<E> {
 
             cols.slope.populate(
                 blu_events,
-                shard,
                 &slope_numerator,
                 &slope_denominator,
                 FieldOperation::Div,
@@ -125,36 +119,22 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDoubleAssignChip<E> {
         // x = slope * slope - (p.x + p.x).
         let x = {
             let slope_squared =
-                cols.slope_squared.populate(blu_events, shard, &slope, &slope, FieldOperation::Mul);
+                cols.slope_squared.populate(blu_events, &slope, &slope, FieldOperation::Mul);
             let p_x_plus_p_x =
-                cols.p_x_plus_p_x.populate(blu_events, shard, &p_x, &p_x, FieldOperation::Add);
-            cols.x3_ins.populate(
-                blu_events,
-                shard,
-                &slope_squared,
-                &p_x_plus_p_x,
-                FieldOperation::Sub,
-            )
+                cols.p_x_plus_p_x.populate(blu_events, &p_x, &p_x, FieldOperation::Add);
+            cols.x3_ins.populate(blu_events, &slope_squared, &p_x_plus_p_x, FieldOperation::Sub)
         };
 
         // y = slope * (p.x - x) - p.y.
         {
-            let p_x_minus_x =
-                cols.p_x_minus_x.populate(blu_events, shard, &p_x, &x, FieldOperation::Sub);
+            let p_x_minus_x = cols.p_x_minus_x.populate(blu_events, &p_x, &x, FieldOperation::Sub);
             let slope_times_p_x_minus_x = cols.slope_times_p_x_minus_x.populate(
                 blu_events,
-                shard,
                 &slope,
                 &p_x_minus_x,
                 FieldOperation::Mul,
             );
-            cols.y3_ins.populate(
-                blu_events,
-                shard,
-                &slope_times_p_x_minus_x,
-                &p_y,
-                FieldOperation::Sub,
-            );
+            cols.y3_ins.populate(blu_events, &slope_times_p_x_minus_x, &p_y, FieldOperation::Sub);
         }
     }
 }
@@ -250,7 +230,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         let zero = BigUint::zero();
         let one = BigUint::one();
         cols.p_access[num_words_field_element].populate(dummy_memory_record, &mut vec![]);
-        Self::populate_field_ops(&mut vec![], 0, cols, zero, one);
+        Self::populate_field_ops(&mut vec![], cols, zero, one);
 
         values.chunks_mut(chunk_size * num_cols).enumerate().par_bridge().for_each(|(i, rows)| {
             rows.chunks_mut(num_cols).enumerate().for_each(|(j, row)| {
@@ -274,18 +254,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         });
 
         // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(values, num_weierstrass_double_cols::<E::BaseField>());
-
-        // Write the nonces to the trace.
-        for i in 0..trace.height() {
-            let cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField> = trace.values[i
-                * num_weierstrass_double_cols::<E::BaseField>()
-                ..(i + 1) * num_weierstrass_double_cols::<E::BaseField>()]
-                .borrow_mut();
-            cols.nonce = F::from_canonical_usize(i);
-        }
-
-        trace
+        RowMajorMatrix::new(values, num_weierstrass_double_cols::<E::BaseField>())
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -309,6 +278,10 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             }
         }
     }
+
+    fn local_only(&self) -> bool {
+        true
+    }
 }
 
 impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDoubleAssignChip<E> {
@@ -328,7 +301,7 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDoubleAssignChip<E> {
         cols.clk = F::from_canonical_u32(event.clk);
         cols.p_ptr = F::from_canonical_u32(event.p_ptr);
 
-        Self::populate_field_ops(new_byte_lookup_events, event.shard, cols, p_x, p_y);
+        Self::populate_field_ops(new_byte_lookup_events, cols, p_x, p_y);
 
         // Populate the memory access columns.
         for i in 0..cols.p_access.len() {
@@ -352,12 +325,6 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &WeierstrassDoubleAssignCols<AB::Var, E::BaseField> = (*local).borrow();
-        let next = main.row_slice(1);
-        let next: &WeierstrassDoubleAssignCols<AB::Var, E::BaseField> = (*next).borrow();
-
-        // Constrain the incrementing nonce.
-        builder.when_first_row().assert_zero(local.nonce);
-        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         let num_words_field_element = E::BaseField::NB_LIMBS / 4;
         let p_x = limbs_from_prev_access(&local.p_access[0..num_words_field_element]);
@@ -480,7 +447,6 @@ where
         builder.receive_syscall(
             local.shard,
             local.clk,
-            local.nonce,
             syscall_id_felt,
             local.p_ptr,
             AB::Expr::zero(),
@@ -498,33 +464,40 @@ pub mod tests {
         BLS12381_DOUBLE_ELF, BN254_DOUBLE_ELF, SECP256K1_DOUBLE_ELF, SECP256R1_DOUBLE_ELF,
     };
 
-    use crate::utils::{run_test, setup_logger};
+    use crate::{
+        io::SP1Stdin,
+        utils::{run_test, setup_logger},
+    };
 
     #[test]
     fn test_secp256k1_double_simple() {
         setup_logger();
         let program = Program::from(SECP256K1_DOUBLE_ELF).unwrap();
-        run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
     fn test_secp256r1_double_simple() {
         setup_logger();
         let program = Program::from(SECP256R1_DOUBLE_ELF).unwrap();
-        run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
     fn test_bn254_double_simple() {
         setup_logger();
         let program = Program::from(BN254_DOUBLE_ELF).unwrap();
-        run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
     fn test_bls12381_double_simple() {
         setup_logger();
         let program = Program::from(BLS12381_DOUBLE_ELF).unwrap();
-        run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 }

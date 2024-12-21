@@ -39,7 +39,10 @@ pub mod extend_tests {
     use sp1_stark::{air::MachineAir, CpuProver};
     use test_artifacts::{SHA2_ELF, SHA_EXTEND_ELF};
 
-    use crate::utils::{self, run_test};
+    use crate::{
+        io::SP1Stdin,
+        utils::{self, run_test},
+    };
 
     use super::ShaExtendChip;
 
@@ -64,7 +67,7 @@ pub mod extend_tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.add_events = vec![AluEvent::new(0, 0, Opcode::ADD, 14, 8, 6)];
+        shard.add_events = vec![AluEvent::new(0, Opcode::ADD, 14, 8, 6, false)];
         let chip = ShaExtendChip::new();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -75,20 +78,23 @@ pub mod extend_tests {
     fn test_sha_prove() {
         utils::setup_logger();
         let program = sha_extend_program();
-        run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
     fn test_sha256_program() {
         utils::setup_logger();
         let program = Program::from(SHA2_ELF).unwrap();
-        run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
     fn test_sha_extend_program() {
         utils::setup_logger();
         let program = Program::from(SHA_EXTEND_ELF).unwrap();
-        run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 }

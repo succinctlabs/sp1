@@ -1,3 +1,5 @@
+#![allow(clippy::never_loop)]
+
 use std::marker::PhantomData;
 
 use hashbrown::HashMap;
@@ -5,7 +7,7 @@ use hashbrown::HashMap;
 use itertools::Itertools;
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
 use serde::{Deserialize, Serialize};
-use sp1_stark::{air::MachineAir, ProofShape};
+use sp1_stark::{air::MachineAir, shape::OrderedShape};
 
 use crate::{
     chips::{
@@ -27,6 +29,18 @@ pub struct RecursionShape {
     pub(crate) inner: HashMap<String, usize>,
 }
 
+impl RecursionShape {
+    pub fn clone_into_hash_map(&self) -> HashMap<String, usize> {
+        self.inner.clone()
+    }
+}
+
+impl From<HashMap<String, usize>> for RecursionShape {
+    fn from(value: HashMap<String, usize>) -> Self {
+        Self { inner: value }
+    }
+}
+
 pub struct RecursionShapeConfig<F, A> {
     allowed_shapes: Vec<HashMap<String, usize>>,
     _marker: PhantomData<(F, A)>,
@@ -37,32 +51,29 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize>
 {
     pub fn fix_shape(&self, program: &mut RecursionProgram<F>) {
         let heights = RecursionAir::<F, DEGREE>::heights(program);
-        // Get the allowed shape with a minimal hamming distance from the current shape.
-        let mut min_distance = usize::MAX;
+
         let mut closest_shape = None;
+
         for shape in self.allowed_shapes.iter() {
-            let mut distance = 0;
-            let mut is_valid = true;
+            // If any of the heights is greater than the shape, continue.
+            let mut valid = true;
             for (name, height) in heights.iter() {
-                let next_power_of_two = height.next_power_of_two();
-                let allowed_log_height = shape.get(name).unwrap();
-                let allowed_height = 1 << allowed_log_height;
-                if next_power_of_two != allowed_height {
-                    distance += 1;
-                }
-                if next_power_of_two > allowed_height {
-                    is_valid = false;
+                if *height > (1 << shape.get(name).unwrap()) {
+                    valid = false;
                 }
             }
-            if is_valid && distance < min_distance {
-                min_distance = distance;
-                closest_shape = Some(shape.clone());
+
+            if !valid {
+                continue;
             }
+
+            closest_shape = Some(shape.clone());
+            break;
         }
 
         if let Some(shape) = closest_shape {
             let shape = RecursionShape { inner: shape };
-            program.shape = Some(shape);
+            *program.shape_mut() = Some(shape);
         } else {
             panic!("no shape found for heights: {:?}", heights);
         }
@@ -71,15 +82,36 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize>
     pub fn get_all_shape_combinations(
         &self,
         batch_size: usize,
-    ) -> impl Iterator<Item = Vec<ProofShape>> + '_ {
+    ) -> impl Iterator<Item = Vec<OrderedShape>> + '_ {
         (0..batch_size)
             .map(|_| {
                 self.allowed_shapes
                     .iter()
                     .cloned()
-                    .map(|map| map.into_iter().collect::<ProofShape>())
+                    .map(|map| map.into_iter().collect::<OrderedShape>())
             })
             .multi_cartesian_product()
+    }
+
+    pub fn union_config_with_extra_room(&self) -> Self {
+        let mut map = HashMap::new();
+        for shape in self.allowed_shapes.clone() {
+            for key in shape.keys() {
+                let current = map.get(key).unwrap_or(&0);
+                map.insert(key.clone(), *current.max(shape.get(key).unwrap()));
+            }
+        }
+        map.values_mut().for_each(|x| *x += 2);
+        map.insert("PublicValues".to_string(), 4);
+        Self { allowed_shapes: vec![map], _marker: PhantomData }
+    }
+
+    pub fn from_hash_map(hash_map: &HashMap<String, usize>) -> Self {
+        Self { allowed_shapes: vec![hash_map.clone()], _marker: PhantomData }
+    }
+
+    pub fn first(&self) -> Option<&HashMap<String, usize>> {
+        self.allowed_shapes.first()
     }
 }
 
@@ -101,137 +133,30 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> Default
         let public_values = RecursionAir::<F, DEGREE>::PublicValues(PublicValuesChip).name();
 
         // Specify allowed shapes.
+
         let allowed_shapes = [
+            // Fastest shape.
             [
-                (base_alu.clone(), 20),
-                (mem_var.clone(), 18),
-                (ext_alu.clone(), 18),
-                (exp_reverse_bits_len.clone(), 17),
-                (mem_const.clone(), 17),
-                (poseidon2_wide.clone(), 16),
-                (batch_fri.clone(), 18),
-                (select.clone(), 18),
-                (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
-            ],
-            [
-                (base_alu.clone(), 20),
-                (mem_var.clone(), 18),
-                (ext_alu.clone(), 18),
-                (exp_reverse_bits_len.clone(), 17),
-                (mem_const.clone(), 16),
-                (poseidon2_wide.clone(), 16),
-                (batch_fri.clone(), 18),
-                (select.clone(), 18),
-                (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
-            ],
-            [
-                (ext_alu.clone(), 20),
-                (base_alu.clone(), 19),
                 (mem_var.clone(), 19),
-                (poseidon2_wide.clone(), 17),
-                (mem_const.clone(), 16),
-                (exp_reverse_bits_len.clone(), 16),
-                (batch_fri.clone(), 20),
-                (select.clone(), 18),
-                (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
-            ],
-            [
-                (base_alu.clone(), 19),
-                (mem_var.clone(), 18),
-                (ext_alu.clone(), 18),
-                (exp_reverse_bits_len.clone(), 17),
-                (mem_const.clone(), 16),
-                (poseidon2_wide.clone(), 16),
-                (batch_fri.clone(), 18),
-                (select.clone(), 18),
-                (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
-            ],
-            [
-                (base_alu.clone(), 19),
-                (mem_var.clone(), 18),
-                (ext_alu.clone(), 18),
-                (exp_reverse_bits_len.clone(), 16),
-                (mem_const.clone(), 16),
-                (poseidon2_wide.clone(), 16),
-                (batch_fri.clone(), 18),
-                (select.clone(), 18),
-                (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
-            ],
-            [
-                (base_alu.clone(), 20),
-                (mem_var.clone(), 19),
-                (ext_alu.clone(), 19),
-                (exp_reverse_bits_len.clone(), 17),
-                (mem_const.clone(), 17),
-                (poseidon2_wide.clone(), 17),
-                (batch_fri.clone(), 19),
                 (select.clone(), 19),
-                (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
-            ],
-            [
-                (base_alu.clone(), 21),
-                (mem_var.clone(), 19),
-                (ext_alu.clone(), 19),
+                (mem_const.clone(), 17),
+                (batch_fri.clone(), 19),
+                (base_alu.clone(), 16),
+                (ext_alu.clone(), 16),
                 (exp_reverse_bits_len.clone(), 18),
-                (mem_const.clone(), 18),
                 (poseidon2_wide.clone(), 17),
-                (batch_fri.clone(), 19),
-                (select.clone(), 19),
                 (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
             ],
+            // Second fastest shape.
             [
-                (base_alu.clone(), 21),
-                (mem_var.clone(), 19),
-                (ext_alu.clone(), 19),
-                (exp_reverse_bits_len.clone(), 18),
-                (mem_const.clone(), 17),
-                (poseidon2_wide.clone(), 17),
-                (batch_fri.clone(), 19),
-                (select.clone(), 19),
-                (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
-            ],
-            [
-                (ext_alu.clone(), 21),
-                (base_alu.clone(), 20),
                 (mem_var.clone(), 20),
-                (poseidon2_wide.clone(), 18),
-                (mem_const.clone(), 17),
-                (exp_reverse_bits_len.clone(), 17),
+                (select.clone(), 20),
+                (mem_const.clone(), 18),
                 (batch_fri.clone(), 21),
-                (select.clone(), 19),
-                (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
-            ],
-            [
-                (base_alu.clone(), 20),
-                (mem_var.clone(), 19),
+                (base_alu.clone(), 16),
                 (ext_alu.clone(), 19),
                 (exp_reverse_bits_len.clone(), 18),
-                (mem_const.clone(), 17),
-                (poseidon2_wide.clone(), 17),
-                (batch_fri.clone(), 19),
-                (select.clone(), 19),
-                (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
-            ],
-            [
-                (base_alu.clone(), 20),
-                (mem_var.clone(), 19),
-                (ext_alu.clone(), 19),
-                (exp_reverse_bits_len.clone(), 17),
-                (mem_const.clone(), 17),
-                (poseidon2_wide.clone(), 17),
-                (batch_fri.clone(), 19),
-                (select.clone(), 19),
-                (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
-            ],
-            [
-                (base_alu.clone(), 21),
-                (mem_var.clone(), 20),
-                (ext_alu.clone(), 20),
-                (exp_reverse_bits_len.clone(), 18),
-                (mem_const.clone(), 18),
                 (poseidon2_wide.clone(), 18),
-                (batch_fri.clone(), 20),
-                (select.clone(), 19),
                 (public_values.clone(), PUB_VALUES_LOG_HEIGHT),
             ],
         ]

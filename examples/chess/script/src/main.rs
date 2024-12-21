@@ -13,9 +13,9 @@ fn main() {
     let san = "d4".to_string();
     stdin.write(&san);
 
-    let client = ProverClient::new();
+    let client = ProverClient::from_env();
     let (pk, vk) = client.setup(ELF);
-    let mut proof = client.prove(&pk, stdin).run().unwrap();
+    let mut proof = client.prove(&pk, &stdin).run().unwrap();
 
     // Read output.
     let is_valid_move = proof.public_values.read::<bool>();

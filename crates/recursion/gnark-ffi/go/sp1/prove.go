@@ -133,6 +133,7 @@ func ProveGroth16(dataDir string, witnessPath string) Proof {
 		pkReader := bufio.NewReaderSize(pkFile, 1024*1024)
 		globalPk.ReadDump(pkReader)
 		defer pkFile.Close()
+		globalPkInitialized = true
 		fmt.Printf("Reading proving key took %s\n", time.Since(start))
 	}
 	globalMutex.Unlock()

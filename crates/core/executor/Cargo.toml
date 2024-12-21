@@ -17,10 +17,13 @@ sp1-stark = { workspace = true }
 
 # p3
 p3-field = { workspace = true }
+p3-baby-bear = { workspace = true }
 p3-maybe-rayon = { workspace = true, features = ["parallel"] }
+p3-util = { workspace = true }
 
 # misc
 serde = { workspace = true, features = ["derive", "rc"] }
+serde_json = { workspace = true }
 elf = "0.7.4"
 rrs_lib = { package = "rrs-succinct", version = "0.1.0" }
 eyre = "0.6.12"
@@ -42,13 +45,14 @@ tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 vec_map = { version = "0.8.2", features = ["serde"] }
 enum-map = { version = "2.7.3", features = ["serde"] }
 test-artifacts = { workspace = true, optional = true }
+clap = { version = "4.5.9", features = ["derive"] }
+subenum = "1.1.2"
 
 # profiling
 goblin = { version = "0.9", optional = true }
 rustc-demangle = { version = "0.1.18", optional = true }
 gecko_profile = { version = "0.4.0", optional = true }
 indicatif = { version = "0.17.8", optional = true }
-serde_json = { version = "1.0.121", optional = true }
 
 [dev-dependencies]
 sp1-zkvm = { workspace = true, features = ["lib"] }
@@ -61,5 +65,4 @@ profiling = [
   "dep:rustc-demangle",
   "dep:gecko_profile",
   "dep:indicatif",
-  "dep:serde_json",
 ]

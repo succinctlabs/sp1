@@ -8,10 +8,12 @@ license = { workspace = true }
 repository = { workspace = true }
 keywords = { workspace = true }
 categories = { workspace = true }
+links = "sp1-core-machine-sys"
 
 [dependencies]
 bincode = "1.3.3"
 serde = { workspace = true, features = ["derive", "rc"] }
+serde_json = { workspace = true }
 itertools = { workspace = true }
 log = "0.4.22"
 num = { version = "0.4.3" }
@@ -24,8 +26,12 @@ p3-matrix = { workspace = true }
 p3-maybe-rayon = { workspace = true, features = ["parallel"] }
 p3-uni-stark = { workspace = true }
 p3-util = { workspace = true }
+p3-symmetric = { workspace = true }
 sp1-derive = { workspace = true }
 sp1-primitives = { workspace = true }
+
+rayon = "1.10.0"
+rayon-scan = "0.1.1"
 
 amcl = { package = "snowbridge-amcl", version = "1.0.2", default-features = false, features = [
   "bls381",
@@ -55,6 +61,7 @@ static_assertions = "1.1.0"
 sp1-stark = { workspace = true }
 sp1-core-executor = { workspace = true }
 sp1-curves = { workspace = true }
+p3-poseidon2 = { workspace = true }
 
 [dev-dependencies]
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
@@ -65,9 +72,21 @@ sp1-zkvm = { workspace = true }
 sp1-core-executor = { workspace = true, features = ["programs"] }
 test-artifacts = { workspace = true }
 
+[build-dependencies]
+sp1-stark = { workspace = true }
+sp1-primitives = { workspace = true }
+p3-baby-bear = { workspace = true }
+cbindgen = "0.27.0"
+cc = "1.1"
+pathdiff = "0.2.1"
+glob = "0.3.1"
+
 [features]
+default = ["sys"]
+programs = []
 debug = []
 bigint-rug = ["sp1-curves/bigint-rug"]
+sys = []
 
 [lib]
 bench = false

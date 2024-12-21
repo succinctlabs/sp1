@@ -1,6 +1,6 @@
 use std::borrow::BorrowMut;
 
-use p3_field::Field;
+use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use sp1_core_executor::{ByteOpcode, ExecutionRecord, Program};
 use sp1_stark::air::MachineAir;
@@ -14,7 +14,7 @@ use super::{
 
 pub const NUM_ROWS: usize = 1 << 16;
 
-impl<F: Field> MachineAir<F> for ByteChip<F> {
+impl<F: PrimeField32> MachineAir<F> for ByteChip<F> {
     type Record = ExecutionRecord;
 
     type Program = Program;
@@ -44,18 +44,16 @@ impl<F: Field> MachineAir<F> for ByteChip<F> {
         let mut trace =
             RowMajorMatrix::new(zeroed_f_vec(NUM_BYTE_MULT_COLS * NUM_ROWS), NUM_BYTE_MULT_COLS);
 
-        for (_, blu) in input.byte_lookups.iter() {
-            for (lookup, mult) in blu.iter() {
-                let row = if lookup.opcode != ByteOpcode::U16Range {
-                    (((lookup.b as u16) << 8) + lookup.c as u16) as usize
-                } else {
-                    lookup.a1 as usize
-                };
-                let index = lookup.opcode as usize;
+        for (lookup, mult) in input.byte_lookups.iter() {
+            let row = if lookup.opcode != ByteOpcode::U16Range {
+                (((lookup.b as u16) << 8) + lookup.c as u16) as usize
+            } else {
+                lookup.a1 as usize
+            };
+            let index = lookup.opcode as usize;
 
-                let cols: &mut ByteMultCols<F> = trace.row_mut(row).borrow_mut();
-                cols.multiplicities[index] += F::from_canonical_usize(*mult);
-            }
+            let cols: &mut ByteMultCols<F> = trace.row_mut(row).borrow_mut();
+            cols.multiplicities[index] += F::from_canonical_usize(*mult);
         }
 
         trace

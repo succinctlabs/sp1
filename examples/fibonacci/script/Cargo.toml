@@ -7,7 +7,7 @@ publish = false
 
 [dependencies]
 hex = "0.4.3"
-sp1-sdk = { workspace = true }
+sp1-sdk = { workspace = true, features = ["native-gnark"] }
 
 [build-dependencies]
 sp1-build = { workspace = true }
@@ -27,6 +27,10 @@ path = "bin/compressed.rs"
 [[bin]]
 name = "execute"
 path = "bin/execute.rs"
+
+[[bin]]
+name = "network"
+path = "bin/network.rs"
 
 [[bin]]
 name = "fibonacci-script"

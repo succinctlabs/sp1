@@ -24,8 +24,8 @@ pub(crate) fn load_groth16_proof_from_bytes(buffer: &[u8]) -> Result<Groth16Proo
 
 /// Load the Groth16 verification key from the given byte slice.
 ///
-/// The gnark verification key includes a lot of extraneous information. We only extract the necessary
-/// elements to verify a proof.
+/// The gnark verification key includes a lot of extraneous information. We only extract the
+/// necessary elements to verify a proof.
 pub(crate) fn load_groth16_verifying_key_from_bytes(
     buffer: &[u8],
 ) -> Result<Groth16VerifyingKey, Groth16Error> {
