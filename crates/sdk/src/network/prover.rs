@@ -144,11 +144,13 @@ impl NetworkProver {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient}
-    ///
-    /// let request_id = vec![1u8; 32];
-    /// let client = ProverClient::builder().network().build();
-    /// let (status, maybe_proof) = client.get_proof_status(&request_id).await?;   
+    /// use sp1_sdk::{ProverClient, network::B256};
+    /// 
+    /// tokio_test::block_on(async {
+    ///     let request_id = B256::from_slice(&vec![1u8; 32]);
+    ///     let client = ProverClient::builder().network().build();
+    ///     let (status, maybe_proof) = client.get_proof_status(request_id).await.unwrap();   
+    /// })
     /// ```
     pub async fn get_proof_status(
         &self,
@@ -158,6 +160,13 @@ impl NetworkProver {
     }
 
     /// Requests a proof from the prover network, returning the request ID.
+    ///
+    /// # Details
+    /// * `vk_hash`: The hash of the verifying key to use for the proof.
+    /// * `stdin`: The input to use for the proof.
+    /// * `mode`: The proof mode to use for the proof.
+    /// * `strategy`: The fulfillment strategy to use for the proof.
+    /// * `cycle_limit`: The cycle limit to use for the proof.
     pub(crate) async fn request_proof(
         &self,
         vk_hash: B256,

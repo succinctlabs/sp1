@@ -56,6 +56,7 @@ backoff = { version = "0.4", features = ["tokio"], optional = true }
 
 [dev-dependencies]
 test-artifacts = { workspace = true }
+tokio-test = { version = "0.4"}
 
 [features]
 default = ["cuda", "network"]

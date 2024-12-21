@@ -299,15 +299,17 @@ impl<'a> NetworkProveBuilder<'a> {
     /// ```rust,no_run
     /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
     ///
-    /// let elf = &[1, 2, 3];
-    /// let stdin = SP1Stdin::new();
+    /// tokio_test::block_on(async {
+    ///     let elf = &[1, 2, 3];
+    ///     let stdin = SP1Stdin::new();
     ///
-    /// let client = ProverClient::builder().network().build();
-    /// let (pk, vk) = client.setup(elf);
-    /// let request_id = client.prove(&pk, &stdin)
-    ///     .request_async()
-    ///     .await
-    ///     .unwrap();
+    ///     let client = ProverClient::builder().network().build();
+    ///     let (pk, vk) = client.setup(elf);
+    ///     let request_id = client.prove(&pk, &stdin)
+    ///         .request_async()
+    ///         .await
+    ///         .unwrap();
+    /// })
     /// ```
     pub async fn request_async(self) -> Result<B256> {
         let Self { prover, mode, pk, stdin, timeout, strategy, skip_simulation, cycle_limit } =
