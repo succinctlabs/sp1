@@ -6,8 +6,8 @@ pub use build::{execute_build_program, generate_elf_paths};
 
 use clap::Parser;
 
+const SP1_CIRCUIT_VERSION: &str = include_str!("../../../SP1_VERSION");
 const BUILD_TARGET: &str = "riscv32im-succinct-zkvm-elf";
-const DEFAULT_TAG: &str = "latest";
 const DEFAULT_OUTPUT_DIR: &str = "elf";
 const HELPER_TARGET_SUBDIR: &str = "elf-compilation";
 
@@ -27,7 +27,7 @@ pub struct BuildArgs {
     #[clap(
         long,
         help = "The ghcr.io/succinctlabs/sp1 image tag to use when building with Docker.",
-        default_value = DEFAULT_TAG
+        default_value = SP1_CIRCUIT_VERSION
     )]
     pub tag: String,
     #[clap(
@@ -83,7 +83,7 @@ impl Default for BuildArgs {
     fn default() -> Self {
         Self {
             docker: false,
-            tag: DEFAULT_TAG.to_string(),
+            tag: SP1_CIRCUIT_VERSION.to_string(),
             features: vec![],
             rustflags: vec![],
             ignore_rust_version: false,

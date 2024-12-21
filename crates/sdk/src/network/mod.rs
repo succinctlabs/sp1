@@ -4,19 +4,21 @@
 
 pub mod client;
 pub mod prover;
-mod sign_message;
 #[rustfmt::skip]
 #[allow(missing_docs)]
 #[allow(clippy::default_trait_access)]
 #[allow(clippy::too_many_lines)]
 pub mod proto;
 pub mod builder;
+mod error;
 pub mod prove;
 pub mod utils;
 
 pub use crate::network::client::NetworkClient;
 pub use crate::network::proto::network::FulfillmentStrategy;
+pub use alloy_primitives::B256;
+pub use error::*;
 
-pub(crate) const DEFAULT_PROVER_NETWORK_RPC: &str = "https://rpc.production.succinct.tools/";
+pub(crate) const DEFAULT_NETWORK_RPC_URL: &str = "https://rpc.production.succinct.tools/";
 pub(crate) const DEFAULT_TIMEOUT_SECS: u64 = 14400;
 pub(crate) const DEFAULT_CYCLE_LIMIT: u64 = 100_000_000;

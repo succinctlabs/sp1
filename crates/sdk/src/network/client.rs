@@ -6,6 +6,7 @@ use std::result::Result::Ok as StdOk;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use alloy_primitives::B256;
 use alloy_signer::SignerSync;
 use alloy_signer_local::PrivateKeySigner;
 use anyhow::{Context, Ok, Result};
@@ -20,14 +21,14 @@ use tonic::{
 
 use super::utils::Signable;
 use crate::network::proto::artifact::{
-    artifact_store_client::ArtifactStoreClient, CreateArtifactRequest,
+    artifact_store_client::ArtifactStoreClient, ArtifactType, CreateArtifactRequest,
 };
 use crate::network::proto::network::{
     prover_network_client::ProverNetworkClient, CreateProgramRequest, CreateProgramRequestBody,
-    CreateProgramResponse, FulfillmentStatus, FulfillmentStrategy, GetNonceRequest,
-    GetProgramRequest, GetProgramResponse, GetProofRequestStatusRequest,
-    GetProofRequestStatusResponse, MessageFormat, ProofMode, RequestProofRequest,
-    RequestProofRequestBody, RequestProofResponse,
+    CreateProgramResponse, FulfillmentStatus, FulfillmentStrategy, GetFilteredProofRequestsRequest,
+    GetFilteredProofRequestsResponse, GetNonceRequest, GetProgramRequest, GetProgramResponse,
+    GetProofRequestStatusRequest, GetProofRequestStatusResponse, MessageFormat, ProofMode,
+    RequestProofRequest, RequestProofRequestBody, RequestProofResponse,
 };
 
 /// A client for interacting with the network.
@@ -61,24 +62,23 @@ impl NetworkClient {
     ///
     /// # Details
     /// The verifying key hash is used to identify a program.
-    pub fn get_vk_hash(vk: &SP1VerifyingKey) -> Result<Vec<u8>> {
-        let vk_hash_str = vk.bytes32();
-        let vk_hash = hex::decode(vk_hash_str.strip_prefix("0x").unwrap_or(&vk_hash_str))?;
-        Ok(vk_hash)
+    pub fn get_vk_hash(vk: &SP1VerifyingKey) -> Result<B256> {
+        let vk_hash_str = B256::from_str(&vk.bytes32())?;
+        Ok(vk_hash_str)
     }
 
     /// Registers a program with the network if it is not already registered.
-    pub async fn register_program(&self, vk: &SP1VerifyingKey, elf: &[u8]) -> Result<Vec<u8>> {
+    pub async fn register_program(&self, vk: &SP1VerifyingKey, elf: &[u8]) -> Result<B256> {
         let vk_hash = Self::get_vk_hash(vk)?;
 
         // Try to get the existing program.
-        if (self.get_program(&vk_hash).await?).is_some() {
+        if (self.get_program(vk_hash).await?).is_some() {
             // The program already exists.
             Ok(vk_hash)
         } else {
             // The program doesn't exist, create it.
-            self.create_program(&vk_hash, vk, elf).await?;
-            log::info!("Registered program 0x{}", hex::encode(vk_hash.clone()));
+            self.create_program(vk_hash, vk, elf).await?;
+            log::info!("Registered program {:?}", vk_hash);
             Ok(vk_hash)
         }
     }
@@ -87,7 +87,7 @@ impl NetworkClient {
     ///
     /// # Details
     /// Returns `None` if the program does not exist.
-    pub async fn get_program(&self, vk_hash: &[u8]) -> Result<Option<GetProgramResponse>> {
+    pub async fn get_program(&self, vk_hash: B256) -> Result<Option<GetProgramResponse>> {
         let mut rpc = self.prover_network_client().await?;
         match rpc.get_program(GetProgramRequest { vk_hash: vk_hash.to_vec() }).await {
             StdOk(response) => Ok(Some(response.into_inner())),
@@ -99,13 +99,14 @@ impl NetworkClient {
     /// Creates a new program on the network.
     pub async fn create_program(
         &self,
-        vk_hash: &[u8],
+        vk_hash: B256,
         vk: &SP1VerifyingKey,
         elf: &[u8],
     ) -> Result<CreateProgramResponse> {
         // Create the program artifact.
         let mut store = self.artifact_store_client().await?;
-        let program_uri = self.create_artifact_with_content(&mut store, &elf).await?;
+        let program_uri =
+            self.create_artifact_with_content(&mut store, ArtifactType::Program, &elf).await?;
 
         // Serialize the verifying key.
         let vk_encoded = bincode::serialize(&vk)?;
@@ -130,13 +131,51 @@ impl NetworkClient {
             .into_inner())
     }
 
+    /// Get all the proof requests that meet the filter criteria.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn get_filtered_proof_requests(
+        &self,
+        version: Option<String>,
+        fulfillment_status: Option<i32>,
+        execution_status: Option<i32>,
+        minimum_deadline: Option<u64>,
+        vk_hash: Option<Vec<u8>>,
+        requester: Option<Vec<u8>>,
+        fulfiller: Option<Vec<u8>>,
+        from: Option<u64>,
+        to: Option<u64>,
+        limit: Option<u32>,
+        page: Option<u32>,
+        mode: Option<i32>,
+    ) -> Result<GetFilteredProofRequestsResponse> {
+        let mut rpc = self.prover_network_client().await?;
+        let res = rpc
+            .get_filtered_proof_requests(GetFilteredProofRequestsRequest {
+                version,
+                fulfillment_status,
+                execution_status,
+                minimum_deadline,
+                vk_hash,
+                requester,
+                fulfiller,
+                from,
+                to,
+                limit,
+                page,
+                mode,
+            })
+            .await?
+            .into_inner();
+        Ok(res)
+    }
+
     /// Get the status of a given proof.
     ///
     /// # Details
     /// If the status is Fulfilled, the proof is also returned.
     pub async fn get_proof_request_status<P: DeserializeOwned>(
         &self,
-        request_id: &[u8],
+        request_id: B256,
     ) -> Result<(GetProofRequestStatusResponse, Option<P>)> {
         let mut rpc = self.prover_network_client().await?;
         let res = rpc
@@ -175,7 +214,7 @@ impl NetworkClient {
     #[allow(clippy::too_many_arguments)]
     pub async fn request_proof(
         &self,
-        vk_hash: &[u8],
+        vk_hash: B256,
         stdin: &SP1Stdin,
         mode: ProofMode,
         version: &str,
@@ -190,7 +229,8 @@ impl NetworkClient {
 
         // Create the stdin artifact.
         let mut store = self.artifact_store_client().await?;
-        let stdin_uri = self.create_artifact_with_content(&mut store, &stdin).await?;
+        let stdin_uri =
+            self.create_artifact_with_content(&mut store, ArtifactType::Stdin, &stdin).await?;
 
         // Send the request.
         let mut rpc = self.prover_network_client().await?;
@@ -248,10 +288,14 @@ impl NetworkClient {
     pub(crate) async fn create_artifact_with_content<T: Serialize>(
         &self,
         store: &mut ArtifactStoreClient<Channel>,
+        artifact_type: ArtifactType,
         item: &T,
     ) -> Result<String> {
         let signature = self.signer.sign_message_sync("create_artifact".as_bytes())?;
-        let request = CreateArtifactRequest { signature: signature.as_bytes().to_vec() };
+        let request = CreateArtifactRequest {
+            artifact_type: artifact_type.into(),
+            signature: signature.as_bytes().to_vec(),
+        };
         let response = store.create_artifact(request).await?.into_inner();
 
         let presigned_url = response.artifact_presigned_url;
