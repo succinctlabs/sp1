@@ -13,6 +13,46 @@ on:
         description: "list of network workloads to run"
         required: true
   merge_group:
+  pull_request:
+    branches: [ main ]
+
+env:
+  DEFAULT_CPU_WORKLOADS: >-
+    [
+      "fibonacci-17k",
+      "ssz-withdrawals",
+      "tendermint",
+      "rsp-20526624",
+      "rsa",
+      "regex",
+      "chess",
+      "json",
+      "blobstream-01j6z63fgafrc8jeh0k12gbtvw",
+      "blobstream-01j6z95bdme9svevmfyc974bja",
+      "blobstream-01j6z9ak0ke9srsppgywgke6fj",
+      "vector-01j6xsv35re96tkgyda115320t",
+      "vector-01j6xzy366ff5tbkzcrs8pma02",
+      "vector-01j6y06de0fdaafemr8b1t69z3",
+      "raiko-a7-10"
+    ]
+  DEFAULT_CUDA_WORKLOADS: >-
+    [
+      "fibonacci-17k",
+      "ssz-withdrawals",
+      "tendermint",
+      "rsp-20526624",
+      "rsa",
+      "regex",
+      "chess",
+      "json",
+      "blobstream-01j6z63fgafrc8jeh0k12gbtvw",
+      "blobstream-01j6z95bdme9svevmfyc974bja",
+      "blobstream-01j6z9ak0ke9srsppgywgke6fj",
+      "vector-01j6xsv35re96tkgyda115320t",
+      "vector-01j6xzy366ff5tbkzcrs8pma02",
+      "vector-01j6y06de0fdaafemr8b1t69z3",
+      "raiko-a7-10"
+    ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-
@@ -20,11 +60,11 @@ concurrency:
 
 jobs:
   test-cpu:
-    if: ${{ fromJSON(github.event.inputs.cpu_workloads)[0] != null }}
+    if: ${{ fromJSON(github.event.inputs.cpu_workloads || env.DEFAULT_CPU_WORKLOADS)[0] != null }}
     strategy:
       fail-fast: false
       matrix:
-        workload: ${{ fromJSON(github.event.inputs.cpu_workloads) }}
+        workload: ${{ fromJSON(github.event.inputs.cpu_workloads || env.DEFAULT_CPU_WORKLOADS) }}
     name: ${{ matrix.workload }} (cpu)
     runs-on:
       [
@@ -71,11 +111,11 @@ jobs:
           RUST_BACKTRACE: 1
 
   test-cuda:
-    if: ${{ fromJSON(github.event.inputs.cuda_workloads)[0] != null }}
+    if: ${{ fromJSON(github.event.inputs.cuda_workloads || env.DEFAULT_CUDA_WORKLOADS)[0] != null }}
     strategy:
       fail-fast: false
       matrix:
-        workload: ${{ fromJSON(github.event.inputs.cuda_workloads) }}
+        workload: ${{ fromJSON(github.event.inputs.cuda_workloads || env.DEFAULT_CUDA_WORKLOADS) }}
     name: ${{ matrix.workload }} (gpu)
     runs-on:
       [
