@@ -4,10 +4,12 @@ use core::{
 };
 use itertools::Itertools;
 use p3_air::{Air, AirBuilder, AirBuilderWithPublicValues, BaseAir, PairBuilder};
-use p3_field::{AbstractField, PrimeField};
+use p3_field::AbstractField;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 
+use p3_field::PrimeField32;
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
+use sp1_core_executor::events::GlobalInteractionEvent;
 use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
@@ -37,9 +39,9 @@ pub struct MemoryProgramPreprocessedCols<T> {
 }
 
 /// Multiplicity columns.
-#[derive(AlignedBorrow, Clone, Copy, Default)]
+#[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
-pub struct MemoryProgramMultCols<T> {
+pub struct MemoryProgramMultCols<T: Copy> {
     /// The multiplicity of the event.
     ///
     /// This column is technically redundant with `is_real`, but it's included for clarity.
@@ -61,7 +63,7 @@ impl MemoryProgramChip {
     }
 }
 
-impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
+impl<F: PrimeField32> MachineAir<F> for MemoryProgramChip {
     type Record = ExecutionRecord;
 
     type Program = Program;
@@ -107,8 +109,27 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
         Some(RowMajorMatrix::new(values, NUM_MEMORY_PROGRAM_PREPROCESSED_COLS))
     }
 
-    fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {
-        // Do nothing since this chip has no dependencies.
+    fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
+        let program_memory = &input.program.memory_image;
+
+        let mut events = Vec::new();
+        program_memory.iter().for_each(|(&addr, &word)| {
+            events.push(GlobalInteractionEvent {
+                message: [
+                    0,
+                    0,
+                    addr,
+                    word & 255,
+                    (word >> 8) & 255,
+                    (word >> 16) & 255,
+                    (word >> 24) & 255,
+                ],
+                is_receive: false,
+                kind: InteractionKind::Memory as u8,
+            });
+        });
+
+        output.global_interaction_events.extend(events);
     }
 
     fn generate_trace(
@@ -116,14 +137,15 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let program_memory_addrs = input.program.memory_image.keys().copied().sorted();
+        let program_memory = &input.program.memory_image;
 
-        let mult = if input.public_values.shard == 1 { F::one() } else { F::zero() };
+        let mult_bool = input.public_values.shard == 1;
+        let mult = F::from_bool(mult_bool);
 
         // Generate the trace rows for each event.
-        let mut rows = program_memory_addrs
-            .into_iter()
-            .map(|_| {
+        let mut rows = program_memory
+            .iter()
+            .map(|(&_, &_)| {
                 let mut row = [F::zero(); NUM_MEMORY_PROGRAM_MULT_COLS];
                 let cols: &mut MemoryProgramMultCols<F> = row.as_mut_slice().borrow_mut();
                 cols.multiplicity = mult;
@@ -140,7 +162,6 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
         );
 
         // Convert the trace to a row major matrix.
-
         RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_MEMORY_PROGRAM_MULT_COLS,
@@ -148,11 +169,11 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
     }
 
     fn included(&self, _: &Self::Record) -> bool {
-        true
+        false
     }
 
     fn commit_scope(&self) -> InteractionScope {
-        InteractionScope::Global
+        InteractionScope::Local
     }
 }
 
@@ -203,9 +224,26 @@ where
 
         let mut values = vec![AB::Expr::zero(), AB::Expr::zero(), prep_local.addr.into()];
         values.extend(prep_local.value.map(Into::into));
+
+        // Send the interaction to the global table.
         builder.send(
-            AirInteraction::new(values, mult_local.multiplicity.into(), InteractionKind::Memory),
-            InteractionScope::Global,
+            AirInteraction::new(
+                vec![
+                    AB::Expr::zero(),
+                    AB::Expr::zero(),
+                    prep_local.addr.into(),
+                    prep_local.value[0].into(),
+                    prep_local.value[1].into(),
+                    prep_local.value[2].into(),
+                    prep_local.value[3].into(),
+                    prep_local.is_real.into() * AB::Expr::zero(),
+                    prep_local.is_real.into() * AB::Expr::one(),
+                    AB::Expr::from_canonical_u8(InteractionKind::Memory as u8),
+                ],
+                prep_local.is_real.into(),
+                InteractionKind::Global,
+            ),
+            InteractionScope::Local,
         );
     }
 }

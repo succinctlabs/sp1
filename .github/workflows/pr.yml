@@ -56,7 +56,7 @@ jobs:
         with:
           command: test
           toolchain: 1.81.0
-          args: --release --features native-gnark
+          args: --release --features native-gnark --no-fail-fast # TODO remove when CI checks always pass
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
@@ -100,7 +100,7 @@ jobs:
         with:
           command: test
           toolchain: 1.81.0
-          args: --release --features native-gnark
+          args: --release --features native-gnark --no-fail-fast # TODO remove when CI checks always pass
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
@@ -108,7 +108,7 @@ jobs:
 
   lint:
     name: Formatting & Clippy
-    runs-on: [runs-on, runner=16cpu-linux-x64, "run-id=${{ github.run_id }}"]
+    runs-on: [runs-on, runner=16cpu-linux-x64, disk=large, "run-id=${{ github.run_id }}"]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -151,7 +151,7 @@ jobs:
 
   check:
     name: Cargo Check
-    runs-on: [runs-on, runner=16cpu-linux-x64, disk=medium, "run-id=${{ github.run_id }}"]
+    runs-on: [runs-on, runner=16cpu-linux-x64, disk=large, "run-id=${{ github.run_id }}"]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -248,7 +248,7 @@ jobs:
 
       - name: Run cargo prove new
         run: |
-          cargo prove new fibonacci --version dev --evm
+          cargo prove new fibonacci --evm
 
       - name: Build program and run script
         run: |
@@ -263,7 +263,7 @@ jobs:
 
   performance:
     name: Performance
-    runs-on: [runs-on, family=c7a.48xlarge, "run-id=${{ github.run_id }}"]
+    runs-on: [runs-on, family=c7a.48xlarge, disk=large, "run-id=${{ github.run_id }}"]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -296,121 +296,6 @@ jobs:
             --branch-name "${{ github.head_ref || github.ref_name }}" \
             --commit-hash "${{ github.sha }}" \
             --author "${{ github.event.pull_request.user.login || github.actor }}"
-
-  low-memory:
-    name: Low Memory
-    strategy:
-      matrix:
-        mem_limit: [16, 32, 64]
-    runs-on:
-      [
-        runs-on,
-        "ram=${{ matrix.mem_limit}}",
-        disk=large,
-        family=c7a,
-        image=ubuntu22-full-x64,
-        "run-id=${{ github.run_id }}",
-      ]
-    env:
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
-
-      - name: Setup CI
-        uses: ./.github/actions/setup
-
-      - name: Install SP1 toolchain from repo
-        run: |
-          cargo run -p sp1-cli -- prove install-toolchain
-          cd crates/cli
-          cargo install --force --locked --path .
-          cargo clean
-
-      - name: Run tendermint script
-        run: |
-          cd examples/tendermint/program
-          cargo add sp1-zkvm --path $GITHUB_WORKSPACE/crates/zkvm/entrypoint
-          cargo prove build
-          cd ../script
-          cargo remove sp1-sdk
-          cargo add sp1-sdk --path $GITHUB_WORKSPACE/crates/sdk
-          SP1_DEV=1 RUST_LOG=info cargo run --release
-
-      - name: Run cycle tracking script
-        run: |
-          cd examples/cycle-tracking/script
-          cargo add sp1-sdk --path $GITHUB_WORKSPACE/crates/sdk
-          SP1_DEV=1 RUST_LOG=info cargo run --release
-
-  # toolchain-test:
-  #   name: "Test toolchain installation (${{ matrix.name }})"
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       include:
-  #         - name: "Ubuntu 24.04 (x86_64)"
-  #           runner: "ubuntu-24.04"
-  #         - name: "Ubuntu 22.04 (x86_64)"
-  #           runner: "ubuntu-22.04"
-  #         - name: "Ubuntu 20.04 (x86_64)"
-  #           runner: "ubuntu-20.04"
-  #         - name: "macOS Monterey (x86_64)"
-  #           runner: "macos-12"
-  #         - name: "macOS Ventura (x86_64)"
-  #           runner: "macos-13"
-  #         - name: "macOS Sonoma (ARM64)"
-  #           runner: "macos-14"
-
-  #   runs-on: "${{ matrix.runner }}"
-  #   steps:
-  #     - name: "Checkout source code"
-  #       uses: "actions/checkout@v4"
-
-  #     - name: "Install cargo-prove"
-  #       run: |
-  #         cargo install --force --locked --path ./crates/cli
-
-  #     - name: "Install SP1 toolchain"
-  #       run: |
-  #         cargo prove install-toolchain --token ${{ secrets.GITHUB_TOKEN }}
-
-  #     - name: "Create SP1 project from template"
-  #       run: |
-  #         cargo prove new hello
-
-  #     - name: "Build SP1 project"
-  #       run: |
-  #         cd ./hello/program
-  #         cargo prove build
-
-  # toolchain-test-ec2:
-  #   name: "Test toolchain installation (${{ matrix.name }})"
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       include:
-  #         # AMI from `us-east-1`
-  #         - name: "Debian 12 (x86_64)"
-  #           ec2-instance: "c5.2xlarge"
-  #           ami: "ami-064519b8c76274859"
-  #           volume: "/dev/xvda"
-  #         - name: "Debian 12 (ARM64)"
-  #           ec2-instance: "c6g.2xlarge"
-  #           ami: "ami-0789039e34e739d67"
-  #           volume: "/dev/xvda"
-  #   uses: "./.github/workflows/toolchain-ec2.yml"
-  #   with:
-  #     image-id: "${{ matrix.ami }}"
-  #     instance-type: "${{ matrix.ec2-instance }}"
-  #     root-volume: "${{ matrix.volume }}"
-  #   secrets:
-  #     AWS_REGION: "${{ secrets.AWS_REGION }}"
-  #     AWS_ACCESS_KEY_ID: "${{ secrets.AWS_ACCESS_KEY_ID }}"
-  #     AWS_SECRET_ACCESS_KEY: "${{ secrets.AWS_SECRET_ACCESS_KEY }}"
-  #     AWS_SUBNET_ID: "${{ secrets.AWS_SUBNET_ID }}"
-  #     AWS_SG_ID: "${{ secrets.AWS_SG_ID }}"
-  #     GH_PAT: "${{ secrets.GH_PAT }}"
 
   typos:
     name: Spell Check

@@ -9,7 +9,7 @@ use itertools::Itertools;
 use num::{BigUint, Zero};
 
 use crate::air::MemoryAirBuilder;
-use p3_air::{Air, AirBuilder, BaseAir};
+use p3_air::{Air, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{IntoParallelRefIterator, ParallelIterator, ParallelSlice};
@@ -45,7 +45,6 @@ pub struct EdAddAssignCols<T> {
     pub is_real: T,
     pub shard: T,
     pub clk: T,
-    pub nonce: T,
     pub p_ptr: T,
     pub q_ptr: T,
     pub p_access: [MemoryWriteCols<T>; WORDS_CURVE_POINT],
@@ -73,7 +72,6 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
     #[allow(clippy::too_many_arguments)]
     fn populate_field_ops<F: PrimeField32>(
         record: &mut impl ByteRecord,
-        shard: u32,
         cols: &mut EdAddAssignCols<F>,
         p_x: BigUint,
         p_y: BigUint,
@@ -82,25 +80,23 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
     ) {
         let x3_numerator = cols.x3_numerator.populate(
             record,
-            shard,
             &[p_x.clone(), q_x.clone()],
             &[q_y.clone(), p_y.clone()],
         );
         let y3_numerator = cols.y3_numerator.populate(
             record,
-            shard,
             &[p_y.clone(), p_x.clone()],
             &[q_y.clone(), q_x.clone()],
         );
-        let x1_mul_y1 = cols.x1_mul_y1.populate(record, shard, &p_x, &p_y, FieldOperation::Mul);
-        let x2_mul_y2 = cols.x2_mul_y2.populate(record, shard, &q_x, &q_y, FieldOperation::Mul);
-        let f = cols.f.populate(record, shard, &x1_mul_y1, &x2_mul_y2, FieldOperation::Mul);
+        let x1_mul_y1 = cols.x1_mul_y1.populate(record, &p_x, &p_y, FieldOperation::Mul);
+        let x2_mul_y2 = cols.x2_mul_y2.populate(record, &q_x, &q_y, FieldOperation::Mul);
+        let f = cols.f.populate(record, &x1_mul_y1, &x2_mul_y2, FieldOperation::Mul);
 
         let d = E::d_biguint();
-        let d_mul_f = cols.d_mul_f.populate(record, shard, &f, &d, FieldOperation::Mul);
+        let d_mul_f = cols.d_mul_f.populate(record, &f, &d, FieldOperation::Mul);
 
-        cols.x3_ins.populate(record, shard, &x3_numerator, &d_mul_f, true);
-        cols.y3_ins.populate(record, shard, &y3_numerator, &d_mul_f, false);
+        cols.x3_ins.populate(record, &x3_numerator, &d_mul_f, true);
+        cols.y3_ins.populate(record, &y3_numerator, &d_mul_f, false);
     }
 }
 
@@ -145,7 +141,6 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
                 let zero = BigUint::zero();
                 Self::populate_field_ops(
                     &mut vec![],
-                    0,
                     cols,
                     zero.clone(),
                     zero.clone(),
@@ -158,17 +153,7 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
         );
 
         // Convert the trace to a row major matrix.
-        let mut trace =
-            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_ED_ADD_COLS);
-
-        // Write the nonces to the trace.
-        for i in 0..trace.height() {
-            let cols: &mut EdAddAssignCols<F> =
-                trace.values[i * NUM_ED_ADD_COLS..(i + 1) * NUM_ED_ADD_COLS].borrow_mut();
-            cols.nonce = F::from_canonical_usize(i);
-        }
-
-        trace
+        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_ED_ADD_COLS)
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
@@ -178,7 +163,7 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
         let blu_batches = events
             .par_chunks(chunk_size)
             .map(|events| {
-                let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
+                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
                 events.iter().for_each(|(_, event)| {
                     let event = if let PrecompileEvent::EdAdd(event) = event {
                         event
@@ -194,7 +179,7 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
             })
             .collect::<Vec<_>>();
 
-        output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
+        output.add_byte_lookup_events_from_maps(blu_batches.iter().collect_vec());
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -203,6 +188,10 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
         } else {
             !shard.get_precompile_events(SyscallCode::ED_ADD).is_empty()
         }
+    }
+
+    fn local_only(&self) -> bool {
+        true
     }
 }
 
@@ -229,7 +218,7 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
         cols.p_ptr = F::from_canonical_u32(event.p_ptr);
         cols.q_ptr = F::from_canonical_u32(event.q_ptr);
 
-        Self::populate_field_ops(blu, event.shard, cols, p_x, p_y, q_x, q_y);
+        Self::populate_field_ops(blu, cols, p_x, p_y, q_x, q_y);
 
         // Populate the memory access columns.
         for i in 0..WORDS_CURVE_POINT {
@@ -255,12 +244,6 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &EdAddAssignCols<AB::Var> = (*local).borrow();
-        let next = main.row_slice(1);
-        let next: &EdAddAssignCols<AB::Var> = (*next).borrow();
-
-        // Constrain the incrementing nonce.
-        builder.when_first_row().assert_zero(local.nonce);
-        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         let x1: Limbs<AB::Var, <Ed25519BaseField as NumLimbs>::Limbs> =
             limbs_from_prev_access(&local.p_access[0..8]);
@@ -328,7 +311,6 @@ where
         builder.receive_syscall(
             local.shard,
             local.clk,
-            local.nonce,
             AB::F::from_canonical_u32(SyscallCode::ED_ADD.syscall_id()),
             local.p_ptr,
             local.q_ptr,
@@ -344,19 +326,21 @@ mod tests {
     use sp1_stark::CpuProver;
     use test_artifacts::{ED25519_ELF, ED_ADD_ELF};
 
-    use crate::utils;
+    use crate::{io::SP1Stdin, utils};
 
     #[test]
     fn test_ed_add_simple() {
         utils::setup_logger();
         let program = Program::from(ED_ADD_ELF).unwrap();
-        utils::run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        utils::run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
     fn test_ed25519_program() {
         utils::setup_logger();
         let program = Program::from(ED25519_ELF).unwrap();
-        utils::run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        utils::run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 }

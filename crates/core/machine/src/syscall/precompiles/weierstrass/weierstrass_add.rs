@@ -47,7 +47,6 @@ pub const fn num_weierstrass_add_cols<P: FieldParameters + NumWords>() -> usize 
 pub struct WeierstrassAddAssignCols<T, P: FieldParameters + NumWords> {
     pub is_real: T,
     pub shard: T,
-    pub nonce: T,
     pub clk: T,
     pub p_ptr: T,
     pub q_ptr: T,
@@ -77,7 +76,6 @@ impl<E: EllipticCurve> WeierstrassAddAssignChip<E> {
     #[allow(clippy::too_many_arguments)]
     fn populate_field_ops<F: PrimeField32>(
         blu_events: &mut Vec<ByteLookupEvent>,
-        shard: u32,
         cols: &mut WeierstrassAddAssignCols<F, E::BaseField>,
         p_x: BigUint,
         p_y: BigUint,
@@ -90,14 +88,13 @@ impl<E: EllipticCurve> WeierstrassAddAssignChip<E> {
         // slope = (q.y - p.y) / (q.x - p.x).
         let slope = {
             let slope_numerator =
-                cols.slope_numerator.populate(blu_events, shard, &q_y, &p_y, FieldOperation::Sub);
+                cols.slope_numerator.populate(blu_events, &q_y, &p_y, FieldOperation::Sub);
 
             let slope_denominator =
-                cols.slope_denominator.populate(blu_events, shard, &q_x, &p_x, FieldOperation::Sub);
+                cols.slope_denominator.populate(blu_events, &q_x, &p_x, FieldOperation::Sub);
 
             cols.slope.populate(
                 blu_events,
-                shard,
                 &slope_numerator,
                 &slope_denominator,
                 FieldOperation::Div,
@@ -107,36 +104,22 @@ impl<E: EllipticCurve> WeierstrassAddAssignChip<E> {
         // x = slope * slope - (p.x + q.x).
         let x = {
             let slope_squared =
-                cols.slope_squared.populate(blu_events, shard, &slope, &slope, FieldOperation::Mul);
+                cols.slope_squared.populate(blu_events, &slope, &slope, FieldOperation::Mul);
             let p_x_plus_q_x =
-                cols.p_x_plus_q_x.populate(blu_events, shard, &p_x, &q_x, FieldOperation::Add);
-            cols.x3_ins.populate(
-                blu_events,
-                shard,
-                &slope_squared,
-                &p_x_plus_q_x,
-                FieldOperation::Sub,
-            )
+                cols.p_x_plus_q_x.populate(blu_events, &p_x, &q_x, FieldOperation::Add);
+            cols.x3_ins.populate(blu_events, &slope_squared, &p_x_plus_q_x, FieldOperation::Sub)
         };
 
         // y = slope * (p.x - x_3n) - p.y.
         {
-            let p_x_minus_x =
-                cols.p_x_minus_x.populate(blu_events, shard, &p_x, &x, FieldOperation::Sub);
+            let p_x_minus_x = cols.p_x_minus_x.populate(blu_events, &p_x, &x, FieldOperation::Sub);
             let slope_times_p_x_minus_x = cols.slope_times_p_x_minus_x.populate(
                 blu_events,
-                shard,
                 &slope,
                 &p_x_minus_x,
                 FieldOperation::Mul,
             );
-            cols.y3_ins.populate(
-                blu_events,
-                shard,
-                &slope_times_p_x_minus_x,
-                &p_y,
-                FieldOperation::Sub,
-            );
+            cols.y3_ins.populate(blu_events, &slope_times_p_x_minus_x, &p_y, FieldOperation::Sub);
         }
     }
 }
@@ -220,15 +203,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         let cols: &mut WeierstrassAddAssignCols<F, E::BaseField> =
             dummy_row.as_mut_slice().borrow_mut();
         let zero = BigUint::zero();
-        Self::populate_field_ops(
-            &mut vec![],
-            0,
-            cols,
-            zero.clone(),
-            zero.clone(),
-            zero.clone(),
-            zero,
-        );
+        Self::populate_field_ops(&mut vec![], cols, zero.clone(), zero.clone(), zero.clone(), zero);
 
         values.chunks_mut(chunk_size * num_cols).enumerate().par_bridge().for_each(|(i, rows)| {
             rows.chunks_mut(num_cols).enumerate().for_each(|(j, row)| {
@@ -252,18 +227,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         });
 
         // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(values, num_weierstrass_add_cols::<E::BaseField>());
-
-        // Write the nonces to the trace.
-        for i in 0..trace.height() {
-            let cols: &mut WeierstrassAddAssignCols<F, E::BaseField> = trace.values[i
-                * num_weierstrass_add_cols::<E::BaseField>()
-                ..(i + 1) * num_weierstrass_add_cols::<E::BaseField>()]
-                .borrow_mut();
-            cols.nonce = F::from_canonical_usize(i);
-        }
-
-        trace
+        RowMajorMatrix::new(values, num_weierstrass_add_cols::<E::BaseField>())
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -285,6 +249,10 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             }
         }
     }
+
+    fn local_only(&self) -> bool {
+        true
+    }
 }
 
 impl<F, E: EllipticCurve> BaseAir<F> for WeierstrassAddAssignChip<E> {
@@ -302,12 +270,6 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &WeierstrassAddAssignCols<AB::Var, E::BaseField> = (*local).borrow();
-        let next = main.row_slice(1);
-        let next: &WeierstrassAddAssignCols<AB::Var, E::BaseField> = (*next).borrow();
-
-        // Constrain the incrementing nonce.
-        builder.when_first_row().assert_zero(local.nonce);
-        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         let num_words_field_element = <E::BaseField as NumLimbs>::Limbs::USIZE / 4;
 
@@ -418,7 +380,6 @@ where
         builder.receive_syscall(
             local.shard,
             local.clk,
-            local.nonce,
             syscall_id_felt,
             local.p_ptr,
             local.q_ptr,
@@ -449,7 +410,7 @@ impl<E: EllipticCurve> WeierstrassAddAssignChip<E> {
         cols.p_ptr = F::from_canonical_u32(event.p_ptr);
         cols.q_ptr = F::from_canonical_u32(event.q_ptr);
 
-        Self::populate_field_ops(new_byte_lookup_events, event.shard, cols, p_x, p_y, q_x, q_y);
+        Self::populate_field_ops(new_byte_lookup_events, cols, p_x, p_y, q_x, q_y);
 
         // Populate the memory access columns.
         for i in 0..cols.q_access.len() {
@@ -471,61 +432,72 @@ mod tests {
         SECP256K1_ADD_ELF, SECP256K1_MUL_ELF, SECP256R1_ADD_ELF,
     };
 
-    use crate::utils::{run_test, setup_logger};
+    use crate::{
+        io::SP1Stdin,
+        utils::{run_test, setup_logger},
+    };
 
     #[test]
     fn test_secp256k1_add_simple() {
         setup_logger();
         let program = Program::from(SECP256K1_ADD_ELF).unwrap();
-        run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
     fn test_secp256r1_add_simple() {
         setup_logger();
         let program = Program::from(SECP256R1_ADD_ELF).unwrap();
-        run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
     fn test_bn254_add_simple() {
         setup_logger();
         let program = Program::from(BN254_ADD_ELF).unwrap();
-        run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
     fn test_bn254_mul_simple() {
         setup_logger();
         let program = Program::from(BN254_MUL_ELF).unwrap();
-        run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
     fn test_secp256k1_mul_simple() {
         setup_logger();
         let program = Program::from(SECP256K1_MUL_ELF).unwrap();
-        run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
     fn test_bls12381_add_simple() {
         setup_logger();
         let program = Program::from(BLS12381_ADD_ELF).unwrap();
-        run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
     fn test_bls12381_double_simple() {
         setup_logger();
         let program = Program::from(BLS12381_DOUBLE_ELF).unwrap();
-        run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 
     #[test]
     fn test_bls12381_mul_simple() {
         setup_logger();
         let program = Program::from(BLS12381_MUL_ELF).unwrap();
-        run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 }

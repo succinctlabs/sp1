@@ -23,13 +23,17 @@ sp1-stark = { workspace = true }
 
 itertools = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
-backtrace = "0.3.71"
+backtrace = { version = "0.3.71", optional = true }
 tracing = { workspace = true }
 vec_map = "0.8.2"
 
 [dev-dependencies]
+sp1-recursion-core = { workspace = true, features = ["program_validation"] }
 p3-challenger = { workspace = true }
 p3-dft = { workspace = true }
 p3-merkle-tree = { workspace = true }
 rand = "0.8.5"
 criterion = { version = "0.5.1", features = ["html_reports"] }
+
+[features]
+debug = ["sp1-recursion-core/debug", "dep:backtrace"]

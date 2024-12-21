@@ -75,7 +75,7 @@ pub(crate) mod tests {
     use std::{iter::once, sync::Arc};
 
     use crate::{
-        machine::RecursionAir, runtime::instruction as instr, MemAccessKind, RecursionProgram,
+        linear_program, machine::RecursionAir, runtime::instruction as instr, MemAccessKind,
         Runtime,
     };
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
@@ -132,7 +132,7 @@ pub(crate) mod tests {
                 }))
                 .collect::<Vec<_>>();
 
-        let program = Arc::new(RecursionProgram { instructions, ..Default::default() });
+        let program = Arc::new(linear_program(instructions).unwrap());
         let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
             program.clone(),
             BabyBearPoseidon2::new().perm,

@@ -14,12 +14,12 @@ fn main() {
     stdin.write(&n);
 
     // Set up the pk and vk.
-    let client = ProverClient::new();
+    let client = ProverClient::from_env();
     let (pk, vk) = client.setup(ELF);
     println!("vk: {:?}", vk.bytes32());
 
     // Generate the Groth16 proof.
-    let proof = client.prove(&pk, stdin).groth16().run().unwrap();
+    let proof = client.prove(&pk, &stdin).groth16().run().unwrap();
     println!("generated proof");
 
     // Get the public values as bytes.

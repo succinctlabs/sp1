@@ -6,12 +6,12 @@ use core::{
 use hashbrown::HashMap;
 use itertools::Itertools;
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::{AbstractField, PrimeField};
+use p3_field::{AbstractField, PrimeField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
 use sp1_core_executor::{
     events::{AluEvent, ByteLookupEvent, ByteRecord},
-    ExecutionRecord, Opcode, Program,
+    ExecutionRecord, Opcode, Program, DEFAULT_PC_INC,
 };
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
@@ -40,11 +40,8 @@ pub struct AddSubChip;
 #[derive(AlignedBorrow, Default, Clone, Copy)]
 #[repr(C)]
 pub struct AddSubCols<T> {
-    /// The shard number, used for byte lookup table.
-    pub shard: T,
-
-    /// The nonce of the operation.
-    pub nonce: T,
+    /// The program counter.
+    pub pc: T,
 
     /// Instance of `AddOperation` to handle addition logic in `AddSubChip`'s ALU operations.
     /// It's result will be `a` for the add operation and `b` for the sub operation.
@@ -56,6 +53,9 @@ pub struct AddSubCols<T> {
     /// The second input operand.  This will be `c` for both operations.
     pub operand_2: Word<T>,
 
+    /// Whether the first operand is not register 0.
+    pub op_a_not_0: T,
+
     /// Boolean to indicate whether the row is for an add operation.
     pub is_add: T,
 
@@ -63,13 +63,21 @@ pub struct AddSubCols<T> {
     pub is_sub: T,
 }
 
-impl<F: PrimeField> MachineAir<F> for AddSubChip {
+impl<F: PrimeField32> MachineAir<F> for AddSubChip {
     type Record = ExecutionRecord;
 
     type Program = Program;
 
     fn name(&self) -> String {
         "AddSub".to_string()
+    }
+
+    fn num_rows(&self, input: &Self::Record) -> Option<usize> {
+        let nb_rows = next_power_of_two(
+            input.add_events.len() + input.sub_events.len(),
+            input.fixed_log2_rows::<F, _>(self),
+        );
+        Some(nb_rows)
     }
 
     fn generate_trace(
@@ -82,9 +90,7 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
             std::cmp::max((input.add_events.len() + input.sub_events.len()) / num_cpus::get(), 1);
         let merged_events =
             input.add_events.iter().chain(input.sub_events.iter()).collect::<Vec<_>>();
-        let nb_rows = merged_events.len();
-        let size_log2 = input.fixed_log2_rows::<F, _>(self);
-        let padded_nb_rows = next_power_of_two(nb_rows, size_log2);
+        let padded_nb_rows = <AddSubChip as MachineAir<F>>::num_rows(self, input).unwrap();
         let mut values = zeroed_f_vec(padded_nb_rows * NUM_ADD_SUB_COLS);
 
         values.chunks_mut(chunk_size * NUM_ADD_SUB_COLS).enumerate().par_bridge().for_each(
@@ -98,7 +104,6 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
                         let event = &merged_events[idx];
                         self.event_to_row(event, cols, &mut byte_lookup_events);
                     }
-                    cols.nonce = F::from_canonical_usize(idx);
                 });
             },
         );
@@ -117,7 +122,7 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
         let blu_batches = event_iter
             .par_bridge()
             .map(|events| {
-                let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
+                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
                 events.iter().for_each(|event| {
                     let mut row = [F::zero(); NUM_ADD_SUB_COLS];
                     let cols: &mut AddSubCols<F> = row.as_mut_slice().borrow_mut();
@@ -127,7 +132,7 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
             })
             .collect::<Vec<_>>();
 
-        output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
+        output.add_byte_lookup_events_from_maps(blu_batches.iter().collect_vec());
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -136,6 +141,10 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
         } else {
             !shard.add_events.is_empty()
         }
+    }
+
+    fn local_only(&self) -> bool {
+        true
     }
 }
 
@@ -147,17 +156,19 @@ impl AddSubChip {
         cols: &mut AddSubCols<F>,
         blu: &mut impl ByteRecord,
     ) {
+        cols.pc = F::from_canonical_u32(event.pc);
+
         let is_add = event.opcode == Opcode::ADD;
-        cols.shard = F::from_canonical_u32(event.shard);
         cols.is_add = F::from_bool(is_add);
         cols.is_sub = F::from_bool(!is_add);
 
         let operand_1 = if is_add { event.b } else { event.a };
         let operand_2 = event.c;
 
-        cols.add_operation.populate(blu, event.shard, operand_1, operand_2);
+        cols.add_operation.populate(blu, operand_1, operand_2);
         cols.operand_1 = Word::from(operand_1);
         cols.operand_2 = Word::from(operand_2);
+        cols.op_a_not_0 = F::from_bool(!event.op_a_0);
     }
 }
 
@@ -175,49 +186,88 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &AddSubCols<AB::Var> = (*local).borrow();
-        let next = main.row_slice(1);
-        let next: &AddSubCols<AB::Var> = (*next).borrow();
 
-        // Constrain the incrementing nonce.
-        builder.when_first_row().assert_zero(local.nonce);
-        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
+        // SAFETY: All selectors `is_add` and `is_sub` are checked to be boolean.
+        // Each "real" row has exactly one selector turned on, as `is_real = is_add + is_sub` is boolean.
+        // Therefore, the `opcode` matches the corresponding opcode of the instruction.
+        let is_real = local.is_add + local.is_sub;
+        builder.assert_bool(local.is_add);
+        builder.assert_bool(local.is_sub);
+        builder.assert_bool(is_real.clone());
+
+        let opcode = AB::Expr::from_f(Opcode::ADD.as_field()) * local.is_add
+            + AB::Expr::from_f(Opcode::SUB.as_field()) * local.is_sub;
 
         // Evaluate the addition operation.
+        // This is enforced only when `op_a_not_0 == 1`.
+        // `op_a_val` doesn't need to be constrained when `op_a_not_0 == 0`.
         AddOperation::<AB::F>::eval(
             builder,
             local.operand_1,
             local.operand_2,
             local.add_operation,
-            local.is_add + local.is_sub,
+            local.op_a_not_0.into(),
         );
+
+        // SAFETY: We check that a padding row has `op_a_not_0 == 0`, to prevent a padding row sending byte lookups.
+        builder.when(local.op_a_not_0).assert_one(is_real.clone());
 
         // Receive the arguments.  There are separate receives for ADD and SUB.
         // For add, `add_operation.value` is `a`, `operand_1` is `b`, and `operand_2` is `c`.
-        builder.receive_alu(
-            Opcode::ADD.as_field::<AB::F>(),
+        // SAFETY: This checks the following. Note that in this case `opcode = Opcode::ADD`
+        // - `next_pc = pc + 4`
+        // - `num_extra_cycles = 0`
+        // - `op_a_val` is constrained by the `AddOperation` when `op_a_not_0 == 1`
+        // - `op_a_not_0` is correct, due to the sent `op_a_0` being equal to `1 - op_a_not_0`
+        // - `op_a_immutable = 0`
+        // - `is_memory = 0`
+        // - `is_syscall = 0`
+        // - `is_halt = 0`
+        builder.receive_instruction(
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            local.pc,
+            local.pc + AB::Expr::from_canonical_u32(DEFAULT_PC_INC),
+            AB::Expr::zero(),
+            opcode.clone(),
             local.add_operation.value,
             local.operand_1,
             local.operand_2,
-            local.shard,
-            local.nonce,
+            AB::Expr::one() - local.op_a_not_0,
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            AB::Expr::zero(),
             local.is_add,
         );
 
         // For sub, `operand_1` is `a`, `add_operation.value` is `b`, and `operand_2` is `c`.
-        builder.receive_alu(
-            Opcode::SUB.as_field::<AB::F>(),
+        // SAFETY: This checks the following. Note that in this case `opcode = Opcode::SUB`
+        // - `next_pc = pc + 4`
+        // - `num_extra_cycles = 0`
+        // - `op_a_val` is constrained by the `AddOperation` when `op_a_not_0 == 1`
+        // - `op_a_not_0` is correct, due to the sent `op_a_0` being equal to `1 - op_a_not_0`
+        // - `op_a_immutable = 0`
+        // - `is_memory = 0`
+        // - `is_syscall = 0`
+        // - `is_halt = 0`
+        builder.receive_instruction(
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            local.pc,
+            local.pc + AB::Expr::from_canonical_u32(DEFAULT_PC_INC),
+            AB::Expr::zero(),
+            opcode,
             local.operand_1,
             local.add_operation.value,
             local.operand_2,
-            local.shard,
-            local.nonce,
+            AB::Expr::one() - local.op_a_not_0,
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            AB::Expr::zero(),
             local.is_sub,
         );
-
-        let is_real = local.is_add + local.is_sub;
-        builder.assert_bool(local.is_add);
-        builder.assert_bool(local.is_sub);
-        builder.assert_bool(is_real);
     }
 }
 
@@ -226,16 +276,43 @@ mod tests {
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
     use rand::{thread_rng, Rng};
-    use sp1_core_executor::{events::AluEvent, ExecutionRecord, Opcode};
+    use sp1_core_executor::{events::AluEvent, ExecutionRecord, Opcode, DEFAULT_PC_INC};
     use sp1_stark::{air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
+    use std::sync::LazyLock;
 
-    use super::AddSubChip;
+    use super::*;
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
+
+    /// Lazily initialized record for use across multiple tests.
+    /// Consists of random `ADD` and `SUB` instructions.
+    static SHARD: LazyLock<ExecutionRecord> = LazyLock::new(|| {
+        let add_events = (0..1)
+            .flat_map(|i| {
+                [{
+                    let operand_1 = 1u32;
+                    let operand_2 = 2u32;
+                    let result = operand_1.wrapping_add(operand_2);
+                    AluEvent::new(i % 2, Opcode::ADD, result, operand_1, operand_2, false)
+                }]
+            })
+            .collect::<Vec<_>>();
+        let _sub_events = (0..255)
+            .flat_map(|i| {
+                [{
+                    let operand_1 = thread_rng().gen_range(0..u32::MAX);
+                    let operand_2 = thread_rng().gen_range(0..u32::MAX);
+                    let result = operand_1.wrapping_add(operand_2);
+                    AluEvent::new(i % 2, Opcode::SUB, result, operand_1, operand_2, false)
+                }]
+            })
+            .collect::<Vec<_>>();
+        ExecutionRecord { add_events, ..Default::default() }
+    });
 
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.add_events = vec![AluEvent::new(0, 0, Opcode::ADD, 14, 8, 6)];
+        shard.add_events = vec![AluEvent::new(0, Opcode::ADD, 14, 8, 6, false)];
         let chip = AddSubChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -248,17 +325,17 @@ mod tests {
         let mut challenger = config.challenger();
 
         let mut shard = ExecutionRecord::default();
-        for i in 0..255 {
+        for i in 0..1 {
             let operand_1 = thread_rng().gen_range(0..u32::MAX);
             let operand_2 = thread_rng().gen_range(0..u32::MAX);
             let result = operand_1.wrapping_add(operand_2);
             shard.add_events.push(AluEvent::new(
-                i % 2,
-                0,
+                i * DEFAULT_PC_INC,
                 Opcode::ADD,
                 result,
                 operand_1,
                 operand_2,
+                false,
             ));
         }
         for i in 0..255 {
@@ -266,12 +343,12 @@ mod tests {
             let operand_2 = thread_rng().gen_range(0..u32::MAX);
             let result = operand_1.wrapping_sub(operand_2);
             shard.add_events.push(AluEvent::new(
-                i % 2,
-                0,
+                i * DEFAULT_PC_INC,
                 Opcode::SUB,
                 result,
                 operand_1,
                 operand_2,
+                false,
             ));
         }
 
@@ -282,5 +359,59 @@ mod tests {
 
         let mut challenger = config.challenger();
         verify(&config, &chip, &mut challenger, &proof).unwrap();
+    }
+
+    #[cfg(feature = "sys")]
+    #[test]
+    fn test_generate_trace_ffi_eq_rust() {
+        let shard = LazyLock::force(&SHARD);
+
+        let chip = AddSubChip::default();
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(shard, &mut ExecutionRecord::default());
+        let trace_ffi = generate_trace_ffi(shard);
+
+        assert_eq!(trace_ffi, trace);
+    }
+
+    #[cfg(feature = "sys")]
+    fn generate_trace_ffi(input: &ExecutionRecord) -> RowMajorMatrix<BabyBear> {
+        use rayon::slice::ParallelSlice;
+
+        use crate::utils::pad_rows_fixed;
+
+        type F = BabyBear;
+
+        let chunk_size =
+            std::cmp::max((input.add_events.len() + input.sub_events.len()) / num_cpus::get(), 1);
+
+        let events = input.add_events.iter().chain(input.sub_events.iter()).collect::<Vec<_>>();
+        let row_batches = events
+            .par_chunks(chunk_size)
+            .map(|events| {
+                let rows = events
+                    .iter()
+                    .map(|event| {
+                        let mut row = [F::zero(); NUM_ADD_SUB_COLS];
+                        let cols: &mut AddSubCols<F> = row.as_mut_slice().borrow_mut();
+                        unsafe {
+                            crate::sys::add_sub_event_to_row_babybear(event, cols);
+                        }
+                        row
+                    })
+                    .collect::<Vec<_>>();
+                rows
+            })
+            .collect::<Vec<_>>();
+
+        let mut rows: Vec<[F; NUM_ADD_SUB_COLS]> = vec![];
+        for row_batch in row_batches {
+            rows.extend(row_batch);
+        }
+
+        pad_rows_fixed(&mut rows, || [F::zero(); NUM_ADD_SUB_COLS], None);
+
+        // Convert the trace to a row major matrix.
+        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_ADD_SUB_COLS)
     }
 }

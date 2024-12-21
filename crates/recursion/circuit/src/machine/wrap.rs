@@ -5,7 +5,7 @@ use p3_baby_bear::BabyBear;
 use p3_commit::Mmcs;
 use p3_field::AbstractField;
 use p3_matrix::dense::RowMajorMatrix;
-use sp1_recursion_compiler::ir::{Builder, Ext, Felt};
+use sp1_recursion_compiler::ir::{Builder, Felt};
 use sp1_stark::{air::MachineAir, StarkMachine};
 
 use crate::{
@@ -16,7 +16,7 @@ use crate::{
     BabyBearFriConfigVariable, CircuitConfig,
 };
 
-use super::SP1CompressWitnessVariable;
+use super::{assert_complete, SP1CompressWitnessVariable};
 
 /// A program that recursively verifies a proof made by [super::SP1RootVerifier].
 #[derive(Debug, Clone, Copy)]
@@ -49,7 +49,7 @@ where
         input: SP1CompressWitnessVariable<C, SC>,
     ) {
         // Read input.
-        let SP1CompressWitnessVariable { vks_and_proofs, .. } = input;
+        let SP1CompressWitnessVariable { vks_and_proofs, is_complete } = input;
 
         // Assert that there is only one proof, and get the verification key and proof.
         let [(vk, proof)] = vks_and_proofs.try_into().ok().unwrap();
@@ -62,28 +62,25 @@ where
         // Observe the vk and start pc.
         challenger.observe(builder, vk.commitment);
         challenger.observe(builder, vk.pc_start);
+        challenger.observe_slice(builder, vk.initial_global_cumulative_sum.0.x.0);
+        challenger.observe_slice(builder, vk.initial_global_cumulative_sum.0.y.0);
+        // Observe the padding.
         let zero: Felt<_> = builder.eval(C::F::zero());
-        for _ in 0..7 {
-            challenger.observe(builder, zero);
-        }
+        challenger.observe(builder, zero);
 
-        // Observe the main commitment and public values.
+        // Observe the public values.
         challenger
             .observe_slice(builder, proof.public_values[0..machine.num_pv_elts()].iter().copied());
 
-        let zero_ext: Ext<C::F, C::EF> = builder.eval(C::F::zero());
-        StarkVerifier::verify_shard(
-            builder,
-            &vk,
-            machine,
-            &mut challenger,
-            &proof,
-            &[zero_ext, zero_ext],
-        );
+        StarkVerifier::verify_shard(builder, &vk, machine, &mut challenger, &proof);
 
         // Get the public values, and assert that they are valid.
         let public_values: &RootPublicValues<Felt<C::F>> = proof.public_values.as_slice().borrow();
         assert_root_public_values_valid::<C, SC>(builder, public_values);
+
+        // Assert the public values are of a complete proof.
+        assert_complete(builder, &public_values.inner, is_complete);
+        builder.assert_felt_eq(is_complete, C::F::one());
 
         // Reflect the public values to the next level.
         SC::commit_recursion_public_values(builder, public_values.inner);

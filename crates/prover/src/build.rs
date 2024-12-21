@@ -12,14 +12,12 @@ use sp1_recursion_compiler::{
     constraints::{Constraint, ConstraintCompiler},
     ir::Builder,
 };
-
 use sp1_recursion_core::air::RecursionPublicValues;
-pub use sp1_recursion_core::stark::sp1_dev_mode;
-
-pub use sp1_recursion_circuit::witness::{OuterWitness, Witnessable};
-
 use sp1_recursion_gnark_ffi::{Groth16Bn254Prover, PlonkBn254Prover};
 use sp1_stark::{SP1ProverOpts, ShardProof, StarkVerifyingKey};
+
+pub use sp1_recursion_circuit::witness::{OuterWitness, Witnessable};
+pub use sp1_recursion_core::stark::sp1_dev_mode;
 
 use crate::{
     utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes},
@@ -153,16 +151,16 @@ pub fn dummy_proof() -> (StarkVerifyingKey<OuterSC>, ShardProof<OuterSC>) {
 
     tracing::info!("initializing prover");
     let prover: SP1Prover = SP1Prover::new();
-    let opts = SP1ProverOpts::default();
+    let opts = SP1ProverOpts::auto();
     let context = SP1Context::default();
 
     tracing::info!("setup elf");
-    let (pk, vk) = prover.setup(elf);
+    let (_, pk_d, program, vk) = prover.setup(elf);
 
     tracing::info!("prove core");
     let mut stdin = SP1Stdin::new();
     stdin.write(&500u32);
-    let core_proof = prover.prove_core(&pk, &stdin, opts, context).unwrap();
+    let core_proof = prover.prove_core(&pk_d, program, &stdin, opts, context).unwrap();
 
     tracing::info!("compress");
     let compressed_proof = prover.compress(&vk, core_proof, vec![], opts).unwrap();

@@ -18,17 +18,20 @@ use sp1_core_machine::{
 };
 
 use sp1_recursion_core::air::PV_DIGEST_NUM_WORDS;
+use sp1_stark::air::InteractionScope;
+use sp1_stark::air::MachineAir;
 use sp1_stark::{
     air::{PublicValues, POSEIDON_NUM_WORDS},
     baby_bear_poseidon2::BabyBearPoseidon2,
-    Dom, ProofShape, StarkMachine, Word,
+    shape::OrderedShape,
+    Dom, StarkMachine, Word,
 };
 
 use sp1_stark::{ShardProof, StarkGenericConfig, StarkVerifyingKey};
 
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
-    ir::{Builder, Config, Ext, ExtConst, Felt, SymbolicFelt},
+    ir::{Builder, Config, Felt, SymbolicFelt},
 };
 
 use sp1_recursion_core::{
@@ -37,9 +40,9 @@ use sp1_recursion_core::{
 };
 
 use crate::{
-    challenger::{CanObserveVariable, DuplexChallengerVariable, FieldChallengerVariable},
-    machine::recursion_public_values_digest,
-    stark::{dummy_challenger, dummy_vk_and_shard_proof, ShardProofVariable, StarkVerifier},
+    challenger::{CanObserveVariable, DuplexChallengerVariable},
+    machine::{assert_complete, recursion_public_values_digest},
+    stark::{dummy_vk_and_shard_proof, ShardProofVariable, StarkVerifier},
     BabyBearFriConfig, BabyBearFriConfigVariable, CircuitConfig, VerifyingKeyVariable,
 };
 
@@ -49,8 +52,7 @@ pub struct SP1RecursionWitnessVariable<
 > {
     pub vk: VerifyingKeyVariable<C, SC>,
     pub shard_proofs: Vec<ShardProofVariable<C, SC>>,
-    pub leaf_challenger: SC::FriChallengerVariable,
-    pub initial_reconstruct_challenger: DuplexChallengerVariable<C>,
+    pub reconstruct_deferred_digest: [Felt<C::F>; DIGEST_SIZE],
     pub is_complete: Felt<C::F>,
     pub is_first_shard: Felt<C::F>,
     pub vk_root: [Felt<C::F>; DIGEST_SIZE],
@@ -62,16 +64,15 @@ pub struct SP1RecursionWitnessVariable<
 pub struct SP1RecursionWitnessValues<SC: StarkGenericConfig> {
     pub vk: StarkVerifyingKey<SC>,
     pub shard_proofs: Vec<ShardProof<SC>>,
-    pub leaf_challenger: SC::Challenger,
-    pub initial_reconstruct_challenger: SC::Challenger,
     pub is_complete: bool,
     pub is_first_shard: bool,
     pub vk_root: [SC::Val; DIGEST_SIZE],
+    pub reconstruct_deferred_digest: [SC::Val; 8],
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SP1RecursionShape {
-    pub proof_shapes: Vec<ProofShape>,
+    pub proof_shapes: Vec<OrderedShape>,
     pub is_complete: bool,
 }
 
@@ -126,11 +127,10 @@ where
         let SP1RecursionWitnessVariable {
             vk,
             shard_proofs,
-            leaf_challenger,
-            initial_reconstruct_challenger,
             is_complete,
             is_first_shard,
             vk_root,
+            reconstruct_deferred_digest,
         } = input;
 
         // Initialize shard variables.
@@ -166,13 +166,8 @@ where
         let mut deferred_proofs_digest: [Felt<_>; POSEIDON_NUM_WORDS] =
             array::from_fn(|_| builder.uninit());
 
-        // Initialize the challenger variables.
-        let leaf_challenger_public_values = leaf_challenger.public_values(builder);
-        let mut reconstruct_challenger: DuplexChallengerVariable<_> =
-            initial_reconstruct_challenger.copy(builder);
-
         // Initialize the cumulative sum.
-        let mut global_cumulative_sum: Ext<_, _> = builder.eval(C::EF::zero().cons());
+        let mut global_cumulative_sums = Vec::new();
 
         // Assert that the number of proofs is not zero.
         assert!(!shard_proofs.is_empty());
@@ -247,34 +242,30 @@ where
                 // flag, and make assertions for that are specific to the first shard using that
                 // flag.
 
-                // Assert that the shard is boolean.
+                // We assert that `is_first_shard == (initial_shard == 1)` in three steps.
+
+                // First, we assert that the `is_first_shard` flag is boolean.
                 builder
                     .assert_felt_eq(is_first_shard * (is_first_shard - C::F::one()), C::F::zero());
-                // Assert that if the flag is set to `1`, then the shard idex is `1`.
+                // Assert that if `is_first_shard == 1`, then `initial_shard == 1`.
                 builder
                     .assert_felt_eq(is_first_shard * (initial_shard - C::F::one()), C::F::zero());
-                // Assert that if the flag is set to `0`, then the shard index is not `1`.
+                // Assert that if `is_first_shard == 0`, then `initial_shard != 1`.
+                // This asserts that if `initial_shard == 1`, then `is_first_shard == 1`.
                 builder.assert_felt_ne(
                     (SymbolicFelt::one() - is_first_shard) * initial_shard,
                     C::F::one(),
                 );
 
-                // If the initial shard is the first shard, we assert that the initial challenger
-                // is the same as a fresh challenger that absorbed the verifying key.
-                let mut first_shard_challenger = machine.config().challenger_variable(builder);
-                vk.observe_into(builder, &mut first_shard_challenger);
-                let first_challenger_public_values = first_shard_challenger.public_values(builder);
-                let initial_challenger_public_values =
-                    initial_reconstruct_challenger.public_values(builder);
-                for (first, initial) in
-                    first_challenger_public_values.into_iter().zip(initial_challenger_public_values)
-                {
-                    builder.assert_felt_eq(is_first_shard * (first - initial), C::F::zero());
-                }
-
                 // If it's the first shard (which is the first execution shard), then the `start_pc`
                 // should be vk.pc_start.
                 builder.assert_felt_eq(is_first_shard * (start_pc - vk.pc_start), C::F::zero());
+                // If it's the first shard, we add the vk's `initial_global_cumulative_sum` to the digest.
+                // If it's not the first shard, we add the zero digest to the digest.
+                global_cumulative_sums.push(builder.select_global_cumulative_sum(
+                    is_first_shard,
+                    vk.initial_global_cumulative_sum,
+                ));
 
                 // Assert that `init_addr_bits` and `finalize_addr_bits` are zero for the first
                 for bit in current_init_addr_bits.iter() {
@@ -289,19 +280,29 @@ where
             //
             // Do not verify the cumulative sum here, since the permutation challenge is shared
             // between all shards.
-            let mut challenger = leaf_challenger.copy(builder);
 
-            let global_permutation_challenges =
-                (0..2).map(|_| challenger.sample_ext(builder)).collect::<Vec<_>>();
+            // Prepare a challenger.
+            let mut challenger = machine.config().challenger_variable(builder);
 
-            StarkVerifier::verify_shard(
+            // Observe the vk and start pc.
+            challenger.observe(builder, vk.commitment);
+            challenger.observe(builder, vk.pc_start);
+            challenger.observe_slice(builder, vk.initial_global_cumulative_sum.0.x.0);
+            challenger.observe_slice(builder, vk.initial_global_cumulative_sum.0.y.0);
+            // Observe the padding.
+            let zero: Felt<_> = builder.eval(C::F::zero());
+            challenger.observe(builder, zero);
+
+            // Observe the public values.
+            challenger.observe_slice(
                 builder,
-                &vk,
-                machine,
-                &mut challenger,
-                &shard_proof,
-                &global_permutation_challenges,
+                shard_proof.public_values[0..machine.num_pv_elts()].iter().copied(),
             );
+            tracing::debug_span!("verify shard").in_scope(|| {
+                StarkVerifier::verify_shard(builder, &vk, machine, &mut challenger, &shard_proof)
+            });
+
+            let chips = machine.shard_chips_ordered(&shard_proof.chip_ordering).collect::<Vec<_>>();
 
             // Assert that first shard has a "CPU". Equivalently, assert that if the shard does
             // not have a "CPU", then the current shard is not 1.
@@ -426,8 +427,8 @@ where
 
             // Digest constraints.
             {
-                // // If `committed_value_digest` is not zero, then the current value should be equal
-                // to `public_values.committed_value_digest`.
+                // // If `committed_value_digest` is not zero, then the current value should be
+                // equal to `public_values.committed_value_digest`.
 
                 // Set flags to indicate whether `committed_value_digest` is non-zero. The flags are
                 // given by the elements of the array, and they will be used as filters to constrain
@@ -522,18 +523,17 @@ where
             // have shard < 2^{MAX_LOG_NUMBER_OF_SHARDS}.
             C::range_check_felt(builder, public_values.shard, MAX_LOG_NUMBER_OF_SHARDS);
 
-            // Update the reconstruct challenger.
-            reconstruct_challenger.observe(builder, shard_proof.commitment.global_main_commit);
-            for element in shard_proof.public_values.iter().take(machine.num_pv_elts()) {
-                reconstruct_challenger.observe(builder, *element);
-            }
-
-            // Cumulative sum is updated by sums of all chips.
-            for values in shard_proof.opened_values.chips.iter() {
-                global_cumulative_sum =
-                    builder.eval(global_cumulative_sum + values.global_cumulative_sum);
+            // We add the global cumulative sums of the global chips.
+            // Note that we constrain that the non-global chips have zero global cumulative sum in `verify_shard`.
+            for (chip, values) in chips.iter().zip(shard_proof.opened_values.chips.iter()) {
+                if chip.commit_scope() == InteractionScope::Global {
+                    global_cumulative_sums.push(values.global_cumulative_sum);
+                }
             }
         }
+
+        // We sum the digests in `global_cumulative_sums` to get the overall global cumulative sum.
+        let global_cumulative_sum = builder.sum_digest_v2(global_cumulative_sums);
 
         // Assert that the last exit code is zero.
         builder.assert_felt_eq(exit_code, C::F::zero());
@@ -543,20 +543,8 @@ where
             // Compute the vk digest.
             let vk_digest = vk.hash(builder);
 
-            // Collect the public values for challengers.
-            let initial_challenger_public_values =
-                initial_reconstruct_challenger.public_values(builder);
-            let final_challenger_public_values = reconstruct_challenger.public_values(builder);
-
-            // Collect the cumulative sum.
-            let global_cumulative_sum_array = builder.ext2felt_v2(global_cumulative_sum);
-
-            // Collect the deferred proof digests.
-            let zero: Felt<_> = builder.eval(C::F::zero());
-            let start_deferred_digest = [zero; POSEIDON_NUM_WORDS];
-            let end_deferred_digest = [zero; POSEIDON_NUM_WORDS];
-
             // Initialize the public values we will commit to.
+            let zero: Felt<_> = builder.eval(C::F::zero());
             let mut recursion_public_values_stream = [zero; RECURSIVE_PROOF_NUM_PV_ELTS];
             let recursion_public_values: &mut RecursionPublicValues<_> =
                 recursion_public_values_stream.as_mut_slice().borrow_mut();
@@ -574,12 +562,9 @@ where
                 initial_previous_finalize_addr_bits;
             recursion_public_values.last_finalize_addr_bits = current_finalize_addr_bits;
             recursion_public_values.sp1_vk_digest = vk_digest;
-            recursion_public_values.leaf_challenger = leaf_challenger_public_values;
-            recursion_public_values.start_reconstruct_challenger = initial_challenger_public_values;
-            recursion_public_values.end_reconstruct_challenger = final_challenger_public_values;
-            recursion_public_values.cumulative_sum = global_cumulative_sum_array;
-            recursion_public_values.start_reconstruct_deferred_digest = start_deferred_digest;
-            recursion_public_values.end_reconstruct_deferred_digest = end_deferred_digest;
+            recursion_public_values.global_cumulative_sum = global_cumulative_sum;
+            recursion_public_values.start_reconstruct_deferred_digest = reconstruct_deferred_digest;
+            recursion_public_values.end_reconstruct_deferred_digest = reconstruct_deferred_digest;
             recursion_public_values.exit_code = exit_code;
             recursion_public_values.is_complete = is_complete;
             // Set the contains an execution shard flag.
@@ -590,6 +575,8 @@ where
             // Calculate the digest and set it in the public values.
             recursion_public_values.digest =
                 recursion_public_values_digest::<C, SC>(builder, recursion_public_values);
+
+            assert_complete(builder, recursion_public_values, is_complete);
 
             SC::commit_recursion_public_values(builder, *recursion_public_values);
         }
@@ -615,8 +602,7 @@ impl SP1RecursionWitnessValues<BabyBearPoseidon2> {
         Self {
             vk,
             shard_proofs,
-            leaf_challenger: dummy_challenger(machine.config()),
-            initial_reconstruct_challenger: dummy_challenger(machine.config()),
+            reconstruct_deferred_digest: [BabyBear::zero(); DIGEST_SIZE],
             is_complete: shape.is_complete,
             is_first_shard: false,
             vk_root: [BabyBear::zero(); DIGEST_SIZE],
@@ -624,8 +610,8 @@ impl SP1RecursionWitnessValues<BabyBearPoseidon2> {
     }
 }
 
-impl From<ProofShape> for SP1RecursionShape {
-    fn from(proof_shape: ProofShape) -> Self {
+impl From<OrderedShape> for SP1RecursionShape {
+    fn from(proof_shape: OrderedShape) -> Self {
         Self { proof_shapes: vec![proof_shape], is_complete: false }
     }
 }

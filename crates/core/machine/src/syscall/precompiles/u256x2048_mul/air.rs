@@ -55,9 +55,6 @@ pub struct U256x2048MulCols<T> {
     /// The clock cycle of the syscall.
     pub clk: T,
 
-    /// The nonce of the operation.
-    pub nonce: T,
-
     /// The pointer to the first input.
     pub a_ptr: T,
 
@@ -182,7 +179,6 @@ impl<F: PrimeField32> MachineAir<F> for U256x2048MulChip {
                         for (i, col) in ab_plus_carry_cols.iter_mut().enumerate() {
                             let (_, carry) = col.populate_mul_and_carry(
                                 &mut new_byte_lookup_events,
-                                event.shard,
                                 &a,
                                 &b_array[i],
                                 &carries[i],
@@ -217,14 +213,14 @@ impl<F: PrimeField32> MachineAir<F> for U256x2048MulChip {
                 let modulus = BigUint::one() << 256;
 
                 // Populate all the mul and carry columns with zero values.
-                cols.a_mul_b1.populate(&mut vec![], 0, &x, &y, FieldOperation::Mul);
-                cols.ab2_plus_carry.populate_mul_and_carry(&mut vec![], 0, &x, &y, &z, &modulus);
-                cols.ab3_plus_carry.populate_mul_and_carry(&mut vec![], 0, &x, &y, &z, &modulus);
-                cols.ab4_plus_carry.populate_mul_and_carry(&mut vec![], 0, &x, &y, &z, &modulus);
-                cols.ab5_plus_carry.populate_mul_and_carry(&mut vec![], 0, &x, &y, &z, &modulus);
-                cols.ab6_plus_carry.populate_mul_and_carry(&mut vec![], 0, &x, &y, &z, &modulus);
-                cols.ab7_plus_carry.populate_mul_and_carry(&mut vec![], 0, &x, &y, &z, &modulus);
-                cols.ab8_plus_carry.populate_mul_and_carry(&mut vec![], 0, &x, &y, &z, &modulus);
+                cols.a_mul_b1.populate(&mut vec![], &x, &y, FieldOperation::Mul);
+                cols.ab2_plus_carry.populate_mul_and_carry(&mut vec![], &x, &y, &z, &modulus);
+                cols.ab3_plus_carry.populate_mul_and_carry(&mut vec![], &x, &y, &z, &modulus);
+                cols.ab4_plus_carry.populate_mul_and_carry(&mut vec![], &x, &y, &z, &modulus);
+                cols.ab5_plus_carry.populate_mul_and_carry(&mut vec![], &x, &y, &z, &modulus);
+                cols.ab6_plus_carry.populate_mul_and_carry(&mut vec![], &x, &y, &z, &modulus);
+                cols.ab7_plus_carry.populate_mul_and_carry(&mut vec![], &x, &y, &z, &modulus);
+                cols.ab8_plus_carry.populate_mul_and_carry(&mut vec![], &x, &y, &z, &modulus);
 
                 row
             },
@@ -232,17 +228,7 @@ impl<F: PrimeField32> MachineAir<F> for U256x2048MulChip {
         );
 
         // Convert the trace to a row major matrix.
-        let mut trace =
-            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_COLS);
-
-        // Write the nonces to the trace.
-        for i in 0..trace.height() {
-            let cols: &mut U256x2048MulCols<F> =
-                trace.values[i * NUM_COLS..(i + 1) * NUM_COLS].borrow_mut();
-            cols.nonce = F::from_canonical_usize(i);
-        }
-
-        trace
+        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_COLS)
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -251,6 +237,10 @@ impl<F: PrimeField32> MachineAir<F> for U256x2048MulChip {
         } else {
             !shard.get_precompile_events(SyscallCode::U256XU2048_MUL).is_empty()
         }
+    }
+
+    fn local_only(&self) -> bool {
+        true
     }
 }
 
@@ -268,8 +258,6 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &U256x2048MulCols<AB::Var> = (*local).borrow();
-        let next = main.row_slice(1);
-        let next: &U256x2048MulCols<AB::Var> = (*next).borrow();
 
         // Assert that is_real is a boolean.
         builder.assert_bool(local.is_real);
@@ -278,7 +266,6 @@ where
         builder.receive_syscall(
             local.shard,
             local.clk,
-            local.nonce,
             AB::F::from_canonical_u32(SyscallCode::U256XU2048_MUL.syscall_id()),
             local.a_ptr,
             local.b_ptr,
@@ -336,10 +323,6 @@ where
             &local.hi_memory,
             local.is_real,
         );
-
-        // Constrain the incrementing nonce.
-        builder.when_first_row().assert_zero(local.nonce);
-        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         let a_limbs =
             limbs_from_access::<AB::Var, <U256Field as NumLimbs>::Limbs, _>(&local.a_memory);

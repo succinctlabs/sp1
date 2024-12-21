@@ -25,6 +25,7 @@ p3-challenger = { workspace = true }
 p3-baby-bear = { workspace = true }
 p3-bn254-fr = { workspace = true }
 p3-commit = { workspace = true }
+p3-util = { workspace = true }
 bincode = "1.3.3"
 serde = { workspace = true, features = ["derive", "rc"] }
 itertools = { workspace = true }
@@ -38,6 +39,7 @@ dirs = "5.0.1"
 serial_test = "3.1.1"
 num-bigint = "0.4.6"
 thiserror = "1.0.63"
+rayon = "1.10.0"
 lru = "0.12.4"
 eyre = "0.6.12"
 test-artifacts = { workspace = true, optional = true }
@@ -54,32 +56,32 @@ name = "build_groth16_bn254"
 path = "scripts/build_groth16_bn254.rs"
 
 [[bin]]
-name = "build_compress_vks"
-path = "scripts/build_compress_vks.rs"
+name = "build_recursion_vks"
+path = "scripts/build_recursion_vks.rs"
+
+[[bin]]
+name = "find_maximal_shapes"
+path = "scripts/find_maximal_shapes.rs"
+
+[[bin]]
+name = "find_small_shapes"
+path = "scripts/find_small_shapes.rs"
+
+[[bin]]
+name = "find_oom_shapes"
+path = "scripts/find_oom_shapes.rs"
+
+[[bin]]
+name = "find_recursion_shapes"
+path = "scripts/find_recursion_shapes.rs"
+
+[[bin]]
+name = "test_shape_fixing"
+path = "scripts/test_shape_fixing.rs"
 
 [[bin]]
 name = "post_trusted_setup"
 path = "scripts/post_trusted_setup.rs"
-
-[[bin]]
-name = "e2e"
-path = "scripts/e2e.rs"
-
-[[bin]]
-name = "fibonacci_groth16"
-path = "scripts/fibonacci_groth16.rs"
-required-features = ["export-tests"]
-
-[[bin]]
-name = "fibonacci_sweep"
-path = "scripts/fibonacci_sweep.rs"
-required-features = ["export-tests"]
-
-[[bin]]
-name = "tendermint_sweep"
-path = "scripts/tendermint_sweep.rs"
-required-features = ["export-tests"]
-
 
 [features]
 native-gnark = ["sp1-recursion-gnark-ffi/native"]

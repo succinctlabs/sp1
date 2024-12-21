@@ -17,7 +17,7 @@ Note that by itself, SP1 can already prove arbitrarily large programs by chunkin
 
 To verify a proof inside the zkVM, you can use the `sp1_zkvm::lib::verify::verify_sp1_proof` function.
 
-```rust
+```rust,noplayground
 sp1_zkvm::lib::verify::verify_sp1_proof(vkey, public_values_digest);
 ```
 

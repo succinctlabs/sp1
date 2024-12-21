@@ -8,7 +8,7 @@ use crate::{air::MemoryAirBuilder, utils::zeroed_f_vec};
 use generic_array::GenericArray;
 use itertools::Itertools;
 use num::{BigUint, Zero};
-use p3_air::{Air, AirBuilder, BaseAir};
+use p3_air::{Air, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{
@@ -43,7 +43,6 @@ pub struct FpOpChip<P> {
 pub struct FpOpCols<T, P: FpOpField> {
     pub is_real: T,
     pub shard: T,
-    pub nonce: T,
     pub clk: T,
     pub is_add: T,
     pub is_sub: T,
@@ -63,7 +62,6 @@ impl<P: FpOpField> FpOpChip<P> {
     #[allow(clippy::too_many_arguments)]
     fn populate_field_ops<F: PrimeField32>(
         blu_events: &mut Vec<ByteLookupEvent>,
-        shard: u32,
         cols: &mut FpOpCols<F, P>,
         p: BigUint,
         q: BigUint,
@@ -71,7 +69,7 @@ impl<P: FpOpField> FpOpChip<P> {
     ) {
         let modulus_bytes = P::MODULUS;
         let modulus = BigUint::from_bytes_le(modulus_bytes);
-        cols.output.populate_with_modulus(blu_events, shard, &p, &q, &modulus, op);
+        cols.output.populate_with_modulus(blu_events, &p, &q, &modulus, op);
     }
 }
 
@@ -88,8 +86,8 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
     }
 
     fn generate_trace(&self, input: &Self::Record, output: &mut Self::Record) -> RowMajorMatrix<F> {
-        // All the fp events for a given curve are coalesce to the curve's Add operation.  Only retrieve
-        // precompile events for that operation.
+        // All the fp events for a given curve are coalesce to the curve's Add operation.  Only
+        // retrieve precompile events for that operation.
         // TODO:  Fix this.
 
         let events = match P::FIELD_TYPE {
@@ -123,14 +121,7 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
             cols.x_ptr = F::from_canonical_u32(event.x_ptr);
             cols.y_ptr = F::from_canonical_u32(event.y_ptr);
 
-            Self::populate_field_ops(
-                &mut new_byte_lookup_events,
-                event.shard,
-                cols,
-                p,
-                q,
-                event.op,
-            );
+            Self::populate_field_ops(&mut new_byte_lookup_events, cols, p, q, event.op);
 
             // Populate the memory access columns.
             for i in 0..cols.y_access.len() {
@@ -153,7 +144,6 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
                 cols.is_add = F::from_canonical_u8(1);
                 Self::populate_field_ops(
                     &mut vec![],
-                    0,
                     cols,
                     zero.clone(),
                     zero,
@@ -165,17 +155,7 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
         );
 
         // Convert the trace to a row major matrix.
-        let mut trace =
-            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), num_fp_cols::<P>());
-
-        // Write the nonces to the trace.
-        for i in 0..trace.height() {
-            let cols: &mut FpOpCols<F, P> =
-                trace.values[i * num_fp_cols::<P>()..(i + 1) * num_fp_cols::<P>()].borrow_mut();
-            cols.nonce = F::from_canonical_usize(i);
-        }
-
-        trace
+        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), num_fp_cols::<P>())
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -202,6 +182,10 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
             }
         }
     }
+
+    fn local_only(&self) -> bool {
+        true
+    }
 }
 
 impl<F, P: FpOpField> BaseAir<F> for FpOpChip<P> {
@@ -219,12 +203,6 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &FpOpCols<AB::Var, P> = (*local).borrow();
-        let next = main.row_slice(1);
-        let next: &FpOpCols<AB::Var, P> = (*next).borrow();
-
-        // Check that nonce is incremented.
-        builder.when_first_row().assert_zero(local.nonce);
-        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         // Check that operations flags are boolean.
         builder.assert_bool(local.is_add);
@@ -295,7 +273,6 @@ where
         builder.receive_syscall(
             local.shard,
             local.clk,
-            local.nonce,
             syscall_id_felt,
             local.x_ptr,
             local.y_ptr,

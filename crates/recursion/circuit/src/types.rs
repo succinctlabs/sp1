@@ -2,6 +2,7 @@ use hashbrown::HashMap;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractField, TwoAdicField};
 use p3_matrix::Dimensions;
+use sp1_stark::septic_digest::SepticDigest;
 
 use sp1_recursion_compiler::ir::{Builder, Ext, Felt};
 
@@ -17,6 +18,7 @@ use crate::{
 pub struct VerifyingKeyVariable<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>> {
     pub commitment: SC::DigestVariable,
     pub pc_start: Felt<C::F>,
+    pub initial_global_cumulative_sum: SepticDigest<Felt<C::F>>,
     pub chip_information: Vec<(String, TwoAdicMultiplicativeCoset<C::F>, Dimensions)>,
     pub chip_ordering: HashMap<String, usize>,
 }
@@ -83,25 +85,28 @@ impl<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>> VerifyingK
         challenger.observe(builder, self.commitment);
         // Observe the pc_start.
         challenger.observe(builder, self.pc_start);
+        // Observe the initial global cumulative sum.
+        challenger.observe_slice(builder, self.initial_global_cumulative_sum.0.x.0);
+        challenger.observe_slice(builder, self.initial_global_cumulative_sum.0.y.0);
         // Observe the padding.
         let zero: Felt<_> = builder.eval(C::F::zero());
-        for _ in 0..7 {
-            challenger.observe(builder, zero);
-        }
+        challenger.observe(builder, zero);
     }
 
     /// Hash the verifying key + prep domains into a single digest.
-    /// poseidon2( commit[0..8] || pc_start || prep_domains[N].{log_n, .size, .shift, .g})
+    /// poseidon2( commit[0..8] || pc_start || initial_global_cumulative_sum || prep_domains[N].{log_n, .size, .shift, .g})
     pub fn hash(&self, builder: &mut Builder<C>) -> SC::DigestVariable
     where
         C::F: TwoAdicField,
         SC::DigestVariable: IntoIterator<Item = Felt<C::F>>,
     {
         let prep_domains = self.chip_information.iter().map(|(_, domain, _)| domain);
-        let num_inputs = DIGEST_SIZE + 1 + (4 * prep_domains.len());
+        let num_inputs = DIGEST_SIZE + 1 + 14 + (4 * prep_domains.len());
         let mut inputs = Vec::with_capacity(num_inputs);
         inputs.extend(self.commitment);
         inputs.push(self.pc_start);
+        inputs.extend(self.initial_global_cumulative_sum.0.x.0);
+        inputs.extend(self.initial_global_cumulative_sum.0.y.0);
         for domain in prep_domains {
             inputs.push(builder.eval(C::F::from_canonical_usize(domain.log_n)));
             let size = 1 << domain.log_n;

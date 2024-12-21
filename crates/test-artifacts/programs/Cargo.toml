@@ -34,6 +34,7 @@ members = [
   "sha-compress",
   "sha-extend",
   "sha2",
+  "ssz-withdrawals",
   "tendermint-benchmark",
   "u256x2048-mul",
   "uint256-arith",

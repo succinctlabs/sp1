@@ -10,8 +10,7 @@ mod tests {
     use rand::Rng;
     use sp1_core_executor::{
         events::{
-            LookupId, MemoryReadRecord, MemoryWriteRecord, PrecompileEvent, SyscallEvent,
-            U256xU2048MulEvent,
+            MemoryReadRecord, MemoryWriteRecord, PrecompileEvent, SyscallEvent, U256xU2048MulEvent,
         },
         syscalls::SyscallCode,
         ExecutionRecord, Program,
@@ -24,7 +23,10 @@ mod tests {
 
     use crate::{
         io::SP1Stdin,
-        utils::{self, run_test_io, uni_stark_prove as prove, uni_stark_verify as verify},
+        utils::{
+            self, run_test,
+            uni_stark::{uni_stark_prove, uni_stark_verify},
+        },
     };
     use crate::{
         syscall::precompiles::u256x2048_mul::air::U256x2048MulChip, utils::words_to_bytes_le_vec,
@@ -126,10 +128,7 @@ mod tests {
             });
         }
 
-        let lookup_id = LookupId(rng.gen());
-
         let event = PrecompileEvent::U256xU2048Mul(U256xU2048MulEvent {
-            lookup_id,
             shard: 0u32,
             clk: hi_ts,
             a_ptr,
@@ -151,13 +150,17 @@ mod tests {
 
         let syscall_code = SyscallCode::U256XU2048_MUL;
         let syscall_event = SyscallEvent {
+            pc: 32,
+            next_pc: 36,
             shard: 0u32,
             clk: hi_ts,
-            lookup_id,
-            syscall_id: syscall_code as u32,
+            a_record: MemoryWriteRecord::default(),
+            a_record_is_real: false,
+            op_a_0: false,
+            syscall_code,
+            syscall_id: syscall_code.syscall_id(),
             arg1: a_ptr,
             arg2: b_ptr,
-            nonce: 0u32,
         };
 
         execution_record.precompile_events.add_event(syscall_code, syscall_event, event);
@@ -169,7 +172,7 @@ mod tests {
     fn test_uint256_mul() {
         utils::setup_logger();
         let program = Program::from(U256XU2048_MUL_ELF).unwrap();
-        run_test_io::<CpuProver<_, _>>(program, SP1Stdin::new()).unwrap();
+        run_test::<CpuProver<_, _>>(program, SP1Stdin::new()).unwrap();
     }
 
     #[test]
@@ -179,11 +182,17 @@ mod tests {
         let chip = U256x2048MulChip::new();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&execution_record, &mut ExecutionRecord::default());
-        let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut config.challenger(), trace);
-        verify(&config, &chip, &mut config.challenger(), &proof).unwrap();
+        let proof = uni_stark_prove::<BabyBearPoseidon2, _>(
+            &config,
+            &chip,
+            &mut config.challenger(),
+            trace,
+        );
+        uni_stark_verify(&config, &chip, &mut config.challenger(), &proof).unwrap();
     }
 
     #[test]
+    #[should_panic]
     fn test_u256x2048_mul_failure() {
         for _ in 0..10 {
             let config = BabyBearPoseidon2::new();
@@ -191,10 +200,14 @@ mod tests {
             let chip = U256x2048MulChip::new();
             let trace: RowMajorMatrix<BabyBear> =
                 chip.generate_trace(&execution_record, &mut ExecutionRecord::default());
-            let proof =
-                prove::<BabyBearPoseidon2, _>(&config, &chip, &mut config.challenger(), trace);
-            let result = verify(&config, &chip, &mut config.challenger(), &proof);
-            assert!(result.is_err());
+            let proof = uni_stark_prove::<BabyBearPoseidon2, _>(
+                &config,
+                &chip,
+                &mut config.challenger(),
+                trace,
+            );
+            let result = uni_stark_verify(&config, &chip, &mut config.challenger(), &proof);
+            assert!(result.is_ok());
         }
     }
 }

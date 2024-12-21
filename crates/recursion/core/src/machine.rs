@@ -4,7 +4,8 @@ use hashbrown::HashMap;
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
 use sp1_stark::{
     air::{InteractionScope, MachineAir},
-    Chip, ProofShape, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS,
+    shape::OrderedShape,
+    Chip, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS,
 };
 
 use crate::{
@@ -142,7 +143,6 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
             RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE>::default()),
             RecursionAir::BatchFRI(BatchFRIChip::<DEGREE>),
             RecursionAir::Select(SelectChip),
-            // RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>),
             RecursionAir::PublicValues(PublicValuesChip),
         ]
         .map(Chip::new)
@@ -154,14 +154,14 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
     pub fn shrink_shape() -> RecursionShape {
         let shape = HashMap::from(
             [
-                (Self::MemoryConst(MemoryConstChip::default()), 17),
                 (Self::MemoryVar(MemoryVarChip::default()), 18),
-                (Self::BaseAlu(BaseAluChip), 20),
-                (Self::ExtAlu(ExtAluChip), 18),
-                (Self::Poseidon2Wide(Poseidon2WideChip::<DEGREE>), 16),
-                (Self::BatchFRI(BatchFRIChip::<DEGREE>), 18),
                 (Self::Select(SelectChip), 18),
+                (Self::MemoryConst(MemoryConstChip::default()), 17),
+                (Self::BatchFRI(BatchFRIChip::<DEGREE>), 17),
+                (Self::BaseAlu(BaseAluChip), 17),
+                (Self::ExtAlu(ExtAluChip), 15),
                 (Self::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>), 17),
+                (Self::Poseidon2Wide(Poseidon2WideChip::<DEGREE>), 16),
                 (Self::PublicValues(PublicValuesChip), PUB_VALUES_LOG_HEIGHT),
             ]
             .map(|(chip, log_height)| (chip.name(), log_height)),
@@ -171,7 +171,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
 
     pub fn heights(program: &RecursionProgram<F>) -> Vec<(String, usize)> {
         let heights = program
-            .instructions
+            .inner
             .iter()
             .fold(RecursionAirEventCount::default(), |heights, instruction| heights + instruction);
 
@@ -231,8 +231,14 @@ impl<F> AddAssign<&Instruction<F>> for RecursionAirEventCount {
             Instruction::BatchFRI(instr) => {
                 self.batch_fri_events += instr.base_vec_addrs.p_at_x.len()
             }
+            Instruction::HintAddCurve(instr) => {
+                self.mem_var_events += instr.output_x_addrs_mults.len();
+                self.mem_var_events += instr.output_y_addrs_mults.len();
+            }
             Instruction::CommitPublicValues(_) => {}
             Instruction::Print(_) => {}
+            #[cfg(feature = "debug")]
+            Instruction::DebugBacktrace(_) => {}
         }
     }
 }
@@ -247,7 +253,7 @@ impl<F> Add<&Instruction<F>> for RecursionAirEventCount {
     }
 }
 
-impl From<RecursionShape> for ProofShape {
+impl From<RecursionShape> for OrderedShape {
     fn from(value: RecursionShape) -> Self {
         value.inner.into_iter().collect()
     }
@@ -287,24 +293,20 @@ pub mod tests {
         // Run with the poseidon2 wide chip.
         let machine = A::machine_wide_with_all_chips(BabyBearPoseidon2::default());
         let (pk, vk) = machine.setup(&program);
-        let result = run_test_machine(vec![runtime.record.clone()], machine, pk, vk);
-        if let Err(e) = result {
-            panic!("Verification failed: {:?}", e);
-        }
+        run_test_machine(vec![runtime.record.clone()], machine, pk, vk)
+            .expect("Verification failed");
 
         // Run with the poseidon2 skinny chip.
         let skinny_machine =
             B::machine_skinny_with_all_chips(BabyBearPoseidon2::ultra_compressed());
         let (pk, vk) = skinny_machine.setup(&program);
-        let result = run_test_machine(vec![runtime.record], skinny_machine, pk, vk);
-        if let Err(e) = result {
-            panic!("Verification failed: {:?}", e);
-        }
+        run_test_machine(vec![runtime.record], skinny_machine, pk, vk)
+            .expect("Verification failed");
     }
 
-    fn test_instructions(instructions: Vec<Instruction<F>>) {
-        let program = RecursionProgram { instructions, ..Default::default() };
-        run_recursion_test_machines(program);
+    /// Constructs a linear program and runs it on machines that use the wide and skinny Poseidon2 chips.
+    pub fn test_recursion_linear_program(instrs: Vec<Instruction<F>>) {
+        run_recursion_test_machines(linear_program(instrs).unwrap());
     }
 
     #[test]
@@ -318,7 +320,7 @@ pub mod tests {
             .chain(once(instr::mem(MemAccessKind::Read, 2, n, 55)))
             .collect::<Vec<_>>();
 
-        test_instructions(instructions);
+        test_recursion_linear_program(instructions);
     }
 
     #[test]
@@ -331,7 +333,7 @@ pub mod tests {
             instr::mem(MemAccessKind::Read, 1, 2, 1),
         ];
 
-        test_instructions(instructions);
+        test_recursion_linear_program(instructions);
     }
 
     #[test]
@@ -343,7 +345,7 @@ pub mod tests {
             instr::mem(MemAccessKind::Read, 1, 2, 1),
         ];
 
-        test_instructions(instructions);
+        test_recursion_linear_program(instructions);
     }
 
     #[test]
@@ -376,6 +378,6 @@ pub mod tests {
             addr += 1;
         }
 
-        test_instructions(instructions);
+        test_recursion_linear_program(instructions);
     }
 }

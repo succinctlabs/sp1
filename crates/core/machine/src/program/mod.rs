@@ -9,14 +9,14 @@ use crate::{
     utils::{next_power_of_two, pad_rows_fixed, zeroed_f_vec},
 };
 use p3_air::{Air, BaseAir, PairBuilder};
-use p3_field::PrimeField;
+use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
 use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::{MachineAir, SP1AirBuilder};
 
-use crate::cpu::columns::{InstructionCols, OpcodeSelectorCols};
+use crate::cpu::columns::InstructionCols;
 
 /// The number of preprocessed program columns.
 pub const NUM_PROGRAM_PREPROCESSED_COLS: usize = size_of::<ProgramPreprocessedCols<u8>>();
@@ -30,14 +30,12 @@ pub const NUM_PROGRAM_MULT_COLS: usize = size_of::<ProgramMultiplicityCols<u8>>(
 pub struct ProgramPreprocessedCols<T> {
     pub pc: T,
     pub instruction: InstructionCols<T>,
-    pub selectors: OpcodeSelectorCols<T>,
 }
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Clone, Copy, Default)]
 #[repr(C)]
 pub struct ProgramMultiplicityCols<T> {
-    pub shard: T,
     pub multiplicity: T,
 }
 
@@ -51,7 +49,7 @@ impl ProgramChip {
     }
 }
 
-impl<F: PrimeField> MachineAir<F> for ProgramChip {
+impl<F: PrimeField32> MachineAir<F> for ProgramChip {
     type Record = ExecutionRecord;
 
     type Program = Program;
@@ -90,7 +88,6 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
                         let pc = program.pc_base + (idx as u32 * 4);
                         cols.pc = F::from_canonical_u32(pc);
                         cols.instruction.populate(instruction);
-                        cols.selectors.populate(instruction);
                     }
                 });
             });
@@ -128,7 +125,6 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
                 let pc = input.program.pc_base + (i as u32 * 4);
                 let mut row = [F::zero(); NUM_PROGRAM_MULT_COLS];
                 let cols: &mut ProgramMultiplicityCols<F> = row.as_mut_slice().borrow_mut();
-                cols.shard = F::from_canonical_u32(input.public_values.execution_shard);
                 cols.multiplicity =
                     F::from_canonical_usize(*instruction_counts.get(&pc).unwrap_or(&0));
                 row
@@ -170,13 +166,7 @@ where
         let mult_local: &ProgramMultiplicityCols<AB::Var> = (*mult_local).borrow();
 
         // Constrain the interaction with CPU table
-        builder.receive_program(
-            prep_local.pc,
-            prep_local.instruction,
-            prep_local.selectors,
-            mult_local.shard,
-            mult_local.multiplicity,
-        );
+        builder.receive_program(prep_local.pc, prep_local.instruction, mult_local.multiplicity);
     }
 }
 

@@ -37,15 +37,15 @@ use core::{
 
 use hashbrown::HashMap;
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::{AbstractField, PrimeField};
+use p3_field::{AbstractField, PrimeField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
     events::{AluEvent, ByteLookupEvent, ByteRecord},
-    ByteOpcode, ExecutionRecord, Opcode, Program,
+    ByteOpcode, ExecutionRecord, Opcode, Program, DEFAULT_PC_INC,
 };
 use sp1_derive::AlignedBorrow;
-use sp1_primitives::consts::WORD_SIZE;
+use sp1_primitives::consts::{BYTE_SIZE, LONG_WORD_SIZE, WORD_SIZE};
 use sp1_stark::{air::MachineAir, Word};
 
 use crate::{
@@ -56,13 +56,6 @@ use crate::{
 
 /// The number of main trace columns for `MulChip`.
 pub const NUM_MUL_COLS: usize = size_of::<MulCols<u8>>();
-
-/// The number of digits in the product is at most the sum of the number of digits in the
-/// multiplicands.
-const PRODUCT_SIZE: usize = 2 * WORD_SIZE;
-
-/// The number of bits in a byte.
-const BYTE_SIZE: usize = 8;
 
 /// The mask for a byte.
 const BYTE_MASK: u8 = 0xff;
@@ -75,11 +68,8 @@ pub struct MulChip;
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MulCols<T> {
-    /// The shard number, used for byte lookup table.
-    pub shard: T,
-
-    /// The nonce of the operation.
-    pub nonce: T,
+    /// The program counter.
+    pub pc: T,
 
     /// The output operand.
     pub a: Word<T>,
@@ -90,11 +80,14 @@ pub struct MulCols<T> {
     /// The second input operand.
     pub c: Word<T>,
 
+    /// Flag indicating whether `a` is not register 0.
+    pub op_a_not_0: T,
+
     /// Trace.
-    pub carry: [T; PRODUCT_SIZE],
+    pub carry: [T; LONG_WORD_SIZE],
 
     /// An array storing the product of `b * c` after the carry propagation.
-    pub product: [T; PRODUCT_SIZE],
+    pub product: [T; LONG_WORD_SIZE],
 
     /// The most significant bit of `b`.
     pub b_msb: T,
@@ -124,7 +117,7 @@ pub struct MulCols<T> {
     pub is_real: T,
 }
 
-impl<F: PrimeField> MachineAir<F> for MulChip {
+impl<F: PrimeField32> MachineAir<F> for MulChip {
     type Record = ExecutionRecord;
 
     type Program = Program;
@@ -156,13 +149,11 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
                         let event = &input.mul_events[idx];
                         self.event_to_row(event, cols, &mut byte_lookup_events);
                     }
-                    cols.nonce = F::from_canonical_usize(idx);
                 });
             },
         );
 
         // Convert the trace to a row major matrix.
-
         RowMajorMatrix::new(values, NUM_MUL_COLS)
     }
 
@@ -173,7 +164,7 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
             .mul_events
             .par_chunks(chunk_size)
             .map(|events| {
-                let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
+                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
                 events.iter().for_each(|event| {
                     let mut row = [F::zero(); NUM_MUL_COLS];
                     let cols: &mut MulCols<F> = row.as_mut_slice().borrow_mut();
@@ -183,7 +174,7 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
             })
             .collect::<Vec<_>>();
 
-        output.add_sharded_byte_lookup_events(blu_batches.iter().collect::<Vec<_>>());
+        output.add_byte_lookup_events_from_maps(blu_batches.iter().collect::<Vec<_>>());
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -192,6 +183,10 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
         } else {
             !shard.mul_events.is_empty()
         }
+    }
+
+    fn local_only(&self) -> bool {
+        true
     }
 }
 
@@ -203,12 +198,15 @@ impl MulChip {
         cols: &mut MulCols<F>,
         blu: &mut impl ByteRecord,
     ) {
+        cols.pc = F::from_canonical_u32(event.pc);
+
         let a_word = event.a.to_le_bytes();
         let b_word = event.b.to_le_bytes();
         let c_word = event.c.to_le_bytes();
 
         let mut b = b_word.to_vec();
         let mut c = c_word.to_vec();
+        cols.op_a_not_0 = F::from_bool(!event.op_a_0);
 
         // Handle b and c's signs.
         {
@@ -220,13 +218,13 @@ impl MulChip {
             // If b is signed and it is negative, sign extend b.
             if (event.opcode == Opcode::MULH || event.opcode == Opcode::MULHSU) && b_msb == 1 {
                 cols.b_sign_extend = F::one();
-                b.resize(PRODUCT_SIZE, BYTE_MASK);
+                b.resize(LONG_WORD_SIZE, BYTE_MASK);
             }
 
             // If c is signed and it is negative, sign extend c.
             if event.opcode == Opcode::MULH && c_msb == 1 {
                 cols.c_sign_extend = F::one();
-                c.resize(PRODUCT_SIZE, BYTE_MASK);
+                c.resize(LONG_WORD_SIZE, BYTE_MASK);
             }
 
             // Insert the MSB lookup events.
@@ -236,7 +234,6 @@ impl MulChip {
                 for word in words.iter() {
                     let most_significant_byte = word[WORD_SIZE - 1];
                     blu_events.push(ByteLookupEvent {
-                        shard: event.shard,
                         opcode: ByteOpcode::MSB,
                         a1: get_msb(*word) as u16,
                         a2: 0,
@@ -248,10 +245,10 @@ impl MulChip {
             }
         }
 
-        let mut product = [0u32; PRODUCT_SIZE];
+        let mut product = [0u32; LONG_WORD_SIZE];
         for i in 0..b.len() {
             for j in 0..c.len() {
-                if i + j < PRODUCT_SIZE {
+                if i + j < LONG_WORD_SIZE {
                     product[i + j] += (b[i] as u32) * (c[j] as u32);
                 }
             }
@@ -260,11 +257,11 @@ impl MulChip {
         // Calculate the correct product using the `product` array. We store the
         // correct carry value for verification.
         let base = (1 << BYTE_SIZE) as u32;
-        let mut carry = [0u32; PRODUCT_SIZE];
-        for i in 0..PRODUCT_SIZE {
+        let mut carry = [0u32; LONG_WORD_SIZE];
+        for i in 0..LONG_WORD_SIZE {
             carry[i] = product[i] / base;
             product[i] %= base;
-            if i + 1 < PRODUCT_SIZE {
+            if i + 1 < LONG_WORD_SIZE {
                 product[i + 1] += carry[i];
             }
             cols.carry[i] = F::from_canonical_u32(carry[i]);
@@ -279,12 +276,11 @@ impl MulChip {
         cols.is_mulh = F::from_bool(event.opcode == Opcode::MULH);
         cols.is_mulhu = F::from_bool(event.opcode == Opcode::MULHU);
         cols.is_mulhsu = F::from_bool(event.opcode == Opcode::MULHSU);
-        cols.shard = F::from_canonical_u32(event.shard);
 
         // Range check.
         {
-            blu.add_u16_range_checks(event.shard, &carry.map(|x| x as u16));
-            blu.add_u8_range_checks(event.shard, &product.map(|x| x as u8));
+            blu.add_u16_range_checks(&carry.map(|x| x as u16));
+            blu.add_u8_range_checks(&product.map(|x| x as u8));
         }
     }
 }
@@ -303,17 +299,11 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &MulCols<AB::Var> = (*local).borrow();
-        let next = main.row_slice(1);
-        let next: &MulCols<AB::Var> = (*next).borrow();
         let base = AB::F::from_canonical_u32(1 << 8);
 
         let zero: AB::Expr = AB::F::zero().into();
         let one: AB::Expr = AB::F::one().into();
         let byte_mask = AB::F::from_canonical_u8(BYTE_MASK);
-
-        // Constrain the incrementing nonce.
-        builder.when_first_row().assert_zero(local.nonce);
-        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         // Calculate the MSBs.
         let (b_msb, c_msb) = {
@@ -342,9 +332,9 @@ where
 
         // Sign extend local.b and local.c whenever appropriate.
         let (b, c) = {
-            let mut b: Vec<AB::Expr> = vec![AB::F::zero().into(); PRODUCT_SIZE];
-            let mut c: Vec<AB::Expr> = vec![AB::F::zero().into(); PRODUCT_SIZE];
-            for i in 0..PRODUCT_SIZE {
+            let mut b: Vec<AB::Expr> = vec![AB::F::zero().into(); LONG_WORD_SIZE];
+            let mut c: Vec<AB::Expr> = vec![AB::F::zero().into(); LONG_WORD_SIZE];
+            for i in 0..LONG_WORD_SIZE {
                 if i < WORD_SIZE {
                     b[i] = local.b[i].into();
                     c[i] = local.c[i].into();
@@ -357,10 +347,10 @@ where
         };
 
         // Compute the uncarried product b(x) * c(x) = m(x).
-        let mut m: Vec<AB::Expr> = vec![AB::F::zero().into(); PRODUCT_SIZE];
-        for i in 0..PRODUCT_SIZE {
-            for j in 0..PRODUCT_SIZE {
-                if i + j < PRODUCT_SIZE {
+        let mut m: Vec<AB::Expr> = vec![AB::F::zero().into(); LONG_WORD_SIZE];
+        for i in 0..LONG_WORD_SIZE {
+            for j in 0..LONG_WORD_SIZE {
+                if i + j < LONG_WORD_SIZE {
                     m[i + j] = m[i + j].clone() + b[i].clone() * c[j].clone();
                 }
             }
@@ -368,7 +358,7 @@ where
 
         // Propagate carry.
         let product = {
-            for i in 0..PRODUCT_SIZE {
+            for i in 0..LONG_WORD_SIZE {
                 if i == 0 {
                     builder.assert_eq(local.product[i], m[i].clone() - local.carry[i] * base);
                 } else {
@@ -382,12 +372,16 @@ where
         };
 
         // Compare the product's appropriate bytes with that of the result.
+        // This constraint is only done when `op_a_not_0 == 1`.
         {
             let is_lower = local.is_mul;
             let is_upper = local.is_mulh + local.is_mulhu + local.is_mulhsu;
             for i in 0..WORD_SIZE {
-                builder.when(is_lower).assert_eq(product[i], local.a[i]);
-                builder.when(is_upper.clone()).assert_eq(product[i + WORD_SIZE], local.a[i]);
+                builder.when(local.op_a_not_0).when(is_lower).assert_eq(product[i], local.a[i]);
+                builder
+                    .when(local.op_a_not_0)
+                    .when(is_upper.clone())
+                    .assert_eq(product[i + WORD_SIZE], local.a[i]);
             }
         }
 
@@ -413,9 +407,14 @@ where
         builder.when(local.b_sign_extend).assert_eq(local.b_msb, one.clone());
         builder.when(local.c_sign_extend).assert_eq(local.c_msb, one.clone());
 
+        // SAFETY: All selectors `is_mul`, `is_mulh`, `is_mulhu`, `is_mulhsu` are checked to be boolean.
+        // Also, the multiplicity `is_real` is checked to be boolean, and `is_real = 0` leads to no interactions.
+        // Each "real" row has exactly one selector turned on, as constrained below.
+        // Therefore, in "real" rows, the `opcode` matches the corresponding opcode.
+
         // Calculate the opcode.
         let opcode = {
-            // Exactly one of the op codes must be on.
+            // Exactly one of the opcodes must be on.
             builder
                 .when(local.is_real)
                 .assert_one(local.is_mul + local.is_mulh + local.is_mulhu + local.is_mulhsu);
@@ -441,15 +440,34 @@ where
         }
 
         // Receive the arguments.
-        builder.receive_alu(
+        // SAFETY: This checks the following.
+        // - `next_pc = pc + 4`
+        // - `num_extra_cycles = 0`
+        // - `op_a_val` is constrained by the chip when `op_a_not_0 == 1`
+        // - `op_a_not_0` is correct, due to the sent `op_a_0` being equal to `1 - op_a_not_0`
+        // - `op_a_immutable = 0`
+        // - `is_memory = 0`
+        // - `is_syscall = 0`
+        // - `is_halt = 0`
+        builder.receive_instruction(
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            local.pc,
+            local.pc + AB::Expr::from_canonical_u32(DEFAULT_PC_INC),
+            AB::Expr::zero(),
             opcode,
             local.a,
             local.b,
             local.c,
-            local.shard,
-            local.nonce,
+            AB::Expr::one() - local.op_a_not_0,
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            AB::Expr::zero(),
             local.is_real,
         );
+
+        builder.when(local.op_a_not_0).assert_one(local.is_real);
     }
 }
 
@@ -473,11 +491,11 @@ mod tests {
         for _ in 0..10i32.pow(7) {
             mul_events.push(AluEvent::new(
                 0,
-                0,
                 Opcode::MULHSU,
                 0x80004000,
                 0x80000000,
                 0xffff8000,
+                false,
             ));
         }
         shard.mul_events = mul_events;
@@ -547,12 +565,12 @@ mod tests {
             (Opcode::MULH, 0xffffffff, 0x00000001, 0xffffffff),
         ];
         for t in mul_instructions.iter() {
-            mul_events.push(AluEvent::new(0, 0, t.0, t.1, t.2, t.3));
+            mul_events.push(AluEvent::new(0, t.0, t.1, t.2, t.3, false));
         }
 
         // Append more events until we have 1000 tests.
         for _ in 0..(1000 - mul_instructions.len()) {
-            mul_events.push(AluEvent::new(0, 0, Opcode::MUL, 1, 1, 1));
+            mul_events.push(AluEvent::new(0, Opcode::MUL, 1, 1, 1, false));
         }
 
         shard.mul_events = mul_events;
