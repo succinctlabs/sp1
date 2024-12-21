@@ -16,6 +16,7 @@ use crate::{
     network::proto::network::{ExecutionStatus, FulfillmentStatus, FulfillmentStrategy, ProofMode},
     Prover, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
 };
+use alloy_primitives::B256;
 use anyhow::Result;
 use backoff::{future::retry, Error as BackoffError, ExponentialBackoff};
 use serde::de::DeserializeOwned;
@@ -132,7 +133,7 @@ impl NetworkProver {
     ///
     /// let vk_hash = client.register_program(&vk, elf);
     /// ```
-    pub async fn register_program(&self, vk: &SP1VerifyingKey, elf: &[u8]) -> Result<Vec<u8>> {
+    pub async fn register_program(&self, vk: &SP1VerifyingKey, elf: &[u8]) -> Result<B256> {
         self.client.register_program(vk, elf).await
     }
 
@@ -143,29 +144,38 @@ impl NetworkProver {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient}
-    ///
-    /// let request_id = vec![1u8; 32];
-    /// let client = ProverClient::builder().network().build();
-    /// let (status, maybe_proof) = client.get_proof_status(&request_id).await?;   
+    /// use sp1_sdk::{ProverClient, network::B256};
+    /// 
+    /// tokio_test::block_on(async {
+    ///     let request_id = B256::from_slice(&vec![1u8; 32]);
+    ///     let client = ProverClient::builder().network().build();
+    ///     let (status, maybe_proof) = client.get_proof_status(request_id).await.unwrap();   
+    /// })
     /// ```
     pub async fn get_proof_status(
         &self,
-        request_id: &[u8],
+        request_id: B256,
     ) -> Result<(GetProofRequestStatusResponse, Option<SP1ProofWithPublicValues>)> {
         self.client.get_proof_request_status(request_id).await
     }
 
     /// Requests a proof from the prover network, returning the request ID.
+    ///
+    /// # Details
+    /// * `vk_hash`: The hash of the verifying key to use for the proof.
+    /// * `stdin`: The input to use for the proof.
+    /// * `mode`: The proof mode to use for the proof.
+    /// * `strategy`: The fulfillment strategy to use for the proof.
+    /// * `cycle_limit`: The cycle limit to use for the proof.
     pub(crate) async fn request_proof(
         &self,
-        vk_hash: &[u8],
+        vk_hash: B256,
         stdin: &SP1Stdin,
         mode: ProofMode,
         strategy: FulfillmentStrategy,
         cycle_limit: u64,
         timeout: Option<Duration>,
-    ) -> Result<Vec<u8>> {
+    ) -> Result<B256> {
         // Get the timeout.
         let timeout_secs = timeout.map_or(DEFAULT_TIMEOUT_SECS, |dur| dur.as_secs());
 
@@ -198,15 +208,14 @@ impl NetworkProver {
         .await?;
 
         // Log the request ID and transaction hash.
-        let tx_hash_hex = "0x".to_string() + &hex::encode(response.tx_hash);
-        let request_id = response.body.unwrap().request_id;
-        let request_id_hex = "0x".to_string() + &hex::encode(request_id.clone());
-        log::info!("Created request {} in transaction {}", request_id_hex, tx_hash_hex);
+        let tx_hash = B256::from_slice(&response.tx_hash);
+        let request_id = B256::from_slice(&response.body.unwrap().request_id);
+        log::info!("Created request {} in transaction {:?}", request_id, tx_hash);
 
         if self.client.rpc_url == DEFAULT_NETWORK_RPC_URL {
             log::info!(
                 "View request status at: https://network.succinct.xyz/request/{}",
-                request_id_hex
+                request_id
             );
         }
 
@@ -217,7 +226,7 @@ impl NetworkProver {
     /// function will return an error if the proof is not generated within the timeout.
     pub async fn wait_proof<P: DeserializeOwned>(
         &self,
-        request_id: &[u8],
+        request_id: B256,
         timeout: Option<Duration>,
     ) -> Result<P> {
         let mut is_assigned = false;
@@ -292,10 +301,10 @@ impl NetworkProver {
         timeout: Option<Duration>,
         skip_simulation: bool,
         cycle_limit: Option<u64>,
-    ) -> Result<Vec<u8>> {
+    ) -> Result<B256> {
         let vk_hash = self.register_program(&pk.vk, &pk.elf).await?;
         let cycle_limit = self.get_cycle_limit(cycle_limit, &pk.elf, stdin, skip_simulation)?;
-        self.request_proof(&vk_hash, stdin, mode.into(), strategy, cycle_limit, timeout).await
+        self.request_proof(vk_hash, stdin, mode.into(), strategy, cycle_limit, timeout).await
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -312,7 +321,7 @@ impl NetworkProver {
         let request_id = self
             .request_proof_impl(pk, stdin, mode, strategy, timeout, skip_simulation, cycle_limit)
             .await?;
-        self.wait_proof(&request_id, timeout).await
+        self.wait_proof(request_id, timeout).await
     }
 
     /// The cycle limit is determined according to the following priority:

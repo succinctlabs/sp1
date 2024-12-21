@@ -6,6 +6,7 @@ use std::result::Result::Ok as StdOk;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use alloy_primitives::B256;
 use alloy_signer::SignerSync;
 use alloy_signer_local::PrivateKeySigner;
 use anyhow::{Context, Ok, Result};
@@ -61,24 +62,23 @@ impl NetworkClient {
     ///
     /// # Details
     /// The verifying key hash is used to identify a program.
-    pub fn get_vk_hash(vk: &SP1VerifyingKey) -> Result<Vec<u8>> {
-        let vk_hash_str = vk.bytes32();
-        let vk_hash = hex::decode(vk_hash_str.strip_prefix("0x").unwrap_or(&vk_hash_str))?;
-        Ok(vk_hash)
+    pub fn get_vk_hash(vk: &SP1VerifyingKey) -> Result<B256> {
+        let vk_hash_str = B256::from_str(&vk.bytes32())?;
+        Ok(vk_hash_str)
     }
 
     /// Registers a program with the network if it is not already registered.
-    pub async fn register_program(&self, vk: &SP1VerifyingKey, elf: &[u8]) -> Result<Vec<u8>> {
+    pub async fn register_program(&self, vk: &SP1VerifyingKey, elf: &[u8]) -> Result<B256> {
         let vk_hash = Self::get_vk_hash(vk)?;
 
         // Try to get the existing program.
-        if (self.get_program(&vk_hash).await?).is_some() {
+        if (self.get_program(vk_hash).await?).is_some() {
             // The program already exists.
             Ok(vk_hash)
         } else {
             // The program doesn't exist, create it.
-            self.create_program(&vk_hash, vk, elf).await?;
-            log::info!("Registered program 0x{}", hex::encode(vk_hash.clone()));
+            self.create_program(vk_hash, vk, elf).await?;
+            log::info!("Registered program {:?}", vk_hash);
             Ok(vk_hash)
         }
     }
@@ -87,7 +87,7 @@ impl NetworkClient {
     ///
     /// # Details
     /// Returns `None` if the program does not exist.
-    pub async fn get_program(&self, vk_hash: &[u8]) -> Result<Option<GetProgramResponse>> {
+    pub async fn get_program(&self, vk_hash: B256) -> Result<Option<GetProgramResponse>> {
         let mut rpc = self.prover_network_client().await?;
         match rpc.get_program(GetProgramRequest { vk_hash: vk_hash.to_vec() }).await {
             StdOk(response) => Ok(Some(response.into_inner())),
@@ -99,7 +99,7 @@ impl NetworkClient {
     /// Creates a new program on the network.
     pub async fn create_program(
         &self,
-        vk_hash: &[u8],
+        vk_hash: B256,
         vk: &SP1VerifyingKey,
         elf: &[u8],
     ) -> Result<CreateProgramResponse> {
@@ -175,7 +175,7 @@ impl NetworkClient {
     /// If the status is Fulfilled, the proof is also returned.
     pub async fn get_proof_request_status<P: DeserializeOwned>(
         &self,
-        request_id: &[u8],
+        request_id: B256,
     ) -> Result<(GetProofRequestStatusResponse, Option<P>)> {
         let mut rpc = self.prover_network_client().await?;
         let res = rpc
@@ -214,7 +214,7 @@ impl NetworkClient {
     #[allow(clippy::too_many_arguments)]
     pub async fn request_proof(
         &self,
-        vk_hash: &[u8],
+        vk_hash: B256,
         stdin: &SP1Stdin,
         mode: ProofMode,
         version: &str,

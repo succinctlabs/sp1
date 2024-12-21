@@ -18,6 +18,8 @@ pub use error::*;
 
 pub use crate::network::client::NetworkClient;
 pub use crate::network::proto::network::FulfillmentStrategy;
+// Re-export for verification key hash + request ID.
+pub use alloy_primitives::B256;
 
 /// The default RPC URL for the prover network.
 pub(crate) const DEFAULT_NETWORK_RPC_URL: &str = "https://rpc.production.succinct.tools/";
