@@ -27,13 +27,12 @@
 pub mod artifacts;
 pub mod client;
 pub mod cpu;
+#[cfg(feature = "cuda")]
 pub mod cuda;
 pub mod env;
 pub mod install;
 #[cfg(feature = "network")]
 pub mod network;
-pub mod proof;
-pub mod prover;
 pub mod utils;
 
 // Re-export the client.
@@ -41,14 +40,16 @@ pub use crate::client::ProverClient;
 
 // Re-export the provers.
 pub use crate::cpu::CpuProver;
+#[cfg(feature = "cuda")]
 pub use crate::cuda::CudaProver;
 pub use crate::env::EnvProver;
 #[cfg(feature = "network")]
 pub use crate::network::prover::NetworkProver;
 
 // Re-export the proof and prover traits.
+pub mod proof;
 pub use proof::*;
-#[cfg(feature = "network")]
+pub mod prover;
 pub use prover::Prover;
 pub use prover::SP1VerificationError;
 
