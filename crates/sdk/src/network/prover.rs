@@ -145,7 +145,7 @@ impl NetworkProver {
     /// # Example
     /// ```rust,no_run
     /// use sp1_sdk::{ProverClient, network::B256};
-    /// 
+    ///
     /// tokio_test::block_on(async {
     ///     let request_id = B256::from_slice(&vec![1u8; 32]);
     ///     let client = ProverClient::builder().network().build();

@@ -1,6 +1,7 @@
 # Note: this is only compatible with Linux runners.
 
-name: Test setup
+name: Setup
+description: "Setup the environment for the CI"
 inputs:
   pull_token:
     description: "Token to use for private repo access"
@@ -101,6 +102,3 @@ runs:
         else
           echo "pkg-config and libssl-dev are already installed."
         fi
-      
-    - name: Set up Docker
-      uses: docker/setup-buildx-action@v3
