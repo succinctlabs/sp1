@@ -6066,7 +6066,6 @@ name = "sp1-curves"
 version = "4.0.0-rc.3"
 dependencies = [
  "cfg-if",
- "curve25519-dalek",
  "dashu",
  "elliptic-curve",
  "generic-array 1.1.1",
