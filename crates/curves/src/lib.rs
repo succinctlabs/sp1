@@ -46,6 +46,7 @@ pub mod k256 {
     pub use k256::{
         ecdsa::{RecoveryId, Signature, VerifyingKey},
         elliptic_curve::ops::Invert,
+        FieldElement, FieldBytes
     };
 }
 
@@ -53,6 +54,7 @@ pub mod p256 {
     pub use p256::{
         ecdsa::{Signature, VerifyingKey},
         elliptic_curve::ops::Invert,
+        FieldElement, FieldBytes
     };
 }
 
@@ -64,7 +66,7 @@ use std::{
 };
 use typenum::Unsigned;
 
-use num::BigUint;
+pub use num::{BigUint, Integer, One};
 use serde::{de::DeserializeOwned, Serialize};
 
 pub const NUM_WORDS_FIELD_ELEMENT: usize = 8;

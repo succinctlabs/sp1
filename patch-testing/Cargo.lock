@@ -3455,6 +3455,7 @@ version = "4.0.0-rc.3"
 dependencies = [
  "bincode",
  "serde",
+ "sp1-primitives",
 ]
 
 [[package]]

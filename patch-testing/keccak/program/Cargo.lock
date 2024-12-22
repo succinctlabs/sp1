@@ -183,8 +183,9 @@ checksum = "1261fe7e33c73b354eab43b1273a57c8f967d0391e80353e51f764ac02cf6775"
 
 [[package]]
 name = "p3-baby-bear"
-version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#bba88386261c3eaceb7f922b99bea56c1d6c6c58"
+version = "0.1.6-succinct"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8b2e1da5c5ba89d1ff94e3ea3c0a8761ee27a8e4372052e43b2803b1a2e878ef"
 dependencies = [
  "num-bigint",
  "p3-field",
@@ -197,8 +198,9 @@ dependencies = [
 
 [[package]]
 name = "p3-dft"
-version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#bba88386261c3eaceb7f922b99bea56c1d6c6c58"
+version = "0.1.6-succinct"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b1f1c69f85b726f615533fcd50a9cf11b408b9b5858105c58851a2af0d1c25f9"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -209,8 +211,9 @@ dependencies = [
 
 [[package]]
 name = "p3-field"
-version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#bba88386261c3eaceb7f922b99bea56c1d6c6c58"
+version = "0.1.6-succinct"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "74b5b7e1d39988e40832c063bb52f5585df1f610164ba7d58d96ff1c0b9b48cd"
 dependencies = [
  "itertools",
  "num-bigint",
@@ -222,8 +225,9 @@ dependencies = [
 
 [[package]]
 name = "p3-matrix"
-version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#bba88386261c3eaceb7f922b99bea56c1d6c6c58"
+version = "0.1.6-succinct"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c77b346fd17e36b5391f49e1a83c2689f9c252b72b3c185186c6760ccd4d0aa3"
 dependencies = [
  "itertools",
  "p3-field",
@@ -236,13 +240,15 @@ dependencies = [
 
 [[package]]
 name = "p3-maybe-rayon"
-version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#bba88386261c3eaceb7f922b99bea56c1d6c6c58"
+version = "0.1.6-succinct"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "90ee22f39225194d8d5b8793161f654412929b29a9378e661e802e28a34a12c8"
 
 [[package]]
 name = "p3-mds"
-version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#bba88386261c3eaceb7f922b99bea56c1d6c6c58"
+version = "0.1.6-succinct"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9f216363c23f040ff7b99107bb174594870405d59e706486adf7e25a84d65698"
 dependencies = [
  "itertools",
  "p3-dft",
@@ -255,8 +261,9 @@ dependencies = [
 
 [[package]]
 name = "p3-poseidon2"
-version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#bba88386261c3eaceb7f922b99bea56c1d6c6c58"
+version = "0.1.6-succinct"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "57717b81e4ad454a9277267a90fb51a3d3bbce7cf69c9390f3c275b82f8c6c76"
 dependencies = [
  "gcd",
  "p3-field",
@@ -268,8 +275,9 @@ dependencies = [
 
 [[package]]
 name = "p3-symmetric"
-version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#bba88386261c3eaceb7f922b99bea56c1d6c6c58"
+version = "0.1.6-succinct"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7c8258147996a62e7274dc24b38e877506cfadf6b591b52408dca58eb582c11a"
 dependencies = [
  "itertools",
  "p3-field",
@@ -278,8 +286,9 @@ dependencies = [
 
 [[package]]
 name = "p3-util"
-version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#bba88386261c3eaceb7f922b99bea56c1d6c6c58"
+version = "0.1.6-succinct"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e20f744c242d88eaccef6d331b21bbbeb1d98e60604c1bcbbd4a99546d7994d7"
 dependencies = [
  "serde",
 ]
@@ -380,7 +389,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "4.0.0"
+version = "4.0.0-rc.3"
 dependencies = [
  "bincode",
  "serde",
@@ -389,7 +398,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "4.0.0"
+version = "4.0.0-rc.3"
 dependencies = [
  "bincode",
  "hex",
@@ -405,7 +414,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "3.0.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "cfg-if",
  "getrandom",

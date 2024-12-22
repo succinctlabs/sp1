@@ -98,6 +98,9 @@ impl<F: PrimeField32> EdDecompressCols<F> {
         let x = self.x.populate(blu_events, &u_div_v, ed25519_sqrt);
         let neg_x = self.neg_x.populate(blu_events, &BigUint::zero(), &x, FieldOperation::Sub);
         self.neg_x_range.populate(blu_events, &neg_x, &Ed25519BaseField::modulus());
+        let x = self.x.populate(blu_events, &u_div_v, |val| ed25519_sqrt(val).expect("curve25519 Decompression to succeed"));
+
+        self.neg_x.populate(blu_events, &BigUint::zero(), &x, FieldOperation::Sub);
     }
 }
 

@@ -117,7 +117,7 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let maybe_client_setup = options.setup().map(|setup| {
         quote! {
-            fn __asset_proper_setup<F: FnOnce(::sp1_sdk::ProverClient) -> ::sp1_sdk::ProverClient>(setup: F) {
+            fn __asset_proper_setup<F: FnOnce(::sp1_sdk::CpuProver) -> ::sp1_sdk::ProverClient>(setup: F) {
                 let _ = setup;
             }
 
@@ -132,8 +132,8 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
         fn #test_name() {
             const __MACRO_INTERNAL_ELF: &[u8] = ::sp1_sdk::include_elf!(#elf_name);
 
-            let __macro_internal_client = ::sp1_sdk::ProverClient::new();
             let mut __macro_internal_stdin = ::sp1_sdk::SP1Stdin::new();
+            let __macro_internal_client = ::sp1_sdk::ProverClient::builder().cpu().build();
 
             #setup_fn
 
@@ -143,7 +143,7 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
 
             #maybe_client_setup
 
-            let (__macro_internal_public, _) = __macro_internal_client.execute(__MACRO_INTERNAL_ELF, __macro_internal_stdin).run().unwrap();
+            let (__macro_internal_public, _) = __macro_internal_client.execute(__MACRO_INTERNAL_ELF, &__macro_internal_stdin).run().unwrap();
 
             __macro_internal_cb(__macro_internal_public);
         }
@@ -158,7 +158,7 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
             fn #prove_name() {
                 const __MACRO_INTERNAL_ELF: &[u8] = ::sp1_sdk::include_elf!(#elf_name);
 
-                let __macro_internal_client = ::sp1_sdk::ProverClient::new();
+                let __macro_internal_client = ::sp1_sdk::ProverClient::builder().cpu().build();
                 let mut __macro_internal_stdin = ::sp1_sdk::SP1Stdin::new();
 
                 #setup_fn
@@ -167,10 +167,8 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
 
                 #bounds_check
 
-                #maybe_client_setup
-
                 let (__macro_internal_pk, _) = __macro_internal_client.setup(__MACRO_INTERNAL_ELF);
-                let __macro_internal_proof = __macro_internal_client.prove(&__macro_internal_pk, __macro_internal_stdin).compressed().run().unwrap();
+                let __macro_internal_proof = __macro_internal_client.prove(&__macro_internal_pk, &__macro_internal_stdin).compressed().run().unwrap();
 
                 __macro_internal_cb(__macro_internal_proof.public_values);
             }
@@ -190,7 +188,7 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
                 fn #gpu_prove_name() {
                     const __MACRO_INTERNAL_ELF: &[u8] = ::sp1_sdk::include_elf!(#elf_name);
 
-                    let __macro_internal_client = ::sp1_sdk::ProverClient::cuda();
+                    let __macro_internal_client = ::sp1_sdk::ProverClient::builder().cuda().build();
                     let mut __macro_internal_stdin = ::sp1_sdk::SP1Stdin::new();
 
                     #setup_fn
@@ -199,10 +197,8 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
 
                     #bounds_check
 
-                    #maybe_client_setup
-
                     let (__macro_internal_pk, _) = __macro_internal_client.setup(__MACRO_INTERNAL_ELF);
-                    let __macro_internal_proof = __macro_internal_client.prove(&__macro_internal_pk, __macro_internal_stdin).compressed().run().unwrap();
+                    let __macro_internal_proof = __macro_internal_client.prove(&__macro_internal_pk, &__macro_internal_stdin).compressed().run().unwrap();
 
                     __macro_internal_cb(__macro_internal_proof.public_values);
                 }
