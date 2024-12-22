@@ -118,7 +118,7 @@ dependencies = [
 [[package]]
 name = "ecdsa"
 version = "0.16.9"
-source = "git+https://github.com/sp1-patches/signatures?branch=n/prep-4.0.0#e2c9db263f9614022fe47d5a1a4926c41ab94986"
+source = "git+https://github.com/sp1-patches/signatures?branch=n/prep-4.0.0#23675720e05bd05e74940c3b351b8e10df90bda3"
 dependencies = [
  "anyhow",
  "cfg-if",
@@ -500,7 +500,7 @@ dependencies = [
 [[package]]
 name = "rfc6979"
 version = "0.4.0"
-source = "git+https://github.com/sp1-patches/signatures?branch=n/prep-4.0.0#e2c9db263f9614022fe47d5a1a4926c41ab94986"
+source = "git+https://github.com/sp1-patches/signatures?branch=n/prep-4.0.0#23675720e05bd05e74940c3b351b8e10df90bda3"
 dependencies = [
  "hmac",
  "subtle",
@@ -584,7 +584,7 @@ dependencies = [
 [[package]]
 name = "sp1-lib"
 version = "4.0.0-rc.3"
-source = "git+https://github.com/succinctlabs/sp1-wip?branch=n/ecdsa-refactor#787d8fe338937d1b6e194be82bab524a2ed93dbb"
+source = "git+https://github.com/succinctlabs/sp1-wip?branch=n/ecdsa-refactor#113cdcecee15f6a3e2c4f828baeaf7779547587e"
 dependencies = [
  "bincode",
  "serde",
@@ -610,7 +610,7 @@ dependencies = [
 [[package]]
 name = "sp1-primitives"
 version = "4.0.0-rc.3"
-source = "git+https://github.com/succinctlabs/sp1-wip?branch=n/ecdsa-refactor#787d8fe338937d1b6e194be82bab524a2ed93dbb"
+source = "git+https://github.com/succinctlabs/sp1-wip?branch=n/ecdsa-refactor#113cdcecee15f6a3e2c4f828baeaf7779547587e"
 dependencies = [
  "bincode",
  "hex",

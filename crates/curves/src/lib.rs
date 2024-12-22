@@ -42,21 +42,8 @@ pub mod curve25519_dalek {
     }
 }
 
-pub mod k256 {
-    pub use k256::{
-        ecdsa::{RecoveryId, Signature, VerifyingKey},
-        elliptic_curve::ops::Invert,
-        FieldElement, FieldBytes
-    };
-}
-
-pub mod p256 {
-    pub use p256::{
-        ecdsa::{Signature, VerifyingKey},
-        elliptic_curve::ops::Invert,
-        FieldElement, FieldBytes
-    };
-}
+pub use k256;
+pub use p256; 
 
 use params::{FieldParameters, NumWords};
 use sp1_primitives::consts::WORD_SIZE;

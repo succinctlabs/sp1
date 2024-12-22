@@ -1,13 +1,9 @@
-
 use core::fmt::Debug;
 
 use std::sync::{Arc, RwLock, RwLockWriteGuard};
 
 use hashbrown::HashMap;
-use sp1_curves::{
-    edwards::ed25519::ed25519_sqrt, params::FieldParameters, BigUint, Integer,
-    One,
-};
+use sp1_curves::{edwards::ed25519::ed25519_sqrt, params::FieldParameters, BigUint, Integer, One};
 
 use crate::Executor;
 
@@ -106,13 +102,18 @@ pub struct HookEnv<'a, 'b: 'a> {
     pub runtime: &'a Executor<'b>,
 }
 
-//#[must_use]
+/// The hook for the `ecrecover` patches.
+///
+/// The input should be of the form [(`curve_id_u8` | `r_is_y_odd_u8` << 7) || `r` || `alpha`] where:
+/// * `curve_id` is 1 for secp256k1 and 2 for secp256r1
+/// * `r_is_y_odd` is 0 if r is even and 1 if r is is odd
+/// * r is the x-coordinate of the point, which should be 32 bytes,
+/// * alpha := r * r * r * (a * r) + b, which should be 32 bytes.
+///
+/// Returns vec![vec![1], `y`, `r_inv`] if the point is decompressable 
+/// and vec![vec![0],`nqr_hint`] if not.
+#[must_use]
 pub fn hook_ecrecover(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
-    // The input should be of the form [(curve_id | r_is_y_odd << 7) || r || alpha] where:
-    // * curve_id is 1 for secp256k1 and 2 for secp256r1
-    // * r_is_y_odd is 0 if r is even and 1 if r is odd
-    // * r is the x-coordinate of the point, which should be 32 bytes,
-    // * alpha := r * r * r * (a * r) + b, which should be 32 bytes. 
     assert!(buf.len() == 64 + 1, "ecrecover should have length 65");
 
     let curve_id = buf[0] & 0b0111_1111;
@@ -121,11 +122,82 @@ pub fn hook_ecrecover(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
     let r_bytes: [u8; 32] = buf[1..33].try_into().unwrap();
     let alpha_bytes: [u8; 32] = buf[33..65].try_into().unwrap();
 
-    let r = BigUint::from_bytes_be(&r_bytes);
-    let alpha = BigUint::from_bytes_be(&alpha_bytes);
-    
-    todo!()
-} 
+    match curve_id {
+        1 => ecrecover::handle_secp256k1(r_bytes, alpha_bytes, r_is_y_odd),
+        2 => ecrecover::handle_secp256r1(r_bytes, alpha_bytes, r_is_y_odd),
+        _ => unimplemented!("Unsupported curve id: {}", curve_id),
+    }
+}
+
+mod ecrecover {
+    use sp1_curves::{k256, p256};
+
+    /// The non-quadratic residue for the curve for secp256k1 and secp256r1.
+    const NQR: [u8; 32] = {
+        let mut nqr = [0; 32];
+        nqr[31] = 3;
+        nqr
+    };
+
+    pub(super) fn handle_secp256k1(r: [u8; 32], alpha: [u8; 32], r_y_is_odd: bool) -> Vec<Vec<u8>> {
+        use k256::elliptic_curve::ff::PrimeField;
+        use k256::FieldBytes as K256FieldBytes;
+        use k256::FieldElement as K256FieldElement;
+        use k256::Scalar as K256Scalar;
+
+        let r = K256FieldElement::from_bytes(K256FieldBytes::from_slice(&r)).unwrap();
+        assert!(!bool::from(r.is_zero()), "r should not be zero");
+
+        let alpha = K256FieldElement::from_bytes(K256FieldBytes::from_slice(&alpha)).unwrap();
+        assert!(!bool::from(alpha.is_zero()), "alpha should not be zero");
+
+        // nomralize the y-coordinate always to be consistent.
+        if let Some(mut y_coord) = alpha.sqrt().into_option().map(|y| y.normalize()) {
+            let r = K256Scalar::from_repr(r.to_bytes()).unwrap();
+            let r_inv = r.invert().expect("Non zero r scalar");
+
+            if r_y_is_odd != bool::from(y_coord.is_odd()) {
+                y_coord = y_coord.negate(1);
+                y_coord = y_coord.normalize();
+            }
+
+            vec![vec![1], y_coord.to_bytes().to_vec(), r_inv.to_bytes().to_vec()]
+        } else {
+            let nqr_field = K256FieldElement::from_bytes(K256FieldBytes::from_slice(&NQR)).unwrap();
+            let qr = alpha * nqr_field;
+            let root = qr.sqrt().expect("if alpha is not a square, then qr should be a square");
+
+            vec![vec![0], root.to_bytes().to_vec()]
+        }
+    }
+
+    pub(super) fn handle_secp256r1(r: [u8; 32], alpha: [u8; 32], r_y_is_odd: bool) -> Vec<Vec<u8>> {
+        use p256::elliptic_curve::ff::PrimeField;
+        use p256::FieldBytes as P256FieldBytes;
+        use p256::FieldElement as P256FieldElement;
+        use p256::Scalar as P256Scalar;
+
+        let r = P256FieldElement::from_bytes(P256FieldBytes::from_slice(&r)).unwrap();
+        let alpha = P256FieldElement::from_bytes(P256FieldBytes::from_slice(&alpha)).unwrap();
+
+        if let Some(mut y_coord) = alpha.sqrt().into_option() {
+            let r = P256Scalar::from_repr(r.to_bytes()).unwrap();
+            let r_inv = r.invert().expect("Non zero r scalar");
+
+            if r_y_is_odd != bool::from(y_coord.is_odd()) {
+                y_coord = -y_coord;
+            }
+
+            vec![vec![1], y_coord.to_bytes().to_vec(), r_inv.to_bytes().to_vec()]
+        } else {
+            let nqr_field = P256FieldElement::from_bytes(P256FieldBytes::from_slice(&NQR)).unwrap();
+            let qr = alpha * nqr_field;
+            let root = qr.sqrt().expect("if alpha is not a square, then qr should be a square");
+
+            vec![vec![0], root.to_bytes().to_vec()]
+        }
+    }
+}
 
 /// Checks if a compressed Edwards point can be decompressed.
 ///
