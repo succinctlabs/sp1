@@ -13,6 +13,23 @@ pub const LONG_WORD_SIZE: usize = 2 * WORD_SIZE;
 /// The Baby Bear prime.
 pub const BABYBEAR_PRIME: u32 = 0x78000001;
 
+pub mod fd {
+    /// The file descriptor for public values.
+    pub const FD_PUBLIC_VALUES: u32 = 3;
+
+    /// The file descriptor for hints.
+    pub const FD_HINT: u32 = 4;
+
+    /// The file descriptor through which to access `hook_k1_ecrecover`.
+    pub const FD_ECRECOVER_HOOK: u32 = 5;
+
+    /// The file descriptor through which to access `hook_ed_decompress`.
+    pub const FD_EDDECOMPRESS: u32 = 7;
+
+    /// The file descriptor through which to access `hook_rsa_mul_mod`.
+    pub const FD_RSA_MUL_MOD: u32 = 8;
+}
+
 /// Converts a slice of words to a byte vector in little endian.
 pub fn words_to_bytes_le_vec(words: &[u32]) -> Vec<u8> {
     words.iter().flat_map(|word| word.to_le_bytes().to_vec()).collect::<Vec<_>>()
