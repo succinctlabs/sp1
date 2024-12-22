@@ -1,0 +1,19 @@
+[package]
+name = "bls12_381_tests"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+sp1-zkvm = { workspace = true }
+sp1-sdk = { workspace = true }
+rand = { workspace = true }
+sp1-test = { workspace = true }
+bls12_381 = "0.8.0"
+
+[features]
+cpu = []
+gpu = ["sp1-sdk/cuda"]
+
+[build-dependencies]
+sp1-build = { workspace = true }
