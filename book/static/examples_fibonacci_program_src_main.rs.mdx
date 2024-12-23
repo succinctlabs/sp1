@@ -1,6 +1,6 @@
 ```rust
 //! A simple program that takes a number `n` as input, and writes the `n-1`th and `n`th fibonacci
-//! number as an output.
+//! numbers as an output.
 
 // These two lines are necessary for the program to properly compile.
 //
@@ -19,7 +19,7 @@ pub fn main() {
     // Write n to public input
     sp1_zkvm::io::commit(&n);
 
-    // Compute the n'th fibonacci number, using normal Rust code.
+    // Compute the n'th fibonacci numbers, using normal Rust code.
     let mut a = 0;
     let mut b = 1;
     for _ in 0..n {
