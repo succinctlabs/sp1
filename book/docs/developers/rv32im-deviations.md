@@ -10,8 +10,6 @@ deviations are outlined below:
   will result in undefined behavior. The heap allocator is also constrained to these addresses.
 - Memory access must be "aligned". The alignment is automatically enforced by all programs compiled
   through the official SP1 RISC-V toolchain.
-    - LW/SW memory access must be word aligned. 
-    - LH/LHU/SH memory access must be half-word aligned.
     - LW/SW memory access must be word aligned.
     - LH/LHU/SH memory access must be half-word aligned.
 - The ECALL instruction is used for system calls and precompiles. Only valid syscall IDs should be called, and only using the specific convention of loading the ID into register T0 and arguments into registers A0 and A1. If the arguments are addresses, they must be word-aligned. Failure to follow this convention can result in undefined behavior. Correct usages can be found in the `sp1_zkvm` and `sp1_lib` crates.
