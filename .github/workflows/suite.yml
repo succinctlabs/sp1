@@ -73,6 +73,8 @@ jobs:
         "spot=false",
         "run-id=${{ github.run_id }}",
       ]
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
@@ -122,6 +124,8 @@ jobs:
       matrix:
         workload: ${{ fromJSON(github.event.inputs.cuda_workloads || '${{ env.DEFAULT_CUDA_WORKLOADS }}') }}
     name: ${{ matrix.workload }} (gpu)
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     runs-on:
       [
         "runs-on",
@@ -188,6 +192,8 @@ jobs:
         "spot=false",
         "run-id=${{ github.run_id }}",
       ]
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
