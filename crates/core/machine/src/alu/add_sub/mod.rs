@@ -73,10 +73,8 @@ impl<F: PrimeField32> MachineAir<F> for AddSubChip {
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
-        let nb_rows = next_power_of_two(
-            input.add_events.len() + input.sub_events.len(),
-            input.fixed_log2_rows::<F, _>(self),
-        );
+        let nb_rows =
+            next_power_of_two(input.add_sub_events.len(), input.fixed_log2_rows::<F, _>(self));
         Some(nb_rows)
     }
 
@@ -86,10 +84,8 @@ impl<F: PrimeField32> MachineAir<F> for AddSubChip {
         _: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         // Generate the rows for the trace.
-        let chunk_size =
-            std::cmp::max((input.add_events.len() + input.sub_events.len()) / num_cpus::get(), 1);
-        let merged_events =
-            input.add_events.iter().chain(input.sub_events.iter()).collect::<Vec<_>>();
+        let chunk_size = std::cmp::max(input.add_sub_events.len() / num_cpus::get(), 1);
+        let events = &input.add_sub_events[..];
         let padded_nb_rows = <AddSubChip as MachineAir<F>>::num_rows(self, input).unwrap();
         let mut values = zeroed_f_vec(padded_nb_rows * NUM_ADD_SUB_COLS);
 
@@ -99,9 +95,9 @@ impl<F: PrimeField32> MachineAir<F> for AddSubChip {
                     let idx = i * chunk_size + j;
                     let cols: &mut AddSubCols<F> = row.borrow_mut();
 
-                    if idx < merged_events.len() {
+                    if idx < events.len() {
                         let mut byte_lookup_events = Vec::new();
-                        let event = &merged_events[idx];
+                        let event = &events[idx];
                         self.event_to_row(event, cols, &mut byte_lookup_events);
                     }
                 });
@@ -113,11 +109,9 @@ impl<F: PrimeField32> MachineAir<F> for AddSubChip {
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
-        let chunk_size =
-            std::cmp::max((input.add_events.len() + input.sub_events.len()) / num_cpus::get(), 1);
+        let chunk_size = std::cmp::max(input.add_sub_events.len() / num_cpus::get(), 1);
 
-        let event_iter =
-            input.add_events.chunks(chunk_size).chain(input.sub_events.chunks(chunk_size));
+        let event_iter = input.add_sub_events.chunks(chunk_size);
 
         let blu_batches = event_iter
             .par_bridge()
@@ -139,7 +133,7 @@ impl<F: PrimeField32> MachineAir<F> for AddSubChip {
         if let Some(shape) = shard.shape.as_ref() {
             shape.included::<F, _>(self)
         } else {
-            !shard.add_events.is_empty()
+            !shard.add_sub_events.is_empty()
         }
     }
 
@@ -306,13 +300,13 @@ mod tests {
                 }]
             })
             .collect::<Vec<_>>();
-        ExecutionRecord { add_events, ..Default::default() }
+        ExecutionRecord { add_sub_events: add_events, ..Default::default() }
     });
 
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.add_events = vec![AluEvent::new(0, Opcode::ADD, 14, 8, 6, false)];
+        shard.add_sub_events = vec![AluEvent::new(0, Opcode::ADD, 14, 8, 6, false)];
         let chip = AddSubChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -329,7 +323,7 @@ mod tests {
             let operand_1 = thread_rng().gen_range(0..u32::MAX);
             let operand_2 = thread_rng().gen_range(0..u32::MAX);
             let result = operand_1.wrapping_add(operand_2);
-            shard.add_events.push(AluEvent::new(
+            shard.add_sub_events.push(AluEvent::new(
                 i * DEFAULT_PC_INC,
                 Opcode::ADD,
                 result,
@@ -342,7 +336,7 @@ mod tests {
             let operand_1 = thread_rng().gen_range(0..u32::MAX);
             let operand_2 = thread_rng().gen_range(0..u32::MAX);
             let result = operand_1.wrapping_sub(operand_2);
-            shard.add_events.push(AluEvent::new(
+            shard.add_sub_events.push(AluEvent::new(
                 i * DEFAULT_PC_INC,
                 Opcode::SUB,
                 result,
@@ -382,10 +376,8 @@ mod tests {
 
         type F = BabyBear;
 
-        let chunk_size =
-            std::cmp::max((input.add_events.len() + input.sub_events.len()) / num_cpus::get(), 1);
-
-        let events = input.add_events.iter().chain(input.sub_events.iter()).collect::<Vec<_>>();
+        let chunk_size = std::cmp::max(input.add_sub_events.len() / num_cpus::get(), 1);
+        let events = &input.add_sub_events[..];
         let row_batches = events
             .par_chunks(chunk_size)
             .map(|events| {

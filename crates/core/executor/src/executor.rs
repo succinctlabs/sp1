@@ -528,13 +528,9 @@ impl<'a> Executor<'a> {
             }
         };
 
-        // We update the local memory counter in two cases:
-        //  1. This is the first time the address is touched, this corresponds to the
-        //     condition record.shard != shard.
-        //  2. The address is being accessed in a syscall. In this case, we need to send it. We use
-        //     local_memory_access to detect this. *WARNING*: This means that we are counting
-        //     on the .is_some() condition to be true only in the SyscallContext.
-        if !self.unconstrained && (record.shard != shard || local_memory_access.is_some()) {
+        // We update the local memory counter if this is the first time the address is touched,
+        // which corresponds to the condition record.shard != shard.
+        if !self.unconstrained && (record.shard != shard) {
             self.local_counts.local_mem += 1;
         }
 
@@ -665,6 +661,12 @@ impl<'a> Executor<'a> {
                 entry.insert(MemoryRecord { value: *value, shard: 0, timestamp: 0 })
             }
         };
+
+        // We update the local memory counter if this is the first time the address is touched,
+        // which corresponds to the condition record.shard != shard.
+        if !self.unconstrained && (record.shard != shard) {
+            self.local_counts.local_mem += 1;
+        }
         let prev_record = *record;
         record.shard = shard;
         record.timestamp = timestamp;
@@ -746,13 +748,9 @@ impl<'a> Executor<'a> {
             }
         };
 
-        // We update the local memory counter in two cases:
-        //  1. This is the first time the address is touched, this corresponds to the
-        //     condition record.shard != shard.
-        //  2. The address is being accessed in a syscall. In this case, we need to send it. We use
-        //     local_memory_access to detect this. *WARNING*: This means that we are counting
-        //     on the .is_some() condition to be true only in the SyscallContext.
-        if !self.unconstrained && (record.shard != shard || local_memory_access.is_some()) {
+        // We update the local memory counter if this is the first time the address is touched,
+        // which corresponds to the condition record.shard != shard.
+        if !self.unconstrained && (record.shard != shard) {
             self.local_counts.local_mem += 1;
         }
 
@@ -841,6 +839,12 @@ impl<'a> Executor<'a> {
                 entry.insert(MemoryRecord { value: *value, shard: 0, timestamp: 0 })
             }
         };
+
+        // We update the local memory counter if this is the first time the address is touched,
+        // which corresponds to the condition record.shard != shard.
+        if !self.unconstrained && (record.shard != shard) {
+            self.local_counts.local_mem += 1;
+        }
 
         let prev_record = *record;
         record.value = value;
@@ -1069,11 +1073,8 @@ impl<'a> Executor<'a> {
     fn emit_alu_event(&mut self, opcode: Opcode, a: u32, b: u32, c: u32, op_a_0: bool) {
         let event = AluEvent { pc: self.state.pc, opcode, a, b, c, op_a_0 };
         match opcode {
-            Opcode::ADD => {
-                self.record.add_events.push(event);
-            }
-            Opcode::SUB => {
-                self.record.sub_events.push(event);
+            Opcode::ADD | Opcode::SUB => {
+                self.record.add_sub_events.push(event);
             }
             Opcode::XOR | Opcode::OR | Opcode::AND => {
                 self.record.bitwise_events.push(event);
@@ -1748,6 +1749,13 @@ impl<'a> Executor<'a> {
 
     /// Bump the record.
     pub fn bump_record(&mut self) {
+        self.estimate_riscv_event_counts(
+            (self.state.clk >> 2) as u64,
+            self.local_counts.local_mem as u64,
+            self.local_counts.syscalls_sent as u64,
+            *self.local_counts.event_counts,
+        );
+        println!("estimated events: {:?}", self.event_counts);
         self.local_counts = LocalCounts::default();
         // Copy all of the existing local memory accesses to the record's local_memory_access vec.
         if self.executor_mode == ExecutorMode::Trace {
