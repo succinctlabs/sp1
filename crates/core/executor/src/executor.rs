@@ -1073,8 +1073,11 @@ impl<'a> Executor<'a> {
     fn emit_alu_event(&mut self, opcode: Opcode, a: u32, b: u32, c: u32, op_a_0: bool) {
         let event = AluEvent { pc: self.state.pc, opcode, a, b, c, op_a_0 };
         match opcode {
-            Opcode::ADD | Opcode::SUB => {
-                self.record.add_sub_events.push(event);
+            Opcode::ADD => {
+                self.record.add_events.push(event);
+            }
+            Opcode::SUB => {
+                self.record.sub_events.push(event);
             }
             Opcode::XOR | Opcode::OR | Opcode::AND => {
                 self.record.bitwise_events.push(event);
