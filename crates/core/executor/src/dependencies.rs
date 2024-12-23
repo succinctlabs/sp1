@@ -19,7 +19,7 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
     }
 
     if c_neg == 1 {
-        executor.record.add_sub_events.push(AluEvent {
+        executor.record.add_events.push(AluEvent {
             pc: UNUSED_PC,
             opcode: Opcode::ADD,
             a: 0,
@@ -29,7 +29,7 @@ pub fn emit_divrem_dependencies(executor: &mut Executor, event: AluEvent) {
         });
     }
     if rem_neg == 1 {
-        executor.record.add_sub_events.push(AluEvent {
+        executor.record.add_events.push(AluEvent {
             pc: UNUSED_PC,
             opcode: Opcode::ADD,
             a: 0,
@@ -117,7 +117,7 @@ pub fn emit_memory_dependencies(
         op_a_0: false,
     };
 
-    executor.record.add_sub_events.push(add_event);
+    executor.record.add_events.push(add_event);
     let addr_offset = (memory_addr % 4_u32) as u8;
     let mem_value = memory_record.value;
 
@@ -150,7 +150,7 @@ pub fn emit_memory_dependencies(
                 c: sign_value,
                 op_a_0: false,
             };
-            executor.record.add_sub_events.push(sub_event);
+            executor.record.add_events.push(sub_event);
         }
     }
 }
@@ -201,7 +201,7 @@ pub fn emit_branch_dependencies(executor: &mut Executor, event: BranchEvent) {
             c: event.c,
             op_a_0: false,
         };
-        executor.record.add_sub_events.push(add_event);
+        executor.record.add_events.push(add_event);
     }
 }
 
@@ -218,7 +218,7 @@ pub fn emit_jump_dependencies(executor: &mut Executor, event: JumpEvent) {
                 c: event.b,
                 op_a_0: false,
             };
-            executor.record.add_sub_events.push(add_event);
+            executor.record.add_events.push(add_event);
         }
         Opcode::JALR => {
             let next_pc = event.b.wrapping_add(event.c);
@@ -230,7 +230,7 @@ pub fn emit_jump_dependencies(executor: &mut Executor, event: JumpEvent) {
                 c: event.c,
                 op_a_0: false,
             };
-            executor.record.add_sub_events.push(add_event);
+            executor.record.add_events.push(add_event);
         }
         _ => unreachable!(),
     }
@@ -246,5 +246,5 @@ pub fn emit_auipc_dependency(executor: &mut Executor, event: AUIPCEvent) {
         c: event.b,
         op_a_0: false,
     };
-    executor.record.add_sub_events.push(add_event);
+    executor.record.add_events.push(add_event);
 }

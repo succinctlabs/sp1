@@ -430,7 +430,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         vec![
             (RiscvAirId::Cpu, record.cpu_events.len()),
             (RiscvAirId::DivRem, record.divrem_events.len()),
-            (RiscvAirId::AddSub, record.add_sub_events.len()),
+            (RiscvAirId::AddSub, record.add_events.len() + record.sub_events.len()),
             (RiscvAirId::Bitwise, record.bitwise_events.len()),
             (RiscvAirId::Mul, record.mul_events.len()),
             (RiscvAirId::ShiftRight, record.shift_right_events.len()),
