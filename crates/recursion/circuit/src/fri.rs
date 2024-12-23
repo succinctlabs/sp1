@@ -77,6 +77,20 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
     challenger: &mut SC::FriChallengerVariable,
     rounds: Vec<TwoAdicPcsRoundVariable<C, SC>>,
 ) {
+    // Write the polynomial evaluations to the challenger.
+    for round in rounds.iter() {
+        for mat in round.domains_points_and_opens.iter() {
+            for point in mat.values.iter() {
+                for coord in point.iter() {
+                    let point_felts = C::ext2felt(builder, *coord);
+                    point_felts.iter().for_each(|felt| {
+                        challenger.observe(builder, *felt);
+                    });
+                }
+            }
+        }
+    }
+
     let alpha = challenger.sample_ext(builder);
 
     let fri_challenges = tracing::debug_span!("verify shape and challenges").in_scope(|| {
