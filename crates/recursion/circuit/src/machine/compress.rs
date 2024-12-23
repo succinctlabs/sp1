@@ -110,8 +110,6 @@ where
         let compress_public_values: &mut RecursionPublicValues<_> =
             reduce_public_values_stream.as_mut_slice().borrow_mut();
 
-        // TODO: add vk correctness check.
-
         // Make sure there is at least one proof.
         assert!(!vks_and_proofs.is_empty());
 

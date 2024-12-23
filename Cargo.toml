@@ -148,7 +148,6 @@ tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
 
 [workspace.metadata.typos]
-# TODO: Fix in next version since CommitCommitedValuesDigest is retained since it's present in constraints.json
 default.extend-ignore-re = [
   "Jo-Philipp Wich",
   "SubEIN",

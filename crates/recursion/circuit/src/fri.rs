@@ -283,11 +283,6 @@ pub fn verify_query<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
     // TODO: fix expreversebits address bug to avoid needing to allocate a new variable.
     let mut x =
         C::exp_reverse_bits(builder, two_adic_generator, index_bits[..log_max_height].to_vec());
-    // let mut x = builder.uninit();
-    // builder.push(DslIr::AddFI(x, x_f, C::F::zero()));
-
-    // let mut x = builder.eval(x + C::F::zero());
-    // let mut x: Ext<_, _> = builder.eval(SymbolicExt::one() * SymbolicFelt::from(x_felt));
 
     for (offset, log_folded_height, commit, step, beta) in izip!(
         0..,
