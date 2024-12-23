@@ -159,7 +159,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
                 (Self::MemoryConst(MemoryConstChip::default()), 17),
                 (Self::BatchFRI(BatchFRIChip::<DEGREE>), 17),
                 (Self::BaseAlu(BaseAluChip), 17),
-                (Self::ExtAlu(ExtAluChip), 15),
+                (Self::ExtAlu(ExtAluChip), 18),
                 (Self::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>), 17),
                 (Self::Poseidon2Wide(Poseidon2WideChip::<DEGREE>), 16),
                 (Self::PublicValues(PublicValuesChip), PUB_VALUES_LOG_HEIGHT),
