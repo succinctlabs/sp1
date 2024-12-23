@@ -44,6 +44,11 @@
         let
           craneLib = (crane.mkLib pkgs).overrideToolchain rust-toolchain;
           rust-toolchain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain;
+          buildInputs = with pkgs; [
+            openssl
+            openssl.dev
+            pkg-config
+          ];
         in
         {
           _module.args.pkgs = import inputs.nixpkgs {
@@ -55,18 +60,14 @@
           devShells.default = pkgs.mkShell {
             buildInputs = [
               rust-toolchain
-            ];
+            ] ++ buildInputs;
           };
           packages =
             let
               cargoArtifacts = craneLib.buildDepsOnly {
                 src = craneLib.cleanCargoSource ./.;
                 doCheck = false;
-                buildInputs = with pkgs; [
-                  openssl
-                  openssl.dev
-                  pkg-config
-                ];
+                inherit buildInputs;
               };
 
               # do not depend on nix files and ignored, but still use bin precompiles
