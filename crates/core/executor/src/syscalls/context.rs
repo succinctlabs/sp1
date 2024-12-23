@@ -143,6 +143,7 @@ impl<'a, 'b> SyscallContext<'a, 'b> {
 
                 if let Some(local_mem_access) = local_mem_access {
                     self.rt.record.cpu_local_memory_access.push(local_mem_access);
+                    self.rt.local_counts.local_mem += 1;
                 }
 
                 syscall_local_mem_events.push(event);
