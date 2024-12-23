@@ -60,11 +60,11 @@ concurrency:
 
 jobs:
   test-cpu:
-    if: ${{ fromJSON(github.event.inputs.cpu_workloads || env.DEFAULT_CPU_WORKLOADS)[0] != null }}
+    if: ${{ fromJSON(github.event.inputs.cpu_workloads || '${{ env.DEFAULT_CPU_WORKLOADS }}')[0] != null }}
     strategy:
       fail-fast: false
       matrix:
-        workload: ${{ fromJSON(github.event.inputs.cpu_workloads || env.DEFAULT_CPU_WORKLOADS) }}
+        workload: ${{ fromJSON(github.event.inputs.cpu_workloads || '${{ env.DEFAULT_CPU_WORKLOADS }}') }}
     name: ${{ matrix.workload }} (cpu)
     runs-on:
       [
@@ -116,11 +116,11 @@ jobs:
           RUST_BACKTRACE: 1
 
   test-cuda:
-    if: ${{ fromJSON(github.event.inputs.cuda_workloads || env.DEFAULT_CUDA_WORKLOADS)[0] != null }}
+    if: ${{ fromJSON(github.event.inputs.cuda_workloads || '${{ env.DEFAULT_CUDA_WORKLOADS }}')[0] != null }}
     strategy:
       fail-fast: false
       matrix:
-        workload: ${{ fromJSON(github.event.inputs.cuda_workloads || env.DEFAULT_CUDA_WORKLOADS) }}
+        workload: ${{ fromJSON(github.event.inputs.cuda_workloads || '${{ env.DEFAULT_CUDA_WORKLOADS }}') }}
     name: ${{ matrix.workload }} (gpu)
     runs-on:
       [
