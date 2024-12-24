@@ -4,7 +4,6 @@ use syn::parse_macro_input;
 
 mod attr;
 
-
 /// The `sp1_test` attribute is used to define a test case one time, that can be used to test
 /// execution, proof types, and the various provers.
 ///
@@ -125,7 +124,7 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
 
             let __macro_internal_client = #setup(__macro_internal_client);
         }
-    }); 
+    });
 
     let execute_test = quote! {
         #[test]
@@ -187,26 +186,26 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
         let gpu_prove_name = syn::Ident::new(&format!("{}_gpu_prove", test_name), test_name.span());
 
         Some(quote! {
-                #[cfg(all(feature = "prove", feature = "gpu"))]
-                #[test]
-                fn #gpu_prove_name() {
-                    const __MACRO_INTERNAL_ELF: &[u8] = ::sp1_sdk::include_elf!(#elf_name);
+            #[cfg(all(feature = "prove", feature = "gpu"))]
+            #[test]
+            fn #gpu_prove_name() {
+                const __MACRO_INTERNAL_ELF: &[u8] = ::sp1_sdk::include_elf!(#elf_name);
 
-                    let __macro_internal_client = ::sp1_sdk::ProverClient::builder().cuda().build();
-                    let mut __macro_internal_stdin = ::sp1_sdk::SP1Stdin::new();
+                let __macro_internal_client = ::sp1_sdk::ProverClient::builder().cuda().build();
+                let mut __macro_internal_stdin = ::sp1_sdk::SP1Stdin::new();
 
-                    #setup_fn
+                #setup_fn
 
-                    let __macro_internal_cb = #setup_name(&mut __macro_internal_stdin);
+                let __macro_internal_cb = #setup_name(&mut __macro_internal_stdin);
 
-                    #bounds_check
+                #bounds_check
 
-                    let (__macro_internal_pk, _) = __macro_internal_client.setup(__MACRO_INTERNAL_ELF);
-                    let __macro_internal_proof = __macro_internal_client.prove(&__macro_internal_pk, &__macro_internal_stdin).compressed().run().unwrap();
+                let (__macro_internal_pk, _) = __macro_internal_client.setup(__MACRO_INTERNAL_ELF);
+                let __macro_internal_proof = __macro_internal_client.prove(&__macro_internal_pk, &__macro_internal_stdin).compressed().run().unwrap();
 
-                    __macro_internal_cb(__macro_internal_proof.public_values);
-                }
-            })
+                __macro_internal_cb(__macro_internal_proof.public_values);
+            }
+        })
     } else {
         None
     };

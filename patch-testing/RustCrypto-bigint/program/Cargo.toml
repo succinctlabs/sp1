@@ -11,6 +11,7 @@ path = "bin/base.rs"
 [dependencies]
 sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
 num-bigint = "0.4.0"
+crypto-bigint = "0.5.5"
 
 [patch.crates-io]
 crypto-bigint = { git = "https://github.com/sp1-patches/RustCrypto-bigint", tag = "crypto_bigint-v0.5.5-patch-v1" }

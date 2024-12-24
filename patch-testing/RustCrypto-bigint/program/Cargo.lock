@@ -6,6 +6,7 @@ version = 3
 name = "RustCrypto-bigint-test"
 version = "0.1.0"
 dependencies = [
+ "crypto-bigint",
  "num-bigint",
  "sp1-zkvm",
 ]
@@ -53,6 +54,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "16b80225097f2e5ae4e7179dd2266824648f3e2f49d9134d584b76389d31c4c3"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "crypto-bigint"
+version = "0.5.5"
+source = "git+https://github.com/sp1-patches/RustCrypto-bigint?tag=crypto_bigint-v0.5.5-patch-v1#ba5c434413348d442a3e71aa76c0f09b553309ea"
+dependencies = [
+ "rand_core",
+ "subtle",
 ]
 
 [[package]]
@@ -420,6 +430,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "subtle"
+version = "2.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
+
+[[package]]
 name = "syn"
 version = "2.0.90"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -505,8 +521,3 @@ dependencies = [
  "quote",
  "syn",
 ]
-
-[[patch.unused]]
-name = "crypto-bigint"
-version = "0.5.5"
-source = "git+https://github.com/sp1-patches/RustCrypto-bigint?tag=crypto_bigint-v0.5.5-patch-v1#ba5c434413348d442a3e71aa76c0f09b553309ea"
