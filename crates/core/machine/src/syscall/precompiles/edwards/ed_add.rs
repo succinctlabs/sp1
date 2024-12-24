@@ -30,6 +30,7 @@ use crate::{
     memory::{value_as_limbs, MemoryReadCols, MemoryWriteCols},
     operations::field::{
         field_den::FieldDenCols, field_inner_product::FieldInnerProductCols, field_op::FieldOpCols,
+        range::FieldLtCols,
     },
     utils::{limbs_from_prev_access, pad_rows_fixed},
 };
@@ -57,6 +58,8 @@ pub struct EdAddAssignCols<T> {
     pub(crate) d_mul_f: FieldOpCols<T, Ed25519BaseField>,
     pub(crate) x3_ins: FieldDenCols<T, Ed25519BaseField>,
     pub(crate) y3_ins: FieldDenCols<T, Ed25519BaseField>,
+    pub(crate) x3_range: FieldLtCols<T, Ed25519BaseField>,
+    pub(crate) y3_range: FieldLtCols<T, Ed25519BaseField>,
 }
 
 #[derive(Default)]
@@ -95,8 +98,11 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
         let d = E::d_biguint();
         let d_mul_f = cols.d_mul_f.populate(record, &f, &d, FieldOperation::Mul);
 
-        cols.x3_ins.populate(record, &x3_numerator, &d_mul_f, true);
-        cols.y3_ins.populate(record, &y3_numerator, &d_mul_f, false);
+        let x3 = cols.x3_ins.populate(record, &x3_numerator, &d_mul_f, true);
+        let y3 = cols.y3_ins.populate(record, &y3_numerator, &d_mul_f, false);
+
+        cols.x3_range.populate(record, &x3, &Ed25519BaseField::modulus());
+        cols.y3_range.populate(record, &y3, &Ed25519BaseField::modulus());
     }
 }
 
@@ -276,11 +282,16 @@ where
 
         let d_mul_f = local.d_mul_f.result;
 
+        let modulus =
+            Ed25519BaseField::to_limbs_field::<AB::Expr, AB::F>(&Ed25519BaseField::modulus());
+
         // x3 = x3_numerator / (1 + d * f).
         local.x3_ins.eval(builder, &local.x3_numerator.result, &d_mul_f, true, local.is_real);
+        local.x3_range.eval(builder, &local.x3_ins.result, &modulus, local.is_real);
 
         // y3 = y3_numerator / (1 - d * f).
         local.y3_ins.eval(builder, &local.y3_numerator.result, &d_mul_f, false, local.is_real);
+        local.y3_range.eval(builder, &local.y3_ins.result, &modulus, local.is_real);
 
         // Constraint self.p_access.value = [self.x3_ins.result, self.y3_ins.result]
         // This is to ensure that p_access is updated with the new value.

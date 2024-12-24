@@ -4,17 +4,17 @@ use core::{
 };
 use std::{fmt::Debug, marker::PhantomData};
 
-use crate::{air::MemoryAirBuilder, utils::zeroed_f_vec};
+use crate::{air::MemoryAirBuilder, operations::field::range::FieldLtCols, utils::zeroed_f_vec};
 use generic_array::GenericArray;
-use num::{BigUint, Zero};
+use num::{BigUint, One, Zero};
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
     events::{
-        ByteLookupEvent, ByteRecord, EllipticCurveAddEvent, FieldOperation, PrecompileEvent,
-        SyscallEvent,
+        ByteLookupEvent, ByteRecord, EllipticCurveAddEvent, FieldOperation, MemoryReadRecord,
+        PrecompileEvent, SyscallEvent,
     },
     syscalls::SyscallCode,
     ExecutionRecord, Program,
@@ -25,7 +25,7 @@ use sp1_curves::{
     AffinePoint, CurveType, EllipticCurve,
 };
 use sp1_derive::AlignedBorrow;
-use sp1_stark::air::{InteractionScope, MachineAir, SP1AirBuilder};
+use sp1_stark::air::{InteractionScope, MachineAir, Polynomial, SP1AirBuilder};
 use typenum::Unsigned;
 
 use crate::{
@@ -53,6 +53,7 @@ pub struct WeierstrassAddAssignCols<T, P: FieldParameters + NumWords> {
     pub p_access: GenericArray<MemoryWriteCols<T>, P::WordsCurvePoint>,
     pub q_access: GenericArray<MemoryReadCols<T>, P::WordsCurvePoint>,
     pub(crate) slope_denominator: FieldOpCols<T, P>,
+    pub(crate) inverse_check: FieldOpCols<T, P>,
     pub(crate) slope_numerator: FieldOpCols<T, P>,
     pub(crate) slope: FieldOpCols<T, P>,
     pub(crate) slope_squared: FieldOpCols<T, P>,
@@ -61,6 +62,8 @@ pub struct WeierstrassAddAssignCols<T, P: FieldParameters + NumWords> {
     pub(crate) p_x_minus_x: FieldOpCols<T, P>,
     pub(crate) y3_ins: FieldOpCols<T, P>,
     pub(crate) slope_times_p_x_minus_x: FieldOpCols<T, P>,
+    pub(crate) x3_range: FieldLtCols<T, P>,
+    pub(crate) y3_range: FieldLtCols<T, P>,
 }
 
 #[derive(Default)]
@@ -93,6 +96,13 @@ impl<E: EllipticCurve> WeierstrassAddAssignChip<E> {
             let slope_denominator =
                 cols.slope_denominator.populate(blu_events, &q_x, &p_x, FieldOperation::Sub);
 
+            cols.inverse_check.populate(
+                blu_events,
+                &BigUint::one(),
+                &slope_denominator,
+                FieldOperation::Div,
+            );
+
             cols.slope.populate(
                 blu_events,
                 &slope_numerator,
@@ -107,7 +117,14 @@ impl<E: EllipticCurve> WeierstrassAddAssignChip<E> {
                 cols.slope_squared.populate(blu_events, &slope, &slope, FieldOperation::Mul);
             let p_x_plus_q_x =
                 cols.p_x_plus_q_x.populate(blu_events, &p_x, &q_x, FieldOperation::Add);
-            cols.x3_ins.populate(blu_events, &slope_squared, &p_x_plus_q_x, FieldOperation::Sub)
+            let x3 = cols.x3_ins.populate(
+                blu_events,
+                &slope_squared,
+                &p_x_plus_q_x,
+                FieldOperation::Sub,
+            );
+            cols.x3_range.populate(blu_events, &x3, &E::BaseField::modulus());
+            x3
         };
 
         // y = slope * (p.x - x_3n) - p.y.
@@ -119,7 +136,13 @@ impl<E: EllipticCurve> WeierstrassAddAssignChip<E> {
                 &p_x_minus_x,
                 FieldOperation::Mul,
             );
-            cols.y3_ins.populate(blu_events, &slope_times_p_x_minus_x, &p_y, FieldOperation::Sub);
+            let y3 = cols.y3_ins.populate(
+                blu_events,
+                &slope_times_p_x_minus_x,
+                &p_y,
+                FieldOperation::Sub,
+            );
+            cols.y3_range.populate(blu_events, &y3, &E::BaseField::modulus());
         }
     }
 }
@@ -202,8 +225,14 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         let mut dummy_row = zeroed_f_vec(num_weierstrass_add_cols::<E::BaseField>());
         let cols: &mut WeierstrassAddAssignCols<F, E::BaseField> =
             dummy_row.as_mut_slice().borrow_mut();
+        let num_words_field_element = E::BaseField::NB_LIMBS / 4;
+        let dummy_memory_record =
+            MemoryReadRecord { value: 1, shard: 0, timestamp: 1, prev_shard: 0, prev_timestamp: 0 };
         let zero = BigUint::zero();
-        Self::populate_field_ops(&mut vec![], cols, zero.clone(), zero.clone(), zero.clone(), zero);
+        let one = BigUint::one();
+        cols.q_access[0].populate(dummy_memory_record, &mut vec![]);
+        cols.q_access[num_words_field_element].populate(dummy_memory_record, &mut vec![]);
+        Self::populate_field_ops(&mut vec![], cols, zero.clone(), zero, one.clone(), one);
 
         values.chunks_mut(chunk_size * num_cols).enumerate().par_bridge().for_each(|(i, rows)| {
             rows.chunks_mut(num_cols).enumerate().for_each(|(j, row)| {
@@ -285,6 +314,20 @@ where
 
             local.slope_denominator.eval(builder, &q_x, &p_x, FieldOperation::Sub, local.is_real);
 
+            // We check that (q.x - p.x) is non-zero in the base field, by computing 1 / (q.x - p.x).
+            let mut coeff_1 = Vec::new();
+            coeff_1.resize(<E::BaseField as NumLimbs>::Limbs::USIZE, AB::Expr::zero());
+            coeff_1[0] = AB::Expr::one();
+            let one_polynomial = Polynomial::from_coefficients(&coeff_1);
+
+            local.inverse_check.eval(
+                builder,
+                &one_polynomial,
+                &local.slope_denominator.result,
+                FieldOperation::Div,
+                local.is_real,
+            );
+
             local.slope.eval(
                 builder,
                 &local.slope_numerator.result,
@@ -333,6 +376,10 @@ where
                 local.is_real,
             );
         }
+
+        let modulus = E::BaseField::to_limbs_field::<AB::Expr, AB::F>(&E::BaseField::modulus());
+        local.x3_range.eval(builder, &local.x3_ins.result, &modulus, local.is_real);
+        local.y3_range.eval(builder, &local.y3_ins.result, &modulus, local.is_real);
 
         // Constraint self.p_access.value = [self.x3_ins.result, self.y3_ins.result]. This is to
         // ensure that p_access is updated with the new value.

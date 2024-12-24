@@ -54,6 +54,7 @@ pub struct WeierstrassDecompressCols<T, P: FieldParameters + NumWords> {
     pub x_access: GenericArray<MemoryReadCols<T>, P::WordsFieldElement>,
     pub y_access: GenericArray<MemoryReadWriteCols<T>, P::WordsFieldElement>,
     pub(crate) range_x: FieldLtCols<T, P>,
+    pub(crate) neg_y_range_check: FieldLtCols<T, P>,
     pub(crate) x_2: FieldOpCols<T, P>,
     pub(crate) x_3: FieldOpCols<T, P>,
     pub(crate) ax_plus_b: FieldInnerProductCols<T, P>,
@@ -68,7 +69,6 @@ pub struct WeierstrassDecompressCols<T, P: FieldParameters + NumWords> {
 #[repr(C)]
 pub struct LexicographicChoiceCols<T, P: FieldParameters + NumWords> {
     pub comparison_lt_cols: FieldLtCols<T, P>,
-    pub neg_y_range_check: FieldLtCols<T, P>,
     pub is_y_eq_sqrt_y_result: T,
     pub when_sqrt_y_res_is_lt: T,
     pub when_neg_y_res_is_lt: T,
@@ -133,7 +133,8 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDecompressChip<E> {
 
         let y = cols.y.populate(record, &x_3_plus_b_plus_ax, sqrt_fn);
         let zero = BigUint::zero();
-        cols.neg_y.populate(record, &zero, &y, FieldOperation::Sub);
+        let neg_y = cols.neg_y.populate(record, &zero, &y, FieldOperation::Sub);
+        cols.neg_y_range_check.populate(record, &neg_y, &E::BaseField::modulus());
     }
 }
 
@@ -213,19 +214,6 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                     F::from_canonical_u8(event.decompressed_y_bytes[0] % 2) == lsb;
                 choice_cols.is_y_eq_sqrt_y_result = F::from_bool(is_y_eq_sqrt_y_result);
 
-                if is_y_eq_sqrt_y_result {
-                    choice_cols.neg_y_range_check.populate(
-                        &mut new_byte_lookup_events,
-                        &neg_y,
-                        &modulus,
-                    );
-                } else {
-                    choice_cols.neg_y_range_check.populate(
-                        &mut new_byte_lookup_events,
-                        &decompressed_y,
-                        &modulus,
-                    );
-                }
                 if event.sign_bit {
                     assert!(neg_y < decompressed_y);
                     choice_cols.when_sqrt_y_res_is_lt = F::from_bool(!is_y_eq_sqrt_y_result);
@@ -362,7 +350,14 @@ where
             FieldOperation::Sub,
             local.is_real,
         );
+        // Range check the `neg_y.result` to be canonical.
+        let modulus_limbs = E::BaseField::to_limbs_field_vec(&E::BaseField::modulus());
+        let modulus_limbs =
+            limbs_from_vec::<AB::Expr, <E::BaseField as NumLimbs>::Limbs, AB::F>(modulus_limbs);
+        local.neg_y_range_check.eval(builder, &local.neg_y.result, &modulus_limbs, local.is_real);
 
+        // Constrain that `y` is a square root. Note that `y.multiplication.result` is constrained to be canonical here.
+        // Since `y_limbs` is constrained to be either `y.multiplication.result` or `neg_y.result`, `y_limbs` will be canonical.
         local.y.eval(builder, &local.x_3_plus_b_plus_ax.result, local.y.lsb, local.is_real);
 
         let y_limbs: Limbs<AB::Var, <E::BaseField as NumLimbs>::Limbs> =
@@ -398,19 +393,6 @@ where
                         ..weierstrass_cols
                             + size_of::<LexicographicChoiceCols<u8, E::BaseField>>()]
                     .borrow();
-
-                // Range check the neg_y value since we are now using a lexicographic comparison.
-                let modulus_limbs = E::BaseField::to_limbs_field_vec(&E::BaseField::modulus());
-                let modulus_limbs =
-                    limbs_from_vec::<AB::Expr, <E::BaseField as NumLimbs>::Limbs, AB::F>(
-                        modulus_limbs,
-                    );
-                choice_cols.neg_y_range_check.eval(
-                    builder,
-                    &local.neg_y.result,
-                    &modulus_limbs,
-                    local.is_real,
-                );
 
                 // Assert that the flags are booleans.
                 builder.assert_bool(choice_cols.is_y_eq_sqrt_y_result);

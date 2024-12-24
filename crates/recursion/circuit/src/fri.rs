@@ -481,7 +481,7 @@ mod tests {
     };
     use p3_challenger::{CanObserve, CanSample, FieldChallenger};
     use p3_commit::Pcs;
-    use p3_field::AbstractField;
+    use p3_field::{extension::BinomialExtensionField, AbstractField};
     use p3_fri::verifier;
     use p3_matrix::dense::RowMajorMatrix;
     use rand::{
@@ -633,12 +633,23 @@ mod tests {
         challenger.observe(commit);
         let zeta = challenger.sample_ext_element::<InnerChallenge>();
         let points = repeat_with(|| vec![zeta]).take(domains_and_polys.len()).collect::<Vec<_>>();
-        let (_, proof) = pcs.open(vec![(&data, points)], &mut challenger);
+        let (all_opened_values, proof) = pcs.open(vec![(&data, points)], &mut challenger);
 
         // Verify proof.
         let mut challenger = InnerChallenger::new(perm.clone());
         challenger.observe(commit);
         let _: InnerChallenge = challenger.sample();
+        let flattened_opened_values: Vec<BinomialExtensionField<BabyBear, 4>> = all_opened_values
+            .into_iter()
+            .flat_map(|v| v.into_iter())
+            .flat_map(|v| v.into_iter())
+            .flat_map(|v| v.into_iter())
+            .collect();
+        for ext_element in flattened_opened_values.iter() {
+            challenger.observe_ext_element(*ext_element);
+        }
+        let _: BinomialExtensionField<BabyBear, 4> = challenger.sample_ext_element();
+
         let fri_challenges_gt = verifier::verify_shape_and_sample_challenges(
             &inner_fri_config(),
             &proof.fri_proof,
@@ -656,6 +667,14 @@ mod tests {
         let commit: [Felt<InnerVal>; DIGEST_SIZE] = commit.map(|x| builder.eval(x));
         challenger.observe_slice(&mut builder, commit);
         let _ = challenger.sample_ext(&mut builder);
+        for ext_element in flattened_opened_values.iter() {
+            let ext_variable: Ext<_, _> = builder.eval(SymbolicExt::from_f(*ext_element));
+            let point_felts = InnerConfig::ext2felt(&mut builder, ext_variable);
+            point_felts.iter().for_each(|felt| {
+                challenger.observe(&mut builder, *felt);
+            });
+        }
+        challenger.sample_ext(&mut builder);
         let fri_challenges = verify_shape_and_sample_challenges::<InnerConfig, BabyBearPoseidon2>(
             &mut builder,
             &config,
