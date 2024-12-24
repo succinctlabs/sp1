@@ -3,25 +3,25 @@ use std::path::PathBuf;
 use clap::Parser;
 use sp1_core_machine::utils::setup_logger;
 use sp1_prover::{
-    components::DefaultProverComponents, shapes::build_vk_map_to_file, REDUCE_BATCH_SIZE,
+    components::CpuProverComponents, shapes::build_vk_map_to_file, REDUCE_BATCH_SIZE,
 };
 
 #[derive(Parser, Debug)]
-#[clap(author, version, about, long_about = None)]
+#[command(author, version, about, long_about = None)]
 struct Args {
-    #[clap(short, long)]
+    #[arg(short, long)]
     build_dir: PathBuf,
-    #[clap(short, long, default_value_t = false)]
+    #[arg(short, long, default_value_t = false)]
     dummy: bool,
-    #[clap(short, long, default_value_t = REDUCE_BATCH_SIZE)]
+    #[arg(short, long, default_value_t = REDUCE_BATCH_SIZE)]
     reduce_batch_size: usize,
-    #[clap(short, long, default_value_t = 1)]
+    #[arg(short, long, default_value_t = 1)]
     num_compiler_workers: usize,
-    #[clap(short, long, default_value_t = 1)]
+    #[arg(short, long, default_value_t = 1)]
     num_setup_workers: usize,
-    #[clap(short, long)]
+    #[arg(short, long)]
     start: Option<usize>,
-    #[clap(short, long)]
+    #[arg(short, long)]
     end: Option<usize>,
 }
 
@@ -37,7 +37,7 @@ fn main() {
     let range_start = args.start;
     let range_end = args.end;
 
-    build_vk_map_to_file::<DefaultProverComponents>(
+    build_vk_map_to_file::<CpuProverComponents>(
         build_dir,
         reduce_batch_size,
         dummy,
