@@ -20,7 +20,7 @@ use sp1_curves::{
         ed25519::{ed25519_sqrt, Ed25519BaseField},
         EdwardsParameters, WordsFieldElement,
     },
-    params::{limbs_from_vec, FieldParameters, Limbs},
+    params::{FieldParameters, Limbs},
 };
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::{BaseAirBuilder, InteractionScope, MachineAir, SP1AirBuilder};
@@ -49,6 +49,7 @@ pub struct EdDecompressCols<T> {
     pub sign: T,
     pub x_access: GenericArray<MemoryWriteCols<T>, WordsFieldElement>,
     pub y_access: GenericArray<MemoryReadCols<T>, WordsFieldElement>,
+    pub(crate) neg_x_range: FieldLtCols<T, Ed25519BaseField>,
     pub(crate) y_range: FieldLtCols<T, Ed25519BaseField>,
     pub(crate) yy: FieldOpCols<T, Ed25519BaseField>,
     pub(crate) u: FieldOpCols<T, Ed25519BaseField>,
@@ -95,7 +96,8 @@ impl<F: PrimeField32> EdDecompressCols<F> {
         let v = self.v.populate(blu_events, &one, &dyy, FieldOperation::Add);
         let u_div_v = self.u_div_v.populate(blu_events, &u, &v, FieldOperation::Div);
         let x = self.x.populate(blu_events, &u_div_v, ed25519_sqrt);
-        self.neg_x.populate(blu_events, &BigUint::zero(), &x, FieldOperation::Sub);
+        let neg_x = self.neg_x.populate(blu_events, &BigUint::zero(), &x, FieldOperation::Sub);
+        self.neg_x_range.populate(blu_events, &neg_x, &Ed25519BaseField::modulus());
     }
 }
 
@@ -109,13 +111,9 @@ impl<V: Copy> EdDecompressCols<V> {
         builder.assert_bool(self.sign);
 
         let y: Limbs<V, U32> = limbs_from_prev_access(&self.y_access);
-        let max_num_limbs = P::to_limbs_field_vec(&Ed25519BaseField::modulus());
-        self.y_range.eval(
-            builder,
-            &y,
-            &limbs_from_vec::<AB::Expr, P::Limbs, AB::F>(max_num_limbs),
-            self.is_real,
-        );
+        let max_num_limbs =
+            Ed25519BaseField::to_limbs_field::<AB::Expr, AB::F>(&Ed25519BaseField::modulus());
+        self.y_range.eval(builder, &y, &max_num_limbs, self.is_real);
         self.yy.eval(builder, &y, &y, FieldOperation::Mul, self.is_real);
         self.u.eval(
             builder,
@@ -141,6 +139,8 @@ impl<V: Copy> EdDecompressCols<V> {
             FieldOperation::Div,
             self.is_real,
         );
+
+        // Constrain that `x` is a square root. Note that `x.multiplication.result` is constrained to be canonical here.
         self.x.eval(builder, &self.u_div_v.result, AB::F::zero(), self.is_real);
         self.neg_x.eval(
             builder,
@@ -149,6 +149,8 @@ impl<V: Copy> EdDecompressCols<V> {
             FieldOperation::Sub,
             self.is_real,
         );
+        // Constrain that `neg_x.result` is also canonical.
+        self.neg_x_range.eval(builder, &self.neg_x.result, &max_num_limbs, self.is_real);
 
         builder.eval_memory_access_slice(
             self.shard,
@@ -166,6 +168,7 @@ impl<V: Copy> EdDecompressCols<V> {
         );
 
         // Constrain that the correct result is written into x.
+        // Since the result is either `neg_x.result` or `x.multiplication.result`, the written value is canonical.
         let x_limbs: Limbs<V, U32> = limbs_from_access(&self.x_access);
         builder.when(self.is_real).when(self.sign).assert_all_eq(self.neg_x.result, x_limbs);
         builder

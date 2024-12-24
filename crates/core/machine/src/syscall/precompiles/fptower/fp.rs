@@ -4,7 +4,7 @@ use std::{
     mem::size_of,
 };
 
-use crate::{air::MemoryAirBuilder, utils::zeroed_f_vec};
+use crate::{air::MemoryAirBuilder, operations::field::range::FieldLtCols, utils::zeroed_f_vec};
 use generic_array::GenericArray;
 use itertools::Itertools;
 use num::{BigUint, Zero};
@@ -52,6 +52,7 @@ pub struct FpOpCols<T, P: FpOpField> {
     pub x_access: GenericArray<MemoryWriteCols<T>, P::WordsFieldElement>,
     pub y_access: GenericArray<MemoryReadCols<T>, P::WordsFieldElement>,
     pub(crate) output: FieldOpCols<T, P>,
+    pub(crate) output_range: FieldLtCols<T, P>,
 }
 
 impl<P: FpOpField> FpOpChip<P> {
@@ -69,7 +70,8 @@ impl<P: FpOpField> FpOpChip<P> {
     ) {
         let modulus_bytes = P::MODULUS;
         let modulus = BigUint::from_bytes_le(modulus_bytes);
-        cols.output.populate_with_modulus(blu_events, &p, &q, &modulus, op);
+        let output = cols.output.populate_with_modulus(blu_events, &p, &q, &modulus, op);
+        cols.output_range.populate(blu_events, &output, &modulus);
     }
 }
 
@@ -234,6 +236,7 @@ where
         builder
             .when(local.is_real)
             .assert_all_eq(local.output.result, value_as_limbs(&local.x_access));
+        local.output_range.eval(builder, &local.output.result, &p_modulus, local.is_real);
 
         builder.eval_memory_access_slice(
             local.shard,

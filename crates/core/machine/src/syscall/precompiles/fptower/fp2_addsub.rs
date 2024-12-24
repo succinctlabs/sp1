@@ -27,6 +27,7 @@ use typenum::Unsigned;
 use crate::{
     memory::{value_as_limbs, MemoryReadCols, MemoryWriteCols},
     operations::field::field_op::FieldOpCols,
+    operations::field::range::FieldLtCols,
     utils::{limbs_from_prev_access, pad_rows_fixed, words_to_bytes_le_vec},
 };
 
@@ -48,6 +49,8 @@ pub struct Fp2AddSubAssignCols<T, P: FpOpField> {
     pub y_access: GenericArray<MemoryReadCols<T>, P::WordsCurvePoint>,
     pub(crate) c0: FieldOpCols<T, P>,
     pub(crate) c1: FieldOpCols<T, P>,
+    pub(crate) c0_range: FieldLtCols<T, P>,
+    pub(crate) c1_range: FieldLtCols<T, P>,
 }
 
 pub struct Fp2AddSubAssignChip<P> {
@@ -71,8 +74,10 @@ impl<P: FpOpField> Fp2AddSubAssignChip<P> {
     ) {
         let modulus_bytes = P::MODULUS;
         let modulus = BigUint::from_bytes_le(modulus_bytes);
-        cols.c0.populate_with_modulus(blu_events, &p_x, &q_x, &modulus, op);
-        cols.c1.populate_with_modulus(blu_events, &p_y, &q_y, &modulus, op);
+        let c0 = cols.c0.populate_with_modulus(blu_events, &p_x, &q_x, &modulus, op);
+        let c1 = cols.c1.populate_with_modulus(blu_events, &p_y, &q_y, &modulus, op);
+        cols.c0_range.populate(blu_events, &c0, &modulus);
+        cols.c1_range.populate(blu_events, &c1, &modulus);
     }
 }
 
@@ -271,6 +276,8 @@ where
             local.c1.result,
             value_as_limbs(&local.x_access[num_words_field_element..]),
         );
+        local.c0_range.eval(builder, &local.c0.result, &p_modulus, local.is_real);
+        local.c1_range.eval(builder, &local.c1.result, &p_modulus, local.is_real);
         builder.eval_memory_access_slice(
             local.shard,
             local.clk.into(),
