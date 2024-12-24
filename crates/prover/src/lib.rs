@@ -1139,7 +1139,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         batch_size: usize,
     ) -> (Vec<SP1DeferredWitnessValues<InnerSC>>, [BabyBear; 8]) {
         // Prepare the inputs for the deferred proofs recursive verification.
-        let mut deferred_digest = [Val::<InnerSC>::zero(); DIGEST_SIZE];
+        let mut deferred_digest = [Val::<CoreSC>::zero(); DIGEST_SIZE];
         let mut deferred_inputs = Vec::new();
 
         for batch in deferred_proofs.chunks(batch_size) {
@@ -1263,7 +1263,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     fn check_for_high_cycles(cycles: u64) {
         if cycles > 100_000_000 {
             tracing::warn!(
-                "high cycle count, consider using the prover network for proof generation: https://docs.succinct.xyz/generating-proofs/prover-network"
+                "High cycle count detected ({}M cycles). For better performance, consider using the Succinct Prover Network: https://docs.succinct.xyz/generating-proofs/prover-network",
+                cycles / 1_000_000
             );
         }
     }
