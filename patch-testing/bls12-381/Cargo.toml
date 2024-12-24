@@ -12,7 +12,7 @@ sp1-test = { workspace = true }
 bls12_381 = "0.8.0"
 
 [features]
-cpu = []
+prove = []
 gpu = ["sp1-sdk/cuda"]
 
 [build-dependencies]

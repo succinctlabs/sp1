@@ -15,7 +15,7 @@ sp1-test.workspace = true
 sha3 = "=0.10.6"
 
 [features]
-cpu = []
+prove = []
 gpu = ["sp1-sdk/cuda"] 
 
 [build-dependencies]

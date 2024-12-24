@@ -11,7 +11,7 @@ rand = { workspace = true }
 sp1-test = { workspace = true }
 
 [features]
-cpu = []
+prove = []
 gpu = ["sp1-sdk/cuda"]
 
 [build-dependencies]
