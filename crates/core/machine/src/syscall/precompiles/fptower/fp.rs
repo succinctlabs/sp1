@@ -110,9 +110,8 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
             let mut row = zeroed_f_vec(num_fp_cols::<P>());
             let cols: &mut FpOpCols<F, P> = row.as_mut_slice().borrow_mut();
 
-            let modulus = &BigUint::from_bytes_le(P::MODULUS);
-            let p = BigUint::from_bytes_le(&words_to_bytes_le_vec(&event.x)) % modulus;
-            let q = BigUint::from_bytes_le(&words_to_bytes_le_vec(&event.y)) % modulus;
+            let p = BigUint::from_bytes_le(&words_to_bytes_le_vec(&event.x));
+            let q = BigUint::from_bytes_le(&words_to_bytes_le_vec(&event.y));
 
             cols.is_add = F::from_canonical_u8((event.op == FieldOperation::Add) as u8);
             cols.is_sub = F::from_canonical_u8((event.op == FieldOperation::Sub) as u8);
