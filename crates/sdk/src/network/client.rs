@@ -261,9 +261,9 @@ impl NetworkClient {
             self.http.put(&presigned_url).body(bincode::serialize::<T>(item)?).send().await?;
 
         if !response.status().is_success() {
-            log::debug!("Artifact upload failed with status: {}", response.status());
+            log::error!("Artifact upload failed with status: {}", response.status());
+            return Err(anyhow::anyhow!("failed to upload artifact: HTTP {}", response.status()));
         }
-        assert!(response.status().is_success());
 
         Ok(uri)
     }
