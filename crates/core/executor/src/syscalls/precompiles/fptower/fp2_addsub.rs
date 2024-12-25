@@ -63,6 +63,8 @@ impl<P: FpOpField> Syscall for Fp2AddSubSyscall<P> {
             _ => panic!("Invalid operation"),
         };
 
+        // Each of c0 and c1 should use the same number of words.
+        // This is regardless of how many u32 digits are required to express them.
         let mut result = c0.to_u32_digits();
         result.resize(num_words / 2, 0);
         result.append(&mut c1.to_u32_digits());
