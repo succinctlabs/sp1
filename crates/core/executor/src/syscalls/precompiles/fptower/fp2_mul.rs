@@ -62,9 +62,9 @@ impl<P: FpOpField> Syscall for Fp2MulSyscall<P> {
         };
         let c1 = ((ac0 * bc1) % modulus + (ac1 * bc0) % modulus) % modulus;
 
-        let mut result =
-            c0.to_u32_digits().into_iter().chain(c1.to_u32_digits()).collect::<Vec<u32>>();
-
+        let mut result = c0.to_u32_digits();
+        result.resize(num_words / 2, 0);
+        result.append(&mut c1.to_u32_digits());
         result.resize(num_words, 0);
         let x_memory_records = rt.mw_slice(x_ptr, &result);
 
