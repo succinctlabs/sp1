@@ -10,11 +10,18 @@ path = "bin/decompress.rs"
 
 [dependencies]
 sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
-ed25519-dalek = { version = "2.1.0", features = ["alloc", "serde"] }
-curve25519-dalek = { version = "4.1.3", default-features = false, features = ["alloc", "serde"] }
+curve25519-dalek-ng = { package = "curve25519-dalek-ng", git = "https://github.com/sp1-patches/curve25519-dalek-ng.git", branch = "patch-v4.1.1", default-features = false, features = [
+    "u32_backend",
+    "alloc",
+] }
 
 [patch.crates-io]
 # patches are not transitvely applied to patches lmao
-curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", branch = "n/prep-4.0.0" }
+curve25519-dalek-ng = { package = "curve25519-dalek-ng", git = "https://github.com/sp1-patches/curve25519-dalek-ng.git", branch = "patch-v4.1.1", default-features = false, features = [
+    "u32_backend",
+    "alloc",
+] }
 # Temporarily pinning to a specific version of ed25519-dalek to avoid a build failure
 sp1-lib = { path = "../../../crates/zkvm/lib" }
+
+# patch-v4.1.1 vs n/prep-4.0.0
