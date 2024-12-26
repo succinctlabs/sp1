@@ -82,7 +82,7 @@ jobs:
           RUST_BACKTRACE: 1
 
   test-cuda:
-    if: ${{ fromJSON(github.event.inputs.cuda_workloads || github.event_name != 'workflow_dispatch' }}
+    if: ${{ github.event.inputs.cuda_workloads != null || github.event_name != 'workflow_dispatch' }}
     strategy:
       fail-fast: false
       matrix:
