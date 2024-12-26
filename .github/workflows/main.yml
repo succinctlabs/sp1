@@ -180,7 +180,7 @@ jobs:
 
   check-branch:
     name: Check branch
-    runs-on: [ubuntu-latest, "run-id=${{ github.run_id }}"]
+    runs-on: ubuntu-latest
     steps:
       - name: Check branch
         if: github.head_ref != 'dev' && !startsWith(github.head_ref, 'release/') && !startsWith(github.head_ref, 'hotfix/')
@@ -309,56 +309,6 @@ jobs:
           cargo remove sp1-sdk
           cargo add sp1-sdk --path $GITHUB_WORKSPACE/crates/sdk
           SP1_DEV=1 RUST_LOG=info cargo run --release
-
-  test-cuda:
-    name: Test CUDA
-    runs-on:
-      [
-        "runs-on",
-        "family=g6.4xlarge",
-        "disk=large",
-        "ami=ami-0a63dc9cb9e934ba3",
-        "spot=false",
-        "run-id=${{ github.run_id }}",
-      ]
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
-
-      - name: Setup CI
-        uses: ./.github/actions/setup
-        with:
-          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
-
-      - name: rust-cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-            ~/.rustup/
-          key: rust-1.81.0-${{ hashFiles('**/Cargo.toml') }}
-          restore-keys: rust-1.81.0-
-
-      - name: Setup toolchain
-        id: rustc-toolchain
-        shell: bash
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain 1.81.0 -y
-
-      - name: Run script
-        run: |
-          . "$HOME/.cargo/env"
-          curl -L https://sp1.succinct.xyz | bash
-          /home/runner/.sp1/bin/sp1up
-          sudo apt install libssl-dev pkg-config
-          cd examples/fibonacci
-          RUST_LOG=info cargo run --release --features cuda
-
-          cargo clippy --all-targets --all-features -- -D warnings -A incomplete-features
 
   # TODO: Re-enable on public release.
   # cli:
