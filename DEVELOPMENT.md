@@ -61,3 +61,7 @@ and then publishing the crates with:
 ```bash
 release-plz release --git-token $GITHUB_TOKEN
 ```
+
+## Ubuntu 24.04 Support
+
+For Ubuntu 24.04 users, the toolchain installation process uses static linking to avoid glibc compatibility issues. This is automatically detected and handled by the installer.
