@@ -35,6 +35,8 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
 
       - name: Install SP1 toolchain from repo
         run: |
@@ -74,6 +76,8 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
 
       - name: Install SP1 toolchain from repo
         run: |
@@ -113,6 +117,8 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
 
       - name: Install SP1 toolchain from repo
         run: |
@@ -152,6 +158,8 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
 
       - name: Install SP1 toolchain from repo
         run: |
@@ -197,6 +205,8 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
 
       - name: Install SP1 toolchain
         run: |
@@ -237,6 +247,8 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
 
       - name: Install SP1 toolchain
         run: |
@@ -273,6 +285,8 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
 
       - name: Install SP1 toolchain
         run: |
