@@ -8,6 +8,7 @@ license = { workspace = true }
 repository = { workspace = true }
 keywords = { workspace = true }
 categories = { workspace = true }
+exclude = ["src/vk_map.bin"]
 
 [dependencies]
 p3-matrix = { workspace = true }
@@ -43,6 +44,14 @@ rayon = "1.10.0"
 lru = "0.12.4"
 eyre = "0.6.12"
 test-artifacts = { workspace = true, optional = true }
+
+[build-dependencies]
+downloader = { version = "0.2", default-features = false, features = [
+  "rustls-tls",
+  "verify",
+]}
+sha2 = { version = "0.10" }
+hex = "0.4"
 
 [dev-dependencies]
 test-artifacts = { workspace = true }

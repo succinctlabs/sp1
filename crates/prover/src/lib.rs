@@ -204,9 +204,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         // Read the shapes from the shapes directory and deserialize them into memory.
         let allowed_vk_map: BTreeMap<[BabyBear; DIGEST_SIZE], usize> = if vk_verification {
-            bincode::deserialize(include_bytes!("./artifacts/vk_map_317914.bin")).unwrap()
+            bincode::deserialize(include_bytes!("vk_map.bin")).unwrap()
         } else {
-            bincode::deserialize(include_bytes!("./artifacts/dummy_vk_map.bin")).unwrap()
+            bincode::deserialize(include_bytes!("vk_map_dummy.bin")).unwrap()
         };
 
         let (root, merkle_tree) = MerkleTree::commit(allowed_vk_map.keys().copied().collect());
