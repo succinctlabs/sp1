@@ -74,14 +74,13 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek-ng"
 version = "4.1.1"
-source = "git+https://github.com/sp1-patches/curve25519-dalek-ng.git?branch=patch-v4.1.1#3fb3e7f6047ddeef0f0c9212f4604bd30d64bd28"
 dependencies = [
  "anyhow",
  "byteorder",
  "cfg-if",
  "digest 0.9.0",
  "rand_core",
- "sp1-lib 3.4.0",
+ "sp1-lib 4.0.0-rc.3 (git+https://github.com/succinctlabs/sp1-wip?branch=min/patch-tests)",
  "subtle-ng",
  "zeroize",
 ]
@@ -413,26 +412,43 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "3.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a5729da1b05d56c01457e5ecabdc77f1cc941df23f2921163a2f325aec22428"
+version = "4.0.0-rc.3"
 dependencies = [
  "bincode",
  "serde",
+ "sp1-primitives 4.0.0-rc.3",
 ]
 
 [[package]]
 name = "sp1-lib"
 version = "4.0.0-rc.3"
+source = "git+https://github.com/succinctlabs/sp1-wip?branch=min/patch-tests#aac356cacf10bb7bb530ead83f1e930c50e97c94"
 dependencies = [
  "bincode",
  "serde",
- "sp1-primitives",
+ "sp1-primitives 4.0.0-rc.3 (git+https://github.com/succinctlabs/sp1-wip?branch=min/patch-tests)",
 ]
 
 [[package]]
 name = "sp1-primitives"
 version = "4.0.0-rc.3"
+dependencies = [
+ "bincode",
+ "hex",
+ "lazy_static",
+ "num-bigint",
+ "p3-baby-bear",
+ "p3-field",
+ "p3-poseidon2",
+ "p3-symmetric",
+ "serde",
+ "sha2",
+]
+
+[[package]]
+name = "sp1-primitives"
+version = "4.0.0-rc.3"
+source = "git+https://github.com/succinctlabs/sp1-wip?branch=min/patch-tests#aac356cacf10bb7bb530ead83f1e930c50e97c94"
 dependencies = [
  "bincode",
  "hex",

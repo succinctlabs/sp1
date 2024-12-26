@@ -108,7 +108,7 @@ pub fn ed25519_sqrt(a: &BigUint) -> Option<BigUint> {
     let flipped_sign_sqrt = beta_squared == neg_a;
 
     if !correct_sign_sqrt && !flipped_sign_sqrt {
-        return None; 
+        return None;
     }
 
     let beta_bytes = beta.to_bytes_le();
@@ -128,7 +128,7 @@ pub fn decompress(compressed_point: &CompressedEdwardsY) -> Option<AffinePoint<E
 
     let y = &BigUint::from_bytes_le(&point_bytes);
     let yy = &((y * y) % modulus);
-    let u = (yy - BigUint::one()) % modulus; // u =  y²-1
+    let u = (yy + modulus - BigUint::one()) % modulus; // u =  y²-1
     let v = &((yy * &Ed25519Parameters::d_biguint()) + &BigUint::one()) % modulus; // v = dy²+1
 
     let v_inv = v.modpow(&(modulus - BigUint::from(2u64)), modulus);

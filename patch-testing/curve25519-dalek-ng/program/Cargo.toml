@@ -8,16 +8,20 @@ edition = "2021"
 name = "curve25519_ng_decompress"
 path = "bin/decompress.rs"
 
+[[bin]]
+name = "curve25519_ng_add_then_multiply"
+path = "bin/add_then_multiply.rs"
+
 [dependencies]
 sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
-curve25519-dalek-ng = { package = "curve25519-dalek-ng", git = "https://github.com/sp1-patches/curve25519-dalek-ng.git", branch = "patch-v4.1.1", default-features = false, features = [
+curve25519-dalek-ng = { path = "../../../../patches/curve25519-dalek-ng", default-features = false, features = [
     "u32_backend",
     "alloc",
 ] }
 
 [patch.crates-io]
 # patches are not transitvely applied to patches lmao
-curve25519-dalek-ng = { package = "curve25519-dalek-ng", git = "https://github.com/sp1-patches/curve25519-dalek-ng.git", branch = "patch-v4.1.1", default-features = false, features = [
+curve25519-dalek-ng = { path = "../../../../patches/curve25519-dalek-ng", default-features = false, features = [
     "u32_backend",
     "alloc",
 ] }
@@ -25,3 +29,8 @@ curve25519-dalek-ng = { package = "curve25519-dalek-ng", git = "https://github.c
 sp1-lib = { path = "../../../crates/zkvm/lib" }
 
 # patch-v4.1.1 vs n/prep-4.0.0
+
+# curve25519-dalek-ng = { package = "curve25519-dalek-ng", git = "https://github.com/sp1-patches/curve25519-dalek-ng.git", branch = "patch-v4.1.1", default-features = false, features = [
+#     "u32_backend",
+#    "alloc",
+# ] }

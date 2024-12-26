@@ -110,7 +110,7 @@ pub struct HookEnv<'a, 'b: 'a> {
 /// * r is the x-coordinate of the point, which should be 32 bytes,
 /// * alpha := r * r * r * (a * r) + b, which should be 32 bytes.
 ///
-/// Returns vec![vec![1], `y`, `r_inv`] if the point is decompressable 
+/// Returns vec![vec![1], `y`, `r_inv`] if the point is decompressable
 /// and vec![vec![0],`nqr_hint`] if not.
 #[must_use]
 pub fn hook_ecrecover(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
@@ -234,7 +234,7 @@ pub fn hook_ed_decompress(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
 
     // For a point to be decompressable, (yy - 1) / (yy * d + 1) must be a quadratic residue.
     let v_inv = v.modpow(&(&modulus - BigUint::from(2u64)), &modulus);
-    let u = (&y * &y - BigUint::one()) % &modulus;
+    let u = (&y * &y + &modulus - BigUint::one()) % &modulus;
     let u_div_v = (&u * &v_inv) % &modulus;
 
     // Note: Our sqrt impl doesnt care about canon represenation,
