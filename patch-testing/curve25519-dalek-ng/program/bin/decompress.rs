@@ -38,4 +38,17 @@ fn main() {
     bytes[31] = 128;
     let compressed = CompressedEdwardsY(bytes);
     println!("{:?}", compressed.decompress());
+
+    // x = 0 with sign off
+    let mut bytes: [u8; 32] = [255u8; 32];
+    bytes[0] = 255 - 19;
+    bytes[31] = 127;
+    let compressed = CompressedEdwardsY(bytes);
+    println!("{:?}", compressed.decompress());
+
+    // x = 0 with sign on
+    let mut bytes: [u8; 32] = [255u8; 32];
+    bytes[0] = 255 - 19;
+    let compressed = CompressedEdwardsY(bytes);
+    println!("{:?}", compressed.decompress());
 }
