@@ -126,6 +126,14 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
         }
     });
 
+    let verify = quote! {
+        {
+            use ::sp1_sdk::Prover;
+
+            __macro_internal_client.verify(&__macro_internal_proof, &__macro_internal_vk).unwrap();
+        }
+    };
+
     let execute_test = quote! {
         #[test]
         fn #test_name() {
@@ -169,9 +177,7 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
                 let (__macro_internal_pk, __macro_internal_vk) = __macro_internal_client.setup(__MACRO_INTERNAL_ELF);
                 let __macro_internal_proof = __macro_internal_client.prove(&__macro_internal_pk, &__macro_internal_stdin).compressed().run().unwrap();
 
-                use ::sp1_sdk::Prover;
-
-                __macro_internal_client.verify(&__macro_internal_proof, &__macro_internal_vk).unwrap();
+                #verify 
 
                 __macro_internal_cb(__macro_internal_proof.public_values);
             }
@@ -202,6 +208,8 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
 
                 let (__macro_internal_pk, _) = __macro_internal_client.setup(__MACRO_INTERNAL_ELF);
                 let __macro_internal_proof = __macro_internal_client.prove(&__macro_internal_pk, &__macro_internal_stdin).compressed().run().unwrap();
+
+                #verify
 
                 __macro_internal_cb(__macro_internal_proof.public_values);
             }
