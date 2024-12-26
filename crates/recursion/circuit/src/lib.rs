@@ -64,16 +64,16 @@ pub type FriMmcs<C> = ExtensionMmcs<BabyBear, EF, <C as BabyBearFriConfig>::ValM
 
 pub trait BabyBearFriConfig:
     StarkGenericConfig<
-        Val = BabyBear,
-        Challenge = EF,
-        Challenger = Self::FriChallenger,
-        Pcs = TwoAdicFriPcs<
-            BabyBear,
-            Radix2DitParallel,
-            Self::ValMmcs,
-            ExtensionMmcs<BabyBear, EF, Self::ValMmcs>,
-        >,
-    >
+    Val = BabyBear,
+    Challenge = EF,
+    Challenger = Self::FriChallenger,
+    Pcs = TwoAdicFriPcs<
+        BabyBear,
+        Radix2DitParallel,
+        Self::ValMmcs,
+        ExtensionMmcs<BabyBear, EF, Self::ValMmcs>,
+    >,
+>
 {
     type ValMmcs: Mmcs<BabyBear, ProverData<RowMajorMatrix<BabyBear>> = Self::RowMajorProverData>
         + Send
