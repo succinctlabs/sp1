@@ -325,6 +325,11 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v4
 
+      - name: Setup CI
+        uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+
       - name: rust-cache
         uses: actions/cache@v3
         with:
