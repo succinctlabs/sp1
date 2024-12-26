@@ -16,55 +16,17 @@ on:
   pull_request:
     branches: [ main ]
 
-env:
-  DEFAULT_CPU_WORKLOADS: >-
-    [
-      "fibonacci-17k",
-      "ssz-withdrawals",
-      "tendermint",
-      "rsp-20526624",
-      "rsa",
-      "regex",
-      "chess",
-      "json",
-      "blobstream-01j6z63fgafrc8jeh0k12gbtvw",
-      "blobstream-01j6z95bdme9svevmfyc974bja",
-      "blobstream-01j6z9ak0ke9srsppgywgke6fj",
-      "vector-01j6xsv35re96tkgyda115320t",
-      "vector-01j6xzy366ff5tbkzcrs8pma02",
-      "vector-01j6y06de0fdaafemr8b1t69z3",
-      "raiko-a7-10"
-    ]
-  DEFAULT_CUDA_WORKLOADS: >-
-    [
-      "fibonacci-17k",
-      "ssz-withdrawals",
-      "tendermint",
-      "rsp-20526624",
-      "rsa",
-      "regex",
-      "chess",
-      "json",
-      "blobstream-01j6z63fgafrc8jeh0k12gbtvw",
-      "blobstream-01j6z95bdme9svevmfyc974bja",
-      "blobstream-01j6z9ak0ke9srsppgywgke6fj",
-      "vector-01j6xsv35re96tkgyda115320t",
-      "vector-01j6xzy366ff5tbkzcrs8pma02",
-      "vector-01j6y06de0fdaafemr8b1t69z3",
-      "raiko-a7-10"
-    ]
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-
   cancel-in-progress: false
 
 jobs:
   test-cpu:
-    if: ${{ fromJSON(github.event.inputs.cpu_workloads || '${{ env.DEFAULT_CPU_WORKLOADS }}')[0] != null }}
+    if: ${{ github.event.inputs.cpu_workloads != null || github.event_name != 'workflow_dispatch' }}
     strategy:
       fail-fast: false
       matrix:
-        workload: ${{ fromJSON(github.event.inputs.cpu_workloads || '${{ env.DEFAULT_CPU_WORKLOADS }}') }}
+        workload: ${{ github.event_name == 'workflow_dispatch' && fromJSON(github.event.inputs.cpu_workloads) || fromJSON('["fibonacci-17k", "ssz-withdrawals", "tendermint", "rsp-20526624", "rsa", "regex", "chess", "json", "blobstream-01j6z63fgafrc8jeh0k12gbtvw", "blobstream-01j6z95bdme9svevmfyc974bja", "blobstream-01j6z9ak0ke9srsppgywgke6fj", "vector-01j6xsv35re96tkgyda115320t", "vector-01j6xzy366ff5tbkzcrs8pma02", "vector-01j6y06de0fdaafemr8b1t69z3", "raiko-a7-10"]')
     name: ${{ matrix.workload }} (cpu)
     runs-on:
       [
@@ -120,11 +82,11 @@ jobs:
           RUST_BACKTRACE: 1
 
   test-cuda:
-    if: ${{ fromJSON(github.event.inputs.cuda_workloads || '${{ env.DEFAULT_CUDA_WORKLOADS }}')[0] != null }}
+    if: ${{ fromJSON(github.event.inputs.cuda_workloads || github.event_name != 'workflow_dispatch' }}
     strategy:
       fail-fast: false
       matrix:
-        workload: ${{ fromJSON(github.event.inputs.cuda_workloads || '${{ env.DEFAULT_CUDA_WORKLOADS }}') }}
+        workload: ${{ github.event_name == 'workflow_dispatch' && fromJSON(github.event.inputs.cuda_workloads) || fromJSON('["fibonacci-17k", "ssz-withdrawals", "tendermint", "rsp-20526624", "rsa", "regex", "chess", "json", "blobstream-01j6z63fgafrc8jeh0k12gbtvw", "blobstream-01j6z95bdme9svevmfyc974bja", "blobstream-01j6z9ak0ke9srsppgywgke6fj", "vector-01j6xsv35re96tkgyda115320t", "vector-01j6xzy366ff5tbkzcrs8pma02", "vector-01j6y06de0fdaafemr8b1t69z3", "raiko-a7-10"]') }}
     name: ${{ matrix.workload }} (gpu)
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
