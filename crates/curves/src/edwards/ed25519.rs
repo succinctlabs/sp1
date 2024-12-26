@@ -139,7 +139,7 @@ pub fn decompress(compressed_point: &CompressedEdwardsY) -> Option<AffinePoint<E
     // sqrt always returns the nonnegative square root,
     // so we negate according to the supplied sign bit.
     if sign {
-        x = modulus - &x;
+        x = (modulus - &x) % modulus;
     }
 
     Some(AffinePoint::new(x, y.clone()))

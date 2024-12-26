@@ -6,12 +6,37 @@ fn test_decompressed_noncanonical(
     use curve25519_dalek_ng::edwards::EdwardsPoint;
     use sp1_test::DEFAULT_CORPUS_COUNT;
 
+    // non-canonical point
     let mut bytes: [u8; 32] = [0; 32];
     for i in 0..32 {
         bytes[i] = 255;
     }
     bytes[0] = 253;
     bytes[31] = 127;
+    let compressed = CompressedEdwardsY(bytes);
+    println!("{:?}", compressed.decompress());
+
+    // y = 0 with sign off
+    let mut bytes: [u8; 32] = [0; 32];
+    let compressed = CompressedEdwardsY(bytes);
+    println!("{:?}", compressed.decompress());
+
+    // y = 0 with sign on
+    let mut bytes: [u8; 32] = [0; 32];
+    bytes[31] = 128;
+    let compressed = CompressedEdwardsY(bytes);
+    println!("{:?}", compressed.decompress());
+
+    // x = 0 with sign off
+    let mut bytes: [u8; 32] = [0; 32];
+    bytes[0] = 1;
+    let compressed = CompressedEdwardsY(bytes);
+    println!("{:?}", compressed.decompress());
+
+    // x = 0 with sign on
+    let mut bytes: [u8; 32] = [0; 32];
+    bytes[0] = 1;
+    bytes[31] = 128;
     let compressed = CompressedEdwardsY(bytes);
     println!("{:?}", compressed.decompress());
 
@@ -26,7 +51,7 @@ fn test_add_then_multiply(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk:
 
     let mut bytes1: [u8; 32] = [0; 32];
     for i in 0..32 {
-        bytes1[i] = 0;
+        bytes1[i] = 3;
     }
     let mut bytes2: [u8; 32] = [0; 32];
     for i in 0..32 {
@@ -34,9 +59,14 @@ fn test_add_then_multiply(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk:
     }
 
     let compressed1 = CompressedEdwardsY(bytes1);
-    println!("{:?}", compressed1.decompress());
-    // let compressed2 = CompressedEdwardsY(bytes2);
-    // println!("{:?}", compressed2.decompress());
+    let point1 = compressed1.decompress().unwrap();
+    let compressed2 = CompressedEdwardsY(bytes2);
+    let point2 = compressed2.decompress().unwrap();
+
+    let scalar = curve25519_dalek_ng::scalar::Scalar::from_bytes_mod_order([1u8; 32]);
+    let point = point1 + point2;
+    let result = point * scalar;
+    println!("{:?}", result.compress());
 
     move |_| {}
 }
