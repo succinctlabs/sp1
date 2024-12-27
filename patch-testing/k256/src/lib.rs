@@ -78,7 +78,6 @@ pub fn test_recover_high_hash_high_recid(
 
     let mut vkeys = Vec::with_capacity(times as usize);
     let mut cnt = 0;
-    let mut inputs = Vec::with_capacity(times as usize);
     for idx in 0..times {
         let mut signature_bytes = [0u8; 64];
         for i in 16..64 {
@@ -102,7 +101,6 @@ pub fn test_recover_high_hash_high_recid(
         let recovered_key = VerifyingKey::recover_from_prehash(&message, &signature, recid);
 
         stdin.write(&(message.to_vec(), signature, recid.to_byte()));
-        inputs.push((message.to_vec(), signature_bytes, recid.to_byte()));
         vkeys.push(recovered_key.ok().map(|vk| vk.to_sec1_bytes().to_vec()));
     }
 
@@ -111,10 +109,7 @@ pub fn test_recover_high_hash_high_recid(
         for (i, vkey) in vkeys.into_iter().enumerate() {
             let key = public.read::<Option<Vec<u8>>>();
 
-            if key != vkey {
-                println!("{:?} {:?} {:?} {:?}", i, key, vkey, inputs[i]);
-                assert!(false);
-            }
+            assert_eq!(key, vkey);
 
             if key.is_none() {
                 fail_count += 1;

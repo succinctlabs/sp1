@@ -118,6 +118,7 @@ dependencies = [
 [[package]]
 name = "ecdsa"
 version = "0.16.9"
+source = "git+https://github.com/sp1-patches/signatures?branch=n/prep-4.0.0#13960895d15e1b6b9c08160079ffb5800582ea2b"
 dependencies = [
  "anyhow",
  "cfg-if",
@@ -490,6 +491,7 @@ dependencies = [
 [[package]]
 name = "rfc6979"
 version = "0.4.0"
+source = "git+https://github.com/sp1-patches/signatures?branch=n/prep-4.0.0#13960895d15e1b6b9c08160079ffb5800582ea2b"
 dependencies = [
  "hmac",
  "subtle",
