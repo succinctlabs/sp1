@@ -12,6 +12,14 @@ path = "bin/decompress.rs"
 name = "curve25519_ng_add_then_multiply"
 path = "bin/add_then_multiply.rs"
 
+[[bin]]
+name = "curve25519_ng_zero_msm"
+path = "bin/zero_msm.rs"
+
+[[bin]]
+name = "curve25519_ng_zero_mul"
+path = "bin/zero_mul.rs"
+
 [dependencies]
 sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
 curve25519-dalek-ng = { package = "curve25519-dalek-ng", git = "https://github.com/sp1-patches/curve25519-dalek-ng.git", branch = "n/prep-4.0.0", default-features = false, features = [

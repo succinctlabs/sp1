@@ -5,6 +5,9 @@ pub trait AffinePoint<const N: usize>: Clone + Sized {
     /// Creates a new [`AffinePoint`] from the given limbs.
     fn new(limbs: [u32; N]) -> Self;
 
+    /// Creates a new [`AffinePoint`] that corresponds to the identity point.
+    fn identity() -> Self;
+
     /// Returns a reference to the limbs.
     fn limbs_ref(&self) -> &[u32; N];
 
