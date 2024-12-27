@@ -2024,6 +2024,7 @@ impl<'a> Executor<'a> {
         {
             // SECTION: Set up all MemoryInitializeFinalizeEvents needed for memory argument.
             let memory_finalize_events = &mut self.record.global_memory_finalize_events;
+            memory_finalize_events.reserve_exact(self.state.memory.page_table.estimate_len() + 32);
 
             // We handle the addr = 0 case separately, as we constrain it to be 0 in the first row
             // of the memory finalize table so it must be first in the array of events.
@@ -2037,6 +2038,8 @@ impl<'a> Executor<'a> {
                 .push(MemoryInitializeFinalizeEvent::finalize_from_record(0, addr_0_final_record));
 
             let memory_initialize_events = &mut self.record.global_memory_initialize_events;
+            memory_initialize_events
+                .reserve_exact(self.state.memory.page_table.estimate_len() + 32);
             let addr_0_initialize_event =
                 MemoryInitializeFinalizeEvent::initialize(0, 0, addr_0_record.is_some());
             memory_initialize_events.push(addr_0_initialize_event);
