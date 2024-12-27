@@ -3,6 +3,12 @@
 version = 3
 
 [[package]]
+name = "anyhow"
+version = "1.0.95"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "34ac096ce696dc2fcabef30516bb13c0a68a11d30131d3df6f04711467681b04"
+
+[[package]]
 name = "autocfg"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -68,11 +74,14 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek-ng"
 version = "4.1.1"
-source = "git+https://github.com/sp1-patches/curve25519-dalek-ng.git?branch=main#763a0faaf54752b06702b39e2296173ab76c2204"
+source = "git+https://github.com/sp1-patches/curve25519-dalek-ng.git?branch=n/prep-4.0.0#8262f79dabde16d6533dffe64ee856d75c026e8c"
 dependencies = [
+ "anyhow",
  "byteorder",
+ "cfg-if",
  "digest 0.9.0",
  "rand_core",
+ "sp1-lib 4.0.0-rc.3 (git+https://github.com/succinctlabs/sp1-wip?branch=min/patch-tests)",
  "subtle-ng",
  "zeroize",
 ]
@@ -152,9 +161,9 @@ checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
 name = "libc"
-version = "0.2.168"
+version = "0.2.169"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5aaeb2981e0606ca11d79718f8bb01164f1d6ed75080182d3abf017e6d244b6d"
+checksum = "b5aba8db14291edd000dfcc4d620c7ebfb122c613afb886ca8803fa4e128a20a"
 
 [[package]]
 name = "libm"
@@ -325,9 +334,9 @@ dependencies = [
 
 [[package]]
 name = "quote"
-version = "1.0.37"
+version = "1.0.38"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5b9d34b8991d19d98081b46eacdd8eb58c6f2b201139f7c5f643cc155a633af"
+checksum = "0e4dccaaaf89514f546c693ddc140f729f958c247918a13380cccc6078391acc"
 dependencies = [
  "proc-macro2",
 ]
@@ -399,12 +408,39 @@ version = "4.0.0-rc.3"
 dependencies = [
  "bincode",
  "serde",
- "sp1-primitives",
+ "sp1-primitives 4.0.0-rc.3",
+]
+
+[[package]]
+name = "sp1-lib"
+version = "4.0.0-rc.3"
+source = "git+https://github.com/succinctlabs/sp1-wip?branch=min/patch-tests#41bf90118ede37fbf7b91129aafb3b64de6f787a"
+dependencies = [
+ "bincode",
+ "serde",
+ "sp1-primitives 4.0.0-rc.3 (git+https://github.com/succinctlabs/sp1-wip?branch=min/patch-tests)",
 ]
 
 [[package]]
 name = "sp1-primitives"
 version = "4.0.0-rc.3"
+dependencies = [
+ "bincode",
+ "hex",
+ "lazy_static",
+ "num-bigint",
+ "p3-baby-bear",
+ "p3-field",
+ "p3-poseidon2",
+ "p3-symmetric",
+ "serde",
+ "sha2",
+]
+
+[[package]]
+name = "sp1-primitives"
+version = "4.0.0-rc.3"
+source = "git+https://github.com/succinctlabs/sp1-wip?branch=min/patch-tests#41bf90118ede37fbf7b91129aafb3b64de6f787a"
 dependencies = [
  "bincode",
  "hex",
@@ -428,7 +464,7 @@ dependencies = [
  "libm",
  "rand",
  "sha2",
- "sp1-lib",
+ "sp1-lib 4.0.0-rc.3",
 ]
 
 [[package]]
@@ -439,9 +475,9 @@ checksum = "734676eb262c623cec13c3155096e08d1f8f29adce39ba17948b18dad1e54142"
 
 [[package]]
 name = "syn"
-version = "2.0.90"
+version = "2.0.92"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "919d3b74a5dd0ccd15aeb8f93e7006bd9e14c295087c9896a110f490752bcf31"
+checksum = "70ae51629bf965c5c098cc9e87908a3df5301051a9e087d6f9bef5c9771ed126"
 dependencies = [
  "proc-macro2",
  "quote",

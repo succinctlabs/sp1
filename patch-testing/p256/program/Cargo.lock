@@ -118,7 +118,7 @@ dependencies = [
 [[package]]
 name = "ecdsa"
 version = "0.16.9"
-source = "git+https://github.com/sp1-patches/signatures?branch=n/prep-4.0.0#21bbf22647fd0a85f05f5889040bca9e6a9ecfbd"
+source = "git+https://github.com/sp1-patches/signatures?branch=n/prep-4.0.0#5e9c3efcbab6c7a837fac0cc45f43bb3cf69e5cf"
 dependencies = [
  "anyhow",
  "cfg-if",
@@ -129,7 +129,7 @@ dependencies = [
  "rfc6979",
  "serdect",
  "signature",
- "sp1-lib",
+ "sp1-lib 4.0.0-rc.3 (git+https://github.com/succinctlabs/sp1-wip?branch=min/patch-tests)",
  "spki",
 ]
 
@@ -314,8 +314,8 @@ dependencies = [
 
 [[package]]
 name = "p3-baby-bear"
-version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#bba88386261c3eaceb7f922b99bea56c1d6c6c58"
+version = "0.2.0-succinct"
+source = "git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4#4931038c845df5d6255a574f90af202645f091d1"
 dependencies = [
  "num-bigint",
  "p3-field",
@@ -328,8 +328,8 @@ dependencies = [
 
 [[package]]
 name = "p3-dft"
-version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#bba88386261c3eaceb7f922b99bea56c1d6c6c58"
+version = "0.2.0-succinct"
+source = "git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4#4931038c845df5d6255a574f90af202645f091d1"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -340,8 +340,8 @@ dependencies = [
 
 [[package]]
 name = "p3-field"
-version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#bba88386261c3eaceb7f922b99bea56c1d6c6c58"
+version = "0.2.0-succinct"
+source = "git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4#4931038c845df5d6255a574f90af202645f091d1"
 dependencies = [
  "itertools",
  "num-bigint",
@@ -353,8 +353,8 @@ dependencies = [
 
 [[package]]
 name = "p3-matrix"
-version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#bba88386261c3eaceb7f922b99bea56c1d6c6c58"
+version = "0.2.0-succinct"
+source = "git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4#4931038c845df5d6255a574f90af202645f091d1"
 dependencies = [
  "itertools",
  "p3-field",
@@ -367,13 +367,13 @@ dependencies = [
 
 [[package]]
 name = "p3-maybe-rayon"
-version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#bba88386261c3eaceb7f922b99bea56c1d6c6c58"
+version = "0.2.0-succinct"
+source = "git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4#4931038c845df5d6255a574f90af202645f091d1"
 
 [[package]]
 name = "p3-mds"
-version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#bba88386261c3eaceb7f922b99bea56c1d6c6c58"
+version = "0.2.0-succinct"
+source = "git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4#4931038c845df5d6255a574f90af202645f091d1"
 dependencies = [
  "itertools",
  "p3-dft",
@@ -386,8 +386,8 @@ dependencies = [
 
 [[package]]
 name = "p3-poseidon2"
-version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#bba88386261c3eaceb7f922b99bea56c1d6c6c58"
+version = "0.2.0-succinct"
+source = "git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4#4931038c845df5d6255a574f90af202645f091d1"
 dependencies = [
  "gcd",
  "p3-field",
@@ -399,8 +399,8 @@ dependencies = [
 
 [[package]]
 name = "p3-symmetric"
-version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#bba88386261c3eaceb7f922b99bea56c1d6c6c58"
+version = "0.2.0-succinct"
+source = "git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4#4931038c845df5d6255a574f90af202645f091d1"
 dependencies = [
  "itertools",
  "p3-field",
@@ -409,8 +409,8 @@ dependencies = [
 
 [[package]]
 name = "p3-util"
-version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3?branch=sp1-v4#bba88386261c3eaceb7f922b99bea56c1d6c6c58"
+version = "0.2.0-succinct"
+source = "git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4#4931038c845df5d6255a574f90af202645f091d1"
 dependencies = [
  "serde",
 ]
@@ -501,7 +501,7 @@ dependencies = [
 [[package]]
 name = "rfc6979"
 version = "0.4.0"
-source = "git+https://github.com/sp1-patches/signatures?branch=n/prep-4.0.0#21bbf22647fd0a85f05f5889040bca9e6a9ecfbd"
+source = "git+https://github.com/sp1-patches/signatures?branch=n/prep-4.0.0#5e9c3efcbab6c7a837fac0cc45f43bb3cf69e5cf"
 dependencies = [
  "hmac",
  "subtle",
@@ -575,16 +575,43 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "4.0.0"
+version = "4.0.0-rc.3"
 dependencies = [
  "bincode",
  "serde",
- "sp1-primitives",
+ "sp1-primitives 4.0.0-rc.3",
+]
+
+[[package]]
+name = "sp1-lib"
+version = "4.0.0-rc.3"
+source = "git+https://github.com/succinctlabs/sp1-wip?branch=min/patch-tests#41bf90118ede37fbf7b91129aafb3b64de6f787a"
+dependencies = [
+ "bincode",
+ "serde",
+ "sp1-primitives 4.0.0-rc.3 (git+https://github.com/succinctlabs/sp1-wip?branch=min/patch-tests)",
 ]
 
 [[package]]
 name = "sp1-primitives"
-version = "4.0.0"
+version = "4.0.0-rc.3"
+dependencies = [
+ "bincode",
+ "hex",
+ "lazy_static",
+ "num-bigint",
+ "p3-baby-bear",
+ "p3-field",
+ "p3-poseidon2",
+ "p3-symmetric",
+ "serde",
+ "sha2",
+]
+
+[[package]]
+name = "sp1-primitives"
+version = "4.0.0-rc.3"
+source = "git+https://github.com/succinctlabs/sp1-wip?branch=min/patch-tests#41bf90118ede37fbf7b91129aafb3b64de6f787a"
 dependencies = [
  "bincode",
  "hex",
@@ -600,7 +627,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "3.0.1"
+version = "4.0.0-rc.3"
 dependencies = [
  "cfg-if",
  "getrandom",
@@ -608,7 +635,7 @@ dependencies = [
  "libm",
  "rand",
  "sha2",
- "sp1-lib",
+ "sp1-lib 4.0.0-rc.3",
 ]
 
 [[package]]
