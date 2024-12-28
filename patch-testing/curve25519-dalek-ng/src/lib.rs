@@ -60,28 +60,44 @@ fn test_decompressed_noncanonical(
 fn test_add_then_multiply(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     use curve25519_dalek_ng::edwards::CompressedEdwardsY;
     use curve25519_dalek_ng::edwards::EdwardsPoint;
+    use curve25519_dalek_ng::scalar::Scalar;
     use sp1_test::DEFAULT_CORPUS_COUNT;
 
-    let mut bytes1: [u8; 32] = [0; 32];
-    for i in 0..32 {
-        bytes1[i] = 3;
+    let times = 100u16;
+    stdin.write(&(times as u16));
+
+    let mut result_vec = Vec::with_capacity(times as usize);
+
+    for _ in 0..times {
+        let bytes1 = rand::random::<[u8; 32]>();
+        let bytes2 = rand::random::<[u8; 32]>();
+        let scalar = rand::random::<[u8; 32]>();
+        stdin.write(&bytes1);
+        stdin.write(&bytes2);
+        stdin.write(&scalar);
+
+        let compressed1 = CompressedEdwardsY(bytes1);
+        let point1 = compressed1.decompress();
+        let compressed2 = CompressedEdwardsY(bytes2);
+        let point2 = compressed2.decompress();
+
+        if point1.is_some() && point2.is_some() {
+            let point = point1.unwrap() + point2.unwrap();
+            let scalar = Scalar::from_bytes_mod_order(scalar);
+            let result = point * scalar;
+            result_vec.push(result.compress().to_bytes());
+        } else {
+            result_vec.push(compressed1.to_bytes());
+        }
     }
-    let mut bytes2: [u8; 32] = [0; 32];
-    for i in 0..32 {
-        bytes2[i] = 9;
+
+    move |mut public| {
+        for (i, expected_result) in result_vec.into_iter().enumerate() {
+            let patch_result = public.read::<[u8; 32]>();
+
+            assert_eq!(patch_result, expected_result);
+        }
     }
-
-    let compressed1 = CompressedEdwardsY(bytes1);
-    let point1 = compressed1.decompress().unwrap();
-    let compressed2 = CompressedEdwardsY(bytes2);
-    let point2 = compressed2.decompress().unwrap();
-
-    let scalar = curve25519_dalek_ng::scalar::Scalar::from_bytes_mod_order([1u8; 32]);
-    let point = point1 + point2;
-    let result = point * scalar;
-    println!("{:?}", result.compress());
-
-    move |_| {}
 }
 
 #[sp1_test::sp1_test("curve25519_ng_zero_msm", prove)]
