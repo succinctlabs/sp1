@@ -1,3 +1,4 @@
+use sp1_primitives::consts::fd::{FD_HINT, FD_PUBLIC_VALUES, LOWEST_ALLOWED_FD};
 use sp1_primitives::consts::num_to_comma_separated;
 
 use crate::{Executor, Register};
@@ -60,9 +61,14 @@ impl Syscall for WriteSyscall {
             if !flush_s.is_empty() {
                 flush_s.into_iter().for_each(|line| println!("stderr: {}", line));
             }
-        } else if fd == 3 {
+        } else if fd <= LOWEST_ALLOWED_FD {
+            panic!(
+                "Tried to write to a reserved file descriptor {fd}, its possible you may be using an outdated patch. \n 
+                Please see `https://docs.succinct.xyz/docs/writing-programs/patched-crates` for more information"
+            );
+        } else if fd == FD_PUBLIC_VALUES {
             rt.state.public_values_stream.extend_from_slice(slice);
-        } else if fd == 4 {
+        } else if fd == FD_HINT {
             rt.state.input_stream.push_front(slice.to_vec());
         } else if let Some(mut hook) = rt.hook_registry.get(fd) {
             let res = hook.invoke_hook(rt.hook_env(), slice);

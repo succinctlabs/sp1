@@ -14,20 +14,43 @@ pub const LONG_WORD_SIZE: usize = 2 * WORD_SIZE;
 pub const BABYBEAR_PRIME: u32 = 0x78000001;
 
 pub mod fd {
-    /// The file descriptor for public values.
-    pub const FD_PUBLIC_VALUES: u32 = 3;
+    /// The minimum file descriptor.
+    ///
+    /// Any file descriptor must be greater than this value, otherwise the executor will panic.
+    ///
+    /// This is useful for deprecating file descriptors.
+    pub const LOWEST_ALLOWED_FD: u32 = 10;
+    
+    /// Creates a file descriptor constant, with respect to the minimum file descriptor.
+    #[macro_export]
+    macro_rules! create_fd {
+        ($(
+            #[$attr:meta]
+            pub const $name:ident: u32 = $value:expr;
+        )*) => {
+            $(
+                #[$attr]
+                pub const $name: u32 = $value + $crate::consts::fd::LOWEST_ALLOWED_FD;
+            )*
+        }
+    }
 
-    /// The file descriptor for hints.
-    pub const FD_HINT: u32 = 4;
+    create_fd! {
+        /// The file descriptor for public values.
+        pub const FD_PUBLIC_VALUES: u32 = 3;
 
-    /// The file descriptor through which to access `hook_k1_ecrecover`.
-    pub const FD_ECRECOVER_HOOK: u32 = 5;
+        /// The file descriptor for hints.
+        pub const FD_HINT: u32 = 4;
 
-    /// The file descriptor through which to access `hook_ed_decompress`.
-    pub const FD_EDDECOMPRESS: u32 = 7;
+        /// The file descriptor through which to access `hook_ecrecover`.
+        pub const FD_ECRECOVER_HOOK: u32 = 5;
 
-    /// The file descriptor through which to access `hook_rsa_mul_mod`.
-    pub const FD_RSA_MUL_MOD: u32 = 8;
+        /// The file descriptor through which to access `hook_ed_decompress`.
+        pub const FD_EDDECOMPRESS: u32 = 6;
+
+        /// The file descriptor through which to access `hook_rsa_mul_mod`.
+        pub const FD_RSA_MUL_MOD: u32 = 7;
+    }
 }
 
 /// Converts a slice of words to a byte vector in little endian.

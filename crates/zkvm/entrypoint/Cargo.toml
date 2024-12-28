@@ -19,7 +19,7 @@ lazy_static = "1.5.0"
 
 # optional
 sp1-lib = { workspace = true, optional = true }
-sp1-primitives = { workspace = true, optional = true }
+sp1-primitives = { workspace = true }
 p3-baby-bear = { workspace = true, optional = true }
 p3-field = { workspace = true, optional = true }
 
@@ -28,7 +28,6 @@ default = ["libm", "lib"]
 libm = ["dep:libm"]
 lib = ["dep:sp1-lib"]
 verify = [
-  "dep:sp1-primitives",
   "dep:p3-baby-bear",
   "dep:p3-field",
   "sp1-lib/verify",

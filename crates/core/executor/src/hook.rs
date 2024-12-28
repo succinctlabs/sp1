@@ -146,7 +146,7 @@ mod ecrecover {
         use k256::Scalar as K256Scalar;
 
         let r = K256FieldElement::from_bytes(K256FieldBytes::from_slice(&r)).unwrap();
-        assert!(!bool::from(r.is_zero()), "r should not be zero");
+        debug_assert!(!bool::from(r.is_zero()), "r should not be zero");
 
         let alpha = K256FieldElement::from_bytes(K256FieldBytes::from_slice(&alpha)).unwrap();
         assert!(!bool::from(alpha.is_zero()), "alpha should not be zero");
@@ -178,9 +178,10 @@ mod ecrecover {
         use p256::Scalar as P256Scalar;
 
         let r = P256FieldElement::from_bytes(P256FieldBytes::from_slice(&r)).unwrap();
-        assert!(!bool::from(r.is_zero()), "r should not be zero");
+        debug_assert!(!bool::from(r.is_zero()), "r should not be zero");
+
         let alpha = P256FieldElement::from_bytes(P256FieldBytes::from_slice(&alpha)).unwrap();
-        assert!(!bool::from(alpha.is_zero()), "alpha should not be zero");
+        debug_assert!(!bool::from(alpha.is_zero()), "alpha should not be zero");
 
         if let Some(mut y_coord) = alpha.sqrt().into_option() {
             let r = P256Scalar::from_repr(r.to_bytes()).unwrap();

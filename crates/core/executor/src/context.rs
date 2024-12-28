@@ -8,6 +8,8 @@ use crate::{
     subproof::SubproofVerifier,
 };
 
+use sp1_primitives::consts::fd::LOWEST_ALLOWED_FD;
+
 /// Context to run a program inside SP1.
 #[derive(Clone, Default)]
 pub struct SP1Context<'a> {
@@ -59,6 +61,9 @@ impl<'a> SP1ContextBuilder<'a> {
     pub fn build(&mut self) -> SP1Context<'a> {
         // If hook_registry_entries is nonempty or no_default_hooks true,
         // indicating a non-default value of hook_registry.
+        //
+        // Panics:
+        // - If any hook file descriptor is less than 10.
         let hook_registry =
             (!self.hook_registry_entries.is_empty() || self.no_default_hooks).then(|| {
                 let mut table = if take(&mut self.no_default_hooks) {
@@ -66,10 +71,20 @@ impl<'a> SP1ContextBuilder<'a> {
                 } else {
                     HookRegistry::default().table
                 };
+
+                self.hook_registry_entries
+                    .iter()
+                    .map(|(fd, _)| fd)
+                    .filter(|fd| table.contains_key(*fd))
+                    .for_each(|fd| {
+                        tracing::warn!("Overriding default hook with file descriptor {}", fd);
+                    });
+
                 // Allows overwriting default hooks.
                 table.extend(take(&mut self.hook_registry_entries));
                 HookRegistry { table }
             });
+
         let subproof_verifier = take(&mut self.subproof_verifier);
         let cycle_limit = take(&mut self.max_cycles);
         let skip_deferred_proof_verification = take(&mut self.skip_deferred_proof_verification);
@@ -86,11 +101,16 @@ impl<'a> SP1ContextBuilder<'a> {
     /// Hooks may be invoked from within SP1 by writing to the specified file descriptor `fd`
     /// with [`sp1_zkvm::io::write`], returning a list of arbitrary data that may be read
     /// with successive calls to [`sp1_zkvm::io::read`].
+    ///
+    /// # Panics
+    /// Panics if `fd` <= 10.
     pub fn hook(
         &mut self,
         fd: u32,
         f: impl FnMut(HookEnv, &[u8]) -> Vec<Vec<u8>> + Send + Sync + 'a,
     ) -> &mut Self {
+        assert!(fd > LOWEST_ALLOWED_FD, "Hook file descriptors must be greater than 10.");
+
         self.hook_registry_entries.push((fd, hookify(f)));
         self
     }
