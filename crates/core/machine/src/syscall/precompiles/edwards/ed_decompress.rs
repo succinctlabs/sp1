@@ -96,7 +96,9 @@ impl<F: PrimeField32> EdDecompressCols<F> {
         let v = self.v.populate(blu_events, &one, &dyy, FieldOperation::Add);
         let u_div_v = self.u_div_v.populate(blu_events, &u, &v, FieldOperation::Div);
 
-        let x = self.x.populate(blu_events, &u_div_v, |v| ed25519_sqrt(v).expect("curve25519 expected field element to be a square"));
+        let x = self.x.populate(blu_events, &u_div_v, |v| {
+            ed25519_sqrt(v).expect("curve25519 expected field element to be a square")
+        });
         let neg_x = self.neg_x.populate(blu_events, &BigUint::zero(), &x, FieldOperation::Sub);
         self.neg_x_range.populate(blu_events, &neg_x, &Ed25519BaseField::modulus());
     }

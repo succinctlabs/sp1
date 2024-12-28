@@ -43,7 +43,7 @@ pub mod curve25519_dalek {
 }
 
 pub use k256;
-pub use p256; 
+pub use p256;
 
 use params::{FieldParameters, NumWords};
 use sp1_primitives::consts::WORD_SIZE;
