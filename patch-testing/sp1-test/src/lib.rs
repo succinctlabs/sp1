@@ -4,6 +4,12 @@ pub const DEFAULT_CORPUS_COUNT: u8 = 100;
 /// The maximum length of an item in the corpus, if applicable.
 pub const DEFAULT_CORPUS_MAX_LEN: usize = 100;
 
+pub static SERIAL_LOCK: parking_lot::Mutex<()> = parking_lot::Mutex::new(());
+
+pub fn lock_serial() -> parking_lot::MutexGuard<'static, ()> {
+    SERIAL_LOCK.lock()
+}
+
 /// Append common edge cases to the corpus.
 ///
 /// Like all 0s or all 1s or the empty string.

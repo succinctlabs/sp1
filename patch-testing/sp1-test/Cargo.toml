@@ -8,3 +8,4 @@ publish.workspace = true
 sp1-test-macro.workspace = true
 rand.workspace = true
 sha2-v0-9-8.workspace = true
+parking_lot = "0.12.3"
