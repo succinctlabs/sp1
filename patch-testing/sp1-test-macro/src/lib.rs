@@ -128,13 +128,12 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let verify = quote! {
         {
-            use ::sp1_sdk::Prover;
-
             __macro_internal_client.verify(&__macro_internal_proof, &__macro_internal_vk).unwrap();
         }
     };
 
     let execute_test = quote! {
+        #[cfg(not(any(feature = "prove", feature = "gpu")))]
         #[test]
         fn #test_name() {
             const __MACRO_INTERNAL_ELF: &[u8] = ::sp1_sdk::include_elf!(#elf_name);
@@ -163,6 +162,7 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
             #[cfg(feature = "prove")]
             #[test]
             fn #prove_name() {
+                use ::sp1_sdk::Prover;
                 const __MACRO_INTERNAL_ELF: &[u8] = ::sp1_sdk::include_elf!(#elf_name);
 
                 let __macro_internal_client = ::sp1_sdk::ProverClient::builder().cpu().build();
@@ -192,10 +192,16 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
         let gpu_prove_name = syn::Ident::new(&format!("{}_gpu_prove", test_name), test_name.span());
 
         Some(quote! {
-            #[cfg(all(feature = "prove", feature = "gpu"))]
+            #[cfg(feature = "gpu")]
             #[test]
             fn #gpu_prove_name() {
+                use ::sp1_sdk::Prover;
                 const __MACRO_INTERNAL_ELF: &[u8] = ::sp1_sdk::include_elf!(#elf_name);
+
+                // note: Gpu tests must be ran serially
+                // parking-lot is used internally to avoid priority inversion
+                let _lock = ::sp1_test::lock_serial();
+                std::thread::sleep(std::time::Duration::from_secs(5));
 
                 let __macro_internal_client = ::sp1_sdk::ProverClient::builder().cuda().build();
                 let mut __macro_internal_stdin = ::sp1_sdk::SP1Stdin::new();
@@ -206,7 +212,7 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
 
                 #bounds_check
 
-                let (__macro_internal_pk, _) = __macro_internal_client.setup(__MACRO_INTERNAL_ELF);
+                let (__macro_internal_pk, __macro_internal_vk) = __macro_internal_client.setup(__MACRO_INTERNAL_ELF);
                 let __macro_internal_proof = __macro_internal_client.prove(&__macro_internal_pk, &__macro_internal_stdin).compressed().run().unwrap();
 
                 #verify
