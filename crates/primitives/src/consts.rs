@@ -22,7 +22,6 @@ pub mod fd {
     pub const LOWEST_ALLOWED_FD: u32 = 10;
 
     /// Creates a file descriptor constant, with respect to the minimum file descriptor.
-    #[macro_export]
     macro_rules! create_fd {
         ($(
             #[$attr:meta]

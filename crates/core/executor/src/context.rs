@@ -63,7 +63,7 @@ impl<'a> SP1ContextBuilder<'a> {
         // indicating a non-default value of hook_registry.
         //
         // Panics:
-        // - If any hook file descriptor is less than 10.
+        // - If any hook file descriptor is less than [`LOWEST_ALLOWED_FD`].
         let hook_registry =
             (!self.hook_registry_entries.is_empty() || self.no_default_hooks).then(|| {
                 let mut table = if take(&mut self.no_default_hooks) {
@@ -103,7 +103,7 @@ impl<'a> SP1ContextBuilder<'a> {
     /// with successive calls to [`sp1_zkvm::io::read`].
     ///
     /// # Panics
-    /// Panics if `fd` <= 10.
+    /// Panics if `fd` <= [`LOWEST_ALLOWED_FD`].
     pub fn hook(
         &mut self,
         fd: u32,
