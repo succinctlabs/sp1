@@ -27,9 +27,10 @@ fn test_expected_digest_lte_100(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp
 
     move |mut public| {
          for digest in digests {
-            let commited = public.read::<[u8; 32]>(); 
+            let committed = public.read::<[u8; 32]>(); 
 
-            assert_eq!(digest, commited);
+            assert_eq!(digest, committed);
+++ b/patch-testing/sha/src/lib.rs
         }
     }
 }

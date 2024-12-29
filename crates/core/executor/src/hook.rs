@@ -224,7 +224,7 @@ pub fn hook_ed_decompress(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
     // Mask the sign bit.
     bytes[31] &= 0b0111_1111;
 
-    // The AIR asserts canon inputs, so hint here if it cant be satisified.
+    // The AIR asserts canon inputs, so hint here if it cant be satisfied.
     let y = BigUint::from_bytes_le(&bytes);
     if y >= modulus {
         return vec![vec![0]];
@@ -240,7 +240,8 @@ pub fn hook_ed_decompress(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
     let u = (&y * &y + &modulus - BigUint::one()) % &modulus;
     let u_div_v = (&u * &v_inv) % &modulus;
 
-    // Note: Our sqrt impl doesnt care about canon represenation,
+    // Note: Our sqrt impl doesnt care about canon representation,
+++ b/patch-testing/curve25519-dalek/src/lib.rs
     // however we have already checked that were less than the modulus.
     if ed25519_sqrt(&u_div_v).is_some() {
         vec![vec![1]]
