@@ -59,6 +59,9 @@ pub enum PrecompileEvent {
     Bn254Fp2AddSub(Fp2AddSubEvent),
     /// Bn254 quadratic field mul precompile event.
     Bn254Fp2Mul(Fp2MulEvent),
+    /// Bn254 scalar field operation precompile event.
+    /// (Maybe it can use the FpOpEvent?)
+    Bn254Fr(FpOpEvent),
     /// Bls12-381 curve add precompile event.
     Bls12381Add(EllipticCurveAddEvent),
     /// Bls12-381 curve double precompile event.
@@ -126,7 +129,9 @@ impl PrecompileLocalMemory for Vec<(SyscallEvent, PrecompileEvent)> {
                 PrecompileEvent::U256xU2048Mul(e) => {
                     iterators.push(e.local_mem_access.iter());
                 }
-                PrecompileEvent::Bls12381Fp(e) | PrecompileEvent::Bn254Fp(e) => {
+                PrecompileEvent::Bls12381Fp(e)
+                | PrecompileEvent::Bn254Fp(e)
+                | PrecompileEvent::Bn254Fr(e) => {
                     iterators.push(e.local_mem_access.iter());
                 }
                 PrecompileEvent::Bls12381Fp2AddSub(e) | PrecompileEvent::Bn254Fp2AddSub(e) => {
