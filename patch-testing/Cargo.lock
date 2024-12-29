@@ -3908,6 +3908,7 @@ dependencies = [
 name = "sp1-test"
 version = "1.1.0"
 dependencies = [
+ "parking_lot",
  "rand",
  "sha2 0.9.9",
  "sp1-test-macro",
@@ -3933,6 +3934,7 @@ dependencies = [
  "rand",
  "sha2 0.10.8",
  "sp1-lib",
+ "sp1-primitives",
 ]
 
 [[package]]
