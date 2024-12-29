@@ -5,40 +5,24 @@ GIT_REF=$(git rev-parse --abbrev-ref HEAD)
 
 # Define the list of CPU workloads.
 CPU_WORKLOADS=(
-    "fibonacci-17k"
-    "ssz-withdrawals"
-    "tendermint"
-    "rsp-20526624-patched"
-    "rsa"
-    "regex"
-    "chess"
-    "json"
-    "blobstream-01j6z63fgafrc8jeh0k12gbtvw"
-    "blobstream-01j6z95bdme9svevmfyc974bja"
-    "blobstream-01j6z9ak0ke9srsppgywgke6fj"
-    "vector-01j6xsv35re96tkgyda115320t"
-    "vector-01j6xzy366ff5tbkzcrs8pma02"
-    "vector-01j6y06de0fdaafemr8b1t69z3"
-    "raiko-a7-10"  
+    "v4/chess"
+    "v4/fibonacci"
+    "v4/json"
+    "v4/regex"
+    "v4/rsp"
+    "v4/ssz-withdrawals"
+    "v4/tendermint"
 )
 
 # Define the list of CUDA workloads.
 CUDA_WORKLOADS=(
-    "fibonacci-17k"
-    "ssz-withdrawals"
-    "tendermint"
-    "rsp-20526624-patched"
-    "rsa"
-    "regex"
-    "chess"
-    "json"
-    "blobstream-01j6z63fgafrc8jeh0k12gbtvw"
-    "blobstream-01j6z95bdme9svevmfyc974bja"
-    "blobstream-01j6z9ak0ke9srsppgywgke6fj"
-    "vector-01j6xsv35re96tkgyda115320t"
-    "vector-01j6xzy366ff5tbkzcrs8pma02"
-    "vector-01j6y06de0fdaafemr8b1t69z3"
-    "raiko-a7-10"   
+    "v4/chess"
+    "v4/fibonacci"
+    "v4/json"
+    "v4/regex"
+    "v4/rsp"
+    "v4/ssz-withdrawals"
+    "v4/tendermint"
 )
 
 # Define the list of network workloads.
