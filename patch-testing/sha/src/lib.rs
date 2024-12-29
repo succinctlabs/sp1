@@ -76,9 +76,9 @@ fn test_sha3_expected_digest_lte_100_times(stdin: &mut sp1_sdk::SP1Stdin) -> imp
 
     move |mut public| {
         for digest in digests {
-            let committed = public.read::<[u8; 32]>(); 
-            assert_eq!(digest, committed);
-++ b/patch-testing/sp1-test-macro/src/lib.rs
+            let commited = public.read::<[u8; 32]>(); 
+            assert_eq!(digest, commited);
+        } 
     }
 }
 

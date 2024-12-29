@@ -12,8 +12,7 @@ fn test_decompressed_expected_value(
 
     /// Flips a bit in the compressed point with probability 0.1.
     ///
-    /// Returns true if a bit was flipped. With probability .5 this is not a valid compressed point.
-++ b/patch-testing/keccak/src/lib.rs
+    /// Returns true if a bit was flipped. With probablity .5 this is not a valid compressed point.
     fn bork_point(compressed: &mut CompressedEdwardsY, dist: &WeightedIndex<usize>) -> bool {
         if dist.sample(&mut rand::thread_rng()) == 1 {
             let bit = 1 << 2;

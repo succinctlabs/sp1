@@ -7,7 +7,7 @@ mod attr;
 /// The `sp1_test` attribute is used to define a test case one time, that can be used to test
 /// execution, proof types, and the various provers.
 ///
-/// The accepted attribute arguments are:
+/// The accepted attrubute arguments are:
 /// - [elf = ] "<elf_name>",
 /// - [prove],
 /// - [gpu].
