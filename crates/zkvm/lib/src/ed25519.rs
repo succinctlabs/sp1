@@ -20,6 +20,10 @@ impl AffinePoint<N> for Ed25519AffinePoint {
         Self(limbs)
     }
 
+    fn identity() -> Self {
+        Self::identity()
+    }
+
     fn limbs_ref(&self) -> &[u32; N] {
         &self.0
     }
@@ -46,7 +50,7 @@ impl AffinePoint<N> for Ed25519AffinePoint {
 }
 
 impl Ed25519AffinePoint {
-    const IDENTITY: [u32; N] = [0; N];
+    const IDENTITY: [u32; N] = [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0];
 
     pub fn identity() -> Self {
         Self(Self::IDENTITY)

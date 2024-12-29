@@ -42,19 +42,8 @@ pub mod curve25519_dalek {
     }
 }
 
-pub mod k256 {
-    pub use k256::{
-        ecdsa::{RecoveryId, Signature, VerifyingKey},
-        elliptic_curve::ops::Invert,
-    };
-}
-
-pub mod p256 {
-    pub use p256::{
-        ecdsa::{Signature, VerifyingKey},
-        elliptic_curve::ops::Invert,
-    };
-}
+pub use k256;
+pub use p256;
 
 use params::{FieldParameters, NumWords};
 use sp1_primitives::consts::WORD_SIZE;
@@ -64,7 +53,7 @@ use std::{
 };
 use typenum::Unsigned;
 
-use num::BigUint;
+pub use num::{BigUint, Integer, One};
 use serde::{de::DeserializeOwned, Serialize};
 
 pub const NUM_WORDS_FIELD_ELEMENT: usize = 8;

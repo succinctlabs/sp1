@@ -1,0 +1,26 @@
+[workspace]
+[package]
+name = "sha_256_program"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "sha2"
+path = "bin/sha2.rs"
+
+[[bin]]
+name = "sha3"
+path = "bin/sha3.rs"
+
+[dependencies]
+sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
+serde = { version = "1.0.215", features = ["derive"] }
+
+sha2-v0-9-8 = { version = "0.9.8", package = "sha2" }
+sha2-v0-10-6 = { version = "0.10.6", package = "sha2" }
+sha3 = "=0.10.6"
+
+[patch.crates-io]
+sha3 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha3", tag = "sha3-v0.10.6-patch-v1" }
+sha2-v0-10-6 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", tag = "sha2-v0.10.6-patch-v1" }
+sha2-v0-9-9 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", tag = "sha2-v0.9.9-patch-v1" }

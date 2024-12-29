@@ -1,0 +1,13 @@
+[workspace]
+[package]
+name = "bn_test_program"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "bn_test"
+path = "bin/base.rs"
+
+[dependencies]
+sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
+substrate-bn = { git = "https://github.com/sp1-patches/bn", tag = "substrate_bn-v0.6.0-patch-v1" }

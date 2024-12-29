@@ -72,7 +72,7 @@ impl EdwardsParameters for Ed25519Parameters {
 ///
 /// This function always returns the nonnegative square root, in the sense that the least
 /// significant bit of the result is always 0.
-pub fn ed25519_sqrt(a: &BigUint) -> BigUint {
+pub fn ed25519_sqrt(a: &BigUint) -> Option<BigUint> {
     // Here is a description of how to calculate sqrt in the Curve25519 base field:
     // ssh://git@github.com/succinctlabs/curve25519-dalek/blob/
     // e2d1bd10d6d772af07cac5c8161cd7655016af6d/curve25519-dalek/src/field.rs#L256
@@ -108,7 +108,7 @@ pub fn ed25519_sqrt(a: &BigUint) -> BigUint {
     let flipped_sign_sqrt = beta_squared == neg_a;
 
     if !correct_sign_sqrt && !flipped_sign_sqrt {
-        panic!("a is not a square");
+        return None;
     }
 
     let beta_bytes = beta.to_bytes_le();
@@ -116,10 +116,10 @@ pub fn ed25519_sqrt(a: &BigUint) -> BigUint {
         beta = (&modulus - &beta) % &modulus;
     }
 
-    beta
+    Some(beta)
 }
 
-pub fn decompress(compressed_point: &CompressedEdwardsY) -> AffinePoint<Ed25519> {
+pub fn decompress(compressed_point: &CompressedEdwardsY) -> Option<AffinePoint<Ed25519>> {
     let mut point_bytes = *compressed_point.as_bytes();
     let sign = point_bytes[31] >> 7 == 1;
     // mask out the sign bit
@@ -128,21 +128,21 @@ pub fn decompress(compressed_point: &CompressedEdwardsY) -> AffinePoint<Ed25519>
 
     let y = &BigUint::from_bytes_le(&point_bytes);
     let yy = &((y * y) % modulus);
-    let u = (yy - BigUint::one()) % modulus; // u =  y²-1
+    let u = (yy + modulus - BigUint::one()) % modulus; // u =  y²-1
     let v = &((yy * &Ed25519Parameters::d_biguint()) + &BigUint::one()) % modulus; // v = dy²+1
 
     let v_inv = v.modpow(&(modulus - BigUint::from(2u64)), modulus);
     let u_div_v = (u * &v_inv) % modulus;
 
-    let mut x = ed25519_sqrt(&u_div_v);
+    let mut x = ed25519_sqrt(&u_div_v)?;
 
     // sqrt always returns the nonnegative square root,
     // so we negate according to the supplied sign bit.
     if sign {
-        x = modulus - &x;
+        x = (modulus - &x) % modulus;
     }
 
-    AffinePoint::new(x, y.clone())
+    Some(AffinePoint::new(x, y.clone()))
 }
 
 #[cfg(test)]
@@ -178,7 +178,7 @@ mod tests {
 
                 CompressedEdwardsY(compressed)
             };
-            assert_eq!(point, decompress(&compressed_point));
+            assert_eq!(point, decompress(&compressed_point).unwrap());
 
             // Double the point to create a "random" point for the next iteration.
             point = point.clone() + point.clone();

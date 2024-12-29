@@ -1,0 +1,13 @@
+[workspace]
+[package]
+name = "bls12_381_test_program"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "bls12_381_test"
+path = "bin/base.rs"
+
+[dependencies]
+sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
+bls12_381 = { git = "https://github.com/sp1-patches/bls12_381", tag = "bls12_381-v0.8.0-patch-v1" }
