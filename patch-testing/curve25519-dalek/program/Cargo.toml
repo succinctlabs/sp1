@@ -12,6 +12,18 @@ path = "bin/verify.rs"
 name = "curve25519_decompress"
 path = "bin/decompress.rs"
 
+[[bin]]
+name = "curve25519_add_then_multiply"
+path = "bin/add_then_multiply.rs"
+
+[[bin]]
+name = "curve25519_zero_msm"
+path = "bin/zero_msm.rs"
+
+[[bin]]
+name = "curve25519_zero_mul"
+path = "bin/zero_mul.rs"
+
 [dependencies]
 sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
 ed25519-dalek = { version = "2.1.0", features = ["alloc", "serde"] }

@@ -122,3 +122,80 @@ fn test_ed25519_verify(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP
         }
     }
 }
+
+#[sp1_test::sp1_test("curve25519_add_then_multiply", prove)]
+fn test_add_then_multiply(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
+    use curve25519_dalek::edwards::CompressedEdwardsY;
+    use curve25519_dalek::scalar::Scalar;
+
+    let times = 100u16;
+    stdin.write(&(times as u16));
+
+    let mut result_vec = Vec::with_capacity(times as usize);
+
+    for _ in 0..times {
+        let bytes1 = rand::random::<[u8; 32]>();
+        let bytes2 = rand::random::<[u8; 32]>();
+        let scalar = rand::random::<[u8; 32]>();
+        stdin.write(&bytes1);
+        stdin.write(&bytes2);
+        stdin.write(&scalar);
+
+        let compressed1 = CompressedEdwardsY(bytes1);
+        let point1 = compressed1.decompress();
+        let compressed2 = CompressedEdwardsY(bytes2);
+        let point2 = compressed2.decompress();
+
+        if point1.is_some() && point2.is_some() {
+            let point = point1.unwrap() + point2.unwrap();
+            let scalar = Scalar::from_bytes_mod_order(scalar);
+            let result = point * scalar;
+            result_vec.push(result.compress().to_bytes());
+        } else {
+            result_vec.push(compressed1.to_bytes());
+        }
+    }
+
+    move |mut public| {
+        for (i, expected_result) in result_vec.into_iter().enumerate() {
+            let patch_result = public.read::<[u8; 32]>();
+
+            assert_eq!(patch_result, expected_result);
+        }
+    }
+}
+
+#[sp1_test::sp1_test("curve25519_zero_msm", prove)]
+fn test_zero_msm(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
+    use curve25519_dalek::edwards::CompressedEdwardsY;
+    use curve25519_dalek::edwards::EdwardsPoint;
+
+    let bytes1: [u8; 32] = [3; 32];
+
+    let compressed1 = CompressedEdwardsY(bytes1);
+    let point1 = compressed1.decompress().unwrap();
+
+    let scalar1 = curve25519_dalek::scalar::Scalar::from_bytes_mod_order([0u8; 32]);
+    let scalar2 = curve25519_dalek::scalar::Scalar::from_bytes_mod_order([0u8; 32]);
+    let result = EdwardsPoint::vartime_double_scalar_mul_basepoint(&scalar1, &point1, &scalar2);
+    println!("{:?}", result.compress());
+
+    move |_| {}
+}
+
+#[sp1_test::sp1_test("curve25519_zero_mul", prove)]
+fn test_zero_mul(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
+    use curve25519_dalek::edwards::CompressedEdwardsY;
+
+    let bytes1: [u8; 32] = [3; 32];
+
+    let compressed1 = CompressedEdwardsY(bytes1);
+    let point1 = compressed1.decompress().unwrap();
+
+    let scalar1 = curve25519_dalek::scalar::Scalar::from_bytes_mod_order([0u8; 32]);
+    let result = point1 * scalar1;
+    println!("{:?}", result.compress());
+
+    move |_| {}
+}
+

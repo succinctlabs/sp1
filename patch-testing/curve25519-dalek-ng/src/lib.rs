@@ -1,10 +1,8 @@
 #[sp1_test::sp1_test("curve25519_ng_decompress", prove)]
 fn test_decompressed_noncanonical(
-    stdin: &mut sp1_sdk::SP1Stdin,
+    _stdin: &mut sp1_sdk::SP1Stdin,
 ) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     use curve25519_dalek_ng::edwards::CompressedEdwardsY;
-    use curve25519_dalek_ng::edwards::EdwardsPoint;
-    use sp1_test::DEFAULT_CORPUS_COUNT;
 
     // non-canonical point
     let mut bytes: [u8; 32] = [0; 32];
@@ -59,9 +57,7 @@ fn test_decompressed_noncanonical(
 #[sp1_test::sp1_test("curve25519_ng_add_then_multiply", prove)]
 fn test_add_then_multiply(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     use curve25519_dalek_ng::edwards::CompressedEdwardsY;
-    use curve25519_dalek_ng::edwards::EdwardsPoint;
     use curve25519_dalek_ng::scalar::Scalar;
-    use sp1_test::DEFAULT_CORPUS_COUNT;
 
     let times = 100u16;
     stdin.write(&(times as u16));
@@ -105,10 +101,8 @@ fn test_zero_msm(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1Publi
     use curve25519_dalek_ng::edwards::CompressedEdwardsY;
     use curve25519_dalek_ng::edwards::EdwardsPoint;
 
-    let mut bytes1: [u8; 32] = [0; 32];
-    for i in 0..32 {
-        bytes1[i] = 3;
-    }
+    let bytes1: [u8; 32] = [3; 32];
+
     let compressed1 = CompressedEdwardsY(bytes1);
     let point1 = compressed1.decompress().unwrap();
 
@@ -125,10 +119,7 @@ fn test_zero_mul(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1Publi
     use curve25519_dalek_ng::edwards::CompressedEdwardsY;
     use curve25519_dalek_ng::edwards::EdwardsPoint;
 
-    let mut bytes1: [u8; 32] = [0; 32];
-    for i in 0..32 {
-        bytes1[i] = 3;
-    }
+    let bytes1: [u8; 32] = [3; 32];
     let compressed1 = CompressedEdwardsY(bytes1);
     let point1 = compressed1.decompress().unwrap();
 

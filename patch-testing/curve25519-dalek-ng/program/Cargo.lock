@@ -465,6 +465,7 @@ dependencies = [
  "rand",
  "sha2",
  "sp1-lib 4.0.0-rc.3",
+ "sp1-primitives 4.0.0-rc.3",
 ]
 
 [[package]]
