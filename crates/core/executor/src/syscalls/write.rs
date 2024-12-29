@@ -63,8 +63,9 @@ impl Syscall for WriteSyscall {
             }
         } else if fd <= LOWEST_ALLOWED_FD {
             panic!(
-                "Tried to write to a reserved file descriptor {fd}, its possible you may be using an outdated patch. \n 
-                Please see `https://docs.succinct.xyz/docs/writing-programs/patched-crates` for more information"
+                "You are using reserved file descriptor {fd} that is not supported on SP1 versions < v4.0.0. \
+                Update your patches to the latest versions that are compatible with versions >= v4.0.0. \
+                See `https://docs.succinct.xyz/docs/writing-programs/patched-crates` for more information"
             );
         } else if fd == FD_PUBLIC_VALUES {
             rt.state.public_values_stream.extend_from_slice(slice);

@@ -12,6 +12,9 @@ pub(crate) fn sp1_dump(elf: &[u8], stdin: &SP1Stdin) {
         let stdin = bincode::serialize(&stdin).unwrap();
         std::fs::write("stdin.bin", stdin.clone()).unwrap();
     }
+
+    // Exit with the success status.
+    std::process::exit(0);
 }
 
 /// Utility method for blocking on an async function.
