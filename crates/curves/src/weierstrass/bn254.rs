@@ -34,12 +34,6 @@ impl FieldParameters for Bn254ScalarField {
 
 }
 
-impl Bn254ScalarField {
-    pub fn print_modulus() {
-        println!("{:?}", Self::modulus().to_bytes_le());
-    }
-}
-
 impl FpOpField for Bn254ScalarField {
     const FIELD_TYPE: FieldType = FieldType::Bn254;
 }
@@ -128,11 +122,6 @@ mod tests {
 
     use super::*;
     use crate::utils::biguint_from_limbs;
-
-    #[test]
-    fn test_print_scalar_modulus() {
-        Bn254ScalarField::print_modulus();
-    }
 
     #[test]
     fn test_weierstrass_biguint_scalar_mul() {
