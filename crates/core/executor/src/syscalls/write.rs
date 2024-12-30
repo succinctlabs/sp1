@@ -62,7 +62,12 @@ impl Syscall for WriteSyscall {
                 flush_s.into_iter().for_each(|line| println!("stderr: {}", line));
             }
         } else if fd <= LOWEST_ALLOWED_FD {
-            if std::env::var("SP1_ALLOW_DEPRECATED_HOOKS").is_ok() {
+            if std::env::var("SP1_ALLOW_DEPRECATED_HOOKS")
+                .map(|r| r.parse::<bool>().expect("failed to parse SP1_ALLOW_DEPRECATED_HOOKS as bool"))
+                .unwrap_or(false)
+            {
+                const PUBLIC_VALUES: u32 = 3;
+                const INPUT: u32 = 4;
                 const ECRECOVER_V1: u32 = 5;
                 const ECRECOVER_R1: u32 = 6;
                 const ECRECOVER_V2: u32 = 7;
@@ -76,6 +81,12 @@ impl Syscall for WriteSyscall {
                     crate::hook::deprecated_hooks::hook_ecrecover_v2(rt.hook_env(), slice)
                 } else if fd == ED_DECOMPRESS {
                     crate::hook::deprecated_hooks::hook_ed_decompress(rt.hook_env(), slice)
+                } else if fd == PUBLIC_VALUES {
+                    rt.state.public_values_stream.extend_from_slice(slice);
+                    vec![]
+                } else if fd == INPUT {
+                    rt.state.input_stream.push_front(slice.to_vec());
+                    vec![]
                 } else {
                     vec![]
                 };
