@@ -2,7 +2,7 @@
 sp1_zkvm::entrypoint!(main);
 
 use sha2_v0_9_8::{Digest as D1, Sha256 as Sha256_9_8};
-use sha2_v0_10_6::{Digest as D2, Sha256 as Sha256_10_6};
+use sha2_v0_10_8::{Digest as D2, Sha256 as Sha256_10_8};
 
 /// Emits SHA_COMPRESS and SHA_EXTEND syscalls.
 pub fn main() {
@@ -14,7 +14,7 @@ pub fn main() {
         let mut sha256_9_8 = Sha256_9_8::new();
         sha256_9_8.update(&preimage);
 
-        let mut sha256_10_6 = Sha256_10_6::new();
+        let mut sha256_10_6 = Sha256_10_8::new();
         sha256_10_6.update(&preimage);
 
         let output_9_8: [u8; 32] = sha256_9_8.finalize().into();
