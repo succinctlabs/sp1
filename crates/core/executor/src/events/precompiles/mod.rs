@@ -7,7 +7,9 @@ mod sha256_extend;
 mod u256x2048_mul;
 mod uint256;
 
+use super::{MemoryLocalEvent, SyscallEvent};
 use crate::syscalls::SyscallCode;
+use crate::{deserialize_hashmap_as_vec, serialize_hashmap_as_vec};
 pub use ec::*;
 pub use edwards::*;
 pub use fptower::*;
@@ -19,8 +21,6 @@ pub use sha256_extend::*;
 use strum::{EnumIter, IntoEnumIterator};
 pub use u256x2048_mul::*;
 pub use uint256::*;
-
-use super::{MemoryLocalEvent, SyscallEvent};
 
 #[derive(Clone, Debug, Serialize, Deserialize, EnumIter)]
 /// Precompile event.  There should be one variant for every precompile syscall.
@@ -145,7 +145,10 @@ impl PrecompileLocalMemory for Vec<(SyscallEvent, PrecompileEvent)> {
 /// A record of all the precompile events.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PrecompileEvents {
-    events: HashMap<SyscallCode, Vec<(SyscallEvent, PrecompileEvent)>>,
+    #[serde(serialize_with = "serialize_hashmap_as_vec")]
+    #[serde(deserialize_with = "deserialize_hashmap_as_vec")]
+    /// The precompile events mapped by syscall code.
+    pub events: HashMap<SyscallCode, Vec<(SyscallEvent, PrecompileEvent)>>,
 }
 
 impl Default for PrecompileEvents {
