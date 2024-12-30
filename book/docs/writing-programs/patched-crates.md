@@ -64,12 +64,8 @@ Apply the following patches based on what crates are in your dependencies.
 - `ed25519-consensus`
 
   ```toml
-  ed25519-consensus = { git = "https://github.com/sp1-patches/ed25519-consensus", tag = "ed25519_consensus-v2.1.0-patch-v1" }
+  curve25519-dalek-ng = { git = "https://github.com/sp1-patches/curve25519-dalek-ng", tag = "patch-4.1.1-sp1-4.0.0-rc.3" }
   ```
-
-  Note: The curve operations for Ed25519 occur mainly inside of `curve25519-dalek-ng`, but the crate also exposes
-  a `u32_backend` feature flag which accelerates signature recovery by 10% over the default `u64_backend`, which is why
-  `ed25519-consensus` is patched rather than `ed25519-dalek`.
 
 - `ed25519-dalek`
 
@@ -77,28 +73,6 @@ Apply the following patches based on what crates are in your dependencies.
 
   ```toml
   curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", tag = "curve25519_dalek-v4.1.3-patch-v1" }
-  ```
-
-  If using `ed25519-dalek` version `1.0.1`, you can patch it with the following:
-
-  ```toml
-  ed25519-dalek = { git = "https://github.com/sp1-patches/ed25519-dalek", tag = "ed25519_dalek-v1.0.1-patch-v1" }
-  ```
-
-  Note: We need to patch the underlying Ed25519 curve operations in the `curve25519-dalek` crate. `ed25519-dalek`
-  version `2.1` uses `curve25519-dalek` version `4.1.3`, while `1.0.1` uses `3.2.0`. For version `2.1`, we patch
-  `curve25519-dalek` directly, while for version `1.0.1`, we patch `ed25519-dalek`.
-
-- `curve25519-dalek`
-
-  ```toml
-  curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", tag = "curve25519_dalek-v4.1.3-patch-v1" }
-  ```
-
-- `curve25519-dalek-ng`
-
-  ```toml
-  curve25519-dalek-ng = { git = "https://github.com/sp1-patches/curve25519-dalek-ng", tag = "curve25519_dalek_ng-v4.1.1-patch-v1" }
   ```
 
 ## Secp256k1 Acceleration
@@ -123,7 +97,10 @@ Apply the following patches based on what crates are in your dependencies.
 
   ```toml
   secp256k1 = { git = "https://github.com/sp1-patches/rust-secp256k1", tag = "secp256k1-v0.29.0-patch-v1" }
+  ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", tag = "patch-0.16.9-sp1-4.0.0-rc.3 }
   ```
+
+While `secp256k1` doesnt usally rely on `ecdsa-core` the patched version does, so you must patch it as well.
 
 ## BN254 Acceleration
 

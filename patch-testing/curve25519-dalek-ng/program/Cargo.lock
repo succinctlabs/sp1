@@ -68,7 +68,7 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek-ng"
 version = "4.1.1"
-source = "git+https://github.com/sp1-patches/curve25519-dalek-ng.git?branch=n/prep-4.0.0#d4d9b2a8a90a163e0cfac3b1ec4a4edc0bf0d12f"
+source = "git+https://github.com/sp1-patches/curve25519-dalek-ng.git?tag=patch-4.1.1-sp1-4.0.0-rc.3#62d61907c9d2fd1d2e470c5c0cca4bebbf4e99a0"
 dependencies = [
  "byteorder",
  "cfg-if",
