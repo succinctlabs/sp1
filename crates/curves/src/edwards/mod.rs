@@ -23,11 +23,15 @@ pub const WORDS_FIELD_ELEMENT: usize = WordsFieldElement::USIZE;
 pub type WordsCurvePoint = <Ed25519BaseField as NumWords>::WordsCurvePoint;
 pub const WORDS_CURVE_POINT: usize = WordsCurvePoint::USIZE;
 
+/// Trait defining parameters for Edwards curves
 pub trait EdwardsParameters: EllipticCurveParameters {
+    /// The curve coefficient D
     const D: GenericArray<u8, <Self::BaseField as NumLimbs>::Limbs>;
 
+    /// Returns the generator point coordinates (x, y)
     fn generator() -> (BigUint, BigUint);
 
+    /// Returns the prime order of the curve's main subgroup
     fn prime_group_order() -> BigUint;
 
     fn d_biguint() -> BigUint {
@@ -144,9 +148,9 @@ mod tests {
 
     #[test]
     fn test_bigint_ed_add() {
-        type E = Ed25519;
-        let neutral = E::neutral();
-        let base = E::ec_generator();
+        type EdwardsCurve = Ed25519;
+        let neutral = EdwardsCurve::neutral();
+        let base = EdwardsCurve::ec_generator();
 
         assert_eq!(&base + &neutral, base);
         assert_eq!(&neutral + &base, base);
@@ -155,8 +159,8 @@ mod tests {
 
     #[test]
     fn test_biguint_scalar_mul() {
-        type E = Ed25519;
-        let base = E::ec_generator();
+        type EdwardsCurve = Ed25519;
+        let base = EdwardsCurve::ec_generator();
 
         let d = Ed25519Parameters::d_biguint();
         let p = <E as EllipticCurveParameters>::BaseField::modulus();
