@@ -16,6 +16,40 @@ pub struct Bn254Parameters;
 pub type Bn254 = SwCurve<Bn254Parameters>;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Serialize, Deserialize)]
+/// Bn254 scalar field parameter
+pub struct Bn254ScalarField;
+impl FieldParameters for Bn254ScalarField {
+    const MODULUS: &'static [u8] = &[
+        1, 0, 0, 240, 147, 245, 225, 67, 145, 112, 185, 121, 72, 232, 51, 40, 93, 88, 129, 
+        129, 182, 69, 80, 184, 41, 160, 49, 225, 114, 78, 100, 48,
+    ];
+    const WITNESS_OFFSET: usize = 1usize << 14;
+    fn modulus() -> BigUint {
+        BigUint::from_str_radix(
+            "21888242871839275222246405745257275088548364400416034343698204186575808495617",
+            10,
+        )
+        .unwrap()
+    }
+
+}
+
+impl Bn254ScalarField {
+    pub fn print_modulus() {
+        println!("{:?}", Self::modulus().to_bytes_le());
+    }
+}
+
+impl FpOpField for Bn254ScalarField {
+    const FIELD_TYPE: FieldType = FieldType::Bn254;
+}
+
+impl NumLimbs for Bn254ScalarField {
+    type Limbs = U32;
+    type Witness = U62;
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Serialize, Deserialize)]
 /// Bn254 base field parameter
 pub struct Bn254BaseField;
 
@@ -94,6 +128,11 @@ mod tests {
 
     use super::*;
     use crate::utils::biguint_from_limbs;
+
+    #[test]
+    fn test_print_scalar_modulus() {
+        Bn254ScalarField::print_modulus();
+    }
 
     #[test]
     fn test_weierstrass_biguint_scalar_mul() {
