@@ -62,11 +62,36 @@ impl Syscall for WriteSyscall {
                 flush_s.into_iter().for_each(|line| println!("stderr: {}", line));
             }
         } else if fd <= LOWEST_ALLOWED_FD {
-            panic!(
-                "You are using reserved file descriptor {fd} that is not supported on SP1 versions < v4.0.0. \
-                Update your patches to the latest versions that are compatible with versions >= v4.0.0. \
-                See `https://docs.succinct.xyz/docs/writing-programs/patched-crates` for more information"
-            );
+            if std::env::var("SP1_ALLOW_DEPRECATED_HOOKS").is_ok() {
+                const ECRECOVER_V1: u32 = 5;
+                const ECRECOVER_R1: u32 = 6;
+                const ECRECOVER_V2: u32 = 7;
+                const ED_DECOMPRESS: u32 = 8;
+
+                let res = if fd == ECRECOVER_V1 {
+                    crate::hook::deprecated_hooks::hook_ecrecover(rt.hook_env(), slice)
+                } else if fd == ECRECOVER_R1 {
+                    crate::hook::deprecated_hooks::hook_r1_ecrecover(rt.hook_env(), slice)
+                } else if fd == ECRECOVER_V2 {
+                    crate::hook::deprecated_hooks::hook_ecrecover_v2(rt.hook_env(), slice)
+                } else if fd == ED_DECOMPRESS {
+                    crate::hook::deprecated_hooks::hook_ed_decompress(rt.hook_env(), slice)
+                } else {
+                    vec![]
+                };
+
+                if !res.is_empty() {
+                    for val in res.into_iter().rev() {
+                        rt.state.input_stream.push_front(val);
+                    }
+                }
+            } else {
+                panic!(
+                    "You are using reserved file descriptor {fd} that is not supported on SP1 versions >= v4.0.0. \
+                    Update your patches to the latest versions that are compatible with versions >= v4.0.0. \
+                    See `https://docs.succinct.xyz/docs/writing-programs/patched-crates` for more information"
+                );
+            }
         } else if fd == FD_PUBLIC_VALUES {
             rt.state.public_values_stream.extend_from_slice(slice);
         } else if fd == FD_HINT {
