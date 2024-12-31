@@ -29,7 +29,7 @@ fn test_expected_digest_lte_100(
 
     move |mut public| {
         for digest in digests {
-            let commited = public.read::<[u8; 32]>();
+            let committed = public.read::<[u8; 32]>();
 
             assert_eq!(digest, commited);
         }
