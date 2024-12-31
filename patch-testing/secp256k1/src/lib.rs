@@ -23,7 +23,7 @@ fn test_recover_rand_lte_100(
 
         let signature = secp.sign_ecdsa_recoverable(&msg, &secret);
 
-        // verify the unpatched version of the function recovers as expected
+        // Verify that the unpatched version of this function recovers as expected.
         assert_eq!(secp.recover_ecdsa(&msg, &signature).unwrap(), public);
 
         let (recid, sig) = signature.serialize_compact();

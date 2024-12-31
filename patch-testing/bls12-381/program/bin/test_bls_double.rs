@@ -13,9 +13,7 @@ pub fn main() {
 
         let val = G1Affine::from_uncompressed(&val.try_into().expect("[u8; 96] for g1")).unwrap();
         let projective: G1Projective = val.into();
-
-        // the test actually does projective addition, but this should be equivalent
-        
+ 
         let sum = projective.double();
         let sum_affine: G1Affine = sum.into();
         

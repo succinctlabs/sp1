@@ -198,10 +198,11 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
                 use ::sp1_sdk::Prover;
                 const __MACRO_INTERNAL_ELF: &[u8] = ::sp1_sdk::include_elf!(#elf_name);
 
-                // note: Gpu tests must be ran serially
-                // parking-lot is used internally to avoid priority inversion
+                // Note: Gpu tests must be ran serially.
+                // A parking-lot mutex is used internally to avoid priority inversion.
                 let _lock = ::sp1_test::lock_serial();
-                // note: sleep on gpu tests to wait for docker cleanup
+
+                // Note: We must sleep on gpu tests to wait for Docker cleanup.
                 std::thread::sleep(std::time::Duration::from_secs(5));
 
                 let __macro_internal_client = ::sp1_sdk::ProverClient::builder().cuda().build();

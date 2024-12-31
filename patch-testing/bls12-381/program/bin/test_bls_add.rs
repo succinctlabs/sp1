@@ -14,8 +14,7 @@ pub fn main() {
         let val = G1Affine::from_uncompressed(&val.try_into().expect("[u8; 96] for g1")).unwrap();
         let val2 = G1Affine::from_uncompressed(&val2.try_into().expect("[u8; 96] for g1")).unwrap();
 
-        // the test actually does projective addition, but this should be equivalent
-        
+        // The Rust test actually does projective addition, but this should be equivalent.
         let sum = val.add_affine(&val2);
         
         sp1_lib::io::commit(&sum.to_uncompressed().to_vec());
