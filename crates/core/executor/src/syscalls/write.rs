@@ -63,7 +63,9 @@ impl Syscall for WriteSyscall {
             }
         } else if fd <= LOWEST_ALLOWED_FD {
             if std::env::var("SP1_ALLOW_DEPRECATED_HOOKS")
-                .map(|r| r.parse::<bool>().expect("failed to parse SP1_ALLOW_DEPRECATED_HOOKS as bool"))
+                .map(|r| {
+                    r.parse::<bool>().expect("failed to parse SP1_ALLOW_DEPRECATED_HOOKS as bool")
+                })
                 .unwrap_or(false)
             {
                 const PUBLIC_VALUES: u32 = 3;

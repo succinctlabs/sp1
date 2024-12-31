@@ -7,7 +7,7 @@ mod attr;
 /// The `sp1_test` attribute is used to define a test case one time, that can be used to test
 /// execution, proof types, and the various provers.
 ///
-/// The accepted attrubute arguments are:
+/// The accepted attribute arguments are:
 /// - [elf = ] "<elf_name>",
 /// - [prove],
 /// - [gpu].
@@ -177,7 +177,7 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
                 let (__macro_internal_pk, __macro_internal_vk) = __macro_internal_client.setup(__MACRO_INTERNAL_ELF);
                 let __macro_internal_proof = __macro_internal_client.prove(&__macro_internal_pk, &__macro_internal_stdin).compressed().run().unwrap();
 
-                #verify 
+                #verify
 
                 __macro_internal_cb(__macro_internal_proof.public_values);
             }
