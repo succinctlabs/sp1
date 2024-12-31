@@ -1,5 +1,5 @@
 [package]
-name = "RustCrypto-bigint"
+name = "rustcrypto-bigint"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
