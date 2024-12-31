@@ -22,7 +22,7 @@ fn test_recover_rand_lte_100(
         let msg = Message::from_digest_slice(&msg).unwrap();
 
         let signature = secp.sign_ecdsa_recoverable(&msg, &secret);
-        
+
         // verify the unpatched version of the function recovers as expected
         assert_eq!(secp.recover_ecdsa(&msg, &signature).unwrap(), public);
 
@@ -44,7 +44,9 @@ fn test_recover_rand_lte_100(
 }
 
 #[sp1_test::sp1_test("secp256k1_verify")]
-fn test_verify_rand_lte_100(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
+fn test_verify_rand_lte_100(
+    stdin: &mut sp1_sdk::SP1Stdin,
+) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     let times = rand::random::<u8>().min(100);
     stdin.write(&times);
 
@@ -58,7 +60,7 @@ fn test_verify_rand_lte_100(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sd
         let msg = Message::from_digest_slice(&msg).unwrap();
 
         let signature = secp.sign_ecdsa(&msg, &secret);
-        
+
         // verify the unpatched version of the function verifies as expected
         assert!(secp.verify_ecdsa(&msg, &signature, &public).is_ok());
 
@@ -77,4 +79,4 @@ fn test_verify_rand_lte_100(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sd
     }
 }
 
-// add cases for fail verify, although its not patched 
+// add cases for fail verify, although its not patched

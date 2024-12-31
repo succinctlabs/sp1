@@ -4,7 +4,5 @@ pub fn test_verify_rand_lte_100(
 ) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     let _ = stdin;
 
-    |_| {
-
-    }
+    |_| {}
 }

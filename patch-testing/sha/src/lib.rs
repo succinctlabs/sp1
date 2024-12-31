@@ -76,8 +76,8 @@ fn test_sha3_expected_digest_lte_100_times(
 
     move |mut public| {
         for digest in digests {
-            let committed = public.read::<[u8; 32]>();
-            assert_eq!(digest, committed);
+            let commited = public.read::<[u8; 32]>();
+            assert_eq!(digest, commited);
         }
     }
 }

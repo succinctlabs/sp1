@@ -15,7 +15,7 @@ fn test_decompressed_noncanonical(
     println!("{:?}", compressed.decompress());
 
     // y = 0 with sign off
-    let mut bytes: [u8; 32] = [0; 32];
+    let bytes: [u8; 32] = [0; 32];
     let compressed = CompressedEdwardsY(bytes);
     println!("{:?}", compressed.decompress());
 
@@ -60,7 +60,7 @@ fn test_add_then_multiply(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk:
     use curve25519_dalek_ng::scalar::Scalar;
 
     let times = 100u16;
-    stdin.write(&(times as u16));
+    stdin.write(&{ times });
 
     let mut result_vec = Vec::with_capacity(times as usize);
 
@@ -117,7 +117,7 @@ fn test_zero_msm(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1Publi
 #[sp1_test::sp1_test("curve25519_ng_zero_mul", prove)]
 fn test_zero_mul(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     use curve25519_dalek_ng::edwards::CompressedEdwardsY;
-    use curve25519_dalek_ng::edwards::EdwardsPoint;
+    
 
     let bytes1: [u8; 32] = [3; 32];
     let compressed1 = CompressedEdwardsY(bytes1);

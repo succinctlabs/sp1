@@ -201,7 +201,7 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
                 // note: Gpu tests must be ran serially
                 // parking-lot is used internally to avoid priority inversion
                 let _lock = ::sp1_test::lock_serial();
-                // note: sleep on gpu tests to wait for docker cleanup 
+                // note: sleep on gpu tests to wait for docker cleanup
                 std::thread::sleep(std::time::Duration::from_secs(5));
 
                 let __macro_internal_client = ::sp1_sdk::ProverClient::builder().cuda().build();

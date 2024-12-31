@@ -70,14 +70,14 @@ pub fn test_recover_high_hash_high_recid(
 ) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     use ecdsa_core::RecoveryId;
     use k256::{
-        ecdsa::Signature, ecdsa::SigningKey, ecdsa::VerifyingKey, elliptic_curve::rand_core::OsRng,
+        ecdsa::Signature, ecdsa::VerifyingKey,
     };
 
     let times = 10000u16;
     stdin.write(&times);
 
     let mut vkeys = Vec::with_capacity(times as usize);
-    let mut cnt = 0;
+    let cnt = 0;
     for idx in 0..times {
         let mut signature_bytes = [0u8; 64];
         for i in 16..64 {
@@ -126,7 +126,7 @@ pub fn test_recover_pubkey_infinity(
 ) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     use ecdsa_core::RecoveryId;
     use k256::{
-        ecdsa::Signature, ecdsa::SigningKey, ecdsa::VerifyingKey, elliptic_curve::rand_core::OsRng,
+        ecdsa::Signature, ecdsa::VerifyingKey,
     };
 
     let times = 3u16;
@@ -175,7 +175,7 @@ pub fn test_recover_pubkey_infinity(
         vkeys.push(recovered_key.ok().map(|vk| vk.to_sec1_bytes().to_vec()));
     }
     move |mut public| {
-        let mut fail_count = 0;
+        let fail_count = 0;
         for (i, vkey) in vkeys.into_iter().enumerate() {
             let key = public.read::<Option<Vec<u8>>>();
             assert_eq!(key, vkey);
