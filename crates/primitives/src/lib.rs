@@ -1103,8 +1103,8 @@ lazy_static! {
     ];
 }
 
-pub fn poseidon2_init()
--> Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 16, 7> {
+pub fn poseidon2_init(
+) -> Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 16, 7> {
     const ROUNDS_F: usize = 8;
     const ROUNDS_P: usize = 13;
     let mut round_constants = RC_16_30.to_vec();
