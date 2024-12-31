@@ -212,25 +212,32 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let (root, merkle_tree) = MerkleTree::commit(allowed_vk_map.keys().copied().collect());
 
         let mut compress_programs = BTreeMap::new();
-        if let Some(config) = &recursion_shape_config {
-            SP1ProofShape::generate_compress_shapes(config, REDUCE_BATCH_SIZE).for_each(|shape| {
-                let compress_shape = SP1CompressWithVkeyShape {
-                    compress_shape: shape.into(),
-                    merkle_tree_height: merkle_tree.height,
-                };
-                let input = SP1CompressWithVKeyWitnessValues::dummy(
-                    compress_prover.machine(),
-                    &compress_shape,
+        let program_cache_disabled = env::var("SP1_DISABLE_PROGRAM_CACHE")
+            .map(|v| v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
+        if !program_cache_disabled {
+            if let Some(config) = &recursion_shape_config {
+                SP1ProofShape::generate_compress_shapes(config, REDUCE_BATCH_SIZE).for_each(
+                    |shape| {
+                        let compress_shape = SP1CompressWithVkeyShape {
+                            compress_shape: shape.into(),
+                            merkle_tree_height: merkle_tree.height,
+                        };
+                        let input = SP1CompressWithVKeyWitnessValues::dummy(
+                            compress_prover.machine(),
+                            &compress_shape,
+                        );
+                        let program = compress_program_from_input::<C>(
+                            recursion_shape_config.as_ref(),
+                            &compress_prover,
+                            vk_verification,
+                            &input,
+                        );
+                        let program = Arc::new(program);
+                        compress_programs.insert(compress_shape, program);
+                    },
                 );
-                let program = compress_program_from_input::<C>(
-                    recursion_shape_config.as_ref(),
-                    &compress_prover,
-                    vk_verification,
-                    &input,
-                );
-                let program = Arc::new(program);
-                compress_programs.insert(compress_shape, program);
-            });
+            }
         }
 
         Self {
