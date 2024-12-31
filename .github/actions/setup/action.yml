@@ -77,9 +77,7 @@ runs:
           ~/.cargo/git/db/
           target/
           ~/.rustup/
-          ~/.sp1/circuits/plonk/
-          ~/.sp1/circuits/groth16/
-        key: rust-1.81.0-${{ hashFiles('**/Cargo.toml') }}
+        key: rust-1.81.0-${{ hashFiles('**/Cargo.toml') }}-x
         restore-keys: rust-1.81.0-
 
     - name: Setup toolchain
