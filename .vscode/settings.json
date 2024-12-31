@@ -21,8 +21,8 @@
     ],
     "rust-analyzer.linkedProjects": [
         "Cargo.toml",
-        // "patch-testing/Cargo.toml",
-        // "patch-testing/bn/program/Cargo.toml",
+        "patch-testing/Cargo.toml",
+        "patch-testing/rustcrypto-bigint/program/Cargo.toml",
         // // Examples.
         // "examples/chess/program/Cargo.toml",
         // "examples/chess/script/Cargo.toml",
