@@ -20,6 +20,14 @@ path = "bin/test_inverse_fp2.rs"
 name = "bls12_381_fp2_test_sqrt"
 path = "bin/test_sqrt_fp2.rs"
 
+[[bin]]
+name = "bls12_381_ec_add_test"
+path = "bin/test_bls_add.rs"
+
+[[bin]]
+name = "bls12_381_ec_double_test"
+path = "bin/test_bls_double.rs"
+
 # todo explicit mul and add tests
 
 [dependencies]
