@@ -81,7 +81,7 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek"
 version = "4.1.3"
-source = "git+https://github.com/sp1-patches/curve25519-dalek?branch=n/prep-4.0.0#ee07186725ff0611d9270f5e6b30caac9b4242ec"
+source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-4.0.0-rc.3#ee07186725ff0611d9270f5e6b30caac9b4242ec"
 dependencies = [
  "cfg-if",
  "cpufeatures",
@@ -98,7 +98,7 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek-derive"
 version = "0.1.1"
-source = "git+https://github.com/sp1-patches/curve25519-dalek?branch=n/prep-4.0.0#ee07186725ff0611d9270f5e6b30caac9b4242ec"
+source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-4.0.0-rc.3#ee07186725ff0611d9270f5e6b30caac9b4242ec"
 dependencies = [
  "proc-macro2",
  "quote",

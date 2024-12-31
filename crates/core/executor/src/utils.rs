@@ -1,25 +1,28 @@
-use std::str::FromStr;
+use std::{hash::Hash, str::FromStr};
 
 use hashbrown::HashMap;
-
-use nohash_hasher::BuildNoHashHasher;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::{Opcode, RiscvAirId};
 
 /// Serialize a `HashMap<u32, V>` as a `Vec<(u32, V)>`.
-pub fn serialize_hashmap_as_vec<V: Serialize, S: Serializer>(
-    map: &HashMap<u32, V, BuildNoHashHasher<u32>>,
+pub fn serialize_hashmap_as_vec<K: Eq + Hash + Serialize, V: Serialize, S: Serializer>(
+    map: &HashMap<K, V>,
     serializer: S,
 ) -> Result<S::Ok, S::Error> {
     Serialize::serialize(&map.iter().collect::<Vec<_>>(), serializer)
 }
 
 /// Deserialize a `Vec<(u32, V)>` as a `HashMap<u32, V>`.
-pub fn deserialize_hashmap_as_vec<'de, V: Deserialize<'de>, D: Deserializer<'de>>(
+pub fn deserialize_hashmap_as_vec<
+    'de,
+    K: Eq + Hash + Deserialize<'de>,
+    V: Deserialize<'de>,
+    D: Deserializer<'de>,
+>(
     deserializer: D,
-) -> Result<HashMap<u32, V, BuildNoHashHasher<u32>>, D::Error> {
-    let seq: Vec<(u32, V)> = Deserialize::deserialize(deserializer)?;
+) -> Result<HashMap<K, V>, D::Error> {
+    let seq: Vec<(K, V)> = Deserialize::deserialize(deserializer)?;
     Ok(seq.into_iter().collect())
 }
 

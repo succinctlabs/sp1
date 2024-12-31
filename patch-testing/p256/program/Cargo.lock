@@ -3,12 +3,6 @@
 version = 3
 
 [[package]]
-name = "anyhow"
-version = "1.0.94"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1fd03a028ef38ba2276dce7e33fcd6369c158a1bca17946c4b1b701891c1ff7"
-
-[[package]]
 name = "autocfg"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -118,9 +112,8 @@ dependencies = [
 [[package]]
 name = "ecdsa"
 version = "0.16.9"
-source = "git+https://github.com/sp1-patches/signatures?branch=n/prep-4.0.0#5e9c3efcbab6c7a837fac0cc45f43bb3cf69e5cf"
+source = "git+https://github.com/sp1-patches/signatures?tag=patch-0.16.9-sp1-4.0.0-rc.3#4895ff2cce34b349e8a05f24eecc66d95fcdd8ec"
 dependencies = [
- "anyhow",
  "cfg-if",
  "der",
  "digest",
@@ -129,7 +122,7 @@ dependencies = [
  "rfc6979",
  "serdect",
  "signature",
- "sp1-lib 4.0.0-rc.3 (git+https://github.com/succinctlabs/sp1-wip?branch=min/patch-tests)",
+ "sp1-lib",
  "spki",
 ]
 
@@ -501,7 +494,7 @@ dependencies = [
 [[package]]
 name = "rfc6979"
 version = "0.4.0"
-source = "git+https://github.com/sp1-patches/signatures?branch=n/prep-4.0.0#5e9c3efcbab6c7a837fac0cc45f43bb3cf69e5cf"
+source = "git+https://github.com/sp1-patches/signatures?tag=patch-0.16.9-sp1-4.0.0-rc.3#4895ff2cce34b349e8a05f24eecc66d95fcdd8ec"
 dependencies = [
  "hmac",
  "subtle",
@@ -579,39 +572,12 @@ version = "4.0.0-rc.3"
 dependencies = [
  "bincode",
  "serde",
- "sp1-primitives 4.0.0-rc.3",
-]
-
-[[package]]
-name = "sp1-lib"
-version = "4.0.0-rc.3"
-source = "git+https://github.com/succinctlabs/sp1-wip?branch=min/patch-tests#41bf90118ede37fbf7b91129aafb3b64de6f787a"
-dependencies = [
- "bincode",
- "serde",
- "sp1-primitives 4.0.0-rc.3 (git+https://github.com/succinctlabs/sp1-wip?branch=min/patch-tests)",
+ "sp1-primitives",
 ]
 
 [[package]]
 name = "sp1-primitives"
 version = "4.0.0-rc.3"
-dependencies = [
- "bincode",
- "hex",
- "lazy_static",
- "num-bigint",
- "p3-baby-bear",
- "p3-field",
- "p3-poseidon2",
- "p3-symmetric",
- "serde",
- "sha2",
-]
-
-[[package]]
-name = "sp1-primitives"
-version = "4.0.0-rc.3"
-source = "git+https://github.com/succinctlabs/sp1-wip?branch=min/patch-tests#41bf90118ede37fbf7b91129aafb3b64de6f787a"
 dependencies = [
  "bincode",
  "hex",
@@ -635,7 +601,8 @@ dependencies = [
  "libm",
  "rand",
  "sha2",
- "sp1-lib 4.0.0-rc.3",
+ "sp1-lib",
+ "sp1-primitives",
 ]
 
 [[package]]
