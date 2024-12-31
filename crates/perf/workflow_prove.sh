@@ -5,7 +5,7 @@ GIT_REF=$(git rev-parse --abbrev-ref HEAD)
 
 # Define the list of CPU workloads.
 CPU_WORKLOADS=(
-    # "v4/chess"
+    "v4/chess"
     # "v4/fibonacci"
     # "v4/json"
     # "v4/regex"
@@ -16,7 +16,7 @@ CPU_WORKLOADS=(
 
 # Define the list of CUDA workloads.
 CUDA_WORKLOADS=(
-    # "v4/chess"
+    "v4/chess"
     # "v4/fibonacci"
     # "v4/json"
     # "v4/regex"
