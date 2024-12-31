@@ -9,6 +9,7 @@ sp1-zkvm = { workspace = true }
 sp1-sdk = { workspace = true }
 rand = { workspace = true }
 sp1-test = { workspace = true }
+substrate-bn = "0.6.0"
 
 [features]
 prove = []
