@@ -32,7 +32,7 @@ pub struct SP1Context<'a> {
 pub struct SP1ContextBuilder<'a> {
     no_default_hooks: bool,
     hook_registry_entries: Vec<(u32, BoxedHook<'a>)>,
-    subproof_verifier: Option<&'a dyn SubproofVerifier>, 
+    subproof_verifier: Option<&'a dyn SubproofVerifier>,
     max_cycles: Option<u64>,
     skip_deferred_proof_verification: bool,
 }
@@ -126,10 +126,7 @@ impl<'a> SP1ContextBuilder<'a> {
     /// Add a subproof verifier.
     ///
     /// The verifier is used to sanity check `verify_sp1_proof` during runtime.
-    pub fn subproof_verifier(
-        &mut self,
-        subproof_verifier: &'a dyn SubproofVerifier,
-    ) -> &mut Self {
+    pub fn subproof_verifier(&mut self, subproof_verifier: &'a dyn SubproofVerifier) -> &mut Self {
         self.subproof_verifier = Some(subproof_verifier);
         self
     }
@@ -183,11 +180,10 @@ mod tests {
 
     #[test]
     fn subproof_verifier() {
-        let verifier = NoOpSubproofVerifier; 
+        let verifier = NoOpSubproofVerifier;
 
-        let SP1Context { subproof_verifier, .. } = SP1Context::builder()
-            .subproof_verifier(&verifier)
-            .build();
+        let SP1Context { subproof_verifier, .. } =
+            SP1Context::builder().subproof_verifier(&verifier).build();
         assert!(subproof_verifier.is_some());
     }
 }

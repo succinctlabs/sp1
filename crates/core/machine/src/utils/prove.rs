@@ -486,7 +486,7 @@ where
     runtime.maximal_shapes = shape_config.map(|config| {
         config.maximal_core_shapes(opts.shard_size.ilog2() as usize).into_iter().collect()
     });
-    
+
     // We already passed the deferred proof verifier when creating checkpoints, so the proofs were
     // already verified. So here we use a noop verifier to not print any warnings.
     runtime.subproof_verifier = Some(&noop);
