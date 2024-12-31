@@ -65,11 +65,11 @@ fn test_decompressed_noncanonical(
 ) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     use curve25519_dalek::edwards::CompressedEdwardsY;
     use curve25519_dalek::edwards::EdwardsPoint;
-    use rand::distributions::Distribution;
-    use rand::distributions::WeightedIndex;
-    use sp1_test::DEFAULT_CORPUS_COUNT;
+    
+    
+    
 
-    let how_many_points = 1 as usize;
+    let how_many_points = 1_usize;
     stdin.write(&how_many_points);
 
     let mut decompress_outputs = Vec::new();
@@ -129,7 +129,7 @@ fn test_add_then_multiply(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk:
     use curve25519_dalek::scalar::Scalar;
 
     let times = 100u16;
-    stdin.write(&(times as u16));
+    stdin.write(&{ times });
 
     let mut result_vec = Vec::with_capacity(times as usize);
 

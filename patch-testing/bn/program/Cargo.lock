@@ -212,24 +212,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "080896e9d09e9761982febafe3b3da5cbf320e32f0c89b6e2e01e875129f4c2d"
 dependencies = [
  "num-bigint",
- "p3-field 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
- "p3-mds 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
- "p3-poseidon2 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
- "p3-symmetric 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
- "rand",
- "serde",
-]
-
-[[package]]
-name = "p3-baby-bear"
-version = "0.2.0-succinct"
-source = "git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4#4931038c845df5d6255a574f90af202645f091d1"
-dependencies = [
- "num-bigint",
- "p3-field 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4)",
- "p3-mds 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4)",
- "p3-poseidon2 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4)",
- "p3-symmetric 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4)",
+ "p3-field",
+ "p3-mds",
+ "p3-poseidon2",
+ "p3-symmetric",
  "rand",
  "serde",
 ]
@@ -240,22 +226,10 @@ version = "0.2.0-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "292e97d02d4c38d8b306c2b8c0428bf15f4d32a11a40bcf80018f675bf33267e"
 dependencies = [
- "p3-field 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
- "p3-matrix 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
- "p3-maybe-rayon 0.2.0",
- "p3-util 0.2.0",
- "tracing",
-]
-
-[[package]]
-name = "p3-dft"
-version = "0.2.0-succinct"
-source = "git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4#4931038c845df5d6255a574f90af202645f091d1"
-dependencies = [
- "p3-field 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4)",
- "p3-matrix 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4)",
- "p3-maybe-rayon 0.2.0-succinct",
- "p3-util 0.2.0-succinct",
+ "p3-field",
+ "p3-matrix",
+ "p3-maybe-rayon",
+ "p3-util",
  "tracing",
 ]
 
@@ -268,20 +242,7 @@ dependencies = [
  "itertools",
  "num-bigint",
  "num-traits",
- "p3-util 0.2.0",
- "rand",
- "serde",
-]
-
-[[package]]
-name = "p3-field"
-version = "0.2.0-succinct"
-source = "git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4#4931038c845df5d6255a574f90af202645f091d1"
-dependencies = [
- "itertools",
- "num-bigint",
- "num-traits",
- "p3-util 0.2.0-succinct",
+ "p3-util",
  "rand",
  "serde",
 ]
@@ -293,32 +254,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "98bf2c7680b8e906a5e147fe4ceb05a11cc9fa35678aa724333bcb35c72483c1"
 dependencies = [
  "itertools",
- "p3-field 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
- "p3-maybe-rayon 0.2.0",
- "p3-util 0.2.0",
+ "p3-field",
+ "p3-maybe-rayon",
+ "p3-util",
  "rand",
  "serde",
  "tracing",
 ]
-
-[[package]]
-name = "p3-matrix"
-version = "0.2.0-succinct"
-source = "git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4#4931038c845df5d6255a574f90af202645f091d1"
-dependencies = [
- "itertools",
- "p3-field 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4)",
- "p3-maybe-rayon 0.2.0-succinct",
- "p3-util 0.2.0-succinct",
- "rand",
- "serde",
- "tracing",
-]
-
-[[package]]
-name = "p3-maybe-rayon"
-version = "0.2.0-succinct"
-source = "git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4#4931038c845df5d6255a574f90af202645f091d1"
 
 [[package]]
 name = "p3-maybe-rayon"
@@ -333,25 +275,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "706cea48976f54702dc68dffa512684c1304d1a3606cadea423cfe0b1ee25134"
 dependencies = [
  "itertools",
- "p3-dft 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
- "p3-field 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
- "p3-matrix 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
- "p3-symmetric 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
- "p3-util 0.2.0",
- "rand",
-]
-
-[[package]]
-name = "p3-mds"
-version = "0.2.0-succinct"
-source = "git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4#4931038c845df5d6255a574f90af202645f091d1"
-dependencies = [
- "itertools",
- "p3-dft 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4)",
- "p3-field 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4)",
- "p3-matrix 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4)",
- "p3-symmetric 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4)",
- "p3-util 0.2.0-succinct",
+ "p3-dft",
+ "p3-field",
+ "p3-matrix",
+ "p3-symmetric",
+ "p3-util",
  "rand",
 ]
 
@@ -362,22 +290,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2ce5f5ec7f1ba3a233a671621029def7bd416e7c51218c9d1167d21602cf312"
 dependencies = [
  "gcd",
- "p3-field 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
- "p3-mds 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
- "p3-symmetric 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
- "rand",
- "serde",
-]
-
-[[package]]
-name = "p3-poseidon2"
-version = "0.2.0-succinct"
-source = "git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4#4931038c845df5d6255a574f90af202645f091d1"
-dependencies = [
- "gcd",
- "p3-field 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4)",
- "p3-mds 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4)",
- "p3-symmetric 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4)",
+ "p3-field",
+ "p3-mds",
+ "p3-symmetric",
  "rand",
  "serde",
 ]
@@ -389,25 +304,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2f29dc5bb6c99d3de75869d5c086874b64890280eeb7d3e068955f939e219253"
 dependencies = [
  "itertools",
- "p3-field 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
- "serde",
-]
-
-[[package]]
-name = "p3-symmetric"
-version = "0.2.0-succinct"
-source = "git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4#4931038c845df5d6255a574f90af202645f091d1"
-dependencies = [
- "itertools",
- "p3-field 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4)",
- "serde",
-]
-
-[[package]]
-name = "p3-util"
-version = "0.2.0-succinct"
-source = "git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4#4931038c845df5d6255a574f90af202645f091d1"
-dependencies = [
+ "p3-field",
  "serde",
 ]
 
@@ -532,7 +429,7 @@ dependencies = [
 [[package]]
 name = "sp1-lib"
 version = "4.0.0-rc.3"
-source = "git+https://github.com/succinctlabs/sp1-wip.git?branch=dev#cc785e3fff4014dc73b9fd62e1ba8bdf5210428a"
+source = "git+https://github.com/succinctlabs/sp1-wip.git?branch=dev#23d8d7ecfd34cfe2c31ad0264d6ba6071ec1fa2b"
 dependencies = [
  "bincode",
  "serde",
@@ -547,10 +444,10 @@ dependencies = [
  "hex",
  "lazy_static",
  "num-bigint",
- "p3-baby-bear 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
- "p3-field 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
- "p3-poseidon2 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
- "p3-symmetric 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
+ "p3-baby-bear",
+ "p3-field",
+ "p3-poseidon2",
+ "p3-symmetric",
  "serde",
  "sha2",
 ]
@@ -558,16 +455,16 @@ dependencies = [
 [[package]]
 name = "sp1-primitives"
 version = "4.0.0-rc.3"
-source = "git+https://github.com/succinctlabs/sp1-wip.git?branch=dev#cc785e3fff4014dc73b9fd62e1ba8bdf5210428a"
+source = "git+https://github.com/succinctlabs/sp1-wip.git?branch=dev#23d8d7ecfd34cfe2c31ad0264d6ba6071ec1fa2b"
 dependencies = [
  "bincode",
  "hex",
  "lazy_static",
  "num-bigint",
- "p3-baby-bear 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4)",
- "p3-field 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4)",
- "p3-poseidon2 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4)",
- "p3-symmetric 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=sp1-v4)",
+ "p3-baby-bear",
+ "p3-field",
+ "p3-poseidon2",
+ "p3-symmetric",
  "serde",
  "sha2",
 ]

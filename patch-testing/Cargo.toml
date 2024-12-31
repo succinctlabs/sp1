@@ -58,3 +58,5 @@ rand = "0.8.5"
 sp1-test-macro = { path = "./sp1-test-macro/" }
 sp1-test = { path = "./sp1-test/" }
 
+[patch.crates-io]
+sp1-lib = { path = "../crates/zkvm/lib" }

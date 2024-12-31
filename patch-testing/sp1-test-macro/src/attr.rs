@@ -1,6 +1,7 @@
 use proc_macro2::Span;
 use syn::{
-    parse::{Parse, ParseStream}, Ident, LitStr, Token
+    parse::{Parse, ParseStream},
+    Ident, LitStr, Token,
 };
 
 #[derive(Debug)]
@@ -33,13 +34,15 @@ impl AttrOptions {
     }
 
     pub fn setup(&self) -> Option<&Ident> {
-        self.0.iter().find_map(|o| {
-            if let AttrOption::Setup(ident) = o {
-                Some(ident)
-            } else {
-                None
-            }
-        })
+        self.0.iter().find_map(
+            |o| {
+                if let AttrOption::Setup(ident) = o {
+                    Some(ident)
+                } else {
+                    None
+                }
+            },
+        )
     }
 
     pub fn elf_name(&self) -> Option<&str> {
@@ -58,7 +61,7 @@ pub enum AttrOption {
     Elf(String),
     Prove,
     Gpu,
-    Setup(Ident)
+    Setup(Ident),
 }
 
 impl AttrOption {
@@ -80,8 +83,8 @@ impl Parse for AttrOptions {
         while !input.is_empty() {
             let lookahead = input.lookahead1();
             if lookahead.peek(Ident) {
-                let (span, option) = parse_option(&input)?; 
-                
+                let (span, option) = parse_option(&input)?;
+
                 options.push(option, span)?;
             } else if lookahead.peek(LitStr) {
                 // handle the case where the user just passes in ELF name
@@ -110,15 +113,15 @@ fn parse_option(input: &ParseStream) -> syn::Result<(Span, AttrOption)> {
         "elf" => {
             input.parse::<Token![=]>()?;
             let lit_str = input.parse::<LitStr>()?;
-            
+
             Ok((lit_str.span(), AttrOption::Elf(lit_str.value())))
-        },
+        }
         "setup" => {
             input.parse::<Token![=]>()?;
             let ident = input.parse::<Ident>()?;
-            
-            Ok((ident.span(), AttrOption::Setup(ident))) 
-        },
+
+            Ok((ident.span(), AttrOption::Setup(ident)))
+        }
         _ => {
             Err(syn::Error::new(ident.span(), format!("Found Unknown attribute option {}", ident)))
         }

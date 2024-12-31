@@ -14,9 +14,9 @@ pub fn lock_serial() -> parking_lot::MutexGuard<'static, ()> {
 ///
 /// Like all 0s or all 1s or the empty string.
 pub fn add_hash_fn_edge_cases(corpus: &mut Vec<Vec<u8>>) {
-    let max_len = DEFAULT_CORPUS_COUNT; 
+    let max_len = DEFAULT_CORPUS_COUNT;
     corpus.push(vec![]);
-    
+
     // push inputs of all 0s
     for len in 1..=max_len {
         corpus.push(vec![0; len as usize]);
@@ -34,7 +34,8 @@ pub fn random_preimages_with_bounded_len(count: u8, len: usize) -> Vec<Vec<u8>> 
 
     (0..count)
         .map(|_| {
-            let len = rand::distributions::Uniform::new(0_usize, len).sample(&mut rand::thread_rng());
+            let len =
+                rand::distributions::Uniform::new(0_usize, len).sample(&mut rand::thread_rng());
 
             (0..len).map(|_| rand::random::<u8>()).collect::<Vec<u8>>()
         })
