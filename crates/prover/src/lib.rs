@@ -295,7 +295,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         stdin: &SP1Stdin,
         mut context: SP1Context<'a>,
     ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
-        context.subproof_verifier.replace(Arc::new(self));
+        context.subproof_verifier = Some(self);
         let opts = SP1CoreOpts::default();
         let mut runtime = Executor::with_context_and_elf(opts, context, elf);
 
@@ -321,7 +321,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         opts: SP1ProverOpts,
         mut context: SP1Context<'a>,
     ) -> Result<SP1CoreProof, SP1CoreProverError> {
-        context.subproof_verifier.replace(Arc::new(self));
+        context.subproof_verifier = Some(self);
 
         // Launch two threads to simultaneously prove the core and compile the first few
         // recursion programs in parallel.

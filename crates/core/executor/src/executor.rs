@@ -32,7 +32,7 @@ use crate::{
     record::{ExecutionRecord, MemoryAccessRecord},
     report::ExecutionReport,
     state::{ExecutionState, ForkState},
-    subproof::{DefaultSubproofVerifier, SubproofVerifier},
+    subproof::SubproofVerifier,
     syscalls::{default_syscall_map, Syscall, SyscallCode, SyscallContext},
     CoreAirId, Instruction, MaximalShapes, Opcode, Program, Register, RiscvAirId,
 };
@@ -144,7 +144,7 @@ pub struct Executor<'a> {
     pub local_counts: LocalCounts,
 
     /// Verifier used to sanity check `verify_sp1_proof` during runtime.
-    pub subproof_verifier: Arc<dyn SubproofVerifier + 'a>,
+    pub subproof_verifier: Option<&'a dyn SubproofVerifier>,
 
     /// Registry of hooks, to be invoked by writing to certain file descriptors.
     pub hook_registry: HookRegistry<'a>,
@@ -298,8 +298,6 @@ impl<'a> Executor<'a> {
         let max_syscall_cycles =
             syscall_map.values().map(|syscall| syscall.num_extra_cycles()).max().unwrap_or(0);
 
-        let subproof_verifier =
-            context.subproof_verifier.unwrap_or_else(|| Arc::new(DefaultSubproofVerifier::new()));
         let hook_registry = context.hook_registry.unwrap_or_default();
 
         let costs: HashMap<String, usize> =
@@ -328,7 +326,7 @@ impl<'a> Executor<'a> {
             report: ExecutionReport::default(),
             local_counts: LocalCounts::default(),
             print_report: false,
-            subproof_verifier,
+            subproof_verifier: context.subproof_verifier,
             hook_registry,
             opts,
             max_cycles: context.max_cycles,
