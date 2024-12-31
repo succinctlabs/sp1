@@ -3,18 +3,6 @@
 version = 3
 
 [[package]]
-name = "RustCrypto-bigint"
-version = "1.1.0"
-dependencies = [
- "crypto-bigint",
- "rand",
- "sp1-build",
- "sp1-sdk",
- "sp1-test",
- "sp1-zkvm",
-]
-
-[[package]]
 name = "addchain"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3135,6 +3123,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cfcb3a22ef46e85b45de6ee7e79d063319ebb6594faafcf1c225ea92ab6e9b92"
 dependencies = [
  "semver",
+]
+
+[[package]]
+name = "rustcrypto-bigint"
+version = "1.1.0"
+dependencies = [
+ "crypto-bigint",
+ "rand",
+ "sp1-build",
+ "sp1-sdk",
+ "sp1-test",
+ "sp1-zkvm",
 ]
 
 [[package]]

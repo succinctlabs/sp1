@@ -9,7 +9,7 @@ members = [
   "sp1-test", 
   "curve25519-dalek", 
   "curve25519-dalek-ng", 
-  "RustCrypto-bigint",
+  "rustcrypto-bigint",
   "bls12-381",
   "bn",
 ]
