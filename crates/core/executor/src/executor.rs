@@ -1549,6 +1549,7 @@ impl<'a> Executor<'a> {
         if self.unconstrained
             && (syscall != SyscallCode::EXIT_UNCONSTRAINED && syscall != SyscallCode::WRITE)
         {
+            println!("tried to call syscall: {syscall}");
             return Err(ExecutionError::InvalidSyscallUsage(syscall_id as u64));
         }
 

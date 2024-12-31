@@ -5,12 +5,22 @@ version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "bls12_381_test_inverese"
+name = "bls12_381_fp_test_inverse"
 path = "bin/test_inverse.rs"
 
 [[bin]]
-name = "bls12_381_test_sqrt"
+name = "bls12_381_fp_test_sqrt"
 path = "bin/test_sqrt.rs"
+
+[[bin]]
+name = "bls12_381_fp2_test_inverse"
+path = "bin/test_inverse_fp2.rs"
+
+[[bin]]
+name = "bls12_381_fp2_test_sqrt"
+path = "bin/test_sqrt_fp2.rs"
+
+# todo explicit mul and add tests
 
 [dependencies]
 sp1-lib = { path = "../../../crates/zkvm/lib" }
