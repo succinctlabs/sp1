@@ -35,18 +35,21 @@ impl Syscall for VerifySyscall {
         let pv_digest_bytes: [u32; 8] = pv_digest.try_into().unwrap();
 
         // Skip deferred proof verification if the corresponding runtime flag is set.
-        match ctx.rt.deferred_proof_verification {
+        match rt.deferred_proof_verification {
             DeferredProofVerification::Enabled => {
-                ctx.rt
-                    .subproof_verifier
-                    .verify_deferred_proof(proof, proof_vk, vkey_bytes, pv_digest_bytes)
-                    .unwrap_or_else(|e| {
-                        panic!(
-                            "Failed to verify proof {proof_index} with digest {}: {}",
-                            hex::encode(bytemuck::cast_slice(&pv_digest_bytes)),
-                            e
-                        )
-                    });
+                if let Some(verifier) = rt.subproof_verifier {
+                    verifier
+                        .verify_deferred_proof(proof, proof_vk, vkey_bytes, pv_digest_bytes)
+                        .unwrap_or_else(|e| {
+                            panic!(
+                                "Failed to verify proof {proof_index} with digest {}: {}",
+                                hex::encode(bytemuck::cast_slice(&pv_digest_bytes)),
+                                e
+                            )
+                        });
+                } else if rt.state.proof_stream_ptr == 1 {
+                    tracing::info!("Not verifying sub proof during runtime");    
+                };
             }
             DeferredProofVerification::Disabled => {}
         }
