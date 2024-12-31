@@ -7,9 +7,12 @@ publish.workspace = true
 [dependencies]
 sp1-zkvm = { workspace = true }
 sp1-sdk = { workspace = true }
-rand = { workspace = true }
+rand.workspace = true
 sp1-test = { workspace = true }
-bls12_381 = "0.8.0"
+
+# note: we use the patched version (which should be mostly equivalent to the original, outside the vm)
+# becasue we want to test the field ops which are not exposed in the original
+bls12_381 = { git = "https://github.com/sp1-patches/bls12_381", branch = "n/prep-4.0.0", features = ["groups"] }
 
 [features]
 prove = []
