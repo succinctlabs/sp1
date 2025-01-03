@@ -41,7 +41,7 @@ dependencies = [
 [[package]]
 name = "bls12_381"
 version = "0.8.0"
-source = "git+https://github.com/sp1-patches/bls12_381?branch=n/prep-4.0.0#fe1fbe6649a0052685eef83e7eda0e106c17918d"
+source = "git+https://github.com/sp1-patches/bls12_381?tag=patch-0.8.0-sp1-4.0.0-rc.3#fe1fbe6649a0052685eef83e7eda0e106c17918d"
 dependencies = [
  "cfg-if",
  "ff",

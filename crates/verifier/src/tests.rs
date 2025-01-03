@@ -1,6 +1,6 @@
+use serial_test::serial;
 use sp1_sdk::{install::try_install_circuit_artifacts, HashableKey, ProverClient, SP1Stdin};
 use test_artifacts::FIBONACCI_ELF;
-use serial_test::serial;
 
 #[serial]
 #[test]
