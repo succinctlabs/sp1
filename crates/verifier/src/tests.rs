@@ -1,6 +1,8 @@
 use sp1_sdk::{install::try_install_circuit_artifacts, HashableKey, ProverClient, SP1Stdin};
 use test_artifacts::FIBONACCI_ELF;
+use serial_test::serial;
 
+#[serial]
 #[test]
 fn test_verify_groth16() {
     // Set up the pk and vk.
@@ -40,6 +42,7 @@ fn test_verify_groth16() {
         .expect("Groth16 proof is invalid");
 }
 
+#[serial]
 #[test]
 fn test_verify_plonk() {
     // Set up the pk and vk.
@@ -60,6 +63,7 @@ fn test_verify_plonk() {
         .expect("Plonk proof is invalid");
 }
 
+#[serial]
 #[test]
 fn test_vkeys() {
     let groth16_path = try_install_circuit_artifacts("groth16");
