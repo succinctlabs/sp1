@@ -41,7 +41,7 @@ dependencies = [
 [[package]]
 name = "bls12_381"
 version = "0.8.0"
-source = "git+https://github.com/sp1-patches/bls12_381?branch=n/prep-4.0.0#27abb77792b8aab3d671a093a25acab84c196f44"
+source = "git+https://github.com/sp1-patches/bls12_381?branch=n/prep-4.0.0#fe1fbe6649a0052685eef83e7eda0e106c17918d"
 dependencies = [
  "cfg-if",
  "ff",
@@ -498,9 +498,9 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "syn"
-version = "2.0.93"
+version = "2.0.94"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c786062daee0d6db1132800e623df74274a0a87322d8e183338e01b3d98d058"
+checksum = "987bc0be1cdea8b10216bd06e2ca407d40b9543468fafd3ddfb02f36e77f71f3"
 dependencies = [
  "proc-macro2",
  "quote",

@@ -417,14 +417,14 @@ dependencies = [
 [[package]]
 name = "bls12_381"
 version = "0.8.0"
-source = "git+https://github.com/sp1-patches/bls12_381?branch=n/prep-4.0.0#29ebad1a6cd7b62e440d9861edfb8b681fbb9618"
+source = "git+https://github.com/sp1-patches/bls12_381?tag=patch-0.8.0-sp1-4.0.0-rc.3#fe1fbe6649a0052685eef83e7eda0e106c17918d"
 dependencies = [
  "cfg-if",
  "ff 0.13.0",
  "group 0.13.0",
  "pairing 0.23.0",
  "rand_core",
- "sp1-lib 3.4.0",
+ "sp1-lib",
  "subtle",
 ]
 
@@ -3674,16 +3674,6 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "3.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a5729da1b05d56c01457e5ecabdc77f1cc941df23f2921163a2f325aec22428"
-dependencies = [
- "bincode",
- "serde",
-]
-
-[[package]]
-name = "sp1-lib"
 version = "4.0.0-rc.3"
 dependencies = [
  "bincode",
@@ -3970,7 +3960,7 @@ dependencies = [
  "libm",
  "rand",
  "sha2 0.10.8",
- "sp1-lib 4.0.0-rc.3",
+ "sp1-lib",
  "sp1-primitives",
 ]
 
