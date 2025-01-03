@@ -5,8 +5,9 @@ use crate::shape::CoreShapeConfig;
 use itertools::Itertools;
 use k256::sha2::{Digest, Sha256};
 use p3_baby_bear::BabyBear;
-use sp1_core_executor::{programs::tests::*, Executor, MaximalShapes, Program};
+use sp1_core_executor::{Executor, MaximalShapes, Program};
 use sp1_stark::SP1CoreOpts;
+use test_helpers::programs::*;
 
 fn execute_and_print_hashes(
     program: Program,

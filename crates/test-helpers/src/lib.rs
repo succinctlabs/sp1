@@ -3,7 +3,7 @@
 #[allow(dead_code)]
 #[allow(missing_docs)]
 pub mod tests {
-    use crate::{Instruction, Opcode, Program};
+    use sp1_core_executor::{Instruction, Opcode, Program};
 
     pub use test_artifacts::{
         FIBONACCI_ELF, PANIC_ELF, SECP256R1_ADD_ELF, SECP256R1_DOUBLE_ELF, SSZ_WITHDRAWALS_ELF,

@@ -41,7 +41,8 @@ rayon = "1.10.0"
 test-artifacts = { workspace = true, optional = true }
 
 [dev-dependencies]
-sp1-core-executor = { workspace = true, features = ["programs"] }
+sp1-core-executor = { workspace = true }
+test-helpers = { workspace = true }
 sp1-recursion-core = { workspace = true, features = ["program_validation"] }
 ff = { version = "0.13", features = ["derive", "derive_bits"] }
 p3-challenger = { workspace = true }

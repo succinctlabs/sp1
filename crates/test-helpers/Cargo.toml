@@ -1,0 +1,13 @@
+[package]
+name = "test-helpers"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+sp1-core-executor = { workspace = true }
+test-artifacts = { workspace = true }

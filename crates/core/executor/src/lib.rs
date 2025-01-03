@@ -35,8 +35,8 @@ mod opcode;
 #[cfg(feature = "profiling")]
 mod profiler;
 mod program;
-#[cfg(any(test, feature = "programs"))]
-pub mod programs;
+#[cfg(test)]
+use test_helpers::programs;
 mod record;
 mod reduce;
 mod register;
