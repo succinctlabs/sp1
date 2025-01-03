@@ -32,8 +32,8 @@ use precompiles::{
         add::WeierstrassAddAssignSyscall, decompress::WeierstrassDecompressSyscall,
         double::WeierstrassDoubleAssignSyscall,
     },
+    addmul::AddMulSyscall,
 };
-
 use sp1_curves::{
     edwards::ed25519::{Ed25519, Ed25519Parameters},
     weierstrass::{
@@ -43,6 +43,7 @@ use sp1_curves::{
         secp256r1::Secp256r1,
     },
 };
+
 use unconstrained::{EnterUnconstrainedSyscall, ExitUnconstrainedSyscall};
 use verify::VerifySyscall;
 use write::WriteSyscall;
@@ -224,6 +225,8 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Arc<dyn Syscall>> {
         SyscallCode::BLS12381_DECOMPRESS,
         Arc::new(WeierstrassDecompressSyscall::<Bls12381>::new()),
     );
+
+    syscall_map.insert(SyscallCode::ADDMUL, Arc::new(AddMulSyscall));
 
     syscall_map
 }

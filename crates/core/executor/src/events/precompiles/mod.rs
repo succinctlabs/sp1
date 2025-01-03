@@ -6,6 +6,7 @@ mod sha256_compress;
 mod sha256_extend;
 mod u256x2048_mul;
 mod uint256;
+mod addmul;
 
 use crate::syscalls::SyscallCode;
 pub use ec::*;
@@ -19,6 +20,7 @@ pub use sha256_extend::*;
 use strum::{EnumIter, IntoEnumIterator};
 pub use u256x2048_mul::*;
 pub use uint256::*;
+pub use addmul::*;
 
 use super::{MemoryLocalEvent, SyscallEvent};
 

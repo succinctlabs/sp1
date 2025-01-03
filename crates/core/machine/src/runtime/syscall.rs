@@ -157,7 +157,7 @@ pub enum SyscallCode {
     BN254_FP2_MUL = 0x00_01_01_2B,
 
     /// Executes the `ADDMUL` precompile.
-    ADDMUL = 0x00_01_01_2C,
+    ADDMUL = 0x00_01_01_30,
 }
 
 impl SyscallCode {
@@ -203,7 +203,7 @@ impl SyscallCode {
             0x00_01_01_2A => SyscallCode::BN254_FP2_SUB,
             0x00_01_01_2B => SyscallCode::BN254_FP2_MUL,
             0x00_00_01_1C => SyscallCode::BLS12381_DECOMPRESS,
-            0x00_00_01_1D => SyscallCode::ADDMUL,
+            0x00_01_01_30 => SyscallCode::ADDMUL,
             _ => panic!("invalid syscall number: {}", value),
         }
     }
