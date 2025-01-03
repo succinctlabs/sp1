@@ -9,6 +9,9 @@ use sp1_prover::{components::SP1ProverComponents, utils::get_cycles, SP1Prover};
 use sp1_sdk::{SP1Context, SP1Stdin};
 use sp1_stark::SP1ProverOpts;
 use std::time::{Duration, Instant};
+use rayon::prelude::*;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use tracing::{info, warn};
 
 use program::load_program;
 
@@ -96,15 +99,49 @@ pub async fn evaluate_performance<C: SP1ProverComponents>(
 
     sp1_sdk::utils::setup_logger();
 
-    // Run the evaluations on each program.
-    let mut reports = Vec::new();
-    for program in &programs {
-        println!("Evaluating program: {}", program.name);
-        let (elf, stdin) = load_program(program.elf, program.input);
-        let report = run_evaluation::<C>(program.name, &elf, &stdin, opts);
-        reports.push(report);
-        println!("Finished Program: {}", program.name);
-    }
+    info!("Starting parallel evaluation of {} programs", programs.len());
+    let completed = AtomicUsize::new(0);
+
+    // Run the evaluations on each program in parallel with improved error handling
+    let reports: Vec<_> = programs
+        .par_iter()
+        .map(|program| {
+            info!("Starting evaluation of program: {}", program.name);
+            let result = std::panic::catch_unwind(|| {
+                let (elf, stdin) = load_program(program.elf, program.input);
+                let report = run_evaluation::<C>(program.name, &elf, &stdin, opts);
+                
+                let count = completed.fetch_add(1, Ordering::SeqCst) + 1;
+                info!(
+                    "Completed {}/{} - Finished program: {} ({})",
+                    count,
+                    programs.len(),
+                    program.name,
+                    if report.success { "success" } else { "failed" }
+                );
+                
+                report
+            });
+
+            match result {
+                Ok(report) => report,
+                Err(e) => {
+                    warn!("Program {} failed with error: {:?}", program.name, e);
+                    PerformanceReport {
+                        program: program.name.to_string(),
+                        cycles: 0,
+                        exec_khz: 0.0,
+                        core_khz: 0.0,
+                        compressed_khz: 0.0,
+                        time: 0.0,
+                        success: false,
+                    }
+                }
+            }
+        })
+        .collect();
+
+    info!("Completed evaluation of all programs");
 
     // Prepare and format the results.
     let reports_len = reports.len();
@@ -196,6 +233,21 @@ fn run_evaluation<C: SP1ProverComponents>(
 
 fn format_results(args: &EvalArgs, results: &[PerformanceReport]) -> Vec<String> {
     let mut detail_text = String::new();
+    
+    // Add summary statistics
+    let total_programs = results.len();
+    let successful_programs = results.iter().filter(|r| r.success).count();
+    detail_text.push_str(&format!(
+        "*Summary*: {}/{} programs successful ({:.1}%)\n",
+        successful_programs,
+        total_programs,
+        (successful_programs as f64 / total_programs as f64) * 100.0
+    ));
+
+    // Add execution environment details
+    if let Some(shard_size) = args.shard_size {
+        detail_text.push_str(&format!("*Shard Size*: {}\n", 1 << shard_size));
+    }
     if let Some(branch_name) = &args.branch_name {
         detail_text.push_str(&format!("*Branch*: {}\n", branch_name));
     }
@@ -206,20 +258,35 @@ fn format_results(args: &EvalArgs, results: &[PerformanceReport]) -> Vec<String>
         detail_text.push_str(&format!("*Author*: {}\n", author));
     }
 
+    // Calculate statistics
+    if !results.is_empty() {
+        let avg_exec_khz = results.iter().map(|r| r.exec_khz).sum::<f64>() / results.len() as f64;
+        let avg_core_khz = results.iter().map(|r| r.core_khz).sum::<f64>() / results.len() as f64;
+        detail_text.push_str(&format!(
+            "\n*Averages*:\n- Execute: {:.2} mHz\n- Core: {:.2} kHz\n",
+            avg_exec_khz / 1000.0,
+            avg_core_khz
+        ));
+    }
+
     let mut table_text = String::new();
     table_text.push_str("```\n");
-    table_text.push_str("| program           | cycles      | execute (mHz)  | core (kHZ)     | compress (KHz) | time   | success  |\n");
-    table_text.push_str("|-------------------|-------------|----------------|----------------|----------------|--------|----------|");
+    table_text.push_str("| Program           | Cycles      | Execute (mHz)  | Core (kHz)     | Compress (kHz) | Time   | Status  |\n");
+    table_text.push_str("|-------------------|-------------|----------------|----------------|----------------|--------|---------|");
 
-    for result in results.iter() {
+    // Sort results by execution time for better readability
+    let mut sorted_results = results.to_vec();
+    sorted_results.sort_by(|a, b| b.time.partial_cmp(&a.time).unwrap_or(std::cmp::Ordering::Equal));
+
+    for result in sorted_results.iter() {
         table_text.push_str(&format!(
             "\n| {:<17} | {:>11} | {:>14.2} | {:>14.2} | {:>14.2} | {:>6} | {:<7} |",
             result.program,
-            result.cycles,
-            result.exec_khz / 1000.0,
-            result.core_khz,
-            result.compressed_khz,
-            format_duration(result.time),
+            if result.success { result.cycles.to_string() } else { "-".to_string() },
+            if result.success { result.exec_khz / 1000.0 } else { 0.0 },
+            if result.success { result.core_khz } else { 0.0 },
+            if result.success { result.compressed_khz } else { 0.0 },
+            if result.success { format_duration(result.time) } else { "-".to_string() },
             if result.success { "✅" } else { "❌" }
         ));
     }
