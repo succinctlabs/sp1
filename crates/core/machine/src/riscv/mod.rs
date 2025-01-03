@@ -642,22 +642,17 @@ pub mod tests {
         utils::{self, prove_core, run_test, setup_logger},
     };
 
+    use crate::programs::tests::*;
     use hashbrown::HashMap;
     use itertools::Itertools;
     use p3_baby_bear::BabyBear;
-    use sp1_core_executor::{
-        programs::tests::{
-            fibonacci_program, simple_memory_program, simple_program, ssz_withdrawals_program,
-        },
-        Instruction, Opcode, Program, RiscvAirId, SP1Context,
-    };
+    use sp1_core_executor::{Instruction, Opcode, Program, RiscvAirId, SP1Context};
     use sp1_stark::air::MachineAir;
     use sp1_stark::{
         baby_bear_poseidon2::BabyBearPoseidon2, CpuProver, MachineProver, SP1CoreOpts,
         StarkProvingKey, StarkVerifyingKey,
     };
     use strum::IntoEnumIterator;
-
     #[test]
     fn test_primitives_and_machine_air_names_match() {
         let chips = RiscvAir::<BabyBear>::chips();

@@ -1,11 +1,12 @@
 //! This script runs some programs in checkpoint mode and prints the hashes of the
 //! checkpoints. It's useful for making sure that the checkpoints are created correctly.
 
+use crate::programs::*;
 use crate::shape::CoreShapeConfig;
 use itertools::Itertools;
 use k256::sha2::{Digest, Sha256};
 use p3_baby_bear::BabyBear;
-use sp1_core_executor::{programs::tests::*, Executor, MaximalShapes, Program};
+use sp1_core_executor::{Executor, MaximalShapes, Program};
 use sp1_stark::SP1CoreOpts;
 
 fn execute_and_print_hashes(

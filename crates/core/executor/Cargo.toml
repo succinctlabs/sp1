@@ -56,9 +56,9 @@ indicatif = { version = "0.17.8", optional = true }
 
 [dev-dependencies]
 sp1-zkvm = { workspace = true, features = ["lib"] }
+test-artifacts = { workspace = true }
 
 [features]
-programs = ["dep:test-artifacts"]
 bigint-rug = ["sp1-curves/bigint-rug"]
 profiling = [
   "dep:goblin",

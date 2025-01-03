@@ -263,9 +263,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::programs::tests::*;
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-    use sp1_core_executor::{programs::tests::simple_program, ExecutionRecord, Executor};
+    use sp1_core_executor::{ExecutionRecord, Executor};
     use sp1_stark::{air::MachineAir, SP1CoreOpts};
 
     #[test]

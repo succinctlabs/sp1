@@ -271,18 +271,18 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::programs::tests::*;
+    use crate::{
+        memory::MemoryLocalChip, riscv::RiscvAir,
+        syscall::precompiles::sha256::extend_tests::sha_extend_program, utils::setup_logger,
+    };
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-    use sp1_core_executor::{programs::tests::simple_program, ExecutionRecord, Executor};
+    use sp1_core_executor::{ExecutionRecord, Executor};
     use sp1_stark::{
         air::{InteractionScope, MachineAir},
         baby_bear_poseidon2::BabyBearPoseidon2,
         debug_interactions_with_all_chips, InteractionKind, SP1CoreOpts, StarkMachine,
-    };
-
-    use crate::{
-        memory::MemoryLocalChip, riscv::RiscvAir,
-        syscall::precompiles::sha256::extend_tests::sha_extend_program, utils::setup_logger,
     };
 
     #[test]
