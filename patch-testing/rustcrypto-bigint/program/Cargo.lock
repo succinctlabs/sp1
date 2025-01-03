@@ -60,7 +60,7 @@ dependencies = [
 [[package]]
 name = "crypto-bigint"
 version = "0.5.5"
-source = "git+https://github.com/sp1-patches/RustCrypto-bigint?tag=crypto_bigint-v0.5.5-patch-v1#ba5c434413348d442a3e71aa76c0f09b553309ea"
+source = "git+https://github.com/sp1-patches/RustCrypto-bigint?tag=patch-0.5.5-sp1-4.0.0-rc.3#d421029772fb604022defd4cae5fffb269ad5155"
 dependencies = [
  "rand_core",
  "subtle",
