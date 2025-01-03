@@ -5774,7 +5774,6 @@ dependencies = [
  "strum_macros",
  "subenum",
  "test-artifacts",
- "test-helpers",
  "thiserror 1.0.69",
  "tiny-keccak",
  "tracing",
@@ -5832,7 +5831,6 @@ dependencies = [
  "strum_macros",
  "tempfile",
  "test-artifacts",
- "test-helpers",
  "thiserror 1.0.69",
  "tiny-keccak",
  "tracing",
@@ -6045,7 +6043,6 @@ dependencies = [
  "sp1-recursion-gnark-ffi",
  "sp1-stark",
  "test-artifacts",
- "test-helpers",
  "tracing",
  "zkhash",
 ]
@@ -6604,14 +6601,6 @@ name = "test-artifacts"
 version = "4.0.0-rc.3"
 dependencies = [
  "sp1-build",
-]
-
-[[package]]
-name = "test-helpers"
-version = "4.0.0-rc.3"
-dependencies = [
- "sp1-core-executor",
- "test-artifacts",
 ]
 
 [[package]]

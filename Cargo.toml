@@ -32,7 +32,6 @@ members = [
   "crates/verifier",
   "crates/zkvm/*",
   "crates/test-artifacts",
-  "crates/test-helpers",
 ]
 exclude = ["examples/target"]
 resolver = "2"
@@ -73,7 +72,6 @@ sp1-zkvm = { path = "crates/zkvm/entrypoint", version = "4.0.0-rc.3", default-fe
 
 # For testing.
 test-artifacts = { path = "crates/test-artifacts", version = "4.0.0-rc.3" }
-test-helpers = { path = "crates/test-helpers", version = "4.0.0-rc.3" }
 
 # p3
 p3-air = "=0.2.0-succinct"

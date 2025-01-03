@@ -271,6 +271,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::programs::tests::*;
     use crate::{
         memory::MemoryLocalChip, riscv::RiscvAir,
         syscall::precompiles::sha256::extend_tests::sha_extend_program, utils::setup_logger,
@@ -283,7 +284,6 @@ mod tests {
         baby_bear_poseidon2::BabyBearPoseidon2,
         debug_interactions_with_all_chips, InteractionKind, SP1CoreOpts, StarkMachine,
     };
-    use test_helpers::programs::*;
 
     #[test]
     fn test_local_memory_generate_trace() {

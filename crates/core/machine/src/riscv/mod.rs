@@ -642,6 +642,7 @@ pub mod tests {
         utils::{self, prove_core, run_test, setup_logger},
     };
 
+    use crate::programs::tests::*;
     use hashbrown::HashMap;
     use itertools::Itertools;
     use p3_baby_bear::BabyBear;
@@ -652,7 +653,6 @@ pub mod tests {
         StarkProvingKey, StarkVerifyingKey,
     };
     use strum::IntoEnumIterator;
-    use test_helpers::programs::*;
     #[test]
     fn test_primitives_and_machine_air_names_match() {
         let chips = RiscvAir::<BabyBear>::chips();

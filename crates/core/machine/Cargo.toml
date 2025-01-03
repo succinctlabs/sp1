@@ -64,7 +64,6 @@ sp1-curves = { workspace = true }
 p3-poseidon2 = { workspace = true }
 
 [dev-dependencies]
-test-helpers = { workspace = true }
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 criterion = "0.5.1"
 num = { version = "0.4.3", features = ["rand"] }
