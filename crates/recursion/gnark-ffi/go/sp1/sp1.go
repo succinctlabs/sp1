@@ -220,7 +220,7 @@ func (circuit *Circuit) Define(api frontend.API) error {
 		case "CommitVkeyHash":
 			element := vars[cs.Args[0][0]]
 			api.AssertIsEqual(circuit.VkeyHash, element)
-		case "CommitCommitedValuesDigest":
+		case "CommitCommittedValuesDigest":
 			element := vars[cs.Args[0][0]]
 			api.AssertIsEqual(circuit.CommittedValuesDigest, element)
 		case "CircuitFelts2Ext":
