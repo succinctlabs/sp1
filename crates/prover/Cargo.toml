@@ -43,7 +43,6 @@ thiserror = "1.0.63"
 rayon = "1.10.0"
 lru = "0.12.4"
 eyre = "0.6.12"
-test-artifacts = { workspace = true, optional = true }
 
 [build-dependencies]
 downloader = { version = "0.2", default-features = false, features = [
@@ -94,5 +93,5 @@ path = "scripts/post_trusted_setup.rs"
 
 [features]
 native-gnark = ["sp1-recursion-gnark-ffi/native"]
-export-tests = ["dep:test-artifacts"]
+export-tests = []
 debug = ["sp1-core-machine/debug"]

@@ -44,7 +44,6 @@ bytemuck = "1.16.3"
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 vec_map = { version = "0.8.2", features = ["serde"] }
 enum-map = { version = "2.7.3", features = ["serde"] }
-test-artifacts = { workspace = true, optional = true }
 clap = { version = "4.5.9", features = ["derive"] }
 subenum = "1.1.2"
 

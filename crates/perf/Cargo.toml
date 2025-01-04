@@ -9,6 +9,7 @@ repository = { workspace = true }
 keywords = { workspace = true }
 categories = { workspace = true }
 default-run = "sp1-perf"
+publish = false
 
 [dependencies]
 sp1-prover = { workspace = true }
