@@ -1313,7 +1313,7 @@ pub fn compress_program_from_input<C: SP1ProverComponents>(
     program
 }
 
-#[cfg(any(test, feature = "export-tests"))]
+#[cfg(test)]
 pub mod tests {
 
     use std::{

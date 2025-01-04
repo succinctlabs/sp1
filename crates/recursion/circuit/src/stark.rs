@@ -504,7 +504,7 @@ impl<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>> ShardProof
 }
 
 #[allow(unused_imports)]
-#[cfg(any(test, feature = "export-tests"))]
+#[cfg(test)]
 pub mod tests {
     use std::{collections::VecDeque, fmt::Debug};
 
