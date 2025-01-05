@@ -3,7 +3,7 @@ sp1_zkvm::entrypoint!(main);
 
 use num::BigUint;
 use rand::Rng;
-use sp1_zkvm::syscalls::syscall_add_mul;
+use sp1_zkvm::syscalls::syscall_u256x2048_mul;
 
 fn u256_to_bytes_le(x: &BigUint) -> [u8; 32] {
     let mut bytes = x.to_bytes_le();

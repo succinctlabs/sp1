@@ -2,9 +2,9 @@
 version = "3.0.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-rust-version = "1.79"
+rust-version = "1.81"
 repository = "https://github.com/succinctlabs/sp1"
-keywords = ["sp1", "succinct", "zero-knowledge", "zkvm"]
+keywords = ["sp1", "succinct", "ze ro-knowledge", "zkvm"]
 categories = ["cryptography"]
 
 [workspace]
@@ -145,10 +145,15 @@ p3-bn254-fr = { git = "https://github.com/Plonky3/Plonky3", branch = "sp1-v4" }
 # misc
 hashbrown = "0.14.5"
 itertools = "0.13.0"
-serde = "1.0.204"
-serde_json = "1.0.132"
+serde = { version = "1.0", default-features = false }
+serde_json = { version = "1.0", default-features = false }
 tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
+
+# Specify compatible versions for dependencies requiring Rust 1.81
+const-oid = "0.9.6" # Example version, adjust as needed
+hybrid-array = "0.1.0" # Example version, adjust as needed
+sec1 = "0.7.3" # Example version, adjust as needed
 
 [workspace.metadata.typos]
 # TODO: Fix in next version since CommitCommitedValuesDigest is retained since it's present in constraints.json
