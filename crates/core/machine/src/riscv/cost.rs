@@ -107,6 +107,10 @@ impl CostEstimator for ExecutionReport {
         total_area += (u256xu2048_mul_events as u64) * costs[&RiscvAirDiscriminants::U256x2048Mul];
         total_chips += 1;
 
+        let addmul_events = self.syscall_counts[SyscallCode::ADDMUL];
+        total_area += (addmul_events as u64) * costs[&RiscvAirDiscriminants::AddMul];
+        total_chips += 1;
+
         let bls12381_fp_events = self.syscall_counts[SyscallCode::BLS12381_FP_ADD]
             + self.syscall_counts[SyscallCode::BLS12381_FP_SUB]
             + self.syscall_counts[SyscallCode::BLS12381_FP_MUL];

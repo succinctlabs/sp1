@@ -75,9 +75,9 @@ pub struct AddMulChipCols<T> {
     pub d: T,
 
     pub a_ptr: T,
-    pub b_ptr: T,
-    pub c_ptr: T,
-    pub d_ptr: T,
+    // pub b_ptr: T,
+    // pub c_ptr: T,
+    // pub d_ptr: T,
 
     // First multiplication: a * b
     pub mul1_output: T,
@@ -132,9 +132,9 @@ impl<F: PrimeField32> MachineAir<F> for AddMulChip {
                         cols.shard = F::from_canonical_u32(event.shard);
                         cols.clk = F::from_canonical_u32(event.clk);
                         cols.a_ptr = F::from_canonical_u32(event.a_ptr);
-                        cols.b_ptr = F::from_canonical_u32(event.b_ptr);
-                        cols.c_ptr = F::from_canonical_u32(event.c_ptr);
-                        cols.d_ptr = F::from_canonical_u32(event.d_ptr);
+                        // cols.b_ptr = F::from_canonical_u32(event.b_ptr);
+                        // cols.c_ptr = F::from_canonical_u32(event.c_ptr);
+                        // cols.d_ptr = F::from_canonical_u32(event.d_ptr);
 
                         cols.a = F::from_canonical_u32(event.a);
                         cols.b = F::from_canonical_u32(event.b);
@@ -223,9 +223,21 @@ where
         let local: &AddMulChipCols<AB::Var> = (*local).borrow();
         let next = main.row_slice(1);
         let next: &AddMulChipCols<AB::Var> = (*next).borrow();
+
+        builder.assert_bool(local.is_real);
+        builder.receive_syscall(
+            local.shard,
+            local.clk,
+            local.nonce,
+            AB::F::from_canonical_u32(SyscallCode::ADDMUL.syscall_id()),
+            local.a_ptr,
+            local.a_ptr,
+            local.is_real,
+            InteractionScope::Local,
+        );
         // Perform the addmul operation and assert the result
         // 1. Basic boolean and nonce constraints
-        builder.assert_bool(local.is_real);
+        
         builder.when_first_row().assert_zero(local.nonce);
         builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
@@ -233,16 +245,5 @@ where
         builder.assert_eq(local.mul2_output, local.c * local.d);
         builder.assert_eq(local.final_output, local.mul1_output + local.mul2_output);
 
-
-        builder.receive_syscall(
-            local.shard,
-            local.clk,
-            local.nonce,
-            AB::F::from_canonical_u32(SyscallCode::ADDMUL.syscall_id()),
-            local.a_ptr,  
-            local.b_ptr, 
-            local.is_real,
-            InteractionScope::Local,
-        );
     }
 }

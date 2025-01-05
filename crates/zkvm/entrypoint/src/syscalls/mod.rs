@@ -161,4 +161,4 @@ pub const BN254_FP2_SUB: u32 = 0x00_01_01_2A;
 pub const BN254_FP2_MUL: u32 = 0x00_01_01_2B;
 
 /// Executes the `ADDMUL` precompile.
-pub const ADDMUL: u32  = 0x00_00_01_1D;
+pub const ADDMUL: u32  = 0x00_01_01_30;

@@ -31,10 +31,11 @@ mod tests {
     use crate::syscall::precompiles::addmul::AddMulChip;
 
     #[test]
-    fn test_add_mul() {
+    fn test_add_mul_elf() {
         utils::setup_logger();
         println!("This test is running!");
         let program = Program::from(ADD_MUL_ELF).unwrap();
+        println!("Program loaded successfully");
         run_test_io::<CpuProver<_, _>>(program, SP1Stdin::new()).unwrap();
     }
 
@@ -63,9 +64,10 @@ mod tests {
             c,
             d,
             a_ptr,
-            b_ptr,
-            c_ptr,
-            d_ptr,
+            // a_ptr,
+            // b_ptr,
+            // c_ptr,
+            // d_ptr,
             result: 14u32,
             local_mem_access: Vec::new(),
         });

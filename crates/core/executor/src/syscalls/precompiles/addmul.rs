@@ -28,36 +28,43 @@ fn execute(
 
     // Read the 4 pointers from memory
     let (_, ptrs) = rt.mr_slice(ptr_base, 4); // Read 4 u32 words containing our pointers
-    let a_ptr = ptrs[0];
-    let b_ptr = ptrs[1];
-    let c_ptr = ptrs[2];
-    let d_ptr = ptrs[3];
+    let a = ptrs[0];
+    let b = ptrs[1];
+    let c = ptrs[2];
+    let d = ptrs[3];
 
-    // Check alignment for all pointers
-    if a_ptr % 4 != 0 || b_ptr % 4 != 0 || c_ptr % 4 != 0 || d_ptr % 4 != 0 {
-        panic!();
-    }
+    let a_ptr = ptr_base;
+    
+    // // Check alignment for all pointers
+    // if a_ptr % 4 != 0 || b_ptr % 4 != 0 || c_ptr % 4 != 0 || d_ptr % 4 != 0 {
+    //     panic!();
+    // }
 
-    // Read all input values with memory records
-    let (_, a) = rt.mr(a_ptr);
-    let (_, b) = rt.mr(b_ptr);
-    let (_, c) = rt.mr(c_ptr);
-    let (_, d) = rt.mr(d_ptr);
+    // // Read all input values with memory records
+    // let (_, a) = rt.mr(a_ptr);
+    // let (_, b) = rt.mr(b_ptr);
+    // let (_, c) = rt.mr(c_ptr);
+    // let (_, d) = rt.mr(d_ptr);
 
     // Convert all inputs to u32
-    let u32_a: u32 = a; // No need for references unless explicitly required
-    let u32_b: u32 = b;
-    let u32_c: u32 = c;
-    let u32_d: u32 = d;
+    // let u32_a: u32 = a_ptr; // No need for references unless explicitly required
+    // let u32_b: u32 = b_ptr;
+    // let u32_c: u32 = c_ptr;
+    // let u32_d: u32 = d_ptr;
+
+    // let a = u32_a;
+    // let b = u32_b;
+    // let c = u32_c;
+    // let d = u32_d;
 
     // Perform computations
     //let modulus = BigUint::one() << 256; // Use 2^256 as modulus
 
     // First multiplication: a * b
-    let mul1_result = u32_a * u32_b;
+    let mul1_result = a * b;
 
     // Second multiplication: c * d
-    let mul2_result = u32_c * u32_d;
+    let mul2_result = c * d;
 
     // Final addition: (a*b) + (c*d)
     let result = mul1_result + mul2_result;
@@ -83,9 +90,6 @@ fn execute(
         c,
         d,
         a_ptr,
-        b_ptr,
-        c_ptr,
-        d_ptr,
         result,
         local_mem_access: rt.postprocess(),
     });
@@ -97,6 +101,13 @@ fn execute(
         arg2,
         lookup_id,
     );
+
+    // Convert result to bytes and pad
+    let mut result_bytes = result.to_le_bytes().to_vec();
+    result_bytes.resize(32, 0u8); 
+    let result_words = bytes_to_words_le::<8>(&result_bytes);
+    rt.mw_slice(arg1, &result_words);
+
     rt.add_precompile_event(syscall_code, syscall_event, event);
 
     None
