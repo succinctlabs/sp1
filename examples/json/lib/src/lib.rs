@@ -1,4 +1,4 @@
-// Custom structs with seralize/deserialize.
+// Custom structs with serialize/deserialize.
 
 use serde::{Deserialize, Serialize};
 

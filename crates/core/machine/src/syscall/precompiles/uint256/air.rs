@@ -290,7 +290,7 @@ where
             local.is_real,
         );
 
-        // Verify the range of the output if the moduls is not zero.  Also, check the value of
+        // Verify the range of the output if the modules is not zero.  Also, check the value of
         // modulus_is_not_zero.
         local.output_range_check.eval(
             builder,

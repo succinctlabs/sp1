@@ -216,7 +216,7 @@ where
                     *digest = first_digest;
                 }
 
-                // Initiallize start pc.
+                // Initialize start pc.
                 compress_public_values.start_pc = current_public_values.start_pc;
                 pc = current_public_values.start_pc;
 
