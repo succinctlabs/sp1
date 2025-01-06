@@ -30,7 +30,7 @@ dependencies = [
 name = "bn_test_program"
 version = "0.1.0"
 dependencies = [
- "sp1-lib 4.0.0-rc.6",
+ "sp1-lib 4.0.0-rc.7",
  "sp1-zkvm",
  "substrate-bn",
 ]
@@ -429,11 +429,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "4.0.0-rc.6"
+version = "4.0.0-rc.7"
 dependencies = [
  "bincode",
  "serde",
- "sp1-primitives 4.0.0-rc.6",
+ "sp1-primitives 4.0.0-rc.7",
 ]
 
 [[package]]
@@ -455,7 +455,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "4.0.0-rc.6"
+version = "4.0.0-rc.7"
 dependencies = [
  "bincode",
  "hex",
@@ -471,7 +471,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "4.0.0-rc.6"
+version = "4.0.0-rc.7"
 dependencies = [
  "cfg-if",
  "getrandom",
@@ -479,8 +479,8 @@ dependencies = [
  "libm",
  "rand",
  "sha2",
- "sp1-lib 4.0.0-rc.6",
- "sp1-primitives 4.0.0-rc.6",
+ "sp1-lib 4.0.0-rc.7",
+ "sp1-primitives 4.0.0-rc.7",
 ]
 
 [[package]]
