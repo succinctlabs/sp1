@@ -270,34 +270,34 @@ where
             local.a_ptr,
             local.b_ptr,
             local.is_real,
-            InteractionScope::Local,
+            InteractionScope::Global,
         );
         // Perform the addmul operation and assert the result
         // 1. Basic boolean and nonce constraints
         builder.eval_memory_access(
             local.shard,
-            local.clk.into() + AB::Expr::one(),
+            local.clk.into() ,
             AB::Expr::from_canonical_u32(LO_REGISTER),
             &local.c_ptr_memory,
             local.is_real,
         );
         builder.eval_memory_access(
             local.shard,
-            local.clk.into() + AB::Expr::one(),
+            local.clk.into() ,
             AB::Expr::from_canonical_u32(HI_REGISTER),
             &local.d_ptr_memory,
             local.is_real,
         );
         builder.eval_memory_access(
             local.shard,
-            local.clk.into() + AB::Expr::one(),
+            local.clk.into() ,
             AB::Expr::from_canonical_u32(RESULT_REGISTER),
             &local.e_ptr_memory,
             local.is_real,
         );
         builder.eval_memory_access(
             local.shard,
-            local.clk.into() + AB::Expr::one() + AB::Expr::one(),
+            local.clk.into() + AB::Expr::one() ,
             local.a_ptr,
             &local.a_memory_record,
             local.is_real,
@@ -305,7 +305,7 @@ where
 
         builder.eval_memory_access(
             local.shard,
-            local.clk.into() + AB::Expr::one() + AB::Expr::one(),
+            local.clk.into() + AB::Expr::one() ,
             local.b_ptr,
             &local.b_memory_record,
             local.is_real,
@@ -313,7 +313,7 @@ where
 
         builder.eval_memory_access(
             local.shard,
-            local.clk.into() + AB::Expr::one() + AB::Expr::one(),
+            local.clk.into() + AB::Expr::one() ,
             local.c_ptr,
             &local.c_memory_record,
             local.is_real,
@@ -321,14 +321,14 @@ where
 
         builder.eval_memory_access(
             local.shard,
-            local.clk.into() + AB::Expr::one() + AB::Expr::one(),
+            local.clk.into() + AB::Expr::one(),
             local.d_ptr,
             &local.d_memory_record,
             local.is_real,
         );
         builder.eval_memory_access(
             local.shard,
-            local.clk.into() + AB::Expr::one() + AB::Expr::one() + AB::Expr::one(),
+            local.clk.into() + AB::Expr::one() + AB::Expr::one() ,
             local.e_ptr,
             &local.e_memory_record,
             local.is_real,

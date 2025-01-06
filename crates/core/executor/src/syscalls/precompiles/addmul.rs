@@ -31,7 +31,6 @@ fn execute(
     let (_, ptrs) = rt.mr_slice(ptr_base, 4); // Read 4 u32 words containing our pointers
     let a_ptr = arg1;
     let b_ptr = arg2;
-    rt.clk += 1;
     let (c_ptr_memory, c_ptr) = rt.mr(X12 as u32);
     let (d_ptr_memory, d_ptr) = rt.mr(X13 as u32);
     let (e_ptr_memory, e_ptr) = rt.mr(X14 as u32);

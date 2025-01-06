@@ -166,10 +166,11 @@ mod tests {
     }
 
     #[test]
-    fn test_uint256_mul() {
+    fn test_uint256_mul_elf() {
         utils::setup_logger();
         let program = Program::from(U256XU2048_MUL_ELF).unwrap();
         run_test_io::<CpuProver<_, _>>(program, SP1Stdin::new()).unwrap();
+        assert!(false);
     }
 
     #[test]

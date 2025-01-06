@@ -200,6 +200,7 @@ impl<F: PrimeField32> MachineAir<F> for U256x2048MulChip {
 
         // Generate the trace rows for each event.
         let mut rows = Vec::new();
+        println!("rows_and_records: {:?}", rows_and_records);
         for (row, mut record) in rows_and_records {
             rows.extend(row);
             output.append(&mut record);
