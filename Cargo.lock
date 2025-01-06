@@ -6107,7 +6107,6 @@ dependencies = [
  "sp1-core-machine",
  "sp1-derive",
  "sp1-primitives",
- "sp1-recursion-core",
  "sp1-stark",
  "static_assertions",
  "thiserror 1.0.69",
