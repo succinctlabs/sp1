@@ -91,4 +91,5 @@ bigint-rug = ["sp1-curves/bigint-rug"]
 sys = []
 
 [lib]
+path = "src/lib.rs"
 bench = false
