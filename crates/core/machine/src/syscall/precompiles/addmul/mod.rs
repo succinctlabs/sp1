@@ -129,7 +129,6 @@ mod tests {
                 prev_shard: 0u32,
                 prev_timestamp: lo_ts,
             },
-            result: 14u32,
             local_mem_access: Vec::new(),
         });
 

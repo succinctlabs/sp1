@@ -101,7 +101,6 @@ fn execute(
         c_ptr_memory,
         d_ptr_memory,
         e_ptr_memory,
-        result,
         local_mem_access: rt.postprocess(),
     });
 

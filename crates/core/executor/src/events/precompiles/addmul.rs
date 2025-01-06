@@ -38,10 +38,6 @@ pub struct AddMulEvent {
     pub d_ptr_memory: MemoryReadRecord,
     pub e_ptr_memory: MemoryReadRecord,
 
-    /// Memory records for result (written back to a_ptr)
-    // change to just save the result
-    pub result: u32,
-
     /// Local memory access events
     pub local_mem_access: Vec<MemoryLocalEvent>,
 }

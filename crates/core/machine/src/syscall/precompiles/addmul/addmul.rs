@@ -1,5 +1,5 @@
 use crate::{
-    memory::{value_as_limbs, MemoryReadCols, MemoryWriteCols},
+    memory::{value_as_limbs, MemoryReadCols, MemoryCols,MemoryWriteCols},
     operations::field::field_op::FieldOpCols,
 };
 use sp1_derive::AlignedBorrow;
@@ -73,12 +73,12 @@ pub struct AddMulChipCols<T> {
     /// Unique identifier for this operation
     pub nonce: T,
 
-    // Memory pointers for inputs
-    pub a: T,
-    pub b: T,
-    pub c: T,
-    pub d: T,
-    pub e: T,
+    // // Memory pointers for inputs
+    // pub a: T,
+    // pub b: T,
+    // pub c: T,
+    // pub d: T,
+    // pub e: T,
 
     pub a_ptr: T,
     pub b_ptr: T,
@@ -152,24 +152,27 @@ impl<F: PrimeField32> MachineAir<F> for AddMulChip {
                         cols.c_ptr = F::from_canonical_u32(event.c_ptr);
                         cols.d_ptr = F::from_canonical_u32(event.d_ptr);
                         cols.e_ptr = F::from_canonical_u32(event.e_ptr);
-                        cols.a = F::from_canonical_u32(event.a);
-                        cols.b = F::from_canonical_u32(event.b);
-                        cols.c = F::from_canonical_u32(event.c);
-                        cols.d = F::from_canonical_u32(event.d);
+                        // cols.a = F::from_canonical_u32(event.a);
+                        // cols.b = F::from_canonical_u32(event.b);
+                        // cols.c = F::from_canonical_u32(event.c);
+                        // cols.d = F::from_canonical_u32(event.d);
                         cols.a_memory_record.populate(event.a_memory_records, &mut new_byte_lookup_events);
                         cols.b_memory_record.populate(event.b_memory_records, &mut new_byte_lookup_events);
                         cols.c_memory_record.populate(event.c_memory_records, &mut new_byte_lookup_events);
                         cols.d_memory_record.populate(event.d_memory_records, &mut new_byte_lookup_events);
                         cols.e_memory_record.populate(event.e_memory_records, &mut new_byte_lookup_events);
-                        println!("in syscall a_memory_records: {:?}", event.a_memory_records);
-                        println!("in syscall c_ptr_memory: {:?}", event.c_ptr_memory);
                         cols.c_ptr_memory.populate(event.c_ptr_memory, &mut new_byte_lookup_events);
                         cols.d_ptr_memory.populate(event.d_ptr_memory, &mut new_byte_lookup_events);
                         cols.e_ptr_memory.populate(event.e_ptr_memory, &mut new_byte_lookup_events);
-                        cols.mul1_output = cols.a * cols.b;
-                        cols.mul2_output = cols.c * cols.d;
+                        let a = event.a;
+                        let b = event.b;
+                        let c = event.c;
+                        let d = event.d;
+                        let e = event.e;
+                        cols.mul1_output = F::from_canonical_u32(a) * F::from_canonical_u32(b);
+                        cols.mul2_output = F::from_canonical_u32(c) * F::from_canonical_u32(d);
                         cols.final_output = cols.mul1_output + cols.mul2_output;
-                        cols.e = cols.final_output;
+                        // cols.e = cols.final_output;
                         
                         row
                     })
@@ -199,11 +202,11 @@ impl<F: PrimeField32> MachineAir<F> for AddMulChip {
                 cols.shard = F::zero();
                 cols.clk = F::zero();
                 cols.nonce = F::zero();
-                cols.a = F::zero();
-                cols.b = F::zero();
-                cols.c = F::zero();
-                cols.d = F::zero();
-                cols.e = F::zero();
+                // cols.a = F::zero();
+                // cols.b = F::zero();
+                // cols.c = F::zero();
+                // cols.d = F::zero();
+                // cols.e = F::zero();
                 cols.a_ptr = F::zero();
                 cols.b_ptr = F::zero();
                 cols.c_ptr = F::zero();
@@ -334,12 +337,28 @@ where
             local.is_real,
         );
 
+        builder.when(local.is_real)
+        .assert_eq(local.c_ptr, local.c_ptr_memory.value().reduce::<AB>());
+
+        builder.when(local.is_real).assert_eq(local.d_ptr, local.d_ptr_memory.value().reduce::<AB>());
+
+        builder.when(local.is_real).assert_eq(local.e_ptr, local.e_ptr_memory.value().reduce::<AB>());
+
         builder.when_first_row().assert_zero(local.nonce);
         builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
-
-        builder.assert_eq(local.mul1_output, local.a * local.b);
-        builder.assert_eq(local.mul2_output, local.c * local.d);
+        let a = local.a_memory_record.access.value.reduce::<AB>();
+        let b = local.b_memory_record.access.value.reduce::<AB>();
+        let c = local.c_memory_record.access.value.reduce::<AB>();
+        let d = local.d_memory_record.access.value.reduce::<AB>();
+        let e = local.e_memory_record.access.value.reduce::<AB>();
+        // println!("a: {:?}", a);
+        // println!("b: {:?}", b);
+        // println!("c: {:?}", c);
+        // println!("d: {:?}", d);
+        // println!("e: {:?}", e);
+        builder.assert_eq(local.mul1_output, a * b);
+        builder.assert_eq(local.mul2_output, c * d);
         builder.assert_eq(local.final_output, local.mul1_output + local.mul2_output);
-        builder.assert_eq(local.e, local.final_output);
+        builder.assert_eq(local.final_output, e);
     }
 }
