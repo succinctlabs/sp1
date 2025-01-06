@@ -9,8 +9,6 @@ repository = { workspace = true }
 keywords = { workspace = true }
 categories = { workspace = true }
 
-include = ["src/**", "../../SP1_VERSION"]
-
 [dependencies]
 cargo_metadata = "0.18.1"
 anyhow = { version = "1.0.83" }

@@ -519,10 +519,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                     ShapeCluster::new(x.into_iter().map(|(k, v)| (k, vec![Some(v)])).collect())
                 })
                 .collect(),
-            costs: serde_json::from_str(include_str!(
-                "../../../executor/src/artifacts/rv32im_costs.json"
-            ))
-            .unwrap(),
+            costs: serde_json::from_str(include_str!("rv32im_costs.json")).unwrap(),
         }
     }
 }
