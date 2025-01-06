@@ -10,7 +10,13 @@ keywords = { workspace = true }
 categories = { workspace = true }
 links = "sp1-core-machine-sys"
 
-include = ["../executor/src/artifacts/rv32im_costs.json"]
+include = [
+  "src/**",
+  "build.rs",
+  "cpp/**",
+  "include/**",
+  "../executor/src/artifacts/rv32im_costs.json"
+]
 
 [dependencies]
 bincode = "1.3.3"
