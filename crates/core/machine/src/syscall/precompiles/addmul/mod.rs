@@ -44,30 +44,91 @@ mod tests {
 
         let rng = &mut rand::thread_rng();
         let a_ptr: u32 = 0u32;
-        let b_ptr: u32 = 4u32;
-        let c_ptr: u32 = 8u32;
-        let d_ptr: u32 = 12u32;
+        let b_ptr: u32 = 1u32;
+        let c_ptr: u32 = 2u32;
+        let d_ptr: u32 = 3u32;
+        let e_ptr: u32 = 4u32;
 
         let a = 1u32;
         let b = 2u32;
         let c = 3u32;
         let d = 4u32;
-
+        let e = 14u32;
+        let lo_ts = 1u32;
+        let hi_ts = lo_ts + 1;
         let lookup_id = LookupId(rng.gen());
 
         let event = PrecompileEvent::ADDMul(AddMulEvent {
             lookup_id,
             shard: 0u32,
-            clk: 1u32,
+            clk: hi_ts,
             a,
             b,
             c,
             d,
+            e,
             a_ptr,
-            // a_ptr,
-            // b_ptr,
-            // c_ptr,
-            // d_ptr,
+            b_ptr,
+            c_ptr,
+            d_ptr,
+            e_ptr,
+            a_memory_records: MemoryReadRecord {
+                value: a,
+                shard: 0u32,
+                timestamp: hi_ts,
+                prev_shard: 0u32,
+                prev_timestamp: lo_ts,
+            },
+            b_memory_records: MemoryReadRecord {
+                value: b,
+                shard: 0u32,
+                timestamp: hi_ts,
+                prev_shard: 0u32,
+                prev_timestamp: lo_ts,
+            },
+            c_memory_records: MemoryReadRecord {
+                value: c,
+                shard: 0u32,
+                timestamp: hi_ts,
+                prev_shard: 0u32,
+                prev_timestamp: lo_ts,
+            },
+            d_memory_records: MemoryReadRecord {
+                value: d,
+                shard: 0u32,
+                timestamp: hi_ts,
+                prev_shard: 0u32,
+                prev_timestamp: lo_ts,
+            },
+            e_memory_records: MemoryWriteRecord {
+                value: e,
+                shard: 0u32,
+                timestamp: hi_ts,
+                prev_shard: 0u32,
+                prev_value: 0u32,
+                prev_timestamp: lo_ts,
+            },
+            c_ptr_memory: MemoryReadRecord {
+                value: c_ptr,
+                shard: 0u32,
+                timestamp: hi_ts,
+                prev_shard: 0u32,
+                prev_timestamp: lo_ts,
+            },
+            d_ptr_memory: MemoryReadRecord {
+                value: d_ptr,
+                shard: 0u32,
+                timestamp: hi_ts,
+                prev_shard: 0u32,
+                prev_timestamp: lo_ts,
+            },
+            e_ptr_memory: MemoryReadRecord {
+                value: e_ptr,
+                shard: 0u32,
+                timestamp: hi_ts,
+                prev_shard: 0u32,
+                prev_timestamp: lo_ts,
+            },
             result: 14u32,
             local_mem_access: Vec::new(),
         });

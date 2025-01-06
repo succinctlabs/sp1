@@ -22,11 +22,21 @@ pub struct AddMulEvent {
     pub b: u32,
     pub c: u32,
     pub d: u32,
+    pub e: u32,
 
     pub a_ptr: u32,
-    // pub b_ptr: u32,
-    // pub c_ptr: u32,
-    // pub d_ptr: u32,
+    pub b_ptr: u32,
+    pub c_ptr: u32,
+    pub d_ptr: u32,
+    pub e_ptr: u32,
+    pub a_memory_records: MemoryReadRecord,
+    pub b_memory_records: MemoryReadRecord,
+    pub c_memory_records: MemoryReadRecord,
+    pub d_memory_records: MemoryReadRecord,
+    pub e_memory_records: MemoryWriteRecord,
+    pub c_ptr_memory: MemoryReadRecord,
+    pub d_ptr_memory: MemoryReadRecord,
+    pub e_ptr_memory: MemoryReadRecord,
 
     /// Memory records for result (written back to a_ptr)
     // change to just save the result

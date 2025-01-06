@@ -40,8 +40,13 @@ use sp1_curves::{
     params::{Limbs, NumLimbs, NumWords},
     uint256::U256Field,
 };
+use sp1_core_executor::Register;
 
 use sp1_stark::MachineRecord;
+
+const LO_REGISTER: u32 = Register::X12 as u32;
+const HI_REGISTER: u32 = Register::X13 as u32;
+const RESULT_REGISTER: u32 = Register::X14 as u32;
 
 const NUM_COLS: usize = size_of::<AddMulChipCols<u32>>();
 
@@ -73,11 +78,23 @@ pub struct AddMulChipCols<T> {
     pub b: T,
     pub c: T,
     pub d: T,
+    pub e: T,
 
     pub a_ptr: T,
-    // pub b_ptr: T,
-    // pub c_ptr: T,
-    // pub d_ptr: T,
+    pub b_ptr: T,
+    pub c_ptr: T,
+    pub d_ptr: T,
+    pub e_ptr: T,
+
+    pub a_memory_record: MemoryReadCols<T>,
+    pub b_memory_record: MemoryReadCols<T>,
+    pub c_memory_record: MemoryReadCols<T>,
+    pub d_memory_record: MemoryReadCols<T>,
+    pub e_memory_record: MemoryWriteCols<T>,
+
+    pub c_ptr_memory: MemoryReadCols<T>,
+    pub d_ptr_memory: MemoryReadCols<T>,
+    pub e_ptr_memory: MemoryReadCols<T>,
 
     // First multiplication: a * b
     pub mul1_output: T,
@@ -124,7 +141,6 @@ impl<F: PrimeField32> MachineAir<F> for AddMulChip {
                         } else {
                             unreachable!()
                         };
-                        println!("NUM_COLS: {}", NUM_COLS);
                         let mut row: [F; NUM_COLS] = [F::zero(); NUM_COLS];
                         let cols: &mut AddMulChipCols<F> = row.as_mut_slice().borrow_mut();
                         // Assign basic values
@@ -132,21 +148,29 @@ impl<F: PrimeField32> MachineAir<F> for AddMulChip {
                         cols.shard = F::from_canonical_u32(event.shard);
                         cols.clk = F::from_canonical_u32(event.clk);
                         cols.a_ptr = F::from_canonical_u32(event.a_ptr);
-                        // cols.b_ptr = F::from_canonical_u32(event.b_ptr);
-                        // cols.c_ptr = F::from_canonical_u32(event.c_ptr);
-                        // cols.d_ptr = F::from_canonical_u32(event.d_ptr);
-
+                        cols.b_ptr = F::from_canonical_u32(event.b_ptr);
+                        cols.c_ptr = F::from_canonical_u32(event.c_ptr);
+                        cols.d_ptr = F::from_canonical_u32(event.d_ptr);
+                        cols.e_ptr = F::from_canonical_u32(event.e_ptr);
                         cols.a = F::from_canonical_u32(event.a);
                         cols.b = F::from_canonical_u32(event.b);
                         cols.c = F::from_canonical_u32(event.c);
                         cols.d = F::from_canonical_u32(event.d);
+                        cols.a_memory_record.populate(event.a_memory_records, &mut new_byte_lookup_events);
+                        cols.b_memory_record.populate(event.b_memory_records, &mut new_byte_lookup_events);
+                        cols.c_memory_record.populate(event.c_memory_records, &mut new_byte_lookup_events);
+                        cols.d_memory_record.populate(event.d_memory_records, &mut new_byte_lookup_events);
+                        cols.e_memory_record.populate(event.e_memory_records, &mut new_byte_lookup_events);
+                        println!("in syscall a_memory_records: {:?}", event.a_memory_records);
+                        println!("in syscall c_ptr_memory: {:?}", event.c_ptr_memory);
+                        cols.c_ptr_memory.populate(event.c_ptr_memory, &mut new_byte_lookup_events);
+                        cols.d_ptr_memory.populate(event.d_ptr_memory, &mut new_byte_lookup_events);
+                        cols.e_ptr_memory.populate(event.e_ptr_memory, &mut new_byte_lookup_events);
                         cols.mul1_output = cols.a * cols.b;
                         cols.mul2_output = cols.c * cols.d;
                         cols.final_output = cols.mul1_output + cols.mul2_output;
+                        cols.e = cols.final_output;
                         
-                        for (i, value) in row.iter().enumerate() {
-                            println!("Column {}: {:?}", i, value);
-                        }
                         row
                     })
                     .collect::<Vec<_>>();
@@ -170,11 +194,24 @@ impl<F: PrimeField32> MachineAir<F> for AddMulChip {
                 let mut row: [F; NUM_COLS] = [F::zero(); NUM_COLS];
                 let cols: &mut AddMulChipCols<F> = row.as_mut_slice().borrow_mut();
 
-                // Initialize empty computation for padding
-                let zero: F = F::zero();
-                cols.mul1_output = zero;
-                cols.mul2_output = zero;
-                cols.final_output = zero;
+                // Initialize ALL fields to zero for padding rows
+                cols.is_real = F::zero();
+                cols.shard = F::zero();
+                cols.clk = F::zero();
+                cols.nonce = F::zero();
+                cols.a = F::zero();
+                cols.b = F::zero();
+                cols.c = F::zero();
+                cols.d = F::zero();
+                cols.e = F::zero();
+                cols.a_ptr = F::zero();
+                cols.b_ptr = F::zero();
+                cols.c_ptr = F::zero();
+                cols.d_ptr = F::zero();
+                cols.e_ptr = F::zero();
+                cols.mul1_output = F::zero();
+                cols.mul2_output = F::zero();
+                cols.final_output = F::zero();
 
                 row
             },
@@ -231,19 +268,78 @@ where
             local.nonce,
             AB::F::from_canonical_u32(SyscallCode::ADDMUL.syscall_id()),
             local.a_ptr,
-            local.a_ptr,
+            local.b_ptr,
             local.is_real,
             InteractionScope::Local,
         );
         // Perform the addmul operation and assert the result
         // 1. Basic boolean and nonce constraints
-        
+        builder.eval_memory_access(
+            local.shard,
+            local.clk.into() + AB::Expr::one(),
+            AB::Expr::from_canonical_u32(LO_REGISTER),
+            &local.c_ptr_memory,
+            local.is_real,
+        );
+        builder.eval_memory_access(
+            local.shard,
+            local.clk.into() + AB::Expr::one(),
+            AB::Expr::from_canonical_u32(HI_REGISTER),
+            &local.d_ptr_memory,
+            local.is_real,
+        );
+        builder.eval_memory_access(
+            local.shard,
+            local.clk.into() + AB::Expr::one(),
+            AB::Expr::from_canonical_u32(RESULT_REGISTER),
+            &local.e_ptr_memory,
+            local.is_real,
+        );
+        builder.eval_memory_access(
+            local.shard,
+            local.clk.into() + AB::Expr::one() + AB::Expr::one(),
+            local.a_ptr,
+            &local.a_memory_record,
+            local.is_real,
+        );
+
+        builder.eval_memory_access(
+            local.shard,
+            local.clk.into() + AB::Expr::one() + AB::Expr::one(),
+            local.b_ptr,
+            &local.b_memory_record,
+            local.is_real,
+        );
+
+        builder.eval_memory_access(
+            local.shard,
+            local.clk.into() + AB::Expr::one() + AB::Expr::one(),
+            local.c_ptr,
+            &local.c_memory_record,
+            local.is_real,
+        );
+
+        builder.eval_memory_access(
+            local.shard,
+            local.clk.into() + AB::Expr::one() + AB::Expr::one(),
+            local.d_ptr,
+            &local.d_memory_record,
+            local.is_real,
+        );
+        builder.eval_memory_access(
+            local.shard,
+            local.clk.into() + AB::Expr::one() + AB::Expr::one() + AB::Expr::one(),
+            local.e_ptr,
+            &local.e_memory_record,
+            local.is_real,
+        );
+
         builder.when_first_row().assert_zero(local.nonce);
         builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         builder.assert_eq(local.mul1_output, local.a * local.b);
         builder.assert_eq(local.mul2_output, local.c * local.d);
         builder.assert_eq(local.final_output, local.mul1_output + local.mul2_output);
-
+        builder.assert_eq(local.e, local.final_output);
     }
 }

@@ -146,5 +146,5 @@ extern "C" {
     pub fn syscall_bn254_fp2_mulmod(p: *mut u32, q: *const u32);
 
     /// Executes a ADD_MUL
-    pub fn syscall_add_mul(p: *mut u32, q: *const u32, r: *const u32, s: *const u32);
+    pub fn syscall_add_mul(p: *const u32, q: *const u32, r: *const u32, s: *const u32, e: *mut u32);
 }

@@ -6,6 +6,7 @@ use sp1_primitives::consts::{bytes_to_words_le, words_to_bytes_le_vec, WORD_SIZE
 use crate::{
     events::{PrecompileEvent, AddMulEvent},
     syscalls::{Syscall, SyscallCode, SyscallContext},
+    Register::{X12, X13, X14},
 };
 
 pub(crate) struct AddMulSyscall;
@@ -28,35 +29,24 @@ fn execute(
 
     // Read the 4 pointers from memory
     let (_, ptrs) = rt.mr_slice(ptr_base, 4); // Read 4 u32 words containing our pointers
-    let a = ptrs[0];
-    let b = ptrs[1];
-    let c = ptrs[2];
-    let d = ptrs[3];
+    let a_ptr = arg1;
+    let b_ptr = arg2;
+    rt.clk += 1;
+    let (c_ptr_memory, c_ptr) = rt.mr(X12 as u32);
+    let (d_ptr_memory, d_ptr) = rt.mr(X13 as u32);
+    let (e_ptr_memory, e_ptr) = rt.mr(X14 as u32);
+    rt.clk += 1;
+    let (a_memory_records, a) = rt.mr(a_ptr);
+    let (b_memory_records, b) = rt.mr(b_ptr);
+    let (c_memory_records, c) = rt.mr(c_ptr);
+    let (d_memory_records, d) = rt.mr(d_ptr);
 
-    let a_ptr = ptr_base;
-    
-    // // Check alignment for all pointers
-    // if a_ptr % 4 != 0 || b_ptr % 4 != 0 || c_ptr % 4 != 0 || d_ptr % 4 != 0 {
-    //     panic!();
-    // }
-
-    // // Read all input values with memory records
-    // let (_, a) = rt.mr(a_ptr);
-    // let (_, b) = rt.mr(b_ptr);
-    // let (_, c) = rt.mr(c_ptr);
-    // let (_, d) = rt.mr(d_ptr);
-
-    // Convert all inputs to u32
-    // let u32_a: u32 = a_ptr; // No need for references unless explicitly required
-    // let u32_b: u32 = b_ptr;
-    // let u32_c: u32 = c_ptr;
-    // let u32_d: u32 = d_ptr;
-
-    // let a = u32_a;
-    // let b = u32_b;
-    // let c = u32_c;
-    // let d = u32_d;
-
+    println!("a: {}", a);
+    println!("b: {}", b);
+    println!("c: {}", c);
+    println!("d: {}", d);
+    println!("a_memory_records: {:?}", a_memory_records);
+    println!("c_ptr_memory: {:?}", c_ptr_memory);
     // Perform computations
     //let modulus = BigUint::one() << 256; // Use 2^256 as modulus
 
@@ -80,6 +70,15 @@ fn execute(
 
     // Record event
     let lookup_id = rt.syscall_lookup_id;
+
+    // let mut result_bytes = result.to_le_bytes().to_vec();
+    // result_bytes.resize(32, 0u8); 
+    // let result_words = bytes_to_words_le::<8>(&result_bytes);
+    rt.clk += 1;
+    let e = result;
+    let e_memory_records = rt.mw(e_ptr, e);
+    println!("e_memory_records: {:?}", e_memory_records);
+
     let shard = rt.current_shard();
     let event = PrecompileEvent::ADDMul(AddMulEvent {
         lookup_id,
@@ -89,7 +88,20 @@ fn execute(
         b,
         c,
         d,
+        e,
         a_ptr,
+        b_ptr,
+        c_ptr,
+        d_ptr,
+        e_ptr,
+        a_memory_records,
+        b_memory_records,
+        c_memory_records,
+        d_memory_records,
+        e_memory_records,
+        c_ptr_memory,
+        d_ptr_memory,
+        e_ptr_memory,
         result,
         local_mem_access: rt.postprocess(),
     });
@@ -103,11 +115,6 @@ fn execute(
     );
 
     // Convert result to bytes and pad
-    let mut result_bytes = result.to_le_bytes().to_vec();
-    result_bytes.resize(32, 0u8); 
-    let result_words = bytes_to_words_le::<8>(&result_bytes);
-    rt.mw_slice(arg1, &result_words);
-
     rt.add_precompile_event(syscall_code, syscall_event, event);
 
     None

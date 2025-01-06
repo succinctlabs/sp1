@@ -130,6 +130,9 @@ impl PrecompileLocalMemory for Vec<(SyscallEvent, PrecompileEvent)> {
                 PrecompileEvent::U256xU2048Mul(e) => {
                     iterators.push(e.local_mem_access.iter());
                 }
+                PrecompileEvent::ADDMul(e) => {
+                    iterators.push(e.local_mem_access.iter())
+                }
                 PrecompileEvent::Bls12381Fp(e) | PrecompileEvent::Bn254Fp(e) => {
                     iterators.push(e.local_mem_access.iter());
                 }
@@ -138,9 +141,6 @@ impl PrecompileLocalMemory for Vec<(SyscallEvent, PrecompileEvent)> {
                 }
                 PrecompileEvent::Bls12381Fp2Mul(e) | PrecompileEvent::Bn254Fp2Mul(e) => {
                     iterators.push(e.local_mem_access.iter());
-                }
-                PrecompileEvent::ADDMul(e) | PrecompileEvent::ADDMul(e) => {
-                    iterators.push(e.local_mem_access.iter())
                 }
             }
         }
