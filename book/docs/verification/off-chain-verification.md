@@ -16,7 +16,7 @@ the [Groth16 Example](https://github.com/succinctlabs/sp1/tree/main/examples/gro
 Import the following dependency in your `Cargo.toml`:
 
 ```toml
-sp1-verifier = {version = "3.0.0", default-features = false}
+sp1-verifier = {version = "4.0.0-rc.8", default-features = false}
 ```
 
 ### Usage
@@ -40,7 +40,7 @@ Here, the proof, public inputs, and vkey hash are read from stdin. See the follo
 
 <ProgramScript />
 
-> Note that the SP1 SDK itself is *not* `no_std` compatible.
+> Note that the SP1 SDK itself is _not_ `no_std` compatible.
 
 ## Wasm Verification
 
