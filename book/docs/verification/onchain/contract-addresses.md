@@ -1,6 +1,6 @@
 # Contract Addresses
 
-> The current officially supported version of SP1 is **V3.0.0**. 
+> The current officially supported version of SP1 is **V4.0.0**.
 >
 > All previous versions are deprecated and may not work as expected on the gateways.
 
@@ -15,35 +15,35 @@ must use the correct verifier gateway depending on if you are verifying a Groth1
 
 ### Groth16
 
-| Chain ID | Chain            | Gateway                                                                                                                                 |
-| -------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| 1        | Mainnet          | [0x397A5f7f3dBd538f23DE225B51f532c34448dA9B](https://etherscan.io/address/0x397A5f7f3dBd538f23DE225B51f532c34448dA9B)                   |
-| 11155111 | Sepolia          | [0x397A5f7f3dBd538f23DE225B51f532c34448dA9B](https://sepolia.etherscan.io/address/0x397A5f7f3dBd538f23DE225B51f532c34448dA9B)           |
-| 17000    | Holesky          | [0x397A5f7f3dBd538f23DE225B51f532c34448dA9B](https://holesky.etherscan.io/address/0x397A5f7f3dBd538f23DE225B51f532c34448dA9B)           |
-| 42161    | Arbitrum One     | [0x397A5f7f3dBd538f23DE225B51f532c34448dA9B](https://arbiscan.io/address/0x397A5f7f3dBd538f23DE225B51f532c34448dA9B)                    |
-| 421614   | Arbitrum Sepolia | [0x397A5f7f3dBd538f23DE225B51f532c34448dA9B](https://sepolia.arbiscan.io/address/0x397A5f7f3dBd538f23DE225B51f532c34448dA9B)            |
-| 8453     | Base             | [0x397A5f7f3dBd538f23DE225B51f532c34448dA9B](https://basescan.org/address/0x397A5f7f3dBd538f23DE225B51f532c34448dA9B)                   |
-| 84532    | Base Sepolia     | [0x397A5f7f3dBd538f23DE225B51f532c34448dA9B](https://sepolia.basescan.org/address/0x397A5f7f3dBd538f23DE225B51f532c34448dA9B)           |
-| 10       | Optimism         | [0x397A5f7f3dBd538f23DE225B51f532c34448dA9B](https://optimistic.etherscan.io/address/0x397A5f7f3dBd538f23DE225B51f532c34448dA9B)        |
-| 11155420 | Optimism Sepolia | [0x397A5f7f3dBd538f23DE225B51f532c34448dA9B](https://sepolia-optimism.etherscan.io/address/0x397A5f7f3dBd538f23DE225B51f532c34448dA9B)  |
-| 534351   | Scroll Sepolia   | [0x397A5f7f3dBd538f23DE225B51f532c34448dA9B](https://sepolia.scrollscan.com/address/0x397A5f7f3dBd538f23DE225B51f532c34448dA9B)         |
-| 534352   | Scroll           | [0x397A5f7f3dBd538f23DE225B51f532c34448dA9B](https://scrollscan.com/address/0x397A5f7f3dBd538f23DE225B51f532c34448dA9B)                 |
+| Chain ID | Chain            | Gateway                                                                                                                                |
+| -------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| 1        | Mainnet          | [0x397A5f7f3dBd538f23DE225B51f532c34448dA9B](https://etherscan.io/address/0x397A5f7f3dBd538f23DE225B51f532c34448dA9B)                  |
+| 11155111 | Sepolia          | [0x397A5f7f3dBd538f23DE225B51f532c34448dA9B](https://sepolia.etherscan.io/address/0x397A5f7f3dBd538f23DE225B51f532c34448dA9B)          |
+| 17000    | Holesky          | [0x397A5f7f3dBd538f23DE225B51f532c34448dA9B](https://holesky.etherscan.io/address/0x397A5f7f3dBd538f23DE225B51f532c34448dA9B)          |
+| 42161    | Arbitrum One     | [0x397A5f7f3dBd538f23DE225B51f532c34448dA9B](https://arbiscan.io/address/0x397A5f7f3dBd538f23DE225B51f532c34448dA9B)                   |
+| 421614   | Arbitrum Sepolia | [0x397A5f7f3dBd538f23DE225B51f532c34448dA9B](https://sepolia.arbiscan.io/address/0x397A5f7f3dBd538f23DE225B51f532c34448dA9B)           |
+| 8453     | Base             | [0x397A5f7f3dBd538f23DE225B51f532c34448dA9B](https://basescan.org/address/0x397A5f7f3dBd538f23DE225B51f532c34448dA9B)                  |
+| 84532    | Base Sepolia     | [0x397A5f7f3dBd538f23DE225B51f532c34448dA9B](https://sepolia.basescan.org/address/0x397A5f7f3dBd538f23DE225B51f532c34448dA9B)          |
+| 10       | Optimism         | [0x397A5f7f3dBd538f23DE225B51f532c34448dA9B](https://optimistic.etherscan.io/address/0x397A5f7f3dBd538f23DE225B51f532c34448dA9B)       |
+| 11155420 | Optimism Sepolia | [0x397A5f7f3dBd538f23DE225B51f532c34448dA9B](https://sepolia-optimism.etherscan.io/address/0x397A5f7f3dBd538f23DE225B51f532c34448dA9B) |
+| 534351   | Scroll Sepolia   | [0x397A5f7f3dBd538f23DE225B51f532c34448dA9B](https://sepolia.scrollscan.com/address/0x397A5f7f3dBd538f23DE225B51f532c34448dA9B)        |
+| 534352   | Scroll           | [0x397A5f7f3dBd538f23DE225B51f532c34448dA9B](https://scrollscan.com/address/0x397A5f7f3dBd538f23DE225B51f532c34448dA9B)                |
 
 ### PLONK
 
-| Chain ID | Chain            | Gateway                                                                                                                                 |
-| -------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| 1        | Mainnet          | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://etherscan.io/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)                   |
-| 11155111 | Sepolia          | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://sepolia.etherscan.io/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)           |
-| 17000    | Holesky          | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://holesky.etherscan.io/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)           |
-| 42161    | Arbitrum One     | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://arbiscan.io/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)                    |
-| 421614   | Arbitrum Sepolia | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://sepolia.arbiscan.io/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)            |
-| 8453     | Base             | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://basescan.org/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)                   |
-| 84532    | Base Sepolia     | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://sepolia.basescan.org/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)           |
-| 10       | Optimism         | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://optimistic.etherscan.io/address/0x3b6041173b80e77f038f3f2c0f9744f04837185e)        |
-| 11155420 | Optimism Sepolia | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://sepolia-optimism.etherscan.io/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)  |
-| 534351   | Scroll Sepolia   | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://sepolia.scrollscan.com/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)         |
-| 534352   | Scroll           | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://scrollscan.com/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)                 |
+| Chain ID | Chain            | Gateway                                                                                                                                |
+| -------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| 1        | Mainnet          | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://etherscan.io/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)                  |
+| 11155111 | Sepolia          | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://sepolia.etherscan.io/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)          |
+| 17000    | Holesky          | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://holesky.etherscan.io/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)          |
+| 42161    | Arbitrum One     | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://arbiscan.io/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)                   |
+| 421614   | Arbitrum Sepolia | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://sepolia.arbiscan.io/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)           |
+| 8453     | Base             | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://basescan.org/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)                  |
+| 84532    | Base Sepolia     | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://sepolia.basescan.org/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)          |
+| 10       | Optimism         | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://optimistic.etherscan.io/address/0x3b6041173b80e77f038f3f2c0f9744f04837185e)       |
+| 11155420 | Optimism Sepolia | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://sepolia-optimism.etherscan.io/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e) |
+| 534351   | Scroll Sepolia   | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://sepolia.scrollscan.com/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)        |
+| 534352   | Scroll           | [0x3B6041173B80E77f038f3F2C0f9744f04837185e](https://scrollscan.com/address/0x3B6041173B80E77f038f3F2C0f9744f04837185e)                |
 
 The most up-to-date reference on each chain can be found in the
 [deployments](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/deployments)
@@ -70,9 +70,9 @@ verifier contract by following the instructions in the
 Since both the `SP1VerifierGateway` and each `SP1Verifier` implement the [ISP1Verifier
 interface](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/src/ISP1Verifier.sol), you can choose to either:
 
-* Deploy the `SP1VerifierGateway` and add `SP1Verifier` contracts to it. Then point to the
+- Deploy the `SP1VerifierGateway` and add `SP1Verifier` contracts to it. Then point to the
   `SP1VerifierGateway` address in your contracts.
-* Deploy just the `SP1Verifier` contract that you want to use. Then point to the `SP1Verifier`
+- Deploy just the `SP1Verifier` contract that you want to use. Then point to the `SP1Verifier`
   address in
   your contracts.
 

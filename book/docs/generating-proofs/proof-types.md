@@ -34,7 +34,7 @@ The trusted setup for the Groth16 circuit keys uses the [Aztec Ignition ceremony
 
 ```rust,noplayground
 let client = ProverClient::from_env();
-client.prove(&pk, stdin).groth16().run().unwrap();
+client.prove(&pk, &stdin).groth16().run().unwrap();
 ```
 
 ## PLONK
