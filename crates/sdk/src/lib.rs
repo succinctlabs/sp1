@@ -177,7 +177,7 @@ mod tests {
     }
 }
 
-#[cfg(feature = "cuda")]
+#[cfg(all(feature = "cuda", not(sp1_ci_in_progress)))]
 mod deprecated_check {
     #[deprecated(
         since = "4.0.0",

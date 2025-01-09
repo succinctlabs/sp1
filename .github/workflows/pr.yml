@@ -13,6 +13,9 @@ on:
       - ".github/workflows/**"
   merge_group:
 
+env:
+  SP1_CI_IN_PROGRESS: "true"
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
