@@ -3,29 +3,14 @@ use core::fmt::Debug;
 use std::sync::{Arc, RwLock, RwLockWriteGuard};
 
 use hashbrown::HashMap;
-<<<<<<< HEAD
-use sp1_curves::{
-    k256::{Invert, RecoveryId, Signature, VerifyingKey},
-    p256::Signature as p256Signature,
-};
-=======
 use sp1_curves::{edwards::ed25519::ed25519_sqrt, params::FieldParameters, BigUint, Integer, One};
->>>>>>> dev
 
 use crate::Executor;
 
 /// A runtime hook, wrapped in a smart pointer.
 pub type BoxedHook<'a> = Arc<RwLock<dyn Hook + Send + Sync + 'a>>;
 
-<<<<<<< HEAD
-/// The file descriptor through which to access `hook_ecrecover`.
-pub const FD_ECRECOVER_HOOK: u32 = 5;
-
-/// The file descriptor through which to access `hook_r1_ecrecover`.
-pub const R1_ECRECOVER_HOOK: u32 = 6;
-=======
 pub use sp1_primitives::consts::fd::*;
->>>>>>> dev
 
 // Note: we skip 6 because we have an eddsa hook in dev.
 
@@ -98,13 +83,8 @@ impl<'a> Default for HookRegistry<'a> {
             // Note: To ensure any `fd` value is synced with `zkvm/precompiles/src/io.rs`,
             // add an assertion to the test `hook_fds_match` below.
             (FD_ECRECOVER_HOOK, hookify(hook_ecrecover)),
-<<<<<<< HEAD
-            (R1_ECRECOVER_HOOK, hookify(hook_r1_ecrecover)),
-            (FD_ECRECOVER_HOOK_2, hookify(hook_ecrecover_v2)),
-=======
             (FD_EDDECOMPRESS, hookify(hook_ed_decompress)),
             (FD_RSA_MUL_MOD, hookify(hook_rsa_mul_mod)),
->>>>>>> dev
         ]);
 
         Self { table }
@@ -142,14 +122,7 @@ pub struct HookEnv<'a, 'b: 'a> {
 /// and vec![vec![0],`nqr_hint`] if not.
 #[must_use]
 pub fn hook_ecrecover(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
-<<<<<<< HEAD
-    assert_eq!(buf.len(), 65 + 32, "ecrecover input should have length 65 + 32");
-    let (sig, msg_hash) = buf.split_at(65);
-    let sig: &[u8; 65] = sig.try_into().unwrap();
-    let msg_hash: &[u8; 32] = msg_hash.try_into().unwrap();
-=======
     assert!(buf.len() == 64 + 1, "ecrecover should have length 65");
->>>>>>> dev
 
     let curve_id = buf[0] & 0b0111_1111;
     let r_is_y_odd = buf[0] & 0b1000_0000 != 0;
@@ -532,16 +505,6 @@ pub mod tests {
     use super::*;
 
     #[test]
-<<<<<<< HEAD
-    pub fn hook_fds_match() {
-        use sp1_zkvm::lib::io;
-        assert_eq!(FD_ECRECOVER_HOOK, io::K1_ECRECOVER_HOOK);
-        assert_eq!(R1_ECRECOVER_HOOK, io::R1_ECRECOVER_HOOK);
-    }
-
-    #[test]
-=======
->>>>>>> dev
     pub fn registry_new_is_inhabited() {
         assert_ne!(HookRegistry::new().table.len(), 0);
         println!("{:?}", HookRegistry::new());
