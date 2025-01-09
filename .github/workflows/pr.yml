@@ -51,7 +51,7 @@ jobs:
         with:
           command: check
           toolchain: 1.81.0
-          args: --all-targets --all-features
+          args: --all-targets --all-features --tests
 
       - name: Run cargo test
         uses: actions-rs/cargo@v1
@@ -97,7 +97,7 @@ jobs:
         with:
           command: check
           toolchain: 1.81.0
-          args: --all-targets --all-features
+          args: --all-targets --all-features --tests
 
       - name: Run cargo test
         uses: actions-rs/cargo@v1
@@ -143,7 +143,7 @@ jobs:
         with:
           command: check
           toolchain: 1.81.0
-          args: --all-targets --all-features
+          args: --all-targets --all-features --tests
 
       - name: Run cargo test
         uses: actions-rs/cargo@v1

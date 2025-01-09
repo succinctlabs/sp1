@@ -5,6 +5,8 @@ use test_artifacts::FIBONACCI_ELF;
 #[serial]
 #[test]
 fn test_verify_groth16() {
+    const GROTH16_ELF: &[u8] = include_bytes!("../guest-verify-programs/groth16_verify");
+
     // Set up the pk and vk.
     let client = ProverClient::from_env();
     let (pk, vk) = client.setup(FIBONACCI_ELF);
@@ -40,11 +42,21 @@ fn test_verify_groth16() {
 
     crate::Groth16Verifier::verify(&proof, &public_inputs, &vkey_hash, &crate::GROTH16_VK_BYTES)
         .expect("Groth16 proof is invalid");
+
+    // Now we should do the verifaction in the VM.
+    let mut stdin = SP1Stdin::new();
+    stdin.write_slice(&proof);
+    stdin.write_slice(&public_inputs);
+    stdin.write(&vkey_hash);
+
+    let _ = client.execute(GROTH16_ELF, &stdin).run().unwrap();
 }
 
 #[serial]
 #[test]
 fn test_verify_plonk() {
+    const PLONK_ELF: &[u8] = include_bytes!("../guest-verify-programs/plonk_verify");
+
     // Set up the pk and vk.
     let client = ProverClient::from_env();
     let (pk, vk) = client.setup(FIBONACCI_ELF);
@@ -61,6 +73,14 @@ fn test_verify_plonk() {
 
     crate::PlonkVerifier::verify(&proof, &public_inputs, &vkey_hash, &crate::PLONK_VK_BYTES)
         .expect("Plonk proof is invalid");
+
+    // Now we should do the verifaction in the VM.
+    let mut stdin = SP1Stdin::new();
+    stdin.write_slice(&proof);
+    stdin.write_slice(&public_inputs);
+    stdin.write(&vkey_hash);
+
+    let _ = client.execute(PLONK_ELF, &stdin).run().unwrap();
 }
 
 #[serial]
