@@ -30,7 +30,7 @@ dependencies = [
 name = "bn_test_program"
 version = "0.1.0"
 dependencies = [
- "sp1-lib 4.0.0-rc.8",
+ "sp1-lib 4.0.0-rc.9",
  "sp1-zkvm",
  "substrate-bn",
 ]
@@ -420,6 +420,8 @@ dependencies = [
 [[package]]
 name = "sp1-lib"
 version = "4.0.0-rc.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f59a68a06f7297083f430d6e3e3b34ac64cada0323f46554a46ec0b48d15e93e"
 dependencies = [
  "bincode",
  "serde",
@@ -428,29 +430,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "4.0.0-rc.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f59a68a06f7297083f430d6e3e3b34ac64cada0323f46554a46ec0b48d15e93e"
+version = "4.0.0-rc.9"
 dependencies = [
  "bincode",
  "serde",
- "sp1-primitives 4.0.0-rc.8 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "sp1-primitives"
-version = "4.0.0-rc.8"
-dependencies = [
- "bincode",
- "hex",
- "lazy_static",
- "num-bigint",
- "p3-baby-bear",
- "p3-field",
- "p3-poseidon2",
- "p3-symmetric",
- "serde",
- "sha2",
+ "sp1-primitives 4.0.0-rc.9",
 ]
 
 [[package]]
@@ -472,8 +456,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp1-primitives"
+version = "4.0.0-rc.9"
+dependencies = [
+ "bincode",
+ "hex",
+ "lazy_static",
+ "num-bigint",
+ "p3-baby-bear",
+ "p3-field",
+ "p3-poseidon2",
+ "p3-symmetric",
+ "serde",
+ "sha2",
+]
+
+[[package]]
 name = "sp1-zkvm"
-version = "4.0.0-rc.8"
+version = "4.0.0-rc.9"
 dependencies = [
  "cfg-if",
  "getrandom",
@@ -481,8 +481,8 @@ dependencies = [
  "libm",
  "rand",
  "sha2",
- "sp1-lib 4.0.0-rc.8",
- "sp1-primitives 4.0.0-rc.8",
+ "sp1-lib 4.0.0-rc.9",
+ "sp1-primitives 4.0.0-rc.9",
 ]
 
 [[package]]
@@ -504,7 +504,7 @@ dependencies = [
  "num-bigint",
  "rand",
  "rustc-hex",
- "sp1-lib 4.0.0-rc.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp1-lib 4.0.0-rc.8",
 ]
 
 [[package]]

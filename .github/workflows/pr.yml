@@ -393,7 +393,8 @@ jobs:
         with:
           pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
 
+      - name: Set permissions
+        run: chmod +x .github/scripts/pkg-checks.sh
+
       - name: Run cargo package
-        run: |
-          chmod +x .github/scripts/pkg-checks.sh
-          .github/scripts/pkg-checks.sh
+        run: ./.github/scripts/pkg-checks.sh

@@ -5693,7 +5693,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-build"
-version = "4.0.0-rc.8"
+version = "4.0.0-rc.9"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -5704,7 +5704,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-cli"
-version = "4.0.0-rc.8"
+version = "4.0.0-rc.9"
 dependencies = [
  "anstyle",
  "anyhow",
@@ -5733,7 +5733,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-executor"
-version = "4.0.0-rc.8"
+version = "4.0.0-rc.9"
 dependencies = [
  "bincode",
  "bytemuck",
@@ -5760,7 +5760,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sp1-curves",
- "sp1-primitives 4.0.0-rc.8",
+ "sp1-primitives 4.0.0-rc.9",
  "sp1-stark",
  "sp1-zkvm",
  "strum",
@@ -5776,7 +5776,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-machine"
-version = "4.0.0-rc.8"
+version = "4.0.0-rc.9"
 dependencies = [
  "bincode",
  "cbindgen",
@@ -5816,7 +5816,7 @@ dependencies = [
  "sp1-core-executor",
  "sp1-curves",
  "sp1-derive",
- "sp1-primitives 4.0.0-rc.8",
+ "sp1-primitives 4.0.0-rc.9",
  "sp1-stark",
  "sp1-zkvm",
  "static_assertions",
@@ -5835,7 +5835,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-cuda"
-version = "4.0.0-rc.8"
+version = "4.0.0-rc.9"
 dependencies = [
  "bincode",
  "ctrlc",
@@ -5853,7 +5853,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
-version = "4.0.0-rc.8"
+version = "4.0.0-rc.9"
 dependencies = [
  "cfg-if",
  "dashu",
@@ -5868,14 +5868,14 @@ dependencies = [
  "rug",
  "serde",
  "snowbridge-amcl",
- "sp1-primitives 4.0.0-rc.8",
+ "sp1-primitives 4.0.0-rc.9",
  "sp1-stark",
  "typenum",
 ]
 
 [[package]]
 name = "sp1-derive"
-version = "4.0.0-rc.8"
+version = "4.0.0-rc.9"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -5883,7 +5883,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-eval"
-version = "4.0.0-rc.8"
+version = "4.0.0-rc.9"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5901,18 +5901,9 @@ dependencies = [
 
 [[package]]
 name = "sp1-helper"
-version = "4.0.0-rc.8"
+version = "4.0.0-rc.9"
 dependencies = [
  "sp1-build",
-]
-
-[[package]]
-name = "sp1-lib"
-version = "4.0.0-rc.8"
-dependencies = [
- "bincode",
- "serde",
- "sp1-primitives 4.0.0-rc.8",
 ]
 
 [[package]]
@@ -5923,12 +5914,21 @@ checksum = "f59a68a06f7297083f430d6e3e3b34ac64cada0323f46554a46ec0b48d15e93e"
 dependencies = [
  "bincode",
  "serde",
- "sp1-primitives 4.0.0-rc.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp1-primitives 4.0.0-rc.8",
+]
+
+[[package]]
+name = "sp1-lib"
+version = "4.0.0-rc.9"
+dependencies = [
+ "bincode",
+ "serde",
+ "sp1-primitives 4.0.0-rc.9",
 ]
 
 [[package]]
 name = "sp1-perf"
-version = "4.0.0-rc.8"
+version = "4.0.0-rc.9"
 dependencies = [
  "bincode",
  "clap",
@@ -5944,22 +5944,6 @@ dependencies = [
  "test-artifacts",
  "time 0.3.37",
  "tracing",
-]
-
-[[package]]
-name = "sp1-primitives"
-version = "4.0.0-rc.8"
-dependencies = [
- "bincode",
- "hex",
- "lazy_static",
- "num-bigint 0.4.6",
- "p3-baby-bear",
- "p3-field",
- "p3-poseidon2",
- "p3-symmetric",
- "serde",
- "sha2 0.10.8",
 ]
 
 [[package]]
@@ -5981,8 +5965,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp1-primitives"
+version = "4.0.0-rc.9"
+dependencies = [
+ "bincode",
+ "hex",
+ "lazy_static",
+ "num-bigint 0.4.6",
+ "p3-baby-bear",
+ "p3-field",
+ "p3-poseidon2",
+ "p3-symmetric",
+ "serde",
+ "sha2 0.10.8",
+]
+
+[[package]]
 name = "sp1-prover"
-version = "4.0.0-rc.8"
+version = "4.0.0-rc.9"
 dependencies = [
  "anyhow",
  "bincode",
@@ -6009,7 +6009,7 @@ dependencies = [
  "sha2 0.10.8",
  "sp1-core-executor",
  "sp1-core-machine",
- "sp1-primitives 4.0.0-rc.8",
+ "sp1-primitives 4.0.0-rc.9",
  "sp1-recursion-circuit",
  "sp1-recursion-compiler",
  "sp1-recursion-core",
@@ -6024,7 +6024,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-circuit"
-version = "4.0.0-rc.8"
+version = "4.0.0-rc.9"
 dependencies = [
  "ff 0.13.0",
  "hashbrown 0.14.5",
@@ -6049,7 +6049,7 @@ dependencies = [
  "sp1-core-executor",
  "sp1-core-machine",
  "sp1-derive",
- "sp1-primitives 4.0.0-rc.8",
+ "sp1-primitives 4.0.0-rc.9",
  "sp1-recursion-compiler",
  "sp1-recursion-core",
  "sp1-recursion-gnark-ffi",
@@ -6061,7 +6061,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-compiler"
-version = "4.0.0-rc.8"
+version = "4.0.0-rc.9"
 dependencies = [
  "backtrace",
  "criterion",
@@ -6076,7 +6076,7 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "sp1-core-machine",
- "sp1-primitives 4.0.0-rc.8",
+ "sp1-primitives 4.0.0-rc.9",
  "sp1-recursion-core",
  "sp1-recursion-derive",
  "sp1-stark",
@@ -6086,7 +6086,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-core"
-version = "4.0.0-rc.8"
+version = "4.0.0-rc.9"
 dependencies = [
  "backtrace",
  "cbindgen",
@@ -6118,7 +6118,7 @@ dependencies = [
  "smallvec",
  "sp1-core-machine",
  "sp1-derive",
- "sp1-primitives 4.0.0-rc.8",
+ "sp1-primitives 4.0.0-rc.9",
  "sp1-stark",
  "static_assertions",
  "thiserror 1.0.69",
@@ -6129,7 +6129,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-derive"
-version = "4.0.0-rc.8"
+version = "4.0.0-rc.9"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -6137,7 +6137,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-cli"
-version = "4.0.0-rc.8"
+version = "4.0.0-rc.9"
 dependencies = [
  "bincode",
  "clap",
@@ -6146,7 +6146,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-ffi"
-version = "4.0.0-rc.8"
+version = "4.0.0-rc.9"
 dependencies = [
  "anyhow",
  "bincode",
@@ -6170,7 +6170,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-sdk"
-version = "4.0.0-rc.8"
+version = "4.0.0-rc.9"
 dependencies = [
  "alloy-primitives",
  "alloy-signer",
@@ -6200,7 +6200,7 @@ dependencies = [
  "sp1-core-executor",
  "sp1-core-machine",
  "sp1-cuda",
- "sp1-primitives 4.0.0-rc.8",
+ "sp1-primitives 4.0.0-rc.9",
  "sp1-prover",
  "sp1-stark",
  "strum",
@@ -6218,7 +6218,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-stark"
-version = "4.0.0-rc.8"
+version = "4.0.0-rc.9"
 dependencies = [
  "arrayref",
  "hashbrown 0.14.5",
@@ -6242,7 +6242,7 @@ dependencies = [
  "rayon-scan",
  "serde",
  "sp1-derive",
- "sp1-primitives 4.0.0-rc.8",
+ "sp1-primitives 4.0.0-rc.9",
  "sp1-zkvm",
  "strum",
  "strum_macros",
@@ -6252,7 +6252,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-verifier"
-version = "4.0.0-rc.8"
+version = "4.0.0-rc.9"
 dependencies = [
  "ark-bn254",
  "ark-ec",
@@ -6274,7 +6274,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "4.0.0-rc.8"
+version = "4.0.0-rc.9"
 dependencies = [
  "cfg-if",
  "getrandom 0.2.15",
@@ -6284,8 +6284,8 @@ dependencies = [
  "p3-field",
  "rand 0.8.5",
  "sha2 0.10.8",
- "sp1-lib 4.0.0-rc.8",
- "sp1-primitives 4.0.0-rc.8",
+ "sp1-lib 4.0.0-rc.9",
+ "sp1-primitives 4.0.0-rc.9",
 ]
 
 [[package]]
@@ -6449,7 +6449,7 @@ dependencies = [
  "num-bigint 0.4.6",
  "rand 0.8.5",
  "rustc-hex",
- "sp1-lib 4.0.0-rc.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp1-lib 4.0.0-rc.8",
 ]
 
 [[package]]
@@ -6610,7 +6610,7 @@ dependencies = [
 
 [[package]]
 name = "test-artifacts"
-version = "4.0.0-rc.8"
+version = "4.0.0-rc.9"
 dependencies = [
  "sp1-build",
 ]
