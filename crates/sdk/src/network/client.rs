@@ -19,6 +19,7 @@ use tonic::{
     Code,
 };
 
+use super::grpc;
 use super::utils::Signable;
 use crate::network::proto::artifact::{
     artifact_store_client::ArtifactStoreClient, ArtifactType, CreateArtifactRequest,
@@ -258,16 +259,7 @@ impl NetworkClient {
     }
 
     pub(crate) async fn prover_network_client(&self) -> Result<ProverNetworkClient<Channel>> {
-        let rpc_url = self.rpc_url.clone();
-        let mut endpoint = Channel::from_shared(rpc_url.clone())?;
-
-        // Check if the URL scheme is HTTPS and configure TLS.
-        if rpc_url.starts_with("https://") {
-            let tls_config = ClientTlsConfig::new().with_enabled_roots();
-            endpoint = endpoint.tls_config(tls_config)?;
-        }
-
-        let channel = endpoint.connect().await?;
+        let channel = grpc::configure_endpoint(self.rpc_url.clone())?.connect().await?;
         Ok(ProverNetworkClient::new(channel))
     }
 
