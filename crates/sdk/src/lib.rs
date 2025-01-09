@@ -27,7 +27,6 @@
 pub mod artifacts;
 pub mod client;
 pub mod cpu;
-#[cfg(feature = "cuda")]
 pub mod cuda;
 pub mod env;
 pub mod install;
@@ -40,7 +39,6 @@ pub use crate::client::ProverClient;
 
 // Re-export the provers.
 pub use crate::cpu::CpuProver;
-#[cfg(feature = "cuda")]
 pub use crate::cuda::CudaProver;
 pub use crate::env::EnvProver;
 #[cfg(feature = "network")]
@@ -176,5 +174,21 @@ mod tests {
         stdin.write(&10usize);
         let proof = client.prove(&pk, &stdin).plonk().run().unwrap();
         client.verify(&proof, &vk).unwrap();
+    }
+}
+
+#[cfg(feature = "cuda")]
+mod deprecated_check {
+    #[deprecated(
+        since = "4.0.0",
+        note = "The `cuda` feature is deprecated, as the CudaProver is now supported by default."
+    )]
+    #[allow(unused)]
+    fn cuda_is_deprecated() {}
+
+    /// Show a warning if the `cuda` feature is enabled.
+    #[allow(unused)]
+    fn show_cuda_warning() {
+        cuda_is_deprecated();
     }
 }
