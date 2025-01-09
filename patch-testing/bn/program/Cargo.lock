@@ -419,16 +419,6 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "4.0.0-rc.3"
-source = "git+https://github.com/succinctlabs/sp1-wip.git?branch=dev#0988218b58214f19a4773933b3208c3cc6f055a9"
-dependencies = [
- "bincode",
- "serde",
- "sp1-primitives 4.0.0-rc.3",
-]
-
-[[package]]
-name = "sp1-lib"
 version = "4.0.0-rc.8"
 dependencies = [
  "bincode",
@@ -437,9 +427,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp1-lib"
+version = "4.0.0-rc.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f59a68a06f7297083f430d6e3e3b34ac64cada0323f46554a46ec0b48d15e93e"
+dependencies = [
+ "bincode",
+ "serde",
+ "sp1-primitives 4.0.0-rc.8 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "sp1-primitives"
-version = "4.0.0-rc.3"
-source = "git+https://github.com/succinctlabs/sp1-wip.git?branch=dev#0988218b58214f19a4773933b3208c3cc6f055a9"
+version = "4.0.0-rc.8"
 dependencies = [
  "bincode",
  "hex",
@@ -456,6 +456,8 @@ dependencies = [
 [[package]]
 name = "sp1-primitives"
 version = "4.0.0-rc.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "264fd5572de63c62e9dab20762693e9ec87bcfbfba47938224abfd0467e67195"
 dependencies = [
  "bincode",
  "hex",
@@ -492,7 +494,7 @@ checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
 [[package]]
 name = "substrate-bn"
 version = "0.6.0"
-source = "git+https://github.com/sp1-patches/bn?tag=patch-0.6.0-sp1-4.0.0-rc.3#915937992ea7a2bc22d7f2a1aaf75c820f5ba248"
+source = "git+https://github.com/sp1-patches/bn?tag=patch-0.6.0-sp1-4.0.0-rc.3-v1#3556ab0c3fb2391613e9b848a0fd3ac48128e1b8"
 dependencies = [
  "bytemuck",
  "byteorder",
@@ -502,7 +504,7 @@ dependencies = [
  "num-bigint",
  "rand",
  "rustc-hex",
- "sp1-lib 4.0.0-rc.3",
+ "sp1-lib 4.0.0-rc.8 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

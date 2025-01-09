@@ -10,6 +10,11 @@ pub fn lock_serial() -> parking_lot::MutexGuard<'static, ()> {
     SERIAL_LOCK.lock()
 }
 
+lazy_static::lazy_static! {
+    /// Use a single CPU prover for all tests.
+    pub static ref SP1_CPU_PROVER: sp1_sdk::cpu::CpuProver = sp1_sdk::cpu::CpuProver::new();
+}
+
 /// Append common edge cases to the corpus.
 ///
 /// Like all 0s or all 1s or the empty string.

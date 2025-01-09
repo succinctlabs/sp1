@@ -32,7 +32,6 @@ fn test_expected_digest_lte_100(
             let committed = public.read::<[u8; 32]>();
 
             assert_eq!(digest, committed);
-++ b/patch-testing/sha/src/lib.rs
         }
     }
 }

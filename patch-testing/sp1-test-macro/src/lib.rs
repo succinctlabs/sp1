@@ -139,7 +139,7 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
             const __MACRO_INTERNAL_ELF: &[u8] = ::sp1_sdk::include_elf!(#elf_name);
 
             let mut __macro_internal_stdin = ::sp1_sdk::SP1Stdin::new();
-            let __macro_internal_client = ::sp1_sdk::ProverClient::builder().cpu().build();
+            let __macro_internal_client = &*::sp1_test::SP1_CPU_PROVER;
 
             #setup_fn
 
@@ -165,7 +165,7 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
                 use ::sp1_sdk::Prover;
                 const __MACRO_INTERNAL_ELF: &[u8] = ::sp1_sdk::include_elf!(#elf_name);
 
-                let __macro_internal_client = ::sp1_sdk::ProverClient::builder().cpu().build();
+                let __macro_internal_client = &*::sp1_test::SP1_CPU_PROVER;
                 let mut __macro_internal_stdin = ::sp1_sdk::SP1Stdin::new();
 
                 #setup_fn
