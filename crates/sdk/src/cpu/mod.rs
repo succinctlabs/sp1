@@ -8,23 +8,15 @@ pub mod prove;
 
 use anyhow::Result;
 use execute::CpuExecuteBuilder;
-use hashbrown::HashMap;
-use p3_baby_bear::BabyBear;
-use p3_field::{extension::BinomialExtensionField, AbstractField, PrimeField};
-use p3_fri::{FriProof, TwoAdicFriPcsProof};
 use prove::CpuProveBuilder;
-use sp1_core_executor::{SP1Context, SP1ContextBuilder, SP1ReduceProof};
+use sp1_core_executor::{SP1Context, SP1ContextBuilder};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{
     components::CpuProverComponents,
     verify::{verify_groth16_bn254_public_inputs, verify_plonk_bn254_public_inputs},
-    Groth16Bn254Proof, HashableKey, PlonkBn254Proof, SP1CoreProofData, SP1ProofWithMetadata,
-    SP1Prover,
+    Groth16Bn254Proof, PlonkBn254Proof, SP1CoreProofData, SP1ProofWithMetadata, SP1Prover,
 };
-use sp1_stark::{
-    septic_digest::SepticDigest, SP1CoreOpts, SP1ProverOpts, ShardCommitment, ShardOpenedValues,
-    ShardProof, StarkVerifyingKey,
-};
+use sp1_stark::{SP1CoreOpts, SP1ProverOpts};
 
 use crate::install::try_install_circuit_artifacts;
 use crate::prover::verify_proof;
@@ -122,7 +114,7 @@ impl CpuProver {
 
         // If we're in mock mode, return a mock proof.
         if self.mock {
-            return self.mock_prove_impl(pk, stdin.clone(), mode);
+            return self.mock_prove_impl(pk, stdin, mode);
         }
 
         // Generate the core proof.
@@ -194,98 +186,15 @@ impl CpuProver {
         }
     }
 
-    #[allow(clippy::needless_pass_by_value)]
     pub(crate) fn mock_prove_impl(
         &self,
         pk: &SP1ProvingKey,
-        stdin: SP1Stdin,
+        stdin: &SP1Stdin,
         mode: SP1ProofMode,
     ) -> Result<SP1ProofWithPublicValues> {
         let context = SP1Context::default();
-        match mode {
-            SP1ProofMode::Core => {
-                let (public_values, _) = self.prover.execute(&pk.elf, &stdin, context)?;
-                Ok(SP1ProofWithPublicValues {
-                    proof: SP1Proof::Core(vec![]),
-                    public_values,
-                    sp1_version: self.version().to_string(),
-                })
-            }
-            SP1ProofMode::Compressed => {
-                let (public_values, _) = self.prover.execute(&pk.elf, &stdin, context)?;
-
-                let shard_proof = ShardProof {
-                    commitment: ShardCommitment {
-                        main_commit: [BabyBear::zero(); 8].into(),
-                        permutation_commit: [BabyBear::zero(); 8].into(),
-                        quotient_commit: [BabyBear::zero(); 8].into(),
-                    },
-                    opened_values: ShardOpenedValues { chips: vec![] },
-                    opening_proof: TwoAdicFriPcsProof {
-                        fri_proof: FriProof {
-                            commit_phase_commits: vec![],
-                            query_proofs: vec![],
-                            final_poly: BinomialExtensionField::default(),
-                            pow_witness: BabyBear::zero(),
-                        },
-                        query_openings: vec![],
-                    },
-                    chip_ordering: HashMap::new(),
-                    public_values: vec![],
-                };
-
-                let reduce_vk = StarkVerifyingKey {
-                    commit: [BabyBear::zero(); 8].into(),
-                    pc_start: BabyBear::zero(),
-                    chip_information: vec![],
-                    chip_ordering: HashMap::new(),
-                    initial_global_cumulative_sum: SepticDigest::zero(),
-                };
-
-                let proof = SP1Proof::Compressed(Box::new(SP1ReduceProof {
-                    vk: reduce_vk,
-                    proof: shard_proof,
-                }));
-
-                Ok(SP1ProofWithPublicValues {
-                    proof,
-                    public_values,
-                    sp1_version: self.version().to_string(),
-                })
-            }
-            SP1ProofMode::Plonk => {
-                let (public_values, _) = self.prover.execute(&pk.elf, &stdin, context)?;
-                Ok(SP1ProofWithPublicValues {
-                    proof: SP1Proof::Plonk(PlonkBn254Proof {
-                        public_inputs: [
-                            pk.vk.hash_bn254().as_canonical_biguint().to_string(),
-                            public_values.hash_bn254().to_string(),
-                        ],
-                        encoded_proof: String::new(),
-                        raw_proof: String::new(),
-                        plonk_vkey_hash: [0; 32],
-                    }),
-                    public_values,
-                    sp1_version: self.version().to_string(),
-                })
-            }
-            SP1ProofMode::Groth16 => {
-                let (public_values, _) = self.prover.execute(&pk.elf, &stdin, context)?;
-                Ok(SP1ProofWithPublicValues {
-                    proof: SP1Proof::Groth16(Groth16Bn254Proof {
-                        public_inputs: [
-                            pk.vk.hash_bn254().as_canonical_biguint().to_string(),
-                            public_values.hash_bn254().to_string(),
-                        ],
-                        encoded_proof: String::new(),
-                        raw_proof: String::new(),
-                        groth16_vkey_hash: [0; 32],
-                    }),
-                    public_values,
-                    sp1_version: self.version().to_string(),
-                })
-            }
-        }
+        let (public_values, _) = self.prover.execute(&pk.elf, stdin, context)?;
+        Ok(SP1ProofWithPublicValues::create_mock_proof(pk, public_values, mode, self.version()))
     }
 
     fn mock_verify(

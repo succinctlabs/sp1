@@ -17,7 +17,7 @@ pub fn test_pkcs_verify_100(
     for _ in 0..times {
         let (signature, verifying_key, data) = sign_inner();
 
-        // Check that the orignal crate also validates this signature.
+        // Check that the original crate also validates this signature.
         assert!(verifying_key.verify(&data, &signature).is_ok());
 
         stdin.write(&signature.to_bytes());
