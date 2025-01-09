@@ -48,6 +48,32 @@ pub fn execute_build_program(
 
     let target_elf_paths = generate_elf_paths(&program_metadata, Some(args))?;
 
+    if let Some(output_directory) = &args.output_directory {
+        if target_elf_paths.len() > 1 && args.elf_name.is_some() {
+            anyhow::bail!("--elf-name is not supported when --output-directory is used and multiple ELFs are built.");
+        }
+
+        // The path to the output directory, maybe relative or absolute.
+        let output_directory = PathBuf::from(output_directory);
+
+        // Ensure the output directory is a directory. If it doesnt exist, this is false.
+        if output_directory.is_file() {
+            anyhow::bail!("--output-directory is a file.");
+        }
+
+        // Ensure the output directory exists.
+        std::fs::create_dir_all(&output_directory)?;
+
+        // Copy the ELF files to the output directory.
+        for (_, elf_path) in target_elf_paths.iter() {
+            let elf_path = elf_path.to_path_buf();
+            let elf_name = elf_path.file_name().expect("ELF path has a file name");
+            let output_path = output_directory.join(args.elf_name.as_deref().unwrap_or(elf_name));
+
+            std::fs::copy(&elf_path, &output_path)?;
+        }
+    }
+
     print_elf_paths_cargo_directives(&target_elf_paths);
 
     Ok(target_elf_paths)
