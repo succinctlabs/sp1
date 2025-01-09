@@ -3,9 +3,12 @@
 //! A client for interacting with the prover for the SP1 RISC-V zkVM.
 
 use crate::cpu::builder::CpuProverBuilder;
-use crate::cuda::builder::CudaProverBuilder;
 use crate::env::EnvProver;
+
+#[cfg(feature = "network")]
 use crate::network::builder::NetworkProverBuilder;
+
+use crate::cuda::builder::CudaProverBuilder;
 
 /// An entrypoint for interacting with the prover for the SP1 RISC-V zkVM.
 pub struct ProverClient;

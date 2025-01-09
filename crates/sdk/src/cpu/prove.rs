@@ -288,7 +288,7 @@ impl<'a> CpuProveBuilder<'a> {
 
         // Run the prover.
         if mock {
-            prover.mock_prove_impl(pk, stdin, mode)
+            prover.mock_prove_impl(pk, &stdin, mode)
         } else {
             prover.prove_impl(pk, &stdin, opts, context, mode)
         }

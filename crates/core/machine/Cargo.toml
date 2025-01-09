@@ -69,7 +69,7 @@ criterion = "0.5.1"
 num = { version = "0.4.3", features = ["rand"] }
 rand = "0.8.5"
 sp1-zkvm = { workspace = true }
-sp1-core-executor = { workspace = true, features = ["programs"] }
+sp1-core-executor = { workspace = true }
 test-artifacts = { workspace = true }
 
 [build-dependencies]
@@ -83,10 +83,10 @@ glob = "0.3.1"
 
 [features]
 default = ["sys"]
-programs = []
 debug = []
 bigint-rug = ["sp1-curves/bigint-rug"]
 sys = []
 
 [lib]
+path = "src/lib.rs"
 bench = false

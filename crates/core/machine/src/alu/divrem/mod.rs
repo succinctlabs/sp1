@@ -22,8 +22,8 @@
 //! base = pow(2, 8)
 //! carry = 0
 //! for i in range(8):
-//!     x = result[i] + remainder[i] + carry
-//!     result[i] = x % base
+//!     x = result\[i\] + remainder\[i\] + carry
+//!     result\[i\] = x % base
 //!     carry = x // base
 //!
 //! # The number represented by c * quotient + remainder in 64 bits must equal b in 32 bits.

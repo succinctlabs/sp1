@@ -166,9 +166,9 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
         modulus: &BigUint,
         op: FieldOperation,
     ) -> BigUint {
-        if b == &BigUint::zero() && op == FieldOperation::Div {
-            // Division by 0 is allowed only when dividing 0 so that padded rows can be all 0.
-            assert_eq!(*a, BigUint::zero(), "division by zero is allowed only when dividing zero");
+        if op == FieldOperation::Div {
+            assert_ne!(*b, BigUint::zero(), "division by zero is not allowed");
+            assert_ne!(*b, *modulus, "division by zero is not allowed");
         }
 
         let result = match op {
@@ -440,7 +440,7 @@ mod tests {
         ) -> RowMajorMatrix<F> {
             let mut rng = thread_rng();
             let num_rows = 1 << 8;
-            let mut operands: Vec<(BigUint, BigUint)> = (0..num_rows - 5)
+            let mut operands: Vec<(BigUint, BigUint)> = (0..num_rows - 4)
                 .map(|_| {
                     let a = rng.gen_biguint(256) % &P::modulus();
                     let b = rng.gen_biguint(256) % &P::modulus();
@@ -448,10 +448,8 @@ mod tests {
                 })
                 .collect();
 
-            // Hardcoded edge cases. We purposely include 0 / 0. While mathematically, that is not
-            // allowed, we allow it in our implementation so padded rows can be all 0.
+            // Hardcoded edge cases.
             operands.extend(vec![
-                (BigUint::from(0u32), BigUint::from(0u32)),
                 (BigUint::from(0u32), BigUint::from(1u32)),
                 (BigUint::from(1u32), BigUint::from(2u32)),
                 (BigUint::from(4u32), BigUint::from(5u32)),

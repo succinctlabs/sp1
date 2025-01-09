@@ -27,6 +27,7 @@ use typenum::Unsigned;
 use crate::{
     memory::{value_as_limbs, MemoryReadCols, MemoryWriteCols},
     operations::field::field_op::FieldOpCols,
+    operations::field::range::FieldLtCols,
     utils::{limbs_from_prev_access, pad_rows_fixed, words_to_bytes_le_vec},
 };
 
@@ -51,6 +52,8 @@ pub struct Fp2MulAssignCols<T, P: FieldParameters + NumWords> {
     pub(crate) a1_mul_b0: FieldOpCols<T, P>,
     pub(crate) c0: FieldOpCols<T, P>,
     pub(crate) c1: FieldOpCols<T, P>,
+    pub(crate) c0_range: FieldLtCols<T, P>,
+    pub(crate) c1_range: FieldLtCols<T, P>,
 }
 
 #[derive(Default)]
@@ -102,20 +105,22 @@ impl<P: FpOpField> Fp2MulAssignChip<P> {
             &modulus,
             FieldOperation::Mul,
         );
-        cols.c0.populate_with_modulus(
+        let c0 = cols.c0.populate_with_modulus(
             blu_events,
             &a0_mul_b0,
             &a1_mul_b1,
             &modulus,
             FieldOperation::Sub,
         );
-        cols.c1.populate_with_modulus(
+        let c1 = cols.c1.populate_with_modulus(
             blu_events,
             &a0_mul_b1,
             &a1_mul_b0,
             &modulus,
             FieldOperation::Add,
         );
+        cols.c0_range.populate(blu_events, &c0, &modulus);
+        cols.c1_range.populate(blu_events, &c1, &modulus);
     }
 }
 
@@ -314,6 +319,8 @@ where
             local.c1.result,
             value_as_limbs(&local.x_access[num_words_field_element..]),
         );
+        local.c0_range.eval(builder, &local.c0.result, &p_modulus, local.is_real);
+        local.c1_range.eval(builder, &local.c1.result, &p_modulus, local.is_real);
 
         builder.eval_memory_access_slice(
             local.shard,

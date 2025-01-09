@@ -9,12 +9,14 @@ use super::prove::NetworkProveBuilder;
 use super::DEFAULT_CYCLE_LIMIT;
 use crate::cpu::execute::CpuExecuteBuilder;
 use crate::cpu::CpuProver;
-use crate::network::{DEFAULT_PROVER_NETWORK_RPC, DEFAULT_TIMEOUT_SECS};
+use crate::network::proto::network::GetProofRequestStatusResponse;
+use crate::network::{Error, DEFAULT_NETWORK_RPC_URL, DEFAULT_TIMEOUT_SECS};
 use crate::{
     network::client::NetworkClient,
     network::proto::network::{ExecutionStatus, FulfillmentStatus, FulfillmentStrategy, ProofMode},
     Prover, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
 };
+use alloy_primitives::B256;
 use anyhow::Result;
 use backoff::{future::retry, Error as BackoffError, ExponentialBackoff};
 use serde::de::DeserializeOwned;
@@ -108,6 +110,7 @@ impl NetworkProver {
             timeout: None,
             strategy: FulfillmentStrategy::Hosted,
             skip_simulation: false,
+            cycle_limit: None,
         }
     }
 
@@ -130,20 +133,49 @@ impl NetworkProver {
     ///
     /// let vk_hash = client.register_program(&vk, elf);
     /// ```
-    pub async fn register_program(&self, vk: &SP1VerifyingKey, elf: &[u8]) -> Result<Vec<u8>> {
+    pub async fn register_program(&self, vk: &SP1VerifyingKey, elf: &[u8]) -> Result<B256> {
         self.client.register_program(vk, elf).await
     }
 
+    /// Gets the status of a proof request.
+    ///
+    /// # Details
+    /// * `request_id`: The request ID to get the status of.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, network::B256};
+    ///
+    /// tokio_test::block_on(async {
+    ///     let request_id = B256::from_slice(&vec![1u8; 32]);
+    ///     let client = ProverClient::builder().network().build();
+    ///     let (status, maybe_proof) = client.get_proof_status(request_id).await.unwrap();   
+    /// })
+    /// ```
+    pub async fn get_proof_status(
+        &self,
+        request_id: B256,
+    ) -> Result<(GetProofRequestStatusResponse, Option<SP1ProofWithPublicValues>)> {
+        self.client.get_proof_request_status(request_id).await
+    }
+
     /// Requests a proof from the prover network, returning the request ID.
+    ///
+    /// # Details
+    /// * `vk_hash`: The hash of the verifying key to use for the proof.
+    /// * `stdin`: The input to use for the proof.
+    /// * `mode`: The proof mode to use for the proof.
+    /// * `strategy`: The fulfillment strategy to use for the proof.
+    /// * `cycle_limit`: The cycle limit to use for the proof.
     pub(crate) async fn request_proof(
         &self,
-        vk_hash: &[u8],
+        vk_hash: B256,
         stdin: &SP1Stdin,
         mode: ProofMode,
         strategy: FulfillmentStrategy,
         cycle_limit: u64,
         timeout: Option<Duration>,
-    ) -> Result<Vec<u8>> {
+    ) -> Result<B256> {
         // Get the timeout.
         let timeout_secs = timeout.map_or(DEFAULT_TIMEOUT_SECS, |dur| dur.as_secs());
 
@@ -176,15 +208,14 @@ impl NetworkProver {
         .await?;
 
         // Log the request ID and transaction hash.
-        let tx_hash_hex = "0x".to_string() + &hex::encode(response.tx_hash);
-        let request_id = response.body.unwrap().request_id;
-        let request_id_hex = "0x".to_string() + &hex::encode(request_id.clone());
-        log::info!("Created request {} in transaction {}", request_id_hex, tx_hash_hex);
+        let tx_hash = B256::from_slice(&response.tx_hash);
+        let request_id = B256::from_slice(&response.body.unwrap().request_id);
+        log::info!("Created request {} in transaction {:?}", request_id, tx_hash);
 
-        if self.client.rpc_url == DEFAULT_PROVER_NETWORK_RPC {
+        if self.client.rpc_url == DEFAULT_NETWORK_RPC_URL {
             log::info!(
                 "View request status at: https://network.succinct.xyz/request/{}",
-                request_id_hex
+                request_id
             );
         }
 
@@ -193,9 +224,9 @@ impl NetworkProver {
 
     /// Waits for a proof to be generated and returns the proof. If a timeout is supplied, the
     /// function will return an error if the proof is not generated within the timeout.
-    pub(crate) async fn wait_proof<P: DeserializeOwned>(
+    pub async fn wait_proof<P: DeserializeOwned>(
         &self,
-        request_id: &[u8],
+        request_id: B256,
         timeout: Option<Duration>,
     ) -> Result<P> {
         let mut is_assigned = false;
@@ -205,7 +236,7 @@ impl NetworkProver {
             // Calculate the remaining timeout.
             if let Some(timeout) = timeout {
                 if start_time.elapsed() > timeout {
-                    return Err(anyhow::anyhow!("proof request timed out."));
+                    return Err(Error::RequestTimedOut { request_id: request_id.to_vec() }.into());
                 }
             }
             let remaining_timeout = timeout.map(|t| {
@@ -217,17 +248,24 @@ impl NetworkProver {
                 }
             });
 
-            // Get status with retries.
+            // Get the status with retries.
             let (status, maybe_proof) = with_retry(
-                || async { self.client.get_proof_request_status::<P>(request_id).await },
+                || async { self.client.get_proof_request_status(request_id).await },
                 remaining_timeout,
                 "getting proof request status",
             )
             .await?;
 
+            // Check the deadline.
+            if status.deadline < Instant::now().elapsed().as_secs() {
+                return Err(Error::RequestTimedOut { request_id: request_id.to_vec() }.into());
+            }
+
             // Check the execution status.
-            if status.execution_status == ExecutionStatus::Unexecutable as i32 {
-                return Err(anyhow::anyhow!("proof request is unexecutable"));
+            if let Ok(ExecutionStatus::Unexecutable) =
+                ExecutionStatus::try_from(status.execution_status)
+            {
+                return Err(Error::RequestUnexecutable { request_id: request_id.to_vec() }.into());
             }
 
             // Check the fulfillment status.
@@ -237,12 +275,14 @@ impl NetworkProver {
                 }
                 Ok(FulfillmentStatus::Assigned) => {
                     if !is_assigned {
-                        log::info!("proof request assigned, proving...");
+                        log::info!("Proof request assigned, proving...");
                         is_assigned = true;
                     }
                 }
                 Ok(FulfillmentStatus::Unfulfillable) => {
-                    return Err(anyhow::anyhow!("proof request is unfulfillable"));
+                    return Err(
+                        Error::RequestUnfulfillable { request_id: request_id.to_vec() }.into()
+                    );
                 }
                 _ => {}
             }
@@ -251,7 +291,23 @@ impl NetworkProver {
         }
     }
 
-    /// Requests a proof from the prover network and waits for it to be generated.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) async fn request_proof_impl(
+        &self,
+        pk: &SP1ProvingKey,
+        stdin: &SP1Stdin,
+        mode: SP1ProofMode,
+        strategy: FulfillmentStrategy,
+        timeout: Option<Duration>,
+        skip_simulation: bool,
+        cycle_limit: Option<u64>,
+    ) -> Result<B256> {
+        let vk_hash = self.register_program(&pk.vk, &pk.elf).await?;
+        let cycle_limit = self.get_cycle_limit(cycle_limit, &pk.elf, stdin, skip_simulation)?;
+        self.request_proof(vk_hash, stdin, mode.into(), strategy, cycle_limit, timeout).await
+    }
+
+    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn prove_impl(
         &self,
         pk: &SP1ProvingKey,
@@ -260,22 +316,39 @@ impl NetworkProver {
         strategy: FulfillmentStrategy,
         timeout: Option<Duration>,
         skip_simulation: bool,
+        cycle_limit: Option<u64>,
     ) -> Result<SP1ProofWithPublicValues> {
-        let vk_hash = self.register_program(&pk.vk, &pk.elf).await?;
-        let cycle_limit = self.get_cycle_limit(&pk.elf, stdin, skip_simulation)?;
         let request_id = self
-            .request_proof(&vk_hash, stdin, mode.into(), strategy, cycle_limit, timeout)
+            .request_proof_impl(pk, stdin, mode, strategy, timeout, skip_simulation, cycle_limit)
             .await?;
-        self.wait_proof(&request_id, timeout).await
+        self.wait_proof(request_id, timeout).await
     }
 
-    fn get_cycle_limit(&self, elf: &[u8], stdin: &SP1Stdin, skip_simulation: bool) -> Result<u64> {
+    /// The cycle limit is determined according to the following priority:
+    ///
+    /// 1. If a cycle limit was explicitly set by the requester, use the specified value.
+    /// 2. If simulation is enabled, calculate the limit by simulating the
+    ///    execution of the program. This is the default behavior.
+    /// 3. Otherwise, use the default cycle limit ([`DEFAULT_CYCLE_LIMIT`]).
+    fn get_cycle_limit(
+        &self,
+        cycle_limit: Option<u64>,
+        elf: &[u8],
+        stdin: &SP1Stdin,
+        skip_simulation: bool,
+    ) -> Result<u64> {
+        if let Some(cycle_limit) = cycle_limit {
+            return Ok(cycle_limit);
+        }
+
         if skip_simulation {
             Ok(DEFAULT_CYCLE_LIMIT)
         } else {
-            let (_, report) = self.prover.inner().execute(elf, stdin, SP1Context::default())?;
-            let cycles = report.total_instruction_count();
-            Ok(cycles)
+            self.prover
+                .inner()
+                .execute(elf, stdin, SP1Context::default())
+                .map(|(_, report)| report.total_instruction_count())
+                .map_err(|_| Error::SimulationFailed.into())
         }
     }
 }
@@ -295,7 +368,7 @@ impl Prover<CpuProverComponents> for NetworkProver {
         stdin: &SP1Stdin,
         mode: SP1ProofMode,
     ) -> Result<SP1ProofWithPublicValues> {
-        block_on(self.prove_impl(pk, stdin, mode, FulfillmentStrategy::Hosted, None, false))
+        block_on(self.prove_impl(pk, stdin, mode, FulfillmentStrategy::Hosted, None, false, None))
     }
 }
 

@@ -87,7 +87,12 @@ use utils::{sp1_committed_values_digest_bn254, sp1_vkey_digest_bn254, words_to_b
 
 use components::{CpuProverComponents, SP1ProverComponents};
 
-pub use sp1_core_machine::SP1_CIRCUIT_VERSION;
+/// The global version for all components of SP1.
+///
+/// This string should be updated whenever any step in verifying an SP1 proof changes, including
+/// core, recursion, and plonk-bn254. This string is used to download SP1 artifacts and the gnark
+/// docker image.
+pub const SP1_CIRCUIT_VERSION: &str = include_str!("../SP1_VERSION");
 
 /// The configuration for the core prover.
 pub type CoreSC = BabyBearPoseidon2;
@@ -169,7 +174,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let compress_machine = CompressAir::compress_machine(InnerSC::default());
         let compress_prover = C::CompressProver::new(compress_machine);
 
-        // TODO: Put the correct shrink and wrap machines here.
         let shrink_machine = ShrinkAir::shrink_machine(InnerSC::compressed());
         let shrink_prover = C::ShrinkProver::new(shrink_machine);
 
@@ -200,33 +204,40 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         // Read the shapes from the shapes directory and deserialize them into memory.
         let allowed_vk_map: BTreeMap<[BabyBear; DIGEST_SIZE], usize> = if vk_verification {
-            bincode::deserialize(include_bytes!("./artifacts/vk_map_317914.bin")).unwrap()
+            bincode::deserialize(include_bytes!(concat!(env!("OUT_DIR"), "/vk_map.bin"))).unwrap()
         } else {
-            bincode::deserialize(include_bytes!("./artifacts/dummy_vk_map.bin")).unwrap()
+            bincode::deserialize(include_bytes!("vk_map_dummy.bin")).unwrap()
         };
 
         let (root, merkle_tree) = MerkleTree::commit(allowed_vk_map.keys().copied().collect());
 
         let mut compress_programs = BTreeMap::new();
-        if let Some(config) = &recursion_shape_config {
-            SP1ProofShape::generate_compress_shapes(config, REDUCE_BATCH_SIZE).for_each(|shape| {
-                let compress_shape = SP1CompressWithVkeyShape {
-                    compress_shape: shape.into(),
-                    merkle_tree_height: merkle_tree.height,
-                };
-                let input = SP1CompressWithVKeyWitnessValues::dummy(
-                    compress_prover.machine(),
-                    &compress_shape,
+        let program_cache_disabled = env::var("SP1_DISABLE_PROGRAM_CACHE")
+            .map(|v| v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
+        if !program_cache_disabled {
+            if let Some(config) = &recursion_shape_config {
+                SP1ProofShape::generate_compress_shapes(config, REDUCE_BATCH_SIZE).for_each(
+                    |shape| {
+                        let compress_shape = SP1CompressWithVkeyShape {
+                            compress_shape: shape.into(),
+                            merkle_tree_height: merkle_tree.height,
+                        };
+                        let input = SP1CompressWithVKeyWitnessValues::dummy(
+                            compress_prover.machine(),
+                            &compress_shape,
+                        );
+                        let program = compress_program_from_input::<C>(
+                            recursion_shape_config.as_ref(),
+                            &compress_prover,
+                            vk_verification,
+                            &input,
+                        );
+                        let program = Arc::new(program);
+                        compress_programs.insert(compress_shape, program);
+                    },
                 );
-                let program = compress_program_from_input::<C>(
-                    recursion_shape_config.as_ref(),
-                    &compress_prover,
-                    vk_verification,
-                    &input,
-                );
-                let program = Arc::new(program);
-                compress_programs.insert(compress_shape, program);
-            });
+            }
         }
 
         Self {
@@ -284,7 +295,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         stdin: &SP1Stdin,
         mut context: SP1Context<'a>,
     ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
-        context.subproof_verifier.replace(Arc::new(self));
+        context.subproof_verifier = Some(self);
         let opts = SP1CoreOpts::default();
         let mut runtime = Executor::with_context_and_elf(opts, context, elf);
 
@@ -310,7 +321,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         opts: SP1ProverOpts,
         mut context: SP1Context<'a>,
     ) -> Result<SP1CoreProof, SP1CoreProverError> {
-        context.subproof_verifier.replace(Arc::new(self));
+        context.subproof_verifier = Some(self);
 
         // Launch two threads to simultaneously prove the core and compile the first few
         // recursion programs in parallel.
@@ -338,7 +349,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                     self.core_shape_config.as_ref(),
                     proof_tx,
                     shape_tx,
-                    None,
                 )
             });
 
@@ -1136,7 +1146,11 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         batch_size: usize,
     ) -> (Vec<SP1DeferredWitnessValues<InnerSC>>, [BabyBear; 8]) {
         // Prepare the inputs for the deferred proofs recursive verification.
+<<<<<<< HEAD
         let mut deferred_digest = [Val::<InnerSC>::zero(); DIGEST_SIZE];
+=======
+        let mut deferred_digest = [Val::<CoreSC>::zero(); DIGEST_SIZE];
+>>>>>>> dev
         let mut deferred_inputs = Vec::new();
 
         for batch in deferred_proofs.chunks(batch_size) {
@@ -1260,7 +1274,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     fn check_for_high_cycles(cycles: u64) {
         if cycles > 100_000_000 {
             tracing::warn!(
-                "high cycle count, consider using the prover network for proof generation: https://docs.succinct.xyz/generating-proofs/prover-network"
+                "High cycle count detected ({}M cycles). For better performance, consider using the Succinct Prover Network: https://docs.succinct.xyz/generating-proofs/prover-network",
+                cycles / 1_000_000
             );
         }
     }
@@ -1302,7 +1317,11 @@ pub fn compress_program_from_input<C: SP1ProverComponents>(
     program
 }
 
+<<<<<<< HEAD
 #[cfg(any(test, feature = "export-tests"))]
+=======
+#[cfg(test)]
+>>>>>>> dev
 pub mod tests {
 
     use std::{

@@ -7,12 +7,11 @@ use std::{
 use crate::{
     ffi::{build_plonk_bn254, prove_plonk_bn254, test_plonk_bn254, verify_plonk_bn254},
     witness::GnarkWitness,
-    PlonkBn254Proof,
+    PlonkBn254Proof, SP1_CIRCUIT_VERSION,
 };
 
 use num_bigint::BigUint;
 use sha2::{Digest, Sha256};
-use sp1_core_machine::SP1_CIRCUIT_VERSION;
 use sp1_recursion_compiler::{
     constraints::Constraint,
     ir::{Config, Witness},

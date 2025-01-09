@@ -11,6 +11,10 @@ pub(crate) fn sp1_dump(elf: &[u8], stdin: &SP1Stdin) {
         std::fs::write("program.bin", elf).unwrap();
         let stdin = bincode::serialize(&stdin).unwrap();
         std::fs::write("stdin.bin", stdin.clone()).unwrap();
+
+        println!("Dumped program.bin and stdin.bin.");
+        // Exit with the success status.
+        std::process::exit(0);
     }
 }
 

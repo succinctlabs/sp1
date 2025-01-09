@@ -56,9 +56,9 @@ pub struct LtCols<T> {
     /// Boolean flag to indicate which byte pair differs if the operands are not equal.
     pub byte_flags: [T; 4],
 
-    /// The masking b[3] & 0x7F.
+    /// The masking b\[3\] & 0x7F.
     pub b_masked: T,
-    /// The masking c[3] & 0x7F.
+    /// The masking c\[3\] & 0x7F.
     pub c_masked: T,
     /// An inverse of differing byte if c_comp != b_comp.
     pub not_eq_inv: T,

@@ -77,6 +77,20 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
     challenger: &mut SC::FriChallengerVariable,
     rounds: Vec<TwoAdicPcsRoundVariable<C, SC>>,
 ) {
+    // Write the polynomial evaluations to the challenger.
+    for round in rounds.iter() {
+        for mat in round.domains_points_and_opens.iter() {
+            for point in mat.values.iter() {
+                for coord in point.iter() {
+                    let point_felts = C::ext2felt(builder, *coord);
+                    point_felts.iter().for_each(|felt| {
+                        challenger.observe(builder, *felt);
+                    });
+                }
+            }
+        }
+    }
+
     let alpha = challenger.sample_ext(builder);
 
     let fri_challenges = tracing::debug_span!("verify shape and challenges").in_scope(|| {
@@ -269,11 +283,6 @@ pub fn verify_query<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
     // TODO: fix expreversebits address bug to avoid needing to allocate a new variable.
     let mut x =
         C::exp_reverse_bits(builder, two_adic_generator, index_bits[..log_max_height].to_vec());
-    // let mut x = builder.uninit();
-    // builder.push(DslIr::AddFI(x, x_f, C::F::zero()));
-
-    // let mut x = builder.eval(x + C::F::zero());
-    // let mut x: Ext<_, _> = builder.eval(SymbolicExt::one() * SymbolicFelt::from(x_felt));
 
     for (offset, log_folded_height, commit, step, beta) in izip!(
         0..,
@@ -472,7 +481,7 @@ mod tests {
     };
     use p3_challenger::{CanObserve, CanSample, FieldChallenger};
     use p3_commit::Pcs;
-    use p3_field::AbstractField;
+    use p3_field::{extension::BinomialExtensionField, AbstractField};
     use p3_fri::verifier;
     use p3_matrix::dense::RowMajorMatrix;
     use rand::{
@@ -624,12 +633,23 @@ mod tests {
         challenger.observe(commit);
         let zeta = challenger.sample_ext_element::<InnerChallenge>();
         let points = repeat_with(|| vec![zeta]).take(domains_and_polys.len()).collect::<Vec<_>>();
-        let (_, proof) = pcs.open(vec![(&data, points)], &mut challenger);
+        let (all_opened_values, proof) = pcs.open(vec![(&data, points)], &mut challenger);
 
         // Verify proof.
         let mut challenger = InnerChallenger::new(perm.clone());
         challenger.observe(commit);
         let _: InnerChallenge = challenger.sample();
+        let flattened_opened_values: Vec<BinomialExtensionField<BabyBear, 4>> = all_opened_values
+            .into_iter()
+            .flat_map(|v| v.into_iter())
+            .flat_map(|v| v.into_iter())
+            .flat_map(|v| v.into_iter())
+            .collect();
+        for ext_element in flattened_opened_values.iter() {
+            challenger.observe_ext_element(*ext_element);
+        }
+        let _: BinomialExtensionField<BabyBear, 4> = challenger.sample_ext_element();
+
         let fri_challenges_gt = verifier::verify_shape_and_sample_challenges(
             &inner_fri_config(),
             &proof.fri_proof,
@@ -647,6 +667,14 @@ mod tests {
         let commit: [Felt<InnerVal>; DIGEST_SIZE] = commit.map(|x| builder.eval(x));
         challenger.observe_slice(&mut builder, commit);
         let _ = challenger.sample_ext(&mut builder);
+        for ext_element in flattened_opened_values.iter() {
+            let ext_variable: Ext<_, _> = builder.eval(SymbolicExt::from_f(*ext_element));
+            let point_felts = InnerConfig::ext2felt(&mut builder, ext_variable);
+            point_felts.iter().for_each(|felt| {
+                challenger.observe(&mut builder, *felt);
+            });
+        }
+        challenger.sample_ext(&mut builder);
         let fri_challenges = verify_shape_and_sample_challenges::<InnerConfig, BabyBearPoseidon2>(
             &mut builder,
             &config,

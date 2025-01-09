@@ -8,13 +8,13 @@ When writing a program, it is useful to know how many RISC-V cycles a portion of
 
 To track the number of cycles spent in a portion of the program, you can either put `println!("cycle-tracker-start: block name")` + `println!("cycle-tracker-end: block name")` statements (block name must be same between start and end) around the portion of your program you want to profile or use the `#[sp1_derive::cycle_tracker]` macro on a function. An example is shown below:
 
-<Example/>
+<Example />
 
 Note that to use the macro, you must add the `sp1-derive` crate to your dependencies for your program.
 
 ```toml
 [dependencies]
-sp1-derive = "3.0.0"
+sp1-derive = "4.0.0-rc.8"
 ```
 
 In the script for proof generation, setup the logger with `utils::setup_logger()` and run the script with `RUST_LOG=info cargo run --release`. You should see the following output:
@@ -56,11 +56,12 @@ fn main() {
 
 This will log the cycle count for `block name` and include it in the `ExecutionReport` in the `cycle_tracker` map.
 
-### Profiling a ZKVM program 
+### Profiling a ZKVM program
 
 Profiling a zkVM program produces a useful visualization ([example profile](https://share.firefox.dev/3Om1pzz)) which makes it easy to examine program performance and see exactly where VM cycles are being spent without needing to modify the program at all.
 
 To profile a program, you need to:
+
 1. Enable the profiling feature for `sp1-sdk` in `script/Cargo.toml`
 2. Set the env variable `TRACE_FILE=trace.json` and then call `ProverClient::execute()` in your script.
 
@@ -68,26 +69,30 @@ If you're executing a larger program (>100M cycles), you should set `TRACE_SAMPL
 
 Many examples can be found in the repo, such as this ['fibonacci'](https://github.com/succinctlabs/sp1/blob/dev/examples/fibonacci/script/src/main.rs#L22) script.
 
-Once you have your script it should look like the following: 
-```rs 
+Once you have your script it should look like the following:
+
+```rs
     // Execute the program using the `ProverClient.execute` method, without generating a proof.
-    let (_, report) = client.execute(ELF, stdin.clone()).run().unwrap();
+    let (_, report) = client.execute(ELF, &stdin).run().unwrap();
 ```
 
 As well you must enable the profiling feature on the SDK:
+
 ```toml
-    sp1-sdk = { version = "3.0.0", features = ["profiling"] }
+    sp1-sdk = { version = "4.0.0-rc.8", features = ["profiling"] }
 ```
 
 The `TRACE_FILE` env var tells the executor where to save the profile, and the `TRACE_SAMPLE_RATE` env var tells the executor how often to sample the program.
 A larger sample rate will give you a smaller profile, it is the number of instructions in between each sample.
 
 The full command to profile should look something like this
+
 ```sh
     TRACE_FILE=output.json TRACE_SAMPLE_RATE=100 cargo run ...
 ```
 
 To view these profiles, we recommend [Samply](https://github.com/mstange/samply).
+
 ```sh
     cargo install --locked samply
     samply load output.json
@@ -97,7 +102,8 @@ Samply uses the Firefox profiler to create a nice visualization of your programs
 ![An example screenshot of the Firefox Profiler](@site/static/profiling.png)
 
 #### Interpreting the Profile
-- The "time" measurement in the profiler is actually the number of cycles spent, 
-in general the less cycles for a given callframe the better.
+
+- The "time" measurement in the profiler is actually the number of cycles spent,
+  in general the less cycles for a given callframe the better.
 
 - The CPU usage of the program will always be constant, as its running in the VM which is single threaded.

@@ -4,7 +4,7 @@ use std::{
     mem::size_of,
 };
 
-use crate::{air::MemoryAirBuilder, utils::zeroed_f_vec};
+use crate::{air::MemoryAirBuilder, operations::field::range::FieldLtCols, utils::zeroed_f_vec};
 use generic_array::GenericArray;
 use itertools::Itertools;
 use num::{BigUint, Zero};
@@ -52,6 +52,7 @@ pub struct FpOpCols<T, P: FpOpField> {
     pub x_access: GenericArray<MemoryWriteCols<T>, P::WordsFieldElement>,
     pub y_access: GenericArray<MemoryReadCols<T>, P::WordsFieldElement>,
     pub(crate) output: FieldOpCols<T, P>,
+    pub(crate) output_range: FieldLtCols<T, P>,
 }
 
 impl<P: FpOpField> FpOpChip<P> {
@@ -69,7 +70,8 @@ impl<P: FpOpField> FpOpChip<P> {
     ) {
         let modulus_bytes = P::MODULUS;
         let modulus = BigUint::from_bytes_le(modulus_bytes);
-        cols.output.populate_with_modulus(blu_events, &p, &q, &modulus, op);
+        let output = cols.output.populate_with_modulus(blu_events, &p, &q, &modulus, op);
+        cols.output_range.populate(blu_events, &output, &modulus);
     }
 }
 
@@ -108,9 +110,8 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
             let mut row = zeroed_f_vec(num_fp_cols::<P>());
             let cols: &mut FpOpCols<F, P> = row.as_mut_slice().borrow_mut();
 
-            let modulus = &BigUint::from_bytes_le(P::MODULUS);
-            let p = BigUint::from_bytes_le(&words_to_bytes_le_vec(&event.x)) % modulus;
-            let q = BigUint::from_bytes_le(&words_to_bytes_le_vec(&event.y)) % modulus;
+            let p = BigUint::from_bytes_le(&words_to_bytes_le_vec(&event.x));
+            let q = BigUint::from_bytes_le(&words_to_bytes_le_vec(&event.y));
 
             cols.is_add = F::from_canonical_u8((event.op == FieldOperation::Add) as u8);
             cols.is_sub = F::from_canonical_u8((event.op == FieldOperation::Sub) as u8);
@@ -234,6 +235,7 @@ where
         builder
             .when(local.is_real)
             .assert_all_eq(local.output.result, value_as_limbs(&local.x_access));
+        local.output_range.eval(builder, &local.output.result, &p_modulus, local.is_real);
 
         builder.eval_memory_access_slice(
             local.shard,

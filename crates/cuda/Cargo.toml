@@ -19,7 +19,6 @@ tokio = { version = "^1.38.0", features = ["full"] }
 tracing = { workspace = true }
 twirp = { package = "twirp-rs", version = "0.13.0-succinct" }
 ctrlc = "3.4.4"
-test-artifacts = { workspace = true, optional = true }
 
 [build-dependencies]
 prost-build = { version = "0.13", optional = true }
@@ -27,7 +26,8 @@ twirp-build = { package = "twirp-build-rs", version = "0.13.0-succinct", optiona
 
 [dev-dependencies]
 sp1-core-machine = { workspace = true }
+test-artifacts = { workspace = true }
 
 [features]
 default = []
-protobuf = ["dep:prost-build", "dep:twirp-build", "dep:test-artifacts"]
+protobuf = ["dep:prost-build", "dep:twirp-build"]

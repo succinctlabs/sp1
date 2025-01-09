@@ -435,12 +435,13 @@ where
 mod tests {
 
     use super::*;
+    use crate::programs::tests::*;
     use crate::{
         riscv::RiscvAir, syscall::precompiles::sha256::extend_tests::sha_extend_program,
         utils::setup_logger,
     };
     use p3_baby_bear::BabyBear;
-    use sp1_core_executor::{programs::tests::simple_program, Executor};
+    use sp1_core_executor::Executor;
     use sp1_stark::InteractionKind;
     use sp1_stark::{
         baby_bear_poseidon2::BabyBearPoseidon2, debug_interactions_with_all_chips, SP1CoreOpts,

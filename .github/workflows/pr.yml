@@ -13,6 +13,9 @@ on:
       - ".github/workflows/**"
   merge_group:
 
+env:
+  SP1_CI_IN_PROGRESS: "true"
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -36,6 +39,8 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
 
       - name: Install SP1 toolchain from repo
         run: |
@@ -49,7 +54,7 @@ jobs:
         with:
           command: check
           toolchain: 1.81.0
-          args: --all-targets --all-features
+          args: --all-targets --all-features --tests
 
       - name: Run cargo test
         uses: actions-rs/cargo@v1
@@ -80,6 +85,8 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
 
       - name: Install SP1 toolchain from repo
         run: |
@@ -93,7 +100,7 @@ jobs:
         with:
           command: check
           toolchain: 1.81.0
-          args: --all-targets --all-features
+          args: --all-targets --all-features --tests
 
       - name: Run cargo test
         uses: actions-rs/cargo@v1
@@ -124,6 +131,8 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
 
       - name: Install SP1 toolchain from repo
         run: |
@@ -137,7 +146,7 @@ jobs:
         with:
           command: check
           toolchain: 1.81.0
-          args: --all-targets --all-features
+          args: --all-targets --all-features --tests
 
       - name: Run cargo test
         uses: actions-rs/cargo@v1
@@ -160,6 +169,8 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
 
       - name: Install SP1 toolchain from repo
         run: |
@@ -203,6 +214,8 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
 
       - name: Install SP1 toolchain from repo
         run: |
@@ -247,6 +260,8 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
 
       - name: Install SP1 toolchain from repo
         run: |
@@ -268,84 +283,18 @@ jobs:
       - name: Run cargo clippy
         run: |
           cd ./examples/
-          cargo clippy --all-targets --all-features -- -D warnings -A incomplete-features
-
-  cli:
-    name: CLI
-    runs-on: [runs-on, runner=8cpu-linux-x64, disk=large, "run-id=${{ github.run_id }}"]
-    env:
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
-
-      - name: Setup CI
-        uses: ./.github/actions/setup
-
-      - name: Install SP1 toolchain from repo
-        run: |
-          cargo run -p sp1-cli -- prove install-toolchain
-          cd crates/cli
-          cargo install --force --locked --path .
-          cargo clean
-
-      - name: Run cargo prove new
-        run: |
-          cargo prove new fibonacci --evm
-
-      - name: Build program and run script
-        run: |
-          cd fibonacci
-          cd program
-          cargo add sp1-zkvm --path $GITHUB_WORKSPACE/crates/zkvm/entrypoint
-          cargo prove build
-          cd ../script
-          cargo remove sp1-sdk
-          cargo add sp1-sdk --path $GITHUB_WORKSPACE/crates/sdk
-          SP1_DEV=1 RUST_LOG=info cargo run --release -- --prove
-
-  performance:
-    name: Performance
-    runs-on: [runs-on, family=c7a.48xlarge, disk=large, "run-id=${{ github.run_id }}"]
-    env:
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
-
-      - name: Setup CI
-        uses: ./.github/actions/setup
-
-      - name: Install SP1 toolchain from repo
-        run: |
-          cargo run -p sp1-cli -- prove install-toolchain
-          cd crates/cli
-          cargo install --force --locked --path .
-          cargo clean
-
-      - name: Run Evaluation
-        run: |
-          cd crates/eval
-          RUSTFLAGS='-C target-cpu=native' cargo run --release -- \
-            --programs fibonacci,ssz-withdrawals,tendermint \
-            --post-to-slack ${{ github.ref == 'refs/heads/dev' }} \
-            --slack-channel-id "${{ secrets.SLACK_CHANNEL_ID }}" \
-            --slack-token "${{ secrets.SLACK_TOKEN }}" \
-            --post-to-github ${{ github.event_name == 'pull_request' }} \
-            --github-token "${{ secrets.GITHUB_TOKEN }}" \
-            --repo-owner "${{ github.repository_owner }}" \
-            --repo-name "${{ github.event.repository.name }}" \
-            --pr-number "${{ github.event.pull_request.number }}" \
-            --branch-name "${{ github.head_ref || github.ref_name }}" \
-            --commit-hash "${{ github.sha }}" \
-            --author "${{ github.event.pull_request.user.login || github.actor }}"
 
   typos:
     name: Spell Check
-    runs-on: ubuntu-latest
+    runs-on: [runs-on, runner=16cpu-linux-x64, disk=large, "run-id=${{ github.run_id }}"]
     steps:
       - name: Checkout Actions Repository
         uses: actions/checkout@v4
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
 
       - name: Check all typos
         uses: crate-ci/typos@master
@@ -358,13 +307,18 @@ jobs:
 
   check-verifier-no-std:
     name: Check Verifier `no_std`
-    runs-on: ubuntu-latest
+    runs-on: [runs-on, runner=16cpu-linux-x64, disk=large, "run-id=${{ github.run_id }}"]
     timeout-minutes: 10
     strategy:
       fail-fast: false
     steps:
       - name: Checkout Actions Repository
         uses: actions/checkout@v4
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
   
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -398,6 +352,8 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
 
       - name: "Remove lock files"
         run: |
@@ -416,3 +372,29 @@ jobs:
         run: |
           cd examples
           cargo build --all --all-targets
+  cargo-pkg:
+    name: "Try to package all the crates for release"
+    runs-on:
+      [
+        runs-on,
+        runner=64cpu-linux-x64,
+        disk=large,
+        spot=false,
+        "run-id=${{ github.run_id }}",
+      ]
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+
+      - name: Set permissions
+        run: chmod +x .github/scripts/pkg-checks.sh
+
+      - name: Run cargo package
+        run: ./.github/scripts/pkg-checks.sh

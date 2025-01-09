@@ -38,8 +38,6 @@ pub(crate) fn assert_complete<C: Config<F = BabyBear>>(
 
     // Assert that the next shard is not equal to one. This guarantees that there is at least one
     // shard that contains CPU.
-    //
-    // TODO: figure out if this is needed.
     builder.assert_felt_ne(is_complete * *next_shard, C::F::one());
 
     // Assert that that an execution shard is present.

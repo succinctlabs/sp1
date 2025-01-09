@@ -473,7 +473,7 @@ pub fn verify_groth16_bn254_public_inputs(
     Ok(())
 }
 
-impl<C: SP1ProverComponents> SubproofVerifier for &SP1Prover<C> {
+impl<C: SP1ProverComponents> SubproofVerifier for SP1Prover<C> {
     fn verify_deferred_proof(
         &self,
         proof: &sp1_core_machine::reduce::SP1ReduceProof<BabyBearPoseidon2>,

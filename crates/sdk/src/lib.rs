@@ -32,8 +32,6 @@ pub mod env;
 pub mod install;
 #[cfg(feature = "network")]
 pub mod network;
-pub mod proof;
-pub mod prover;
 pub mod utils;
 
 // Re-export the client.
@@ -47,8 +45,9 @@ pub use crate::env::EnvProver;
 pub use crate::network::prover::NetworkProver;
 
 // Re-export the proof and prover traits.
+pub mod proof;
 pub use proof::*;
-#[cfg(feature = "network")]
+pub mod prover;
 pub use prover::Prover;
 pub use prover::SP1VerificationError;
 
@@ -57,11 +56,11 @@ pub use sp1_build::include_elf;
 pub use sp1_core_executor::{ExecutionReport, Executor, HookEnv, SP1Context, SP1ContextBuilder};
 
 // Re-export the machine/prover primitives.
-pub use sp1_core_machine::{io::SP1Stdin, SP1_CIRCUIT_VERSION};
+pub use sp1_core_machine::io::SP1Stdin;
 pub use sp1_primitives::io::SP1PublicValues;
 pub use sp1_prover::{
     CoreSC, HashableKey, InnerSC, OuterSC, PlonkBn254Proof, ProverMode, SP1Prover, SP1ProvingKey,
-    SP1VerifyingKey,
+    SP1VerifyingKey, SP1_CIRCUIT_VERSION,
 };
 
 // Re-export the utilities.
@@ -175,5 +174,21 @@ mod tests {
         stdin.write(&10usize);
         let proof = client.prove(&pk, &stdin).plonk().run().unwrap();
         client.verify(&proof, &vk).unwrap();
+    }
+}
+
+#[cfg(all(feature = "cuda", not(sp1_ci_in_progress)))]
+mod deprecated_check {
+    #[deprecated(
+        since = "4.0.0",
+        note = "The `cuda` feature is deprecated, as the CudaProver is now supported by default."
+    )]
+    #[allow(unused)]
+    fn cuda_is_deprecated() {}
+
+    /// Show a warning if the `cuda` feature is enabled.
+    #[allow(deprecated, unused)]
+    fn show_cuda_warning() {
+        cuda_is_deprecated();
     }
 }

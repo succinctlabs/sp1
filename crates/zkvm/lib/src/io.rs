@@ -6,15 +6,7 @@ use std::{
     io::{Result, Write},
 };
 
-/// The file descriptor for public values.
-pub const FD_PUBLIC_VALUES: u32 = 3;
-
-/// The file descriptor for hints.
-pub const FD_HINT: u32 = 4;
-
-/// The file descriptor for the `ecrecover` hook.
-pub const K1_ECRECOVER_HOOK: u32 = 5;
-pub const R1_ECRECOVER_HOOK: u32 = 6;
+pub use sp1_primitives::consts::fd::*;
 
 /// The file descriptor through which to access `hook_ecrecover_2`.
 pub const FD_ECRECOVER_HOOK_2: u32 = 7;

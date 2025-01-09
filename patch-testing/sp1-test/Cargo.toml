@@ -1,0 +1,13 @@
+[package]
+name = "sp1-test"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+sp1-test-macro.workspace = true
+rand.workspace = true
+sha2-v0-9-8.workspace = true
+parking_lot = "0.12.3"
+lazy_static = "1.5.0"
+sp1-sdk.workspace = true

@@ -24,22 +24,22 @@
 //!
 //! # Byte shift. Leave the num_bytes_to_shift most significant bytes of b 0 for simplicity as it
 //! # doesn't affect the correctness of the result.
-//! result = [0; LONG_WORD_SIZE]
+//! result = \[0; LONG_WORD_SIZE\]
 //! for i in range(LONG_WORD_SIZE - num_bytes_to_shift):
-//!     result[i] = b[i + num_bytes_to_shift]
+//!     result\[i\] = b\[i + num_bytes_to_shift\]
 //!
 //! # Bit shift.
 //! carry_multiplier = 1 << (8 - num_bits_to_shift)
 //! last_carry = 0
 //! for i in reversed(range(LONG_WORD_SIZE)):
 //!     # Shifts a byte to the right and returns both the shifted byte and the bits that carried.
-//!     (shifted_byte[i], carry) = shr_carry(result[i], num_bits_to_shift)
-//!     result[i] = shifted_byte[i] + last_carry * carry_multiplier
+//!     (shifted_byte\[i\], carry) = shr_carry(result\[i\], num_bits_to_shift)
+//!     result\[i\] = shifted_byte\[i\] + last_carry * carry_multiplier
 //!     last_carry = carry
 //!
 //! # The 4 least significant bytes must match a. The 4 most significant bytes of result may be
 //! # inaccurate.
-//! assert a = result[0..WORD_SIZE]
+//! assert a = result\[0..WORD_SIZE\]
 
 mod utils;
 

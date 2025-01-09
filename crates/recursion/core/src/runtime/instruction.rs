@@ -4,7 +4,7 @@ use backtrace::Backtrace;
 use p3_field::{AbstractExtensionField, AbstractField};
 use serde::{Deserialize, Serialize};
 
-#[cfg(feature = "program_validation")]
+#[cfg(any(test, feature = "program_validation"))]
 use smallvec::SmallVec;
 
 use std::borrow::Borrow;
@@ -30,7 +30,7 @@ pub enum Instruction<F> {
 }
 
 impl<F: Copy> Instruction<F> {
-    #[cfg(feature = "program_validation")]
+    #[cfg(any(test, feature = "program_validation"))]
     #[allow(clippy::type_complexity)]
     #[must_use]
     pub(crate) fn io_addrs(&self) -> (SmallVec<[Address<F>; 4]>, SmallVec<[Address<F>; 4]>) {

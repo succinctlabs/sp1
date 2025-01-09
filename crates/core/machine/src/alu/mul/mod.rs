@@ -13,20 +13,20 @@
 //! for i in 0..8:
 //!     for j in 0..8:
 //!         if i + j < 8:
-//!             m[i + j] += b_64[i] * c_64[j]
+//!             m\[i + j\] += b_64\[i\] * c_64\[j\]
 //!
 //! # Propagate carry
 //! for i in 0..8:
-//!     x = m[i]
+//!     x = m\[i\]
 //!     if i > 0:
-//!         x += carry[i - 1]
-//!     carry[i] = x / 256
-//!     m[i] = x % 256
+//!         x += carry\[i - 1\]
+//!     carry\[i\] = x / 256
+//!     m\[i\] = x % 256
 //!
 //! if upper_half:
-//!     assert_eq(a, m[4..8])
+//!     assert_eq(a, m\[4..8\])
 //! if lower_half:
-//!     assert_eq(a, m[0..4])
+//!     assert_eq(a, m\[0..4\])
 
 mod utils;
 

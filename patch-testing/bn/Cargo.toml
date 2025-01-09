@@ -1,0 +1,19 @@
+[package]
+name = "bn"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+sp1-zkvm = { workspace = true }
+sp1-sdk = { workspace = true }
+rand = { workspace = true }
+sp1-test = { workspace = true }
+substrate-bn = "0.6.0"
+
+[features]
+prove = []
+gpu = ["sp1-sdk/cuda"]
+
+[build-dependencies]
+sp1-build = { workspace = true }

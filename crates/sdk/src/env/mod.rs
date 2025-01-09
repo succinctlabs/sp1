@@ -17,6 +17,7 @@ use super::{Prover, SP1VerificationError};
 use crate::cpu::execute::CpuExecuteBuilder;
 use crate::cpu::CpuProver;
 use crate::cuda::CudaProver;
+#[cfg(feature = "network")]
 use crate::network::builder::NetworkProverBuilder;
 use crate::{SP1ProofMode, SP1ProofWithPublicValues};
 
@@ -48,22 +49,14 @@ impl EnvProver {
             "mock" => Box::new(CpuProver::mock()),
             "cpu" => Box::new(CpuProver::new()),
             "cuda" => {
-                #[cfg(not(feature = "cuda"))]
-                panic!(
-                    "The CUDA prover requires the 'cuda' feature to be enabled. \
-                    Please enable it in your Cargo.toml with: \
-                    sp1-sdk = { version = \"...\", features = [\"cuda\"] }"
-                );
-
-                #[cfg(feature = "cuda")]
                 Box::new(CudaProver::new(SP1Prover::new()))
             }
             "network" => {
                 #[cfg(not(feature = "network"))]
                 panic!(
-                    "The network prover requires the 'network' feature to be enabled. \
-                    Please enable it in your Cargo.toml with: \
-                    sp1-sdk = { version = \"...\", features = [\"network\"] }"
+                    r#"The network prover requires the 'network' feature to be enabled.
+                    Please enable it in your Cargo.toml with:
+                    sp1-sdk = {{ version = "...", features = ["network"] }}"#
                 );
 
                 #[cfg(feature = "network")]

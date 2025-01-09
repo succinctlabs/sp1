@@ -30,6 +30,7 @@ use sp1_stark::air::{InteractionScope, MachineAir, SP1AirBuilder};
 use crate::{
     memory::{MemoryCols, MemoryWriteCols},
     operations::field::field_op::FieldOpCols,
+    operations::field::range::FieldLtCols,
     utils::limbs_from_prev_access,
 };
 
@@ -60,6 +61,8 @@ pub struct WeierstrassDoubleAssignCols<T, P: FieldParameters + NumWords> {
     pub(crate) p_x_minus_x: FieldOpCols<T, P>,
     pub(crate) y3_ins: FieldOpCols<T, P>,
     pub(crate) slope_times_p_x_minus_x: FieldOpCols<T, P>,
+    pub(crate) x3_range: FieldLtCols<T, P>,
+    pub(crate) y3_range: FieldLtCols<T, P>,
 }
 
 #[derive(Default)]
@@ -122,7 +125,14 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDoubleAssignChip<E> {
                 cols.slope_squared.populate(blu_events, &slope, &slope, FieldOperation::Mul);
             let p_x_plus_p_x =
                 cols.p_x_plus_p_x.populate(blu_events, &p_x, &p_x, FieldOperation::Add);
-            cols.x3_ins.populate(blu_events, &slope_squared, &p_x_plus_p_x, FieldOperation::Sub)
+            let x3 = cols.x3_ins.populate(
+                blu_events,
+                &slope_squared,
+                &p_x_plus_p_x,
+                FieldOperation::Sub,
+            );
+            cols.x3_range.populate(blu_events, &x3, &E::BaseField::modulus());
+            x3
         };
 
         // y = slope * (p.x - x) - p.y.
@@ -134,7 +144,13 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDoubleAssignChip<E> {
                 &p_x_minus_x,
                 FieldOperation::Mul,
             );
-            cols.y3_ins.populate(blu_events, &slope_times_p_x_minus_x, &p_y, FieldOperation::Sub);
+            let y3 = cols.y3_ins.populate(
+                blu_events,
+                &slope_times_p_x_minus_x,
+                &p_y,
+                FieldOperation::Sub,
+            );
+            cols.y3_range.populate(blu_events, &y3, &E::BaseField::modulus());
         }
     }
 }
@@ -408,6 +424,10 @@ where
                 local.is_real,
             );
         }
+
+        let modulus = E::BaseField::to_limbs_field::<AB::Expr, AB::F>(&E::BaseField::modulus());
+        local.x3_range.eval(builder, &local.x3_ins.result, &modulus, local.is_real);
+        local.y3_range.eval(builder, &local.y3_ins.result, &modulus, local.is_real);
 
         // Constraint self.p_access.value = [self.x3_ins.result, self.y3_ins.result]. This is to
         // ensure that p_access is updated with the new value.

@@ -13,6 +13,8 @@ on:
         description: "list of network workloads to run"
         required: true
   merge_group:
+  # pull_request:
+  #   branches: [ main ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-
@@ -20,11 +22,11 @@ concurrency:
 
 jobs:
   test-cpu:
-    if: ${{ fromJSON(github.event.inputs.cpu_workloads)[0] != null }}
+    if: ${{ github.event.inputs.cpu_workloads != null || github.event_name != 'workflow_dispatch' }}
     strategy:
       fail-fast: false
       matrix:
-        workload: ${{ fromJSON(github.event.inputs.cpu_workloads) }}
+        workload: ${{ github.event_name == 'workflow_dispatch' && fromJSON(github.event.inputs.cpu_workloads) || fromJSON('["fibonacci-17k", "ssz-withdrawals", "tendermint", "rsp-20526624", "rsa", "regex", "chess", "json", "blobstream-01j6z63fgafrc8jeh0k12gbtvw", "blobstream-01j6z95bdme9svevmfyc974bja", "blobstream-01j6z9ak0ke9srsppgywgke6fj", "vector-01j6xsv35re96tkgyda115320t", "vector-01j6xzy366ff5tbkzcrs8pma02", "vector-01j6y06de0fdaafemr8b1t69z3", "raiko-a7-10"]') }}
     name: ${{ matrix.workload }} (cpu)
     runs-on:
       [
@@ -33,12 +35,16 @@ jobs:
         "spot=false",
         "run-id=${{ github.run_id }}",
       ]
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
@@ -76,12 +82,14 @@ jobs:
           RUST_BACKTRACE: 1
 
   test-cuda:
-    if: ${{ fromJSON(github.event.inputs.cuda_workloads)[0] != null }}
+    if: ${{ github.event.inputs.cuda_workloads != null || github.event_name != 'workflow_dispatch' }}
     strategy:
       fail-fast: false
       matrix:
-        workload: ${{ fromJSON(github.event.inputs.cuda_workloads) }}
+        workload: ${{ github.event_name == 'workflow_dispatch' && fromJSON(github.event.inputs.cuda_workloads) || fromJSON('["fibonacci-17k", "ssz-withdrawals", "tendermint", "rsp-20526624", "rsa", "regex", "chess", "json", "blobstream-01j6z63fgafrc8jeh0k12gbtvw", "blobstream-01j6z95bdme9svevmfyc974bja", "blobstream-01j6z9ak0ke9srsppgywgke6fj", "vector-01j6xsv35re96tkgyda115320t", "vector-01j6xzy366ff5tbkzcrs8pma02", "vector-01j6y06de0fdaafemr8b1t69z3", "raiko-a7-10"]') }}
     name: ${{ matrix.workload }} (gpu)
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     runs-on:
       [
         "runs-on",
@@ -97,6 +105,8 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
@@ -148,12 +158,16 @@ jobs:
         "spot=false",
         "run-id=${{ github.run_id }}",
       ]
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
@@ -194,5 +208,10 @@ jobs:
           RUST_BACKTRACE: 1
           SP1_PROVER: network
           SP1_PRIVATE_KEY: ${{ secrets.SP1_PRIVATE_KEY }}
+<<<<<<< HEAD
           PROVER_NETWORK_RPC: "https://rpc-staging.succinct.xyz"
           
+=======
+          NETWORK_PRIVATE_KEY: ${{ secrets.NETWORK_PRIVATE_KEY }}
+          NETWORK_RPC_URL: "https://rpc.production2.succinct.tools" 
+>>>>>>> dev

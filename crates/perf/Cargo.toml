@@ -9,10 +9,11 @@ repository = { workspace = true }
 keywords = { workspace = true }
 categories = { workspace = true }
 default-run = "sp1-perf"
+publish = false
 
 [dependencies]
 sp1-prover = { workspace = true }
-sp1-core-executor = { workspace = true, features = ["programs"] }
+sp1-core-executor = { workspace = true }
 sp1-core-machine = { workspace = true }
 sp1-sdk = { workspace = true }
 p3-baby-bear = { workspace = true }

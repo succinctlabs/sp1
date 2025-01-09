@@ -32,7 +32,7 @@ use crate::{
     record::{ExecutionRecord, MemoryAccessRecord},
     report::ExecutionReport,
     state::{ExecutionState, ForkState},
-    subproof::{DefaultSubproofVerifier, SubproofVerifier},
+    subproof::SubproofVerifier,
     syscalls::{default_syscall_map, Syscall, SyscallCode, SyscallContext},
     CoreAirId, Instruction, MaximalShapes, Opcode, Program, Register, RiscvAirId,
 };
@@ -144,7 +144,7 @@ pub struct Executor<'a> {
     pub local_counts: LocalCounts,
 
     /// Verifier used to sanity check `verify_sp1_proof` during runtime.
-    pub subproof_verifier: Arc<dyn SubproofVerifier + 'a>,
+    pub subproof_verifier: Option<&'a dyn SubproofVerifier>,
 
     /// Registry of hooks, to be invoked by writing to certain file descriptors.
     pub hook_registry: HookRegistry<'a>,
@@ -298,8 +298,6 @@ impl<'a> Executor<'a> {
         let max_syscall_cycles =
             syscall_map.values().map(|syscall| syscall.num_extra_cycles()).max().unwrap_or(0);
 
-        let subproof_verifier =
-            context.subproof_verifier.unwrap_or_else(|| Arc::new(DefaultSubproofVerifier::new()));
         let hook_registry = context.hook_registry.unwrap_or_default();
 
         let costs: HashMap<String, usize> =
@@ -328,7 +326,7 @@ impl<'a> Executor<'a> {
             report: ExecutionReport::default(),
             local_counts: LocalCounts::default(),
             print_report: false,
-            subproof_verifier,
+            subproof_verifier: context.subproof_verifier,
             hook_registry,
             opts,
             max_cycles: context.max_cycles,
@@ -2013,7 +2011,8 @@ impl<'a> Executor<'a> {
         many proofs in or forget to call verify_sp1_proof?"
             );
         }
-        if self.state.input_stream_ptr != self.state.input_stream.len() {
+
+        if !self.state.input_stream.is_empty() {
             tracing::warn!("Not all input bytes were read.");
         }
 
@@ -2023,6 +2022,7 @@ impl<'a> Executor<'a> {
         {
             // SECTION: Set up all MemoryInitializeFinalizeEvents needed for memory argument.
             let memory_finalize_events = &mut self.record.global_memory_finalize_events;
+            memory_finalize_events.reserve_exact(self.state.memory.page_table.estimate_len() + 32);
 
             // We handle the addr = 0 case separately, as we constrain it to be 0 in the first row
             // of the memory finalize table so it must be first in the array of events.
@@ -2036,6 +2036,8 @@ impl<'a> Executor<'a> {
                 .push(MemoryInitializeFinalizeEvent::finalize_from_record(0, addr_0_final_record));
 
             let memory_initialize_events = &mut self.record.global_memory_initialize_events;
+            memory_initialize_events
+                .reserve_exact(self.state.memory.page_table.estimate_len() + 32);
             let addr_0_initialize_event =
                 MemoryInitializeFinalizeEvent::initialize(0, 0, addr_0_record.is_some());
             memory_initialize_events.push(addr_0_initialize_event);

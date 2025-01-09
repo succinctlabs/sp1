@@ -13,7 +13,11 @@ the size of the execution. Use this in settings where you don't care about **ver
 
 ```rust,noplayground
 let client = ProverClient::from_env();
+<<<<<<< HEAD
 client.prove(&pk, stdin).run().unwrap();
+=======
+client.prove(&pk, &stdin).run().unwrap();
+>>>>>>> dev
 ```
 
 ## Compressed
@@ -23,7 +27,11 @@ care about **verification cost / proof size**, but not onchain verification. Com
 
 ```rust,noplayground
 let client = ProverClient::from_env();
+<<<<<<< HEAD
 client.prove(&pk, stdin).compressed().run().unwrap();
+=======
+client.prove(&pk, &stdin).compressed().run().unwrap();
+>>>>>>> dev
 ```
 
 ## Groth16 (Recommended)
@@ -34,7 +42,11 @@ The trusted setup for the Groth16 circuit keys uses the [Aztec Ignition ceremony
 
 ```rust,noplayground
 let client = ProverClient::from_env();
+<<<<<<< HEAD
 client.prove(&pk, stdin).groth16().run().unwrap();
+=======
+client.prove(&pk, &stdin).groth16().run().unwrap();
+>>>>>>> dev
 ```
 
 ## PLONK
@@ -45,5 +57,9 @@ PLONK does not require a trusted setup and reuses contributions from the Aztec I
 
 ```rust,noplayground
 let client = ProverClient::from_env();
+<<<<<<< HEAD
 client.prove(&pk, stdin).plonk().run().unwrap();
+=======
+client.prove(&pk, &stdin).plonk().run().unwrap();
+>>>>>>> dev
 ```

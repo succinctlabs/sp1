@@ -1,0 +1,13 @@
+[package]
+name = "sp1-test-macro"
+version = "0.0.1"
+description = "The SP1 test macro creates new rust tests for each proof type and prover type."
+edition = "2021"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1.0.92"
+quote = "1.0.37"
+syn = { version = "2.0", features = ["printing"] }

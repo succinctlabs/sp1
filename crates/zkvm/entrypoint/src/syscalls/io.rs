@@ -3,6 +3,7 @@ cfg_if::cfg_if! {
         use core::arch::asm;
         use crate::zkvm;
         use sha2::digest::Update;
+        use sp1_primitives::consts::fd::FD_PUBLIC_VALUES;
     }
 }
 
@@ -12,7 +13,6 @@ cfg_if::cfg_if! {
 pub extern "C" fn syscall_write(fd: u32, write_buf: *const u8, nbytes: usize) {
     cfg_if::cfg_if! {
         if #[cfg(target_os = "zkvm")] {
-            const FD_PUBLIC_VALUES: u32 = 3;
             unsafe {
                 asm!(
                     "ecall",

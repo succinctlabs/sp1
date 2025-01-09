@@ -87,10 +87,10 @@ impl<F: Field> RecursionProgram<F> {
     }
 }
 
-#[cfg(feature = "program_validation")]
+#[cfg(any(test, feature = "program_validation"))]
 pub use validation::*;
 
-#[cfg(feature = "program_validation")]
+#[cfg(any(test, feature = "program_validation"))]
 mod validation {
     use super::*;
 

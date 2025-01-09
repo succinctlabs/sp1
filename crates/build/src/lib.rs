@@ -6,9 +6,8 @@ pub use build::{execute_build_program, generate_elf_paths};
 
 use clap::Parser;
 
+const SP1_CIRCUIT_VERSION: &str = include_str!("SP1_VERSION");
 const BUILD_TARGET: &str = "riscv32im-succinct-zkvm-elf";
-const DEFAULT_TAG: &str = "latest";
-const DEFAULT_OUTPUT_DIR: &str = "elf";
 const HELPER_TARGET_SUBDIR: &str = "elf-compilation";
 
 /// Compile an SP1 program.
@@ -27,7 +26,7 @@ pub struct BuildArgs {
     #[clap(
         long,
         help = "The ghcr.io/succinctlabs/sp1 image tag to use when building with Docker.",
-        default_value = DEFAULT_TAG
+        default_value = SP1_CIRCUIT_VERSION
     )]
     pub tag: String,
     #[clap(
@@ -66,16 +65,10 @@ pub struct BuildArgs {
         num_args = 1..
     )]
     pub binaries: Vec<String>,
-    #[clap(long, action, help = "ELF binary name", default_value = "")]
-    pub elf_name: String,
-    #[clap(
-        alias = "out-dir",
-        long,
-        action,
-        help = "Copy the compiled ELF to this directory",
-        default_value = DEFAULT_OUTPUT_DIR
-    )]
-    pub output_directory: String,
+    #[clap(long, action, help = "ELF binary name")]
+    pub elf_name: Option<String>,
+    #[clap(alias = "out-dir", long, action, help = "Copy the compiled ELF to this directory")]
+    pub output_directory: Option<String>,
 }
 
 // Implement default args to match clap defaults.
@@ -83,14 +76,14 @@ impl Default for BuildArgs {
     fn default() -> Self {
         Self {
             docker: false,
-            tag: DEFAULT_TAG.to_string(),
+            tag: SP1_CIRCUIT_VERSION.to_string(),
             features: vec![],
             rustflags: vec![],
             ignore_rust_version: false,
             packages: vec![],
             binaries: vec![],
-            elf_name: "".to_string(),
-            output_directory: DEFAULT_OUTPUT_DIR.to_string(),
+            elf_name: None,
+            output_directory: None,
             locked: false,
             no_default_features: false,
         }

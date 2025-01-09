@@ -4,6 +4,9 @@ pub struct CreateArtifactRequest {
     /// The signature of the user on a pre-defined message. Used for authentication.
     #[prost(bytes = "vec", tag = "1")]
     pub signature: ::prost::alloc::vec::Vec<u8>,
+    /// The type of artifact to create.
+    #[prost(enumeration = "ArtifactType", tag = "2")]
+    pub artifact_type: i32,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct CreateArtifactResponse {
@@ -14,11 +17,60 @@ pub struct CreateArtifactResponse {
     #[prost(string, tag = "2")]
     pub artifact_presigned_url: ::prost::alloc::string::String,
 }
+#[derive(
+    serde::Serialize,
+    serde::Deserialize,
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    ::prost::Enumeration,
+)]
+#[repr(i32)]
+pub enum ArtifactType {
+    UnspecifiedArtifactType = 0,
+    /// A program artifact.
+    Program = 1,
+    /// A stdin artifact.
+    Stdin = 2,
+    /// A proof artifact.
+    Proof = 3,
+}
+impl ArtifactType {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::UnspecifiedArtifactType => "UNSPECIFIED_ARTIFACT_TYPE",
+            Self::Program => "PROGRAM",
+            Self::Stdin => "STDIN",
+            Self::Proof => "PROOF",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "UNSPECIFIED_ARTIFACT_TYPE" => Some(Self::UnspecifiedArtifactType),
+            "PROGRAM" => Some(Self::Program),
+            "STDIN" => Some(Self::Stdin),
+            "PROOF" => Some(Self::Proof),
+            _ => None,
+        }
+    }
+}
 /// Generated client implementations.
 pub mod artifact_store_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
     use tonic::codegen::http::Uri;
-    use tonic::codegen::{Body, Bytes, CompressionEncoding, GrpcMethod, InterceptedService, StdError, http};
+    use tonic::codegen::{
+        http, Body, Bytes, CompressionEncoding, GrpcMethod, InterceptedService, StdError,
+    };
     #[derive(Debug, Clone)]
     pub struct ArtifactStoreClient<T> {
         inner: tonic::client::Grpc<T>,
@@ -123,7 +175,10 @@ pub mod artifact_store_client {
 /// Generated server implementations.
 pub mod artifact_store_server {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
-    use tonic::codegen::{Arc, Body, BoxFuture, CompressionEncoding, Context, EnabledCompressionEncodings, InterceptedService, Poll, StdError, async_trait, empty_body, http};
+    use tonic::codegen::{
+        async_trait, empty_body, http, Arc, Body, BoxFuture, CompressionEncoding, Context,
+        EnabledCompressionEncodings, InterceptedService, Poll, StdError,
+    };
     /// Generated trait containing gRPC methods that should be implemented for use with ArtifactStoreServer.
     #[async_trait]
     pub trait ArtifactStore: std::marker::Send + std::marker::Sync + 'static {

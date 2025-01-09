@@ -1,0 +1,19 @@
+[package]
+name = "build-host"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+sha2-v0-10-6-patched = { workspace = true }
+sha2-v0-10-8-patched = { workspace = true }
+sha3-v0-10-8-patched = { workspace = true }
+crypto-bigint-patched = { workspace = true }
+tiny-keccak-patched = { workspace = true }
+curve25519-dalek-patched = { workspace = true }
+curve25519-dalek-ng-patched = { workspace = true }
+ecdsa-core-patched = { workspace = true }
+secp256k1-patched = { workspace = true }
+substrate-bn-patched = { workspace = true }
+bls12_381-patched = { workspace = true }
+rsa-patched = { workspace = true }
