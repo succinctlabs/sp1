@@ -137,7 +137,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
     ///
     /// This method verifies that the inputted is less than 2^24 by doing a 16 bit and 8 bit range
     /// check on it's limbs.  It will also verify that the limbs are correct.  This method is needed
-    /// since the memory access timestamp check (see [Self::verify_mem_access_ts]) needs to assume
+    /// since the memory access timestamp check (see [Self::eval_memory_access_timestamp]) needs to assume
     /// the clk is within 24 bits.
     fn eval_range_check_24bits(
         &mut self,

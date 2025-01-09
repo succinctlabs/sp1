@@ -1,5 +1,5 @@
 fn main() {
-    #[cfg(feature = "sys")]
+    #[cfg(all(feature = "sys", not(docsrs)))]
     sys::build_ffi();
 }
 

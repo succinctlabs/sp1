@@ -78,7 +78,7 @@ pub struct MemoryInstructionsColumns<T> {
     pub most_sig_bit: T,
 
     /// The most significant byte of `unsigned_mem_val`.  This is relevant for LB and LH instructions.
-    /// For LB this is equal to unsigned_mem_val[0] and for LH this is equal to unsigned_mem_val[1].
+    /// For LB this is equal to unsigned_mem_val\[0\] and for LH this is equal to unsigned_mem_val\[1\].
     pub most_sig_byte: T,
 
     /// Flag for load memory instructions that contains bool value of

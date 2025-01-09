@@ -21,9 +21,9 @@
 //! # "Byte shift"
 //! for i in range(WORD_SIZE):
 //!     if i < num_bytes_to_shift:
-//!         assert(a[i] == 0)
+//!         assert(a\[i\] == 0)
 //!     else:
-//!         assert(a[i] == bit_shift_result[i - num_bytes_to_shift])
+//!         assert(a\[i\] == bit_shift_result\[i - num_bytes_to_shift\])
 //!
 //! Notes:
 //!
