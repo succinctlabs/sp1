@@ -1,17 +1,31 @@
+//! # Network Utils
+//!
+//! This module provides utility functions for the network module.
+
+#![allow(deprecated)]
+
+use alloy_signer::{Signature, SignerSync};
 use prost::Message;
-#[allow(unused_imports)]
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use thiserror::Error;
 
-/// Errors that can occur during JSON formatting.
+pub(crate) trait Signable: Message {
+    fn sign<S: SignerSync>(&self, signer: &S) -> Signature;
+}
+
+impl<T: Message> Signable for T {
+    fn sign<S: SignerSync>(&self, signer: &S) -> Signature {
+        signer.sign_message_sync(&self.encode_to_vec()).unwrap()
+    }
+}
+
 #[derive(Error, Debug)]
-pub enum JsonFormatError {
+pub(crate) enum JsonFormatError {
     #[error("Serialization error: {0}")]
     SerializationError(String),
 }
 
-/// Formats a Protobuf body into a JSON byte representation.
-pub fn format_json_message<T>(body: &T) -> Result<Vec<u8>, JsonFormatError>
+pub(crate) fn format_json_message<T>(body: &T) -> Result<Vec<u8>, JsonFormatError>
 where
     T: Message + Serialize,
 {
@@ -33,6 +47,7 @@ where
 mod tests {
     use super::*;
     use prost::Message as ProstMessage;
+    use serde::{Deserialize, Serialize};
 
     // Test message for JSON formatting.
     #[derive(Clone, ProstMessage, Serialize, Deserialize)]

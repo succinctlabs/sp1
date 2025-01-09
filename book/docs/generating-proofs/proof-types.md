@@ -11,8 +11,8 @@ For a full list of options, see the following [docs](https://docs.rs/sp1-sdk/lat
 The default prover mode generates a list of STARK proofs that in aggregate have size proportional to
 the size of the execution. Use this in settings where you don't care about **verification cost / proof size**.
 
-```rust
-let client = ProverClient::new();
+```rust,noplayground
+let client = ProverClient::from_env();
 client.prove(&pk, stdin).run().unwrap();
 ```
 
@@ -21,19 +21,19 @@ client.prove(&pk, stdin).run().unwrap();
 The compressed prover mode generates STARK proofs that have constant size. Use this in settings where you
 care about **verification cost / proof size**, but not onchain verification. Compressed proofs are also useful because they can be cheaply recursively verified within SP1 itself (see the [proof aggregation](../writing-programs/proof-aggregation.md) section).
 
-```rust
-let client = ProverClient::new();
+```rust,noplayground
+let client = ProverClient::from_env();
 client.prove(&pk, stdin).compressed().run().unwrap();
 ```
 
 ## Groth16 (Recommended)
 
-The Groth16 prover mode generates a SNARK proof that is ~260 bytes large and can be verified onchain for around ~270k gas. 
+The Groth16 prover mode generates a SNARK proof that is ~260 bytes large and can be verified onchain for around ~270k gas.
 
 The trusted setup for the Groth16 circuit keys uses the [Aztec Ignition ceremony](https://github.com/AztecProtocol/ignition-verification) + entropy contributions from members of the Succinct team. If you are uncomfortable with the security assumptions of the ceremony, you can use the PLONK proof type instead.
 
-```rust
-let client = ProverClient::new();
+```rust,noplayground
+let client = ProverClient::from_env();
 client.prove(&pk, stdin).groth16().run().unwrap();
 ```
 
@@ -43,7 +43,7 @@ The PLONK prover mode generates a SNARK proof that is ~868 bytes large and can a
 
 PLONK does not require a trusted setup and reuses contributions from the Aztec Ignition ceremony.
 
-```rust
-let client = ProverClient::new();
+```rust,noplayground
+let client = ProverClient::from_env();
 client.prove(&pk, stdin).plonk().run().unwrap();
 ```

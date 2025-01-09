@@ -8,8 +8,8 @@ pub fn main() {
 
     let stdin = SP1Stdin::new();
 
-    let client = ProverClient::new();
-    let (_, report) = client.execute(PATCH_TEST_ELF, stdin).run().expect("executing failed");
+    let client = ProverClient::from_env();
+    let (_, report) = client.execute(PATCH_TEST_ELF, &stdin).run().expect("executing failed");
 
     // Confirm there was at least 1 SHA_COMPUTE syscall.
     assert_ne!(report.syscall_counts[sp1_core_executor::syscalls::SyscallCode::SHA_COMPRESS], 0);

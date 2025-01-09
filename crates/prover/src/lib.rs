@@ -740,13 +740,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
             // Wait for all the provers to finish.
             drop(input_tx);
-            tracing::info!("dropped input_tx");
-
             drop(record_and_trace_tx);
-            tracing::info!("dropped record_and_trace_tx");
-
             drop(proofs_tx);
-            tracing::info!("dropped proofs_tx");
 
             for handle in prover_handles {
                 handle.join().unwrap();
@@ -1618,7 +1613,6 @@ pub mod tests {
         // docker image which has a different API than the current. So we need to wait until the
         // next release (v1.2.0+), and then switch it back.
         let prover = SP1Prover::<CpuProverComponents>::new();
-
         test_e2e_prover::<CpuProverComponents>(&prover, elf, SP1Stdin::default(), opts, Test::All)
     }
 

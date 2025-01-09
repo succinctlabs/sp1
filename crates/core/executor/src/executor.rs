@@ -1,4 +1,6 @@
-use std::{fs::File, io::BufWriter, str::FromStr, sync::Arc};
+#[cfg(feature = "profiling")]
+use std::{fs::File, io::BufWriter};
+use std::{str::FromStr, sync::Arc};
 
 #[cfg(feature = "profiling")]
 use crate::profiler::Profiler;

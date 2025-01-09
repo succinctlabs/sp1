@@ -1,12 +1,12 @@
 use std::str::FromStr;
 
-use curve25519_dalek::edwards::CompressedEdwardsY;
 use generic_array::GenericArray;
 use num::{BigUint, Num, One};
 use serde::{Deserialize, Serialize};
 use typenum::{U32, U62};
 
 use crate::{
+    curve25519_dalek::CompressedEdwardsY,
     edwards::{EdwardsCurve, EdwardsParameters},
     params::{FieldParameters, NumLimbs},
     AffinePoint, CurveType, EllipticCurveParameters,

@@ -56,7 +56,7 @@ jobs:
         with:
           command: test
           toolchain: 1.81.0
-          args: --release --features native-gnark --no-fail-fast # TODO remove when CI checks always pass
+          args: --release --features native-gnark --workspace --exclude sp1-verifier
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
@@ -100,11 +100,54 @@ jobs:
         with:
           command: test
           toolchain: 1.81.0
-          args: --release --features native-gnark --no-fail-fast # TODO remove when CI checks always pass
+          args: --release --features native-gnark --workspace --exclude sp1-verifier
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
           SP1_DEV: 1
+
+  test-verifier:
+    name: Test Verifier Crate
+    runs-on:
+      [
+        runs-on,
+        runner=64cpu-linux-arm64,
+        spot=false,
+        disk=large,
+        "run-id=${{ github.run_id }}",
+      ]
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+
+      - name: Install SP1 toolchain from repo
+        run: |
+          cargo run -p sp1-cli -- prove install-toolchain
+          cd crates/cli
+          cargo install --locked --force --path .
+          cargo clean
+
+      - name: Run cargo check
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          toolchain: 1.81.0
+          args: --all-targets --all-features
+
+      - name: Run cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          toolchain: 1.81.0
+          args: --release --package sp1-verifier
+        env:
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
+          RUST_BACKTRACE: 1
 
   lint:
     name: Formatting & Clippy
