@@ -1146,11 +1146,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         batch_size: usize,
     ) -> (Vec<SP1DeferredWitnessValues<InnerSC>>, [BabyBear; 8]) {
         // Prepare the inputs for the deferred proofs recursive verification.
-<<<<<<< HEAD
-        let mut deferred_digest = [Val::<InnerSC>::zero(); DIGEST_SIZE];
-=======
         let mut deferred_digest = [Val::<CoreSC>::zero(); DIGEST_SIZE];
->>>>>>> dev
         let mut deferred_inputs = Vec::new();
 
         for batch in deferred_proofs.chunks(batch_size) {
@@ -1317,11 +1313,7 @@ pub fn compress_program_from_input<C: SP1ProverComponents>(
     program
 }
 
-<<<<<<< HEAD
-#[cfg(any(test, feature = "export-tests"))]
-=======
 #[cfg(test)]
->>>>>>> dev
 pub mod tests {
 
     use std::{

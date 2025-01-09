@@ -24,7 +24,10 @@ care about **verification cost / proof size**, but not onchain verification. Com
 ```rust,noplayground
 let client = ProverClient::from_env();
 client.prove(&pk, &stdin).compressed().run().unwrap();
+```
+
 ## Groth16 (Recommended)
+
 The Groth16 prover mode generates a SNARK proof that is ~260 bytes large and can be verified onchain for around ~270k gas.
 
 The trusted setup for the Groth16 circuit keys uses the [Aztec Ignition ceremony](https://github.com/AztecProtocol/ignition-verification) + entropy contributions from members of the Succinct team. If you are uncomfortable with the security assumptions of the ceremony, you can use the PLONK proof type instead.

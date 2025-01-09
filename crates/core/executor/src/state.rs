@@ -75,12 +75,7 @@ impl ExecutionState {
             pc: pc_start,
             memory: Memory::new_preallocated(),
             uninitialized_memory: Memory::new_preallocated(),
-<<<<<<< HEAD
-            input_stream: Vec::new(),
-            input_stream_ptr: 0,
-=======
             input_stream: VecDeque::new(),
->>>>>>> dev
             public_values_stream: Vec::new(),
             public_values_stream_ptr: 0,
             proof_stream: Vec::new(),
