@@ -18,12 +18,10 @@ use crate::{
 };
 use alloy_primitives::B256;
 use anyhow::Result;
-use backoff::{future::retry, Error as BackoffError, ExponentialBackoff};
 use serde::de::DeserializeOwned;
 use sp1_core_executor::{SP1Context, SP1ContextBuilder};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{components::CpuProverComponents, SP1Prover, SP1_CIRCUIT_VERSION};
-use tonic::Code;
 
 use {crate::utils::block_on, tokio::time::sleep};
 
@@ -156,7 +154,7 @@ impl NetworkProver {
         &self,
         request_id: B256,
     ) -> Result<(GetProofRequestStatusResponse, Option<SP1ProofWithPublicValues>)> {
-        self.client.get_proof_request_status(request_id).await
+        self.client.get_proof_request_status(request_id, None).await
     }
 
     /// Requests a proof from the prover network, returning the request ID.
@@ -187,25 +185,19 @@ impl NetworkProver {
         log::info!("├─ Timeout: {} seconds", timeout_secs);
         log::info!("└─ Circuit version: {}", SP1_CIRCUIT_VERSION);
 
-        // Request the proof with retries.
-        let response = with_retry(
-            || async {
-                self.client
-                    .request_proof(
-                        vk_hash,
-                        stdin,
-                        mode,
-                        SP1_CIRCUIT_VERSION,
-                        strategy,
-                        timeout_secs,
-                        cycle_limit,
-                    )
-                    .await
-            },
-            timeout,
-            "requesting proof",
-        )
-        .await?;
+        // Request the proof.
+        let response = self
+            .client
+            .request_proof(
+                vk_hash,
+                stdin,
+                mode,
+                SP1_CIRCUIT_VERSION,
+                strategy,
+                timeout_secs,
+                cycle_limit,
+            )
+            .await?;
 
         // Log the request ID and transaction hash.
         let tx_hash = B256::from_slice(&response.tx_hash);
@@ -248,13 +240,9 @@ impl NetworkProver {
                 }
             });
 
-            // Get the status with retries.
-            let (status, maybe_proof) = with_retry(
-                || async { self.client.get_proof_request_status(request_id).await },
-                remaining_timeout,
-                "getting proof request status",
-            )
-            .await?;
+            // Get the status.
+            let (status, maybe_proof) =
+                self.client.get_proof_request_status(request_id, remaining_timeout).await?;
 
             // Check the deadline.
             if status.deadline < Instant::now().elapsed().as_secs() {
@@ -381,82 +369,4 @@ impl From<SP1ProofMode> for ProofMode {
             SP1ProofMode::Groth16 => Self::Groth16,
         }
     }
-}
-
-/// Execute an async operation with exponential backoff retries.
-pub async fn with_retry<T, F, Fut>(
-    operation: F,
-    timeout: Option<Duration>,
-    operation_name: &str,
-) -> Result<T>
-where
-    F: Fn() -> Fut,
-    Fut: std::future::Future<Output = Result<T>>,
-{
-    let backoff = ExponentialBackoff {
-        initial_interval: Duration::from_secs(1),
-        max_interval: Duration::from_secs(120),
-        max_elapsed_time: timeout,
-        ..Default::default()
-    };
-
-    retry(backoff, || async {
-        match operation().await {
-            Ok(result) => Ok(result),
-            Err(e) => {
-                // Check for tonic status errors.
-                if let Some(status) = e.downcast_ref::<tonic::Status>() {
-                    match status.code() {
-                        Code::Unavailable => {
-                            log::warn!(
-                                "Network temporarily unavailable when {} due to {}, retrying...",
-                                operation_name,
-                                status.message(),
-                            );
-                            Err(BackoffError::transient(e))
-                        }
-                        Code::NotFound => {
-                            log::error!(
-                                "{} not found due to {}",
-                                operation_name,
-                                status.message(),
-                            );
-                            Err(BackoffError::permanent(e))
-                        }
-                        _ => {
-                            log::error!(
-                                "Permanent error encountered when {}: {} ({})",
-                                operation_name,
-                                status.message(),
-                                status.code()
-                            );
-                            Err(BackoffError::permanent(e))
-                        }
-                    }
-                } else {
-                    // Check for common transport errors.
-                    let error_msg = e.to_string().to_lowercase();
-                    let is_transient = error_msg.contains("tls handshake") ||
-                        error_msg.contains("dns error") ||
-                        error_msg.contains("connection reset") ||
-                        error_msg.contains("broken pipe") ||
-                        error_msg.contains("transport error") ||
-                        error_msg.contains("failed to lookup");
-
-                    if is_transient {
-                        log::warn!(
-                            "Transient transport error when {}: {}, retrying...",
-                            operation_name,
-                            error_msg
-                        );
-                        Err(BackoffError::transient(e))
-                    } else {
-                        log::error!("Permanent error when {}: {}", operation_name, error_msg);
-                        Err(BackoffError::permanent(e))
-                    }
-                }
-            }
-        }
-    })
-    .await
 }
