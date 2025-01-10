@@ -54,7 +54,7 @@ println!("Proof request ID: {}", request_id);
 // Wait for proof complete with a timeout
 let proof = prover.wait_proof(request_id, Some(Duration::from_secs(60 * 60))).await.unwrap();
 
-// Request a proof with reserved prover network capacity
+// Request a proof with reserved prover network capacity and wait for it to be fulfilled
 let proof = prover
     .prove(&pk, &stdin)
     .groth16()
@@ -64,12 +64,13 @@ let proof = prover
     .await
     .unwrap();
 
-// Request a proof and then block immediately until the proof is fulfilled
+// Request a proof and then block immediately (up to a timeout) until the proof is fulfilled
 let proof = prover
     .prove(&pk, &stdin)
     .groth16()
     .skip_simulation(true)
     .fulfillment_strategy(FulfillmentStrategy::Reserved)
+    .timeout(Duration::from_secs(60 * 60))
     .run()
     .unwrap();
 ```
