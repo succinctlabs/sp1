@@ -4,8 +4,8 @@ use tonic::transport::{ClientTlsConfig, Endpoint, Error};
 /// Configures the endpoint for the gRPC client.
 ///
 /// Sets reasonable settings to handle timeouts and keep-alive.
-pub fn configure_endpoint(addr: String) -> Result<Endpoint, Error> {
-    let mut endpoint = Endpoint::new(addr.clone())?
+pub fn configure_endpoint(addr: &str) -> Result<Endpoint, Error> {
+    let mut endpoint = Endpoint::new(addr.to_string())?
         .timeout(Duration::from_secs(60))
         .connect_timeout(Duration::from_secs(15))
         .keep_alive_while_idle(true)
