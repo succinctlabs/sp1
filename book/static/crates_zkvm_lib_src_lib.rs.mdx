@@ -3,6 +3,11 @@
 //!
 //! Documentation for these syscalls can be found in the zkVM entrypoint
 //! `sp1_zkvm::syscalls` module.
+//!
+//! # Safety
+//! All syscalls in this module are unsafe and require careful handling of pointers
+//! and memory management. Users must ensure that all provided pointers are valid
+//! and properly aligned.
 
 pub mod bls12381;
 pub mod bn254;
@@ -62,9 +67,28 @@ extern "C" {
     pub fn syscall_bn254_double(p: *mut [u32; 16]);
 
     /// Executes a BLS12-381 curve addition on the given points.
+    ///
+    /// # Parameters
+    /// * `p` - Mutable pointer to the first point, represented as 24 u32 words.
+    ///         The result of addition will be stored here.
+    /// * `q` - Constant pointer to the second point, represented as 24 u32 words.
+    ///
+    /// # Safety
+    /// - Both pointers must be valid and properly aligned
+    /// - Points must be valid BLS12-381 curve points in projective coordinates
+    /// - The arrays must contain exactly 24 u32 elements each
     pub fn syscall_bls12381_add(p: *mut [u32; 24], q: *const [u32; 24]);
 
     /// Executes a BLS12-381 curve doubling on the given point.
+    ///
+    /// # Parameters
+    /// * `p` - Mutable pointer to the point to be doubled, represented as 24 u32 words.
+    ///         The result will be stored in the same location.
+    ///
+    /// # Safety
+    /// - The pointer must be valid and properly aligned
+    /// - The point must be a valid BLS12-381 curve point in projective coordinates
+    /// - The array must contain exactly 24 u32 elements
     pub fn syscall_bls12381_double(p: *mut [u32; 24]);
 
     /// Executes the Keccak-256 permutation on the given state.
@@ -99,6 +123,15 @@ extern "C" {
     pub fn sys_alloc_aligned(bytes: usize, align: usize) -> *mut u8;
 
     /// Decompresses a BLS12-381 point.
+    ///
+    /// # Parameters
+    /// * `point` - Mutable reference to a 96-byte array containing the compressed point.
+    ///            Will be overwritten with the decompressed coordinates.
+    /// * `is_odd` - Boolean indicating the sign of the y-coordinate.
+    ///
+    /// # Safety
+    /// - The point array must be valid and contain 96 bytes
+    /// - The input must be a valid compressed BLS12-381 point
     pub fn syscall_bls12381_decompress(point: &mut [u8; 96], is_odd: bool);
 
     /// Computes a big integer operation with a modulus.
@@ -111,6 +144,14 @@ extern "C" {
     );
 
     /// Executes a BLS12-381 field addition on the given inputs.
+    ///
+    /// # Parameters
+    /// * `p` - Mutable pointer to the first field element. Result is stored here.
+    /// * `q` - Constant pointer to the second field element.
+    ///
+    /// # Safety
+    /// - Both pointers must be valid and properly aligned
+    /// - Values must be valid Fp field elements
     pub fn syscall_bls12381_fp_addmod(p: *mut u32, q: *const u32);
 
     /// Executes a BLS12-381 field subtraction on the given inputs.
