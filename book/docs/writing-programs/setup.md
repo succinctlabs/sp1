@@ -32,7 +32,7 @@ name = "program"
 edition = "2021"
 
 [dependencies]
-sp1-zkvm = "3.0.0"
+sp1-zkvm = "4.0.0-rc.8"
 ```
 
 The `sp1-zkvm` crate includes necessary utilities for your program, including handling inputs and outputs,
