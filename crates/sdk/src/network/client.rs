@@ -259,7 +259,7 @@ impl NetworkClient {
     }
 
     pub(crate) async fn prover_network_client(&self) -> Result<ProverNetworkClient<Channel>> {
-        let channel = grpc::configure_endpoint(self.rpc_url.clone())?.connect().await?;
+        let channel = grpc::configure_endpoint(&self.rpc_url)?.connect().await?;
         Ok(ProverNetworkClient::new(channel))
     }
 
