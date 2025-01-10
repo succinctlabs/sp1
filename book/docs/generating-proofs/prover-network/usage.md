@@ -17,7 +17,7 @@ let mut proof = client.prove(&pk, &stdin).run().unwrap();
 SP1_PROVER=network NETWORK_PRIVATE_KEY=... RUST_LOG=info cargo run --release
 ```
 
-- `SP1_PROVER` should be set to `network` when using the prover network.
+- `SP1_PROVER` should be set to `network` rather than the default `cpu` when using the prover network. This variable allows you to switch between the CPU and network provers.
 
 - `NETWORK_PRIVATE_KEY` should be set to your [private key](./key-setup.md). You will need
   to be using a [whitelisted](../prover-network) key to use the network.
