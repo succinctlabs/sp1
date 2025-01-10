@@ -43,14 +43,14 @@ CUDA_WORKLOADS=(
 
 # Define the list of network workloads.
 NETWORK_WORKLOADS=(
-    # "fibonacci-17k"
-    # "ssz-withdrawals"
-    # "tendermint"
-    # "rsp-20526624"
-    # "rsa"
-    # "regex"
-    # "chess"
-    # "json"
+    "fibonacci-17k"
+    "ssz-withdrawals"
+    "tendermint"
+    "rsp-20526624"
+    "rsa"
+    "regex"
+    "chess"
+    "json"
     # "blobstream-01j6z63fgafrc8jeh0k12gbtvw"
     # "blobstream-01j6z95bdme9svevmfyc974bja"
     # "blobstream-01j6z9ak0ke9srsppgywgke6fj"
