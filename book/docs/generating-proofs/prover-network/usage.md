@@ -32,7 +32,13 @@ You can view your proof and other running proofs on the [explorer](https://netwo
 
 ## Advanced Usage
 
-If you are using the prover network in a production system, or otherwise want to use advanced features such as async, skipping local simulation, or accessing the proof ID, you should use `sp1_sdk::NetworkProver` directly.
+If you are using the prover network in a production system, or otherwise want to use advanced features, you should use `sp1_sdk::NetworkProver` directly.
+
+Advanced features include:
+* Skipping local simulation
+* Requesting a proof, which returns a proof ID, and then waiting for the proof to be fulfilled
+* Async support
+* Requesting a proof using a custom fulfillment strategy, such as for reserved prover network capacity
 
 ```rust,no_run
 use sp1_sdk::{network::FulfillmentStrategy, Prover, ProverClient};
@@ -41,10 +47,29 @@ use std::time::Duration;
 let prover = ProverClient::builder().network().build();
 let (pk, vk) = prover.setup(ELF);
 
-// Request proof
+// Request proof and get the proof ID immediately
 let request_id = prover.prove(&pk, &stdin).groth16().skip_simulation(true).request_async().await.unwrap();
 println!("Proof request ID: {}", request_id);
 
 // Wait for proof complete with a timeout
 let proof = prover.wait_proof(request_id, Some(Duration::from_secs(60 * 60))).await.unwrap();
+
+// Request a proof with reserved prover network capacity
+let proof = prover
+    .prove(&pk, &stdin)
+    .groth16()
+    .skip_simulation(true)
+    .fulfillment_strategy(FulfillmentStrategy::Reserved)
+    .run_async()
+    .await
+    .unwrap();
+
+// Request a proof and then block immediately until the proof is fulfilled
+let proof = prover
+    .prove(&pk, &stdin)
+    .groth16()
+    .skip_simulation(true)
+    .fulfillment_strategy(FulfillmentStrategy::Reserved)
+    .run()
+    .unwrap();
 ```

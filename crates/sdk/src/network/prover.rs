@@ -19,7 +19,6 @@ use crate::{
 use alloy_primitives::B256;
 use anyhow::Result;
 use backoff::{future::retry, Error as BackoffError, ExponentialBackoff};
-use serde::de::DeserializeOwned;
 use sp1_core_executor::{SP1Context, SP1ContextBuilder};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{components::CpuProverComponents, SP1Prover, SP1_CIRCUIT_VERSION};
