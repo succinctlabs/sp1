@@ -224,11 +224,11 @@ impl NetworkProver {
 
     /// Waits for a proof to be generated and returns the proof. If a timeout is supplied, the
     /// function will return an error if the proof is not generated within the timeout.
-    pub async fn wait_proof<P: DeserializeOwned>(
+    pub async fn wait_proof(
         &self,
         request_id: B256,
         timeout: Option<Duration>,
-    ) -> Result<P> {
+    ) -> Result<SP1ProofWithPublicValues> {
         let mut is_assigned = false;
         let start_time = Instant::now();
 
