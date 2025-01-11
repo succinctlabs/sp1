@@ -26,7 +26,7 @@ pub struct CpuProveBuilder<'a> {
     pub(crate) mock: bool,
 }
 
-impl<'a> CpuProveBuilder<'a> {
+impl CpuProveBuilder<'_> {
     /// Set the proof kind to [`SP1ProofKind::Core`] mode.
     ///
     /// # Details

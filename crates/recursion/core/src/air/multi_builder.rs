@@ -30,7 +30,7 @@ impl<'a, AB: AirBuilder> MultiBuilder<'a, AB> {
     }
 }
 
-impl<'a, AB: AirBuilder> AirBuilder for MultiBuilder<'a, AB> {
+impl<AB: AirBuilder> AirBuilder for MultiBuilder<'_, AB> {
     type F = AB::F;
     type Expr = AB::Expr;
     type Var = AB::Var;
@@ -57,7 +57,7 @@ impl<'a, AB: AirBuilder> AirBuilder for MultiBuilder<'a, AB> {
     }
 }
 
-impl<'a, AB: ExtensionBuilder> ExtensionBuilder for MultiBuilder<'a, AB> {
+impl<AB: ExtensionBuilder> ExtensionBuilder for MultiBuilder<'_, AB> {
     type EF = AB::EF;
     type VarEF = AB::VarEF;
     type ExprEF = AB::ExprEF;
@@ -70,7 +70,7 @@ impl<'a, AB: ExtensionBuilder> ExtensionBuilder for MultiBuilder<'a, AB> {
     }
 }
 
-impl<'a, AB: PermutationAirBuilder> PermutationAirBuilder for MultiBuilder<'a, AB> {
+impl<AB: PermutationAirBuilder> PermutationAirBuilder for MultiBuilder<'_, AB> {
     type MP = AB::MP;
 
     type RandomVar = AB::RandomVar;
@@ -84,7 +84,7 @@ impl<'a, AB: PermutationAirBuilder> PermutationAirBuilder for MultiBuilder<'a, A
     }
 }
 
-impl<'a, AB: AirBuilder + MessageBuilder<M>, M> MessageBuilder<M> for MultiBuilder<'a, AB> {
+impl<AB: AirBuilder + MessageBuilder<M>, M> MessageBuilder<M> for MultiBuilder<'_, AB> {
     fn send(&mut self, message: M, scope: InteractionScope) {
         self.inner.send(message, scope);
     }
@@ -94,8 +94,8 @@ impl<'a, AB: AirBuilder + MessageBuilder<M>, M> MessageBuilder<M> for MultiBuild
     }
 }
 
-impl<'a, AB: AirBuilder + AirBuilderWithPublicValues> AirBuilderWithPublicValues
-    for MultiBuilder<'a, AB>
+impl<AB: AirBuilder + AirBuilderWithPublicValues> AirBuilderWithPublicValues
+    for MultiBuilder<'_, AB>
 {
     type PublicVar = AB::PublicVar;
 

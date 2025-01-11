@@ -141,7 +141,7 @@ pub enum RuntimeError<F: Debug, EF: Debug> {
     EmptyWitnessStream,
 }
 
-impl<'a, F: PrimeField32, EF: ExtensionField<F>, Diffusion> Runtime<'a, F, EF, Diffusion>
+impl<F: PrimeField32, EF: ExtensionField<F>, Diffusion> Runtime<'_, F, EF, Diffusion>
 where
     Poseidon2<
         F,
@@ -638,7 +638,7 @@ struct ExecState<'a, 'b, F, Diffusion> {
     pub last_trace: Option<Trace>,
 }
 
-impl<'a, 'b, F, Diffusion> ExecState<'a, 'b, F, Diffusion> {
+impl<F, Diffusion> ExecState<'_, '_, F, Diffusion> {
     fn resolve_trace(&mut self) -> Option<&mut Trace> {
         cfg_if::cfg_if! {
             if #[cfg(feature = "debug")] {
@@ -695,7 +695,7 @@ struct ExecEnv<'a, 'b, F, Diffusion> {
     pub debug_stdout: &'a Mutex<dyn Write + Send + 'b>,
 }
 
-impl<'a, 'b, F, Diffusion> Clone for ExecEnv<'a, 'b, F, Diffusion> {
+impl<F, Diffusion> Clone for ExecEnv<'_, '_, F, Diffusion> {
     fn clone(&self) -> Self {
         let Self { memory, perm, debug_stdout } = self;
         Self { memory, perm, debug_stdout }

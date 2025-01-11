@@ -498,7 +498,7 @@ enum IfCondition<N> {
     NeI(Var<N>, N),
 }
 
-impl<'a, C: Config> IfBuilder<'a, C> {
+impl<C: Config> IfBuilder<'_, C> {
     pub fn then(mut self, mut f: impl FnMut(&mut Builder<C>)) {
         // Get the condition reduced from the expressions for lhs and rhs.
         let condition = self.condition();
@@ -696,7 +696,7 @@ pub struct RangeBuilder<'a, C: Config> {
     builder: &'a mut Builder<C>,
 }
 
-impl<'a, C: Config> RangeBuilder<'a, C> {
+impl<C: Config> RangeBuilder<'_, C> {
     pub const fn step_by(mut self, step_size: usize) -> Self {
         self.step_size = step_size;
         self

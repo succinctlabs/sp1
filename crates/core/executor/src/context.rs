@@ -37,7 +37,7 @@ pub struct SP1ContextBuilder<'a> {
     deferred_proof_verification: bool,
 }
 
-impl<'a> Default for SP1ContextBuilder<'a> {
+impl Default for SP1ContextBuilder<'_> {
     fn default() -> Self {
         Self {
             no_default_hooks: false,

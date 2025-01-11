@@ -67,7 +67,7 @@ impl<'a, AB: AirBuilder, SubAir: BaseAir<T>, T> SubAirBuilder<'a, AB, SubAir, T>
 }
 
 /// Implement `AirBuilder` for `SubAirBuilder`.
-impl<'a, AB: AirBuilder, SubAir: BaseAir<F>, F> AirBuilder for SubAirBuilder<'a, AB, SubAir, F> {
+impl<AB: AirBuilder, SubAir: BaseAir<F>, F> AirBuilder for SubAirBuilder<'_, AB, SubAir, F> {
     type F = AB::F;
     type Expr = AB::Expr;
     type Var = AB::Var;

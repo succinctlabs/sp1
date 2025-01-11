@@ -47,7 +47,7 @@ impl<C: CircuitConfig> Witnessable<C> for bool {
     }
 }
 
-impl<'a, C: CircuitConfig, T: Witnessable<C>> Witnessable<C> for &'a T {
+impl<C: CircuitConfig, T: Witnessable<C>> Witnessable<C> for &T {
     type WitnessVariable = T::WitnessVariable;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {

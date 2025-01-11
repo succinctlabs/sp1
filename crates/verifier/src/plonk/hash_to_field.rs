@@ -44,7 +44,7 @@ impl WrappedHashToField {
     fn expand_msg_xmd(msg: Vec<u8>, dst: Vec<u8>, len: usize) -> Result<Vec<u8>, PlonkError> {
         let mut h = sha2::Sha256::new();
 
-        let ell = (len + 32 - 1) / 32;
+        let ell = len.div_ceil(32);
 
         if ell > 255 {
             Err(PlonkError::EllTooLarge)?;

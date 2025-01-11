@@ -116,7 +116,7 @@ pub fn load_elf(path: &str) -> Result<Vec<u8>, std::io::Error> {
 }
 
 pub fn words_to_bytes<T: Copy>(words: &[Word<T>]) -> Vec<T> {
-    return words.iter().flat_map(|word| word.0).collect();
+    words.iter().flat_map(|word| word.0).collect()
 }
 
 /// Convert 8 BabyBear words into a Bn254Fr field element by shifting by 31 bits each time. The last

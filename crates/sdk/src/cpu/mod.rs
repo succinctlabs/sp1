@@ -160,11 +160,11 @@ impl CpuProver {
                 };
 
                 let proof = self.prover.wrap_groth16_bn254(outer_proof, &groth16_bn254_artifacts);
-                return Ok(SP1ProofWithPublicValues {
+                Ok(SP1ProofWithPublicValues {
                     proof: SP1Proof::Groth16(proof),
                     public_values,
                     sp1_version: self.version().to_string(),
-                });
+                })
             }
             SP1ProofMode::Plonk => {
                 let plonk_bn254_artifacts = if sp1_prover::build::sp1_dev_mode() {
@@ -176,11 +176,11 @@ impl CpuProver {
                     try_install_circuit_artifacts("plonk")
                 };
                 let proof = self.prover.wrap_plonk_bn254(outer_proof, &plonk_bn254_artifacts);
-                return Ok(SP1ProofWithPublicValues {
+                Ok(SP1ProofWithPublicValues {
                     proof: SP1Proof::Plonk(proof),
                     public_values,
                     sp1_version: self.version().to_string(),
-                });
+                })
             }
             _ => unreachable!(),
         }
