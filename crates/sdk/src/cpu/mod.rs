@@ -114,7 +114,7 @@ impl CpuProver {
 
         // If we're in mock mode, return a mock proof.
         if self.mock {
-            return self.mock_prove_impl(pk, stdin, mode);
+            return self.mock_prove_impl(pk, stdin, context, mode);
         }
 
         // Generate the core proof.
@@ -186,13 +186,13 @@ impl CpuProver {
         }
     }
 
-    pub(crate) fn mock_prove_impl(
-        &self,
+    pub(crate) fn mock_prove_impl<'a>(
+        &'a self,
         pk: &SP1ProvingKey,
         stdin: &SP1Stdin,
+        context: SP1Context<'a>,
         mode: SP1ProofMode,
     ) -> Result<SP1ProofWithPublicValues> {
-        let context = SP1Context::default();
         let (public_values, _) = self.prover.execute(&pk.elf, stdin, context)?;
         Ok(SP1ProofWithPublicValues::create_mock_proof(pk, public_values, mode, self.version()))
     }

@@ -56,6 +56,16 @@ pub enum DeferredProofVerification {
     Disabled,
 }
 
+impl From<bool> for DeferredProofVerification {
+    fn from(value: bool) -> Self {
+        if value {
+            DeferredProofVerification::Enabled
+        } else {
+            DeferredProofVerification::Disabled
+        }
+    }
+}
+
 /// An executor for the SP1 RISC-V zkVM.
 ///
 /// The exeuctor is responsible for executing a user program and tracing important events which
@@ -330,11 +340,7 @@ impl<'a> Executor<'a> {
             hook_registry,
             opts,
             max_cycles: context.max_cycles,
-            deferred_proof_verification: if context.skip_deferred_proof_verification {
-                DeferredProofVerification::Disabled
-            } else {
-                DeferredProofVerification::Enabled
-            },
+            deferred_proof_verification: context.deferred_proof_verification.into(),
             memory_checkpoint: Memory::default(),
             uninitialized_memory_checkpoint: Memory::default(),
             local_memory_access: HashMap::new(),
