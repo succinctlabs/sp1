@@ -1,8 +1,7 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
-use rsa::Pkcs1v15Sign;
-use rsa::{pkcs8::DecodePublicKey, RsaPublicKey};
+use rsa::{pkcs8::DecodePublicKey, Pkcs1v15Sign, RsaPublicKey};
 use sha2::{Digest, Sha256}; // Ensure this is imported for the Digest trait to work
 
 pub fn main() {

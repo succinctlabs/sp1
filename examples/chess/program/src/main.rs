@@ -5,7 +5,8 @@ use chess::{Board, ChessMove};
 use std::str::FromStr;
 
 pub fn main() {
-    // Read the board position in Forsyth-Edwards Notation (FEN), and a move in Standard Algebraic Notation (SAN)
+    // Read the board position in Forsyth-Edwards Notation (FEN), and a move in Standard Algebraic
+    // Notation (SAN)
     let fen = sp1_zkvm::io::read::<String>();
     let san = sp1_zkvm::io::read::<String>();
 
