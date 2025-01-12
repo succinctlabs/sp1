@@ -55,7 +55,9 @@ If this works, go to the [next section](./quickstart.md) to compile and prove a 
 
 If you experience [rate-limiting](https://docs.github.com/en/rest/using-the-rest-api/getting-started-with-the-rest-api?apiVersion=2022-11-28#rate-limiting) when using the `sp1up` command, you can resolve this by using the `--token` flag and providing your GitHub token. To create a Github token, follow the instructions [here](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens#creating-a-personal-access-token-classic).
 
-<!-- TODO: We should add an example command here -->
+```bash
+sp1up --token ghp_YOUR_GITHUB_TOKEN_HERE
+```
 
 #### Unsupported OS Architectures
 
@@ -91,7 +93,7 @@ git clone git@github.com:succinctlabs/sp1.git
 cd sp1
 cd crates
 cd cli
-cargo install --locked --force --path .
+cargo install --locked --path .
 cd ~
 cargo prove build-toolchain
 ```
