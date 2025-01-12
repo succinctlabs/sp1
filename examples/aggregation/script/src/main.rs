@@ -1,5 +1,4 @@
-//! A simple example showing how to aggregate proofs of multiple programs with SP1.
-
+use once_cell::sync::Lazy;
 use sp1_sdk::{
     include_elf, HashableKey, ProverClient, SP1Proof, SP1ProofWithPublicValues, SP1Stdin,
     SP1VerifyingKey,
@@ -19,39 +18,35 @@ struct AggregationInput {
     pub vk: SP1VerifyingKey,
 }
 
-fn main() {
+static CLIENT: Lazy<ProverClient> = Lazy::new(|| ProverClient::from_env());
+
+fn generate_fibonacci_proof(fibonacci_pk: &SP1ProvingKey, n: u32) -> Result<SP1ProofWithPublicValues, Box<dyn std::error::Error>> {
+    tracing::info_span!("generate fibonacci proof", n = n).in_scope(|| {
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&n);
+        Ok(CLIENT.prove(fibonacci_pk, &stdin).compressed().run()?)
+    })
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Setup the logger.
     sp1_sdk::utils::setup_logger();
 
-    // Initialize the proving client.
-    let client = ProverClient::from_env();
-
     // Setup the proving and verifying keys.
-    let (aggregation_pk, _) = client.setup(AGGREGATION_ELF);
-    let (fibonacci_pk, fibonacci_vk) = client.setup(FIBONACCI_ELF);
+    let (aggregation_pk, _) = CLIENT.setup(AGGREGATION_ELF)?;
+    let (fibonacci_pk, fibonacci_vk) = CLIENT.setup(FIBONACCI_ELF)?;
 
     // Generate the fibonacci proofs.
-    let proof_1 = tracing::info_span!("generate fibonacci proof n=10").in_scope(|| {
-        let mut stdin = SP1Stdin::new();
-        stdin.write(&10);
-        client.prove(&fibonacci_pk, &stdin).compressed().run().expect("proving failed")
-    });
-    let proof_2 = tracing::info_span!("generate fibonacci proof n=20").in_scope(|| {
-        let mut stdin = SP1Stdin::new();
-        stdin.write(&20);
-        client.prove(&fibonacci_pk, &stdin).compressed().run().expect("proving failed")
-    });
-    let proof_3 = tracing::info_span!("generate fibonacci proof n=30").in_scope(|| {
-        let mut stdin = SP1Stdin::new();
-        stdin.write(&30);
-        client.prove(&fibonacci_pk, &stdin).compressed().run().expect("proving failed")
-    });
-
-    // Setup the inputs to the aggregation program.
-    let input_1 = AggregationInput { proof: proof_1, vk: fibonacci_vk.clone() };
-    let input_2 = AggregationInput { proof: proof_2, vk: fibonacci_vk.clone() };
-    let input_3 = AggregationInput { proof: proof_3, vk: fibonacci_vk.clone() };
-    let inputs = vec![input_1, input_2, input_3];
+    let inputs = vec![10, 20, 30]
+        .into_iter()
+        .map(|n| {
+            let proof = generate_fibonacci_proof(&fibonacci_pk, n)?;
+            Ok(AggregationInput {
+                proof,
+                vk: fibonacci_vk.clone(),
+            })
+        })
+        .collect::<Result<Vec<_>, Box<dyn std::error::Error>>>()?;
 
     // Aggregate the proofs.
     tracing::info_span!("aggregate the proofs").in_scope(|| {
@@ -62,20 +57,19 @@ fn main() {
         stdin.write::<Vec<[u32; 8]>>(&vkeys);
 
         // Write the public values.
-        let public_values =
-            inputs.iter().map(|input| input.proof.public_values.to_vec()).collect::<Vec<_>>();
+        let public_values = inputs.iter().map(|input| input.proof.public_values.to_vec()).collect::<Vec<_>>();
         stdin.write::<Vec<Vec<u8>>>(&public_values);
 
         // Write the proofs.
-        //
-        // Note: this data will not actually be read by the aggregation program, instead it will be
-        // witnessed by the prover during the recursive aggregation process inside SP1 itself.
         for input in inputs {
             let SP1Proof::Compressed(proof) = input.proof.proof else { panic!() };
             stdin.write_proof(*proof, input.vk.vk);
         }
 
         // Generate the plonk bn254 proof.
-        client.prove(&aggregation_pk, &stdin).plonk().run().expect("proving failed");
-    });
+        CLIENT.prove(&aggregation_pk, &stdin).plonk().run()?;
+        Ok(())
+    })?;
+
+    Ok(())
 }
