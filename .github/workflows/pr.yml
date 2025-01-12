@@ -151,7 +151,7 @@ jobs:
 
   check:
     name: Cargo Check
-    runs-on: [runs-on, runner=16cpu-linux-x64, disk=medium, "run-id=${{ github.run_id }}"]
+    runs-on: [runs-on, runner=16cpu-linux-x64, disk=large, "run-id=${{ github.run_id }}"]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -248,7 +248,7 @@ jobs:
 
       - name: Run cargo prove new
         run: |
-          cargo prove new fibonacci --version dev --evm
+          cargo prove new fibonacci --evm --version dev
 
       - name: Build program and run script
         run: |

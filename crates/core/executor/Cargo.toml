@@ -43,9 +43,23 @@ vec_map = { version = "0.8.2", features = ["serde"] }
 enum-map = { version = "2.7.3", features = ["serde"] }
 test-artifacts = { workspace = true, optional = true }
 
+# profiling
+goblin = { version = "0.9", optional = true }
+rustc-demangle = { version = "0.1.18", optional = true }
+gecko_profile = { version = "0.4.0", optional = true }
+indicatif = { version = "0.17.8", optional = true }
+serde_json = { version = "1.0.121", optional = true }
+
 [dev-dependencies]
 sp1-zkvm = { workspace = true, features = ["lib"] }
 
 [features]
 programs = ["dep:test-artifacts"]
 bigint-rug = ["sp1-curves/bigint-rug"]
+profiling = [
+  "dep:goblin",
+  "dep:rustc-demangle",
+  "dep:gecko_profile",
+  "dep:indicatif",
+  "dep:serde_json",
+]

@@ -12,6 +12,7 @@ categories = { workspace = true }
 [dependencies]
 prost = { version = "0.13", optional = true }
 serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
 twirp = { package = "twirp-rs", version = "0.13.0-succinct", optional = true }
 async-trait = "0.1.81"
 reqwest-middleware = { version = "0.3.2", optional = true }
@@ -48,30 +49,21 @@ sp1-primitives = { workspace = true }
 itertools = { workspace = true }
 tonic = { version = "0.12", features = ["tls", "tls-roots"], optional = true }
 alloy-sol-types = { version = "0.8", optional = true }
-alloy-signer = { version = "0.5", optional = true }
-alloy-signer-local = { version = "0.5", optional = true }
+alloy-signer = { version = "0.8", optional = true }
+alloy-signer-local = { version = "0.8", optional = true }
 alloy-primitives = { version = "0.8", optional = true }
 backoff = { version = "0.4", features = ["tokio"], optional = true }
 
 [dev-dependencies]
 test-artifacts = { workspace = true }
+tokio-test = { version = "0.4" }
 
 [features]
-default = ["network"]
+default = ["cuda", "network"]
 native-gnark = ["sp1-prover/native-gnark"]
 # TODO: Once alloy has a 1.* release, we can likely remove this feature flag, as there will be less 
 # dependency resolution issues.
 network = [
-  "dep:prost",
-  "dep:alloy-sol-types",
-  "dep:tokio",
-  "dep:alloy-signer",
-  "dep:alloy-signer-local",
-  "dep:reqwest",
-  "dep:twirp",
-  "dep:reqwest-middleware",
-]
-network-v2 = [
   "dep:prost",
   "dep:alloy-sol-types",
   "dep:alloy-signer",
@@ -86,6 +78,8 @@ network-v2 = [
   "dep:backoff",
 ]
 cuda = ["sp1-cuda"]
+
+profiling = ["sp1-core-executor/profiling"]
 
 [build-dependencies]
 vergen = { version = "8", default-features = false, features = [

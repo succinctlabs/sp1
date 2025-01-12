@@ -5,7 +5,7 @@ use std::time::Instant;
 use itertools::iproduct;
 use sp1_core_executor::SP1Context;
 use sp1_core_machine::io::SP1Stdin;
-use sp1_prover::components::DefaultProverComponents;
+use sp1_prover::components::CpuProverComponents;
 use sp1_prover::SP1Prover;
 use sp1_stark::SP1ProverOpts;
 use tracing_subscriber::fmt::format::FmtSpan;
@@ -38,7 +38,7 @@ fn main() {
     std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
 
     // Initialize prover.
-    let prover = SP1Prover::<DefaultProverComponents>::new();
+    let prover = SP1Prover::<CpuProverComponents>::new();
 
     // Setup sweep.
     let iterations = [480000u32];

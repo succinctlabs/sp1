@@ -46,11 +46,11 @@ fn prepare_inputs(vk: Groth16VerifyingKey, public_inputs: &[Fr]) -> Result<G1, G
         .into())
 }
 
-/// Verify the Groth16 proof using algebraic inputs.
+/// Verify the Groth16 proof
 ///
 /// First, prepare the public inputs by folding them with the verification key.
 /// Then, verify the proof by checking the pairing equation.
-pub(crate) fn verify_groth16_algebraic(
+pub(crate) fn verify_groth16_raw(
     vk: &Groth16VerifyingKey,
     proof: &Groth16Proof,
     public_inputs: &[Fr],

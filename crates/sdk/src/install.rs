@@ -1,13 +1,17 @@
+//! # SP1 Install
+//!
+//! A library for installing the SP1 circuit artifacts.
+
 use cfg_if::cfg_if;
 use std::path::PathBuf;
 
-#[cfg(any(feature = "network", feature = "network-v2"))]
+#[cfg(any(feature = "network", feature = "network"))]
 use {
-    crate::block_on,
+    crate::utils::block_on,
     futures::StreamExt,
     indicatif::{ProgressBar, ProgressStyle},
     reqwest::Client,
-    std::{cmp::min, io::Write, process::Command},
+    std::{cmp::min, process::Command},
 };
 
 use crate::SP1_CIRCUIT_VERSION;
@@ -16,16 +20,19 @@ use crate::SP1_CIRCUIT_VERSION;
 pub const CIRCUIT_ARTIFACTS_URL_BASE: &str = "https://sp1-circuits.s3-us-east-2.amazonaws.com";
 
 /// The directory where the groth16 circuit artifacts will be stored.
+#[must_use]
 pub fn groth16_circuit_artifacts_dir() -> PathBuf {
     dirs::home_dir().unwrap().join(".sp1").join("circuits/groth16").join(SP1_CIRCUIT_VERSION)
 }
 
 /// The directory where the plonk circuit artifacts will be stored.
+#[must_use]
 pub fn plonk_circuit_artifacts_dir() -> PathBuf {
     dirs::home_dir().unwrap().join(".sp1").join("circuits/plonk").join(SP1_CIRCUIT_VERSION)
 }
 
 /// Tries to install the groth16 circuit artifacts if they are not already installed.
+#[must_use]
 pub fn try_install_circuit_artifacts(artifacts_type: &str) -> PathBuf {
     let build_dir = if artifacts_type == "groth16" {
         groth16_circuit_artifacts_dir()
@@ -43,7 +50,7 @@ pub fn try_install_circuit_artifacts(artifacts_type: &str) -> PathBuf {
         );
     } else {
         cfg_if! {
-            if #[cfg(any(feature = "network", feature = "network-v2"))] {
+            if #[cfg(any(feature = "network", feature = "network"))] {
                 println!(
                     "[sp1] {} circuit artifacts for version {} do not exist at {}. downloading...",
                     artifacts_type,
@@ -60,15 +67,16 @@ pub fn try_install_circuit_artifacts(artifacts_type: &str) -> PathBuf {
 /// Install the latest circuit artifacts.
 ///
 /// This function will download the latest circuit artifacts from the S3 bucket and extract them
-/// to the directory specified by [groth16_bn254_artifacts_dir()].
-#[cfg(any(feature = "network", feature = "network-v2"))]
+/// to the directory specified by [`groth16_bn254_artifacts_dir()`].
+#[cfg(any(feature = "network", feature = "network"))]
+#[allow(clippy::needless_pass_by_value)]
 pub fn install_circuit_artifacts(build_dir: PathBuf, artifacts_type: &str) {
     // Create the build directory.
     std::fs::create_dir_all(&build_dir).expect("failed to create build directory");
 
     // Download the artifacts.
     let download_url =
-        format!("{}/{}-{}.tar.gz", CIRCUIT_ARTIFACTS_URL_BASE, SP1_CIRCUIT_VERSION, artifacts_type);
+        format!("{CIRCUIT_ARTIFACTS_URL_BASE}/{SP1_CIRCUIT_VERSION}-{artifacts_type}.tar.gz");
     let mut artifacts_tar_gz_file =
         tempfile::NamedTempFile::new().expect("failed to create tempfile");
     let client = Client::builder().build().expect("failed to create reqwest client");
@@ -91,11 +99,11 @@ pub fn install_circuit_artifacts(build_dir: PathBuf, artifacts_type: &str) {
 }
 
 /// Download the file with a progress bar that indicates the progress.
-#[cfg(any(feature = "network", feature = "network-v2"))]
+#[cfg(any(feature = "network", feature = "network"))]
 pub async fn download_file(
     client: &Client,
     url: &str,
-    file: &mut tempfile::NamedTempFile,
+    file: &mut impl std::io::Write,
 ) -> std::result::Result<(), String> {
     let res = client.get(url).send().await.or(Err(format!("Failed to GET from '{}'", &url)))?;
 

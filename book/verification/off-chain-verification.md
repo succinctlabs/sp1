@@ -4,23 +4,23 @@
 
 You can verify SP1 Groth16 and Plonk proofs in `no_std` environments with [`sp1-verifier`](https://docs.rs/sp1-verifier/latest/sp1_verifier/).
 
-`sp1-verifier` is also patched to verify Groth16 and Plonk proofs within the SP1 zkVM, using
+`sp1-verifier` is also patched to verify Groth16 and Plonk proofs within the SP1 ZKVM, using
 [bn254](https://blog.succinct.xyz/succinctshipsprecompiles/) precompiles. For an example of this, see
 the [Groth16 Example](https://github.com/succinctlabs/sp1/tree/main/examples/groth16/).
 
 ### Installation
 
-Import the following dependency in your `Cargo.toml`. Note that the `sp1-verifier` crate was added in version `3.2.1`.
+Import the following dependency in your `Cargo.toml`:
 
 ```toml
-sp1-verifier = {version = "3.2.1", default-features = false}
+sp1-verifier = {version = "3.0.0", default-features = false}
 ```
 
 ### Usage
 
 `sp1-verifier`'s interface is very similar to the solidity verifier's. It exposes two public functions:
-[`Groth16Verifier::verify_proof`](https://docs.rs/sp1-verifier/latest/sp1_verifier/struct.Groth16Verifier.html)
-and [`PlonkVerifier::verify_proof`](https://docs.rs/sp1-verifier/latest/sp1_verifier/struct.PlonkVerifier.html).
+[`Groth16Verifier::verify_proof`](https://docs.rs/sp1-verifier/latest/src/sp1_verifier/groth16.rs.html)
+and [`PlonkVerifier::verify_proof`](https://docs.rs/sp1-verifier/latest/src/sp1_verifier/plonk.rs.html).
 
 `sp1-verifier` also exposes the Groth16 and Plonk verifying keys as constants, `GROTH16_VK_BYTES` and `PLONK_VK_BYTES`. These
 keys correspond to the current SP1 version's official Groth16 and Plonk verifying keys, which are used for verifying proofs generated
@@ -42,45 +42,6 @@ Here, the proof, public inputs, and vkey hash are read from stdin. See the follo
 ```
 
 > Note that the SP1 SDK itself is *not* `no_std` compatible.
-
-### Advanced: `verify_gnark_proof`
-
-`sp1-verifier` also exposes [`Groth16Verifier::verify_gnark_proof`](https://docs.rs/sp1-verifier/latest/sp1_verifier/struct.Groth16Verifier.html#method.verify_gnark_proof) and [`PlonkVerifier::verify_gnark_proof`](https://docs.rs/sp1-verifier/latest/sp1_verifier/struct.PlonkVerifier.html#method.verify_gnark_proof),
-which verifies any Groth16 or Plonk proof from Gnark. This is especially useful for verifying custom Groth16 and Plonk proofs
-efficiently in the SP1 zkVM.
-
-The following snippet demonstrates how you might serialize a Gnark proof in a way that `sp1-verifier` can use.
-
-```go
-// Write the verifier key.
-vkFile, err := os.Create("vk.bin")
-if err != nil {
-    panic(err)
-}
-defer vkFile.Close()
-
-// Here, `vk` is a `groth16_bn254.VerifyingKey` or `plonk_bn254.VerifyingKey`.
-_, err = vk.WriteTo(vkFile)
-if err != nil {
-    panic(err)
-}
-
-// Write the proof.
-proofFile, err := os.Create("proof.bin")
-if err != nil {
-    panic(err)
-}
-defer proofFile.Close()
-
-// Here, `proof` is a `groth16_bn254.Proof` or `plonk_bn254.Proof`.
-_, err = proof.WriteTo(proofFile)
-if err != nil {
-    panic(err)
-}
-```
-
-Public values are serialized as big-endian `Fr` values. The default Gnark serialization will work
-out of the box.
 
 ## Wasm Verification
 

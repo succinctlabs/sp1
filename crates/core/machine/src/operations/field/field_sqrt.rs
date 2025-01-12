@@ -224,7 +224,11 @@ mod tests {
                     let mut row = [F::zero(); NUM_TEST_COLS];
                     let cols: &mut TestCols<F, P> = row.as_mut_slice().borrow_mut();
                     cols.a = P::to_limbs_field::<F, _>(a);
-                    cols.sqrt.populate(&mut blu_events, 1, a, ed25519_sqrt);
+                    cols.sqrt.populate(&mut blu_events, 1, a, |p| {
+                        ed25519_sqrt(p).expect(
+                            "By now we should have validated the sqrt exists, this is a bug",
+                        )
+                    });
                     output.add_byte_lookup_events(blu_events);
                     row
                 })

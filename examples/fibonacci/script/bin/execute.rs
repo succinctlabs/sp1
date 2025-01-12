@@ -14,8 +14,8 @@ fn main() {
     stdin.write(&n);
 
     // Only execute the program and get a `SP1PublicValues` object.
-    let client = ProverClient::new();
-    let (mut public_values, execution_report) = client.execute(ELF, stdin).run().unwrap();
+    let client = ProverClient::from_env();
+    let (mut public_values, execution_report) = client.execute(ELF, &stdin).run().unwrap();
 
     // Print the total number of cycles executed and the full execution report with a breakdown of
     // the RISC-V opcode and syscall counts.

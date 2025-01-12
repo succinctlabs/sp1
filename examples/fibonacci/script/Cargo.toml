@@ -29,6 +29,10 @@ name = "execute"
 path = "bin/execute.rs"
 
 [[bin]]
+name = "network"
+path = "bin/network.rs"
+
+[[bin]]
 name = "fibonacci-script"
 path = "src/main.rs"
 

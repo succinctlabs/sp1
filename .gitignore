@@ -16,6 +16,7 @@ pgo-data.profdata
 **/proof-with-io.bin
 **/program.bin
 **/stdin.bin
+**/node_modules
 
 # Example fibonacci groth16 / plonk proofs
 examples/fibonacci/fibonacci-groth16.bin
@@ -41,3 +42,10 @@ crates/prover/vk
 
 # Example legacy elf
 examples/elf 
+
+# Example fibonacci groth16 / plonk proofs
+examples/fibonacci/fibonacci-groth16.bin
+examples/fibonacci/fibonacci-plonk.bin
+
+# C++
+.vscode/c_cpp_properties.json
