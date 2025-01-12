@@ -93,7 +93,7 @@ git clone git@github.com:succinctlabs/sp1.git
 cd sp1
 cd crates
 cd cli
-cargo install --locked--force --path .
+cargo install --locked --force --path .
 cd ~
 cargo prove build-toolchain
 ```
