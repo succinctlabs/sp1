@@ -8,7 +8,7 @@ pub use command::TOOLCHAIN_NAME;
 use clap::Parser;
 
 // todo!(n): Remove this for v4 and change it back to `SP1_CIRCUIT_VERSION`.
-// This is convenient becuase everything else (circuit artifacts) use rc.3 still.
+// This is convenient because everything else (circuit artifacts) use rc.3 still.
 /// This is the minimum version of the Docker image that supports the 1.82 `succinct` toolchain.
 const MIN_SP1_1_82_SUPPORT_TAG: &str = "v4.0.0-rc.10";
 
