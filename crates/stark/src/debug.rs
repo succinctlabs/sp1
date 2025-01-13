@@ -274,10 +274,7 @@ where
     }
 }
 
-impl<F: Field, EF: ExtensionField<F>> EmptyMessageBuilder
-    for DebugConstraintBuilder<'_, F, EF>
-{
-}
+impl<F: Field, EF: ExtensionField<F>> EmptyMessageBuilder for DebugConstraintBuilder<'_, F, EF> {}
 
 impl<F: Field, EF: ExtensionField<F>> AirBuilderWithPublicValues
     for DebugConstraintBuilder<'_, F, EF>
