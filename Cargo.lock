@@ -5712,6 +5712,7 @@ dependencies = [
  "clap",
  "ctrlc",
  "dirs",
+ "generic-array 1.1.1",
  "goblin 0.8.2",
  "hex",
  "indicatif",
