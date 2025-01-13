@@ -397,7 +397,7 @@ pub trait MachineAirBuilder:
 /// A trait which contains all helper methods for building SP1 machine AIRs.
 pub trait SP1AirBuilder: MachineAirBuilder + ByteAirBuilder + InstructionAirBuilder {}
 
-impl<'a, AB: AirBuilder + MessageBuilder<M>, M> MessageBuilder<M> for FilteredAirBuilder<'a, AB> {
+impl<AB: AirBuilder + MessageBuilder<M>, M> MessageBuilder<M> for FilteredAirBuilder<'_, AB> {
     fn send(&mut self, message: M, scope: InteractionScope) {
         self.inner.send(message, scope);
     }
@@ -416,10 +416,10 @@ impl<AB: BaseAirBuilder> SepticExtensionAirBuilder for AB {}
 impl<AB: BaseAirBuilder + AirBuilderWithPublicValues> MachineAirBuilder for AB {}
 impl<AB: BaseAirBuilder + AirBuilderWithPublicValues> SP1AirBuilder for AB {}
 
-impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for ProverConstraintFolder<'a, SC> {}
-impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for VerifierConstraintFolder<'a, SC> {}
+impl<SC: StarkGenericConfig> EmptyMessageBuilder for ProverConstraintFolder<'_, SC> {}
+impl<SC: StarkGenericConfig> EmptyMessageBuilder for VerifierConstraintFolder<'_, SC> {}
 impl<F: Field> EmptyMessageBuilder for SymbolicAirBuilder<F> {}
 
 #[cfg(debug_assertions)]
 #[cfg(not(doctest))]
-impl<'a, F: Field> EmptyMessageBuilder for p3_uni_stark::DebugConstraintBuilder<'a, F> {}
+impl<F: Field> EmptyMessageBuilder for p3_uni_stark::DebugConstraintBuilder<'_, F> {}

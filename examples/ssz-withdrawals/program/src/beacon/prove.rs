@@ -1,9 +1,6 @@
-use crate::beacon::hints;
-use crate::beacon::types::*;
-use crate::beacon::utils::is_valid_merkle_big_branch;
+use crate::beacon::{hints, types::*, utils::is_valid_merkle_big_branch};
 use ssz_rs::prelude::*;
-use std::hint::black_box;
-use std::str::FromStr;
+use std::{hint::black_box, str::FromStr};
 
 pub fn block_header(block_root: Node) -> BeaconBlockHeader {
     black_box(hints::beacon_header_proof(block_root))

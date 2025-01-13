@@ -1,0 +1,33 @@
+FROM ubuntu:24.04@sha256:e3f92abc0967a6c19d0dfa2d55838833e947b9d74edbcb0113e48535ad4be12a as build
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates clang curl libssl-dev pkg-config git dialog xz-utils \
+    && curl --proto '=https' --tlsv1.2 --retry 10 --retry-connrefused -fsSL 'https://sh.rustup.rs' | sh -s -- -y
+
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Copy the repo into the container
+RUN mkdir -p /root/sp1
+COPY . /root/sp1
+
+# Set the working directory
+WORKDIR /root/sp1
+
+# Make sure go is installed
+RUN apt-get install -y --no-install-recommends golang && apt-get install -y --no-install-recommends gcc
+
+# Install the succinct toolchain
+RUN cargo run --bin cargo-prove -- prove install-toolchain && rm -rf /root/sp1
+
+FROM ubuntu:24.04@sha256:e3f92abc0967a6c19d0dfa2d55838833e947b9d74edbcb0113e48535ad4be12a as final
+
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates clang gcc libssl-dev pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=build /root/.cargo /root/.cargo
+COPY --from=build /root/.rustup /root/.rustup
+COPY --from=build /root/.sp1/toolchains /root/.sp1/toolchains
+
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+ENV CARGO_TERM_COLOR=always

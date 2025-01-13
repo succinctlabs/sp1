@@ -1,9 +1,12 @@
-**/target
+**/target/**
 Dockerfile*
 .dockerignore
 .git
 .gitignore
 examples
 tests
-sp1up
 book
+target
+assets
+audits
+.github

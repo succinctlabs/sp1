@@ -6,10 +6,7 @@ sp1_zkvm::entrypoint!(main);
 
 mod beacon;
 
-use beacon::hints;
-use beacon::prove;
-use beacon::types::*;
-use beacon::utils::node_from_bytes;
+use beacon::{hints, prove, types::*, utils::node_from_bytes};
 use hex_literal::hex;
 use ssz_rs::prelude::*;
 use std::collections::HashMap;

@@ -6,14 +6,14 @@ use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, StarkVerifyingKey};
 use super::Executor;
 use crate::SP1ReduceProof;
 
-impl<'a> Read for Executor<'a> {
+impl Read for Executor<'_> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         self.read_public_values_slice(buf);
         Ok(buf.len())
     }
 }
 
-impl<'a> Executor<'a> {
+impl Executor<'_> {
     /// Write a serializable input to the standard input stream.
     pub fn write_stdin<T: Serialize>(&mut self, input: &T) {
         let mut buf = Vec::new();

@@ -84,15 +84,16 @@ impl<'a> CpuExecuteBuilder<'a> {
         self
     }
 
-    /// Whether to skip deferred proof verification in the executor.
+    /// Whether to enable deferred proof verification in the executor.
     ///
     /// # Arguments
-    /// * `value` - Whether to skip deferred proof verification.
+    /// * `value` - Whether to enable deferred proof verification in the executor.
     ///
     /// # Details
-    /// If set to `true`, the executor will skip the deferred proof verification step. This is useful
-    /// for reducing the execution time of the program and optimistically assuming that the
-    /// deferred proofs are correct.
+    /// Default: `true`. If set to `false`, the executor will skip deferred proof verification.
+    /// This is useful for reducing the execution time of the program and optimistically assuming
+    /// that the deferred proofs are correct. Can also be used for mock proof setups that require
+    /// verifying mock compressed proofs.
     ///
     /// # Example
     /// ```rust,no_run
@@ -108,7 +109,7 @@ impl<'a> CpuExecuteBuilder<'a> {
     /// ```
     #[must_use]
     pub fn deferred_proof_verification(mut self, value: bool) -> Self {
-        self.context_builder.set_skip_deferred_proof_verification(!value);
+        self.context_builder.set_deferred_proof_verification(value);
         self
     }
 

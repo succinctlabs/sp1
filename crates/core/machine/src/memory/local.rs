@@ -77,7 +77,7 @@ impl<F> BaseAir<F> for MemoryLocalChip {
 
 fn nb_rows(count: usize) -> usize {
     if NUM_LOCAL_MEMORY_ENTRIES_PER_ROW > 1 {
-        (count + (NUM_LOCAL_MEMORY_ENTRIES_PER_ROW - 1)) / NUM_LOCAL_MEMORY_ENTRIES_PER_ROW
+        count.div_ceil(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW)
     } else {
         count
     }

@@ -6,6 +6,9 @@ use std::process::{Command, Stdio};
 
 pub const RUSTUP_TOOLCHAIN_NAME: &str = "succinct";
 
+/// The latest version (github tag) of the toolchain that is supported by our build system.
+pub const LATEST_SUPPORTED_TOOLCHAIN_VERSION_TAG: &str = "v1.82.0";
+
 pub const SP1_VERSION_MESSAGE: &str =
     concat!("sp1", " (", env!("VERGEN_GIT_SHA"), " ", env!("VERGEN_BUILD_TIMESTAMP"), ")");
 
@@ -60,15 +63,25 @@ pub fn get_target() -> String {
 pub async fn get_toolchain_download_url(client: &Client, target: String) -> String {
     // Get latest tag from https://api.github.com/repos/succinctlabs/rust/releases/latest
     // and use it to construct the download URL.
-    let json = client
-        .get("https://api.github.com/repos/succinctlabs/rust/releases/latest")
+    let all_releases = client
+        .get("https://api.github.com/repos/succinctlabs/rust/releases")
         .send()
         .await
         .unwrap()
         .json::<serde_json::Value>()
         .await
         .unwrap();
-    let tag = json["tag_name"].as_str().expect("Failed to download Succinct toolchain. Likely caused by GitHub rate limiting. Please try again using the --token flag. Docs: https://docs.succinct.xyz/getting-started/install.html#troubleshooting");
+
+    let current_release = all_releases
+        .as_array()
+        .expect("Failed to fetch releases list")
+        .iter()
+        .find(|release| {
+            release["tag_name"].as_str().unwrap() == LATEST_SUPPORTED_TOOLCHAIN_VERSION_TAG
+        })
+        .expect("No prereleases found");
+
+    let tag = current_release["tag_name"].as_str().expect("A valid tag name is expected");
 
     let url = format!(
         "https://github.com/succinctlabs/rust/releases/download/{}/rust-toolchain-{}.tar.gz",

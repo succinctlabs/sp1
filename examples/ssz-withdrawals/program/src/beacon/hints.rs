@@ -1,5 +1,7 @@
-use crate::beacon::types::*;
-use crate::beacon::utils::{branch_from_bytes, node_from_bytes};
+use crate::beacon::{
+    types::*,
+    utils::{branch_from_bytes, node_from_bytes},
+};
 use hex_literal::hex;
 use ssz_rs::prelude::*;
 use std::hint::black_box;

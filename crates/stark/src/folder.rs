@@ -82,7 +82,7 @@ impl<'a, SC: StarkGenericConfig> AirBuilder for ProverConstraintFolder<'a, SC> {
     }
 }
 
-impl<'a, SC: StarkGenericConfig> ExtensionBuilder for ProverConstraintFolder<'a, SC> {
+impl<SC: StarkGenericConfig> ExtensionBuilder for ProverConstraintFolder<'_, SC> {
     type EF = SC::Challenge;
 
     type ExprEF = PackedChallenge<SC>;
@@ -129,15 +129,15 @@ impl<'a, SC: StarkGenericConfig> MultiTableAirBuilder<'a> for ProverConstraintFo
     }
 }
 
-impl<'a, SC: StarkGenericConfig> PairBuilder for ProverConstraintFolder<'a, SC> {
+impl<SC: StarkGenericConfig> PairBuilder for ProverConstraintFolder<'_, SC> {
     fn preprocessed(&self) -> Self::M {
         self.preprocessed
     }
 }
 
-impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for ProverConstraintFolder<'a, SC> {}
+impl<SC: StarkGenericConfig> EmptyMessageBuilder for ProverConstraintFolder<'_, SC> {}
 
-impl<'a, SC: StarkGenericConfig> AirBuilderWithPublicValues for ProverConstraintFolder<'a, SC> {
+impl<SC: StarkGenericConfig> AirBuilderWithPublicValues for ProverConstraintFolder<'_, SC> {
     type PublicVar = Self::F;
 
     fn public_values(&self) -> &[Self::PublicVar] {
@@ -246,8 +246,8 @@ where
     }
 }
 
-impl<'a, F, EF, PubVar, Var, Expr> ExtensionBuilder
-    for GenericVerifierConstraintFolder<'a, F, EF, PubVar, Var, Expr>
+impl<F, EF, PubVar, Var, Expr> ExtensionBuilder
+    for GenericVerifierConstraintFolder<'_, F, EF, PubVar, Var, Expr>
 where
     F: Field,
     EF: ExtensionField<F>,
@@ -369,8 +369,8 @@ where
     }
 }
 
-impl<'a, F, EF, PubVar, Var, Expr> PairBuilder
-    for GenericVerifierConstraintFolder<'a, F, EF, PubVar, Var, Expr>
+impl<F, EF, PubVar, Var, Expr> PairBuilder
+    for GenericVerifierConstraintFolder<'_, F, EF, PubVar, Var, Expr>
 where
     F: Field,
     EF: ExtensionField<F>,
@@ -403,8 +403,8 @@ where
     }
 }
 
-impl<'a, F, EF, PubVar, Var, Expr> EmptyMessageBuilder
-    for GenericVerifierConstraintFolder<'a, F, EF, PubVar, Var, Expr>
+impl<F, EF, PubVar, Var, Expr> EmptyMessageBuilder
+    for GenericVerifierConstraintFolder<'_, F, EF, PubVar, Var, Expr>
 where
     F: Field,
     EF: ExtensionField<F>,
@@ -434,8 +434,8 @@ where
 {
 }
 
-impl<'a, F, EF, PubVar, Var, Expr> AirBuilderWithPublicValues
-    for GenericVerifierConstraintFolder<'a, F, EF, PubVar, Var, Expr>
+impl<F, EF, PubVar, Var, Expr> AirBuilderWithPublicValues
+    for GenericVerifierConstraintFolder<'_, F, EF, PubVar, Var, Expr>
 where
     F: Field,
     EF: ExtensionField<F>,

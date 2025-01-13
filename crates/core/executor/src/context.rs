@@ -23,18 +23,31 @@ pub struct SP1Context<'a> {
     /// The maximum number of cpu cycles to use for execution.
     pub max_cycles: Option<u64>,
 
-    /// Skip deferred proof verification.
-    pub skip_deferred_proof_verification: bool,
+    /// Deferred proof verification.
+    pub deferred_proof_verification: bool,
 }
 
 /// A builder for [`SP1Context`].
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct SP1ContextBuilder<'a> {
     no_default_hooks: bool,
     hook_registry_entries: Vec<(u32, BoxedHook<'a>)>,
     subproof_verifier: Option<&'a dyn SubproofVerifier>,
     max_cycles: Option<u64>,
-    skip_deferred_proof_verification: bool,
+    deferred_proof_verification: bool,
+}
+
+impl Default for SP1ContextBuilder<'_> {
+    fn default() -> Self {
+        Self {
+            no_default_hooks: false,
+            hook_registry_entries: Vec::new(),
+            subproof_verifier: None,
+            max_cycles: None,
+            // Always verify deferred proofs by default.
+            deferred_proof_verification: true,
+        }
+    }
 }
 
 impl<'a> SP1Context<'a> {
@@ -86,12 +99,12 @@ impl<'a> SP1ContextBuilder<'a> {
 
         let subproof_verifier = take(&mut self.subproof_verifier);
         let cycle_limit = take(&mut self.max_cycles);
-        let skip_deferred_proof_verification = take(&mut self.skip_deferred_proof_verification);
+        let deferred_proof_verification = take(&mut self.deferred_proof_verification);
         SP1Context {
             hook_registry,
             subproof_verifier,
             max_cycles: cycle_limit,
-            skip_deferred_proof_verification,
+            deferred_proof_verification,
         }
     }
 
@@ -137,9 +150,9 @@ impl<'a> SP1ContextBuilder<'a> {
         self
     }
 
-    /// Set the skip deferred proof verification flag.
-    pub fn set_skip_deferred_proof_verification(&mut self, skip: bool) -> &mut Self {
-        self.skip_deferred_proof_verification = skip;
+    /// Set the deferred proof verification flag.
+    pub fn set_deferred_proof_verification(&mut self, value: bool) -> &mut Self {
+        self.deferred_proof_verification = value;
         self
     }
 }

@@ -1,5 +1,6 @@
-use sp1_sdk::network::Error;
-use sp1_sdk::{include_elf, utils, ProverClient, SP1ProofWithPublicValues, SP1Stdin};
+use sp1_sdk::{
+    include_elf, network::Error, utils, ProverClient, SP1ProofWithPublicValues, SP1Stdin,
+};
 
 /// The ELF we want to execute inside the zkVM.
 const ELF: &[u8] = include_elf!("fibonacci-program");

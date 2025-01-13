@@ -26,7 +26,7 @@ pub struct CpuProveBuilder<'a> {
     pub(crate) mock: bool,
 }
 
-impl<'a> CpuProveBuilder<'a> {
+impl CpuProveBuilder<'_> {
     /// Set the proof kind to [`SP1ProofKind::Core`] mode.
     ///
     /// # Details
@@ -232,11 +232,16 @@ impl<'a> CpuProveBuilder<'a> {
         self
     }
 
-    /// Set the skip deferred proof verification flag.
+    /// Whether to enable deferred proof verification in the executor.
+    ///
+    /// # Arguments
+    /// * `value` - Whether to enable deferred proof verification in the executor.
     ///
     /// # Details
-    /// If set to `true`, the prover will skip the deferred proof verification step in the executor.
-    /// This is useful for reducing the amount of time it takes to execute the program.
+    /// Default: `true`. If set to `false`, the executor will skip deferred proof verification.
+    /// This is useful for reducing the execution time of the program and optimistically assuming
+    /// that the deferred proofs are correct. Can also be used for mock proof setups that require
+    /// verifying mock compressed proofs.
     ///
     /// # Example
     /// ```rust,no_run
@@ -253,7 +258,7 @@ impl<'a> CpuProveBuilder<'a> {
     /// ```
     #[must_use]
     pub fn deferred_proof_verification(mut self, value: bool) -> Self {
-        self.context_builder.set_skip_deferred_proof_verification(value);
+        self.context_builder.set_deferred_proof_verification(value);
         self
     }
 
@@ -288,7 +293,7 @@ impl<'a> CpuProveBuilder<'a> {
 
         // Run the prover.
         if mock {
-            prover.mock_prove_impl(pk, &stdin, mode)
+            prover.mock_prove_impl(pk, &stdin, context, mode)
         } else {
             prover.prove_impl(pk, &stdin, opts, context, mode)
         }

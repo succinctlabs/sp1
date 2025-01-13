@@ -68,7 +68,7 @@ impl<'a> HookRegistry<'a> {
     }
 }
 
-impl<'a> Default for HookRegistry<'a> {
+impl Default for HookRegistry<'_> {
     fn default() -> Self {
         // When `LazyCell` gets stabilized (1.81.0), we can use it to avoid unnecessary allocations.
         let table = HashMap::from([
@@ -83,7 +83,7 @@ impl<'a> Default for HookRegistry<'a> {
     }
 }
 
-impl<'a> Debug for HookRegistry<'a> {
+impl Debug for HookRegistry<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut keys = self.table.keys().collect::<Vec<_>>();
         keys.sort_unstable();

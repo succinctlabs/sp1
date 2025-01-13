@@ -20,7 +20,7 @@ pub struct CudaProveBuilder<'a> {
     pub(crate) stdin: SP1Stdin,
 }
 
-impl<'a> CudaProveBuilder<'a> {
+impl CudaProveBuilder<'_> {
     /// Set the proof kind to [`SP1ProofMode::Core`] mode.
     ///
     /// # Details

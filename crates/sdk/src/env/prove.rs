@@ -13,7 +13,7 @@ pub struct EnvProveBuilder<'a> {
     pub(crate) stdin: SP1Stdin,
 }
 
-impl<'a> EnvProveBuilder<'a> {
+impl EnvProveBuilder<'_> {
     /// Set the proof kind to [`SP1ProofMode::Core`] mode.
     ///
     /// # Details

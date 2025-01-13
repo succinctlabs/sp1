@@ -11,7 +11,9 @@ pub mod prover;
 pub mod proto;
 pub mod builder;
 mod error;
+mod grpc;
 pub mod prove;
+mod retry;
 pub mod utils;
 
 pub use crate::network::client::NetworkClient;
