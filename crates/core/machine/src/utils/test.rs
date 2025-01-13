@@ -1,7 +1,8 @@
 use p3_air::Air;
 use p3_baby_bear::BabyBear;
+use p3_matrix::dense::RowMajorMatrix;
 use serde::{de::DeserializeOwned, Serialize};
-use sp1_core_executor::{Executor, Program, SP1Context};
+use sp1_core_executor::{ExecutionRecord, Executor, Program, SP1Context};
 use sp1_primitives::io::SP1PublicValues;
 use sp1_stark::{
     air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, Com, CpuProver,
@@ -14,6 +15,10 @@ use sp1_stark::{
 use crate::{io::SP1Stdin, riscv::RiscvAir, shape::CoreShapeConfig};
 
 use super::prove_core;
+
+/// This type is the function signature used for malicious trace and public values generators for failure test cases.
+pub(crate) type MaliciousTracePVGeneratorType<Val, P> =
+    Box<dyn Fn(&P, &mut ExecutionRecord) -> Vec<(String, RowMajorMatrix<Val>)> + Send + Sync>;
 
 /// The canonical entry point for testing a [`Program`] and [`SP1Stdin`] with a [`MachineProver`].
 pub fn run_test<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
@@ -37,8 +42,43 @@ pub fn run_test<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
     });
     let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
 
-    let _ = run_test_core::<P>(runtime, inputs, Some(&shape_config))?;
+    let _ = run_test_core::<P>(runtime, inputs, Some(&shape_config), None)?;
     Ok(public_values)
+}
+
+pub fn run_malicious_test<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
+    mut program: Program,
+    inputs: SP1Stdin,
+    malicious_trace_pv_generator: MaliciousTracePVGeneratorType<BabyBear, P>,
+) -> Result<SP1PublicValues, MachineVerificationError<BabyBearPoseidon2>> {
+    let shape_config = CoreShapeConfig::<BabyBear>::default();
+    shape_config.fix_preprocessed_shape(&mut program).unwrap();
+
+    let runtime = tracing::debug_span!("runtime.run(...)").in_scope(|| {
+        let mut runtime = Executor::new(program, SP1CoreOpts::default());
+        runtime.maximal_shapes = Some(
+            shape_config
+                .maximal_core_shapes(SP1CoreOpts::default().shard_size.ilog2() as usize)
+                .into_iter()
+                .collect(),
+        );
+        runtime.write_vecs(&inputs.buffer);
+        runtime.run().unwrap();
+        runtime
+    });
+    let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
+
+    let result = run_test_core::<P>(
+        runtime,
+        inputs,
+        Some(&shape_config),
+        Some(malicious_trace_pv_generator),
+    );
+    if let Err(verification_error) = result {
+        Err(verification_error)
+    } else {
+        Ok(public_values)
+    }
 }
 
 #[allow(unused_variables)]
@@ -46,6 +86,7 @@ pub fn run_test_core<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
     runtime: Executor,
     inputs: SP1Stdin,
     shape_config: Option<&CoreShapeConfig<BabyBear>>,
+    malicious_trace_pv_generator: Option<MaliciousTracePVGeneratorType<BabyBear, P>>,
 ) -> Result<MachineProof<BabyBearPoseidon2>, MachineVerificationError<BabyBearPoseidon2>> {
     let config = BabyBearPoseidon2::new();
     let machine = RiscvAir::machine(config);
@@ -61,6 +102,7 @@ pub fn run_test_core<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
         SP1CoreOpts::default(),
         SP1Context::default(),
         shape_config,
+        malicious_trace_pv_generator,
     )
     .unwrap();
 
@@ -68,9 +110,11 @@ pub fn run_test_core<P: MachineProver<BabyBearPoseidon2, RiscvAir<BabyBear>>>(
     let machine = RiscvAir::machine(config);
     let (pk, vk) = machine.setup(runtime.program.as_ref());
     let mut challenger = machine.config().challenger();
-    machine.verify(&vk, &proof, &mut challenger).unwrap();
-
-    Ok(proof)
+    if let Err(e) = machine.verify(&vk, &proof, &mut challenger) {
+        Err(e)
+    } else {
+        Ok(proof)
+    }
 }
 
 #[allow(unused_variables)]

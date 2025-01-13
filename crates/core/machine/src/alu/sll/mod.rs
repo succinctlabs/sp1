@@ -420,11 +420,25 @@ where
 #[cfg(test)]
 mod tests {
 
-    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
+    use std::borrow::BorrowMut;
+
+    use crate::{
+        alu::ShiftLeftCols,
+        io::SP1Stdin,
+        riscv::RiscvAir,
+        utils::{run_malicious_test, uni_stark_prove as prove, uni_stark_verify as verify},
+    };
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-    use sp1_core_executor::{events::AluEvent, ExecutionRecord, Opcode};
-    use sp1_stark::{air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
+    use rand::{thread_rng, Rng};
+    use sp1_core_executor::{
+        events::{AluEvent, MemoryRecordEnum},
+        ExecutionRecord, Instruction, Opcode, Program,
+    };
+    use sp1_stark::{
+        air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, chip_name, CpuProver,
+        MachineProver, StarkGenericConfig, Val,
+    };
 
     use super::ShiftLeft;
 
@@ -483,5 +497,62 @@ mod tests {
 
         let mut challenger = config.challenger();
         verify(&config, &chip, &mut challenger, &proof).unwrap();
+    }
+
+    #[test]
+    fn test_malicious_sll() {
+        const NUM_TESTS: usize = 5;
+
+        for _ in 0..NUM_TESTS {
+            let op_a = thread_rng().gen_range(0..u32::MAX);
+            let op_b = thread_rng().gen_range(0..u32::MAX);
+            let op_c = thread_rng().gen_range(0..u32::MAX);
+
+            let correct_op_a = op_b << (op_c & 0x1F);
+
+            assert!(op_a != correct_op_a);
+
+            let instructions = vec![
+                Instruction::new(Opcode::SLL, 5, op_b, op_c, true, true),
+                Instruction::new(Opcode::ADD, 10, 0, 0, false, false),
+            ];
+
+            let program = Program::new(instructions, 0, 0);
+            let stdin = SP1Stdin::new();
+
+            type P = CpuProver<BabyBearPoseidon2, RiscvAir<BabyBear>>;
+
+            let malicious_trace_pv_generator =
+                move |prover: &P,
+                      record: &mut ExecutionRecord|
+                      -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
+                    let mut malicious_record = record.clone();
+                    malicious_record.cpu_events[0].a = op_a as u32;
+                    if let Some(MemoryRecordEnum::Write(mut write_record)) =
+                        malicious_record.cpu_events[0].a_record
+                    {
+                        write_record.value = op_a as u32;
+                    }
+                    let mut traces = prover.generate_traces(&malicious_record);
+                    let shift_left_chip_name = chip_name!(ShiftLeft, BabyBear);
+                    for (name, trace) in traces.iter_mut() {
+                        if *name == shift_left_chip_name {
+                            let first_row = trace.row_mut(0);
+                            let first_row: &mut ShiftLeftCols<BabyBear> = first_row.borrow_mut();
+                            first_row.a = op_a.into();
+                        }
+                    }
+
+                    traces
+                };
+
+            let result =
+                run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
+            let shift_left_chip_name = chip_name!(ShiftLeft, BabyBear);
+            assert!(
+                result.is_err()
+                    && result.unwrap_err().is_constraints_failing(&shift_left_chip_name)
+            );
+        }
     }
 }

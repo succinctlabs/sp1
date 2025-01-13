@@ -206,7 +206,7 @@ pub struct LocalCounts {
 }
 
 /// Errors that the [``Executor``] can throw.
-#[derive(Error, Debug, Serialize, Deserialize)]
+#[derive(Error, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ExecutionError {
     /// The execution failed with a non-zero exit code.
     #[error("execution failed with exit code {0}")]
@@ -2220,6 +2220,7 @@ pub const fn align(addr: u32) -> u32 {
 mod tests {
 
     use sp1_stark::SP1CoreOpts;
+    use sp1_zkvm::syscalls::SHA_COMPRESS;
 
     use crate::programs::tests::{
         fibonacci_program, panic_program, secp256r1_add_program, secp256r1_double_program,
@@ -2849,5 +2850,46 @@ mod tests {
         // Assert SH cases
         assert_eq!(runtime.register(Register::X12), 0x12346525);
         assert_eq!(runtime.register(Register::X11), 0x65256525);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_invalid_address_access_sw() {
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 20, false, true),
+            Instruction::new(Opcode::SW, 0, 29, 0, false, true),
+        ];
+
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Executor::new(program, SP1CoreOpts::default());
+        runtime.run().unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_invalid_address_access_lw() {
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 20, false, true),
+            Instruction::new(Opcode::LW, 29, 29, 0, false, true),
+        ];
+
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Executor::new(program, SP1CoreOpts::default());
+        runtime.run().unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_invalid_address_syscall() {
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 5, 0, SHA_COMPRESS, false, true),
+            Instruction::new(Opcode::ADD, 10, 0, 10, false, true),
+            Instruction::new(Opcode::ADD, 11, 10, 20, false, true),
+            Instruction::new(Opcode::ECALL, 5, 10, 11, false, false),
+        ];
+
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Executor::new(program, SP1CoreOpts::default());
+        runtime.run().unwrap();
     }
 }

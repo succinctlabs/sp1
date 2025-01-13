@@ -601,3 +601,27 @@ impl<SC: StarkGenericConfig> std::fmt::Display for MachineVerificationError<SC> 
 }
 
 impl<SC: StarkGenericConfig> std::error::Error for MachineVerificationError<SC> {}
+
+impl<SC: StarkGenericConfig> MachineVerificationError<SC> {
+    /// This function will check if the verification error is from constraints failing.
+    pub fn is_constraints_failing(&self, expected_chip_name: &str) -> bool {
+        if let MachineVerificationError::InvalidShardProof(
+            VerificationError::OodEvaluationMismatch(chip_name),
+        ) = self
+        {
+            return chip_name == expected_chip_name;
+        }
+
+        false
+    }
+
+    /// This function will check if the verification error is from local cumulative sum failing.
+    pub fn is_local_cumulative_sum_failing(&self) -> bool {
+        matches!(
+            self,
+            MachineVerificationError::InvalidShardProof(VerificationError::CumulativeSumsError(
+                "local cumulative sum is not zero"
+            ))
+        )
+    }
+}

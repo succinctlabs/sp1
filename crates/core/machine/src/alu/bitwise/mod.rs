@@ -243,10 +243,21 @@ where
 mod tests {
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-    use sp1_core_executor::{events::AluEvent, ExecutionRecord, Opcode};
-    use sp1_stark::{air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
+    use rand::{thread_rng, Rng};
+    use sp1_core_executor::{
+        events::{AluEvent, MemoryRecordEnum},
+        ExecutionRecord, Instruction, Opcode, Program,
+    };
+    use sp1_stark::{
+        air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, CpuProver, MachineProver,
+        StarkGenericConfig, Val,
+    };
 
-    use crate::utils::{uni_stark_prove, uni_stark_verify};
+    use crate::{
+        io::SP1Stdin,
+        riscv::RiscvAir,
+        utils::{run_malicious_test, uni_stark_prove, uni_stark_verify},
+    };
 
     use super::BitwiseChip;
 
@@ -279,5 +290,58 @@ mod tests {
 
         let mut challenger = config.challenger();
         uni_stark_verify(&config, &chip, &mut challenger, &proof).unwrap();
+    }
+
+    #[test]
+    fn test_malicious_bitwise() {
+        const NUM_TESTS: usize = 5;
+
+        for opcode in [Opcode::XOR, Opcode::OR, Opcode::AND] {
+            for _ in 0..NUM_TESTS {
+                let op_a = thread_rng().gen_range(0..u32::MAX);
+                let op_b = thread_rng().gen_range(0..u32::MAX);
+                let op_c = thread_rng().gen_range(0..u32::MAX);
+
+                let correct_op_a = if opcode == Opcode::XOR {
+                    op_b ^ op_c
+                } else if opcode == Opcode::OR {
+                    op_b | op_c
+                } else {
+                    op_b & op_c
+                };
+
+                assert!(op_a != correct_op_a);
+
+                let instructions = vec![
+                    Instruction::new(opcode, 5, op_b, op_c, true, true),
+                    Instruction::new(Opcode::ADD, 10, 0, 0, false, false),
+                ];
+                let program = Program::new(instructions, 0, 0);
+                let stdin = SP1Stdin::new();
+
+                type P = CpuProver<BabyBearPoseidon2, RiscvAir<BabyBear>>;
+
+                let malicious_trace_pv_generator = move |prover: &P,
+                                                         record: &mut ExecutionRecord|
+                      -> Vec<(
+                    String,
+                    RowMajorMatrix<Val<BabyBearPoseidon2>>,
+                )> {
+                    let mut malicious_record = record.clone();
+                    malicious_record.cpu_events[0].a = op_a;
+                    if let Some(MemoryRecordEnum::Write(mut write_record)) =
+                        malicious_record.cpu_events[0].a_record
+                    {
+                        write_record.value = op_a;
+                    }
+                    malicious_record.bitwise_events[0].a = op_a;
+                    prover.generate_traces(&malicious_record)
+                };
+
+                let result =
+                    run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
+                assert!(result.is_err() && result.unwrap_err().is_local_cumulative_sum_failing());
+            }
+        }
     }
 }

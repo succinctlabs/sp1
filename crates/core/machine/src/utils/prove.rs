@@ -13,6 +13,7 @@ use web_time::Instant;
 
 use crate::riscv::RiscvAir;
 use crate::shape::CoreShapeConfig;
+use crate::utils::test::MaliciousTracePVGeneratorType;
 use p3_maybe_rayon::prelude::*;
 use sp1_stark::MachineProvingKey;
 use sp1_stark::StarkVerifyingKey;
@@ -49,6 +50,7 @@ pub fn prove_core<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<SC::Val>
     opts: SP1CoreOpts,
     context: SP1Context,
     shape_config: Option<&CoreShapeConfig<SC::Val>>,
+    malicious_trace_pv_generator: Option<MaliciousTracePVGeneratorType<SC::Val, P>>,
 ) -> Result<(MachineProof<SC>, Vec<u8>, u64), SP1CoreProverError>
 where
     SC::Val: PrimeField32,
@@ -69,6 +71,7 @@ where
         shape_config,
         proof_tx,
         shape_tx,
+        malicious_trace_pv_generator,
     )?;
 
     let _: Vec<_> = shape_rx.iter().collect();
@@ -89,6 +92,7 @@ pub fn prove_core_stream<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<S
     shape_config: Option<&CoreShapeConfig<SC::Val>>,
     proof_tx: Sender<ShardProof<SC>>,
     shape_and_done_tx: Sender<(OrderedShape, bool)>,
+    malicious_trace_pv_generator: Option<MaliciousTracePVGeneratorType<SC::Val, P>>, // This is used for failure test cases that generate malicious traces and public values.
 ) -> Result<(Vec<u8>, u64), SP1CoreProverError>
 where
     SC::Val: PrimeField32,
@@ -110,6 +114,10 @@ where
 
     #[cfg(feature = "debug")]
     let (all_records_tx, all_records_rx) = std::sync::mpsc::channel::<Vec<ExecutionRecord>>();
+
+    // Need to create an optional reference, because of the `move` below.
+    let malicious_trace_pv_generator: Option<&MaliciousTracePVGeneratorType<SC::Val, P>> =
+        malicious_trace_pv_generator.as_ref();
 
     // Record the start of the process.
     let proving_start = Instant::now();
@@ -315,12 +323,22 @@ where
                             all_records_tx.send(records.clone()).unwrap();
 
                             let mut main_traces = Vec::new();
-                            tracing::info_span!("generate main traces", index).in_scope(|| {
-                                main_traces = records
-                                    .par_iter()
-                                    .map(|record| prover.generate_traces(record))
-                                    .collect::<Vec<_>>();
-                            });
+                            if let Some(malicious_trace_pv_generator) = malicious_trace_pv_generator
+                            {
+                                tracing::info_span!("generate main traces", index).in_scope(|| {
+                                    main_traces = records
+                                        .par_iter_mut()
+                                        .map(|record| malicious_trace_pv_generator(prover, record))
+                                        .collect::<Vec<_>>();
+                                });
+                            } else {
+                                tracing::info_span!("generate main traces", index).in_scope(|| {
+                                    main_traces = records
+                                        .par_iter()
+                                        .map(|record| prover.generate_traces(record))
+                                        .collect::<Vec<_>>();
+                                });
+                            }
 
                             trace_gen_sync.wait_for_turn(index);
 

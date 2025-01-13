@@ -21,9 +21,9 @@ pub fn words_to_bytes_le(words: &[u32; 8]) -> [u8; 32] {
 pub fn commit_proof_pairs(vkeys: &[[u32; 8]], committed_values: &[Vec<u8>]) -> Vec<u8> {
     assert_eq!(vkeys.len(), committed_values.len());
     let mut res = Vec::with_capacity(
-        4 + vkeys.len() * 32 +
-            committed_values.len() * 4 +
-            committed_values.iter().map(|vals| vals.len()).sum::<usize>(),
+        4 + vkeys.len() * 32
+            + committed_values.len() * 4
+            + committed_values.iter().map(|vals| vals.len()).sum::<usize>(),
     );
 
     // Note we use big endian because abi.encodePacked in solidity does also

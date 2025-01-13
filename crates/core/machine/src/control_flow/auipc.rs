@@ -26,7 +26,7 @@ use crate::{
 #[derive(Default)]
 pub struct AuipcChip;
 
-pub const NUM_AUIPC_COLS: usize = size_of::<AUIPCColumns<u8>>();
+pub const NUM_AUIPC_COLS: usize = size_of::<AuipcColumns<u8>>();
 
 impl<F> BaseAir<F> for AuipcChip {
     fn width(&self) -> usize {
@@ -37,7 +37,7 @@ impl<F> BaseAir<F> for AuipcChip {
 /// The column layout for AUIPC/UNIMP/EBREAK instructions.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct AUIPCColumns<T> {
+pub struct AuipcColumns<T> {
     /// The program counter of the instruction.
     pub pc: Word<T>,
 
@@ -73,7 +73,7 @@ where
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local = main.row_slice(0);
-        let local: &AUIPCColumns<AB::Var> = (*local).borrow();
+        let local: &AuipcColumns<AB::Var> = (*local).borrow();
 
         // SAFETY: All selectors `is_auipc`, `is_unimp`, `is_ebreak` are checked to be boolean.
         // Each "real" row has exactly one selector turned on, as `is_real`, the sum of the three selectors, is boolean.
@@ -183,7 +183,7 @@ impl<F: PrimeField32> MachineAir<F> for AuipcChip {
                 let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
                 rows.chunks_mut(NUM_AUIPC_COLS).enumerate().for_each(|(j, row)| {
                     let idx = i * chunk_size + j;
-                    let cols: &mut AUIPCColumns<F> = row.borrow_mut();
+                    let cols: &mut AuipcColumns<F> = row.borrow_mut();
 
                     if idx < input.auipc_events.len() {
                         let event = &input.auipc_events[idx];
@@ -220,5 +220,117 @@ impl<F: PrimeField32> MachineAir<F> for AuipcChip {
 
     fn local_only(&self) -> bool {
         true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::borrow::BorrowMut;
+
+    use p3_baby_bear::BabyBear;
+    use p3_field::AbstractField;
+    use p3_matrix::dense::RowMajorMatrix;
+    use sp1_core_executor::{
+        ExecutionError, ExecutionRecord, Executor, Instruction, Opcode, Program,
+    };
+    use sp1_stark::{
+        air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, chip_name, CpuProver,
+        MachineProver, SP1CoreOpts, Val,
+    };
+
+    use crate::{
+        control_flow::{AuipcChip, AuipcColumns},
+        io::SP1Stdin,
+        riscv::RiscvAir,
+        utils::run_malicious_test,
+    };
+
+    #[test]
+    fn test_malicious_auipc() {
+        let instructions = vec![
+            Instruction::new(Opcode::AUIPC, 29, 12, 12, true, true),
+            Instruction::new(Opcode::ADD, 10, 0, 0, false, false),
+        ];
+        let program = Program::new(instructions, 0, 0);
+        let stdin = SP1Stdin::new();
+
+        type P = CpuProver<BabyBearPoseidon2, RiscvAir<BabyBear>>;
+
+        let malicious_trace_pv_generator =
+            |prover: &P,
+             record: &mut ExecutionRecord|
+             -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
+                // Create a malicious record where the AUIPC instruction result is incorrect.
+                let mut malicious_record = record.clone();
+                malicious_record.auipc_events[0].a = 8;
+                prover.generate_traces(&malicious_record)
+            };
+
+        let result =
+            run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
+        assert!(result.is_err() && result.unwrap_err().is_local_cumulative_sum_failing());
+    }
+
+    #[test]
+    fn test_malicious_multiple_opcode_flags() {
+        let instructions = vec![
+            Instruction::new(Opcode::AUIPC, 29, 12, 12, true, true),
+            Instruction::new(Opcode::ADD, 10, 0, 0, false, false),
+        ];
+        let program = Program::new(instructions, 0, 0);
+        let stdin = SP1Stdin::new();
+
+        type P = CpuProver<BabyBearPoseidon2, RiscvAir<BabyBear>>;
+
+        let malicious_trace_pv_generator =
+            |prover: &P,
+             record: &mut ExecutionRecord|
+             -> Vec<(String, RowMajorMatrix<Val<BabyBearPoseidon2>>)> {
+                // Modify the branch chip to have a row that has multiple opcode flags set.
+                let mut traces = prover.generate_traces(record);
+                let auipc_chip_name = chip_name!(AuipcChip, BabyBear);
+                for (chip_name, trace) in traces.iter_mut() {
+                    if *chip_name == auipc_chip_name {
+                        let first_row: &mut [BabyBear] = trace.row_mut(0);
+                        let first_row: &mut AuipcColumns<BabyBear> = first_row.borrow_mut();
+                        assert!(first_row.is_auipc == BabyBear::one());
+                        first_row.is_unimp = BabyBear::one();
+                    }
+                }
+                traces
+            };
+
+        let result =
+            run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
+        let auipc_chip_name = chip_name!(AuipcChip, BabyBear);
+        assert!(result.is_err() && result.unwrap_err().is_constraints_failing(&auipc_chip_name));
+    }
+
+    #[test]
+    fn test_unimpl() {
+        let instructions = vec![Instruction::new(Opcode::UNIMP, 29, 12, 0, true, true)];
+        let program = Program::new(instructions, 0, 0);
+        let stdin = SP1Stdin::new();
+
+        let mut runtime = Executor::new(program, SP1CoreOpts::default());
+        runtime.maximal_shapes = None;
+        runtime.write_vecs(&stdin.buffer);
+        let result = runtime.execute();
+
+        assert!(result.is_err() && result.unwrap_err() == ExecutionError::Unimplemented());
+    }
+
+    #[test]
+    fn test_ebreak() {
+        let instructions = vec![Instruction::new(Opcode::EBREAK, 29, 12, 0, true, true)];
+        let program = Program::new(instructions, 0, 0);
+        let stdin = SP1Stdin::new();
+
+        let mut runtime = Executor::new(program, SP1CoreOpts::default());
+        runtime.maximal_shapes = None;
+        runtime.write_vecs(&stdin.buffer);
+        let result = runtime.execute();
+
+        assert!(result.is_err() && result.unwrap_err() == ExecutionError::Breakpoint());
     }
 }
