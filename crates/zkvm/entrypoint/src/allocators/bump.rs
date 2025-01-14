@@ -14,3 +14,6 @@ unsafe impl GlobalAlloc for SimpleAlloc {
 
     unsafe fn dealloc(&self, _: *mut u8, _: Layout) {}
 }
+
+#[global_allocator]
+static HEAP: SimpleAlloc = SimpleAlloc;

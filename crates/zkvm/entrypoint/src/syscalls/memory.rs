@@ -13,10 +13,14 @@
 // limitations under the License.
 
 // Memory addresses must be lower than BabyBear prime.
-const MAX_MEMORY: usize = 0x78000000;
+pub const MAX_MEMORY: usize = 0x78000000;
 
+/// Allocate memory aligned to the given alignment.
+///
+/// Only available when the `bump` feature is enabled.
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
+#[cfg(feature = "bump")]
 pub unsafe extern "C" fn sys_alloc_aligned(bytes: usize, align: usize) -> *mut u8 {
     extern "C" {
         // https://lld.llvm.org/ELF/linker_script.html#sections-command

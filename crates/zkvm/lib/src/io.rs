@@ -1,10 +1,7 @@
 #![allow(unused_unsafe)]
-use crate::{syscall_hint_len, syscall_hint_read, syscall_write};
+use crate::{read_vec_raw, syscall_write, ReadVecResult};
 use serde::{de::DeserializeOwned, Serialize};
-use std::{
-    alloc::Layout,
-    io::{Result, Write},
-};
+use std::io::{Result, Write};
 
 pub use sp1_primitives::consts::fd::*;
 
@@ -28,36 +25,25 @@ impl Write for SyscallWriter {
     }
 }
 
-/// Read a buffer from the input stream.
+/// Read a buffer from the input stream. The buffer is read into uninitialized memory.
+///
+/// When the `bump` feature is enabled, the buffer is read into a new buffer allocated by the
+/// program.
+///
+/// When the `embedded` feature is enabled, the buffer is read into the reserved input region.
+///
+/// When there is no allocator selected, the program will fail to compile.
 ///
 /// ### Examples
 /// ```ignore
 /// let data: Vec<u8> = sp1_zkvm::io::read_vec();
 /// ```
 pub fn read_vec() -> Vec<u8> {
-    // Round up to the nearest multiple of 4 so that the memory allocated is in whole words
-    let len = unsafe { syscall_hint_len() };
-    let capacity = (len + 3) / 4 * 4;
-
-    // Allocate a buffer of the required length that is 4 byte aligned
-    let layout = Layout::from_size_align(capacity, 4).expect("vec is too large");
-    let ptr = unsafe { std::alloc::alloc(layout) };
-
-    // SAFETY:
+    let ReadVecResult { ptr, len, capacity } = unsafe { read_vec_raw() };
     // 1. `ptr` was allocated using alloc
-    // 2. We assuume that the VM global allocator doesn't dealloc
-    // 3/6. Size is correct from above
-    // 4/5. Length is 0
-    // 7. Layout::from_size_align already checks this
-    let mut vec = unsafe { Vec::from_raw_parts(ptr, 0, capacity) };
-
-    // Read the vec into uninitialized memory. The syscall assumes the memory is uninitialized,
-    // which should be true because the allocator does not dealloc, so a new alloc should be fresh.
-    unsafe {
-        syscall_hint_read(ptr, len);
-        vec.set_len(len);
-    }
-    vec
+    // 2. Assume that the allocator in the VM doesn't deallocate in the input space.
+    // 3. Size and length are correct from above. Length is <= capacity.
+    unsafe { Vec::from_raw_parts(ptr, len, capacity) }
 }
 
 /// Read a deserializable object from the input stream.
