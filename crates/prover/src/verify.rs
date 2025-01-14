@@ -350,6 +350,12 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             return Err(MachineVerificationError::InvalidVerificationKey);
         }
 
+        // `is_complete` should be 1. In the reduce program, this ensures that the proof is fully
+        // reduced.
+        if public_values.is_complete != BabyBear::one() {
+            return Err(MachineVerificationError::InvalidPublicValues("is_complete is not 1"));
+        }
+
         // Verify that the proof is for the sp1 vkey we are expecting.
         let vkey_hash = vk.hash_babybear();
         if public_values.sp1_vk_digest != vkey_hash {
