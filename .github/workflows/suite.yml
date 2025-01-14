@@ -209,4 +209,4 @@ jobs:
           SP1_PROVER: network
           SP1_PRIVATE_KEY: ${{ secrets.SP1_PRIVATE_KEY }}
           NETWORK_PRIVATE_KEY: ${{ secrets.NETWORK_PRIVATE_KEY }}
-          NETWORK_RPC_URL: "https://rpc.production2.succinct.tools" 
+          NETWORK_RPC_URL: "https://rpc.production.succinct.xyz" 

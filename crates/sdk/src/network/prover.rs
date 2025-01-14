@@ -18,7 +18,6 @@ use crate::{
 };
 use alloy_primitives::B256;
 use anyhow::Result;
-use serde::de::DeserializeOwned;
 use sp1_core_executor::{SP1Context, SP1ContextBuilder};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{components::CpuProverComponents, SP1Prover, SP1_CIRCUIT_VERSION};
@@ -216,11 +215,11 @@ impl NetworkProver {
 
     /// Waits for a proof to be generated and returns the proof. If a timeout is supplied, the
     /// function will return an error if the proof is not generated within the timeout.
-    pub async fn wait_proof<P: DeserializeOwned>(
+    pub async fn wait_proof(
         &self,
         request_id: B256,
         timeout: Option<Duration>,
-    ) -> Result<P> {
+    ) -> Result<SP1ProofWithPublicValues> {
         let mut is_assigned = false;
         let start_time = Instant::now();
 

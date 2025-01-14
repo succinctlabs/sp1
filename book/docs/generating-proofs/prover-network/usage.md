@@ -14,70 +14,63 @@ let mut proof = client.prove(&pk, &stdin).run().unwrap();
 ```
 
 ```sh
-SP1_PROVER=network SP1_PRIVATE_KEY=... RUST_LOG=info cargo run --release
+SP1_PROVER=network NETWORK_PRIVATE_KEY=... RUST_LOG=info cargo run --release
 ```
 
-- `SP1_PROVER` should be set to `network` when using the prover network.
+- `SP1_PROVER` should be set to `network` rather than the default `cpu` when using the prover network. This variable allows you to switch between the CPU and network provers.
 
-- `SP1_PRIVATE_KEY` should be set to your [private key](./key-setup.md). You will need
+- `NETWORK_PRIVATE_KEY` should be set to your [private key](./key-setup.md). You will need
   to be using a [whitelisted](../prover-network) key to use the network.
 
 When you call any of the prove functions in ProverClient now, it will first simulate your program, then wait for it to be proven through the network and finally return the proof.
 
 ## View the status of your proof
 
-You can view your proof and other running proofs on the [explorer](https://explorer.succinct.xyz/). The page for your proof will show details such as the stage of your proof and the cycles used. It also shows the program hash which is the keccak256 of the program bytes.
+You can view your proof and other running proofs on the [explorer](https://network.succinct.xyz/). The page for your proof will show details such as the stage of your proof and the cycles used. It also shows the vk hash of the program.
 
-![Screenshot from explorer.succinct.xyz showing the details of a proof including status, stage, type, program, requester, prover, CPU cycles used, time requested, and time claimed.](./explorer.png)
+![Screenshot from network.succinct.xyz showing the details of a proof.](./explorer.png)
 
 ## Advanced Usage
 
-### Skip simulation
+If you are using the prover network in a production system, or otherwise want to use advanced features, you should use `sp1_sdk::NetworkProver` directly.
 
-To skip the simulation step and directly submit the program for proof generation, you can set the `SKIP_SIMULATION` environment variable to `true`. This will save some time if you are sure that your program is correct. If your program panics, the proof will fail and ProverClient will panic.
+Advanced features include:
+* Skipping local simulation
+* Requesting a proof, which returns a proof ID, and then waiting for the proof to be fulfilled
+* Async support
+* Requesting a proof using a custom fulfillment strategy, such as for reserved prover network capacity
 
-### Use NetworkProver directly
+```rust,no_run
+use sp1_sdk::{network::FulfillmentStrategy, Prover, ProverClient};
+use std::time::Duration;
 
-By using the `sp1_sdk::NetworkProver` struct directly, you can call async functions directly and have programmatic access to the proof ID and download proofs by ID.
+let prover = ProverClient::builder().network().build();
+let (pk, vk) = prover.setup(ELF);
 
-```rust
-impl NetworkProver {
-    /// Creates a new [NetworkProver] with the private key set in `SP1_PRIVATE_KEY`.
-    pub fn new() -> Self;
+// Request proof and get the proof ID immediately
+let request_id = prover.prove(&pk, &stdin).groth16().skip_simulation(true).request_async().await.unwrap();
+println!("Proof request ID: {}", request_id);
 
-    /// Creates a new [NetworkProver] with the given private key.
-    pub fn new_from_key(private_key: &str);
+// Wait for proof complete with a timeout
+let proof = prover.wait_proof(request_id, Some(Duration::from_secs(60 * 60))).await.unwrap();
 
-    /// Requests a proof from the prover network, returning the proof ID.
-    pub async fn request_proof(
-        &self,
-        elf: &[u8],
-        stdin: SP1Stdin,
-        mode: ProofMode,
-    ) -> Result<String>;
+// Request a proof with reserved prover network capacity and wait for it to be fulfilled
+let proof = prover
+    .prove(&pk, &stdin)
+    .groth16()
+    .skip_simulation(true)
+    .fulfillment_strategy(FulfillmentStrategy::Reserved)
+    .run_async()
+    .await
+    .unwrap();
 
-    /// Waits for a proof to be generated and returns the proof. If a timeout is supplied, the
-    /// function will return an error if the proof is not generated within the timeout.
-    pub async fn wait_proof(
-        &self,
-        proof_id: &str,
-        timeout: Option<Duration>,
-    ) -> Result<SP1ProofWithPublicValues>;
-
-    /// Get the status and the proof if available of a given proof request. The proof is returned
-    /// only if the status is Fulfilled.
-    pub async fn get_proof_status(
-        &self,
-        proof_id: &str,
-    ) -> Result<(GetProofStatusResponse, Option<SP1ProofWithPublicValues>)>;
-
-    /// Requests a proof from the prover network and waits for it to be generated.
-    pub async fn prove(
-        &self,
-        elf: &[u8],
-        stdin: SP1Stdin,
-        mode: ProofMode,
-        timeout: Option<Duration>,
-    ) -> Result<SP1ProofWithPublicValues>;
-}
+// Request a proof and then block immediately (up to a timeout) until the proof is fulfilled
+let proof = prover
+    .prove(&pk, &stdin)
+    .groth16()
+    .skip_simulation(true)
+    .fulfillment_strategy(FulfillmentStrategy::Reserved)
+    .timeout(Duration::from_secs(60 * 60))
+    .run()
+    .unwrap();
 ```
