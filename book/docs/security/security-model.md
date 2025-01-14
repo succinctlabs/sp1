@@ -52,7 +52,7 @@ SP1 provides two trusted setup options, depending on user preferences and securi
 
 **PLONK’s Universal Trusted Setup:**
 
-For PLONK, SP1 uses the Aztec Ignition ceremony, which is a universal trusted setup designed for reuse across multiple circuits. This approach eliminates the need for circuit-specific ceremonies and minimizes trust assumptions, making it a robust and widely trusted solution.
+For PLONK, SP1 uses the [Aztec Ignition](https://aztec.network/blog/announcing-ignition) ceremony, which is a universal trusted setup designed for reuse across multiple circuits. This approach eliminates the need for circuit-specific ceremonies and minimizes trust assumptions, making it a robust and widely trusted solution.
 
 The details of SP1's usage of this trusted setup can be found in our repository [here](https://github.com/succinctlabs/sp1/blob/dev/crates/recursion/gnark-ffi/go/sp1/trusted_setup/trusted_setup.go) using [Gnark's ignition verifier](https://github.com/Consensys/gnark-ignition-verifier).
 
