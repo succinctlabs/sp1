@@ -37,7 +37,7 @@ amcl = { package = "snowbridge-amcl", version = "1.0.2", default-features = fals
   "bls381",
 ] }
 cfg-if = "1.0.0"
-generic-array = { version = "1.1.0", features = ["alloc", "serde"] }
+generic-array = { version = "=1.1.0", features = ["alloc", "serde"] }
 typenum = "1.17.0"
 elliptic-curve = "0.13.8"
 hex = "0.4.3"

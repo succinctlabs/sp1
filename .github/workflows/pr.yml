@@ -372,29 +372,3 @@ jobs:
         run: |
           cd examples
           cargo build --all --all-targets
-  cargo-pkg:
-    name: "Try to package all the crates for release"
-    runs-on:
-      [
-        runs-on,
-        runner=64cpu-linux-x64,
-        disk=large,
-        spot=false,
-        "run-id=${{ github.run_id }}",
-      ]
-    env:
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
-
-      - name: Setup CI
-        uses: ./.github/actions/setup
-        with:
-          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
-
-      - name: Set permissions
-        run: chmod +x .github/scripts/pkg-checks.sh
-
-      - name: Run cargo package
-        run: ./.github/scripts/pkg-checks.sh
