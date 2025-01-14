@@ -1,5 +1,9 @@
 fn main() {
-    #[cfg(all(feature = "sys", not(docsrs)))]
+    if std::env::var("DOCS_RS").is_ok() {
+        return;
+    }
+
+    #[cfg(feature = "sys")]
     sys::build_ffi();
 }
 

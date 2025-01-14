@@ -93,5 +93,4 @@ path = "scripts/post_trusted_setup.rs"
 
 [features]
 native-gnark = ["sp1-recursion-gnark-ffi/native"]
-export-tests = []
 debug = ["sp1-core-machine/debug"]
