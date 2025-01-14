@@ -66,3 +66,17 @@ your machine has. A higher number will use more memory, but will be faster.
 ```rust
 SHARD_BATCH_SIZE=1 SHARD_SIZE=2097152 RUST_LOG=info RUSTFLAGS='-C target-cpu=native' cargo run --release
 ```
+
+## Advanced Allocator
+
+SP1 programs use a simple bump allocator by default, which just increments a pointer to allocate memory. Although this works for many cases, some programs can still run out of memory in the SP1 zkVM. To address this, you can enable the `embedded` allocator feature on the SP1 zkVM.
+
+The embedded allocator uses the [`embedded-alloc` crate](https://crates.io/crates/embedded-alloc) and offers more flexible memory management, albeit with extra cycle overhead.
+
+To enable it, add the following to your `sp1-zkvm` dependency in `Cargo.toml`:
+
+```toml
+sp1-zkvm = { version = "...", features = ["embedded"] }
+```
+
+Once enabled, the embedded allocator replaces the default bump allocator.
