@@ -104,7 +104,7 @@ pub(crate) fn execute_command(mut command: Command, docker: bool) -> Result<()> 
 
 pub(crate) fn parse_rustc_version(version: &str) -> semver::Version {
     let version_string =
-        version.split(" ").nth(1).expect("Can parse rustc --version stdout").trim();
+        version.split(" ").nth(1).expect("Can't parse rustc --version stdout").trim();
 
-    semver::Version::parse(version_string).expect("Can parse rustc --version stdout")
+    semver::Version::parse(version_string).expect("Can't parse rustc --version stdout")
 }

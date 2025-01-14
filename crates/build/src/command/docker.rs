@@ -79,8 +79,15 @@ pub(crate) fn create_docker_command(
             .output()
             .expect("rustc --version should succeed in docker image");
 
+        if !output.status.success() {
+            return Err(anyhow::anyhow!(
+                "Failed to run rustc --version in docker image {}",
+                String::from_utf8_lossy(&output.stdout)
+            ));
+        }
+
         let stdout_string =
-            String::from_utf8(output.stdout).expect("Can parse rustc --version stdout");
+            String::from_utf8(output.stdout).expect("Can't parse rustc --version stdout");
 
         println!("cargo:warning=docker: rustc +succinct --version: {:?}", stdout_string);
 

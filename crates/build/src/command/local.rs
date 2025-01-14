@@ -29,14 +29,18 @@ pub(crate) fn create_local_command(
     }
 
     let parsed_version = {
-        let stdout = Command::new("rustc")
+        let output = Command::new("rustc")
             .arg("--version")
             .env("RUSTUP_TOOLCHAIN", super::TOOLCHAIN_NAME)
             .output()
-            .expect("rustc --version should succeed")
-            .stdout;
+            .expect("rustc --version should succeed");
 
-        let stdout_string = String::from_utf8(stdout).expect("Can parse rustc --version stdout");
+        if !output.status.success() {
+            panic!("Failed to run rustc --version {:?}", String::from_utf8_lossy(&output.stdout));
+        }
+
+        let stdout_string =
+            String::from_utf8(output.stdout).expect("Can't parse rustc --version stdout");
 
         println!("cargo:warning=rustc +succinct --version: {:?}", stdout_string);
 
