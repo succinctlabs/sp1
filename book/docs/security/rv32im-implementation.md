@@ -19,8 +19,8 @@ In this section, we outline the specific customizations made to SP1's implementa
 
 SP1 reserves the following memory regions:
 - `0x0` to `0x1F` inclusive are reserved for registers. Writing to these addresses will modify
-  register state and cause undefined behavior. 
-- `0x20` to `0x78000000` inclusive are reserved for the heap allocator. Writing to these addresses will
+  register state and cause undefined behavior. SP1's AIRs also constrain that memory opcodes do not access these addresses.
+- `0x20` to `0x78000000` inclusive are reserved for the heap allocator. Writing to addresses outside this region will
   cause undefined behavior.
 
 The RISC-V standard permits implementers to define which portions of the address space are legal to access and does not prohibit the specification of undefined behavior. SP1 adheres to this flexibility by defining valid memory regions from `0x20` to `0x78000000`, with accesses outside this range constituting undefined behavior. This design choice aligns with common practices in hardware platforms, where reserved or invalid memory regions serve specific purposes, such as [DMA](https://en.wikipedia.org/wiki/Direct_memory_access) or [MMIO](https://en.wikipedia.org/wiki/Memory-mapped_I/O_and_port-mapped_I/O), and accessing them can result in unpredictable behavior. Compared to real-world systems like x86 and ARM, SP1's memory map is neither unusual nor complex, and its approach remains compliant with the RISC-V specification.
@@ -32,8 +32,6 @@ In practical terms, undefined behavior caused by accessing illegal memory region
 Memory access must be "aligned". The alignment is automatically enforced by all programs compiled
 through the official SP1 RISC-V toolchain. SP1's AIRs also constrain that these alignment rules are followed:
 - LW/SW memory access must be word aligned. 
-- LH/LHU/SH memory access must be half-word aligned.
-- LW/SW memory access must be word aligned.
 - LH/LHU/SH memory access must be half-word aligned.
 
 The RISC-V standard does not explicitly prohibit implementers from requiring aligned memory access, leaving room for such decisions based on specific implementation needs. SP1 enforces memory alignment as part of its design, an approach that aligns with practices in many hardware systems where alignment requirements are standard to optimize performance and simplify implementation. Memory alignment ensures predictable behavior and reduces the complexity of handling unaligned accesses, which can be particularly beneficial in specialized environments like zkVMs. This design choice is well-documented and does not conflict with RISC-V’s flexibility for implementation-specific optimizations.
