@@ -75,3 +75,8 @@
 - [RV32IM Deviations](./developers/rv32im-deviations.md)
 
 - [Building Circuit Artifacts](./developers/building-circuit-artifacts.md)
+
+# Security
+
+- [Security Model of SP1](./security/security-model.md)
+- [Safe Usage of SP1 Precompiles](./security/safe-precompile-usage.md)

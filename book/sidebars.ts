@@ -15,6 +15,8 @@ import type { SidebarsConfig } from "@docusaurus/plugin-content-docs";
 const sidebars: SidebarsConfig = {
   docs: [
     "introduction",
+    "why-use-sp1",
+    "what-is-a-zkvm",
     {
       type: "category",
       label: "Getting Started",
@@ -97,11 +99,32 @@ const sidebars: SidebarsConfig = {
         "developers/common-issues",
         "developers/usage-in-ci",
         "developers/building-circuit-artifacts",
-        "developers/rv32im-deviations",
       ],
     },
-    "what-is-a-zkvm",
-    "why-use-sp1",
+    {
+      type: "category",
+      label: "Security",
+      items: [
+        "security/security-model",
+        "security/rv32im-implementation",
+        "security/safe-precompile-usage",
+        {
+          type: "link",
+          label: "Security Policy",
+          href: "https://github.com/succinctlabs/sp1/security/policy",
+        },
+        {
+          type: "link",
+          label: "Security Advisories",
+          href: "https://github.com/succinctlabs/sp1/security/advisories",
+        },
+        {
+          type: "link",
+          label: "Audit Reports",
+          href: "https://github.com/succinctlabs/sp1/tree/dev/audits",
+        },
+      ],
+    },
   ],
 };
 
