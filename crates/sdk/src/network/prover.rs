@@ -134,7 +134,7 @@ impl NetworkProver {
         self.client.register_program(vk, elf).await
     }
 
-    /// Gets the status of a proof request.
+    /// Gets the status of a proof request. Re-exposes the status response from the client.
     ///
     /// # Details
     /// * `request_id`: The request ID to get the status of.
@@ -154,6 +154,61 @@ impl NetworkProver {
         request_id: B256,
     ) -> Result<(GetProofRequestStatusResponse, Option<SP1ProofWithPublicValues>)> {
         self.client.get_proof_request_status(request_id, None).await
+    }
+
+    /// Gets the status of a proof request with handling for timeouts and unfulfillable requests.
+    ///
+    /// Returns the proof if it is fulfilled and the fulfillment status. Handles statuses indicating
+    /// that the proof is unfulfillable or unexecutable with errors.
+    ///
+    /// # Details
+    /// * `request_id`: The request ID to get the status of.
+    /// * `remaining_timeout`: The remaining timeout for the proof request.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, network::B256};
+    ///
+    /// tokio_test::block_on(async {
+    ///     let request_id = B256::from_slice(&vec![1u8; 32]);
+    ///     let client = ProverClient::builder().network().build();
+    ///     let (maybe_proof, fulfillment_status) = client.process_proof_status(request_id, None).await.unwrap();   
+    /// })
+    /// ```
+    pub async fn process_proof_status(
+        &self,
+        request_id: B256,
+        remaining_timeout: Option<Duration>,
+    ) -> Result<(Option<SP1ProofWithPublicValues>, FulfillmentStatus)> {
+        // Get the status.
+        let (status, maybe_proof): (
+            GetProofRequestStatusResponse,
+            Option<SP1ProofWithPublicValues>,
+        ) = self.client.get_proof_request_status(request_id, remaining_timeout).await?;
+
+        // Check the deadline.
+        if status.deadline < Instant::now().elapsed().as_secs() {
+            return Err(Error::RequestTimedOut { request_id: request_id.to_vec() }.into());
+        }
+
+        // Get the execution and fulfillment statuses.
+        let execution_status = ExecutionStatus::try_from(status.execution_status).unwrap();
+        let fulfillment_status = FulfillmentStatus::try_from(status.fulfillment_status).unwrap();
+
+        // Check the execution status.
+        if execution_status == ExecutionStatus::Unexecutable {
+            return Err(Error::RequestUnexecutable { request_id: request_id.to_vec() }.into());
+        }
+
+        // Check the fulfillment status.
+        if fulfillment_status == FulfillmentStatus::Fulfilled {
+            return Ok((maybe_proof, fulfillment_status));
+        }
+        if fulfillment_status == FulfillmentStatus::Unfulfillable {
+            return Err(Error::RequestUnfulfillable { request_id: request_id.to_vec() }.into());
+        }
+
+        Ok((None, fulfillment_status))
     }
 
     /// Requests a proof from the prover network, returning the request ID.
@@ -239,39 +294,14 @@ impl NetworkProver {
                 }
             });
 
-            // Get the status.
-            let (status, maybe_proof) =
-                self.client.get_proof_request_status(request_id, remaining_timeout).await?;
+            let (maybe_proof, fulfillment_status) =
+                self.process_proof_status(request_id, remaining_timeout).await?;
 
-            // Check the deadline.
-            if status.deadline < Instant::now().elapsed().as_secs() {
-                return Err(Error::RequestTimedOut { request_id: request_id.to_vec() }.into());
-            }
-
-            // Check the execution status.
-            if let Ok(ExecutionStatus::Unexecutable) =
-                ExecutionStatus::try_from(status.execution_status)
-            {
-                return Err(Error::RequestUnexecutable { request_id: request_id.to_vec() }.into());
-            }
-
-            // Check the fulfillment status.
-            match FulfillmentStatus::try_from(status.fulfillment_status) {
-                Ok(FulfillmentStatus::Fulfilled) => {
-                    return Ok(maybe_proof.unwrap());
-                }
-                Ok(FulfillmentStatus::Assigned) => {
-                    if !is_assigned {
-                        log::info!("Proof request assigned, proving...");
-                        is_assigned = true;
-                    }
-                }
-                Ok(FulfillmentStatus::Unfulfillable) => {
-                    return Err(
-                        Error::RequestUnfulfillable { request_id: request_id.to_vec() }.into()
-                    );
-                }
-                _ => {}
+            if fulfillment_status == FulfillmentStatus::Fulfilled {
+                return Ok(maybe_proof.unwrap());
+            } else if fulfillment_status == FulfillmentStatus::Assigned && !is_assigned {
+                log::info!("Proof request assigned, proving...");
+                is_assigned = true;
             }
 
             sleep(Duration::from_secs(2)).await;
