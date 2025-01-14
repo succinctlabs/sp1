@@ -15,6 +15,8 @@ deviations are outlined below:
     - LW/SW memory access must be word aligned.
     - LH/LHU/SH memory access must be half-word aligned.
 - The ECALL instruction is used for system calls and precompiles. Only valid syscall IDs should be called, and only using the specific convention of loading the ID into register T0 and arguments into registers A0 and A1. If the arguments are addresses, they must be word-aligned. Failure to follow this convention can result in undefined behavior. Correct usages can be found in the `sp1_zkvm` and `sp1_lib` crates.
+- The instructions FENCE, WFI, MRET, and CSR related instructions will be categorized as not implemented,
+  and hence not allowed by the SP1 zkvm.
 
 ## Security Considerations
 

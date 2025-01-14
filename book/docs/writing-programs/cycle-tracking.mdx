@@ -14,7 +14,7 @@ Note that to use the macro, you must add the `sp1-derive` crate to your dependen
 
 ```toml
 [dependencies]
-sp1-derive = "3.0.0"
+sp1-derive = "4.0.0-rc.8"
 ```
 
 In the script for proof generation, setup the logger with `utils::setup_logger()` and run the script with `RUST_LOG=info cargo run --release`. You should see the following output:
@@ -79,7 +79,7 @@ Once you have your script it should look like the following:
 As well you must enable the profiling feature on the SDK:
 
 ```toml
-    sp1-sdk = { version = "3.0.0", features = ["profiling"] }
+    sp1-sdk = { version = "4.0.0-rc.8", features = ["profiling"] }
 ```
 
 The `TRACE_FILE` env var tells the executor where to save the profile, and the `TRACE_SAMPLE_RATE` env var tells the executor how often to sample the program.
