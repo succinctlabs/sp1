@@ -14,24 +14,6 @@ use crate::cuda::builder::CudaProverBuilder;
 pub struct ProverClient;
 
 impl ProverClient {
-    /// Creates a new [`EnvProver`] from the environment.
-    ///
-    /// # Example
-    /// ```no_run
-    /// use sp1_sdk::ProverClient;
-    ///
-    /// std::env::set_var("SP1_PROVER", "network");
-    /// std::env::set_var("NETWORK_PRIVATE_KEY", "...");
-    /// std::env::set_var("NETWORK_RPC_URL", "...");
-    /// let prover = ProverClient::from_env();
-    /// ```
-    #[deprecated(since = "4.0.0", note = "use `ProverClient::from_env()` instead")]
-    #[allow(clippy::new_ret_no_self)]
-    #[must_use]
-    pub fn new() -> EnvProver {
-        Self::from_env()
-    }
-
     /// Builds an [`EnvProver`], which loads the mode and any settings from the environment.
     ///
     /// # Usage
@@ -57,6 +39,24 @@ impl ProverClient {
     #[must_use]
     pub fn builder() -> ProverClientBuilder {
         ProverClientBuilder
+    }
+
+    /// Creates a new [`EnvProver`] from the environment.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use sp1_sdk::ProverClient;
+    ///
+    /// std::env::set_var("SP1_PROVER", "network");
+    /// std::env::set_var("NETWORK_PRIVATE_KEY", "...");
+    /// std::env::set_var("NETWORK_RPC_URL", "...");
+    /// let prover = ProverClient::from_env();
+    /// ```
+    #[deprecated(since = "4.0.0", note = "use `ProverClient::from_env()` instead")]
+    #[allow(clippy::new_ret_no_self)]
+    #[must_use]
+    pub fn new() -> EnvProver {
+        Self::from_env()
     }
 }
 

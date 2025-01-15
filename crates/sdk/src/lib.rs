@@ -59,8 +59,7 @@ pub use sp1_core_executor::{ExecutionReport, Executor, HookEnv, SP1Context, SP1C
 pub use sp1_core_machine::io::SP1Stdin;
 pub use sp1_primitives::io::SP1PublicValues;
 pub use sp1_prover::{
-    CoreSC, HashableKey, InnerSC, OuterSC, PlonkBn254Proof, ProverMode, SP1Prover, SP1ProvingKey,
-    SP1VerifyingKey, SP1_CIRCUIT_VERSION,
+    HashableKey, ProverMode, SP1Prover, SP1ProvingKey, SP1VerifyingKey, SP1_CIRCUIT_VERSION,
 };
 
 // Re-export the utilities.

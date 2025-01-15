@@ -201,13 +201,13 @@ impl SP1Bn254ProofData {
     }
 }
 
+/// The mode of the prover.
 #[derive(Debug, Default, Clone, ValueEnum, PartialEq, Eq)]
 pub enum ProverMode {
     #[default]
     Cpu,
     Cuda,
     Network,
-    #[value(skip)]
     Mock,
 }
 

@@ -1,3 +1,6 @@
+//! # SP1 Proof
+//!
+//! A library of types and functions for SP1 proofs.
 #![allow(missing_docs)]
 
 use std::{fmt::Debug, fs::File, path::Path};
