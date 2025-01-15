@@ -1,5 +1,6 @@
+# This workflow publishes the docker image for the CLI to ghcr.io.
 # Source: https://raw.githubusercontent.com/foundry-rs/foundry/master/.github/workflows/docker-publish.yml
-name: docker
+name: Docker Publish CLI
 
 on:
   push:
