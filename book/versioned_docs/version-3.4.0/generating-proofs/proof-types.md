@@ -12,7 +12,7 @@ The default prover mode generates a list of STARK proofs that in aggregate have 
 the size of the execution. Use this in settings where you don't care about **verification cost / proof size**.
 
 ```rust
-let client = ProverClient::new();
+let client = ProverClient::from_env();
 client.prove(&pk, &stdin).run().unwrap();
 ```
 
@@ -22,7 +22,7 @@ The compressed prover mode generates STARK proofs that have constant size. Use t
 care about **verification cost / proof size**, but not onchain verification. Compressed proofs are also useful because they can be cheaply recursively verified within SP1 itself (see the [proof aggregation](../writing-programs/proof-aggregation.md) section).
 
 ```rust
-let client = ProverClient::new();
+let client = ProverClient::from_env();
 client.prove(&pk, &stdin).compressed().run().unwrap();
 ```
 
@@ -33,7 +33,7 @@ The Groth16 prover mode generates a SNARK proof that is ~260 bytes large and can
 The trusted setup for the Groth16 circuit keys uses the [Aztec Ignition ceremony](https://github.com/AztecProtocol/ignition-verification) + entropy contributions from members of the Succinct team.
 
 ```rust
-let client = ProverClient::new();
+let client = ProverClient::from_env();
 client.prove(&pk, &stdin).groth16().run().unwrap();
 ```
 
@@ -44,6 +44,6 @@ The PLONK prover mode generates a SNARK proof that is ~868 bytes large and can a
 PLONK does not require a trusted setup.
 
 ```rust
-let client = ProverClient::new();
+let client = ProverClient::from_env();
 client.prove(&pk, &stdin).plonk().run().unwrap();
 ```

@@ -16,7 +16,7 @@ the [Groth16 Example](https://github.com/succinctlabs/sp1/tree/main/examples/gro
 Import the following dependency in your `Cargo.toml`:
 
 ```toml
-sp1-verifier = {version = "4.0.0-rc.8", default-features = false}
+sp1-verifier = {version = "4.0.0", default-features = false}
 ```
 
 ### Usage
