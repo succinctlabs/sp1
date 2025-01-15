@@ -285,7 +285,7 @@ jobs:
       - name: "Build SP1 project"
         run: |
           cd ./hello/program
-          $HOME/.sp1/bin/cargo-prove prove build
+          PATH=$HOME/.sp1/bin:$PATH cargo-prove prove build
 
   toolchain-test-ec2:
     name: "Test toolchain installation (${{ matrix.name }})"
