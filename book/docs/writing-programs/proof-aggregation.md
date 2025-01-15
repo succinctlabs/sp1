@@ -1,5 +1,7 @@
 # Proof Aggregation
 
+## Overview
+
 SP1 supports proof aggregation and recursion, which allows you to verify an SP1 proof within SP1. Use cases include:
 
 - Reducing on-chain verification costs by aggregating multiple SP1 proofs into a single SP1 proof.
@@ -9,9 +11,13 @@ SP1 supports proof aggregation and recursion, which allows you to verify an SP1 
 
 Note that to verify an SP1 proof inside SP1, you must generate a "compressed" SP1 proof (see [Proof Types](../generating-proofs/proof-types.md) for more details).
 
-### When to use aggregation
+### When should SP1 proof aggregation be used?
 
-Note that by itself, SP1 can already prove arbitrarily large programs by chunking the program's execution into multiple "shards" (contiguous batches of cycles) and generating proofs for each shard in parallel, and then recursively aggregating the proofs. Thus, aggregation is generally **not necessary** for most use-cases, as SP1's proving for large programs is already parallelized. However, aggregation can be useful for aggregating computations that require more than the zkVM's limited (~2GB) memory or for aggregating multiple SP1 proofs from different parties into a single proof to save on onchain verification costs.
+Note that by itself, SP1 can already prove arbitrarily large programs by chunking the program's execution into multiple "shards" (contiguous batches of cycles) and generating proofs for each shard in parallel, and then recursively aggregating the proofs. Thus, aggregation is generally **not necessary** for most use-cases, as SP1's proving for large programs is already parallelized. 
+
+However, aggregation can be useful in two specific cases:
+1. When your computation requires more than the zkVM's limited (~2GB) memory.
+2. When you want to combine multiple SP1 proofs from different parties into a single proof to reduce on-chain verification costs.
 
 ## Verifying Proofs inside the zkVM
 
@@ -27,8 +33,7 @@ Note that you must include the `verify` feature in your `Cargo.toml` for `sp1-zk
 
 ## Generating Proofs with Aggregation
 
-To provide an existing proof as input to the SP1 zkVM, you can use the existing `SP1Stdin` object
-which is already used for all inputs to the zkVM.
+To provide an existing proof as input to the SP1 zkVM, you can write a proof and verifying key to a `SP1Stdin` object, which is already used for all inputs to the zkVM.
 
 ```rust
 # Generating proving key and verifying key.
