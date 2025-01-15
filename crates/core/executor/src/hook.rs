@@ -536,7 +536,7 @@ fn pad_to_be(val: &BigUint, len: usize) -> Vec<u8> {
 }
 
 #[cfg(test)]
-pub mod tests {
+mod tests {
     use super::*;
 
     #[test]
