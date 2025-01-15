@@ -62,8 +62,8 @@ impl NewCmd {
             command.arg("--recurse-submodules").arg("--shallow-submodules");
         }
 
-        // Stream output to stdout.
-        command.stdout(Stdio::inherit()).stderr(Stdio::inherit());
+        // Hide command output
+        command.stdout(Stdio::null()).stderr(Stdio::null());
 
         let output = command.output().expect("failed to execute command");
         if !output.status.success() {
