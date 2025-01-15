@@ -52,7 +52,7 @@ Run `cargo prove build --help` to see the complete list of options. Some options
 
 ## Production Builds
 
-For production builds, use Docker to generate a **reproducible ELF** that will be identical across all platforms. Simply add the `--docker` flag to your build command. You can also specify a release version using `--tag` (if omitted, defaults to `latest`). For example:
+For production builds, use Docker to generate a **reproducible ELF** that will be identical across all platforms. Simply add the `--docker` flag to your build command. You can also specify a release version using `--tag`, otherwise the tag defaults to the latest release. For example:
 
 ```bash
 cargo prove build --docker --tag v4.0.0
