@@ -1,15 +1,17 @@
+# This workflow generates and tests the docker image for groth16 and plonk proving. 
+
 name: Docker Gnark
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
     branches:
       - "**"
     paths:
-      - "recursion/gnark-ffi/**"
-      - "recursion/gnark-cli/**"
-      - "!recursion/gnark-ffi/assets/**"
+      - "crates/**"
+      - "Cargo.toml"
+      - ".github/workflows/**"
   merge_group:
 
 jobs:
@@ -38,12 +40,26 @@ jobs:
       - name: Install SP1 toolchain
         run: |
           cargo run -p sp1-cli -- prove install-toolchain
-
+          
       - name: Run cargo test
         uses: actions-rs/cargo@v1
         env:
           SP1_GNARK_IMAGE: sp1-gnark
+          RUST_LOG: info
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
+          RUST_BACKTRACE: 1   
         with:
           command: test
           toolchain: 1.81.0
-          args: --release -p sp1-prover -- --exact tests::test_e2e
+          args: --release -p sp1-prover -- --exact tests::test_e2e --nocapture
+
+      - name: Make sure the contracts were modified
+        run: |
+          if grep -q "pragma solidity ^0.8.0" ~/.sp1/circuits/dev/Groth16Verifier.sol; then
+            echo "Error: Groth16Verifier.sol still contains the old pragma version"
+            exit 1
+          fi
+          if grep -q "pragma solidity ^0.8.0" ~/.sp1/circuits/dev/PlonkVerifier.sol; then
+            echo "Error: PlonkVerifier.sol still contains the old pragma version"
+            exit 1
+          fi

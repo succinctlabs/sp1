@@ -1,6 +1,6 @@
 use std::{
-    fs::File,
-    io::{Read, Write},
+    fs::{self, File},
+    io::Write,
     path::{Path, PathBuf},
 };
 
@@ -78,11 +78,7 @@ impl PlonkBn254Prover {
             .replace("{SP1_CIRCUIT_VERSION}", SP1_CIRCUIT_VERSION)
             .replace("{VERIFIER_HASH}", format!("0x{}", hex::encode(vkey_hash)).as_str())
             .replace("{PROOF_SYSTEM}", "Plonk");
-        let mut sp1_verifier_file = File::create(sp1_verifier_path).unwrap();
-        sp1_verifier_file.write_all(sp1_verifier_str.as_bytes()).unwrap();
-
-        let plonk_verifier_path = build_dir.join("PlonkVerifier.sol");
-        Self::modify_plonk_verifier(&plonk_verifier_path);
+        fs::write(sp1_verifier_path, sp1_verifier_str).unwrap();
     }
 
     /// Generates a PLONK proof given a witness.
@@ -120,17 +116,6 @@ impl PlonkBn254Prover {
             &committed_values_digest.to_string(),
         )
         .expect("failed to verify proof")
-    }
-
-    /// Modify the PlonkVerifier so that it works with the SP1Verifier.
-    fn modify_plonk_verifier(file_path: &Path) {
-        let mut content = String::new();
-        File::open(file_path).unwrap().read_to_string(&mut content).unwrap();
-
-        content = content.replace("pragma solidity ^0.8.19;", "pragma solidity ^0.8.20;");
-
-        let mut file = File::create(file_path).unwrap();
-        file.write_all(content.as_bytes()).unwrap();
     }
 }
 
