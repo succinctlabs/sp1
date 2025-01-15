@@ -23,8 +23,8 @@ const sidebars: SidebarsConfig = {
       items: [
         "getting-started/install",
         "getting-started/quickstart",
-        "getting-started/hardware-requirements",
         "getting-started/project-template",
+        "getting-started/hardware-requirements",
       ],
       collapsed: false,
     },
@@ -33,25 +33,24 @@ const sidebars: SidebarsConfig = {
       label: "Writing Programs",
       items: [
         "writing-programs/basics",
+        "writing-programs/setup",
         "writing-programs/compiling",
-        "writing-programs/cycle-tracking",
         "writing-programs/inputs-and-outputs",
         "writing-programs/patched-crates",
         "writing-programs/precompiles",
         "writing-programs/proof-aggregation",
-        "writing-programs/setup",
+        "writing-programs/cycle-tracking",
       ],
-      collapsed: true,
+      collapsed: false,
     },
     {
       type: "category",
-      label: "Generating Proofs",
+      label: "Proving",
       items: [
         "generating-proofs/basics",
         "generating-proofs/setup",
         "generating-proofs/proof-types",
         "generating-proofs/recommended-workflow",
-        "generating-proofs/sp1-sdk-faq",
         {
           type: "category",
           label: "Hardware Acceleration",
@@ -74,7 +73,7 @@ const sidebars: SidebarsConfig = {
         },
         "generating-proofs/advanced",
       ],
-      collapsed: true,
+      collapsed: false,
     },
     {
       type: "category",
@@ -91,15 +90,16 @@ const sidebars: SidebarsConfig = {
           ],
         },
       ],
+      collapsed: false,
     },
     {
       type: "category",
-      label: "Developers",
+      label: "Troubleshooting & CI",
       items: [
         "developers/common-issues",
         "developers/usage-in-ci",
-        "developers/building-circuit-artifacts",
       ],
+      collapsed: false,
     },
     {
       type: "category",

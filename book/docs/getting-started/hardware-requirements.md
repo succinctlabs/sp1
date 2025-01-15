@@ -1,4 +1,4 @@
-# Proof Generation Requirements
+# Hardware Requirements
 
 <div class="warning">
 We recommend that developers who want to use SP1 for non-trivial programs generate proofs on our prover network. The prover network generates SP1 proofs across multiple machines, reducing latency and also runs SP1 on optimized hardware instances that result in faster + cheaper proof generation times.

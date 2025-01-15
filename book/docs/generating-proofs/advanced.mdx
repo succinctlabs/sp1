@@ -1,7 +1,7 @@
 import Compressed from "@site/static/examples_fibonacci_script_bin_compressed.rs.mdx";
 import Execute from "@site/static/examples_fibonacci_script_bin_execute.rs.mdx";
 
-# Advanced Usage
+# Advanced
 
 ## Execution Only
 
@@ -11,14 +11,6 @@ Instead, you should have your script only execute the program with the RISC-V ru
 <Execute />
 
 If the execution of your program succeeds, then proof generation should succeed as well! (Unless there is a bug in our zkVM implementation.)
-
-## Compressed Proofs
-
-With the `ProverClient`, the default `prove` function generates a proof that is succinct, but can have size that scales with the number of cycles of the program. To generate a compressed proof of constant size, you can use the `prove_compressed` function instead. This will use STARK recursion to generate a proof that is constant size (around 7Kb), but will be slower than just calling `prove`, as it will use recursion to combine the core SP1 proof into a single constant-sized proof.
-
-<Compressed />
-
-You can run the above script with `RUST_LOG=info cargo run --bin compressed --release` from `examples/fibonacci/script`.
 
 ## Logging and Tracing Information
 
