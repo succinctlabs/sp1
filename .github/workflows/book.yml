@@ -5,9 +5,9 @@ name: book
 
 on:
   push:
-    branches: [dev]
+    branches: [main]
   pull_request:
-    branches: [dev]
+    branches: [main]
     paths:
       - "book/**"
   merge_group:
