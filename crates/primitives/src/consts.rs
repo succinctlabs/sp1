@@ -49,6 +49,12 @@ pub mod fd {
 
         /// The file descriptor through which to access `hook_rsa_mul_mod`.
         pub const FD_RSA_MUL_MOD: u32 = 7;
+
+        /// The file descriptor through which to access `hook_bls12_381_sqrt`.
+        pub const FD_BLS12_381_SQRT: u32 = 8;
+
+        /// The file descriptor through which to access `hook_bls12_381_inverse`.
+        pub const FD_BLS12_381_INVERSE: u32 = 9;
     }
 }
 

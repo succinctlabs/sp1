@@ -77,6 +77,8 @@ impl Default for HookRegistry<'_> {
             (FD_ECRECOVER_HOOK, hookify(hook_ecrecover)),
             (FD_EDDECOMPRESS, hookify(hook_ed_decompress)),
             (FD_RSA_MUL_MOD, hookify(hook_rsa_mul_mod)),
+            (FD_BLS12_381_SQRT, hookify(bls::hook_bls12_381_sqrt)),
+            (FD_BLS12_381_INVERSE, hookify(bls::hook_bls12_381_inverse)),
         ]);
 
         Self { table }
@@ -261,6 +263,83 @@ pub fn hook_ed_decompress(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
     }
 }
 
+mod bls {
+    use super::pad_to_be;
+    use super::{BigUint, HookEnv};
+    use sp1_curves::params::FieldParameters;
+    use sp1_curves::weierstrass::bls12_381::Bls12381BaseField;
+    use sp1_curves::Zero;
+
+    /// A non-quadratic residue for the `12_381` base field in big endian.
+    pub const NQR_BLS12_381: [u8; 48] = {
+        let mut nqr = [0; 48];
+        nqr[47] = 2;
+        nqr
+    };
+
+    /// The base field modulus for the `12_381` curve, in little endian.
+    pub const BLS12_381_MODULUS: &[u8] = Bls12381BaseField::MODULUS;
+
+    /// Given a field element, in big endian, this function computes the square root.
+    ///
+    /// - If the field element is the additive identity, this function returns `vec![vec![1], vec![0; 48]]`.
+    /// - If the field element is a quadratic residue, this function returns `vec![vec![1], vec![sqrt(fe)]  ]`.
+    /// - If the field element (fe) is not a quadratic residue, this function returns `vec![vec![0], vec![sqrt(``NQR_BLS12_381`` * fe)]]`.
+    pub fn hook_bls12_381_sqrt(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
+        let field_element = BigUint::from_bytes_be(&buf[..48]);
+
+        // This should be checked in the VM as its easier than dispatching a hook call.
+        // But for completeness we include this happy path also.
+        if field_element.is_zero() {
+            return vec![vec![1], vec![0; 48]];
+        }
+
+        let modulus = BigUint::from_bytes_le(BLS12_381_MODULUS);
+
+        // Since `BLS12_381_MODULUS` == 3 mod 4,. we can use shanks methods.
+        // This means we only need to exponentiate by `(modulus + 1) / 4`.
+        let exp = (&modulus + BigUint::from(1u64)) / BigUint::from(4u64);
+        let sqrt = field_element.modpow(&exp, &modulus);
+
+        // Shanks methods only works if the field element is a quadratic residue.
+        // So we need to check if the square of the sqrt is equal to the field element.
+        let square = (&sqrt * &sqrt) % &modulus;
+        if square != field_element {
+            let nqr = BigUint::from_bytes_be(&NQR_BLS12_381);
+            let qr = (&nqr * &field_element) % &modulus;
+
+            // By now, the product of two non-quadratic residues is a quadratic residue.
+            // So we can use shanks methods again to get its square root.
+            //
+            // We pass this root back to the VM to constrain the "failure" case.
+            let root = qr.modpow(&exp, &modulus);
+
+            assert!((&root * &root) % &modulus == qr, "NQR sanity check failed, this is a bug.");
+
+            return vec![vec![0], pad_to_be(&root, 48)];
+        }
+
+        vec![vec![1], pad_to_be(&sqrt, 48)]
+    }
+
+    /// Given a field element, in big endian, this function computes the inverse.
+    ///
+    /// This functions will panic if the additive identity is passed in.
+    pub fn hook_bls12_381_inverse(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
+        let field_element = BigUint::from_bytes_be(&buf[..48]);
+
+        // Zero is not invertible, and we dont want to have to return a status from here.
+        assert!(!field_element.is_zero(), "Field element is the additive identity");
+
+        let modulus = BigUint::from_bytes_le(BLS12_381_MODULUS);
+
+        // Compute the inverse using Fermat's little theorem, ie, a^(p-2) = a^-1 mod p.
+        let inverse = field_element.modpow(&(&modulus - BigUint::from(2u64)), &modulus);
+
+        vec![pad_to_be(&inverse, 48)]
+    }
+}
+
 /// Given the product of some 256-byte numbers and a modulus, this function does a modular
 /// reduction and hints back the values to the vm in order to constrain it.
 ///
@@ -442,6 +521,18 @@ pub(crate) mod deprecated_hooks {
             vec![vec![0]]
         }
     }
+}
+
+/// Pads a big uint to the given length in big endian.
+fn pad_to_be(val: &BigUint, len: usize) -> Vec<u8> {
+    // First take the byes in little endian
+    let mut bytes = val.to_bytes_le();
+    // Resize so we get the full padding correctly.
+    bytes.resize(len, 0);
+    // Convert back to big endian.
+    bytes.reverse();
+
+    bytes
 }
 
 #[cfg(test)]

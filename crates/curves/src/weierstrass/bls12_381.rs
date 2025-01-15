@@ -205,4 +205,14 @@ mod tests {
             assert_eq!(sqrt_2, x_2);
         }
     }
+
+    #[test]
+    fn test_bls12381_params() {
+        use crate::params::FieldParameters;
+
+        assert_eq!(
+            Bls12381BaseField::modulus(),
+            BigUint::from_bytes_le(<Bls12381BaseField as FieldParameters>::MODULUS)
+        );
+    }
 }
