@@ -4,11 +4,11 @@ import Example from "@site/static/examples_cycle-tracking_program_bin_normal.rs.
 
 When writing a program, it is useful to know how many RISC-V cycles a portion of the program takes to identify potential performance bottlenecks. SP1 provides a way to track the number of cycles spent in a portion of the program.
 
-## Tracking Cycles with Annotations
+## Tracking Cycles
 
-SP1 provides two methods to track cycle usage in your program:
+### Using Print Annotations
+For simple debugging, use these annotations to log cycle counts to stdout:
 
-1. Using print statements:
    ```rust
    #![no_main]
    sp1_zkvm::entrypoint!(main);
@@ -20,76 +20,59 @@ SP1 provides two methods to track cycle usage in your program:
         println!("cycle-tracker-start: compute");
         let sum: u64 = nums.iter().sum();
         println!("cycle-tracker-end: compute");
-
-        // Print the result.
-        println!("result: {}", sum);
    }
    ```
 
-   To save the cycle counts to the `ExecutionReport`, you can use the `cycle_tracker_report_start` and `cycle_tracker_report_end` annotations.
+With this code, you will see output like the following in your logs:
 
-   ```rust
-   #![no_main]
-   sp1_zkvm::entrypoint!(main);
+```
+[INFO] compute: 1234 cycles
+```
 
-   fn main() {
-        let mut nums = vec![1, 1];
-
-        // Compute the sum of the numbers.
-        println!("cycle-tracker-report-start: compute");
-        let sum: u64 = nums.iter().sum();
-        println!("cycle-tracker-report-end: compute");
-
-        // Print the result.
-        println!("result: {}", sum);
-   }
-   ```
-
-   To read from tracked cycles from the `ExecutionReport`, you can read from the `cycle_tracker` map after executing the program.
-
-   ```rust
-   let report = client.execute(ELF, &stdin).run().unwrap();
-   let cycle_count = report.cycle_tracker.get("compute").unwrap();
-   println!("compute cycle count: {}", cycle_count);
-   ```
-
-2. Using the cycle tracker macro:
-   ```rust 
-   #![no_main]
-   sp1_zkvm::entrypoint!(main);
-
-   #[sp1_derive::cycle_tracker]
-    pub fn expensive_function(x: usize) -> usize {
-        let mut y = 1;
-        for _ in 0..100 {
-            y *= x;
-            y %= 7919;
-        }
-        y
-    }
-   ```
-
-   To use the cycle tracker macro, add `sp1-derive` to your program's dependencies:
-
-   ```toml
-   sp1-derive = "4.0.0"
-   ```
-
-### Get Tracked Cycle Counts
-
-To include tracked cycle counts in the `ExecutionReport` when using `ProverClient::execute`, use the following annotations:
+### Using Report Annotations
+To store cycle counts across multiple invocations in the `ExecutionReport`, use the report annotations:
 
 ```rust
+#![no_main]
+sp1_zkvm::entrypoint!(main);
+
 fn main() {
-  println!("cycle-tracker-report-start: block name");
-  // ...
-  println!("cycle-tracker-report-end: block name");
+    // Track cycles across multiple computations
+    for i in 0..10 {
+        println!("cycle-tracker-report-start: compute");
+        expensive_computation(i);
+        println!("cycle-tracker-report-end: compute");
+    }
+}
+
+```
+
+Access total cycles from all invocations
+```rust
+let report = client.execute(ELF, &stdin).run().unwrap();
+let total_compute_cycles = report.cycle_tracker.get("compute").unwrap();
+```
+
+### Using the Cycle Tracker Macro
+Add `sp1-derive` to your dependencies:
+```toml
+sp1-derive = "4.0.0"
+```
+
+Then annotate your functions:
+```rust
+#[sp1_derive::cycle_tracker]
+pub fn expensive_function(x: usize) -> usize {
+    let mut y = 1;
+    for _ in 0..100 {
+        y *= x;
+        y %= 7919;
+    }
+    y
 }
 ```
 
-This will log the cycle count for `block name` and include it in the `ExecutionReport` in the `cycle_tracker` map.
-
-### Profiling a ZKVM program
+## Profiling a zkVM program
 
 Profiling a zkVM program produces a useful visualization ([example profile](https://share.firefox.dev/3Om1pzz)) which makes it easy to examine program performance and see exactly where VM cycles are being spent without needing to modify the program at all.
 
