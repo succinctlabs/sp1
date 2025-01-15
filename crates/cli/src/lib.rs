@@ -72,20 +72,24 @@ pub async fn get_toolchain_download_url(client: &Client, target: String) -> Stri
         .await
         .unwrap();
 
-    let current_release = all_releases
+    // Check if the release exists.
+    let _ = all_releases
         .as_array()
         .expect("Failed to fetch releases list")
         .iter()
         .find(|release| {
             release["tag_name"].as_str().unwrap() == LATEST_SUPPORTED_TOOLCHAIN_VERSION_TAG
         })
-        .expect("No prereleases found");
-
-    let tag = current_release["tag_name"].as_str().expect("A valid tag name is expected");
+        .unwrap_or_else(|| {
+            panic!(
+                "No release found for the expected tag: {}",
+                LATEST_SUPPORTED_TOOLCHAIN_VERSION_TAG
+            );
+        });
 
     let url = format!(
         "https://github.com/succinctlabs/rust/releases/download/{}/rust-toolchain-{}.tar.gz",
-        tag, target
+        LATEST_SUPPORTED_TOOLCHAIN_VERSION_TAG, target
     );
 
     url
