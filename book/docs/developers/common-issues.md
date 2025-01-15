@@ -121,27 +121,3 @@ To resolve this, ensure that you're importing both `sp1-lib` and `sp1-zkvm` with
 sp1-lib = { version = "<VERSION>", features = ["verify"] }
 sp1-zkvm = { version = "<VERSION>", features = ["verify"] }
 ```
-
-## `sp1-sdk` `rc` Version Semver Errors
-
-When using release candidate (RC) versions of `sp1-sdk` (such as `3.0.0-rc1`), you might face compilation errors if you upgrade to a newer RC version (like `3.0.0-rc4`) and then try to downgrade back to an earlier RC version (such as `3.0.0-rc1`).
-
-This issue arises because some RC releases introduce breaking changes that aren't reflected in their version numbers according to Semantic Versioning (SemVer) rules. To fix this, you need to explicitly downgrade all related crates in your `Cargo.lock` file to match the desired RC version.
-
-To start, verify that the `sp1-sdk` version in your `Cargo.lock` file differs from the version specified in your `Cargo.toml` file:
-
-```shell
-% cargo tree -i sp1-sdk
-sp1-sdk v3.0.0-rc4 (/Users/sp1/crates/sdk)
-├── sp1-cli v3.0.0-rc4 (/Users/sp1/crates/cli)
-├── sp1-eval v3.0.0-rc4 (/Users/sp1/crates/eval)
-└── sp1-perf v3.0.0-rc4 (/Users/sp1/crates/perf)
-```
-
-After confirming the version of `sp1-sdk` in your lockfile, you can downgrade to a specific RC version using the following command. Replace `3.0.0-rc1` with the desired version number:
-
-```shell
-%  cargo update -p sp1-build -p sp1-sdk -p sp1-recursion-derive -p sp1-recursion-gnark-ffi -p sp1-zkvm --precise 3.0.0-rc1
-```
-
-This command will update the `Cargo.lock` file to specify the lower RC version, resolving any version conflicts and allowing you to continue development.

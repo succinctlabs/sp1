@@ -22,5 +22,9 @@ Please make sure you have the following installed before using the CUDA prover:
 
 ## Usage
 
-To use the CUDA prover, you can compile the `sp1-sdk` crate with the `cuda` feature enabled. You
-can use the normal methods on the `ProverClient` to generate proofs.
+To use the CUDA prover, you have two options:
+
+1. Use `ProverClient::from_env` to build the client and set `SP1_PROVER` environment variable to `cuda`.
+2. Use `ProverClient::builder().cuda().build()` to build the client.
+
+Then, use your standard methods on the `ProverClient` to generate proofs.
