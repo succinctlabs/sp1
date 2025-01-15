@@ -32,7 +32,7 @@ name = "script"
 edition = "2021"
 
 [dependencies]
-sp1-sdk = "4.0.0-rc.8"
+sp1-sdk = "4.0.0"
 ```
 
 The `sp1-sdk` crate includes the necessary utilities to generate, save, and verify proofs.
