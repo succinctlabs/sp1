@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 
 use num::{BigUint, Zero};
+use p3_air::AirBuilder;
 use p3_field::{AbstractField, PrimeField32};
 use sp1_core_executor::events::ByteRecord;
 use sp1_curves::params::{FieldParameters, Limbs};
@@ -33,7 +34,6 @@ impl<F: PrimeField32, P: FieldParameters> FieldInnerProductCols<F, P> {
     pub fn populate(
         &mut self,
         record: &mut impl ByteRecord,
-        shard: u32,
         a: &[BigUint],
         b: &[BigUint],
     ) -> BigUint {
@@ -77,10 +77,10 @@ impl<F: PrimeField32, P: FieldParameters> FieldInnerProductCols<F, P> {
         self.witness_high = Limbs(p_witness_high.try_into().unwrap());
 
         // Range checks
-        record.add_u8_range_checks_field(shard, &self.result.0);
-        record.add_u8_range_checks_field(shard, &self.carry.0);
-        record.add_u8_range_checks_field(shard, &self.witness_low.0);
-        record.add_u8_range_checks_field(shard, &self.witness_high.0);
+        record.add_u8_range_checks_field(&self.result.0);
+        record.add_u8_range_checks_field(&self.carry.0);
+        record.add_u8_range_checks_field(&self.witness_low.0);
+        record.add_u8_range_checks_field(&self.witness_high.0);
 
         result.clone()
     }
@@ -93,16 +93,16 @@ where
     pub fn eval<AB: SP1AirBuilder<Var = V>>(
         &self,
         builder: &mut AB,
-        a: &[Limbs<AB::Var, P::Limbs>],
-        b: &[Limbs<AB::Var, P::Limbs>],
+        a: &[impl Into<Polynomial<AB::Expr>> + Clone],
+        b: &[impl Into<Polynomial<AB::Expr>> + Clone],
         is_real: impl Into<AB::Expr> + Clone,
     ) where
         V: Into<AB::Expr>,
     {
-        let p_a_vec: Vec<Polynomial<AB::Expr>> = a.iter().map(|x| (*x).into()).collect();
-        let p_b_vec: Vec<Polynomial<AB::Expr>> = b.iter().map(|x| (*x).into()).collect();
-        let p_result = self.result.into();
-        let p_carry = self.carry.into();
+        let p_a_vec: Vec<Polynomial<AB::Expr>> = a.iter().cloned().map(|x| x.into()).collect();
+        let p_b_vec: Vec<Polynomial<AB::Expr>> = b.iter().cloned().map(|x| x.into()).collect();
+        let p_result: Polynomial<<AB as AirBuilder>::Expr> = self.result.into();
+        let p_carry: Polynomial<<AB as AirBuilder>::Expr> = self.carry.into();
 
         let p_zero = Polynomial::<AB::Expr>::new(vec![AB::Expr::zero()]);
 
@@ -142,7 +142,10 @@ mod tests {
 
     use super::{FieldInnerProductCols, Limbs};
 
-    use crate::utils::{pad_to_power_of_two, uni_stark_prove as prove, uni_stark_verify as verify};
+    use crate::utils::{
+        pad_to_power_of_two,
+        uni_stark::{uni_stark_prove, uni_stark_verify},
+    };
     use core::{
         borrow::{Borrow, BorrowMut},
         mem::size_of,
@@ -213,7 +216,7 @@ mod tests {
                     let cols: &mut TestCols<F, P> = row.as_mut_slice().borrow_mut();
                     cols.a[0] = P::to_limbs_field::<F, _>(&a[0]);
                     cols.b[0] = P::to_limbs_field::<F, _>(&b[0]);
-                    cols.a_ip_b.populate(output, 1, a, b);
+                    cols.a_ip_b.populate(output, a, b);
                     row
                 })
                 .collect::<Vec<_>>();
@@ -270,9 +273,9 @@ mod tests {
         let chip: FieldIpChip<Ed25519BaseField> = FieldIpChip::new();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
-        let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
+        let proof = uni_stark_prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();
-        verify(&config, &chip, &mut challenger, &proof).unwrap();
+        uni_stark_verify(&config, &chip, &mut challenger, &proof).unwrap();
     }
 }

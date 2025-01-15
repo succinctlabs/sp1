@@ -7,7 +7,7 @@ use crate::{air::MemoryAirBuilder, utils::zeroed_f_vec};
 use generic_array::GenericArray;
 use itertools::Itertools;
 use num::{BigUint, Zero};
-use p3_air::{Air, AirBuilder, BaseAir};
+use p3_air::{Air, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{
@@ -27,6 +27,7 @@ use typenum::Unsigned;
 use crate::{
     memory::{value_as_limbs, MemoryReadCols, MemoryWriteCols},
     operations::field::field_op::FieldOpCols,
+    operations::field::range::FieldLtCols,
     utils::{limbs_from_prev_access, pad_rows_fixed, words_to_bytes_le_vec},
 };
 
@@ -40,7 +41,6 @@ pub const fn num_fp2_mul_cols<P: FieldParameters + NumWords>() -> usize {
 pub struct Fp2MulAssignCols<T, P: FieldParameters + NumWords> {
     pub is_real: T,
     pub shard: T,
-    pub nonce: T,
     pub clk: T,
     pub x_ptr: T,
     pub y_ptr: T,
@@ -52,6 +52,8 @@ pub struct Fp2MulAssignCols<T, P: FieldParameters + NumWords> {
     pub(crate) a1_mul_b0: FieldOpCols<T, P>,
     pub(crate) c0: FieldOpCols<T, P>,
     pub(crate) c1: FieldOpCols<T, P>,
+    pub(crate) c0_range: FieldLtCols<T, P>,
+    pub(crate) c1_range: FieldLtCols<T, P>,
 }
 
 #[derive(Default)]
@@ -67,7 +69,6 @@ impl<P: FpOpField> Fp2MulAssignChip<P> {
     #[allow(clippy::too_many_arguments)]
     fn populate_field_ops<F: PrimeField32>(
         blu_events: &mut Vec<ByteLookupEvent>,
-        shard: u32,
         cols: &mut Fp2MulAssignCols<F, P>,
         p_x: BigUint,
         p_y: BigUint,
@@ -78,7 +79,6 @@ impl<P: FpOpField> Fp2MulAssignChip<P> {
         let modulus = BigUint::from_bytes_le(modulus_bytes);
         let a0_mul_b0 = cols.a0_mul_b0.populate_with_modulus(
             blu_events,
-            shard,
             &p_x,
             &q_x,
             &modulus,
@@ -86,7 +86,6 @@ impl<P: FpOpField> Fp2MulAssignChip<P> {
         );
         let a1_mul_b1 = cols.a1_mul_b1.populate_with_modulus(
             blu_events,
-            shard,
             &p_y,
             &q_y,
             &modulus,
@@ -94,7 +93,6 @@ impl<P: FpOpField> Fp2MulAssignChip<P> {
         );
         let a0_mul_b1 = cols.a0_mul_b1.populate_with_modulus(
             blu_events,
-            shard,
             &p_x,
             &q_y,
             &modulus,
@@ -102,28 +100,27 @@ impl<P: FpOpField> Fp2MulAssignChip<P> {
         );
         let a1_mul_b0 = cols.a1_mul_b0.populate_with_modulus(
             blu_events,
-            shard,
             &p_y,
             &q_x,
             &modulus,
             FieldOperation::Mul,
         );
-        cols.c0.populate_with_modulus(
+        let c0 = cols.c0.populate_with_modulus(
             blu_events,
-            shard,
             &a0_mul_b0,
             &a1_mul_b1,
             &modulus,
             FieldOperation::Sub,
         );
-        cols.c1.populate_with_modulus(
+        let c1 = cols.c1.populate_with_modulus(
             blu_events,
-            shard,
             &a0_mul_b1,
             &a1_mul_b0,
             &modulus,
             FieldOperation::Add,
         );
+        cols.c0_range.populate(blu_events, &c0, &modulus);
+        cols.c1_range.populate(blu_events, &c1, &modulus);
     }
 }
 
@@ -171,15 +168,7 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2MulAssignChip<P> {
             cols.x_ptr = F::from_canonical_u32(event.x_ptr);
             cols.y_ptr = F::from_canonical_u32(event.y_ptr);
 
-            Self::populate_field_ops(
-                &mut new_byte_lookup_events,
-                event.shard,
-                cols,
-                p_x,
-                p_y,
-                q_x,
-                q_y,
-            );
+            Self::populate_field_ops(&mut new_byte_lookup_events, cols, p_x, p_y, q_x, q_y);
 
             // Populate the memory access columns.
             for i in 0..cols.y_access.len() {
@@ -201,7 +190,6 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2MulAssignChip<P> {
                 let zero = BigUint::zero();
                 Self::populate_field_ops(
                     &mut vec![],
-                    0,
                     cols,
                     zero.clone(),
                     zero.clone(),
@@ -214,20 +202,7 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2MulAssignChip<P> {
         );
 
         // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            num_fp2_mul_cols::<P>(),
-        );
-
-        // Write the nonces to the trace.
-        for i in 0..trace.height() {
-            let cols: &mut Fp2MulAssignCols<F, P> = trace.values
-                [i * num_fp2_mul_cols::<P>()..(i + 1) * num_fp2_mul_cols::<P>()]
-                .borrow_mut();
-            cols.nonce = F::from_canonical_usize(i);
-        }
-
-        trace
+        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), num_fp2_mul_cols::<P>())
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -243,6 +218,10 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2MulAssignChip<P> {
                 }
             }
         }
+    }
+
+    fn local_only(&self) -> bool {
+        true
     }
 }
 
@@ -261,11 +240,7 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &Fp2MulAssignCols<AB::Var, P> = (*local).borrow();
-        let next = main.row_slice(1);
-        let next: &Fp2MulAssignCols<AB::Var, P> = (*next).borrow();
 
-        builder.when_first_row().assert_zero(local.nonce);
-        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
         let num_words_field_element = <P as NumLimbs>::Limbs::USIZE / 4;
 
         let p_x = limbs_from_prev_access(&local.x_access[0..num_words_field_element]);
@@ -344,6 +319,8 @@ where
             local.c1.result,
             value_as_limbs(&local.x_access[num_words_field_element..]),
         );
+        local.c0_range.eval(builder, &local.c0.result, &p_modulus, local.is_real);
+        local.c1_range.eval(builder, &local.c1.result, &p_modulus, local.is_real);
 
         builder.eval_memory_access_slice(
             local.shard,
@@ -371,7 +348,6 @@ where
         builder.receive_syscall(
             local.shard,
             local.clk,
-            local.nonce,
             syscall_id_felt,
             local.x_ptr,
             local.y_ptr,

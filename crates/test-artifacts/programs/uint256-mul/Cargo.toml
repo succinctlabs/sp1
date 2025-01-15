@@ -1,0 +1,12 @@
+[package]
+name = "biguint-mul-test"
+version = "1.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+rand = "0.8"
+num = { version = "0.4.1" }
+sp1-zkvm = { path = "../../../../crates/zkvm/entrypoint" }
+sp1-derive = { path = "../../../../crates/derive" }
+bytemuck = "1.15.0"

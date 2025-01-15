@@ -5,7 +5,7 @@ use cargo_metadata::camino::Utf8PathBuf;
 
 use crate::{
     command::{docker::create_docker_command, local::create_local_command, utils::execute_command},
-    utils::{cargo_rerun_if_changed, copy_elf_to_output_dir, current_datetime},
+    utils::{cargo_rerun_if_changed, current_datetime},
     BuildArgs, BUILD_TARGET, HELPER_TARGET_SUBDIR,
 };
 
@@ -48,11 +48,33 @@ pub fn execute_build_program(
 
     let target_elf_paths = generate_elf_paths(&program_metadata, Some(args))?;
 
-    // Temporary backward compatibility with the deprecated behavior of copying the ELF file.
-    // TODO: add option to turn off this behavior
-    if target_elf_paths.len() == 1 {
-        copy_elf_to_output_dir(args, &program_metadata, &target_elf_paths[0].1)?;
+    if let Some(output_directory) = &args.output_directory {
+        if target_elf_paths.len() > 1 && args.elf_name.is_some() {
+            anyhow::bail!("--elf-name is not supported when --output-directory is used and multiple ELFs are built.");
+        }
+
+        // The path to the output directory, maybe relative or absolute.
+        let output_directory = PathBuf::from(output_directory);
+
+        // Ensure the output directory is a directory. If it doesnt exist, this is false.
+        if output_directory.is_file() {
+            anyhow::bail!("--output-directory is a file.");
+        }
+
+        // Ensure the output directory exists.
+        std::fs::create_dir_all(&output_directory)?;
+
+        // Copy the ELF files to the output directory.
+        for (_, elf_path) in target_elf_paths.iter() {
+            let elf_path = elf_path.to_path_buf();
+            let elf_name = elf_path.file_name().expect("ELF path has a file name");
+            let output_path = output_directory.join(args.elf_name.as_deref().unwrap_or(elf_name));
+
+            std::fs::copy(&elf_path, &output_path)?;
+        }
     }
+
+    print_elf_paths_cargo_directives(&target_elf_paths);
 
     Ok(target_elf_paths)
 }
@@ -73,7 +95,10 @@ pub(crate) fn build_program_internal(path: &str, args: Option<BuildArgs>) {
         .unwrap_or(false);
     if skip_program_build {
         // Still need to set ELF env vars even if build is skipped.
-        generate_elf_paths(&metadata, args.as_ref()).expect("failed to collect target ELF paths");
+        let target_elf_paths = generate_elf_paths(&metadata, args.as_ref())
+            .expect("failed to collect target ELF paths");
+
+        print_elf_paths_cargo_directives(&target_elf_paths);
 
         println!(
             "cargo:warning=Build skipped for {} at {} due to SP1_SKIP_PROGRAM_BUILD flag",
@@ -94,7 +119,10 @@ pub(crate) fn build_program_internal(path: &str, args: Option<BuildArgs>) {
         .unwrap_or(false);
     if is_clippy_driver {
         // Still need to set ELF env vars even if build is skipped.
-        generate_elf_paths(&metadata, args.as_ref()).expect("failed to collect target ELF paths");
+        let target_elf_paths = generate_elf_paths(&metadata, args.as_ref())
+            .expect("failed to collect target ELF paths");
+
+        print_elf_paths_cargo_directives(&target_elf_paths);
 
         println!("cargo:warning=Skipping build due to clippy invocation.");
         return;
@@ -113,19 +141,39 @@ pub(crate) fn build_program_internal(path: &str, args: Option<BuildArgs>) {
     println!("cargo:warning={} built at {}", root_package_name, current_datetime());
 }
 
-/// Collects the list of targets that would be built and their output ELF file paths. Also prints
-/// cargo directives setting relevant `SP1_ELF_` environment variables.
-fn generate_elf_paths(
+/// Collects the list of targets that would be built and their output ELF file paths.
+pub fn generate_elf_paths(
     metadata: &cargo_metadata::Metadata,
     args: Option<&BuildArgs>,
 ) -> Result<Vec<(String, Utf8PathBuf)>> {
     let mut target_elf_paths = vec![];
+    let packages_to_iterate = if let Some(args) = args {
+        if !args.packages.is_empty() {
+            args.packages
+                .iter()
+                .map(|wanted_package| {
+                    metadata
+                        .packages
+                        .iter()
+                        .find(|p| p.name == *wanted_package)
+                        .ok_or_else(|| {
+                            anyhow::anyhow!("cannot find package named {}", wanted_package)
+                        })
+                        .map(|p| p.id.clone())
+                })
+                .collect::<anyhow::Result<Vec<_>>>()?
+        } else {
+            metadata.workspace_default_members.to_vec()
+        }
+    } else {
+        metadata.workspace_default_members.to_vec()
+    };
 
-    for program_crate in metadata.workspace_default_members.iter() {
+    for program_crate in packages_to_iterate {
         let program = metadata
             .packages
             .iter()
-            .find(|p| &p.id == program_crate)
+            .find(|p| p.id == program_crate)
             .ok_or_else(|| anyhow::anyhow!("cannot find package for {}", program_crate))?;
 
         for bin_target in program.targets.iter().filter(|t| {
@@ -133,7 +181,7 @@ fn generate_elf_paths(
         }) {
             // Filter out irrelevant targets if `--bin` is used.
             if let Some(args) = args {
-                if !args.binary.is_empty() && bin_target.name != args.binary {
+                if !args.binaries.is_empty() && !args.binaries.contains(&bin_target.name) {
                     continue;
                 }
             }
@@ -149,9 +197,12 @@ fn generate_elf_paths(
         }
     }
 
+    Ok(target_elf_paths)
+}
+
+/// Prints cargo directives setting relevant `SP1_ELF_` environment variables.
+fn print_elf_paths_cargo_directives(target_elf_paths: &[(String, Utf8PathBuf)]) {
     for (target_name, elf_path) in target_elf_paths.iter() {
         println!("cargo:rustc-env=SP1_ELF_{}={}", target_name, elf_path);
     }
-
-    Ok(target_elf_paths)
 }

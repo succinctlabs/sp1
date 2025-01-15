@@ -1,6 +1,7 @@
 use std::{fs::File, path::Path};
 
 use anyhow::Result;
+use clap::ValueEnum;
 use p3_baby_bear::BabyBear;
 use p3_bn254_fr::Bn254Fr;
 use p3_commit::{Pcs, TwoAdicMultiplicativeCoset};
@@ -43,16 +44,31 @@ pub trait HashableKey {
     /// Hash the key into a digest of BabyBear elements.
     fn hash_babybear(&self) -> [BabyBear; DIGEST_SIZE];
 
-    /// Hash the key into a digest of  u32 elements.
+    /// Hash the key into a digest of u32 elements.
     fn hash_u32(&self) -> [u32; DIGEST_SIZE];
 
+    /// Hash the key into a Bn254Fr element.
     fn hash_bn254(&self) -> Bn254Fr {
         babybears_to_bn254(&self.hash_babybear())
     }
 
+    /// Hash the key into a 32 byte hex string, prefixed with "0x".
+    ///
+    /// This is ideal for generating a vkey hash for onchain verification.
     fn bytes32(&self) -> String {
         let vkey_digest_bn254 = self.hash_bn254();
         format!("0x{:0>64}", vkey_digest_bn254.as_canonical_biguint().to_str_radix(16))
+    }
+
+    /// Hash the key into a 32 byte array.
+    ///
+    /// This has the same value as `bytes32`, but as a raw byte array.
+    fn bytes32_raw(&self) -> [u8; 32] {
+        let vkey_digest_bn254 = self.hash_bn254();
+        let vkey_bytes = vkey_digest_bn254.as_canonical_biguint().to_bytes_be();
+        let mut result = [0u8; 32];
+        result[1..].copy_from_slice(&vkey_bytes);
+        result
     }
 
     /// Hash the key into a digest of bytes elements.
@@ -78,10 +94,12 @@ where
 {
     fn hash_babybear(&self) -> [BabyBear; DIGEST_SIZE] {
         let prep_domains = self.chip_information.iter().map(|(_, domain, _)| domain);
-        let num_inputs = DIGEST_SIZE + 1 + (4 * prep_domains.len());
+        let num_inputs = DIGEST_SIZE + 1 + 14 + (4 * prep_domains.len());
         let mut inputs = Vec::with_capacity(num_inputs);
         inputs.extend(self.commit.as_ref());
         inputs.push(self.pc_start);
+        inputs.extend(self.initial_global_cumulative_sum.0.x.0);
+        inputs.extend(self.initial_global_cumulative_sum.0.y.0);
         for domain in prep_domains {
             inputs.push(BabyBear::from_canonical_usize(domain.log_n));
             let size = 1 << domain.log_n;
@@ -181,6 +199,16 @@ impl SP1Bn254ProofData {
             SP1Bn254ProofData::Groth16(proof) => &proof.raw_proof,
         }
     }
+}
+
+/// The mode of the prover.
+#[derive(Debug, Default, Clone, ValueEnum, PartialEq, Eq)]
+pub enum ProverMode {
+    #[default]
+    Cpu,
+    Cuda,
+    Network,
+    Mock,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

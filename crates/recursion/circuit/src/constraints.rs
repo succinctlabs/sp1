@@ -34,10 +34,11 @@ where
     A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
 {
     #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::type_complexity)]
     pub fn verify_constraints(
         builder: &mut Builder<C>,
         chip: &MachineChip<SC, A>,
-        opening: &ChipOpenedValues<Ext<C::F, C::EF>>,
+        opening: &ChipOpenedValues<Felt<C::F>, Ext<C::F, C::EF>>,
         trace_domain: TwoAdicMultiplicativeCoset<C::F>,
         qc_domains: Vec<TwoAdicMultiplicativeCoset<C::F>>,
         zeta: Ext<C::F, C::EF>,
@@ -65,10 +66,11 @@ where
         builder.assert_ext_eq(folded_constraints * sels.inv_zeroifier, quotient);
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn eval_constraints(
         builder: &mut Builder<C>,
         chip: &MachineChip<SC, A>,
-        opening: &ChipOpenedValues<Ext<C::F, C::EF>>,
+        opening: &ChipOpenedValues<Felt<C::F>, Ext<C::F, C::EF>>,
         selectors: &LagrangeSelectors<Ext<C::F, C::EF>>,
         alpha: Ext<C::F, C::EF>,
         permutation_challenges: &[Ext<C::F, C::EF>],
@@ -101,7 +103,8 @@ where
             main: opening.main.view(),
             perm: perm_opening.view(),
             perm_challenges: permutation_challenges,
-            cumulative_sums: &[opening.global_cumulative_sum, opening.local_cumulative_sum],
+            local_cumulative_sum: &opening.local_cumulative_sum,
+            global_cumulative_sum: &opening.global_cumulative_sum,
             public_values,
             is_first_row: selectors.is_first_row,
             is_last_row: selectors.is_last_row,
@@ -115,9 +118,10 @@ where
         builder.eval(folder.accumulator)
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn recompute_quotient(
         builder: &mut Builder<C>,
-        opening: &ChipOpenedValues<Ext<C::F, C::EF>>,
+        opening: &ChipOpenedValues<Felt<C::F>, Ext<C::F, C::EF>>,
         qc_domains: &[TwoAdicMultiplicativeCoset<C::F>],
         zeta: Ext<C::F, C::EF>,
     ) -> Ext<C::F, C::EF> {
@@ -151,8 +155,9 @@ where
                             - C::F::one();
                         (
                             {
-                                // We use the precomputed powers of zeta to compute (inline) the value of
-                                // `other_domain.zp_at_point_variable(builder, zeta)`.
+                                // We use the precomputed powers of zeta to compute (inline) the
+                                // value of `other_domain.
+                                // zp_at_point_variable(builder, zeta)`.
                                 let z: Ext<_, _> = builder.eval(
                                     zetas[other_domain.log_n] * SymbolicFelt::from_f(shift_power)
                                         - SymbolicExt::from_f(C::EF::one()),
@@ -189,9 +194,10 @@ where
         )
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn verify_opening_shape(
         chip: &MachineChip<SC, A>,
-        opening: &ChipOpenedValues<Ext<C::F, C::EF>>,
+        opening: &ChipOpenedValues<Felt<C::F>, Ext<C::F, C::EF>>,
     ) -> Result<(), OpeningShapeError> {
         // Verify that the preprocessed width matches the expected value for the chip.
         if opening.preprocessed.local.len() != chip.preprocessed_width() {

@@ -2,13 +2,17 @@ mod build;
 mod command;
 mod utils;
 use build::build_program_internal;
-pub use build::execute_build_program;
+pub use build::{execute_build_program, generate_elf_paths};
+pub use command::TOOLCHAIN_NAME;
 
 use clap::Parser;
 
+// todo!(n): Remove this for v4 and change it back to `SP1_CIRCUIT_VERSION`.
+// This is convenient because everything else (circuit artifacts) use rc.3 still.
+/// This is the minimum version of the Docker image that supports the 1.82 `succinct` toolchain.
+const MIN_SP1_1_82_SUPPORT_TAG: &str = "v4.0.0-rc.10";
+
 const BUILD_TARGET: &str = "riscv32im-succinct-zkvm-elf";
-const DEFAULT_TAG: &str = "latest";
-const DEFAULT_OUTPUT_DIR: &str = "elf";
 const HELPER_TARGET_SUBDIR: &str = "elf-compilation";
 
 /// Compile an SP1 program.
@@ -27,7 +31,7 @@ pub struct BuildArgs {
     #[clap(
         long,
         help = "The ghcr.io/succinctlabs/sp1 image tag to use when building with Docker.",
-        default_value = DEFAULT_TAG
+        default_value = MIN_SP1_1_82_SUPPORT_TAG
     )]
     pub tag: String,
     #[clap(
@@ -51,23 +55,25 @@ pub struct BuildArgs {
     #[clap(long, action, help = "Assert that `Cargo.lock` will remain unchanged")]
     pub locked: bool,
     #[clap(
+        short,
+        long,
+        action,
+        help = "Build only the specified packages",
+        num_args = 1..
+    )]
+    pub packages: Vec<String>,
+    #[clap(
         alias = "bin",
         long,
         action,
-        help = "Build only the specified binary",
-        default_value = ""
+        help = "Build only the specified binaries",
+        num_args = 1..
     )]
-    pub binary: String,
-    #[clap(long, action, help = "ELF binary name", default_value = "")]
-    pub elf_name: String,
-    #[clap(
-        alias = "out-dir",
-        long,
-        action,
-        help = "Copy the compiled ELF to this directory",
-        default_value = DEFAULT_OUTPUT_DIR
-    )]
-    pub output_directory: String,
+    pub binaries: Vec<String>,
+    #[clap(long, action, help = "ELF binary name")]
+    pub elf_name: Option<String>,
+    #[clap(alias = "out-dir", long, action, help = "Copy the compiled ELF to this directory")]
+    pub output_directory: Option<String>,
 }
 
 // Implement default args to match clap defaults.
@@ -75,13 +81,14 @@ impl Default for BuildArgs {
     fn default() -> Self {
         Self {
             docker: false,
-            tag: DEFAULT_TAG.to_string(),
+            tag: MIN_SP1_1_82_SUPPORT_TAG.to_string(),
             features: vec![],
             rustflags: vec![],
             ignore_rust_version: false,
-            binary: "".to_string(),
-            elf_name: "".to_string(),
-            output_directory: DEFAULT_OUTPUT_DIR.to_string(),
+            packages: vec![],
+            binaries: vec![],
+            elf_name: None,
+            output_directory: None,
             locked: false,
             no_default_features: false,
         }
@@ -116,4 +123,20 @@ pub fn build_program(path: &str) {
 /// Set the `SP1_SKIP_PROGRAM_BUILD` environment variable to `true` to skip building the program.
 pub fn build_program_with_args(path: &str, args: BuildArgs) {
     build_program_internal(path, Some(args))
+}
+
+/// Returns the raw ELF bytes by the zkVM program target name.
+///
+/// Note that this only works when using `sp1_build::build_program` or
+/// `sp1_build::build_program_with_args` in a build script.
+///
+/// By default, the program target name is the same as the program crate name. However, this might
+/// not be the case for non-standard project structures. For example, placing the entrypoint source
+/// file at `src/bin/my_entry.rs` would result in the program target being named `my_entry`, in
+/// which case the invocation should be `include_elf!("my_entry")` instead.
+#[macro_export]
+macro_rules! include_elf {
+    ($arg:tt) => {{
+        include_bytes!(env!(concat!("SP1_ELF_", $arg)))
+    }};
 }

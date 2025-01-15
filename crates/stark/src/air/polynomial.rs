@@ -126,7 +126,7 @@ impl<T: Mul<Output = T> + Add<Output = T> + AddAssign + Clone> Add<T> for Polyno
 
     fn add(self, other: T) -> Polynomial<T> {
         let mut coefficients = self.coefficients;
-        coefficients[0] += other;
+        coefficients[0] = coefficients[0].clone() + other;
         Self::new(coefficients)
     }
 }

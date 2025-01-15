@@ -6,10 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
 use self::opcodes::ConstraintOpcode;
-use crate::{
-    ir::{Config, DslIr},
-    prelude::TracedVec,
-};
+use crate::ir::{Config, DslIr};
 
 /// A constraint is an operation and a list of nested arguments.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -70,10 +67,8 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
         tmp_id
     }
 
-    /// Emit the constraints from a list of operations in the DSL.
-    pub fn emit(&mut self, operations: TracedVec<DslIr<C>>) -> Vec<Constraint> {
-        let mut constraints: Vec<Constraint> = Vec::new();
-        for (instruction, _) in operations {
+    fn emit_inner(&mut self, constraints: &mut Vec<Constraint>, operations: Vec<DslIr<C>>) {
+        for instruction in operations {
             match instruction {
                 DslIr::ImmV(a, b) => constraints.push(Constraint {
                     opcode: ConstraintOpcode::ImmV,
@@ -98,7 +93,7 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
                 }),
                 DslIr::AddVI(a, b, c) => {
-                    let tmp = self.alloc_v(&mut constraints, c);
+                    let tmp = self.alloc_v(constraints, c);
                     constraints.push(Constraint {
                         opcode: ConstraintOpcode::AddV,
                         args: vec![vec![a.id()], vec![b.id()], vec![tmp]],
@@ -109,7 +104,7 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
                 }),
                 DslIr::AddFI(a, b, c) => {
-                    let tmp = self.alloc_f(&mut constraints, c);
+                    let tmp = self.alloc_f(constraints, c);
                     constraints.push(Constraint {
                         opcode: ConstraintOpcode::AddF,
                         args: vec![vec![a.id()], vec![b.id()], vec![tmp]],
@@ -124,21 +119,21 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
                 }),
                 DslIr::AddEFI(a, b, c) => {
-                    let tmp = self.alloc_f(&mut constraints, c);
+                    let tmp = self.alloc_f(constraints, c);
                     constraints.push(Constraint {
                         opcode: ConstraintOpcode::AddEF,
                         args: vec![vec![a.id()], vec![b.id()], vec![tmp]],
                     });
                 }
                 DslIr::AddEI(a, b, c) => {
-                    let tmp = self.alloc_e(&mut constraints, c);
+                    let tmp = self.alloc_e(constraints, c);
                     constraints.push(Constraint {
                         opcode: ConstraintOpcode::AddE,
                         args: vec![vec![a.id()], vec![b.id()], vec![tmp]],
                     });
                 }
                 DslIr::AddEFFI(a, b, c) => {
-                    let tmp = self.alloc_e(&mut constraints, c);
+                    let tmp = self.alloc_e(constraints, c);
                     constraints.push(Constraint {
                         opcode: ConstraintOpcode::AddEF,
                         args: vec![vec![a.id()], vec![tmp], vec![b.id()]],
@@ -153,14 +148,14 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
                 }),
                 DslIr::SubFI(a, b, c) => {
-                    let tmp = self.alloc_f(&mut constraints, c);
+                    let tmp = self.alloc_f(constraints, c);
                     constraints.push(Constraint {
                         opcode: ConstraintOpcode::SubF,
                         args: vec![vec![a.id()], vec![b.id()], vec![tmp]],
                     });
                 }
                 DslIr::SubFIN(a, b, c) => {
-                    let temp = self.alloc_f(&mut constraints, b);
+                    let temp = self.alloc_f(constraints, b);
                     constraints.push(Constraint {
                         opcode: ConstraintOpcode::SubF,
                         args: vec![vec![a.id()], vec![temp], vec![c.id()]],
@@ -175,14 +170,14 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
                 }),
                 DslIr::SubEI(a, b, c) => {
-                    let tmp = self.alloc_e(&mut constraints, c);
+                    let tmp = self.alloc_e(constraints, c);
                     constraints.push(Constraint {
                         opcode: ConstraintOpcode::SubE,
                         args: vec![vec![a.id()], vec![b.id()], vec![tmp]],
                     });
                 }
                 DslIr::SubEIN(a, b, c) => {
-                    let tmp = self.alloc_e(&mut constraints, b);
+                    let tmp = self.alloc_e(constraints, b);
                     constraints.push(Constraint {
                         opcode: ConstraintOpcode::SubE,
                         args: vec![vec![a.id()], vec![tmp], vec![c.id()]],
@@ -193,7 +188,7 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
                 }),
                 DslIr::MulVI(a, b, c) => {
-                    let tmp = self.alloc_v(&mut constraints, c);
+                    let tmp = self.alloc_v(constraints, c);
                     constraints.push(Constraint {
                         opcode: ConstraintOpcode::MulV,
                         args: vec![vec![a.id()], vec![b.id()], vec![tmp]],
@@ -204,7 +199,7 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
                 }),
                 DslIr::MulFI(a, b, c) => {
-                    let tmp = self.alloc_f(&mut constraints, c);
+                    let tmp = self.alloc_f(constraints, c);
                     constraints.push(Constraint {
                         opcode: ConstraintOpcode::MulF,
                         args: vec![vec![a.id()], vec![b.id()], vec![tmp]],
@@ -215,7 +210,7 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
                 }),
                 DslIr::MulEI(a, b, c) => {
-                    let tmp = self.alloc_e(&mut constraints, c);
+                    let tmp = self.alloc_e(constraints, c);
                     constraints.push(Constraint {
                         opcode: ConstraintOpcode::MulE,
                         args: vec![vec![a.id()], vec![b.id()], vec![tmp]],
@@ -226,7 +221,7 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
                 }),
                 DslIr::DivFIN(a, b, c) => {
-                    let tmp = self.alloc_f(&mut constraints, b);
+                    let tmp = self.alloc_f(constraints, b);
                     constraints.push(Constraint {
                         opcode: ConstraintOpcode::DivF,
                         args: vec![vec![a.id()], vec![tmp], vec![c.id()]],
@@ -245,7 +240,7 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
                 }),
                 DslIr::DivEIN(a, b, c) => {
-                    let tmp = self.alloc_e(&mut constraints, b);
+                    let tmp = self.alloc_e(constraints, b);
                     constraints.push(Constraint {
                         opcode: ConstraintOpcode::DivE,
                         args: vec![vec![a.id()], vec![tmp], vec![c.id()]],
@@ -310,7 +305,7 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                     args: vec![vec![a.id()], vec![b.id()]],
                 }),
                 DslIr::AssertEqVI(a, b) => {
-                    let tmp = self.alloc_v(&mut constraints, b);
+                    let tmp = self.alloc_v(constraints, b);
                     constraints.push(Constraint {
                         opcode: ConstraintOpcode::AssertEqV,
                         args: vec![vec![a.id()], vec![tmp]],
@@ -321,7 +316,7 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                     args: vec![vec![a.id()], vec![b.id()]],
                 }),
                 DslIr::AssertEqFI(a, b) => {
-                    let tmp = self.alloc_f(&mut constraints, b);
+                    let tmp = self.alloc_f(constraints, b);
                     constraints.push(Constraint {
                         opcode: ConstraintOpcode::AssertEqF,
                         args: vec![vec![a.id()], vec![tmp]],
@@ -336,14 +331,14 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                     args: vec![vec![a.id()], vec![b.id()]],
                 }),
                 DslIr::AssertNeFI(a, b) => {
-                    let tmp = self.alloc_f(&mut constraints, b);
+                    let tmp = self.alloc_f(constraints, b);
                     constraints.push(Constraint {
                         opcode: ConstraintOpcode::AssertNeF,
                         args: vec![vec![a.id()], vec![tmp]],
                     });
                 }
                 DslIr::AssertEqEI(a, b) => {
-                    let tmp = self.alloc_e(&mut constraints, b);
+                    let tmp = self.alloc_e(constraints, b);
                     constraints.push(Constraint {
                         opcode: ConstraintOpcode::AssertEqE,
                         args: vec![vec![a.id()], vec![tmp]],
@@ -407,9 +402,21 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
 
                 // Version 2 instructions
                 DslIr::CircuitV2CommitPublicValues(_) => {}
+                DslIr::Parallel(blocks) => {
+                    for block in blocks {
+                        self.emit_inner(constraints, block.ops);
+                    }
+                }
+                DslIr::DebugBacktrace(_) => {}
                 _ => panic!("unsupported {:?}", instruction),
             };
         }
+    }
+
+    /// Emit the constraints from a list of operations in the DSL.
+    pub fn emit(&mut self, operations: Vec<DslIr<C>>) -> Vec<Constraint> {
+        let mut constraints: Vec<Constraint> = Vec::new();
+        self.emit_inner(&mut constraints, operations);
         constraints
     }
 }

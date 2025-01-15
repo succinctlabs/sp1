@@ -14,7 +14,7 @@ use crate::{
 
 use generic_array::GenericArray;
 use num::{BigUint, One, Zero};
-use p3_air::{Air, AirBuilder, BaseAir};
+use p3_air::{Air, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{
@@ -61,9 +61,6 @@ pub struct Uint256MulCols<T> {
 
     /// The clock cycle of the syscall.
     pub clk: T,
-
-    /// The nonce of the operation.
-    pub nonce: T,
 
     /// The pointer to the first input.
     pub x_ptr: T,
@@ -158,7 +155,6 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                             if modulus.is_zero() { BigUint::one() << 256 } else { modulus.clone() };
                         let result = cols.output.populate_with_modulus(
                             &mut new_byte_lookup_events,
-                            event.shard,
                             &x,
                             &y,
                             &effective_modulus,
@@ -170,7 +166,6 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                         if cols.modulus_is_not_zero == F::one() {
                             cols.output_range_check.populate(
                                 &mut new_byte_lookup_events,
-                                event.shard,
                                 &result,
                                 &effective_modulus,
                             );
@@ -199,7 +194,7 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
 
                 let x = BigUint::zero();
                 let y = BigUint::zero();
-                cols.output.populate(&mut vec![], 0, &x, &y, FieldOperation::Mul);
+                cols.output.populate(&mut vec![], &x, &y, FieldOperation::Mul);
 
                 row
             },
@@ -207,17 +202,7 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
         );
 
         // Convert the trace to a row major matrix.
-        let mut trace =
-            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_COLS);
-
-        // Write the nonces to the trace.
-        for i in 0..trace.height() {
-            let cols: &mut Uint256MulCols<F> =
-                trace.values[i * NUM_COLS..(i + 1) * NUM_COLS].borrow_mut();
-            cols.nonce = F::from_canonical_usize(i);
-        }
-
-        trace
+        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_COLS)
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -226,6 +211,10 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
         } else {
             !shard.get_precompile_events(SyscallCode::UINT256_MUL).is_empty()
         }
+    }
+
+    fn local_only(&self) -> bool {
+        true
     }
 }
 
@@ -244,12 +233,6 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &Uint256MulCols<AB::Var> = (*local).borrow();
-        let next = main.row_slice(1);
-        let next: &Uint256MulCols<AB::Var> = (*next).borrow();
-
-        // Constrain the incrementing nonce.
-        builder.when_first_row().assert_zero(local.nonce);
-        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         // We are computing (x * y) % modulus. The value of x is stored in the "prev_value" of
         // the x_memory, since we write to it later.
@@ -331,7 +314,6 @@ where
         builder.receive_syscall(
             local.shard,
             local.clk,
-            local.nonce,
             AB::F::from_canonical_u32(SyscallCode::UINT256_MUL.syscall_id()),
             local.x_ptr,
             local.y_ptr,

@@ -78,9 +78,9 @@ impl NewCmd {
             // Check if the user has `foundry` installed.
             if Command::new("foundry").arg("--version").output().is_err() {
                 println!(
-                "    \x1b[1m{}\x1b[0m Make sure to install Foundry to use contracts: https://book.getfoundry.sh/getting-started/installation",
-                Paint::yellow("Warning:"),
-            );
+                    "    \x1b[1m{}\x1b[0m Make sure to install Foundry to use contracts: https://book.getfoundry.sh/getting-started/installation",
+                    Paint::yellow("Warning:"),
+                );
             }
         } else {
             // Remove the `contracts` directory.

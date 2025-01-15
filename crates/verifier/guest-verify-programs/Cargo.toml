@@ -1,0 +1,17 @@
+[workspace]
+[package]
+name = "guest-verify-programs"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "groth16_verify"
+path = "src/groth16_verify.rs"
+
+[[bin]]
+name = "plonk_verify"
+path = "src/plonk_verify.rs"
+
+[dependencies]
+sp1-zkvm = { path = "../../zkvm/entrypoint" }
+sp1-verifier = { path = "../" }

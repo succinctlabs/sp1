@@ -56,7 +56,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
 
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         let mut rows = program
-            .instructions
+            .inner
             .iter()
             .filter_map(|instruction| match instruction {
                 Instruction::Mem(MemInstr { addrs, vals, mult, kind }) => {
@@ -122,6 +122,10 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
     fn included(&self, _record: &Self::Record) -> bool {
         true
     }
+
+    fn local_only(&self) -> bool {
+        true
+    }
 }
 
 impl<AB> Air<AB> for MemoryChip<AB::F>
@@ -141,102 +145,44 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
-    use machine::{tests::run_recursion_test_machines, RecursionAir};
-    use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
-    use p3_field::AbstractField;
-    use p3_matrix::dense::RowMajorMatrix;
-
-    use crate::stark::BabyBearPoseidon2Outer;
-    use sp1_core_machine::utils::run_test_machine;
-    use sp1_stark::{BabyBearPoseidon2Inner, StarkGenericConfig};
+    use machine::tests::test_recursion_linear_program;
 
     use super::*;
 
     use crate::runtime::instruction as instr;
 
-    type SC = BabyBearPoseidon2Outer;
-    type F = <SC as StarkGenericConfig>::Val;
-    type EF = <SC as StarkGenericConfig>::Challenge;
-    type A = RecursionAir<F, 3>;
-
-    pub fn prove_program(program: RecursionProgram<F>) {
-        let program = Arc::new(program);
-        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
-            program.clone(),
-            BabyBearPoseidon2Inner::new().perm,
-        );
-        runtime.run().unwrap();
-
-        let config = SC::new();
-        let machine = A::compress_machine(config);
-        let (pk, vk) = machine.setup(&program);
-        let result = run_test_machine(vec![runtime.record], machine, pk, vk);
-        if let Err(e) = result {
-            panic!("Verification failed: {:?}", e);
-        }
-    }
-
-    #[test]
-    pub fn generate_trace() {
-        let shard = ExecutionRecord::<BabyBear> {
-            mem_var_events: vec![
-                MemEvent { inner: BabyBear::one().into() },
-                MemEvent { inner: BabyBear::one().into() },
-            ],
-            ..Default::default()
-        };
-        let chip = MemoryChip::default();
-        let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&shard, &mut ExecutionRecord::default());
-        println!("{:?}", trace.values)
-    }
-
     #[test]
     pub fn prove_basic_mem() {
-        run_recursion_test_machines(RecursionProgram {
-            instructions: vec![
-                instr::mem(MemAccessKind::Write, 1, 1, 2),
-                instr::mem(MemAccessKind::Read, 1, 1, 2),
-            ],
-            ..Default::default()
-        });
+        test_recursion_linear_program(vec![
+            instr::mem(MemAccessKind::Write, 1, 1, 2),
+            instr::mem(MemAccessKind::Read, 1, 1, 2),
+        ]);
     }
 
     #[test]
     #[should_panic]
     pub fn basic_mem_bad_mult() {
-        prove_program(RecursionProgram {
-            instructions: vec![
-                instr::mem(MemAccessKind::Write, 1, 1, 2),
-                instr::mem(MemAccessKind::Read, 999, 1, 2),
-            ],
-            ..Default::default()
-        });
+        test_recursion_linear_program(vec![
+            instr::mem(MemAccessKind::Write, 1, 1, 2),
+            instr::mem(MemAccessKind::Read, 9, 1, 2),
+        ]);
     }
 
     #[test]
     #[should_panic]
     pub fn basic_mem_bad_address() {
-        prove_program(RecursionProgram {
-            instructions: vec![
-                instr::mem(MemAccessKind::Write, 1, 1, 2),
-                instr::mem(MemAccessKind::Read, 1, 999, 2),
-            ],
-            ..Default::default()
-        });
+        test_recursion_linear_program(vec![
+            instr::mem(MemAccessKind::Write, 1, 1, 2),
+            instr::mem(MemAccessKind::Read, 1, 9, 2),
+        ]);
     }
 
     #[test]
     #[should_panic]
     pub fn basic_mem_bad_value() {
-        prove_program(RecursionProgram {
-            instructions: vec![
-                instr::mem(MemAccessKind::Write, 1, 1, 2),
-                instr::mem(MemAccessKind::Read, 1, 1, 999),
-            ],
-            ..Default::default()
-        });
+        test_recursion_linear_program(vec![
+            instr::mem(MemAccessKind::Write, 1, 1, 2),
+            instr::mem(MemAccessKind::Read, 1, 1, 999),
+        ]);
     }
 }

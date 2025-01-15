@@ -1,3 +1,4 @@
+use sp1_primitives::consts::fd::{FD_HINT, FD_PUBLIC_VALUES, LOWEST_ALLOWED_FD};
 use sp1_primitives::consts::num_to_comma_separated;
 
 use crate::{Executor, Register};
@@ -60,15 +61,64 @@ impl Syscall for WriteSyscall {
             if !flush_s.is_empty() {
                 flush_s.into_iter().for_each(|line| println!("stderr: {}", line));
             }
-        } else if fd == 3 {
+        } else if fd <= LOWEST_ALLOWED_FD {
+            if std::env::var("SP1_ALLOW_DEPRECATED_HOOKS")
+                .map(|r| {
+                    r.parse::<bool>().expect("failed to parse SP1_ALLOW_DEPRECATED_HOOKS as bool")
+                })
+                .unwrap_or(false)
+            {
+                const PUBLIC_VALUES: u32 = 3;
+                const INPUT: u32 = 4;
+                const ECRECOVER_V1: u32 = 5;
+                const ECRECOVER_R1: u32 = 6;
+                const ECRECOVER_V2: u32 = 7;
+                const ED_DECOMPRESS: u32 = 8;
+
+                let res = if fd == ECRECOVER_V1 {
+                    crate::hook::deprecated_hooks::hook_ecrecover(rt.hook_env(), slice)
+                } else if fd == ECRECOVER_R1 {
+                    crate::hook::deprecated_hooks::hook_r1_ecrecover(rt.hook_env(), slice)
+                } else if fd == ECRECOVER_V2 {
+                    crate::hook::deprecated_hooks::hook_ecrecover_v2(rt.hook_env(), slice)
+                } else if fd == ED_DECOMPRESS {
+                    crate::hook::deprecated_hooks::hook_ed_decompress(rt.hook_env(), slice)
+                } else if fd == PUBLIC_VALUES {
+                    rt.state.public_values_stream.extend_from_slice(slice);
+                    vec![]
+                } else if fd == INPUT {
+                    rt.state.input_stream.push_front(slice.to_vec());
+                    vec![]
+                } else {
+                    vec![]
+                };
+
+                if !res.is_empty() {
+                    for val in res.into_iter().rev() {
+                        rt.state.input_stream.push_front(val);
+                    }
+                }
+            } else {
+                panic!(
+                    "You are using reserved file descriptor {fd} that is not supported on SP1 versions >= v4.0.0. \
+                    Update your patches to the latest versions that are compatible with versions >= v4.0.0. \
+                    See `https://docs.succinct.xyz/docs/writing-programs/patched-crates` for more information"
+                );
+            }
+        } else if fd == FD_PUBLIC_VALUES {
             rt.state.public_values_stream.extend_from_slice(slice);
-        } else if fd == 4 {
-            rt.state.input_stream.push(slice.to_vec());
+        } else if fd == FD_HINT {
+            rt.state.input_stream.push_front(slice.to_vec());
         } else if let Some(mut hook) = rt.hook_registry.get(fd) {
             let res = hook.invoke_hook(rt.hook_env(), slice);
-            // Add result vectors to the beginning of the stream.
-            let ptr = rt.state.input_stream_ptr;
-            rt.state.input_stream.splice(ptr..ptr, res);
+
+            // Write the result back to the input stream.
+            //
+            // Note: The result is written in reverse order to the input stream to maintain the
+            // order.
+            for val in res.into_iter().rev() {
+                rt.state.input_stream.push_front(val);
+            }
         } else {
             tracing::warn!("tried to write to unknown file descriptor {fd}");
         }
@@ -128,7 +178,7 @@ fn start_cycle_tracker(rt: &mut Executor, name: &str) {
     let depth = rt.cycle_tracker.len() as u32;
     rt.cycle_tracker.insert(name.to_string(), (rt.state.global_clk, depth));
     let padding = "│ ".repeat(depth as usize);
-    log::info!("{}┌╴{}", padding, name);
+    tracing::info!("{}┌╴{}", padding, name);
 }
 
 /// End tracking cycles for the given name, print out the log, and return the total number of cycles
@@ -137,7 +187,7 @@ fn end_cycle_tracker(rt: &mut Executor, name: &str) -> Option<u64> {
     if let Some((start, depth)) = rt.cycle_tracker.remove(name) {
         let padding = "│ ".repeat(depth as usize);
         let total_cycles = rt.state.global_clk - start;
-        log::info!("{}└╴{} cycles", padding, num_to_comma_separated(total_cycles));
+        tracing::info!("{}└╴{} cycles", padding, num_to_comma_separated(total_cycles));
         return Some(total_cycles);
     }
     None

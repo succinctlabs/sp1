@@ -13,6 +13,9 @@ on:
       - ".github/workflows/**"
   merge_group:
 
+env:
+  SP1_CI_IN_PROGRESS: "true"
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -25,6 +28,7 @@ jobs:
         runs-on,
         runner=64cpu-linux-x64,
         spot=false,
+        disk=large,
         "run-id=${{ github.run_id }}",
       ]
     env:
@@ -35,24 +39,32 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+
+      - name: Install SP1 toolchain from repo
+        run: |
+          cargo run -p sp1-cli -- prove install-toolchain
+          cd crates/cli
+          cargo install --force --locked --path .
+          cargo clean
 
       - name: Run cargo check
         uses: actions-rs/cargo@v1
         with:
           command: check
           toolchain: 1.81.0
-          args: --all-targets --all-features
+          args: --all-targets --all-features --tests
 
       - name: Run cargo test
         uses: actions-rs/cargo@v1
         with:
           command: test
           toolchain: 1.81.0
-          args: --release --features native-gnark
+          args: --release --features native-gnark --workspace --exclude sp1-verifier
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
-          # FRI_QUERIES: 1
           SP1_DEV: 1
 
   test-arm:
@@ -62,6 +74,7 @@ jobs:
         runs-on,
         runner=64cpu-linux-arm64,
         spot=false,
+        disk=large,
         "run-id=${{ github.run_id }}",
       ]
     env:
@@ -72,29 +85,44 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+
+      - name: Install SP1 toolchain from repo
+        run: |
+          cargo run -p sp1-cli -- prove install-toolchain
+          cd crates/cli
+          cargo install --force --locked --path .
+          cargo clean
 
       - name: Run cargo check
         uses: actions-rs/cargo@v1
         with:
           command: check
           toolchain: 1.81.0
-          args: --all-targets --all-features
+          args: --all-targets --all-features --tests
 
       - name: Run cargo test
         uses: actions-rs/cargo@v1
         with:
           command: test
           toolchain: 1.81.0
-          args: --release --features native-gnark
+          args: --release --features native-gnark --workspace --exclude sp1-verifier
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
-          # FRI_QUERIES: 1
           SP1_DEV: 1
 
-  lint:
-    name: Formatting & Clippy
-    runs-on: [runs-on, runner=8cpu-linux-x64, "run-id=${{ github.run_id }}"]
+  test-verifier:
+    name: Test Verifier Crate
+    runs-on:
+      [
+        runs-on,
+        runner=64cpu-linux-arm64,
+        spot=false,
+        disk=large,
+        "run-id=${{ github.run_id }}",
+      ]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -103,12 +131,67 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+
+      - name: Install SP1 toolchain from repo
+        run: |
+          cargo run -p sp1-cli -- prove install-toolchain
+          cd crates/cli
+          cargo install --locked --force --path .
+          cargo clean
+
+      - name: Run cargo check
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          toolchain: 1.81.0
+          args: --all-targets --all-features --tests
+
+      - name: Run cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          toolchain: 1.81.0
+          args: --release --package sp1-verifier
+        env:
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
+          RUST_BACKTRACE: 1
+
+  lint:
+    name: Formatting & Clippy
+    runs-on: [runs-on, runner=16cpu-linux-x64, disk=large, "run-id=${{ github.run_id }}"]
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+
+      - name: Install SP1 toolchain from repo
+        run: |
+          cargo run -p sp1-cli -- prove install-toolchain
+          cd crates/cli
+          cargo install --force --locked --path .
+          cargo clean
 
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1
         with:
           command: fmt
           args: --all -- --check
+        env:
+          CARGO_INCREMENTAL: 1
+
+      - name: Check test-artifacts
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: -p test-artifacts
         env:
           CARGO_INCREMENTAL: 1
 
@@ -120,14 +203,44 @@ jobs:
         env:
           CARGO_INCREMENTAL: 1
 
-      - name: Add wasm target
-        run: rustup target add wasm32-unknown-unknown
+  check:
+    name: Cargo Check
+    runs-on: [runs-on, runner=16cpu-linux-x64, disk=large, "run-id=${{ github.run_id }}"]
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
 
-      - name: Check wasm compatibility for sdk
+      - name: Setup CI
+        uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+
+      - name: Install SP1 toolchain from repo
+        run: |
+          cargo run -p sp1-cli -- prove install-toolchain
+          cd crates/cli
+          cargo install --force --locked --path .
+          cargo clean
+
+      - name: Check workspace no features
         uses: actions-rs/cargo@v1
         with:
           command: check
-          args: -p sp1-sdk --target wasm32-unknown-unknown --no-default-features
+          args: --workspace --all-targets --no-default-features
+
+      - name: Check workspace with default features
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: --workspace --all-targets
+
+      - name: Check workspace with all features
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: --workspace --all-targets --all-features
 
   examples:
     name: Examples
@@ -135,6 +248,7 @@ jobs:
       [
         runs-on,
         runner=64cpu-linux-x64,
+        disk=large,
         spot=false,
         "run-id=${{ github.run_id }}",
       ]
@@ -146,10 +260,15 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
 
-      - name: Install SP1 toolchain
+      - name: Install SP1 toolchain from repo
         run: |
           cargo run -p sp1-cli -- prove install-toolchain
+          cd crates/cli
+          cargo install --force --locked --path .
+          cargo clean
 
       - name: Run cargo fmt
         run: |
@@ -164,237 +283,18 @@ jobs:
       - name: Run cargo clippy
         run: |
           cd ./examples/
-          cargo clippy --all-targets --all-features -- -D warnings -A incomplete-features
-
-  tests:
-    name: Tests
-    runs-on: [runs-on, runner=64cpu-linux-x64, "run-id=${{ github.run_id }}"]
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
-
-      - name: Setup CI
-        uses: ./.github/actions/setup
-
-      - name: Install SP1 toolchain
-        run: |
-          cargo install --locked --force --path crates/cli
-          cargo prove install-toolchain
-
-      - name: Run cargo fmt
-        run: |
-          cd ./tests/
-          cargo fmt --all -- --check
-
-      - name: Run cargo clippy
-        run: |
-          cd ./tests/
-          cargo clippy --all-targets --all-features -- -D warnings -A incomplete-features
-
-      - name: Build test ELF files
-        run: |
-          cd ./tests/
-          make
-
-  cli:
-    name: CLI
-    runs-on: [runs-on, runner=8cpu-linux-x64, "run-id=${{ github.run_id }}"]
-    env:
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
-
-      - name: Setup CI
-        uses: ./.github/actions/setup
-
-      - name: Install SP1 toolchain
-        run: |
-          curl -L https://sp1.succinct.xyz | bash
-          ~/.sp1/bin/sp1up 
-          ~/.sp1/bin/cargo-prove prove --version
-
-      - name: Install SP1 CLI
-        run: |
-          cd crates/cli
-          cargo install --force --locked --path .
-          cd ~
-
-      - name: Run cargo prove new
-        run: |
-          cargo prove new fibonacci --version dev --evm
-
-      - name: Build program and run script
-        run: |
-          cd fibonacci
-          cd program
-          cargo add sp1-zkvm --path $GITHUB_WORKSPACE/crates/zkvm/entrypoint
-          cargo prove build
-          cd ../script
-          cargo remove sp1-sdk
-          cargo add sp1-sdk --path $GITHUB_WORKSPACE/crates/sdk
-          SP1_DEV=1 RUST_LOG=info cargo run --release -- --prove
-
-  performance:
-    name: Performance
-    runs-on: [runs-on, family=c7a.48xlarge, "run-id=${{ github.run_id }}"]
-    env:
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
-
-      - name: Setup CI
-        uses: ./.github/actions/setup
-
-      - name: Install SP1 toolchain
-        run: |
-          curl -L https://sp1.succinct.xyz | bash
-          ~/.sp1/bin/sp1up 
-          ~/.sp1/bin/cargo-prove prove --version
-
-      - name: Run Evaluation
-        run: |
-          cd crates/eval
-          RUSTFLAGS='-C target-cpu=native' cargo run --release -- \
-            --programs fibonacci,ssz-withdrawals,tendermint \
-            --post-to-slack ${{ github.ref == 'refs/heads/dev' }} \
-            --slack-channel-id "${{ secrets.SLACK_CHANNEL_ID }}" \
-            --slack-token "${{ secrets.SLACK_TOKEN }}" \
-            --post-to-github ${{ github.event_name == 'pull_request' }} \
-            --github-token "${{ secrets.GITHUB_TOKEN }}" \
-            --repo-owner "${{ github.repository_owner }}" \
-            --repo-name "${{ github.event.repository.name }}" \
-            --pr-number "${{ github.event.pull_request.number }}" \
-            --branch-name "${{ github.head_ref || github.ref_name }}" \
-            --commit-hash "${{ github.sha }}" \
-            --author "${{ github.event.pull_request.user.login || github.actor }}"
-
-  low-memory:
-    name: Low Memory
-    strategy:
-      matrix:
-        mem_limit: [16, 32, 64]
-    runs-on:
-      [
-        runs-on,
-        "ram=${{ matrix.mem_limit}}",
-        family=c7a,
-        image=ubuntu22-full-x64,
-        "run-id=${{ github.run_id }}",
-      ]
-    env:
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
-
-      - name: Setup CI
-        uses: ./.github/actions/setup
-
-      - name: Install SP1 toolchain
-        run: |
-          curl -L https://sp1.succinct.xyz | bash
-          ~/.sp1/bin/sp1up
-          ~/.sp1/bin/cargo-prove prove --version
-
-      - name: Install SP1 CLI
-        run: |
-          cd crates/cli
-          cargo install --force --locked --path .
-          cd ~
-
-      - name: Run tendermint script
-        run: |
-          cd examples/tendermint/program
-          cargo add sp1-zkvm --path $GITHUB_WORKSPACE/crates/zkvm/entrypoint
-          cargo prove build
-          cd ../script
-          cargo remove sp1-sdk
-          cargo add sp1-sdk --path $GITHUB_WORKSPACE/crates/sdk
-          SP1_DEV=1 RUST_LOG=info cargo run --release
-
-      - name: Run cycle tracking script
-        run: |
-          cd examples/cycle-tracking/script
-          cargo add sp1-sdk --path $GITHUB_WORKSPACE/crates/sdk
-          SP1_DEV=1 RUST_LOG=info cargo run --release
-
-  # toolchain-test:
-  #   name: "Test toolchain installation (${{ matrix.name }})"
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       include:
-  #         - name: "Ubuntu 24.04 (x86_64)"
-  #           runner: "ubuntu-24.04"
-  #         - name: "Ubuntu 22.04 (x86_64)"
-  #           runner: "ubuntu-22.04"
-  #         - name: "Ubuntu 20.04 (x86_64)"
-  #           runner: "ubuntu-20.04"
-  #         - name: "macOS Monterey (x86_64)"
-  #           runner: "macos-12"
-  #         - name: "macOS Ventura (x86_64)"
-  #           runner: "macos-13"
-  #         - name: "macOS Sonoma (ARM64)"
-  #           runner: "macos-14"
-
-  #   runs-on: "${{ matrix.runner }}"
-  #   steps:
-  #     - name: "Checkout source code"
-  #       uses: "actions/checkout@v4"
-
-  #     - name: "Install cargo-prove"
-  #       run: |
-  #         cargo install --locked --path ./crates/cli
-
-  #     - name: "Install SP1 toolchain"
-  #       run: |
-  #         cargo prove install-toolchain --token ${{ secrets.GITHUB_TOKEN }}
-
-  #     - name: "Create SP1 project from template"
-  #       run: |
-  #         cargo prove new hello
-
-  #     - name: "Build SP1 project"
-  #       run: |
-  #         cd ./hello/program
-  #         cargo prove build
-
-  # toolchain-test-ec2:
-  #   name: "Test toolchain installation (${{ matrix.name }})"
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       include:
-  #         # AMI from `us-east-1`
-  #         - name: "Debian 12 (x86_64)"
-  #           ec2-instance: "c5.2xlarge"
-  #           ami: "ami-064519b8c76274859"
-  #           volume: "/dev/xvda"
-  #         - name: "Debian 12 (ARM64)"
-  #           ec2-instance: "c6g.2xlarge"
-  #           ami: "ami-0789039e34e739d67"
-  #           volume: "/dev/xvda"
-  #   uses: "./.github/workflows/toolchain-ec2.yml"
-  #   with:
-  #     image-id: "${{ matrix.ami }}"
-  #     instance-type: "${{ matrix.ec2-instance }}"
-  #     root-volume: "${{ matrix.volume }}"
-  #   secrets:
-  #     AWS_REGION: "${{ secrets.AWS_REGION }}"
-  #     AWS_ACCESS_KEY_ID: "${{ secrets.AWS_ACCESS_KEY_ID }}"
-  #     AWS_SECRET_ACCESS_KEY: "${{ secrets.AWS_SECRET_ACCESS_KEY }}"
-  #     AWS_SUBNET_ID: "${{ secrets.AWS_SUBNET_ID }}"
-  #     AWS_SG_ID: "${{ secrets.AWS_SG_ID }}"
-  #     GH_PAT: "${{ secrets.GH_PAT }}"
 
   typos:
     name: Spell Check
-    runs-on: ubuntu-latest
+    runs-on: [runs-on, runner=16cpu-linux-x64, disk=large, "run-id=${{ github.run_id }}"]
     steps:
       - name: Checkout Actions Repository
         uses: actions/checkout@v4
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
 
       - name: Check all typos
         uses: crate-ci/typos@master
@@ -404,3 +304,71 @@ jobs:
       - uses: getsentry/action-git-diff-suggestions@main
         with:
           message: typos
+
+  check-verifier-no-std:
+    name: Check Verifier `no_std`
+    runs-on: [runs-on, runner=16cpu-linux-x64, disk=large, "run-id=${{ github.run_id }}"]
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+    steps:
+      - name: Checkout Actions Repository
+        uses: actions/checkout@v4
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+  
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: riscv32imac-unknown-none-elf
+          
+      - name: Install target support
+        run: rustup target add riscv32imac-unknown-none-elf
+        
+      - name: Check build
+        run: cargo check --target riscv32imac-unknown-none-elf --no-default-features -p sp1-verifier
+
+  lock-files:
+    name: "Check lock files"
+    runs-on:
+      [
+        runs-on,
+        cpu=64,
+        ram=256,
+        family=m7i+m7a,
+        disk=large,
+        image=ubuntu22-full-x64,
+        spot=false,
+        "run-id=${{ github.run_id }}",
+      ]    
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: "Checkout sources"
+        uses: "actions/checkout@v4"
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+
+      - name: "Remove lock files"
+        run: |
+          find -name Cargo.lock -type f -exec rm {} \;
+
+      # We need the SP1 toolchain to be installed in order to build test-artifacts
+      - name: Install SP1 toolchain
+        run: |
+          cargo run -p sp1-cli -- prove install-toolchain
+
+      - name: "Build SP1 without lock files"
+        run: |
+          cargo build --all --all-targets
+          
+      - name: "Build examples without lock files"
+        run: |
+          cd examples
+          cargo build --all --all-targets

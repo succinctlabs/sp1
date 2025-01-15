@@ -1,5 +1,5 @@
 use core::borrow::Borrow;
-use instruction::{HintBitsInstr, HintExt2FeltsInstr, HintInstr};
+use instruction::{HintAddCurveInstr, HintBitsInstr, HintExt2FeltsInstr, HintInstr};
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
@@ -58,9 +58,10 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         // Allocating an intermediate `Vec` is faster.
         let accesses = program
-            .instructions
-            .par_iter() // Using `rayon` here provides a big speedup.
-            .flat_map_iter(|instruction| match instruction {
+            .inner
+            .iter()
+            // .par_bridge() // Using `rayon` here provides a big speedup. TODO put rayon back
+            .flat_map(|instruction| match instruction {
                 Instruction::Hint(HintInstr { output_addrs_mults })
                 | Instruction::HintBits(HintBitsInstr {
                     output_addrs_mults,
@@ -70,6 +71,13 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
                     output_addrs_mults,
                     input_addr: _, // No receive interaction for the hint operation
                 }) => output_addrs_mults.iter().collect(),
+                Instruction::HintAddCurve(instr) => {
+                    let HintAddCurveInstr {
+                        output_x_addrs_mults,
+                        output_y_addrs_mults, .. // No receive interaction for the hint operation
+                    } = instr.as_ref();
+                    output_x_addrs_mults.iter().chain(output_y_addrs_mults.iter()).collect()
+                }
                 _ => vec![],
             })
             .collect::<Vec<_>>();
@@ -120,6 +128,10 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
     fn included(&self, _record: &Self::Record) -> bool {
         true
     }
+
+    fn local_only(&self) -> bool {
+        true
+    }
 }
 
 impl<AB> Air<AB> for MemoryChip<AB::F>
@@ -142,14 +154,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use machine::tests::run_recursion_test_machines;
     use p3_baby_bear::BabyBear;
     use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
 
     use super::*;
-
-    use crate::runtime::instruction as instr;
 
     #[test]
     pub fn generate_trace() {
@@ -164,60 +173,5 @@ mod tests {
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
-    }
-
-    #[test]
-    pub fn prove_basic_mem() {
-        let program = RecursionProgram {
-            instructions: vec![
-                instr::mem(MemAccessKind::Write, 1, 1, 2),
-                instr::mem(MemAccessKind::Read, 1, 1, 2),
-            ],
-            ..Default::default()
-        };
-
-        run_recursion_test_machines(program);
-    }
-
-    #[test]
-    #[should_panic]
-    pub fn basic_mem_bad_mult() {
-        let program = RecursionProgram {
-            instructions: vec![
-                instr::mem(MemAccessKind::Write, 1, 1, 2),
-                instr::mem(MemAccessKind::Read, 999, 1, 2),
-            ],
-            ..Default::default()
-        };
-
-        run_recursion_test_machines(program);
-    }
-
-    #[test]
-    #[should_panic]
-    pub fn basic_mem_bad_address() {
-        let program = RecursionProgram {
-            instructions: vec![
-                instr::mem(MemAccessKind::Write, 1, 1, 2),
-                instr::mem(MemAccessKind::Read, 1, 999, 2),
-            ],
-            ..Default::default()
-        };
-
-        run_recursion_test_machines(program);
-    }
-
-    #[test]
-    #[should_panic]
-    pub fn basic_mem_bad_value() {
-        let program = RecursionProgram {
-            instructions: vec![
-                instr::mem(MemAccessKind::Write, 1, 1, 2),
-                instr::mem(MemAccessKind::Read, 1, 1, 999),
-            ],
-            ..Default::default()
-        };
-
-        run_recursion_test_machines(program);
     }
 }

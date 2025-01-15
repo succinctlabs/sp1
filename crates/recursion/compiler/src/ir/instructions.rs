@@ -1,8 +1,16 @@
+use std::{
+    borrow::Cow,
+    ops::{Deref, Range},
+};
+
+#[cfg(feature = "debug")]
+use backtrace::Backtrace;
 use sp1_recursion_core::air::RecursionPublicValues;
+use sp1_stark::septic_curve::SepticCurve;
 
 use super::{
     Array, CircuitV2FriFoldInput, CircuitV2FriFoldOutput, Config, Ext, Felt, FriFoldInput,
-    MemIndex, Ptr, TracedVec, Usize, Var,
+    MemIndex, Ptr, Usize, Var,
 };
 
 /// An intermeddiate instruction set for implementing programs.
@@ -120,22 +128,26 @@ pub enum DslIr<C: Config> {
     /// Inverts an extension field element (ext = 1 / ext).
     InvE(Ext<C::F, C::EF>, Ext<C::F, C::EF>),
 
+    /// Selects order of felts based on a bit (should_swap, first result, second result, first
+    /// input, second input)
+    Select(Felt<C::F>, Felt<C::F>, Felt<C::F>, Felt<C::F>, Felt<C::F>),
+
     // Control flow.
     /// Executes a for loop with the parameters (start step value, end step value, step size, step
     /// variable, body).
-    For(Box<(Usize<C::N>, Usize<C::N>, C::N, Var<C::N>, TracedVec<DslIr<C>>)>),
+    For(Box<(Usize<C::N>, Usize<C::N>, C::N, Var<C::N>, Vec<DslIr<C>>)>),
     /// Executes an equal conditional branch with the parameters (lhs var, rhs var, then body, else
     /// body).
-    IfEq(Box<(Var<C::N>, Var<C::N>, TracedVec<DslIr<C>>, TracedVec<DslIr<C>>)>),
+    IfEq(Box<(Var<C::N>, Var<C::N>, Vec<DslIr<C>>, Vec<DslIr<C>>)>),
     /// Executes a not equal conditional branch with the parameters (lhs var, rhs var, then body,
     /// else body).
-    IfNe(Box<(Var<C::N>, Var<C::N>, TracedVec<DslIr<C>>, TracedVec<DslIr<C>>)>),
+    IfNe(Box<(Var<C::N>, Var<C::N>, Vec<DslIr<C>>, Vec<DslIr<C>>)>),
     /// Executes an equal conditional branch with the parameters (lhs var, rhs imm, then body, else
     /// body).
-    IfEqI(Box<(Var<C::N>, C::N, TracedVec<DslIr<C>>, TracedVec<DslIr<C>>)>),
+    IfEqI(Box<(Var<C::N>, C::N, Vec<DslIr<C>>, Vec<DslIr<C>>)>),
     /// Executes a not equal conditional branch with the parameters (lhs var, rhs imm, then body,
     /// else body).
-    IfNeI(Box<(Var<C::N>, C::N, TracedVec<DslIr<C>>, TracedVec<DslIr<C>>)>),
+    IfNeI(Box<(Var<C::N>, C::N, Vec<DslIr<C>>, Vec<DslIr<C>>)>),
     /// Break out of a for loop.
     Break,
 
@@ -247,9 +259,9 @@ pub enum DslIr<C: Config> {
     /// Hint an array of extension field elements.
     HintExts(Array<C, Ext<C::F, C::EF>>),
     /// Hint an array of field elements.
-    CircuitV2HintFelts(Vec<Felt<C::F>>),
+    CircuitV2HintFelts(Felt<C::F>, usize),
     /// Hint an array of extension field elements.
-    CircuitV2HintExts(Vec<Ext<C::F, C::EF>>),
+    CircuitV2HintExts(Ext<C::F, C::EF>, usize),
     /// Witness a variable. Should only be used when target is a gnark circuit.
     WitnessVar(Var<C::N>, u32),
     /// Witness a field element. Should only be used when target is a gnark circuit.
@@ -271,6 +283,11 @@ pub enum DslIr<C: Config> {
     /// Should only be used when target is a gnark circuit.
     CircuitCommitCommittedValuesDigest(Var<C::N>),
 
+    /// Adds two elliptic curve points. (sum, point_1, point_2).
+    CircuitV2HintAddCurve(
+        Box<(SepticCurve<Felt<C::F>>, SepticCurve<Felt<C::F>>, SepticCurve<Felt<C::F>>)>,
+    ),
+
     // FRI specific instructions.
     /// Executes a FRI fold operation. 1st field is the size of the fri fold input array.  2nd
     /// field is the fri fold input array.  See [`FriFoldInput`] for more details.
@@ -279,6 +296,12 @@ pub enum DslIr<C: Config> {
     /// Executes a FRI fold operation. Input is the fri fold input array.  See [`FriFoldInput`] for
     /// more details.
     CircuitV2FriFold(Box<(CircuitV2FriFoldOutput<C>, CircuitV2FriFoldInput<C>)>),
+    // FRI specific instructions.
+    /// Executes a Batch FRI loop. Input is the power of alphas, evaluations at z, and evaluations
+    /// at x.
+    CircuitV2BatchFRI(
+        Box<(Ext<C::F, C::EF>, Vec<Ext<C::F, C::EF>>, Vec<Ext<C::F, C::EF>>, Vec<Felt<C::F>>)>,
+    ),
     /// Select's a variable based on a condition. (select(cond, true_val, false_val) => output).
     /// Should only be used when target is a gnark circuit.
     CircuitSelectV(Var<C::N>, Var<C::N>, Var<C::N>, Var<C::N>),
@@ -299,12 +322,72 @@ pub enum DslIr<C: Config> {
     /// Tracks the number of cycles used by a block of code annotated by the string input.
     CycleTracker(String),
     /// Tracks the number of cycles used by a block of code annotated by the string input.
-    CycleTrackerV2Enter(String),
+    CycleTrackerV2Enter(Cow<'static, str>),
     /// Tracks the number of cycles used by a block of code annotated by the string input.
     CycleTrackerV2Exit,
 
-    // Reverse bits exponentiation.
+    /// Reverse bits exponentiation.
     ExpReverseBitsLen(Ptr<C::N>, Var<C::N>, Var<C::N>),
     /// Reverse bits exponentiation. Output, base, exponent bits.
     CircuitV2ExpReverseBits(Felt<C::F>, Felt<C::F>, Vec<Felt<C::F>>),
+
+    // Structuring IR constructors.
+    /// Blocks that may be executed in parallel.
+    Parallel(Vec<DslIrBlock<C>>),
+
+    /// Pass a backtrace for debugging.
+    #[cfg(feature = "debug")]
+    DebugBacktrace(Backtrace),
+}
+
+/// A block of instructions.
+#[derive(Clone, Default, Debug)]
+pub struct DslIrBlock<C: Config> {
+    pub ops: Vec<DslIr<C>>,
+    pub addrs_written: Range<u32>,
+}
+
+#[derive(Clone, Debug)]
+pub struct DslIrProgram<C: Config>(DslIrBlock<C>);
+
+impl<C: Config> DslIrProgram<C> {
+    /// # Safety
+    /// The given block must represent a well formed program. This is defined as the following:
+    /// - reads are performed after writes, according to a "happens-before" relation; and
+    /// - an address is written to at most once.
+    ///
+    /// The "happens-before" relation is defined as follows:
+    /// - It is a strict partial order, meaning it is transitive, irreflexive, and asymmetric.
+    /// - Contiguous sequences of instructions that are not [`DslIr::Parallel`] in a [`DslIrBlock`]
+    ///   are linearly ordered. Call these sequences "sequential blocks."
+    /// - For each `DslIrBlock` in the `DslIr::Parallel` variant:
+    ///   - The block's first instruction comes after the last instruction in the parent's previous
+    ///     sequential block. if it exists.
+    ///   - The block's last instruction comes before the first instruction in the parent's next
+    ///     sequential block, if it exists.
+    ///   - If the sequential blocks mentioned in eiither of the previous two rules do not exist,
+    ///     then the situation is that of two consecutive [`DslIr::Parallel`] instructions `x` and `y`.
+    ///     Then each last instruction of `x` comes before each first instruction of `y`.
+    pub unsafe fn new_unchecked(block: DslIrBlock<C>) -> Self {
+        Self(block)
+    }
+
+    pub fn into_inner(self) -> DslIrBlock<C> {
+        self.0
+    }
+}
+
+impl<C: Config> Default for DslIrProgram<C> {
+    fn default() -> Self {
+        // SAFETY: An empty block is always well formed.
+        unsafe { Self::new_unchecked(DslIrBlock::default()) }
+    }
+}
+
+impl<C: Config> Deref for DslIrProgram<C> {
+    type Target = DslIrBlock<C>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }

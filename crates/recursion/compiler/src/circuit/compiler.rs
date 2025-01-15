@@ -1,16 +1,20 @@
 use chips::poseidon2_skinny::WIDTH;
 use core::fmt::Debug;
-use instruction::{FieldEltType, HintBitsInstr, HintExt2FeltsInstr, HintInstr, PrintInstr};
-use itertools::Itertools;
-use p3_field::{
-    AbstractExtensionField, AbstractField, Field, PrimeField, PrimeField64, TwoAdicField,
+use instruction::{
+    FieldEltType, HintAddCurveInstr, HintBitsInstr, HintExt2FeltsInstr, HintInstr, PrintInstr,
 };
-use sp1_core_machine::utils::{sp1_debug_mode, SpanBuilder};
+use itertools::Itertools;
+use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField64, TwoAdicField};
 use sp1_recursion_core::{
     air::{Block, RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS},
     BaseAluInstr, BaseAluOpcode,
 };
-use std::{borrow::Borrow, collections::HashMap, iter::repeat, mem::transmute};
+use sp1_stark::septic_curve::SepticCurve;
+use std::{
+    borrow::{Borrow, Cow},
+    collections::HashMap,
+    mem::transmute,
+};
 use vec_map::VecMap;
 
 use sp1_recursion_core::*;
@@ -242,6 +246,7 @@ where
         f(self.ext_alu(DivE, out, Imm::EF(C::EF::one()), diff));
     }
 
+    #[inline(always)]
     fn poseidon2_permute(
         &mut self,
         dst: [impl Reg<C>; WIDTH],
@@ -254,6 +259,28 @@ where
             },
             mults: [C::F::zero(); WIDTH],
         }))
+    }
+
+    #[inline(always)]
+    fn select(
+        &mut self,
+        bit: impl Reg<C>,
+        dst1: impl Reg<C>,
+        dst2: impl Reg<C>,
+        lhs: impl Reg<C>,
+        rhs: impl Reg<C>,
+    ) -> Instruction<C::F> {
+        Instruction::Select(SelectInstr {
+            addrs: SelectIo {
+                bit: bit.read(self),
+                out1: dst1.write(self),
+                out2: dst2.write(self),
+                in1: lhs.read(self),
+                in2: rhs.read(self),
+            },
+            mult1: C::F::zero(),
+            mult2: C::F::zero(),
+        })
     }
 
     fn exp_reverse_bits(
@@ -281,6 +308,32 @@ where
             output_addrs_mults: output.into_iter().map(|r| (r.write(self), C::F::zero())).collect(),
             input_addr: value.read_ghost(self),
         })
+    }
+
+    fn add_curve(
+        &mut self,
+        output: SepticCurve<Felt<C::F>>,
+        input1: SepticCurve<Felt<C::F>>,
+        input2: SepticCurve<Felt<C::F>>,
+    ) -> Instruction<C::F> {
+        Instruction::HintAddCurve(Box::new(HintAddCurveInstr {
+            output_x_addrs_mults: output
+                .x
+                .0
+                .into_iter()
+                .map(|r| (r.write(self), C::F::zero()))
+                .collect(),
+            output_y_addrs_mults: output
+                .y
+                .0
+                .into_iter()
+                .map(|r| (r.write(self), C::F::zero()))
+                .collect(),
+            input1_x_addrs: input1.x.0.into_iter().map(|value| value.read_ghost(self)).collect(),
+            input1_y_addrs: input1.y.0.into_iter().map(|value| value.read_ghost(self)).collect(),
+            input2_x_addrs: input2.x.0.into_iter().map(|value| value.read_ghost(self)).collect(),
+            input2_y_addrs: input2.y.0.into_iter().map(|value| value.read_ghost(self)).collect(),
+        }))
     }
 
     fn fri_fold(
@@ -311,6 +364,26 @@ where
                 alpha_pow_output: alpha_pow_output.into_iter().map(|e| e.write(self)).collect(),
                 ro_output: ro_output.into_iter().map(|e| e.write(self)).collect(),
             },
+        }))
+    }
+
+    fn batch_fri(
+        &mut self,
+        acc: Ext<C::F, C::EF>,
+        alpha_pows: Vec<Ext<C::F, C::EF>>,
+        p_at_zs: Vec<Ext<C::F, C::EF>>,
+        p_at_xs: Vec<Felt<C::F>>,
+    ) -> Instruction<C::F> {
+        Instruction::BatchFRI(Box::new(BatchFRIInstr {
+            base_vec_addrs: BatchFRIBaseVecIo {
+                p_at_x: p_at_xs.into_iter().map(|e| e.read(self)).collect(),
+            },
+            ext_single_addrs: BatchFRIExtSingleIo { acc: acc.write(self) },
+            ext_vec_addrs: BatchFRIExtVecIo {
+                p_at_z: p_at_zs.into_iter().map(|e| e.read(self)).collect(),
+                alpha_pow: alpha_pows.into_iter().map(|e| e.read(self)).collect(),
+            },
+            acc_mult: C::F::zero(),
         }))
     }
 
@@ -357,24 +430,32 @@ where
         })
     }
 
-    fn hint(&mut self, output: &[impl Reg<C>]) -> Instruction<C::F> {
+    fn hint(&mut self, output: impl Reg<C>, len: usize) -> Instruction<C::F> {
+        let zero = C::F::zero();
         Instruction::Hint(HintInstr {
-            output_addrs_mults: output.iter().map(|r| (r.write(self), C::F::zero())).collect(),
+            output_addrs_mults: output
+                .write_many(self, len)
+                .into_iter()
+                .map(|a| (a, zero))
+                .collect(),
         })
     }
+}
 
+impl<C> AsmCompiler<C>
+where
+    C: Config<N = <C as Config>::F> + Debug,
+    C::F: PrimeField64 + TwoAdicField,
+{
     /// Compiles one instruction, passing one or more instructions to `consumer`.
     ///
     /// We do not simply return a `Vec` for performance reasons --- results would be immediately fed
     /// to `flat_map`, so we employ fusion/deforestation to eliminate intermediate data structures.
-    pub fn compile_one<F>(
+    pub fn compile_one(
         &mut self,
         ir_instr: DslIr<C>,
         mut consumer: impl FnMut(Result<Instruction<C::F>, CompileOneErr<C>>),
-    ) where
-        F: PrimeField + TwoAdicField,
-        C: Config<N = F, F = F> + Debug,
-    {
+    ) {
         // For readability. Avoids polluting outer scope.
         use BaseAluOpcode::*;
         use ExtAluOpcode::*;
@@ -433,6 +514,8 @@ where
             DslIr::InvF(dst, src) => f(self.base_alu(DivF, dst, Imm::F(C::F::one()), src)),
             DslIr::InvE(dst, src) => f(self.ext_alu(DivE, dst, Imm::F(C::F::one()), src)),
 
+            DslIr::Select(bit, dst1, dst2, lhs, rhs) => f(self.select(bit, dst1, dst2, lhs, rhs)),
+
             DslIr::AssertEqV(lhs, rhs) => self.base_assert_eq(lhs, rhs, f),
             DslIr::AssertEqF(lhs, rhs) => self.base_assert_eq(lhs, rhs, f),
             DslIr::AssertEqE(lhs, rhs) => self.ext_assert_eq(lhs, rhs, f),
@@ -457,15 +540,23 @@ where
                 f(self.hint_bit_decomposition(value, output))
             }
             DslIr::CircuitV2FriFold(data) => f(self.fri_fold(data.0, data.1)),
+            DslIr::CircuitV2BatchFRI(data) => f(self.batch_fri(data.0, data.1, data.2, data.3)),
             DslIr::CircuitV2CommitPublicValues(public_values) => {
                 f(self.commit_public_values(&public_values))
+            }
+            DslIr::CircuitV2HintAddCurve(data) => f(self.add_curve(data.0, data.1, data.2)),
+
+            DslIr::Parallel(_) => {
+                unreachable!("parallel case should have been handled by compile_raw_program")
             }
 
             DslIr::PrintV(dst) => f(self.print_f(dst)),
             DslIr::PrintF(dst) => f(self.print_f(dst)),
             DslIr::PrintE(dst) => f(self.print_e(dst)),
-            DslIr::CircuitV2HintFelts(output) => f(self.hint(&output)),
-            DslIr::CircuitV2HintExts(output) => f(self.hint(&output)),
+            #[cfg(feature = "debug")]
+            DslIr::DebugBacktrace(trace) => f(Instruction::DebugBacktrace(trace)),
+            DslIr::CircuitV2HintFelts(output, len) => f(self.hint(output, len)),
+            DslIr::CircuitV2HintExts(output, len) => f(self.hint(output, len)),
             DslIr::CircuitExt2Felt(felts, ext) => f(self.ext2felts(felts, ext)),
             DslIr::CycleTrackerV2Enter(name) => {
                 consumer(Err(CompileOneErr::CycleTrackerEnter(name)))
@@ -476,180 +567,185 @@ where
         }
     }
 
-    /// Emit the instructions from a list of operations in the DSL.
-    pub fn compile<F>(&mut self, operations: TracedVec<DslIr<C>>) -> RecursionProgram<C::F>
-    where
-        F: PrimeField + TwoAdicField,
-        C: Config<N = F, F = F> + Debug,
-    {
-        // In debug mode, we perform cycle tracking and keep track of backtraces.
-        // Otherwise, we ignore cycle tracking instructions and pass around an empty Vec of traces.
-        let debug_mode = sp1_debug_mode();
-        // Compile each IR instruction into a list of ASM instructions, then combine them.
-        // This step also counts the number of times each address is read from.
-        let (mut instrs, traces) = tracing::debug_span!("compile_one loop").in_scope(|| {
-            let mut instrs = Vec::with_capacity(operations.vec.len());
-            let mut traces = vec![];
-            if debug_mode {
-                let mut span_builder =
-                    SpanBuilder::<_, &'static str>::new("cycle_tracker".to_string());
-                for (ir_instr, trace) in operations {
-                    self.compile_one(ir_instr, &mut |item| match item {
-                        Ok(instr) => {
-                            span_builder.item(instr_name(&instr));
-                            instrs.push(instr);
-                            traces.push(trace.clone());
-                        }
-                        Err(CompileOneErr::CycleTrackerEnter(name)) => {
-                            span_builder.enter(name);
-                        }
-                        Err(CompileOneErr::CycleTrackerExit) => {
-                            span_builder.exit().unwrap();
-                        }
-                        Err(CompileOneErr::Unsupported(instr)) => {
-                            panic!("unsupported instruction: {instr:?}\nbacktrace: {:?}", trace)
-                        }
-                    });
+    /// A raw program (algebraic data type of instructions), not yet backfilled.
+    fn compile_raw_program(
+        &mut self,
+        block: DslIrBlock<C>,
+        instrs_prefix: Vec<SeqBlock<Instruction<C::F>>>,
+    ) -> RawProgram<Instruction<C::F>> {
+        // Consider refactoring the builder to use an AST instead of a list of operations.
+        // Possible to remove address translation at this step.
+        let mut seq_blocks = instrs_prefix;
+        let mut maybe_bb: Option<BasicBlock<Instruction<C::F>>> = None;
+
+        for op in block.ops {
+            match op {
+                DslIr::Parallel(par_blocks) => {
+                    seq_blocks.extend(maybe_bb.take().map(SeqBlock::Basic));
+                    seq_blocks.push(SeqBlock::Parallel(
+                        par_blocks
+                            .into_iter()
+                            .map(|b| self.compile_raw_program(b, vec![]))
+                            .collect(),
+                    ))
                 }
-                let cycle_tracker_root_span = span_builder.finish().unwrap();
-                for line in cycle_tracker_root_span.lines() {
-                    tracing::info!("{}", line);
-                }
-            } else {
-                for (ir_instr, trace) in operations {
-                    self.compile_one(ir_instr, &mut |item| match item {
-                        Ok(instr) => instrs.push(instr),
+                op => {
+                    let bb = maybe_bb.get_or_insert_with(Default::default);
+                    self.compile_one(op, |item| match item {
+                        Ok(instr) => bb.instrs.push(instr),
                         Err(
                             CompileOneErr::CycleTrackerEnter(_) | CompileOneErr::CycleTrackerExit,
                         ) => (),
                         Err(CompileOneErr::Unsupported(instr)) => {
-                            panic!("unsupported instruction: {instr:?}\nbacktrace: {:?}", trace)
+                            panic!("unsupported instruction: {instr:?}")
                         }
                     });
                 }
             }
-            (instrs, traces)
-        });
+        }
 
-        // Replace the mults using the address count data gathered in this previous.
-        // Exhaustive match for refactoring purposes.
-        let total_memory = self.addr_to_mult.len() + self.consts.len();
-        let mut backfill = |(mult, addr): (&mut F, &Address<F>)| {
+        seq_blocks.extend(maybe_bb.map(SeqBlock::Basic));
+
+        RawProgram { seq_blocks }
+    }
+
+    fn backfill_all<'a>(
+        &mut self,
+        instrs: impl Iterator<Item = &'a mut Instruction<<C as Config>::F>>,
+    ) {
+        let mut backfill = |(mult, addr): (&mut C::F, &Address<C::F>)| {
             *mult = self.addr_to_mult.remove(addr.as_usize()).unwrap()
         };
-        tracing::debug_span!("backfill mult").in_scope(|| {
-            for asm_instr in instrs.iter_mut() {
-                match asm_instr {
-                    Instruction::BaseAlu(BaseAluInstr {
-                        mult,
-                        addrs: BaseAluIo { out: ref addr, .. },
-                        ..
-                    }) => backfill((mult, addr)),
-                    Instruction::ExtAlu(ExtAluInstr {
-                        mult,
-                        addrs: ExtAluIo { out: ref addr, .. },
-                        ..
-                    }) => backfill((mult, addr)),
-                    Instruction::Mem(MemInstr {
-                        addrs: MemIo { inner: ref addr },
-                        mult,
-                        kind: MemAccessKind::Write,
-                        ..
-                    }) => backfill((mult, addr)),
-                    Instruction::Poseidon2(instr) => {
-                        let Poseidon2SkinnyInstr {
-                            addrs: Poseidon2Io { output: ref addrs, .. },
-                            mults,
-                        } = instr.as_mut();
-                        mults.iter_mut().zip(addrs).for_each(&mut backfill);
-                    }
-                    Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
-                        addrs: ExpReverseBitsIo { result: ref addr, .. },
-                        mult,
-                    }) => backfill((mult, addr)),
-                    Instruction::HintBits(HintBitsInstr { output_addrs_mults, .. })
-                    | Instruction::Hint(HintInstr { output_addrs_mults, .. }) => {
-                        output_addrs_mults
-                            .iter_mut()
-                            .for_each(|(addr, mult)| backfill((mult, addr)));
-                    }
-                    Instruction::FriFold(instr) => {
-                        let FriFoldInstr {
-                            ext_vec_addrs:
-                                FriFoldExtVecIo { ref alpha_pow_output, ref ro_output, .. },
-                            alpha_pow_mults,
-                            ro_mults,
-                            ..
-                        } = instr.as_mut();
-                        // Using `.chain` seems to be less performant.
-                        alpha_pow_mults.iter_mut().zip(alpha_pow_output).for_each(&mut backfill);
-                        ro_mults.iter_mut().zip(ro_output).for_each(&mut backfill);
-                    }
-                    Instruction::HintExt2Felts(HintExt2FeltsInstr {
-                        output_addrs_mults, ..
-                    }) => {
-                        output_addrs_mults
-                            .iter_mut()
-                            .for_each(|(addr, mult)| backfill((mult, addr)));
-                    }
-                    // Instructions that do not write to memory.
-                    Instruction::Mem(MemInstr { kind: MemAccessKind::Read, .. })
-                    | Instruction::CommitPublicValues(_)
-                    | Instruction::Print(_) => (),
-                }
-            }
-        });
-        debug_assert!(self.addr_to_mult.is_empty());
-        // Initialize constants.
-        let total_consts = self.consts.len();
-        let instrs_consts =
-            self.consts.drain().sorted_by_key(|x| x.1 .0 .0).map(|(imm, (addr, mult))| {
+
+        for asm_instr in instrs {
+            // Exhaustive match for refactoring purposes.
+            match asm_instr {
+                Instruction::BaseAlu(BaseAluInstr {
+                    mult,
+                    addrs: BaseAluIo { out: ref addr, .. },
+                    ..
+                }) => backfill((mult, addr)),
+                Instruction::ExtAlu(ExtAluInstr {
+                    mult,
+                    addrs: ExtAluIo { out: ref addr, .. },
+                    ..
+                }) => backfill((mult, addr)),
                 Instruction::Mem(MemInstr {
-                    addrs: MemIo { inner: addr },
-                    vals: MemIo { inner: imm.as_block() },
+                    addrs: MemIo { inner: ref addr },
                     mult,
                     kind: MemAccessKind::Write,
-                })
-            });
-        tracing::debug!("number of consts to initialize: {}", instrs_consts.len());
-        // Reset the other fields.
-        self.next_addr = Default::default();
-        self.virtual_to_physical.clear();
-        // Place constant-initializing instructions at the top.
-        let (instructions, traces) = tracing::debug_span!("construct program").in_scope(|| {
-            if debug_mode {
-                let instrs_all = instrs_consts.chain(instrs);
-                let traces_all = repeat(None).take(total_consts).chain(traces);
-                (instrs_all.collect(), traces_all.collect())
-            } else {
-                (instrs_consts.chain(instrs).collect(), traces)
+                    ..
+                }) => backfill((mult, addr)),
+                Instruction::Poseidon2(instr) => {
+                    let Poseidon2SkinnyInstr {
+                        addrs: Poseidon2Io { output: ref addrs, .. },
+                        mults,
+                    } = instr.as_mut();
+                    mults.iter_mut().zip(addrs).for_each(&mut backfill);
+                }
+                Instruction::Select(SelectInstr {
+                    addrs: SelectIo { out1: ref addr1, out2: ref addr2, .. },
+                    mult1,
+                    mult2,
+                }) => {
+                    backfill((mult1, addr1));
+                    backfill((mult2, addr2));
+                }
+                Instruction::ExpReverseBitsLen(ExpReverseBitsInstr {
+                    addrs: ExpReverseBitsIo { result: ref addr, .. },
+                    mult,
+                }) => backfill((mult, addr)),
+                Instruction::HintBits(HintBitsInstr { output_addrs_mults, .. })
+                | Instruction::Hint(HintInstr { output_addrs_mults, .. }) => {
+                    output_addrs_mults.iter_mut().for_each(|(addr, mult)| backfill((mult, addr)));
+                }
+                Instruction::FriFold(instr) => {
+                    let FriFoldInstr {
+                        ext_vec_addrs: FriFoldExtVecIo { ref alpha_pow_output, ref ro_output, .. },
+                        alpha_pow_mults,
+                        ro_mults,
+                        ..
+                    } = instr.as_mut();
+                    // Using `.chain` seems to be less performant.
+                    alpha_pow_mults.iter_mut().zip(alpha_pow_output).for_each(&mut backfill);
+                    ro_mults.iter_mut().zip(ro_output).for_each(&mut backfill);
+                }
+                Instruction::BatchFRI(instr) => {
+                    let BatchFRIInstr {
+                        ext_single_addrs: BatchFRIExtSingleIo { ref acc },
+                        acc_mult,
+                        ..
+                    } = instr.as_mut();
+                    backfill((acc_mult, acc));
+                }
+                Instruction::HintExt2Felts(HintExt2FeltsInstr { output_addrs_mults, .. }) => {
+                    output_addrs_mults.iter_mut().for_each(|(addr, mult)| backfill((mult, addr)));
+                }
+                Instruction::HintAddCurve(instr) => {
+                    let HintAddCurveInstr { output_x_addrs_mults, output_y_addrs_mults, .. } =
+                        instr.as_mut();
+                    output_x_addrs_mults.iter_mut().for_each(|(addr, mult)| backfill((mult, addr)));
+                    output_y_addrs_mults.iter_mut().for_each(|(addr, mult)| backfill((mult, addr)));
+                }
+                // Instructions that do not write to memory.
+                Instruction::Mem(MemInstr { kind: MemAccessKind::Read, .. })
+                | Instruction::CommitPublicValues(_)
+                | Instruction::Print(_) => (),
+                #[cfg(feature = "debug")]
+                Instruction::DebugBacktrace(_) => (),
             }
-        });
-        RecursionProgram { instructions, total_memory, traces, shape: None }
-    }
-}
+        }
 
-/// Used for cycle tracking.
-const fn instr_name<F>(instr: &Instruction<F>) -> &'static str {
-    match instr {
-        Instruction::BaseAlu(_) => "BaseAlu",
-        Instruction::ExtAlu(_) => "ExtAlu",
-        Instruction::Mem(_) => "Mem",
-        Instruction::Poseidon2(_) => "Poseidon2",
-        Instruction::ExpReverseBitsLen(_) => "ExpReverseBitsLen",
-        Instruction::HintBits(_) => "HintBits",
-        Instruction::FriFold(_) => "FriFold",
-        Instruction::Print(_) => "Print",
-        Instruction::HintExt2Felts(_) => "HintExt2Felts",
-        Instruction::Hint(_) => "Hint",
-        Instruction::CommitPublicValues(_) => "CommitPublicValues",
+        debug_assert!(self.addr_to_mult.is_empty());
+    }
+
+    /// Compile a `DslIrProgram` that is definitionally assumed to be well-formed.
+    ///
+    /// Returns a well-formed program.
+    pub fn compile(&mut self, program: DslIrProgram<C>) -> RecursionProgram<C::F> {
+        // SAFETY: The compiler produces well-formed programs given a well-formed DSL input.
+        // This is also a cryptographic requirement.
+        unsafe { RecursionProgram::new_unchecked(self.compile_inner(program.into_inner())) }
+    }
+
+    /// Compile a root `DslIrBlock` that has not necessarily been validated.
+    ///
+    /// Returns a program that may be ill-formed.
+    pub fn compile_inner(&mut self, root_block: DslIrBlock<C>) -> RootProgram<C::F> {
+        // Prefix an empty basic block to be later filled in by constants.
+        let mut program = tracing::debug_span!("compile raw program").in_scope(|| {
+            self.compile_raw_program(root_block, vec![SeqBlock::Basic(BasicBlock::default())])
+        });
+        let total_memory = self.addr_to_mult.len() + self.consts.len();
+        tracing::debug_span!("backfill mult").in_scope(|| self.backfill_all(program.iter_mut()));
+
+        // Put in the constants.
+        tracing::debug_span!("prepend constants").in_scope(|| {
+            let Some(SeqBlock::Basic(BasicBlock { instrs: instrs_consts })) =
+                program.seq_blocks.first_mut()
+            else {
+                unreachable!()
+            };
+            instrs_consts.extend(self.consts.drain().sorted_by_key(|x| x.1 .0 .0).map(
+                |(imm, (addr, mult))| {
+                    Instruction::Mem(MemInstr {
+                        addrs: MemIo { inner: addr },
+                        vals: MemIo { inner: imm.as_block() },
+                        mult,
+                        kind: MemAccessKind::Write,
+                    })
+                },
+            ));
+        });
+
+        RootProgram { inner: program, total_memory, shape: None }
     }
 }
 
 #[derive(Debug, Clone)]
 pub enum CompileOneErr<C: Config> {
     Unsupported(DslIr<C>),
-    CycleTrackerEnter(String),
+    CycleTrackerEnter(Cow<'static, str>),
     CycleTrackerExit,
 }
 
@@ -689,6 +785,8 @@ trait Reg<C: Config> {
 
     /// Mark the register as to be written to, returning the "physical" address.
     fn write(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F>;
+
+    fn write_many(&self, compiler: &mut AsmCompiler<C>, len: usize) -> Vec<Address<C::F>>;
 }
 
 macro_rules! impl_reg_borrowed {
@@ -708,6 +806,10 @@ macro_rules! impl_reg_borrowed {
 
             fn write(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
                 (**self).write(compiler)
+            }
+
+            fn write_many(&self, compiler: &mut AsmCompiler<C>, len: usize) -> Vec<Address<C::F>> {
+                (**self).write_many(compiler, len)
             }
         }
     };
@@ -730,6 +832,10 @@ macro_rules! impl_reg_vaddr {
             fn write(&self, compiler: &mut AsmCompiler<C>) -> Address<C::F> {
                 compiler.write_fp(self.idx as usize)
             }
+
+            fn write_many(&self, compiler: &mut AsmCompiler<C>, len: usize) -> Vec<Address<C::F>> {
+                (0..len).map(|i| compiler.write_fp((self.idx + i as u32) as usize)).collect()
+            }
         }
     };
 }
@@ -751,6 +857,10 @@ impl<C: Config<F: PrimeField64>> Reg<C> for Imm<C::F, C::EF> {
     fn write(&self, _compiler: &mut AsmCompiler<C>) -> Address<C::F> {
         panic!("cannot write to immediate in register: {self:?}")
     }
+
+    fn write_many(&self, _compiler: &mut AsmCompiler<C>, _len: usize) -> Vec<Address<C::F>> {
+        panic!("cannot write to immediate in register: {self:?}")
+    }
 }
 
 impl<C: Config<F: PrimeField64>> Reg<C> for Address<C::F> {
@@ -768,6 +878,10 @@ impl<C: Config<F: PrimeField64>> Reg<C> for Address<C::F> {
         compiler.write_addr(*self);
         *self
     }
+
+    fn write_many(&self, _compiler: &mut AsmCompiler<C>, _len: usize) -> Vec<Address<C::F>> {
+        todo!()
+    }
 }
 
 #[cfg(test)]
@@ -780,7 +894,7 @@ mod tests {
     use rand::{rngs::StdRng, Rng, SeedableRng};
 
     use sp1_core_machine::utils::{run_test_machine, setup_logger};
-    use sp1_recursion_core::{machine::RecursionAir, RecursionProgram, Runtime};
+    use sp1_recursion_core::{machine::RecursionAir, Runtime};
     use sp1_stark::{
         baby_bear_poseidon2::BabyBearPoseidon2, inner_perm, BabyBearPoseidon2Inner, InnerHash,
         StarkGenericConfig,
@@ -793,8 +907,8 @@ mod tests {
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
     type EF = <SC as StarkGenericConfig>::Challenge;
-    fn test_operations(operations: TracedVec<DslIr<AsmConfig<F, EF>>>) {
-        test_operations_with_runner(operations, |program| {
+    fn test_block(block: DslIrBlock<AsmConfig<F, EF>>) {
+        test_block_with_runner(block, |program| {
             let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
                 program,
                 BabyBearPoseidon2Inner::new().perm,
@@ -804,12 +918,12 @@ mod tests {
         });
     }
 
-    fn test_operations_with_runner(
-        operations: TracedVec<DslIr<AsmConfig<F, EF>>>,
+    fn test_block_with_runner(
+        block: DslIrBlock<AsmConfig<F, EF>>,
         run: impl FnOnce(Arc<RecursionProgram<F>>) -> ExecutionRecord<F>,
     ) {
         let mut compiler = super::AsmCompiler::<AsmConfig<F, EF>>::default();
-        let program = Arc::new(compiler.compile(operations));
+        let program = Arc::new(compiler.compile_inner(block).validate().unwrap());
         let record = run(program.clone());
 
         // Run with the poseidon2 wide chip.
@@ -851,7 +965,7 @@ mod tests {
             }
         }
 
-        test_operations(builder.into_operations());
+        test_block(builder.into_root_block());
     }
 
     #[test]
@@ -931,7 +1045,7 @@ mod tests {
             let expected_felt: Felt<_> = builder.eval(expected);
             builder.assert_felt_eq(result_felt, expected_felt);
         }
-        test_operations(builder.into_operations());
+        test_block(builder.into_root_block());
     }
 
     #[test]
@@ -986,7 +1100,7 @@ mod tests {
             }
         }
 
-        test_operations(builder.into_operations());
+        test_block(builder.into_root_block());
     }
 
     #[test]
@@ -1009,7 +1123,7 @@ mod tests {
                 builder.assert_felt_eq(lhs, rhs);
             }
         }
-        test_operations(builder.into_operations());
+        test_block(builder.into_root_block());
     }
 
     #[test]
@@ -1032,7 +1146,7 @@ mod tests {
 
         let mut buf = VecDeque::<u8>::new();
 
-        builder.cycle_tracker_v2_enter("printing felts".to_string());
+        builder.cycle_tracker_v2_enter("printing felts");
         for (i, &input_f) in input_fs.iter().enumerate() {
             builder.cycle_tracker_v2_enter(format!("printing felt {i}"));
             let input_felt = builder.eval(input_f);
@@ -1041,7 +1155,7 @@ mod tests {
         }
         builder.cycle_tracker_v2_exit();
 
-        builder.cycle_tracker_v2_enter("printing exts".to_string());
+        builder.cycle_tracker_v2_enter("printing exts");
         for (i, input_block) in input_efs.iter().enumerate() {
             builder.cycle_tracker_v2_enter(format!("printing ext {i}"));
             let input_ext = builder.eval(EF::from_base_slice(input_block).cons());
@@ -1050,7 +1164,7 @@ mod tests {
         }
         builder.cycle_tracker_v2_exit();
 
-        test_operations_with_runner(builder.into_operations(), |program| {
+        test_block_with_runner(builder.into_root_block(), |program| {
             let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
                 program,
                 BabyBearPoseidon2Inner::new().perm,
@@ -1089,7 +1203,7 @@ mod tests {
                 builder.assert_felt_eq(lhs, rhs);
             }
         }
-        test_operations(builder.into_operations());
+        test_block(builder.into_root_block());
     }
 
     macro_rules! test_assert_fixture {
@@ -1099,7 +1213,7 @@ mod tests {
                 let mut builder = AsmBuilder::<F, EF>::default();
                 test_assert_fixture!(builder, identity, F, Felt<_>, 0xDEADBEEF, $assert_felt, $should_offset);
                 test_assert_fixture!(builder, EF::cons, EF, Ext<_, _>, 0xABADCAFE, $assert_ext, $should_offset);
-                test_operations(builder.into_operations());
+                test_block(builder.into_root_block());
             }
         };
         ($builder:ident, $wrap:path, $t:ty, $u:ty, $seed:expr, $assert:ident, $should_offset:expr) => {

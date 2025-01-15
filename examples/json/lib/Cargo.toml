@@ -5,4 +5,4 @@ edition = { workspace = true }
 publish = false
 
 [dependencies]
-serde = "1.0.196"
+serde = { workspace = true }

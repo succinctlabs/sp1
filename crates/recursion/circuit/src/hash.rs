@@ -1,5 +1,7 @@
-use std::fmt::Debug;
-use std::iter::{repeat, zip};
+use std::{
+    fmt::Debug,
+    iter::{repeat, zip},
+};
 
 use itertools::Itertools;
 use p3_baby_bear::BabyBear;
@@ -11,15 +13,15 @@ use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
     ir::{Builder, Config, DslIr, Felt, Var},
 };
-use sp1_recursion_core::stark::{outer_perm, OUTER_MULTI_FIELD_CHALLENGER_WIDTH};
-use sp1_recursion_core::{stark::BabyBearPoseidon2Outer, DIGEST_SIZE};
-use sp1_recursion_core::{HASH_RATE, PERMUTATION_WIDTH};
-use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
-use sp1_stark::inner_perm;
+use sp1_recursion_core::{
+    stark::{outer_perm, BabyBearPoseidon2Outer, OUTER_MULTI_FIELD_CHALLENGER_WIDTH},
+    DIGEST_SIZE, HASH_RATE, PERMUTATION_WIDTH,
+};
+use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, inner_perm};
 
 use crate::{
     challenger::{reduce_32, POSEIDON_2_BB_RATE},
-    select_chain, CircuitConfig,
+    CircuitConfig,
 };
 
 pub trait FieldHasher<F: Field> {
@@ -121,7 +123,9 @@ impl<C: CircuitConfig<F = BabyBear, Bit = Felt<BabyBear>>> FieldHasherVariable<C
         a: Self::DigestVariable,
         b: Self::DigestVariable,
     ) {
-        zip(a, b).for_each(|(e1, e2)| builder.assert_felt_eq(e1, e2));
+        // Push the instruction directly instead of passing through `assert_felt_eq` in order to
+        //avoid symbolic expression overhead.
+        zip(a, b).for_each(|(e1, e2)| builder.push_op(DslIr::AssertEqF(e1, e2)));
     }
 
     fn select_chain_digest(
@@ -129,14 +133,20 @@ impl<C: CircuitConfig<F = BabyBear, Bit = Felt<BabyBear>>> FieldHasherVariable<C
         should_swap: <C as CircuitConfig>::Bit,
         input: [Self::DigestVariable; 2],
     ) -> [Self::DigestVariable; 2] {
-        let err_msg = "select_chain's return value should have length the sum of its inputs";
-        let mut selected = select_chain(builder, should_swap, input[0], input[1]);
-        let ret = [
-            core::array::from_fn(|_| selected.next().expect(err_msg)),
-            core::array::from_fn(|_| selected.next().expect(err_msg)),
-        ];
-        assert_eq!(selected.next(), None, "{}", err_msg);
-        ret
+        let result0: [Felt<BabyBear>; DIGEST_SIZE] = core::array::from_fn(|_| builder.uninit());
+        let result1: [Felt<BabyBear>; DIGEST_SIZE] = core::array::from_fn(|_| builder.uninit());
+
+        (0..DIGEST_SIZE).for_each(|i| {
+            builder.push_op(DslIr::Select(
+                should_swap,
+                result0[i],
+                result1[i],
+                input[0][i],
+                input[1][i],
+            ));
+        });
+
+        [result0, result1]
     }
 
     fn print_digest(builder: &mut Builder<C>, digest: Self::DigestVariable) {

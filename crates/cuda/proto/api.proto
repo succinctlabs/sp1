@@ -3,6 +3,7 @@ syntax = "proto3";
 package api;
 
 service ProverService {
+    rpc Setup(SetupRequest) returns (SetupResponse) {}
     rpc Ready(ReadyRequest) returns (ReadyResponse) {}
     rpc ProveCore(ProveCoreRequest) returns (ProveCoreResponse) {}
     rpc Compress(CompressRequest) returns (CompressResponse) {}
@@ -14,6 +15,14 @@ message ReadyRequest {}
 
 message ReadyResponse {
     bool ready = 1;
+}
+
+message SetupRequest {
+    bytes data = 1;
+}
+
+message SetupResponse {
+    bytes result = 1;
 }
 
 message ProveCoreRequest {

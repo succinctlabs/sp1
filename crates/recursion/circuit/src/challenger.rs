@@ -494,7 +494,7 @@ pub(crate) mod tests {
         builder.print_e(element_ef);
         builder.assert_ext_eq(expected_result_ef, element_ef);
 
-        run_test_recursion(builder.into_operations(), None);
+        run_test_recursion(builder.into_root_block(), None);
     }
 
     #[test]

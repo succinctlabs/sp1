@@ -1,107 +1,99 @@
-use std::iter::repeat;
+use std::{
+    cell::UnsafeCell,
+    mem::{self, MaybeUninit},
+};
 
 use p3_field::PrimeField64;
-use vec_map::{Entry, VecMap};
 
 use crate::{air::Block, Address};
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Copy)]
 pub struct MemoryEntry<F> {
     pub val: Block<F>,
-    pub mult: F,
 }
 
-pub trait Memory<F> {
-    /// Allocates memory with at least the given capacity.
-    fn with_capacity(capacity: usize) -> Self;
+/// `UnsafeCell`, but `Sync`.
+///
+/// A replication of the standard library type `SyncUnsafeCell`, still unstable as of Rust 1.81.0.
+#[derive(Debug, Default)]
+#[repr(transparent)]
+struct SyncUnsafeCell<T: ?Sized>(UnsafeCell<T>);
 
-    /// Read from a memory address. Decrements the memory entry's mult count.
-    ///
-    /// # Panics
-    /// Panics if the address is unassigned.
-    fn mr(&mut self, addr: Address<F>) -> &mut MemoryEntry<F>;
+unsafe impl<T: ?Sized + Sync> Sync for SyncUnsafeCell<T> {}
 
-    /// Read from a memory address. Reduces the memory entry's mult count by the given amount.
-    ///
-    /// # Panics
-    /// Panics if the address is unassigned.
-    fn mr_mult(&mut self, addr: Address<F>, mult: F) -> &mut MemoryEntry<F>;
+#[derive(Debug, Default)]
+pub struct MemVec<F>(Vec<SyncUnsafeCell<MaybeUninit<MemoryEntry<F>>>>);
 
-    /// Write to a memory address, setting the given value and mult.
-    ///
-    /// # Panics
-    /// Panics if the address is already assigned.
-    fn mw(&mut self, addr: Address<F>, val: Block<F>, mult: F) -> &mut MemoryEntry<F>;
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct MemVecMap<F>(pub VecMap<MemoryEntry<F>>);
-
-impl<F: PrimeField64> Memory<F> for MemVecMap<F> {
-    fn with_capacity(capacity: usize) -> Self {
-        Self(VecMap::with_capacity(capacity))
+impl<F: PrimeField64> MemVec<F> {
+    pub fn with_capacity(capacity: usize) -> Self {
+        // SAFETY: SyncUnsafeCell is a `repr(transparent)` newtype of `UnsafeCell`, which has
+        // the same representation as its inner type.
+        Self(unsafe {
+            mem::transmute::<
+                Vec<MaybeUninit<MemoryEntry<F>>>,
+                Vec<SyncUnsafeCell<MaybeUninit<MemoryEntry<F>>>>,
+            >(vec![MaybeUninit::uninit(); capacity])
+        })
     }
 
-    fn mr(&mut self, addr: Address<F>) -> &mut MemoryEntry<F> {
-        self.mr_mult(addr, F::one())
+    pub fn mr(&mut self, addr: Address<F>) -> &MemoryEntry<F> {
+        // SAFETY: We have exclusive access to the memory, so no data races can occur.
+        unsafe { self.mr_unchecked(addr) }
     }
 
-    fn mr_mult(&mut self, addr: Address<F>, mult: F) -> &mut MemoryEntry<F> {
-        match self.0.entry(addr.as_usize()) {
-            Entry::Occupied(mut entry) => {
-                let entry_mult = &mut entry.get_mut().mult;
-                *entry_mult -= mult;
-                entry.into_mut()
-            }
-            Entry::Vacant(_) => panic!("tried to read from unassigned address: {addr:?}",),
-        }
-    }
-
-    fn mw(&mut self, addr: Address<F>, val: Block<F>, mult: F) -> &mut MemoryEntry<F> {
-        let index = addr.as_usize();
-        match self.0.entry(index) {
-            Entry::Occupied(entry) => {
-                panic!("tried to write to assigned address {}: {:?}", index, entry.get())
-            }
-            Entry::Vacant(entry) => entry.insert(MemoryEntry { val, mult }),
-        }
-    }
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct MemVec<F>(pub Vec<Option<MemoryEntry<F>>>);
-
-impl<F: PrimeField64> Memory<F> for MemVec<F> {
-    fn with_capacity(capacity: usize) -> Self {
-        Self(Vec::with_capacity(capacity))
-    }
-
-    fn mr(&mut self, addr: Address<F>) -> &mut MemoryEntry<F> {
-        self.mr_mult(addr, F::one())
-    }
-
-    fn mr_mult(&mut self, addr: Address<F>, mult: F) -> &mut MemoryEntry<F> {
-        match self.0.get_mut(addr.as_usize()) {
-            Some(Some(entry)) => {
-                entry.mult -= mult;
-                entry
-            }
-            _ => panic!(
-                "tried to read from unassigned address: {addr:?}\nbacktrace: {:?}",
-                backtrace::Backtrace::new()
+    /// # Safety
+    /// This should be called precisely when memory is to be read according to a happens-before
+    /// relation corresponding to the documented invariants of [`crate::RecursionProgram`]
+    /// invariants. This guarantees the absence of any data races.
+    pub unsafe fn mr_unchecked(&self, addr: Address<F>) -> &MemoryEntry<F> {
+        match self.0.get(addr.as_usize()).map(|c| unsafe {
+            // SAFETY: The pointer is dereferenceable. It has already been written to due to the
+            // happens-before relation (in `mw_unchecked`), so no mutable/unique reference can exist.
+            // The immutable/shared reference returned indeed remains valid as long as the lifetime
+            // of `&self` (lifetimes are elided) since it refers to memory directly owned by `self`.
+            &*c.0.get()
+        }) {
+            Some(entry) => unsafe {
+                // SAFETY: It has already been written to, so the value is valid. The reference
+                // obeys both lifetime and aliasing rules, as discussed above.
+                entry.assume_init_ref()
+            },
+            None => panic!(
+                "expected address {} to be less than length {}",
+                addr.as_usize(),
+                self.0.len()
             ),
         }
     }
 
-    fn mw(&mut self, addr: Address<F>, val: Block<F>, mult: F) -> &mut MemoryEntry<F> {
-        let addr_usize = addr.as_usize();
-        self.0.extend(repeat(None).take((addr_usize + 1).saturating_sub(self.0.len())));
-        match &mut self.0[addr_usize] {
-            Some(entry) => panic!(
-                "tried to write to assigned address: {entry:?}\nbacktrace: {:?}",
-                backtrace::Backtrace::new()
+    pub fn mw(&mut self, addr: Address<F>, val: Block<F>) {
+        // SAFETY: We have exclusive access to the memory, so no data races can occur.
+        // Leaks may occur if the same address is written to twice, unless `F` is trivially
+        // destructible (which is the case if it is merely a number).
+        unsafe { self.mw_unchecked(addr, val) }
+    }
+
+    /// # Safety
+    /// This should be called precisely when memory is to be written according to a happens-before
+    /// relation corresponding to the documented invariants of [`crate::RecursionProgram`]
+    /// invariants. This guarantees the absence of any data races.
+    pub unsafe fn mw_unchecked(&self, addr: Address<F>, val: Block<F>) {
+        match self.0.get(addr.as_usize()).map(|c| unsafe {
+            // SAFETY: The pointer is dereferenceable. There are no other aliases to the data
+            // because of the happens-before relation (no other `mw_unchecked` can be invoked on
+            // the same address, and this call happens-before any `mr_unchecked`.)
+            // The mutable/shared reference is dropped below, so it does not escape with
+            // an invalid lifetime.
+            &mut *c.0.get()
+        }) {
+            // This does not leak memory because the address is written to exactly once.
+            // Leaking is memory-safe in Rust, so this isn't technically a "SAFETY" comment.
+            Some(entry) => drop(entry.write(MemoryEntry { val })),
+            None => panic!(
+                "expected address {} to be less than length {}",
+                addr.as_usize(),
+                self.0.len()
             ),
-            entry @ None => entry.insert(MemoryEntry { val, mult }),
         }
     }
 }

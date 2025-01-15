@@ -2,7 +2,9 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use std::{path::PathBuf, process::Command};
 
-use crate::{get_target, CommandExecutor, RUSTUP_TOOLCHAIN_NAME};
+use crate::{
+    get_target, CommandExecutor, LATEST_SUPPORTED_TOOLCHAIN_VERSION_TAG, RUSTUP_TOOLCHAIN_NAME,
+};
 
 #[derive(Parser)]
 #[command(name = "build-toolchain", about = "Build the cargo-prove toolchain.")]
@@ -44,7 +46,7 @@ impl BuildToolchainCmd {
                         &repo_url,
                         "--depth=1",
                         "--single-branch",
-                        "--branch=succinct",
+                        &format!("--branch={}", LATEST_SUPPORTED_TOOLCHAIN_VERSION_TAG),
                         "sp1-rust",
                     ])
                     .current_dir(&temp_dir)
@@ -64,7 +66,8 @@ impl BuildToolchainCmd {
         std::fs::write(&config_file, config_toml)
             .with_context(|| format!("while writing configuration to {:?}", config_file))?;
 
-        // Work around target sanity check added in rust-lang/rust@09c076810cb7649e5817f316215010d49e78e8d7.
+        // Work around target sanity check added in
+        // rust-lang/rust@09c076810cb7649e5817f316215010d49e78e8d7.
         let temp_dir = std::env::temp_dir().join("rustc-targets");
         if !temp_dir.exists() {
             std::fs::create_dir_all(&temp_dir)?;
@@ -74,7 +77,7 @@ impl BuildToolchainCmd {
         // Build the toolchain (stage 1).
         Command::new("python3")
             .env("RUST_TARGET_PATH", &temp_dir)
-            .env("CARGO_TARGET_RISCV32IM_SUCCINCT_ZKVM_ELF_RUSTFLAGS", "-Cpasses=loweratomic")
+            .env("CARGO_TARGET_RISCV32IM_SUCCINCT_ZKVM_ELF_RUSTFLAGS", "-Cpasses=lower-atomic")
             .args(["x.py", "build"])
             .current_dir(&rust_dir)
             .run()?;
@@ -82,7 +85,7 @@ impl BuildToolchainCmd {
         // Build the toolchain (stage 2).
         Command::new("python3")
             .env("RUST_TARGET_PATH", &temp_dir)
-            .env("CARGO_TARGET_RISCV32IM_SUCCINCT_ZKVM_ELF_RUSTFLAGS", "-Cpasses=loweratomic")
+            .env("CARGO_TARGET_RISCV32IM_SUCCINCT_ZKVM_ELF_RUSTFLAGS", "-Cpasses=lower-atomic")
             .args(["x.py", "build", "--stage", "2"])
             .current_dir(&rust_dir)
             .run()?;

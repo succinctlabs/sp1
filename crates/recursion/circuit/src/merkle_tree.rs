@@ -18,8 +18,8 @@ use crate::{
 #[serde(bound(serialize = "HV::Digest: Serialize"))]
 #[serde(bound(deserialize = "HV::Digest: Deserialize<'de>"))]
 pub struct MerkleTree<F: Field, HV: FieldHasher<F>> {
-    /// The height of the tree, not counting the root layer. This is the same as the logarithm of the
-    /// number of leaves.
+    /// The height of the tree, not counting the root layer. This is the same as the logarithm of
+    /// the number of leaves.
     pub height: usize,
 
     /// All the layers but the root. If there are `n` leaves where `n` is a power of 2, there are
@@ -217,6 +217,6 @@ mod tests {
             }
         }
 
-        run_test_recursion(builder.into_operations(), std::iter::empty());
+        run_test_recursion(builder.into_root_block(), std::iter::empty());
     }
 }

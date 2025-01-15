@@ -20,7 +20,7 @@ use sp1_curves::{
         ed25519::{ed25519_sqrt, Ed25519BaseField},
         EdwardsParameters, WordsFieldElement,
     },
-    params::{limbs_from_vec, FieldParameters, Limbs},
+    params::{FieldParameters, Limbs},
 };
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::{BaseAirBuilder, InteractionScope, MachineAir, SP1AirBuilder};
@@ -45,11 +45,11 @@ pub struct EdDecompressCols<T> {
     pub is_real: T,
     pub shard: T,
     pub clk: T,
-    pub nonce: T,
     pub ptr: T,
     pub sign: T,
     pub x_access: GenericArray<MemoryWriteCols<T>, WordsFieldElement>,
     pub y_access: GenericArray<MemoryReadCols<T>, WordsFieldElement>,
+    pub(crate) neg_x_range: FieldLtCols<T, Ed25519BaseField>,
     pub(crate) y_range: FieldLtCols<T, Ed25519BaseField>,
     pub(crate) yy: FieldOpCols<T, Ed25519BaseField>,
     pub(crate) u: FieldOpCols<T, Ed25519BaseField>,
@@ -71,9 +71,6 @@ impl<F: PrimeField32> EdDecompressCols<F> {
         self.shard = F::from_canonical_u32(event.shard);
         self.clk = F::from_canonical_u32(event.clk);
         self.ptr = F::from_canonical_u32(event.ptr);
-        self.nonce = F::from_canonical_u32(
-            record.nonce_lookup.get(&event.lookup_id).copied().unwrap_or_default(),
-        );
         self.sign = F::from_bool(event.sign);
         for i in 0..8 {
             self.x_access[i].populate(event.x_memory_records[i], &mut new_byte_lookup_events);
@@ -81,7 +78,7 @@ impl<F: PrimeField32> EdDecompressCols<F> {
         }
 
         let y = &BigUint::from_bytes_le(&event.y_bytes);
-        self.populate_field_ops::<E>(&mut new_byte_lookup_events, event.shard, y);
+        self.populate_field_ops::<E>(&mut new_byte_lookup_events, y);
 
         record.add_byte_lookup_events(new_byte_lookup_events);
     }
@@ -89,20 +86,21 @@ impl<F: PrimeField32> EdDecompressCols<F> {
     fn populate_field_ops<E: EdwardsParameters>(
         &mut self,
         blu_events: &mut Vec<ByteLookupEvent>,
-        shard: u32,
         y: &BigUint,
     ) {
         let one = BigUint::one();
-        self.y_range.populate(blu_events, shard, y, &Ed25519BaseField::modulus());
-        let yy = self.yy.populate(blu_events, shard, y, y, FieldOperation::Mul);
-        let u = self.u.populate(blu_events, shard, &yy, &one, FieldOperation::Sub);
-        let dyy = self.dyy.populate(blu_events, shard, &E::d_biguint(), &yy, FieldOperation::Mul);
-        let v = self.v.populate(blu_events, shard, &one, &dyy, FieldOperation::Add);
-        let u_div_v = self.u_div_v.populate(blu_events, shard, &u, &v, FieldOperation::Div);
-        let x = self.x.populate(blu_events, shard, &u_div_v, |p| {
-            ed25519_sqrt(p).expect("ed25519_sqrt failed, syscall invariant violated")
+        self.y_range.populate(blu_events, y, &Ed25519BaseField::modulus());
+        let yy = self.yy.populate(blu_events, y, y, FieldOperation::Mul);
+        let u = self.u.populate(blu_events, &yy, &one, FieldOperation::Sub);
+        let dyy = self.dyy.populate(blu_events, &E::d_biguint(), &yy, FieldOperation::Mul);
+        let v = self.v.populate(blu_events, &one, &dyy, FieldOperation::Add);
+        let u_div_v = self.u_div_v.populate(blu_events, &u, &v, FieldOperation::Div);
+
+        let x = self.x.populate(blu_events, &u_div_v, |v| {
+            ed25519_sqrt(v).expect("curve25519 expected field element to be a square")
         });
-        self.neg_x.populate(blu_events, shard, &BigUint::zero(), &x, FieldOperation::Sub);
+        let neg_x = self.neg_x.populate(blu_events, &BigUint::zero(), &x, FieldOperation::Sub);
+        self.neg_x_range.populate(blu_events, &neg_x, &Ed25519BaseField::modulus());
     }
 }
 
@@ -116,13 +114,9 @@ impl<V: Copy> EdDecompressCols<V> {
         builder.assert_bool(self.sign);
 
         let y: Limbs<V, U32> = limbs_from_prev_access(&self.y_access);
-        let max_num_limbs = P::to_limbs_field_vec(&Ed25519BaseField::modulus());
-        self.y_range.eval(
-            builder,
-            &y,
-            &limbs_from_vec::<AB::Expr, P::Limbs, AB::F>(max_num_limbs),
-            self.is_real,
-        );
+        let max_num_limbs =
+            Ed25519BaseField::to_limbs_field::<AB::Expr, AB::F>(&Ed25519BaseField::modulus());
+        self.y_range.eval(builder, &y, &max_num_limbs, self.is_real);
         self.yy.eval(builder, &y, &y, FieldOperation::Mul, self.is_real);
         self.u.eval(
             builder,
@@ -148,6 +142,8 @@ impl<V: Copy> EdDecompressCols<V> {
             FieldOperation::Div,
             self.is_real,
         );
+
+        // Constrain that `x` is a square root. Note that `x.multiplication.result` is constrained to be canonical here.
         self.x.eval(builder, &self.u_div_v.result, AB::F::zero(), self.is_real);
         self.neg_x.eval(
             builder,
@@ -156,6 +152,8 @@ impl<V: Copy> EdDecompressCols<V> {
             FieldOperation::Sub,
             self.is_real,
         );
+        // Constrain that `neg_x.result` is also canonical.
+        self.neg_x_range.eval(builder, &self.neg_x.result, &max_num_limbs, self.is_real);
 
         builder.eval_memory_access_slice(
             self.shard,
@@ -173,6 +171,7 @@ impl<V: Copy> EdDecompressCols<V> {
         );
 
         // Constrain that the correct result is written into x.
+        // Since the result is either `neg_x.result` or `x.multiplication.result`, the written value is canonical.
         let x_limbs: Limbs<V, U32> = limbs_from_access(&self.x_access);
         builder.when(self.is_real).when(self.sign).assert_all_eq(self.neg_x.result, x_limbs);
         builder
@@ -183,7 +182,6 @@ impl<V: Copy> EdDecompressCols<V> {
         builder.receive_syscall(
             self.shard,
             self.clk,
-            self.nonce,
             AB::F::from_canonical_u32(SyscallCode::ED_DECOMPRESS.syscall_id()),
             self.ptr,
             self.sign,
@@ -240,26 +238,13 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
                 let mut row = [F::zero(); NUM_ED_DECOMPRESS_COLS];
                 let cols: &mut EdDecompressCols<F> = row.as_mut_slice().borrow_mut();
                 let zero = BigUint::zero();
-                cols.populate_field_ops::<E>(&mut vec![], 0, &zero);
+                cols.populate_field_ops::<E>(&mut vec![], &zero);
                 row
             },
             input.fixed_log2_rows::<F, _>(self),
         );
 
-        let mut trace = RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_ED_DECOMPRESS_COLS,
-        );
-
-        // Write the nonces to the trace.
-        for i in 0..trace.height() {
-            let cols: &mut EdDecompressCols<F> = trace.values
-                [i * NUM_ED_DECOMPRESS_COLS..(i + 1) * NUM_ED_DECOMPRESS_COLS]
-                .borrow_mut();
-            cols.nonce = F::from_canonical_usize(i);
-        }
-
-        trace
+        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_ED_DECOMPRESS_COLS)
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -268,6 +253,10 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
         } else {
             !shard.get_precompile_events(SyscallCode::ED_DECOMPRESS).is_empty()
         }
+    }
+
+    fn local_only(&self) -> bool {
+        true
     }
 }
 
@@ -285,12 +274,6 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &EdDecompressCols<AB::Var> = (*local).borrow();
-        let next = main.row_slice(1);
-        let next: &EdDecompressCols<AB::Var> = (*next).borrow();
-
-        // Constrain the incrementing nonce.
-        builder.when_first_row().assert_zero(local.nonce);
-        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         local.eval::<AB, E::BaseField, E>(builder);
     }
@@ -300,13 +283,15 @@ where
 pub mod tests {
     use sp1_core_executor::Program;
     use sp1_stark::CpuProver;
+    use test_artifacts::ED_DECOMPRESS_ELF;
 
-    use crate::utils::{self, tests::ED_DECOMPRESS_ELF};
+    use crate::{io::SP1Stdin, utils};
 
     #[test]
     fn test_ed_decompress() {
         utils::setup_logger();
         let program = Program::from(ED_DECOMPRESS_ELF).unwrap();
-        utils::run_test::<CpuProver<_, _>>(program).unwrap();
+        let stdin = SP1Stdin::new();
+        utils::run_test::<CpuProver<_, _>>(program, stdin).unwrap();
     }
 }

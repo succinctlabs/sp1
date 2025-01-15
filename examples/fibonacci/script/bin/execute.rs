@@ -1,7 +1,7 @@
-use sp1_sdk::{utils, ProverClient, SP1Stdin};
+use sp1_sdk::{include_elf, utils, ProverClient, SP1Stdin};
 
 /// The ELF we want to execute inside the zkVM.
-const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
+const ELF: &[u8] = include_elf!("fibonacci-program");
 
 fn main() {
     // Setup logging.
@@ -14,8 +14,8 @@ fn main() {
     stdin.write(&n);
 
     // Only execute the program and get a `SP1PublicValues` object.
-    let client = ProverClient::new();
-    let (mut public_values, execution_report) = client.execute(ELF, stdin).run().unwrap();
+    let client = ProverClient::from_env();
+    let (mut public_values, execution_report) = client.execute(ELF, &stdin).run().unwrap();
 
     // Print the total number of cycles executed and the full execution report with a breakdown of
     // the RISC-V opcode and syscall counts.

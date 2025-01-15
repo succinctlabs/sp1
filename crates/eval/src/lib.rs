@@ -3,8 +3,10 @@ use clap::{command, Parser};
 use reqwest::Client;
 use serde::Serialize;
 use serde_json::json;
-use slack_rust::chat::post_message::{post_message, PostMessageRequest};
-use slack_rust::http_client::default_client;
+use slack_rust::{
+    chat::post_message::{post_message, PostMessageRequest},
+    http_client::default_client,
+};
 use sp1_prover::{components::SP1ProverComponents, utils::get_cycles, SP1Prover};
 use sp1_sdk::{SP1Context, SP1Stdin};
 use sp1_stark::SP1ProverOpts;
@@ -19,7 +21,8 @@ mod program;
 #[derive(Parser, Clone)]
 #[command(about = "Evaluate the performance of SP1 on programs.")]
 struct EvalArgs {
-    /// The programs to evaluate, specified by name. If not specified, all programs will be evaluated.
+    /// The programs to evaluate, specified by name. If not specified, all programs will be
+    /// evaluated.
     #[arg(long, use_value_delimiter = true, value_delimiter = ',')]
     pub programs: Vec<String>,
 
@@ -169,14 +172,14 @@ fn run_evaluation<C: SP1ProverComponents>(
     let cycles = get_cycles(elf, stdin);
 
     let prover = SP1Prover::<C>::new();
-    let (pk, vk) = prover.setup(elf);
+    let (_, pk_d, program, vk) = prover.setup(elf);
 
     let context = SP1Context::default();
 
     let (_, exec_duration) = time_operation(|| prover.execute(elf, stdin, context.clone()));
 
     let (core_proof, core_duration) =
-        time_operation(|| prover.prove_core(&pk, stdin, opts, context).unwrap());
+        time_operation(|| prover.prove_core(&pk_d, program, stdin, opts, context).unwrap());
 
     let (_, compress_duration) =
         time_operation(|| prover.compress(&vk, core_proof, vec![], opts).unwrap());

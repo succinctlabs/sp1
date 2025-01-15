@@ -10,6 +10,18 @@ pub struct ReadyResponse {
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SetupRequest {
+    #[prost(bytes = "vec", tag = "1")]
+    pub data: ::prost::alloc::vec::Vec<u8>,
+}
+#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SetupResponse {
+    #[prost(bytes = "vec", tag = "1")]
+    pub result: ::prost::alloc::vec::Vec<u8>,
+}
+#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ProveCoreRequest {
     #[prost(bytes = "vec", tag = "1")]
     pub data: ::prost::alloc::vec::Vec<u8>,
@@ -60,6 +72,11 @@ pub use twirp;
 pub const SERVICE_FQN: &str = "/api.ProverService";
 #[twirp::async_trait::async_trait]
 pub trait ProverService {
+    async fn setup(
+        &self,
+        ctx: twirp::Context,
+        req: SetupRequest,
+    ) -> Result<SetupResponse, twirp::TwirpErrorResponse>;
     async fn ready(
         &self,
         ctx: twirp::Context,
@@ -91,6 +108,13 @@ impl<T> ProverService for std::sync::Arc<T>
 where
     T: ProverService + Sync + Send,
 {
+    async fn setup(
+        &self,
+        ctx: twirp::Context,
+        req: SetupRequest,
+    ) -> Result<SetupResponse, twirp::TwirpErrorResponse> {
+        T::setup(&*self, ctx, req).await
+    }
     async fn ready(
         &self,
         ctx: twirp::Context,
@@ -133,6 +157,12 @@ where
 {
     twirp::details::TwirpRouterBuilder::new(api)
         .route(
+            "/Setup",
+            |api: T, ctx: twirp::Context, req: SetupRequest| async move {
+                api.setup(ctx, req).await
+            },
+        )
+        .route(
             "/Ready",
             |api: T, ctx: twirp::Context, req: ReadyRequest| async move {
                 api.ready(ctx, req).await
@@ -166,6 +196,10 @@ where
 }
 #[twirp::async_trait::async_trait]
 pub trait ProverServiceClient: Send + Sync + std::fmt::Debug {
+    async fn setup(
+        &self,
+        req: SetupRequest,
+    ) -> Result<SetupResponse, twirp::ClientError>;
     async fn ready(
         &self,
         req: ReadyRequest,
@@ -186,6 +220,12 @@ pub trait ProverServiceClient: Send + Sync + std::fmt::Debug {
 }
 #[twirp::async_trait::async_trait]
 impl ProverServiceClient for twirp::client::Client {
+    async fn setup(
+        &self,
+        req: SetupRequest,
+    ) -> Result<SetupResponse, twirp::ClientError> {
+        self.request("api.ProverService/Setup", req).await
+    }
     async fn ready(
         &self,
         req: ReadyRequest,

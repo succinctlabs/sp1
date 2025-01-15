@@ -42,7 +42,6 @@ impl<F: PrimeField32, P: FieldParameters> FieldSqrtCols<F, P> {
     pub fn populate(
         &mut self,
         record: &mut impl ByteRecord,
-        shard: u32,
         a: &BigUint,
         sqrt_fn: impl Fn(&BigUint) -> BigUint,
     ) -> BigUint {
@@ -51,8 +50,7 @@ impl<F: PrimeField32, P: FieldParameters> FieldSqrtCols<F, P> {
         let sqrt = sqrt_fn(a);
 
         // Use FieldOpCols to compute result * result.
-        let sqrt_squared =
-            self.multiplication.populate(record, shard, &sqrt, &sqrt, FieldOperation::Mul);
+        let sqrt_squared = self.multiplication.populate(record, &sqrt, &sqrt, FieldOperation::Mul);
 
         // If the result is indeed the square root of a, then result * result = a.
         assert_eq!(sqrt_squared, a.clone());
@@ -62,13 +60,12 @@ impl<F: PrimeField32, P: FieldParameters> FieldSqrtCols<F, P> {
         self.multiplication.result = P::to_limbs_field::<F, _>(&sqrt);
 
         // Populate the range columns.
-        self.range.populate(record, shard, &sqrt, &modulus);
+        self.range.populate(record, &sqrt, &modulus);
 
         let sqrt_bytes = P::to_limbs(&sqrt);
         self.lsb = F::from_canonical_u8(sqrt_bytes[0] & 1);
 
         let and_event = ByteLookupEvent {
-            shard,
             opcode: ByteOpcode::AND,
             a1: self.lsb.as_canonical_u32() as u16,
             a2: 0,
@@ -79,7 +76,6 @@ impl<F: PrimeField32, P: FieldParameters> FieldSqrtCols<F, P> {
 
         // Add the byte range check for `sqrt`.
         record.add_u8_range_checks(
-            shard,
             self.multiplication
                 .result
                 .0
@@ -152,7 +148,10 @@ mod tests {
     use sp1_curves::params::{FieldParameters, Limbs};
     use sp1_stark::air::{MachineAir, SP1AirBuilder};
 
-    use crate::utils::{pad_to_power_of_two, uni_stark_prove as prove, uni_stark_verify as verify};
+    use crate::utils::{
+        pad_to_power_of_two,
+        uni_stark::{uni_stark_prove, uni_stark_verify},
+    };
     use core::{
         borrow::{Borrow, BorrowMut},
         mem::size_of,
@@ -224,11 +223,7 @@ mod tests {
                     let mut row = [F::zero(); NUM_TEST_COLS];
                     let cols: &mut TestCols<F, P> = row.as_mut_slice().borrow_mut();
                     cols.a = P::to_limbs_field::<F, _>(a);
-                    cols.sqrt.populate(&mut blu_events, 1, a, |p| {
-                        ed25519_sqrt(p).expect(
-                            "By now we should have validated the sqrt exists, this is a bug",
-                        )
-                    });
+                    cols.sqrt.populate(&mut blu_events, a, |v| ed25519_sqrt(v).unwrap());
                     output.add_byte_lookup_events(blu_events);
                     row
                 })
@@ -287,9 +282,9 @@ mod tests {
         let shard = ExecutionRecord::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
-        let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
+        let proof = uni_stark_prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();
-        verify(&config, &chip, &mut challenger, &proof).unwrap();
+        uni_stark_verify(&config, &chip, &mut challenger, &proof).unwrap();
     }
 }

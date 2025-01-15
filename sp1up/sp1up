@@ -19,27 +19,67 @@ main() {
 
   while [[ -n $1 ]]; do
     case $1 in
-      --)               shift; break;;
-
-      -r|--repo)        shift; SP1UP_REPO=$1;;
-      -b|--branch)      shift; SP1UP_BRANCH=$1;;
-      -v|--version)     shift; SP1UP_VERSION=$1;;
-      -p|--path)        shift; SP1UP_LOCAL_REPO=$1;;
-      -P|--pr)          shift; SP1UP_PR=$1;;
-      -C|--commit)      shift; SP1UP_COMMIT=$1;;
-      -c|--c-toolchain) SP1UP_C_TOOLCHAIN=true;;
-      --arch)           shift; SP1UP_ARCH=$1;;
-      --platform)       shift; SP1UP_PLATFORM=$1;;
-      -t|--token)       shift; GITHUB_TOKEN=$1;;
-      -h|--help)
-        usage
-        exit 0
-        ;;
-      *)
-        warn "unknown option: $1"
-        usage
-        exit 1
-    esac; shift
+        --)
+            shift; break;;
+        
+        -r|--repo)        
+            shift
+            check_required_arg "--repo" "$1"
+            SP1UP_REPO=$1;;
+            
+        -b|--branch)      
+            shift
+            check_required_arg "--branch" "$1"
+            SP1UP_BRANCH=$1;;
+            
+        -v|--version)     
+            shift
+            check_required_arg "--version" "$1"
+            SP1UP_VERSION=$1;;
+            
+        -p|--path)        
+            shift
+            check_required_arg "--path" "$1"
+            SP1UP_LOCAL_REPO=$1;;
+            
+        -P|--pr)          
+            shift
+            check_required_arg "--pr" "$1"
+            SP1UP_PR=$1;;
+            
+        -C|--commit)      
+            shift
+            check_required_arg "--commit" "$1"
+            SP1UP_COMMIT=$1;;
+            
+        -c|--c-toolchain) SP1UP_C_TOOLCHAIN=true;;
+        
+        --arch)           
+            shift
+            check_required_arg "--arch" "$1"
+            SP1UP_ARCH=$1;;
+            
+        --platform)       
+            shift
+            check_required_arg "--platform" "$1"
+            SP1UP_PLATFORM=$1;;
+            
+        -t|--token)       
+            shift
+            check_required_arg "--token" "$1"
+            GITHUB_TOKEN=$1;;
+            
+        -h|--help)
+            usage
+            exit 0
+            ;;
+            
+        *)
+            warn "unknown option: $1"
+            usage
+            exit 1
+    esac
+    shift
   done
 
   # Print the banner after successfully parsing args
@@ -99,7 +139,8 @@ main() {
     # Compute the URL of the release tarball in the sp1 repository.
     RELEASE_URL="https://github.com/${SP1UP_REPO}/releases/download/${SP1UP_TAG}/"
     BIN_ARCHIVE_URL="${RELEASE_URL}cargo_prove_${SP1UP_VERSION}_${PLATFORM}_${ARCHITECTURE}.$EXT"
-    MAN_TARBALL_URL="${RELEASE_URL}cargo_prove_man_${SP1UP_VERSION}.tar.gz"
+
+    check_url "$BIN_ARCHIVE_URL" "binary"
 
     # Download and extract the binaries archive
     say "downloading latest cargo-prove"
@@ -268,6 +309,35 @@ determine_platform() {
   fi
 }
 
+# Function to check URL and provide friendly error message
+check_url() {
+    local url="$1"
+    local description="$2"
+    
+    if ! curl --head --silent --fail "$url" --output /dev/null 2> /dev/null; then
+        echo "Error: Unable to access the $description at: $url" >&2
+        echo "Please check:" >&2
+        echo "  - Your internet connection" >&2
+        echo "  - If the version '${SP1UP_VERSION}' exists" >&2
+        echo "  - If the repository '${SP1UP_REPO}' is correct" >&2
+        echo "  - If the tag '${SP1UP_TAG}' exists" >&2
+        return 1
+    fi
+    return 0
+}
+
+# Function to handle required argument validation
+check_required_arg() {
+    local option=$1
+    local value=$2
+    
+    if [[ -z $value ]]; then
+        warn "Error: $option requires a value"
+        usage
+        exit 1
+    fi
+}
+
 determine_architecture() {
   uname_m=$(uname -m)
   ARCHITECTURE=$(tolower "${SP1UP_ARCH:-$uname_m}")
@@ -346,18 +416,10 @@ ensure() {
 download() {
   if [ -n "$2" ]; then
     # output into $2
-    if check_cmd curl; then
-      curl -#o "$2" -L "$1"
-    else
-      wget --show-progress -qO "$2" "$1"
-    fi
+    curl -#o "$2" -L "$1"
   else
     # output to stdout
-    if check_cmd curl; then
-      curl -#L "$1"
-    else
-      wget --show-progress -qO- "$1"
-    fi
+    curl -#LS "$1"
   fi
 }
 

@@ -11,7 +11,7 @@ use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::*;
 use sp1_core_executor::{
     events::{AluEvent, ByteLookupEvent, ByteRecord},
-    ByteOpcode, ExecutionRecord, Opcode, Program,
+    ByteOpcode, ExecutionRecord, Opcode, Program, DEFAULT_PC_INC,
 };
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
@@ -19,7 +19,7 @@ use sp1_stark::{
     Word,
 };
 
-use crate::utils::pad_rows_fixed;
+use crate::utils::{next_power_of_two, zeroed_f_vec};
 
 /// The number of main trace columns for `LtChip`.
 pub const NUM_LT_COLS: usize = size_of::<LtCols<u8>>();
@@ -32,11 +32,8 @@ pub struct LtChip;
 #[derive(AlignedBorrow, Default, Clone, Copy)]
 #[repr(C)]
 pub struct LtCols<T> {
-    /// The shard number, used for byte lookup table.
-    pub shard: T,
-
-    /// The nonce of the operation.
-    pub nonce: T,
+    /// The program counter.
+    pub pc: T,
 
     /// If the opcode is SLT.
     pub is_slt: T,
@@ -45,7 +42,7 @@ pub struct LtCols<T> {
     pub is_sltu: T,
 
     /// The output operand.
-    pub a: Word<T>,
+    pub a: T,
 
     /// The first input operand.
     pub b: Word<T>,
@@ -53,12 +50,15 @@ pub struct LtCols<T> {
     /// The second input operand.
     pub c: Word<T>,
 
+    /// Whether the first operand is not register 0.
+    pub op_a_not_0: T,
+
     /// Boolean flag to indicate which byte pair differs if the operands are not equal.
     pub byte_flags: [T; 4],
 
-    /// The masking b[3] & 0x7F.
+    /// The masking b\[3\] & 0x7F.
     pub b_masked: T,
-    /// The masking c[3] & 0x7F.
+    /// The masking c\[3\] & 0x7F.
     pub c_masked: T,
     /// An inverse of differing byte if c_comp != b_comp.
     pub not_eq_inv: T,
@@ -107,38 +107,30 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
         _: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        let mut rows = input
-            .lt_events
-            .par_iter()
-            .map(|event| {
-                let mut row = [F::zero(); NUM_LT_COLS];
-                let mut new_byte_lookup_events: Vec<ByteLookupEvent> = Vec::new();
-                let cols: &mut LtCols<F> = row.as_mut_slice().borrow_mut();
-                self.event_to_row(event, cols, &mut new_byte_lookup_events);
+        let nb_rows = input.lt_events.len();
+        let size_log2 = input.fixed_log2_rows::<F, _>(self);
+        let padded_nb_rows = next_power_of_two(nb_rows, size_log2);
+        let mut values = zeroed_f_vec(padded_nb_rows * NUM_LT_COLS);
+        let chunk_size = std::cmp::max((nb_rows + 1) / num_cpus::get(), 1);
 
-                row
-            })
-            .collect::<Vec<_>>();
+        values.chunks_mut(chunk_size * NUM_LT_COLS).enumerate().par_bridge().for_each(
+            |(i, rows)| {
+                rows.chunks_mut(NUM_LT_COLS).enumerate().for_each(|(j, row)| {
+                    let idx = i * chunk_size + j;
+                    let cols: &mut LtCols<F> = row.borrow_mut();
 
-        // Pad the trace to a power of two depending on the proof shape in `input`.
-        pad_rows_fixed(
-            &mut rows,
-            || [F::zero(); NUM_LT_COLS],
-            input.fixed_log2_rows::<F, Self>(self),
+                    if idx < nb_rows {
+                        let mut byte_lookup_events = Vec::new();
+                        let event = &input.lt_events[idx];
+                        self.event_to_row(event, cols, &mut byte_lookup_events);
+                    }
+                });
+            },
         );
 
         // Convert the trace to a row major matrix.
-        let mut trace =
-            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_LT_COLS);
 
-        // Write the nonces to the trace.
-        for i in 0..trace.height() {
-            let cols: &mut LtCols<F> =
-                trace.values[i * NUM_LT_COLS..(i + 1) * NUM_LT_COLS].borrow_mut();
-            cols.nonce = F::from_canonical_usize(i);
-        }
-
-        trace
+        RowMajorMatrix::new(values, NUM_LT_COLS)
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
@@ -148,7 +140,7 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
             .lt_events
             .par_chunks(chunk_size)
             .map(|events| {
-                let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
+                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
                 events.iter().for_each(|event| {
                     let mut row = [F::zero(); NUM_LT_COLS];
                     let cols: &mut LtCols<F> = row.as_mut_slice().borrow_mut();
@@ -158,7 +150,7 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
             })
             .collect::<Vec<_>>();
 
-        output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
+        output.add_byte_lookup_events_from_maps(blu_batches.iter().collect_vec());
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -167,6 +159,10 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
         } else {
             !shard.lt_events.is_empty()
         }
+    }
+
+    fn local_only(&self) -> bool {
+        true
     }
 }
 
@@ -182,10 +178,12 @@ impl LtChip {
         let b = event.b.to_le_bytes();
         let c = event.c.to_le_bytes();
 
-        cols.shard = F::from_canonical_u32(event.shard);
-        cols.a = Word(a.map(F::from_canonical_u8));
+        cols.pc = F::from_canonical_u32(event.pc);
+
+        cols.a = F::from_canonical_u8(a[0]);
         cols.b = Word(b.map(F::from_canonical_u8));
         cols.c = Word(c.map(F::from_canonical_u8));
+        cols.op_a_not_0 = F::from_bool(!event.op_a_0);
 
         // If this is SLT, mask the MSB of b & c before computing cols.bits.
         let masked_b = b[3] & 0x7f;
@@ -195,7 +193,6 @@ impl LtChip {
 
         // Send the masked interaction.
         blu.add_byte_lookup_event(ByteLookupEvent {
-            shard: event.shard,
             opcode: ByteOpcode::AND,
             a1: masked_b as u16,
             a2: 0,
@@ -203,7 +200,6 @@ impl LtChip {
             c: 0x7f,
         });
         blu.add_byte_lookup_event(ByteLookupEvent {
-            shard: event.shard,
             opcode: ByteOpcode::AND,
             a1: masked_c as u16,
             a2: 0,
@@ -249,10 +245,9 @@ impl LtChip {
         cols.bit_b = cols.msb_b * cols.is_slt;
         cols.bit_c = cols.msb_c * cols.is_slt;
 
-        assert_eq!(cols.a[0], cols.bit_b * (F::one() - cols.bit_c) + cols.is_sign_eq * cols.sltu);
+        assert_eq!(cols.a, cols.bit_b * (F::one() - cols.bit_c) + cols.is_sign_eq * cols.sltu);
 
         blu.add_byte_lookup_event(ByteLookupEvent {
-            shard: event.shard,
             opcode: ByteOpcode::LTU,
             a1: cols.sltu.as_canonical_u32() as u16,
             a2: 0,
@@ -276,12 +271,6 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &LtCols<AB::Var> = (*local).borrow();
-        let next = main.row_slice(1);
-        let next: &LtCols<AB::Var> = (*next).borrow();
-
-        // Constrain the incrementing nonce.
-        builder.when_first_row().assert_zero(local.nonce);
-        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         let is_real = local.is_slt + local.is_sltu;
 
@@ -350,14 +339,11 @@ where
         // Assert the final result `a` is correct.
 
         // Check that `a[0]` is set correctly.
-        builder.assert_eq(
-            local.a[0],
+        // This check is done only when `op_a_not_0 == 1`.
+        builder.when(local.op_a_not_0).assert_eq(
+            local.a,
             local.bit_b * (AB::Expr::one() - local.bit_c) + local.is_sign_eq * local.sltu,
         );
-        // Check the 3 most significant bytes of 'a' are zero.
-        builder.assert_zero(local.a[1]);
-        builder.assert_zero(local.a[2]);
-        builder.assert_zero(local.a[3]);
 
         // Verify that the byte equality flags are set correctly, i.e. all are boolean and only
         // at most a single byte flag is set.
@@ -397,10 +383,10 @@ where
         {
             // Once the byte flag was set to one, we turn off the quality check flag.
             // We can do this by calculating the sum of the flags since only `1` is set to `1`.
-            is_inequality_visited += flag.into();
+            is_inequality_visited = is_inequality_visited.clone() + flag.into();
 
-            b_comparison_byte += b_byte.clone() * flag;
-            c_comparison_byte += c_byte.clone() * flag;
+            b_comparison_byte = b_comparison_byte.clone() + b_byte.clone() * flag;
+            c_comparison_byte = c_comparison_byte.clone() + c_byte.clone() * flag;
 
             // If inequality is not visited, assert that the bytes are equal.
             builder
@@ -438,24 +424,42 @@ where
 
         // Constrain the operation flags.
 
+        // SAFETY: All selectors `is_slt`, `is_sltu` are checked to be boolean.
+        // Each "real" row has exactly one selector turned on, as `is_real = is_slt + is_sltu` is boolean.
+        // Therefore, the `opcode` matches the corresponding opcode.
+
         // Check that the operation flags are boolean.
         builder.assert_bool(local.is_slt);
         builder.assert_bool(local.is_sltu);
         // Check that at most one of the operation flags is set.
-        //
-        // *remark*: this is not strictly necessary since it's also covered by the bus multiplicity
-        // but this is included here to make sure the condition is met.
         builder.assert_bool(local.is_slt + local.is_sltu);
 
         // Receive the arguments.
-        builder.receive_alu(
+        // SAFETY: This checks the following.
+        // - `next_pc = pc + 4`
+        // - `num_extra_cycles = 0`
+        // - `op_a_val` is constrained by the chip when `op_a_not_0 == 1`
+        // - `op_a_not_0` is correct, due to the sent `op_a_0` being equal to `1 - op_a_not_0`
+        // - `op_a_immutable = 0`
+        // - `is_memory = 0`
+        // - `is_syscall = 0`
+        // - `is_halt = 0`
+        builder.receive_instruction(
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            local.pc,
+            local.pc + AB::Expr::from_canonical_u32(DEFAULT_PC_INC),
+            AB::Expr::zero(),
             local.is_slt * AB::F::from_canonical_u32(Opcode::SLT as u32)
                 + local.is_sltu * AB::F::from_canonical_u32(Opcode::SLTU as u32),
-            local.a,
+            Word::extend_var::<AB>(local.a),
             local.b,
             local.c,
-            local.shard,
-            local.nonce,
+            AB::Expr::one() - local.op_a_not_0,
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            AB::Expr::zero(),
             is_real,
         );
     }
@@ -464,18 +468,33 @@ where
 #[cfg(test)]
 mod tests {
 
-    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
+    use std::borrow::BorrowMut;
+
+    use crate::{
+        alu::LtCols,
+        io::SP1Stdin,
+        riscv::RiscvAir,
+        utils::{run_malicious_test, uni_stark_prove as prove, uni_stark_verify as verify},
+    };
     use p3_baby_bear::BabyBear;
+    use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
-    use sp1_core_executor::{events::AluEvent, ExecutionRecord, Opcode};
-    use sp1_stark::{air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
+    use rand::{thread_rng, Rng};
+    use sp1_core_executor::{
+        events::{AluEvent, MemoryRecordEnum},
+        ExecutionRecord, Instruction, Opcode, Program,
+    };
+    use sp1_stark::{
+        air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, chip_name, CpuProver,
+        MachineProver, StarkGenericConfig, Val,
+    };
 
     use super::LtChip;
 
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.lt_events = vec![AluEvent::new(0, 0, Opcode::SLT, 0, 3, 2)];
+        shard.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 2, false)];
         let chip = LtChip::default();
         let generate_trace = chip.generate_trace(&shard, &mut ExecutionRecord::default());
         let trace: RowMajorMatrix<BabyBear> = generate_trace;
@@ -503,21 +522,21 @@ mod tests {
         const NEG_4: u32 = 0b11111111111111111111111111111100;
         shard.lt_events = vec![
             // 0 == 3 < 2
-            AluEvent::new(0, 0, Opcode::SLT, 0, 3, 2),
+            AluEvent::new(0, Opcode::SLT, 0, 3, 2, false),
             // 1 == 2 < 3
-            AluEvent::new(0, 1, Opcode::SLT, 1, 2, 3),
+            AluEvent::new(0, Opcode::SLT, 1, 2, 3, false),
             // 0 == 5 < -3
-            AluEvent::new(0, 3, Opcode::SLT, 0, 5, NEG_3),
+            AluEvent::new(0, Opcode::SLT, 0, 5, NEG_3, false),
             // 1 == -3 < 5
-            AluEvent::new(0, 2, Opcode::SLT, 1, NEG_3, 5),
+            AluEvent::new(0, Opcode::SLT, 1, NEG_3, 5, false),
             // 0 == -3 < -4
-            AluEvent::new(0, 4, Opcode::SLT, 0, NEG_3, NEG_4),
+            AluEvent::new(0, Opcode::SLT, 0, NEG_3, NEG_4, false),
             // 1 == -4 < -3
-            AluEvent::new(0, 4, Opcode::SLT, 1, NEG_4, NEG_3),
+            AluEvent::new(0, Opcode::SLT, 1, NEG_4, NEG_3, false),
             // 0 == 3 < 3
-            AluEvent::new(0, 5, Opcode::SLT, 0, 3, 3),
+            AluEvent::new(0, Opcode::SLT, 0, 3, 3, false),
             // 0 == -3 < -3
-            AluEvent::new(0, 5, Opcode::SLT, 0, NEG_3, NEG_3),
+            AluEvent::new(0, Opcode::SLT, 0, NEG_3, NEG_3, false),
         ];
 
         prove_babybear_template(&mut shard);
@@ -530,19 +549,83 @@ mod tests {
         const LARGE: u32 = 0b11111111111111111111111111111101;
         shard.lt_events = vec![
             // 0 == 3 < 2
-            AluEvent::new(0, 0, Opcode::SLTU, 0, 3, 2),
+            AluEvent::new(0, Opcode::SLTU, 0, 3, 2, false),
             // 1 == 2 < 3
-            AluEvent::new(0, 1, Opcode::SLTU, 1, 2, 3),
+            AluEvent::new(0, Opcode::SLTU, 1, 2, 3, false),
             // 0 == LARGE < 5
-            AluEvent::new(0, 2, Opcode::SLTU, 0, LARGE, 5),
+            AluEvent::new(0, Opcode::SLTU, 0, LARGE, 5, false),
             // 1 == 5 < LARGE
-            AluEvent::new(0, 3, Opcode::SLTU, 1, 5, LARGE),
+            AluEvent::new(0, Opcode::SLTU, 1, 5, LARGE, false),
             // 0 == 0 < 0
-            AluEvent::new(0, 5, Opcode::SLTU, 0, 0, 0),
+            AluEvent::new(0, Opcode::SLTU, 0, 0, 0, false),
             // 0 == LARGE < LARGE
-            AluEvent::new(0, 5, Opcode::SLTU, 0, LARGE, LARGE),
+            AluEvent::new(0, Opcode::SLTU, 0, LARGE, LARGE, false),
         ];
 
         prove_babybear_template(&mut shard);
+    }
+
+    #[test]
+    fn test_malicious_lt() {
+        const NUM_TESTS: usize = 5;
+
+        for opcode in [Opcode::SLTU, Opcode::SLT] {
+            for _ in 0..NUM_TESTS {
+                let op_b = thread_rng().gen_range(0..u32::MAX);
+                let op_c = thread_rng().gen_range(0..u32::MAX);
+
+                let correct_op_a = if opcode == Opcode::SLTU {
+                    op_b < op_c
+                } else {
+                    (op_b as i32) < (op_c as i32)
+                };
+
+                let op_a = !correct_op_a;
+
+                let instructions = vec![
+                    Instruction::new(opcode, 5, op_b, op_c, true, true),
+                    Instruction::new(Opcode::ADD, 10, 0, 0, false, false),
+                ];
+
+                let program = Program::new(instructions, 0, 0);
+                let stdin = SP1Stdin::new();
+
+                type P = CpuProver<BabyBearPoseidon2, RiscvAir<BabyBear>>;
+
+                let malicious_trace_pv_generator = move |prover: &P,
+                                                         record: &mut ExecutionRecord|
+                      -> Vec<(
+                    String,
+                    RowMajorMatrix<Val<BabyBearPoseidon2>>,
+                )> {
+                    let mut malicious_record = record.clone();
+                    malicious_record.cpu_events[0].a = op_a as u32;
+                    if let Some(MemoryRecordEnum::Write(mut write_record)) =
+                        malicious_record.cpu_events[0].a_record
+                    {
+                        write_record.value = op_a as u32;
+                    }
+                    let mut traces = prover.generate_traces(&malicious_record);
+
+                    let lt_chip_name = chip_name!(LtChip, BabyBear);
+                    for (chip_name, trace) in traces.iter_mut() {
+                        if *chip_name == lt_chip_name {
+                            let first_row = trace.row_mut(0);
+                            let first_row: &mut LtCols<BabyBear> = first_row.borrow_mut();
+                            first_row.a = BabyBear::from_bool(op_a);
+                        }
+                    }
+
+                    traces
+                };
+
+                let result =
+                    run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
+                let lt_chip_name = chip_name!(LtChip, BabyBear);
+                assert!(
+                    result.is_err() && result.unwrap_err().is_constraints_failing(&lt_chip_name)
+                );
+            }
+        }
     }
 }

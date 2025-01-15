@@ -6,13 +6,11 @@ use std::{
 use enum_map::{EnumArray, EnumMap};
 use hashbrown::HashMap;
 
-use crate::{events::sorted_table_lines, syscalls::SyscallCode, Opcode};
+use crate::{events::generate_execution_report, syscalls::SyscallCode, Opcode};
 
 /// An execution report.
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct ExecutionReport {
-    /// The event counts.
-    pub event_counts: Box<EnumMap<Opcode, u64>>,
     /// The opcode counts.
     pub opcode_counts: Box<EnumMap<Opcode, u64>>,
     /// The syscall counts.
@@ -68,12 +66,12 @@ impl Add for ExecutionReport {
 impl Display for ExecutionReport {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         writeln!(f, "opcode counts ({} total instructions):", self.total_instruction_count())?;
-        for line in sorted_table_lines(self.opcode_counts.as_ref()) {
+        for line in generate_execution_report(self.opcode_counts.as_ref()) {
             writeln!(f, "  {line}")?;
         }
 
         writeln!(f, "syscall counts ({} total syscall instructions):", self.total_syscall_count())?;
-        for line in sorted_table_lines(self.syscall_counts.as_ref()) {
+        for line in generate_execution_report(self.syscall_counts.as_ref()) {
             writeln!(f, "  {line}")?;
         }
 

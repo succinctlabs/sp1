@@ -3,8 +3,7 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
-use sha2::Digest;
-use sha2::Sha256;
+use sha2::{Digest, Sha256};
 
 pub fn words_to_bytes_le(words: &[u32; 8]) -> [u8; 32] {
     let mut bytes = [0u8; 32];

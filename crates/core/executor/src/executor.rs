@@ -1,43 +1,98 @@
-use std::{
-    fs::File,
-    io::{BufWriter, Write},
-    sync::Arc,
-};
+#[cfg(feature = "profiling")]
+use std::{fs::File, io::BufWriter};
+use std::{str::FromStr, sync::Arc};
 
+#[cfg(feature = "profiling")]
+use crate::profiler::Profiler;
+use clap::ValueEnum;
+use enum_map::EnumMap;
 use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
-use sp1_stark::SP1CoreOpts;
+use sp1_primitives::consts::BABYBEAR_PRIME;
+use sp1_stark::{air::PublicValues, SP1CoreOpts};
+use strum::IntoEnumIterator;
 use thiserror::Error;
 
 use crate::{
     context::SP1Context,
-    dependencies::{emit_cpu_dependencies, emit_divrem_dependencies},
+    dependencies::{
+        emit_auipc_dependency, emit_branch_dependencies, emit_divrem_dependencies,
+        emit_jump_dependencies, emit_memory_dependencies,
+    },
+    estimate_riscv_lde_size,
     events::{
-        create_alu_lookup_id, create_alu_lookups, AluEvent, CpuEvent, LookupId,
+        AUIPCEvent, AluEvent, BranchEvent, CpuEvent, JumpEvent, MemInstrEvent,
         MemoryAccessPosition, MemoryInitializeFinalizeEvent, MemoryLocalEvent, MemoryReadRecord,
-        MemoryRecord, MemoryWriteRecord, SyscallEvent,
+        MemoryRecord, MemoryRecordEnum, MemoryWriteRecord, SyscallEvent,
+        NUM_LOCAL_MEMORY_ENTRIES_PER_ROW_EXEC,
     },
     hook::{HookEnv, HookRegistry},
-    memory::{Entry, PagedMemory},
+    memory::{Entry, Memory},
+    pad_rv32im_event_counts,
     record::{ExecutionRecord, MemoryAccessRecord},
     report::ExecutionReport,
     state::{ExecutionState, ForkState},
-    subproof::{DefaultSubproofVerifier, SubproofVerifier},
+    subproof::SubproofVerifier,
     syscalls::{default_syscall_map, Syscall, SyscallCode, SyscallContext},
-    Instruction, Opcode, Program, Register,
+    CoreAirId, Instruction, MaximalShapes, Opcode, Program, Register, RiscvAirId,
 };
+
+/// The default increment for the program counter.  Is used for all instructions except
+/// for branches and jumps.
+pub const DEFAULT_PC_INC: u32 = 4;
+/// This is used in the `InstrEvent` to indicate that the instruction is not from the CPU.
+/// A valid pc should be divisible by 4, so we use 1 to indicate that the pc is not used.
+pub const UNUSED_PC: u32 = 1;
+
+/// The maximum number of instructions in a program.
+pub const MAX_PROGRAM_SIZE: usize = 1 << 22;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Whether to verify deferred proofs during execution.
+pub enum DeferredProofVerification {
+    /// Verify deferred proofs during execution.
+    Enabled,
+    /// Skip verification of deferred proofs
+    Disabled,
+}
+
+impl From<bool> for DeferredProofVerification {
+    fn from(value: bool) -> Self {
+        if value {
+            DeferredProofVerification::Enabled
+        } else {
+            DeferredProofVerification::Disabled
+        }
+    }
+}
 
 /// An executor for the SP1 RISC-V zkVM.
 ///
 /// The exeuctor is responsible for executing a user program and tracing important events which
 /// occur during execution (i.e., memory reads, alu operations, etc).
-#[repr(C)]
 pub struct Executor<'a> {
     /// The program.
     pub program: Arc<Program>,
 
+    /// The state of the execution.
+    pub state: ExecutionState,
+
+    /// Memory addresses that were touched in this batch of shards. Used to minimize the size of
+    /// checkpoints.
+    pub memory_checkpoint: Memory<Option<MemoryRecord>>,
+
+    /// Memory addresses that were initialized in this batch of shards. Used to minimize the size of
+    /// checkpoints. The value stored is whether or not it had a value at the beginning of the batch.
+    pub uninitialized_memory_checkpoint: Memory<bool>,
+
+    /// Report of the program execution.
+    pub report: ExecutionReport,
+
     /// The mode the executor is running in.
     pub executor_mode: ExecutorMode,
+
+    /// The memory accesses for the current cycle.
+    pub memory_accesses: MemoryAccessRecord,
 
     /// Whether the runtime is in constrained mode or not.
     ///
@@ -48,6 +103,10 @@ pub struct Executor<'a> {
 
     /// Whether we should write to the report.
     pub print_report: bool,
+
+    /// Whether we should emit global memory init and finalize events. This can be enabled in
+    /// Checkpoint mode and disabled in Trace mode.
+    pub emit_global_memory_events: bool,
 
     /// The maximum size of each shard.
     pub shard_size: u32,
@@ -64,28 +123,14 @@ pub struct Executor<'a> {
     /// The options for the runtime.
     pub opts: SP1CoreOpts,
 
-    /// Memory addresses that were touched in this batch of shards. Used to minimize the size of
-    /// checkpoints.
-    pub memory_checkpoint: PagedMemory<Option<MemoryRecord>>,
-
-    /// Memory addresses that were initialized in this batch of shards. Used to minimize the size of
-    /// checkpoints. The value stored is whether or not it had a value at the beginning of the batch.
-    pub uninitialized_memory_checkpoint: PagedMemory<bool>,
-
-    /// The memory accesses for the current cycle.
-    pub memory_accesses: MemoryAccessRecord,
-
     /// The maximum number of cpu cycles to use for execution.
     pub max_cycles: Option<u64>,
 
-    /// The state of the execution.
-    pub state: ExecutionState,
-
     /// The current trace of the execution that is being collected.
-    pub record: ExecutionRecord,
+    pub record: Box<ExecutionRecord>,
 
     /// The collected records, split by cpu cycles.
-    pub records: Vec<ExecutionRecord>,
+    pub records: Vec<Box<ExecutionRecord>>,
 
     /// Local memory access events.
     pub local_memory_access: HashMap<u32, MemoryLocalEvent>,
@@ -96,27 +141,48 @@ pub struct Executor<'a> {
     /// A buffer for stdout and stderr IO.
     pub io_buf: HashMap<u32, String>,
 
-    /// A buffer for writing trace events to a file.
-    pub trace_buf: Option<BufWriter<File>>,
+    /// The ZKVM program profiler.
+    ///
+    /// Keeps track of the number of cycles spent in each function.
+    #[cfg(feature = "profiling")]
+    pub profiler: Option<(Profiler, BufWriter<File>)>,
 
     /// The state of the runtime when in unconstrained mode.
-    pub unconstrained_state: ForkState,
+    pub unconstrained_state: Box<ForkState>,
 
-    /// Report of the program execution.
-    pub report: ExecutionReport,
+    /// Statistics for event counts.
+    pub local_counts: LocalCounts,
 
     /// Verifier used to sanity check `verify_sp1_proof` during runtime.
-    pub subproof_verifier: Arc<dyn SubproofVerifier + 'a>,
+    pub subproof_verifier: Option<&'a dyn SubproofVerifier>,
 
     /// Registry of hooks, to be invoked by writing to certain file descriptors.
     pub hook_registry: HookRegistry<'a>,
 
     /// The maximal shapes for the program.
-    pub maximal_shapes: Option<Vec<HashMap<String, usize>>>,
+    pub maximal_shapes: Option<MaximalShapes>,
+
+    /// The costs of the program.
+    pub costs: HashMap<RiscvAirId, u64>,
+
+    /// Skip deferred proof verification.
+    pub deferred_proof_verification: DeferredProofVerification,
+
+    /// The frequency to check the stopping condition.
+    pub shape_check_frequency: u64,
+
+    /// Early exit if the estimate LDE size is too big.
+    pub lde_size_check: bool,
+
+    /// The maximum LDE size to allow.
+    pub lde_size_threshold: u64,
+
+    /// event counts for the current shard.
+    pub event_counts: EnumMap<RiscvAirId, u64>,
 }
 
 /// The different modes the executor can run in.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ValueEnum)]
 pub enum ExecutorMode {
     /// Run the execution with no tracing or checkpointing.
     Simple,
@@ -124,10 +190,23 @@ pub enum ExecutorMode {
     Checkpoint,
     /// Run the execution with full tracing of events.
     Trace,
+    /// Run the execution with full tracing of events and size bounds for shape collection.
+    ShapeCollection,
+}
+
+/// Information about event counts which are relevant for shape fixing.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct LocalCounts {
+    /// The event counts.
+    pub event_counts: Box<EnumMap<Opcode, u64>>,
+    /// The number of syscalls sent globally in the current shard.
+    pub syscalls_sent: usize,
+    /// The number of addresses touched in this shard.
+    pub local_mem: usize,
 }
 
 /// Errors that the [``Executor``] can throw.
-#[derive(Error, Debug, Serialize, Deserialize)]
+#[derive(Error, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ExecutionError {
     /// The execution failed with a non-zero exit code.
     #[error("execution failed with exit code {0}")]
@@ -162,13 +241,6 @@ pub enum ExecutionError {
     EndInUnconstrained(),
 }
 
-macro_rules! assert_valid_memory_access {
-    ($addr:expr, $position:expr) => {
-        #[cfg(not(debug_assertions))]
-        {}
-    };
-}
-
 impl<'a> Executor<'a> {
     /// Create a new [``Executor``] from a program and options.
     #[must_use]
@@ -176,11 +248,53 @@ impl<'a> Executor<'a> {
         Self::with_context(program, opts, SP1Context::default())
     }
 
+    /// Create a new runtime for the program, and setup the profiler if `TRACE_FILE` env var is set
+    /// and the feature flag `profiling` is enabled.
+    #[must_use]
+    pub fn with_context_and_elf(
+        opts: SP1CoreOpts,
+        context: SP1Context<'a>,
+        elf_bytes: &[u8],
+    ) -> Self {
+        let program = Program::from(elf_bytes).expect("Failed to create program from ELF bytes");
+
+        #[cfg(not(feature = "profiling"))]
+        return Self::with_context(program, opts, context);
+
+        #[cfg(feature = "profiling")]
+        {
+            let mut this = Self::with_context(program, opts, context);
+
+            let trace_buf = std::env::var("TRACE_FILE").ok().map(|file| {
+                let file = File::create(file).unwrap();
+                BufWriter::new(file)
+            });
+
+            if let Some(trace_buf) = trace_buf {
+                println!("Profiling enabled");
+
+                let sample_rate = std::env::var("TRACE_SAMPLE_RATE")
+                    .ok()
+                    .and_then(|rate| {
+                        println!("Profiling sample rate: {rate}");
+                        rate.parse::<u32>().ok()
+                    })
+                    .unwrap_or(1);
+
+                this.profiler = Some((
+                    Profiler::new(elf_bytes, sample_rate as u64)
+                        .expect("Failed to create profiler"),
+                    trace_buf,
+                ));
+            }
+
+            this
+        }
+    }
+
     /// Create a new runtime from a program, options, and a context.
     ///
-    /// # Panics
-    ///
-    /// This function may panic if it fails to create the trace file if `TRACE_FILE` is set.
+    /// Note: This function *will not* set up the profiler.
     #[must_use]
     pub fn with_context(program: Program, opts: SP1CoreOpts, context: SP1Context<'a>) -> Self {
         // Create a shared reference to the program.
@@ -189,25 +303,20 @@ impl<'a> Executor<'a> {
         // Create a default record with the program.
         let record = ExecutionRecord::new(program.clone());
 
-        // If `TRACE_FILE`` is set, initialize the trace buffer.
-        let trace_buf = if let Ok(trace_file) = std::env::var("TRACE_FILE") {
-            let file = File::create(trace_file).unwrap();
-            Some(BufWriter::new(file))
-        } else {
-            None
-        };
-
         // Determine the maximum number of cycles for any syscall.
         let syscall_map = default_syscall_map();
         let max_syscall_cycles =
             syscall_map.values().map(|syscall| syscall.num_extra_cycles()).max().unwrap_or(0);
 
-        let subproof_verifier =
-            context.subproof_verifier.unwrap_or_else(|| Arc::new(DefaultSubproofVerifier::new()));
         let hook_registry = context.hook_registry.unwrap_or_default();
 
+        let costs: HashMap<String, usize> =
+            serde_json::from_str(include_str!("./artifacts/rv32im_costs.json")).unwrap();
+        let costs: HashMap<RiscvAirId, usize> =
+            costs.into_iter().map(|(k, v)| (RiscvAirId::from_str(&k).unwrap(), v)).collect();
+
         Self {
-            record,
+            record: Box::new(record),
             records: vec![],
             state: ExecutionState::new(program.pc_start),
             program,
@@ -216,22 +325,31 @@ impl<'a> Executor<'a> {
             shard_batch_size: opts.shard_batch_size as u32,
             cycle_tracker: HashMap::new(),
             io_buf: HashMap::new(),
-            trace_buf,
+            #[cfg(feature = "profiling")]
+            profiler: None,
             unconstrained: false,
-            unconstrained_state: ForkState::default(),
+            unconstrained_state: Box::new(ForkState::default()),
             syscall_map,
             executor_mode: ExecutorMode::Trace,
+            emit_global_memory_events: true,
             max_syscall_cycles,
             report: ExecutionReport::default(),
+            local_counts: LocalCounts::default(),
             print_report: false,
-            subproof_verifier,
+            subproof_verifier: context.subproof_verifier,
             hook_registry,
             opts,
             max_cycles: context.max_cycles,
-            memory_checkpoint: PagedMemory::new_preallocated(),
-            uninitialized_memory_checkpoint: PagedMemory::new_preallocated(),
+            deferred_proof_verification: context.deferred_proof_verification.into(),
+            memory_checkpoint: Memory::default(),
+            uninitialized_memory_checkpoint: Memory::default(),
             local_memory_access: HashMap::new(),
             maximal_shapes: None,
+            costs: costs.into_iter().map(|(k, v)| (k, v as u64)).collect(),
+            shape_check_frequency: 16,
+            lde_size_check: false,
+            lde_size_threshold: 0,
+            event_counts: EnumMap::default(),
         }
     }
 
@@ -269,8 +387,7 @@ impl<'a> Executor<'a> {
     pub fn registers(&mut self) -> [u32; 32] {
         let mut registers = [0; 32];
         for i in 0..32 {
-            let addr = Register::from_u32(i as u32) as u32;
-            let record = self.state.memory.get(addr);
+            let record = self.state.memory.registers.get(i);
 
             // Only add the previous memory state to checkpoint map if we're in checkpoint mode,
             // or if we're in unconstrained mode. In unconstrained mode, the mode is always
@@ -278,15 +395,15 @@ impl<'a> Executor<'a> {
             if self.executor_mode == ExecutorMode::Checkpoint || self.unconstrained {
                 match record {
                     Some(record) => {
-                        self.memory_checkpoint.entry(addr).or_insert_with(|| Some(*record));
+                        self.memory_checkpoint.registers.entry(i).or_insert_with(|| Some(*record));
                     }
                     None => {
-                        self.memory_checkpoint.entry(addr).or_insert(None);
+                        self.memory_checkpoint.registers.entry(i).or_insert(None);
                     }
                 }
             }
 
-            registers[i] = match record {
+            registers[i as usize] = match record {
                 Some(record) => record.value,
                 None => 0,
             };
@@ -298,19 +415,18 @@ impl<'a> Executor<'a> {
     #[must_use]
     pub fn register(&mut self, register: Register) -> u32 {
         let addr = register as u32;
-        let record = self.state.memory.get(addr);
+        let record = self.state.memory.registers.get(addr);
 
         if self.executor_mode == ExecutorMode::Checkpoint || self.unconstrained {
             match record {
                 Some(record) => {
-                    self.memory_checkpoint.entry(addr).or_insert_with(|| Some(*record));
+                    self.memory_checkpoint.registers.entry(addr).or_insert_with(|| Some(*record));
                 }
                 None => {
-                    self.memory_checkpoint.entry(addr).or_insert(None);
+                    self.memory_checkpoint.registers.entry(addr).or_insert(None);
                 }
             }
         }
-
         match record {
             Some(record) => record.value,
             None => 0,
@@ -318,18 +434,20 @@ impl<'a> Executor<'a> {
     }
 
     /// Get the current value of a word.
+    ///
+    /// Assumes `addr` is a valid memory address, not a register.
     #[must_use]
     pub fn word(&mut self, addr: u32) -> u32 {
         #[allow(clippy::single_match_else)]
-        let record = self.state.memory.get(addr);
+        let record = self.state.memory.page_table.get(addr);
 
         if self.executor_mode == ExecutorMode::Checkpoint || self.unconstrained {
             match record {
                 Some(record) => {
-                    self.memory_checkpoint.entry(addr).or_insert_with(|| Some(*record));
+                    self.memory_checkpoint.page_table.entry(addr).or_insert_with(|| Some(*record));
                 }
                 None => {
-                    self.memory_checkpoint.entry(addr).or_insert(None);
+                    self.memory_checkpoint.page_table.entry(addr).or_insert(None);
                 }
             }
         }
@@ -341,6 +459,8 @@ impl<'a> Executor<'a> {
     }
 
     /// Get the current value of a byte.
+    ///
+    /// Assumes `addr` is a valid memory address, not a register.
     #[must_use]
     pub fn byte(&mut self, addr: u32) -> u8 {
         let word = self.word(addr - addr % 4);
@@ -368,16 +488,22 @@ impl<'a> Executor<'a> {
         timestamp: u32,
         local_memory_access: Option<&mut HashMap<u32, MemoryLocalEvent>>,
     ) -> MemoryReadRecord {
+        // Check that the memory address is within the babybear field and not within the registers'
+        // address space.  Also check that the address is aligned.
+        if addr % 4 != 0 || addr <= Register::X31 as u32 || addr >= BABYBEAR_PRIME {
+            panic!("Invalid memory access: addr={addr}");
+        }
+
         // Get the memory record entry.
-        let entry = self.state.memory.entry(addr);
+        let entry = self.state.memory.page_table.entry(addr);
         if self.executor_mode == ExecutorMode::Checkpoint || self.unconstrained {
             match entry {
                 Entry::Occupied(ref entry) => {
                     let record = entry.get();
-                    self.memory_checkpoint.entry(addr).or_insert_with(|| Some(*record));
+                    self.memory_checkpoint.page_table.entry(addr).or_insert_with(|| Some(*record));
                 }
                 Entry::Vacant(_) => {
-                    self.memory_checkpoint.entry(addr).or_insert(None);
+                    self.memory_checkpoint.page_table.entry(addr).or_insert(None);
                 }
             }
         }
@@ -397,17 +523,30 @@ impl<'a> Executor<'a> {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
                 // If addr has a specific value to be initialized with, use that, otherwise 0.
-                let value = self.state.uninitialized_memory.get(addr).unwrap_or(&0);
-                self.uninitialized_memory_checkpoint.entry(addr).or_insert_with(|| *value != 0);
+                let value = self.state.uninitialized_memory.page_table.get(addr).unwrap_or(&0);
+                self.uninitialized_memory_checkpoint
+                    .page_table
+                    .entry(addr)
+                    .or_insert_with(|| *value != 0);
                 entry.insert(MemoryRecord { value: *value, shard: 0, timestamp: 0 })
             }
         };
+
+        // We update the local memory counter in two cases:
+        //  1. This is the first time the address is touched, this corresponds to the
+        //     condition record.shard != shard.
+        //  2. The address is being accessed in a syscall. In this case, we need to send it. We use
+        //     local_memory_access to detect this. *WARNING*: This means that we are counting
+        //     on the .is_some() condition to be true only in the SyscallContext.
+        if !self.unconstrained && (record.shard != shard || local_memory_access.is_some()) {
+            self.local_counts.local_mem += 1;
+        }
 
         let prev_record = *record;
         record.shard = shard;
         record.timestamp = timestamp;
 
-        if !self.unconstrained {
+        if !self.unconstrained && self.executor_mode == ExecutorMode::Trace {
             let local_memory_access = if let Some(local_memory_access) = local_memory_access {
                 local_memory_access
             } else {
@@ -436,25 +575,21 @@ impl<'a> Executor<'a> {
         )
     }
 
-    /// Write a word to memory and create an access record.
-    pub fn mw(
-        &mut self,
-        addr: u32,
-        value: u32,
-        shard: u32,
-        timestamp: u32,
-        local_memory_access: Option<&mut HashMap<u32, MemoryLocalEvent>>,
-    ) -> MemoryWriteRecord {
+    /// Read a register and return its value.
+    ///
+    /// Assumes that the executor mode IS NOT [`ExecutorMode::Trace`]
+    pub fn rr(&mut self, register: Register, shard: u32, timestamp: u32) -> u32 {
         // Get the memory record entry.
-        let entry = self.state.memory.entry(addr);
+        let addr = register as u32;
+        let entry = self.state.memory.registers.entry(addr);
         if self.executor_mode == ExecutorMode::Checkpoint || self.unconstrained {
             match entry {
                 Entry::Occupied(ref entry) => {
                     let record = entry.get();
-                    self.memory_checkpoint.entry(addr).or_insert_with(|| Some(*record));
+                    self.memory_checkpoint.registers.entry(addr).or_insert_with(|| Some(*record));
                 }
                 Entry::Vacant(_) => {
-                    self.memory_checkpoint.entry(addr).or_insert(None);
+                    self.memory_checkpoint.registers.entry(addr).or_insert(None);
                 }
             }
         }
@@ -474,8 +609,238 @@ impl<'a> Executor<'a> {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
                 // If addr has a specific value to be initialized with, use that, otherwise 0.
-                let value = self.state.uninitialized_memory.get(addr).unwrap_or(&0);
-                self.uninitialized_memory_checkpoint.entry(addr).or_insert_with(|| *value != 0);
+                let value = self.state.uninitialized_memory.registers.get(addr).unwrap_or(&0);
+                self.uninitialized_memory_checkpoint
+                    .registers
+                    .entry(addr)
+                    .or_insert_with(|| *value != 0);
+                entry.insert(MemoryRecord { value: *value, shard: 0, timestamp: 0 })
+            }
+        };
+
+        record.shard = shard;
+        record.timestamp = timestamp;
+        record.value
+    }
+
+    /// Read a register and create an access record.
+    ///
+    /// Assumes that self.mode IS [`ExecutorMode::Trace`].
+    pub fn rr_traced(
+        &mut self,
+        register: Register,
+        shard: u32,
+        timestamp: u32,
+        local_memory_access: Option<&mut HashMap<u32, MemoryLocalEvent>>,
+    ) -> MemoryReadRecord {
+        // Get the memory record entry.
+        let addr = register as u32;
+        let entry = self.state.memory.registers.entry(addr);
+        if self.executor_mode == ExecutorMode::Checkpoint || self.unconstrained {
+            match entry {
+                Entry::Occupied(ref entry) => {
+                    let record = entry.get();
+                    self.memory_checkpoint.registers.entry(addr).or_insert_with(|| Some(*record));
+                }
+                Entry::Vacant(_) => {
+                    self.memory_checkpoint.registers.entry(addr).or_insert(None);
+                }
+            }
+        }
+        // If we're in unconstrained mode, we don't want to modify state, so we'll save the
+        // original state if it's the first time modifying it.
+        if self.unconstrained {
+            let record = match entry {
+                Entry::Occupied(ref entry) => Some(entry.get()),
+                Entry::Vacant(_) => None,
+            };
+            self.unconstrained_state.memory_diff.entry(addr).or_insert(record.copied());
+        }
+        // If it's the first time accessing this address, initialize previous values.
+        let record: &mut MemoryRecord = match entry {
+            Entry::Occupied(entry) => entry.into_mut(),
+            Entry::Vacant(entry) => {
+                // If addr has a specific value to be initialized with, use that, otherwise 0.
+                let value = self.state.uninitialized_memory.registers.get(addr).unwrap_or(&0);
+                self.uninitialized_memory_checkpoint
+                    .registers
+                    .entry(addr)
+                    .or_insert_with(|| *value != 0);
+                entry.insert(MemoryRecord { value: *value, shard: 0, timestamp: 0 })
+            }
+        };
+        let prev_record = *record;
+        record.shard = shard;
+        record.timestamp = timestamp;
+        if !self.unconstrained && self.executor_mode == ExecutorMode::Trace {
+            let local_memory_access = if let Some(local_memory_access) = local_memory_access {
+                local_memory_access
+            } else {
+                &mut self.local_memory_access
+            };
+            local_memory_access
+                .entry(addr)
+                .and_modify(|e| {
+                    e.final_mem_access = *record;
+                })
+                .or_insert(MemoryLocalEvent {
+                    addr,
+                    initial_mem_access: prev_record,
+                    final_mem_access: *record,
+                });
+        }
+        // Construct the memory read record.
+        MemoryReadRecord::new(
+            record.value,
+            record.shard,
+            record.timestamp,
+            prev_record.shard,
+            prev_record.timestamp,
+        )
+    }
+    /// Write a word to memory and create an access record.
+    pub fn mw(
+        &mut self,
+        addr: u32,
+        value: u32,
+        shard: u32,
+        timestamp: u32,
+        local_memory_access: Option<&mut HashMap<u32, MemoryLocalEvent>>,
+    ) -> MemoryWriteRecord {
+        // Check that the memory address is within the babybear field and not within the registers'
+        // address space.  Also check that the address is aligned.
+        if addr % 4 != 0 || addr <= Register::X31 as u32 || addr >= BABYBEAR_PRIME {
+            panic!("Invalid memory access: addr={addr}");
+        }
+
+        // Get the memory record entry.
+        let entry = self.state.memory.page_table.entry(addr);
+        if self.executor_mode == ExecutorMode::Checkpoint || self.unconstrained {
+            match entry {
+                Entry::Occupied(ref entry) => {
+                    let record = entry.get();
+                    self.memory_checkpoint.page_table.entry(addr).or_insert_with(|| Some(*record));
+                }
+                Entry::Vacant(_) => {
+                    self.memory_checkpoint.page_table.entry(addr).or_insert(None);
+                }
+            }
+        }
+        // If we're in unconstrained mode, we don't want to modify state, so we'll save the
+        // original state if it's the first time modifying it.
+        if self.unconstrained {
+            let record = match entry {
+                Entry::Occupied(ref entry) => Some(entry.get()),
+                Entry::Vacant(_) => None,
+            };
+            self.unconstrained_state.memory_diff.entry(addr).or_insert(record.copied());
+        }
+        // If it's the first time accessing this address, initialize previous values.
+        let record: &mut MemoryRecord = match entry {
+            Entry::Occupied(entry) => entry.into_mut(),
+            Entry::Vacant(entry) => {
+                // If addr has a specific value to be initialized with, use that, otherwise 0.
+                let value = self.state.uninitialized_memory.page_table.get(addr).unwrap_or(&0);
+                self.uninitialized_memory_checkpoint
+                    .page_table
+                    .entry(addr)
+                    .or_insert_with(|| *value != 0);
+
+                entry.insert(MemoryRecord { value: *value, shard: 0, timestamp: 0 })
+            }
+        };
+
+        // We update the local memory counter in two cases:
+        //  1. This is the first time the address is touched, this corresponds to the
+        //     condition record.shard != shard.
+        //  2. The address is being accessed in a syscall. In this case, we need to send it. We use
+        //     local_memory_access to detect this. *WARNING*: This means that we are counting
+        //     on the .is_some() condition to be true only in the SyscallContext.
+        if !self.unconstrained && (record.shard != shard || local_memory_access.is_some()) {
+            self.local_counts.local_mem += 1;
+        }
+
+        let prev_record = *record;
+        record.value = value;
+        record.shard = shard;
+        record.timestamp = timestamp;
+        if !self.unconstrained && self.executor_mode == ExecutorMode::Trace {
+            let local_memory_access = if let Some(local_memory_access) = local_memory_access {
+                local_memory_access
+            } else {
+                &mut self.local_memory_access
+            };
+
+            local_memory_access
+                .entry(addr)
+                .and_modify(|e| {
+                    e.final_mem_access = *record;
+                })
+                .or_insert(MemoryLocalEvent {
+                    addr,
+                    initial_mem_access: prev_record,
+                    final_mem_access: *record,
+                });
+        }
+
+        // Construct the memory write record.
+        MemoryWriteRecord::new(
+            record.value,
+            record.shard,
+            record.timestamp,
+            prev_record.value,
+            prev_record.shard,
+            prev_record.timestamp,
+        )
+    }
+
+    /// Write a word to a register and create an access record.
+    ///
+    /// Assumes that self.mode IS [`ExecutorMode::Trace`].
+    pub fn rw_traced(
+        &mut self,
+        register: Register,
+        value: u32,
+        shard: u32,
+        timestamp: u32,
+        local_memory_access: Option<&mut HashMap<u32, MemoryLocalEvent>>,
+    ) -> MemoryWriteRecord {
+        let addr = register as u32;
+
+        // Get the memory record entry.
+        let entry = self.state.memory.registers.entry(addr);
+        if self.unconstrained {
+            match entry {
+                Entry::Occupied(ref entry) => {
+                    let record = entry.get();
+                    self.memory_checkpoint.registers.entry(addr).or_insert_with(|| Some(*record));
+                }
+                Entry::Vacant(_) => {
+                    self.memory_checkpoint.registers.entry(addr).or_insert(None);
+                }
+            }
+        }
+
+        // If we're in unconstrained mode, we don't want to modify state, so we'll save the
+        // original state if it's the first time modifying it.
+        if self.unconstrained {
+            let record = match entry {
+                Entry::Occupied(ref entry) => Some(entry.get()),
+                Entry::Vacant(_) => None,
+            };
+            self.unconstrained_state.memory_diff.entry(addr).or_insert(record.copied());
+        }
+
+        // If it's the first time accessing this register, initialize previous values.
+        let record: &mut MemoryRecord = match entry {
+            Entry::Occupied(entry) => entry.into_mut(),
+            Entry::Vacant(entry) => {
+                // If addr has a specific value to be initialized with, use that, otherwise 0.
+                let value = self.state.uninitialized_memory.registers.get(addr).unwrap_or(&0);
+                self.uninitialized_memory_checkpoint
+                    .registers
+                    .entry(addr)
+                    .or_insert_with(|| *value != 0);
 
                 entry.insert(MemoryRecord { value: *value, shard: 0, timestamp: 0 })
             }
@@ -516,24 +881,89 @@ impl<'a> Executor<'a> {
         )
     }
 
-    /// Read from memory, assuming that all addresses are aligned.
-    pub fn mr_cpu(&mut self, addr: u32, position: MemoryAccessPosition) -> u32 {
-        // Assert that the address is aligned.
-        assert_valid_memory_access!(addr, position);
-
-        // Read the address from memory and create a memory read record.
-        let record = self.mr(addr, self.shard(), self.timestamp(&position), None);
-
-        // If we're not in unconstrained mode, record the access for the current cycle.
-        if !self.unconstrained && self.executor_mode == ExecutorMode::Trace {
-            match position {
-                MemoryAccessPosition::A => self.memory_accesses.a = Some(record.into()),
-                MemoryAccessPosition::B => self.memory_accesses.b = Some(record.into()),
-                MemoryAccessPosition::C => self.memory_accesses.c = Some(record.into()),
-                MemoryAccessPosition::Memory => self.memory_accesses.memory = Some(record.into()),
+    /// Write a word to a register and create an access record.
+    ///
+    /// Assumes that the executor mode IS NOT [`ExecutorMode::Trace`].
+    #[inline]
+    pub fn rw(&mut self, register: Register, value: u32, shard: u32, timestamp: u32) {
+        let addr = register as u32;
+        // Get the memory record entry.
+        let entry = self.state.memory.registers.entry(addr);
+        if self.executor_mode == ExecutorMode::Checkpoint || self.unconstrained {
+            match entry {
+                Entry::Occupied(ref entry) => {
+                    let record = entry.get();
+                    self.memory_checkpoint.registers.entry(addr).or_insert_with(|| Some(*record));
+                }
+                Entry::Vacant(_) => {
+                    self.memory_checkpoint.registers.entry(addr).or_insert(None);
+                }
             }
         }
+
+        // If we're in unconstrained mode, we don't want to modify state, so we'll save the
+        // original state if it's the first time modifying it.
+        if self.unconstrained {
+            let record = match entry {
+                Entry::Occupied(ref entry) => Some(entry.get()),
+                Entry::Vacant(_) => None,
+            };
+            self.unconstrained_state.memory_diff.entry(addr).or_insert(record.copied());
+        }
+
+        // If it's the first time accessing this register, initialize previous values.
+        let record: &mut MemoryRecord = match entry {
+            Entry::Occupied(entry) => entry.into_mut(),
+            Entry::Vacant(entry) => {
+                // If addr has a specific value to be initialized with, use that, otherwise 0.
+                let value = self.state.uninitialized_memory.registers.get(addr).unwrap_or(&0);
+                self.uninitialized_memory_checkpoint
+                    .registers
+                    .entry(addr)
+                    .or_insert_with(|| *value != 0);
+
+                entry.insert(MemoryRecord { value: *value, shard: 0, timestamp: 0 })
+            }
+        };
+
+        record.value = value;
+        record.shard = shard;
+        record.timestamp = timestamp;
+    }
+
+    /// Read from memory, assuming that all addresses are aligned.
+    #[inline]
+    pub fn mr_cpu(&mut self, addr: u32) -> u32 {
+        // Read the address from memory and create a memory read record.
+        let record =
+            self.mr(addr, self.shard(), self.timestamp(&MemoryAccessPosition::Memory), None);
+        // If we're not in unconstrained mode, record the access for the current cycle.
+        if self.executor_mode == ExecutorMode::Trace {
+            self.memory_accesses.memory = Some(record.into());
+        }
         record.value
+    }
+
+    /// Read a register.
+    #[inline]
+    pub fn rr_cpu(&mut self, register: Register, position: MemoryAccessPosition) -> u32 {
+        // Read the address from memory and create a memory read record if in trace mode.
+        if self.executor_mode == ExecutorMode::Trace {
+            let record = self.rr_traced(register, self.shard(), self.timestamp(&position), None);
+            if !self.unconstrained {
+                match position {
+                    MemoryAccessPosition::A => self.memory_accesses.a = Some(record.into()),
+                    MemoryAccessPosition::B => self.memory_accesses.b = Some(record.into()),
+                    MemoryAccessPosition::C => self.memory_accesses.c = Some(record.into()),
+                    MemoryAccessPosition::Memory => {
+                        self.memory_accesses.memory = Some(record.into());
+                    }
+                }
+            }
+            record.value
+        } else {
+            self.rr(register, self.shard(), self.timestamp(&position))
+        }
     }
 
     /// Write to memory.
@@ -542,114 +972,106 @@ impl<'a> Executor<'a> {
     ///
     /// This function will panic if the address is not aligned or if the memory accesses are already
     /// initialized.
-    pub fn mw_cpu(&mut self, addr: u32, value: u32, position: MemoryAccessPosition) {
-        // Assert that the address is aligned.
-        assert_valid_memory_access!(addr, position);
-
+    pub fn mw_cpu(&mut self, addr: u32, value: u32) {
         // Read the address from memory and create a memory read record.
-        let record = self.mw(addr, value, self.shard(), self.timestamp(&position), None);
-
+        let record =
+            self.mw(addr, value, self.shard(), self.timestamp(&MemoryAccessPosition::Memory), None);
         // If we're not in unconstrained mode, record the access for the current cycle.
-        if !self.unconstrained && self.executor_mode == ExecutorMode::Trace {
-            match position {
-                MemoryAccessPosition::A => {
-                    assert!(self.memory_accesses.a.is_none());
-                    self.memory_accesses.a = Some(record.into());
-                }
-                MemoryAccessPosition::B => {
-                    assert!(self.memory_accesses.b.is_none());
-                    self.memory_accesses.b = Some(record.into());
-                }
-                MemoryAccessPosition::C => {
-                    assert!(self.memory_accesses.c.is_none());
-                    self.memory_accesses.c = Some(record.into());
-                }
-                MemoryAccessPosition::Memory => {
-                    assert!(self.memory_accesses.memory.is_none());
-                    self.memory_accesses.memory = Some(record.into());
-                }
-            }
+        if self.executor_mode == ExecutorMode::Trace {
+            debug_assert!(self.memory_accesses.memory.is_none());
+            self.memory_accesses.memory = Some(record.into());
         }
     }
 
-    /// Read from a register.
-    pub fn rr(&mut self, register: Register, position: MemoryAccessPosition) -> u32 {
-        self.mr_cpu(register as u32, position)
-    }
-
     /// Write to a register.
-    pub fn rw(&mut self, register: Register, value: u32) {
+    pub fn rw_cpu(&mut self, register: Register, value: u32) {
         // The only time we are writing to a register is when it is in operand A.
+        let position = MemoryAccessPosition::A;
+
         // Register %x0 should always be 0. See 2.6 Load and Store Instruction on
         // P.18 of the RISC-V spec. We always write 0 to %x0.
-        if register == Register::X0 {
-            self.mw_cpu(register as u32, 0, MemoryAccessPosition::A);
+        let value = if register == Register::X0 { 0 } else { value };
+
+        // Read the address from memory and create a memory read record.
+        if self.executor_mode == ExecutorMode::Trace {
+            let record =
+                self.rw_traced(register, value, self.shard(), self.timestamp(&position), None);
+            if !self.unconstrained {
+                // The only time we are writing to a register is when it is in operand A.
+                debug_assert!(self.memory_accesses.a.is_none());
+                self.memory_accesses.a = Some(record.into());
+            }
         } else {
-            self.mw_cpu(register as u32, value, MemoryAccessPosition::A);
+            self.rw(register, value, self.shard(), self.timestamp(&position));
+        }
+    }
+
+    /// Emit events for this cycle.
+    #[allow(clippy::too_many_arguments)]
+    fn emit_events(
+        &mut self,
+        clk: u32,
+        next_pc: u32,
+        instruction: &Instruction,
+        syscall_code: SyscallCode,
+        a: u32,
+        b: u32,
+        c: u32,
+        op_a_0: bool,
+        record: MemoryAccessRecord,
+        exit_code: u32,
+    ) {
+        self.emit_cpu(clk, next_pc, a, b, c, record, exit_code);
+
+        if instruction.is_alu_instruction() {
+            self.emit_alu_event(instruction.opcode, a, b, c, op_a_0);
+        } else if instruction.is_memory_load_instruction()
+            || instruction.is_memory_store_instruction()
+        {
+            self.emit_mem_instr_event(instruction.opcode, a, b, c, op_a_0);
+        } else if instruction.is_branch_instruction() {
+            self.emit_branch_event(instruction.opcode, a, b, c, op_a_0, next_pc);
+        } else if instruction.is_jump_instruction() {
+            self.emit_jump_event(instruction.opcode, a, b, c, op_a_0, next_pc);
+        } else if instruction.is_auipc_instruction() {
+            self.emit_auipc_event(instruction.opcode, a, b, c, op_a_0);
+        } else if instruction.is_ecall_instruction() {
+            self.emit_syscall_event(clk, record.a, op_a_0, syscall_code, b, c, next_pc);
+        } else {
+            unreachable!()
         }
     }
 
     /// Emit a CPU event.
     #[allow(clippy::too_many_arguments)]
+    #[inline]
     fn emit_cpu(
         &mut self,
-        shard: u32,
         clk: u32,
-        pc: u32,
         next_pc: u32,
-        instruction: Instruction,
         a: u32,
         b: u32,
         c: u32,
-        memory_store_value: Option<u32>,
         record: MemoryAccessRecord,
         exit_code: u32,
-        lookup_id: LookupId,
-        syscall_lookup_id: LookupId,
     ) {
-        let cpu_event = CpuEvent {
-            shard,
+        self.record.cpu_events.push(CpuEvent {
             clk,
-            pc,
+            pc: self.state.pc,
             next_pc,
-            instruction,
             a,
             a_record: record.a,
             b,
             b_record: record.b,
             c,
             c_record: record.c,
-            memory: memory_store_value,
-            memory_record: record.memory,
             exit_code,
-            alu_lookup_id: lookup_id,
-            syscall_lookup_id,
-            memory_add_lookup_id: create_alu_lookup_id(),
-            memory_sub_lookup_id: create_alu_lookup_id(),
-            branch_lt_lookup_id: create_alu_lookup_id(),
-            branch_gt_lookup_id: create_alu_lookup_id(),
-            branch_add_lookup_id: create_alu_lookup_id(),
-            jump_jal_lookup_id: create_alu_lookup_id(),
-            jump_jalr_lookup_id: create_alu_lookup_id(),
-            auipc_lookup_id: create_alu_lookup_id(),
-        };
-
-        self.record.cpu_events.push(cpu_event);
-        emit_cpu_dependencies(self, &cpu_event);
+        });
     }
 
     /// Emit an ALU event.
-    fn emit_alu(&mut self, clk: u32, opcode: Opcode, a: u32, b: u32, c: u32, lookup_id: LookupId) {
-        let event = AluEvent {
-            lookup_id,
-            shard: self.shard(),
-            clk,
-            opcode,
-            a,
-            b,
-            c,
-            sub_lookups: create_alu_lookups(),
-        };
+    fn emit_alu_event(&mut self, opcode: Opcode, a: u32, b: u32, c: u32, op_a_0: bool) {
+        let event = AluEvent { pc: self.state.pc, opcode, a, b, c, op_a_0 };
         match opcode {
             Opcode::ADD => {
                 self.record.add_events.push(event);
@@ -676,39 +1098,126 @@ impl<'a> Executor<'a> {
                 self.record.divrem_events.push(event);
                 emit_divrem_dependencies(self, event);
             }
-            _ => {}
+            _ => unreachable!(),
         }
     }
 
+    /// Emit a memory instruction event.
+    #[inline]
+    fn emit_mem_instr_event(&mut self, opcode: Opcode, a: u32, b: u32, c: u32, op_a_0: bool) {
+        let event = MemInstrEvent {
+            shard: self.shard(),
+            clk: self.state.clk,
+            pc: self.state.pc,
+            opcode,
+            a,
+            b,
+            c,
+            op_a_0,
+            mem_access: self.memory_accesses.memory.expect("Must have memory access"),
+        };
+
+        self.record.memory_instr_events.push(event);
+        emit_memory_dependencies(
+            self,
+            event,
+            self.memory_accesses.memory.expect("Must have memory access").current_record(),
+        );
+    }
+
+    /// Emit a branch event.
+    #[inline]
+    fn emit_branch_event(
+        &mut self,
+        opcode: Opcode,
+        a: u32,
+        b: u32,
+        c: u32,
+        op_a_0: bool,
+        next_pc: u32,
+    ) {
+        let event = BranchEvent { pc: self.state.pc, next_pc, opcode, a, b, c, op_a_0 };
+        self.record.branch_events.push(event);
+        emit_branch_dependencies(self, event);
+    }
+
+    /// Emit a jump event.
+    #[inline]
+    fn emit_jump_event(
+        &mut self,
+        opcode: Opcode,
+        a: u32,
+        b: u32,
+        c: u32,
+        op_a_0: bool,
+        next_pc: u32,
+    ) {
+        let event = JumpEvent::new(self.state.pc, next_pc, opcode, a, b, c, op_a_0);
+        self.record.jump_events.push(event);
+        emit_jump_dependencies(self, event);
+    }
+
+    /// Emit an AUIPC event.
+    #[inline]
+    fn emit_auipc_event(&mut self, opcode: Opcode, a: u32, b: u32, c: u32, op_a_0: bool) {
+        let event = AUIPCEvent::new(self.state.pc, opcode, a, b, c, op_a_0);
+        self.record.auipc_events.push(event);
+        emit_auipc_dependency(self, event);
+    }
+
+    /// Create a syscall event.
+    #[allow(clippy::too_many_arguments)]
     #[inline]
     pub(crate) fn syscall_event(
         &self,
         clk: u32,
-        syscall_id: u32,
+        a_record: Option<MemoryRecordEnum>,
+        op_a_0: Option<bool>,
+        syscall_code: SyscallCode,
         arg1: u32,
         arg2: u32,
-        lookup_id: LookupId,
+        next_pc: u32,
     ) -> SyscallEvent {
+        let (write, is_real) = match a_record {
+            Some(MemoryRecordEnum::Write(record)) => (record, true),
+            _ => (MemoryWriteRecord::default(), false),
+        };
+
+        // If op_a_0 is None, then we assume it is not register 0.  Note that this will happen
+        // for syscall events that are created within the precompiles' execute function.  Those events will be
+        // added to precompile tables, which wouldn't use the op_a_0 field.  Note that we can't make
+        // the op_a_0 field an Option<bool> in SyscallEvent because of the cbindgen.
+        let op_a_0 = op_a_0.unwrap_or(false);
+
         SyscallEvent {
             shard: self.shard(),
             clk,
-            syscall_id,
+            pc: self.state.pc,
+            next_pc,
+            a_record: write,
+            a_record_is_real: is_real,
+            op_a_0,
+            syscall_code,
+            syscall_id: syscall_code.syscall_id(),
             arg1,
             arg2,
-            lookup_id,
-            nonce: self.record.nonce_lookup[&lookup_id],
         }
     }
 
-    fn emit_syscall(
+    /// Emit a syscall event.
+    #[allow(clippy::too_many_arguments)]
+    fn emit_syscall_event(
         &mut self,
         clk: u32,
-        syscall_id: u32,
+        a_record: Option<MemoryRecordEnum>,
+        op_a_0: bool,
+        syscall_code: SyscallCode,
         arg1: u32,
         arg2: u32,
-        lookup_id: LookupId,
+        next_pc: u32,
     ) {
-        let syscall_event = self.syscall_event(clk, syscall_id, arg1, arg2, lookup_id);
+        let syscall_event =
+            self.syscall_event(clk, a_record, Some(op_a_0), syscall_code, arg1, arg2, next_pc);
 
         self.record.syscall_events.push(syscall_event);
     }
@@ -717,43 +1226,33 @@ impl<'a> Executor<'a> {
     fn alu_rr(&mut self, instruction: &Instruction) -> (Register, u32, u32) {
         if !instruction.imm_c {
             let (rd, rs1, rs2) = instruction.r_type();
-            let c = self.rr(rs2, MemoryAccessPosition::C);
-            let b = self.rr(rs1, MemoryAccessPosition::B);
+            let c = self.rr_cpu(rs2, MemoryAccessPosition::C);
+            let b = self.rr_cpu(rs1, MemoryAccessPosition::B);
             (rd, b, c)
         } else if !instruction.imm_b && instruction.imm_c {
             let (rd, rs1, imm) = instruction.i_type();
-            let (rd, b, c) = (rd, self.rr(rs1, MemoryAccessPosition::B), imm);
+            let (rd, b, c) = (rd, self.rr_cpu(rs1, MemoryAccessPosition::B), imm);
             (rd, b, c)
         } else {
-            assert!(instruction.imm_b && instruction.imm_c);
+            debug_assert!(instruction.imm_b && instruction.imm_c);
             let (rd, b, c) =
-                (Register::from_u32(instruction.op_a), instruction.op_b, instruction.op_c);
+                (Register::from_u8(instruction.op_a), instruction.op_b, instruction.op_c);
             (rd, b, c)
         }
     }
 
-    /// Set the destination register with the result and emit an ALU event.
-    fn alu_rw(
-        &mut self,
-        instruction: &Instruction,
-        rd: Register,
-        a: u32,
-        b: u32,
-        c: u32,
-        lookup_id: LookupId,
-    ) {
-        self.rw(rd, a);
-        if self.executor_mode == ExecutorMode::Trace {
-            self.emit_alu(self.state.clk, instruction.opcode, a, b, c, lookup_id);
-        }
+    /// Set the destination register with the result.
+    #[inline]
+    fn alu_rw(&mut self, rd: Register, a: u32) {
+        self.rw_cpu(rd, a);
     }
 
     /// Fetch the input operand values for a load instruction.
     fn load_rr(&mut self, instruction: &Instruction) -> (Register, u32, u32, u32, u32) {
         let (rd, rs1, imm) = instruction.i_type();
-        let (b, c) = (self.rr(rs1, MemoryAccessPosition::B), imm);
+        let (b, c) = (self.rr_cpu(rs1, MemoryAccessPosition::B), imm);
         let addr = b.wrapping_add(c);
-        let memory_value = self.mr_cpu(align(addr), MemoryAccessPosition::Memory);
+        let memory_value = self.mr_cpu(align(addr));
         (rd, b, c, addr, memory_value)
     }
 
@@ -761,8 +1260,8 @@ impl<'a> Executor<'a> {
     fn store_rr(&mut self, instruction: &Instruction) -> (u32, u32, u32, u32, u32) {
         let (rs1, rs2, imm) = instruction.s_type();
         let c = imm;
-        let b = self.rr(rs2, MemoryAccessPosition::B);
-        let a = self.rr(rs1, MemoryAccessPosition::A);
+        let b = self.rr_cpu(rs2, MemoryAccessPosition::B);
+        let a = self.rr_cpu(rs1, MemoryAccessPosition::A);
         let addr = b.wrapping_add(c);
         let memory_value = self.word(align(addr));
         (a, b, c, addr, memory_value)
@@ -772,427 +1271,101 @@ impl<'a> Executor<'a> {
     fn branch_rr(&mut self, instruction: &Instruction) -> (u32, u32, u32) {
         let (rs1, rs2, imm) = instruction.b_type();
         let c = imm;
-        let b = self.rr(rs2, MemoryAccessPosition::B);
-        let a = self.rr(rs1, MemoryAccessPosition::A);
+        let b = self.rr_cpu(rs2, MemoryAccessPosition::B);
+        let a = self.rr_cpu(rs1, MemoryAccessPosition::A);
         (a, b, c)
     }
 
     /// Fetch the instruction at the current program counter.
     #[inline]
     fn fetch(&self) -> Instruction {
-        let idx = ((self.state.pc - self.program.pc_base) / 4) as usize;
-        self.program.instructions[idx]
+        *self.program.fetch(self.state.pc)
     }
 
     /// Execute the given instruction over the current state of the runtime.
     #[allow(clippy::too_many_lines)]
     fn execute_instruction(&mut self, instruction: &Instruction) -> Result<(), ExecutionError> {
-        let mut pc = self.state.pc;
+        // The `clk` variable contains the cycle before the current instruction is executed.  The
+        // `state.clk` can be updated before the end of this function by precompiles' execution.
         let mut clk = self.state.clk;
         let mut exit_code = 0u32;
-
         let mut next_pc = self.state.pc.wrapping_add(4);
+        // Will be set to a non-default value if the instruction is a syscall.
 
-        let rd: Register;
-        let (a, b, c): (u32, u32, u32);
-        let (addr, memory_read_value): (u32, u32);
-        let mut memory_store_value: Option<u32> = None;
+        let (mut a, b, c): (u32, u32, u32);
 
         if self.executor_mode == ExecutorMode::Trace {
             self.memory_accesses = MemoryAccessRecord::default();
         }
-        let lookup_id = if self.executor_mode == ExecutorMode::Trace {
-            create_alu_lookup_id()
-        } else {
-            LookupId::default()
-        };
-        let syscall_lookup_id = if self.executor_mode == ExecutorMode::Trace {
-            create_alu_lookup_id()
-        } else {
-            LookupId::default()
-        };
+
+        // The syscall id for precompiles.  This is only used/set when opcode == ECALL.
+        let mut syscall = SyscallCode::default();
 
         if !self.unconstrained {
             self.report.opcode_counts[instruction.opcode] += 1;
-            self.report.event_counts[instruction.opcode] += 1;
-            match instruction.opcode {
-                Opcode::LB | Opcode::LH | Opcode::LW | Opcode::LBU | Opcode::LHU => {
-                    self.report.event_counts[Opcode::ADD] += 2;
-                }
-                Opcode::JAL | Opcode::JALR | Opcode::AUIPC => {
-                    self.report.event_counts[Opcode::ADD] += 1;
-                }
-                Opcode::BEQ
-                | Opcode::BNE
-                | Opcode::BLT
-                | Opcode::BGE
-                | Opcode::BLTU
-                | Opcode::BGEU => {
-                    self.report.event_counts[Opcode::ADD] += 1;
-                    self.report.event_counts[Opcode::SLTU] += 2;
-                }
-                Opcode::DIVU | Opcode::REMU | Opcode::DIV | Opcode::REM => {
-                    self.report.event_counts[Opcode::MUL] += 2;
-                    self.report.event_counts[Opcode::ADD] += 2;
-                    self.report.event_counts[Opcode::SLTU] += 1;
-                }
-                _ => {}
-            };
+            self.local_counts.event_counts[instruction.opcode] += 1;
+            if instruction.is_memory_load_instruction() {
+                self.local_counts.event_counts[Opcode::ADD] += 2;
+            } else if instruction.is_jump_instruction() {
+                self.local_counts.event_counts[Opcode::ADD] += 1;
+            } else if instruction.is_branch_instruction() {
+                self.local_counts.event_counts[Opcode::ADD] += 1;
+                self.local_counts.event_counts[Opcode::SLTU] += 2;
+            } else if instruction.is_divrem_instruction() {
+                self.local_counts.event_counts[Opcode::MUL] += 2;
+                self.local_counts.event_counts[Opcode::ADD] += 2;
+                self.local_counts.event_counts[Opcode::SLTU] += 1;
+            }
         }
 
-        match instruction.opcode {
-            // Arithmetic instructions.
-            Opcode::ADD => {
-                (rd, b, c) = self.alu_rr(instruction);
-                a = b.wrapping_add(c);
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
-            }
-            Opcode::SUB => {
-                (rd, b, c) = self.alu_rr(instruction);
-                a = b.wrapping_sub(c);
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
-            }
-            Opcode::XOR => {
-                (rd, b, c) = self.alu_rr(instruction);
-                a = b ^ c;
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
-            }
-            Opcode::OR => {
-                (rd, b, c) = self.alu_rr(instruction);
-                a = b | c;
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
-            }
-            Opcode::AND => {
-                (rd, b, c) = self.alu_rr(instruction);
-                a = b & c;
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
-            }
-            Opcode::SLL => {
-                (rd, b, c) = self.alu_rr(instruction);
-                a = b.wrapping_shl(c);
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
-            }
-            Opcode::SRL => {
-                (rd, b, c) = self.alu_rr(instruction);
-                a = b.wrapping_shr(c);
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
-            }
-            Opcode::SRA => {
-                (rd, b, c) = self.alu_rr(instruction);
-                a = (b as i32).wrapping_shr(c) as u32;
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
-            }
-            Opcode::SLT => {
-                (rd, b, c) = self.alu_rr(instruction);
-                a = if (b as i32) < (c as i32) { 1 } else { 0 };
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
-            }
-            Opcode::SLTU => {
-                (rd, b, c) = self.alu_rr(instruction);
-                a = if b < c { 1 } else { 0 };
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
-            }
-
-            // Load instructions.
-            Opcode::LB => {
-                (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
-                let value = (memory_read_value).to_le_bytes()[(addr % 4) as usize];
-                a = ((value as i8) as i32) as u32;
-                memory_store_value = Some(memory_read_value);
-                self.rw(rd, a);
-            }
-            Opcode::LH => {
-                (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
-                if addr % 2 != 0 {
-                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::LH, addr));
-                }
-                let value = match (addr >> 1) % 2 {
-                    0 => memory_read_value & 0x0000_FFFF,
-                    1 => (memory_read_value & 0xFFFF_0000) >> 16,
-                    _ => unreachable!(),
-                };
-                a = ((value as i16) as i32) as u32;
-                memory_store_value = Some(memory_read_value);
-                self.rw(rd, a);
-            }
-            Opcode::LW => {
-                (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
-                if addr % 4 != 0 {
-                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::LW, addr));
-                }
-                a = memory_read_value;
-                memory_store_value = Some(memory_read_value);
-                self.rw(rd, a);
-            }
-            Opcode::LBU => {
-                (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
-                let value = (memory_read_value).to_le_bytes()[(addr % 4) as usize];
-                a = value as u32;
-                memory_store_value = Some(memory_read_value);
-                self.rw(rd, a);
-            }
-            Opcode::LHU => {
-                (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
-                if addr % 2 != 0 {
-                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::LHU, addr));
-                }
-                let value = match (addr >> 1) % 2 {
-                    0 => memory_read_value & 0x0000_FFFF,
-                    1 => (memory_read_value & 0xFFFF_0000) >> 16,
-                    _ => unreachable!(),
-                };
-                a = (value as u16) as u32;
-                memory_store_value = Some(memory_read_value);
-                self.rw(rd, a);
-            }
-
-            // Store instructions.
-            Opcode::SB => {
-                (a, b, c, addr, memory_read_value) = self.store_rr(instruction);
-                let value = match addr % 4 {
-                    0 => (a & 0x0000_00FF) + (memory_read_value & 0xFFFF_FF00),
-                    1 => ((a & 0x0000_00FF) << 8) + (memory_read_value & 0xFFFF_00FF),
-                    2 => ((a & 0x0000_00FF) << 16) + (memory_read_value & 0xFF00_FFFF),
-                    3 => ((a & 0x0000_00FF) << 24) + (memory_read_value & 0x00FF_FFFF),
-                    _ => unreachable!(),
-                };
-                memory_store_value = Some(value);
-                self.mw_cpu(align(addr), value, MemoryAccessPosition::Memory);
-            }
-            Opcode::SH => {
-                (a, b, c, addr, memory_read_value) = self.store_rr(instruction);
-                if addr % 2 != 0 {
-                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::SH, addr));
-                }
-                let value = match (addr >> 1) % 2 {
-                    0 => (a & 0x0000_FFFF) + (memory_read_value & 0xFFFF_0000),
-                    1 => ((a & 0x0000_FFFF) << 16) + (memory_read_value & 0x0000_FFFF),
-                    _ => unreachable!(),
-                };
-                memory_store_value = Some(value);
-                self.mw_cpu(align(addr), value, MemoryAccessPosition::Memory);
-            }
-            Opcode::SW => {
-                (a, b, c, addr, _) = self.store_rr(instruction);
-                if addr % 4 != 0 {
-                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::SW, addr));
-                }
-                let value = a;
-                memory_store_value = Some(value);
-                self.mw_cpu(align(addr), value, MemoryAccessPosition::Memory);
-            }
-
-            // B-type instructions.
-            Opcode::BEQ => {
-                (a, b, c) = self.branch_rr(instruction);
-                if a == b {
-                    next_pc = self.state.pc.wrapping_add(c);
-                }
-            }
-            Opcode::BNE => {
-                (a, b, c) = self.branch_rr(instruction);
-                if a != b {
-                    next_pc = self.state.pc.wrapping_add(c);
-                }
-            }
-            Opcode::BLT => {
-                (a, b, c) = self.branch_rr(instruction);
-                if (a as i32) < (b as i32) {
-                    next_pc = self.state.pc.wrapping_add(c);
-                }
-            }
-            Opcode::BGE => {
-                (a, b, c) = self.branch_rr(instruction);
-                if (a as i32) >= (b as i32) {
-                    next_pc = self.state.pc.wrapping_add(c);
-                }
-            }
-            Opcode::BLTU => {
-                (a, b, c) = self.branch_rr(instruction);
-                if a < b {
-                    next_pc = self.state.pc.wrapping_add(c);
-                }
-            }
-            Opcode::BGEU => {
-                (a, b, c) = self.branch_rr(instruction);
-                if a >= b {
-                    next_pc = self.state.pc.wrapping_add(c);
-                }
-            }
-
-            // Jump instructions.
-            Opcode::JAL => {
-                let (rd, imm) = instruction.j_type();
-                (b, c) = (imm, 0);
-                a = self.state.pc + 4;
-                self.rw(rd, a);
-                next_pc = self.state.pc.wrapping_add(imm);
-            }
-            Opcode::JALR => {
-                let (rd, rs1, imm) = instruction.i_type();
-                (b, c) = (self.rr(rs1, MemoryAccessPosition::B), imm);
-                a = self.state.pc + 4;
-                self.rw(rd, a);
-                next_pc = b.wrapping_add(c);
-            }
-
-            // Upper immediate instructions.
-            Opcode::AUIPC => {
-                let (rd, imm) = instruction.u_type();
-                (b, c) = (imm, imm);
-                a = self.state.pc.wrapping_add(b);
-                self.rw(rd, a);
-            }
-
-            // System instructions.
-            Opcode::ECALL => {
-                // We peek at register x5 to get the syscall id. The reason we don't `self.rr` this
-                // register is that we write to it later.
-                let t0 = Register::X5;
-                let syscall_id = self.register(t0);
-                c = self.rr(Register::X11, MemoryAccessPosition::C);
-                b = self.rr(Register::X10, MemoryAccessPosition::B);
-                let syscall = SyscallCode::from_u32(syscall_id);
-
-                if self.print_report && !self.unconstrained {
-                    self.report.syscall_counts[syscall] += 1;
-                }
-
-                // `hint_slice` is allowed in unconstrained mode since it is used to write the hint.
-                // Other syscalls are not allowed because they can lead to non-deterministic
-                // behavior, especially since many syscalls modify memory in place,
-                // which is not permitted in unconstrained mode. This will result in
-                // non-zero memory interactions when generating a proof.
-
-                if self.unconstrained
-                    && (syscall != SyscallCode::EXIT_UNCONSTRAINED && syscall != SyscallCode::WRITE)
-                {
-                    return Err(ExecutionError::InvalidSyscallUsage(syscall_id as u64));
-                }
-
-                // Update the syscall counts.
-                let syscall_for_count = syscall.count_map();
-                let syscall_count = self.state.syscall_counts.entry(syscall_for_count).or_insert(0);
-                let (threshold, multiplier) = match syscall_for_count {
-                    SyscallCode::KECCAK_PERMUTE => (self.opts.split_opts.keccak, 24),
-                    SyscallCode::SHA_EXTEND => (self.opts.split_opts.sha_extend, 48),
-                    SyscallCode::SHA_COMPRESS => (self.opts.split_opts.sha_compress, 80),
-                    _ => (self.opts.split_opts.deferred, 1),
-                };
-                let nonce = (((*syscall_count as usize) % threshold) * multiplier) as u32;
-                self.record.nonce_lookup.insert(syscall_lookup_id, nonce);
-                *syscall_count += 1;
-
-                let syscall_impl = self.get_syscall(syscall).cloned();
-                if syscall.should_send() != 0 {
-                    self.emit_syscall(clk, syscall.syscall_id(), b, c, syscall_lookup_id);
-                }
-                let mut precompile_rt = SyscallContext::new(self);
-                precompile_rt.syscall_lookup_id = syscall_lookup_id;
-                let (precompile_next_pc, precompile_cycles, returned_exit_code) =
-                    if let Some(syscall_impl) = syscall_impl {
-                        // Executing a syscall optionally returns a value to write to the t0
-                        // register. If it returns None, we just keep the
-                        // syscall_id in t0.
-                        let res = syscall_impl.execute(&mut precompile_rt, syscall, b, c);
-                        if let Some(val) = res {
-                            a = val;
-                        } else {
-                            a = syscall_id;
-                        }
-
-                        // If the syscall is `HALT` and the exit code is non-zero, return an error.
-                        if syscall == SyscallCode::HALT && precompile_rt.exit_code != 0 {
-                            return Err(ExecutionError::HaltWithNonZeroExitCode(
-                                precompile_rt.exit_code,
-                            ));
-                        }
-
-                        (
-                            precompile_rt.next_pc,
-                            syscall_impl.num_extra_cycles(),
-                            precompile_rt.exit_code,
-                        )
-                    } else {
-                        return Err(ExecutionError::UnsupportedSyscall(syscall_id));
-                    };
-
-                // Allow the syscall impl to modify state.clk/pc (exit unconstrained does this)
-                clk = self.state.clk;
-                pc = self.state.pc;
-
-                self.rw(t0, a);
-                next_pc = precompile_next_pc;
-                self.state.clk += precompile_cycles;
-                exit_code = returned_exit_code;
-            }
-            Opcode::EBREAK => {
-                return Err(ExecutionError::Breakpoint());
-            }
-
-            // Multiply instructions.
-            Opcode::MUL => {
-                (rd, b, c) = self.alu_rr(instruction);
-                a = b.wrapping_mul(c);
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
-            }
-            Opcode::MULH => {
-                (rd, b, c) = self.alu_rr(instruction);
-                a = (((b as i32) as i64).wrapping_mul((c as i32) as i64) >> 32) as u32;
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
-            }
-            Opcode::MULHU => {
-                (rd, b, c) = self.alu_rr(instruction);
-                a = ((b as u64).wrapping_mul(c as u64) >> 32) as u32;
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
-            }
-            Opcode::MULHSU => {
-                (rd, b, c) = self.alu_rr(instruction);
-                a = (((b as i32) as i64).wrapping_mul(c as i64) >> 32) as u32;
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
-            }
-            Opcode::DIV => {
-                (rd, b, c) = self.alu_rr(instruction);
-                if c == 0 {
-                    a = u32::MAX;
-                } else {
-                    a = (b as i32).wrapping_div(c as i32) as u32;
-                }
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
-            }
-            Opcode::DIVU => {
-                (rd, b, c) = self.alu_rr(instruction);
-                if c == 0 {
-                    a = u32::MAX;
-                } else {
-                    a = b.wrapping_div(c);
-                }
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
-            }
-            Opcode::REM => {
-                (rd, b, c) = self.alu_rr(instruction);
-                if c == 0 {
-                    a = b;
-                } else {
-                    a = (b as i32).wrapping_rem(c as i32) as u32;
-                }
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
-            }
-            Opcode::REMU => {
-                (rd, b, c) = self.alu_rr(instruction);
-                if c == 0 {
-                    a = b;
-                } else {
-                    a = b.wrapping_rem(c);
-                }
-                self.alu_rw(instruction, rd, a, b, c, lookup_id);
-            }
-
+        if instruction.is_alu_instruction() {
+            (a, b, c) = self.execute_alu(instruction);
+        } else if instruction.is_memory_load_instruction() {
+            (a, b, c) = self.execute_load(instruction)?;
+        } else if instruction.is_memory_store_instruction() {
+            (a, b, c) = self.execute_store(instruction)?;
+        } else if instruction.is_branch_instruction() {
+            (a, b, c, next_pc) = self.execute_branch(instruction, next_pc);
+        } else if instruction.is_jump_instruction() {
+            (a, b, c, next_pc) = self.execute_jump(instruction);
+        } else if instruction.is_auipc_instruction() {
+            let (rd, imm) = instruction.u_type();
+            (b, c) = (imm, imm);
+            a = self.state.pc.wrapping_add(b);
+            self.rw_cpu(rd, a);
+        } else if instruction.is_ecall_instruction() {
+            (a, b, c, clk, next_pc, syscall, exit_code) = self.execute_ecall()?;
+        } else if instruction.is_ebreak_instruction() {
+            return Err(ExecutionError::Breakpoint());
+        } else if instruction.is_unimp_instruction() {
             // See https://github.com/riscv-non-isa/riscv-asm-manual/blob/master/riscv-asm.md#instruction-aliases
-            Opcode::UNIMP => {
-                return Err(ExecutionError::Unimplemented());
-            }
+            return Err(ExecutionError::Unimplemented());
+        } else {
+            println!("unreachable: {:?}", instruction.opcode);
+            unreachable!()
         }
+
+        // If the destination register is x0, then we need to make sure that a's value is 0.
+        let op_a_0 = instruction.op_a == Register::X0 as u8;
+        if op_a_0 {
+            a = 0;
+        }
+
+        // Emit the events for this cycle.
+        if self.executor_mode == ExecutorMode::Trace {
+            self.emit_events(
+                clk,
+                next_pc,
+                instruction,
+                syscall,
+                a,
+                b,
+                c,
+                op_a_0,
+                self.memory_accesses,
+                exit_code,
+            );
+        };
 
         // Update the program counter.
         self.state.pc = next_pc;
@@ -1200,25 +1373,255 @@ impl<'a> Executor<'a> {
         // Update the clk to the next cycle.
         self.state.clk += 4;
 
-        // Emit the CPU event for this cycle.
-        if self.executor_mode == ExecutorMode::Trace {
-            self.emit_cpu(
-                self.shard(),
-                clk,
-                pc,
-                next_pc,
-                *instruction,
-                a,
-                b,
-                c,
-                memory_store_value,
-                self.memory_accesses,
-                exit_code,
-                lookup_id,
-                syscall_lookup_id,
-            );
-        };
         Ok(())
+    }
+
+    /// Execute an ALU instruction.
+    fn execute_alu(&mut self, instruction: &Instruction) -> (u32, u32, u32) {
+        let (rd, b, c) = self.alu_rr(instruction);
+        let a = match instruction.opcode {
+            Opcode::ADD => b.wrapping_add(c),
+            Opcode::SUB => b.wrapping_sub(c),
+            Opcode::XOR => b ^ c,
+            Opcode::OR => b | c,
+            Opcode::AND => b & c,
+            Opcode::SLL => b.wrapping_shl(c),
+            Opcode::SRL => b.wrapping_shr(c),
+            Opcode::SRA => (b as i32).wrapping_shr(c) as u32,
+            Opcode::SLT => {
+                if (b as i32) < (c as i32) {
+                    1
+                } else {
+                    0
+                }
+            }
+            Opcode::SLTU => {
+                if b < c {
+                    1
+                } else {
+                    0
+                }
+            }
+            Opcode::MUL => b.wrapping_mul(c),
+            Opcode::MULH => (((b as i32) as i64).wrapping_mul((c as i32) as i64) >> 32) as u32,
+            Opcode::MULHU => ((b as u64).wrapping_mul(c as u64) >> 32) as u32,
+            Opcode::MULHSU => (((b as i32) as i64).wrapping_mul(c as i64) >> 32) as u32,
+            Opcode::DIV => {
+                if c == 0 {
+                    u32::MAX
+                } else {
+                    (b as i32).wrapping_div(c as i32) as u32
+                }
+            }
+            Opcode::DIVU => {
+                if c == 0 {
+                    u32::MAX
+                } else {
+                    b.wrapping_div(c)
+                }
+            }
+            Opcode::REM => {
+                if c == 0 {
+                    b
+                } else {
+                    (b as i32).wrapping_rem(c as i32) as u32
+                }
+            }
+            Opcode::REMU => {
+                if c == 0 {
+                    b
+                } else {
+                    b.wrapping_rem(c)
+                }
+            }
+            _ => unreachable!(),
+        };
+        self.alu_rw(rd, a);
+        (a, b, c)
+    }
+
+    /// Execute a load instruction.
+    fn execute_load(
+        &mut self,
+        instruction: &Instruction,
+    ) -> Result<(u32, u32, u32), ExecutionError> {
+        let (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
+
+        let a = match instruction.opcode {
+            Opcode::LB => ((memory_read_value >> ((addr % 4) * 8)) & 0xFF) as i8 as i32 as u32,
+            Opcode::LH => {
+                if addr % 2 != 0 {
+                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::LH, addr));
+                }
+                ((memory_read_value >> (((addr / 2) % 2) * 16)) & 0xFFFF) as i16 as i32 as u32
+            }
+            Opcode::LW => {
+                if addr % 4 != 0 {
+                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::LW, addr));
+                }
+                memory_read_value
+            }
+            Opcode::LBU => (memory_read_value >> ((addr % 4) * 8)) & 0xFF,
+            Opcode::LHU => {
+                if addr % 2 != 0 {
+                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::LHU, addr));
+                }
+                (memory_read_value >> (((addr / 2) % 2) * 16)) & 0xFFFF
+            }
+            _ => unreachable!(),
+        };
+        self.rw_cpu(rd, a);
+        Ok((a, b, c))
+    }
+
+    /// Execute a store instruction.
+    fn execute_store(
+        &mut self,
+        instruction: &Instruction,
+    ) -> Result<(u32, u32, u32), ExecutionError> {
+        let (a, b, c, addr, memory_read_value) = self.store_rr(instruction);
+
+        let memory_store_value = match instruction.opcode {
+            Opcode::SB => {
+                let shift = (addr % 4) * 8;
+                ((a & 0xFF) << shift) | (memory_read_value & !(0xFF << shift))
+            }
+            Opcode::SH => {
+                if addr % 2 != 0 {
+                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::SH, addr));
+                }
+                let shift = ((addr / 2) % 2) * 16;
+                ((a & 0xFFFF) << shift) | (memory_read_value & !(0xFFFF << shift))
+            }
+            Opcode::SW => {
+                if addr % 4 != 0 {
+                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::SW, addr));
+                }
+                a
+            }
+            _ => unreachable!(),
+        };
+        self.mw_cpu(align(addr), memory_store_value);
+        Ok((a, b, c))
+    }
+
+    /// Execute a branch instruction.
+    fn execute_branch(
+        &mut self,
+        instruction: &Instruction,
+        mut next_pc: u32,
+    ) -> (u32, u32, u32, u32) {
+        let (a, b, c) = self.branch_rr(instruction);
+        let branch = match instruction.opcode {
+            Opcode::BEQ => a == b,
+            Opcode::BNE => a != b,
+            Opcode::BLT => (a as i32) < (b as i32),
+            Opcode::BGE => (a as i32) >= (b as i32),
+            Opcode::BLTU => a < b,
+            Opcode::BGEU => a >= b,
+            _ => {
+                unreachable!()
+            }
+        };
+        if branch {
+            next_pc = self.state.pc.wrapping_add(c);
+        }
+        (a, b, c, next_pc)
+    }
+
+    /// Execute an ecall instruction.
+    #[allow(clippy::type_complexity)]
+    fn execute_ecall(
+        &mut self,
+    ) -> Result<(u32, u32, u32, u32, u32, SyscallCode, u32), ExecutionError> {
+        // We peek at register x5 to get the syscall id. The reason we don't `self.rr` this
+        // register is that we write to it later.
+        let t0 = Register::X5;
+        let syscall_id = self.register(t0);
+        let c = self.rr_cpu(Register::X11, MemoryAccessPosition::C);
+        let b = self.rr_cpu(Register::X10, MemoryAccessPosition::B);
+        let syscall = SyscallCode::from_u32(syscall_id);
+
+        if self.print_report && !self.unconstrained {
+            self.report.syscall_counts[syscall] += 1;
+        }
+
+        // `hint_slice` is allowed in unconstrained mode since it is used to write the hint.
+        // Other syscalls are not allowed because they can lead to non-deterministic
+        // behavior, especially since many syscalls modify memory in place,
+        // which is not permitted in unconstrained mode. This will result in
+        // non-zero memory interactions when generating a proof.
+
+        if self.unconstrained
+            && (syscall != SyscallCode::EXIT_UNCONSTRAINED && syscall != SyscallCode::WRITE)
+        {
+            return Err(ExecutionError::InvalidSyscallUsage(syscall_id as u64));
+        }
+
+        // Update the syscall counts.
+        let syscall_for_count = syscall.count_map();
+        let syscall_count = self.state.syscall_counts.entry(syscall_for_count).or_insert(0);
+        *syscall_count += 1;
+
+        let syscall_impl = self.get_syscall(syscall).cloned();
+        let mut precompile_rt = SyscallContext::new(self);
+        let (a, precompile_next_pc, precompile_cycles, returned_exit_code) =
+            if let Some(syscall_impl) = syscall_impl {
+                // Executing a syscall optionally returns a value to write to the t0
+                // register. If it returns None, we just keep the
+                // syscall_id in t0.
+                let res = syscall_impl.execute(&mut precompile_rt, syscall, b, c);
+                let a = if let Some(val) = res { val } else { syscall_id };
+
+                // If the syscall is `HALT` and the exit code is non-zero, return an error.
+                if syscall == SyscallCode::HALT && precompile_rt.exit_code != 0 {
+                    return Err(ExecutionError::HaltWithNonZeroExitCode(precompile_rt.exit_code));
+                }
+
+                (a, precompile_rt.next_pc, syscall_impl.num_extra_cycles(), precompile_rt.exit_code)
+            } else {
+                return Err(ExecutionError::UnsupportedSyscall(syscall_id));
+            };
+
+        // If the syscall is `EXIT_UNCONSTRAINED`, the memory was restored to pre-unconstrained code
+        // in the execute function, so we need to re-read from x10 and x11.  Just do a peek on the
+        // registers.
+        let (b, c) = if syscall == SyscallCode::EXIT_UNCONSTRAINED {
+            (self.register(Register::X10), self.register(Register::X11))
+        } else {
+            (b, c)
+        };
+
+        // Allow the syscall impl to modify state.clk/pc (exit unconstrained does this)
+        self.rw_cpu(t0, a);
+        let clk = self.state.clk;
+        self.state.clk += precompile_cycles;
+
+        Ok((a, b, c, clk, precompile_next_pc, syscall, returned_exit_code))
+    }
+
+    /// Execute a jump instruction.
+    fn execute_jump(&mut self, instruction: &Instruction) -> (u32, u32, u32, u32) {
+        let (a, b, c, next_pc) = match instruction.opcode {
+            Opcode::JAL => {
+                let (rd, imm) = instruction.j_type();
+                let (b, c) = (imm, 0);
+                let a = self.state.pc + 4;
+                self.rw_cpu(rd, a);
+                let next_pc = self.state.pc.wrapping_add(imm);
+                (a, b, c, next_pc)
+            }
+            Opcode::JALR => {
+                let (rd, rs1, imm) = instruction.i_type();
+                let (b, c) = (self.rr_cpu(rs1, MemoryAccessPosition::B), imm);
+                let a = self.state.pc + 4;
+                self.rw_cpu(rd, a);
+                let next_pc = b.wrapping_add(c);
+                (a, b, c, next_pc)
+            }
+            _ => unreachable!(),
+        };
+        (a, b, c, next_pc)
     }
 
     /// Executes one cycle of the program, returning whether the program has finished.
@@ -1229,7 +1632,6 @@ impl<'a> Executor<'a> {
         let instruction = self.fetch();
 
         // Log the current state of the runtime.
-        #[cfg(debug_assertions)]
         self.log(&instruction);
 
         // Execute the instruction.
@@ -1246,116 +1648,79 @@ impl<'a> Executor<'a> {
             //
             // If we're close to not fitting, early stop the shard to ensure we don't OOM.
             let mut shape_match_found = true;
-            if self.state.global_clk % 16 == 0 {
-                let addsub_count = (self.report.event_counts[Opcode::ADD]
-                    + self.report.event_counts[Opcode::SUB])
-                    as usize;
-                let mul_count = (self.report.event_counts[Opcode::MUL]
-                    + self.report.event_counts[Opcode::MULH]
-                    + self.report.event_counts[Opcode::MULHU]
-                    + self.report.event_counts[Opcode::MULHSU])
-                    as usize;
-                let bitwise_count = (self.report.event_counts[Opcode::XOR]
-                    + self.report.event_counts[Opcode::OR]
-                    + self.report.event_counts[Opcode::AND])
-                    as usize;
-                let shift_left_count = self.report.event_counts[Opcode::SLL] as usize;
-                let shift_right_count = (self.report.event_counts[Opcode::SRL]
-                    + self.report.event_counts[Opcode::SRA])
-                    as usize;
-                let divrem_count = (self.report.event_counts[Opcode::DIV]
-                    + self.report.event_counts[Opcode::DIVU]
-                    + self.report.event_counts[Opcode::REM]
-                    + self.report.event_counts[Opcode::REMU])
-                    as usize;
-                let lt_count = (self.report.event_counts[Opcode::SLT]
-                    + self.report.event_counts[Opcode::SLTU])
-                    as usize;
+            if self.state.global_clk % self.shape_check_frequency == 0 {
+                // Estimate the number of events in the trace.
+                self.estimate_riscv_event_counts(
+                    (self.state.clk >> 2) as u64,
+                    self.local_counts.local_mem as u64,
+                    self.local_counts.syscalls_sent as u64,
+                    *self.local_counts.event_counts,
+                );
 
-                if let Some(maximal_shapes) = &self.maximal_shapes {
+                // Check if the LDE size is too large.
+                if self.lde_size_check {
+                    let padded_event_counts =
+                        pad_rv32im_event_counts(self.event_counts, self.shape_check_frequency);
+                    let padded_lde_size = estimate_riscv_lde_size(padded_event_counts, &self.costs);
+                    if padded_lde_size > self.lde_size_threshold {
+                        tracing::warn!(
+                            "stopping shard early due to lde size: {} gb",
+                            (padded_lde_size as u64) / 1_000_000_000
+                        );
+                        shape_match_found = false;
+                    }
+                }
+                // Check if we're too "close" to a maximal shape.
+                else if let Some(maximal_shapes) = &self.maximal_shapes {
+                    let distance = |threshold: usize, count: usize| {
+                        (count != 0).then(|| threshold - count).unwrap_or(usize::MAX)
+                    };
+
                     shape_match_found = false;
 
                     for shape in maximal_shapes.iter() {
-                        let addsub_threshold = 1 << shape["AddSub"];
-                        if addsub_count > addsub_threshold {
+                        let cpu_threshold = shape[CoreAirId::Cpu];
+                        if self.state.clk > ((1 << cpu_threshold) << 2) {
                             continue;
                         }
-                        let addsub_distance = addsub_threshold - addsub_count;
 
-                        let mul_threshold = 1 << shape["Mul"];
-                        if mul_count > mul_threshold {
+                        let mut l_infinity = usize::MAX;
+                        let mut shape_too_small = false;
+                        for air in CoreAirId::iter() {
+                            if air == CoreAirId::Cpu {
+                                continue;
+                            }
+
+                            let threshold = 1 << shape[air];
+                            let count = self.event_counts[RiscvAirId::from(air)] as usize;
+                            if count > threshold {
+                                shape_too_small = true;
+                                break;
+                            }
+
+                            if distance(threshold, count) < l_infinity {
+                                l_infinity = distance(threshold, count);
+                            }
+                        }
+
+                        if shape_too_small {
                             continue;
                         }
-                        let mul_distance = mul_threshold - mul_count;
 
-                        let bitwise_threshold = 1 << shape["Bitwise"];
-                        if bitwise_count > bitwise_threshold {
-                            continue;
-                        }
-                        let bitwise_distance = bitwise_threshold - bitwise_count;
-
-                        let shift_left_threshold = 1 << shape["ShiftLeft"];
-                        if shift_left_count > shift_left_threshold {
-                            continue;
-                        }
-                        let shift_left_distance = shift_left_threshold - shift_left_count;
-
-                        let shift_right_threshold = 1 << shape["ShiftRight"];
-                        if shift_right_count > shift_right_threshold {
-                            continue;
-                        }
-                        let shift_right_distance = shift_right_threshold - shift_right_count;
-
-                        let divrem_threshold = 1 << shape["DivRem"];
-                        if divrem_count > divrem_threshold {
-                            continue;
-                        }
-                        let divrem_distance = divrem_threshold - divrem_count;
-
-                        let lt_threshold = 1 << shape["Lt"];
-                        if lt_count > lt_threshold {
-                            continue;
-                        }
-                        let lt_distance = lt_threshold - lt_count;
-
-                        let l_infinity = vec![
-                            addsub_distance,
-                            mul_distance,
-                            bitwise_distance,
-                            shift_left_distance,
-                            shift_right_distance,
-                            divrem_distance,
-                            lt_distance,
-                        ]
-                        .into_iter()
-                        .min()
-                        .unwrap();
-
-                        if l_infinity >= 32 {
+                        if l_infinity >= 32 * (self.shape_check_frequency as usize) {
                             shape_match_found = true;
                             break;
                         }
                     }
 
                     if !shape_match_found {
+                        self.record.counts = Some(self.event_counts);
                         log::warn!(
                             "stopping shard early due to no shapes fitting: \
-                            nb_cycles={}, \
-                            addsub_count={}, \
-                            mul_count={}, \
-                            bitwise_count={}, \
-                            shift_left_count={}, \
-                            shift_right_count={}, \
-                            divrem_count={}, \
-                            lt_count={}",
-                            self.state.clk / 4,
-                            log2_ceil_usize(addsub_count),
-                            log2_ceil_usize(mul_count),
-                            log2_ceil_usize(bitwise_count),
-                            log2_ceil_usize(shift_left_count),
-                            log2_ceil_usize(shift_right_count),
-                            log2_ceil_usize(divrem_count),
-                            log2_ceil_usize(lt_count),
+                            clk: {},
+                            clk_usage: {}",
+                            (self.state.clk / 4).next_power_of_two().ilog2(),
+                            ((self.state.clk / 4) as f64).log2(),
                         );
                     }
                 }
@@ -1364,7 +1729,6 @@ impl<'a> Executor<'a> {
             if cpu_exit || !shape_match_found {
                 self.state.current_shard += 1;
                 self.state.clk = 0;
-                self.report.event_counts = Box::default();
                 self.bump_record();
             }
         }
@@ -1388,13 +1752,18 @@ impl<'a> Executor<'a> {
 
     /// Bump the record.
     pub fn bump_record(&mut self) {
+        self.local_counts = LocalCounts::default();
         // Copy all of the existing local memory accesses to the record's local_memory_access vec.
-        for (_, event) in self.local_memory_access.drain() {
-            self.record.cpu_local_memory_access.push(event);
+        if self.executor_mode == ExecutorMode::Trace {
+            for (_, event) in self.local_memory_access.drain() {
+                self.record.cpu_local_memory_access.push(event);
+            }
         }
 
-        let removed_record =
-            std::mem::replace(&mut self.record, ExecutionRecord::new(self.program.clone()));
+        let removed_record = std::mem::replace(
+            &mut self.record,
+            Box::new(ExecutionRecord::new(self.program.clone())),
+        );
         let public_values = removed_record.public_values;
         self.record.public_values = public_values;
         self.records.push(removed_record);
@@ -1406,8 +1775,12 @@ impl<'a> Executor<'a> {
     /// # Errors
     ///
     /// This function will return an error if the program execution fails.
-    pub fn execute_record(&mut self) -> Result<(Vec<ExecutionRecord>, bool), ExecutionError> {
+    pub fn execute_record(
+        &mut self,
+        emit_global_memory_events: bool,
+    ) -> Result<(Vec<Box<ExecutionRecord>>, bool), ExecutionError> {
         self.executor_mode = ExecutorMode::Trace;
+        self.emit_global_memory_events = emit_global_memory_events;
         self.print_report = true;
         let done = self.execute()?;
         Ok((std::mem::take(&mut self.records), done))
@@ -1419,27 +1792,38 @@ impl<'a> Executor<'a> {
     /// # Errors
     ///
     /// This function will return an error if the program execution fails.
-    pub fn execute_state(&mut self) -> Result<(ExecutionState, bool), ExecutionError> {
+    pub fn execute_state(
+        &mut self,
+        emit_global_memory_events: bool,
+    ) -> Result<(ExecutionState, PublicValues<u32, u32>, bool), ExecutionError> {
         self.memory_checkpoint.clear();
         self.executor_mode = ExecutorMode::Checkpoint;
+        self.emit_global_memory_events = emit_global_memory_events;
 
         // Clone self.state without memory and uninitialized_memory in it so it's faster.
         let memory = std::mem::take(&mut self.state.memory);
         let uninitialized_memory = std::mem::take(&mut self.state.uninitialized_memory);
-        let mut checkpoint = tracing::info_span!("clone").in_scope(|| self.state.clone());
+        let mut checkpoint = tracing::debug_span!("clone").in_scope(|| self.state.clone());
         self.state.memory = memory;
         self.state.uninitialized_memory = uninitialized_memory;
 
-        let done = tracing::info_span!("execute").in_scope(|| self.execute())?;
+        let done = tracing::debug_span!("execute").in_scope(|| self.execute())?;
         // Create a checkpoint using `memory_checkpoint`. Just include all memory if `done` since we
         // need it all for MemoryFinalize.
-        tracing::info_span!("create memory checkpoint").in_scope(|| {
-            let memory_checkpoint = std::mem::take(&mut self.memory_checkpoint);
-            let uninitialized_memory_checkpoint =
-                std::mem::take(&mut self.uninitialized_memory_checkpoint);
-            if done {
-                // If we're done, we need to include all memory. But we need to reset any modified
-                // memory to as it was before the execution.
+        let next_pc = self.state.pc;
+        tracing::debug_span!("create memory checkpoint").in_scope(|| {
+            let replacement_memory_checkpoint = Memory::<_>::new_preallocated();
+            let replacement_uninitialized_memory_checkpoint = Memory::<_>::new_preallocated();
+            let memory_checkpoint =
+                std::mem::replace(&mut self.memory_checkpoint, replacement_memory_checkpoint);
+            let uninitialized_memory_checkpoint = std::mem::replace(
+                &mut self.uninitialized_memory_checkpoint,
+                replacement_uninitialized_memory_checkpoint,
+            );
+            if done && !self.emit_global_memory_events {
+                // If it's the last shard, and we're not emitting memory events, we need to include
+                // all memory so that memory events can be emitted from the checkpoint. But we need
+                // to first reset any modified memory to as it was before the execution.
                 checkpoint.memory.clone_from(&self.state.memory);
                 memory_checkpoint.into_iter().for_each(|(addr, record)| {
                     if let Some(record) = record {
@@ -1467,7 +1851,13 @@ impl<'a> Executor<'a> {
                     .collect();
             }
         });
-        Ok((checkpoint, done))
+        let mut public_values = self.records.last().as_ref().unwrap().public_values;
+        public_values.start_pc = next_pc;
+        public_values.next_pc = next_pc;
+        if !done {
+            self.records.clear();
+        }
+        Ok((checkpoint, public_values, done))
     }
 
     fn initialize(&mut self) {
@@ -1488,6 +1878,27 @@ impl<'a> Executor<'a> {
         self.executor_mode = ExecutorMode::Simple;
         self.print_report = true;
         while !self.execute()? {}
+
+        #[cfg(feature = "profiling")]
+        if let Some((profiler, writer)) = self.profiler.take() {
+            profiler.write(writer).expect("Failed to write profile to output file");
+        }
+
+        Ok(())
+    }
+
+    /// Executes the program in checkpoint mode, without emitting the checkpoints.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the program execution fails.
+    pub fn run_checkpoint(
+        &mut self,
+        emit_global_memory_events: bool,
+    ) -> Result<(), ExecutionError> {
+        self.executor_mode = ExecutorMode::Simple;
+        self.print_report = true;
+        while !self.execute_state(emit_global_memory_events)?.2 {}
         Ok(())
     }
 
@@ -1500,6 +1911,12 @@ impl<'a> Executor<'a> {
         self.executor_mode = ExecutorMode::Trace;
         self.print_report = true;
         while !self.execute()? {}
+
+        #[cfg(feature = "profiling")]
+        if let Some((profiler, writer)) = self.profiler.take() {
+            profiler.write(writer).expect("Failed to write profile to output file");
+        }
+
         Ok(())
     }
 
@@ -1593,24 +2010,25 @@ impl<'a> Executor<'a> {
             }
         }
 
-        // Flush trace buf
-        if let Some(ref mut buf) = self.trace_buf {
-            buf.flush().unwrap();
+        // Ensure that all proofs and input bytes were read, otherwise warn the user.
+        if self.state.proof_stream_ptr != self.state.proof_stream.len() {
+            tracing::warn!(
+                "Not all proofs were read. Proving will fail during recursion. Did you pass too
+        many proofs in or forget to call verify_sp1_proof?"
+            );
         }
 
-        // Ensure that all proofs and input bytes were read, otherwise warn the user.
-        // if self.state.proof_stream_ptr != self.state.proof_stream.len() {
-        //     panic!(
-        //         "Not all proofs were read. Proving will fail during recursion. Did you pass too
-        // many proofs in or forget to call verify_sp1_proof?"     );
-        // }
-        if self.state.input_stream_ptr != self.state.input_stream.len() {
+        if !self.state.input_stream.is_empty() {
             tracing::warn!("Not all input bytes were read.");
         }
 
-        if self.executor_mode == ExecutorMode::Trace {
+        if self.emit_global_memory_events
+            && (self.executor_mode == ExecutorMode::Trace
+                || self.executor_mode == ExecutorMode::Checkpoint)
+        {
             // SECTION: Set up all MemoryInitializeFinalizeEvents needed for memory argument.
             let memory_finalize_events = &mut self.record.global_memory_finalize_events;
+            memory_finalize_events.reserve_exact(self.state.memory.page_table.estimate_len() + 32);
 
             // We handle the addr = 0 case separately, as we constrain it to be 0 in the first row
             // of the memory finalize table so it must be first in the array of events.
@@ -1624,6 +2042,8 @@ impl<'a> Executor<'a> {
                 .push(MemoryInitializeFinalizeEvent::finalize_from_record(0, addr_0_final_record));
 
             let memory_initialize_events = &mut self.record.global_memory_initialize_events;
+            memory_initialize_events
+                .reserve_exact(self.state.memory.page_table.estimate_len() + 32);
             let addr_0_initialize_event =
                 MemoryInitializeFinalizeEvent::initialize(0, 0, addr_0_record.is_some());
             memory_initialize_events.push(addr_0_initialize_event);
@@ -1631,12 +2051,30 @@ impl<'a> Executor<'a> {
             // Count the number of touched memory addresses manually, since `PagedMemory` doesn't
             // already know its length.
             self.report.touched_memory_addresses = 0;
-            for addr in self.state.memory.keys() {
-                self.report.touched_memory_addresses += 1;
-                if addr == 0 {
-                    // Handled above.
-                    continue;
+            for addr in 1..32 {
+                let record = self.state.memory.registers.get(addr);
+                if record.is_some() {
+                    self.report.touched_memory_addresses += 1;
+
+                    // Program memory is initialized in the MemoryProgram chip and doesn't require any
+                    // events, so we only send init events for other memory addresses.
+                    if !self.record.program.memory_image.contains_key(&addr) {
+                        let initial_value =
+                            self.state.uninitialized_memory.registers.get(addr).unwrap_or(&0);
+                        memory_initialize_events.push(MemoryInitializeFinalizeEvent::initialize(
+                            addr,
+                            *initial_value,
+                            true,
+                        ));
+                    }
+
+                    let record = *record.unwrap();
+                    memory_finalize_events
+                        .push(MemoryInitializeFinalizeEvent::finalize_from_record(addr, &record));
                 }
+            }
+            for addr in self.state.memory.page_table.keys() {
+                self.report.touched_memory_addresses += 1;
 
                 // Program memory is initialized in the MemoryProgram chip and doesn't require any
                 // events, so we only send init events for other memory addresses.
@@ -1660,13 +2098,103 @@ impl<'a> Executor<'a> {
         self.syscall_map.get(&code)
     }
 
+    /// Maps the opcode counts to the number of events in each air.
+    pub fn estimate_riscv_event_counts(
+        &mut self,
+        cpu_cycles: u64,
+        touched_addresses: u64,
+        syscalls_sent: u64,
+        opcode_counts: EnumMap<Opcode, u64>,
+    ) {
+        // Compute the number of events in the cpu chip.
+        self.event_counts[RiscvAirId::Cpu] = cpu_cycles;
+
+        // Compute the number of events in the add sub chip.
+        self.event_counts[RiscvAirId::AddSub] =
+            opcode_counts[Opcode::ADD] + opcode_counts[Opcode::SUB];
+
+        // Compute the number of events in the mul chip.
+        self.event_counts[RiscvAirId::Mul] = opcode_counts[Opcode::MUL]
+            + opcode_counts[Opcode::MULH]
+            + opcode_counts[Opcode::MULHU]
+            + opcode_counts[Opcode::MULHSU];
+
+        // Compute the number of events in the bitwise chip.
+        self.event_counts[RiscvAirId::Bitwise] =
+            opcode_counts[Opcode::XOR] + opcode_counts[Opcode::OR] + opcode_counts[Opcode::AND];
+
+        // Compute the number of events in the shift left chip.
+        self.event_counts[RiscvAirId::ShiftLeft] = opcode_counts[Opcode::SLL];
+
+        // Compute the number of events in the shift right chip.
+        self.event_counts[RiscvAirId::ShiftRight] =
+            opcode_counts[Opcode::SRL] + opcode_counts[Opcode::SRA];
+
+        // Compute the number of events in the divrem chip.
+        self.event_counts[RiscvAirId::DivRem] = opcode_counts[Opcode::DIV]
+            + opcode_counts[Opcode::DIVU]
+            + opcode_counts[Opcode::REM]
+            + opcode_counts[Opcode::REMU];
+
+        // Compute the number of events in the lt chip.
+        self.event_counts[RiscvAirId::Lt] =
+            opcode_counts[Opcode::SLT] + opcode_counts[Opcode::SLTU];
+
+        // Compute the number of events in the memory local chip.
+        self.event_counts[RiscvAirId::MemoryLocal] =
+            touched_addresses.div_ceil(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW_EXEC as u64);
+
+        // Compute the number of events in the branch chip.
+        self.event_counts[RiscvAirId::Branch] = opcode_counts[Opcode::BEQ]
+            + opcode_counts[Opcode::BNE]
+            + opcode_counts[Opcode::BLT]
+            + opcode_counts[Opcode::BGE]
+            + opcode_counts[Opcode::BLTU]
+            + opcode_counts[Opcode::BGEU];
+
+        // Compute the number of events in the jump chip.
+        self.event_counts[RiscvAirId::Jump] =
+            opcode_counts[Opcode::JAL] + opcode_counts[Opcode::JALR];
+
+        // Compute the number of events in the auipc chip.
+        self.event_counts[RiscvAirId::Auipc] = opcode_counts[Opcode::AUIPC]
+            + opcode_counts[Opcode::UNIMP]
+            + opcode_counts[Opcode::EBREAK];
+
+        // Compute the number of events in the memory instruction chip.
+        self.event_counts[RiscvAirId::MemoryInstrs] = opcode_counts[Opcode::LB]
+            + opcode_counts[Opcode::LH]
+            + opcode_counts[Opcode::LW]
+            + opcode_counts[Opcode::LBU]
+            + opcode_counts[Opcode::LHU]
+            + opcode_counts[Opcode::SB]
+            + opcode_counts[Opcode::SH]
+            + opcode_counts[Opcode::SW];
+
+        // Compute the number of events in the syscall instruction chip.
+        self.event_counts[RiscvAirId::SyscallInstrs] = opcode_counts[Opcode::ECALL];
+
+        // Compute the number of events in the syscall core chip.
+        self.event_counts[RiscvAirId::SyscallCore] = syscalls_sent;
+
+        // Compute the number of events in the global chip.
+        self.event_counts[RiscvAirId::Global] =
+            2 * touched_addresses + self.event_counts[RiscvAirId::SyscallInstrs];
+
+        // Adjust for divrem dependencies.
+        self.event_counts[RiscvAirId::Mul] += self.event_counts[RiscvAirId::DivRem];
+        self.event_counts[RiscvAirId::Lt] += self.event_counts[RiscvAirId::DivRem];
+
+        // Note: we ignore the additional dependencies for addsub, since they are accounted for in
+        // the maximal shapes.
+    }
+
     #[inline]
-    #[cfg(debug_assertions)]
     fn log(&mut self, _: &Instruction) {
-        // Write the current program counter to the trace buffer for the cycle tracer.
-        if let Some(ref mut buf) = self.trace_buf {
+        #[cfg(feature = "profiling")]
+        if let Some((ref mut profiler, _)) = self.profiler {
             if !self.unconstrained {
-                buf.write_all(&u32::to_be_bytes(self.state.pc)).unwrap();
+                profiler.record(self.state.global_clk, self.state.pc as u64);
             }
         }
 
@@ -1682,25 +2210,21 @@ impl Default for ExecutorMode {
     }
 }
 
-// TODO: FIX
 /// Aligns an address to the nearest word below or equal to it.
 #[must_use]
 pub const fn align(addr: u32) -> u32 {
     addr - addr % 4
 }
 
-fn log2_ceil_usize(n: usize) -> usize {
-    (usize::BITS - n.saturating_sub(1).leading_zeros()) as usize
-}
-
 #[cfg(test)]
 mod tests {
 
     use sp1_stark::SP1CoreOpts;
+    use sp1_zkvm::syscalls::SHA_COMPRESS;
 
     use crate::programs::tests::{
-        fibonacci_program, panic_program, simple_memory_program, simple_program,
-        ssz_withdrawals_program,
+        fibonacci_program, panic_program, secp256r1_add_program, secp256r1_double_program,
+        simple_memory_program, simple_program, ssz_withdrawals_program, u256xu2048_mul_program,
     };
 
     use crate::Register;
@@ -1725,6 +2249,27 @@ mod tests {
     #[test]
     fn test_fibonacci_program_run() {
         let program = fibonacci_program();
+        let mut runtime = Executor::new(program, SP1CoreOpts::default());
+        runtime.run().unwrap();
+    }
+
+    #[test]
+    fn test_secp256r1_add_program_run() {
+        let program = secp256r1_add_program();
+        let mut runtime = Executor::new(program, SP1CoreOpts::default());
+        runtime.run().unwrap();
+    }
+
+    #[test]
+    fn test_secp256r1_double_program_run() {
+        let program = secp256r1_double_program();
+        let mut runtime = Executor::new(program, SP1CoreOpts::default());
+        runtime.run().unwrap();
+    }
+
+    #[test]
+    fn test_u256xu2048_mul() {
+        let program = u256xu2048_mul_program();
         let mut runtime = Executor::new(program, SP1CoreOpts::default());
         runtime.run().unwrap();
     }
@@ -2305,5 +2850,46 @@ mod tests {
         // Assert SH cases
         assert_eq!(runtime.register(Register::X12), 0x12346525);
         assert_eq!(runtime.register(Register::X11), 0x65256525);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_invalid_address_access_sw() {
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 20, false, true),
+            Instruction::new(Opcode::SW, 0, 29, 0, false, true),
+        ];
+
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Executor::new(program, SP1CoreOpts::default());
+        runtime.run().unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_invalid_address_access_lw() {
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 29, 0, 20, false, true),
+            Instruction::new(Opcode::LW, 29, 29, 0, false, true),
+        ];
+
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Executor::new(program, SP1CoreOpts::default());
+        runtime.run().unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_invalid_address_syscall() {
+        let instructions = vec![
+            Instruction::new(Opcode::ADD, 5, 0, SHA_COMPRESS, false, true),
+            Instruction::new(Opcode::ADD, 10, 0, 10, false, true),
+            Instruction::new(Opcode::ADD, 11, 10, 20, false, true),
+            Instruction::new(Opcode::ECALL, 5, 10, 11, false, false),
+        ];
+
+        let program = Program::new(instructions, 0, 0);
+        let mut runtime = Executor::new(program, SP1CoreOpts::default());
+        runtime.run().unwrap();
     }
 }

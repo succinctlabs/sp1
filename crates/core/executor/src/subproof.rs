@@ -3,7 +3,6 @@
 use sp1_stark::{
     baby_bear_poseidon2::BabyBearPoseidon2, MachineVerificationError, StarkVerifyingKey,
 };
-use std::sync::atomic::AtomicBool;
 
 use crate::SP1ReduceProof;
 
@@ -22,36 +21,6 @@ pub trait SubproofVerifier: Sync + Send {
         vk_hash: [u32; 8],
         committed_value_digest: [u32; 8],
     ) -> Result<(), MachineVerificationError<BabyBearPoseidon2>>;
-}
-
-/// A dummy verifier which prints a warning on the first proof and does nothing else.
-#[derive(Default)]
-pub struct DefaultSubproofVerifier {
-    printed: AtomicBool,
-}
-
-impl DefaultSubproofVerifier {
-    /// Creates a new [`DefaultSubproofVerifier`].
-    #[must_use]
-    pub fn new() -> Self {
-        Self { printed: AtomicBool::new(false) }
-    }
-}
-
-impl SubproofVerifier for DefaultSubproofVerifier {
-    fn verify_deferred_proof(
-        &self,
-        _proof: &SP1ReduceProof<BabyBearPoseidon2>,
-        _vk: &StarkVerifyingKey<BabyBearPoseidon2>,
-        _vk_hash: [u32; 8],
-        _committed_value_digest: [u32; 8],
-    ) -> Result<(), MachineVerificationError<BabyBearPoseidon2>> {
-        if !self.printed.load(std::sync::atomic::Ordering::SeqCst) {
-            tracing::info!("Not verifying sub proof during runtime");
-            self.printed.store(true, std::sync::atomic::Ordering::SeqCst);
-        }
-        Ok(())
-    }
 }
 
 /// A dummy verifier which does nothing.

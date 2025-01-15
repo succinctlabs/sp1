@@ -7,24 +7,26 @@ use p3_uni_stark::{get_max_constraint_degree, SymbolicAirBuilder};
 use p3_util::log2_ceil_usize;
 
 use crate::{
-    air::{MachineAir, MultiTableAirBuilder, SP1AirBuilder},
+    air::{InteractionScope, MachineAir, MultiTableAirBuilder, SP1AirBuilder},
+    local_permutation_trace_width,
     lookup::{Interaction, InteractionBuilder, InteractionKind},
 };
 
 use super::{
-    eval_permutation_constraints, generate_permutation_trace, get_grouped_maps, PROOF_MAX_NUM_PVS,
+    eval_permutation_constraints, generate_permutation_trace, scoped_interactions,
+    PROOF_MAX_NUM_PVS,
 };
 
 /// An Air that encodes lookups based on interactions.
 pub struct Chip<F: Field, A> {
     /// The underlying AIR of the chip for constraint evaluation.
-    air: A,
+    pub air: A,
     /// The interactions that the chip sends.
-    sends: Vec<Interaction<F>>,
+    pub sends: Vec<Interaction<F>>,
     /// The interactions that the chip receives.
-    receives: Vec<Interaction<F>>,
+    pub receives: Vec<Interaction<F>>,
     /// The relative log degree of the quotient polynomial, i.e. `log2(max_constraint_degree - 1)`.
-    log_quotient_degree: usize,
+    pub log_quotient_degree: usize,
 }
 
 impl<F: Field, A> Chip<F, A> {
@@ -119,13 +121,13 @@ where
         preprocessed: Option<&RowMajorMatrix<F>>,
         main: &RowMajorMatrix<F>,
         random_elements: &[EF],
-    ) -> (RowMajorMatrix<EF>, EF, EF)
+    ) -> (RowMajorMatrix<EF>, EF)
     where
         F: PrimeField,
         A: MachineAir<F>,
     {
         let batch_size = self.logup_batch_size();
-        generate_permutation_trace(
+        generate_permutation_trace::<F, EF>(
             &self.sends,
             &self.receives,
             preprocessed,
@@ -138,16 +140,28 @@ where
     /// Returns the width of the permutation trace.
     #[inline]
     pub fn permutation_width(&self) -> usize {
-        let (_, _, grouped_widths) =
-            get_grouped_maps(self.sends(), self.receives(), self.logup_batch_size());
+        let (scoped_sends, scoped_receives) = scoped_interactions(self.sends(), self.receives());
+        let empty = Vec::new();
+        let local_sends = scoped_sends.get(&InteractionScope::Local).unwrap_or(&empty);
+        let local_receives = scoped_receives.get(&InteractionScope::Local).unwrap_or(&empty);
 
-        grouped_widths.values().sum()
+        local_permutation_trace_width(
+            local_sends.len() + local_receives.len(),
+            self.logup_batch_size(),
+        )
     }
 
     /// Returns the cost of a row in the chip.
     #[inline]
-    pub fn cost(&self) -> u64 {
-        (self.width() + 4 * self.permutation_width()) as u64
+    pub fn cost(&self) -> u64
+    where
+        A: MachineAir<F>,
+    {
+        let preprocessed_cols = self.preprocessed_width();
+        let main_cols = self.width();
+        let permutation_cols = self.permutation_width() * 4;
+        let quotient_cols = self.quotient_width() * 4;
+        (preprocessed_cols + main_cols + permutation_cols + quotient_cols) as u64
     }
 
     /// Returns the width of the quotient polynomial.
@@ -194,8 +208,16 @@ where
         <A as MachineAir<F>>::preprocessed_width(&self.air)
     }
 
+    fn preprocessed_num_rows(&self, program: &Self::Program, instrs_len: usize) -> Option<usize> {
+        <A as MachineAir<F>>::preprocessed_num_rows(&self.air, program, instrs_len)
+    }
+
     fn generate_preprocessed_trace(&self, program: &A::Program) -> Option<RowMajorMatrix<F>> {
         <A as MachineAir<F>>::generate_preprocessed_trace(&self.air, program)
+    }
+
+    fn num_rows(&self, input: &A::Record) -> Option<usize> {
+        <A as MachineAir<F>>::num_rows(&self.air, input)
     }
 
     fn generate_trace(&self, input: &A::Record, output: &mut A::Record) -> RowMajorMatrix<F> {
@@ -213,13 +235,17 @@ where
     fn commit_scope(&self) -> crate::air::InteractionScope {
         self.air.commit_scope()
     }
+
+    fn local_only(&self) -> bool {
+        self.air.local_only()
+    }
 }
 
 // Implement AIR directly on Chip, evaluating both execution and permutation constraints.
 impl<'a, F, A, AB> Air<AB> for Chip<F, A>
 where
     F: Field,
-    A: Air<AB>,
+    A: Air<AB> + MachineAir<F>,
     AB: SP1AirBuilder<F = F> + MultiTableAirBuilder<'a> + PairBuilder + 'a,
 {
     fn eval(&self, builder: &mut AB) {
@@ -227,7 +253,13 @@ where
         self.air.eval(builder);
         // Evaluate permutation constraints.
         let batch_size = self.logup_batch_size();
-        eval_permutation_constraints(&self.sends, &self.receives, batch_size, builder);
+        eval_permutation_constraints(
+            &self.sends,
+            &self.receives,
+            batch_size,
+            self.air.commit_scope(),
+            builder,
+        );
     }
 }
 

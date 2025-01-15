@@ -1,86 +1,18 @@
-use std::{cell::UnsafeCell, iter::Zip, ptr, vec::IntoIter};
+use std::{cell::UnsafeCell, ptr};
 
-use backtrace::Backtrace;
 use p3_field::AbstractField;
-use sp1_core_machine::utils::sp1_debug_mode;
 use sp1_primitives::types::RecursionProgramType;
 
 use super::{
-    Array, Config, DslIr, Ext, ExtHandle, ExtOperations, Felt, FeltHandle, FeltOperations,
-    FromConstant, SymbolicExt, SymbolicFelt, SymbolicUsize, SymbolicVar, Usize, Var, VarHandle,
-    VarOperations, Variable,
+    Array, Config, DslIr, DslIrBlock, Ext, ExtHandle, ExtOperations, Felt, FeltHandle,
+    FeltOperations, FromConstant, SymbolicExt, SymbolicFelt, SymbolicUsize, SymbolicVar, Usize,
+    Var, VarHandle, VarOperations, Variable,
 };
-
-/// TracedVec is a Vec wrapper that records a trace whenever an element is pushed. When extending
-/// from another TracedVec, the traces are copied over.
-#[derive(Debug, Clone)]
-pub struct TracedVec<T> {
-    pub vec: Vec<T>,
-    pub traces: Vec<Option<Backtrace>>,
-}
-
-impl<T> Default for TracedVec<T> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<T> From<Vec<T>> for TracedVec<T> {
-    fn from(vec: Vec<T>) -> Self {
-        let len = vec.len();
-        Self { vec, traces: vec![None; len] }
-    }
-}
-
-impl<T> TracedVec<T> {
-    pub const fn new() -> Self {
-        Self { vec: Vec::new(), traces: Vec::new() }
-    }
-
-    pub fn push(&mut self, value: T) {
-        self.vec.push(value);
-        self.traces.push(None);
-    }
-
-    /// Pushes a value to the vector and records a backtrace if SP1_DEBUG is enabled
-    pub fn trace_push(&mut self, value: T) {
-        self.vec.push(value);
-        if sp1_debug_mode() {
-            self.traces.push(Some(Backtrace::new_unresolved()));
-        } else {
-            self.traces.push(None);
-        }
-    }
-
-    pub fn extend<I: IntoIterator<Item = (T, Option<Backtrace>)>>(&mut self, iter: I) {
-        let iter = iter.into_iter();
-        let len = iter.size_hint().0;
-        self.vec.reserve(len);
-        self.traces.reserve(len);
-        for (value, trace) in iter {
-            self.vec.push(value);
-            self.traces.push(trace);
-        }
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.vec.is_empty()
-    }
-}
-
-impl<T> IntoIterator for TracedVec<T> {
-    type Item = (T, Option<Backtrace>);
-    type IntoIter = Zip<IntoIter<T>, IntoIter<Option<Backtrace>>>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.vec.into_iter().zip(self.traces)
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct InnerBuilder<C: Config> {
     pub(crate) variable_count: u32,
-    pub operations: TracedVec<DslIr<C>>,
+    pub operations: Vec<DslIr<C>>,
 }
 
 /// A builder for the DSL.
@@ -161,26 +93,64 @@ impl<C: Config> Builder<C> {
         builder
     }
 
+    /// Convenience function for creating a new sub builder.
+    pub fn sub_builder(&self) -> Self {
+        Builder::<C>::new_sub_builder(
+            self.variable_count(),
+            self.nb_public_values,
+            self.p2_hash_num,
+            self.debug,
+            self.program_type,
+        )
+    }
+
     /// Pushes an operation to the builder.
+    #[inline(always)]
     pub fn push_op(&mut self, op: DslIr<C>) {
         self.inner.get_mut().operations.push(op);
     }
 
-    pub fn extend_ops(&mut self, ops: impl IntoIterator<Item = (DslIr<C>, Option<Backtrace>)>) {
+    pub fn extend_ops(&mut self, ops: impl IntoIterator<Item = DslIr<C>>) {
         self.inner.get_mut().operations.extend(ops);
     }
 
-    /// Pushes an operation to the builder and records a trace if SP1_DEBUG.
-    pub fn trace_push(&mut self, op: DslIr<C>) {
-        self.inner.get_mut().operations.trace_push(op);
+    #[inline(always)]
+    // Record a trace if the "debug" feature is enabled.
+    pub fn push_backtrace(&mut self) {
+        #[cfg(feature = "debug")]
+        self.push_op(DslIr::DebugBacktrace(backtrace::Backtrace::new_unresolved()));
+    }
+
+    /// Pushes an operation to the builder and records a trace if the "debug" feature is enabled.
+    #[inline(always)]
+    pub fn push_traced_op(&mut self, op: DslIr<C>) {
+        self.push_backtrace();
+        self.push_op(op);
     }
 
     pub fn variable_count(&self) -> u32 {
         unsafe { (*self.inner.get()).variable_count }
     }
 
-    pub fn into_operations(self) -> TracedVec<DslIr<C>> {
+    pub fn set_variable_count(&mut self, variable_count: u32) {
+        self.inner.get_mut().variable_count = variable_count;
+    }
+
+    pub fn into_operations(self) -> Vec<DslIr<C>> {
         self.inner.into_inner().operations
+    }
+
+    pub fn into_root_block(self) -> DslIrBlock<C> {
+        let addrs_written = 0..self.variable_count();
+        DslIrBlock { ops: self.inner.into_inner().operations, addrs_written }
+    }
+
+    /// Get a mutable reference to the list of operations.
+    /// Can be used for adjusting evaluation order using the utility functions from [`std::mem`].
+    ///
+    /// One use case is to move "lazy" evaluation out of a parallel context.
+    pub fn get_mut_operations(&mut self) -> &mut Vec<DslIr<C>> {
+        &mut self.inner.get_mut().operations
     }
 
     /// Creates an uninitialized variable.
@@ -443,7 +413,7 @@ impl<C: Config> Builder<C> {
 
     /// Throws an error.
     pub fn error(&mut self) {
-        self.trace_push(DslIr::Error());
+        self.push_traced_op(DslIr::Error());
     }
 
     /// Materializes a usize into a variable.
@@ -528,7 +498,7 @@ enum IfCondition<N> {
     NeI(Var<N>, N),
 }
 
-impl<'a, C: Config> IfBuilder<'a, C> {
+impl<C: Config> IfBuilder<'_, C> {
     pub fn then(mut self, mut f: impl FnMut(&mut Builder<C>)) {
         // Get the condition reduced from the expressions for lhs and rhs.
         let condition = self.condition();
@@ -684,8 +654,8 @@ impl<'a, C: Config> IfBuilder<'a, C> {
         //         let lhs: Var<C::N> = self.builder.eval(lhs);
         //         IfCondition::NeI(lhs, rhs)
         //     }
-        //     (SymbolicVar::Val(lhs, _), SymbolicVar::Val(rhs, _), true) => IfCondition::Eq(lhs, rhs),
-        //     (SymbolicVar::Val(lhs, _), SymbolicVar::Val(rhs, _), false) => {
+        //     (SymbolicVar::Val(lhs, _), SymbolicVar::Val(rhs, _), true) => IfCondition::Eq(lhs,
+        // rhs),     (SymbolicVar::Val(lhs, _), SymbolicVar::Val(rhs, _), false) => {
         //         IfCondition::Ne(lhs, rhs)
         //     }
         //     (SymbolicVar::Val(lhs, _), rhs, true) => {
@@ -726,7 +696,7 @@ pub struct RangeBuilder<'a, C: Config> {
     builder: &'a mut Builder<C>,
 }
 
-impl<'a, C: Config> RangeBuilder<'a, C> {
+impl<C: Config> RangeBuilder<'_, C> {
     pub const fn step_by(mut self, step_size: usize) -> Self {
         self.step_size = step_size;
         self

@@ -36,12 +36,67 @@ use typenum::Unsigned;
 pub struct FieldOpCols<T, P: FieldParameters> {
     /// The result of `a op b`, where a, b are field elements
     pub result: Limbs<T, P::Limbs>,
-    pub(crate) carry: Limbs<T, P::Limbs>,
+    pub carry: Limbs<T, P::Limbs>,
     pub(crate) witness_low: Limbs<T, P::Witness>,
     pub(crate) witness_high: Limbs<T, P::Witness>,
 }
 
 impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
+    #[allow(clippy::too_many_arguments)]
+    /// Populate result and carry columns from the equation (a*b + c) % modulus
+    pub fn populate_mul_and_carry(
+        &mut self,
+        record: &mut impl ByteRecord,
+        a: &BigUint,
+        b: &BigUint,
+        c: &BigUint,
+        modulus: &BigUint,
+    ) -> (BigUint, BigUint) {
+        let p_a: Polynomial<F> = P::to_limbs_field::<F, _>(a).into();
+        let p_b: Polynomial<F> = P::to_limbs_field::<F, _>(b).into();
+        let p_c: Polynomial<F> = P::to_limbs_field::<F, _>(c).into();
+
+        let mul_add = a * b + c;
+        let result = &mul_add % modulus;
+        let carry = (mul_add - &result) / modulus;
+        debug_assert!(&result < modulus);
+        debug_assert!(&carry < modulus);
+        debug_assert_eq!(&carry * modulus, a * b + c - &result);
+
+        let p_modulus_limbs =
+            modulus.to_bytes_le().iter().map(|x| F::from_canonical_u8(*x)).collect::<Vec<F>>();
+        let p_modulus: Polynomial<F> = p_modulus_limbs.iter().into();
+        let p_result: Polynomial<F> = P::to_limbs_field::<F, _>(&result).into();
+        let p_carry: Polynomial<F> = P::to_limbs_field::<F, _>(&carry).into();
+
+        let p_op = &p_a * &p_b + &p_c;
+        let p_vanishing = &p_op - &p_result - &p_carry * &p_modulus;
+
+        let p_witness = compute_root_quotient_and_shift(
+            &p_vanishing,
+            P::WITNESS_OFFSET,
+            P::NB_BITS_PER_LIMB as u32,
+            P::NB_WITNESS_LIMBS,
+        );
+
+        let (mut p_witness_low, mut p_witness_high) = split_u16_limbs_to_u8_limbs(&p_witness);
+
+        self.result = p_result.into();
+        self.carry = p_carry.into();
+
+        p_witness_low.resize(P::Witness::USIZE, F::zero());
+        p_witness_high.resize(P::Witness::USIZE, F::zero());
+        self.witness_low = Limbs(p_witness_low.try_into().unwrap());
+        self.witness_high = Limbs(p_witness_high.try_into().unwrap());
+
+        record.add_u8_range_checks_field(&self.result.0);
+        record.add_u8_range_checks_field(&self.carry.0);
+        record.add_u8_range_checks_field(&self.witness_low.0);
+        record.add_u8_range_checks_field(&self.witness_high.0);
+
+        (result, carry)
+    }
+
     pub fn populate_carry_and_witness(
         &mut self,
         a: &BigUint,
@@ -106,15 +161,14 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
     pub fn populate_with_modulus(
         &mut self,
         record: &mut impl ByteRecord,
-        shard: u32,
         a: &BigUint,
         b: &BigUint,
         modulus: &BigUint,
         op: FieldOperation,
     ) -> BigUint {
-        if b == &BigUint::zero() && op == FieldOperation::Div {
-            // Division by 0 is allowed only when dividing 0 so that padded rows can be all 0.
-            assert_eq!(*a, BigUint::zero(), "division by zero is allowed only when dividing zero");
+        if op == FieldOperation::Div {
+            assert_ne!(*b, BigUint::zero(), "division by zero is not allowed");
+            assert_ne!(*b, *modulus, "division by zero is not allowed");
         }
 
         let result = match op {
@@ -163,10 +217,10 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
         };
 
         // Range checks
-        record.add_u8_range_checks_field(shard, &self.result.0);
-        record.add_u8_range_checks_field(shard, &self.carry.0);
-        record.add_u8_range_checks_field(shard, &self.witness_low.0);
-        record.add_u8_range_checks_field(shard, &self.witness_high.0);
+        record.add_u8_range_checks_field(&self.result.0);
+        record.add_u8_range_checks_field(&self.carry.0);
+        record.add_u8_range_checks_field(&self.witness_low.0);
+        record.add_u8_range_checks_field(&self.witness_high.0);
 
         result
     }
@@ -176,12 +230,11 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
     pub fn populate(
         &mut self,
         record: &mut impl ByteRecord,
-        shard: u32,
         a: &BigUint,
         b: &BigUint,
         op: FieldOperation,
     ) -> BigUint {
-        self.populate_with_modulus(record, shard, a, b, &P::modulus(), op)
+        self.populate_with_modulus(record, a, b, &P::modulus(), op)
     }
 }
 
@@ -220,6 +273,29 @@ impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
         let p_mul = p_a_param.clone() * p_b.clone();
         let p_div = p_res_param * p_b.clone();
         let p_op = p_add * is_add + p_sub * is_sub + p_mul * is_mul + p_div * is_div;
+
+        self.eval_with_polynomials(builder, p_op, modulus.clone(), p_result, is_real);
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn eval_mul_and_carry<AB: SP1AirBuilder<Var = V>>(
+        &self,
+        builder: &mut AB,
+        a: &(impl Into<Polynomial<AB::Expr>> + Clone),
+        b: &(impl Into<Polynomial<AB::Expr>> + Clone),
+        c: &(impl Into<Polynomial<AB::Expr>> + Clone),
+        modulus: &(impl Into<Polynomial<AB::Expr>> + Clone),
+        is_real: impl Into<AB::Expr> + Clone,
+    ) where
+        V: Into<AB::Expr>,
+        Limbs<V, P::Limbs>: Copy,
+    {
+        let p_a: Polynomial<AB::Expr> = (a).clone().into();
+        let p_b: Polynomial<AB::Expr> = (b).clone().into();
+        let p_c: Polynomial<AB::Expr> = (c).clone().into();
+
+        let p_result: Polynomial<_> = self.result.into();
+        let p_op = p_a * p_b + p_c;
 
         self.eval_with_polynomials(builder, p_op, modulus.clone(), p_result, is_real);
     }
@@ -311,7 +387,8 @@ mod tests {
 
     use super::{FieldOpCols, FieldOperation, Limbs};
 
-    use crate::utils::{pad_to_power_of_two, uni_stark_prove as prove, uni_stark_verify as verify};
+    use crate::utils::pad_to_power_of_two;
+    use crate::utils::uni_stark::{uni_stark_prove, uni_stark_verify};
     use core::borrow::{Borrow, BorrowMut};
     use num::bigint::RandBigInt;
     use p3_air::Air;
@@ -363,7 +440,7 @@ mod tests {
         ) -> RowMajorMatrix<F> {
             let mut rng = thread_rng();
             let num_rows = 1 << 8;
-            let mut operands: Vec<(BigUint, BigUint)> = (0..num_rows - 5)
+            let mut operands: Vec<(BigUint, BigUint)> = (0..num_rows - 4)
                 .map(|_| {
                     let a = rng.gen_biguint(256) % &P::modulus();
                     let b = rng.gen_biguint(256) % &P::modulus();
@@ -371,10 +448,8 @@ mod tests {
                 })
                 .collect();
 
-            // Hardcoded edge cases. We purposely include 0 / 0. While mathematically, that is not
-            // allowed, we allow it in our implementation so padded rows can be all 0.
+            // Hardcoded edge cases.
             operands.extend(vec![
-                (BigUint::from(0u32), BigUint::from(0u32)),
                 (BigUint::from(0u32), BigUint::from(1u32)),
                 (BigUint::from(1u32), BigUint::from(2u32)),
                 (BigUint::from(4u32), BigUint::from(5u32)),
@@ -389,7 +464,7 @@ mod tests {
                     let cols: &mut TestCols<F, P> = row.as_mut_slice().borrow_mut();
                     cols.a = P::to_limbs_field::<F, _>(a);
                     cols.b = P::to_limbs_field::<F, _>(b);
-                    cols.a_op_b.populate(&mut blu_events, 1, a, b, self.operation);
+                    cols.a_op_b.populate(&mut blu_events, a, b, self.operation);
                     output.add_byte_lookup_events(blu_events);
                     row
                 })
@@ -456,10 +531,11 @@ mod tests {
             let shard = ExecutionRecord::default();
             let trace: RowMajorMatrix<BabyBear> =
                 chip.generate_trace(&shard, &mut ExecutionRecord::default());
-            let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
+            let proof =
+                uni_stark_prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
             let mut challenger = config.challenger();
-            verify(&config, &chip, &mut challenger, &proof).unwrap();
+            uni_stark_verify(&config, &chip, &mut challenger, &proof).unwrap();
         }
     }
 }

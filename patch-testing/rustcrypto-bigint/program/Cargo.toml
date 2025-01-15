@@ -1,0 +1,22 @@
+[workspace]
+[package]
+name = "RustCrypto-bigint-test"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "bigint_test_mul_mod_special"
+path = "bin/mul_mod_special.rs"
+
+[[bin]]
+name = "bigint_test_mul_add_residue"
+path = "bin/mul_add_residue.rs"
+
+[dependencies]
+sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
+sp1-lib = { path = "../../../crates/zkvm/lib" }
+num-bigint = "0.4.0"
+crypto-bigint = "0.5.5"
+
+[patch.crates-io]
+crypto-bigint = { git = "https://github.com/sp1-patches/RustCrypto-bigint", tag = "patch-0.5.5-sp1-4.0.0" }

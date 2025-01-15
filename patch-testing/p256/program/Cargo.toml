@@ -1,0 +1,23 @@
+[workspace]
+[package]
+name = "p256_patch_test"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "p256_verify"
+path = "bin/verify.rs"
+
+[[bin]]
+name = "p256_recover"
+path = "bin/recover.rs"
+
+[dependencies]
+sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
+p256 = { version = "0.13.2", default-features = false, features = ["ecdsa", "alloc", "serde"] }
+ecdsa-core = { version = "0.16.9", package = "ecdsa", features = ["verifying"] }
+
+[patch.crates-io]
+ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", tag = "patch-0.16.9-sp1-4.0.0", features = ["verifying"] }
+sp1-lib = { path = "../../../crates/zkvm/lib" }
+

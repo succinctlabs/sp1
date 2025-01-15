@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use cargo_metadata::semver;
 use std::{
     io::{BufRead, BufReader},
     process::{exit, Command, Stdio},
@@ -22,9 +23,14 @@ pub(crate) fn get_program_build_args(args: &BuildArgs) -> Vec<String> {
 
     build_args.push("-Ztrim-paths".to_string());
 
-    if !args.binary.is_empty() {
+    for p in &args.packages {
+        build_args.push("-p".to_string());
+        build_args.push(p.to_string());
+    }
+
+    for b in &args.binaries {
         build_args.push("--bin".to_string());
-        build_args.push(args.binary.clone());
+        build_args.push(b.to_string());
     }
 
     if !args.features.is_empty() {
@@ -44,9 +50,16 @@ pub(crate) fn get_program_build_args(args: &BuildArgs) -> Vec<String> {
 }
 
 /// Rust flags for compilation of C libraries.
-pub(crate) fn get_rust_compiler_flags(args: &BuildArgs) -> String {
+pub(crate) fn get_rust_compiler_flags(args: &BuildArgs, version: &semver::Version) -> String {
+    // Note: as of 1.81.0, the `-C passes=loweratomic` flag is deprecated, because of a change to llvm.
+    let atomic_lower_pass = if version > &semver::Version::new(1, 81, 0) {
+        "passes=lower-atomic"
+    } else {
+        "passes=loweratomic"
+    };
+
     let rust_flags =
-        ["-C", "passes=loweratomic", "-C", "link-arg=-Ttext=0x00200800", "-C", "panic=abort"];
+        ["-C", atomic_lower_pass, "-C", "link-arg=-Ttext=0x00200800", "-C", "panic=abort"];
     let rust_flags: Vec<_> =
         rust_flags.into_iter().chain(args.rustflags.iter().map(String::as_str)).collect();
     rust_flags.join("\x1f")
@@ -87,4 +100,11 @@ pub(crate) fn execute_command(mut command: Command, docker: bool) -> Result<()> 
         exit(result.code().unwrap_or(1))
     }
     Ok(())
+}
+
+pub(crate) fn parse_rustc_version(version: &str) -> semver::Version {
+    let version_string =
+        version.split(" ").nth(1).expect("Can't parse rustc --version stdout").trim();
+
+    semver::Version::parse(version_string).expect("Can't parse rustc --version stdout")
 }

@@ -1,7 +1,6 @@
 use crate::ProofBn254;
-use crate::{Groth16Bn254Proof, PlonkBn254Proof};
+use crate::{Groth16Bn254Proof, PlonkBn254Proof, SP1_CIRCUIT_VERSION};
 use anyhow::{anyhow, Result};
-use sp1_core_machine::SP1_CIRCUIT_VERSION;
 use std::{io::Write, process::Command};
 
 /// Represents the proof system being used
@@ -38,6 +37,9 @@ fn get_docker_image() -> String {
 }
 
 /// Calls `docker run` with the given arguments and bind mounts.
+///
+/// Note: files created here by `call_docker` are read-only for after the process exits.
+/// To fix this, manually set the docker user to the current user by supplying a `-u` flag.
 fn call_docker(args: &[&str], mounts: &[(&str, &str)]) -> Result<()> {
     log::info!("Running {} in docker", args[0]);
     let mut cmd = Command::new("docker");
@@ -47,8 +49,10 @@ fn call_docker(args: &[&str], mounts: &[(&str, &str)]) -> Result<()> {
     }
     cmd.arg(get_docker_image());
     cmd.args(args);
-    if !cmd.status()?.success() {
+    let result = cmd.status()?;
+    if !result.success() {
         log::error!("Failed to run `docker run`: {:?}", cmd);
+        log::error!("Execution result: {:?}", result);
         return Err(anyhow!("docker command failed"));
     }
     Ok(())
@@ -162,9 +166,9 @@ pub fn verify_groth16_bn254(
 }
 
 fn test(system: ProofSystem, witness_json: &str, constraints_json: &str) -> Result<()> {
-    let mounts = [(constraints_json, "/constraints"), (witness_json, "/witness")];
+    let mounts = [(witness_json, "/witness"), (constraints_json, "/constraints")];
     assert_docker();
-    call_docker(&["test", "--system", system.as_str(), "/constraints", "/witness"], &mounts)
+    call_docker(&["test", "--system", system.as_str(), "/witness", "/constraints"], &mounts)
 }
 
 pub fn test_plonk_bn254(witness_json: &str, constraints_json: &str) {

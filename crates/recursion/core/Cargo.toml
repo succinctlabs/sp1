@@ -8,6 +8,7 @@ license = { workspace = true }
 repository = { workspace = true }
 keywords = { workspace = true }
 categories = { workspace = true }
+links = "sp1-recursion-core-sys"
 
 [dependencies]
 p3-field = { workspace = true }
@@ -20,11 +21,11 @@ p3-poseidon2 = { workspace = true }
 p3-symmetric = { workspace = true }
 sp1-derive = { workspace = true }
 sp1-primitives = { workspace = true }
-tracing = "0.1.40"
+tracing = { workspace = true }
 sp1-core-machine = { workspace = true }
 sp1-stark = { workspace = true }
-hashbrown = { version = "0.14.5", features = ["serde"] }
-itertools = "0.13.0"
+hashbrown = { workspace = true, features = ["serde"] }
+itertools = { workspace = true }
 p3-bn254-fr = { workspace = true }
 p3-merkle-tree = { workspace = true }
 p3-commit = { workspace = true }
@@ -33,11 +34,44 @@ p3-challenger = { workspace = true }
 p3-fri = { workspace = true }
 zkhash = "0.2.0"
 ff = { version = "0.13", features = ["derive", "derive_bits"] }
-serde = { version = "1.0", features = ["derive", "rc"] }
+serde = { workspace = true, features = ["derive", "rc"] }
 backtrace = { version = "0.3.71", features = ["serde"] }
 static_assertions = "1.1.0"
 thiserror = "1.0.60"
 vec_map = "0.8.2"
+range-set-blaze = { version = "0.1.16", optional = true }
+smallvec = { version = "1.13.2", features = [
+    "const_generics",
+    "const_new",
+    "serde",
+    "union",
+    "write",
+], optional = true }
+num_cpus = "1.16.0"
+rand = "0.8.5"
+cfg-if = "1.0.0"
 
 [dev-dependencies]
-rand = "0.8.5"
+range-set-blaze = { version = "0.1.16" }
+smallvec = { version = "1.13.2", features = [
+    "const_generics",
+    "const_new",
+    "serde",
+    "union",
+    "write",
+] }
+
+[build-dependencies]
+sp1-stark = { workspace = true }
+sp1-primitives = { workspace = true }
+p3-baby-bear = { workspace = true }
+cbindgen = "0.27.0"
+cc = "1.1"
+pathdiff = "0.2.1"
+glob = "0.3.1"
+
+[features]
+default = ["sys"]
+debug = []
+sys = ["sp1-core-machine/sys"]
+program_validation = ["dep:range-set-blaze", "dep:smallvec"]

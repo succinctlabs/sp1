@@ -5,6 +5,7 @@ use sp1_recursion_compiler::ir::{Builder, Ext, Felt};
 
 pub use outer::*;
 use sp1_stark::{
+    septic_curve::SepticCurve, septic_digest::SepticDigest, septic_extension::SepticExtension,
     ChipOpenedValues, Com, InnerChallenge, InnerVal, OpeningProof, ShardCommitment,
     ShardOpenedValues, ShardProof,
 };
@@ -46,7 +47,7 @@ impl<C: CircuitConfig> Witnessable<C> for bool {
     }
 }
 
-impl<'a, C: CircuitConfig, T: Witnessable<C>> Witnessable<C> for &'a T {
+impl<C: CircuitConfig, T: Witnessable<C>> Witnessable<C> for &T {
     type WitnessVariable = T::WitnessVariable;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
@@ -165,30 +166,23 @@ impl<C: CircuitConfig, T: Witnessable<C>> Witnessable<C> for ShardCommitment<T> 
     type WitnessVariable = ShardCommitment<T::WitnessVariable>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
-        let global_main_commit = self.global_main_commit.read(builder);
-        let local_main_commit = self.local_main_commit.read(builder);
+        let main_commit = self.main_commit.read(builder);
         let permutation_commit = self.permutation_commit.read(builder);
         let quotient_commit = self.quotient_commit.read(builder);
-        Self::WitnessVariable {
-            global_main_commit,
-            local_main_commit,
-            permutation_commit,
-            quotient_commit,
-        }
+        Self::WitnessVariable { main_commit, permutation_commit, quotient_commit }
     }
 
     fn write(&self, witness: &mut impl WitnessWriter<C>) {
-        self.global_main_commit.write(witness);
-        self.local_main_commit.write(witness);
+        self.main_commit.write(witness);
         self.permutation_commit.write(witness);
         self.quotient_commit.write(witness);
     }
 }
 
 impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge>> Witnessable<C>
-    for ShardOpenedValues<InnerChallenge>
+    for ShardOpenedValues<InnerVal, InnerChallenge>
 {
-    type WitnessVariable = ShardOpenedValues<Ext<C::F, C::EF>>;
+    type WitnessVariable = ShardOpenedValues<Felt<C::F>, Ext<C::F, C::EF>>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let chips = self.chips.read(builder);
@@ -201,9 +195,26 @@ impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge>> Witnessable<C>
 }
 
 impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge>> Witnessable<C>
-    for ChipOpenedValues<InnerChallenge>
+    for SepticDigest<InnerVal>
 {
-    type WitnessVariable = ChipOpenedValues<Ext<C::F, C::EF>>;
+    type WitnessVariable = SepticDigest<Felt<C::F>>;
+
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
+        let x = self.0.x.0.read(builder);
+        let y = self.0.y.0.read(builder);
+        SepticDigest(SepticCurve { x: SepticExtension(x), y: SepticExtension(y) })
+    }
+
+    fn write(&self, witness: &mut impl WitnessWriter<C>) {
+        self.0.x.0.write(witness);
+        self.0.y.0.write(witness);
+    }
+}
+
+impl<C: CircuitConfig<F = InnerVal, EF = InnerChallenge>> Witnessable<C>
+    for ChipOpenedValues<InnerVal, InnerChallenge>
+{
+    type WitnessVariable = ChipOpenedValues<Felt<C::F>, Ext<C::F, C::EF>>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let preprocessed = self.preprocessed.read(builder);

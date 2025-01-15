@@ -1,0 +1,15 @@
+[package]
+name = "test-artifacts"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish = false
+
+[dependencies]
+sp1-build = { workspace = true }
+
+[build-dependencies]
+sp1-build = { workspace = true }

@@ -3,7 +3,7 @@ use std::borrow::BorrowMut;
 use hashbrown::HashMap;
 use itertools::Itertools;
 use p3_field::PrimeField32;
-use p3_matrix::{dense::RowMajorMatrix, Matrix};
+use p3_matrix::dense::RowMajorMatrix;
 use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
     events::{ByteLookupEvent, ByteRecord, PrecompileEvent, ShaCompressEvent},
@@ -77,20 +77,7 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
         }
 
         // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_SHA_COMPRESS_COLS,
-        );
-
-        // Write the nonces to the trace.
-        for i in 0..trace.height() {
-            let cols: &mut ShaCompressCols<F> = trace.values
-                [i * NUM_SHA_COMPRESS_COLS..(i + 1) * NUM_SHA_COMPRESS_COLS]
-                .borrow_mut();
-            cols.nonce = F::from_canonical_usize(i);
-        }
-
-        trace
+        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_SHA_COMPRESS_COLS)
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
@@ -100,7 +87,7 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
         let blu_batches = events
             .par_chunks(chunk_size)
             .map(|events| {
-                let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
+                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
                 events.iter().for_each(|(_, event)| {
                     let event = if let PrecompileEvent::ShaCompress(event) = event {
                         event
@@ -113,7 +100,7 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
             })
             .collect::<Vec<_>>();
 
-        output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
+        output.add_byte_lookup_events_from_maps(blu_batches.iter().collect_vec());
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -132,8 +119,6 @@ impl ShaCompressChip {
         rows: &mut Option<Vec<[F; NUM_SHA_COMPRESS_COLS]>>,
         blu: &mut impl ByteRecord,
     ) {
-        let shard = event.shard;
-
         let og_h = event.h;
 
         let mut octet_num_idx = 0;
@@ -209,35 +194,35 @@ impl ShaCompressChip {
             cols.g = Word::from(g);
             cols.h = Word::from(h);
 
-            let e_rr_6 = cols.e_rr_6.populate(blu, shard, e, 6);
-            let e_rr_11 = cols.e_rr_11.populate(blu, shard, e, 11);
-            let e_rr_25 = cols.e_rr_25.populate(blu, shard, e, 25);
-            let s1_intermediate = cols.s1_intermediate.populate(blu, shard, e_rr_6, e_rr_11);
-            let s1 = cols.s1.populate(blu, shard, s1_intermediate, e_rr_25);
+            let e_rr_6 = cols.e_rr_6.populate(blu, e, 6);
+            let e_rr_11 = cols.e_rr_11.populate(blu, e, 11);
+            let e_rr_25 = cols.e_rr_25.populate(blu, e, 25);
+            let s1_intermediate = cols.s1_intermediate.populate(blu, e_rr_6, e_rr_11);
+            let s1 = cols.s1.populate(blu, s1_intermediate, e_rr_25);
 
-            let e_and_f = cols.e_and_f.populate(blu, shard, e, f);
-            let e_not = cols.e_not.populate(blu, shard, e);
-            let e_not_and_g = cols.e_not_and_g.populate(blu, shard, e_not, g);
-            let ch = cols.ch.populate(blu, shard, e_and_f, e_not_and_g);
+            let e_and_f = cols.e_and_f.populate(blu, e, f);
+            let e_not = cols.e_not.populate(blu, e);
+            let e_not_and_g = cols.e_not_and_g.populate(blu, e_not, g);
+            let ch = cols.ch.populate(blu, e_and_f, e_not_and_g);
 
-            let temp1 = cols.temp1.populate(blu, shard, h, s1, ch, event.w[j], SHA_COMPRESS_K[j]);
+            let temp1 = cols.temp1.populate(blu, h, s1, ch, event.w[j], SHA_COMPRESS_K[j]);
 
-            let a_rr_2 = cols.a_rr_2.populate(blu, shard, a, 2);
-            let a_rr_13 = cols.a_rr_13.populate(blu, shard, a, 13);
-            let a_rr_22 = cols.a_rr_22.populate(blu, shard, a, 22);
-            let s0_intermediate = cols.s0_intermediate.populate(blu, shard, a_rr_2, a_rr_13);
-            let s0 = cols.s0.populate(blu, shard, s0_intermediate, a_rr_22);
+            let a_rr_2 = cols.a_rr_2.populate(blu, a, 2);
+            let a_rr_13 = cols.a_rr_13.populate(blu, a, 13);
+            let a_rr_22 = cols.a_rr_22.populate(blu, a, 22);
+            let s0_intermediate = cols.s0_intermediate.populate(blu, a_rr_2, a_rr_13);
+            let s0 = cols.s0.populate(blu, s0_intermediate, a_rr_22);
 
-            let a_and_b = cols.a_and_b.populate(blu, shard, a, b);
-            let a_and_c = cols.a_and_c.populate(blu, shard, a, c);
-            let b_and_c = cols.b_and_c.populate(blu, shard, b, c);
-            let maj_intermediate = cols.maj_intermediate.populate(blu, shard, a_and_b, a_and_c);
-            let maj = cols.maj.populate(blu, shard, maj_intermediate, b_and_c);
+            let a_and_b = cols.a_and_b.populate(blu, a, b);
+            let a_and_c = cols.a_and_c.populate(blu, a, c);
+            let b_and_c = cols.b_and_c.populate(blu, b, c);
+            let maj_intermediate = cols.maj_intermediate.populate(blu, a_and_b, a_and_c);
+            let maj = cols.maj.populate(blu, maj_intermediate, b_and_c);
 
-            let temp2 = cols.temp2.populate(blu, shard, s0, maj);
+            let temp2 = cols.temp2.populate(blu, s0, maj);
 
-            let d_add_temp1 = cols.d_add_temp1.populate(blu, shard, d, temp1);
-            let temp1_add_temp2 = cols.temp1_add_temp2.populate(blu, shard, temp1, temp2);
+            let d_add_temp1 = cols.d_add_temp1.populate(blu, d, temp1);
+            let temp1_add_temp2 = cols.temp1_add_temp2.populate(blu, temp1, temp2);
 
             h_array[7] = g;
             h_array[6] = f;
@@ -273,7 +258,7 @@ impl ShaCompressChip {
             cols.octet_num[octet_num_idx] = F::one();
             cols.is_finalize = F::one();
 
-            cols.finalize_add.populate(blu, shard, og_h[j], h_array[j]);
+            cols.finalize_add.populate(blu, og_h[j], h_array[j]);
             cols.mem.populate_write(event.h_write_records[j], blu);
             cols.mem_addr = F::from_canonical_u32(event.h_ptr + (j * 4) as u32);
 

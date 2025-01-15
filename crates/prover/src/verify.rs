@@ -228,12 +228,14 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         // - `deferred_proofs_digest` should be zero.
         //
         // Transition:
-        // - If `committed_value_digest_prev` is not zero, then `committed_value_digest` should equal
+        // - If `committed_value_digest_prev` is not zero, then `committed_value_digest` should
+        //   equal
         //  `committed_value_digest_prev`. Otherwise, `committed_value_digest` should equal zero.
         // - If `deferred_proofs_digest_prev` is not zero, then `deferred_proofs_digest` should
         //   equal
         //  `deferred_proofs_digest_prev`. Otherwise, `deferred_proofs_digest` should equal zero.
-        // - If it's not a shard with "CPU", then `committed_value_digest` should not change from the
+        // - If it's not a shard with "CPU", then `committed_value_digest` should not change from
+        //   the
         //  previous shard.
         // - If it's not a shard with "CPU", then `deferred_proofs_digest` should not change from
         //   the
@@ -306,7 +308,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             public_values,
         );
 
-        if self.vk_verification && !self.allowed_vk_map.contains_key(&compress_vk.hash_babybear()) {
+        if self.vk_verification && !self.recursion_vk_map.contains_key(&compress_vk.hash_babybear())
+        {
             return Err(MachineVerificationError::InvalidVerificationKey);
         }
 
@@ -343,8 +346,14 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             public_values,
         );
 
-        if self.vk_verification && !self.allowed_vk_map.contains_key(&proof.vk.hash_babybear()) {
+        if self.vk_verification && !self.recursion_vk_map.contains_key(&proof.vk.hash_babybear()) {
             return Err(MachineVerificationError::InvalidVerificationKey);
+        }
+
+        // `is_complete` should be 1. In the reduce program, this ensures that the proof is fully
+        // reduced.
+        if public_values.is_complete != BabyBear::one() {
+            return Err(MachineVerificationError::InvalidPublicValues("is_complete is not 1"));
         }
 
         // Verify that the proof is for the sp1 vkey we are expecting.
@@ -470,7 +479,7 @@ pub fn verify_groth16_bn254_public_inputs(
     Ok(())
 }
 
-impl<C: SP1ProverComponents> SubproofVerifier for &SP1Prover<C> {
+impl<C: SP1ProverComponents> SubproofVerifier for SP1Prover<C> {
     fn verify_deferred_proof(
         &self,
         proof: &sp1_core_machine::reduce::SP1ReduceProof<BabyBearPoseidon2>,

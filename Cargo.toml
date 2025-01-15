@@ -1,10 +1,13 @@
 [workspace.package]
-version = "3.4.0"
+version = "4.0.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
+rust-version = "1.79"
 repository = "https://github.com/succinctlabs/sp1"
 keywords = ["sp1", "succinct", "zero-knowledge", "zkvm"]
 categories = ["cryptography"]
+
+include = ["SP1_VERSION"]
 
 [workspace]
 members = [
@@ -17,7 +20,6 @@ members = [
   "crates/eval",
   "crates/helper",
   "crates/perf",
-  "crates/primitives",
   "crates/prover",
   "crates/recursion/circuit",
   "crates/recursion/compiler",
@@ -27,9 +29,11 @@ members = [
   "crates/recursion/gnark-ffi",
   "crates/sdk",
   "crates/cuda",
+  "crates/verifier",
   "crates/stark",
   "crates/verifier",
   "crates/zkvm/*",
+  "crates/test-artifacts",
 ]
 exclude = ["examples/target"]
 resolver = "2"
@@ -47,71 +51,74 @@ debug-assertions = true
 
 [workspace.dependencies]
 # sp1
-sp1-build = { path = "crates/build", version = "3.4.0" }
-sp1-cli = { path = "crates/cli", version = "3.4.0", default-features = false }
-sp1-core-machine = { path = "crates/core/machine", version = "3.4.0" }
-sp1-core-executor = { path = "crates/core/executor", version = "3.4.0" }
-sp1-curves = { path = "crates/curves", version = "3.4.0" }
-sp1-derive = { path = "crates/derive", version = "3.4.0" }
-sp1-eval = { path = "crates/eval", version = "3.4.0" }
-sp1-helper = { path = "crates/helper", version = "3.4.0", default-features = false }
-sp1-primitives = { path = "crates/primitives", version = "3.4.0" }
-sp1-prover = { path = "crates/prover", version = "3.4.0" }
-sp1-recursion-compiler = { path = "crates/recursion/compiler", version = "3.4.0" }
-sp1-recursion-core = { path = "crates/recursion/core", version = "3.4.0", default-features = false }
-sp1-recursion-derive = { path = "crates/recursion/derive", version = "3.4.0", default-features = false }
-sp1-recursion-gnark-ffi = { path = "crates/recursion/gnark-ffi", version = "3.4.0", default-features = false }
-sp1-recursion-circuit = { path = "crates/recursion/circuit", version = "3.4.0", default-features = false }
-sp1-sdk = { path = "crates/sdk", version = "3.4.0" }
-sp1-cuda = { path = "crates/cuda", version = "3.4.0" }
-sp1-stark = { path = "crates/stark", version = "3.4.0" }
-sp1-lib = { path = "crates/zkvm/lib", version = "3.4.0", default-features = false }
-sp1-zkvm = { path = "crates/zkvm/entrypoint", version = "3.4.0", default-features = false }
+sp1-build = { path = "crates/build", version = "4.0.0" }
+sp1-cli = { path = "crates/cli", version = "4.0.0", default-features = false }
+sp1-core-machine = { path = "crates/core/machine", version = "4.0.0" }
+sp1-core-executor = { path = "crates/core/executor", version = "4.0.0" }
+sp1-curves = { path = "crates/curves", version = "4.0.0" }
+sp1-derive = { path = "crates/derive", version = "4.0.0" }
+sp1-eval = { path = "crates/eval", version = "4.0.0" }
+sp1-helper = { path = "crates/helper", version = "4.0.0", default-features = false }
+sp1-primitives = { path = "crates/primitives", version = "4.0.0" }
+sp1-prover = { path = "crates/prover", version = "4.0.0" }
+sp1-recursion-compiler = { path = "crates/recursion/compiler", version = "4.0.0" }
+sp1-recursion-core = { path = "crates/recursion/core", version = "4.0.0" }
+sp1-recursion-derive = { path = "crates/recursion/derive", version = "4.0.0", default-features = false }
+sp1-recursion-gnark-ffi = { path = "crates/recursion/gnark-ffi", version = "4.0.0", default-features = false }
+sp1-recursion-circuit = { path = "crates/recursion/circuit", version = "4.0.0", default-features = false }
+sp1-sdk = { path = "crates/sdk", version = "4.0.0" }
+sp1-cuda = { path = "crates/cuda", version = "4.0.0" }
+sp1-stark = { path = "crates/stark", version = "4.0.0" }
+sp1-lib = { path = "crates/zkvm/lib", version = "4.0.0", default-features = false }
+sp1-zkvm = { path = "crates/zkvm/entrypoint", version = "4.0.0", default-features = false }
+
+# For testing.
+test-artifacts = { path = "crates/test-artifacts" }
 
 # p3
-p3-air = "0.1.4-succinct"
-p3-field = "0.1.4-succinct"
-p3-commit = "0.1.4-succinct"
-p3-matrix = "0.1.4-succinct"
-p3-baby-bear = { version = "0.1.4-succinct", features = ["nightly-features"] }
-p3-util = "0.1.4-succinct"
-p3-challenger = "0.1.4-succinct"
-p3-dft = "0.1.4-succinct"
-p3-fri = "0.1.4-succinct"
-p3-goldilocks = "0.1.4-succinct"
-p3-keccak = "0.1.4-succinct"
-p3-keccak-air = "0.1.4-succinct"
-p3-blake3 = "0.1.4-succinct"
-p3-mds = "0.1.4-succinct"
-p3-merkle-tree = "0.1.4-succinct"
-p3-poseidon2 = "0.1.4-succinct"
-p3-symmetric = "0.1.4-succinct"
-p3-uni-stark = "0.1.4-succinct"
-p3-maybe-rayon = "0.1.4-succinct"
-p3-bn254-fr = "0.1.4-succinct"
+p3-air = "=0.2.0-succinct"
+p3-field = "=0.2.0-succinct"
+p3-commit = "=0.2.0-succinct"
+p3-matrix = "=0.2.0-succinct"
+p3-baby-bear = { version = "=0.2.0-succinct", features = ["nightly-features"] }
+p3-util = "=0.2.0-succinct"
+p3-challenger = "=0.2.0-succinct"
+p3-dft = "=0.2.0-succinct"
+p3-fri = "=0.2.0-succinct"
+p3-goldilocks = "=0.2.0-succinct"
+p3-keccak = "=0.2.0-succinct"
+p3-keccak-air = "=0.2.0-succinct"
+p3-blake3 = "=0.2.0-succinct"
+p3-mds = "=0.2.0-succinct"
+p3-merkle-tree = "=0.2.0-succinct"
+p3-poseidon2 = "=0.2.0-succinct"
+p3-symmetric = "=0.2.0-succinct"
+p3-uni-stark = "=0.2.0-succinct"
+p3-maybe-rayon = "=0.2.0-succinct"
+p3-bn254-fr = "=0.2.0-succinct"
 
 # For local development. 
 
-# p3-air = { git = "https://github.com/Plonky3/Plonky3", branch = "sp1-v3" }
-# p3-field = { git = "https://github.com/Plonky3/Plonky3", branch = "sp1-v3" }
-# p3-commit = { git = "https://github.com/Plonky3/Plonky3", branch = "sp1-v3" }
-# p3-matrix = { git = "https://github.com/Plonky3/Plonky3", branch = "sp1-v3" }
-# p3-baby-bear = { git = "https://github.com/Plonky3/Plonky3", branch = "sp1-v3" }
-# p3-util = { git = "https://github.com/Plonky3/Plonky3", branch = "sp1-v3" }
-# p3-challenger = { git = "https://github.com/Plonky3/Plonky3", branch = "sp1-v3" }
-# p3-dft = { git = "https://github.com/Plonky3/Plonky3", branch = "sp1-v3" }
-# p3-fri = { git = "https://github.com/Plonky3/Plonky3", branch = "sp1-v3" }
-# p3-goldilocks = { git = "https://github.com/Plonky3/Plonky3", branch = "sp1-v3" }
-# p3-keccak = { git = "https://github.com/Plonky3/Plonky3", branch = "sp1-v3" }
-# p3-keccak-air = { git = "https://github.com/Plonky3/Plonky3", branch = "sp1-v3" }
-# p3-blake3 = { git = "https://github.com/Plonky3/Plonky3", branch = "sp1-v3" }
-# p3-mds = { git = "https://github.com/Plonky3/Plonky3", branch = "sp1-v3" }
-# p3-merkle-tree = { git = "https://github.com/Plonky3/Plonky3", branch = "sp1-v3" }
-# p3-poseidon2 = { git = "https://github.com/Plonky3/Plonky3", branch = "sp1-v3" }
-# p3-symmetric = { git = "https://github.com/Plonky3/Plonky3", branch = "sp1-v3" }
-# p3-uni-stark = { git = "https://github.com/Plonky3/Plonky3", branch = "sp1-v3" }
-# p3-maybe-rayon = { git = "https://github.com/Plonky3/Plonky3", branch = "sp1-v3" }
-# p3-bn254-fr = { git = "https://github.com/Plonky3/Plonky3", branch = "sp1-v3" }
+# p3-air = { git = "https://github.com/succinctlabs/plonky3-private", branch = "sp1-v4" }
+# p3-field = { git = "https://github.com/succinctlabs/plonky3-private", branch = "sp1-v4" }
+# p3-commit = { git = "https://github.com/succinctlabs/plonky3-private", branch = "sp1-v4" }
+# p3-matrix = { git = "https://github.com/succinctlabs/plonky3-private", branch = "sp1-v4" }
+# p3-baby-bear = { git = "https://github.com/succinctlabs/plonky3-private", branch = "sp1-v4" }
+# p3-util = { git = "https://github.com/succinctlabs/plonky3-private", branch = "sp1-v4" }
+# p3-challenger = { git = "https://github.com/succinctlabs/plonky3-private", branch = "sp1-v4" }
+# p3-dft = { git = "https://github.com/succinctlabs/plonky3-private", branch = "sp1-v4" }
+# p3-fri = { git = "https://github.com/succinctlabs/plonky3-private", branch = "sp1-v4" }
+# p3-goldilocks = { git = "https://github.com/succinctlabs/plonky3-private", branch = "sp1-v4" }
+# p3-keccak = { git = "https://github.com/succinctlabs/plonky3-private", branch = "sp1-v4" }
+# p3-keccak-air = { git = "https://github.com/succinctlabs/plonky3-private", branch = "sp1-v4" }
+# p3-blake3 = { git = "https://github.com/succinctlabs/plonky3-private", branch = "sp1-v4" }
+# p3-mds = { git = "https://github.com/succinctlabs/plonky3-private", branch = "sp1-v4" }
+# p3-merkle-tree = { git = "https://github.com/succinctlabs/plonky3-private", branch = "sp1-v4" }
+# p3-poseidon2 = { git = "https://github.com/succinctlabs/plonky3-private", branch = "sp1-v4" }
+# p3-symmetric = { git = "https://github.com/succinctlabs/plonky3-private", branch = "sp1-v4" }
+# p3-uni-stark = { git = "https://github.com/succinctlabs/plonky3-private", branch = "sp1-v4" }
+# p3-maybe-rayon = { git = "https://github.com/succinctlabs/plonky3-private", branch = "sp1-v4" }
+# p3-bn254-fr = { git = "https://github.com/succinctlabs/plonky3-private", branch = "sp1-v4" }
 
 # p3-air = { path = "../Plonky3/air" }
 # p3-field = { path = "../Plonky3/field" }
@@ -134,7 +141,19 @@ p3-bn254-fr = "0.1.4-succinct"
 # p3-maybe-rayon = { path = "../Plonky3/maybe-rayon" }
 # p3-bn254-fr = { path = "../Plonky3/bn254-fr" }
 
+# misc
+hashbrown = "0.14.5"
+itertools = "0.13.0"
+serde = "1.0.204"
+serde_json = "1.0.132"
+tracing = "0.1.40"
+tracing-subscriber = "0.3.18"
+
 [workspace.metadata.typos]
-# TODO: Fix in next version since CommitCommitedValuesDigest is retained since it's present in constraints.json
-default.extend-ignore-re = ["Jo-Philipp Wich", "SubEIN", "DivEIN", "CommitCommitedValuesDigest"]
+default.extend-ignore-re = [
+  "Jo-Philipp Wich",
+  "SubEIN",
+  "DivEIN",
+  "CommitCommitedValuesDigest",
+]
 default.extend-ignore-words-re = ["(?i)groth", "TRE"]

@@ -1,10 +1,14 @@
 use hashbrown::HashMap;
 
 use crate::{
-    events::{LookupId, MemoryLocalEvent, MemoryReadRecord, MemoryWriteRecord},
+    events::{
+        MemoryLocalEvent, MemoryReadRecord, MemoryWriteRecord, PrecompileEvent, SyscallEvent,
+    },
     record::ExecutionRecord,
-    Executor, Register,
+    Executor, ExecutorMode, Register,
 };
+
+use super::SyscallCode;
 
 /// A runtime for syscalls that is protected so that developers cannot arbitrarily modify the
 /// runtime.
@@ -20,8 +24,6 @@ pub struct SyscallContext<'a, 'b: 'a> {
     pub exit_code: u32,
     /// The runtime.
     pub rt: &'a mut Executor<'b>,
-    /// The syscall lookup id.
-    pub syscall_lookup_id: LookupId,
     /// The local memory access events for the syscall.
     pub local_memory_access: HashMap<u32, MemoryLocalEvent>,
 }
@@ -37,7 +39,6 @@ impl<'a, 'b> SyscallContext<'a, 'b> {
             next_pc: runtime.state.pc.wrapping_add(4),
             exit_code: 0,
             rt: runtime,
-            syscall_lookup_id: LookupId::default(),
             local_memory_access: HashMap::new(),
         }
     }
@@ -47,6 +48,19 @@ impl<'a, 'b> SyscallContext<'a, 'b> {
         &mut self.rt.record
     }
 
+    #[inline]
+    /// Add a precompile event to the execution record.
+    pub fn add_precompile_event(
+        &mut self,
+        syscall_code: SyscallCode,
+        syscall_event: SyscallEvent,
+        event: PrecompileEvent,
+    ) {
+        if self.rt.executor_mode == ExecutorMode::Trace {
+            self.record_mut().precompile_events.add_event(syscall_code, syscall_event, event);
+        }
+    }
+
     /// Get the current shard.
     #[must_use]
     pub fn current_shard(&self) -> u32 {
@@ -54,6 +68,8 @@ impl<'a, 'b> SyscallContext<'a, 'b> {
     }
 
     /// Read a word from memory.
+    ///
+    /// `addr` must be a pointer to main memory, not a register.
     pub fn mr(&mut self, addr: u32) -> (MemoryReadRecord, u32) {
         let record =
             self.rt.mr(addr, self.current_shard, self.clk, Some(&mut self.local_memory_access));
@@ -61,9 +77,11 @@ impl<'a, 'b> SyscallContext<'a, 'b> {
     }
 
     /// Read a slice of words from memory.
+    ///
+    /// `addr` must be a pointer to main memory, not a register.
     pub fn mr_slice(&mut self, addr: u32, len: usize) -> (Vec<MemoryReadRecord>, Vec<u32>) {
-        let mut records = Vec::new();
-        let mut values = Vec::new();
+        let mut records = Vec::with_capacity(len);
+        let mut values = Vec::with_capacity(len);
         for i in 0..len {
             let (record, value) = self.mr(addr + i as u32 * 4);
             records.push(record);
@@ -73,13 +91,15 @@ impl<'a, 'b> SyscallContext<'a, 'b> {
     }
 
     /// Write a word to memory.
+    ///
+    /// `addr` must be a pointer to main memory, not a register.
     pub fn mw(&mut self, addr: u32, value: u32) -> MemoryWriteRecord {
         self.rt.mw(addr, value, self.current_shard, self.clk, Some(&mut self.local_memory_access))
     }
 
     /// Write a slice of words to memory.
     pub fn mw_slice(&mut self, addr: u32, values: &[u32]) -> Vec<MemoryWriteRecord> {
-        let mut records = Vec::new();
+        let mut records = Vec::with_capacity(values.len());
         for i in 0..values.len() {
             let record = self.mw(addr + i as u32 * 4, values[i]);
             records.push(record);
@@ -87,14 +107,37 @@ impl<'a, 'b> SyscallContext<'a, 'b> {
         records
     }
 
+    /// Read a register and record the memory access.
+    pub fn rr_traced(&mut self, register: Register) -> (MemoryReadRecord, u32) {
+        let record = self.rt.rr_traced(
+            register,
+            self.current_shard,
+            self.clk,
+            Some(&mut self.local_memory_access),
+        );
+        (record, record.value)
+    }
+
+    /// Write a register and record the memory access.
+    pub fn rw_traced(&mut self, register: Register, value: u32) -> (MemoryWriteRecord, u32) {
+        let record = self.rt.rw_traced(
+            register,
+            value,
+            self.current_shard,
+            self.clk,
+            Some(&mut self.local_memory_access),
+        );
+        (record, record.value)
+    }
+
     /// Postprocess the syscall.  Specifically will process the syscall's memory local events.
     pub fn postprocess(&mut self) -> Vec<MemoryLocalEvent> {
         let mut syscall_local_mem_events = Vec::new();
 
-        if !self.rt.unconstrained {
-            // Will need to transfer the existing memory local events in the executor to it's record,
-            // and return all the syscall memory local events.  This is similar to what
-            // `bump_record` does.
+        if !self.rt.unconstrained && self.rt.executor_mode == ExecutorMode::Trace {
+            // Will need to transfer the existing memory local events in the executor to it's
+            // record, and return all the syscall memory local events.  This is similar
+            // to what `bump_record` does.
             for (addr, event) in self.local_memory_access.drain() {
                 let local_mem_access = self.rt.local_memory_access.remove(&addr);
 

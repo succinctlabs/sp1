@@ -1,20 +1,28 @@
 use std::time::{Duration, Instant};
 
-use clap::{command, Parser, ValueEnum};
-use sp1_core_executor::programs::tests::VERIFY_PROOF_ELF;
+use clap::{command, Parser};
+use rand::Rng;
 use sp1_cuda::SP1CudaProver;
-use sp1_prover::components::DefaultProverComponents;
 use sp1_prover::HashableKey;
-use sp1_sdk::{self, ProverClient, SP1Context, SP1Prover, SP1Stdin};
+use sp1_prover::{components::CpuProverComponents, ProverMode};
+use sp1_sdk::{self, Prover, ProverClient, SP1Context, SP1Prover, SP1Stdin};
 use sp1_stark::SP1ProverOpts;
+use test_artifacts::VERIFY_PROOF_ELF;
 
 #[derive(Parser, Clone)]
 #[command(about = "Evaluate the performance of SP1 on programs.")]
 struct PerfArgs {
+    /// The program to evaluate.
     #[arg(short, long)]
     pub program: String,
+
+    /// The input to the program being evaluated.
     #[arg(short, long)]
     pub stdin: String,
+
+    /// The prover mode to use.
+    ///
+    /// Provide this only in prove mode.
     #[arg(short, long)]
     pub mode: ProverMode,
 }
@@ -34,13 +42,6 @@ struct PerfResult {
     pub verify_wrap_duration: Duration,
 }
 
-#[derive(Debug, Clone, ValueEnum, PartialEq, Eq)]
-enum ProverMode {
-    Cpu,
-    Cuda,
-    Network,
-}
-
 pub fn time_operation<T, F: FnOnce() -> T>(operation: F) -> (T, std::time::Duration) {
     let start = Instant::now();
     let result = operation();
@@ -56,19 +57,21 @@ fn main() {
     let stdin = std::fs::read(args.stdin).expect("failed to read stdin");
     let stdin: SP1Stdin = bincode::deserialize(&stdin).expect("failed to deserialize stdin");
 
-    let prover = SP1Prover::<DefaultProverComponents>::new();
-    let (pk, vk) = prover.setup(&elf);
-    let cycles = sp1_prover::utils::get_cycles(&elf, &stdin);
-    let opts = SP1ProverOpts::default();
+    let opts = SP1ProverOpts::auto();
 
+    let prover = SP1Prover::<CpuProverComponents>::new();
+    let (pk, pk_d, program, vk) = prover.setup(&elf);
     match args.mode {
         ProverMode::Cpu => {
             let context = SP1Context::default();
-            let (_, execution_duration) =
+            let (report, execution_duration) =
                 time_operation(|| prover.execute(&elf, &stdin, context.clone()));
 
-            let (core_proof, prove_core_duration) =
-                time_operation(|| prover.prove_core(&pk, &stdin, opts, context).unwrap());
+            let cycles = report.expect("execution failed").1.total_instruction_count();
+
+            let (core_proof, prove_core_duration) = time_operation(|| {
+                prover.prove_core(&pk_d, program, &stdin, opts, context).unwrap()
+            });
 
             let (_, verify_core_duration) =
                 time_operation(|| prover.verify(&core_proof.proof, &vk));
@@ -93,7 +96,8 @@ fn main() {
                 time_operation(|| prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk));
 
             // Generate a proof that verifies two deferred proofs from the proof above.
-            let (pk_verify_proof, vk_verify_proof) = prover.setup(VERIFY_PROOF_ELF);
+            let (_, pk_verify_proof_d, pk_verify_program, vk_verify_proof) =
+                prover.setup(VERIFY_PROOF_ELF);
             let pv = core_proof.public_values.to_vec();
 
             let mut stdin = SP1Stdin::new();
@@ -105,7 +109,9 @@ fn main() {
 
             let context = SP1Context::default();
             let (core_proof, _) = time_operation(|| {
-                prover.prove_core(&pk_verify_proof, &stdin, opts, context).unwrap()
+                prover
+                    .prove_core(&pk_verify_proof_d, pk_verify_program, &stdin, opts, context)
+                    .unwrap()
             });
             let deferred_proofs =
                 stdin.proofs.into_iter().map(|(proof, _)| proof).collect::<Vec<_>>();
@@ -135,11 +141,15 @@ fn main() {
             let server = SP1CudaProver::new().expect("failed to initialize CUDA prover");
 
             let context = SP1Context::default();
-            let (_, execution_duration) =
+            let (report, execution_duration) =
                 time_operation(|| prover.execute(&elf, &stdin, context.clone()));
 
+            let cycles = report.expect("execution failed").1.total_instruction_count();
+
+            let (_, _) = time_operation(|| server.setup(&elf).unwrap());
+
             let (core_proof, prove_core_duration) =
-                time_operation(|| server.prove_core(&pk, &stdin).unwrap());
+                time_operation(|| server.prove_core(&stdin).unwrap());
 
             let (_, verify_core_duration) = time_operation(|| {
                 prover.verify(&core_proof.proof, &vk).expect("Proof verification failed")
@@ -161,6 +171,7 @@ fn main() {
             let (_, wrap_duration) = time_operation(|| server.wrap_bn254(shrink_proof).unwrap());
 
             // TODO: FIX
+            //
             // let (_, verify_wrap_duration) =
             //     time_operation(|| prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk));
 
@@ -180,17 +191,26 @@ fn main() {
             println!("{:?}", result);
         }
         ProverMode::Network => {
-            let prover = ProverClient::network();
-            let (_, _) = time_operation(|| prover.execute(&elf, stdin.clone()));
+            let prover = ProverClient::builder().network().build();
+            let (_, _) = time_operation(|| prover.execute(&elf, &stdin));
 
-            let (proof, _) =
-                time_operation(|| prover.prove(&pk, stdin.clone()).groth16().run().unwrap());
+            let prover = ProverClient::builder().network().build();
 
-            let (_, _) = time_operation(|| prover.verify(&proof, &vk));
+            let (_, _) = time_operation(|| prover.execute(&elf, &stdin));
 
-            let (proof, _) = time_operation(|| prover.prove(&pk, stdin).plonk().run().unwrap());
+            let use_groth16: bool = rand::thread_rng().gen();
+            if use_groth16 {
+                let (proof, _) =
+                    time_operation(|| prover.prove(&pk, &stdin).groth16().run().unwrap());
 
-            let (_, _) = time_operation(|| prover.verify(&proof, &vk));
+                let (_, _) = time_operation(|| prover.verify(&proof, &vk));
+            } else {
+                let (proof, _) =
+                    time_operation(|| prover.prove(&pk, &stdin).plonk().run().unwrap());
+
+                let (_, _) = time_operation(|| prover.verify(&proof, &vk));
+            }
         }
+        ProverMode::Mock => unreachable!(),
     };
 }

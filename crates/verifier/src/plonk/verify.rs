@@ -33,7 +33,7 @@ pub(crate) struct PlonkVerifyingKey {
     pub(crate) commitment_constraint_indexes: Vec<usize>,
 }
 
-/// Verifies a PLONK proof
+/// Verifies a PLONK proof using algebraic inputs.
 ///
 /// # Arguments
 ///
@@ -44,7 +44,7 @@ pub(crate) struct PlonkVerifyingKey {
 /// # Returns
 ///
 /// * `Result<bool, PlonkError>` - Returns true if the proof is valid, or an error if verification fails
-pub(crate) fn verify_plonk_raw(
+pub(crate) fn verify_plonk_algebraic(
     vk: &PlonkVerifyingKey,
     proof: &PlonkProof,
     public_inputs: &[Fr],
@@ -54,7 +54,8 @@ pub(crate) fn verify_plonk_raw(
         return Err(PlonkError::Bsb22CommitmentMismatch);
     }
 
-    // Check if the number of public inputs matches the number of public variables in the verifying key
+    // Check if the number of public inputs matches the number of public variables in the verifying
+    // key
     if public_inputs.len() != vk.nb_public_variables {
         return Err(PlonkError::InvalidWitness);
     }
@@ -266,8 +267,8 @@ pub(crate) fn verify_plonk_raw(
     scalars.push(zeta_n_plus_two_square_zh);
 
     // Compute the linearized polynomial digest:
-    // α²*L₁(ζ)*[Z] + _s1*[s3]+_s2*[Z] + l(ζ)*[Ql] + l(ζ)r(ζ)*[Qm] + r(ζ)*[Qr] + o(ζ)*[Qo] + [Qk] + ∑ᵢQcp_(ζ)[Pi_i] -
-    // Z_{H}(ζ)*(([H₀] + ζᵐ⁺²*[H₁] + ζ²⁽ᵐ⁺²⁾*[H₂])
+    // α²*L₁(ζ)*[Z] + _s1*[s3]+_s2*[Z] + l(ζ)*[Ql] + l(ζ)r(ζ)*[Qm] + r(ζ)*[Qr] + o(ζ)*[Qo] + [Qk] +
+    // ∑ᵢQcp_(ζ)[Pi_i] - Z_{H}(ζ)*(([H₀] + ζᵐ⁺²*[H₁] + ζ²⁽ᵐ⁺²⁾*[H₂])
     let linearized_polynomial_digest = AffineG1::msm(&points, &scalars);
 
     // Prepare digests for folding

@@ -1,0 +1,18 @@
+[workspace]
+[package]
+name = "RustCrypto-rsa-test"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "rsa_test_verify_pkcs"
+path = "bin/verify_pkcs.rs"
+
+[dependencies]
+sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
+num-bigint = "0.4.0"
+rsa = { version = "=0.9.6", features = ["serde", "sha2"] }
+
+[patch.crates-io]
+rsa = { git = "https://github.com/sp1-patches/RustCrypto-RSA/", tag = "patch-0.9.6-sp1-4.0.0" }
+sp1-lib = { path = "../../../crates/zkvm/lib" }

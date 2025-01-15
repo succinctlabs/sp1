@@ -1,7 +1,7 @@
-use sp1_sdk::{utils, HashableKey, ProverClient, SP1Stdin};
+use sp1_sdk::{include_elf, utils, HashableKey, ProverClient, SP1Stdin};
 
 /// The ELF we want to execute inside the zkVM.
-const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
+const ELF: &[u8] = include_elf!("fibonacci-program");
 
 fn main() {
     // Setup logging.
@@ -14,12 +14,12 @@ fn main() {
     stdin.write(&n);
 
     // Set up the pk and vk.
-    let client = ProverClient::new();
+    let client = ProverClient::from_env();
     let (pk, vk) = client.setup(ELF);
     println!("vk: {:?}", vk.bytes32());
 
     // Generate the Plonk proof.
-    let proof = client.prove(&pk, stdin).plonk().run().unwrap();
+    let proof = client.prove(&pk, &stdin).plonk().run().unwrap();
     println!("generated proof");
 
     // Get the public values as bytes.

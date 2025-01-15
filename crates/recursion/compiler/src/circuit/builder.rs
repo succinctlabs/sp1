@@ -1,13 +1,16 @@
 //! An implementation of Poseidon2 over BN254.
 
-use std::iter::repeat;
+use std::{borrow::Cow, iter::repeat};
 
+use crate::prelude::*;
+use itertools::Itertools;
 use p3_baby_bear::BabyBear;
 use p3_field::{AbstractExtensionField, AbstractField};
 use sp1_recursion_core::air::RecursionPublicValues;
-
-use crate::prelude::*;
 use sp1_recursion_core::{chips::poseidon2_skinny::WIDTH, D, DIGEST_SIZE, HASH_RATE};
+use sp1_stark::septic_curve::SepticCurve;
+use sp1_stark::septic_digest::SepticDigest;
+use sp1_stark::septic_extension::SepticExtension;
 
 pub trait CircuitV2Builder<C: Config> {
     fn bits2num_v2_f(
@@ -17,6 +20,12 @@ pub trait CircuitV2Builder<C: Config> {
     fn num2bits_v2_f(&mut self, num: Felt<C::F>, num_bits: usize) -> Vec<Felt<C::F>>;
     fn exp_reverse_bits_v2(&mut self, input: Felt<C::F>, power_bits: Vec<Felt<C::F>>)
         -> Felt<C::F>;
+    fn batch_fri_v2(
+        &mut self,
+        alphas: Vec<Ext<C::F, C::EF>>,
+        p_at_zs: Vec<Ext<C::F, C::EF>>,
+        p_at_xs: Vec<Felt<C::F>>,
+    ) -> Ext<C::F, C::EF>;
     fn poseidon2_permute_v2(&mut self, state: [Felt<C::F>; WIDTH]) -> [Felt<C::F>; WIDTH];
     fn poseidon2_hash_v2(&mut self, array: &[Felt<C::F>]) -> [Felt<C::F>; DIGEST_SIZE];
     fn poseidon2_compress_v2(
@@ -25,8 +34,21 @@ pub trait CircuitV2Builder<C: Config> {
     ) -> [Felt<C::F>; DIGEST_SIZE];
     fn fri_fold_v2(&mut self, input: CircuitV2FriFoldInput<C>) -> CircuitV2FriFoldOutput<C>;
     fn ext2felt_v2(&mut self, ext: Ext<C::F, C::EF>) -> [Felt<C::F>; D];
+    fn add_curve_v2(
+        &mut self,
+        point1: SepticCurve<Felt<C::F>>,
+        point2: SepticCurve<Felt<C::F>>,
+    ) -> SepticCurve<Felt<C::F>>;
+    fn assert_digest_zero_v2(&mut self, is_real: Felt<C::F>, digest: SepticDigest<Felt<C::F>>);
+    fn sum_digest_v2(&mut self, digests: Vec<SepticDigest<Felt<C::F>>>)
+        -> SepticDigest<Felt<C::F>>;
+    fn select_global_cumulative_sum(
+        &mut self,
+        is_first_shard: Felt<C::F>,
+        vk_digest: SepticDigest<Felt<C::F>>,
+    ) -> SepticDigest<Felt<C::F>>;
     fn commit_public_values_v2(&mut self, public_values: RecursionPublicValues<Felt<C::F>>);
-    fn cycle_tracker_v2_enter(&mut self, name: String);
+    fn cycle_tracker_v2_enter(&mut self, name: impl Into<Cow<'static, str>>);
     fn cycle_tracker_v2_exit(&mut self);
     fn hint_ext_v2(&mut self) -> Ext<C::F, C::EF>;
     fn hint_felt_v2(&mut self) -> Felt<C::F>;
@@ -106,6 +128,18 @@ impl<C: Config<F = BabyBear>> CircuitV2Builder<C> for Builder<C> {
         output
     }
 
+    /// A version of the `batch_fri` that uses the BatchFRI precompile.
+    fn batch_fri_v2(
+        &mut self,
+        alpha_pows: Vec<Ext<C::F, C::EF>>,
+        p_at_zs: Vec<Ext<C::F, C::EF>>,
+        p_at_xs: Vec<Felt<C::F>>,
+    ) -> Ext<C::F, C::EF> {
+        let output: Ext<_, _> = self.uninit();
+        self.push_op(DslIr::CircuitV2BatchFRI(Box::new((output, alpha_pows, p_at_zs, p_at_xs))));
+        output
+    }
+
     /// Applies the Poseidon2 permutation to the given array.
     fn poseidon2_permute_v2(&mut self, array: [Felt<C::F>; WIDTH]) -> [Felt<C::F>; WIDTH] {
         let output: [Felt<C::F>; WIDTH] = core::array::from_fn(|_| self.uninit());
@@ -170,13 +204,115 @@ impl<C: Config<F = BabyBear>> CircuitV2Builder<C> for Builder<C> {
         felts
     }
 
+    /// Adds two septic elliptic curve points.
+    fn add_curve_v2(
+        &mut self,
+        point1: SepticCurve<Felt<C::F>>,
+        point2: SepticCurve<Felt<C::F>>,
+    ) -> SepticCurve<Felt<C::F>> {
+        // Hint the curve addition result.
+        let point_sum_x: [Felt<C::F>; 7] = core::array::from_fn(|_| self.uninit());
+        let point_sum_y: [Felt<C::F>; 7] = core::array::from_fn(|_| self.uninit());
+        let point =
+            SepticCurve { x: SepticExtension(point_sum_x), y: SepticExtension(point_sum_y) };
+        self.push_op(DslIr::CircuitV2HintAddCurve(Box::new((point, point1, point2))));
+
+        // Convert each point into a point over SymbolicFelt.
+        let point1_symbolic = SepticCurve::convert(point1, |x| x.into());
+        let point2_symbolic = SepticCurve::convert(point2, |x| x.into());
+        let point_symbolic = SepticCurve::convert(point, |x| x.into());
+
+        // Evaluate `sum_checker_x` and `sum_checker_y`.
+        let sum_checker_x = SepticCurve::<SymbolicFelt<C::F>>::sum_checker_x(
+            point1_symbolic,
+            point2_symbolic,
+            point_symbolic,
+        );
+
+        let sum_checker_y = SepticCurve::<SymbolicFelt<C::F>>::sum_checker_y(
+            point1_symbolic,
+            point2_symbolic,
+            point_symbolic,
+        );
+
+        // Constrain `sum_checker_x` and `sum_checker_y` to be all zero.
+        for limb in sum_checker_x.0 {
+            self.assert_felt_eq(limb, C::F::zero());
+        }
+
+        for limb in sum_checker_y.0 {
+            self.assert_felt_eq(limb, C::F::zero());
+        }
+
+        point
+    }
+
+    /// Asserts that the `digest` is the zero digest when `is_real` is non-zero.
+    fn assert_digest_zero_v2(&mut self, is_real: Felt<C::F>, digest: SepticDigest<Felt<C::F>>) {
+        let zero = SepticDigest::<SymbolicFelt<C::F>>::zero();
+        for (digest_limb_x, zero_limb_x) in digest.0.x.0.into_iter().zip_eq(zero.0.x.0.into_iter())
+        {
+            self.assert_felt_eq(is_real * digest_limb_x, is_real * zero_limb_x);
+        }
+        for (digest_limb_y, zero_limb_y) in digest.0.y.0.into_iter().zip_eq(zero.0.y.0.into_iter())
+        {
+            self.assert_felt_eq(is_real * digest_limb_y, is_real * zero_limb_y);
+        }
+    }
+
+    /// Returns the zero digest when `is_first_shard` is zero, and returns the `vk_digest` when `is_first_shard` is one.
+    /// It is assumed that `is_first_shard` is already checked to be a boolean.
+    fn select_global_cumulative_sum(
+        &mut self,
+        is_first_shard: Felt<C::F>,
+        vk_digest: SepticDigest<Felt<C::F>>,
+    ) -> SepticDigest<Felt<C::F>> {
+        let zero = SepticDigest::<SymbolicFelt<C::F>>::zero();
+        let one: Felt<C::F> = self.constant(C::F::one());
+        let x = SepticExtension(core::array::from_fn(|i| {
+            self.eval(is_first_shard * vk_digest.0.x.0[i] + (one - is_first_shard) * zero.0.x.0[i])
+        }));
+        let y = SepticExtension(core::array::from_fn(|i| {
+            self.eval(is_first_shard * vk_digest.0.y.0[i] + (one - is_first_shard) * zero.0.y.0[i])
+        }));
+        SepticDigest(SepticCurve { x, y })
+    }
+
+    // Sums the digests into one.
+    fn sum_digest_v2(
+        &mut self,
+        digests: Vec<SepticDigest<Felt<C::F>>>,
+    ) -> SepticDigest<Felt<C::F>> {
+        let mut convert_to_felt =
+            |point: SepticCurve<C::F>| SepticCurve::convert(point, |value| self.eval(value));
+
+        let start = convert_to_felt(SepticDigest::starting_digest().0);
+        let zero_digest = convert_to_felt(SepticDigest::zero().0);
+
+        if digests.is_empty() {
+            return SepticDigest(zero_digest);
+        }
+
+        let neg_start = convert_to_felt(SepticDigest::starting_digest().0.neg());
+        let neg_zero_digest = convert_to_felt(SepticDigest::zero().0.neg());
+
+        let mut ret = start;
+        for (i, digest) in digests.clone().into_iter().enumerate() {
+            ret = self.add_curve_v2(ret, digest.0);
+            if i != digests.len() - 1 {
+                ret = self.add_curve_v2(ret, neg_zero_digest)
+            }
+        }
+        SepticDigest(self.add_curve_v2(ret, neg_start))
+    }
+
     // Commits public values.
     fn commit_public_values_v2(&mut self, public_values: RecursionPublicValues<Felt<C::F>>) {
         self.push_op(DslIr::CircuitV2CommitPublicValues(Box::new(public_values)));
     }
 
-    fn cycle_tracker_v2_enter(&mut self, name: String) {
-        self.push_op(DslIr::CycleTrackerV2Enter(name));
+    fn cycle_tracker_v2_enter(&mut self, name: impl Into<Cow<'static, str>>) {
+        self.push_op(DslIr::CycleTrackerV2Enter(name.into()));
     }
 
     fn cycle_tracker_v2_exit(&mut self) {
@@ -196,14 +332,14 @@ impl<C: Config<F = BabyBear>> CircuitV2Builder<C> for Builder<C> {
     /// Hint a vector of felts.
     fn hint_felts_v2(&mut self, len: usize) -> Vec<Felt<C::F>> {
         let arr = std::iter::from_fn(|| Some(self.uninit())).take(len).collect::<Vec<_>>();
-        self.push_op(DslIr::CircuitV2HintFelts(arr.clone()));
+        self.push_op(DslIr::CircuitV2HintFelts(arr[0], len));
         arr
     }
 
     /// Hint a vector of exts.
     fn hint_exts_v2(&mut self, len: usize) -> Vec<Ext<C::F, C::EF>> {
         let arr = std::iter::from_fn(|| Some(self.uninit())).take(len).collect::<Vec<_>>();
-        self.push_op(DslIr::CircuitV2HintExts(arr.clone()));
+        self.push_op(DslIr::CircuitV2HintExts(arr[0], len));
         arr
     }
 }

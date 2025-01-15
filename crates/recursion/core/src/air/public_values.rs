@@ -7,7 +7,7 @@ use p3_symmetric::CryptographicPermutation;
 use serde::{Deserialize, Serialize};
 use sp1_core_machine::utils::indices_arr;
 use sp1_derive::AlignedBorrow;
-use sp1_stark::{air::POSEIDON_NUM_WORDS, Word, PROOF_MAX_NUM_PVS};
+use sp1_stark::{air::POSEIDON_NUM_WORDS, septic_digest::SepticDigest, Word, PROOF_MAX_NUM_PVS};
 use static_assertions::const_assert_eq;
 use std::{
     borrow::BorrowMut,
@@ -113,12 +113,6 @@ pub struct RecursionPublicValues<T> {
     /// Last MemoryFinalize address bits.
     pub last_finalize_addr_bits: [T; 32],
 
-    /// Start state of reconstruct_challenger.
-    pub start_reconstruct_challenger: ChallengerPublicValues<T>,
-
-    /// End state of reconstruct_challenger.
-    pub end_reconstruct_challenger: ChallengerPublicValues<T>,
-
     /// Start state of reconstruct_deferred_digest.
     pub start_reconstruct_deferred_digest: [T; POSEIDON_NUM_WORDS],
 
@@ -131,12 +125,9 @@ pub struct RecursionPublicValues<T> {
     /// The root of the vk merkle tree.
     pub vk_root: [T; DIGEST_SIZE],
 
-    /// The leaf challenger containing the entropy from the main trace commitment.
-    pub leaf_challenger: ChallengerPublicValues<T>,
-
-    /// Current cumulative sum of lookup bus.  Note that for recursive proofs for core proofs, this
-    /// contains the global cumulative sum.  For all other proofs, it's the local cumulative sum.
-    pub cumulative_sum: [T; 4],
+    /// Current cumulative sum of lookup bus. Note that for recursive proofs for core proofs, this
+    /// contains the global cumulative sum.  
+    pub global_cumulative_sum: SepticDigest<T>,
 
     /// Whether the proof completely proves the program execution.
     pub is_complete: T,
@@ -145,8 +136,7 @@ pub struct RecursionPublicValues<T> {
     /// shard, i.e. a shard that contains the `cpu` chip.
     pub contains_execution_shard: T,
 
-    /// The exit code of the program.  Note that this is not part of the public values digest,
-    /// since it's value will be individually constrained.
+    /// The exit code of the program.
     pub exit_code: T,
 
     /// The digest of all the previous public values elements.

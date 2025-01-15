@@ -12,7 +12,7 @@ impl Syscall for EnterUnconstrainedSyscall {
             panic!("Unconstrained block is already active.");
         }
         ctx.rt.unconstrained = true;
-        ctx.rt.unconstrained_state = ForkState {
+        ctx.rt.unconstrained_state = Box::new(ForkState {
             global_clk: ctx.rt.state.global_clk,
             clk: ctx.rt.state.clk,
             pc: ctx.rt.state.pc,
@@ -20,7 +20,7 @@ impl Syscall for EnterUnconstrainedSyscall {
             record: std::mem::take(&mut ctx.rt.record),
             op_record: std::mem::take(&mut ctx.rt.memory_accesses),
             executor_mode: ctx.rt.executor_mode,
-        };
+        });
         ctx.rt.executor_mode = ExecutorMode::Simple;
         Some(1)
     }
@@ -46,12 +46,12 @@ impl Syscall for ExitUnconstrainedSyscall {
                     }
                 }
             }
-            ctx.rt.record = std::mem::take(&mut ctx.rt.unconstrained_state.record);
+            *ctx.rt.record = std::mem::take(&mut ctx.rt.unconstrained_state.record);
             ctx.rt.memory_accesses = std::mem::take(&mut ctx.rt.unconstrained_state.op_record);
             ctx.rt.executor_mode = ctx.rt.unconstrained_state.executor_mode;
             ctx.rt.unconstrained = false;
         }
-        ctx.rt.unconstrained_state = ForkState::default();
+        ctx.rt.unconstrained_state = Box::new(ForkState::default());
         Some(0)
     }
 }

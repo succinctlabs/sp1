@@ -22,8 +22,8 @@
 //! base = pow(2, 8)
 //! carry = 0
 //! for i in range(8):
-//!     x = result[i] + remainder[i] + carry
-//!     result[i] = x % base
+//!     x = result\[i\] + remainder\[i\] + carry
+//!     result\[i\] = x % base
 //!     carry = x // base
 //!
 //! # The number represented by c * quotient + remainder in 64 bits must equal b in 32 bits.
@@ -66,12 +66,12 @@ use core::{
 };
 
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::{AbstractField, PrimeField};
+use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{
     events::{ByteLookupEvent, ByteRecord},
     get_msb, get_quotient_and_remainder, is_signed_operation, ByteOpcode, ExecutionRecord, Opcode,
-    Program,
+    Program, DEFAULT_PC_INC, UNUSED_PC,
 };
 use sp1_derive::AlignedBorrow;
 use sp1_primitives::consts::WORD_SIZE;
@@ -100,11 +100,8 @@ pub struct DivRemChip;
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct DivRemCols<T> {
-    /// The shard number, used for byte lookup table.
-    pub shard: T,
-
-    /// The nonce of the operation.
-    pub nonce: T,
+    /// The program counter.
+    pub pc: T,
 
     /// The output operand.
     pub a: Word<T>,
@@ -114,6 +111,9 @@ pub struct DivRemCols<T> {
 
     /// The second input operand.
     pub c: Word<T>,
+
+    /// Whether the first operand is not register 0.
+    pub op_a_not_0: T,
 
     /// Results of dividing `b` by `c`.
     pub quotient: Word<T>,
@@ -185,22 +185,11 @@ pub struct DivRemCols<T> {
     /// Flag to indicate whether `c` is negative.
     pub c_neg: T,
 
-    /// The lower nonce of the operation.
-    pub lower_nonce: T,
-
-    /// The upper nonce of the operation.
-    pub upper_nonce: T,
-
-    /// The absolute nonce of the operation.
-    pub abs_nonce: T,
-
     /// Selector to determine whether an ALU Event is sent for absolute value computation of `c`.
     pub abs_c_alu_event: T,
-    pub abs_c_alu_event_nonce: T,
 
     /// Selector to determine whether an ALU Event is sent for absolute value computation of `rem`.
     pub abs_rem_alu_event: T,
-    pub abs_rem_alu_event_nonce: T,
 
     /// Selector to know whether this row is enabled.
     pub is_real: T,
@@ -209,7 +198,7 @@ pub struct DivRemCols<T> {
     pub remainder_check_multiplicity: T,
 }
 
-impl<F: PrimeField> MachineAir<F> for DivRemChip {
+impl<F: PrimeField32> MachineAir<F> for DivRemChip {
     type Record = ExecutionRecord;
 
     type Program = Program;
@@ -236,12 +225,14 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
             let mut row = [F::zero(); NUM_DIVREM_COLS];
             let cols: &mut DivRemCols<F> = row.as_mut_slice().borrow_mut();
 
+            cols.pc = F::from_canonical_u32(event.pc);
+
             // Initialize cols with basic operands and flags derived from the current event.
             {
                 cols.a = Word::from(event.a);
                 cols.b = Word::from(event.b);
                 cols.c = Word::from(event.c);
-                cols.shard = F::from_canonical_u32(event.shard);
+                cols.op_a_not_0 = F::from_bool(!event.op_a_0);
                 cols.is_real = F::one();
                 cols.is_divu = F::from_bool(event.opcode == Opcode::DIVU);
                 cols.is_remu = F::from_bool(event.opcode == Opcode::REMU);
@@ -278,13 +269,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
 
                 // Set the `alu_event` flags.
                 cols.abs_c_alu_event = cols.c_neg * cols.is_real;
-                cols.abs_c_alu_event_nonce = F::from_canonical_u32(
-                    input.nonce_lookup.get(&event.sub_lookups[4]).copied().unwrap_or_default(),
-                );
                 cols.abs_rem_alu_event = cols.rem_neg * cols.is_real;
-                cols.abs_rem_alu_event_nonce = F::from_canonical_u32(
-                    input.nonce_lookup.get(&event.sub_lookups[5]).copied().unwrap_or_default(),
-                );
 
                 // Insert the MSB lookup events.
                 {
@@ -293,7 +278,6 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                     for word in words.iter() {
                         let most_significant_byte = word.to_le_bytes()[WORD_SIZE - 1];
                         blu_events.push(ByteLookupEvent {
-                            shard: event.shard,
                             opcode: ByteOpcode::MSB,
                             a1: get_msb(*word) as u16,
                             a2: 0,
@@ -341,38 +325,11 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                     cols.carry[i] = F::from_canonical_u32(carry[i]);
                 }
 
-                // Insert the necessary multiplication & LT events.
-                {
-                    cols.lower_nonce = F::from_canonical_u32(
-                        input.nonce_lookup.get(&event.sub_lookups[0]).copied().unwrap_or_default(),
-                    );
-                    cols.upper_nonce = F::from_canonical_u32(
-                        input.nonce_lookup.get(&event.sub_lookups[1]).copied().unwrap_or_default(),
-                    );
-                    if is_signed_operation(event.opcode) {
-                        cols.abs_nonce = F::from_canonical_u32(
-                            input
-                                .nonce_lookup
-                                .get(&event.sub_lookups[2])
-                                .copied()
-                                .unwrap_or_default(),
-                        );
-                    } else {
-                        cols.abs_nonce = F::from_canonical_u32(
-                            input
-                                .nonce_lookup
-                                .get(&event.sub_lookups[3])
-                                .copied()
-                                .unwrap_or_default(),
-                        );
-                    };
-                }
-
                 // Range check.
                 {
-                    output.add_u8_range_checks(event.shard, &quotient.to_le_bytes());
-                    output.add_u8_range_checks(event.shard, &remainder.to_le_bytes());
-                    output.add_u8_range_checks(event.shard, &c_times_quotient);
+                    output.add_u8_range_checks(&quotient.to_le_bytes());
+                    output.add_u8_range_checks(&remainder.to_le_bytes());
+                    output.add_u8_range_checks(&c_times_quotient);
                 }
             }
 
@@ -410,13 +367,6 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
             trace.values[i] = padded_row_template[i % NUM_DIVREM_COLS];
         }
 
-        // Write the nonces to the trace.
-        for i in 0..trace.height() {
-            let cols: &mut DivRemCols<F> =
-                trace.values[i * NUM_DIVREM_COLS..(i + 1) * NUM_DIVREM_COLS].borrow_mut();
-            cols.nonce = F::from_canonical_usize(i);
-        }
-
         trace
     }
 
@@ -426,6 +376,10 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
         } else {
             !shard.divrem_events.is_empty()
         }
+    }
+
+    fn local_only(&self) -> bool {
+        true
     }
 }
 
@@ -443,15 +397,9 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &DivRemCols<AB::Var> = (*local).borrow();
-        let next = main.row_slice(1);
-        let next: &DivRemCols<AB::Var> = (*next).borrow();
         let base = AB::F::from_canonical_u32(1 << 8);
         let one: AB::Expr = AB::F::one().into();
         let zero: AB::Expr = AB::F::zero().into();
-
-        // Constrain the incrementing nonce.
-        builder.when_first_row().assert_zero(local.nonce);
-        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
 
         // Calculate whether b, remainder, and c are negative.
         {
@@ -480,13 +428,21 @@ where
             ];
 
             // The lower 4 bytes of c_times_quotient must match the lower 4 bytes of (c * quotient).
-            builder.send_alu(
+            builder.send_instruction(
+                AB::Expr::zero(),
+                AB::Expr::zero(),
+                AB::Expr::from_canonical_u32(UNUSED_PC),
+                AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
+                AB::Expr::zero(),
                 AB::Expr::from_canonical_u32(Opcode::MUL as u32),
                 Word(lower_half),
                 local.quotient,
                 local.c,
-                local.shard,
-                local.lower_nonce,
+                AB::Expr::zero(),
+                AB::Expr::zero(),
+                AB::Expr::zero(),
+                AB::Expr::zero(),
+                AB::Expr::zero(),
                 local.is_real,
             );
 
@@ -505,13 +461,21 @@ where
                 local.c_times_quotient[7].into(),
             ];
 
-            builder.send_alu(
+            builder.send_instruction(
+                AB::Expr::zero(),
+                AB::Expr::zero(),
+                AB::Expr::from_canonical_u32(UNUSED_PC),
+                AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
+                AB::Expr::zero(),
                 opcode_for_upper_half,
                 Word(upper_half),
                 local.quotient,
                 local.c,
-                local.shard,
-                local.upper_nonce,
+                AB::Expr::zero(),
+                AB::Expr::zero(),
+                AB::Expr::zero(),
+                AB::Expr::zero(),
+                AB::Expr::zero(),
                 local.is_real,
             );
         }
@@ -556,16 +520,20 @@ where
 
                 // Add remainder.
                 if i < WORD_SIZE {
-                    c_times_quotient_plus_remainder[i] += local.remainder[i].into();
+                    c_times_quotient_plus_remainder[i] =
+                        c_times_quotient_plus_remainder[i].clone() + local.remainder[i].into();
                 } else {
                     // If rem is negative, add 0xff to the upper 4 bytes.
-                    c_times_quotient_plus_remainder[i] += sign_extension.clone();
+                    c_times_quotient_plus_remainder[i] =
+                        c_times_quotient_plus_remainder[i].clone() + sign_extension.clone();
                 }
 
                 // Propagate carry.
-                c_times_quotient_plus_remainder[i] -= local.carry[i] * base;
+                c_times_quotient_plus_remainder[i] =
+                    c_times_quotient_plus_remainder[i].clone() - local.carry[i] * base;
                 if i > 0 {
-                    c_times_quotient_plus_remainder[i] += local.carry[i - 1].into();
+                    c_times_quotient_plus_remainder[i] =
+                        c_times_quotient_plus_remainder[i].clone() + local.carry[i - 1].into();
                 }
             }
 
@@ -597,9 +565,16 @@ where
         }
 
         // a must equal remainder or quotient depending on the opcode.
+        // This is only enforced when `op_a_not_0 == 1`.
         for i in 0..WORD_SIZE {
-            builder.when(local.is_divu + local.is_div).assert_eq(local.quotient[i], local.a[i]);
-            builder.when(local.is_remu + local.is_rem).assert_eq(local.remainder[i], local.a[i]);
+            builder
+                .when(local.op_a_not_0)
+                .when(local.is_divu + local.is_div)
+                .assert_eq(local.quotient[i], local.a[i]);
+            builder
+                .when(local.op_a_not_0)
+                .when(local.is_remu + local.is_rem)
+                .assert_eq(local.remainder[i], local.a[i]);
         }
 
         // remainder and b must have the same sign. Due to the intricate nature of sign logic in ZK,
@@ -612,8 +587,8 @@ where
             let mut rem_byte_sum = zero.clone();
             let mut b_byte_sum = zero.clone();
             for i in 0..WORD_SIZE {
-                rem_byte_sum += local.remainder[i].into();
-                b_byte_sum += local.b[i].into();
+                rem_byte_sum = rem_byte_sum.clone() + local.remainder[i].into();
+                b_byte_sum = b_byte_sum + local.b[i].into();
             }
 
             // 1. If remainder < 0, then b < 0.
@@ -659,22 +634,38 @@ where
             }
             // In the case that `c` or `rem` is negative, instead check that their sum is zero by
             // sending an AddEvent.
-            builder.send_alu(
+            builder.send_instruction(
+                AB::Expr::zero(),
+                AB::Expr::zero(),
+                AB::Expr::from_canonical_u32(UNUSED_PC),
+                AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
+                AB::Expr::zero(),
                 AB::Expr::from_canonical_u32(Opcode::ADD as u32),
                 Word([zero.clone(), zero.clone(), zero.clone(), zero.clone()]),
                 local.c,
                 local.abs_c,
-                local.shard,
-                local.abs_c_alu_event_nonce,
+                AB::Expr::zero(),
+                AB::Expr::zero(),
+                AB::Expr::zero(),
+                AB::Expr::zero(),
+                AB::Expr::zero(),
                 local.abs_c_alu_event,
             );
-            builder.send_alu(
+            builder.send_instruction(
+                AB::Expr::zero(),
+                AB::Expr::zero(),
+                AB::Expr::from_canonical_u32(UNUSED_PC),
+                AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
+                AB::Expr::zero(),
                 AB::Expr::from_canonical_u32(Opcode::ADD as u32),
                 Word([zero.clone(), zero.clone(), zero.clone(), zero.clone()]),
                 local.remainder,
                 local.abs_remainder,
-                local.shard,
-                local.abs_rem_alu_event_nonce,
+                AB::Expr::zero(),
+                AB::Expr::zero(),
+                AB::Expr::zero(),
+                AB::Expr::zero(),
+                AB::Expr::zero(),
                 local.abs_rem_alu_event,
             );
 
@@ -709,18 +700,27 @@ where
             // is_real
 
             // Check that the absolute value selector columns are computed correctly.
+            // This enforces the send multiplicities are zero when `is_real == 0`.
             builder.assert_eq(local.abs_c_alu_event, local.c_neg * local.is_real);
             builder.assert_eq(local.abs_rem_alu_event, local.rem_neg * local.is_real);
 
             // Dispatch abs(remainder) < max(abs(c), 1), this is equivalent to abs(remainder) <
             // abs(c) if not division by 0.
-            builder.send_alu(
+            builder.send_instruction(
+                AB::Expr::zero(),
+                AB::Expr::zero(),
+                AB::Expr::from_canonical_u32(UNUSED_PC),
+                AB::Expr::from_canonical_u32(UNUSED_PC + DEFAULT_PC_INC),
+                AB::Expr::zero(),
                 AB::Expr::from_canonical_u32(Opcode::SLTU as u32),
                 Word([one.clone(), zero.clone(), zero.clone(), zero.clone()]),
                 local.abs_remainder,
                 local.max_abs_c_or_1,
-                local.shard,
-                local.abs_nonce,
+                AB::Expr::zero(),
+                AB::Expr::zero(),
+                AB::Expr::zero(),
+                AB::Expr::zero(),
+                AB::Expr::zero(),
                 local.remainder_check_multiplicity,
             );
         }
@@ -779,6 +779,9 @@ where
         // Receive the arguments.
         {
             // Exactly one of the opcode flags must be on.
+            // SAFETY: All selectors `is_divu`, `is_remu`, `is_div`, `is_rem` are checked to be boolean.
+            // Each row has exactly one selector turned on, as their sum is checked to be one.
+            // Therefore, the `opcode` matches the corresponding opcode of the instruction.
             builder.assert_eq(
                 one.clone(),
                 local.is_divu + local.is_remu + local.is_div + local.is_rem,
@@ -796,15 +799,34 @@ where
                     + local.is_rem * rem
             };
 
-            builder.receive_alu(
+            // SAFETY: This checks the following.
+            // - `next_pc = pc + 4`
+            // - `num_extra_cycles = 0`
+            // - `op_a_val` is constrained by the chip when `op_a_not_0 == 1`
+            // - `op_a_not_0` is correct, due to the sent `op_a_0` being equal to `1 - op_a_not_0`
+            // - `op_a_immutable = 0`
+            // - `is_memory = 0`
+            // - `is_syscall = 0`
+            // - `is_halt = 0`
+            builder.receive_instruction(
+                AB::Expr::zero(),
+                AB::Expr::zero(),
+                local.pc,
+                local.pc + AB::Expr::from_canonical_u32(DEFAULT_PC_INC),
+                AB::Expr::zero(),
                 opcode,
                 local.a,
                 local.b,
                 local.c,
-                local.shard,
-                local.nonce,
+                AB::Expr::one() - local.op_a_not_0,
+                AB::Expr::zero(),
+                AB::Expr::zero(),
+                AB::Expr::zero(),
+                AB::Expr::zero(),
                 local.is_real,
             );
+
+            builder.when(local.op_a_not_0).assert_one(local.is_real);
         }
     }
 }
@@ -812,18 +834,29 @@ where
 #[cfg(test)]
 mod tests {
 
-    use crate::utils::{uni_stark_prove, uni_stark_verify};
+    use crate::{
+        io::SP1Stdin,
+        riscv::RiscvAir,
+        utils::{run_malicious_test, uni_stark_prove, uni_stark_verify},
+    };
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-    use sp1_core_executor::{events::AluEvent, ExecutionRecord, Opcode};
-    use sp1_stark::{air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
+    use rand::{thread_rng, Rng};
+    use sp1_core_executor::{
+        events::{AluEvent, MemoryRecordEnum},
+        ExecutionRecord, Instruction, Opcode, Program,
+    };
+    use sp1_stark::{
+        air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, chip_name, CpuProver,
+        MachineProver, StarkGenericConfig, Val,
+    };
 
     use super::DivRemChip;
 
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.divrem_events = vec![AluEvent::new(0, 0, Opcode::DIVU, 2, 17, 3)];
+        shard.divrem_events = vec![AluEvent::new(0, Opcode::DIVU, 2, 17, 3, false)];
         let chip = DivRemChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -876,12 +909,12 @@ mod tests {
             (Opcode::REM, 0, 1 << 31, neg(1)),
         ];
         for t in divrems.iter() {
-            divrem_events.push(AluEvent::new(0, 0, t.0, t.1, t.2, t.3));
+            divrem_events.push(AluEvent::new(0, t.0, t.1, t.2, t.3, false));
         }
 
         // Append more events until we have 1000 tests.
         for _ in 0..(1000 - divrems.len()) {
-            divrem_events.push(AluEvent::new(0, 0, Opcode::DIVU, 1, 1, 1));
+            divrem_events.push(AluEvent::new(0, Opcode::DIVU, 1, 1, 1, false));
         }
 
         let mut shard = ExecutionRecord::default();
@@ -893,5 +926,72 @@ mod tests {
 
         let mut challenger = config.challenger();
         uni_stark_verify(&config, &chip, &mut challenger, &proof).unwrap();
+    }
+
+    #[test]
+    fn test_malicious_divrem() {
+        const NUM_TESTS: usize = 5;
+
+        for opcode in [Opcode::DIV, Opcode::DIVU, Opcode::REM, Opcode::REMU] {
+            for _ in 0..NUM_TESTS {
+                let (correct_op_a, op_b, op_c) = if opcode == Opcode::DIV {
+                    let op_b = thread_rng().gen_range(0..i32::MAX);
+                    let op_c = thread_rng().gen_range(0..i32::MAX);
+                    ((op_b / op_c) as u32, op_b as u32, op_c as u32)
+                } else if opcode == Opcode::DIVU {
+                    let op_b = thread_rng().gen_range(0..u32::MAX);
+                    let op_c = thread_rng().gen_range(0..u32::MAX);
+                    (op_b / op_c, op_b as u32, op_c as u32)
+                } else if opcode == Opcode::REM {
+                    let op_b = thread_rng().gen_range(0..i32::MAX);
+                    let op_c = thread_rng().gen_range(0..i32::MAX);
+                    ((op_b % op_c) as u32, op_b as u32, op_c as u32)
+                } else if opcode == Opcode::REMU {
+                    let op_b = thread_rng().gen_range(0..u32::MAX);
+                    let op_c = thread_rng().gen_range(0..u32::MAX);
+                    (op_b % op_c, op_b as u32, op_c as u32)
+                } else {
+                    unreachable!()
+                };
+
+                let op_a = thread_rng().gen_range(0..u32::MAX);
+                assert!(op_a != correct_op_a);
+
+                let instructions = vec![
+                    Instruction::new(opcode, 5, op_b, op_c, true, true),
+                    Instruction::new(Opcode::ADD, 10, 0, 0, false, false),
+                ];
+
+                let program = Program::new(instructions, 0, 0);
+                let stdin = SP1Stdin::new();
+
+                type P = CpuProver<BabyBearPoseidon2, RiscvAir<BabyBear>>;
+
+                let malicious_trace_pv_generator = move |prover: &P,
+                                                         record: &mut ExecutionRecord|
+                      -> Vec<(
+                    String,
+                    RowMajorMatrix<Val<BabyBearPoseidon2>>,
+                )> {
+                    let mut malicious_record = record.clone();
+                    malicious_record.cpu_events[0].a = op_a;
+                    if let Some(MemoryRecordEnum::Write(mut write_record)) =
+                        malicious_record.cpu_events[0].a_record
+                    {
+                        write_record.value = op_a;
+                    }
+                    malicious_record.divrem_events[0].a = op_a;
+                    prover.generate_traces(&malicious_record)
+                };
+
+                let result =
+                    run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
+                let divrem_chip_name = chip_name!(DivRemChip, BabyBear);
+                assert!(
+                    result.is_err()
+                        && result.unwrap_err().is_constraints_failing(&divrem_chip_name)
+                );
+            }
+        }
     }
 }

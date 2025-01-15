@@ -1,0 +1,179 @@
+name: Testing Suite (Executor)
+
+on:
+  workflow_dispatch:
+    inputs:
+      simple_workloads:
+        description: "list of simple executor workloads to run"
+        required: true
+      checkpoint_workloads:
+        description: "list of checkpoint executor workloads to run"
+        required: true
+      trace_workloads:
+        description: "list of trace executor workloads to run"
+        required: true
+  merge_group:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-
+  cancel-in-progress: false
+
+jobs:
+  test-simple-executor:
+    if: ${{ fromJSON(github.event.inputs.simple_workloads)[0] != null }}
+    strategy:
+      fail-fast: false
+      matrix:
+        workload: ${{ fromJSON(github.event.inputs.simple_workloads) }}
+    name: ${{ matrix.workload }} (simple executor)
+    runs-on:
+      [
+        "runs-on",
+        "runner=64cpu-linux-x64",
+        "spot=false",
+        "run-id=${{ github.run_id }}",
+      ]
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_S3 }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_S3 }}
+          aws-region: us-west-2
+
+      - name: Copy files from S3
+        run: |
+          mkdir -p workdir
+          aws s3 cp s3://sp1-testing-suite/${{ matrix.workload }}/program.bin workdir/program.bin
+          aws s3 cp s3://sp1-testing-suite/${{ matrix.workload }}/stdin.bin workdir/stdin.bin
+
+      - name: Install SP1 toolchain from repo
+        run: |
+          cargo run -p sp1-cli -- prove install-toolchain
+          cd crates/cli
+          cargo install --locked --force --path .
+          cargo clean
+
+      - name: Run sp1-perf
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          toolchain: 1.81.0
+          args: --release -p sp1-perf --bin sp1-perf-executor -- --program workdir/program.bin --stdin workdir/stdin.bin --executor-mode simple
+        env:
+          RUST_LOG: info
+          VERIFY_VK: false
+          RUSTFLAGS: -Copt-level=3 -Ctarget-cpu=native
+          RUST_BACKTRACE: 1
+
+  test-checkpoint-executor:
+    if: ${{ fromJSON(github.event.inputs.checkpoint_workloads)[0] != null }}
+    strategy:
+      fail-fast: false
+      matrix:
+        workload: ${{ fromJSON(github.event.inputs.checkpoint_workloads) }}
+    name: ${{ matrix.workload }} (checkpoint executor)
+    runs-on:
+      [
+        "runs-on",
+        "runner=64cpu-linux-x64",
+        "spot=false",
+        "run-id=${{ github.run_id }}",
+      ]
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_S3 }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_S3 }}
+          aws-region: us-west-2
+
+      - name: Copy files from S3
+        run: |
+          mkdir -p workdir
+          aws s3 cp s3://sp1-testing-suite/${{ matrix.workload }}/program.bin workdir/program.bin
+          aws s3 cp s3://sp1-testing-suite/${{ matrix.workload }}/stdin.bin workdir/stdin.bin
+
+      - name: Install SP1 toolchain from repo
+        run: |
+          cargo run -p sp1-cli -- prove install-toolchain
+          cd crates/cli
+          cargo install --locked --force --path .
+          cargo clean
+
+      - name: Run sp1-perf
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          toolchain: 1.81.0
+          args: --release -p sp1-perf --bin sp1-perf-executor -- --program workdir/program.bin --stdin workdir/stdin.bin --executor-mode checkpoint
+        env:
+          RUST_LOG: info
+          VERIFY_VK: false
+          RUSTFLAGS: -Copt-level=3 -Ctarget-cpu=native
+          RUST_BACKTRACE: 1
+
+  test-trace-executor:
+    if: ${{ fromJSON(github.event.inputs.trace_workloads)[0] != null }}
+    strategy:
+      fail-fast: false
+      matrix:
+        workload: ${{ fromJSON(github.event.inputs.trace_workloads) }}
+    name: ${{ matrix.workload }} (trace executor)
+    runs-on:
+      [
+        "runs-on",
+        "runner=64cpu-linux-x64",
+        "spot=false",
+        "run-id=${{ github.run_id }}",
+      ]
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_S3 }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_S3 }}
+          aws-region: us-west-2
+
+      - name: Copy files from S3
+        run: |
+          mkdir -p workdir
+          aws s3 cp s3://sp1-testing-suite/${{ matrix.workload }}/program.bin workdir/program.bin
+          aws s3 cp s3://sp1-testing-suite/${{ matrix.workload }}/stdin.bin workdir/stdin.bin
+
+      - name: Install SP1 toolchain from repo
+        run: |
+          cargo run -p sp1-cli -- prove install-toolchain
+          cd crates/cli
+          cargo install --locked --force --path .
+          cargo clean
+
+      - name: Run sp1-perf
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          toolchain: 1.81.0
+          args: --release -p sp1-perf --bin sp1-perf-executor -- --program workdir/program.bin --stdin workdir/stdin.bin --executor-mode trace
+        env:
+          RUST_LOG: info
+          VERIFY_VK: false
+          RUSTFLAGS: -Copt-level=3 -Ctarget-cpu=native
+          RUST_BACKTRACE: 1

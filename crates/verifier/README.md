@@ -6,7 +6,7 @@ to be generated using the [SP1 SDK](../sdk).
 ## Features
 
 Groth16 and Plonk proof verification are supported in `no-std` environments. Verification in the
-SP1 ZKVM context is patched, in order to make use of the
+SP1 zkVM context is patched, in order to make use of the
 [bn254 precompiles](https://blog.succinct.xyz/succinctshipsprecompiles/).
 
 ### Pre-generated verification keys
@@ -26,11 +26,7 @@ Run tests with the following command:
 cargo test --package sp1-verifier
 ```
 
-These tests verify the proofs in the [`test_binaries`](./test_binaries) directory. These test binaries
-were generated from the fibonacci [groth16](../../examples/fibonacci/script/bin/groth16_bn254.rs) and
-[plonk](../../examples/fibonacci/script/bin/plonk_bn254.rs) examples. You can reproduce these proofs
-from the examples by running `cargo run --bin groth16_bn254` and `cargo run --bin plonk_bn254` from the
-[`examples/fibonacci`](../../examples/fibonacci/) directory.
+These tests generate a groth16/plonk proof and verify it.
 
 ## Acknowledgements
 

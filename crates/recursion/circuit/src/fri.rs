@@ -7,12 +7,13 @@ use p3_fri::{
 };
 use p3_symmetric::Hash;
 use p3_util::log2_strict_usize;
-use sp1_recursion_compiler::ir::{Builder, DslIr, Felt, SymbolicExt};
+use sp1_recursion_compiler::ir::{Builder, DslIr, Felt, IrIter, SymbolicExt};
 use sp1_recursion_core::DIGEST_SIZE;
 use sp1_stark::{InnerChallenge, InnerChallengeMmcs, InnerPcsProof, InnerVal};
 use std::{
     cmp::Reverse,
     iter::{once, repeat_with, zip},
+    mem,
 };
 
 use crate::{
@@ -76,10 +77,25 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
     challenger: &mut SC::FriChallengerVariable,
     rounds: Vec<TwoAdicPcsRoundVariable<C, SC>>,
 ) {
+    // Write the polynomial evaluations to the challenger.
+    for round in rounds.iter() {
+        for mat in round.domains_points_and_opens.iter() {
+            for point in mat.values.iter() {
+                for coord in point.iter() {
+                    let point_felts = C::ext2felt(builder, *coord);
+                    point_felts.iter().for_each(|felt| {
+                        challenger.observe(builder, *felt);
+                    });
+                }
+            }
+        }
+    }
+
     let alpha = challenger.sample_ext(builder);
 
-    let fri_challenges =
-        verify_shape_and_sample_challenges::<C, SC>(builder, config, &proof.fri_proof, challenger);
+    let fri_challenges = tracing::debug_span!("verify shape and challenges").in_scope(|| {
+        verify_shape_and_sample_challenges::<C, SC>(builder, config, &proof.fri_proof, challenger)
+    });
 
     let log_global_max_height = proof.fri_proof.commit_phase_commits.len() + config.log_blowup;
 
@@ -95,11 +111,14 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
     let mut alpha_pows: Vec<Ext<C::F, C::EF>> =
         vec![builder.eval(SymbolicExt::from_f(C::EF::one()))];
 
+    // Hack to "pre-insert" powers of alpha. It's sort of like CPS.
+    let mut pre_loop_ops = mem::take(builder.get_mut_operations());
+
     let reduced_openings = proof
         .query_openings
         .iter()
         .zip(&fri_challenges.query_indices)
-        .map(|(query_opening, index_bits)| {
+        .ir_par_map_collect::<Vec<_>, _, _>(builder, |builder, (query_opening, index_bits)| {
             // The powers of alpha, where the ith element is alpha^i.
             let mut log_height_pow = [0usize; 32];
             let mut ro: [Ext<C::F, C::EF>; 32] =
@@ -151,43 +170,30 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
                     for (z, ps_at_z) in izip!(mat_points, mat_values) {
                         // Unroll the loop calculation to avoid symbolic expression overhead
 
-                        // let mut acc: Ext<C::F, C::EF> = builder.constant(C::EF::zero());
-                        let mut acc: Ext<_, _> = builder.uninit();
+                        let len = ps_at_z.len();
+                        let mut alphas = Vec::with_capacity(len);
+                        let mut p_at_zs = Vec::with_capacity(len);
+                        let mut p_at_xs = Vec::with_capacity(len);
 
-                        builder.push_op(DslIr::ImmE(acc, C::EF::zero()));
                         for (p_at_x, p_at_z) in izip!(mat_opening.clone(), ps_at_z) {
                             let pow = log_height_pow[log_height];
-                            // Fill in any missing powers of alpha.
-                            for _ in alpha_pows.len()..pow + 1 {
-                                // let new_alpha = builder.eval(*alpha_pows.last().unwrap() *
-                                // alpha);
+
+                            // Fill in any missing powers of alpha. These are initialized later.
+                            for _ in alpha_pows.len()..=pow {
                                 let new_alpha: Ext<_, _> = builder.uninit();
-                                builder.push_op(DslIr::MulE(
-                                    new_alpha,
-                                    *alpha_pows.last().unwrap(),
-                                    alpha,
-                                ));
-                                builder.reduce_e(new_alpha);
                                 alpha_pows.push(new_alpha);
                             }
-                            // Unroll:
-                            //
-                            // acc = builder.eval(acc + (alpha_pows[pow] * (p_at_z - p_at_x[0])));
 
-                            // let temp_1 = p_at_z - p_at_x[0];
-                            let temp_1: Ext<_, _> = builder.uninit();
-                            builder.push_op(DslIr::SubEF(temp_1, p_at_z, p_at_x[0]));
-                            // let temp_2 = alpha_pows[pow] * temp_1;
-                            let temp_2: Ext<_, _> = builder.uninit();
-                            builder.push_op(DslIr::MulE(temp_2, alpha_pows[pow], temp_1));
-                            // let temp_3 = acc + temp_2;
-                            let temp_3: Ext<_, _> = builder.uninit();
-                            builder.push_op(DslIr::AddE(temp_3, acc, temp_2));
-                            // acc = temp_3;
-                            acc = temp_3;
+                            alphas.push(alpha_pows[pow]);
+                            p_at_zs.push(p_at_z);
+                            p_at_xs.push(p_at_x[0]);
 
                             log_height_pow[log_height] += 1;
                         }
+
+                        // acc = sum(alpha_pows[pow] * (p_at_z - p_at_x[0]));
+                        let acc = C::batch_fri(builder, alphas, p_at_zs, p_at_xs);
+
                         // Unroll this calculation to avoid symbolic expression overhead
                         // ro[log_height] = builder.eval(ro[log_height] + acc / (z - x));
 
@@ -209,16 +215,29 @@ pub fn verify_two_adic_pcs<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigV
                 }
             }
             ro
-        })
-        .collect::<Vec<_>>();
+        });
 
-    verify_challenges::<C, SC>(
-        builder,
-        config,
-        proof.fri_proof.clone(),
-        &fri_challenges,
-        reduced_openings,
-    );
+    // Put back the operations list and extract the parallel ops.
+    mem::swap(builder.get_mut_operations(), &mut pre_loop_ops);
+    let parallel_ops = pre_loop_ops;
+    // Initialize `alpha_pows` before the parallel iteration.
+    for i in 1..alpha_pows.len() {
+        let new_alpha: Ext<_, _> = alpha_pows[i];
+        builder.push_op(DslIr::MulE(new_alpha, alpha_pows[i - 1], alpha));
+        builder.reduce_e(new_alpha);
+    }
+    // Put parallel ops at the end.
+    builder.extend_ops(parallel_ops);
+
+    tracing::debug_span!("verify challenges").in_scope(|| {
+        verify_challenges::<C, SC>(
+            builder,
+            config,
+            proof.fri_proof.clone(),
+            &fri_challenges,
+            reduced_openings,
+        );
+    });
 }
 
 pub fn verify_challenges<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>>(
@@ -229,21 +248,24 @@ pub fn verify_challenges<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVar
     reduced_openings: Vec<[Ext<C::F, C::EF>; 32]>,
 ) {
     let log_max_height = proof.commit_phase_commits.len() + config.log_blowup;
-    for ((index_bits, query_proof), ro) in
-        challenges.query_indices.iter().zip(proof.query_proofs).zip(reduced_openings)
-    {
-        let folded_eval = verify_query::<C, SC>(
-            builder,
-            &proof.commit_phase_commits,
-            index_bits,
-            query_proof,
-            &challenges.betas,
-            ro,
-            log_max_height,
-        );
+    challenges
+        .query_indices
+        .iter()
+        .zip(proof.query_proofs)
+        .zip(reduced_openings)
+        .ir_par_map_collect::<(), _, _>(builder, |sub_builder, ((index_bits, query_proof), ro)| {
+            let folded_eval = verify_query::<C, SC>(
+                sub_builder,
+                &proof.commit_phase_commits,
+                index_bits,
+                query_proof,
+                &challenges.betas,
+                ro,
+                log_max_height,
+            );
 
-        builder.assert_ext_eq(folded_eval, proof.final_poly);
-    }
+            sub_builder.assert_ext_eq(folded_eval, proof.final_poly);
+        });
 }
 
 pub fn verify_query<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>>(
@@ -261,11 +283,6 @@ pub fn verify_query<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
     // TODO: fix expreversebits address bug to avoid needing to allocate a new variable.
     let mut x =
         C::exp_reverse_bits(builder, two_adic_generator, index_bits[..log_max_height].to_vec());
-    // let mut x = builder.uninit();
-    // builder.push(DslIr::AddFI(x, x_f, C::F::zero()));
-
-    // let mut x = builder.eval(x + C::F::zero());
-    // let mut x: Ext<_, _> = builder.eval(SymbolicExt::one() * SymbolicFelt::from(x_felt));
 
     for (offset, log_folded_height, commit, step, beta) in izip!(
         0..,
@@ -359,12 +376,10 @@ pub fn verify_batch<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
 
     let mut curr_height_padded = heights_tallest_first.peek().unwrap().1.next_power_of_two();
 
-    let ext_slice: Vec<Vec<Felt<C::F>>> = heights_tallest_first
+    let ext_slice = heights_tallest_first
         .peeking_take_while(|(_, height)| height.next_power_of_two() == curr_height_padded)
-        .flat_map(|(i, _)| opened_values[i].as_slice())
-        .cloned()
-        .collect::<Vec<_>>();
-    let felt_slice: Vec<Felt<C::F>> = ext_slice.into_iter().flatten().collect::<Vec<_>>();
+        .flat_map(|(i, _)| opened_values[i].as_slice());
+    let felt_slice: Vec<Felt<C::F>> = ext_slice.flatten().cloned().collect::<Vec<_>>();
     let mut root: SC::DigestVariable = SC::hash(builder, &felt_slice[..]);
 
     zip(index_bits.iter(), proof).for_each(|(&bit, sibling): (&C::Bit, SC::DigestVariable)| {
@@ -379,11 +394,10 @@ pub fn verify_batch<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable
             .filter(|h| h.next_power_of_two() == curr_height_padded);
 
         if let Some(next_height) = next_height {
-            let ext_slice: Vec<Vec<Felt<C::F>>> = heights_tallest_first
+            let ext_slice = heights_tallest_first
                 .peeking_take_while(|(_, height)| *height == next_height)
-                .flat_map(|(i, _)| opened_values[i].clone())
-                .collect::<Vec<_>>();
-            let felt_slice: Vec<Felt<C::F>> = ext_slice.into_iter().flatten().collect::<Vec<_>>();
+                .flat_map(|(i, _)| opened_values[i].as_slice());
+            let felt_slice: Vec<Felt<C::F>> = ext_slice.flatten().cloned().collect::<Vec<_>>();
             let next_height_openings_digest = SC::hash(builder, &felt_slice);
             root = SC::compress(builder, [root, next_height_openings_digest]);
         }
@@ -410,8 +424,8 @@ pub fn dummy_query_proof(
     }
 }
 
-/// Make a dummy PCS proof for a given proof shape. Used to generate vkey information for fixed proof
-/// shapes.
+/// Make a dummy PCS proof for a given proof shape. Used to generate vkey information for fixed
+/// proof shapes.
 ///
 /// The parameter `batch_shapes` contains (width, height) data for each matrix in each batch.
 pub fn dummy_pcs_proof(
@@ -467,7 +481,7 @@ mod tests {
     };
     use p3_challenger::{CanObserve, CanSample, FieldChallenger};
     use p3_commit::Pcs;
-    use p3_field::AbstractField;
+    use p3_field::{extension::BinomialExtensionField, AbstractField};
     use p3_fri::verifier;
     use p3_matrix::dense::RowMajorMatrix;
     use rand::{
@@ -619,12 +633,23 @@ mod tests {
         challenger.observe(commit);
         let zeta = challenger.sample_ext_element::<InnerChallenge>();
         let points = repeat_with(|| vec![zeta]).take(domains_and_polys.len()).collect::<Vec<_>>();
-        let (_, proof) = pcs.open(vec![(&data, points)], &mut challenger);
+        let (all_opened_values, proof) = pcs.open(vec![(&data, points)], &mut challenger);
 
         // Verify proof.
         let mut challenger = InnerChallenger::new(perm.clone());
         challenger.observe(commit);
         let _: InnerChallenge = challenger.sample();
+        let flattened_opened_values: Vec<BinomialExtensionField<BabyBear, 4>> = all_opened_values
+            .into_iter()
+            .flat_map(|v| v.into_iter())
+            .flat_map(|v| v.into_iter())
+            .flat_map(|v| v.into_iter())
+            .collect();
+        for ext_element in flattened_opened_values.iter() {
+            challenger.observe_ext_element(*ext_element);
+        }
+        let _: BinomialExtensionField<BabyBear, 4> = challenger.sample_ext_element();
+
         let fri_challenges_gt = verifier::verify_shape_and_sample_challenges(
             &inner_fri_config(),
             &proof.fri_proof,
@@ -642,6 +667,14 @@ mod tests {
         let commit: [Felt<InnerVal>; DIGEST_SIZE] = commit.map(|x| builder.eval(x));
         challenger.observe_slice(&mut builder, commit);
         let _ = challenger.sample_ext(&mut builder);
+        for ext_element in flattened_opened_values.iter() {
+            let ext_variable: Ext<_, _> = builder.eval(SymbolicExt::from_f(*ext_element));
+            let point_felts = InnerConfig::ext2felt(&mut builder, ext_variable);
+            point_felts.iter().for_each(|felt| {
+                challenger.observe(&mut builder, *felt);
+            });
+        }
+        challenger.sample_ext(&mut builder);
         let fri_challenges = verify_shape_and_sample_challenges::<InnerConfig, BabyBearPoseidon2>(
             &mut builder,
             &config,
@@ -665,7 +698,7 @@ mod tests {
             );
         }
 
-        run_test_recursion(builder.into_operations(), None);
+        run_test_recursion(builder.into_root_block(), None);
     }
 
     #[test]
@@ -798,6 +831,6 @@ mod tests {
             }
         }
 
-        run_test_recursion(builder.into_operations(), witness_stream);
+        run_test_recursion(builder.into_root_block(), witness_stream);
     }
 }

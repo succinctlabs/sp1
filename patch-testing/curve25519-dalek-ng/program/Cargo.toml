@@ -1,0 +1,34 @@
+[workspace]
+[package]
+name = "curve25519-dalek-ng"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "curve25519_ng_decompress"
+path = "bin/decompress.rs"
+
+[[bin]]
+name = "curve25519_ng_add_then_multiply"
+path = "bin/add_then_multiply.rs"
+
+[[bin]]
+name = "curve25519_ng_zero_msm"
+path = "bin/zero_msm.rs"
+
+[[bin]]
+name = "curve25519_ng_zero_mul"
+path = "bin/zero_mul.rs"
+
+[dependencies]
+sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
+curve25519-dalek-ng = { version = "4.1.1", default-features = false, features = [
+    "u64_backend",
+    "alloc",
+] }
+
+[patch.crates-io]
+# patches are not transitvely applied to patches lmao
+curve25519-dalek-ng = { package = "curve25519-dalek-ng", git = "https://github.com/sp1-patches/curve25519-dalek-ng.git", tag = "patch-4.1.1-sp1-4.0.0" }
+# Temporarily pinning to a specific version of ed25519-dalek to avoid a build failure
+sp1-lib = { path = "../../../crates/zkvm/lib" }

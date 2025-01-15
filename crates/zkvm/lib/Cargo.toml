@@ -11,7 +11,8 @@ categories = { workspace = true }
 
 [dependencies]
 bincode = "1.3.3"
-serde = { version = "1.0.204", features = ["derive"] }
+serde = { workspace = true, features = ["derive"] }
+sp1-primitives = { workspace = true }
 
 [features]
 default = []

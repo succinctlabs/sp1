@@ -50,9 +50,9 @@ mod tests {
         let zero: Felt<_> = builder.constant(F::zero());
         builder.assert_felt_eq(y, zero);
 
-        let operations = builder.into_operations();
+        let block = builder.into_root_block();
         let mut compiler = AsmCompiler::default();
-        let program = Arc::new(compiler.compile(operations));
+        let program = Arc::new(compiler.compile_inner(block).validate().unwrap());
         let mut runtime =
             Runtime::<F, EF, DiffusionMatrixBabyBear>::new(program.clone(), SC::new().perm);
         runtime.witness_stream = [
@@ -88,9 +88,9 @@ mod tests {
         let sum: Ext<_, _> = builder.eval(exts[0] + exts[1]);
         builder.assert_ext_ne(sum, exts[2]);
 
-        let operations = builder.into_operations();
+        let block = builder.into_root_block();
         let mut compiler = AsmCompiler::default();
-        let program = Arc::new(compiler.compile(operations));
+        let program = Arc::new(compiler.compile_inner(block).validate().unwrap());
         let mut runtime =
             Runtime::<F, EF, DiffusionMatrixBabyBear>::new(program.clone(), SC::new().perm);
         runtime.witness_stream =

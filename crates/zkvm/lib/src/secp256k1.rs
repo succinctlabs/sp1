@@ -33,6 +33,10 @@ impl AffinePoint<N> for Secp256k1Point {
         Self(WeierstrassPoint::Affine(limbs))
     }
 
+    fn identity() -> Self {
+        Self::infinity()
+    }
+
     fn limbs_ref(&self) -> &[u32; N] {
         match &self.0 {
             WeierstrassPoint::Infinity => panic!("Infinity point has no limbs"),

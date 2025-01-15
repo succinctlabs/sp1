@@ -1,220 +1,401 @@
-use std::{
-    env,
-    time::{Duration, Instant},
-};
+//! # Network Prover
+//!
+//! This module provides an implementation of the [`crate::Prover`] trait that can generate proofs
+//! on a remote RPC server.
 
+use std::time::{Duration, Instant};
+
+use super::prove::NetworkProveBuilder;
+use super::DEFAULT_CYCLE_LIMIT;
+use crate::cpu::execute::CpuExecuteBuilder;
+use crate::cpu::CpuProver;
+use crate::network::proto::network::GetProofRequestStatusResponse;
+use crate::network::{Error, DEFAULT_NETWORK_RPC_URL, DEFAULT_TIMEOUT_SECS};
 use crate::{
-    network::client::{NetworkClient, DEFAULT_PROVER_NETWORK_RPC},
-    network::proto::network::{ProofMode, ProofStatus},
-    Prover, SP1Context, SP1ProofKind, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
+    network::client::NetworkClient,
+    network::proto::network::{ExecutionStatus, FulfillmentStatus, FulfillmentStrategy, ProofMode},
+    Prover, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
 };
+use alloy_primitives::B256;
 use anyhow::Result;
+use sp1_core_executor::{SP1Context, SP1ContextBuilder};
 use sp1_core_machine::io::SP1Stdin;
-use sp1_prover::{components::DefaultProverComponents, SP1Prover, SP1_CIRCUIT_VERSION};
-use sp1_stark::SP1ProverOpts;
+use sp1_prover::{components::CpuProverComponents, SP1Prover, SP1_CIRCUIT_VERSION};
 
-use super::proto::network::GetProofStatusResponse;
+use {crate::utils::block_on, tokio::time::sleep};
 
-use {crate::block_on, tokio::time::sleep};
-
-use crate::provers::{CpuProver, ProofOpts, ProverType};
-
-/// Number of consecutive errors to tolerate before returning an error while polling proof status.
-const MAX_CONSECUTIVE_ERRORS: usize = 10;
-
-/// An implementation of [crate::ProverClient] that can generate proofs on a remote RPC server.
+/// An implementation of [`crate::ProverClient`] that can generate proofs on a remote RPC server.
 pub struct NetworkProver {
-    client: NetworkClient,
-    local_prover: CpuProver,
+    pub(crate) client: NetworkClient,
+    pub(crate) prover: CpuProver,
 }
 
 impl NetworkProver {
-    /// Creates a new [NetworkProver] with the private key set in `SP1_PRIVATE_KEY`.
-    pub fn new() -> Self {
-        let private_key = env::var("SP1_PRIVATE_KEY")
-            .unwrap_or_else(|_| panic!("SP1_PRIVATE_KEY must be set for remote proving"));
-        Self::new_from_key(&private_key)
+    /// Creates a new [`NetworkProver`] with the given private key.
+    ///
+    /// # Details
+    /// * `private_key`: The Secp256k1 private key to use for signing requests.
+    /// * `rpc_url`: The rpc url to use for the prover network.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::NetworkProver;
+    ///
+    /// let prover = NetworkProver::new("...", "...");
+    /// ```
+    #[must_use]
+    pub fn new(private_key: &str, rpc_url: &str) -> Self {
+        let prover = CpuProver::new();
+        let client = NetworkClient::new(private_key, rpc_url);
+        Self { client, prover }
     }
 
-    /// Creates a new [NetworkProver] with the given private key.
-    pub fn new_from_key(private_key: &str) -> Self {
-        let version = SP1_CIRCUIT_VERSION;
-        log::info!("Client circuit version: {}", version);
-
-        let local_prover = CpuProver::new();
-        Self { client: NetworkClient::new(private_key), local_prover }
+    /// Creates a new [`CpuExecuteBuilder`] for simulating the execution of a program on the CPU.
+    ///
+    /// # Details
+    /// Note that this does not use the network in any capacity. The method is provided for
+    /// convenience.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().cpu().build();
+    /// let (public_values, execution_report) = client.execute(elf, &stdin)
+    ///     .run()
+    ///     .unwrap();
+    /// ```
+    pub fn execute<'a>(&'a self, elf: &'a [u8], stdin: &SP1Stdin) -> CpuExecuteBuilder<'a> {
+        CpuExecuteBuilder {
+            prover: self.prover.inner(),
+            elf,
+            stdin: stdin.clone(),
+            context_builder: SP1ContextBuilder::default(),
+        }
     }
 
-    /// Requests a proof from the prover network, returning the proof ID.
-    pub async fn request_proof(
+    /// A request to generate a proof for a given proving key and input.
+    ///
+    /// # Details
+    /// * `pk`: The proving key to use for the proof.
+    /// * `stdin`: The input to use for the proof.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().network().build();
+    /// let (pk, vk) = client.setup(elf);
+    /// let proof = client.prove(&pk, &stdin).run();
+    /// ```
+    pub fn prove<'a>(
+        &'a self,
+        pk: &'a SP1ProvingKey,
+        stdin: &'a SP1Stdin,
+    ) -> NetworkProveBuilder<'a> {
+        NetworkProveBuilder {
+            prover: self,
+            mode: SP1ProofMode::Core,
+            pk,
+            stdin: stdin.clone(),
+            timeout: None,
+            strategy: FulfillmentStrategy::Hosted,
+            skip_simulation: false,
+            cycle_limit: None,
+        }
+    }
+
+    /// Registers a program if it is not already registered.
+    ///
+    /// # Details
+    /// * `vk`: The verifying key to use for the program.
+    /// * `elf`: The elf to use for the program.
+    ///
+    /// Note that this method requires that the user honestly registers the program (i.e., the elf
+    /// matches the vk).
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let client = ProverClient::builder().network().build();
+    /// let (pk, vk) = client.setup(elf);
+    ///
+    /// let vk_hash = client.register_program(&vk, elf);
+    /// ```
+    pub async fn register_program(&self, vk: &SP1VerifyingKey, elf: &[u8]) -> Result<B256> {
+        self.client.register_program(vk, elf).await
+    }
+
+    /// Gets the status of a proof request. Re-exposes the status response from the client.
+    ///
+    /// # Details
+    /// * `request_id`: The request ID to get the status of.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, network::B256};
+    ///
+    /// tokio_test::block_on(async {
+    ///     let request_id = B256::from_slice(&vec![1u8; 32]);
+    ///     let client = ProverClient::builder().network().build();
+    ///     let (status, maybe_proof) = client.get_proof_status(request_id).await.unwrap();   
+    /// })
+    /// ```
+    pub async fn get_proof_status(
         &self,
-        elf: &[u8],
-        stdin: SP1Stdin,
+        request_id: B256,
+    ) -> Result<(GetProofRequestStatusResponse, Option<SP1ProofWithPublicValues>)> {
+        self.client.get_proof_request_status(request_id, None).await
+    }
+
+    /// Gets the status of a proof request with handling for timeouts and unfulfillable requests.
+    ///
+    /// Returns the proof if it is fulfilled and the fulfillment status. Handles statuses indicating
+    /// that the proof is unfulfillable or unexecutable with errors.
+    ///
+    /// # Details
+    /// * `request_id`: The request ID to get the status of.
+    /// * `remaining_timeout`: The remaining timeout for the proof request.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, network::B256};
+    ///
+    /// tokio_test::block_on(async {
+    ///     let request_id = B256::from_slice(&vec![1u8; 32]);
+    ///     let client = ProverClient::builder().network().build();
+    ///     let (maybe_proof, fulfillment_status) = client.process_proof_status(request_id, None).await.unwrap();   
+    /// })
+    /// ```
+    pub async fn process_proof_status(
+        &self,
+        request_id: B256,
+        remaining_timeout: Option<Duration>,
+    ) -> Result<(Option<SP1ProofWithPublicValues>, FulfillmentStatus)> {
+        // Get the status.
+        let (status, maybe_proof): (
+            GetProofRequestStatusResponse,
+            Option<SP1ProofWithPublicValues>,
+        ) = self.client.get_proof_request_status(request_id, remaining_timeout).await?;
+
+        // Check the deadline.
+        if status.deadline < Instant::now().elapsed().as_secs() {
+            return Err(Error::RequestTimedOut { request_id: request_id.to_vec() }.into());
+        }
+
+        // Get the execution and fulfillment statuses.
+        let execution_status = ExecutionStatus::try_from(status.execution_status).unwrap();
+        let fulfillment_status = FulfillmentStatus::try_from(status.fulfillment_status).unwrap();
+
+        // Check the execution status.
+        if execution_status == ExecutionStatus::Unexecutable {
+            return Err(Error::RequestUnexecutable { request_id: request_id.to_vec() }.into());
+        }
+
+        // Check the fulfillment status.
+        if fulfillment_status == FulfillmentStatus::Fulfilled {
+            return Ok((maybe_proof, fulfillment_status));
+        }
+        if fulfillment_status == FulfillmentStatus::Unfulfillable {
+            return Err(Error::RequestUnfulfillable { request_id: request_id.to_vec() }.into());
+        }
+
+        Ok((None, fulfillment_status))
+    }
+
+    /// Requests a proof from the prover network, returning the request ID.
+    ///
+    /// # Details
+    /// * `vk_hash`: The hash of the verifying key to use for the proof.
+    /// * `stdin`: The input to use for the proof.
+    /// * `mode`: The proof mode to use for the proof.
+    /// * `strategy`: The fulfillment strategy to use for the proof.
+    /// * `cycle_limit`: The cycle limit to use for the proof.
+    pub(crate) async fn request_proof(
+        &self,
+        vk_hash: B256,
+        stdin: &SP1Stdin,
         mode: ProofMode,
-    ) -> Result<String> {
-        let client = &self.client;
+        strategy: FulfillmentStrategy,
+        cycle_limit: u64,
+        timeout: Option<Duration>,
+    ) -> Result<B256> {
+        // Get the timeout.
+        let timeout_secs = timeout.map_or(DEFAULT_TIMEOUT_SECS, |dur| dur.as_secs());
 
-        let skip_simulation = env::var("SKIP_SIMULATION").map(|val| val == "true").unwrap_or(false);
+        // Log the request.
+        log::info!("Requesting proof:");
+        log::info!("├─ Cycle limit: {}", cycle_limit);
+        log::info!("├─ Proof mode: {:?}", mode);
+        log::info!("├─ Strategy: {:?}", strategy);
+        log::info!("├─ Timeout: {} seconds", timeout_secs);
+        log::info!("└─ Circuit version: {}", SP1_CIRCUIT_VERSION);
 
-        if !skip_simulation {
-            let (_, report) =
-                self.local_prover.sp1_prover().execute(elf, &stdin, Default::default())?;
-            log::info!("Simulation complete, cycles: {}", report.total_instruction_count());
-        } else {
-            log::info!("Skipping simulation");
+        // Request the proof.
+        let response = self
+            .client
+            .request_proof(
+                vk_hash,
+                stdin,
+                mode,
+                SP1_CIRCUIT_VERSION,
+                strategy,
+                timeout_secs,
+                cycle_limit,
+            )
+            .await?;
+
+        // Log the request ID and transaction hash.
+        let tx_hash = B256::from_slice(&response.tx_hash);
+        let request_id = B256::from_slice(&response.body.unwrap().request_id);
+        log::info!("Created request {} in transaction {:?}", request_id, tx_hash);
+
+        if self.client.rpc_url == DEFAULT_NETWORK_RPC_URL {
+            log::info!(
+                "View request status at: https://network.succinct.xyz/request/{}",
+                request_id
+            );
         }
 
-        let proof_id = client.create_proof(elf, &stdin, mode, SP1_CIRCUIT_VERSION).await?;
-        log::info!("Created {}", proof_id);
-
-        if NetworkClient::rpc_url() == DEFAULT_PROVER_NETWORK_RPC {
-            log::info!("View in explorer: https://explorer.succinct.xyz/{}", proof_id);
-        }
-        Ok(proof_id)
+        Ok(request_id)
     }
 
     /// Waits for a proof to be generated and returns the proof. If a timeout is supplied, the
     /// function will return an error if the proof is not generated within the timeout.
     pub async fn wait_proof(
         &self,
-        proof_id: &str,
+        request_id: B256,
         timeout: Option<Duration>,
     ) -> Result<SP1ProofWithPublicValues> {
-        let client = &self.client;
-        let mut is_claimed = false;
+        let mut is_assigned = false;
         let start_time = Instant::now();
-        let mut consecutive_errors = 0;
+
         loop {
+            // Calculate the remaining timeout.
             if let Some(timeout) = timeout {
                 if start_time.elapsed() > timeout {
-                    return Err(anyhow::anyhow!("Proof generation timed out."));
+                    return Err(Error::RequestTimedOut { request_id: request_id.to_vec() }.into());
                 }
             }
-
-            let result = client.get_proof_status(proof_id).await;
-
-            if let Err(e) = result {
-                consecutive_errors += 1;
-                log::warn!(
-                    "Failed to get proof status ({}/{}): {:?}",
-                    consecutive_errors,
-                    MAX_CONSECUTIVE_ERRORS,
-                    e
-                );
-                if consecutive_errors == MAX_CONSECUTIVE_ERRORS {
-                    return Err(anyhow::anyhow!(
-                        "Proof generation failed: {} consecutive errors.",
-                        MAX_CONSECUTIVE_ERRORS
-                    ));
+            let remaining_timeout = timeout.map(|t| {
+                let elapsed = start_time.elapsed();
+                if elapsed < t {
+                    t - elapsed
+                } else {
+                    Duration::from_secs(0)
                 }
-                continue;
+            });
+
+            let (maybe_proof, fulfillment_status) =
+                self.process_proof_status(request_id, remaining_timeout).await?;
+
+            if fulfillment_status == FulfillmentStatus::Fulfilled {
+                return Ok(maybe_proof.unwrap());
+            } else if fulfillment_status == FulfillmentStatus::Assigned && !is_assigned {
+                log::info!("Proof request assigned, proving...");
+                is_assigned = true;
             }
-            consecutive_errors = 0;
 
-            let (status, maybe_proof) = result.unwrap();
-
-            match status.status() {
-                ProofStatus::ProofFulfilled => {
-                    return Ok(maybe_proof.unwrap());
-                }
-                ProofStatus::ProofClaimed => {
-                    if !is_claimed {
-                        log::info!("Proof request claimed, proving...");
-                        is_claimed = true;
-                    }
-                }
-                ProofStatus::ProofUnclaimed => {
-                    return Err(anyhow::anyhow!(
-                        "Proof generation failed: {}",
-                        status.unclaim_description()
-                    ));
-                }
-                _ => {}
-            }
             sleep(Duration::from_secs(2)).await;
         }
     }
 
-    /// Get the status and the proof if available of a given proof request. The proof is returned
-    /// only if the status is Fulfilled.
-    pub async fn get_proof_status(
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) async fn request_proof_impl(
         &self,
-        proof_id: &str,
-    ) -> Result<(GetProofStatusResponse, Option<SP1ProofWithPublicValues>)> {
-        self.client.get_proof_status(proof_id).await
-    }
-
-    /// Requests a proof from the prover network and waits for it to be generated.
-    pub async fn prove(
-        &self,
-        elf: &[u8],
-        stdin: SP1Stdin,
-        mode: ProofMode,
-        timeout: Option<Duration>,
-    ) -> Result<SP1ProofWithPublicValues> {
-        let proof_id = self.request_proof(elf, stdin, mode).await?;
-        self.wait_proof(&proof_id, timeout).await
-    }
-}
-
-impl Prover<DefaultProverComponents> for NetworkProver {
-    fn id(&self) -> ProverType {
-        ProverType::Network
-    }
-
-    fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
-        self.local_prover.setup(elf)
-    }
-
-    fn sp1_prover(&self) -> &SP1Prover {
-        self.local_prover.sp1_prover()
-    }
-
-    fn prove<'a>(
-        &'a self,
         pk: &SP1ProvingKey,
-        stdin: SP1Stdin,
-        opts: ProofOpts,
-        context: SP1Context<'a>,
-        kind: SP1ProofKind,
+        stdin: &SP1Stdin,
+        mode: SP1ProofMode,
+        strategy: FulfillmentStrategy,
+        timeout: Option<Duration>,
+        skip_simulation: bool,
+        cycle_limit: Option<u64>,
+    ) -> Result<B256> {
+        let vk_hash = self.register_program(&pk.vk, &pk.elf).await?;
+        let cycle_limit = self.get_cycle_limit(cycle_limit, &pk.elf, stdin, skip_simulation)?;
+        self.request_proof(vk_hash, stdin, mode.into(), strategy, cycle_limit, timeout).await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) async fn prove_impl(
+        &self,
+        pk: &SP1ProvingKey,
+        stdin: &SP1Stdin,
+        mode: SP1ProofMode,
+        strategy: FulfillmentStrategy,
+        timeout: Option<Duration>,
+        skip_simulation: bool,
+        cycle_limit: Option<u64>,
     ) -> Result<SP1ProofWithPublicValues> {
-        warn_if_not_default(&opts.sp1_prover_opts, &context);
-        block_on(self.prove(&pk.elf, stdin, kind.into(), opts.timeout))
+        let request_id = self
+            .request_proof_impl(pk, stdin, mode, strategy, timeout, skip_simulation, cycle_limit)
+            .await?;
+        self.wait_proof(request_id, timeout).await
+    }
+
+    /// The cycle limit is determined according to the following priority:
+    ///
+    /// 1. If a cycle limit was explicitly set by the requester, use the specified value.
+    /// 2. If simulation is enabled, calculate the limit by simulating the
+    ///    execution of the program. This is the default behavior.
+    /// 3. Otherwise, use the default cycle limit ([`DEFAULT_CYCLE_LIMIT`]).
+    fn get_cycle_limit(
+        &self,
+        cycle_limit: Option<u64>,
+        elf: &[u8],
+        stdin: &SP1Stdin,
+        skip_simulation: bool,
+    ) -> Result<u64> {
+        if let Some(cycle_limit) = cycle_limit {
+            return Ok(cycle_limit);
+        }
+
+        if skip_simulation {
+            Ok(DEFAULT_CYCLE_LIMIT)
+        } else {
+            self.prover
+                .inner()
+                .execute(elf, stdin, SP1Context::default())
+                .map(|(_, report)| report.total_instruction_count())
+                .map_err(|_| Error::SimulationFailed.into())
+        }
     }
 }
 
-impl Default for NetworkProver {
-    fn default() -> Self {
-        Self::new()
+impl Prover<CpuProverComponents> for NetworkProver {
+    fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
+        self.prover.setup(elf)
+    }
+
+    fn inner(&self) -> &SP1Prover {
+        self.prover.inner()
+    }
+
+    fn prove(
+        &self,
+        pk: &SP1ProvingKey,
+        stdin: &SP1Stdin,
+        mode: SP1ProofMode,
+    ) -> Result<SP1ProofWithPublicValues> {
+        block_on(self.prove_impl(pk, stdin, mode, FulfillmentStrategy::Hosted, None, false, None))
     }
 }
 
-/// Warns if `opts` or `context` are not default values, since they are currently unsupported.
-fn warn_if_not_default(opts: &SP1ProverOpts, context: &SP1Context) {
-    if opts != &SP1ProverOpts::default() {
-        tracing::warn!("non-default opts will be ignored: {:?}", opts.core_opts);
-        tracing::warn!("custom SP1ProverOpts are currently unsupported by the network prover");
-    }
-    // Exhaustive match is done to ensure we update the warnings if the types change.
-    let SP1Context { hook_registry, subproof_verifier, .. } = context;
-    if hook_registry.is_some() {
-        tracing::warn!("non-default context.hook_registry will be ignored: {:?}", hook_registry);
-        tracing::warn!("custom runtime hooks are currently unsupported by the network prover");
-        tracing::warn!("proving may fail due to missing hooks");
-    }
-    if subproof_verifier.is_some() {
-        tracing::warn!("non-default context.subproof_verifier will be ignored");
-        tracing::warn!("custom subproof verifiers are currently unsupported by the network prover");
-    }
-}
-
-impl From<SP1ProofKind> for ProofMode {
-    fn from(value: SP1ProofKind) -> Self {
+impl From<SP1ProofMode> for ProofMode {
+    fn from(value: SP1ProofMode) -> Self {
         match value {
-            SP1ProofKind::Core => Self::Core,
-            SP1ProofKind::Compressed => Self::Compressed,
-            SP1ProofKind::Plonk => Self::Plonk,
-            SP1ProofKind::Groth16 => Self::Groth16,
+            SP1ProofMode::Core => Self::Core,
+            SP1ProofMode::Compressed => Self::Compressed,
+            SP1ProofMode::Plonk => Self::Plonk,
+            SP1ProofMode::Groth16 => Self::Groth16,
         }
     }
 }

@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 
 use num::BigUint;
+use p3_air::AirBuilder;
 use p3_field::PrimeField32;
 use sp1_core_executor::events::ByteRecord;
 use sp1_curves::params::{FieldParameters, Limbs};
@@ -34,7 +35,6 @@ impl<F: PrimeField32, P: FieldParameters> FieldDenCols<F, P> {
     pub fn populate(
         &mut self,
         record: &mut impl ByteRecord,
-        shard: u32,
         a: &BigUint,
         b: &BigUint,
         sign: bool,
@@ -82,10 +82,10 @@ impl<F: PrimeField32, P: FieldParameters> FieldDenCols<F, P> {
         self.witness_high = Limbs(p_witness_high.try_into().unwrap());
 
         // Range checks
-        record.add_u8_range_checks_field(shard, &self.result.0);
-        record.add_u8_range_checks_field(shard, &self.carry.0);
-        record.add_u8_range_checks_field(shard, &self.witness_low.0);
-        record.add_u8_range_checks_field(shard, &self.witness_high.0);
+        record.add_u8_range_checks_field(&self.result.0);
+        record.add_u8_range_checks_field(&self.carry.0);
+        record.add_u8_range_checks_field(&self.witness_low.0);
+        record.add_u8_range_checks_field(&self.witness_high.0);
 
         result
     }
@@ -106,10 +106,10 @@ where
     ) where
         V: Into<AB::Expr>,
     {
-        let p_a = Polynomial::from(*a);
-        let p_b = (*b).into();
-        let p_result = self.result.into();
-        let p_carry = self.carry.into();
+        let p_a: Polynomial<<AB as AirBuilder>::Expr> = (*a).into();
+        let p_b: Polynomial<<AB as AirBuilder>::Expr> = (*b).into();
+        let p_result: Polynomial<<AB as AirBuilder>::Expr> = self.result.into();
+        let p_carry: Polynomial<<AB as AirBuilder>::Expr> = self.carry.into();
 
         // Compute the vanishing polynomial:
         //      lhs(x) = sign * (b(x) * result(x) + result(x)) + (1 - sign) * (b(x) * result(x) +
@@ -120,9 +120,11 @@ where
         let p_equation_rhs = if sign { p_a } else { p_result };
 
         let p_lhs_minus_rhs = &p_equation_lhs - &p_equation_rhs;
-        let p_limbs = Polynomial::from_iter(P::modulus_field_iter::<AB::F>().map(AB::Expr::from));
+        let p_limbs: Polynomial<<AB as AirBuilder>::Expr> =
+            Polynomial::from_iter(P::modulus_field_iter::<AB::F>().map(AB::Expr::from));
 
-        let p_vanishing = p_lhs_minus_rhs - &p_carry * &p_limbs;
+        let p_vanishing: Polynomial<<AB as AirBuilder>::Expr> =
+            p_lhs_minus_rhs - &p_carry * &p_limbs;
 
         let p_witness_low = self.witness_low.0.iter().into();
         let p_witness_high = self.witness_high.0.iter().into();
@@ -150,9 +152,10 @@ mod tests {
         StarkGenericConfig,
     };
 
+    use crate::utils::uni_stark::{uni_stark_prove, uni_stark_verify};
+
     use super::{FieldDenCols, Limbs};
 
-    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use core::{
         borrow::{Borrow, BorrowMut},
         mem::size_of,
@@ -227,7 +230,7 @@ mod tests {
                     let cols: &mut TestCols<F, P> = row.as_mut_slice().borrow_mut();
                     cols.a = P::to_limbs_field::<F, _>(a);
                     cols.b = P::to_limbs_field::<F, _>(b);
-                    cols.a_den_b.populate(output, 0, a, b, self.sign);
+                    cols.a_den_b.populate(output, a, b, self.sign);
                     row
                 })
                 .collect::<Vec<_>>();
@@ -284,9 +287,9 @@ mod tests {
         // This it to test that the proof DOESN'T work if messed up.
         // let row = trace.row_mut(0);
         // row[0] = BabyBear::from_canonical_u8(0);
-        let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
+        let proof = uni_stark_prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();
-        verify(&config, &chip, &mut challenger, &proof).unwrap();
+        uni_stark_verify(&config, &chip, &mut challenger, &proof).unwrap();
     }
 }

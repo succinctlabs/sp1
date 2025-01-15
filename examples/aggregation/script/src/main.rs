@@ -24,7 +24,7 @@ fn main() {
     sp1_sdk::utils::setup_logger();
 
     // Initialize the proving client.
-    let client = ProverClient::new();
+    let client = ProverClient::from_env();
 
     // Setup the proving and verifying keys.
     let (aggregation_pk, _) = client.setup(AGGREGATION_ELF);
@@ -34,17 +34,17 @@ fn main() {
     let proof_1 = tracing::info_span!("generate fibonacci proof n=10").in_scope(|| {
         let mut stdin = SP1Stdin::new();
         stdin.write(&10);
-        client.prove(&fibonacci_pk, stdin).compressed().run().expect("proving failed")
+        client.prove(&fibonacci_pk, &stdin).compressed().run().expect("proving failed")
     });
     let proof_2 = tracing::info_span!("generate fibonacci proof n=20").in_scope(|| {
         let mut stdin = SP1Stdin::new();
         stdin.write(&20);
-        client.prove(&fibonacci_pk, stdin).compressed().run().expect("proving failed")
+        client.prove(&fibonacci_pk, &stdin).compressed().run().expect("proving failed")
     });
     let proof_3 = tracing::info_span!("generate fibonacci proof n=30").in_scope(|| {
         let mut stdin = SP1Stdin::new();
         stdin.write(&30);
-        client.prove(&fibonacci_pk, stdin).compressed().run().expect("proving failed")
+        client.prove(&fibonacci_pk, &stdin).compressed().run().expect("proving failed")
     });
 
     // Setup the inputs to the aggregation program.
@@ -76,6 +76,6 @@ fn main() {
         }
 
         // Generate the plonk bn254 proof.
-        client.prove(&aggregation_pk, stdin).plonk().run().expect("proving failed");
+        client.prove(&aggregation_pk, &stdin).plonk().run().expect("proving failed");
     });
 }

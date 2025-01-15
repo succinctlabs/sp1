@@ -8,6 +8,7 @@ pub mod bn254;
 pub mod ed25519;
 pub mod io;
 pub mod secp256k1;
+pub mod secp256r1;
 pub mod unconstrained;
 pub mod utils;
 #[cfg(feature = "verify")]
@@ -44,6 +45,15 @@ extern "C" {
     /// Executes an Secp256k1 curve decompression on the given point.
     pub fn syscall_secp256k1_decompress(point: &mut [u8; 64], is_odd: bool);
 
+    /// Executes an Secp256r1 curve addition on the given points.
+    pub fn syscall_secp256r1_add(p: *mut [u32; 16], q: *const [u32; 16]);
+
+    /// Executes an Secp256r1 curve doubling on the given point.
+    pub fn syscall_secp256r1_double(p: *mut [u32; 16]);
+
+    /// Executes an Secp256r1 curve decompression on the given point.
+    pub fn syscall_secp256r1_decompress(point: &mut [u8; 64], is_odd: bool);
+
     /// Executes a Bn254 curve addition on the given points.
     pub fn syscall_bn254_add(p: *mut [u32; 16], q: *const [u32; 16]);
 
@@ -62,6 +72,13 @@ extern "C" {
     /// Executes an uint256 multiplication on the given inputs.
     pub fn syscall_uint256_mulmod(x: *mut [u32; 8], y: *const [u32; 8]);
 
+    /// Executes a 256-bit by 2048-bit multiplication on the given inputs.
+    pub fn syscall_u256x2048_mul(
+        x: *const [u32; 8],
+        y: *const [u32; 64],
+        lo: *mut [u32; 64],
+        hi: *mut [u32; 8],
+    );
     /// Enters unconstrained mode.
     pub fn syscall_enter_unconstrained() -> bool;
 
@@ -128,4 +145,13 @@ extern "C" {
     /// Executes a BN254 Fp2 multiplication on the given inputs.
     pub fn syscall_bn254_fp2_mulmod(p: *mut u32, q: *const u32);
 
+    /// Reads a buffer from the input stream.
+    pub fn read_vec_raw() -> ReadVecResult;
+}
+
+#[repr(C)]
+pub struct ReadVecResult {
+    pub ptr: *mut u8,
+    pub len: usize,
+    pub capacity: usize,
 }

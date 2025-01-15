@@ -52,7 +52,7 @@ pub(crate) fn external_linear_layer<AF: AbstractField>(state: &mut [AF; WIDTH]) 
         core::array::from_fn(|k| (0..WIDTH).step_by(4).map(|j| state[j + k].clone()).sum::<AF>());
 
     for j in 0..WIDTH {
-        state[j] += sums[j % 4].clone();
+        state[j] = state[j].clone() + sums[j % 4].clone();
     }
 }
 
@@ -66,7 +66,7 @@ pub(crate) fn internal_linear_layer<F: AbstractField>(state: &mut [F; WIDTH]) {
             .unwrap();
     matmul_internal(state, matmul_constants);
     let monty_inverse = F::from_wrapped_u32(MONTY_INVERSE.as_canonical_u32());
-    state.iter_mut().for_each(|i| *i *= monty_inverse.clone());
+    state.iter_mut().for_each(|i| *i = i.clone() * monty_inverse.clone());
 }
 
 #[cfg(test)]
@@ -75,7 +75,7 @@ pub(crate) mod tests {
     use std::{iter::once, sync::Arc};
 
     use crate::{
-        machine::RecursionAir, runtime::instruction as instr, MemAccessKind, RecursionProgram,
+        linear_program, machine::RecursionAir, runtime::instruction as instr, MemAccessKind,
         Runtime,
     };
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
@@ -132,7 +132,7 @@ pub(crate) mod tests {
                 }))
                 .collect::<Vec<_>>();
 
-        let program = Arc::new(RecursionProgram { instructions, ..Default::default() });
+        let program = Arc::new(linear_program(instructions).unwrap());
         let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new(
             program.clone(),
             BabyBearPoseidon2::new().perm,

@@ -4,15 +4,19 @@ use core::{
 };
 use std::collections::HashMap;
 
-use crate::{air::ProgramAirBuilder, utils::pad_rows_fixed};
+use crate::{
+    air::ProgramAirBuilder,
+    utils::{next_power_of_two, pad_rows_fixed, zeroed_f_vec},
+};
 use p3_air::{Air, BaseAir, PairBuilder};
-use p3_field::PrimeField;
+use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
+use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
 use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::{MachineAir, SP1AirBuilder};
 
-use crate::cpu::columns::{InstructionCols, OpcodeSelectorCols};
+use crate::cpu::columns::InstructionCols;
 
 /// The number of preprocessed program columns.
 pub const NUM_PROGRAM_PREPROCESSED_COLS: usize = size_of::<ProgramPreprocessedCols<u8>>();
@@ -26,14 +30,12 @@ pub const NUM_PROGRAM_MULT_COLS: usize = size_of::<ProgramMultiplicityCols<u8>>(
 pub struct ProgramPreprocessedCols<T> {
     pub pc: T,
     pub instruction: InstructionCols<T>,
-    pub selectors: OpcodeSelectorCols<T>,
 }
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Clone, Copy, Default)]
 #[repr(C)]
 pub struct ProgramMultiplicityCols<T> {
-    pub shard: T,
     pub multiplicity: T,
 }
 
@@ -47,7 +49,7 @@ impl ProgramChip {
     }
 }
 
-impl<F: PrimeField> MachineAir<F> for ProgramChip {
+impl<F: PrimeField32> MachineAir<F> for ProgramChip {
     type Record = ExecutionRecord;
 
     type Program = Program;
@@ -65,36 +67,33 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
             !program.instructions.is_empty() || program.preprocessed_shape.is_some(),
             "empty program"
         );
-        let mut rows = program
-            .instructions
-            .iter()
+        // Generate the trace rows for each event.
+        let nb_rows = program.instructions.len();
+        let size_log2 = program.fixed_log2_rows::<F, _>(self);
+        let padded_nb_rows = next_power_of_two(nb_rows, size_log2);
+        let mut values = zeroed_f_vec(padded_nb_rows * NUM_PROGRAM_PREPROCESSED_COLS);
+        let chunk_size = std::cmp::max((nb_rows + 1) / num_cpus::get(), 1);
+
+        values
+            .chunks_mut(chunk_size * NUM_PROGRAM_PREPROCESSED_COLS)
             .enumerate()
-            .map(|(i, &instruction)| {
-                let pc = program.pc_base + (i as u32 * 4);
-                let mut row = [F::zero(); NUM_PROGRAM_PREPROCESSED_COLS];
-                let cols: &mut ProgramPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
-                cols.pc = F::from_canonical_u32(pc);
-                cols.instruction.populate(instruction);
-                cols.selectors.populate(instruction);
+            .par_bridge()
+            .for_each(|(i, rows)| {
+                rows.chunks_mut(NUM_PROGRAM_PREPROCESSED_COLS).enumerate().for_each(|(j, row)| {
+                    let idx = i * chunk_size + j;
 
-                row
-            })
-            .collect::<Vec<_>>();
-
-        // Pad the trace to a power of two depending on the proof shape in `input`.
-        pad_rows_fixed(
-            &mut rows,
-            || [F::zero(); NUM_PROGRAM_PREPROCESSED_COLS],
-            program.fixed_log2_rows::<F, _>(self),
-        );
+                    if idx < nb_rows {
+                        let cols: &mut ProgramPreprocessedCols<F> = row.borrow_mut();
+                        let instruction = &program.instructions[idx];
+                        let pc = program.pc_base + (idx as u32 * 4);
+                        cols.pc = F::from_canonical_u32(pc);
+                        cols.instruction.populate(instruction);
+                    }
+                });
+            });
 
         // Convert the trace to a row major matrix.
-        let trace = RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_PROGRAM_PREPROCESSED_COLS,
-        );
-
-        Some(trace)
+        Some(RowMajorMatrix::new(values, NUM_PROGRAM_PREPROCESSED_COLS))
     }
 
     fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {
@@ -126,7 +125,6 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
                 let pc = input.program.pc_base + (i as u32 * 4);
                 let mut row = [F::zero(); NUM_PROGRAM_MULT_COLS];
                 let cols: &mut ProgramMultiplicityCols<F> = row.as_mut_slice().borrow_mut();
-                cols.shard = F::from_canonical_u32(input.public_values.execution_shard);
                 cols.multiplicity =
                     F::from_canonical_usize(*instruction_counts.get(&pc).unwrap_or(&0));
                 row
@@ -168,13 +166,7 @@ where
         let mult_local: &ProgramMultiplicityCols<AB::Var> = (*mult_local).borrow();
 
         // Constrain the interaction with CPU table
-        builder.receive_program(
-            prep_local.pc,
-            prep_local.instruction,
-            prep_local.selectors,
-            mult_local.shard,
-            mult_local.multiplicity,
-        );
+        builder.receive_program(prep_local.pc, prep_local.instruction, mult_local.multiplicity);
     }
 }
 

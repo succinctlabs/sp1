@@ -2,7 +2,10 @@ use serde::{Deserialize, Serialize};
 
 use sp1_curves::{
     params::{NumLimbs, NumWords},
-    weierstrass::{bls12_381::bls12381_decompress, secp256k1::secp256k1_decompress},
+    weierstrass::{
+        bls12_381::bls12381_decompress, secp256k1::secp256k1_decompress,
+        secp256r1::secp256r1_decompress,
+    },
     AffinePoint, CurveType, EllipticCurve,
 };
 use sp1_primitives::consts::{bytes_to_words_le_vec, words_to_bytes_le_vec};
@@ -11,7 +14,7 @@ use typenum::Unsigned;
 use crate::{
     events::{
         memory::{MemoryReadRecord, MemoryWriteRecord},
-        LookupId, MemoryLocalEvent,
+        MemoryLocalEvent,
     },
     syscalls::SyscallContext,
 };
@@ -21,7 +24,6 @@ use crate::{
 /// This event is emitted when an elliptic curve addition operation is performed.
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct EllipticCurveAddEvent {
-    pub(crate) lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,
     /// The clock cycle.
@@ -47,8 +49,6 @@ pub struct EllipticCurveAddEvent {
 /// This event is emitted when an elliptic curve doubling operation is performed.
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct EllipticCurveDoubleEvent {
-    /// The lookup identifier.
-    pub lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,
     /// The clock cycle.
@@ -68,8 +68,6 @@ pub struct EllipticCurveDoubleEvent {
 /// This event is emitted when an elliptic curve point decompression operation is performed.
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct EllipticCurveDecompressEvent {
-    /// The lookup identifier.
-    pub lookup_id: LookupId,
     /// The shard number.
     pub shard: u32,
     /// The clock cycle.
@@ -128,7 +126,6 @@ pub fn create_ec_add_event<E: EllipticCurve>(
     let p_memory_records = rt.mw_slice(p_ptr, &result_words);
 
     EllipticCurveAddEvent {
-        lookup_id: rt.syscall_lookup_id,
         shard: rt.current_shard(),
         clk: start_clk,
         p_ptr,
@@ -169,7 +166,6 @@ pub fn create_ec_double_event<E: EllipticCurve>(
     let p_memory_records = rt.mw_slice(p_ptr, &result_words);
 
     EllipticCurveDoubleEvent {
-        lookup_id: rt.syscall_lookup_id,
         shard: rt.current_shard(),
         clk: start_clk,
         p_ptr,
@@ -204,6 +200,7 @@ pub fn create_ec_decompress_event<E: EllipticCurve>(
 
     let decompress_fn = match E::CURVE_TYPE {
         CurveType::Secp256k1 => secp256k1_decompress::<E>,
+        CurveType::Secp256r1 => secp256r1_decompress::<E>,
         CurveType::Bls12381 => bls12381_decompress::<E>,
         _ => panic!("Unsupported curve"),
     };
@@ -217,7 +214,6 @@ pub fn create_ec_decompress_event<E: EllipticCurve>(
     let y_memory_records = rt.mw_slice(slice_ptr, &y_words);
 
     EllipticCurveDecompressEvent {
-        lookup_id: rt.syscall_lookup_id,
         shard: rt.current_shard(),
         clk: start_clk,
         ptr: slice_ptr,

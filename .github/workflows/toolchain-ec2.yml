@@ -92,15 +92,24 @@ jobs:
       - name: "Install build dependencies"
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential pkg-config libssl-dev
+          sudo apt-get install -y build-essential pkg-config libssl-dev git
 
-      - name: "Install cargo-prove"
+      - name: "Install SP1"
+        env:
+          SP1UP_VERSION: ${{ github.ref_name }}
         run: |
-          cargo install --locked --path ./crates/cli
+          cd sp1up
+          chmod +x sp1up
+          ./sp1up --token ${{ secrets.GH_PAT }}
 
-      - name: "Install SP1 toolchain"
+      - name: "Create SP1 project from template"
         run: |
-          cargo prove install-toolchain --token ${{ secrets.GH_PAT }}
+          $HOME/.sp1/bin/cargo-prove prove new --bare hello
+
+      - name: "Build SP1 project"
+        run: |
+          cd ./hello/program
+          $HOME/.sp1/bin/cargo-prove prove build
 
   stop-runner:
     name: "Stop self-hosted EC2 runner"

@@ -4,13 +4,15 @@ use hashbrown::HashMap;
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
 use sp1_stark::{
     air::{InteractionScope, MachineAir},
-    Chip, ProofShape, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS,
+    shape::OrderedShape,
+    Chip, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS,
 };
 
 use crate::{
     chips::{
         alu_base::{BaseAluChip, NUM_BASE_ALU_ENTRIES_PER_ROW},
         alu_ext::{ExtAluChip, NUM_EXT_ALU_ENTRIES_PER_ROW},
+        batch_fri::BatchFRIChip,
         exp_reverse_bits::ExpReverseBitsLenChip,
         fri_fold::FriFoldChip,
         mem::{
@@ -20,6 +22,7 @@ use crate::{
         poseidon2_skinny::Poseidon2SkinnyChip,
         poseidon2_wide::Poseidon2WideChip,
         public_values::{PublicValuesChip, PUB_VALUES_LOG_HEIGHT},
+        select::SelectChip,
     },
     instruction::{HintBitsInstr, HintExt2FeltsInstr, HintInstr},
     shape::RecursionShape,
@@ -39,20 +42,24 @@ pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: u
     ExtAlu(ExtAluChip),
     Poseidon2Skinny(Poseidon2SkinnyChip<DEGREE>),
     Poseidon2Wide(Poseidon2WideChip<DEGREE>),
+    Select(SelectChip),
     FriFold(FriFoldChip<DEGREE>),
+    BatchFRI(BatchFRIChip<DEGREE>),
     ExpReverseBitsLen(ExpReverseBitsLenChip<DEGREE>),
     PublicValues(PublicValuesChip),
 }
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct RecursionAirEventCount {
-    mem_const_events: usize,
-    mem_var_events: usize,
-    base_alu_events: usize,
-    ext_alu_events: usize,
-    poseidon2_wide_events: usize,
-    fri_fold_events: usize,
-    exp_reverse_bits_len_events: usize,
+    pub mem_const_events: usize,
+    pub mem_var_events: usize,
+    pub base_alu_events: usize,
+    pub ext_alu_events: usize,
+    pub poseidon2_wide_events: usize,
+    pub fri_fold_events: usize,
+    pub batch_fri_events: usize,
+    pub select_events: usize,
+    pub exp_reverse_bits_len_events: usize,
 }
 
 impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAir<F, DEGREE> {
@@ -67,6 +74,8 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
             RecursionAir::ExtAlu(ExtAluChip),
             RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>),
             RecursionAir::FriFold(FriFoldChip::<DEGREE>::default()),
+            RecursionAir::BatchFRI(BatchFRIChip::<DEGREE>),
+            RecursionAir::Select(SelectChip),
             RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>),
             RecursionAir::PublicValues(PublicValuesChip),
         ]
@@ -87,6 +96,8 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
             RecursionAir::ExtAlu(ExtAluChip),
             RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE>::default()),
             RecursionAir::FriFold(FriFoldChip::<DEGREE>::default()),
+            RecursionAir::BatchFRI(BatchFRIChip::<DEGREE>),
+            RecursionAir::Select(SelectChip),
             RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>),
             RecursionAir::PublicValues(PublicValuesChip),
         ]
@@ -104,6 +115,8 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
             RecursionAir::BaseAlu(BaseAluChip),
             RecursionAir::ExtAlu(ExtAluChip),
             RecursionAir::Poseidon2Wide(Poseidon2WideChip::<DEGREE>),
+            RecursionAir::BatchFRI(BatchFRIChip::<DEGREE>),
+            RecursionAir::Select(SelectChip),
             RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>),
             RecursionAir::PublicValues(PublicValuesChip),
         ]
@@ -128,7 +141,8 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
             RecursionAir::BaseAlu(BaseAluChip),
             RecursionAir::ExtAlu(ExtAluChip),
             RecursionAir::Poseidon2Skinny(Poseidon2SkinnyChip::<DEGREE>::default()),
-            // RecursionAir::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>),
+            // RecursionAir::BatchFRI(BatchFRIChip::<DEGREE>),
+            RecursionAir::Select(SelectChip),
             RecursionAir::PublicValues(PublicValuesChip),
         ]
         .map(Chip::new)
@@ -140,12 +154,14 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
     pub fn shrink_shape() -> RecursionShape {
         let shape = HashMap::from(
             [
-                (Self::MemoryConst(MemoryConstChip::default()), 17),
                 (Self::MemoryVar(MemoryVarChip::default()), 18),
-                (Self::BaseAlu(BaseAluChip), 20),
+                (Self::Select(SelectChip), 18),
+                (Self::MemoryConst(MemoryConstChip::default()), 17),
+                (Self::BatchFRI(BatchFRIChip::<DEGREE>), 17),
+                (Self::BaseAlu(BaseAluChip), 17),
                 (Self::ExtAlu(ExtAluChip), 18),
+                (Self::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>), 17),
                 (Self::Poseidon2Wide(Poseidon2WideChip::<DEGREE>), 16),
-                (Self::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>), 16),
                 (Self::PublicValues(PublicValuesChip), PUB_VALUES_LOG_HEIGHT),
             ]
             .map(|(chip, log_height)| (chip.name(), log_height)),
@@ -155,7 +171,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
 
     pub fn heights(program: &RecursionProgram<F>) -> Vec<(String, usize)> {
         let heights = program
-            .instructions
+            .inner
             .iter()
             .fold(RecursionAirEventCount::default(), |heights, instruction| heights + instruction);
 
@@ -177,6 +193,8 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
                 heights.ext_alu_events.div_ceil(NUM_EXT_ALU_ENTRIES_PER_ROW),
             ),
             (Self::Poseidon2Wide(Poseidon2WideChip::<DEGREE>), heights.poseidon2_wide_events),
+            (Self::BatchFRI(BatchFRIChip::<DEGREE>), heights.batch_fri_events),
+            (Self::Select(SelectChip), heights.select_events),
             (
                 Self::ExpReverseBitsLen(ExpReverseBitsLenChip::<DEGREE>),
                 heights.exp_reverse_bits_len_events,
@@ -196,6 +214,7 @@ impl<F> AddAssign<&Instruction<F>> for RecursionAirEventCount {
             Instruction::ExtAlu(_) => self.ext_alu_events += 1,
             Instruction::Mem(_) => self.mem_const_events += 1,
             Instruction::Poseidon2(_) => self.poseidon2_wide_events += 1,
+            Instruction::Select(_) => self.select_events += 1,
             Instruction::ExpReverseBitsLen(ExpReverseBitsInstr { addrs, .. }) => {
                 self.exp_reverse_bits_len_events += addrs.exp.len()
             }
@@ -209,8 +228,17 @@ impl<F> AddAssign<&Instruction<F>> for RecursionAirEventCount {
                 input_addr: _, // No receive interaction for the hint operation
             }) => self.mem_var_events += output_addrs_mults.len(),
             Instruction::FriFold(_) => self.fri_fold_events += 1,
+            Instruction::BatchFRI(instr) => {
+                self.batch_fri_events += instr.base_vec_addrs.p_at_x.len()
+            }
+            Instruction::HintAddCurve(instr) => {
+                self.mem_var_events += instr.output_x_addrs_mults.len();
+                self.mem_var_events += instr.output_y_addrs_mults.len();
+            }
             Instruction::CommitPublicValues(_) => {}
             Instruction::Print(_) => {}
+            #[cfg(feature = "debug")]
+            Instruction::DebugBacktrace(_) => {}
         }
     }
 }
@@ -225,7 +253,7 @@ impl<F> Add<&Instruction<F>> for RecursionAirEventCount {
     }
 }
 
-impl From<RecursionShape> for ProofShape {
+impl From<RecursionShape> for OrderedShape {
     fn from(value: RecursionShape) -> Self {
         value.inner.into_iter().collect()
     }
@@ -265,24 +293,20 @@ pub mod tests {
         // Run with the poseidon2 wide chip.
         let machine = A::machine_wide_with_all_chips(BabyBearPoseidon2::default());
         let (pk, vk) = machine.setup(&program);
-        let result = run_test_machine(vec![runtime.record.clone()], machine, pk, vk);
-        if let Err(e) = result {
-            panic!("Verification failed: {:?}", e);
-        }
+        run_test_machine(vec![runtime.record.clone()], machine, pk, vk)
+            .expect("Verification failed");
 
         // Run with the poseidon2 skinny chip.
         let skinny_machine =
             B::machine_skinny_with_all_chips(BabyBearPoseidon2::ultra_compressed());
         let (pk, vk) = skinny_machine.setup(&program);
-        let result = run_test_machine(vec![runtime.record], skinny_machine, pk, vk);
-        if let Err(e) = result {
-            panic!("Verification failed: {:?}", e);
-        }
+        run_test_machine(vec![runtime.record], skinny_machine, pk, vk)
+            .expect("Verification failed");
     }
 
-    fn test_instructions(instructions: Vec<Instruction<F>>) {
-        let program = RecursionProgram { instructions, ..Default::default() };
-        run_recursion_test_machines(program);
+    /// Constructs a linear program and runs it on machines that use the wide and skinny Poseidon2 chips.
+    pub fn test_recursion_linear_program(instrs: Vec<Instruction<F>>) {
+        run_recursion_test_machines(linear_program(instrs).unwrap());
     }
 
     #[test]
@@ -296,7 +320,7 @@ pub mod tests {
             .chain(once(instr::mem(MemAccessKind::Read, 2, n, 55)))
             .collect::<Vec<_>>();
 
-        test_instructions(instructions);
+        test_recursion_linear_program(instructions);
     }
 
     #[test]
@@ -309,7 +333,7 @@ pub mod tests {
             instr::mem(MemAccessKind::Read, 1, 2, 1),
         ];
 
-        test_instructions(instructions);
+        test_recursion_linear_program(instructions);
     }
 
     #[test]
@@ -321,7 +345,7 @@ pub mod tests {
             instr::mem(MemAccessKind::Read, 1, 2, 1),
         ];
 
-        test_instructions(instructions);
+        test_recursion_linear_program(instructions);
     }
 
     #[test]
@@ -354,6 +378,6 @@ pub mod tests {
             addr += 1;
         }
 
-        test_instructions(instructions);
+        test_recursion_linear_program(instructions);
     }
 }

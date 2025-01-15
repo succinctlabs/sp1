@@ -11,11 +11,12 @@ use crate::opcode::Opcode;
 /// as 32-bit words, but instead use a custom encoding that is more friendly to decode in the
 /// SP1 zkVM.
 #[derive(Clone, Copy, Serialize, Deserialize)]
+#[repr(C)]
 pub struct Instruction {
     /// The operation to execute.
     pub opcode: Opcode,
     /// The first operand.
-    pub op_a: u32,
+    pub op_a: u8,
     /// The second operand.
     pub op_b: u32,
     /// The third operand.
@@ -31,7 +32,7 @@ impl Instruction {
     #[must_use]
     pub const fn new(
         opcode: Opcode,
-        op_a: u32,
+        op_a: u8,
         op_b: u32,
         op_c: u32,
         imm_b: bool,
@@ -42,6 +43,7 @@ impl Instruction {
 
     /// Returns if the instruction is an ALU instruction.
     #[must_use]
+    #[inline]
     pub const fn is_alu_instruction(&self) -> bool {
         matches!(
             self.opcode,
@@ -68,28 +70,28 @@ impl Instruction {
 
     /// Returns if the instruction is a ecall instruction.
     #[must_use]
-    pub fn is_ecall_instruction(&self) -> bool {
-        self.opcode == Opcode::ECALL
+    #[inline]
+    pub const fn is_ecall_instruction(&self) -> bool {
+        matches!(self.opcode, Opcode::ECALL)
     }
 
-    /// Returns if the instruction is a memory instruction.
+    /// Returns if the instruction is a memory load instruction.
     #[must_use]
-    pub const fn is_memory_instruction(&self) -> bool {
-        matches!(
-            self.opcode,
-            Opcode::LB
-                | Opcode::LH
-                | Opcode::LW
-                | Opcode::LBU
-                | Opcode::LHU
-                | Opcode::SB
-                | Opcode::SH
-                | Opcode::SW
-        )
+    #[inline]
+    pub const fn is_memory_load_instruction(&self) -> bool {
+        matches!(self.opcode, Opcode::LB | Opcode::LH | Opcode::LW | Opcode::LBU | Opcode::LHU)
+    }
+
+    /// Returns if the instruction is a memory store instruction.
+    #[must_use]
+    #[inline]
+    pub const fn is_memory_store_instruction(&self) -> bool {
+        matches!(self.opcode, Opcode::SB | Opcode::SH | Opcode::SW)
     }
 
     /// Returns if the instruction is a branch instruction.
     #[must_use]
+    #[inline]
     pub const fn is_branch_instruction(&self) -> bool {
         matches!(
             self.opcode,
@@ -99,8 +101,37 @@ impl Instruction {
 
     /// Returns if the instruction is a jump instruction.
     #[must_use]
+    #[inline]
     pub const fn is_jump_instruction(&self) -> bool {
         matches!(self.opcode, Opcode::JAL | Opcode::JALR)
+    }
+
+    /// Returns if the instruction is an auipc instruction.
+    #[must_use]
+    #[inline]
+    pub const fn is_auipc_instruction(&self) -> bool {
+        matches!(self.opcode, Opcode::AUIPC)
+    }
+
+    /// Returns if the instruction is a divrem instruction.
+    #[must_use]
+    #[inline]
+    pub const fn is_divrem_instruction(&self) -> bool {
+        matches!(self.opcode, Opcode::DIV | Opcode::DIVU | Opcode::REM | Opcode::REMU)
+    }
+
+    /// Returns if the instruction is an ebreak instruction.
+    #[must_use]
+    #[inline]
+    pub const fn is_ebreak_instruction(&self) -> bool {
+        matches!(self.opcode, Opcode::EBREAK)
+    }
+
+    /// Returns if the instruction is an unimplemented instruction.
+    #[must_use]
+    #[inline]
+    pub const fn is_unimp_instruction(&self) -> bool {
+        matches!(self.opcode, Opcode::UNIMP)
     }
 }
 

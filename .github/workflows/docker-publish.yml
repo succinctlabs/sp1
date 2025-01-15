@@ -1,5 +1,6 @@
+# This workflow publishes the docker image for the CLI to ghcr.io.
 # Source: https://raw.githubusercontent.com/foundry-rs/foundry/master/.github/workflows/docker-publish.yml
-name: docker
+name: Docker Publish CLI
 
 on:
   push:
@@ -10,13 +11,20 @@ on:
   schedule:
     - cron: "0 0 * * *"
   # Trigger without any parameters a proactive rebuild
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      image_sp1:
+        description: "Override the image name to succinctlabs/sp1"
+        type: boolean
+      tag_override:
+        description: "Override the tag"
   workflow_call:
 
 env:
   REGISTRY: ghcr.io
   # Will resolve to succinctlabs/sp1
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: ${{ github.event.inputs.image_sp1 && 'succinctlabs/sp1' || github.repository }}
+  TAG_OVERRIDE: ${{ github.event.inputs.tag_override || '' }}
 
 jobs:
   container:
@@ -64,7 +72,10 @@ jobs:
       - name: Finalize Docker Metadata
         id: docker_tagging
         run: |
-          if [[ "${{ github.event_name }}" == 'schedule' ]]; then
+          if [[ "$TAG_OVERRIDE" != "" ]]; then
+            echo "Overriding tag to $TAG_OVERRIDE"
+            echo "docker_tags=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$TAG_OVERRIDE" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == 'schedule' ]]; then
             echo "cron trigger, assigning nightly tag"
             echo "docker_tags=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:nightly,${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:nightly-${GITHUB_SHA}" >> $GITHUB_OUTPUT
           elif [[ "${GITHUB_REF##*/}" == "main" ]] || [[ ${GITHUB_REF##*/} == "master" ]]; then
@@ -87,8 +98,8 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
-          context: ./crates/cli/docker
-          file: ./crates/cli/docker/Dockerfile
+          context: ./
+          file: ./Dockerfile.build
           push: true
           tags: ${{ steps.docker_tagging.outputs.docker_tags }}
           labels: ${{ steps.meta.outputs.labels }}

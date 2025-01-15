@@ -1,12 +1,12 @@
 use std::str::FromStr;
 
-use crate::curve25519_dalek::CompressedEdwardsY;
 use generic_array::GenericArray;
 use num::{BigUint, Num, One};
 use serde::{Deserialize, Serialize};
 use typenum::{U32, U62};
 
 use crate::{
+    curve25519_dalek::CompressedEdwardsY,
     edwards::{EdwardsCurve, EdwardsParameters},
     params::{FieldParameters, NumLimbs},
     AffinePoint, CurveType, EllipticCurveParameters,
@@ -128,7 +128,7 @@ pub fn decompress(compressed_point: &CompressedEdwardsY) -> Option<AffinePoint<E
 
     let y = &BigUint::from_bytes_le(&point_bytes);
     let yy = &((y * y) % modulus);
-    let u = (yy - BigUint::one()) % modulus; // u =  y²-1
+    let u = (yy + modulus - BigUint::one()) % modulus; // u =  y²-1
     let v = &((yy * &Ed25519Parameters::d_biguint()) + &BigUint::one()) % modulus; // v = dy²+1
 
     let v_inv = v.modpow(&(modulus - BigUint::from(2u64)), modulus);
@@ -139,7 +139,7 @@ pub fn decompress(compressed_point: &CompressedEdwardsY) -> Option<AffinePoint<E
     // sqrt always returns the nonnegative square root,
     // so we negate according to the supplied sign bit.
     if sign {
-        x = modulus - &x;
+        x = (modulus - &x) % modulus;
     }
 
     Some(AffinePoint::new(x, y.clone()))

@@ -25,9 +25,9 @@ pub trait SP1ProverComponents: Send + Sync {
         + Sync;
 }
 
-pub struct DefaultProverComponents;
+pub struct CpuProverComponents;
 
-impl SP1ProverComponents for DefaultProverComponents {
+impl SP1ProverComponents for CpuProverComponents {
     type CoreProver = CpuProver<CoreSC, RiscvAir<<CoreSC as StarkGenericConfig>::Val>>;
     type CompressProver = CpuProver<InnerSC, CompressAir<<InnerSC as StarkGenericConfig>::Val>>;
     type ShrinkProver = CpuProver<InnerSC, ShrinkAir<<InnerSC as StarkGenericConfig>::Val>>;

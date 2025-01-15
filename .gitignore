@@ -16,12 +16,20 @@ pgo-data.profdata
 **/proof-with-io.bin
 **/program.bin
 **/stdin.bin
+**/node_modules
+
+# Example fibonacci groth16 / plonk proofs
+examples/fibonacci/fibonacci-groth16.bin
+examples/fibonacci/fibonacci-plonk.bin
 
 # Benchmark
 benchmark.csv
 
 # Environment
 .env
+
+# scripts
+crates/prover/maximal_shapes.sh
 
 # Build Artifacts
 recursion/gnark-ffi/build
@@ -35,6 +43,18 @@ crates/prover/semaphore-gnark-11
 crates/prover/trusted-setup
 crates/prover/vk
 
+# Example legacy elf
+examples/elf 
+
 # Example fibonacci groth16 / plonk proofs
 examples/fibonacci/fibonacci-groth16.bin
 examples/fibonacci/fibonacci-plonk.bin
+
+# C++
+.vscode/c_cpp_properties.json
+
+**/.yarn
+**/yarn.lock
+book/.pnp.cjs
+book/.pnp.loader.mjs
+book/.yarnrc.yml

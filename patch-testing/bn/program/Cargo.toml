@@ -1,0 +1,33 @@
+[workspace]
+[package]
+name = "bn_test_program"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "bn_test_fr_inverse"
+path = "bin/test_fr_inverse.rs"
+
+[[bin]]
+name = "bn_test_fq_inverse"
+path = "bin/test_fq_inverse.rs"
+
+[[bin]]
+name = "bn_test_fq_sqrt"
+path = "bin/test_fq_sqrt.rs"
+
+[[bin]]
+name = "bn_test_g1_add"
+path = "bin/test_g1_add.rs"
+
+[[bin]]
+name = "bn_test_g1_double"
+path = "bin/test_g1_double.rs"
+
+[dependencies]
+sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
+sp1-lib = { path = "../../../crates/zkvm/lib" }
+substrate-bn = { git = "https://github.com/sp1-patches/bn", tag = "patch-0.6.0-sp1-4.0.0" }
+
+[patch.crates-io]
+sp1-lib = { path = "../../../crates/zkvm/lib" }

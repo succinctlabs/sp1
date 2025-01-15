@@ -5,10 +5,14 @@ pub trait AffinePoint<const N: usize>: Clone + Sized {
     /// Creates a new [`AffinePoint`] from the given limbs.
     fn new(limbs: [u32; N]) -> Self;
 
+    /// Creates a new [`AffinePoint`] that corresponds to the identity point.
+    fn identity() -> Self;
+
     /// Returns a reference to the limbs.
     fn limbs_ref(&self) -> &[u32; N];
 
-    /// Returns a mutable reference to the limbs. If the point is the infinity point, this will panic.
+    /// Returns a mutable reference to the limbs. If the point is the infinity point, this will
+    /// panic.
     fn limbs_mut(&mut self) -> &mut [u32; N];
 
     /// Creates a new [`AffinePoint`] from the given x and y coordinates.
@@ -48,7 +52,8 @@ pub trait AffinePoint<const N: usize>: Clone + Sized {
     fn add_assign(&mut self, other: &Self);
 
     /// Adds the given [`AffinePoint`] to `self`. Can be optionally overridden to use a different
-    /// implementation of addition in multi-scalar multiplication, which is used in secp256k1 recovery.
+    /// implementation of addition in multi-scalar multiplication, which is used in secp256k1
+    /// recovery.
     fn complete_add_assign(&mut self, other: &Self) {
         self.add_assign(other);
     }
@@ -57,32 +62,22 @@ pub trait AffinePoint<const N: usize>: Clone + Sized {
     fn double(&mut self);
 
     /// Multiplies `self` by the given scalar.
-    fn mul_assign(&mut self, scalar: &[u32]) -> Result<(), MulAssignError> {
+    fn mul_assign(&mut self, scalar: &[u32]) {
         debug_assert!(scalar.len() == N / 2);
 
-        let mut res: Option<Self> = None;
+        let mut res: Self = Self::identity();
         let mut temp = self.clone();
-
-        let scalar_is_zero = scalar.iter().all(|&words| words == 0);
-        if scalar_is_zero {
-            return Err(MulAssignError::ScalarIsZero);
-        }
 
         for &words in scalar.iter() {
             for i in 0..32 {
                 if (words >> i) & 1 == 1 {
-                    match res.as_mut() {
-                        Some(res) => res.add_assign(&temp),
-                        None => res = Some(temp.clone()),
-                    };
+                    res.complete_add_assign(&temp);
                 }
-
                 temp.double();
             }
         }
 
-        *self = res.unwrap();
-        Ok(())
+        *self = res;
     }
 
     /// Performs multi-scalar multiplication (MSM) on slices of bit vectors and points. Note:
@@ -92,28 +87,20 @@ pub trait AffinePoint<const N: usize>: Clone + Sized {
         a: Self,
         b_bits_le: &[bool],
         b: Self,
-    ) -> Option<Self> {
+    ) -> Self {
         // The length of the bit vectors must be the same.
         debug_assert!(a_bits_le.len() == b_bits_le.len());
 
-        let mut res: Option<Self> = None;
+        let mut res: Self = Self::identity();
         let mut temp_a = a.clone();
         let mut temp_b = b.clone();
         for (a_bit, b_bit) in a_bits_le.iter().zip(b_bits_le.iter()) {
             if *a_bit {
-                match res.as_mut() {
-                    Some(res) => res.complete_add_assign(&temp_a),
-                    None => res = Some(temp_a.clone()),
-                };
+                res.complete_add_assign(&temp_a);
             }
-
             if *b_bit {
-                match res.as_mut() {
-                    Some(res) => res.complete_add_assign(&temp_b),
-                    None => res = Some(temp_b.clone()),
-                };
+                res.complete_add_assign(&temp_b);
             }
-
             temp_a.double();
             temp_b.double();
         }

@@ -5,6 +5,7 @@ use cargo_metadata::camino::Utf8PathBuf;
 use dirs::home_dir;
 
 use super::utils::{get_program_build_args, get_rust_compiler_flags};
+use super::TOOLCHAIN_NAME;
 
 /// Get the command to build the program locally.
 pub(crate) fn create_local_command(
@@ -27,6 +28,25 @@ pub(crate) fn create_local_command(
         }
     }
 
+    let parsed_version = {
+        let output = Command::new("rustc")
+            .arg("--version")
+            .env("RUSTUP_TOOLCHAIN", super::TOOLCHAIN_NAME)
+            .output()
+            .expect("rustc --version should succeed");
+
+        if !output.status.success() {
+            panic!("Failed to run rustc --version {:?}", String::from_utf8_lossy(&output.stdout));
+        }
+
+        let stdout_string =
+            String::from_utf8(output.stdout).expect("Can't parse rustc --version stdout");
+
+        println!("cargo:warning=rustc +succinct --version: {:?}", stdout_string);
+
+        super::utils::parse_rustc_version(&stdout_string)
+    };
+
     // When executing the local command:
     // 1. Set the target directory to a subdirectory of the program's target directory to avoid
     //    build
@@ -40,8 +60,8 @@ pub(crate) fn create_local_command(
     //    options.
     command
         .current_dir(canonicalized_program_dir)
-        .env("RUSTUP_TOOLCHAIN", "succinct")
-        .env("CARGO_ENCODED_RUSTFLAGS", get_rust_compiler_flags(args))
+        .env("RUSTUP_TOOLCHAIN", TOOLCHAIN_NAME)
+        .env("CARGO_ENCODED_RUSTFLAGS", get_rust_compiler_flags(args, &parsed_version))
         .env_remove("RUSTC")
         .env("CARGO_TARGET_DIR", program_metadata.target_directory.join(HELPER_TARGET_SUBDIR))
         // TODO: remove once trim-paths is supported - https://github.com/rust-lang/rust/issues/111540

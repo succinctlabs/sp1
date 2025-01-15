@@ -39,13 +39,7 @@ impl<F: Field> FixedRotateRightOperation<F> {
         1 << (8 - nb_bits_to_shift)
     }
 
-    pub fn populate(
-        &mut self,
-        record: &mut impl ByteRecord,
-        shard: u32,
-        input: u32,
-        rotation: usize,
-    ) -> u32 {
+    pub fn populate(&mut self, record: &mut impl ByteRecord, input: u32, rotation: usize) -> u32 {
         let input_bytes = input.to_le_bytes().map(F::from_canonical_u8);
         let expected = input.rotate_right(rotation as u32);
 
@@ -72,14 +66,8 @@ impl<F: Field> FixedRotateRightOperation<F> {
 
             let (shift, carry) = shr_carry(b, c);
 
-            let byte_event = ByteLookupEvent {
-                shard,
-                opcode: ByteOpcode::ShrCarry,
-                a1: shift as u16,
-                a2: carry,
-                b,
-                c,
-            };
+            let byte_event =
+                ByteLookupEvent { opcode: ByteOpcode::ShrCarry, a1: shift as u16, a2: carry, b, c };
             record.add_byte_lookup_event(byte_event);
 
             self.shift[i] = F::from_canonical_u8(shift);

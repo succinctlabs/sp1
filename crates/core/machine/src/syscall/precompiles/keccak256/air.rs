@@ -33,10 +33,6 @@ where
         let local: &KeccakMemCols<AB::Var> = (*local).borrow();
         let next: &KeccakMemCols<AB::Var> = (*next).borrow();
 
-        // Constrain the incrementing nonce.
-        builder.when_first_row().assert_zero(local.nonce);
-        builder.when_transition().assert_eq(local.nonce + AB::Expr::one(), next.nonce);
-
         let first_step = local.keccak.step_flags[0];
         let final_step = local.keccak.step_flags[NUM_ROUNDS - 1];
         let not_final_step = AB::Expr::one() - final_step;
@@ -66,7 +62,6 @@ where
         builder.receive_syscall(
             local.shard,
             local.clk,
-            local.nonce,
             AB::F::from_canonical_u32(SyscallCode::KECCAK_PERMUTE.syscall_id()),
             local.state_addr,
             AB::Expr::zero(),
@@ -140,15 +135,17 @@ mod test {
     use crate::{
         io::SP1Stdin,
         riscv::RiscvAir,
-        utils::{prove, setup_logger, tests::KECCAK256_ELF},
+        utils::{prove_core, setup_logger},
     };
     use sp1_primitives::io::SP1PublicValues;
 
     use rand::{Rng, SeedableRng};
-    use sp1_core_executor::Program;
+    use sp1_core_executor::{Program, SP1Context};
     use sp1_stark::{
-        baby_bear_poseidon2::BabyBearPoseidon2, CpuProver, SP1CoreOpts, StarkGenericConfig,
+        baby_bear_poseidon2::BabyBearPoseidon2, CpuProver, MachineProver, SP1CoreOpts,
+        StarkGenericConfig,
     };
+    use test_artifacts::KECCAK256_ELF;
     use tiny_keccak::Hasher;
 
     const NUM_TEST_CASES: usize = 45;
@@ -180,9 +177,22 @@ mod test {
         let config = BabyBearPoseidon2::new();
 
         let program = Program::from(KECCAK256_ELF).unwrap();
-        let (proof, public_values, _) =
-            prove::<_, CpuProver<_, _>>(program, &stdin, config, SP1CoreOpts::default(), None)
-                .unwrap();
+        let opts = SP1CoreOpts::default();
+        let machine = RiscvAir::machine(config);
+        let prover = CpuProver::new(machine);
+        let (pk, vk) = prover.setup(&program);
+        let (proof, public_values, _) = prove_core::<_, _>(
+            &prover,
+            &pk,
+            &vk,
+            program,
+            &stdin,
+            opts,
+            SP1Context::default(),
+            None,
+            None,
+        )
+        .unwrap();
         let mut public_values = SP1PublicValues::from(&public_values);
 
         let config = BabyBearPoseidon2::new();

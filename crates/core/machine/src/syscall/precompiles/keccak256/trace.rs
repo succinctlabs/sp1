@@ -96,16 +96,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
             });
 
         // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(values, NUM_KECCAK_MEM_COLS);
-
-        // Write the nonce to the trace.
-        for i in 0..trace.height() {
-            let cols: &mut KeccakMemCols<F> =
-                trace.values[i * NUM_KECCAK_MEM_COLS..(i + 1) * NUM_KECCAK_MEM_COLS].borrow_mut();
-            cols.nonce = F::from_canonical_usize(i);
-        }
-
-        trace
+        RowMajorMatrix::new(values, NUM_KECCAK_MEM_COLS)
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -145,8 +136,7 @@ impl KeccakPermuteChip {
             if i == 0 {
                 for (j, read_record) in event.state_read_records.iter().enumerate() {
                     cols.state_mem[j].populate_read(*read_record, new_byte_lookup_events);
-                    new_byte_lookup_events
-                        .add_u8_range_checks(shard, &read_record.value.to_le_bytes());
+                    new_byte_lookup_events.add_u8_range_checks(&read_record.value.to_le_bytes());
                 }
                 cols.do_memory_check = F::one();
                 cols.receive_ecall = F::one();
@@ -156,8 +146,7 @@ impl KeccakPermuteChip {
             if i == NUM_ROUNDS - 1 {
                 for (j, write_record) in event.state_write_records.iter().enumerate() {
                     cols.state_mem[j].populate_write(*write_record, new_byte_lookup_events);
-                    new_byte_lookup_events
-                        .add_u8_range_checks(shard, &write_record.value.to_le_bytes());
+                    new_byte_lookup_events.add_u8_range_checks(&write_record.value.to_le_bytes());
                 }
                 cols.do_memory_check = F::one();
             }

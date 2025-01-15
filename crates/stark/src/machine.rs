@@ -1,3 +1,6 @@
+use crate::{
+    septic_curve::SepticCurve, septic_digest::SepticDigest, septic_extension::SepticExtension,
+};
 use hashbrown::HashMap;
 use itertools::Itertools;
 use p3_air::Air;
@@ -7,7 +10,7 @@ use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Dimensions, Matrix};
 use p3_maybe_rayon::prelude::*;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::{array, cmp::Reverse, env, fmt::Debug, time::Instant};
+use std::{cmp::Reverse, env, fmt::Debug, iter::once, time::Instant};
 use tracing::instrument;
 
 use super::{debug_constraints, Dom};
@@ -60,12 +63,16 @@ pub struct StarkProvingKey<SC: StarkGenericConfig> {
     pub commit: Com<SC>,
     /// The start pc of the program.
     pub pc_start: Val<SC>,
+    /// The starting global digest of the program, after incorporating the initial memory.
+    pub initial_global_cumulative_sum: SepticDigest<Val<SC>>,
     /// The preprocessed traces.
     pub traces: Vec<RowMajorMatrix<Val<SC>>>,
     /// The pcs data for the preprocessed traces.
     pub data: PcsProverData<SC>,
     /// The preprocessed chip ordering.
     pub chip_ordering: HashMap<String, usize>,
+    /// The preprocessed chip local only information.
+    pub local_only: Vec<bool>,
 }
 
 impl<SC: StarkGenericConfig> StarkProvingKey<SC> {
@@ -73,9 +80,10 @@ impl<SC: StarkGenericConfig> StarkProvingKey<SC> {
     pub fn observe_into(&self, challenger: &mut SC::Challenger) {
         challenger.observe(self.commit.clone());
         challenger.observe(self.pc_start);
-        for _ in 0..7 {
-            challenger.observe(Val::<SC>::zero());
-        }
+        challenger.observe_slice(&self.initial_global_cumulative_sum.0.x.0);
+        challenger.observe_slice(&self.initial_global_cumulative_sum.0.y.0);
+        // Observe the padding.
+        challenger.observe(Val::<SC>::zero());
     }
 }
 
@@ -88,6 +96,8 @@ pub struct StarkVerifyingKey<SC: StarkGenericConfig> {
     pub commit: Com<SC>,
     /// The start pc of the program.
     pub pc_start: Val<SC>,
+    /// The starting global digest of the program, after incorporating the initial memory.
+    pub initial_global_cumulative_sum: SepticDigest<Val<SC>>,
     /// The chip information.
     pub chip_information: Vec<(String, Dom<SC>, Dimensions)>,
     /// The chip ordering.
@@ -99,9 +109,10 @@ impl<SC: StarkGenericConfig> StarkVerifyingKey<SC> {
     pub fn observe_into(&self, challenger: &mut SC::Challenger) {
         challenger.observe(self.commit.clone());
         challenger.observe(self.pc_start);
-        for _ in 0..7 {
-            challenger.observe(Val::<SC>::zero());
-        }
+        challenger.observe_slice(&self.initial_global_cumulative_sum.0.x.0);
+        challenger.observe_slice(&self.initial_global_cumulative_sum.0.y.0);
+        // Observe the padding.
+        challenger.observe(Val::<SC>::zero());
     }
 }
 
@@ -167,14 +178,12 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         self.chips().iter().map(|chip| proof.chip_ordering.get(&chip.name()).copied()).collect()
     }
 
-    /// The setup preprocessing phase.
-    ///
-    /// Given a program, this function generates the proving and verifying keys. The keys correspond
-    /// to the program code and other preprocessed colunms such as lookup tables.
-    #[instrument("setup machine", level = "debug", skip_all)]
-    #[allow(clippy::map_unwrap_or)]
-    #[allow(clippy::redundant_closure_for_method_calls)]
-    pub fn setup(&self, program: &A::Program) -> (StarkProvingKey<SC>, StarkVerifyingKey<SC>) {
+    /// The setup preprocessing phase. Same as `setup` but initial global cumulative sum is precomputed.
+    pub fn setup_core(
+        &self,
+        program: &A::Program,
+        initial_global_cumulative_sum: SepticDigest<Val<SC>>,
+    ) -> (StarkProvingKey<SC>, StarkVerifyingKey<SC>) {
         let parent_span = tracing::debug_span!("generate preprocessed traces");
         let mut named_preprocessed_traces = parent_span.in_scope(|| {
             self.chips()
@@ -190,25 +199,25 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                         begin.elapsed()
                     );
                     // Assert that the chip width data is correct.
-                    let expected_width = prep_trace.as_ref().map(|t| t.width()).unwrap_or(0);
+                    let expected_width = prep_trace.as_ref().map_or(0, p3_matrix::Matrix::width);
                     assert_eq!(
                         expected_width,
                         chip.preprocessed_width(),
                         "Incorrect number of preprocessed columns for chip {chip_name}"
                     );
-                    prep_trace.map(move |t| (chip_name, t))
+                    prep_trace.map(move |t| (chip_name, chip.local_only(), t))
                 })
                 .collect::<Vec<_>>()
         });
 
         // Order the chips and traces by trace size (biggest first), and get the ordering map.
         named_preprocessed_traces
-            .sort_by_key(|(name, trace)| (Reverse(trace.height()), name.clone()));
+            .sort_by_key(|(name, _, trace)| (Reverse(trace.height()), name.clone()));
 
         let pcs = self.config.pcs();
         let (chip_information, domains_and_traces): (Vec<_>, Vec<_>) = named_preprocessed_traces
             .iter()
-            .map(|(name, trace)| {
+            .map(|(name, _, trace)| {
                 let domain = pcs.natural_domain_for_degree(trace.height());
                 ((name.to_owned(), domain, trace.dimensions()), (domain, trace.to_owned()))
             })
@@ -222,12 +231,17 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         let chip_ordering = named_preprocessed_traces
             .iter()
             .enumerate()
-            .map(|(i, (name, _))| (name.to_owned(), i))
+            .map(|(i, (name, _, _))| (name.to_owned(), i))
             .collect::<HashMap<_, _>>();
+
+        let local_only = named_preprocessed_traces
+            .iter()
+            .map(|(_, local_only, _)| local_only.to_owned())
+            .collect::<Vec<_>>();
 
         // Get the preprocessed traces
         let traces =
-            named_preprocessed_traces.into_iter().map(|(_, trace)| trace).collect::<Vec<_>>();
+            named_preprocessed_traces.into_iter().map(|(_, _, trace)| trace).collect::<Vec<_>>();
 
         let pc_start = program.pc_start();
 
@@ -235,12 +249,32 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             StarkProvingKey {
                 commit: commit.clone(),
                 pc_start,
+                initial_global_cumulative_sum,
                 traces,
                 data,
                 chip_ordering: chip_ordering.clone(),
+                local_only,
             },
-            StarkVerifyingKey { commit, pc_start, chip_information, chip_ordering },
+            StarkVerifyingKey {
+                commit,
+                pc_start,
+                initial_global_cumulative_sum,
+                chip_information,
+                chip_ordering,
+            },
         )
+    }
+
+    /// The setup preprocessing phase.
+    ///
+    /// Given a program, this function generates the proving and verifying keys. The keys correspond
+    /// to the program code and other preprocessed colunms such as lookup tables.
+    #[instrument("setup machine", level = "debug", skip_all)]
+    #[allow(clippy::map_unwrap_or)]
+    #[allow(clippy::redundant_closure_for_method_calls)]
+    pub fn setup(&self, program: &A::Program) -> (StarkProvingKey<SC>, StarkVerifyingKey<SC>) {
+        let initial_global_cumulative_sum = program.initial_global_cumulative_sum();
+        self.setup_core(program, initial_global_cumulative_sum)
     }
 
     /// Generates the dependencies of the given records.
@@ -265,11 +299,9 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
 
         records.iter_mut().for_each(|record| {
             chips.iter().for_each(|chip| {
-                tracing::debug_span!("chip dependencies", chip = chip.name()).in_scope(|| {
-                    let mut output = A::Record::default();
-                    chip.generate_dependencies(record, &mut output);
-                    record.append(&mut output);
-                });
+                let mut output = A::Record::default();
+                chip.generate_dependencies(record, &mut output);
+                record.append(&mut output);
             });
             tracing::debug_span!("register nonces").in_scope(|| record.register_nonces(opts));
         });
@@ -293,45 +325,28 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         SC::Challenger: Clone,
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
     {
-        let contains_global_bus = self.contains_global_bus();
-
         // Observe the preprocessed commitment.
         vk.observe_into(challenger);
-        tracing::debug_span!("observe challenges for all shards").in_scope(|| {
-            proof.shard_proofs.iter().for_each(|shard_proof| {
-                if contains_global_bus {
-                    challenger.observe(shard_proof.commitment.global_main_commit.clone());
-                }
-                challenger.observe_slice(&shard_proof.public_values[0..self.num_pv_elts()]);
-            });
-        });
 
         // Verify the shard proofs.
         if proof.shard_proofs.is_empty() {
             return Err(MachineVerificationError::EmptyProof);
         }
 
-        // Obtain the challenges used for the global permutation argument.
-        let global_permutation_challenges: [SC::Challenge; 2] = array::from_fn(|_| {
-            if contains_global_bus {
-                challenger.sample_ext_element()
-            } else {
-                SC::Challenge::zero()
-            }
-        });
-
         tracing::debug_span!("verify shard proofs").in_scope(|| {
             for (i, shard_proof) in proof.shard_proofs.iter().enumerate() {
                 tracing::debug_span!("verifying shard", shard = i).in_scope(|| {
                     let chips =
                         self.shard_chips_ordered(&shard_proof.chip_ordering).collect::<Vec<_>>();
+                    let mut shard_challenger = challenger.clone();
+                    shard_challenger
+                        .observe_slice(&shard_proof.public_values[0..self.num_pv_elts()]);
                     Verifier::verify_shard(
                         &self.config,
                         vk,
                         &chips,
-                        &mut challenger.clone(),
+                        &mut shard_challenger,
                         shard_proof,
-                        &global_permutation_challenges,
                     )
                     .map_err(MachineVerificationError::InvalidShardProof)
                 })?;
@@ -345,8 +360,9 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             let sum = proof
                 .shard_proofs
                 .iter()
-                .map(|proof| proof.cumulative_sum(InteractionScope::Global))
-                .sum::<SC::Challenge>();
+                .map(ShardProof::global_cumulative_sum)
+                .chain(once(vk.initial_global_cumulative_sum))
+                .sum::<SepticDigest<Val<SC>>>();
 
             if !sum.is_zero() {
                 return Err(MachineVerificationError::NonZeroCumulativeSum(
@@ -378,12 +394,9 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             permutation_challenges.push(challenger.sample_ext_element());
         }
 
-        // Obtain the challenges used for the local permutation argument.
-        for _ in 0..2 {
-            permutation_challenges.push(challenger.sample_ext_element());
-        }
+        let mut global_cumulative_sums = Vec::new();
+        global_cumulative_sums.push(pk.initial_global_cumulative_sum);
 
-        let mut global_cumulative_sum = SC::Challenge::zero();
         for shard in records.iter() {
             // Filter the chips based on what is used.
             let chips = self.shard_chips(shard).collect::<Vec<_>>();
@@ -401,27 +414,40 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
 
             // Generate the permutation traces.
             let mut permutation_traces = Vec::with_capacity(chips.len());
-            let mut cumulative_sums = Vec::with_capacity(chips.len());
+            let mut chip_cumulative_sums = Vec::with_capacity(chips.len());
             tracing::debug_span!("generate permutation traces").in_scope(|| {
                 chips
                     .par_iter()
                     .zip(traces.par_iter_mut())
                     .map(|(chip, (main_trace, pre_trace))| {
-                        let (trace, global_sum, local_sum) = chip.generate_permutation_trace(
+                        let (trace, local_sum) = chip.generate_permutation_trace(
                             *pre_trace,
                             main_trace,
                             &permutation_challenges,
                         );
-                        (trace, [global_sum, local_sum])
+                        let global_sum = if chip.commit_scope() == InteractionScope::Local {
+                            SepticDigest::<Val<SC>>::zero()
+                        } else {
+                            let main_trace_size = main_trace.height() * main_trace.width();
+                            let last_row =
+                                &main_trace.values[main_trace_size - 14..main_trace_size];
+                            SepticDigest(SepticCurve {
+                                x: SepticExtension::<Val<SC>>::from_base_fn(|i| last_row[i]),
+                                y: SepticExtension::<Val<SC>>::from_base_fn(|i| last_row[i + 7]),
+                            })
+                        };
+                        (trace, (global_sum, local_sum))
                     })
-                    .unzip_into_vecs(&mut permutation_traces, &mut cumulative_sums);
+                    .unzip_into_vecs(&mut permutation_traces, &mut chip_cumulative_sums);
             });
 
-            global_cumulative_sum +=
-                cumulative_sums.iter().map(|sum| sum[0]).sum::<SC::Challenge>();
+            let global_cumulative_sum =
+                chip_cumulative_sums.iter().map(|sums| sums.0).sum::<SepticDigest<Val<SC>>>();
+            global_cumulative_sums.push(global_cumulative_sum);
 
             let local_cumulative_sum =
-                cumulative_sums.iter().map(|sum| sum[1]).sum::<SC::Challenge>();
+                chip_cumulative_sums.iter().map(|sums| sums.1).sum::<SC::Challenge>();
+
             if !local_cumulative_sum.is_zero() {
                 tracing::warn!("Local cumulative sum is not zero");
                 tracing::debug_span!("debug local interactions").in_scope(|| {
@@ -466,7 +492,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                             &permutation_traces[i],
                             &permutation_challenges,
                             &shard.public_values(),
-                            &cumulative_sums[i],
+                            &chip_cumulative_sums[i].1,
+                            &chip_cumulative_sums[i].0,
                         );
                     }
                 });
@@ -474,6 +501,9 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         }
 
         tracing::info!("Constraints verified successfully");
+
+        let global_cumulative_sum: SepticDigest<Val<SC>> =
+            global_cumulative_sums.iter().copied().sum();
 
         // If the global cumulative sum is not zero, debug the interactions.
         if !global_cumulative_sum.is_zero() {
@@ -571,3 +601,27 @@ impl<SC: StarkGenericConfig> std::fmt::Display for MachineVerificationError<SC> 
 }
 
 impl<SC: StarkGenericConfig> std::error::Error for MachineVerificationError<SC> {}
+
+impl<SC: StarkGenericConfig> MachineVerificationError<SC> {
+    /// This function will check if the verification error is from constraints failing.
+    pub fn is_constraints_failing(&self, expected_chip_name: &str) -> bool {
+        if let MachineVerificationError::InvalidShardProof(
+            VerificationError::OodEvaluationMismatch(chip_name),
+        ) = self
+        {
+            return chip_name == expected_chip_name;
+        }
+
+        false
+    }
+
+    /// This function will check if the verification error is from local cumulative sum failing.
+    pub fn is_local_cumulative_sum_failing(&self) -> bool {
+        matches!(
+            self,
+            MachineVerificationError::InvalidShardProof(VerificationError::CumulativeSumsError(
+                "local cumulative sum is not zero"
+            ))
+        )
+    }
+}

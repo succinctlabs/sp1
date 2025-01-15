@@ -1,6 +1,17 @@
+#[cfg(all(target_os = "zkvm", feature = "embedded"))]
+pub use syscalls::MAX_MEMORY;
+
+#[cfg(target_os = "zkvm")]
+use cfg_if::cfg_if;
+
+#[cfg(target_os = "zkvm")]
+use syscalls::{syscall_hint_len, syscall_hint_read};
+
 extern crate alloc;
 
-pub mod heap;
+#[cfg(target_os = "zkvm")]
+pub mod allocators;
+
 pub mod syscalls;
 
 #[cfg(feature = "lib")]
@@ -19,6 +30,90 @@ mod libm;
 /// The number of 32 bit words that the public values digest is composed of.
 pub const PV_DIGEST_NUM_WORDS: usize = 8;
 pub const POSEIDON_NUM_WORDS: usize = 8;
+
+/// Size of the reserved region for input values with the embedded allocator.
+#[cfg(all(target_os = "zkvm", feature = "embedded"))]
+pub const EMBEDDED_RESERVED_INPUT_REGION_SIZE: usize = 1024 * 1024 * 1024;
+/// Start of the reserved region for inputs with the embedded allocator.
+#[cfg(all(target_os = "zkvm", feature = "embedded"))]
+pub const EMBEDDED_RESERVED_INPUT_START: usize = MAX_MEMORY - EMBEDDED_RESERVED_INPUT_REGION_SIZE;
+/// Pointer to the current position in the reserved region for inputs with the embedded allocator.
+#[cfg(all(target_os = "zkvm", feature = "embedded"))]
+static mut EMBEDDED_RESERVED_INPUT_PTR: usize = EMBEDDED_RESERVED_INPUT_START;
+
+#[repr(C)]
+#[cfg(target_os = "zkvm")]
+pub struct ReadVecResult {
+    pub ptr: *mut u8,
+    pub len: usize,
+    pub capacity: usize,
+}
+
+/// Read a buffer from the input stream.
+///
+/// The buffer is read into uninitialized memory.
+///
+/// When the `bump` feature is enabled, the buffer is read into a new buffer allocated by the
+/// program.
+///
+/// When the `embedded` feature is enabled, the buffer is read into the reserved input region.
+///
+/// When there is no allocator selected, the program will fail to compile.
+#[no_mangle]
+#[cfg(target_os = "zkvm")]
+pub extern "C" fn read_vec_raw() -> ReadVecResult {
+    // Get the length of the input buffer.
+    let len = syscall_hint_len();
+    // Round up to multiple of 4 for whole-word alignment.
+    let capacity = (len + 3) / 4 * 4;
+
+    cfg_if! {
+        if #[cfg(feature = "embedded")] {
+            // Get the existing pointer in the reserved region which is the start of the vec.
+            // Increment the pointer by the capacity to set the new pointer to the end of the vec.
+            let ptr = unsafe { EMBEDDED_RESERVED_INPUT_PTR };
+            if ptr + capacity > MAX_MEMORY {
+                panic!("Input region overflowed.")
+            }
+
+            // SAFETY: The VM is single threaded.
+            unsafe { EMBEDDED_RESERVED_INPUT_PTR += capacity };
+
+            // Read the vec into uninitialized memory. The syscall assumes the memory is
+            // uninitialized, which is true because the input ptr is incremented manually on each
+            // read.
+            syscall_hint_read(ptr as *mut u8, len);
+
+            // Return the result.
+            ReadVecResult {
+                ptr: ptr as *mut u8,
+                len,
+                capacity,
+            }
+        } else if #[cfg(feature = "bump")] {
+            // Allocate a buffer of the required length that is 4 byte aligned.
+            let layout = std::alloc::Layout::from_size_align(capacity, 4).expect("vec is too large");
+
+            // SAFETY: The layout was made through the checked constructor.
+            let ptr = unsafe { std::alloc::alloc(layout) };
+
+            // Read the vec into uninitialized memory. The syscall assumes the memory is
+            // uninitialized, which is true because the bump allocator does not dealloc, so a new
+            // alloc is always fresh.
+            syscall_hint_read(ptr as *mut u8, len);
+
+            // Return the result.
+            ReadVecResult {
+                ptr: ptr as *mut u8,
+                len,
+                capacity,
+            }
+        } else {
+            // An allocator must be selected.
+            compile_error!("There is no allocator selected. Please enable the `bump` or `embedded` feature.");
+        }
+    }
+}
 
 #[cfg(target_os = "zkvm")]
 mod zkvm {
@@ -41,6 +136,9 @@ mod zkvm {
     #[no_mangle]
     unsafe extern "C" fn __start() {
         {
+            #[cfg(all(target_os = "zkvm", feature = "embedded"))]
+            crate::allocators::embedded::init();
+
             PUBLIC_VALUES_HASHER = Some(Sha256::new());
             #[cfg(feature = "verify")]
             {
@@ -93,24 +191,23 @@ macro_rules! entrypoint {
     ($path:path) => {
         const ZKVM_ENTRY: fn() = $path;
 
-        use $crate::heap::SimpleAlloc;
-
-        #[global_allocator]
-        static HEAP: SimpleAlloc = SimpleAlloc;
-
         mod zkvm_generated_main {
 
             #[no_mangle]
             fn main() {
-                // Link to the actual entrypoint only when compiling for zkVM. Doing this avoids
-                // compilation errors when building for the host target.
+                // Link to the actual entrypoint only when compiling for zkVM, otherwise run a
+                // simple noop. Doing this avoids compilation errors when building for the host
+                // target.
                 //
                 // Note that, however, it's generally considered wasted effort compiling zkVM
                 // programs against the host target. This just makes it such that doing so wouldn't
                 // result in an error, which can happen when building a Cargo workspace containing
                 // zkVM program crates.
-                #[cfg(target_os = "zkvm")]
-                super::ZKVM_ENTRY()
+                if cfg!(target_os = "zkvm") {
+                    super::ZKVM_ENTRY()
+                } else {
+                    println!("Not running in zkVM, skipping entrypoint");
+                }
             }
         }
     };

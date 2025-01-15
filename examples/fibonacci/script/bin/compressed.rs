@@ -1,7 +1,7 @@
-use sp1_sdk::{utils, ProverClient, SP1Stdin};
+use sp1_sdk::{include_elf, utils, ProverClient, SP1Stdin};
 
 /// The ELF we want to execute inside the zkVM.
-const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
+const ELF: &[u8] = include_elf!("fibonacci-program");
 
 fn main() {
     // Setup logging.
@@ -13,9 +13,9 @@ fn main() {
     stdin.write(&n);
 
     // Generate the constant-sized proof for the given program and input.
-    let client = ProverClient::new();
+    let client = ProverClient::from_env();
     let (pk, vk) = client.setup(ELF);
-    let mut proof = client.prove(&pk, stdin).compressed().run().unwrap();
+    let mut proof = client.prove(&pk, &stdin).compressed().run().unwrap();
 
     println!("generated proof");
     // Read and verify the output.

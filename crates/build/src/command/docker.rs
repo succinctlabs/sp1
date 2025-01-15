@@ -60,6 +60,40 @@ pub(crate) fn create_docker_command(
         "docker"
     );
 
+    let parsed_version = {
+        let output = Command::new("docker")
+            .args([
+                "run",
+                "--rm",
+                "--platform",
+                "linux/amd64",
+                "-e",
+                &format!("RUSTUP_TOOLCHAIN={}", super::TOOLCHAIN_NAME),
+                "--entrypoint",
+                "",
+                "-i",
+                &image,
+                "rustc",
+                "--version",
+            ])
+            .output()
+            .expect("rustc --version should succeed in docker image");
+
+        if !output.status.success() {
+            return Err(anyhow::anyhow!(
+                "Failed to run rustc --version in docker image {}",
+                String::from_utf8_lossy(&output.stdout)
+            ));
+        }
+
+        let stdout_string =
+            String::from_utf8(output.stdout).expect("Can't parse rustc --version stdout");
+
+        println!("cargo:warning=docker: rustc +succinct --version: {:?}", stdout_string);
+
+        super::utils::parse_rustc_version(&stdout_string)
+    };
+
     // When executing the Docker command:
     // 1. Set the target directory to a subdirectory of the program's target directory to avoid
     //    build
@@ -80,12 +114,12 @@ pub(crate) fn create_docker_command(
         "-e".to_string(),
         format!("CARGO_TARGET_DIR={}", target_dir),
         "-e".to_string(),
-        "RUSTUP_TOOLCHAIN=succinct".to_string(),
+        format!("RUSTUP_TOOLCHAIN={}", super::TOOLCHAIN_NAME),
         // TODO: remove once trim-paths is supported - https://github.com/rust-lang/rust/issues/111540
         "-e".to_string(),
         "RUSTC_BOOTSTRAP=1".to_string(), // allows trim-paths.
         "-e".to_string(),
-        format!("CARGO_ENCODED_RUSTFLAGS={}", get_rust_compiler_flags(args)),
+        format!("CARGO_ENCODED_RUSTFLAGS={}", get_rust_compiler_flags(args, &parsed_version)),
         "--entrypoint".to_string(),
         "".to_string(),
         image,

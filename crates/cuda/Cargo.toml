@@ -14,9 +14,9 @@ sp1-core-machine = { workspace = true }
 sp1-prover = { workspace = true }
 prost = "0.13"
 bincode = "1.3.3"
-serde = { version = "1.0.197", features = ["derive"] }
+serde = { workspace = true, features = ["derive"] }
 tokio = { version = "^1.38.0", features = ["full"] }
-tracing = "0.1.40"
+tracing = { workspace = true }
 twirp = { package = "twirp-rs", version = "0.13.0-succinct" }
 ctrlc = "3.4.4"
 
@@ -25,7 +25,8 @@ prost-build = { version = "0.13", optional = true }
 twirp-build = { package = "twirp-build-rs", version = "0.13.0-succinct", optional = true }
 
 [dev-dependencies]
-sp1-core-machine = { workspace = true, features = ["programs"] }
+sp1-core-machine = { workspace = true }
+test-artifacts = { workspace = true }
 
 [features]
 default = []

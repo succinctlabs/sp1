@@ -62,16 +62,16 @@ impl<P: FpOpField> Syscall for Fp2MulSyscall<P> {
         };
         let c1 = ((ac0 * bc1) % modulus + (ac1 * bc0) % modulus) % modulus;
 
-        let mut result =
-            c0.to_u32_digits().into_iter().chain(c1.to_u32_digits()).collect::<Vec<u32>>();
-
+        // Each of c0 and c1 should use the same number of words.
+        // This is regardless of how many u32 digits are required to express them.
+        let mut result = c0.to_u32_digits();
+        result.resize(num_words / 2, 0);
+        result.append(&mut c1.to_u32_digits());
         result.resize(num_words, 0);
         let x_memory_records = rt.mw_slice(x_ptr, &result);
 
-        let lookup_id = rt.syscall_lookup_id;
         let shard = rt.current_shard();
         let event = Fp2MulEvent {
-            lookup_id,
             shard,
             clk,
             x_ptr,
@@ -83,14 +83,14 @@ impl<P: FpOpField> Syscall for Fp2MulSyscall<P> {
             local_mem_access: rt.postprocess(),
         };
         let syscall_event =
-            rt.rt.syscall_event(clk, syscall_code.syscall_id(), arg1, arg2, event.lookup_id);
+            rt.rt.syscall_event(clk, None, None, syscall_code, arg1, arg2, rt.next_pc);
         match P::FIELD_TYPE {
-            FieldType::Bn254 => rt.record_mut().add_precompile_event(
+            FieldType::Bn254 => rt.add_precompile_event(
                 syscall_code,
                 syscall_event,
                 PrecompileEvent::Bn254Fp2Mul(event),
             ),
-            FieldType::Bls12381 => rt.record_mut().add_precompile_event(
+            FieldType::Bls12381 => rt.add_precompile_event(
                 syscall_code,
                 syscall_event,
                 PrecompileEvent::Bls12381Fp2Mul(event),

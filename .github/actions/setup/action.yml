@@ -1,3 +1,5 @@
+# Note: this is only compatible with Linux runners.
+
 name: Test setup
 inputs:
   pull_token:
@@ -75,7 +77,7 @@ runs:
           ~/.cargo/git/db/
           target/
           ~/.rustup/
-        key: rust-1.81.0-${{ hashFiles('**/Cargo.toml') }}
+        key: rust-1.81.0-${{ hashFiles('**/Cargo.toml') }}-x
         restore-keys: rust-1.81.0-
 
     - name: Setup toolchain
@@ -97,6 +99,16 @@ runs:
         else
           echo "pkg-config and libssl-dev are already installed."
         fi
-      
+
+    - name: Echo docker buildx version
+      shell: bash
+      run: docker buildx version
+
     - name: Set up Docker
+      uses: crazy-max/ghaction-setup-docker@v3
+
+    - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
+      with:
+        driver-opts: |
+          image=public.ecr.aws/vend/moby/buildkit:buildx-stable-1

@@ -9,20 +9,23 @@ on:
       - "Cargo.toml"
       - ".github/workflows/**"
 
+env:
+  SP1_CI_IN_PROGRESS: "true"
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  plonk:
-    name: Plonk Native
+  groth16:
+    name: Groth16 Native
     runs-on:
       [
         runs-on,
         cpu=64,
         ram=256,
         family=m7i+m7a,
-        hdd=80,
+        disk=large,
         image=ubuntu22-full-x64,
         spot=false,
         "run-id=${{ github.run_id }}",
@@ -35,6 +38,97 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+
+      - name: Install SP1 toolchain from repo
+        run: |
+          cargo run -p sp1-cli -- prove install-toolchain
+          cd crates/cli
+          cargo install --force --locked --path .
+          cargo clean
+
+      - name: Run cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          toolchain: 1.81.0
+          args: --release -p sp1-sdk --features native-gnark -- test_e2e_groth16_plonk --nocapture
+        env:
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
+          RUST_BACKTRACE: 1
+
+  groth16-docker:
+    name: Groth16 Docker
+    runs-on:
+      [
+        runs-on,
+        cpu=64,
+        ram=256,
+        family=m7i+m7a,
+        disk=large,
+        image=ubuntu22-full-x64,
+        spot=false,
+        "run-id=${{ github.run_id }}",
+      ]
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+
+      - name: Install SP1 toolchain from repo
+        run: |
+          cargo run -p sp1-cli -- prove install-toolchain
+          cd crates/cli
+          cargo install --force --locked --path .
+          cargo clean
+
+      - name: Run cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          toolchain: 1.81.0
+          args: --release -p sp1-sdk -- test_e2e_prove_groth16 --nocapture
+        env:
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
+          RUST_BACKTRACE: 1
+
+  plonk:
+    name: Plonk Native
+    runs-on:
+      [
+        runs-on,
+        cpu=64,
+        ram=256,
+        family=m7i+m7a,
+        disk=large,
+        image=ubuntu22-full-x64,
+        spot=false,
+        "run-id=${{ github.run_id }}",
+      ]
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+
+      - name: Install SP1 toolchain from repo
+        run: |
+          cargo run -p sp1-cli -- prove install-toolchain
+          cd crates/cli
+          cargo install --force --locked --path .
+          cargo clean
 
       - name: Run cargo test
         uses: actions-rs/cargo@v1
@@ -54,7 +148,7 @@ jobs:
         cpu=64,
         ram=256,
         family=m7i+m7a,
-        hdd=80,
+        disk=large,
         image=ubuntu22-full-x64,
         spot=false,
         "run-id=${{ github.run_id }}",
@@ -67,6 +161,15 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+
+      - name: Install SP1 toolchain from repo
+        run: |
+          cargo run -p sp1-cli -- prove install-toolchain
+          cd crates/cli
+          cargo install --force --locked --path .
+          cargo clean
 
       - name: Run cargo test
         uses: actions-rs/cargo@v1
@@ -80,7 +183,7 @@ jobs:
 
   check-branch:
     name: Check branch
-    runs-on: [ubuntu-latest, "run-id=${{ github.run_id }}"]
+    runs-on: ubuntu-latest
     steps:
       - name: Check branch
         if: github.head_ref != 'dev' && !startsWith(github.head_ref, 'release/') && !startsWith(github.head_ref, 'hotfix/')
@@ -105,6 +208,8 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
 
       - name: Install SP1 toolchain
         run: |
@@ -145,6 +250,8 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
 
       - name: Install SP1 toolchain
         run: |
@@ -181,6 +288,8 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
 
       - name: Install SP1 toolchain
         run: |
@@ -203,37 +312,73 @@ jobs:
           cargo remove sp1-sdk
           cargo add sp1-sdk --path $GITHUB_WORKSPACE/crates/sdk
           SP1_DEV=1 RUST_LOG=info cargo run --release
-  test-cuda:
-    name: Test CUDA
-    runs-on: nvidia-gpu-linux-x64
+
+  patch-testing:
+    name: "Run all tests for patches in the vm"
+    runs-on:
+      [
+        runs-on,
+        runner=64cpu-linux-x64,
+        disk=large,
+        spot=false,
+        "run-id=${{ github.run_id }}",
+      ]
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
 
-      - name: rust-cache
-        uses: actions/cache@v3
+      - name: Setup CI
+        uses: ./.github/actions/setup
         with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-            ~/.rustup/
-          key: rust-1.81.0-${{ hashFiles('**/Cargo.toml') }}
-          restore-keys: rust-1.81.0-
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
 
-      - name: Setup toolchain
-        id: rustc-toolchain
-        shell: bash
+      - name: Install SP1 toolchain from repo
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain 1.81.0 -y
+          cargo run -p sp1-cli -- prove install-toolchain
+          cd crates/cli
+          cargo install --force --locked --path .
+          cargo clean
 
-      - name: Run script
+      - name: Run patch testing
         run: |
-          . "$HOME/.cargo/env"
-          curl -L https://sp1.succinct.xyz | bash
-          /home/runner/.sp1/bin/sp1up
-          sudo apt install libssl-dev pkg-config
-          cd examples/fibonacci
-          RUST_LOG=info cargo run --release --features cuda
+          cd ./patch-testing/
+          cargo check --all-targets
+          cargo test
+
+  
+  # TODO: Re-enable on public release.
+  # cli:
+  #   name: CLI
+  #   runs-on: [runs-on, runner=8cpu-linux-x64, disk=large, "run-id=${{ github.run_id }}"]
+  #   env:
+  #     CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+  #   steps:
+  #     - name: Checkout sources
+  #       uses: actions/checkout@v4
+
+  #     - name: Setup CI
+  #       uses: ./.github/actions/setup
+
+  #     - name: Install SP1 toolchain from repo
+  #       run: |
+  #         cargo run -p sp1-cli -- prove install-toolchain
+  #         cd crates/cli
+  #         cargo install --force --locked --path .
+  #         cargo clean
+
+  #     - name: Run cargo prove new
+  #       run: |
+  #         cargo prove new fibonacci --version dev --evm
+
+  #     - name: Build program and run script
+  #       run: |
+  #         cd fibonacci
+  #         cd program
+  #         cargo add sp1-zkvm --path $GITHUB_WORKSPACE/crates/zkvm/entrypoint
+  #         cargo prove build
+  #         cd ../script
+  #         cargo remove sp1-sdk
+  #         cargo add sp1-sdk --path $GITHUB_WORKSPACE/crates/sdk
+  #         SP1_DEV=1 RUST_LOG=info cargo run --release -- --prove

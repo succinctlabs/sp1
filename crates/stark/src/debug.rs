@@ -14,11 +14,13 @@ use p3_matrix::{
     stack::VerticalPair,
     Matrix,
 };
-use p3_maybe_rayon::prelude::ParallelBridge;
-use p3_maybe_rayon::prelude::ParallelIterator;
+use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
 
 use super::{MachineChip, StarkGenericConfig, Val};
-use crate::air::{EmptyMessageBuilder, MachineAir, MultiTableAirBuilder};
+use crate::{
+    air::{EmptyMessageBuilder, MachineAir, MultiTableAirBuilder},
+    septic_digest::SepticDigest,
+};
 
 /// Checks that the constraints of the given AIR are satisfied, including the permutation trace.
 ///
@@ -31,7 +33,8 @@ pub fn debug_constraints<SC, A>(
     perm: &RowMajorMatrix<SC::Challenge>,
     perm_challenges: &[SC::Challenge],
     public_values: &[Val<SC>],
-    cumulative_sums: &[SC::Challenge],
+    local_cumulative_sum: &SC::Challenge,
+    global_cumulative_sum: &SepticDigest<Val<SC>>,
 ) where
     SC: StarkGenericConfig,
     Val<SC>: PrimeField32,
@@ -84,7 +87,8 @@ pub fn debug_constraints<SC, A>(
                 RowMajorMatrixView::new_row(perm_next),
             ),
             perm_challenges,
-            cumulative_sums,
+            local_cumulative_sum,
+            global_cumulative_sum,
             is_first_row: Val::<SC>::zero(),
             is_last_row: Val::<SC>::zero(),
             is_transition: Val::<SC>::one(),
@@ -130,7 +134,8 @@ pub struct DebugConstraintBuilder<'a, F: Field, EF: ExtensionField<F>> {
     pub(crate) preprocessed: VerticalPair<RowMajorMatrixView<'a, F>, RowMajorMatrixView<'a, F>>,
     pub(crate) main: VerticalPair<RowMajorMatrixView<'a, F>, RowMajorMatrixView<'a, F>>,
     pub(crate) perm: VerticalPair<RowMajorMatrixView<'a, EF>, RowMajorMatrixView<'a, EF>>,
-    pub(crate) cumulative_sums: &'a [EF],
+    pub(crate) local_cumulative_sum: &'a EF,
+    pub(crate) global_cumulative_sum: &'a SepticDigest<F>,
     pub(crate) perm_challenges: &'a [EF],
     pub(crate) is_first_row: F,
     pub(crate) is_last_row: F,
@@ -138,7 +143,7 @@ pub struct DebugConstraintBuilder<'a, F: Field, EF: ExtensionField<F>> {
     pub(crate) public_values: &'a [F],
 }
 
-impl<'a, F, EF> ExtensionBuilder for DebugConstraintBuilder<'a, F, EF>
+impl<F, EF> ExtensionBuilder for DebugConstraintBuilder<'_, F, EF>
 where
     F: Field,
     EF: ExtensionField<F>,
@@ -173,7 +178,7 @@ where
     }
 }
 
-impl<'a, F, EF> PairBuilder for DebugConstraintBuilder<'a, F, EF>
+impl<F, EF> PairBuilder for DebugConstraintBuilder<'_, F, EF>
 where
     F: Field,
     EF: ExtensionField<F>,
@@ -183,7 +188,7 @@ where
     }
 }
 
-impl<'a, F, EF> DebugConstraintBuilder<'a, F, EF>
+impl<F, EF> DebugConstraintBuilder<'_, F, EF>
 where
     F: Field,
     EF: ExtensionField<F>,
@@ -257,20 +262,22 @@ where
     F: Field,
     EF: ExtensionField<F>,
 {
-    type Sum = EF;
+    type LocalSum = EF;
+    type GlobalSum = F;
 
-    fn cumulative_sums(&self) -> &'a [Self::Sum] {
-        self.cumulative_sums
+    fn local_cumulative_sum(&self) -> &'a Self::LocalSum {
+        self.local_cumulative_sum
+    }
+
+    fn global_cumulative_sum(&self) -> &'a SepticDigest<Self::GlobalSum> {
+        self.global_cumulative_sum
     }
 }
 
-impl<'a, F: Field, EF: ExtensionField<F>> EmptyMessageBuilder
-    for DebugConstraintBuilder<'a, F, EF>
-{
-}
+impl<F: Field, EF: ExtensionField<F>> EmptyMessageBuilder for DebugConstraintBuilder<'_, F, EF> {}
 
-impl<'a, F: Field, EF: ExtensionField<F>> AirBuilderWithPublicValues
-    for DebugConstraintBuilder<'a, F, EF>
+impl<F: Field, EF: ExtensionField<F>> AirBuilderWithPublicValues
+    for DebugConstraintBuilder<'_, F, EF>
 {
     type PublicVar = F;
 

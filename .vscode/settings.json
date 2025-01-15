@@ -21,6 +21,8 @@
     ],
     "rust-analyzer.linkedProjects": [
         "Cargo.toml",
+        "patch-testing/Cargo.toml",
+        "patch-testing/rustcrypto-bigint/program/Cargo.toml",
         // // Examples.
         // "examples/chess/program/Cargo.toml",
         // "examples/chess/script/Cargo.toml",
@@ -66,4 +68,22 @@
     // "rust-analyzer.check.workspace": false,
     // "rust-analyzer.check.invocationStrategy": "once",
     // "rust-analyzer.cargo.buildScripts.invocationStrategy": "once",
+    "C_Cpp.default.includePath": [
+        "${workspaceFolder}/crates/**/include",
+        "${workspaceFolder}/target/include",
+    ],
+    "C_Cpp.intelliSenseEngine": "Tag Parser",
+    "files.associations": {
+        "random": "cpp",
+        "chrono": "cpp",
+        "cstdint": "cpp",
+        "ratio": "cpp",
+        "system_error": "cpp",
+        "array": "cpp",
+        "functional": "cpp",
+        "tuple": "cpp",
+        "type_traits": "cpp",
+        "utility": "cpp",
+        "cmath": "cpp"
+    },
 }
