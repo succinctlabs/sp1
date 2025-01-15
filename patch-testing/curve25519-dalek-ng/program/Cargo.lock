@@ -68,7 +68,7 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek-ng"
 version = "4.1.1"
-source = "git+https://github.com/sp1-patches/curve25519-dalek-ng.git?tag=patch-4.1.1-sp1-4.0.0-rc.3#62d61907c9d2fd1d2e470c5c0cca4bebbf4e99a0"
+source = "git+https://github.com/sp1-patches/curve25519-dalek-ng.git?tag=patch-4.1.1-sp1-4.0.0#91543a452e80c81b03a6b65e84b726094ff39313"
 dependencies = [
  "byteorder",
  "cfg-if",
@@ -406,7 +406,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "4.0.0-rc.11"
+version = "4.0.0"
 dependencies = [
  "bincode",
  "serde",
@@ -415,7 +415,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "4.0.0-rc.11"
+version = "4.0.0"
 dependencies = [
  "bincode",
  "hex",
@@ -431,7 +431,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "4.0.0-rc.11"
+version = "4.0.0"
 dependencies = [
  "cfg-if",
  "getrandom",
