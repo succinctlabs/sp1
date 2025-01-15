@@ -112,7 +112,7 @@ dependencies = [
 [[package]]
 name = "ecdsa"
 version = "0.16.9"
-source = "git+https://github.com/sp1-patches/signatures?tag=patch-0.16.9-sp1-4.0.0-rc.3#4895ff2cce34b349e8a05f24eecc66d95fcdd8ec"
+source = "git+https://github.com/sp1-patches/signatures?tag=patch-0.16.9-sp1-4.0.0#5a0aefaef40c7a4cf991ab63f43650fea3ea0db0"
 dependencies = [
  "cfg-if",
  "der",
@@ -493,7 +493,7 @@ dependencies = [
 [[package]]
 name = "rfc6979"
 version = "0.4.0"
-source = "git+https://github.com/sp1-patches/signatures?tag=patch-0.16.9-sp1-4.0.0-rc.3#4895ff2cce34b349e8a05f24eecc66d95fcdd8ec"
+source = "git+https://github.com/sp1-patches/signatures?tag=patch-0.16.9-sp1-4.0.0#5a0aefaef40c7a4cf991ab63f43650fea3ea0db0"
 dependencies = [
  "hmac",
  "subtle",
@@ -567,7 +567,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "4.0.0-rc.11"
+version = "4.0.0"
 dependencies = [
  "bincode",
  "serde",
@@ -576,7 +576,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "4.0.0-rc.11"
+version = "4.0.0"
 dependencies = [
  "bincode",
  "hex",
@@ -592,7 +592,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "4.0.0-rc.11"
+version = "4.0.0"
 dependencies = [
  "cfg-if",
  "getrandom",

@@ -60,7 +60,7 @@ dependencies = [
 [[package]]
 name = "crypto-bigint"
 version = "0.5.5"
-source = "git+https://github.com/sp1-patches/RustCrypto-bigint?tag=patch-0.5.5-sp1-4.0.0-rc.3#d421029772fb604022defd4cae5fffb269ad5155"
+source = "git+https://github.com/sp1-patches/RustCrypto-bigint?tag=patch-0.5.5-sp1-4.0.0#d421029772fb604022defd4cae5fffb269ad5155"
 dependencies = [
  "rand_core",
  "subtle",
@@ -394,7 +394,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "4.0.0-rc.11"
+version = "4.0.0"
 dependencies = [
  "bincode",
  "serde",
@@ -403,7 +403,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "4.0.0-rc.11"
+version = "4.0.0"
 dependencies = [
  "bincode",
  "hex",
@@ -419,7 +419,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "4.0.0-rc.11"
+version = "4.0.0"
 dependencies = [
  "cfg-if",
  "getrandom",

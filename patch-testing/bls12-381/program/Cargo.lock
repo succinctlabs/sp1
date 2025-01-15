@@ -41,7 +41,7 @@ dependencies = [
 [[package]]
 name = "bls12_381"
 version = "0.8.0"
-source = "git+https://github.com/sp1-patches/bls12_381?tag=patch-0.8.0-sp1-4.0.0-rc.3#fe1fbe6649a0052685eef83e7eda0e106c17918d"
+source = "git+https://github.com/sp1-patches/bls12_381?tag=patch-0.8.0-sp1-4.0.0#36b2a9d68b40dd08d2b0ac2843769a6a16608c91"
 dependencies = [
  "cfg-if",
  "ff",
@@ -453,7 +453,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "4.0.0-rc.11"
+version = "4.0.0"
 dependencies = [
  "bincode",
  "serde",
@@ -462,7 +462,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "4.0.0-rc.11"
+version = "4.0.0"
 dependencies = [
  "bincode",
  "hex",
@@ -478,7 +478,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "4.0.0-rc.11"
+version = "4.0.0"
 dependencies = [
  "cfg-if",
  "getrandom",

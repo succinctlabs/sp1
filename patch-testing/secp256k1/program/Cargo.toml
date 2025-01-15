@@ -18,6 +18,6 @@ serde = { version = "1.0.215", features = ["derive"] }
 secp256k1 = { version = "=0.29", features = ["recovery", "global-context", "rand", "serde"] }
 
 [patch.crates-io]
-secp256k1 = { git = "https://github.com/sp1-patches/rust-secp256k1", tag = "patch-0.29.1-sp1-4.0.0-rc.3"}
-ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", tag = "patch-0.16.9-sp1-4.0.0-rc.3", features = ["verifying"] }
+secp256k1 = { git = "https://github.com/sp1-patches/rust-secp256k1", tag = "patch-0.29.1-sp1-4.0.0"}
+ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", tag = "patch-0.16.9-sp1-4.0.0", features = ["verifying"] }
 sp1-lib = { path = "../../../crates/zkvm/lib" }

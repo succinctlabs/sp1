@@ -30,7 +30,7 @@ dependencies = [
 name = "bn_test_program"
 version = "0.1.0"
 dependencies = [
- "sp1-lib 4.0.0-rc.11",
+ "sp1-lib",
  "sp1-zkvm",
  "substrate-bn",
 ]
@@ -419,45 +419,16 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "4.0.0-rc.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f59a68a06f7297083f430d6e3e3b34ac64cada0323f46554a46ec0b48d15e93e"
+version = "4.0.0"
 dependencies = [
  "bincode",
  "serde",
- "sp1-primitives 4.0.0-rc.8",
-]
-
-[[package]]
-name = "sp1-lib"
-version = "4.0.0-rc.11"
-dependencies = [
- "bincode",
- "serde",
- "sp1-primitives 4.0.0-rc.11",
+ "sp1-primitives",
 ]
 
 [[package]]
 name = "sp1-primitives"
-version = "4.0.0-rc.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "264fd5572de63c62e9dab20762693e9ec87bcfbfba47938224abfd0467e67195"
-dependencies = [
- "bincode",
- "hex",
- "lazy_static",
- "num-bigint",
- "p3-baby-bear",
- "p3-field",
- "p3-poseidon2",
- "p3-symmetric",
- "serde",
- "sha2",
-]
-
-[[package]]
-name = "sp1-primitives"
-version = "4.0.0-rc.11"
+version = "4.0.0"
 dependencies = [
  "bincode",
  "hex",
@@ -473,7 +444,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "4.0.0-rc.11"
+version = "4.0.0"
 dependencies = [
  "cfg-if",
  "getrandom",
@@ -481,8 +452,8 @@ dependencies = [
  "libm",
  "rand",
  "sha2",
- "sp1-lib 4.0.0-rc.11",
- "sp1-primitives 4.0.0-rc.11",
+ "sp1-lib",
+ "sp1-primitives",
 ]
 
 [[package]]
@@ -494,7 +465,7 @@ checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
 [[package]]
 name = "substrate-bn"
 version = "0.6.0"
-source = "git+https://github.com/sp1-patches/bn?tag=patch-0.6.0-sp1-4.0.0-rc.3-v1#3556ab0c3fb2391613e9b848a0fd3ac48128e1b8"
+source = "git+https://github.com/sp1-patches/bn?tag=patch-0.6.0-sp1-4.0.0#1bd84110963662fae88baa5ad07c9ab92b6acdbb"
 dependencies = [
  "bytemuck",
  "byteorder",
@@ -504,7 +475,7 @@ dependencies = [
  "num-bigint",
  "rand",
  "rustc-hex",
- "sp1-lib 4.0.0-rc.8",
+ "sp1-lib",
 ]
 
 [[package]]
