@@ -8,7 +8,7 @@ The recommended way to setup your first program to prove inside the zkVM is usin
 
 ```bash
 cargo prove new <name>
-cd program
+cd <name>/program
 ```
 
 ## Manual Project Setup

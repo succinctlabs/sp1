@@ -52,3 +52,9 @@ examples/fibonacci/fibonacci-plonk.bin
 
 # C++
 .vscode/c_cpp_properties.json
+
+**/.yarn
+**/yarn.lock
+book/.pnp.cjs
+book/.pnp.loader.mjs
+book/.yarnrc.yml

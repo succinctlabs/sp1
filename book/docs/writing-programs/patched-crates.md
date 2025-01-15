@@ -28,17 +28,27 @@ To use the patched libraries, you can use corresponding patch entries in your pr
 
 ```toml
 [patch.crates-io]
+# SHA2
+sha2-v0-9-9 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", tag = "patch-sha2-0.9.9-sp1-4.0.0" }
 sha2-v0-10-6 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", tag = "patch-sha2-0.10.6-sp1-4.0.0" }
 sha2-v0-10-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", tag = "patch-sha2-0.10.8-sp1-4.0.0" }
+# SHA3
 sha3-v0-10-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha3", tag = "patch-sha3-0.10.8-sp1-4.0.0" }
+# BigInt
 crypto-bigint = { git = "https://github.com/sp1-patches/RustCrypto-bigint", tag = "patch-0.5.5-sp1-4.0.0" }
-tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", tag = "patch-2.0.2-sp1-4.0.0 }
+# Keccak
+tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", tag = "patch-2.0.2-sp1-4.0.0" }
+# Ed25519
 curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", tag = "patch-4.1.3-sp1-4.0.0" }
 curve25519-dalek-ng = { git = "https://github.com/sp1-patches/curve25519-dalek-ng", tag = "patch-4.1.1-sp1-4.0.0" }
+# ECDSA
 ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", tag = "patch-0.16.9-sp1-4.0.0" }
 secp256k1 = { git = "https://github.com/sp1-patches/rust-secp256k1", tag = "patch-0.29.1-sp1-4.0.0" }
+# BN254
 substrate-bn = { git = "https://github.com/sp1-patches/bn", tag = "patch-0.6.0-sp1-4.0.0" }
+# BLS12-381
 bls12_381 = { git = "https://github.com/sp1-patches/bls12_381", tag = "patch-0.8.0-sp1-4.0.0", features = ["groups"] }
+# RSA
 rsa = { git = "https://github.com/sp1-patches/RustCrypto-RSA/", tag = "patch-0.9.6-sp1-4.0.0" }
 ```
 
@@ -47,16 +57,16 @@ repository in the patch section. For example:
 
 ```toml
 [patch."https://github.com/RustCrypto/hashes"]
-sha3 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha3", tag = "sha3-v0.10.8-patch-v1"  }
+sha3 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha3", tag = "patch-sha3-0.10.8-sp1-4.0.0"  }
 ```
 
-An example of using patched crates is available in our [Tendermint Example](https://github.com/succinctlabs/sp1/blob/main/examples/tendermint/program/Cargo.toml#L22-L25).
+An example of using patched crates is available in [SP1 Blobstream](https://github.com/succinctlabs/sp1-blobstream/blob/89e058052c0b691898c5b56a62a6fa0270b31627/Cargo.toml#L40-L43).
 
 ## Ed25519 Acceleration
 
 To accelerate Ed25519 operations, you'll need to patch crates depending on if you're using the `ed25519-consensus` or `ed25519-dalek` library in your program or dependencies.
 
-Generally, `ed25519-consensus` has better performance than `ed25519-dalek` by a factor of 2.
+Generally, `ed25519-consensus` has better performance for Ed25519 operations than `ed25519-dalek` by a factor of 2.
 
 ### Patches
 
@@ -64,16 +74,18 @@ Apply the following patches based on what crates are in your dependencies.
 
 - `ed25519-consensus`
 
+  If using `ed25519-consensus`, you should patch `curve25519-dalek-ng` to accelerate ed25519 operations:
+
   ```toml
   curve25519-dalek-ng = { git = "https://github.com/sp1-patches/curve25519-dalek-ng", tag = "patch-4.1.1-sp1-4.0.0" }
   ```
 
 - `ed25519-dalek`
 
-  If using `ed25519-dalek` version `2.1`, you can patch it with the following:
+  If using `ed25519-dalek` version `2.1`, you should patch `curve25519-dalek` to accelerate ed25519 operations:
 
   ```toml
-  curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", tag = "curve25519_dalek-v4.1.3-patch-v1" }
+  curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", tag = "patch-4.1.3-sp1-4.0.0" }
   ```
 
 ## Secp256k1 Acceleration
@@ -89,7 +101,7 @@ Apply the following patches based on what crates are in your dependencies.
 - `k256`
 
   ```toml
-  ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", tag = "ecdsa-v0.16.9-patch-v1" }
+  ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", tag = "patch-0.16.9-sp1-4.0.0" }
   ```
 
   Note: The curve operations for `k256` are inside of the `ecdsa-core` crate, so you don't need to patch `k256` itself, and just patching `ecdsa-core` is enough.
@@ -97,8 +109,8 @@ Apply the following patches based on what crates are in your dependencies.
 - `secp256k1`
 
   ```toml
-  secp256k1 = { git = "https://github.com/sp1-patches/rust-secp256k1", tag = "secp256k1-v0.29.0-patch-v1" }
-  ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", tag = "patch-0.16.9-sp1-4.0.0 }
+  secp256k1 = { git = "https://github.com/sp1-patches/rust-secp256k1", tag = "patch-0.29.1-sp1-4.0.0" }
+  ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", tag = "patch-0.16.9-sp1-4.0.0" }
   ```
 
 While `secp256k1` doesnt usually rely on `ecdsa-core` the patched version does, so you must patch it as well.
@@ -112,7 +124,7 @@ To accelerate BN254 (Also known as BN128 and Alt-BN128), you will need to patch 
 Apply the patch by adding the following to your list of dependencies:
 
 ```rust
-substrate-bn = { git = "https://github.com/sp1-patches/bn", tag = "substrate_bn-v0.6.0-patch-v1" }
+substrate-bn = { git = "https://github.com/sp1-patches/bn", tag = "patch-0.6.0-sp1-4.0.0" }
 ```
 
 ### Performance Benchmarks for Patched `substrate-bn` in `revm`
@@ -128,7 +140,7 @@ Note: The operations `run-add`, `run-mul`, and `run-pair` are from the `revm` cr
 To accelerate [revm](https://github.com/bluealloy/revm) in SP1 using the BN254 patched crate, replace the `substrate-bn` crate with the patched crate by adding the following to `crates/precompile/Cargo.toml`:
 
 ```toml
-bn = { git = "https://github.com/sp1-patches/bn", package = "substrate-bn", tag = "substrate_bn-v0.6.0-patch-v1" }
+bn = { git = "https://github.com/sp1-patches/bn", package = "substrate-bn", tag = "patch-0.6.0-sp1-4.0.0" }
 ```
 
 ## BLS12-381 Acceleration
@@ -136,7 +148,7 @@ bn = { git = "https://github.com/sp1-patches/bn", package = "substrate-bn", tag 
 To accelerate BLS12-381 operations, you'll need to patch the `bls12_381` crate. Apply the following patch by adding the following to your list of dependencies:
 
 ```toml
-bls12_381 = { git = "https://github.com/sp1-patches/bls12_381", tag = "bls12_381-v0.8.0-patch-v1" }
+bls12_381 = { git = "https://github.com/sp1-patches/bls12_381", tag = "patch-0.8.0-sp1-4.0.0" }
 ```
 
 This patch significantly improves the performance of BLS12-381 operations, making it essential for applications that rely heavily on these cryptographic primitives.
@@ -158,7 +170,7 @@ This patch significantly improves the performance of BLS12-381 operations, makin
 You can check if the patch was applied by using cargo's tree command to print the dependencies of the crate you patched.
 
 ```bash
-cargo tree -p sha2@0.9.8
+cargo tree -p sha2@0.10.8
 ```
 
 Next to the package name, it should have a link to the Github repository that you patched with.
@@ -166,7 +178,7 @@ Next to the package name, it should have a link to the Github repository that yo
 Ex.
 
 ```text
-sha2 v0.9.8 (https://github.com/sp1-patches/RustCrypto-hashes?branch=patch-sha2-v0.9.8#afdbfb09)
+sha2 v0.10.8 (https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha2-0.10.8-sp1-4.0.0)
 ├── ...
 ```
 
