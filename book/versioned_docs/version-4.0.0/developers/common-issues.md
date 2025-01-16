@@ -121,3 +121,21 @@ To resolve this, ensure that you're importing both `sp1-lib` and `sp1-zkvm` with
 sp1-lib = { version = "<VERSION>", features = ["verify"] }
 sp1-zkvm = { version = "<VERSION>", features = ["verify"] }
 ```
+
+## Failed to run LLVM passes: unknown pass name 'loweratomic'
+
+The Rust compiler had breaking changes to its names of available options between 1.81 and 1.82.
+
+```bash
+  [sp1]     Compiling proc-macro2 v1.0.93
+  [sp1]     Compiling unicode-ident v1.0.14
+  [sp1]     Compiling quote v1.0.38
+  [sp1]     Compiling syn v2.0.96
+  [sp1]     Compiling serde_derive v1.0.217
+  [sp1]     Compiling serde v1.0.217
+  [sp1]  error: failed to run LLVM passes: unknown pass name 'loweratomic'
+```
+
+This message indicates that you're trying to use `sp1-build` < `4.0.0` with the 1.82 toolchain,
+`sp1-build` versions >= 4.0.0 have support for the 1.82 and 1.81 toolchains.
+

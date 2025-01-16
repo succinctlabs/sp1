@@ -6,4 +6,7 @@
 mod bump;
 
 #[cfg(feature = "embedded")]
-pub mod embedded;
+mod embedded;
+
+#[cfg(feature = "embedded")]
+pub use embedded::{free, init, used};
