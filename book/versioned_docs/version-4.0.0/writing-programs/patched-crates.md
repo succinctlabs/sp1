@@ -115,6 +115,20 @@ Apply the following patches based on what crates are in your dependencies.
 
 While `secp256k1` doesnt usually rely on `ecdsa-core` the patched version does, so you must patch it as well.
 
+## Secp256r1 Acceleration
+
+Apply the following patches based on what crates are in your dependencies.
+
+Note: The current patched version of `p256` only accelerates the `ecrecover` function. In a future release, we will accelerate the `verify` function used in `P256Verify`.
+
+- `p256`
+
+  ```toml
+  ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", tag = "patch-0.16.9-sp1-4.0.0" }
+  ```
+
+  Note: The curve operations for `p256` are inside of the `ecdsa-core` crate, so you don't need to patch `p256` itself, and just patching `ecdsa-core` is enough.
+
 ## BN254 Acceleration
 
 To accelerate BN254 (Also known as BN128 and Alt-BN128), you will need to patch the `substrate-bn` crate.
