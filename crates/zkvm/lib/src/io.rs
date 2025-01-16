@@ -1,7 +1,10 @@
 #![allow(unused_unsafe)]
-use crate::{read_vec_raw, syscall_write, ReadVecResult};
+use crate::{read_vec_raw, syscall_hint_len, syscall_hint_read, syscall_write, ReadVecResult};
 use serde::{de::DeserializeOwned, Serialize};
-use std::io::{Result, Write};
+use std::{
+    alloc::Layout,
+    io::{Result, Write},
+};
 
 pub use sp1_primitives::consts::fd::*;
 
