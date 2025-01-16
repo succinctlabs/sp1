@@ -46,6 +46,34 @@ pub fn read_vec() -> Vec<u8> {
     unsafe { Vec::from_raw_parts(ptr, len, capacity) }
 }
 
+/// Read a buffer of bytes aligned to N from the input stream.
+pub fn read_aligned<const N: usize>() -> Vec<u8> {
+    assert!(N % align_of::<u8>() == 0, "SP1 zkVM alignment must be a multiple of 4");
+
+    // Round up to the nearest multiple of 4 so that the memory allocated is in whole words
+    let len = unsafe { syscall_hint_len() };
+    let capacity = (len + 3) / 4 * 4;
+
+    // Allocate a buffer of the required length that is 4 byte aligned
+    let layout = Layout::from_size_align(capacity, N).expect("vec is too large");
+    let ptr = unsafe { std::alloc::alloc(layout) };
+
+    // SAFETY:
+    // 1. `ptr` was allocated using alloc
+    // 2. We assuume that the VM global allocator doesn't dealloc
+    // 3/6. Size is correct from above
+    // 4/5. Length is 0
+    // 7. Layout::from_size_align already checks this
+    let mut vec = unsafe { Vec::from_raw_parts(ptr, 0, capacity) };
+    // Read the vec into uninitialized memory. The syscall assumes the memory is uninitialized,
+    // which should be true because the allocator does not dealloc, so a new alloc should be fresh.
+    unsafe {
+        syscall_hint_read(ptr, len);
+        vec.set_len(len);
+    }
+    vec
+}
+
 /// Read a deserializable object from the input stream.
 ///
 /// ### Examples
