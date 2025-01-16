@@ -42,7 +42,6 @@ pub const EMBEDDED_RESERVED_INPUT_START: usize = MAX_MEMORY - EMBEDDED_RESERVED_
 static mut EMBEDDED_RESERVED_INPUT_PTR: usize = EMBEDDED_RESERVED_INPUT_START;
 
 #[repr(C)]
-#[cfg(target_os = "zkvm")]
 pub struct ReadVecResult {
     pub ptr: *mut u8,
     pub len: usize,
@@ -60,57 +59,62 @@ pub struct ReadVecResult {
 ///
 /// When there is no allocator selected, the program will fail to compile.
 #[no_mangle]
-#[cfg(target_os = "zkvm")]
 pub extern "C" fn read_vec_raw() -> ReadVecResult {
-    // Get the length of the input buffer.
-    let len = syscall_hint_len();
-    // Round up to multiple of 4 for whole-word alignment.
-    let capacity = (len + 3) / 4 * 4;
+    cfg_if::cfg_if! {
+        if #[cfg(target_os = "zkvm")] {
+            // Get the length of the input buffer.
+            let len = syscall_hint_len();
+            // Round up to multiple of 4 for whole-word alignment.
+            let capacity = (len + 3) / 4 * 4;
 
-    cfg_if! {
-        if #[cfg(feature = "embedded")] {
-            // Get the existing pointer in the reserved region which is the start of the vec.
-            // Increment the pointer by the capacity to set the new pointer to the end of the vec.
-            let ptr = unsafe { EMBEDDED_RESERVED_INPUT_PTR };
-            if ptr + capacity > MAX_MEMORY {
-                panic!("Input region overflowed.")
-            }
+            cfg_if! {
+                if #[cfg(feature = "embedded")] {
+                    // Get the existing pointer in the reserved region which is the start of the vec.
+                    // Increment the pointer by the capacity to set the new pointer to the end of the vec.
+                    let ptr = unsafe { EMBEDDED_RESERVED_INPUT_PTR };
+                    if ptr + capacity > MAX_MEMORY {
+                        panic!("Input region overflowed.")
+                    }
 
-            // SAFETY: The VM is single threaded.
-            unsafe { EMBEDDED_RESERVED_INPUT_PTR += capacity };
+                    // SAFETY: The VM is single threaded.
+                    unsafe { EMBEDDED_RESERVED_INPUT_PTR += capacity };
 
-            // Read the vec into uninitialized memory. The syscall assumes the memory is
-            // uninitialized, which is true because the input ptr is incremented manually on each
-            // read.
-            syscall_hint_read(ptr as *mut u8, len);
+                    // Read the vec into uninitialized memory. The syscall assumes the memory is
+                    // uninitialized, which is true because the input ptr is incremented manually on each
+                    // read.
+                    syscall_hint_read(ptr as *mut u8, len);
 
-            // Return the result.
-            ReadVecResult {
-                ptr: ptr as *mut u8,
-                len,
-                capacity,
-            }
-        } else if #[cfg(feature = "bump")] {
-            // Allocate a buffer of the required length that is 4 byte aligned.
-            let layout = std::alloc::Layout::from_size_align(capacity, 4).expect("vec is too large");
+                    // Return the result.
+                    ReadVecResult {
+                        ptr: ptr as *mut u8,
+                        len,
+                        capacity,
+                    }
+                } else if #[cfg(feature = "bump")] {
+                    // Allocate a buffer of the required length that is 4 byte aligned.
+                    let layout = std::alloc::Layout::from_size_align(capacity, 4).expect("vec is too large");
 
-            // SAFETY: The layout was made through the checked constructor.
-            let ptr = unsafe { std::alloc::alloc(layout) };
+                    // SAFETY: The layout was made through the checked constructor.
+                    let ptr = unsafe { std::alloc::alloc(layout) };
 
-            // Read the vec into uninitialized memory. The syscall assumes the memory is
-            // uninitialized, which is true because the bump allocator does not dealloc, so a new
-            // alloc is always fresh.
-            syscall_hint_read(ptr as *mut u8, len);
+                    // Read the vec into uninitialized memory. The syscall assumes the memory is
+                    // uninitialized, which is true because the bump allocator does not dealloc, so a new
+                    // alloc is always fresh.
+                    syscall_hint_read(ptr as *mut u8, len);
 
-            // Return the result.
-            ReadVecResult {
-                ptr: ptr as *mut u8,
-                len,
-                capacity,
+                    // Return the result.
+                    ReadVecResult {
+                        ptr: ptr as *mut u8,
+                        len,
+                        capacity,
+                    }
+                } else {
+                    // An allocator must be selected.
+                    compile_error!("There is no allocator selected. Please enable the `bump` or `embedded` feature.");
+                }
             }
         } else {
-            // An allocator must be selected.
-            compile_error!("There is no allocator selected. Please enable the `bump` or `embedded` feature.");
+            unreachable!()
         }
     }
 }
