@@ -6,9 +6,9 @@ use critical_section::RawRestoreState;
 use embedded_alloc::LlffHeap as Heap;
 
 #[global_allocator]
-pub static HEAP: EmbeddedAlloc = EmbeddedAlloc;
+static HEAP: EmbeddedAlloc = EmbeddedAlloc;
 
-pub static INNER_HEAP: Heap = Heap::empty();
+static INNER_HEAP: Heap = Heap::empty();
 
 struct CriticalSection;
 critical_section::set_impl!(CriticalSection);
@@ -39,7 +39,7 @@ pub fn free() -> usize {
     critical_section::with(|cs| INNER_HEAP.free())
 }
 
-pub struct EmbeddedAlloc;
+struct EmbeddedAlloc;
 
 unsafe impl GlobalAlloc for EmbeddedAlloc {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
