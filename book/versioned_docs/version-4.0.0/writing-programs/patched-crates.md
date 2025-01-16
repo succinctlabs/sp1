@@ -117,9 +117,7 @@ While `secp256k1` doesnt usually rely on `ecdsa-core` the patched version does, 
 
 ## Secp256r1 Acceleration
 
-Apply the following patches based on what crates are in your dependencies.
-
-Note: The current patched version of `p256` only accelerates the `ecrecover` function. In a future release, we will accelerate the `verify` function used in `P256Verify`.
+Note: The current patch only accelerates the `ecrecover` function. In a future release, we will accelerate the `verify` function used in `P256Verify`.
 
 - `p256`
 
