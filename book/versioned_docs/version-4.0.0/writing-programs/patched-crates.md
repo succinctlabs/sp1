@@ -117,15 +117,16 @@ While `secp256k1` doesnt usually rely on `ecdsa-core` the patched version does, 
 
 ## Secp256r1 Acceleration
 
-Note: The current patch only accelerates the `ecrecover` function. In a future release, we will accelerate the `verify` function used in `P256Verify` (RIP-7212 precompile).
-
 - `p256`
 
   ```toml
   ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", tag = "patch-0.16.9-sp1-4.0.0" }
   ```
 
-  Note: The curve operations for `p256` are inside of the `ecdsa-core` crate, so you don't need to patch `p256` itself, and just patching `ecdsa-core` is enough.
+### Notes
+
+- The curve operations for `p256` are inside of the `ecdsa-core` crate, so you don't need to patch `p256` itself, and just patching `ecdsa-core` is enough.
+- The current patch only accelerates the `ecrecover` function. In a future release, we will accelerate the `verify` function used in `P256Verify` (RIP-7212 precompile).
 
 ## BN254 Acceleration
 
