@@ -577,7 +577,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "bincode",
  "serde",
@@ -586,7 +586,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "bincode",
  "hex",
@@ -602,7 +602,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "cfg-if",
  "getrandom",
