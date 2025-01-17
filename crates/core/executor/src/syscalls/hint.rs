@@ -10,10 +10,8 @@ impl Syscall for HintLenSyscall {
         _arg1: u32,
         _arg2: u32,
     ) -> Option<u32> {
-        panic_if_input_exhausted(ctx);
-
-        // Note: This cast could be truncating
-        ctx.rt.state.input_stream.front().map(|data| data.len() as u32)
+        // Note: This cast could be truncating on 64bit systems.
+        Some(ctx.rt.state.input_stream.front().map_or(u32::MAX, |data| data.len() as u32))
     }
 }
 

@@ -49,6 +49,7 @@ pub struct ReadVecResult {
     pub ptr: *mut u8,
     pub len: usize,
     pub capacity: usize,
+    pub failed: bool,
 }
 
 /// Read a buffer from the input stream.
@@ -61,6 +62,9 @@ pub struct ReadVecResult {
 /// When the `embedded` feature is enabled, the buffer is read into the reserved input region.
 ///
 /// When there is no allocator selected, the program will fail to compile.
+///
+/// This function will return with junk data and set the `failed` flag to true if the input stream
+/// is exhausted.
 #[no_mangle]
 pub extern "C" fn read_vec_raw() -> ReadVecResult {
     #[cfg(not(target_os = "zkvm"))]
@@ -70,6 +74,12 @@ pub extern "C" fn read_vec_raw() -> ReadVecResult {
     {
         // Get the length of the input buffer.
         let len = syscall_hint_len();
+
+        // If the length is u32::MAX, then the input stream is exhausted.
+        if len == usize::MAX {
+            return ReadVecResult { ptr: std::ptr::null_mut(), len: 0, capacity: 0, failed: true };
+        }
+
         // Round up to multiple of 4 for whole-word alignment.
         let capacity = (len + 3) / 4 * 4;
 
@@ -95,6 +105,7 @@ pub extern "C" fn read_vec_raw() -> ReadVecResult {
                     ptr: ptr as *mut u8,
                     len,
                     capacity,
+                    failed: false,
                 }
             } else if #[cfg(feature = "bump")] {
                 // Allocate a buffer of the required length that is 4 byte aligned.
@@ -113,6 +124,7 @@ pub extern "C" fn read_vec_raw() -> ReadVecResult {
                     ptr: ptr as *mut u8,
                     len,
                     capacity,
+                    failed: false,
                 }
             } else {
                 // An allocator must be selected.
