@@ -32,11 +32,11 @@ pub fn init() {
 }
 
 pub fn used() -> usize {
-    critical_section::with(|cs| INNER_HEAP.used())
+    critical_section::with(|_cs| INNER_HEAP.used())
 }
 
 pub fn free() -> usize {
-    critical_section::with(|cs| INNER_HEAP.free())
+    critical_section::with(|_cs| INNER_HEAP.free())
 }
 
 struct EmbeddedAlloc;

@@ -61,6 +61,8 @@ pub struct ReadVecResult {
 /// When the `embedded` feature is enabled, the buffer is read into the reserved input region.
 ///
 /// When there is no allocator selected, the program will fail to compile.
+///
+/// If the input stream is exhausted, the failed flag will be returned as true. In this case, the other outputs from the function are likely incorrect, which is fine as `sp1-lib` always panics in the case that the input stream is exhausted.
 #[no_mangle]
 pub extern "C" fn read_vec_raw() -> ReadVecResult {
     #[cfg(not(target_os = "zkvm"))]
@@ -70,6 +72,12 @@ pub extern "C" fn read_vec_raw() -> ReadVecResult {
     {
         // Get the length of the input buffer.
         let len = syscall_hint_len();
+
+        // If the length is u32::MAX, then the input stream is exhausted.
+        if len == usize::MAX {
+            return ReadVecResult { ptr: std::ptr::null_mut(), len: 0, capacity: 0 };
+        }
+
         // Round up to multiple of 4 for whole-word alignment.
         let capacity = (len + 3) / 4 * 4;
 
