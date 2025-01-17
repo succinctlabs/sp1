@@ -10,7 +10,7 @@ impl Syscall for HintLenSyscall {
         _arg1: u32,
         _arg2: u32,
     ) -> Option<u32> {
-        // Note: This cast could be truncating on 64bit systems.
+        // Note: If the user supplies an input > than length 2^32, then the length returned will be truncated to 32-bits. Reading from the syscall will definitely fail in that case, as the BabyBear field is < 2^32.
         Some(ctx.rt.state.input_stream.front().map_or(u32::MAX, |data| data.len() as u32))
     }
 }
