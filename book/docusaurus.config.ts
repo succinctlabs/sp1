@@ -38,8 +38,7 @@ const config: Config = {
       "classic",
       ({
         docs: {
-          routeBasePath: "docs",
-          sidebarPath: require.resolve("./sidebars.ts"),
+          onlyIncludeVersions: ["4.0.0", "3.4.0"],
         },
         blog: false,
         pages: {},
