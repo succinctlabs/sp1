@@ -63,7 +63,7 @@ pub struct ReadVecResult {
 ///
 /// When there is no allocator selected, the program will fail to compile.
 ///
-/// This function will return with junk data and set the `failed` flag to true if the input stream
+/// If the input stream is exhausted, the failed flag will be returned as true. In this case, the other outputs from the function are likely incorrect.
 /// is exhausted.
 #[no_mangle]
 pub extern "C" fn read_vec_raw() -> ReadVecResult {
