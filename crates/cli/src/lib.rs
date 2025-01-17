@@ -8,7 +8,7 @@ pub const RUSTUP_TOOLCHAIN_NAME: &str = "succinct";
 
 /// The latest version (github tag) of the toolchain that is supported by our build system.
 ///
-/// This tag has suppoert for older x86 libc versions (like the one found in Ubuntu 20.04).
+/// This tag has support for older x86 libc versions (like the one found in Ubuntu 20.04).
 /// This tag has support for the recent Macos and ARM targets.
 pub const LATEST_SUPPORTED_TOOLCHAIN_VERSION_TAG: &str = "succinct-1.82.0";
 
