@@ -2,6 +2,7 @@
 //!
 //! This module provides a builder for the [`NetworkProver`].
 
+use crate::network::DEFAULT_NETWORK_RPC_URL;
 use crate::NetworkProver;
 
 /// A builder for the [`NetworkProver`].
@@ -83,10 +84,7 @@ impl NetworkProverBuilder {
 
         let rpc_url = match self.rpc_url {
             Some(rpc_url) => rpc_url,
-            None => std::env::var("NETWORK_RPC_URL").expect(
-                "NETWORK_RPC_URL environment variable is not set. \
-                Please set it to your rpc url or use the .rpc_url() method.",
-            ),
+            None => std::env::var("NETWORK_RPC_URL").unwrap_or(DEFAULT_NETWORK_RPC_URL.to_string()),
         };
 
         NetworkProver::new(&private_key, &rpc_url)

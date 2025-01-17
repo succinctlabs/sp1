@@ -17,10 +17,12 @@ let mut proof = client.prove(&pk, &stdin).run().unwrap();
 SP1_PROVER=network NETWORK_PRIVATE_KEY=... RUST_LOG=info cargo run --release
 ```
 
-- `SP1_PROVER` should be set to `network` rather than the default `cpu` when using the prover network. This variable allows you to switch between the CPU and network provers.
+- Set `SP1_PROVER` to `network` (default is `cpu`). Configuring this variable to `network` will use the prover network.
 
 - `NETWORK_PRIVATE_KEY` should be set to your [private key](./key-setup.md). You will need
   to be using a [whitelisted](../prover-network) key to use the network.
+
+- `NETWORK_RPC_URL`: Defaults to `https://rpc.production.succinct.xyz`. This is the RPC URL of the prover network.
 
 When you call any of the prove functions in ProverClient now, it will first simulate your program, then wait for it to be proven through the network and finally return the proof.
 
