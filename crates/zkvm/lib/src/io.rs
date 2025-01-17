@@ -72,7 +72,7 @@ pub fn read<T: DeserializeOwned>() -> T {
 
     if failed {
         panic!(
-            "The input stream was exhausted before the call to read_vec @ {}",
+            "The input stream was exhausted before the call to read @ {}",
             std::panic::Location::caller()
         )
     }
