@@ -44,7 +44,8 @@ pub fn read_vec() -> Vec<u8> {
 
     if failed {
         panic!(
-            "The input stream was exhausted before the call to read_vec @ {}",
+            "Tried to read from the input stream, but it was empty @ {} \n
+            Was the correct data written into SP1Stdin?",
             std::panic::Location::caller()
         )
     }
@@ -72,7 +73,8 @@ pub fn read<T: DeserializeOwned>() -> T {
 
     if failed {
         panic!(
-            "The input stream was exhausted before the call to read @ {}",
+            "Tried to read from the input stream, but it was empty @ {} \n
+            Was the correct data written into SP1Stdin?",
             std::panic::Location::caller()
         )
     }
