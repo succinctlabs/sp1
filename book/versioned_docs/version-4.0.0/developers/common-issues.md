@@ -143,12 +143,12 @@ If you're using `cargo prove build` an `sp1up` should fix this.
 
 ## Ubuntu 20.04 (ARM)
 
-The Succinct Rust toolchain is built on Ubuntu 22.04, which links a newer version of libc than available
-on Ubuntu 20.04.
+The Succinct Rust toolchain is built on Ubuntu 22.04 for ARM machines, 
+which links a newer version of libc than available on Ubuntu 20.04.
 
 This error may manifest as:
 ```bash
    /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.32' not found 
 ```
-This most commonly happens in CI runners, it is recommended to bump the runner OS to 22.04,
-the issue applies to all older linux distrubtions that don't have support for the same version of libc used to build it.
+This most commonly happens in CI runners. To solve this, bump the runner OS to 22.04. 
+This issue also applies all older Linux distributions that don't have support for the same version of libc used to build it.
