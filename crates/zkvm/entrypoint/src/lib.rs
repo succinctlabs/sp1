@@ -49,7 +49,6 @@ pub struct ReadVecResult {
     pub ptr: *mut u8,
     pub len: usize,
     pub capacity: usize,
-    pub failed: bool,
 }
 
 /// Read a buffer from the input stream.
@@ -76,7 +75,7 @@ pub extern "C" fn read_vec_raw() -> ReadVecResult {
 
         // If the length is u32::MAX, then the input stream is exhausted.
         if len == usize::MAX {
-            return ReadVecResult { ptr: std::ptr::null_mut(), len: 0, capacity: 0, failed: true };
+            return ReadVecResult { ptr: std::ptr::null_mut(), len: 0, capacity: 0 };
         }
 
         // Round up to multiple of 4 for whole-word alignment.
@@ -104,7 +103,6 @@ pub extern "C" fn read_vec_raw() -> ReadVecResult {
                     ptr: ptr as *mut u8,
                     len,
                     capacity,
-                    failed: false,
                 }
             } else if #[cfg(feature = "bump")] {
                 // Allocate a buffer of the required length that is 4 byte aligned.
@@ -123,7 +121,6 @@ pub extern "C" fn read_vec_raw() -> ReadVecResult {
                     ptr: ptr as *mut u8,
                     len,
                     capacity,
-                    failed: false,
                 }
             } else {
                 // An allocator must be selected.

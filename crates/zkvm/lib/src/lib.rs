@@ -154,5 +154,4 @@ pub struct ReadVecResult {
     pub ptr: *mut u8,
     pub len: usize,
     pub capacity: usize,
-    pub failed: bool,
 }

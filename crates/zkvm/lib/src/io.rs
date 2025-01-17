@@ -40,9 +40,9 @@ impl Write for SyscallWriter {
 /// ```
 #[track_caller]
 pub fn read_vec() -> Vec<u8> {
-    let ReadVecResult { ptr, len, capacity, failed } = unsafe { read_vec_raw() };
+    let ReadVecResult { ptr, len, capacity } = unsafe { read_vec_raw() };
 
-    if failed {
+    if ptr.is_null() {
         panic!(
             "Tried to read from the input stream, but it was empty @ {} \n
             Was the correct data written into SP1Stdin?",
@@ -69,9 +69,9 @@ pub fn read_vec() -> Vec<u8> {
 /// ```
 #[track_caller]
 pub fn read<T: DeserializeOwned>() -> T {
-    let ReadVecResult { ptr, len, capacity, failed } = unsafe { read_vec_raw() };
+    let ReadVecResult { ptr, len, capacity } = unsafe { read_vec_raw() };
 
-    if failed {
+    if ptr.is_null() {
         panic!(
             "Tried to read from the input stream, but it was empty @ {} \n
             Was the correct data written into SP1Stdin?",
