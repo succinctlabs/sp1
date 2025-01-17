@@ -139,3 +139,16 @@ The Rust compiler had breaking changes to its names of available options between
 This message indicates that you're trying to use `sp1-build` < `4.0.0` with the 1.82 toolchain,
 `sp1-build` versions >= 4.0.0 have support for the 1.82 and 1.81 toolchains.
 
+If you're using `cargo prove build` an `sp1up` should fix this.
+
+## Ubuntu 20.04 (ARM)
+
+The Succinct Rust toolchain is built on Ubuntu 22.04, which links a newer version of libc than available
+on Ubuntu 20.04.
+
+This error may manifest as:
+```bash
+   /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.32' not found 
+```
+This most commonly happens in CI runners, it is recommended to bump the runner OS to 22.04,
+the issue applies to all older linux distrubtions that dont have support for the same version of libc used to build it.
