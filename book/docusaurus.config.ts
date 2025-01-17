@@ -19,7 +19,7 @@ const config: Config = {
   // If you aren't using GitHub pages, you don't need these.
   organizationName: 'succinctlabs', // Usually your GitHub org/user name.
   projectName: 'sp1', // Usually your repo name.
-  deploymentBranch: 'main',
+  deploymentBranch: 'dev',
   trailingSlash: false,
 
   onBrokenLinks: 'warn',
@@ -50,6 +50,15 @@ const config: Config = {
   ],
 
   themeConfig: {
+    algolia: {
+      apiKey: "8bfb4b393679faa73e8362e3966be8c3", // Public api key
+      appId: "P3LCHD8MFM",
+      indexName: "succinct",
+      searchPagePath: "search",
+
+      // Leaving at the default of `true` for now
+      contextualSearch: true,
+    },
     docs: {
       sidebar: {
         hideable: false,
