@@ -46,10 +46,10 @@ mod sys {
             let mut dir = out_dir.clone();
             loop {
                 if dir.ends_with("target") {
-                    break dir;
+                    break Some(dir);
                 }
                 if !dir.pop() {
-                    panic!("OUT_DIR does not have parent called \"target\": {:?}", out_dir);
+                    break None;
                 }
             }
         };
@@ -61,7 +61,7 @@ mod sys {
         let target_include_dir = out_dir.join(INCLUDE_DIRNAME);
 
         // The directory to place symlinks to headers into. Has the fixed path "target/include".
-        let target_include_dir_fixed = target_dir.join(INCLUDE_DIRNAME);
+        let target_include_dir_fixed = target_dir.map(|dir| dir.join(INCLUDE_DIRNAME));
 
         // The directory to read source files from.
         let source_dir = crate_dir.join(SOURCE_DIRNAME);
@@ -127,8 +127,10 @@ mod sys {
                 // Write the bindings to the target include directory.
                 let header_path = target_include_dir.join(cbindgen_hpp);
                 if bindings.write_to_file(&header_path) {
-                    // Symlink the header to the fixed include directory.
-                    rel_symlink_file(header_path, target_include_dir_fixed.join(cbindgen_hpp));
+                    if let Some(ref target_include_dir_fixed) = target_include_dir_fixed {
+                        // Symlink the header to the fixed include directory.
+                        rel_symlink_file(header_path, target_include_dir_fixed.join(cbindgen_hpp));
+                    }
                 }
             }
             Err(cbindgen::Error::ParseSyntaxError { error, crate_name, src_path }) => {
@@ -150,7 +152,12 @@ mod sys {
                 fs::create_dir_all(parent).unwrap();
             }
             fs::copy(header, &dst).unwrap();
-            rel_symlink_file(dst, target_include_dir_fixed.join(relpath));
+
+            // We only need to symlink if we have a target.
+            if let Some(ref target_include_dir_fixed) = target_include_dir_fixed {
+                // Symlink the header to the fixed include directory.
+                rel_symlink_file(dst, target_include_dir_fixed.join(relpath));
+            }
         }
 
         // Use the `cc` crate to build the library and statically link it to the crate.
