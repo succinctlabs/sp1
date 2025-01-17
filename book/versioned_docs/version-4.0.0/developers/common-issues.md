@@ -151,4 +151,4 @@ This error may manifest as:
    /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.32' not found 
 ```
 This most commonly happens in CI runners, it is recommended to bump the runner OS to 22.04,
-the issue applies to all older linux distrubtions that dont have support for the same version of libc used to build it.
+the issue applies to all older linux distrubtions that don't have support for the same version of libc used to build it.
