@@ -5,17 +5,17 @@
 If you are using a library that has an MSRV specified, you may encounter an error like this when building your program.
 
 ```txt
-package `alloy cannot be built because it requires rustc 1.83 or newer, while the currently active rustc version is 1.81.0`
+package `alloy cannot be built because it requires rustc 1.83 or newer, while the currently active rustc version is 1.82.0`
 ```
 
 This is due to the fact that your current Succinct Rust toolchain has been built with a lower version than the MSRV of the crates you are using.
 
-You can check the version of your local Succinct Rust toolchain by running `cargo +succinct --version`. The latest release of the Succinct Rust toolchain is **1.81**. You can update to the latest version by running [`sp1up`](../getting-started/install.md).
+You can check the version of your local Succinct Rust toolchain by running `cargo +succinct --version`. The latest release of the Succinct Rust toolchain is **1.82**. You can update to the latest version by running [`sp1up`](../getting-started/install.md).
 
 ```shell
 % sp1up
 % cargo +succinct --version
-cargo 1.81.0-dev (2dbb1af80 2024-08-20)
+cargo 1.82.0-dev (8f40fc59f 2024-08-21)
 ```
 
 A Succinct Rust toolchain with version **1.82** should work for all crates that have an MSRV of **1.82** or lower.
@@ -121,3 +121,34 @@ To resolve this, ensure that you're importing both `sp1-lib` and `sp1-zkvm` with
 sp1-lib = { version = "<VERSION>", features = ["verify"] }
 sp1-zkvm = { version = "<VERSION>", features = ["verify"] }
 ```
+
+## Failed to run LLVM passes: unknown pass name 'loweratomic'
+
+The Rust compiler had breaking changes to its names of available options between 1.81 and 1.82.
+
+```bash
+  [sp1]     Compiling proc-macro2 v1.0.93
+  [sp1]     Compiling unicode-ident v1.0.14
+  [sp1]     Compiling quote v1.0.38
+  [sp1]     Compiling syn v2.0.96
+  [sp1]     Compiling serde_derive v1.0.217
+  [sp1]     Compiling serde v1.0.217
+  [sp1]  error: failed to run LLVM passes: unknown pass name 'loweratomic'
+```
+
+This message indicates that you're trying to use `sp1-build` < `4.0.0` with the 1.82 toolchain,
+`sp1-build` versions >= 4.0.0 have support for the 1.82 and 1.81 toolchains.
+
+If you're using `cargo prove build` an `sp1up` should fix this.
+
+## Ubuntu 20.04 (ARM)
+
+The Succinct Rust toolchain is built on Ubuntu 22.04 for ARM machines, 
+which links a newer version of libc than available on Ubuntu 20.04.
+
+This error may manifest as:
+```bash
+   /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.32' not found 
+```
+This most commonly happens in CI runners. To solve this, bump the runner OS to 22.04. 
+This issue also applies all older Linux distributions that don't have support for the same version of libc used to build it.

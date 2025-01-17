@@ -1,11 +1,10 @@
-use core::alloc::{GlobalAlloc, Layout};
-
 use crate::syscalls::sys_alloc_aligned;
+use core::alloc::{GlobalAlloc, Layout};
 
 /// A simple heap allocator.
 ///
 /// Allocates memory from left to right, without any deallocation.
-pub struct SimpleAlloc;
+struct SimpleAlloc;
 
 unsafe impl GlobalAlloc for SimpleAlloc {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {

@@ -41,6 +41,8 @@ Try setting a github actions secret to your PAT, and then passing it into the `s
     ~/.sp1/bin/cargo-prove prove --version
 ```
 
+Note: Installing via `sp1up` always installs the latest version, its recommended to [use a release commit](https://github.com/succinctlabs/sp1/releases) via `sp1up -C <commit>`.
+
 ## Speeding up your CI workflow
 
 ### Caching
