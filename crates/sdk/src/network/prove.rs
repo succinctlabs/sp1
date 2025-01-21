@@ -28,31 +28,6 @@ pub struct NetworkProveBuilder<'a> {
 }
 
 impl<'a> NetworkProveBuilder<'a> {
-    /// Set the proof kind to [`SP1ProofMode::Core`] mode.
-    ///
-    /// # Details
-    /// This is the default mode for the prover. The proofs grow linearly in size with the number
-    /// of cycles.
-    ///
-    /// # Example
-    /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
-    ///
-    /// let elf = &[1, 2, 3];
-    /// let stdin = SP1Stdin::new();
-    ///
-    /// let client = ProverClient::builder().network().build();
-    /// let (pk, vk) = client.setup(elf);
-    /// let builder = client.prove(&pk, &stdin)
-    ///     .core()
-    ///     .run();
-    /// ```
-    #[must_use]
-    pub fn core(mut self) -> Self {
-        self.mode = SP1ProofMode::Core;
-        self
-    }
-
     /// Set the proof kind to [`SP1ProofMode::Compressed`] mode.
     ///
     /// # Details

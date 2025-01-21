@@ -101,7 +101,7 @@ impl NetworkProver {
     ) -> NetworkProveBuilder<'a> {
         NetworkProveBuilder {
             prover: self,
-            mode: SP1ProofMode::Core,
+            mode: SP1ProofMode::Compressed,
             pk,
             stdin: stdin.clone(),
             timeout: None,
