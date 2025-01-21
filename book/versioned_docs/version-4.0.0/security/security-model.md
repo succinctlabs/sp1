@@ -26,7 +26,7 @@ SP1 assumes that the discrete logarithm problem on the elliptic curve over the d
 
 An analysis based on Thomas Pornin's paper ["EcGFp5: a Specialized Elliptic Curve"](https://eprint.iacr.org/2022/274.pdf), confirmed that the selected elliptic curve provides at least 100 bits of security against known attacks.
 
-This assumption is used in our new memory argument. For more details, see [our notes](.../../../../../static/SP1_Turbo_memory_argument.pdf) explaining how it works.
+This assumption is used in our new memory argument. For more details, see [our notes](.../../../../../static/SP1_Turbo_Memory_Argument.pdf) explaining how it works.
 
 ### Groth16, PLONK, and the Zero-Knowledgeness of SP1
 
