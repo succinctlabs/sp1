@@ -157,7 +157,7 @@ main() {
       bin_path="$SP1_BIN_DIR/$bin"
 
       # Print installed msg
-      say "installed - $(ensure "$bin_path" prove --version)"
+      say "installed - $(ensure "$bin_path" cargo-prove --version)"
 
       # Check if the default path of the binary is not in SP1_BIN_DIR
       which_path="$(command -v "$bin" || true)"
