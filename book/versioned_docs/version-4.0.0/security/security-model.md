@@ -26,6 +26,8 @@ SP1 assumes that the discrete logarithm problem on the elliptic curve over the d
 
 An analysis based on Thomas Pornin's paper ["EcGFp5: a Specialized Elliptic Curve"](https://eprint.iacr.org/2022/274.pdf), confirmed that the selected elliptic curve provides at least 100 bits of security against known attacks.
 
+This assumption is used in our new memory argument. For more details, see [our notes](.../../../../../static/SP1_Turbo_Memory_Argument.pdf) explaining how it works.
+
 ### Groth16, PLONK, and the Zero-Knowledgeness of SP1
 
 SP1 utilizes [Gnark's](https://github.com/Consensys/gnark) implementation of Groth16 or PLONK over the BN254 curve to compress a STARK proof into a SNARK proof, which is then used for on-chain verification. SP1 assumes all cryptographic assumptions required for the security of Groth16 and PLONK. While our implementations of Groth16 and PLONK are zero-knowledge, individual STARK proofs in SP1 do not currently satisfy the zero-knowledge property.
