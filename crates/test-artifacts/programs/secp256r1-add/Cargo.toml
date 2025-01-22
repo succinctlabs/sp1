@@ -12,4 +12,4 @@ common-test-utils = { path = "../common" }
 hex-literal = "0.4.1"
 num = { version = "0.4.1", default-features = false }
 p256 = { version = "0.13.2", default-features = false, features = ["arithmetic"] }
-elliptic-curve = { version = "0.14.0-rc.0", default-features = false, features = ["sec1"] }
+elliptic-curve = { version = "=0.13.8", default-features = false, features = ["sec1"] }
