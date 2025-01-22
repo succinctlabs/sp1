@@ -62,9 +62,9 @@ pub enum RiscvAirId {
     /// The bls12-381 fp op assign chip.
     Bls12381FpOpAssign = 19,
     /// The bls12-831 fp2 add sub assign chip.
-    Bls12831Fp2AddSubAssign = 20,
+    Bls12381Fp2AddSubAssign = 20,
     /// The bls12-831 fp2 mul assign chip.
-    Bls12831Fp2MulAssign = 21,
+    Bls12381Fp2MulAssign = 21,
     /// The bn254 fp2 add sub assign chip.
     Bn254FpOpAssign = 22,
     /// The bn254 fp op assign chip.
@@ -175,8 +175,8 @@ impl RiscvAirId {
             Self::Uint256MulMod => "Uint256MulMod",
             Self::U256XU2048Mul => "U256XU2048Mul",
             Self::Bls12381FpOpAssign => "Bls12381FpOpAssign",
-            Self::Bls12831Fp2AddSubAssign => "Bls12831Fp2AddSubAssign",
-            Self::Bls12831Fp2MulAssign => "Bls12831Fp2MulAssign",
+            Self::Bls12381Fp2AddSubAssign => "Bls12381Fp2AddSubAssign",
+            Self::Bls12381Fp2MulAssign => "Bls12381Fp2MulAssign",
             Self::Bn254FpOpAssign => "Bn254FpOpAssign",
             Self::Bn254Fp2AddSubAssign => "Bn254Fp2AddSubAssign",
             Self::Bn254Fp2MulAssign => "Bn254Fp2MulAssign",
