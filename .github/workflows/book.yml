@@ -27,17 +27,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 18
-          cache: npm
+          cache: yarn
           cache-dependency-path: book/yarn.lock
 
       - name: Install dependencies
-        run: npm ci
+        run: yarn
 
       - name: Create New Code Refrences
         run: chmod +x gen-code-refs.sh && ./gen-code-refs.sh 
 
       - name: Build website
-        run: npm run build
+        run: yarn run build
 
       - name: Upload Build Artifact
         uses: actions/upload-pages-artifact@v3
