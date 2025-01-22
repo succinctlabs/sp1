@@ -27,6 +27,8 @@ mod dependencies;
 mod disassembler;
 pub mod events;
 mod executor;
+#[cfg(feature = "gas")]
+mod gas;
 mod hook;
 mod instruction;
 mod io;

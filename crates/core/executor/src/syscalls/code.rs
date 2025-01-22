@@ -241,7 +241,7 @@ impl SyscallCode {
 
     /// Get the AIR id used in the syscall implementation.
     #[must_use]
-    pub(crate) fn as_air_id(&self) -> Option<RiscvAirId> {
+    pub(crate) fn as_air_id(self) -> Option<RiscvAirId> {
         Some(match self {
             SyscallCode::SHA_EXTEND => RiscvAirId::ShaExtend,
             SyscallCode::SHA_COMPRESS => RiscvAirId::ShaCompress,

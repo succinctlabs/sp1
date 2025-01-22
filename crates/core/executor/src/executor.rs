@@ -2,6 +2,8 @@
 use std::{fs::File, io::BufWriter};
 use std::{str::FromStr, sync::Arc};
 
+#[cfg(feature = "gas")]
+use crate::gas::TraceAreaEstimator;
 #[cfg(feature = "profiling")]
 use crate::profiler::Profiler;
 use clap::ValueEnum;
@@ -104,6 +106,10 @@ pub struct Executor<'a> {
     /// Whether we should write to the report.
     pub print_report: bool,
 
+    /// Data used to estimate total trace area.
+    #[cfg(feature = "gas")]
+    pub trace_area_estimator: Option<Box<TraceAreaEstimator>>,
+
     /// Whether we should emit global memory init and finalize events. This can be enabled in
     /// Checkpoint mode and disabled in Trace mode.
     pub emit_global_memory_events: bool,
@@ -177,8 +183,8 @@ pub struct Executor<'a> {
     /// The maximum LDE size to allow.
     pub lde_size_threshold: u64,
 
-    /// event counts for the current shard.
-    pub event_counts: EnumMap<RiscvAirId, u64>,
+    /// Temporary event counts for the current shard. This is a field to reuse memory.
+    event_counts: EnumMap<RiscvAirId, u64>,
 }
 
 /// The different modes the executor can run in.
@@ -336,6 +342,10 @@ impl<'a> Executor<'a> {
             report: ExecutionReport::default(),
             local_counts: LocalCounts::default(),
             print_report: false,
+            // >>>>>>>>>> FIX BEFORE MERGING <<<<<<<<<<
+            // figure out when this should be None or Some
+            #[cfg(feature = "gas")]
+            trace_area_estimator: Some(Box::default()),
             subproof_verifier: context.subproof_verifier,
             hook_registry,
             opts,
@@ -371,6 +381,16 @@ impl<'a> Executor<'a> {
     #[must_use]
     pub fn hook_env<'b>(&'b self) -> HookEnv<'b, 'a> {
         HookEnv { runtime: self }
+    }
+
+    /// An estimate of the total trace area required for the core proving stage.
+    /// This provides a prover gas metric.
+    #[cfg(feature = "gas")]
+    #[must_use]
+    pub fn total_trace_area(&self) -> Option<u64> {
+        self.trace_area_estimator.as_ref().map(|estimator| {
+            estimator.total_trace_area(self.program.instructions.len(), &self.costs, &self.opts)
+        })
     }
 
     /// Recover runtime state from a program and existing execution state.
@@ -1548,6 +1568,13 @@ impl<'a> Executor<'a> {
             self.report.syscall_counts[syscall] += 1;
         }
 
+        #[cfg(feature = "gas")]
+        if let Some(estimator) = &mut self.trace_area_estimator {
+            if let Some(syscall_id) = syscall.as_air_id() {
+                estimator.deferred_events[syscall_id] += 1;
+            }
+        }
+
         // `hint_slice` is allowed in unconstrained mode since it is used to write the hint.
         // Other syscalls are not allowed because they can lead to non-deterministic
         // behavior, especially since many syscalls modify memory in place,
@@ -1652,11 +1679,10 @@ impl<'a> Executor<'a> {
             let mut shape_match_found = true;
             if self.state.global_clk % self.shape_check_frequency == 0 {
                 // Estimate the number of events in the trace.
-                self.estimate_riscv_event_counts(
+                Self::estimate_riscv_event_counts(
+                    &mut self.event_counts,
                     (self.state.clk >> 2) as u64,
-                    self.local_counts.local_mem as u64,
-                    self.local_counts.syscalls_sent as u64,
-                    *self.local_counts.event_counts,
+                    &self.local_counts,
                 );
 
                 // Check if the LDE size is too large.
@@ -1754,6 +1780,14 @@ impl<'a> Executor<'a> {
 
     /// Bump the record.
     pub fn bump_record(&mut self) {
+        if let Some(estimator) = &mut self.trace_area_estimator {
+            Self::estimate_riscv_event_counts(
+                &mut self.event_counts,
+                (self.state.clk >> 2) as u64,
+                &self.local_counts,
+            );
+            estimator.flush_shard(&self.event_counts, &self.costs);
+        }
         self.local_counts = LocalCounts::default();
         // Copy all of the existing local memory accesses to the record's local_memory_access vec.
         if self.executor_mode == ExecutorMode::Trace {
@@ -2101,53 +2135,53 @@ impl<'a> Executor<'a> {
     }
 
     /// Maps the opcode counts to the number of events in each air.
-    pub fn estimate_riscv_event_counts(
-        &mut self,
+    fn estimate_riscv_event_counts(
+        event_counts: &mut EnumMap<RiscvAirId, u64>,
         cpu_cycles: u64,
-        touched_addresses: u64,
-        syscalls_sent: u64,
-        opcode_counts: EnumMap<Opcode, u64>,
+        local_counts: &LocalCounts,
     ) {
+        let touched_addresses: u64 = local_counts.local_mem as u64;
+        let syscalls_sent: u64 = local_counts.syscalls_sent as u64;
+        let opcode_counts: &EnumMap<Opcode, u64> = &local_counts.event_counts;
+
         // Compute the number of events in the cpu chip.
-        self.event_counts[RiscvAirId::Cpu] = cpu_cycles;
+        event_counts[RiscvAirId::Cpu] = cpu_cycles;
 
         // Compute the number of events in the add sub chip.
-        self.event_counts[RiscvAirId::AddSub] =
-            opcode_counts[Opcode::ADD] + opcode_counts[Opcode::SUB];
+        event_counts[RiscvAirId::AddSub] = opcode_counts[Opcode::ADD] + opcode_counts[Opcode::SUB];
 
         // Compute the number of events in the mul chip.
-        self.event_counts[RiscvAirId::Mul] = opcode_counts[Opcode::MUL]
+        event_counts[RiscvAirId::Mul] = opcode_counts[Opcode::MUL]
             + opcode_counts[Opcode::MULH]
             + opcode_counts[Opcode::MULHU]
             + opcode_counts[Opcode::MULHSU];
 
         // Compute the number of events in the bitwise chip.
-        self.event_counts[RiscvAirId::Bitwise] =
+        event_counts[RiscvAirId::Bitwise] =
             opcode_counts[Opcode::XOR] + opcode_counts[Opcode::OR] + opcode_counts[Opcode::AND];
 
         // Compute the number of events in the shift left chip.
-        self.event_counts[RiscvAirId::ShiftLeft] = opcode_counts[Opcode::SLL];
+        event_counts[RiscvAirId::ShiftLeft] = opcode_counts[Opcode::SLL];
 
         // Compute the number of events in the shift right chip.
-        self.event_counts[RiscvAirId::ShiftRight] =
+        event_counts[RiscvAirId::ShiftRight] =
             opcode_counts[Opcode::SRL] + opcode_counts[Opcode::SRA];
 
         // Compute the number of events in the divrem chip.
-        self.event_counts[RiscvAirId::DivRem] = opcode_counts[Opcode::DIV]
+        event_counts[RiscvAirId::DivRem] = opcode_counts[Opcode::DIV]
             + opcode_counts[Opcode::DIVU]
             + opcode_counts[Opcode::REM]
             + opcode_counts[Opcode::REMU];
 
         // Compute the number of events in the lt chip.
-        self.event_counts[RiscvAirId::Lt] =
-            opcode_counts[Opcode::SLT] + opcode_counts[Opcode::SLTU];
+        event_counts[RiscvAirId::Lt] = opcode_counts[Opcode::SLT] + opcode_counts[Opcode::SLTU];
 
         // Compute the number of events in the memory local chip.
-        self.event_counts[RiscvAirId::MemoryLocal] =
+        event_counts[RiscvAirId::MemoryLocal] =
             touched_addresses.div_ceil(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW_EXEC as u64);
 
         // Compute the number of events in the branch chip.
-        self.event_counts[RiscvAirId::Branch] = opcode_counts[Opcode::BEQ]
+        event_counts[RiscvAirId::Branch] = opcode_counts[Opcode::BEQ]
             + opcode_counts[Opcode::BNE]
             + opcode_counts[Opcode::BLT]
             + opcode_counts[Opcode::BGE]
@@ -2155,16 +2189,15 @@ impl<'a> Executor<'a> {
             + opcode_counts[Opcode::BGEU];
 
         // Compute the number of events in the jump chip.
-        self.event_counts[RiscvAirId::Jump] =
-            opcode_counts[Opcode::JAL] + opcode_counts[Opcode::JALR];
+        event_counts[RiscvAirId::Jump] = opcode_counts[Opcode::JAL] + opcode_counts[Opcode::JALR];
 
         // Compute the number of events in the auipc chip.
-        self.event_counts[RiscvAirId::Auipc] = opcode_counts[Opcode::AUIPC]
+        event_counts[RiscvAirId::Auipc] = opcode_counts[Opcode::AUIPC]
             + opcode_counts[Opcode::UNIMP]
             + opcode_counts[Opcode::EBREAK];
 
         // Compute the number of events in the memory instruction chip.
-        self.event_counts[RiscvAirId::MemoryInstrs] = opcode_counts[Opcode::LB]
+        event_counts[RiscvAirId::MemoryInstrs] = opcode_counts[Opcode::LB]
             + opcode_counts[Opcode::LH]
             + opcode_counts[Opcode::LW]
             + opcode_counts[Opcode::LBU]
@@ -2174,18 +2207,18 @@ impl<'a> Executor<'a> {
             + opcode_counts[Opcode::SW];
 
         // Compute the number of events in the syscall instruction chip.
-        self.event_counts[RiscvAirId::SyscallInstrs] = opcode_counts[Opcode::ECALL];
+        event_counts[RiscvAirId::SyscallInstrs] = opcode_counts[Opcode::ECALL];
 
         // Compute the number of events in the syscall core chip.
-        self.event_counts[RiscvAirId::SyscallCore] = syscalls_sent;
+        event_counts[RiscvAirId::SyscallCore] = syscalls_sent;
 
         // Compute the number of events in the global chip.
-        self.event_counts[RiscvAirId::Global] =
-            2 * touched_addresses + self.event_counts[RiscvAirId::SyscallInstrs];
+        event_counts[RiscvAirId::Global] =
+            2 * touched_addresses + event_counts[RiscvAirId::SyscallInstrs];
 
         // Adjust for divrem dependencies.
-        self.event_counts[RiscvAirId::Mul] += self.event_counts[RiscvAirId::DivRem];
-        self.event_counts[RiscvAirId::Lt] += self.event_counts[RiscvAirId::DivRem];
+        event_counts[RiscvAirId::Mul] += event_counts[RiscvAirId::DivRem];
+        event_counts[RiscvAirId::Lt] += event_counts[RiscvAirId::DivRem];
 
         // Note: we ignore the additional dependencies for addsub, since they are accounted for in
         // the maximal shapes.

@@ -151,6 +151,42 @@ impl RiscvAirId {
             RiscvAirId::Global,
         ]
     }
+
+    // Whether the trace generation for this AIR is deferred.
+    pub(crate) fn is_deferred(self) -> bool {
+        matches!(
+            self,
+            // Global memory.
+            RiscvAirId::MemoryGlobalInit
+                | RiscvAirId::MemoryGlobalFinalize
+                // Precompiles.
+                | RiscvAirId::ShaExtend
+                | RiscvAirId::ShaCompress
+                | RiscvAirId::EdAddAssign
+                | RiscvAirId::EdDecompress
+                | RiscvAirId::Secp256k1Decompress
+                | RiscvAirId::Secp256k1AddAssign
+                | RiscvAirId::Secp256k1DoubleAssign
+                | RiscvAirId::Secp256r1Decompress
+                | RiscvAirId::Secp256r1AddAssign
+                | RiscvAirId::Secp256r1DoubleAssign
+                | RiscvAirId::KeccakPermute
+                | RiscvAirId::Bn254AddAssign
+                | RiscvAirId::Bn254DoubleAssign
+                | RiscvAirId::Bls12381AddAssign
+                | RiscvAirId::Bls12381DoubleAssign
+                | RiscvAirId::Uint256MulMod
+                | RiscvAirId::U256XU2048Mul
+                | RiscvAirId::Bls12381FpOpAssign
+                | RiscvAirId::Bls12381Fp2AddSubAssign
+                | RiscvAirId::Bls12381Fp2MulAssign
+                | RiscvAirId::Bn254FpOpAssign
+                | RiscvAirId::Bn254Fp2AddSubAssign
+                | RiscvAirId::Bn254Fp2MulAssign
+                | RiscvAirId::Bls12381Decompress
+        )
+    }
+
     /// Returns the string representation of the AIR.
     #[must_use]
     pub fn as_str(&self) -> &str {

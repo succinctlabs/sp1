@@ -304,6 +304,11 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             runtime.write_proof(proof.clone(), vkey.clone());
         }
         runtime.run_fast()?;
+        // >>>>>>>>>> FIX BEFORE MERGING <<<<<<<<<<
+        // figure out where this should be printed
+        if let Some(area) = runtime.total_trace_area() {
+            tracing::info!("prover gas: {}", area);
+        }
         Ok((SP1PublicValues::from(&runtime.state.public_values_stream), runtime.report))
     }
 
