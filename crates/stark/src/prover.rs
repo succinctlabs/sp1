@@ -10,6 +10,7 @@ use p3_commit::{Pcs, PolynomialSpace};
 use p3_field::{AbstractExtensionField, AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::*;
+use p3_uni_stark::SymbolicAirBuilder;
 use p3_util::log2_strict_usize;
 use serde::{de::DeserializeOwned, Serialize};
 use std::{cmp::Reverse, error::Error, time::Instant};
@@ -25,8 +26,10 @@ use crate::{
 };
 
 /// An algorithmic & hardware independent prover implementation for any [`MachineAir`].
-pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
-    'static + Send + Sync
+pub trait MachineProver<
+    SC: StarkGenericConfig,
+    A: MachineAir<SC::Val> + Air<SymbolicAirBuilder<SC::Val>>,
+>: 'static + Send + Sync
 {
     /// The type used to store the traces.
     type DeviceMatrix: Matrix<SC::Val>;
@@ -194,7 +197,8 @@ where
     A: MachineAir<SC::Val>
         + for<'a> Air<ProverConstraintFolder<'a, SC>>
         + Air<InteractionBuilder<Val<SC>>>
-        + for<'a> Air<VerifierConstraintFolder<'a, SC>>,
+        + for<'a> Air<VerifierConstraintFolder<'a, SC>>
+        + for<'a> Air<SymbolicAirBuilder<Val<SC>>>,
     A::Record: MachineRecord<Config = SP1CoreOpts>,
     SC::Val: PrimeField32,
     Com<SC>: Send + Sync,
@@ -404,6 +408,9 @@ where
 
         // Compute the quotient values.
         let alpha: SC::Challenge = challenger.sample_ext_element::<SC::Challenge>();
+        // Get the maximum number of constraints for all chips.
+        let powers_of_alpha = alpha.powers().take(pk.max_num_constraints).collect::<Vec<_>>();
+
         let parent_span = tracing::debug_span!("compute quotient values");
         let quotient_values = parent_span.in_scope(|| {
             quotient_domains
@@ -433,7 +440,7 @@ where
                                 main_trace_on_quotient_domains,
                                 permutation_trace_on_quotient_domains,
                                 &packed_perm_challenges,
-                                alpha,
+                                &powers_of_alpha,
                                 &data.public_values,
                             )
                         })

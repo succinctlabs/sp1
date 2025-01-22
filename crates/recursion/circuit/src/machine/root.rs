@@ -5,6 +5,7 @@ use p3_baby_bear::BabyBear;
 use p3_commit::Mmcs;
 use p3_field::AbstractField;
 use p3_matrix::dense::RowMajorMatrix;
+use p3_uni_stark::SymbolicAirBuilder;
 
 use super::{
     PublicValuesOutputDigest, SP1CompressVerifier, SP1CompressWithVKeyVerifier,
@@ -41,7 +42,9 @@ where
     SC: BabyBearFriConfigVariable<C>,
     C: CircuitConfig<F = SC::Val, EF = SC::Challenge>,
     <SC::ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>: Clone,
-    A: MachineAir<SC::Val> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
+    A: MachineAir<SC::Val>
+        + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>
+        + Air<SymbolicAirBuilder<SC::Val>>,
 {
     pub fn verify(
         builder: &mut Builder<C>,

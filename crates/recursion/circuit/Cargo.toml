@@ -21,6 +21,7 @@ p3-challenger = { workspace = true }
 p3-dft = { workspace = true }
 p3-bn254-fr = { workspace = true }
 p3-baby-bear = { workspace = true }
+p3-uni-stark = { workspace = true }
 
 sp1-core-machine = { workspace = true }
 sp1-core-executor = { workspace = true }

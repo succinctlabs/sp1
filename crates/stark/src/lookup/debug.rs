@@ -1,8 +1,9 @@
-use std::collections::BTreeMap;
-
+use p3_air::Air;
 use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, Field, PrimeField32, PrimeField64};
 use p3_matrix::Matrix;
+use p3_uni_stark::SymbolicAirBuilder;
+use std::collections::BTreeMap;
 
 use super::InteractionKind;
 use crate::{
@@ -141,7 +142,7 @@ pub fn debug_interactions_with_all_chips<SC, A>(
 where
     SC: StarkGenericConfig,
     SC::Val: PrimeField32,
-    A: MachineAir<SC::Val>,
+    A: MachineAir<SC::Val> + Air<SymbolicAirBuilder<SC::Val>>,
 {
     if scope == InteractionScope::Local {
         assert!(shards.len() == 1);
