@@ -45,6 +45,7 @@ members = [
 resolver = "2"
 
 [workspace.dependencies]
+num-bigint = "=0.4.6"
 serde = "1.0.204"
 serde_json = "1.0.132"
 
