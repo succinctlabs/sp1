@@ -1302,7 +1302,9 @@ impl<'a> Executor<'a> {
         let mut syscall = SyscallCode::default();
 
         if !self.unconstrained {
-            self.report.opcode_counts[instruction.opcode] += 1;
+            if self.print_report {
+                self.report.opcode_counts[instruction.opcode] += 1;
+            }
             self.local_counts.event_counts[instruction.opcode] += 1;
             if instruction.is_memory_load_instruction() {
                 self.local_counts.event_counts[Opcode::ADD] += 2;
