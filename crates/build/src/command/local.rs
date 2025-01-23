@@ -36,7 +36,11 @@ pub(crate) fn create_local_command(
             .expect("rustc --version should succeed");
 
         if !output.status.success() {
-            panic!("Failed to run rustc --version {:?}", String::from_utf8_lossy(&output.stdout));
+            panic!(
+                "Failed to run rustc --version {:?}\n{:?}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
         }
 
         let stdout_string =
