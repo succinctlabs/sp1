@@ -25,15 +25,16 @@ impl TraceAreaEstimator {
             .deferred_events
             .iter()
             .map(|(id, &count)| {
-                let (rows_per_event, threshold) = match id {
-                    RiscvAirId::ShaExtend => (48, opts.split_opts.sha_extend),
-                    RiscvAirId::ShaCompress => (80, opts.split_opts.sha_compress),
-                    RiscvAirId::KeccakPermute => (24, opts.split_opts.keccak),
+                let threshold = match id {
+                    RiscvAirId::ShaExtend => opts.split_opts.sha_extend,
+                    RiscvAirId::ShaCompress => opts.split_opts.sha_compress,
+                    RiscvAirId::KeccakPermute => opts.split_opts.keccak,
                     RiscvAirId::MemoryGlobalInit | RiscvAirId::MemoryGlobalFinalize => {
-                        (1, opts.split_opts.memory)
+                        opts.split_opts.memory
                     }
-                    _ => (1, opts.split_opts.deferred),
+                    _ => opts.split_opts.deferred,
                 };
+                let rows_per_event = id.rows_per_event() as u64;
                 let threshold = threshold as u64;
                 let rows = count * rows_per_event;
                 let num_full_airs = rows / threshold;

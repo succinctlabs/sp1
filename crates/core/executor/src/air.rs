@@ -187,6 +187,17 @@ impl RiscvAirId {
         )
     }
 
+    /// >>>>>> FIX BEFORE MERGING make the visibility pub(crate)
+    #[must_use]
+    pub fn rows_per_event(&self) -> usize {
+        match self {
+            Self::ShaCompress => 80,
+            Self::ShaExtend => 48,
+            Self::KeccakPermute => 24,
+            _ => 1,
+        }
+    }
+
     /// Returns the string representation of the AIR.
     #[must_use]
     pub fn as_str(&self) -> &str {
