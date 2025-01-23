@@ -53,7 +53,7 @@ where
                 // Check for tonic status errors.
                 if let Some(status) = e.downcast_ref::<tonic::Status>() {
                     match status.code() {
-                        Code::Unavailable | Code::DeadlineExceeded | Code::Internal | Code::Aborted => {
+                        Code::Unavailable | Code::DeadlineExceeded | Code::Internal | Code::Aborted | Code::InvalidArgument => {
                             log::warn!(
                                 "Network temporarily unavailable when {} due to {}, retrying...",
                                 operation_name,
