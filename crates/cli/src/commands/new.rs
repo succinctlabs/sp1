@@ -58,10 +58,6 @@ impl NewCmd {
             .arg(root.as_os_str())
             .arg("--depth=1");
 
-        if self.template.evm {
-            command.arg("--recurse-submodules").arg("--shallow-submodules");
-        }
-
         // Stream output to stdout.
         command.stdout(Stdio::inherit()).stderr(Stdio::inherit());
 
@@ -76,11 +72,16 @@ impl NewCmd {
 
         if self.template.evm {
             // Check if the user has `foundry` installed.
-            if Command::new("foundry").arg("--version").output().is_err() {
+            if Command::new("forge").arg("--version").output().is_err() {
                 println!(
-                    "    \x1b[1m{}\x1b[0m Make sure to install Foundry to use contracts: https://book.getfoundry.sh/getting-started/installation",
+                    "    \x1b[1m{}\x1b[0m Make sure to install Foundry and run `forge install` in the \"contracts\" folder to use contracts: https://book.getfoundry.sh/getting-started/installation",
                     Paint::yellow("Warning:"),
                 );
+            } else {
+                println!(
+                        "       \x1b[1m{}\x1b[0m Please run `forge install` in the \"contracts\" folder to setup contracts development",
+                        Paint::blue("Info:"),
+                    );
             }
         } else {
             // Remove the `contracts` directory.

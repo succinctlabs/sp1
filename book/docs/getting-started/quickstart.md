@@ -15,6 +15,12 @@ cargo prove new --evm fibonacci
 cd fibonacci
 ```
 
+:::note
+If you go with the `--evm` option, you will need to install `foundry` to compile the solidity contracts. Please follow the instructions [on the official Foundry docs](https://book.getfoundry.sh/getting-started/installation).
+
+Then, you'll have to setup contracts development by running `forge install` in the `contracts` directory.
+:::
+
 ### Option 2: Project Template (Solidity Contracts for Onchain Verification)
 
 If you want to use SP1 to generate proofs that will eventually be verified on an EVM chain, you should use the [SP1 project template](https://github.com/succinctlabs/sp1-project-template/tree/main). This Github template is scaffolded with a SP1 program, a script to generate proofs, and also a contracts folder that contains a Solidity contract that can verify SP1 proofs on any EVM chain.
