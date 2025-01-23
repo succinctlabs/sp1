@@ -79,6 +79,16 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         // program.
         record.shape.clone_from(&record.program.preprocessed_shape);
 
+        let shape = self.find_shape(record)?;
+        record.shape.as_mut().unwrap().extend(shape);
+        Ok(())
+    }
+
+    /// TODO move this into the executor crate
+    pub fn find_shape(
+        &self,
+        record: &mut ExecutionRecord,
+    ) -> Result<Shape<RiscvAirId>, CoreShapeError> {
         // If this is a packed "core" record where the cpu events are alongisde the memory init and
         // finalize events, try to fix the shape using the tiny shapes.
         if record.contains_cpu()
@@ -89,27 +99,11 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             let mut heights = RiscvAir::<F>::core_heights(record);
             heights.extend(RiscvAir::<F>::memory_heights(record));
 
-            // Try to find a shape fitting within at least one of the candidate shapes.
-            let mut minimal_shape = None;
-            let mut minimal_area = usize::MAX;
-            let mut minimal_cluster = None;
-            for (i, cluster) in self.partial_small_shapes.iter().enumerate() {
-                if let Some(shape) = cluster.find_shape(&heights) {
-                    if self.estimate_lde_size(&shape) < minimal_area {
-                        minimal_area = self.estimate_lde_size(&shape);
-                        minimal_shape = Some(shape);
-                        minimal_cluster = Some(i);
-                    }
-                }
-            }
-
-            if let Some(shape) = minimal_shape {
+            if let Some((cluster_index, shape, _)) =
+                self.minimal_cluster_shape(self.partial_small_shapes.iter().enumerate(), &heights)
+            {
                 let shard = record.public_values.shard;
-                tracing::info!(
-                    "Shard Lifted: Index={}, Cluster={}",
-                    shard,
-                    minimal_cluster.unwrap()
-                );
+                tracing::info!("Shard Lifted: Index={}, Cluster={}", shard, cluster_index);
                 for (air, height) in heights.iter() {
                     if shape.contains(air) {
                         tracing::info!(
@@ -120,8 +114,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                         );
                     }
                 }
-                record.shape.as_mut().unwrap().extend(shape);
-                return Ok(());
+                return Ok(shape);
             }
 
             // No shape found, so return an error.
@@ -140,25 +133,15 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
 
             // Try to find the smallest shape fitting within at least one of the candidate shapes.
             let log2_shard_size = record.cpu_events.len().next_power_of_two().ilog2() as usize;
-            let mut minimal_shape = None;
-            let mut minimal_area = usize::MAX;
-            let mut minimal_cluster = None;
-            for (_, clusters) in self.partial_core_shapes.range(log2_shard_size..) {
-                for (i, cluster) in clusters.iter().enumerate() {
-                    if let Some(shape) = cluster.find_shape(&heights) {
-                        if self.estimate_lde_size(&shape) < minimal_area {
-                            minimal_area = self.estimate_lde_size(&shape);
-                            minimal_shape = Some(shape.clone());
-                            minimal_cluster = Some(i);
-                        }
-                    }
-                }
-            }
 
-            if let Some(shape) = minimal_shape {
+            if let Some((cluster_index, shape, _)) = self.minimal_cluster_shape(
+                self.partial_core_shapes
+                    .range(log2_shard_size..)
+                    .flat_map(|(_, clusters)| clusters.iter().enumerate()),
+                &heights,
+            ) {
                 let shard = record.public_values.shard;
-                let cluster = minimal_cluster.unwrap();
-                tracing::info!("Shard Lifted: Index={}, Cluster={}", shard, cluster);
+                tracing::info!("Shard Lifted: Index={}, Cluster={}", shard, cluster_index);
 
                 for (air, height) in heights.iter() {
                     if shape.contains(air) {
@@ -170,8 +153,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                         );
                     }
                 }
-                record.shape.as_mut().unwrap().extend(shape);
-                return Ok(());
+                return Ok(shape);
             }
 
             // No shape found, so return an error.
@@ -188,8 +170,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                 .partial_memory_shapes
                 .find_shape(&heights)
                 .ok_or(CoreShapeError::ShapeError(record.stats()))?;
-            record.shape.as_mut().unwrap().extend(shape);
-            return Ok(());
+            return Ok(shape);
         }
 
         // Try to fix the shape as a precompile record.
@@ -213,12 +194,13 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                                 <= (1 << mem_events_height)
                                 && num_global_events <= (1 << global_events_height)
                             {
-                                record.shape.as_mut().unwrap().extend(
+                                let mut actual_shape: Shape<RiscvAirId> = Shape::default();
+                                actual_shape.extend(
                                     shape
                                         .iter()
                                         .map(|x| (RiscvAirId::from_str(&x.0).unwrap(), x.1)),
                                 );
-                                return Ok(());
+                                return Ok(actual_shape);
                             }
                         }
                     }
@@ -234,6 +216,26 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         }
 
         Err(CoreShapeError::PrecompileNotIncluded(record.stats()))
+    }
+
+    /// Returns the area, cluster index, and shape of the minimal shape from candidates that fit a given collection of heights.
+    pub fn minimal_cluster_shape<'a, N, I>(
+        &self,
+        indexed_shape_clusters: I,
+        heights: &[(RiscvAirId, usize)],
+    ) -> Option<(N, Shape<RiscvAirId>, usize)>
+    where
+        I: IntoIterator<Item = (N, &'a ShapeCluster<RiscvAirId>)>,
+    {
+        // Try to find a shape fitting within at least one of the candidate shapes.
+        indexed_shape_clusters
+            .into_iter()
+            .filter_map(|(i, cluster)| {
+                let shape = cluster.find_shape(heights)?;
+                let area = self.estimate_lde_size(&shape);
+                Some((i, shape, area))
+            })
+            .min_by_key(|x| x.2) // Find minimum by area.
     }
 
     // TODO: this function is atrocious, fix this
