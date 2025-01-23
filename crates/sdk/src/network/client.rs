@@ -302,28 +302,34 @@ impl NetworkClient {
             self.create_artifact_with_content(&mut store, ArtifactType::Stdin, &stdin).await?;
 
         // Send the request.
-        let mut rpc = self.prover_network_client().await?;
-        let nonce = self.get_nonce().await?;
-        let request_body = RequestProofRequestBody {
-            nonce,
-            version: format!("sp1-{version}"),
-            vk_hash: vk_hash.to_vec(),
-            mode: mode.into(),
-            strategy: strategy.into(),
-            stdin_uri,
-            deadline,
-            cycle_limit,
-        };
-        let request_response = rpc
-            .request_proof(RequestProofRequest {
-                format: MessageFormat::Binary.into(),
-                signature: request_body.sign(&self.signer).into(),
-                body: Some(request_body),
-            })
-            .await?
-            .into_inner();
+        self.with_retry(
+            || async {
+                let mut rpc = self.prover_network_client().await?;
+                let nonce = self.get_nonce().await?;
+                let request_body = RequestProofRequestBody {
+                    nonce,
+                    version: format!("sp1-{version}"),
+                    vk_hash: vk_hash.to_vec(),
+                    mode: mode.into(),
+                    strategy: strategy.into(),
+                    stdin_uri: stdin_uri.clone(),
+                    deadline,
+                    cycle_limit,
+                };
+                let request_response = rpc
+                    .request_proof(RequestProofRequest {
+                        format: MessageFormat::Binary.into(),
+                        signature: request_body.sign(&self.signer).into(),
+                        body: Some(request_body),
+                    })
+                    .await?
+                    .into_inner();
 
-        Ok(request_response)
+                Ok(request_response)
+            },
+            "requesting proof",
+        )
+        .await
     }
 
     pub(crate) async fn prover_network_client(&self) -> Result<ProverNetworkClient<Channel>> {
