@@ -19,7 +19,8 @@ use generic_array::ArrayLength;
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
 
 pub use sp1_primitives::consts::{
-    words_to_bytes_le, words_to_bytes_le_vec, bytes_to_words_le, bytes_to_words_le_vec, num_to_comma_separated
+    bytes_to_words_le, bytes_to_words_le_vec, num_to_comma_separated, words_to_bytes_le,
+    words_to_bytes_le_vec,
 };
 
 pub const fn indices_arr<const N: usize>() -> [usize; N] {
