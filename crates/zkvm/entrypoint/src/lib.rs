@@ -1,3 +1,5 @@
+#![warn(clippy::print_stdout)]
+
 #[cfg(all(target_os = "zkvm", feature = "embedded"))]
 use syscalls::MAX_MEMORY;
 
@@ -221,7 +223,7 @@ macro_rules! entrypoint {
                 if cfg!(target_os = "zkvm") {
                     super::ZKVM_ENTRY()
                 } else {
-                    println!("Not running in zkVM, skipping entrypoint");
+                    eprintln!("Not running in zkVM, skipping entrypoint");
                 }
             }
         }

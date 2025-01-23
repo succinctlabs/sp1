@@ -634,6 +634,7 @@ impl<F: PrimeField32> fmt::Debug for RiscvAir<F> {
 
 #[cfg(test)]
 #[allow(non_snake_case)]
+#[allow(clippy::print_stdout)]
 pub mod tests {
 
     use crate::{

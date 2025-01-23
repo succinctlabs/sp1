@@ -22,6 +22,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+#![warn(clippy::print_stdout)]
+
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
@@ -322,9 +324,9 @@ pub fn cycle_tracker(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let result = quote! {
         #visibility fn #name #generics (#inputs) #output #where_clause {
-            println!("cycle-tracker-start: {}", stringify!(#name));
+            eprintln!("cycle-tracker-start: {}", stringify!(#name));
             let result = (|| #block)();
-            println!("cycle-tracker-end: {}", stringify!(#name));
+            eprintln!("cycle-tracker-end: {}", stringify!(#name));
             result
         }
     };

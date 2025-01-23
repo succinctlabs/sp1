@@ -271,12 +271,12 @@ impl<'a> Executor<'a> {
             });
 
             if let Some(trace_buf) = trace_buf {
-                println!("Profiling enabled");
+                eprintln!("Profiling enabled");
 
                 let sample_rate = std::env::var("TRACE_SAMPLE_RATE")
                     .ok()
                     .and_then(|rate| {
-                        println!("Profiling sample rate: {rate}");
+                        eprintln!("Profiling sample rate: {rate}");
                         rate.parse::<u32>().ok()
                     })
                     .unwrap_or(1);
@@ -1341,7 +1341,7 @@ impl<'a> Executor<'a> {
             // See https://github.com/riscv-non-isa/riscv-asm-manual/blob/master/riscv-asm.md#instruction-aliases
             return Err(ExecutionError::Unimplemented());
         } else {
-            println!("unreachable: {:?}", instruction.opcode);
+            eprintln!("unreachable: {:?}", instruction.opcode);
             unreachable!()
         }
 
@@ -2000,10 +2000,10 @@ impl<'a> Executor<'a> {
             if !buf.is_empty() {
                 match fd {
                     1 => {
-                        println!("stdout: {buf}");
+                        eprintln!("stdout: {buf}");
                     }
                     2 => {
-                        println!("stderr: {buf}");
+                        eprintln!("stderr: {buf}");
                     }
                     _ => {}
                 }

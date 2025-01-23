@@ -18,6 +18,7 @@
 #![allow(clippy::missing_errors_doc)]
 #![allow(clippy::explicit_iter_loop)]
 #![allow(clippy::if_not_else)]
+#![warn(clippy::print_stdout)]
 #![warn(missing_docs)]
 
 pub mod air;

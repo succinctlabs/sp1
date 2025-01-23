@@ -10,6 +10,7 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::new_without_default)]
 #![allow(clippy::collapsible_else_if)]
+#![warn(clippy::print_stdout)]
 
 pub mod build;
 pub mod components;
@@ -1316,6 +1317,7 @@ pub fn compress_program_from_input<C: SP1ProverComponents>(
 
 #[cfg(test)]
 pub mod tests {
+    #![allow(clippy::print_stdout)]
 
     use std::{
         collections::BTreeSet,

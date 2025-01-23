@@ -811,6 +811,8 @@ impl<T> IntoIterator for SepticBlock<T> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::print_stdout)]
+
     use p3_baby_bear::BabyBear;
 
     use super::*;

@@ -1,3 +1,5 @@
+#![allow(clippy::print_stdout)] // okay to print to stdout: this is a build script
+
 use std::{borrow::Borrow, path::PathBuf};
 
 use p3_baby_bear::BabyBear;

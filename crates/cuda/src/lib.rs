@@ -1,3 +1,5 @@
+#![warn(clippy::print_stdout)]
+
 use std::{
     error::Error as StdError,
     future::Future,

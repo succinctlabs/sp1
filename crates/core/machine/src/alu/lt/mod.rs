@@ -467,6 +467,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::print_stdout)]
 
     use std::borrow::BorrowMut;
 

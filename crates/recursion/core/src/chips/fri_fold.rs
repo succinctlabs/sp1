@@ -211,7 +211,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
         );
 
         #[cfg(debug_assertions)]
-        println!("fri fold trace dims is width: {:?}, height: {:?}", trace.width(), trace.height());
+        eprintln!("fri fold trace dims is width: {:?}, height: {:?}", trace.width(), trace.height());
 
         trace
     }
@@ -345,6 +345,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::print_stdout)]
+
     use crate::{
         air::Block,
         chips::{fri_fold::FriFoldChip, mem::MemoryAccessCols, test_fixtures},

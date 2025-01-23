@@ -271,6 +271,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::print_stdout)]
+
     use crate::programs::tests::*;
     use crate::{
         memory::MemoryLocalChip, riscv::RiscvAir,

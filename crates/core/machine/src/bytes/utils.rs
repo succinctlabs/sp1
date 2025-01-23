@@ -12,6 +12,8 @@ pub const fn shr_carry(input: u8, rotation: u8) -> (u8, u8) {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::print_stdout)]
+
     use super::*;
 
     /// Tests the `shr_carry` function.

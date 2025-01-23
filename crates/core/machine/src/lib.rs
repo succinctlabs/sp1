@@ -12,6 +12,7 @@
     deprecated,
     incomplete_features
 )]
+#![warn(clippy::print_stdout)]
 #![warn(unused_extern_crates)]
 
 pub mod air;

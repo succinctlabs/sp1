@@ -1,5 +1,7 @@
 //! Copied from [`sp1_recursion_program`].
 
+#![warn(clippy::print_stdout)]
+
 use challenger::{
     CanCopyChallenger, CanObserveVariable, DuplexChallengerVariable, FieldChallengerVariable,
     MultiField32ChallengerVariable, SpongeChallengerShape,

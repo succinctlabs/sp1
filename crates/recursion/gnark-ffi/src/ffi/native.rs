@@ -253,6 +253,8 @@ impl Groth16Bn254Proof {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::print_stdout)]
+
     use p3_baby_bear::BabyBear;
     use p3_field::AbstractField;
     use p3_symmetric::Permutation;
