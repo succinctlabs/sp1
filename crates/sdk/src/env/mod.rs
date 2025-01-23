@@ -182,4 +182,12 @@ impl Prover<CpuProverComponents> for EnvProver {
     ) -> Result<SP1ProofWithPublicValues> {
         self.prover.prove(pk, stdin, mode)
     }
+
+    fn verify(
+        &self,
+        bundle: &SP1ProofWithPublicValues,
+        vkey: &SP1VerifyingKey,
+    ) -> Result<(), SP1VerificationError> {
+        self.prover.verify(bundle, vkey)
+    }
 }
