@@ -186,8 +186,12 @@ impl NetworkProver {
             Option<SP1ProofWithPublicValues>,
         ) = self.client.get_proof_request_status(request_id, remaining_timeout).await?;
 
-        // Check the deadline.
-        if status.deadline < Instant::now().elapsed().as_secs() {
+        // Check if current time exceeds deadline. If so, the proof has timed out.
+        let current_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        if current_time > status.deadline {
             return Err(Error::RequestTimedOut { request_id: request_id.to_vec() }.into());
         }
 
