@@ -16,7 +16,7 @@ cd fibonacci
 ```
 
 :::note
-If you go with the `--evm` option, you will need to install `foundry` to compile the solidity contracts. Please follow the instructions [on the official Foundry docs](https://book.getfoundry.sh/getting-started/installation).
+If you use the `--evm` option, you will need to install `foundry` to compile the solidity contracts. Please follow the instructions [on the official Foundry docs](https://book.getfoundry.sh/getting-started/installation).
 
 Then, you'll have to setup contracts development by running `forge install` in the `contracts` directory.
 :::
