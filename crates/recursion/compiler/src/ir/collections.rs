@@ -30,8 +30,22 @@ impl<C: Config, V: MemVariable<C>> Array<C, V> {
     /// Shifts the array by `shift` elements.
     pub fn shift(&self, builder: &mut Builder<C>, shift: Var<C::N>) -> Array<C, V> {
         match self {
-            Self::Fixed(_) => {
-                todo!()
+            Self::Fixed(vec) => {
+                // Convert shift to usize for fixed array
+                let shift_const = builder.as_const(shift);
+                let shift_usize = shift_const.to_canonical_u64() as usize;
+                
+                if builder.debug {
+                    // Assert that shift is not larger than array length
+                    let shift_var = builder.eval(shift);
+                    let len_var = builder.eval(C::N::from_canonical_usize(vec.len()));
+                    let valid = builder.lt(shift_var, len_var);
+                    builder.assert_var_eq(valid, C::N::one());
+                }
+                
+                // Create new array starting from shift position
+                let new_vec = vec[shift_usize..].to_vec();
+                Array::Fixed(new_vec)
             }
             Self::Dyn(ptr, len) => {
                 assert!(V::size_of() == 1, "only support variables of size 1");
@@ -47,8 +61,19 @@ impl<C: Config, V: MemVariable<C>> Array<C, V> {
     /// Truncates the array to `len` elements.
     pub fn truncate(&self, builder: &mut Builder<C>, len: Usize<C::N>) {
         match self {
-            Self::Fixed(_) => {
-                todo!()
+            Self::Fixed(vec) => {
+                if let Usize::Const(new_len) = len {
+                    if builder.debug {
+                        // Assert that new length is not larger than current length
+                        let new_len_var = builder.eval(C::N::from_canonical_usize(new_len));
+                        let curr_len_var = builder.eval(C::N::from_canonical_usize(vec.len()));
+                        let valid = builder.lt(new_len_var, curr_len_var + C::N::one());
+                        builder.assert_var_eq(valid, C::N::one());
+                    }
+                    vec.truncate(new_len);
+                } else {
+                    panic!("Cannot truncate a fixed array with a variable length");
+                }
             }
             Self::Dyn(_, old_len) => {
                 builder.assign(*old_len, len);
@@ -158,7 +183,7 @@ impl<C: Config> Builder<C> {
 
         match slice {
             Array::Fixed(_) => {
-                todo!()
+                panic!("Cannot get pointer to element in fixed array");
             }
             Array::Dyn(ptr, len) => {
                 if self.debug {
@@ -184,8 +209,19 @@ impl<C: Config> Builder<C> {
         let index = index.into();
 
         match slice {
-            Array::Fixed(_) => {
-                todo!()
+            Array::Fixed(vec) => {
+                if let Usize::Const(idx) = index {
+                    if self.debug {
+                        let idx_var = self.eval(C::N::from_canonical_usize(idx));
+                        let len_var = self.eval(C::N::from_canonical_usize(vec.len()));
+                        let valid = self.lt(idx_var, len_var);
+                        self.assert_var_eq(valid, C::N::one());
+                    }
+                    let value: V = self.eval(value);
+                    vec[idx] = value;
+                } else {
+                    panic!("Cannot index into a fixed array with a variable index");
+                }
             }
             Array::Dyn(ptr, len) => {
                 if self.debug {
@@ -210,8 +246,18 @@ impl<C: Config> Builder<C> {
         let index = index.into();
 
         match slice {
-            Array::Fixed(_) => {
-                todo!()
+            Array::Fixed(vec) => {
+                if let Usize::Const(idx) = index {
+                    if self.debug {
+                        let idx_var = self.eval(C::N::from_canonical_usize(idx));
+                        let len_var = self.eval(C::N::from_canonical_usize(vec.len()));
+                        let valid = self.lt(idx_var, len_var);
+                        self.assert_var_eq(valid, C::N::one());
+                    }
+                    vec[idx] = value;
+                } else {
+                    panic!("Cannot index into a fixed array with a variable index");
+                }
             }
             Array::Dyn(ptr, _) => {
                 let index = MemIndex { index, offset: 0, size: V::size_of() };
