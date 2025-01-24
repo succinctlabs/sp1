@@ -39,6 +39,7 @@ publish = false
 sp1-zkvm = { path = "../crates/zkvm/entrypoint" }
 sp1-build = { path = "../crates/build" }
 sp1-sdk = { path = "../crates/sdk", default-features = false }
+sp1-core-executor = { path = "../crates/core/executor" }
 serde = { version = "1.0.215", features = ["derive"] }
 sha2-v0-9-8 = { version = "0.9.8", package = "sha2" }
 sha2-v0-10-6 = { version = "0.10.6", package = "sha2" }
