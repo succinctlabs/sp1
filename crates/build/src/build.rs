@@ -72,8 +72,6 @@ pub fn execute_build_program(
 
             std::fs::copy(&elf_path, &output_path)?;
         }
-    } else if args.elf_name.is_some() {
-        println!("cargo:warning=ELF name is set but --output-directory is not used, the ELF will be place in the `target/` directory");
     }
 
     print_elf_paths_cargo_directives(&target_elf_paths);
