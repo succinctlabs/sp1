@@ -44,15 +44,15 @@ pub fn execute_build_program(
         create_local_command(args, &program_dir, &program_metadata)
     };
 
-    execute_command(cmd, args.docker)?;
-
     let target_elf_paths = generate_elf_paths(&program_metadata, Some(args))?;
 
-    if let Some(output_directory) = &args.output_directory {
-        if target_elf_paths.len() > 1 && args.elf_name.is_some() {
-            anyhow::bail!("--elf-name is not supported when --output-directory is used and multiple ELFs are built.");
-        }
+    if target_elf_paths.len() > 1 && args.elf_name.is_some() {
+        anyhow::bail!("--elf-name is not supported when --output-directory is used and multiple ELFs are built.");
+    }
 
+    execute_command(cmd, args.docker)?;
+
+    if let Some(output_directory) = &args.output_directory {
         // The path to the output directory, maybe relative or absolute.
         let output_directory = PathBuf::from(output_directory);
 
