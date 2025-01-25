@@ -37,7 +37,6 @@ pub fn setup_logger() {
                     .with_thread_names(false)
                     .with_env_filter(env_filter)
                     .with_span_events(FmtSpan::CLOSE)
-                    .with_writer(std::io::stderr)
                     .finish()
                     .init();
             }
