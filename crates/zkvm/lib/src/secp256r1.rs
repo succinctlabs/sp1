@@ -44,7 +44,7 @@ impl AffinePoint<N> for Secp256r1Point {
         }
     }
 
-    fn limbs_mut(&mut self) -> &mut [u32; crate::bn254::N] {
+    fn limbs_mut(&mut self) -> &mut [u32; N] {
         match &mut self.0 {
             WeierstrassPoint::Infinity => panic!("Infinity point has no limbs"),
             WeierstrassPoint::Affine(limbs) => limbs,

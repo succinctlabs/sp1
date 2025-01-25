@@ -49,7 +49,7 @@ impl AffinePoint<N> for Bls12381Point {
         }
     }
 
-    fn limbs_mut(&mut self) -> &mut [u32; crate::bn254::N] {
+    fn limbs_mut(&mut self) -> &mut [u32; N] {
         match &mut self.0 {
             WeierstrassPoint::Infinity => panic!("Infinity point has no limbs"),
             WeierstrassPoint::Affine(limbs) => limbs,
