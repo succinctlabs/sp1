@@ -44,23 +44,16 @@ impl AffinePoint<N> for Secp256r1Point {
         }
     }
 
-    fn limbs_mut(&mut self) -> &mut [u32; N] {
-        match &mut self.0 {
-            WeierstrassPoint::Infinity => panic!("Infinity point has no limbs"),
-            WeierstrassPoint::Affine(limbs) => limbs,
-        }
-    }
-
-    fn complete_add_assign(&mut self, other: &Self) {
-        self.weierstrass_add_assign(other);
-    }
-
     fn add_assign(&mut self, other: &Self) {
         let a = self.limbs_mut();
         let b = other.limbs_ref();
         unsafe {
             syscall_secp256r1_add(a, b);
         }
+    }
+
+    fn complete_add_assign(&mut self, other: &Self) {
+        self.weierstrass_add_assign(other);
     }
 
     fn double(&mut self) {
