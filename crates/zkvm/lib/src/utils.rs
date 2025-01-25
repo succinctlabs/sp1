@@ -7,20 +7,13 @@ pub trait AffinePoint<const N: usize>: Clone + Sized {
 
     /// Creates a new [`AffinePoint`] that corresponds to the identity point.
     fn identity() -> Self;
-    // Add default implementations for limbs_ref and limbs_mut
-    fn limbs_ref(&self) -> &[u32; N] {
-        match self.point() {
-            WeierstrassPoint::Infinity => panic!("Infinity point has no limbs"),
-            WeierstrassPoint::Affine(limbs) => limbs,
-        }
-    }
 
-    fn limbs_mut(&mut self) -> &mut [u32; N] {
-        match self.point_mut() {
-            WeierstrassPoint::Infinity => panic!("Infinity point has no limbs"),
-            WeierstrassPoint::Affine(limbs) => limbs,
-        }
-    }
+    /// Returns a reference to the limbs.
+    fn limbs_ref(&self) -> &[u32; N];
+
+    /// Returns a mutable reference to the limbs. If the point is the infinity point, this will
+    /// panic.
+    fn limbs_mut(&mut self) -> &mut [u32; N];
 
     /// Creates a new [`AffinePoint`] from the given x and y coordinates.
     ///
