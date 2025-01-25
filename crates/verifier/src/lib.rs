@@ -2,7 +2,6 @@
 //! It is patched for efficient verification within the SP1 zkVM context.
 
 #![warn(clippy::print_stdout)]
-
 #![cfg_attr(not(any(feature = "std", test)), no_std)]
 extern crate alloc;
 

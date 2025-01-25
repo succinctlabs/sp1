@@ -211,7 +211,11 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
         );
 
         #[cfg(debug_assertions)]
-        eprintln!("fri fold trace dims is width: {:?}, height: {:?}", trace.width(), trace.height());
+        eprintln!(
+            "fri fold trace dims is width: {:?}, height: {:?}",
+            trace.width(),
+            trace.height()
+        );
 
         trace
     }
