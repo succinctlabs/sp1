@@ -25,10 +25,10 @@ mod context;
 mod cost;
 mod dependencies;
 mod disassembler;
+#[cfg(feature = "gas")]
+pub mod estimator;
 pub mod events;
 mod executor;
-#[cfg(feature = "gas")]
-mod gas;
 mod hook;
 mod instruction;
 mod io;

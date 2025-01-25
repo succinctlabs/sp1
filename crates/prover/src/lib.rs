@@ -13,6 +13,8 @@
 
 pub mod build;
 pub mod components;
+#[cfg(feature = "gas")]
+pub mod gas;
 pub mod shapes;
 pub mod types;
 pub mod utils;
@@ -306,7 +308,20 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         runtime.run_fast()?;
         // >>>>>>>>>> FIX BEFORE MERGING <<<<<<<<<<
         // figure out where this should be printed
-        if let Some(area) = runtime.total_trace_area() {
+        #[cfg(feature = "gas")]
+        if let (Some(core_shape_config), Some(estimator)) =
+            (&self.core_shape_config, &runtime.trace_area_estimator)
+        {
+            let precompile_lookup_table =
+                RiscvAir::<Val<CoreSC>>::precompile_airs_with_memory_events_per_row();
+            let area = crate::gas::core_prover_gas(
+                core_shape_config,
+                &opts.split_opts,
+                &precompile_lookup_table,
+                estimator,
+            )
+            .expect("shape should fit"); // TODO(tqn) handle this error better
+
             tracing::info!("prover gas: {}", area);
         }
         Ok((SP1PublicValues::from(&runtime.state.public_values_stream), runtime.report))

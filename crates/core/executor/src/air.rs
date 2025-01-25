@@ -152,15 +152,46 @@ impl RiscvAirId {
         ]
     }
 
-    // Whether the trace generation for this AIR is deferred.
-    pub(crate) fn is_deferred(self) -> bool {
+    /// TODO replace these three with subenums or something
+    /// Whether the ID represents a core AIR.
+    #[must_use]
+    pub fn is_core(self) -> bool {
         matches!(
             self,
-            // Global memory.
-            RiscvAirId::MemoryGlobalInit
-                | RiscvAirId::MemoryGlobalFinalize
-                // Precompiles.
-                | RiscvAirId::ShaExtend
+            RiscvAirId::Cpu
+                | RiscvAirId::AddSub
+                | RiscvAirId::Mul
+                | RiscvAirId::Bitwise
+                | RiscvAirId::ShiftLeft
+                | RiscvAirId::ShiftRight
+                | RiscvAirId::DivRem
+                | RiscvAirId::Lt
+                | RiscvAirId::Auipc
+                | RiscvAirId::MemoryLocal
+                | RiscvAirId::MemoryInstrs
+                | RiscvAirId::Branch
+                | RiscvAirId::Jump
+                | RiscvAirId::SyscallCore
+                | RiscvAirId::SyscallInstrs
+                | RiscvAirId::Global,
+        )
+    }
+
+    /// Whether the ID represents a memory AIR.
+    #[must_use]
+    pub fn is_memory(self) -> bool {
+        matches!(
+            self,
+            RiscvAirId::MemoryGlobalInit | RiscvAirId::MemoryGlobalFinalize | RiscvAirId::Global
+        )
+    }
+
+    /// Whether the ID represents a precompile AIR.
+    #[must_use]
+    pub fn is_precompile(self) -> bool {
+        matches!(
+            self,
+            RiscvAirId::ShaExtend
                 | RiscvAirId::ShaCompress
                 | RiscvAirId::EdAddAssign
                 | RiscvAirId::EdDecompress

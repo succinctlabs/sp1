@@ -7,6 +7,7 @@ use sp1_stark::MachineRecord;
 
 use crate::memory::NUM_LOCAL_MEMORY_ENTRIES_PER_ROW;
 
+#[derive(Debug, Clone, Copy)]
 pub enum ShardKind {
     PackedCore,
     Core,
@@ -25,6 +26,48 @@ pub trait Shapeable<F: PrimeField32> {
     /// The tuple is of the form `(height, (num_memory_local_events, num_global_events))`
     fn precompile_heights(&self) -> impl Iterator<Item = (RiscvAirId, (usize, usize, usize))>;
 }
+
+macro_rules! impl_for_ref {
+    ($ty:ty) => {
+        impl<F: PrimeField32, T> Shapeable<F> for $ty
+        where
+            T: Shapeable<F>,
+        {
+            fn kind(&self) -> ShardKind {
+                <Self as std::ops::Deref>::deref(self).kind()
+            }
+
+            fn shard(&self) -> u32 {
+                <Self as std::ops::Deref>::deref(self).shard()
+            }
+
+            fn log2_shard_size(&self) -> usize {
+                <Self as std::ops::Deref>::deref(self).log2_shard_size()
+            }
+
+            fn debug_stats(&self) -> HashMap<String, usize> {
+                <Self as std::ops::Deref>::deref(self).debug_stats()
+            }
+
+            fn core_heights(&self) -> Vec<(RiscvAirId, usize)> {
+                <Self as std::ops::Deref>::deref(self).core_heights()
+            }
+
+            fn memory_heights(&self) -> Vec<(RiscvAirId, usize)> {
+                <Self as std::ops::Deref>::deref(self).memory_heights()
+            }
+
+            fn precompile_heights(
+                &self,
+            ) -> impl Iterator<Item = (RiscvAirId, (usize, usize, usize))> {
+                <Self as std::ops::Deref>::deref(self).precompile_heights()
+            }
+        }
+    };
+}
+
+impl_for_ref!(&T);
+impl_for_ref!(&mut T);
 
 impl<F: PrimeField32> Shapeable<F> for ExecutionRecord {
     fn kind(&self) -> ShardKind {

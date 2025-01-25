@@ -83,7 +83,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         // program.
         record.shape.clone_from(&record.program.preprocessed_shape);
 
-        let shape = self.find_shape(record)?;
+        let shape = self.find_shape(&*record)?;
         record.shape.as_mut().unwrap().extend(shape);
         Ok(())
     }
@@ -91,7 +91,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
     /// TODO move this into the executor crate
     pub fn find_shape<R: Shapeable<F>>(
         &self,
-        record: &R,
+        record: R,
     ) -> Result<Shape<RiscvAirId>, CoreShapeError> {
         match record.kind() {
             // If this is a packed "core" record where the cpu events are alongisde the memory init and
@@ -425,7 +425,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         self.maximal_core_shapes(max_log_shard_size).into_iter().chain(precompile_shapes).collect()
     }
 
-    fn estimate_lde_size(&self, shape: &Shape<RiscvAirId>) -> usize {
+    pub fn estimate_lde_size(&self, shape: &Shape<RiscvAirId>) -> usize {
         shape.iter().map(|(air, height)| self.costs[air] * (1 << height)).sum()
     }
 
@@ -510,7 +510,7 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
             RiscvAir::<F>::precompile_airs_with_memory_events_per_row()
         {
             precompile_allowed_log2_heights
-                .insert(air.id(), (memory_events_per_row, precompile_heights.clone()));
+                .insert(air, (memory_events_per_row, precompile_heights.clone()));
         }
 
         Self {

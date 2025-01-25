@@ -3,7 +3,7 @@ use std::{fs::File, io::BufWriter};
 use std::{str::FromStr, sync::Arc};
 
 #[cfg(feature = "gas")]
-use crate::gas::TraceAreaEstimator;
+use crate::estimator::TraceAreaEstimator;
 #[cfg(feature = "profiling")]
 use crate::profiler::Profiler;
 use clap::ValueEnum;
@@ -381,16 +381,6 @@ impl<'a> Executor<'a> {
     #[must_use]
     pub fn hook_env<'b>(&'b self) -> HookEnv<'b, 'a> {
         HookEnv { runtime: self }
-    }
-
-    /// An estimate of the total trace area required for the core proving stage.
-    /// This provides a prover gas metric.
-    #[cfg(feature = "gas")]
-    #[must_use]
-    pub fn total_trace_area(&self) -> Option<u64> {
-        self.trace_area_estimator.as_ref().map(|estimator| {
-            estimator.total_trace_area(self.program.instructions.len(), &self.costs, &self.opts)
-        })
     }
 
     /// Recover runtime state from a program and existing execution state.
@@ -1780,13 +1770,19 @@ impl<'a> Executor<'a> {
 
     /// Bump the record.
     pub fn bump_record(&mut self) {
+        #[cfg(feature = "gas")]
         if let Some(estimator) = &mut self.trace_area_estimator {
             Self::estimate_riscv_event_counts(
                 &mut self.event_counts,
                 (self.state.clk >> 2) as u64,
                 &self.local_counts,
             );
-            estimator.flush_shard(&self.event_counts, &self.costs);
+            // The above method estimates event counts only for core shards.
+            estimator.core_shards.push(self.event_counts);
+            estimator.deferred_events[RiscvAirId::MemoryGlobalInit] +=
+                self.local_counts.local_mem as u64;
+            estimator.deferred_events[RiscvAirId::MemoryGlobalFinalize] +=
+                self.local_counts.local_mem as u64;
         }
         self.local_counts = LocalCounts::default();
         // Copy all of the existing local memory accesses to the record's local_memory_access vec.

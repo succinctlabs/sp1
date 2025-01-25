@@ -519,7 +519,10 @@ impl<F: PrimeField32> RiscvAir<F> {
         ]
     }
 
-    pub(crate) fn precompile_airs_with_memory_events_per_row() -> Vec<(Self, usize)> {
+    /// Internal function.
+    ///
+    /// Returns the number of memory events per row of each precompile. Used in estimating trace area.
+    pub fn precompile_airs_with_memory_events_per_row() -> HashMap<RiscvAirId, usize> {
         let mut airs: HashSet<_> = Self::get_airs_and_costs().0.into_iter().collect();
 
         // Remove the core airs.
@@ -550,7 +553,7 @@ impl<F: PrimeField32> RiscvAir<F> {
                     })
                     .count();
 
-                (chip.into_inner(), local_mem_events_per_row)
+                (chip.into_inner().id(), local_mem_events_per_row)
             })
             .collect()
     }

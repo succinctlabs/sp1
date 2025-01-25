@@ -58,7 +58,6 @@ sp1-zkvm = { workspace = true, features = ["lib"] }
 test-artifacts = { workspace = true }
 
 [features]
-default = ["gas"] # REMOVE ME BEFORE MERGING
 bigint-rug = ["sp1-curves/bigint-rug"]
 profiling = [
   "dep:goblin",
