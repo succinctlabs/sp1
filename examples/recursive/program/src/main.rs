@@ -22,15 +22,16 @@ pub fn main() {
     //      a) last prover's result 
     //      b) public input of acc_cubic function,
     //     and generate a recursive hash of all public values of acc_cubic to avoid commit long public inputs
+    let hash_right = sha256_hash(&circuit_input.public_value.to_le_bytes());
     let public_input_hash = if seq != 0 {
         verify_proof(&vkey_u32_hash, &circuit_input.public_input_hash, circuit_input.private_value);
-        let mut bytes = Vec::with_capacity(36);
+        let mut bytes = Vec::with_capacity(64);
         bytes.extend_from_slice(&circuit_input.public_input_hash);
-        bytes.extend_from_slice(&circuit_input.public_value.to_le_bytes());
+        bytes.extend_from_slice(&hash_right);
         sha256_hash(&bytes)
     } else {
-        let mut bytes = Vec::with_capacity(4);
-        bytes.extend(&circuit_input.public_value.to_le_bytes());
+        let mut bytes = Vec::with_capacity(32);
+        bytes.extend(&hash_right);
         sha256_hash(&bytes)
     };
 
