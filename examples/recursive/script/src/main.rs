@@ -36,57 +36,57 @@ fn main() {
 
     let test_public_values = (0..args.n).map(|i| 100 + i).collect::<Vec<_>>();
 
-        let client = ProverClient::from_env();
-        let (recursive_prover_pk, recursive_prover_vk) = client.setup(RECURSIVE_ELF);
+    let client = ProverClient::from_env();
+    let (recursive_prover_pk, recursive_prover_vk) = client.setup(RECURSIVE_ELF);
 
-        // For the very first prover
-        // initialized public and private values for the very first prover
-        let mut vkey_hash = [0u32; 8];
-        let mut public_input_hash = [0u8; 32];
-        let mut public_value = test_public_values[0];
-        let mut private_value = 0u32;
-        let mut circuit_input = CircuitInput::new(public_input_hash, public_value, private_value);
+    // For the very first prover
+    // initialized public and private values for the very first prover
+    let mut vkey_hash = [0u32; 8];
+    let mut public_input_hash = [0u8; 32];
+    let mut public_value = test_public_values[0];
+    let mut private_value = 0u32;
+    let mut circuit_input = CircuitInput::new(public_input_hash, public_value, private_value);
+
+    // just fill in STDIN
+    let mut stdin = SP1Stdin::new();
+    // write sequence number
+    stdin.write(&(0 as u32));
+    // write vkey u32 hash
+    stdin.write(&vkey_hash);
+    // write circuit input
+    stdin.write(&circuit_input);
+    // generate proof for the very first prover
+    let mut last_prover_proof = client
+        .prove(&recursive_prover_pk, &stdin)
+        .compressed()
+        .run()
+        .expect("proving failed");
+    println!("## Generating proof for the very first prover succeeds!");
+
+    // For the rest of the provers
+    for seq in 1..args.n {
+        // public and private values for the rest of provers
+        vkey_hash = recursive_prover_vk.hash_u32();
+        public_input_hash = last_prover_proof.public_values.read::<[u8; 32]>();
+        private_value = last_prover_proof.public_values.read::<u32>();
+        public_value = test_public_values[seq as usize];
+        circuit_input = CircuitInput::new(public_input_hash, public_value, private_value);
 
         // just fill in STDIN
-        let mut stdin = SP1Stdin::new();
-        // write sequence number
-        stdin.write(&(0 as u32));
-        // write vkey u32 hash
+        stdin = SP1Stdin::new();
+        stdin.write(&(seq as u32));
         stdin.write(&vkey_hash);
-        // write circuit input
         stdin.write(&circuit_input);
-        // generate proof for the very first prover
-        let mut last_prover_proof = client
+        let SP1Proof::Compressed(proof) = last_prover_proof.proof else {
+            panic!()
+        };
+        // write proof and vkey as private value
+        stdin.write_proof(*proof, recursive_prover_vk.vk.clone());
+        last_prover_proof = client
             .prove(&recursive_prover_pk, &stdin)
             .compressed()
             .run()
             .expect("proving failed");
-        println!("## Generating proof for the very first prover succeeds!");
-
-        // For the rest of the provers
-        for seq in 1..args.n {
-            // public and private values for the rest of provers
-            vkey_hash = recursive_prover_vk.hash_u32();
-            public_input_hash = last_prover_proof.public_values.read::<[u8; 32]>();
-            private_value = last_prover_proof.public_values.read::<u32>();
-            public_value = test_public_values[seq as usize];
-            circuit_input = CircuitInput::new(public_input_hash, public_value, private_value);
-
-            // just fill in STDIN
-            stdin = SP1Stdin::new();
-            stdin.write(&(seq as u32));
-            stdin.write(&vkey_hash);
-            stdin.write(&circuit_input);
-            let SP1Proof::Compressed(proof) = last_prover_proof.proof else {
-                panic!()
-            };
-            // write proof and vkey as private value
-            stdin.write_proof(*proof, recursive_prover_vk.vk.clone());
-            last_prover_proof = client
-                .prove(&recursive_prover_pk, &stdin)
-                .compressed()
-                .run()
-                .expect("proving failed");
-            println!("## Generating proof for one of the rest provers succeeds!");
-        }
+        println!("## Generating proof for one of the rest provers succeeds!");
+    }
 }
