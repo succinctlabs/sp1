@@ -1,5 +1,13 @@
 # SP1 V4 Audit Report
 
+This audit was done by [rkm0959](https://github.com/rkm0959), who also audited SP1's v1.0.0 and v3.0.0 releases.
+
+The audit commit is of SP1 v4.0.0 release, which is 4a1dcea0749021ce6e2596bce5bb45f2def7a95c.
+
+The audit was done between November 25th to December 13th for 3 engineer weeks, prior to the release of SP1 v4.0.0. 
+
+The first two bugs shown in the audit report were in previous versions, and they were fixed before releasing SP1 v4.0.0. For more information, we refer the readers to the security advisory [here](https://github.com/succinctlabs/sp1/security/advisories/GHSA-c873-wfhp-wx5m). This is also linked in the report below.
+
 ## 1. [V3] Malicious `chip_ordering` in Rust verifier is not checked
 
 **This bug does not affect usage of SP1 when using on-chain verifiers**. 
