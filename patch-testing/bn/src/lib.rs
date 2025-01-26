@@ -1,4 +1,4 @@
-#[sp1_test::sp1_test("bn_test_fq_sqrt", gpu, prove)]
+#[sp1_test::sp1_test("bn_test_fq_sqrt", syscalls = [BN254_FP_MUL], gpu, prove)]
 pub fn test_bn_test_fq_sqrt_100(
     stdin: &mut sp1_sdk::SP1Stdin,
 ) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
@@ -34,7 +34,7 @@ pub fn test_bn_test_fq_sqrt_100(
     }
 }
 
-#[sp1_test::sp1_test("bn_test_fq_inverse", gpu, prove)]
+#[sp1_test::sp1_test("bn_test_fq_inverse", syscalls = [BN254_FP_MUL], gpu, prove)]
 pub fn test_bn_test_fq_inverse_100(
     stdin: &mut sp1_sdk::SP1Stdin,
 ) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
@@ -70,7 +70,7 @@ pub fn test_bn_test_fq_inverse_100(
     }
 }
 
-#[sp1_test::sp1_test("bn_test_fr_inverse", gpu, prove)]
+#[sp1_test::sp1_test("bn_test_fr_inverse", syscalls = [UINT256_MUL], gpu, prove)]
 pub fn test_bn_test_fr_inverse_100(
     stdin: &mut sp1_sdk::SP1Stdin,
 ) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
@@ -106,7 +106,7 @@ pub fn test_bn_test_fr_inverse_100(
     }
 }
 
-#[sp1_test::sp1_test("bn_test_g1_add", gpu, prove)]
+#[sp1_test::sp1_test("bn_test_g1_add", syscalls = [BN254_ADD, BN254_FP_ADD, BN254_FP_MUL], gpu, prove)]
 pub fn test_bn_test_g1_add_100(
     stdin: &mut sp1_sdk::SP1Stdin,
 ) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
@@ -157,7 +157,7 @@ pub fn test_bn_test_g1_add_100(
     |_| {}
 }
 
-#[sp1_test::sp1_test("bn_test_g1_double", gpu, prove)]
+#[sp1_test::sp1_test("bn_test_g1_double", syscalls = [BN254_DOUBLE, BN254_FP_ADD, BN254_FP_MUL], gpu, prove)]
 pub fn test_bn_test_g1_double_100(
     stdin: &mut sp1_sdk::SP1Stdin,
 ) -> impl FnOnce(sp1_sdk::SP1PublicValues) {

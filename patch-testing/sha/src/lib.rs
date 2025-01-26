@@ -44,7 +44,7 @@ fn test_sha2_expected_digest_lte_100_times(
     }
 }
 
-#[sp1_test("sha3", gpu, prove)]
+#[sp1_test("sha3", syscalls = [SHA_COMPRESS, SHA_EXTEND], gpu, prove)]
 fn test_sha3_expected_digest_lte_100_times(
     stdin: &mut sp1_sdk::SP1Stdin,
 ) -> impl FnOnce(SP1PublicValues) {

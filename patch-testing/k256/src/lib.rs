@@ -29,7 +29,7 @@ pub fn test_verify_rand_lte_100(
     }
 }
 
-#[sp1_test::sp1_test("k256_recover", gpu, prove)]
+#[sp1_test::sp1_test("k256_recover", syscalls = [SECP256K1_ADD, SECP256K1_DOUBLE], gpu, prove)]
 pub fn test_recover_rand_lte_100(
     stdin: &mut sp1_sdk::SP1Stdin,
 ) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
@@ -64,14 +64,12 @@ pub fn test_recover_rand_lte_100(
     }
 }
 
-#[sp1_test::sp1_test("k256_recover")]
+#[sp1_test::sp1_test("k256_recover", syscalls = [SECP256K1_ADD, SECP256K1_DOUBLE])]
 pub fn test_recover_high_hash_high_recid(
     stdin: &mut sp1_sdk::SP1Stdin,
 ) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     use ecdsa_core::RecoveryId;
-    use k256::{
-        ecdsa::Signature, ecdsa::VerifyingKey,
-    };
+    use k256::{ecdsa::Signature, ecdsa::VerifyingKey};
 
     let times = 10000u16;
     stdin.write(&times);
@@ -120,14 +118,12 @@ pub fn test_recover_high_hash_high_recid(
     }
 }
 
-#[sp1_test::sp1_test("k256_recover", gpu, prove)]
+#[sp1_test::sp1_test("k256_recover", syscalls = [SECP256K1_ADD, SECP256K1_DOUBLE], gpu, prove)]
 pub fn test_recover_pubkey_infinity(
     stdin: &mut sp1_sdk::SP1Stdin,
 ) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     use ecdsa_core::RecoveryId;
-    use k256::{
-        ecdsa::Signature, ecdsa::VerifyingKey,
-    };
+    use k256::{ecdsa::Signature, ecdsa::VerifyingKey};
 
     let times = 3u16;
     stdin.write(&times);

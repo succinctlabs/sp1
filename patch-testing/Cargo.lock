@@ -450,6 +450,7 @@ dependencies = [
  "group 0.13.0",
  "rand",
  "sp1-build",
+ "sp1-core-executor",
  "sp1-sdk",
  "sp1-test",
  "sp1-zkvm",
@@ -461,6 +462,7 @@ version = "1.1.0"
 dependencies = [
  "rand",
  "sp1-build",
+ "sp1-core-executor",
  "sp1-sdk",
  "sp1-test",
  "sp1-zkvm",
@@ -476,7 +478,7 @@ dependencies = [
  "curve25519-dalek 4.1.3 (git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-4.0.0)",
  "curve25519-dalek-ng 4.1.1 (git+https://github.com/sp1-patches/curve25519-dalek-ng?tag=patch-4.1.1-sp1-4.0.0)",
  "ecdsa 0.16.9 (git+https://github.com/sp1-patches/signatures?tag=patch-0.16.9-sp1-4.0.0)",
- "rsa",
+ "rsa 0.9.6",
  "secp256k1",
  "sha2 0.10.6",
  "sha2 0.10.8 (git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha2-0.10.8-sp1-4.0.0)",
@@ -812,6 +814,7 @@ dependencies = [
  "ed25519-dalek",
  "rand",
  "sp1-build",
+ "sp1-core-executor",
  "sp1-sdk",
  "sp1-test",
 ]
@@ -877,6 +880,7 @@ dependencies = [
  "curve25519-dalek-ng 4.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand",
  "sp1-build",
+ "sp1-core-executor",
  "sp1-sdk",
  "sp1-test",
 ]
@@ -1999,6 +2003,7 @@ dependencies = [
  "k256 0.13.3",
  "rand",
  "sp1-build",
+ "sp1-core-executor",
  "sp1-sdk",
  "sp1-test",
  "sp1-zkvm",
@@ -2010,6 +2015,7 @@ version = "1.1.0"
 dependencies = [
  "rand",
  "sp1-build",
+ "sp1-core-executor",
  "sp1-sdk",
  "sp1-test",
  "sp1-zkvm",
@@ -2281,6 +2287,7 @@ dependencies = [
  "num-iter",
  "num-traits",
  "rand",
+ "serde",
  "smallvec",
  "zeroize",
 ]
@@ -2457,6 +2464,7 @@ dependencies = [
  "p256 0.13.2",
  "rand",
  "sp1-build",
+ "sp1-core-executor",
  "sp1-sdk",
  "sp1-test",
  "sp1-zkvm",
@@ -3256,6 +3264,41 @@ dependencies = [
 ]
 
 [[package]]
+name = "rsa"
+version = "0.9.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "47c75d7c5c6b673e58bf54d8544a9f432e3a925b0e80f7cd3602ab5c50c55519"
+dependencies = [
+ "const-oid",
+ "digest 0.10.7",
+ "num-bigint-dig",
+ "num-integer",
+ "num-traits",
+ "pkcs1",
+ "pkcs8",
+ "rand_core",
+ "serde",
+ "sha2 0.10.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "signature",
+ "spki",
+ "subtle",
+ "zeroize",
+]
+
+[[package]]
+name = "rust_crypto_rsa"
+version = "1.1.0"
+dependencies = [
+ "rand",
+ "rsa 0.9.7",
+ "sp1-build",
+ "sp1-core-executor",
+ "sp1-sdk",
+ "sp1-test",
+ "sp1-zkvm",
+]
+
+[[package]]
 name = "rustc-demangle"
 version = "0.1.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3295,6 +3338,7 @@ dependencies = [
  "crypto-bigint 0.5.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand",
  "sp1-build",
+ "sp1-core-executor",
  "sp1-sdk",
  "sp1-test",
  "sp1-zkvm",
@@ -3448,6 +3492,7 @@ dependencies = [
  "rand",
  "secp256k1",
  "sp1-build",
+ "sp1-core-executor",
  "sp1-sdk",
  "sp1-test",
 ]

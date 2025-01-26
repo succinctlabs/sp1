@@ -1,4 +1,4 @@
-#[sp1_test::sp1_test("curve25519_decompress")]
+#[sp1_test::sp1_test("curve25519_decompress", syscalls = [ED_DECOMPRESS])]
 fn test_decompressed_expected_value(
     stdin: &mut sp1_sdk::SP1Stdin,
 ) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
@@ -65,9 +65,6 @@ fn test_decompressed_noncanonical(
 ) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     use curve25519_dalek::edwards::CompressedEdwardsY;
     use curve25519_dalek::edwards::EdwardsPoint;
-    
-    
-    
 
     let how_many_points = 1_usize;
     stdin.write(&how_many_points);
@@ -96,7 +93,7 @@ fn test_decompressed_noncanonical(
     }
 }
 
-#[sp1_test::sp1_test("ed25519_verify")]
+#[sp1_test::sp1_test("ed25519_verify", syscalls = [ED_ADD, ED_DECOMPRESS])]
 fn test_ed25519_verify(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     use ed25519_dalek::Signer;
 
@@ -123,7 +120,7 @@ fn test_ed25519_verify(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP
     }
 }
 
-#[sp1_test::sp1_test("curve25519_add_then_multiply", prove)]
+#[sp1_test::sp1_test("curve25519_add_then_multiply", syscalls = [ED_ADD, ED_DECOMPRESS], prove)]
 fn test_add_then_multiply(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     use curve25519_dalek::edwards::CompressedEdwardsY;
     use curve25519_dalek::scalar::Scalar;
@@ -165,7 +162,7 @@ fn test_add_then_multiply(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk:
     }
 }
 
-#[sp1_test::sp1_test("curve25519_zero_msm", prove)]
+#[sp1_test::sp1_test("curve25519_zero_msm", syscalls = [ED_ADD, ED_DECOMPRESS], prove)]
 fn test_zero_msm(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     use curve25519_dalek::edwards::CompressedEdwardsY;
     use curve25519_dalek::edwards::EdwardsPoint;
@@ -183,7 +180,7 @@ fn test_zero_msm(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1Publi
     move |_| {}
 }
 
-#[sp1_test::sp1_test("curve25519_zero_mul", prove)]
+#[sp1_test::sp1_test("curve25519_zero_mul", syscalls = [ED_ADD, ED_DECOMPRESS], prove)]
 fn test_zero_mul(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     use curve25519_dalek::edwards::CompressedEdwardsY;
 

@@ -10,6 +10,7 @@ members = [
   "curve25519-dalek", 
   "curve25519-dalek-ng", 
   "rustcrypto-bigint",
+  "RustCrypto-rsa",
   "bls12-381",
   "bn", "build-host",
 ]
