@@ -56,7 +56,7 @@ pub fn test_recover_rand_lte_100(
     }
 
     move |mut public| {
-        for (i, vkey) in vkeys.into_iter().enumerate() {
+        for vkey in vkeys.into_iter() {
             let key = public.read::<Option<Vec<u8>>>();
 
             assert_eq!(key, Some(vkey.to_sec1_bytes().to_vec()));
@@ -158,12 +158,10 @@ pub fn test_recover_pubkey_infinity(
         131, 111, 153, 176, 134, 1, 241, 19, 188, 224, 54, 249,
     ];
 
-    for (idx, (msg, r)) in [(msg1, r1), (msg2, r2), (msg3, r3)].iter().enumerate() {
+    for (msg, r) in [(msg1, r1), (msg2, r2), (msg3, r3)].iter() {
         let mut signature_bytes = [0u8; 64];
-        for i in 0..32 {
-            signature_bytes[i] = r[i];
-            signature_bytes[i + 32] = r[i];
-        }
+        signature_bytes[..32].copy_from_slice(r);
+        signature_bytes[32..(32 + 32)].copy_from_slice(r);
         let recid = RecoveryId::from_byte(0u8).unwrap();
         let signature = Signature::from_slice(&signature_bytes).unwrap();
         let recovered_key = VerifyingKey::recover_from_prehash(msg, &signature, recid);
@@ -171,8 +169,7 @@ pub fn test_recover_pubkey_infinity(
         vkeys.push(recovered_key.ok().map(|vk| vk.to_sec1_bytes().to_vec()));
     }
     move |mut public| {
-        let fail_count = 0;
-        for (i, vkey) in vkeys.into_iter().enumerate() {
+        for vkey in vkeys.into_iter() {
             let key = public.read::<Option<Vec<u8>>>();
             assert_eq!(key, vkey);
             assert!(key.is_none());
