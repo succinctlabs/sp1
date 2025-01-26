@@ -1,0 +1,22 @@
+[package]
+name = "recursive-script"
+version = "1.1.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "recursive_prover"
+path = "src/main.rs"
+
+[dependencies]
+sp1-sdk = { workspace = true }
+serde = { workspace = true }
+tracing = { workspace = true }
+serde_json = { workspace = true }
+clap = { version = "4.0", features = ["derive", "env"] }
+hex = "0.4.3"
+recursive-lib = { path = "../lib" }
+
+[build-dependencies]
+sp1-helper = { workspace = true }
+sp1-build = { workspace = true }

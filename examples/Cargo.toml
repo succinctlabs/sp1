@@ -31,6 +31,9 @@ members = [
   "ssz-withdrawals/script",
   "tendermint/program",
   "tendermint/script",
+  "recursive/lib",
+  "recursive/program",
+  "recursive/script",
 ]
 resolver = "2"
 
