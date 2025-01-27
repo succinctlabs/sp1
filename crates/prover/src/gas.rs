@@ -58,7 +58,7 @@ pub fn core_prover_gas<F: PrimeField32>(
                 RiscvAirId::ShaCompress => split_opts.sha_compress,
                 RiscvAirId::KeccakPermute => split_opts.keccak,
                 RiscvAirId::MemoryGlobalInit | RiscvAirId::MemoryGlobalFinalize => {
-                    // Process these in their own shard.
+                    // Process these in their own shard(s).
                     return Ok(0);
                 }
                 _ => split_opts.deferred,
@@ -81,19 +81,37 @@ pub fn core_prover_gas<F: PrimeField32>(
         })
         .sum::<Result<usize, _>>()?;
 
-    let global_memory_area = calc_area(
-        [
-            (RiscvAirId::MemoryGlobalInit, deferred_events[RiscvAirId::MemoryGlobalInit]),
-            (RiscvAirId::MemoryGlobalFinalize, deferred_events[RiscvAirId::MemoryGlobalFinalize]),
-            (
-                RiscvAirId::Global,
-                deferred_events[RiscvAirId::MemoryGlobalInit]
-                    + deferred_events[RiscvAirId::MemoryGlobalFinalize],
-            ),
-        ]
-        .into_iter()
-        .collect(),
-    )?;
+    let global_memory_area = {
+        let num_memory_global_init = deferred_events[RiscvAirId::MemoryGlobalInit];
+        assert_eq!(
+            num_memory_global_init,
+            deferred_events[RiscvAirId::MemoryGlobalFinalize],
+            "memory finalize AIR height should equal memory initialize AIR height"
+        );
+
+        let threshold = split_opts.memory as u64;
+        let num_full_airs = num_memory_global_init / threshold;
+        let num_remainder_air_rows = num_memory_global_init % threshold;
+
+        let event_counts = |num_rows: u64| -> EnumMap<RiscvAirId, u64> {
+            [
+                (RiscvAirId::MemoryGlobalInit, num_rows),
+                (RiscvAirId::MemoryGlobalFinalize, num_rows),
+                (RiscvAirId::Global, 2 * num_rows),
+            ]
+            .into_iter()
+            .collect()
+        };
+
+        let mut area = 0;
+        if num_full_airs > 0 {
+            area += num_full_airs as usize * calc_area(event_counts(threshold))?;
+        }
+        if num_remainder_air_rows > 0 {
+            area += num_full_airs as usize * calc_area(event_counts(num_remainder_air_rows))?;
+        }
+        area
+    };
 
     Ok(core_cost + precompile_area + global_memory_area)
 }
