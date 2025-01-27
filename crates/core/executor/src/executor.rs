@@ -1745,9 +1745,9 @@ impl<'a> Executor<'a> {
             }
 
             if cpu_exit || !shape_match_found {
+                self.bump_record();
                 self.state.current_shard += 1;
                 self.state.clk = 0;
-                self.bump_record();
             }
         }
 
