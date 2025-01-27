@@ -212,14 +212,19 @@ mod fp_ops {
     use super::{pad_to_be, BigUint, HookEnv, One, Zero};
 
     pub fn hook_fp_inverse(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
-        let element = BigUint::from_bytes_be(&buf[..32]);
-        let modulus = BigUint::from_bytes_be(&buf[32..64]);
+        let len: usize = u32::from_be_bytes(buf[0..4].try_into().unwrap()) as usize;
+
+        assert!(buf.len() == 4 + 2 * len, "FpOp: Invalid buffer length");
+
+        let buf = &buf[4..];
+        let element = BigUint::from_bytes_be(&buf[..len]);
+        let modulus = BigUint::from_bytes_be(&buf[len..2 * len]);
 
         assert!(!element.is_zero(), "FpOp: Inverse called with zero");
 
         let inverse = element.modpow(&(&modulus - BigUint::from(2u64)), &modulus);
 
-        vec![pad_to_be(&inverse, 32)]
+        vec![pad_to_be(&inverse, len)]
     }
 
     /// Compute the square root of a field element.
@@ -259,18 +264,18 @@ mod fp_ops {
 
         // The sqrt of zero is zero.
         if element.is_zero() {
-            return vec![vec![1], vec![0; 32]];
+            return vec![vec![1], vec![0; len]];
         }
 
         // We compute the square root of the element using the general tonelli shanks algorithm.
         // This implenetaion is field agnostic, so we can use it for any field.
         if let Some(root) = sqrt_fp(&element, &modulus, &nqr) {
-            vec![vec![1], pad_to_be(&root, 32)]
+            vec![vec![1], pad_to_be(&root, len)]
         } else {
             let qr = (&nqr * &element) % &modulus;
             let root = sqrt_fp(&qr, &modulus, &nqr).unwrap();
 
-            vec![vec![0], pad_to_be(&root, 32)]
+            vec![vec![0], pad_to_be(&root, len)]
         }
     }
 
