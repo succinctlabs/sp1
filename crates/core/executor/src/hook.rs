@@ -227,16 +227,22 @@ mod fp_ops {
     /// # Arguments
     /// * `env` - The environment in which the hook is invoked.
     /// * `buf` - The buffer containing the data needed to compute the square root.
-    ///     - [ Element || Modulus || NQR ]
-    ///     - Element is the field element to compute the square root of, interpreted as a big endian integer of 32 bytes.
-    ///     - Modulus is the modulus of the field, interpreted as a big endian integer of 32 bytes.
-    ///     - NQR is the non-quadratic residue of the field, interpreted as a big endian integer of 32 bytes.
+    ///     - [ len || Element || Modulus || NQR ]
+    ///     - len is the length of the element, modulus, and nqr in Big endian.
+    ///     - Element is the field element to compute the square root of, interpreted as a big endian integer of `len` bytes.
+    ///     - Modulus is the modulus of the field, interpreted as a big endian integer of `len` bytes.
+    ///     - NQR is the non-quadratic residue of the field, interpreted as a big endian integer of `len` bytes.
     ///
     /// The result is a single 32 byte vector containing the square root.
     pub fn hook_fp_sqrt(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
-        let element = BigUint::from_bytes_be(&buf[..32]);
-        let modulus = BigUint::from_bytes_be(&buf[32..64]);
-        let nqr = BigUint::from_bytes_be(&buf[64..96]);
+        let len: usize = u32::from_be_bytes(buf[0..4].try_into().unwrap()) as usize;
+
+        assert!(buf.len() == 4 + 3 * len, "FpOp: Invalid buffer length");
+
+        let buf = &buf[4..];
+        let element = BigUint::from_bytes_be(&buf[..len]);
+        let modulus = BigUint::from_bytes_be(&buf[len..2 * len]);
+        let nqr = BigUint::from_bytes_be(&buf[2 * len..3 * len]);
 
         assert!(
             element < modulus,
