@@ -259,7 +259,7 @@ mod fp_ops {
         );
         assert!(
             legendre_symbol(&nqr, &modulus) != BigUint::one(),
-            "NQR a quadratic residue, the hook only acceptes quadratic residues"
+            "NQR is a quadratic residue, this is a bug."
         );
 
         // The sqrt of zero is zero.
