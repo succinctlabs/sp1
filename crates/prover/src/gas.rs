@@ -63,11 +63,9 @@ pub fn core_prover_gas<F: PrimeField32>(
                 }
                 _ => split_opts.deferred,
             };
-            let rows_per_event = id.rows_per_event() as u64;
             let threshold = threshold as u64;
-            let rows = count * rows_per_event;
-            let num_full_airs = rows / threshold;
-            let num_remainder_air_rows = rows % threshold;
+            let num_full_airs = count / threshold;
+            let num_remainder_air_rows = count % threshold;
 
             let mut area = 0;
 

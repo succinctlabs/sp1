@@ -209,11 +209,11 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(program);
 
         let sha_extend = Chip::new(RiscvAir::Sha256Extend(ShaExtendChip::default()));
-        costs.insert(sha_extend.name(), 48 * sha_extend.cost());
+        costs.insert(sha_extend.name(), sha_extend.cost());
         chips.push(sha_extend);
 
         let sha_compress = Chip::new(RiscvAir::Sha256Compress(ShaCompressChip::default()));
-        costs.insert(sha_compress.name(), 80 * sha_compress.cost());
+        costs.insert(sha_compress.name(), sha_compress.cost());
         chips.push(sha_compress);
 
         let ed_add_assign = Chip::new(RiscvAir::Ed25519Add(EdAddAssignChip::<
@@ -267,7 +267,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(secp256r1_double_assign);
 
         let keccak_permute = Chip::new(RiscvAir::KeccakP(KeccakPermuteChip::new()));
-        costs.insert(keccak_permute.name(), 24 * keccak_permute.cost());
+        costs.insert(keccak_permute.name(), keccak_permute.cost());
         chips.push(keccak_permute);
 
         let bn254_add_assign = Chip::new(RiscvAir::Bn254Add(WeierstrassAddAssignChip::<
