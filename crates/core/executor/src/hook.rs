@@ -238,6 +238,9 @@ mod fp_ops {
     ///     - Modulus is the modulus of the field, interpreted as a big endian integer of `len` bytes.
     ///     - NQR is the non-quadratic residue of the field, interpreted as a big endian integer of `len` bytes.
     ///
+    /// # Assumptions
+    /// - NQR is a non-quadratic residue of the field.
+    ///
     /// The result is a single 32 byte vector containing the square root.
     pub fn hook_fp_sqrt(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
         let len: usize = u32::from_be_bytes(buf[0..4].try_into().unwrap()) as usize;
@@ -256,10 +259,6 @@ mod fp_ops {
         assert!(
             nqr < modulus,
             "NQR is zero or non-canonical, the hook only acceptes canonical representations"
-        );
-        assert!(
-            legendre_symbol(&nqr, &modulus) != BigUint::one(),
-            "NQR is a quadratic residue, this is a bug."
         );
 
         // The sqrt of zero is zero.
@@ -295,10 +294,7 @@ mod fp_ops {
     fn tonelli_shanks(element: &BigUint, modulus: &BigUint, nqr: &BigUint) -> Option<BigUint> {
         // First we compute the legendre symbol of the element.
         // If this is not 1, then the element is not a quadratic residue.
-        let legendre = legendre_symbol(element, modulus);
-
-        // This element is not a quadratic residue.
-        if legendre != BigUint::one() {
+        if legendre_symbol(element, modulus) != BigUint::one() {
             return None;
         }
 
@@ -328,7 +324,8 @@ mod fp_ops {
                 }
             }
 
-            let b_pow = BigUint::from(2u64).modpow(&(&m - &i - BigUint::from(1u64)), modulus);
+            let b_pow =
+                BigUint::from(2u64).pow((&m - &i - BigUint::from(1u64)).try_into().unwrap());
             let b = c.modpow(&b_pow, modulus);
 
             r = &r * &b % modulus;
@@ -382,8 +379,8 @@ mod fp_ops {
 
             let nqr = BigUint::from_str("3").unwrap();
 
-            let large_elemet = &p - BigUint::from(u16::MAX);
-            let square = &large_elemet * &large_elemet % &p;
+            let large_element = &p - BigUint::from(u16::MAX);
+            let square = &large_element * &large_element % &p;
 
             let fixtures = [
                 (BigUint::from(2u64), true),
