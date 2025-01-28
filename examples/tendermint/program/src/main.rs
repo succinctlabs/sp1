@@ -39,6 +39,13 @@ pub fn main() {
     sp1_zkvm::io::commit_slice(header_hash_2.as_bytes());
     println!("cycle-tracker-end: public input headers");
 
+    println!("cycle-tracker-start: hash committee");
+    assert_eq!(
+        light_block_1.next_validators.hash(),
+        light_block_1.as_trusted_state().next_validators_hash
+    );
+    println!("cycle-tracker-end: hash committee");
+
     println!("cycle-tracker-start: verify");
     let vp = ProdVerifier::default();
     let opt = Options {
