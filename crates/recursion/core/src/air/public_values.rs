@@ -197,7 +197,7 @@ mod tests {
 
         // Verify specific elements in the array (by index, depending on layout).
         for i in 0..PV_DIGEST_NUM_WORDS {
-            assert_eq!(as_array[4 * i + 0], 1);
+            assert_eq!(as_array[4 * i], 1);
             assert_eq!(as_array[4 * i + 1], 2);
             assert_eq!(as_array[4 * i + 2], 3);
             assert_eq!(as_array[4 * i + 3], 4);
