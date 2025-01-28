@@ -187,6 +187,8 @@ fn eval_symbolic_to_virtual_pair<F: Field>(
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::print_stdout)]
+
     use std::borrow::Borrow;
 
     use p3_air::{Air, BaseAir};

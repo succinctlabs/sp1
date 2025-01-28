@@ -375,6 +375,8 @@ impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::print_stdout)]
+
     use num::BigUint;
     use p3_air::BaseAir;
     use p3_field::{Field, PrimeField32};

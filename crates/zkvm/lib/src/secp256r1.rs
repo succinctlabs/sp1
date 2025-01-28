@@ -51,16 +51,16 @@ impl AffinePoint<N> for Secp256r1Point {
         }
     }
 
-    fn complete_add_assign(&mut self, other: &Self) {
-        self.weierstrass_add_assign(other);
-    }
-
     fn add_assign(&mut self, other: &Self) {
         let a = self.limbs_mut();
         let b = other.limbs_ref();
         unsafe {
             syscall_secp256r1_add(a, b);
         }
+    }
+
+    fn complete_add_assign(&mut self, other: &Self) {
+        self.weierstrass_add_assign(other);
     }
 
     fn double(&mut self) {

@@ -20,3 +20,6 @@ p3-poseidon2 = { workspace = true }
 p3-symmetric = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 sha2 = "0.10.8"
+
+[lints]
+workspace = true
