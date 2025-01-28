@@ -1,3 +1,5 @@
+#![allow(clippy::print_stdout)]
+
 use std::{collections::BTreeMap, path::PathBuf};
 
 use clap::Parser;

@@ -35,3 +35,6 @@ serial_test = "3.2.0"
 default = ["std"]
 std = ["thiserror/std"]
 ark = ["ark-bn254", "ark-serialize", "ark-ff", "ark-groth16", "ark-ec"]
+
+[lints]
+workspace = true

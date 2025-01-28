@@ -157,7 +157,7 @@ where
             if !chip.included(shard) {
                 continue;
             }
-            println!("{}", chip.name());
+            eprintln!("{}", chip.name());
             let (_, count) =
                 debug_interactions::<SC, A>(chip, pkey, shard, interaction_kinds.clone(), scope);
             total_events += count.len();

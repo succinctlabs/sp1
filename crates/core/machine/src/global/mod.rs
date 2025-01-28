@@ -262,6 +262,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::print_stdout)]
+
     use super::*;
     use crate::programs::tests::*;
     use p3_baby_bear::BabyBear;

@@ -258,12 +258,12 @@ jobs:
             runner: "ubuntu-22.04"
           - name: "Ubuntu 20.04 (x86_64)"
             runner: "ubuntu-20.04"
-          - name: "macOS Monterey (x86_64)"
-            runner: "macos-12"
           - name: "macOS Ventura (x86_64)"
             runner: "macos-13"
           - name: "macOS Sonoma (ARM64)"
             runner: "macos-14"
+          - name: "macOS latest"
+            runner: "macos-latest"
 
     runs-on: "${{ matrix.runner }}"
     steps:

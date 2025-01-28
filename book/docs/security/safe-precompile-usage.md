@@ -1,8 +1,9 @@
 # Safe Usage of SP1 Precompiles
 
-This section outlines the key assumptions and properties of each precompile. Advanced users interacting directly with the precompiles are expected to ensure these assumptions are met.
+This section outlines the key assumptions and properties of each precompile. As explained in [Precompiles](../writing-programs/precompiles.mdx), we recommend you to interact with precompiles through [patches](../writing-programs/patched-crates.md). Advanced users interacting directly with the precompiles are expected to ensure these assumptions are met.
 
-If you need to interact with the precompiles directly, we strongly recommend using the API described in [Precompiles](../writing-programs/precompiles.mdx) rather than making an `ecall` directly using unsafe Rust. 
+## Do not use direct ECALL
+If you need to interact with the precompiles directly, you must use the API described in [Precompiles](../writing-programs/precompiles.mdx) instead of making the `ecall` directly using unsafe Rust. As some of our syscalls have critical functionalities and complex security properties around them, **we highly recommend not calling the syscalls directly with `ecall`**. For example, directly calling `HALT` to stop the program execution leads to security vulnerabilities. As in our [security model](./security-model.md), it is critical for safe usage that the program compiled into SP1 is correct. 
 
 ## Alignment of Pointers
 

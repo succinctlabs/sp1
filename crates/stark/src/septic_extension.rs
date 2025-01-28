@@ -407,6 +407,7 @@ impl<F: AbstractField> Display for SepticExtension<F> {
 }
 
 impl<F: Field> SepticExtension<F> {
+    /// Returns the value of z^{index * p} in the [`SepticExtension`] field.
     fn z_pow_p(index: u32) -> Self {
         // The constants written below are specifically for the BabyBear field.
         debug_assert_eq!(F::order(), BigUint::from(2013265921u32));
@@ -482,6 +483,7 @@ impl<F: Field> SepticExtension<F> {
         unreachable!();
     }
 
+    /// Returns the value of z^{index * p^2} in the [`SepticExtension`] field.
     fn z_pow_p2(index: u32) -> Self {
         // The constants written below are specifically for the BabyBear field.
         debug_assert_eq!(F::order(), BigUint::from(2013265921u32));
@@ -809,6 +811,8 @@ impl<T> IntoIterator for SepticBlock<T> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::print_stdout)]
+
     use p3_baby_bear::BabyBear;
 
     use super::*;

@@ -234,6 +234,8 @@ impl<F: Field> SepticCurveComplete<F> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::print_stdout)]
+
     use p3_baby_bear::BabyBear;
     use p3_maybe_rayon::prelude::ParallelIterator;
     use p3_maybe_rayon::prelude::{IndexedParallelIterator, IntoParallelIterator};

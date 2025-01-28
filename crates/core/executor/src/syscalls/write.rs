@@ -51,7 +51,7 @@ impl Syscall for WriteSyscall {
                     // If the string does not match any known command, print it to stdout.
                     let flush_s = update_io_buf(ctx, fd, s);
                     if !flush_s.is_empty() {
-                        flush_s.into_iter().for_each(|line| println!("stdout: {}", line));
+                        flush_s.into_iter().for_each(|line| eprintln!("stdout: {}", line));
                     }
                 }
             }
@@ -59,7 +59,7 @@ impl Syscall for WriteSyscall {
             let s = core::str::from_utf8(slice).unwrap();
             let flush_s = update_io_buf(ctx, fd, s);
             if !flush_s.is_empty() {
-                flush_s.into_iter().for_each(|line| println!("stderr: {}", line));
+                flush_s.into_iter().for_each(|line| eprintln!("stderr: {}", line));
             }
         } else if fd <= LOWEST_ALLOWED_FD {
             if std::env::var("SP1_ALLOW_DEPRECATED_HOOKS")

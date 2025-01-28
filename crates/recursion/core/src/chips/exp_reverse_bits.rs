@@ -205,7 +205,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
         );
 
         #[cfg(debug_assertions)]
-        println!(
+        eprintln!(
             "exp reverse bits len trace dims is width: {:?}, height: {:?}",
             trace.width(),
             trace.height()
@@ -319,6 +319,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::print_stdout)]
+
     use crate::{
         chips::{exp_reverse_bits::ExpReverseBitsLenChip, test_fixtures},
         linear_program,
