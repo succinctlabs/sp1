@@ -16,7 +16,7 @@ impl SP1PublicValues {
     }
 
     pub fn raw(&self) -> String {
-        format!("0x{}", hex::encode(self.buffer.data.clone()))
+        format!("0x{}", hex::encode(self.as_slice()))
     }
 
     /// Create a `SP1PublicValues` from a slice of bytes.
@@ -69,14 +69,13 @@ impl SP1PublicValues {
         // Hash the public values.
         let mut hasher = Sha256::new();
         hasher.update(self.buffer.data.as_slice());
-        let hash_result = hasher.finalize();
-        let mut hash = hash_result.to_vec();
+        let mut hash = hasher.finalize();
 
         // Mask the top 3 bits.
         hash[0] &= 0b00011111;
 
         // Return the masked hash as a BigUint.
-        BigUint::from_bytes_be(&hash)
+        BigUint::from_bytes_be(hash.as_slice())
     }
 }
 
