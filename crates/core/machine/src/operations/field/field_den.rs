@@ -141,6 +141,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::print_stdout)]
+
     use num::BigUint;
     use p3_air::BaseAir;
     use p3_field::{Field, PrimeField32};
