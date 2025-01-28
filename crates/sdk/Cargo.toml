@@ -87,3 +87,6 @@ vergen = { version = "8", default-features = false, features = [
   "git",
   "git2",
 ] }
+
+[lints]
+workspace = true

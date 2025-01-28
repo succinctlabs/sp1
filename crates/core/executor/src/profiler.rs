@@ -189,9 +189,9 @@ impl Profiler {
 
         pb.finish();
 
-        println!("Writing profile, this can take awhile");
+        eprintln!("Writing profile, this can take awhile");
         serde_json::to_writer(writer, &profile_builder.to_serializable())?;
-        println!("Profile written successfully");
+        eprintln!("Profile written successfully");
 
         Ok(())
     }

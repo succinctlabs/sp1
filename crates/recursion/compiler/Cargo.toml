@@ -38,3 +38,6 @@ criterion = { version = "0.5.1", features = ["html_reports"] }
 [features]
 default = ["debug"]
 debug = ["sp1-recursion-core/debug", "dep:backtrace"]
+
+[lints]
+workspace = true
