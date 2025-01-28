@@ -49,16 +49,16 @@ impl AffinePoint<N> for Bn254Point {
         }
     }
 
-    fn complete_add_assign(&mut self, other: &Self) {
-        self.weierstrass_add_assign(other);
-    }
-
     fn add_assign(&mut self, other: &Self) {
         let a = self.limbs_mut();
         let b = other.limbs_ref();
         unsafe {
             syscall_bn254_add(a, b);
         }
+    }
+
+    fn complete_add_assign(&mut self, other: &Self) {
+        self.weierstrass_add_assign(other);
     }
 
     fn double(&mut self) {
