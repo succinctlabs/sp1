@@ -113,6 +113,7 @@ pub fn secp256k1_sqrt(n: &BigUint) -> BigUint {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::print_stdout)]
 
     use super::*;
     use crate::utils::biguint_from_limbs;

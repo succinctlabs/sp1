@@ -43,7 +43,7 @@ pub fn try_install_circuit_artifacts(artifacts_type: &str) -> PathBuf {
     };
 
     if build_dir.exists() {
-        println!(
+        eprintln!(
             "[sp1] {} circuit artifacts already seem to exist at {}. if you want to re-download them, delete the directory",
             artifacts_type,
             build_dir.display()
@@ -51,7 +51,7 @@ pub fn try_install_circuit_artifacts(artifacts_type: &str) -> PathBuf {
     } else {
         cfg_if! {
             if #[cfg(any(feature = "network", feature = "network"))] {
-                println!(
+                eprintln!(
                     "[sp1] {} circuit artifacts for version {} do not exist at {}. downloading...",
                     artifacts_type,
                     SP1_CIRCUIT_VERSION,
@@ -95,7 +95,7 @@ pub fn install_circuit_artifacts(build_dir: PathBuf, artifacts_type: &str) {
         .expect("failed to extract tarball");
     res.wait().unwrap();
 
-    println!("[sp1] downloaded {} to {:?}", download_url, build_dir.to_str().unwrap(),);
+    eprintln!("[sp1] downloaded {} to {:?}", download_url, build_dir.to_str().unwrap(),);
 }
 
 /// Download the file with a progress bar that indicates the progress.

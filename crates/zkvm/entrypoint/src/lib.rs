@@ -221,7 +221,7 @@ macro_rules! entrypoint {
                 if cfg!(target_os = "zkvm") {
                     super::ZKVM_ENTRY()
                 } else {
-                    println!("Not running in zkVM, skipping entrypoint");
+                    eprintln!("Not running in zkVM, skipping entrypoint");
                 }
             }
         }

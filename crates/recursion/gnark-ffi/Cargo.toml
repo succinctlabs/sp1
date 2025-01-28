@@ -34,3 +34,6 @@ cfg-if = "1.0"
 
 [features]
 native = []
+
+[lints]
+workspace = true
