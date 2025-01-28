@@ -886,6 +886,8 @@ impl<C: Config<F: PrimeField64>> Reg<C> for Address<C::F> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::print_stdout)]
+
     use std::{collections::VecDeque, io::BufRead, iter::zip, sync::Arc};
 
     use p3_baby_bear::DiffusionMatrixBabyBear;

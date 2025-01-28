@@ -241,6 +241,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::print_stdout)]
+
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
     use rand::{thread_rng, Rng};

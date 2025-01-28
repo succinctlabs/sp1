@@ -75,3 +75,6 @@ default = ["sys"]
 debug = []
 sys = ["sp1-core-machine/sys"]
 program_validation = ["dep:range-set-blaze", "dep:smallvec"]
+
+[lints]
+workspace = true
