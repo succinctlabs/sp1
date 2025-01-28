@@ -40,7 +40,7 @@ pub use verify::*;
 
 /// These codes MUST match the codes in `core/src/runtime/syscall.rs`. There is a derived test
 /// that checks that the enum is consistent with the syscalls.
-
+///
 /// Halts the program.
 pub const HALT: u32 = 0x00_00_00_00;
 
