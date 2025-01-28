@@ -9,7 +9,7 @@ use sp1_sdk::{HashableKey, ProverClient};
 #[command(name = "vkey", about = "View the verification key hash for a program.")]
 pub struct VkeyCmd {
     /// Path to the ELF.
-    #[clap(flatten)]
+    #[command(flatten)]
     elf: Elf,
 }
 
