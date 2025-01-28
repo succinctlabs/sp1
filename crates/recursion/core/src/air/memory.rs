@@ -51,7 +51,7 @@ impl<T: PrimeField32> MemoryInitCols<T> {
 /// NOTE: These are very similar to core/src/memory/columns.rs
 /// The reason we cannot use those structs directly is that they use "shard".
 /// In our recursive VM, we don't have shards, we only have `clk` (i.e. timestamp).
-
+///
 /// Memory read access.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
@@ -94,7 +94,7 @@ pub struct MemoryAccessCols<T, TValue> {
     /// The following columns are decomposed limbs for the difference between the current access's
     /// timestamp and the previous access's timestamp.  Note the actual value of the timestamp
     /// is either the accesses' shard or clk depending on the value of compare_clk.
-
+    ///
     /// This column is the least significant 16 bit limb of current access timestamp - prev access
     /// timestamp.
     pub diff_16bit_limb: T,

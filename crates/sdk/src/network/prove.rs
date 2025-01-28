@@ -27,7 +27,7 @@ pub struct NetworkProveBuilder<'a> {
     pub(crate) cycle_limit: Option<u64>,
 }
 
-impl<'a> NetworkProveBuilder<'a> {
+impl NetworkProveBuilder<'_> {
     /// Set the proof kind to [`SP1ProofMode::Core`] mode.
     ///
     /// # Details

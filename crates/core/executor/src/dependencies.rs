@@ -141,7 +141,7 @@ pub fn emit_memory_dependencies(
             _ => unreachable!(),
         };
 
-        if most_sig_mem_value_byte >> 7 & 0x01 == 1 {
+        if (most_sig_mem_value_byte >> 7) & 0x01 == 1 {
             let sub_event = AluEvent {
                 pc: UNUSED_PC,
                 opcode: Opcode::SUB,
