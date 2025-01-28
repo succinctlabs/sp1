@@ -30,13 +30,13 @@ pub type Secp256r1 = SwCurve<Secp256r1Parameters>;
 pub struct Secp256r1BaseField;
 
 impl FieldParameters for Secp256r1BaseField {
+    /// A rough witness-offset estimate given the size of the limbs and the size of the field.
+    const WITNESS_OFFSET: usize = 1usize << 14;
     const MODULUS: &'static [u8] = &[
         0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0xff, 0xff,
         0xff, 0xff,
     ];
-    /// A rough witness-offset estimate given the size of the limbs and the size of the field.
-    const WITNESS_OFFSET: usize = 1usize << 14;
 
     fn modulus() -> BigUint {
         BigUint::from_bytes_le(Self::MODULUS)

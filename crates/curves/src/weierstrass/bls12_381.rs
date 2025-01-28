@@ -33,14 +33,14 @@ impl FieldParameters for Bls12381BaseField {
     // The below value is the little-endian representation of the modulus.
     const NB_LIMBS: usize = 48;
 
+    // A rough witness-offset estimate given the size of the limbs and the size of the field.
+    const WITNESS_OFFSET: usize = 1usize << 15;
+
     const MODULUS: &'static [u8] = &[
         171, 170, 255, 255, 255, 255, 254, 185, 255, 255, 83, 177, 254, 255, 171, 30, 36, 246, 176,
         246, 160, 210, 48, 103, 191, 18, 133, 243, 132, 75, 119, 100, 215, 172, 75, 67, 182, 167,
         27, 75, 154, 230, 127, 57, 234, 17, 1, 26,
     ];
-
-    // A rough witness-offset estimate given the size of the limbs and the size of the field.
-    const WITNESS_OFFSET: usize = 1usize << 15;
 
     fn modulus() -> BigUint {
         BigUint::from_str_radix(

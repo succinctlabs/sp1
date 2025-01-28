@@ -54,6 +54,14 @@ impl<E: WeierstrassParameters> WeierstrassParameters for SwCurve<E> {
     const A: GenericArray<u8, <Self::BaseField as NumLimbs>::Limbs> = E::A;
     const B: GenericArray<u8, <Self::BaseField as NumLimbs>::Limbs> = E::B;
 
+    fn generator() -> (BigUint, BigUint) {
+        E::generator()
+    }
+
+    fn prime_group_order() -> BigUint {
+        E::prime_group_order()
+    }
+
     fn a_int() -> BigUint {
         E::a_int()
     }
@@ -62,16 +70,8 @@ impl<E: WeierstrassParameters> WeierstrassParameters for SwCurve<E> {
         E::b_int()
     }
 
-    fn generator() -> (BigUint, BigUint) {
-        E::generator()
-    }
-
     fn nb_scalar_bits() -> usize {
         E::nb_scalar_bits()
-    }
-
-    fn prime_group_order() -> BigUint {
-        E::prime_group_order()
     }
 }
 

@@ -20,13 +20,13 @@ pub type Bn254 = SwCurve<Bn254Parameters>;
 pub struct Bn254BaseField;
 
 impl FieldParameters for Bn254BaseField {
+    // A rough witness-offset estimate given the size of the limbs and the size of the field.
+    const WITNESS_OFFSET: usize = 1usize << 14;
+
     const MODULUS: &'static [u8] = &[
         71, 253, 124, 216, 22, 140, 32, 60, 141, 202, 113, 104, 145, 106, 129, 151, 93, 88, 129,
         129, 182, 69, 80, 184, 41, 160, 49, 225, 114, 78, 100, 48,
     ];
-
-    // A rough witness-offset estimate given the size of the limbs and the size of the field.
-    const WITNESS_OFFSET: usize = 1usize << 14;
 
     // The modulus has been taken from py_ecc python library by Ethereum Foundation.
     // https://github.com/ethereum/py_pairing/blob/5f609da/py_ecc/bn128/bn128_field_elements.py#L10-L11

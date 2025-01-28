@@ -21,12 +21,12 @@ pub struct Ed25519Parameters;
 pub struct Ed25519BaseField;
 
 impl FieldParameters for Ed25519BaseField {
+    const WITNESS_OFFSET: usize = 1usize << 14;
+
     const MODULUS: &'static [u8] = &[
         237, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
         255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 127,
     ];
-
-    const WITNESS_OFFSET: usize = 1usize << 14;
 
     fn modulus() -> BigUint {
         (BigUint::one() << 255) - BigUint::from(19u32)
@@ -49,10 +49,6 @@ impl EdwardsParameters for Ed25519Parameters {
         121, 64, 199, 140, 115, 254, 111, 43, 238, 108, 3, 82,
     ]);
 
-    fn prime_group_order() -> BigUint {
-        BigUint::from(2u32).pow(252) + BigUint::from(27742317777372353535851937790883648493u128)
-    }
-
     fn generator() -> (BigUint, BigUint) {
         let x = BigUint::from_str_radix(
             "15112221349535400772501151409588531511454012693041857206046113283949847762202",
@@ -65,6 +61,10 @@ impl EdwardsParameters for Ed25519Parameters {
         )
         .unwrap();
         (x, y)
+    }
+
+    fn prime_group_order() -> BigUint {
+        BigUint::from(2u32).pow(252) + BigUint::from(27742317777372353535851937790883648493u128)
     }
 }
 

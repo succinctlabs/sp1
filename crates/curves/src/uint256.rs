@@ -12,14 +12,14 @@ use crate::params::{FieldParameters, NumLimbs};
 pub struct U256Field;
 
 impl FieldParameters for U256Field {
+    /// A rough witness-offset estimate given the size of the limbs and the size of the field.
+    const WITNESS_OFFSET: usize = 1usize << 14;
+
     /// The modulus of the field. It is represented as a little-endian array of 33 bytes.
     const MODULUS: &'static [u8] = &[
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 1,
     ];
-
-    /// A rough witness-offset estimate given the size of the limbs and the size of the field.
-    const WITNESS_OFFSET: usize = 1usize << 14;
 
     /// The modulus of Uint235 is 2^256.
     fn modulus() -> BigUint {
