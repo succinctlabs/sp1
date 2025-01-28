@@ -96,9 +96,9 @@ pub enum Opcode {
     JALR = 33,
     /// rd ← pc + imm, pc ← pc + 4
     AUIPC = 34,
-    /// Transfer control to the debugger.
-    ECALL = 35,
     /// Transfer control to the operating system.
+    ECALL = 35,
+    /// Transfer control to the debugger.
     EBREAK = 36,
     /// Unimplemented instruction.
     UNIMP = 37,

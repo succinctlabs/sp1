@@ -65,3 +65,4 @@ profiling = [
   "dep:gecko_profile",
   "dep:indicatif",
 ]
+gas = []

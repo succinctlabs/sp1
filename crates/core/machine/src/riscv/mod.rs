@@ -167,6 +167,10 @@ pub enum RiscvAir<F: PrimeField32> {
 }
 
 impl<F: PrimeField32> RiscvAir<F> {
+    pub fn id(&self) -> RiscvAirId {
+        RiscvAirId::from(RiscvAirDiscriminants::from(self))
+    }
+
     pub fn machine<SC: StarkGenericConfig<Val = F>>(config: SC) -> StarkMachine<SC, Self> {
         let chips = Self::chips();
         StarkMachine::new(config, chips, SP1_PROOF_NUM_PV_ELTS, true)
@@ -205,11 +209,11 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(program);
 
         let sha_extend = Chip::new(RiscvAir::Sha256Extend(ShaExtendChip::default()));
-        costs.insert(sha_extend.name(), 48 * sha_extend.cost());
+        costs.insert(sha_extend.name(), sha_extend.cost());
         chips.push(sha_extend);
 
         let sha_compress = Chip::new(RiscvAir::Sha256Compress(ShaCompressChip::default()));
-        costs.insert(sha_compress.name(), 80 * sha_compress.cost());
+        costs.insert(sha_compress.name(), sha_compress.cost());
         chips.push(sha_compress);
 
         let ed_add_assign = Chip::new(RiscvAir::Ed25519Add(EdAddAssignChip::<
@@ -263,7 +267,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(secp256r1_double_assign);
 
         let keccak_permute = Chip::new(RiscvAir::KeccakP(KeccakPermuteChip::new()));
-        costs.insert(keccak_permute.name(), 24 * keccak_permute.cost());
+        costs.insert(keccak_permute.name(), keccak_permute.cost());
         chips.push(keccak_permute);
 
         let bn254_add_assign = Chip::new(RiscvAir::Bn254Add(WeierstrassAddAssignChip::<
@@ -515,7 +519,10 @@ impl<F: PrimeField32> RiscvAir<F> {
         ]
     }
 
-    pub(crate) fn precompile_airs_with_memory_events_per_row() -> Vec<(Self, usize)> {
+    /// Internal function.
+    ///
+    /// Returns the number of memory events per row of each precompile. Used in estimating trace area.
+    pub fn precompile_airs_with_memory_events_per_row() -> HashMap<RiscvAirId, usize> {
         let mut airs: HashSet<_> = Self::get_airs_and_costs().0.into_iter().collect();
 
         // Remove the core airs.
@@ -546,7 +553,7 @@ impl<F: PrimeField32> RiscvAir<F> {
                     })
                     .count();
 
-                (chip.into_inner(), local_mem_events_per_row)
+                (chip.into_inner().id(), local_mem_events_per_row)
             })
             .collect()
     }
@@ -629,6 +636,58 @@ impl<F: PrimeField32> core::hash::Hash for RiscvAir<F> {
 impl<F: PrimeField32> fmt::Debug for RiscvAir<F> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name())
+    }
+}
+
+impl From<RiscvAirDiscriminants> for RiscvAirId {
+    fn from(value: RiscvAirDiscriminants) -> Self {
+        match value {
+            RiscvAirDiscriminants::Program => RiscvAirId::Program,
+            RiscvAirDiscriminants::Cpu => RiscvAirId::Cpu,
+            RiscvAirDiscriminants::Add => RiscvAirId::AddSub,
+            RiscvAirDiscriminants::Bitwise => RiscvAirId::Bitwise,
+            RiscvAirDiscriminants::Mul => RiscvAirId::Mul,
+            RiscvAirDiscriminants::DivRem => RiscvAirId::DivRem,
+            RiscvAirDiscriminants::Lt => RiscvAirId::Lt,
+            RiscvAirDiscriminants::ShiftLeft => RiscvAirId::ShiftLeft,
+            RiscvAirDiscriminants::ShiftRight => RiscvAirId::ShiftRight,
+            RiscvAirDiscriminants::Memory => RiscvAirId::MemoryInstrs,
+            RiscvAirDiscriminants::AUIPC => RiscvAirId::Auipc,
+            RiscvAirDiscriminants::Branch => RiscvAirId::Branch,
+            RiscvAirDiscriminants::Jump => RiscvAirId::Jump,
+            RiscvAirDiscriminants::SyscallInstrs => RiscvAirId::SyscallInstrs,
+            RiscvAirDiscriminants::ByteLookup => RiscvAirId::Byte,
+            RiscvAirDiscriminants::MemoryGlobalInit => RiscvAirId::MemoryGlobalInit,
+            RiscvAirDiscriminants::MemoryGlobalFinal => RiscvAirId::MemoryGlobalFinalize,
+            RiscvAirDiscriminants::MemoryLocal => RiscvAirId::MemoryLocal,
+            RiscvAirDiscriminants::SyscallCore => RiscvAirId::SyscallCore,
+            RiscvAirDiscriminants::SyscallPrecompile => RiscvAirId::SyscallPrecompile,
+            RiscvAirDiscriminants::Global => RiscvAirId::Global,
+            RiscvAirDiscriminants::Sha256Extend => RiscvAirId::ShaExtend,
+            RiscvAirDiscriminants::Sha256Compress => RiscvAirId::ShaCompress,
+            RiscvAirDiscriminants::Ed25519Add => RiscvAirId::EdAddAssign,
+            RiscvAirDiscriminants::Ed25519Decompress => RiscvAirId::EdDecompress,
+            RiscvAirDiscriminants::K256Decompress => RiscvAirId::Secp256k1Decompress,
+            RiscvAirDiscriminants::P256Decompress => RiscvAirId::Secp256r1Decompress,
+            RiscvAirDiscriminants::Secp256k1Add => RiscvAirId::Secp256k1AddAssign,
+            RiscvAirDiscriminants::Secp256k1Double => RiscvAirId::Secp256k1DoubleAssign,
+            RiscvAirDiscriminants::Secp256r1Add => RiscvAirId::Secp256r1AddAssign,
+            RiscvAirDiscriminants::Secp256r1Double => RiscvAirId::Secp256r1DoubleAssign,
+            RiscvAirDiscriminants::KeccakP => RiscvAirId::KeccakPermute,
+            RiscvAirDiscriminants::Bn254Add => RiscvAirId::Bn254AddAssign,
+            RiscvAirDiscriminants::Bn254Double => RiscvAirId::Bn254DoubleAssign,
+            RiscvAirDiscriminants::Bls12381Add => RiscvAirId::Bls12381AddAssign,
+            RiscvAirDiscriminants::Bls12381Double => RiscvAirId::Bls12381DoubleAssign,
+            RiscvAirDiscriminants::Uint256Mul => RiscvAirId::Uint256MulMod,
+            RiscvAirDiscriminants::U256x2048Mul => RiscvAirId::U256XU2048Mul,
+            RiscvAirDiscriminants::Bls12381Decompress => RiscvAirId::Bls12381Decompress,
+            RiscvAirDiscriminants::Bls12381Fp => RiscvAirId::Bls12381FpOpAssign,
+            RiscvAirDiscriminants::Bls12381Fp2Mul => RiscvAirId::Bls12381Fp2MulAssign,
+            RiscvAirDiscriminants::Bls12381Fp2AddSub => RiscvAirId::Bls12381Fp2AddSubAssign,
+            RiscvAirDiscriminants::Bn254Fp => RiscvAirId::Bn254FpOpAssign,
+            RiscvAirDiscriminants::Bn254Fp2Mul => RiscvAirId::Bn254Fp2MulAssign,
+            RiscvAirDiscriminants::Bn254Fp2AddSub => RiscvAirId::Bn254Fp2AddSubAssign,
+        }
     }
 }
 

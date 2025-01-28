@@ -25,6 +25,8 @@ mod context;
 mod cost;
 mod dependencies;
 mod disassembler;
+#[cfg(feature = "gas")]
+pub mod estimator;
 pub mod events;
 mod executor;
 mod hook;
