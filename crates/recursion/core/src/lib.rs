@@ -1,5 +1,3 @@
-#![warn(clippy::print_stdout)]
-
 use p3_field::PrimeField64;
 use serde::{Deserialize, Serialize};
 use sp1_derive::AlignedBorrow;

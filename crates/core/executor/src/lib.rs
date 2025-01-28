@@ -18,7 +18,6 @@
 #![allow(clippy::missing_errors_doc)]
 #![allow(clippy::explicit_iter_loop)]
 #![allow(clippy::struct_excessive_bools)]
-#![warn(clippy::print_stdout)]
 #![warn(missing_docs)]
 
 mod air;

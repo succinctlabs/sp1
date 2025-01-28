@@ -1,5 +1,3 @@
-#![warn(clippy::print_stdout)]
-
 mod babybear;
 
 pub mod ffi;

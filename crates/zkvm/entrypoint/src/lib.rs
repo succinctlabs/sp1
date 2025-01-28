@@ -1,5 +1,3 @@
-#![warn(clippy::print_stdout)]
-
 #[cfg(all(target_os = "zkvm", feature = "embedded"))]
 use syscalls::MAX_MEMORY;
 

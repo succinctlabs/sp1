@@ -22,7 +22,6 @@
 #![allow(clippy::missing_panics_doc)]
 #![allow(clippy::missing_errors_doc)]
 #![allow(clippy::explicit_iter_loop)]
-#![warn(clippy::print_stdout)]
 #![warn(missing_docs)]
 
 pub mod artifacts;

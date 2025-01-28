@@ -1,5 +1,3 @@
-#![warn(clippy::print_stdout)]
-
 pub mod edwards;
 pub mod params;
 // pub mod polynomial;

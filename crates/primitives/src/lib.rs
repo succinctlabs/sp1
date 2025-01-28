@@ -1,8 +1,6 @@
 //! sp1-primitives contains types and functions that are used in both sp1-core and sp1-zkvm.
 //! Because it is imported in the zkvm entrypoint, it should be kept minimal.
 
-#![warn(clippy::print_stdout)]
-
 use lazy_static::lazy_static;
 use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
 use p3_field::AbstractField;

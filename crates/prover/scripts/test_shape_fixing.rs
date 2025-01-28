@@ -1,3 +1,5 @@
+#![allow(clippy::print_stdout)]
+
 use clap::Parser;
 use p3_baby_bear::BabyBear;
 use p3_util::log2_ceil_usize;

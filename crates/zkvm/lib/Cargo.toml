@@ -17,3 +17,6 @@ sp1-primitives = { workspace = true }
 [features]
 default = []
 verify = []
+
+[lints]
+workspace = true

@@ -10,7 +10,6 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::new_without_default)]
 #![allow(clippy::collapsible_else_if)]
-#![warn(clippy::print_stdout)]
 
 pub mod build;
 pub mod components;

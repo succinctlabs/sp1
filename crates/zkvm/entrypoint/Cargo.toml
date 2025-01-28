@@ -36,3 +36,6 @@ verify = [
   "sp1-lib/verify",
 ]
 bump = []
+
+[lints]
+workspace = true

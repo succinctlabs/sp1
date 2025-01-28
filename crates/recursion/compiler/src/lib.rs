@@ -1,6 +1,5 @@
 #![allow(clippy::type_complexity)]
 #![allow(clippy::needless_range_loop)]
-#![warn(clippy::print_stdout)]
 
 extern crate alloc;
 
