@@ -5,7 +5,7 @@ use sp1_build::{execute_build_program, BuildArgs};
 #[derive(Parser)]
 #[command(name = "build", about = "Compile an SP1 program")]
 pub struct BuildCmd {
-    #[clap(flatten)]
+    #[command(flatten)]
     build_args: BuildArgs,
 }
 
