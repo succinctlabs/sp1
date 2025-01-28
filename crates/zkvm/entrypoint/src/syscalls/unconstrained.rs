@@ -16,7 +16,7 @@ pub fn syscall_enter_unconstrained() -> bool {
 
     #[cfg(not(target_os = "zkvm"))]
     {
-        println!("Entering unconstrained execution block");
+        eprintln!("Entering unconstrained execution block");
         continue_unconstrained = 1;
     }
 
@@ -35,5 +35,5 @@ pub fn syscall_exit_unconstrained() {
     }
 
     #[cfg(not(target_os = "zkvm"))]
-    println!("Exiting unconstrained execution block");
+    eprintln!("Exiting unconstrained execution block");
 }

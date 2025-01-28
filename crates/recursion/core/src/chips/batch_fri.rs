@@ -171,7 +171,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for BatchFRIChip<DEGREE
         );
 
         #[cfg(debug_assertions)]
-        println!(
+        eprintln!(
             "batch fri trace dims is width: {:?}, height: {:?}",
             trace.width(),
             trace.height()

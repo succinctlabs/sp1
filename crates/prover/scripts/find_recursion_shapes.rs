@@ -1,3 +1,5 @@
+#![allow(clippy::print_stdout)]
+
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
 use clap::Parser;

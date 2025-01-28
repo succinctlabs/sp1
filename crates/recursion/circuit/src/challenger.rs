@@ -425,6 +425,8 @@ pub fn split_32<C: Config>(builder: &mut Builder<C>, val: Var<C::N>, n: usize) -
 
 #[cfg(test)]
 pub(crate) mod tests {
+    #![allow(clippy::print_stdout)]
+
     use std::iter::zip;
 
     use crate::{
