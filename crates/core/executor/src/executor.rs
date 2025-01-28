@@ -165,7 +165,8 @@ pub struct Executor<'a> {
     /// The costs of the program.
     pub costs: HashMap<RiscvAirId, u64>,
 
-    /// Skip deferred proof verification.
+    /// Skip deferred proof verification. This check is informational only, not related to circuit
+    /// correctness.
     pub deferred_proof_verification: DeferredProofVerification,
 
     /// The frequency to check the stopping condition.
@@ -378,6 +379,9 @@ impl<'a> Executor<'a> {
     pub fn recover(program: Program, state: ExecutionState, opts: SP1CoreOpts) -> Self {
         let mut runtime = Self::new(program, opts);
         runtime.state = state;
+        // Disable deferred proof verification since we're recovering from a checkpoint, and the
+        // checkpoint creator already had a chance to check the proofs.
+        runtime.deferred_proof_verification = DeferredProofVerification::Disabled;
         runtime
     }
 
@@ -1800,12 +1804,14 @@ impl<'a> Executor<'a> {
         self.executor_mode = ExecutorMode::Checkpoint;
         self.emit_global_memory_events = emit_global_memory_events;
 
-        // Clone self.state without memory and uninitialized_memory in it so it's faster.
+        // Clone self.state without memory, uninitialized_memory, proof_stream in it so it's faster.
         let memory = std::mem::take(&mut self.state.memory);
         let uninitialized_memory = std::mem::take(&mut self.state.uninitialized_memory);
+        let proof_stream = std::mem::take(&mut self.state.proof_stream);
         let mut checkpoint = tracing::debug_span!("clone").in_scope(|| self.state.clone());
         self.state.memory = memory;
         self.state.uninitialized_memory = uninitialized_memory;
+        self.state.proof_stream = proof_stream;
 
         let done = tracing::debug_span!("execute").in_scope(|| self.execute())?;
         // Create a checkpoint using `memory_checkpoint`. Just include all memory if `done` since we
