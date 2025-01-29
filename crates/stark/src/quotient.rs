@@ -158,6 +158,7 @@ where
 
             // quotient(x) = constraints(x) / Z_H(x)
             let quotient = folder.accumulator * inv_zeroifier;
+
             // "Transpose" D packed base coefficients into WIDTH scalar extension coefficients.
             (0..PackedVal::<SC>::WIDTH).map(move |idx_in_packing| {
                 let quotient_value = (0..<SC::Challenge as AbstractExtensionField<Val<SC>>>::D)
