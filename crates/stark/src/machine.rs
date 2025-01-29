@@ -76,8 +76,6 @@ pub struct StarkProvingKey<SC: StarkGenericConfig> {
     pub chip_ordering: HashMap<String, usize>,
     /// The preprocessed chip local only information.
     pub local_only: Vec<bool>,
-    /// The max number of constraints among all the chips.
-    pub max_num_constraints: usize,
     /// The number of constraints for each chip.
     pub constraints_map: HashMap<String, usize>,
 }
@@ -109,10 +107,6 @@ pub struct StarkVerifyingKey<SC: StarkGenericConfig> {
     pub chip_information: Vec<(String, Dom<SC>, Dimensions)>,
     /// The chip ordering.
     pub chip_ordering: HashMap<String, usize>,
-    /// The max number of constraints among all the chips.
-    pub max_num_constraints: usize,
-    /// The number of constraints for each chip.
-    pub constraints_map: HashMap<String, usize>,
 }
 
 impl<SC: StarkGenericConfig> StarkVerifyingKey<SC> {
@@ -245,12 +239,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>> + Air<SymbolicAirBuilder<Val
                     .unzip()
             });
 
-        let max_num_constraints = num_constraints
-            .clone()
-            .into_iter()
-            .map(|(_, num_constraints)| num_constraints)
-            .max()
-            .unwrap_or(0);
         let mut named_preprocessed_traces =
             named_preprocessed_traces.into_iter().flatten().collect::<Vec<_>>();
 
@@ -300,7 +288,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>> + Air<SymbolicAirBuilder<Val
                 data,
                 chip_ordering: chip_ordering.clone(),
                 local_only,
-                max_num_constraints,
                 constraints_map: constraints_map.clone(),
             },
             StarkVerifyingKey {
@@ -309,8 +296,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>> + Air<SymbolicAirBuilder<Val
                 initial_global_cumulative_sum,
                 chip_information,
                 chip_ordering,
-                max_num_constraints,
-                constraints_map,
             },
         )
     }

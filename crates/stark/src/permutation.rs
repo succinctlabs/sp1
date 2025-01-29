@@ -351,6 +351,11 @@ pub fn eval_permutation_constraints<'a, F, AB>(
 }
 
 /// Counts the number of permutation constraints for the given chip.
+///
+/// IMPORTANT: This function must be manually updated if any changes are made to the constraint system in
+/// `eval_permutation_constraints`. The current count includes:
+/// - For local permutations: (width-1) batch sum constraints + 3 cumulative sum constraints
+/// - For global scope: 14 additional constraints for the global cumulative sum
 pub fn count_permutation_constraints<F: Field>(
     sends: &[Interaction<F>],
     receives: &[Interaction<F>],
@@ -371,16 +376,14 @@ pub fn count_permutation_constraints<F: Field>(
         // Loop over local_permutation_width - 1 iterations with one assert per iteration.
         count += local_permutation_width - 1;
 
-        // Assert that cumulative sum is initialized to `phi_local` on the first row.
-        // builder.when_first_row().assert_eq_ext(phi_local.clone(), sum_local);
-
-        // Assert that the cumulative sum is constrained to `phi_next - phi_local` on the transition
+        // One assert that cumulative sum is initialized to `phi_local` on the first row.
+        // Two asserts that the cumulative sum is constrained to `phi_next - phi_local` on the transition
         // rows.
-        // builder.when_transition().assert_eq_ext(phi_next - phi_local.clone(), sum_next);
-        // builder.when_last_row().assert_eq_ext(*perm_local.last().unwrap(), *local_cumulative_sum);
         count += 3;
     }
 
+    // If the chip's scope is `InteractionScope::Global`, 14 asserts that
+    // the last row's final 14 columns is equal to the global cumulative sum.
     if commit_scope == InteractionScope::Global {
         count += 14;
     }

@@ -163,8 +163,6 @@ pub fn dummy_vk_and_shard_proof<A: MachineAir<BabyBear> + Air<SymbolicAirBuilder
         initial_global_cumulative_sum: SepticDigest::<BabyBear>::zero(),
         chip_information: preprocessed_chip_information,
         chip_ordering: preprocessed_chip_ordering,
-        max_num_constraints: 0,
-        constraints_map: HashMap::new(),
     };
 
     let shard_proof =

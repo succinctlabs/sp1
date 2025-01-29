@@ -176,8 +176,6 @@ impl SP1ProofWithPublicValues {
                     chip_information: vec![],
                     chip_ordering: HashMap::new(),
                     initial_global_cumulative_sum: SepticDigest::zero(),
-                    max_num_constraints: 0,
-                    constraints_map: HashMap::new(),
                 };
 
                 let proof = SP1Proof::Compressed(Box::new(SP1ReduceProof {
