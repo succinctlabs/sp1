@@ -98,7 +98,7 @@ builder
 
 The global interaction system works as follows. Each chip that needs to send a global interaction, first sends an interaction with `InteractionKind::Global` locally. Then, the `GlobalChip` receives these local interactions with `InteractionKind::Global`, then converts these messages into digests and accumulates them, making the results global. 
 
-However, while these informations are sent locally with `InteractionKind::Global`, there are actually two different "actual" `InteractionKind`s - `Memory` and `Syscall`. 
+However, while these information are sent locally with `InteractionKind::Global`, there are actually two different "actual" `InteractionKind`s - `Memory` and `Syscall`. 
 
 The vulnerability was in that the actual underlying `InteractionKind` was not sent as a part of the local interaction between the chips and `GlobalChip`. Therefore, a "memory" interaction could be regarded as "syscall" interaction, and vice versa. 
 

@@ -26,7 +26,7 @@ pub fn quotient_values<SC, A, Mat>(
     main_trace_on_quotient_domain: Mat,
     permutation_trace_on_quotient_domain: Mat,
     perm_challenges: &[PackedChallenge<SC>],
-    alpha: SC::Challenge,
+    powers_of_alpha: &Vec<SC::Challenge>,
     public_values: &[Val<SC>],
 ) -> Vec<SC::Challenge>
 where
@@ -149,9 +149,10 @@ where
                 is_first_row,
                 is_last_row,
                 is_transition,
-                alpha,
+                powers_of_alpha,
                 accumulator,
                 public_values,
+                constraint_index: 0,
             };
             chip.eval(&mut folder);
 
