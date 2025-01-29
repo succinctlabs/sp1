@@ -13,7 +13,7 @@ use p3_baby_bear::BabyBear;
 use p3_commit::Mmcs;
 use p3_field::AbstractField;
 use p3_matrix::dense::RowMajorMatrix;
-
+use p3_uni_stark::SymbolicAirBuilder;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp1_recursion_compiler::ir::{Builder, Felt, SymbolicFelt};
 
@@ -78,7 +78,9 @@ where
     SC: BabyBearFriConfigVariable<C>,
     C: CircuitConfig<F = SC::Val, EF = SC::Challenge>,
     <SC::ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>: Clone,
-    A: MachineAir<SC::Val> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
+    A: MachineAir<SC::Val>
+        + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>
+        + Air<SymbolicAirBuilder<SC::Val>>,
 {
     /// Verify a batch of recursive proofs and aggregate their public values.
     ///
@@ -508,7 +510,7 @@ impl<SC: BabyBearFriConfig> SP1CompressWitnessValues<SC> {
 }
 
 impl SP1CompressWitnessValues<BabyBearPoseidon2> {
-    pub fn dummy<A: MachineAir<BabyBear>>(
+    pub fn dummy<A: MachineAir<BabyBear> + Air<SymbolicAirBuilder<BabyBear>>>(
         machine: &StarkMachine<BabyBearPoseidon2, A>,
         shape: &SP1CompressShape,
     ) -> Self {

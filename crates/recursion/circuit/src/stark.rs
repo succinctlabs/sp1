@@ -8,6 +8,7 @@ use p3_baby_bear::BabyBear;
 use p3_commit::{Mmcs, Pcs, PolynomialSpace, TwoAdicMultiplicativeCoset};
 use p3_field::{AbstractField, ExtensionField, Field, TwoAdicField};
 use p3_matrix::{dense::RowMajorMatrix, Dimensions};
+use p3_uni_stark::SymbolicAirBuilder;
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
     ir::{Builder, Config, Ext, ExtConst},
@@ -56,7 +57,7 @@ pub fn dummy_challenger(config: &BabyBearPoseidon2) -> Challenger<BabyBearPoseid
 }
 
 /// Make a dummy shard proof for a given proof shape.
-pub fn dummy_vk_and_shard_proof<A: MachineAir<BabyBear>>(
+pub fn dummy_vk_and_shard_proof<A: MachineAir<BabyBear> + Air<SymbolicAirBuilder<BabyBear>>>(
     machine: &StarkMachine<BabyBearPoseidon2, A>,
     shape: &OrderedShape,
 ) -> (StarkVerifyingKey<BabyBearPoseidon2>, ShardProof<BabyBearPoseidon2>) {
@@ -232,7 +233,7 @@ where
     C: CircuitConfig<F = SC::Val>,
     SC: BabyBearFriConfigVariable<C>,
     <SC::ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>: Clone,
-    A: MachineAir<Val<SC>>,
+    A: MachineAir<Val<SC>> + Air<SymbolicAirBuilder<SC::Val>>,
 {
     pub fn natural_domain_for_degree(
         config: &SC,

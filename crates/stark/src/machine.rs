@@ -1,5 +1,6 @@
 use crate::{
     septic_curve::SepticCurve, septic_digest::SepticDigest, septic_extension::SepticExtension,
+    PROOF_MAX_NUM_PVS,
 };
 use hashbrown::HashMap;
 use itertools::Itertools;
@@ -9,11 +10,13 @@ use p3_commit::Pcs;
 use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Dimensions, Matrix};
 use p3_maybe_rayon::prelude::*;
+use p3_uni_stark::{get_symbolic_constraints, SymbolicAirBuilder};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{cmp::Reverse, env, fmt::Debug, iter::once, time::Instant};
 use tracing::instrument;
 
 use super::{debug_constraints, Dom};
+use crate::count_permutation_constraints;
 use crate::{
     air::{InteractionScope, MachineAir, MachineProgram},
     lookup::{debug_interactions_with_all_chips, InteractionKind},
@@ -73,6 +76,8 @@ pub struct StarkProvingKey<SC: StarkGenericConfig> {
     pub chip_ordering: HashMap<String, usize>,
     /// The preprocessed chip local only information.
     pub local_only: Vec<bool>,
+    /// The number of total constraints for each chip.
+    pub constraints_map: HashMap<String, usize>,
 }
 
 impl<SC: StarkGenericConfig> StarkProvingKey<SC> {
@@ -122,7 +127,9 @@ impl<SC: StarkGenericConfig> Debug for StarkVerifyingKey<SC> {
     }
 }
 
-impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
+impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>> + Air<SymbolicAirBuilder<Val<SC>>>>
+    StarkMachine<SC, A>
+{
     /// Get an array containing a `ChipRef` for all the chips of this RISC-V STARK machine.
     pub fn chips(&self) -> &[MachineChip<SC, A>] {
         &self.chips
@@ -185,30 +192,54 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         initial_global_cumulative_sum: SepticDigest<Val<SC>>,
     ) -> (StarkProvingKey<SC>, StarkVerifyingKey<SC>) {
         let parent_span = tracing::debug_span!("generate preprocessed traces");
-        let mut named_preprocessed_traces = parent_span.in_scope(|| {
-            self.chips()
-                .par_iter()
-                .filter_map(|chip| {
-                    let chip_name = chip.name();
-                    let begin = Instant::now();
-                    let prep_trace = chip.generate_preprocessed_trace(program);
-                    tracing::debug!(
-                        parent: &parent_span,
-                        "generated preprocessed trace for chip {} in {:?}",
-                        chip_name,
-                        begin.elapsed()
-                    );
-                    // Assert that the chip width data is correct.
-                    let expected_width = prep_trace.as_ref().map_or(0, p3_matrix::Matrix::width);
-                    assert_eq!(
-                        expected_width,
-                        chip.preprocessed_width(),
-                        "Incorrect number of preprocessed columns for chip {chip_name}"
-                    );
-                    prep_trace.map(move |t| (chip_name, chip.local_only(), t))
-                })
-                .collect::<Vec<_>>()
-        });
+        let (named_preprocessed_traces, num_constraints): (Vec<_>, Vec<_>) =
+            parent_span.in_scope(|| {
+                self.chips()
+                    .par_iter()
+                    .map(|chip| {
+                        let chip_name = chip.name();
+                        let begin = Instant::now();
+                        let prep_trace = chip.generate_preprocessed_trace(program);
+                        tracing::debug!(
+                            parent: &parent_span,
+                            "generated preprocessed trace for chip {} in {:?}",
+                            chip_name,
+                            begin.elapsed()
+                        );
+                        // Assert that the chip width data is correct.
+                        let expected_width =
+                            prep_trace.as_ref().map_or(0, p3_matrix::Matrix::width);
+                        assert_eq!(
+                            expected_width,
+                            chip.preprocessed_width(),
+                            "Incorrect number of preprocessed columns for chip {chip_name}"
+                        );
+
+                        // Count the number of constraints.
+                        let num_constraints = get_symbolic_constraints(
+                            &chip.air,
+                            chip.preprocessed_width(),
+                            PROOF_MAX_NUM_PVS,
+                        )
+                        .len();
+
+                        let permutation_constraints = count_permutation_constraints(
+                            &chip.sends,
+                            &chip.receives,
+                            chip.logup_batch_size(),
+                            chip.air.commit_scope(),
+                        );
+
+                        (
+                            prep_trace.map(move |t| (chip.name(), chip.local_only(), t)),
+                            (chip_name, num_constraints + permutation_constraints),
+                        )
+                    })
+                    .unzip()
+            });
+
+        let mut named_preprocessed_traces =
+            named_preprocessed_traces.into_iter().flatten().collect::<Vec<_>>();
 
         // Order the chips and traces by trace size (biggest first), and get the ordering map.
         named_preprocessed_traces
@@ -239,6 +270,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             .map(|(_, local_only, _)| local_only.to_owned())
             .collect::<Vec<_>>();
 
+        let constraints_map: HashMap<_, _> = num_constraints.into_iter().collect();
+
         // Get the preprocessed traces
         let traces =
             named_preprocessed_traces.into_iter().map(|(_, _, trace)| trace).collect::<Vec<_>>();
@@ -254,6 +287,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                 data,
                 chip_ordering: chip_ordering.clone(),
                 local_only,
+                constraints_map: constraints_map.clone(),
             },
             StarkVerifyingKey {
                 commit,

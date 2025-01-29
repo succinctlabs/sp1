@@ -1,18 +1,5 @@
 use std::marker::PhantomData;
 
-use p3_air::Air;
-use p3_baby_bear::BabyBear;
-use p3_commit::Mmcs;
-use p3_field::AbstractField;
-use p3_matrix::dense::RowMajorMatrix;
-use serde::{Deserialize, Serialize};
-use sp1_recursion_compiler::ir::{Builder, Felt};
-use sp1_recursion_core::DIGEST_SIZE;
-use sp1_stark::{
-    air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, Com, InnerChallenge, OpeningProof,
-    StarkGenericConfig, StarkMachine,
-};
-
 use crate::{
     challenger::DuplexChallengerVariable,
     constraints::RecursiveVerifierConstraintFolder,
@@ -21,6 +8,19 @@ use crate::{
     stark::MerkleProofVariable,
     witness::{WitnessWriter, Witnessable},
     BabyBearFriConfig, BabyBearFriConfigVariable, CircuitConfig, TwoAdicPcsProofVariable,
+};
+use p3_air::Air;
+use p3_baby_bear::BabyBear;
+use p3_commit::Mmcs;
+use p3_field::AbstractField;
+use p3_matrix::dense::RowMajorMatrix;
+use p3_uni_stark::SymbolicAirBuilder;
+use serde::{Deserialize, Serialize};
+use sp1_recursion_compiler::ir::{Builder, Felt};
+use sp1_recursion_core::DIGEST_SIZE;
+use sp1_stark::{
+    air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, Com, InnerChallenge, OpeningProof,
+    StarkGenericConfig, StarkMachine,
 };
 
 use super::{
@@ -120,7 +120,9 @@ where
     >,
     C: CircuitConfig<F = SC::Val, EF = SC::Challenge, Bit = Felt<BabyBear>>,
     <SC::ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>: Clone,
-    A: MachineAir<SC::Val> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
+    A: MachineAir<SC::Val>
+        + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>
+        + Air<SymbolicAirBuilder<SC::Val>>,
 {
     /// Verify the proof shape phase of the compress stage.
     pub fn verify(
@@ -161,7 +163,7 @@ impl SP1MerkleProofWitnessValues<BabyBearPoseidon2> {
 }
 
 impl SP1CompressWithVKeyWitnessValues<BabyBearPoseidon2> {
-    pub fn dummy<A: MachineAir<BabyBear>>(
+    pub fn dummy<A: MachineAir<BabyBear> + Air<SymbolicAirBuilder<BabyBear>>>(
         machine: &StarkMachine<BabyBearPoseidon2, A>,
         shape: &SP1CompressWithVkeyShape,
     ) -> Self {

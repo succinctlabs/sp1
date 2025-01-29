@@ -40,12 +40,14 @@ pub struct ProverConstraintFolder<'a, SC: StarkGenericConfig> {
     pub is_last_row: PackedVal<SC>,
     /// The selector for the transition.
     pub is_transition: PackedVal<SC>,
-    /// The constraint folding challenge.
-    pub alpha: SC::Challenge,
+    /// The powers of the constraint folding challenge.
+    pub powers_of_alpha: &'a Vec<SC::Challenge>,
     /// The accumulator for the constraint folding.
     pub accumulator: PackedChallenge<SC>,
     /// The public values.
     pub public_values: &'a [Val<SC>],
+    /// The constraint index.
+    pub constraint_index: usize,
 }
 
 impl<'a, SC: StarkGenericConfig> AirBuilder for ProverConstraintFolder<'a, SC> {
@@ -77,8 +79,9 @@ impl<'a, SC: StarkGenericConfig> AirBuilder for ProverConstraintFolder<'a, SC> {
 
     fn assert_zero<I: Into<Self::Expr>>(&mut self, x: I) {
         let x: PackedVal<SC> = x.into();
-        self.accumulator *= PackedChallenge::<SC>::from_f(self.alpha);
-        self.accumulator += x;
+        self.accumulator +=
+            PackedChallenge::<SC>::from_f(self.powers_of_alpha[self.constraint_index]) * x;
+        self.constraint_index += 1;
     }
 }
 
@@ -94,8 +97,9 @@ impl<SC: StarkGenericConfig> ExtensionBuilder for ProverConstraintFolder<'_, SC>
         I: Into<Self::ExprEF>,
     {
         let x: PackedChallenge<SC> = x.into();
-        self.accumulator *= PackedChallenge::<SC>::from_f(self.alpha);
-        self.accumulator += x;
+        self.accumulator +=
+            PackedChallenge::<SC>::from_f(self.powers_of_alpha[self.constraint_index]) * x;
+        self.constraint_index += 1;
     }
 }
 

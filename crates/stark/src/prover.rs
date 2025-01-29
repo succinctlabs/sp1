@@ -10,6 +10,7 @@ use p3_commit::{Pcs, PolynomialSpace};
 use p3_field::{AbstractExtensionField, AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::*;
+use p3_uni_stark::SymbolicAirBuilder;
 use p3_util::log2_strict_usize;
 use serde::{de::DeserializeOwned, Serialize};
 use std::{cmp::Reverse, error::Error, time::Instant};
@@ -25,8 +26,10 @@ use crate::{
 };
 
 /// An algorithmic & hardware independent prover implementation for any [`MachineAir`].
-pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
-    'static + Send + Sync
+pub trait MachineProver<
+    SC: StarkGenericConfig,
+    A: MachineAir<SC::Val> + Air<SymbolicAirBuilder<SC::Val>>,
+>: 'static + Send + Sync
 {
     /// The type used to store the traces.
     type DeviceMatrix: Matrix<SC::Val>;
@@ -194,7 +197,8 @@ where
     A: MachineAir<SC::Val>
         + for<'a> Air<ProverConstraintFolder<'a, SC>>
         + Air<InteractionBuilder<Val<SC>>>
-        + for<'a> Air<VerifierConstraintFolder<'a, SC>>,
+        + for<'a> Air<VerifierConstraintFolder<'a, SC>>
+        + for<'a> Air<SymbolicAirBuilder<Val<SC>>>,
     A::Record: MachineRecord<Config = SP1CoreOpts>,
     SC::Val: PrimeField32,
     Com<SC>: Send + Sync,
@@ -404,6 +408,7 @@ where
 
         // Compute the quotient values.
         let alpha: SC::Challenge = challenger.sample_ext_element::<SC::Challenge>();
+
         let parent_span = tracing::debug_span!("compute quotient values");
         let quotient_values = parent_span.in_scope(|| {
             quotient_domains
@@ -423,6 +428,15 @@ where
                             let permutation_trace_on_quotient_domains = pcs
                                 .get_evaluations_on_domain(&permutation_data, i, *quotient_domain)
                                 .to_row_major_matrix();
+
+                            let chip_num_constraints =
+                                pk.constraints_map.get(&chips[i].name()).unwrap();
+
+                            let powers_of_alpha =
+                                alpha.powers().take(*chip_num_constraints).collect::<Vec<_>>();
+                            let mut powers_of_alpha_rev = powers_of_alpha.clone();
+                            powers_of_alpha_rev.reverse();
+
                             quotient_values(
                                 chips[i],
                                 &local_cumulative_sums[i],
@@ -433,7 +447,7 @@ where
                                 main_trace_on_quotient_domains,
                                 permutation_trace_on_quotient_domains,
                                 &packed_perm_challenges,
-                                alpha,
+                                &powers_of_alpha_rev,
                                 &data.public_values,
                             )
                         })
