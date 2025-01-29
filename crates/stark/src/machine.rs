@@ -16,6 +16,7 @@ use std::{cmp::Reverse, env, fmt::Debug, iter::once, time::Instant};
 use tracing::instrument;
 
 use super::{debug_constraints, Dom};
+use crate::count_permutation_constraints;
 use crate::{
     air::{InteractionScope, MachineAir, MachineProgram},
     lookup::{debug_interactions_with_all_chips, InteractionKind},
@@ -77,6 +78,8 @@ pub struct StarkProvingKey<SC: StarkGenericConfig> {
     pub local_only: Vec<bool>,
     /// The max number of constraints among all the chips.
     pub max_num_constraints: usize,
+    /// The number of constraints for each chip.
+    pub constraints_map: HashMap<String, usize>,
 }
 
 impl<SC: StarkGenericConfig> StarkProvingKey<SC> {
@@ -108,6 +111,8 @@ pub struct StarkVerifyingKey<SC: StarkGenericConfig> {
     pub chip_ordering: HashMap<String, usize>,
     /// The max number of constraints among all the chips.
     pub max_num_constraints: usize,
+    /// The number of constraints for each chip.
+    pub constraints_map: HashMap<String, usize>,
 }
 
 impl<SC: StarkGenericConfig> StarkVerifyingKey<SC> {
@@ -199,6 +204,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>> + Air<SymbolicAirBuilder<Val
                     .par_iter()
                     .map(|chip| {
                         let chip_name = chip.name();
+                        let chip_name_clone = chip_name.clone();
                         let begin = Instant::now();
                         let prep_trace = chip.generate_preprocessed_trace(program);
                         tracing::debug!(
@@ -224,15 +230,27 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>> + Air<SymbolicAirBuilder<Val
                         )
                         .len();
 
+                        let permutation_constraints = count_permutation_constraints(
+                            &chip.sends,
+                            &chip.receives,
+                            chip.logup_batch_size(),
+                            chip.air.commit_scope(),
+                        );
+
                         (
                             prep_trace.map(move |t| (chip_name, chip.local_only(), t)),
-                            num_constraints,
+                            (chip_name_clone, num_constraints + permutation_constraints),
                         )
                     })
                     .unzip()
             });
 
-        let max_num_constraints = num_constraints.into_iter().max().unwrap();
+        let max_num_constraints = num_constraints
+            .clone()
+            .into_iter()
+            .map(|(_, num_constraints)| num_constraints)
+            .max()
+            .unwrap_or(0);
         let mut named_preprocessed_traces =
             named_preprocessed_traces.into_iter().flatten().collect::<Vec<_>>();
 
@@ -265,6 +283,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>> + Air<SymbolicAirBuilder<Val
             .map(|(_, local_only, _)| local_only.to_owned())
             .collect::<Vec<_>>();
 
+        let constraints_map: HashMap<_, _> = num_constraints.into_iter().collect();
+
         // Get the preprocessed traces
         let traces =
             named_preprocessed_traces.into_iter().map(|(_, _, trace)| trace).collect::<Vec<_>>();
@@ -281,6 +301,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>> + Air<SymbolicAirBuilder<Val
                 chip_ordering: chip_ordering.clone(),
                 local_only,
                 max_num_constraints,
+                constraints_map: constraints_map.clone(),
             },
             StarkVerifyingKey {
                 commit,
@@ -289,6 +310,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>> + Air<SymbolicAirBuilder<Val
                 chip_information,
                 chip_ordering,
                 max_num_constraints,
+                constraints_map,
             },
         )
     }

@@ -163,6 +163,8 @@ pub fn dummy_vk_and_shard_proof<A: MachineAir<BabyBear> + Air<SymbolicAirBuilder
         initial_global_cumulative_sum: SepticDigest::<BabyBear>::zero(),
         chip_information: preprocessed_chip_information,
         chip_ordering: preprocessed_chip_ordering,
+        max_num_constraints: 0,
+        constraints_map: HashMap::new(),
     };
 
     let shard_proof =
@@ -233,7 +235,7 @@ where
     C: CircuitConfig<F = SC::Val>,
     SC: BabyBearFriConfigVariable<C>,
     <SC::ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>: Clone,
-    A: MachineAir<Val<SC>>,
+    A: MachineAir<Val<SC>> + Air<SymbolicAirBuilder<SC::Val>>,
 {
     pub fn natural_domain_for_degree(
         config: &SC,

@@ -349,3 +349,41 @@ pub fn eval_permutation_constraints<'a, F, AB>(
         }
     }
 }
+
+/// Counts the number of permutation constraints for the given chip.
+pub fn count_permutation_constraints<F: Field>(
+    sends: &[Interaction<F>],
+    receives: &[Interaction<F>],
+    batch_size: usize,
+    commit_scope: InteractionScope,
+) -> usize {
+    let mut count = 0;
+
+    let empty = vec![];
+    let (scoped_sends, scoped_receives) = scoped_interactions(sends, receives);
+    let local_sends = scoped_sends.get(&InteractionScope::Local).unwrap_or(&empty);
+    let local_receives = scoped_receives.get(&InteractionScope::Local).unwrap_or(&empty);
+
+    let local_permutation_width =
+        local_permutation_trace_width(local_sends.len() + local_receives.len(), batch_size);
+
+    if !local_sends.is_empty() || !local_receives.is_empty() {
+        // Loop over local_permutation_width - 1 iterations with one assert per iteration.
+        count += local_permutation_width - 1;
+
+        // Assert that cumulative sum is initialized to `phi_local` on the first row.
+        // builder.when_first_row().assert_eq_ext(phi_local.clone(), sum_local);
+
+        // Assert that the cumulative sum is constrained to `phi_next - phi_local` on the transition
+        // rows.
+        // builder.when_transition().assert_eq_ext(phi_next - phi_local.clone(), sum_next);
+        // builder.when_last_row().assert_eq_ext(*perm_local.last().unwrap(), *local_cumulative_sum);
+        count += 3;
+    }
+
+    if commit_scope == InteractionScope::Global {
+        count += 14;
+    }
+
+    count
+}

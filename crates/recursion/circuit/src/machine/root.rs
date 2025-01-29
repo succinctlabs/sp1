@@ -74,7 +74,9 @@ where
     >,
     C: CircuitConfig<F = SC::Val, EF = SC::Challenge, Bit = Felt<BabyBear>>,
     <SC::ValMmcs as Mmcs<BabyBear>>::ProverData<RowMajorMatrix<BabyBear>>: Clone,
-    A: MachineAir<SC::Val> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
+    A: MachineAir<SC::Val>
+        + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>
+        + Air<SymbolicAirBuilder<SC::Val>>,
 {
     pub fn verify(
         builder: &mut Builder<C>,

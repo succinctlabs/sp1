@@ -408,8 +408,6 @@ where
 
         // Compute the quotient values.
         let alpha: SC::Challenge = challenger.sample_ext_element::<SC::Challenge>();
-        // Get the maximum number of constraints for all chips.
-        let powers_of_alpha = alpha.powers().take(pk.max_num_constraints).collect::<Vec<_>>();
 
         let parent_span = tracing::debug_span!("compute quotient values");
         let quotient_values = parent_span.in_scope(|| {
@@ -430,6 +428,15 @@ where
                             let permutation_trace_on_quotient_domains = pcs
                                 .get_evaluations_on_domain(&permutation_data, i, *quotient_domain)
                                 .to_row_major_matrix();
+
+                            let chip_num_constraints =
+                                pk.constraints_map.get(&chips[i].name()).unwrap();
+
+                            let powers_of_alpha =
+                                alpha.powers().take(*chip_num_constraints).collect::<Vec<_>>();
+                            let mut powers_of_alpha_rev = powers_of_alpha.clone();
+                            powers_of_alpha_rev.reverse();
+
                             quotient_values(
                                 chips[i],
                                 &local_cumulative_sums[i],
@@ -440,7 +447,7 @@ where
                                 main_trace_on_quotient_domains,
                                 permutation_trace_on_quotient_domains,
                                 &packed_perm_challenges,
-                                &powers_of_alpha,
+                                &powers_of_alpha_rev,
                                 &data.public_values,
                             )
                         })

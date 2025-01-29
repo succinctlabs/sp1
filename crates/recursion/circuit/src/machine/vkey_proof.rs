@@ -163,7 +163,7 @@ impl SP1MerkleProofWitnessValues<BabyBearPoseidon2> {
 }
 
 impl SP1CompressWithVKeyWitnessValues<BabyBearPoseidon2> {
-    pub fn dummy<A: MachineAir<BabyBear>>(
+    pub fn dummy<A: MachineAir<BabyBear> + Air<SymbolicAirBuilder<BabyBear>>>(
         machine: &StarkMachine<BabyBearPoseidon2, A>,
         shape: &SP1CompressWithVkeyShape,
     ) -> Self {

@@ -99,6 +99,7 @@ impl<SC: StarkGenericConfig> ExtensionBuilder for ProverConstraintFolder<'_, SC>
         let x: PackedChallenge<SC> = x.into();
         self.accumulator +=
             PackedChallenge::<SC>::from_f(self.powers_of_alpha[self.constraint_index]) * x;
+
         self.constraint_index += 1;
     }
 }
