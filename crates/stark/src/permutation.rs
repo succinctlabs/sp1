@@ -369,11 +369,12 @@ pub fn count_permutation_constraints<F: Field>(
     let local_sends = scoped_sends.get(&InteractionScope::Local).unwrap_or(&empty);
     let local_receives = scoped_receives.get(&InteractionScope::Local).unwrap_or(&empty);
 
-    let local_permutation_width =
-        local_permutation_trace_width(local_sends.len() + local_receives.len(), batch_size);
+    let num_local_interactions = local_sends.len() + local_receives.len();
 
-    if !local_sends.is_empty() || !local_receives.is_empty() {
-        // Loop over local_permutation_width - 1 iterations with one assert per iteration.
+    if num_local_interactions > 0 {
+        let local_permutation_width =
+            local_permutation_trace_width(num_local_interactions, batch_size);
+        // We loop over (local_permutation_width - 1) iterations with one assert per iteration.
         count += local_permutation_width - 1;
 
         // One assert that cumulative sum is initialized to `phi_local` on the first row.

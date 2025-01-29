@@ -408,7 +408,6 @@ where
 
         // Compute the quotient values.
         let alpha: SC::Challenge = challenger.sample_ext_element::<SC::Challenge>();
-
         let parent_span = tracing::debug_span!("compute quotient values");
         let quotient_values = parent_span.in_scope(|| {
             quotient_domains
@@ -432,6 +431,9 @@ where
                             let chip_num_constraints =
                                 pk.constraints_map.get(&chips[i].name()).unwrap();
 
+                            // Calculate powers of alpha for constraint evaluation:
+                            // 1. Generate sequence [α⁰, α¹, ..., α^(n-1)] where n = chip_num_constraints
+                            // 2. Reverse to [α^(n-1), ..., α¹, α⁰] to align with Horner's method in the verifier
                             let powers_of_alpha =
                                 alpha.powers().take(*chip_num_constraints).collect::<Vec<_>>();
                             let mut powers_of_alpha_rev = powers_of_alpha.clone();

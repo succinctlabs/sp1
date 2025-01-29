@@ -216,14 +216,14 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>> + Air<SymbolicAirBuilder<Val
                         );
 
                         // Count the number of constraints.
-                        let num_constraints = get_symbolic_constraints(
+                        let num_main_constraints = get_symbolic_constraints(
                             &chip.air,
                             chip.preprocessed_width(),
                             PROOF_MAX_NUM_PVS,
                         )
                         .len();
 
-                        let permutation_constraints = count_permutation_constraints(
+                        let num_permutation_constraints = count_permutation_constraints(
                             &chip.sends,
                             &chip.receives,
                             chip.logup_batch_size(),
@@ -232,7 +232,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>> + Air<SymbolicAirBuilder<Val
 
                         (
                             prep_trace.map(move |t| (chip.name(), chip.local_only(), t)),
-                            (chip_name, num_constraints + permutation_constraints),
+                            (chip_name, num_main_constraints + num_permutation_constraints),
                         )
                     })
                     .unzip()
