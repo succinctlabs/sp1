@@ -1,0 +1,9 @@
+[package]
+version = "0.1.0"
+name = "recursive-program"
+edition = "2021"
+publish = false
+
+[dependencies]
+sp1-zkvm = { path = "../../../crates/zkvm/entrypoint", features = ["verify"] }
+recursive-lib = { path = "../lib" }
