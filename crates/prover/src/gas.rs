@@ -16,16 +16,26 @@ pub fn core_prover_gas<F: PrimeField32>(
 ) -> Result<usize, CoreShapeError> {
     // TODO(tqn) decide whether or not to implement the Packed shard estimation
     let TraceAreaEstimator { core_shards, deferred_events } = estimator;
+    // `Global` heights are sometimes overestimated.
+    // When the fractional part of the log2 is above this, we round down.
+    const THRESHOLD: f64 = 0.1;
 
     // Calculate and sum the cost of each core shard.
     let core_cost = core_shards
         .iter()
         .enumerate()
         .map(|(i, shard)| {
+            let record = if (shard[RiscvAirId::Global] as f64).log2().fract() < THRESHOLD {
+                let mut shard = *shard;
+                shard[RiscvAirId::Global] = 1 << shard[RiscvAirId::Global].ilog2();
+                Cow::Owned(shard)
+            } else {
+                Cow::Borrowed(shard)
+            };
             let shape = config
                 .find_shape(CoreShard {
                     shard_index: i as u32,
-                    record: Cow::Borrowed(shard),
+                    record,
                     precompile_local_mem_events_per_row,
                 })
                 .unwrap();
