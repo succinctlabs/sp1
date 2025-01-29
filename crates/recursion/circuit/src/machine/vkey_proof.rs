@@ -1,14 +1,5 @@
 use std::marker::PhantomData;
 
-use crate::{
-    challenger::DuplexChallengerVariable,
-    constraints::RecursiveVerifierConstraintFolder,
-    hash::{FieldHasher, FieldHasherVariable},
-    merkle_tree::{verify, MerkleProof},
-    stark::MerkleProofVariable,
-    witness::{WitnessWriter, Witnessable},
-    BabyBearFriConfig, BabyBearFriConfigVariable, CircuitConfig, TwoAdicPcsProofVariable,
-};
 use p3_air::Air;
 use p3_baby_bear::BabyBear;
 use p3_commit::Mmcs;
@@ -20,6 +11,16 @@ use sp1_recursion_core::DIGEST_SIZE;
 use sp1_stark::{
     air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, Com, InnerChallenge, OpeningProof,
     StarkGenericConfig, StarkMachine,
+};
+
+use crate::{
+    challenger::DuplexChallengerVariable,
+    constraints::RecursiveVerifierConstraintFolder,
+    hash::{FieldHasher, FieldHasherVariable},
+    merkle_tree::{verify, MerkleProof},
+    stark::MerkleProofVariable,
+    witness::{WitnessWriter, Witnessable},
+    BabyBearFriConfig, BabyBearFriConfigVariable, CircuitConfig, TwoAdicPcsProofVariable,
 };
 
 use super::{

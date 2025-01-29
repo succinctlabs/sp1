@@ -13,6 +13,7 @@ use p3_baby_bear::BabyBear;
 use p3_commit::Mmcs;
 use p3_field::AbstractField;
 use p3_matrix::dense::RowMajorMatrix;
+
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp1_recursion_compiler::ir::{Builder, Felt, SymbolicFelt};
 
