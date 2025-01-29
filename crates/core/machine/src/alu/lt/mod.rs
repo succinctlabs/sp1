@@ -478,7 +478,7 @@ mod tests {
     };
     use p3_baby_bear::BabyBear;
     use p3_field::AbstractField;
-    use p3_matrix::dense::Matrix;
+    use p3_matrix::dense::RowMajorMatrix;
     use rand::{thread_rng, Rng};
     use sp1_core_executor::{
         events::{AluEvent, MemoryRecordEnum},
