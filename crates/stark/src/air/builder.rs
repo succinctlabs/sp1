@@ -1,29 +1,17 @@
 use std::{array, iter::once};
 
 use itertools::Itertools;
-use p3_air::{
-    AirBuilder, AirBuilderWithPublicValues, ExtensionBuilder, FilteredAirBuilder, PairBuilder,
-    PermutationAirBuilder,
-};
-use p3_field::{
-    extension::{BinomialExtensionField, BinomiallyExtendable},
-    AbstractExtensionField, AbstractField, ExtensionField, Field,
-};
-use p3_matrix::{
-    dense::{RowMajorMatrix, RowMajorMatrixView},
-    stack::VerticalPair,
-};
+use p3_air::{AirBuilder, AirBuilderWithPublicValues, FilteredAirBuilder, PermutationAirBuilder};
+use p3_field::{AbstractField, Field};
 use p3_uni_stark::{
-    Entry, ProverConstraintFolder, StarkGenericConfig, SymbolicAirBuilder, SymbolicExpression,
-    SymbolicVariable, VerifierConstraintFolder,
+    ProverConstraintFolder, StarkGenericConfig, SymbolicAirBuilder, VerifierConstraintFolder,
 };
 use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumIter};
 
 use super::{interaction::AirInteraction, BinomialExtension};
 use crate::{
-    lookup::InteractionKind, septic_curve::SepticCurve, septic_digest::SepticDigest,
-    septic_extension::SepticExtension, Word,
+    lookup::InteractionKind, septic_digest::SepticDigest, septic_extension::SepticExtension, Word,
 };
 
 // pub type F = BabyBear;
@@ -401,135 +389,6 @@ pub trait MultiTableAirBuilder<'a>: PermutationAirBuilder {
     /// Returns the global cumulative sum of the permutation.
     fn global_cumulative_sum(&self) -> &'a SepticDigest<Self::GlobalSum>;
 }
-
-// pub struct SP1SymbolicAirBuilder<'a, F: Field> {
-//     pub inner: SymbolicAirBuilder<F>,
-//     pub local_cumulative_sum: &'a SymbolicVariable<F>,
-//     pub global_cumulative_sum: &'a SepticDigest<SymbolicVariable<F>>,
-//     pub perm: RowMajorMatrix<BinomialExtensionField<SymbolicVariable<F>, 4>>,
-//     pub perm_challenges: &'a [BinomialExtensionField<SymbolicVariable<F>, 4>],
-// }
-
-// impl<'a, F: Field> SP1SymbolicAirBuilder<'a, F> {
-//     pub fn new(preprocessed_width: usize, width: usize, num_public_values: usize) -> Self {
-//         let perm_values = [0, 1]
-//             .into_iter()
-//             .flat_map(|offset| {
-//                 (0..width)
-//                     .map(move |index| SymbolicVariable::new(Entry::Permutation { offset }, index))
-//             })
-//             .collect();
-//         Self {
-//             inner: SymbolicAirBuilder::new(preprocessed_width, width, num_public_values),
-//             local_cumulative_sum: &SymbolicVariable::new(Entry::Main { offset: 0 }, 0),
-//             global_cumulative_sum: &SepticDigest(SepticCurve {
-//                 x: SepticExtension(
-//                     (0..7)
-//                         .map(|i| SymbolicVariable::new(Entry::Main { offset: 0 }, i))
-//                         .collect::<Vec<_>>()
-//                         .try_into()
-//                         .unwrap(),
-//                 ),
-//                 y: SepticExtension(
-//                     (7..14)
-//                         .map(|i| SymbolicVariable::new(Entry::Main { offset: 0 }, i))
-//                         .collect::<Vec<_>>()
-//                         .try_into()
-//                         .unwrap(),
-//                 ),
-//             }),
-//             perm: RowMajorMatrix::new(perm_values, width),
-//             perm_challenges: &[],
-//         }
-//     }
-
-//     pub fn constraints(self) -> Vec<SymbolicExpression<F>> {
-//         self.inner.constraints
-//     }
-// }
-
-// impl<'a, F: Field> AirBuilder for SP1SymbolicAirBuilder<'a, F> {
-//     type F = <SymbolicAirBuilder<F> as AirBuilder>::F;
-//     type Expr = <SymbolicAirBuilder<F> as AirBuilder>::Expr;
-//     type Var = <SymbolicAirBuilder<F> as AirBuilder>::Var;
-//     type M = <SymbolicAirBuilder<F> as AirBuilder>::M;
-
-//     fn main(&self) -> Self::M {
-//         self.inner.main()
-//     }
-
-//     fn is_first_row(&self) -> Self::Expr {
-//         self.inner.is_first_row()
-//     }
-
-//     fn is_last_row(&self) -> Self::Expr {
-//         self.inner.is_last_row()
-//     }
-
-//     fn is_transition_window(&self, size: usize) -> Self::Expr {
-//         self.inner.is_transition_window(size)
-//     }
-
-//     fn assert_zero<I: Into<Self::Expr>>(&mut self, x: I) {
-//         self.inner.constraints.push(x.into())
-//     }
-// }
-
-// impl<'a, F: Field> AirBuilderWithPublicValues for SP1SymbolicAirBuilder<'a, F> {
-//     type PublicVar = SymbolicVariable<F>;
-
-//     fn public_values(&self) -> &[Self::PublicVar] {
-//         self.inner.public_values()
-//     }
-// }
-
-// impl<'a, F: Field> PairBuilder for SP1SymbolicAirBuilder<'a, F> {
-//     fn preprocessed(&self) -> <Self as AirBuilder>::M {
-//         self.inner.preprocessed()
-//     }
-// }
-
-// impl<'a, F: Field + BinomiallyExtendable<4>> ExtensionBuilder for SP1SymbolicAirBuilder<'a, F> {
-//     type EF = BinomialExtensionField<Self::F, 4>;
-//     type ExprEF = BinomialExtensionField<Self::Expr, 4>;
-//     type VarEF = BinomialExtensionField<Self::Var, 4>;
-
-//     fn assert_zero_ext<I>(&mut self, x: I)
-//     where
-//         I: Into<Self::ExprEF>,
-//     {
-//         self.assert_zero(x.into());
-//     }
-// }
-
-// impl<'a, F: Field + BinomiallyExtendable<4>> PermutationAirBuilder
-//     for SP1SymbolicAirBuilder<'a, F>
-// {
-//     type MP = RowMajorMatrix<Self::VarEF>;
-//     type RandomVar = BinomialExtensionField<Self::Var, 4>;
-
-//     fn permutation(&self) -> Self::MP {
-//         self.perm.clone()
-//     }
-//     fn permutation_randomness(&self) -> &[Self::RandomVar] {
-//         self.perm_challenges
-//     }
-// }
-
-// impl<'a, F: Field + BinomiallyExtendable<4>> MultiTableAirBuilder<'a>
-//     for SP1SymbolicAirBuilder<'a, F>
-// {
-//     type LocalSum = SymbolicVariable<F>;
-//     type GlobalSum = SymbolicVariable<F>;
-
-//     fn local_cumulative_sum(&self) -> &'a Self::LocalSum {
-//         &self.local_cumulative_sum
-//     }
-
-//     fn global_cumulative_sum(&self) -> &'a SepticDigest<Self::GlobalSum> {
-//         self.global_cumulative_sum
-//     }
-// }
 
 /// A trait that contains the common helper methods for building `SP1 recursion` and SP1 machine
 /// AIRs.

@@ -2612,6 +2612,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "getrandom"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "43a49c392881ce6d5c3b8cb70f98717b7c07aabbdff06687b9030dbfbe2725f8"
+dependencies = [
+ "cfg-if",
+ "libc",
+ "wasi 0.13.3+wasi-0.2.2",
+ "windows-targets 0.52.6",
+]
+
+[[package]]
 name = "ghash"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3965,10 +3977,11 @@ dependencies = [
 [[package]]
 name = "p3-air"
 version = "0.2.0-succinct"
-source = "git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder#2451ef05216488297fbdc3341ac9a55546503446"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "02634a874a2286b73f3e0a121e79d6774e92ccbec648c5568f4a7479a4830858"
 dependencies = [
- "p3-field 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-matrix 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
+ "p3-field",
+ "p3-matrix",
 ]
 
 [[package]]
@@ -3978,24 +3991,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "080896e9d09e9761982febafe3b3da5cbf320e32f0c89b6e2e01e875129f4c2d"
 dependencies = [
  "num-bigint 0.4.6",
- "p3-field 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
- "p3-mds 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
- "p3-poseidon2 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
- "p3-symmetric 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
- "rand 0.8.5",
- "serde",
-]
-
-[[package]]
-name = "p3-baby-bear"
-version = "0.2.0-succinct"
-source = "git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder#2451ef05216488297fbdc3341ac9a55546503446"
-dependencies = [
- "num-bigint 0.4.6",
- "p3-field 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-mds 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-poseidon2 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-symmetric 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
+ "p3-field",
+ "p3-mds",
+ "p3-poseidon2",
+ "p3-symmetric",
  "rand 0.8.5",
  "serde",
 ]
@@ -4003,13 +4002,14 @@ dependencies = [
 [[package]]
 name = "p3-bn254-fr"
 version = "0.2.0-succinct"
-source = "git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder#2451ef05216488297fbdc3341ac9a55546503446"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8c53da73873e24d751ec3bd9d8da034bb5f99c71f24f4903ff37190182bff10"
 dependencies = [
  "ff 0.13.0",
  "num-bigint 0.4.6",
- "p3-field 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-poseidon2 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-symmetric 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
+ "p3-field",
+ "p3-poseidon2",
+ "p3-symmetric",
  "rand 0.8.5",
  "serde",
 ]
@@ -4017,12 +4017,13 @@ dependencies = [
 [[package]]
 name = "p3-challenger"
 version = "0.2.0-succinct"
-source = "git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder#2451ef05216488297fbdc3341ac9a55546503446"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0f5c497659a7d9a87882e30ee9a8d0e20c8dcd32cd10d432410e7d6f146ef103"
 dependencies = [
- "p3-field 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-maybe-rayon 0.2.0-succinct",
- "p3-symmetric 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-util 0.2.0-succinct",
+ "p3-field",
+ "p3-maybe-rayon",
+ "p3-symmetric",
+ "p3-util",
  "serde",
  "tracing",
 ]
@@ -4030,13 +4031,14 @@ dependencies = [
 [[package]]
 name = "p3-commit"
 version = "0.2.0-succinct"
-source = "git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder#2451ef05216488297fbdc3341ac9a55546503446"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "54ec340c5cb17739a7b9ee189378bdac8f0e684b9b5ce539476c26e77cd6a27d"
 dependencies = [
  "itertools 0.12.1",
  "p3-challenger",
- "p3-field 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-matrix 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-util 0.2.0-succinct",
+ "p3-field",
+ "p3-matrix",
+ "p3-util",
  "serde",
 ]
 
@@ -4046,22 +4048,10 @@ version = "0.2.0-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "292e97d02d4c38d8b306c2b8c0428bf15f4d32a11a40bcf80018f675bf33267e"
 dependencies = [
- "p3-field 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
- "p3-matrix 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
- "p3-maybe-rayon 0.2.0",
- "p3-util 0.2.0",
- "tracing",
-]
-
-[[package]]
-name = "p3-dft"
-version = "0.2.0-succinct"
-source = "git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder#2451ef05216488297fbdc3341ac9a55546503446"
-dependencies = [
- "p3-field 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-matrix 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-maybe-rayon 0.2.0-succinct",
- "p3-util 0.2.0-succinct",
+ "p3-field",
+ "p3-matrix",
+ "p3-maybe-rayon",
+ "p3-util",
  "tracing",
 ]
 
@@ -4074,20 +4064,7 @@ dependencies = [
  "itertools 0.12.1",
  "num-bigint 0.4.6",
  "num-traits",
- "p3-util 0.2.0",
- "rand 0.8.5",
- "serde",
-]
-
-[[package]]
-name = "p3-field"
-version = "0.2.0-succinct"
-source = "git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder#2451ef05216488297fbdc3341ac9a55546503446"
-dependencies = [
- "itertools 0.12.1",
- "num-bigint 0.4.6",
- "num-traits",
- "p3-util 0.2.0-succinct",
+ "p3-util",
  "rand 0.8.5",
  "serde",
 ]
@@ -4095,17 +4072,18 @@ dependencies = [
 [[package]]
 name = "p3-fri"
 version = "0.2.0-succinct"
-source = "git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder#2451ef05216488297fbdc3341ac9a55546503446"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ef838ff24d9b3de3d88d0ac984937d2aa2923bf25cb108ba9b2dc357e472197"
 dependencies = [
  "itertools 0.12.1",
  "p3-challenger",
  "p3-commit",
- "p3-dft 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-field 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
+ "p3-dft",
+ "p3-field",
  "p3-interpolation",
- "p3-matrix 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-maybe-rayon 0.2.0-succinct",
- "p3-util 0.2.0-succinct",
+ "p3-matrix",
+ "p3-maybe-rayon",
+ "p3-util",
  "serde",
  "tracing",
 ]
@@ -4113,23 +4091,25 @@ dependencies = [
 [[package]]
 name = "p3-interpolation"
 version = "0.2.0-succinct"
-source = "git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder#2451ef05216488297fbdc3341ac9a55546503446"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c806c3afb8d6acf1d3a78f4be1e9e8b026f13c01b0cdd5ae2e068b70a3ba6d80"
 dependencies = [
- "p3-field 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-matrix 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-util 0.2.0-succinct",
+ "p3-field",
+ "p3-matrix",
+ "p3-util",
 ]
 
 [[package]]
 name = "p3-keccak-air"
 version = "0.2.0-succinct"
-source = "git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder#2451ef05216488297fbdc3341ac9a55546503446"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b46cef7ee8ae1f7cb560e7b7c137e272f6ba75be98179b3aa18695705231e0fb"
 dependencies = [
  "p3-air",
- "p3-field 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-matrix 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-maybe-rayon 0.2.0-succinct",
- "p3-util 0.2.0-succinct",
+ "p3-field",
+ "p3-matrix",
+ "p3-maybe-rayon",
+ "p3-util",
  "tracing",
 ]
 
@@ -4140,23 +4120,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "98bf2c7680b8e906a5e147fe4ceb05a11cc9fa35678aa724333bcb35c72483c1"
 dependencies = [
  "itertools 0.12.1",
- "p3-field 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
- "p3-maybe-rayon 0.2.0",
- "p3-util 0.2.0",
- "rand 0.8.5",
- "serde",
- "tracing",
-]
-
-[[package]]
-name = "p3-matrix"
-version = "0.2.0-succinct"
-source = "git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder#2451ef05216488297fbdc3341ac9a55546503446"
-dependencies = [
- "itertools 0.12.1",
- "p3-field 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-maybe-rayon 0.2.0-succinct",
- "p3-util 0.2.0-succinct",
+ "p3-field",
+ "p3-maybe-rayon",
+ "p3-util",
  "rand 0.8.5",
  "serde",
  "tracing",
@@ -4165,16 +4131,11 @@ dependencies = [
 [[package]]
 name = "p3-maybe-rayon"
 version = "0.2.0-succinct"
-source = "git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder#2451ef05216488297fbdc3341ac9a55546503446"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fd9ac6f1d11ad4d3c13cc496911109d6282315e64f851a666ed80ad4d77c0983"
 dependencies = [
  "rayon",
 ]
-
-[[package]]
-name = "p3-maybe-rayon"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3925562a4c03183eafc92fd07b19f65ac6cb4b48d68c3920ce58d9bee6efe362"
 
 [[package]]
 name = "p3-mds"
@@ -4183,40 +4144,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "706cea48976f54702dc68dffa512684c1304d1a3606cadea423cfe0b1ee25134"
 dependencies = [
  "itertools 0.12.1",
- "p3-dft 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
- "p3-field 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
- "p3-matrix 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
- "p3-symmetric 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
- "p3-util 0.2.0",
- "rand 0.8.5",
-]
-
-[[package]]
-name = "p3-mds"
-version = "0.2.0-succinct"
-source = "git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder#2451ef05216488297fbdc3341ac9a55546503446"
-dependencies = [
- "itertools 0.12.1",
- "p3-dft 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-field 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-matrix 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-symmetric 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-util 0.2.0-succinct",
+ "p3-dft",
+ "p3-field",
+ "p3-matrix",
+ "p3-symmetric",
+ "p3-util",
  "rand 0.8.5",
 ]
 
 [[package]]
 name = "p3-merkle-tree"
 version = "0.2.0-succinct"
-source = "git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder#2451ef05216488297fbdc3341ac9a55546503446"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1f4ced385da80dd6b3fd830eaa452c9fa899f2dc3f6463aceba00620d5f071ec"
 dependencies = [
  "itertools 0.12.1",
  "p3-commit",
- "p3-field 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-matrix 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-maybe-rayon 0.2.0-succinct",
- "p3-symmetric 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-util 0.2.0-succinct",
+ "p3-field",
+ "p3-matrix",
+ "p3-maybe-rayon",
+ "p3-symmetric",
+ "p3-util",
  "serde",
  "tracing",
 ]
@@ -4228,22 +4176,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2ce5f5ec7f1ba3a233a671621029def7bd416e7c51218c9d1167d21602cf312"
 dependencies = [
  "gcd",
- "p3-field 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
- "p3-mds 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
- "p3-symmetric 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
- "rand 0.8.5",
- "serde",
-]
-
-[[package]]
-name = "p3-poseidon2"
-version = "0.2.0-succinct"
-source = "git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder#2451ef05216488297fbdc3341ac9a55546503446"
-dependencies = [
- "gcd",
- "p3-field 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-mds 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-symmetric 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
+ "p3-field",
+ "p3-mds",
+ "p3-symmetric",
  "rand 0.8.5",
  "serde",
 ]
@@ -4255,34 +4190,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2f29dc5bb6c99d3de75869d5c086874b64890280eeb7d3e068955f939e219253"
 dependencies = [
  "itertools 0.12.1",
- "p3-field 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
- "serde",
-]
-
-[[package]]
-name = "p3-symmetric"
-version = "0.2.0-succinct"
-source = "git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder#2451ef05216488297fbdc3341ac9a55546503446"
-dependencies = [
- "itertools 0.12.1",
- "p3-field 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
+ "p3-field",
  "serde",
 ]
 
 [[package]]
 name = "p3-uni-stark"
 version = "0.2.0-succinct"
-source = "git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder#2451ef05216488297fbdc3341ac9a55546503446"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "83ceaeef06b0bc97e5af2d220cd340b0b3a72bdf37e4584b73b3bc357cfc9ed3"
 dependencies = [
  "itertools 0.12.1",
  "p3-air",
  "p3-challenger",
  "p3-commit",
- "p3-dft 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-field 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-matrix 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-maybe-rayon 0.2.0-succinct",
- "p3-util 0.2.0-succinct",
+ "p3-dft",
+ "p3-field",
+ "p3-matrix",
+ "p3-maybe-rayon",
+ "p3-util",
  "serde",
  "tracing",
 ]
@@ -4290,16 +4216,8 @@ dependencies = [
 [[package]]
 name = "p3-util"
 version = "0.2.0-succinct"
-source = "git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder#2451ef05216488297fbdc3341ac9a55546503446"
-dependencies = [
- "serde",
-]
-
-[[package]]
-name = "p3-util"
-version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "88dd5ca3eb6ff33cb20084778c32a6d68064a1913b4632437408c5a1098408b3"
+checksum = "e1b84d324cd4ac09194a9d0e8ab1834e67a0e47dec477c28fcf9d68b2824c1fe"
 dependencies = [
  "serde",
 ]
@@ -5909,10 +5827,10 @@ dependencies = [
  "log",
  "nohash-hasher",
  "num",
- "p3-baby-bear 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-field 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-maybe-rayon 0.2.0-succinct",
- "p3-util 0.2.0-succinct",
+ "p3-baby-bear",
+ "p3-field",
+ "p3-maybe-rayon",
+ "p3-util",
  "rand 0.8.5",
  "rrs-succinct",
  "rustc-demangle",
@@ -5954,16 +5872,16 @@ dependencies = [
  "num_cpus",
  "p256",
  "p3-air",
- "p3-baby-bear 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
+ "p3-baby-bear",
  "p3-challenger",
- "p3-field 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
+ "p3-field",
  "p3-keccak-air",
- "p3-matrix 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-maybe-rayon 0.2.0-succinct",
- "p3-poseidon2 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-symmetric 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
+ "p3-matrix",
+ "p3-maybe-rayon",
+ "p3-poseidon2",
+ "p3-symmetric",
  "p3-uni-stark",
- "p3-util 0.2.0-succinct",
+ "p3-util",
  "pathdiff",
  "rand 0.8.5",
  "rayon",
@@ -6022,7 +5940,7 @@ dependencies = [
  "k256",
  "num",
  "p256",
- "p3-field 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
+ "p3-field",
  "rand 0.8.5",
  "rug",
  "serde",
@@ -6091,7 +6009,7 @@ version = "4.0.0-rc.11"
 dependencies = [
  "bincode",
  "clap",
- "p3-baby-bear 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
+ "p3-baby-bear",
  "rand 0.8.5",
  "serde_json",
  "sp1-core-executor",
@@ -6113,10 +6031,10 @@ dependencies = [
  "hex",
  "lazy_static",
  "num-bigint 0.4.6",
- "p3-baby-bear 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-field 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-poseidon2 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-symmetric 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
+ "p3-baby-bear",
+ "p3-field",
+ "p3-poseidon2",
+ "p3-symmetric",
  "serde",
  "sha2 0.10.8",
 ]
@@ -6131,10 +6049,10 @@ dependencies = [
  "hex",
  "lazy_static",
  "num-bigint 0.4.6",
- "p3-baby-bear 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
- "p3-field 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
- "p3-poseidon2 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
- "p3-symmetric 0.2.0-succinct (registry+https://github.com/rust-lang/crates.io-index)",
+ "p3-baby-bear",
+ "p3-field",
+ "p3-poseidon2",
+ "p3-symmetric",
  "serde",
  "sha2 0.10.8",
 ]
@@ -6153,14 +6071,14 @@ dependencies = [
  "itertools 0.13.0",
  "lru",
  "num-bigint 0.4.6",
- "p3-baby-bear 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
+ "p3-baby-bear",
  "p3-bn254-fr",
  "p3-challenger",
  "p3-commit",
- "p3-field 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-matrix 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-symmetric 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-util 0.2.0-succinct",
+ "p3-field",
+ "p3-matrix",
+ "p3-symmetric",
+ "p3-util",
  "rayon",
  "serde",
  "serde_json",
@@ -6190,19 +6108,19 @@ dependencies = [
  "itertools 0.13.0",
  "num-traits",
  "p3-air",
- "p3-baby-bear 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
+ "p3-baby-bear",
  "p3-bn254-fr",
  "p3-challenger",
  "p3-commit",
- "p3-dft 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-field 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
+ "p3-dft",
+ "p3-field",
  "p3-fri",
- "p3-matrix 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
+ "p3-matrix",
  "p3-merkle-tree",
- "p3-poseidon2 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-symmetric 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
+ "p3-poseidon2",
+ "p3-symmetric",
  "p3-uni-stark",
- "p3-util 0.2.0-succinct",
+ "p3-util",
  "rand 0.8.5",
  "rayon",
  "serde",
@@ -6226,13 +6144,13 @@ dependencies = [
  "backtrace",
  "criterion",
  "itertools 0.13.0",
- "p3-baby-bear 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
+ "p3-baby-bear",
  "p3-bn254-fr",
  "p3-challenger",
- "p3-dft 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-field 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
+ "p3-dft",
+ "p3-field",
  "p3-merkle-tree",
- "p3-symmetric 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
+ "p3-symmetric",
  "rand 0.8.5",
  "serde",
  "sp1-core-machine",
@@ -6258,19 +6176,19 @@ dependencies = [
  "itertools 0.13.0",
  "num_cpus",
  "p3-air",
- "p3-baby-bear 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
+ "p3-baby-bear",
  "p3-bn254-fr",
  "p3-challenger",
  "p3-commit",
- "p3-dft 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-field 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
+ "p3-dft",
+ "p3-field",
  "p3-fri",
- "p3-matrix 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-maybe-rayon 0.2.0-succinct",
+ "p3-matrix",
+ "p3-maybe-rayon",
  "p3-merkle-tree",
- "p3-poseidon2 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-symmetric 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-util 0.2.0-succinct",
+ "p3-poseidon2",
+ "p3-symmetric",
+ "p3-util",
  "pathdiff",
  "rand 0.8.5",
  "range-set-blaze",
@@ -6316,9 +6234,9 @@ dependencies = [
  "hex",
  "log",
  "num-bigint 0.4.6",
- "p3-baby-bear 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-field 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-symmetric 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
+ "p3-baby-bear",
+ "p3-field",
+ "p3-symmetric",
  "serde",
  "serde_json",
  "sha2 0.10.8",
@@ -6348,8 +6266,8 @@ dependencies = [
  "indicatif",
  "itertools 0.13.0",
  "log",
- "p3-baby-bear 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-field 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
+ "p3-baby-bear",
+ "p3-field",
  "p3-fri",
  "prost",
  "reqwest",
@@ -6386,19 +6304,19 @@ dependencies = [
  "num-bigint 0.4.6",
  "num-traits",
  "p3-air",
- "p3-baby-bear 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
+ "p3-baby-bear",
  "p3-challenger",
  "p3-commit",
- "p3-dft 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-field 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
+ "p3-dft",
+ "p3-field",
  "p3-fri",
- "p3-matrix 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-maybe-rayon 0.2.0-succinct",
+ "p3-matrix",
+ "p3-maybe-rayon",
  "p3-merkle-tree",
- "p3-poseidon2 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-symmetric 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
+ "p3-poseidon2",
+ "p3-symmetric",
  "p3-uni-stark",
- "p3-util 0.2.0-succinct",
+ "p3-util",
  "rayon-scan",
  "serde",
  "sp1-derive",
@@ -6442,8 +6360,8 @@ dependencies = [
  "getrandom 0.2.15",
  "lazy_static",
  "libm",
- "p3-baby-bear 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
- "p3-field 0.2.0-succinct (git+https://github.com/succinctlabs/plonky3-private?branch=umadayal%2Fsymbolicbuilder)",
+ "p3-baby-bear",
+ "p3-field",
  "rand 0.8.5",
  "sha2 0.10.8",
  "sp1-lib 4.0.0-rc.11",
@@ -6760,13 +6678,13 @@ checksum = "61c41af27dd6d1e27b1b16b489db798443478cef1f06a660c96db617ba5de3b1"
 
 [[package]]
 name = "tempfile"
-version = "3.15.0"
+version = "3.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a8a559c81686f576e8cd0290cd2a24a2a9ad80c98b3478856500fcbd7acd704"
+checksum = "38c246215d7d24f48ae091a2902398798e05d978b24315d6efbc00ede9a8bb91"
 dependencies = [
  "cfg-if",
  "fastrand 2.3.0",
- "getrandom 0.2.15",
+ "getrandom 0.3.1",
  "once_cell",
  "rustix",
  "windows-sys 0.59.0",
@@ -7572,6 +7490,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9c8d87e72b64a3b4db28d11ce29237c246188f4f51057d65a7eab63b7987e423"
 
 [[package]]
+name = "wasi"
+version = "0.13.3+wasi-0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "26816d2e1a4a36a2940b96c5296ce403917633dff8f3440e9b236ed6f6bacad2"
+dependencies = [
+ "wit-bindgen-rt",
+]
+
+[[package]]
 name = "wasm-bindgen"
 version = "0.2.100"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7947,6 +7874,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ad699df48212c6cc6eb4435f35500ac6fd3b9913324f938aea302022ce19d310"
 dependencies = [
  "memchr",
+]
+
+[[package]]
+name = "wit-bindgen-rt"
+version = "0.33.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3268f3d866458b787f390cf61f4bbb563b922d091359f9608842999eaee3943c"
+dependencies = [
+ "bitflags",
 ]
 
 [[package]]
