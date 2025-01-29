@@ -1,7 +1,7 @@
 #[cfg(test)]
 use secp256k1::{Message, PublicKey, Secp256k1};
 
-#[sp1_test::sp1_test("secp256k1_recover")]
+#[sp1_test::sp1_test("secp256k1_recover", syscalls = [SECP256K1_DOUBLE, SECP256K1_ADD])]
 fn test_recover_rand_lte_100(
     stdin: &mut sp1_sdk::SP1Stdin,
 ) -> impl FnOnce(sp1_sdk::SP1PublicValues) {

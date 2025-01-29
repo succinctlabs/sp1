@@ -1,6 +1,8 @@
 use proc_macro2::Span;
 use syn::{
+    bracketed,
     parse::{Parse, ParseStream},
+    punctuated::Punctuated,
     Ident, LitStr, Token,
 };
 
@@ -33,6 +35,19 @@ impl AttrOptions {
         self.0.iter().any(|o| matches!(o, AttrOption::Prove))
     }
 
+    pub fn syscalls(&self) -> Vec<Ident> {
+        self.0
+            .iter()
+            .find_map(|o| {
+                if let AttrOption::Syscalls(syscalls) = o {
+                    Some(syscalls.clone())
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_default()
+    }
+
     pub fn setup(&self) -> Option<&Ident> {
         self.0.iter().find_map(
             |o| {
@@ -59,6 +74,7 @@ impl AttrOptions {
 #[derive(Debug, PartialEq, Eq)]
 pub enum AttrOption {
     Elf(String),
+    Syscalls(Vec<Ident>),
     Prove,
     Gpu,
     Setup(Ident),
@@ -121,6 +137,16 @@ fn parse_option(input: &ParseStream) -> syn::Result<(Span, AttrOption)> {
             let ident = input.parse::<Ident>()?;
 
             Ok((ident.span(), AttrOption::Setup(ident)))
+        }
+        "syscalls" => {
+            input.parse::<Token![=]>()?;
+            let content;
+            bracketed!(content in input);
+            let syscalls: Punctuated<Ident, Token![,]> =
+                Punctuated::parse_separated_nonempty(&content)?;
+            let vec_syscalls = syscalls.into_iter().collect();
+
+            Ok((ident.span(), AttrOption::Syscalls(vec_syscalls)))
         }
         _ => {
             Err(syn::Error::new(ident.span(), format!("Found Unknown attribute option {}", ident)))

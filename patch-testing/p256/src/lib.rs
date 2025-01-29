@@ -24,7 +24,7 @@ pub fn test_verify_rand_lte_100(
     }
 }
 
-#[sp1_test::sp1_test("p256_recover", gpu, prove)]
+#[sp1_test::sp1_test("p256_recover", syscalls = [SECP256R1_ADD, SECP256R1_DOUBLE], gpu, prove)]
 pub fn test_recover_rand_lte_100(
     stdin: &mut sp1_sdk::SP1Stdin,
 ) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
@@ -46,7 +46,7 @@ pub fn test_recover_rand_lte_100(
     }
 
     move |mut public| {
-        for (i, vkey) in vkeys.into_iter().enumerate() {
+        for vkey in vkeys.into_iter() {
             let key = public.read::<Option<Vec<u8>>>();
 
             assert_eq!(key, Some(vkey.to_sec1_bytes().to_vec()));
@@ -54,14 +54,12 @@ pub fn test_recover_rand_lte_100(
     }
 }
 
-#[sp1_test::sp1_test("p256_recover")]
+#[sp1_test::sp1_test("p256_recover", syscalls = [SECP256R1_ADD, SECP256R1_DOUBLE])]
 pub fn test_recover_high_hash_high_recid(
     stdin: &mut sp1_sdk::SP1Stdin,
 ) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     use ecdsa_core::RecoveryId;
-    use p256::{
-        ecdsa::Signature, ecdsa::VerifyingKey,
-    };
+    use p256::{ecdsa::Signature, ecdsa::VerifyingKey};
 
     let times = 10000u16;
     stdin.write(&times);
@@ -108,14 +106,12 @@ pub fn test_recover_high_hash_high_recid(
     }
 }
 
-#[sp1_test::sp1_test("p256_recover", gpu, prove)]
+#[sp1_test::sp1_test("p256_recover", syscalls = [SECP256R1_ADD, SECP256R1_DOUBLE], gpu, prove)]
 pub fn test_recover_pubkey_infinity(
     stdin: &mut sp1_sdk::SP1Stdin,
 ) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     use ecdsa_core::RecoveryId;
-    use p256::{
-        ecdsa::Signature, ecdsa::VerifyingKey,
-    };
+    use p256::{ecdsa::Signature, ecdsa::VerifyingKey};
 
     let times = 3u16;
     stdin.write(&times);
@@ -148,10 +144,9 @@ pub fn test_recover_pubkey_infinity(
 
     for (idx, (msg, r)) in [(msg1, r1), (msg2, r2), (msg3, r3)].iter().enumerate() {
         let mut signature_bytes = [0u8; 64];
-        for i in 0..32 {
-            signature_bytes[i] = r[i];
-            signature_bytes[i + 32] = r[i];
-        }
+        signature_bytes[..32].copy_from_slice(r);
+        signature_bytes[32..(32 + 32)].copy_from_slice(r);
+
         let recid = if idx == 2 { 0u8 } else { 1u8 };
         let recid = RecoveryId::from_byte(recid).unwrap();
         let signature = Signature::from_slice(&signature_bytes).unwrap();
@@ -160,8 +155,7 @@ pub fn test_recover_pubkey_infinity(
         vkeys.push(recovered_key.ok().map(|vk| vk.to_sec1_bytes().to_vec()));
     }
     move |mut public| {
-        let fail_count = 0;
-        for (i, vkey) in vkeys.into_iter().enumerate() {
+        for vkey in vkeys.into_iter() {
             let key = public.read::<Option<Vec<u8>>>();
             assert_eq!(key, vkey);
             assert!(key.is_none());
