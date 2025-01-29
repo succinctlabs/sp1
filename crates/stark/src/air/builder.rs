@@ -14,9 +14,6 @@ use crate::{
     lookup::InteractionKind, septic_digest::SepticDigest, septic_extension::SepticExtension, Word,
 };
 
-// pub type F = BabyBear;
-// pub type EF = BinomialExtensionField<F, 4>;
-
 /// The scope of an interaction.
 #[derive(
     Debug,
