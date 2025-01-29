@@ -31,3 +31,6 @@ test-artifacts = { workspace = true }
 [features]
 default = []
 protobuf = ["dep:prost-build", "dep:twirp-build"]
+
+[lints]
+workspace = true

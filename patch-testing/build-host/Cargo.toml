@@ -17,3 +17,5 @@ secp256k1-patched = { workspace = true }
 substrate-bn-patched = { workspace = true }
 bls12_381-patched = { workspace = true }
 rsa-patched = { workspace = true }
+sp1-lib = { path = "../../crates/zkvm/lib" }
+sp1-zkvm = { path = "../../crates/zkvm/entrypoint" }

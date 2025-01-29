@@ -40,7 +40,7 @@ Advanced features include:
 * Async support
 * Requesting a proof using a custom fulfillment strategy, such as for reserved prover network capacity
 
-```rust,no_run
+```rust
 use sp1_sdk::{network::FulfillmentStrategy, Prover, ProverClient};
 use std::time::Duration;
 
@@ -59,7 +59,7 @@ let proof = prover
     .prove(&pk, &stdin)
     .groth16()
     .skip_simulation(true)
-    .fulfillment_strategy(FulfillmentStrategy::Reserved)
+    .strategy(FulfillmentStrategy::Reserved)
     .run_async()
     .await
     .unwrap();

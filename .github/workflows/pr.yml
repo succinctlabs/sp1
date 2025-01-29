@@ -372,3 +372,20 @@ jobs:
         run: |
           cd examples
           cargo build --all --all-targets
+
+  build-in-host:
+    name: "Build patches and zkvm in host"
+    runs-on: [runs-on, runner=16cpu-linux-x64, disk=large, "run-id=${{ github.run_id }}"]
+    steps:
+      - name: "Checkout sources"
+        uses: "actions/checkout@v4"
+
+      - name: "Setup CI"
+        uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+
+      - name: "Build programs in host"
+        run: |
+          cd ./patch-testing/build-host
+          cargo build

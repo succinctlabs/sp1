@@ -5,22 +5,22 @@
 If you are using a library that has an MSRV specified, you may encounter an error like this when building your program.
 
 ```txt
-package `alloy v0.1.1 cannot be built because it requires rustc 1.76 or newer, while the currently active rustc version is 1.75.0-nightly`
+package `alloy cannot be built because it requires rustc 1.83 or newer, while the currently active rustc version is 1.82.0`
 ```
 
 This is due to the fact that your current Succinct Rust toolchain has been built with a lower version than the MSRV of the crates you are using.
 
-You can check the version of your local Succinct Rust toolchain by running `cargo +succinct --version`. The latest release of the Succinct Rust toolchain is **1.81**. You can update to the latest version by running [`sp1up`](../getting-started/install.md).
+You can check the version of your local Succinct Rust toolchain by running `cargo +succinct --version`. The latest release of the Succinct Rust toolchain is **1.82**. You can update to the latest version by running [`sp1up`](../getting-started/install.md).
 
 ```shell
 % sp1up
 % cargo +succinct --version
-cargo 1.81.0-dev (2dbb1af80 2024-08-20)
+cargo 1.82.0-dev (8f40fc59f 2024-08-21)
 ```
 
-A Succinct Rust toolchain with version **1.81** should work for all crates that have an MSRV of **1.81** or lower.
+A Succinct Rust toolchain with version **1.82** should work for all crates that have an MSRV of **1.82** or lower.
 
-If the MSRV of your crate is higher than **1.81**, try the following:
+If the MSRV of your crate is higher than **1.82**, try the following:
 
 - If using `cargo prove build` directly, pass the `--ignore-rust-version` flag:
 
@@ -51,7 +51,7 @@ This is likely due to two different versions of `alloy_sol_types` being used. To
 
 ```toml
 [dependencies]
-sp1-sdk = { version = "4.0.0-rc.8", default-features = false }
+sp1-sdk = { version = "4.0.0", default-features = false }
 ```
 
 This will configure out the `network` feature which will remove the dependency on `alloy_sol_types` and configure out the `NetworkProver`.
@@ -122,26 +122,20 @@ sp1-lib = { version = "<VERSION>", features = ["verify"] }
 sp1-zkvm = { version = "<VERSION>", features = ["verify"] }
 ```
 
-## `sp1-sdk` `rc` Version Semver Errors
+## Failed to run LLVM passes: unknown pass name 'loweratomic'
 
-When using release candidate (RC) versions of `sp1-sdk` (such as `3.0.0-rc1`), you might face compilation errors if you upgrade to a newer RC version (like `3.0.0-rc4`) and then try to downgrade back to an earlier RC version (such as `3.0.0-rc1`).
+The Rust compiler had breaking changes to its names of available options between 1.81 and 1.82.
 
-This issue arises because some RC releases introduce breaking changes that aren't reflected in their version numbers according to Semantic Versioning (SemVer) rules. To fix this, you need to explicitly downgrade all related crates in your `Cargo.lock` file to match the desired RC version.
-
-To start, verify that the `sp1-sdk` version in your `Cargo.lock` file differs from the version specified in your `Cargo.toml` file:
-
-```shell
-% cargo tree -i sp1-sdk
-sp1-sdk v3.0.0-rc4 (/Users/sp1/crates/sdk)
-├── sp1-cli v3.0.0-rc4 (/Users/sp1/crates/cli)
-├── sp1-eval v3.0.0-rc4 (/Users/sp1/crates/eval)
-└── sp1-perf v3.0.0-rc4 (/Users/sp1/crates/perf)
+```bash
+  [sp1]     Compiling proc-macro2 v1.0.93
+  [sp1]     Compiling unicode-ident v1.0.14
+  [sp1]     Compiling quote v1.0.38
+  [sp1]     Compiling syn v2.0.96
+  [sp1]     Compiling serde_derive v1.0.217
+  [sp1]     Compiling serde v1.0.217
+  [sp1]  error: failed to run LLVM passes: unknown pass name 'loweratomic'
 ```
 
-After confirming the version of `sp1-sdk` in your lockfile, you can downgrade to a specific RC version using the following command. Replace `3.0.0-rc1` with the desired version number:
+This message indicates that you're trying to use `sp1-build` < `4.0.0` with the 1.82 toolchain,
+`sp1-build` versions >= 4.0.0 have support for the 1.82 and 1.81 toolchains.
 
-```shell
-%  cargo update -p sp1-build -p sp1-sdk -p sp1-recursion-derive -p sp1-recursion-gnark-ffi -p sp1-zkvm --precise 3.0.0-rc1
-```
-
-This command will update the `Cargo.lock` file to specify the lower RC version, resolving any version conflicts and allowing you to continue development.

@@ -4,7 +4,7 @@
 
 You can verify SP1 Groth16 and Plonk proofs in `no_std` environments with [`sp1-verifier`](https://docs.rs/sp1-verifier/latest/sp1_verifier/).
 
-`sp1-verifier` is also patched to verify Groth16 and Plonk proofs within the SP1 ZKVM, using
+`sp1-verifier` is also patched to verify Groth16 and Plonk proofs within the SP1 zkVM, using
 [bn254](https://blog.succinct.xyz/succinctshipsprecompiles/) precompiles. For an example of this, see
 the [Groth16 Example](https://github.com/succinctlabs/sp1/tree/main/examples/groth16/).
 

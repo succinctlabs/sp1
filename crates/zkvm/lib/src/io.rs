@@ -38,11 +38,18 @@ impl Write for SyscallWriter {
 /// ```ignore
 /// let data: Vec<u8> = sp1_zkvm::io::read_vec();
 /// ```
+#[track_caller]
 pub fn read_vec() -> Vec<u8> {
     let ReadVecResult { ptr, len, capacity } = unsafe { read_vec_raw() };
-    // 1. `ptr` was allocated using alloc
-    // 2. Assume that the allocator in the VM doesn't deallocate in the input space.
-    // 3. Size and length are correct from above. Length is <= capacity.
+
+    if ptr.is_null() {
+        panic!(
+            "Tried to read from the input stream, but it was empty @ {} \n
+            Was the correct data written into SP1Stdin?",
+            std::panic::Location::caller()
+        )
+    }
+
     unsafe { Vec::from_raw_parts(ptr, len, capacity) }
 }
 
@@ -60,8 +67,23 @@ pub fn read_vec() -> Vec<u8> {
 ///
 /// let data: MyStruct = sp1_zkvm::io::read();
 /// ```
+#[track_caller]
 pub fn read<T: DeserializeOwned>() -> T {
-    let vec = read_vec();
+    let ReadVecResult { ptr, len, capacity } = unsafe { read_vec_raw() };
+
+    if ptr.is_null() {
+        panic!(
+            "Tried to read from the input stream, but it was empty @ {} \n
+            Was the correct data written into SP1Stdin?",
+            std::panic::Location::caller()
+        )
+    }
+
+    // 1. `ptr` was allocated using alloc
+    // 2. Assume that the allocator in the VM doesn't deallocate in the input space.
+    // 3. Size and length are correct from above. Length is <= capacity.
+    let vec = unsafe { Vec::from_raw_parts(ptr, len, capacity) };
+
     bincode::deserialize(&vec).expect("deserialization failed")
 }
 

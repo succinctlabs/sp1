@@ -536,7 +536,9 @@ fn pad_to_be(val: &BigUint, len: usize) -> Vec<u8> {
 }
 
 #[cfg(test)]
-pub mod tests {
+mod tests {
+    #![allow(clippy::print_stdout)]
+
     use super::*;
 
     #[test]

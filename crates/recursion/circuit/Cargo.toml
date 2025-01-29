@@ -56,3 +56,6 @@ test-artifacts = { workspace = true }
 [features]
 native-gnark = ["sp1-recursion-gnark-ffi/native"]
 debug = ["sp1-core-machine/debug", "sp1-recursion-compiler/debug"]
+
+[lints]
+workspace = true

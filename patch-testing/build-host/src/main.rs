@@ -8,9 +8,16 @@ pub use secp256k1_patched;
 pub use sha2_v0_10_6_patched;
 pub use sha2_v0_10_8_patched;
 pub use sha3_v0_10_8_patched;
+pub use sp1_lib;
+pub use sp1_zkvm;
 pub use substrate_bn_patched;
 pub use tiny_keccak_patched;
 
 fn main() {
     // Note: This file is a dummy that merely imports all the patches, to ensure that they build correctly outside our vm.
+    read_vec_in_host();
+}
+
+fn read_vec_in_host() {
+    sp1_lib::io::read_vec();
 }

@@ -17,14 +17,14 @@ You must switch to a supported version before submitting a proof. To do so, repl
 
 ```toml
 [dependencies]
-sp1-zkvm = "4.0.0-rc.8"
+sp1-zkvm = "4.0.0"
 ```
 
 replace the `sp1-sdk` version in your script's `Cargo.toml`:
 
 ```toml
 [dependencies]
-sp1-sdk = "4.0.0-rc.8"
+sp1-sdk = "4.0.0"
 ```
 
 Re-build your program and script, and then try again.

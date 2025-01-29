@@ -29,6 +29,7 @@ pub fn sha_extend(w: &mut [u32]) {
 
 #[cfg(test)]
 pub mod extend_tests {
+    #![allow(clippy::print_stdout)]
 
     use p3_baby_bear::BabyBear;
 

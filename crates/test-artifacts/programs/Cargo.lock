@@ -328,7 +328,7 @@ version = "1.1.0"
 dependencies = [
  "common-test-utils",
  "sp1-curves",
- "sp1-lib 4.0.0-rc.11",
+ "sp1-lib 4.0.1",
  "sp1-zkvm",
 ]
 
@@ -371,7 +371,7 @@ name = "bls12381-mul-test"
 version = "1.1.0"
 dependencies = [
  "sp1-derive",
- "sp1-lib 4.0.0-rc.11",
+ "sp1-lib 4.0.1",
  "sp1-zkvm",
 ]
 
@@ -381,7 +381,7 @@ version = "1.1.0"
 dependencies = [
  "common-test-utils",
  "sp1-curves",
- "sp1-lib 4.0.0-rc.11",
+ "sp1-lib 4.0.1",
  "sp1-zkvm",
 ]
 
@@ -424,7 +424,7 @@ name = "bn254-mul-test"
 version = "1.1.0"
 dependencies = [
  "sp1-derive",
- "sp1-lib 4.0.0-rc.11",
+ "sp1-lib 4.0.1",
  "sp1-zkvm",
 ]
 
@@ -494,7 +494,7 @@ name = "common-test-utils"
 version = "1.1.0"
 dependencies = [
  "num-bigint",
- "sp1-lib 4.0.0-rc.11",
+ "sp1-lib 4.0.1",
 ]
 
 [[package]]
@@ -515,12 +515,6 @@ name = "const-oid"
 version = "0.9.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2459377285ad874054d797f3ccebf984978aa39129f6eafde5cdc8315b612f8"
-
-[[package]]
-name = "const-oid"
-version = "0.10.0-rc.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68ff6be19477a1bd5441f382916a89bc2a0b2c35db6d41e0f6e8538bf6d6463f"
 
 [[package]]
 name = "convert_case"
@@ -581,19 +575,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0dc92fb57ca44df6db8059111ab3af99a63d5d0f8375d9972e319a379c6bab76"
 dependencies = [
  "generic-array 0.14.7",
- "rand_core",
- "subtle",
- "zeroize",
-]
-
-[[package]]
-name = "crypto-bigint"
-version = "0.6.0-rc.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "040a95c58773f47c92f5f17814702bfd68e8ace9ddce4690c982d0019cac32e2"
-dependencies = [
- "hybrid-array",
- "num-traits",
  "rand_core",
  "subtle",
  "zeroize",
@@ -778,18 +759,8 @@ version = "0.7.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f55bf8e7b65898637379c1b74eb1551107c8294ed26d855ceb9fd1a09cfc9bc0"
 dependencies = [
- "const-oid 0.9.6",
+ "const-oid",
  "pem-rfc7468",
- "zeroize",
-]
-
-[[package]]
-name = "der"
-version = "0.8.0-rc.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82db698b33305f0134faf590b9d1259dc171b5481ac41d5c8146c3b3ee7d4319"
-dependencies = [
- "const-oid 0.10.0-rc.3",
  "zeroize",
 ]
 
@@ -843,7 +814,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292"
 dependencies = [
  "block-buffer 0.10.4",
- "const-oid 0.9.6",
+ "const-oid",
  "crypto-common",
  "subtle",
 ]
@@ -854,9 +825,9 @@ version = "0.16.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ee27f32b5c5292967d2d4a9d7f1e0b0aed2c15daded5a60300e4abb9d8020bca"
 dependencies = [
- "der 0.7.9",
+ "der",
  "digest 0.10.7",
- "elliptic-curve 0.13.8",
+ "elliptic-curve",
  "rfc6979",
  "signature",
  "spki",
@@ -934,7 +905,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b5e6043086bf7973472e0c7dff2142ea0b680d30e18d9cc40f267efbf222bd47"
 dependencies = [
  "base16ct",
- "crypto-bigint 0.5.5",
+ "crypto-bigint",
  "digest 0.10.7",
  "ff",
  "generic-array 0.14.7",
@@ -942,22 +913,7 @@ dependencies = [
  "pem-rfc7468",
  "pkcs8",
  "rand_core",
- "sec1 0.7.3",
- "subtle",
- "zeroize",
-]
-
-[[package]]
-name = "elliptic-curve"
-version = "0.14.0-rc.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc43715037532dc2d061e5c97e81b684c28993d52a4fa4eb7d2ce2826d78f2f2"
-dependencies = [
- "base16ct",
- "crypto-bigint 0.6.0-rc.5",
- "hybrid-array",
- "rand_core",
- "sec1 0.8.0-rc.3",
+ "sec1",
  "subtle",
  "zeroize",
 ]
@@ -1230,16 +1186,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hybrid-array"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "45a9a965bb102c1c891fb017c09a05c965186b1265a207640f323ddd009f9deb"
-dependencies = [
- "typenum",
- "zeroize",
-]
-
-[[package]]
 name = "iana-time-zone"
 version = "0.1.61"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1361,7 +1307,7 @@ checksum = "f6e3919bbaa2945715f0bb6d3934a173d1e9a59ac23767fbaaef277265a7411b"
 dependencies = [
  "cfg-if",
  "ecdsa",
- "elliptic-curve 0.13.8",
+ "elliptic-curve",
  "once_cell",
  "sha2 0.10.8",
  "signature",
@@ -1565,7 +1511,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c9863ad85fa8f4460f9c48cb909d38a0d689dba1f6f6988a5e3e0d31071bcd4b"
 dependencies = [
  "ecdsa",
- "elliptic-curve 0.13.8",
+ "elliptic-curve",
  "primeorder",
  "sha2 0.10.8",
 ]
@@ -1866,7 +1812,7 @@ version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f950b2377845cebe5cf8b5165cb3cc1a5e0fa5cfa3e1f7f55707d8fd82e0a7b7"
 dependencies = [
- "der 0.7.9",
+ "der",
  "spki",
 ]
 
@@ -1897,7 +1843,7 @@ version = "0.13.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "353e1ca18966c16d9deb1c69278edbc5f194139612772bd9537af60ac231e1e6"
 dependencies = [
- "elliptic-curve 0.13.8",
+ "elliptic-curve",
 ]
 
 [[package]]
@@ -2228,22 +2174,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d3e97a565f76233a6003f9f5c54be1d9c5bdfa3eccfb189469f11ec4901c47dc"
 dependencies = [
  "base16ct",
- "der 0.7.9",
+ "der",
  "generic-array 0.14.7",
  "pkcs8",
- "subtle",
- "zeroize",
-]
-
-[[package]]
-name = "sec1"
-version = "0.8.0-rc.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d1988446eff153796413a73669dfaa4caa3f5ce8b25fac89e3821a39c611772e"
-dependencies = [
- "base16ct",
- "der 0.8.0-rc.1",
- "hybrid-array",
  "subtle",
  "zeroize",
 ]
@@ -2254,7 +2187,7 @@ version = "1.1.0"
 dependencies = [
  "common-test-utils",
  "sp1-curves",
- "sp1-lib 4.0.0-rc.11",
+ "sp1-lib 4.0.1",
  "sp1-zkvm",
 ]
 
@@ -2285,12 +2218,12 @@ name = "secp256r1-add-test"
 version = "1.1.0"
 dependencies = [
  "common-test-utils",
- "elliptic-curve 0.14.0-rc.1",
+ "elliptic-curve",
  "hex-literal",
  "num",
  "p256",
  "sp1-curves",
- "sp1-lib 4.0.0-rc.11",
+ "sp1-lib 4.0.1",
  "sp1-zkvm",
 ]
 
@@ -2306,12 +2239,12 @@ name = "secp256r1-double-test"
 version = "1.1.0"
 dependencies = [
  "common-test-utils",
- "elliptic-curve 0.14.0-rc.1",
+ "elliptic-curve",
  "hex-literal",
  "num",
  "p256",
  "sp1-curves",
- "sp1-lib 4.0.0-rc.11",
+ "sp1-lib 4.0.1",
  "sp1-zkvm",
 ]
 
@@ -2516,11 +2449,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
-version = "4.0.0-rc.11"
+version = "4.0.1"
 dependencies = [
  "cfg-if",
  "dashu",
- "elliptic-curve 0.13.8",
+ "elliptic-curve",
  "generic-array 1.1.0",
  "itertools 0.13.0",
  "k256",
@@ -2536,7 +2469,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "4.0.0-rc.11"
+version = "4.0.1"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -2568,7 +2501,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "4.0.0-rc.11"
+version = "4.0.1"
 dependencies = [
  "bincode",
  "serde",
@@ -2577,7 +2510,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "4.0.0-rc.11"
+version = "4.0.1"
 dependencies = [
  "bincode",
  "hex",
@@ -2593,7 +2526,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-stark"
-version = "4.0.0-rc.11"
+version = "4.0.1"
 dependencies = [
  "arrayref",
  "hashbrown 0.14.5",
@@ -2626,7 +2559,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "4.0.0-rc.11"
+version = "4.0.1"
 dependencies = [
  "cfg-if",
  "getrandom",
@@ -2636,7 +2569,7 @@ dependencies = [
  "p3-field",
  "rand",
  "sha2 0.10.8",
- "sp1-lib 4.0.0-rc.11",
+ "sp1-lib 4.0.1",
  "sp1-primitives",
 ]
 
@@ -2647,7 +2580,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d91ed6c858b01f942cd56b37a94b3e0a1798290327d1236e4d9cf4eaca44d29d"
 dependencies = [
  "base64ct",
- "der 0.7.9",
+ "der",
 ]
 
 [[package]]
@@ -3025,7 +2958,7 @@ dependencies = [
 name = "uint256-arith-program"
 version = "1.1.0"
 dependencies = [
- "crypto-bigint 0.6.0-rc.5",
+ "crypto-bigint",
  "sp1-derive",
  "sp1-zkvm",
 ]
