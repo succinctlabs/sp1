@@ -510,7 +510,7 @@ impl<SC: BabyBearFriConfig> SP1CompressWitnessValues<SC> {
 }
 
 impl SP1CompressWitnessValues<BabyBearPoseidon2> {
-    pub fn dummy<A: MachineAir<BabyBear> + Air<SymbolicAirBuilder<BabyBear>>>(
+    pub fn dummy<A: MachineAir<BabyBear>>(
         machine: &StarkMachine<BabyBearPoseidon2, A>,
         shape: &SP1CompressShape,
     ) -> Self {

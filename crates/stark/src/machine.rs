@@ -127,14 +127,35 @@ impl<SC: StarkGenericConfig> Debug for StarkVerifyingKey<SC> {
     }
 }
 
-impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>> + Air<SymbolicAirBuilder<Val<SC>>>>
-    StarkMachine<SC, A>
-{
+impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
+    /// Returns an iterator over the chips in the machine that are included in the given shard.
+    pub fn shard_chips_ordered<'a, 'b>(
+        &'a self,
+        chip_ordering: &'b HashMap<String, usize>,
+    ) -> impl Iterator<Item = &'b MachineChip<SC, A>>
+    where
+        'a: 'b,
+    {
+        self.chips
+            .iter()
+            .filter(|chip| chip_ordering.contains_key(&chip.name()))
+            .sorted_by_key(|chip| chip_ordering.get(&chip.name()))
+    }
+
+    /// Returns the config of the machine.
+    pub const fn config(&self) -> &SC {
+        &self.config
+    }
+
     /// Get an array containing a `ChipRef` for all the chips of this RISC-V STARK machine.
     pub fn chips(&self) -> &[MachineChip<SC, A>] {
         &self.chips
     }
+}
 
+impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>> + Air<SymbolicAirBuilder<Val<SC>>>>
+    StarkMachine<SC, A>
+{
     /// Returns the number of public values elements.
     pub const fn num_pv_elts(&self) -> usize {
         self.num_pv_elts
@@ -164,20 +185,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>> + Air<SymbolicAirBuilder<Val
         'a: 'b,
     {
         self.chips.iter().filter(|chip| chip.included(shard))
-    }
-
-    /// Returns an iterator over the chips in the machine that are included in the given shard.
-    pub fn shard_chips_ordered<'a, 'b>(
-        &'a self,
-        chip_ordering: &'b HashMap<String, usize>,
-    ) -> impl Iterator<Item = &'b MachineChip<SC, A>>
-    where
-        'a: 'b,
-    {
-        self.chips
-            .iter()
-            .filter(|chip| chip_ordering.contains_key(&chip.name()))
-            .sorted_by_key(|chip| chip_ordering.get(&chip.name()))
     }
 
     /// Returns the indices of the chips in the machine that are included in the given shard.
@@ -339,11 +346,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>> + Air<SymbolicAirBuilder<Val
             });
             tracing::debug_span!("register nonces").in_scope(|| record.register_nonces(opts));
         });
-    }
-
-    /// Returns the config of the machine.
-    pub const fn config(&self) -> &SC {
-        &self.config
     }
 
     /// Verify that a proof is complete and valid given a verifying key and a claimed digest.
