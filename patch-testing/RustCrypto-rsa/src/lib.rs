@@ -6,7 +6,7 @@ use rsa::{
     RsaPublicKey,
 };
 
-#[sp1_test::sp1_test("rsa_test_verify_pkcs", gpu, prove)]
+#[sp1_test::sp1_test("rsa_test_verify_pkcs", syscalls = [U256XU2048_MUL], gpu, prove)]
 pub fn test_pkcs_verify_100(
     stdin: &mut sp1_sdk::SP1Stdin,
 ) -> impl FnOnce(sp1_sdk::SP1PublicValues) {

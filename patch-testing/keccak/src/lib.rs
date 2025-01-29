@@ -1,4 +1,4 @@
-#[sp1_test::sp1_test("keccak_patch_test", gpu, prove)]
+#[sp1_test::sp1_test("keccak_patch_test", syscalls = [KECCAK_PERMUTE], gpu, prove)]
 fn test_expected_digest_lte_100(
     stdin: &mut sp1_sdk::SP1Stdin,
 ) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
