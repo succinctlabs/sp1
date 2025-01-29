@@ -26,10 +26,8 @@ use crate::{
 };
 
 /// An algorithmic & hardware independent prover implementation for any [`MachineAir`].
-pub trait MachineProver<
-    SC: StarkGenericConfig,
-    A: MachineAir<SC::Val> + Air<SymbolicAirBuilder<SC::Val>>,
->: 'static + Send + Sync
+pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
+    'static + Send + Sync
 {
     /// The type used to store the traces.
     type DeviceMatrix: Matrix<SC::Val>;
@@ -432,8 +430,8 @@ where
                                 pk.constraints_map.get(&chips[i].name()).unwrap();
 
                             // Calculate powers of alpha for constraint evaluation:
-                            // 1. Generate sequence [α⁰, α¹, ..., α^(n-1)] where n = chip_num_constraints
-                            // 2. Reverse to [α^(n-1), ..., α¹, α⁰] to align with Horner's method in the verifier
+                            // 1. Generate sequence [α⁰, α¹, ..., α^(n-1)] where n = chip_num_constraints.
+                            // 2. Reverse to [α^(n-1), ..., α¹, α⁰] to align with Horner's method in the verifier.
                             let powers_of_alpha =
                                 alpha.powers().take(*chip_num_constraints).collect::<Vec<_>>();
                             let mut powers_of_alpha_rev = powers_of_alpha.clone();
