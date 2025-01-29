@@ -287,7 +287,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>> + Air<SymbolicAirBuilder<Val
                 data,
                 chip_ordering: chip_ordering.clone(),
                 local_only,
-                constraints_map: constraints_map.clone(),
+                constraints_map,
             },
             StarkVerifyingKey {
                 commit,

@@ -352,10 +352,10 @@ pub fn eval_permutation_constraints<'a, F, AB>(
 
 /// Counts the number of permutation constraints for the given chip.
 ///
-/// IMPORTANT: This function must be manually updated if any changes are made to the constraint system in
+/// IMPORTANT: This function must be manually updated if any changes are made to
 /// `eval_permutation_constraints`. The current count includes:
-/// - For local permutations: (width-1) batch sum constraints + 3 cumulative sum constraints
-/// - For global scope: 14 additional constraints for the global cumulative sum
+/// - For local interactions: `local_permutation_trace_width(sends.len() + receives.len(), batch_size)` + 3 local cumulative sum constraints.
+/// - For global scope: 14 additional constraints for the global cumulative sum.
 pub fn count_permutation_constraints<F: Field>(
     sends: &[Interaction<F>],
     receives: &[Interaction<F>],
