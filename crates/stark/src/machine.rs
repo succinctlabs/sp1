@@ -76,7 +76,7 @@ pub struct StarkProvingKey<SC: StarkGenericConfig> {
     pub chip_ordering: HashMap<String, usize>,
     /// The preprocessed chip local only information.
     pub local_only: Vec<bool>,
-    /// The number of constraints for each chip.
+    /// The number of total constraints for each chip.
     pub constraints_map: HashMap<String, usize>,
 }
 
@@ -198,7 +198,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>> + Air<SymbolicAirBuilder<Val
                     .par_iter()
                     .map(|chip| {
                         let chip_name = chip.name();
-                        let chip_name_clone = chip_name.clone();
                         let begin = Instant::now();
                         let prep_trace = chip.generate_preprocessed_trace(program);
                         tracing::debug!(
@@ -232,8 +231,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>> + Air<SymbolicAirBuilder<Val
                         );
 
                         (
-                            prep_trace.map(move |t| (chip_name, chip.local_only(), t)),
-                            (chip_name_clone, num_constraints + permutation_constraints),
+                            prep_trace.map(move |t| (chip.name(), chip.local_only(), t)),
+                            (chip_name, num_constraints + permutation_constraints),
                         )
                     })
                     .unzip()
