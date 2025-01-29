@@ -1,5 +1,4 @@
-
-#[sp1_test::sp1_test("bls12_381_fp_test_sqrt", gpu, prove)]
+#[sp1_test::sp1_test("bls12_381_fp_test_sqrt", syscalls = [BLS12381_FP_MUL], gpu, prove)]
 pub fn test_sqrt_fp_100(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     use bls12_381::fp::Fp;
 
@@ -27,7 +26,7 @@ pub fn test_sqrt_fp_100(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::S
     }
 }
 
-#[sp1_test::sp1_test("bls12_381_fp_test_inverse", gpu, prove)]
+#[sp1_test::sp1_test("bls12_381_fp_test_inverse", syscalls = [BLS12381_FP_MUL], gpu, prove)]
 pub fn test_inverse_fp_100(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     use bls12_381::fp::Fp;
 
@@ -55,7 +54,7 @@ pub fn test_inverse_fp_100(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk
     }
 }
 
-#[sp1_test::sp1_test("bls12_381_fp2_test_sqrt", gpu, prove)]
+#[sp1_test::sp1_test("bls12_381_fp2_test_sqrt", syscalls = [BLS12381_FP_MUL, BLS12381_FP2_MUL], gpu, prove)]
 pub fn test_sqrt_fp2_100(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     use bls12_381::fp2::Fp2;
 
@@ -83,7 +82,7 @@ pub fn test_sqrt_fp2_100(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::
     }
 }
 
-#[sp1_test::sp1_test("bls12_381_fp2_test_inverse", gpu, prove)]
+#[sp1_test::sp1_test("bls12_381_fp2_test_inverse", syscalls = [BLS12381_FP_MUL, BLS12381_FP2_MUL], gpu, prove)]
 pub fn test_inverse_fp2_100(
     stdin: &mut sp1_sdk::SP1Stdin,
 ) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
@@ -113,10 +112,10 @@ pub fn test_inverse_fp2_100(
     }
 }
 
-#[sp1_test::sp1_test("bls12_381_ec_add_test", gpu, prove)]
+#[sp1_test::sp1_test("bls12_381_ec_add_test", syscalls = [BLS12381_DOUBLE, BLS12381_ADD, BLS12381_FP_MUL, BLS12381_FP_SUB], gpu, prove)]
 pub fn test_bls_add_100(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
-    use bls12_381::g1::G1Projective;
     use bls12_381::g1::G1Affine;
+    use bls12_381::g1::G1Projective;
     use group::Group;
 
     let times: u8 = 100;
@@ -149,10 +148,10 @@ pub fn test_bls_add_100(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::S
     }
 }
 
-#[sp1_test::sp1_test("bls12_381_ec_double_test", gpu, prove)]
+#[sp1_test::sp1_test("bls12_381_ec_double_test", syscalls = [BLS12381_DOUBLE, BLS12381_ADD, BLS12381_FP_ADD, BLS12381_FP_MUL, BLS12381_FP_SUB], gpu, prove)]
 pub fn test_bls_double_100(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
-    use bls12_381::g1::G1Projective;
     use bls12_381::g1::G1Affine;
+    use bls12_381::g1::G1Projective;
     use group::Group;
 
     let times: u8 = 100;
