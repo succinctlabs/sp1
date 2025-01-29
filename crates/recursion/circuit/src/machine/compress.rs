@@ -113,7 +113,20 @@ where
         let compress_public_values: &mut RecursionPublicValues<_> =
             reduce_public_values_stream.as_mut_slice().borrow_mut();
 
-        // TODO: add vk correctness check.
+        // Verify that all VKs are valid and consistent with the root VK
+        for (vk, _) in vks_and_proofs.iter() {
+            // Check that VK commitment is not zero
+            let zero = builder.eval(C::F::zero());
+            for commitment in vk.commitment.iter() {
+                builder.assert_bool_felt_neq(*commitment, zero);
+            }
+            
+            // Verify VK root matches the expected root
+            let vk_digest = StarkVerifier::compute_vk_digest(builder, vk);
+            for (expected, actual) in vk_root.iter().zip(vk_digest.iter()) {
+                builder.assert_felt_eq(*expected, *actual);
+            }
+        }
 
         // Make sure there is at least one proof.
         assert!(!vks_and_proofs.is_empty());
