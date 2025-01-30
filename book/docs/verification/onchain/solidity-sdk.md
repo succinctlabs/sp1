@@ -64,6 +64,15 @@ contract Fibonacci {
 
 ```
 
+The recommended workflow is to use the `ISP1Verifier` interface on the [`SP1Gateway`](./contract-addresses.md),
+and the `SP1Gateway` will automatically route your proof to the correct verifier.
+
+Its encouraged not to have your programs verifying key as a constant,
+just in case you want to switch to a different version of SP1.
+
+Succinct also maintains the ability to freeze verifiers in the event of a security issue,
+but do note that anyone is free to deploy their own verifier contract. 
+
 ### Finding your program vkey
 
 The program vkey (`fibonacciProgramVKey` in the example above) is passed into the `ISP1Verifier` along with the public values and proof bytes. You
