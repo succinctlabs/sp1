@@ -30,6 +30,7 @@ For more technical details, check out the SP1 technical note that explains our p
 
 * STARKs + FRI over the Baby Bear field
 * We use performant STARK recursion that allows us to prove the execution of arbitrarily long programs
+* Our Lookup-based memory consistency argument uses [elliptic curve based multiset hashing](./EC_multiset_hash-7.pdf) that allows us to perform memory consistency checks in a fast and efficient manner
 * We have a system of performant precompiles that accelerate hash functions and cryptographic signature verification that allow us to get substantial performance gains on blockchain workloads
 
 
