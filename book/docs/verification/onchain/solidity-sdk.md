@@ -64,14 +64,13 @@ contract Fibonacci {
 
 ```
 
-The recommended workflow is to use the `ISP1Verifier` interface on the [`SP1Gateway`](./contract-addresses.md),
-and the `SP1Gateway` will automatically route your proof to the correct verifier.
+The recommended workflow is to use the `ISP1Verifier` interface on the [`SP1VerifierGateway`](./contract-addresses.md),
+and the `SP1VerifierGateway` will automatically route your proof to the correct verifier.
 
-Its encouraged not to have your programs verifying key as a constant,
-just in case you want to switch to a different version of SP1.
+It’s also recommended to have your program’s verification key be upgradeable within your contract, in case you want to switch to a different version of SP1.
 
 Succinct also maintains the ability to freeze verifiers in the event of a security issue,
-but do note that anyone is free to deploy their own verifier contract. 
+but do note, anyone is free to deploy their own verifier contract. 
 
 ### Finding your program vkey
 
