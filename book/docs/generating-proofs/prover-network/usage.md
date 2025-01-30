@@ -69,7 +69,7 @@ let proof = prover
     .prove(&pk, &stdin)
     .groth16()
     .skip_simulation(true)
-    .fulfillment_strategy(FulfillmentStrategy::Reserved)
+    .strategy(FulfillmentStrategy::Reserved)
     .timeout(Duration::from_secs(60 * 60))
     .run()
     .unwrap();

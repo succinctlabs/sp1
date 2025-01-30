@@ -1,4 +1,4 @@
-#[sp1_test::sp1_test("bigint_test_mul_mod_special", gpu, prove)]
+#[sp1_test::sp1_test("bigint_test_mul_mod_special", syscalls = [UINT256_MUL], gpu, prove)]
 pub fn test_bigint_mul_mod_special(
     stdin: &mut sp1_sdk::SP1Stdin,
 ) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
@@ -36,7 +36,7 @@ pub fn test_bigint_mul_mod_special(
     }
 }
 
-#[sp1_test::sp1_test("bigint_test_mul_add_residue", gpu, prove)]
+#[sp1_test::sp1_test("bigint_test_mul_add_residue", syscalls = [UINT256_MUL], gpu, prove)]
 pub fn test_bigint_mul_add_residue(
     stdin: &mut sp1_sdk::SP1Stdin,
 ) -> impl FnOnce(sp1_sdk::SP1PublicValues) {

@@ -1,5 +1,6 @@
 use crate::{
     septic_curve::SepticCurve, septic_digest::SepticDigest, septic_extension::SepticExtension,
+    PROOF_MAX_NUM_PVS,
 };
 use hashbrown::HashMap;
 use itertools::Itertools;
@@ -9,11 +10,13 @@ use p3_commit::Pcs;
 use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Dimensions, Matrix};
 use p3_maybe_rayon::prelude::*;
+use p3_uni_stark::{get_symbolic_constraints, SymbolicAirBuilder};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{cmp::Reverse, env, fmt::Debug, iter::once, time::Instant};
 use tracing::instrument;
 
 use super::{debug_constraints, Dom};
+use crate::count_permutation_constraints;
 use crate::{
     air::{InteractionScope, MachineAir, MachineProgram},
     lookup::{debug_interactions_with_all_chips, InteractionKind},
@@ -73,6 +76,8 @@ pub struct StarkProvingKey<SC: StarkGenericConfig> {
     pub chip_ordering: HashMap<String, usize>,
     /// The preprocessed chip local only information.
     pub local_only: Vec<bool>,
+    /// The number of total constraints for each chip.
+    pub constraints_map: HashMap<String, usize>,
 }
 
 impl<SC: StarkGenericConfig> StarkProvingKey<SC> {
@@ -123,42 +128,6 @@ impl<SC: StarkGenericConfig> Debug for StarkVerifyingKey<SC> {
 }
 
 impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
-    /// Get an array containing a `ChipRef` for all the chips of this RISC-V STARK machine.
-    pub fn chips(&self) -> &[MachineChip<SC, A>] {
-        &self.chips
-    }
-
-    /// Returns the number of public values elements.
-    pub const fn num_pv_elts(&self) -> usize {
-        self.num_pv_elts
-    }
-
-    /// Returns whether the machine contains a global bus.
-    pub const fn contains_global_bus(&self) -> bool {
-        self.contains_global_bus
-    }
-
-    /// Returns the id of all chips in the machine that have preprocessed columns.
-    pub fn preprocessed_chip_ids(&self) -> Vec<usize> {
-        self.chips
-            .iter()
-            .enumerate()
-            .filter(|(_, chip)| chip.preprocessed_width() > 0)
-            .map(|(i, _)| i)
-            .collect()
-    }
-
-    /// Returns an iterator over the chips in the machine that are included in the given shard.
-    pub fn shard_chips<'a, 'b>(
-        &'a self,
-        shard: &'b A::Record,
-    ) -> impl Iterator<Item = &'b MachineChip<SC, A>>
-    where
-        'a: 'b,
-    {
-        self.chips.iter().filter(|chip| chip.included(shard))
-    }
-
     /// Returns an iterator over the chips in the machine that are included in the given shard.
     pub fn shard_chips_ordered<'a, 'b>(
         &'a self,
@@ -173,206 +142,30 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             .sorted_by_key(|chip| chip_ordering.get(&chip.name()))
     }
 
-    /// Returns the indices of the chips in the machine that are included in the given shard.
-    pub fn chips_sorted_indices(&self, proof: &ShardProof<SC>) -> Vec<Option<usize>> {
-        self.chips().iter().map(|chip| proof.chip_ordering.get(&chip.name()).copied()).collect()
-    }
-
-    /// The setup preprocessing phase. Same as `setup` but initial global cumulative sum is precomputed.
-    pub fn setup_core(
-        &self,
-        program: &A::Program,
-        initial_global_cumulative_sum: SepticDigest<Val<SC>>,
-    ) -> (StarkProvingKey<SC>, StarkVerifyingKey<SC>) {
-        let parent_span = tracing::debug_span!("generate preprocessed traces");
-        let mut named_preprocessed_traces = parent_span.in_scope(|| {
-            self.chips()
-                .par_iter()
-                .filter_map(|chip| {
-                    let chip_name = chip.name();
-                    let begin = Instant::now();
-                    let prep_trace = chip.generate_preprocessed_trace(program);
-                    tracing::debug!(
-                        parent: &parent_span,
-                        "generated preprocessed trace for chip {} in {:?}",
-                        chip_name,
-                        begin.elapsed()
-                    );
-                    // Assert that the chip width data is correct.
-                    let expected_width = prep_trace.as_ref().map_or(0, p3_matrix::Matrix::width);
-                    assert_eq!(
-                        expected_width,
-                        chip.preprocessed_width(),
-                        "Incorrect number of preprocessed columns for chip {chip_name}"
-                    );
-                    prep_trace.map(move |t| (chip_name, chip.local_only(), t))
-                })
-                .collect::<Vec<_>>()
-        });
-
-        // Order the chips and traces by trace size (biggest first), and get the ordering map.
-        named_preprocessed_traces
-            .sort_by_key(|(name, _, trace)| (Reverse(trace.height()), name.clone()));
-
-        let pcs = self.config.pcs();
-        let (chip_information, domains_and_traces): (Vec<_>, Vec<_>) = named_preprocessed_traces
-            .iter()
-            .map(|(name, _, trace)| {
-                let domain = pcs.natural_domain_for_degree(trace.height());
-                ((name.to_owned(), domain, trace.dimensions()), (domain, trace.to_owned()))
-            })
-            .unzip();
-
-        // Commit to the batch of traces.
-        let (commit, data) = tracing::debug_span!("commit to preprocessed traces")
-            .in_scope(|| pcs.commit(domains_and_traces));
-
-        // Get the chip ordering.
-        let chip_ordering = named_preprocessed_traces
-            .iter()
-            .enumerate()
-            .map(|(i, (name, _, _))| (name.to_owned(), i))
-            .collect::<HashMap<_, _>>();
-
-        let local_only = named_preprocessed_traces
-            .iter()
-            .map(|(_, local_only, _)| local_only.to_owned())
-            .collect::<Vec<_>>();
-
-        // Get the preprocessed traces
-        let traces =
-            named_preprocessed_traces.into_iter().map(|(_, _, trace)| trace).collect::<Vec<_>>();
-
-        let pc_start = program.pc_start();
-
-        (
-            StarkProvingKey {
-                commit: commit.clone(),
-                pc_start,
-                initial_global_cumulative_sum,
-                traces,
-                data,
-                chip_ordering: chip_ordering.clone(),
-                local_only,
-            },
-            StarkVerifyingKey {
-                commit,
-                pc_start,
-                initial_global_cumulative_sum,
-                chip_information,
-                chip_ordering,
-            },
-        )
-    }
-
-    /// The setup preprocessing phase.
-    ///
-    /// Given a program, this function generates the proving and verifying keys. The keys correspond
-    /// to the program code and other preprocessed colunms such as lookup tables.
-    #[instrument("setup machine", level = "debug", skip_all)]
-    #[allow(clippy::map_unwrap_or)]
-    #[allow(clippy::redundant_closure_for_method_calls)]
-    pub fn setup(&self, program: &A::Program) -> (StarkProvingKey<SC>, StarkVerifyingKey<SC>) {
-        let initial_global_cumulative_sum = program.initial_global_cumulative_sum();
-        self.setup_core(program, initial_global_cumulative_sum)
-    }
-
-    /// Generates the dependencies of the given records.
-    #[allow(clippy::needless_for_each)]
-    pub fn generate_dependencies(
-        &self,
-        records: &mut [A::Record],
-        opts: &<A::Record as MachineRecord>::Config,
-        chips_filter: Option<&[String]>,
-    ) {
-        let chips = self
-            .chips
-            .iter()
-            .filter(|chip| {
-                if let Some(chips_filter) = chips_filter {
-                    chips_filter.contains(&chip.name())
-                } else {
-                    true
-                }
-            })
-            .collect::<Vec<_>>();
-
-        records.iter_mut().for_each(|record| {
-            chips.iter().for_each(|chip| {
-                let mut output = A::Record::default();
-                chip.generate_dependencies(record, &mut output);
-                record.append(&mut output);
-            });
-            tracing::debug_span!("register nonces").in_scope(|| record.register_nonces(opts));
-        });
-    }
-
     /// Returns the config of the machine.
     pub const fn config(&self) -> &SC {
         &self.config
     }
 
-    /// Verify that a proof is complete and valid given a verifying key and a claimed digest.
-    #[instrument("verify", level = "info", skip_all)]
-    #[allow(clippy::match_bool)]
-    pub fn verify(
-        &self,
-        vk: &StarkVerifyingKey<SC>,
-        proof: &MachineProof<SC>,
-        challenger: &mut SC::Challenger,
-    ) -> Result<(), MachineVerificationError<SC>>
+    /// Get an array containing a `ChipRef` for all the chips of this RISC-V STARK machine.
+    pub fn chips(&self) -> &[MachineChip<SC, A>] {
+        &self.chips
+    }
+
+    /// Returns the number of public values elements.
+    pub const fn num_pv_elts(&self) -> usize {
+        self.num_pv_elts
+    }
+
+    /// Returns an iterator over the chips in the machine that are included in the given shard.
+    pub fn shard_chips<'a, 'b>(
+        &'a self,
+        shard: &'b A::Record,
+    ) -> impl Iterator<Item = &'b MachineChip<SC, A>>
     where
-        SC::Challenger: Clone,
-        A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
+        'a: 'b,
     {
-        // Observe the preprocessed commitment.
-        vk.observe_into(challenger);
-
-        // Verify the shard proofs.
-        if proof.shard_proofs.is_empty() {
-            return Err(MachineVerificationError::EmptyProof);
-        }
-
-        tracing::debug_span!("verify shard proofs").in_scope(|| {
-            for (i, shard_proof) in proof.shard_proofs.iter().enumerate() {
-                tracing::debug_span!("verifying shard", shard = i).in_scope(|| {
-                    let chips =
-                        self.shard_chips_ordered(&shard_proof.chip_ordering).collect::<Vec<_>>();
-                    let mut shard_challenger = challenger.clone();
-                    shard_challenger
-                        .observe_slice(&shard_proof.public_values[0..self.num_pv_elts()]);
-                    Verifier::verify_shard(
-                        &self.config,
-                        vk,
-                        &chips,
-                        &mut shard_challenger,
-                        shard_proof,
-                    )
-                    .map_err(MachineVerificationError::InvalidShardProof)
-                })?;
-            }
-
-            Ok(())
-        })?;
-
-        // Verify the cumulative sum is 0.
-        tracing::debug_span!("verify global cumulative sum is 0").in_scope(|| {
-            let sum = proof
-                .shard_proofs
-                .iter()
-                .map(ShardProof::global_cumulative_sum)
-                .chain(once(vk.initial_global_cumulative_sum))
-                .sum::<SepticDigest<Val<SC>>>();
-
-            if !sum.is_zero() {
-                return Err(MachineVerificationError::NonZeroCumulativeSum(
-                    InteractionScope::Global,
-                    0,
-                ));
-            }
-
-            Ok(())
-        })
+        self.chips.iter().filter(|chip| chip.included(shard))
     }
 
     /// Debugs the constraints of the given records.
@@ -519,6 +312,249 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             });
             panic!("Global cumulative sum is not zero");
         }
+    }
+}
+
+impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>> + Air<SymbolicAirBuilder<Val<SC>>>>
+    StarkMachine<SC, A>
+{
+    /// Returns whether the machine contains a global bus.
+    pub const fn contains_global_bus(&self) -> bool {
+        self.contains_global_bus
+    }
+
+    /// Returns the id of all chips in the machine that have preprocessed columns.
+    pub fn preprocessed_chip_ids(&self) -> Vec<usize> {
+        self.chips
+            .iter()
+            .enumerate()
+            .filter(|(_, chip)| chip.preprocessed_width() > 0)
+            .map(|(i, _)| i)
+            .collect()
+    }
+
+    /// Returns the indices of the chips in the machine that are included in the given shard.
+    pub fn chips_sorted_indices(&self, proof: &ShardProof<SC>) -> Vec<Option<usize>> {
+        self.chips().iter().map(|chip| proof.chip_ordering.get(&chip.name()).copied()).collect()
+    }
+
+    /// The setup preprocessing phase. Same as `setup` but initial global cumulative sum is precomputed.
+    pub fn setup_core(
+        &self,
+        program: &A::Program,
+        initial_global_cumulative_sum: SepticDigest<Val<SC>>,
+    ) -> (StarkProvingKey<SC>, StarkVerifyingKey<SC>) {
+        let parent_span = tracing::debug_span!("generate preprocessed traces");
+        let (named_preprocessed_traces, num_constraints): (Vec<_>, Vec<_>) =
+            parent_span.in_scope(|| {
+                self.chips()
+                    .par_iter()
+                    .map(|chip| {
+                        let chip_name = chip.name();
+                        let begin = Instant::now();
+                        let prep_trace = chip.generate_preprocessed_trace(program);
+                        tracing::debug!(
+                            parent: &parent_span,
+                            "generated preprocessed trace for chip {} in {:?}",
+                            chip_name,
+                            begin.elapsed()
+                        );
+                        // Assert that the chip width data is correct.
+                        let expected_width =
+                            prep_trace.as_ref().map_or(0, p3_matrix::Matrix::width);
+                        assert_eq!(
+                            expected_width,
+                            chip.preprocessed_width(),
+                            "Incorrect number of preprocessed columns for chip {chip_name}"
+                        );
+
+                        // Count the number of constraints.
+                        let num_main_constraints = get_symbolic_constraints(
+                            &chip.air,
+                            chip.preprocessed_width(),
+                            PROOF_MAX_NUM_PVS,
+                        )
+                        .len();
+
+                        let num_permutation_constraints = count_permutation_constraints(
+                            &chip.sends,
+                            &chip.receives,
+                            chip.logup_batch_size(),
+                            chip.air.commit_scope(),
+                        );
+
+                        (
+                            prep_trace.map(move |t| (chip.name(), chip.local_only(), t)),
+                            (chip_name, num_main_constraints + num_permutation_constraints),
+                        )
+                    })
+                    .unzip()
+            });
+
+        let mut named_preprocessed_traces =
+            named_preprocessed_traces.into_iter().flatten().collect::<Vec<_>>();
+
+        // Order the chips and traces by trace size (biggest first), and get the ordering map.
+        named_preprocessed_traces
+            .sort_by_key(|(name, _, trace)| (Reverse(trace.height()), name.clone()));
+
+        let pcs = self.config.pcs();
+        let (chip_information, domains_and_traces): (Vec<_>, Vec<_>) = named_preprocessed_traces
+            .iter()
+            .map(|(name, _, trace)| {
+                let domain = pcs.natural_domain_for_degree(trace.height());
+                ((name.to_owned(), domain, trace.dimensions()), (domain, trace.to_owned()))
+            })
+            .unzip();
+
+        // Commit to the batch of traces.
+        let (commit, data) = tracing::debug_span!("commit to preprocessed traces")
+            .in_scope(|| pcs.commit(domains_and_traces));
+
+        // Get the chip ordering.
+        let chip_ordering = named_preprocessed_traces
+            .iter()
+            .enumerate()
+            .map(|(i, (name, _, _))| (name.to_owned(), i))
+            .collect::<HashMap<_, _>>();
+
+        let local_only = named_preprocessed_traces
+            .iter()
+            .map(|(_, local_only, _)| local_only.to_owned())
+            .collect::<Vec<_>>();
+
+        let constraints_map: HashMap<_, _> = num_constraints.into_iter().collect();
+
+        // Get the preprocessed traces
+        let traces =
+            named_preprocessed_traces.into_iter().map(|(_, _, trace)| trace).collect::<Vec<_>>();
+
+        let pc_start = program.pc_start();
+
+        (
+            StarkProvingKey {
+                commit: commit.clone(),
+                pc_start,
+                initial_global_cumulative_sum,
+                traces,
+                data,
+                chip_ordering: chip_ordering.clone(),
+                local_only,
+                constraints_map,
+            },
+            StarkVerifyingKey {
+                commit,
+                pc_start,
+                initial_global_cumulative_sum,
+                chip_information,
+                chip_ordering,
+            },
+        )
+    }
+
+    /// The setup preprocessing phase.
+    ///
+    /// Given a program, this function generates the proving and verifying keys. The keys correspond
+    /// to the program code and other preprocessed colunms such as lookup tables.
+    #[instrument("setup machine", level = "debug", skip_all)]
+    #[allow(clippy::map_unwrap_or)]
+    #[allow(clippy::redundant_closure_for_method_calls)]
+    pub fn setup(&self, program: &A::Program) -> (StarkProvingKey<SC>, StarkVerifyingKey<SC>) {
+        let initial_global_cumulative_sum = program.initial_global_cumulative_sum();
+        self.setup_core(program, initial_global_cumulative_sum)
+    }
+
+    /// Generates the dependencies of the given records.
+    #[allow(clippy::needless_for_each)]
+    pub fn generate_dependencies(
+        &self,
+        records: &mut [A::Record],
+        opts: &<A::Record as MachineRecord>::Config,
+        chips_filter: Option<&[String]>,
+    ) {
+        let chips = self
+            .chips
+            .iter()
+            .filter(|chip| {
+                if let Some(chips_filter) = chips_filter {
+                    chips_filter.contains(&chip.name())
+                } else {
+                    true
+                }
+            })
+            .collect::<Vec<_>>();
+
+        records.iter_mut().for_each(|record| {
+            chips.iter().for_each(|chip| {
+                let mut output = A::Record::default();
+                chip.generate_dependencies(record, &mut output);
+                record.append(&mut output);
+            });
+            tracing::debug_span!("register nonces").in_scope(|| record.register_nonces(opts));
+        });
+    }
+
+    /// Verify that a proof is complete and valid given a verifying key and a claimed digest.
+    #[instrument("verify", level = "info", skip_all)]
+    #[allow(clippy::match_bool)]
+    pub fn verify(
+        &self,
+        vk: &StarkVerifyingKey<SC>,
+        proof: &MachineProof<SC>,
+        challenger: &mut SC::Challenger,
+    ) -> Result<(), MachineVerificationError<SC>>
+    where
+        SC::Challenger: Clone,
+        A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
+    {
+        // Observe the preprocessed commitment.
+        vk.observe_into(challenger);
+
+        // Verify the shard proofs.
+        if proof.shard_proofs.is_empty() {
+            return Err(MachineVerificationError::EmptyProof);
+        }
+
+        tracing::debug_span!("verify shard proofs").in_scope(|| {
+            for (i, shard_proof) in proof.shard_proofs.iter().enumerate() {
+                tracing::debug_span!("verifying shard", shard = i).in_scope(|| {
+                    let chips =
+                        self.shard_chips_ordered(&shard_proof.chip_ordering).collect::<Vec<_>>();
+                    let mut shard_challenger = challenger.clone();
+                    shard_challenger
+                        .observe_slice(&shard_proof.public_values[0..self.num_pv_elts()]);
+                    Verifier::verify_shard(
+                        &self.config,
+                        vk,
+                        &chips,
+                        &mut shard_challenger,
+                        shard_proof,
+                    )
+                    .map_err(MachineVerificationError::InvalidShardProof)
+                })?;
+            }
+
+            Ok(())
+        })?;
+
+        // Verify the cumulative sum is 0.
+        tracing::debug_span!("verify global cumulative sum is 0").in_scope(|| {
+            let sum = proof
+                .shard_proofs
+                .iter()
+                .map(ShardProof::global_cumulative_sum)
+                .chain(once(vk.initial_global_cumulative_sum))
+                .sum::<SepticDigest<Val<SC>>>();
+
+            if !sum.is_zero() {
+                return Err(MachineVerificationError::NonZeroCumulativeSum(
+                    InteractionScope::Global,
+                    0,
+                ));
+            }
+
+            Ok(())
+        })
     }
 }
 
