@@ -1,8 +1,7 @@
-use std::collections::BTreeMap;
-
 use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, Field, PrimeField32, PrimeField64};
 use p3_matrix::Matrix;
+use std::collections::BTreeMap;
 
 use super::InteractionKind;
 use crate::{
