@@ -48,10 +48,10 @@ sp1-stark = { workspace = true }
 sp1-primitives = { workspace = true }
 itertools = { workspace = true }
 tonic = { version = "0.12", features = ["tls", "tls-roots"], optional = true }
-alloy-sol-types = { version = "0.11", default-features = false, optional = true }
+alloy-sol-types = { version = "0.8", default-features = false, optional = true }
 alloy-signer = { version = "0.11", default-features = false, optional = true }
 alloy-signer-local = { version = "0.11", default-features = false, optional = true }
-alloy-primitives = { version = "0.11", default-features = false, optional = true }
+alloy-primitives = { version = "0.8", default-features = false, optional = true }
 backoff = { version = "0.4", features = ["tokio"], optional = true }
 
 [dev-dependencies]
