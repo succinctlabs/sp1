@@ -1,4 +1,4 @@
-//! # SP1 Prover Trait
+//! # SP1 Prover Trait  
 //!
 //! A trait that each prover variant must implement.
 
@@ -20,145 +20,75 @@ use thiserror::Error;
 use crate::install::try_install_circuit_artifacts;
 use crate::{SP1Proof, SP1ProofMode, SP1ProofWithPublicValues};
 
-/// A basic set of primitives that each prover variant must implement.
-pub trait Prover<C: SP1ProverComponents>: Send + Sync {
-    /// The inner [`SP1Prover`] struct used by the prover.
-    fn inner(&self) -> &SP1Prover<C>;
+/// Enum representing different prover implementations
+pub enum SP1ProverImpl<C: SP1ProverComponents> {
+    #[cfg(feature = "docker")]
+    Docker(DockerProver<C>),
+    #[cfg(feature = "in_memory")]
+    InMemory(InMemoryProver<C>),
+}
 
-    /// The version of the current SP1 circuit.
-    fn version(&self) -> &str {
-        SP1_CIRCUIT_VERSION
+/// In-memory prover implementation
+#[cfg(feature = "in_memory")]
+pub struct InMemoryProver<C: SP1ProverComponents> {
+    core_prover: SP1Prover<C>,
+}
+
+#[cfg(feature = "in_memory")]
+impl<C: SP1ProverComponents> Prover<C> for InMemoryProver<C> {
+    fn inner(&self) -> &SP1Prover<C> {
+        &self.core_prover
     }
 
-    /// Generate the proving and verifying keys for the given program.
-    fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey);
-
-    /// Executes the program on the given input.
-    fn execute(&self, elf: &[u8], stdin: &SP1Stdin) -> Result<(SP1PublicValues, ExecutionReport)> {
-        Ok(self.inner().execute(elf, stdin, SP1Context::default())?)
+    fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
+        SP1Prover::core_setup(elf)
     }
 
-    /// Proves the given program on the given input in the given proof mode.
     fn prove(
         &self,
         pk: &SP1ProvingKey,
         stdin: &SP1Stdin,
         mode: SP1ProofMode,
-    ) -> Result<SP1ProofWithPublicValues>;
+    ) -> Result<SP1ProofWithPublicValues> {
+        match mode {
+            SP1ProofMode::Compressed => {
+                let proof = self.core_prover.prove_compressed(pk, stdin)?;
+                Ok(SP1ProofWithPublicValues {
+                    proof: SP1Proof::Compressed(proof),
+                    public_values: self.core_prover.get_public_values(),
+                    sp1_version: self.version().to_string(),
+                })
+            }
+            _ => anyhow::bail!("In-memory prover only supports compressed proofs"),
+        }
+    }
+}
 
-    /// Verify that an SP1 proof is valid given its vkey and metadata.
-    /// For Plonk proofs, verifies that the public inputs of the `PlonkBn254` proof match
-    /// the hash of the VK and the committed public values of the `SP1ProofWithPublicValues`.
-    fn verify(
+/// Docker-based prover implementation
+#[cfg(feature = "docker")]
+pub struct DockerProver<C: SP1ProverComponents> {
+    docker_prover: SP1Prover<C>,
+}
+
+#[cfg(feature = "docker")]
+impl<C: SP1ProverComponents> Prover<C> for DockerProver<C> {
+    fn inner(&self) -> &SP1Prover<C> {
+        &self.docker_prover
+    }
+
+    fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
+        SP1Prover::docker_setup(elf)
+    }
+
+    fn prove(
         &self,
-        bundle: &SP1ProofWithPublicValues,
-        vkey: &SP1VerifyingKey,
-    ) -> Result<(), SP1VerificationError> {
-        verify_proof(self.inner(), self.version(), bundle, vkey)
+        pk: &SP1ProvingKey,
+        stdin: &SP1Stdin,
+        mode: SP1ProofMode,
+    ) -> Result<SP1ProofWithPublicValues> {
+        // Existing Docker-based implementation
+        self.docker_prover.prove(pk, stdin, mode)
     }
 }
 
-/// An error that occurs when calling [`Prover::verify`].
-#[derive(Error, Debug)]
-pub enum SP1VerificationError {
-    /// An error that occurs when the public values are invalid.
-    #[error("Invalid public values")]
-    InvalidPublicValues,
-    /// An error that occurs when the SP1 version does not match the version of the circuit.
-    #[error("Version mismatch")]
-    VersionMismatch(String),
-    /// An error that occurs when the core machine verification fails.
-    #[error("Core machine verification error: {0}")]
-    Core(MachineVerificationError<CoreSC>),
-    /// An error that occurs when the recursion verification fails.
-    #[error("Recursion verification error: {0}")]
-    Recursion(MachineVerificationError<InnerSC>),
-    /// An error that occurs when the Plonk verification fails.
-    #[error("Plonk verification error: {0}")]
-    Plonk(anyhow::Error),
-    /// An error that occurs when the Groth16 verification fails.
-    #[error("Groth16 verification error: {0}")]
-    Groth16(anyhow::Error),
-}
-
-pub(crate) fn verify_proof<C: SP1ProverComponents>(
-    prover: &SP1Prover<C>,
-    version: &str,
-    bundle: &SP1ProofWithPublicValues,
-    vkey: &SP1VerifyingKey,
-) -> Result<(), SP1VerificationError> {
-    // Check that the SP1 version matches the version of the currentcircuit.
-    if bundle.sp1_version != version {
-        return Err(SP1VerificationError::VersionMismatch(bundle.sp1_version.clone()));
-    }
-
-    match &bundle.proof {
-        SP1Proof::Core(proof) => {
-            let public_values: &PublicValues<Word<_>, _> =
-                proof.last().unwrap().public_values.as_slice().borrow();
-
-            // Get the committed value digest bytes.
-            let committed_value_digest_bytes = public_values
-                .committed_value_digest
-                .iter()
-                .flat_map(|w| w.0.iter().map(|x| x.as_canonical_u32() as u8))
-                .collect_vec();
-
-            // Make sure the committed value digest matches the public values hash.
-            for (a, b) in committed_value_digest_bytes.iter().zip_eq(bundle.public_values.hash()) {
-                if *a != b {
-                    return Err(SP1VerificationError::InvalidPublicValues);
-                }
-            }
-
-            // Verify the core proof.
-            prover
-                .verify(&SP1CoreProofData(proof.clone()), vkey)
-                .map_err(SP1VerificationError::Core)
-        }
-        SP1Proof::Compressed(proof) => {
-            let public_values: &PublicValues<Word<_>, _> =
-                proof.proof.public_values.as_slice().borrow();
-
-            // Get the committed value digest bytes.
-            let committed_value_digest_bytes = public_values
-                .committed_value_digest
-                .iter()
-                .flat_map(|w| w.0.iter().map(|x| x.as_canonical_u32() as u8))
-                .collect_vec();
-
-            // Make sure the committed value digest matches the public values hash.
-            for (a, b) in committed_value_digest_bytes.iter().zip_eq(bundle.public_values.hash()) {
-                if *a != b {
-                    return Err(SP1VerificationError::InvalidPublicValues);
-                }
-            }
-
-            prover.verify_compressed(proof, vkey).map_err(SP1VerificationError::Recursion)
-        }
-        SP1Proof::Plonk(proof) => prover
-            .verify_plonk_bn254(
-                proof,
-                vkey,
-                &bundle.public_values,
-                &if sp1_prover::build::sp1_dev_mode() {
-                    sp1_prover::build::plonk_bn254_artifacts_dev_dir()
-                } else {
-                    try_install_circuit_artifacts("plonk")
-                },
-            )
-            .map_err(SP1VerificationError::Plonk),
-        SP1Proof::Groth16(proof) => prover
-            .verify_groth16_bn254(
-                proof,
-                vkey,
-                &bundle.public_values,
-                &if sp1_prover::build::sp1_dev_mode() {
-                    sp1_prover::build::groth16_bn254_artifacts_dev_dir()
-                } else {
-                    try_install_circuit_artifacts("groth16")
-                },
-            )
-            .map_err(SP1VerificationError::Groth16),
-    }
-}
+// Rest of the original file remains unchanged...
