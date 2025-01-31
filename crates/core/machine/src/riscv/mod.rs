@@ -450,7 +450,7 @@ impl<F: PrimeField32> RiscvAir<F> {
             (RiscvAirId::Jump, record.jump_events.len()),
             (
                 RiscvAirId::Global,
-                2 * record.get_local_mem_events().count() + record.syscall_events.len(),
+                record.global_interaction_events.len(), // 2 * record.get_local_mem_events().count() + record.syscall_events.len(),
             ),
             (RiscvAirId::SyscallCore, record.syscall_events.len()),
             (RiscvAirId::SyscallInstrs, record.syscall_events.len()),
