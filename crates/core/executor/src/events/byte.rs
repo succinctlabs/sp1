@@ -131,9 +131,18 @@ impl ByteRecord for Vec<ByteLookupEvent> {
 
     fn add_sharded_byte_lookup_events(
         &mut self,
-        _: Vec<&HashMap<u32, HashMap<ByteLookupEvent, usize>>>,
+        new_events: Vec<&HashMap<u32, HashMap<ByteLookupEvent, usize>>>,
     ) {
-        todo!()
+        for sharded_events in new_events {
+            for (_, blu_map) in sharded_events {
+                for (event, count) in blu_map {
+                    // Add the event count times
+                    for _ in 0..*count {
+                        self.add_byte_lookup_event(*event);
+                    }
+                }
+            }
+        }
     }
 }
 
