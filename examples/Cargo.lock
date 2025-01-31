@@ -1129,7 +1129,7 @@ dependencies = [
  "group 0.13.0",
  "pairing 0.23.0",
  "rand_core 0.6.4",
- "sp1-lib 4.0.0",
+ "sp1-lib 4.0.1",
  "subtle",
 ]
 
@@ -1607,7 +1607,7 @@ dependencies = [
  "cfg-if",
  "digest 0.9.0",
  "rand_core 0.6.4",
- "sp1-lib 4.0.0",
+ "sp1-lib 4.0.1",
  "subtle-ng",
  "zeroize",
 ]
@@ -1916,7 +1916,7 @@ dependencies = [
  "hex-literal",
  "rfc6979",
  "signature",
- "sp1-lib 4.0.0",
+ "sp1-lib 4.0.1",
  "spki 0.7.3",
 ]
 
@@ -5926,7 +5926,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-build"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -5937,7 +5937,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-executor"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "bincode",
  "bytemuck",
@@ -5974,7 +5974,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-machine"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "bincode",
  "cbindgen",
@@ -6029,7 +6029,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-cuda"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "bincode",
  "ctrlc",
@@ -6044,7 +6044,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "cfg-if",
  "dashu",
@@ -6064,7 +6064,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -6086,7 +6086,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "bincode",
  "serde",
@@ -6095,7 +6095,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "bincode",
  "hex",
@@ -6111,7 +6111,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-prover"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "anyhow",
  "bincode",
@@ -6152,7 +6152,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-circuit"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "hashbrown 0.14.5",
  "itertools 0.13.0",
@@ -6184,7 +6184,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-compiler"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "backtrace",
  "itertools 0.13.0",
@@ -6204,7 +6204,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-core"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "backtrace",
  "cbindgen",
@@ -6245,7 +6245,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-derive"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -6253,7 +6253,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-ffi"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "anyhow",
  "bincode",
@@ -6277,7 +6277,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-sdk"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "alloy-primitives 0.8.15",
  "alloy-signer",
@@ -6323,7 +6323,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-stark"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "arrayref",
  "hashbrown 0.14.5",
@@ -6356,7 +6356,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-verifier"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "hex",
  "lazy_static",
@@ -6367,7 +6367,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "cfg-if",
  "critical-section",
@@ -6379,7 +6379,7 @@ dependencies = [
  "p3-field",
  "rand 0.8.5",
  "sha2 0.10.8",
- "sp1-lib 4.0.0",
+ "sp1-lib 4.0.1",
  "sp1-primitives",
 ]
 
@@ -6539,7 +6539,7 @@ dependencies = [
  "num-bigint 0.4.6",
  "rand 0.8.5",
  "rustc-hex",
- "sp1-lib 4.0.0",
+ "sp1-lib 4.0.1",
 ]
 
 [[package]]
@@ -6556,7 +6556,7 @@ dependencies = [
  "num-bigint 0.4.6",
  "rand 0.8.5",
  "rustc-hex",
- "sp1-lib 4.0.0",
+ "sp1-lib 4.0.1",
 ]
 
 [[package]]

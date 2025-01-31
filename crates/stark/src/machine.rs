@@ -185,6 +185,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         initial_global_cumulative_sum: SepticDigest<Val<SC>>,
     ) -> (StarkProvingKey<SC>, StarkVerifyingKey<SC>) {
         let parent_span = tracing::debug_span!("generate preprocessed traces");
+        let preprocessed_traces_start = Instant::now();
         let mut named_preprocessed_traces = parent_span.in_scope(|| {
             self.chips()
                 .par_iter()
@@ -209,10 +210,16 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                 })
                 .collect::<Vec<_>>()
         });
+        tracing::info!(
+            "Generated preprocessed traces in {:?}",
+            preprocessed_traces_start.elapsed()
+        );
 
+        let order_traces_start = Instant::now();
         // Order the chips and traces by trace size (biggest first), and get the ordering map.
         named_preprocessed_traces
             .sort_by_key(|(name, _, trace)| (Reverse(trace.height()), name.clone()));
+        tracing::info!("Ordered preprocessed traces in {:?}", order_traces_start.elapsed());
 
         let pcs = self.config.pcs();
         let (chip_information, domains_and_traces): (Vec<_>, Vec<_>) = named_preprocessed_traces
@@ -224,15 +231,19 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             .unzip();
 
         // Commit to the batch of traces.
+        let commit_traces_start = Instant::now();
         let (commit, data) = tracing::debug_span!("commit to preprocessed traces")
             .in_scope(|| pcs.commit(domains_and_traces));
+        tracing::info!("Committed to preprocessed traces in {:?}", commit_traces_start.elapsed());
 
         // Get the chip ordering.
+        let chip_ordering_start = Instant::now();
         let chip_ordering = named_preprocessed_traces
             .iter()
             .enumerate()
             .map(|(i, (name, _, _))| (name.to_owned(), i))
             .collect::<HashMap<_, _>>();
+        tracing::info!("Got chip ordering in {:?}", chip_ordering_start.elapsed());
 
         let local_only = named_preprocessed_traces
             .iter()
@@ -273,8 +284,20 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
     #[allow(clippy::map_unwrap_or)]
     #[allow(clippy::redundant_closure_for_method_calls)]
     pub fn setup(&self, program: &A::Program) -> (StarkProvingKey<SC>, StarkVerifyingKey<SC>) {
+        let setup_start = Instant::now();
+        let initial_sum_start = Instant::now();
         let initial_global_cumulative_sum = program.initial_global_cumulative_sum();
-        self.setup_core(program, initial_global_cumulative_sum)
+        tracing::info!(
+            "Initial global cumulative sum computed in {:?}",
+            initial_sum_start.elapsed()
+        );
+
+        let setup_core_start = Instant::now();
+        let result = self.setup_core(program, initial_global_cumulative_sum);
+        tracing::info!("Setup core completed in {:?}", setup_core_start.elapsed());
+
+        tracing::info!("Total setup time: {:?}", setup_start.elapsed());
+        result
     }
 
     /// Generates the dependencies of the given records.
