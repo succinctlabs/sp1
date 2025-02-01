@@ -120,6 +120,10 @@ pub type CompressAir<F> = RecursionAir<F, COMPRESS_DEGREE>;
 pub type ShrinkAir<F> = RecursionAir<F, SHRINK_DEGREE>;
 pub type WrapAir<F> = RecursionAir<F, WRAP_DEGREE>;
 
+static COMPRESS_PROGRAMS: OnceLock<
+    BTreeMap<SP1CompressWithVkeyShape, Arc<RecursionProgram<BabyBear>>>,
+> = OnceLock::new();
+
 /// A end-to-end for the SP1 RISC-V zkVM.
 ///
 /// This object coordinates the proving along all the steps: core, compression, shrinkage, and
@@ -212,33 +216,36 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         let (root, merkle_tree) = MerkleTree::commit(allowed_vk_map.keys().copied().collect());
 
-        let mut compress_programs = BTreeMap::new();
         let program_cache_disabled = env::var("SP1_DISABLE_PROGRAM_CACHE")
             .map(|v| v.eq_ignore_ascii_case("true"))
             .unwrap_or(false);
         if !program_cache_disabled {
-            if let Some(config) = &recursion_shape_config {
-                SP1ProofShape::generate_compress_shapes(config, REDUCE_BATCH_SIZE).for_each(
-                    |shape| {
-                        let compress_shape = SP1CompressWithVkeyShape {
-                            compress_shape: shape.into(),
-                            merkle_tree_height: merkle_tree.height,
-                        };
-                        let input = SP1CompressWithVKeyWitnessValues::dummy(
-                            compress_prover.machine(),
-                            &compress_shape,
-                        );
-                        let program = compress_program_from_input::<C>(
-                            recursion_shape_config.as_ref(),
-                            &compress_prover,
-                            vk_verification,
-                            &input,
-                        );
-                        let program = Arc::new(program);
-                        compress_programs.insert(compress_shape, program);
-                    },
-                );
-            }
+            COMPRESS_PROGRAMS.get_or_init(|| {
+                let mut compress_programs = BTreeMap::new();
+                if let Some(config) = &recursion_shape_config {
+                    SP1ProofShape::generate_compress_shapes(config, REDUCE_BATCH_SIZE).for_each(
+                        |shape| {
+                            let compress_shape = SP1CompressWithVkeyShape {
+                                compress_shape: shape.into(),
+                                merkle_tree_height: merkle_tree.height,
+                            };
+                            let input = SP1CompressWithVKeyWitnessValues::dummy(
+                                compress_prover.machine(),
+                                &compress_shape,
+                            );
+                            let program = compress_program_from_input::<C>(
+                                recursion_shape_config.as_ref(),
+                                &compress_prover,
+                                vk_verification,
+                                &input,
+                            );
+                            let program = Arc::new(program);
+                            compress_programs.insert(compress_shape, program);
+                        },
+                    );
+                }
+                compress_programs
+            });
         }
 
         Self {
@@ -248,7 +255,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             wrap_prover,
             lift_programs_lru: Mutex::new(LruCache::new(core_cache_size)),
             lift_cache_misses: AtomicUsize::new(0),
-            join_programs_map: compress_programs,
+            join_programs_map: COMPRESS_PROGRAMS.get().cloned().unwrap_or_default(),
             join_cache_misses: AtomicUsize::new(0),
             recursion_vk_root: root,
             recursion_vk_tree: merkle_tree,
@@ -987,16 +994,18 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         &self,
         input: &SP1CompressWithVKeyWitnessValues<InnerSC>,
     ) -> Arc<RecursionProgram<BabyBear>> {
-        self.join_programs_map.get(&input.shape()).cloned().unwrap_or_else(|| {
-            tracing::warn!("join program not found in map, recomputing join program.");
-            // Get the operations.
-            Arc::new(compress_program_from_input::<C>(
-                self.compress_shape_config.as_ref(),
-                &self.compress_prover,
-                self.vk_verification,
-                input,
-            ))
-        })
+        COMPRESS_PROGRAMS
+            .get()
+            .and_then(|programs| programs.get(&input.shape()).cloned())
+            .unwrap_or_else(|| {
+                tracing::warn!("Compress program not found in map, recomputing compress program.");
+                Arc::new(compress_program_from_input::<C>(
+                    self.compress_shape_config.as_ref(),
+                    &self.compress_prover,
+                    self.vk_verification,
+                    input,
+                ))
+            })
     }
 
     pub fn shrink_program(
