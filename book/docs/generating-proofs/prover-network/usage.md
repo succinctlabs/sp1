@@ -2,7 +2,7 @@
 
 > **See [Supported Versions](./versions.md) for the currently supported versions of SP1 on the Prover Network.**
 >
-> **🚨 Please subscribe to our [email list](https://forms.gle/t9tMmKxE7tAd7Zzt5) for critical SP1 updates, network upgrades, and security disclosures.**
+> **🚨 Please subscribe to our [email list](https://forms.gle/t9tMmKxE7tAd7Zzt5) for critical SP1 updates, prover network upgrades, and security disclosures.**
 
 ## Sending a proof request
 
