@@ -111,9 +111,9 @@ checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 
 [[package]]
 name = "alloy-consensus"
-version = "0.8.3"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e88e1edea70787c33e11197d3f32ae380f3db19e6e061e539a5bcf8184a6b326"
+checksum = "ce20c85f6b24a5da40b2350a748e348417f0465dedbb523a4d149143bc4a41ce"
 dependencies = [
  "alloy-eips",
  "alloy-primitives",
@@ -128,9 +128,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-consensus-any"
-version = "0.8.3"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57b1bb53f40c0273cd1975573cd457b39213e68584e36d1401d25fd0398a1d65"
+checksum = "8e23af02ccded0031ef2b70df4fe9965b1c742c5d5384c8c767ae0311f7e62b9"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -138,6 +138,18 @@ dependencies = [
  "alloy-rlp",
  "alloy-serde",
  "serde",
+]
+
+[[package]]
+name = "alloy-eip2124"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "675264c957689f0fd75f5993a73123c2cc3b5c235a38f5b9037fe6c826bfb2c0"
+dependencies = [
+ "alloy-primitives",
+ "alloy-rlp",
+ "crc",
+ "thiserror 2.0.11",
 ]
 
 [[package]]
@@ -153,9 +165,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-eip7702"
-version = "0.4.2"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c986539255fb839d1533c128e190e557e52ff652c9ef62939e233a81dd93f7e"
+checksum = "cabf647eb4650c91a9d38cb6f972bb320009e7e9d61765fb688a86f1563b33e8"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
@@ -165,15 +177,17 @@ dependencies = [
 
 [[package]]
 name = "alloy-eips"
-version = "0.8.3"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f9fadfe089e9ccc0650473f2d4ef0a28bc015bbca5631d9f0f09e49b557fdb3"
+checksum = "7149e011edbd588f6df6564b369c75f6b538d76db14053d95e0b43b2d92e4266"
 dependencies = [
+ "alloy-eip2124",
  "alloy-eip2930",
  "alloy-eip7702",
  "alloy-primitives",
  "alloy-rlp",
  "alloy-serde",
+ "auto_impl",
  "c-kzg",
  "derive_more",
  "once_cell",
@@ -183,9 +197,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-json-rpc"
-version = "0.8.3"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e29040b9d5fe2fb70415531882685b64f8efd08dfbd6cc907120650504821105"
+checksum = "c0c5c9651fd20a2fd4a57606b6a570d1c17ab86e686b962b2f1ecac68b51e020"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
@@ -197,9 +211,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-network"
-version = "0.8.3"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "510cc00b318db0dfccfdd2d032411cfae64fc144aef9679409e014145d3dacc4"
+checksum = "b02ed56783fb2c086a4ac8961175dd6d3ad163e6cf6125f0b83f7de03379b607"
 dependencies = [
  "alloy-consensus",
  "alloy-consensus-any",
@@ -222,9 +236,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-network-primitives"
-version = "0.8.3"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9081c099e798b8a2bba2145eb82a9a146f01fc7a35e9ab6e7b43305051f97550"
+checksum = "a0624cfa9311aa8283cd3bf5eed883d0d1e823e2a4d57b30e1b49af4b3678a6b"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -284,9 +298,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-types-any"
-version = "0.8.3"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed98e1af55a7d856bfa385f30f63d8d56be2513593655c904a8f4a7ec963aa3e"
+checksum = "66e119337400d8b0348e1576ab37ffa56d1a04cbc977a84d4fa0a527d7cb0c21"
 dependencies = [
  "alloy-consensus-any",
  "alloy-rpc-types-eth",
@@ -295,9 +309,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-types-eth"
-version = "0.8.3"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8737d7a6e37ca7bba9c23e9495c6534caec6760eb24abc9d5ffbaaba147818e1"
+checksum = "8a4a43d8b1344e3ef115ed7a2cee934876e4a64d2b9d9bee8738f9806900757e"
 dependencies = [
  "alloy-consensus",
  "alloy-consensus-any",
@@ -307,17 +321,17 @@ dependencies = [
  "alloy-rlp",
  "alloy-serde",
  "alloy-sol-types",
- "derive_more",
  "itertools 0.13.0",
  "serde",
  "serde_json",
+ "thiserror 2.0.11",
 ]
 
 [[package]]
 name = "alloy-serde"
-version = "0.8.3"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5851bf8d5ad33014bd0c45153c603303e730acc8a209450a7ae6b4a12c2789e2"
+checksum = "86aa42c36e3c0db5bd9a7314e98aa261a61d5e3d6a0bd7e51fb8b0a3d6438481"
 dependencies = [
  "alloy-primitives",
  "serde",
@@ -326,9 +340,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-signer"
-version = "0.8.3"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e10ca565da6500cca015ba35ee424d59798f2e1b85bc0dd8f81dafd401f029a"
+checksum = "c613222abd016e03ba548f41db938a2c99108b59c0c66ca105eab1b7a2e6b40a"
 dependencies = [
  "alloy-primitives",
  "async-trait",
@@ -340,9 +354,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-signer-local"
-version = "0.8.3"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "47fababf5a745133490cde927d48e50267f97d3d1209b9fc9f1d1d666964d172"
+checksum = "39163b956c81e8fd9605194d6b5b92dd93b0e0252810e69f9a4cebe3a8614f46"
 dependencies = [
  "alloy-consensus",
  "alloy-network",
@@ -1635,6 +1649,21 @@ name = "cpuid-bool"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dcb25d077389e53838a8158c8e99174c5a9d902dee4904320db714f3c653ffba"
+
+[[package]]
+name = "crc"
+version = "3.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69e6e4d7b33a94f0991c26729976b10ebde1d34c3ee82408fb536164fa10d636"
+dependencies = [
+ "crc-catalog",
+]
+
+[[package]]
+name = "crc-catalog"
+version = "2.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "19d374276b40fb8bbdee95aef7c7fa6b5316ec764510eb64b8dd0e2ed0d7e7f5"
 
 [[package]]
 name = "criterion"
