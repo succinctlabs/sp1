@@ -1,9 +1,9 @@
 # Safe Usage of SP1 Precompiles
 
-This section outlines the key assumptions and properties of each precompile. As explained in [Precompiles](../writing-programs/precompiles.mdx), we recommend you to interact with precompiles through [patches](../writing-programs/patched-crates.md). Advanced users interacting directly with the precompiles are expected to ensure these assumptions are met.
+This section outlines the key assumptions and properties of each precompile. As explained in [Precompiles](../writing-programs/precompiles.mdx), we recommend interacting with precompiles through [patches](../writing-programs/patched-crates.md). Advanced users who interact directly with precompiles must ensure these assumptions are met.
 
 ## Do not use direct ECALL
-If you need to interact with the precompiles directly, you must use the API described in [Precompiles](../writing-programs/precompiles.mdx) instead of making the `ecall` directly using unsafe Rust. As some of our syscalls have critical functionalities and complex security properties around them, **we highly recommend not calling the syscalls directly with `ecall`**. For example, directly calling `HALT` to stop the program execution leads to security vulnerabilities. As in our [security model](./security-model.md), it is critical for safe usage that the program compiled into SP1 is correct. 
+To interact with precompiles directly, use the API described in [Precompiles](../writing-programs/precompiles.mdx) rather than making an `ecall` call using unsafe Rust. As some of our syscalls have critical functionalities and complex security properties around them, **we highly recommend not calling the syscalls directly with `ecall`**. For example, directly calling `HALT` to stop the program execution leads to security vulnerabilities. As in our [security model](./security-model.md), it is critical for safe usage that the program compiled into SP1 is correct. 
 
 ## Alignment of Pointers
 
@@ -17,7 +17,7 @@ Certain precompiles handle non-native field arithmetic, such as field operation 
 
 The elliptic curve precompiles assume that inputs are valid elliptic curve points. Since this validity is not enforced within the precompile circuits, it is the responsibility of the user program to verify that the points lie on the curve. Given valid elliptic curve points as inputs, the precompile will perform point addition or doubling as expected.
 
-For Weierstrass curves, the `add` precompile additionally constrains that the two elliptic curve points have different `x`-coordinates over the base field. Attempting to double a point by sending two equal curve points to the `add` precompile will result in unverifiable proofs. Additionally, cases where an input or output point is a point at infinity cannot be handled by the `add` or `double` precompile. It is the responsibility of the user program to handle such edge cases of Weierstrass addition correctly when invoking these precompiles.
+For Weierstrass curves, the `add` precompile additionally constrains that the two elliptic curve points have different `x`-coordinates over the base field. Doubling a point by passing two identical curve points to the add precompile results in unverifiable proofs. Additionally, cases where an input or output point is a point at infinity cannot be handled by the `add` or `double` precompile. It is the responsibility of the user program to handle such edge cases of Weierstrass addition correctly when invoking these precompiles.
 
 ## U256 Precompile
 
