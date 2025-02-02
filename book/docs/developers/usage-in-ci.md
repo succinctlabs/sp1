@@ -31,7 +31,7 @@ And then you can install the SP1 toolchain:
 You might experience rate limiting from sp1up. Using a Github
 [Personal Access Token (PAT)](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens#creating-a-fine-grained-personal-access-token) will help.
 
-Try setting a github actions secret to your PAT, and then passing it into the `sp1up` command:
+Try setting a GitHub Actions secret for your PAT, and then passing it into the `sp1up` command:
 
 ```yaml
 - name: Install SP1 toolchain
@@ -41,7 +41,7 @@ Try setting a github actions secret to your PAT, and then passing it into the `s
     ~/.sp1/bin/cargo-prove prove --version
 ```
 
-Note: Installing via `sp1up` always installs the latest version, its recommended to [use a release commit](https://github.com/succinctlabs/sp1/releases) via `sp1up -C <commit>`.
+Note: Installing via `sp1up` always installs the latest version, it's recommended to [use a release commit](https://github.com/succinctlabs/sp1/releases) via `sp1up -C <commit>`.
 
 ## Speeding up your CI workflow
 
