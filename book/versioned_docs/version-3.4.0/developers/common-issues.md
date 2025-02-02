@@ -8,7 +8,7 @@ If you are using a library that has an MSRV specified, you may encounter an erro
 package `alloy v0.1.1 cannot be built because it requires rustc 1.76 or newer, while the currently active rustc version is 1.75.0-nightly`
 ```
 
-This is due to the fact that your current Succinct Rust toolchain has been built with a lower version than the MSRV of the crates you are using. 
+This occurs because your current Succinct Rust toolchain version is lower than the MSRV of the crates you are using.
 
 You can check the version of your local Succinct Rust toolchain by running `cargo +succinct --version`. The latest release of the Succinct Rust toolchain is **1.81**. You can update to the latest version by running [`sp1up`](../getting-started/install.md).
 
@@ -95,7 +95,7 @@ sp1up --c-toolchain
 
 This will install the C++ toolchain for RISC-V and set the `CC_riscv32im_succinct_zkvm_elf` environment
 variable to the path of the installed `riscv32-unknown-elf-gcc` binary. You can also use your own
-C++ toolchain be setting this variable manually:
+C++ toolchain by setting this variable manually:
 
 ```bash
 export CC_riscv32im_succinct_zkvm_elf=/path/to/toolchain
