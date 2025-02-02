@@ -8,7 +8,7 @@ In this section, we will show you how to create a simple Fibonacci program using
 
 You can use the `cargo prove` CLI to create a new project using the `cargo prove new <--bare|--evm> <name>` command. The `--bare` option sets up a basic SP1 project for standalone zkVM programs, while `--evm` adds additional components including Solidity contracts for on-chain proof verification.
 
-This command will create a new folder in your current directory which includes solidity smart contracts for onchain integration.
+This command will create a new folder in your current directory which includes Solidity smart contracts for on-chain integration.
 
 ```bash
 cargo prove new --evm fibonacci
@@ -16,14 +16,14 @@ cd fibonacci
 ```
 
 :::note
-If you use the `--evm` option, you will need to install `foundry` to compile the solidity contracts. Please follow the instructions [on the official Foundry docs](https://book.getfoundry.sh/getting-started/installation).
+If you use the `--evm` option, you will need to install `foundry` to compile the Solidity contracts. Please follow the instructions [on the official Foundry docs](https://book.getfoundry.sh/getting-started/installation).
 
 Then, you'll have to setup contracts development by running `forge install` in the `contracts` directory.
 :::
 
 ### Option 2: Project Template (Solidity Contracts for Onchain Verification)
 
-If you want to use SP1 to generate proofs that will eventually be verified on an EVM chain, you should use the [SP1 project template](https://github.com/succinctlabs/sp1-project-template/tree/main). This Github template is scaffolded with a SP1 program, a script to generate proofs, and also a contracts folder that contains a Solidity contract that can verify SP1 proofs on any EVM chain.
+If you want to use SP1 to generate proofs that will eventually be verified on an EVM chain, you should use the [SP1 project template](https://github.com/succinctlabs/sp1-project-template/tree/main). This GitHub template is scaffolded with a SP1 program, a script to generate proofs, and also a contracts folder that contains a Solidity contract that can verify SP1 proofs on any EVM chain.
 
 Either fork the project template repository or clone it:
 
@@ -64,13 +64,13 @@ Note that if you use `cargo prove new` inside a monorepo, you will need to add t
 
 ## Build
 
-Before we can run the program inside the zkVM, it must be compiled to a RISC-V executable using the `succinct` Rust toolchain. This is called an [ELF (Executable and Linkable Format)](https://en.wikipedia.org/wiki/Executable_and_Linkable_Format). To compile the program, you can run the following command:
+Before we can run the program inside the zkVM, it must be compiled to a RISC-V executable using the `Succinct` Rust toolchain. This is called an [ELF (Executable and Linkable Format)](https://en.wikipedia.org/wiki/Executable_and_Linkable_Format). To compile the program, you can run the following command:
 
 ```
 cd program && cargo prove build
 ```
 
-which will generate an ELF file under `target/elf-compilation`. 
+which generates an ELF file under `target/elf-compilation`. 
 
 Note: the `build.rs` file in the `script` directory will use run the above command automatically to build the ELF, meaning you don't have to manually run `cargo prove build` every time you make a change to the program!
 
@@ -122,7 +122,7 @@ The program by default is quite small, so proof generation will only take a few 
 
 Please see the [Recommended Workflow](../generating-proofs/recommended-workflow) section for more details on how to develop your SP1 program and generate proofs.
 
-We *strongly recommend* that developers who want to use SP1 for non-trivial programs generate proofs on the beta version of our [Prover Network](../generating-proofs/prover-network.md). The prover network generates SP1 proofs across multiple machines, reducing latency and also runs SP1 on optimized hardware instances that result in faster + cheaper proof generation times.
+We *strongly recommend* that developers who want to use SP1 for non-trivial programs generate proofs on the beta version of our [Prover Network](../generating-proofs/prover-network.md). The Prover Network generates SP1 proofs across multiple machines, reducing latency and also runs SP1 on optimized hardware instances that result in faster + cheaper proof generation times.
 
-We recommend that for any production benchmarking, you use the prover network to estimate latency and costs of proof generation. We also would love to chat with your team directly to help you get started with the prover network--please fill out this [form](https://partner.succinct.xyz/).
+We recommend that for any production benchmarking, you use the Prover Network to estimate latency and costs of proof generation. We also would love to chat with your team directly to help you get started with the Prover Network--please fill out this [form](https://partner.succinct.xyz/).
 
