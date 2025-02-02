@@ -5,12 +5,12 @@ import Execute from "@site/static/examples_fibonacci_script_bin_execute.rs.mdx";
 
 ## Execution Only
 
-We recommend that during the development of large programs (> 1 million cycles) you do not generate proofs each time.
+We recommend that during the development of large programs (> 1 million cycles) you avoid generating proofs every time.
 Instead, you should have your script only execute the program with the RISC-V runtime and read `public_values`. Here is an example:
 
 <Execute />
 
-If the execution of your program succeeds, then proof generation should succeed as well! (Unless there is a bug in our zkVM implementation.)
+If your program executes successfully, proof generation should also succeed! (Unless there is a bug in our zkVM implementation.)
 
 ## Logging and Tracing Information
 
@@ -53,7 +53,7 @@ SHARD_SIZE=4194304 RUST_LOG=info RUSTFLAGS='-C target-cpu=native' cargo run --re
 ## Memory Usage
 
 To reduce memory usage, set the `SHARD_BATCH_SIZE` environment variable depending on how much RAM
-your machine has. A higher number will use more memory, but will be faster.
+your machine has. A higher value increases memory usage but improves speed.
 
 ```rust
 SHARD_BATCH_SIZE=1 SHARD_SIZE=2097152 RUST_LOG=info RUSTFLAGS='-C target-cpu=native' cargo run --release
