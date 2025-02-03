@@ -8,13 +8,14 @@ pub const N: usize = 16;
 #[repr(align(4))]
 pub struct Ed25519AffinePoint(pub [u32; N]);
 
+/// The generator/base point for the Ed25519 curve. Reference: https://datatracker.ietf.org/doc/html/rfc7748#section-4.1
+const GENERATOR: [u32; N] = [
+    216936062, 3086116296, 2351951131, 1681893421, 3444223839, 2756123356, 3800373269, 3284567716,
+    2518301344, 752319464, 3983256831, 1952656717, 3669724772, 3793645816, 3665724614, 2969860233,
+];
+
 impl AffinePoint<N> for Ed25519AffinePoint {
-    /// The generator/base point for the Ed25519 curve. Reference: https://datatracker.ietf.org/doc/html/rfc7748#section-4.1
-    const GENERATOR: [u32; N] = [
-        216936062, 3086116296, 2351951131, 1681893421, 3444223839, 2756123356, 3800373269,
-        3284567716, 2518301344, 752319464, 3983256831, 1952656717, 3669724772, 3793645816,
-        3665724614, 2969860233,
-    ];
+    const GENERATOR: Self = Self(GENERATOR);
 
     fn new(limbs: [u32; N]) -> Self {
         Self(limbs)
@@ -38,6 +39,10 @@ impl AffinePoint<N> for Ed25519AffinePoint {
         unsafe {
             syscall_ed_add(a, b);
         }
+    }
+
+    fn is_identity(&self) -> bool {
+        self.0 == Self::IDENTITY
     }
 
     /// In Edwards curves, doubling is the same as adding a point to itself.

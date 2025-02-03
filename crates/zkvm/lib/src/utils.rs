@@ -1,6 +1,6 @@
 pub trait AffinePoint<const N: usize>: Clone + Sized {
     /// The generator.
-    const GENERATOR: [u32; N];
+    const GENERATOR: Self;
 
     /// Creates a new [`AffinePoint`] from the given limbs.
     fn new(limbs: [u32; N]) -> Self;
@@ -14,6 +14,8 @@ pub trait AffinePoint<const N: usize>: Clone + Sized {
     /// Returns a mutable reference to the limbs. If the point is the infinity point, this will
     /// panic.
     fn limbs_mut(&mut self) -> &mut [u32; N];
+
+    fn is_identity(&self) -> bool;
 
     /// Creates a new [`AffinePoint`] from the given x and y coordinates.
     ///
