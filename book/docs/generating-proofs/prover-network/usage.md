@@ -1,7 +1,8 @@
 # Prover Network: Usage
 
 > **See [Supported Versions](./versions.md) for the currently supported versions of SP1 on the Prover Network.**
-
+>
+> **🚨 Please subscribe to our [email list](https://stats.sender.net/forms/elYpO1/view) for critical SP1 updates, prover network upgrades, and security disclosures.**
 ## Sending a proof request
 
 To use the prover network to generate a proof, you can run your script that uses `sp1_sdk::ProverClient` as you would normally but with additional environment variables set:
