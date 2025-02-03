@@ -1,10 +1,15 @@
 use crate::utils::AffinePoint as SP1AffinePointTrait;
 
 use elliptic_curve::{
-    ff, generic_array::typenum::consts::U32, subtle::CtOption, CurveArithmetic, FieldBytes,
-    PrimeField,
+    ff,
+    generic_array::typenum::consts::U32,
+    ops::{Invert, Reduce},
+    scalar::{FromUintUnchecked, IsHigh},
+    subtle::CtOption,
+    zeroize::DefaultIsZeroes,
+    CurveArithmetic, FieldBytes, PrimeField, ScalarPrimitive,
 };
-use std::ops::Neg;
+use std::ops::{Neg, ShrAssign};
 
 pub mod affine;
 pub use affine::AffinePoint;
@@ -30,11 +35,23 @@ type FIELD_BYTES_SIZE = U32;
 /// Note: This trait is only implemented for 32 byte curves.
 pub trait ECDSACurve
 where
-    Self: CurveArithmetic<FieldBytesSize = FIELD_BYTES_SIZE, Scalar = Scalar<Self::ScalarImpl>>,
+    Self: CurveArithmetic<FieldBytesSize = FIELD_BYTES_SIZE, Scalar = Scalar<Self>>,
 {
     type FieldElement: Field<Self> + Neg<Output = Self::FieldElement>;
 
-    type ScalarImpl: PrimeField;
+    type ScalarImpl: DefaultIsZeroes
+        + From<ScalarPrimitive<Self>>
+        + FromUintUnchecked<Uint = Self::Uint>
+        + Into<FieldBytes<Self>>
+        + Into<ScalarPrimitive<Self>>
+        + Into<Self::Uint>
+        + Invert<Output = CtOption<Self::ScalarImpl>>
+        + IsHigh
+        + PartialOrd
+        + Reduce<Self::Uint, Bytes = FieldBytes<Self>>
+        + ShrAssign<usize>
+        + ff::Field
+        + ff::PrimeField<Repr = FieldBytes<Self>>;
 
     /// The number of limbs in the field element.
     ///

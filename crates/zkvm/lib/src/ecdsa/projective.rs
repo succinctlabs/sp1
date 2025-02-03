@@ -91,14 +91,14 @@ impl<C: ECDSACurve> Group for ProjectivePoint<C> {
     //
     // These are known limitiations of GATs though, so we must wait for the new trait resolver
     // so we can clean this up.
-    type Scalar = Scalar<C::ScalarImpl>;
+    type Scalar = Scalar<C>;
 
     fn identity() -> Self {
         Self::identity()
     }
 
     fn random(rng: impl RngCore) -> Self {
-        ProjectivePoint::<C>::generator() * Self::Scalar::random(rng)
+        ProjectivePoint::<C>::generator() * Scalar::<C>::random(rng)
     }
 
     fn double(&self) -> Self {
@@ -141,10 +141,10 @@ impl<C: ECDSACurve> LinearCombination for ProjectivePoint<C> {
 
 // Scalar Mul
 
-impl<C: ECDSACurve> Mul<Scalar<C::ScalarImpl>> for ProjectivePoint<C> {
+impl<C: ECDSACurve> Mul<Scalar<C>> for ProjectivePoint<C> {
     type Output = ProjectivePoint<C>;
 
-    fn mul(mut self, rhs: Scalar<C::ScalarImpl>) -> Self::Output {
+    fn mul(mut self, rhs: Scalar<C>) -> Self::Output {
         let sp1_point = self.as_mut_zkvm_point();
         let mut rhs = rhs.to_repr();
 
@@ -154,10 +154,10 @@ impl<C: ECDSACurve> Mul<Scalar<C::ScalarImpl>> for ProjectivePoint<C> {
     }
 }
 
-impl<C: ECDSACurve> Mul<&Scalar<C::ScalarImpl>> for ProjectivePoint<C> {
+impl<C: ECDSACurve> Mul<&Scalar<C>> for ProjectivePoint<C> {
     type Output = ProjectivePoint<C>;
 
-    fn mul(mut self, rhs: &Scalar<C::ScalarImpl>) -> Self::Output {
+    fn mul(mut self, rhs: &Scalar<C>) -> Self::Output {
         let sp1_point = self.as_mut_zkvm_point();
         let mut rhs = rhs.to_repr();
 
@@ -167,16 +167,16 @@ impl<C: ECDSACurve> Mul<&Scalar<C::ScalarImpl>> for ProjectivePoint<C> {
     }
 }
 
-impl<C: ECDSACurve> MulAssign<Scalar<C::ScalarImpl>> for ProjectivePoint<C> {
-    fn mul_assign(&mut self, rhs: Scalar<C::ScalarImpl>) {
+impl<C: ECDSACurve> MulAssign<Scalar<C>> for ProjectivePoint<C> {
+    fn mul_assign(&mut self, rhs: Scalar<C>) {
         let mut rhs = rhs.to_repr();
 
         self.as_mut_zkvm_point().mul_assign(&be_bytes_to_le_words(rhs.as_mut()));
     }
 }
 
-impl<C: ECDSACurve> MulAssign<&Scalar<C::ScalarImpl>> for ProjectivePoint<C> {
-    fn mul_assign(&mut self, rhs: &Scalar<C::ScalarImpl>) {
+impl<C: ECDSACurve> MulAssign<&Scalar<C>> for ProjectivePoint<C> {
+    fn mul_assign(&mut self, rhs: &Scalar<C>) {
         let mut rhs = rhs.to_repr();
 
         self.as_mut_zkvm_point().mul_assign(&be_bytes_to_le_words(rhs.as_mut()));
