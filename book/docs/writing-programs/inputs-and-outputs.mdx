@@ -20,7 +20,8 @@ let b = sp1_zkvm::io::read::<u64>();
 let c = sp1_zkvm::io::read::<String>();
 ```
 
-Note that `T` must implement the `serde::Serialize` and `serde::Deserialize` trait. If you want to read bytes directly, you can also use the `sp1_zkvm::io::read_vec` method.
+Note that `T` must implement the `serde::Serialize` and `serde::Deserialize` trait. If you want to read bytes directly, you can also use the `sp1_zkvm::io::read_vec` method. 
+`read_vec` does not perform serialization and is substantially faster for reading in bytes directly.
 
 ```rust
 let my_vec = sp1_zkvm::io::read_vec();
