@@ -18,7 +18,11 @@ pub use scalar::Scalar;
 /// NOTE: Currently, the only supported ECDSA curves are secp256k1 and secp256r1.
 /// These both have 16 limbs in their field elements.
 const FIELD_LIMBS: usize = 16;
+
+/// The number of bytes in a field element as an [`usize`].
 const FIELD_BYTES_SIZE_USIZE: usize = 32;
+
+/// The number of bytes in a field element as an [`elliptic_curve::generic_array::U32`].
 #[allow(non_camel_case_types)]
 type FIELD_BYTES_SIZE = U32;
 
