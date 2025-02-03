@@ -129,7 +129,7 @@ pub fn bytes_to_words_le(bytes: &[u8]) -> Vec<u32> {
         .collect::<Vec<_>>()
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 /// A representation of a point on a Weierstrass curve.
 pub enum WeierstrassPoint<const N: usize> {
     Infinity,

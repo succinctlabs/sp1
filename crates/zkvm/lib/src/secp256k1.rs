@@ -7,7 +7,7 @@ use crate::{
 pub const N: usize = 16;
 
 /// An affine point on the Secp256k1 curve.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 #[repr(align(4))]
 pub struct Secp256k1Point(pub WeierstrassPoint<N>);
 
