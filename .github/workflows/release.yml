@@ -220,8 +220,6 @@ jobs:
           fi
 
       # Creates the release for this specific version
-      # If this is for latest, this will override the files there, but not change the commit to the current main.
-      # todo(n): change this to override the commit as well somehow.
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
@@ -274,7 +272,7 @@ jobs:
 
       - name: "Install SP1"
         env:
-          SP1UP_VERSION: ${{ github.ref_name == 'main' && 'latest' || github.ref_name }}
+          SP1UP_VERSION: ${{ github.ref_name }}
         run: |
           cd sp1up
           chmod +x sp1up

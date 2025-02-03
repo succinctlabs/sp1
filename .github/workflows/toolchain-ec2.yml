@@ -96,7 +96,7 @@ jobs:
 
       - name: "Install SP1"
         env:
-          SP1UP_VERSION: ${{ github.ref_name == 'main' && 'latest' || github.ref_name }}
+          SP1UP_VERSION: ${{ github.ref_name }}
         run: |
           cd sp1up
           chmod +x sp1up
