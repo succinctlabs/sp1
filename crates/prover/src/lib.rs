@@ -30,7 +30,6 @@ use std::{
         Arc, Mutex, OnceLock,
     },
     thread,
-    time::Instant,
 };
 
 use crate::shapes::SP1CompressProgramShape;
