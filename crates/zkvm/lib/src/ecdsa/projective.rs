@@ -3,19 +3,17 @@ use super::{AffinePoint, ECDSACurve, SP1AffinePointTrait, Scalar};
 use elliptic_curve::{
     group::{cofactor::CofactorGroup, prime::PrimeGroup},
     ops::MulByGenerator,
-    sec1::CompressedPoint,
+    sec1::{CompressedPoint, ModulusSize},
+    FieldBytes,
 };
 
 use elliptic_curve::{
     ff::{Field, PrimeField},
     group::{Curve, Group, GroupEncoding},
     ops::LinearCombination,
-    point::{AffineCoordinates, DecompactPoint, DecompressPoint},
     rand_core::RngCore,
-    sec1::{self, FromEncodedPoint, ToEncodedPoint},
     subtle::{Choice, ConditionallySelectable, ConstantTimeEq, CtOption},
     zeroize::DefaultIsZeroes,
-    CurveArithmetic,
 };
 
 use std::iter::Sum;
@@ -371,7 +369,12 @@ impl<C: ECDSACurve> PartialEq for ProjectivePoint<C> {
 impl<C: ECDSACurve> Eq for ProjectivePoint<C> {}
 
 // Traits for hash2curve
-impl<C: ECDSACurve> GroupEncoding for ProjectivePoint<C> {
+impl<C: ECDSACurve> GroupEncoding for ProjectivePoint<C>
+where
+    FieldBytes<C>: Copy,
+    C::FieldBytesSize: ModulusSize,
+    CompressedPoint<C>: Copy,
+{
     type Repr = CompressedPoint<C>;
 
     fn from_bytes(bytes: &Self::Repr) -> CtOption<Self> {
@@ -388,10 +391,21 @@ impl<C: ECDSACurve> GroupEncoding for ProjectivePoint<C> {
     }
 }
 
-impl<C: ECDSACurve> PrimeGroup for ProjectivePoint<C> {}
+impl<C: ECDSACurve> PrimeGroup for ProjectivePoint<C>
+where
+    FieldBytes<C>: Copy,
+    C::FieldBytesSize: ModulusSize,
+    CompressedPoint<C>: Copy,
+{
+}
 
 /// The scalar field has prime order, so the cofactor is 1.
-impl<C: ECDSACurve> CofactorGroup for ProjectivePoint<C> {
+impl<C: ECDSACurve> CofactorGroup for ProjectivePoint<C>
+where
+    FieldBytes<C>: Copy,
+    C::FieldBytesSize: ModulusSize,
+    CompressedPoint<C>: Copy,
+{
     type Subgroup = Self;
 
     fn clear_cofactor(&self) -> Self {

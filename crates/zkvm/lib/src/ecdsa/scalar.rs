@@ -1,9 +1,11 @@
 use super::ECDSACurve;
 
 use elliptic_curve::{
+    bigint::U256,
     ops::{Invert, Reduce},
+    rand_core,
     scalar::{FromUintUnchecked, IsHigh},
-    FieldBytes, ScalarPrimitive,
+    Curve, FieldBytes, ScalarPrimitive,
 };
 
 use elliptic_curve::{
@@ -20,7 +22,7 @@ use std::{
 };
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub struct Scalar<C: ECDSACurve>(C::ScalarImpl);
+pub struct Scalar<C: ECDSACurve>(pub(crate) C::ScalarImpl);
 
 impl<C: ECDSACurve> Field for Scalar<C> {
     const ONE: Self = Scalar(C::ScalarImpl::ONE);
@@ -315,5 +317,17 @@ impl<C: ECDSACurve> From<Scalar<C>> for ScalarPrimitive<C> {
 impl<C: ECDSACurve> AsRef<Scalar<C>> for Scalar<C> {
     fn as_ref(&self) -> &Scalar<C> {
         self
+    }
+}
+
+impl<C: ECDSACurve> From<Scalar<C>> for FieldBytes<C> {
+    fn from(scalar: Scalar<C>) -> Self {
+        scalar.0.into()
+    }
+}
+
+impl<C: ECDSACurve> From<FieldBytes<C>> for Scalar<C> {
+    fn from(bytes: FieldBytes<C>) -> Self {
+        Scalar(C::ScalarImpl::from_repr(bytes).unwrap())
     }
 }
