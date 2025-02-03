@@ -1,13 +1,14 @@
 use crate::utils::AffinePoint as SP1AffinePointTrait;
 
 use elliptic_curve::{
+    bigint::U256,
     ff,
     generic_array::typenum::consts::U32,
     ops::{Invert, Reduce},
     scalar::{FromUintUnchecked, IsHigh},
     subtle::CtOption,
     zeroize::DefaultIsZeroes,
-    CurveArithmetic, FieldBytes, PrimeField, ScalarPrimitive,
+    CurveArithmetic, FieldBytes, ScalarPrimitive,
 };
 use std::ops::{Neg, ShrAssign};
 
@@ -35,7 +36,7 @@ type FIELD_BYTES_SIZE = U32;
 /// Note: This trait is only implemented for 32 byte curves.
 pub trait ECDSACurve
 where
-    Self: CurveArithmetic<FieldBytesSize = FIELD_BYTES_SIZE, Scalar = Scalar<Self>>,
+    Self: CurveArithmetic<FieldBytesSize = FIELD_BYTES_SIZE, Scalar = Scalar<Self>, Uint = U256>,
 {
     type FieldElement: Field<Self> + Neg<Output = Self::FieldElement>;
 
@@ -53,10 +54,7 @@ where
         + ff::Field
         + ff::PrimeField<Repr = FieldBytes<Self>>;
 
-    /// The number of limbs in the field element.
-    ///
-    /// Note: At the moment, the only supported ECDSA curvers are secp256k1 and secp256r1.
-    /// These both have 16 limbs in their field elements.
+    /// The underlying [`SP1AffinePointTrait`] implementation.
     type SP1AffinePoint: ECDSAPoint;
 
     /// The `a` coefficient in the curve equation.
@@ -64,6 +62,26 @@ where
 
     /// The `b` coefficient in the curve equation.
     const EQUATION_B: Self::FieldElement;
+}
+
+// Specialization please save us !!!
+//
+// Note: this is a big smell to satify the `C::Scalar: Into<C::Uint>` bound.
+//
+// We cant make this a generic conversion because the compiler
+// claims its possible for `C::Uint = Scalar<C>`
+// and this causes overlapping impl of `From<T> for T`.
+//
+// Another way to get around this is to create a new type `Uint<Self>`
+// for which we require `CurveArithmetic<Uint = Uint<Self>>`, and add
+// a new GAT on `ECDSACurve` for `UintImpl`.
+// This means we have `struct Uint<C>(C::UintImpl)`.
+//
+// However, this is fine for now because all of our curves are 32 bytes.
+impl<C: ECDSACurve> From<Scalar<C>> for U256 {
+    fn from(scalar: Scalar<C>) -> Self {
+        scalar.0.into()
+    }
 }
 
 /// Alias trait for the [`ff::PrimeField`] with 32 byte field elements.
