@@ -123,6 +123,11 @@ const sidebars: SidebarsConfig = {
           label: "Audit Reports",
           href: "https://github.com/succinctlabs/sp1/tree/dev/audits",
         },
+        {
+          type: "link",
+          label: "Bug Bounty",
+          href: "https://code4rena.com/bounties/succinct",
+        },
       ],
     },
   ],
