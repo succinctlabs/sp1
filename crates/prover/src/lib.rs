@@ -274,13 +274,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         &self,
         elf: &[u8],
     ) -> (SP1ProvingKey, DeviceProvingKey<C>, Program, SP1VerifyingKey) {
-        let setup_start = Instant::now();
         let program = self.get_program(elf).unwrap();
-        tracing::info!("SETUP: Got program in {:?}", setup_start.elapsed());
-
-        let core_setup_start = Instant::now();
         let (pk, vk) = self.core_prover.setup(&program);
-        tracing::info!("SETUP: Core setup completed in {:?}", core_setup_start.elapsed());
 
         let vk = SP1VerifyingKey { vk };
         let pk = SP1ProvingKey {
