@@ -1,6 +1,9 @@
 pub trait AffinePoint<const N: usize>: Clone + Sized {
     /// The generator.
-    const GENERATOR: Self;
+    #[deprecated = "This const will have the `Self` type in the next major version!"]
+    const GENERATOR: [u32; N];
+
+    const GENERATOR_T: Self;
 
     /// Creates a new [`AffinePoint`] from the given limbs.
     fn new(limbs: [u32; N]) -> Self;
