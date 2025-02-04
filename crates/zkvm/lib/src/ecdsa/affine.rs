@@ -31,9 +31,6 @@ impl<C: ECDSACurve> AffinePoint<C> {
         AffinePoint { inner: <C::SP1AffinePoint as ECDSAPoint>::from(x_slice, y_slice) }
     }
 
-    /// # Panics
-    /// - if the point is the identity point.
-    /// - if we have non canon represntations of the field elements.
     pub fn field_elements(&self) -> (FieldElement<C>, FieldElement<C>) {
         if self.is_identity().into() {
             return (FieldElement::<C>::ZERO, FieldElement::<C>::ZERO);
@@ -83,13 +80,13 @@ impl<C: ECDSACurve> FromEncodedPoint<C> for AffinePoint<C> {
 
                 x.and_then(|x| {
                     y.and_then(|y| {
-                        // Check that the point is on the curve
-                        let lhs = (y * y).neg();
+                        // Ensure the point is on the curve.
+                        let lhs = (y * y).normalize();
                         let rhs = (x * x * x) + (C::EQUATION_A * x) + C::EQUATION_B;
 
                         let point = Self::from_field_elements_unchecked(x, y);
 
-                        CtOption::new(point, (lhs + rhs).is_zero())
+                        CtOption::new(point, lhs.ct_eq(&rhs.normalize()))
                     })
                 })
             }
@@ -123,7 +120,8 @@ impl<C: ECDSACurve> DecompressPoint<C> for AffinePoint<C> {
                     beta.is_odd().ct_eq(&y_is_odd),
                 );
 
-                AffinePoint::from_field_elements_unchecked(x, y)
+                // X is normalized by virtue of being created via `FromBytes`.
+                AffinePoint::from_field_elements_unchecked(x, y.normalize())
             })
         })
     }
@@ -147,6 +145,7 @@ impl<C: ECDSACurve> AffineCoordinates for AffinePoint<C> {
     fn y_is_odd(&self) -> Choice {
         let (_, y) = self.field_elements();
 
+        // As field elements are create via `FromBytes`, they are already normalized.
         y.is_odd()
     }
 }
@@ -170,6 +169,7 @@ impl<C: ECDSACurve> ConstantTimeEq for AffinePoint<C> {
         let (x2, y2) = other.field_elements();
         let (x2, y2) = (x2, y2);
 
+        // These are already normalized by virtue of being created via `FromBytes`.
         x1.ct_eq(&x2) & y1.ct_eq(&y2)
     }
 }
