@@ -144,9 +144,7 @@ impl<C: ECDSACurve> Mul<Scalar<C>> for ProjectivePoint<C> {
 
     fn mul(mut self, rhs: Scalar<C>) -> Self::Output {
         let sp1_point = self.as_mut_zkvm_point();
-        let mut rhs = rhs.to_repr();
-
-        sp1_point.mul_assign(&be_bytes_to_le_words(rhs.as_mut()));
+        sp1_point.mul_assign(&be_bytes_to_le_words(rhs.to_repr()));
 
         self
     }
@@ -157,9 +155,7 @@ impl<C: ECDSACurve> Mul<&Scalar<C>> for ProjectivePoint<C> {
 
     fn mul(mut self, rhs: &Scalar<C>) -> Self::Output {
         let sp1_point = self.as_mut_zkvm_point();
-        let mut rhs = rhs.to_repr();
-
-        sp1_point.mul_assign(&be_bytes_to_le_words(rhs.as_mut()));
+        sp1_point.mul_assign(&be_bytes_to_le_words(rhs.to_repr()));
 
         self
     }
@@ -167,17 +163,13 @@ impl<C: ECDSACurve> Mul<&Scalar<C>> for ProjectivePoint<C> {
 
 impl<C: ECDSACurve> MulAssign<Scalar<C>> for ProjectivePoint<C> {
     fn mul_assign(&mut self, rhs: Scalar<C>) {
-        let mut rhs = rhs.to_repr();
-
-        self.as_mut_zkvm_point().mul_assign(&be_bytes_to_le_words(rhs.as_mut()));
+        self.as_mut_zkvm_point().mul_assign(&be_bytes_to_le_words(rhs.to_repr()));
     }
 }
 
 impl<C: ECDSACurve> MulAssign<&Scalar<C>> for ProjectivePoint<C> {
     fn mul_assign(&mut self, rhs: &Scalar<C>) {
-        let mut rhs = rhs.to_repr();
-
-        self.as_mut_zkvm_point().mul_assign(&be_bytes_to_le_words(rhs.as_mut()));
+        self.as_mut_zkvm_point().mul_assign(&be_bytes_to_le_words(rhs.to_repr()));
     }
 }
 
@@ -422,7 +414,8 @@ where
 }
 
 #[inline]
-fn be_bytes_to_le_words(bytes: &mut [u8]) -> [u32; 16] {
+fn be_bytes_to_le_words<T: AsMut<[u8]>>(mut bytes: T) -> [u32; 16] {
+    let bytes = bytes.as_mut();
     bytes.reverse();
 
     core::array::from_fn(|_| {
