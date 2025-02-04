@@ -111,3 +111,17 @@ impl<P> ECDSAPoint for P where
     P: SP1AffinePointTrait<FIELD_LIMBS> + Clone + Copy + std::fmt::Debug + Send + Sync
 {
 }
+
+pub mod ecdh {
+    pub use elliptic_curve::ecdh::{diffie_hellman, EphemeralSecret, SharedSecret};
+
+    use super::{AffinePoint, ECDSACurve, Field};
+
+    impl<C: ECDSACurve> From<&AffinePoint<C>> for SharedSecret<C> {
+        fn from(affine: &AffinePoint<C>) -> SharedSecret<C> {
+            let (x, _) = affine.field_elements();
+
+            x.to_bytes().into()
+        }
+    }
+}
