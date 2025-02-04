@@ -85,9 +85,9 @@ impl<C: ECDSACurve> Group for ProjectivePoint<C> {
     // Ideally we could just have this type be
     // type Scalar = <C as CurveArithmetic>::Scalar,
     // however trait resolution fails on the `Mul` implementation.
-    // specifcally for<'a> Mul<&'a C::Scalar> is broken.
+    // specifically for<'a> Mul<&'a C::Scalar> is broken.
     //
-    // These are known limitiations of GATs though, so we must wait for the new trait resolver
+    // These are known limitations of GATs though, so we must wait for the new trait resolver
     // so we can clean this up.
     type Scalar = Scalar<C>;
 
@@ -345,7 +345,7 @@ impl<C: ECDSACurve> DefaultIsZeroes for ProjectivePoint<C> {}
 
 impl<C: ECDSACurve> ConditionallySelectable for ProjectivePoint<C> {
     fn conditional_select(a: &Self, b: &Self, choice: Choice) -> Self {
-        // Note: we dont care about constant time operattions in the vm.
+        // Note: we dont care about constant time operations in the vm.
         if choice.into() {
             *b
         } else {
