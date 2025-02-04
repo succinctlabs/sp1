@@ -65,7 +65,9 @@ where
 }
 
 // Note: The `From<Scalar<C>> for C::Uint` impl is required by the [`CurveArithmetic`] trait.
-// Unfortunatly, its impossible to write that at the moment, because rust lacks specialization.
+// Unfortunatly, its impossible to write that at the moment, because Rust lacks specialization, and we
+// want to avoid adding this bound everywhere.
+//
 // For now, have a hardcoded `Uint` type, as we also have `FieldBytesSize`.
 //
 // Another option is add a new GAT `ECDSACurve::UintImpl` and crate a new type `struct Uint<C>(C::UintImpl)`.
