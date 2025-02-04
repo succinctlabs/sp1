@@ -207,7 +207,7 @@ func (c *Chip) SelectF(cond frontend.Variable, a, b Variable) Variable {
 	}
 }
 
-func (c *Chip) SelectE(cond frontend.Variable, a, b ExtensionVariable) ExtensionVariable {
+func (c *Chip) selected, select(cond frontend.Variable, a, b ExtensionVariable) ExtensionVariable {
 	return ExtensionVariable{
 		Value: [4]Variable{
 			c.SelectF(cond, a.Value[0], b.Value[0]),
