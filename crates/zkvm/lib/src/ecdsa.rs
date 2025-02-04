@@ -87,6 +87,9 @@ pub trait Field<C: ECDSACurve>: ff::PrimeField {
     ///
     /// Note: Implementers should ensure these methods normalize first.
     fn to_bytes(self) -> FieldBytes<C>;
+
+    /// Ensure the field element is normalized.
+    fn normalize(self) -> Self;
 }
 
 pub type FieldElement<C> = <C as ECDSACurve>::FieldElement;
