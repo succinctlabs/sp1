@@ -66,7 +66,7 @@ where
 
 // Specialization please save us !!!
 //
-// Note: this is a big smell to satify the `C::Scalar: Into<C::Uint>` bound.
+// Note: this is a big smell to satisfy the `C::Scalar: Into<C::Uint>` bound.
 //
 // We cant make this a generic conversion because the compiler
 // claims its possible for `C::Uint = Scalar<C>`
