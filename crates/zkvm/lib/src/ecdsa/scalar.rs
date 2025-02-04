@@ -1,11 +1,9 @@
 use super::ECDSACurve;
 
 use elliptic_curve::{
-    bigint::U256,
     ops::{Invert, Reduce},
-    rand_core,
     scalar::{FromUintUnchecked, IsHigh},
-    Curve, FieldBytes, ScalarPrimitive,
+    FieldBytes, ScalarPrimitive,
 };
 
 use elliptic_curve::{
