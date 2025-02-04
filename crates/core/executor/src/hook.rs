@@ -254,7 +254,7 @@ mod fp_ops {
 
         assert!(
             element < modulus,
-            "Element is not less than modulus, the hook only acceptes canonical representations"
+            "Element is not less than modulus, the hook only accepts canonical representations"
         );
         assert!(
             nqr < modulus,
