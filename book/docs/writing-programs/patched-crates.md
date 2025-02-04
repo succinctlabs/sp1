@@ -102,7 +102,7 @@ Apply the following patches based on what crates are in your dependencies.
   ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", tag = "patch-0.16.9-sp1-4.0.0-rc.3 }
   ```
 
-While `secp256k1` doesnt usually rely on `ecdsa-core` the patched version does, so you must patch it as well.
+While `secp256k1` doesn't, does not usually rely on `ecdsa-core` the patched version does, so you must patch it as well.
 
 ## BN254 Acceleration
 
