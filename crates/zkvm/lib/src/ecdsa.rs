@@ -64,20 +64,12 @@ where
     const EQUATION_B: Self::FieldElement;
 }
 
-// Specialization please save us !!!
+// Note: The `From<Scalar<C>> for C::Uint` impl is required by the [`CurveArithmetic`] trait.
+// Unfortunatly, its impossible to write that at the moment, because rust lacks specialization.
+// For now, have a hardcoded `Uint` type, as we also have `FieldBytesSize`.
 //
-// Note: this is a big smell to satisfy the `C::Scalar: Into<C::Uint>` bound.
-//
-// We cant make this a generic conversion because the compiler
-// claims its possible for `C::Uint = Scalar<C>`
-// and this causes overlapping impl of `From<T> for T`.
-//
-// Another way to get around this is to create a new type `Uint<Self>`
-// for which we require `CurveArithmetic<Uint = Uint<Self>>`, and add
-// a new GAT on `ECDSACurve` for `UintImpl`.
-// This means we have `struct Uint<C>(C::UintImpl)`.
-//
-// However, this is fine for now because all of our curves are 32 bytes.
+// Another option is add a new GAT `ECDSACurve::UintImpl` and crate a new type `struct Uint<C>(C::UintImpl)`.
+// This would allow us to write the From impl, and also be generic over the `Uint` type.
 impl<C: ECDSACurve> From<Scalar<C>> for U256 {
     fn from(scalar: Scalar<C>) -> Self {
         scalar.0.into()
