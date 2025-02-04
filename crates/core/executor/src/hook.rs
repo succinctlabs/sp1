@@ -259,7 +259,6 @@ mod fp_ops {
         assert!(
             nqr < modulus,
             "NQR is zero or non-canonical, the hook only accepts canonical representations"
-++ b/crates/zkvm/lib/src/ecdsa.rs
         );
 
         // The sqrt of zero is zero.
