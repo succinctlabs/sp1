@@ -14,13 +14,9 @@ Security advisories for SP1 can be found [here](https://github.com/succinctlabs/
 
 ## Reporting a Security Bug
 
-All security bugs in SP1's production distribution should be reported by email to security@succinct.xyz. Only bugs in last two major releases will be accepted.
+All security bugs in SP1's production distribution should be reported through the SP1 Bug Bounty program on code4rena [here](https://code4rena.com/bounties/succinct). 
 
-Your email will be acknowledged within 7 days, and you'll be kept up to date with the progress until resolution. Your issue will be fixed or made public.
-
-If you have not received a reply to your email within 7 days, please follow up with the Succinct team again at security@succinct.xyz. 
-
-Note that we do not currently run any bug bounty program.
+If you need to contact the SP1 team by email regarding security, please use the address `security@succinct.xyz`. 
 
 ## Tracks
 
