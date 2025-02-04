@@ -91,7 +91,8 @@ pub trait Field<C: ECDSACurve>: ff::PrimeField {
 
     /// Convert self to a FieldBytes.
     ///
-    /// Note: Implentors should ensure these methods normalize first.
+    /// Note: Implementers should ensure these methods normalize first.
+++ b/crates/zkvm/lib/src/ecdsa/projective.rs
     fn to_bytes(&self) -> FieldBytes<C>;
 }
 
