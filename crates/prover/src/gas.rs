@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, iter};
 
 use enum_map::EnumMap;
 use hashbrown::HashMap;
@@ -6,14 +6,15 @@ use p3_field::PrimeField32;
 
 use sp1_core_executor::{estimator::TraceAreaEstimator, RiscvAirId};
 use sp1_core_machine::shape::{CoreShapeConfig, CoreShapeError, Shapeable, ShardKind};
-use sp1_stark::SplitOpts;
+use sp1_stark::{shape::Shape, SplitOpts};
 
-pub fn core_prover_gas<F: PrimeField32>(
+/// Returns core, precompile, mem shapes
+pub fn get_shapes<F: PrimeField32>(
     config: &CoreShapeConfig<F>,
     split_opts: &SplitOpts,
     precompile_local_mem_events_per_row: &HashMap<RiscvAirId, usize>,
     estimator: &TraceAreaEstimator,
-) -> Result<usize, CoreShapeError> {
+) -> Result<EnumMap<ShardKind, Vec<Shape<RiscvAirId>>>, CoreShapeError> {
     // TODO(tqn) decide whether or not to implement the Packed shard estimation
     let TraceAreaEstimator { core_shards, deferred_events } = estimator;
     // `Global` heights are sometimes overestimated.
@@ -21,7 +22,7 @@ pub fn core_prover_gas<F: PrimeField32>(
     const THRESHOLD: f64 = 0.1;
 
     // Calculate and sum the cost of each core shard.
-    let core_cost = core_shards
+    let core_shapes = core_shards
         .iter()
         .enumerate()
         .map(|(i, shard)| {
@@ -32,36 +33,22 @@ pub fn core_prover_gas<F: PrimeField32>(
             } else {
                 Cow::Borrowed(shard)
             };
-            let shape = config
-                .find_shape(CoreShard {
-                    shard_index: i as u32,
-                    record,
-                    precompile_local_mem_events_per_row,
-                })
-                .unwrap();
-            Ok(config.estimate_lde_size(&shape))
+            config.find_shape(CoreShard {
+                shard_index: i as u32,
+                record,
+                precompile_local_mem_events_per_row,
+            })
         })
-        .sum::<Result<usize, _>>()?;
+        .collect::<Result<Vec<_>, _>>()?;
 
     let mut num_shards = core_shards.len();
 
-    let mut calc_area = |record: EnumMap<RiscvAirId, u64>| {
-        let shard = CoreShard {
-            shard_index: num_shards as u32,
-            record: Cow::Owned(record),
-            precompile_local_mem_events_per_row,
-        };
-        let shape = config.find_shape(shard).unwrap();
-        num_shards += 1;
-        Ok(config.estimate_lde_size(&shape))
-    };
-
-    let precompile_area = deferred_events
+    let precompile_shapes = deferred_events
         .iter()
-        .map(|(id, &count)| {
+        .filter_map(|(id, &count)| {
             // Skip AIR if there are no events.
             if count == 0 {
-                return Ok(0);
+                return None;
             }
             let threshold = match id {
                 RiscvAirId::ShaExtend => split_opts.sha_extend,
@@ -69,27 +56,33 @@ pub fn core_prover_gas<F: PrimeField32>(
                 RiscvAirId::KeccakPermute => split_opts.keccak,
                 RiscvAirId::MemoryGlobalInit | RiscvAirId::MemoryGlobalFinalize => {
                     // Process these in their own shard(s).
-                    return Ok(0);
+                    return None;
                 }
                 _ => split_opts.deferred,
             };
+            Some(((id, count), threshold))
+        })
+        .flat_map(|((id, count), threshold)| {
             let threshold = threshold as u64;
             let num_full_airs = count / threshold;
             let num_remainder_air_rows = count % threshold;
 
-            let mut area = 0;
-
-            if num_full_airs > 0 {
-                area += num_full_airs as usize * calc_area([(id, threshold)].into_iter().collect())?
-            }
-            if num_remainder_air_rows > 0 {
-                area += calc_area([(id, num_remainder_air_rows)].into_iter().collect())?
-            }
-            Ok(area)
+            iter::repeat((id, threshold))
+                .take(num_full_airs as usize)
+                .chain((num_remainder_air_rows > 0).then_some((id, num_remainder_air_rows)))
         })
-        .sum::<Result<usize, _>>()?;
+        .map(|air_entry| {
+            let shape = config.find_shape(CoreShard {
+                shard_index: num_shards as u32,
+                record: Cow::Owned(iter::once(air_entry).collect()),
+                precompile_local_mem_events_per_row,
+            });
+            num_shards += 1;
+            shape
+        })
+        .collect::<Result<Vec<_>, _>>()?;
 
-    let global_memory_area = {
+    let global_memory_shapes = {
         let num_memory_global_init = deferred_events[RiscvAirId::MemoryGlobalInit];
         assert_eq!(
             num_memory_global_init,
@@ -101,27 +94,50 @@ pub fn core_prover_gas<F: PrimeField32>(
         let num_full_airs = num_memory_global_init / threshold;
         let num_remainder_air_rows = num_memory_global_init % threshold;
 
-        let event_counts = |num_rows: u64| -> EnumMap<RiscvAirId, u64> {
-            [
-                (RiscvAirId::MemoryGlobalInit, num_rows),
-                (RiscvAirId::MemoryGlobalFinalize, num_rows),
-                (RiscvAirId::Global, 2 * num_rows),
-            ]
-            .into_iter()
-            .collect()
-        };
-
-        let mut area = 0;
-        if num_full_airs > 0 {
-            area += num_full_airs as usize * calc_area(event_counts(threshold))?;
-        }
-        if num_remainder_air_rows > 0 {
-            area += num_full_airs as usize * calc_area(event_counts(num_remainder_air_rows))?;
-        }
-        area
+        iter::repeat(threshold)
+            .take(num_full_airs as usize)
+            .chain((num_remainder_air_rows > 0).then_some(num_remainder_air_rows))
+            .map(|num_rows| {
+                let shape = config.find_shape(CoreShard {
+                    shard_index: num_shards as u32,
+                    record: Cow::Owned(
+                        [
+                            (RiscvAirId::MemoryGlobalInit, num_rows),
+                            (RiscvAirId::MemoryGlobalFinalize, num_rows),
+                            (RiscvAirId::Global, 2 * num_rows),
+                        ]
+                        .into_iter()
+                        .collect(),
+                    ),
+                    precompile_local_mem_events_per_row,
+                });
+                num_shards += 1;
+                shape
+            })
+            .collect::<Result<Vec<_>, _>>()?
     };
 
-    Ok(core_cost + precompile_area + global_memory_area)
+    Ok([
+        (ShardKind::PackedCore, vec![]),
+        (ShardKind::Core, core_shapes),
+        (ShardKind::GlobalMemory, global_memory_shapes),
+        (ShardKind::Precompile, precompile_shapes),
+    ]
+    .into_iter()
+    .collect())
+}
+
+pub fn core_prover_gas<F: PrimeField32>(
+    config: &CoreShapeConfig<F>,
+    split_opts: &SplitOpts,
+    precompile_local_mem_events_per_row: &HashMap<RiscvAirId, usize>,
+    estimator: &TraceAreaEstimator,
+) -> Result<usize, CoreShapeError> {
+    Ok(get_shapes(config, split_opts, precompile_local_mem_events_per_row, estimator)?
+        .values()
+        .flatten()
+        .map(|shape| config.estimate_lde_size(shape))
+        .sum::<usize>())
 }
 
 struct CoreShard<'a> {
