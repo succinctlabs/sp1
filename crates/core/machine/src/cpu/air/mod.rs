@@ -4,7 +4,7 @@ use core::borrow::Borrow;
 use p3_air::{Air, AirBuilder, AirBuilderWithPublicValues, BaseAir};
 use p3_field::AbstractField;
 use p3_matrix::Matrix;
-use sp1_core_executor::{ByteOpcode, DEFAULT_PC_INC};
+use sp1_core_executor::DEFAULT_PC_INC;
 use sp1_stark::{
     air::{BaseAirBuilder, PublicValues, SP1AirBuilder, SP1_PROOF_NUM_PV_ELTS},
     Word,
@@ -40,13 +40,18 @@ where
         let clk =
             AB::Expr::from_canonical_u32(1u32 << 16) * local.clk_8bit_limb + local.clk_16bit_limb;
 
+        // We represent the `shard` with a 16 bit limb and a 8 bit limb.
+        // The range checks for these limbs are done in `eval_shard_clk`.
+        let shard = AB::Expr::from_canonical_u32(1u32 << 16) * local.shard_8bit_limb
+            + local.shard_16bit_limb;
+
         // Program constraints.
         // SAFETY: `local.is_real` is checked to be boolean in `eval_is_real`.
         // The `pc` and `instruction` is taken from the `ProgramChip`, where these are preprocessed.
         builder.send_program(local.pc, local.instruction, local.is_real);
 
         // Register constraints.
-        self.eval_registers::<AB>(builder, local, clk.clone());
+        self.eval_registers::<AB>(builder, local, shard.clone(), clk.clone());
 
         // Assert the shard and clk to send.  Only the memory and syscall instructions need the
         // actual shard and clk values for memory access evals.
@@ -54,7 +59,7 @@ where
         // The correctness of `is_memory` and `is_syscall` will be checked in the opcode specific chips.
         // In these correct cases, `is_memory + is_syscall` will be always boolean.
         let expected_shard_to_send =
-            builder.if_else(local.is_memory + local.is_syscall, local.shard, AB::Expr::zero());
+            builder.if_else(local.is_memory + local.is_syscall, shard.clone(), AB::Expr::zero());
         let expected_clk_to_send =
             builder.if_else(local.is_memory + local.is_syscall, clk.clone(), AB::Expr::zero());
         builder.when(local.is_real).assert_eq(local.shard_to_send, expected_shard_to_send);
@@ -90,7 +95,7 @@ where
         );
 
         // Check that the shard and clk is updated correctly.
-        self.eval_shard_clk(builder, local, next, public_values, clk.clone());
+        self.eval_shard_clk(builder, local, next, public_values, shard.clone(), clk.clone());
 
         // Check that the pc is updated correctly.
         self.eval_pc(builder, local, next, public_values);
@@ -120,21 +125,30 @@ impl CpuChip {
         local: &CpuCols<AB::Var>,
         next: &CpuCols<AB::Var>,
         public_values: &PublicValues<Word<AB::PublicVar>, AB::PublicVar>,
+        shard: AB::Expr,
         clk: AB::Expr,
     ) {
         // Verify the public value's shard.
-        builder.when(local.is_real).assert_eq(public_values.execution_shard, local.shard);
+        builder.when(local.is_real).assert_eq(public_values.execution_shard, shard.clone());
 
         // Verify that all shard values are the same.
-        builder.when_transition().when(next.is_real).assert_eq(local.shard, next.shard);
+        let next_shard =
+            AB::Expr::from_canonical_u32(1u32 << 16) * next.shard_8bit_limb + next.shard_16bit_limb;
+        builder.when_transition().when(next.is_real).assert_eq(shard.clone(), next_shard);
 
         // Verify that the shard value is within 16 bits.
         // SAFETY: `local.is_real` is checked to be boolean in `eval_is_real`.
-        builder.send_byte(
-            AB::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
-            local.shard,
-            AB::Expr::zero(),
-            AB::Expr::zero(),
+        // builder.send_byte(
+        //     AB::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
+        //     local.shard,
+        //     AB::Expr::zero(),
+        //     AB::Expr::zero(),
+        //     local.is_real,
+        // );
+        builder.eval_range_check_24bits(
+            shard,
+            local.shard_16bit_limb,
+            local.shard_8bit_limb,
             local.is_real,
         );
 

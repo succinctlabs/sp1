@@ -61,7 +61,7 @@ pub(crate) mod riscv_chips {
 }
 
 /// The maximum log number of shards in core.
-pub const MAX_LOG_NUMBER_OF_SHARDS: usize = 16;
+pub const MAX_LOG_NUMBER_OF_SHARDS: usize = 24;
 
 /// The maximum number of shards in core.
 pub const MAX_NUMBER_OF_SHARDS: usize = 1 << MAX_LOG_NUMBER_OF_SHARDS;

@@ -5,6 +5,7 @@ use super::poseidon2::{
     air::{eval_external_round, eval_internal_rounds},
     NUM_EXTERNAL_ROUNDS,
 };
+use crate::air::MemoryAirBuilder;
 use p3_air::AirBuilder;
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
@@ -120,6 +121,10 @@ impl<F: Field> GlobalInteractionOperation<F> {
             builder.assert_bool(cols.offset_bits[i]);
             offset = offset.clone() + cols.offset_bits[i] * AB::F::from_canonical_u32(1 << i);
         }
+
+        let diff_16bit_limb = values[0].clone().bitand(AB::Expr::from_canonical_u32(0xFFFF));
+        let diff_8bit_limb = (values[0].clone() >> AB::Expr::from_canonical_u32(16))
+            & AB::Expr::from_canonical_u32(0xFF);
 
         // Range check the first element in the message to be a u16 so that we can encode the interaction kind in the upper 8 bits.
         builder.send_byte(

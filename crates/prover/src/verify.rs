@@ -278,7 +278,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         }
 
         // Verify that the number of shards is not too large.
-        if proof.0.len() > 1 << 16 {
+        if proof.0.len() > 1 << 24 {
             return Err(MachineVerificationError::TooManyShards);
         }
 

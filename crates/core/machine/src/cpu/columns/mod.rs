@@ -17,8 +17,10 @@ pub const CPU_COL_MAP: CpuCols<usize> = make_col_map();
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct CpuCols<T: Copy> {
-    /// The current shard.
-    pub shard: T,
+    /// The least significant 16 bit limb of the current shard.
+    pub shard_16bit_limb: T,
+    /// The most significant 16 bit limb of the current shard.
+    pub shard_8bit_limb: T,
 
     /// The least significant 16 bit limb of clk.
     pub clk_16bit_limb: T,

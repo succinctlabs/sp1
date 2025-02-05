@@ -14,6 +14,7 @@ impl CpuChip {
         &self,
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
+        shard: AB::Expr,
         clk: AB::Expr,
     ) {
         // Load immediates into b and c, if the immediate flags are on.
@@ -26,7 +27,7 @@ impl CpuChip {
 
         // If they are not immediates, read `b` and `c` from memory.
         builder.eval_memory_access(
-            local.shard,
+            shard.clone(),
             clk.clone() + AB::F::from_canonical_u32(MemoryAccessPosition::B as u32),
             local.instruction.op_b[0],
             &local.op_b_access,
@@ -34,7 +35,7 @@ impl CpuChip {
         );
 
         builder.eval_memory_access(
-            local.shard,
+            shard.clone(),
             clk.clone() + AB::F::from_canonical_u32(MemoryAccessPosition::C as u32),
             local.instruction.op_c[0],
             &local.op_c_access,
@@ -52,7 +53,7 @@ impl CpuChip {
         // receviers of the interaction to witness the value.  It will be wasteful to put that column
         // in all other instruction chips.
         builder.eval_memory_access(
-            local.shard,
+            shard.clone(),
             clk + AB::F::from_canonical_u32(MemoryAccessPosition::A as u32),
             local.instruction.op_a,
             &local.op_a_access,
