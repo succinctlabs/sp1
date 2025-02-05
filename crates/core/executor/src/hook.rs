@@ -242,7 +242,7 @@ mod fp_ops {
     /// - NQR is a non-quadratic residue of the field.
     ///
     /// The result is a single 32 byte vector containing the square root.
-    pub fn hook_fp_sqrt(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
+    pub fn hook_fp_sqrt(_env: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
         let len: usize = u32::from_be_bytes(buf[0..4].try_into().unwrap()) as usize;
 
         assert!(buf.len() == 4 + 3 * len, "FpOp: Invalid buffer length");
@@ -266,8 +266,8 @@ mod fp_ops {
             return vec![vec![1], vec![0; len]];
         }
 
-        // We compute the square root of the element using the general tonelli shanks algorithm.
-        // This implenetaion is field agnostic, so we can use it for any field.
+        // Compute the square root of the element using the general Tonelli-Shanks algorithm.
+        // The implementation can be used for any field as it is field-agnostic.
         if let Some(root) = sqrt_fp(&element, &modulus, &nqr) {
             vec![vec![1], pad_to_be(&root, len)]
         } else {
@@ -279,7 +279,7 @@ mod fp_ops {
     }
 
     fn sqrt_fp(element: &BigUint, modulus: &BigUint, nqr: &BigUint) -> Option<BigUint> {
-        // Happy paths for fields of the form p = 3 mod 4.
+        // If the prime field is of the form p = 3 mod 4, and `x` is a quadratic residue modulo `p`, then one square root of `x` is given by `x^(p+1 / 4) mod p`.
         if modulus % BigUint::from(4u64) == BigUint::from(3u64) {
             let maybe_root =
                 element.modpow(&((modulus + BigUint::from(1u64)) / BigUint::from(4u64)), modulus);
@@ -292,8 +292,8 @@ mod fp_ops {
 
     #[allow(clippy::many_single_char_names)]
     fn tonelli_shanks(element: &BigUint, modulus: &BigUint, nqr: &BigUint) -> Option<BigUint> {
-        // First we compute the legendre symbol of the element.
-        // If this is not 1, then the element is not a quadratic residue.
+        // First, compute the Legendre symbol of the element.
+        // If the symbol is not 1, then the element is not a quadratic residue.
         if legendre_symbol(element, modulus) != BigUint::one() {
             return None;
         }
