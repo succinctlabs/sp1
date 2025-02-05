@@ -12,7 +12,7 @@ use crate::cuda::builder::CudaProverBuilder;
 
 /// An entrypoint for interacting with the prover for the SP1 RISC-V zkVM.
 ///
-/// IMPORTANT: `ProverClient` only needs to be initialized ONCE and can be reused for subsequent proving operations.
+/// IMPORTANT: `ProverClient` only needs to be initialized ONCE and can be reused for subsequent proving operations (can be shared across tasks by wrapping in an `Arc`).
 /// Note that the initial initialization may be slow as it loads necessary proving parameters and sets up the environment.
 pub struct ProverClient;
 
