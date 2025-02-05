@@ -28,18 +28,25 @@ impl SP1ProverOpts {
         SP1ProverOpts::cpu(cpu_ram_gb as usize)
     }
 
-    /// Get the default prover options for a prover on CPU based on the amount of CPU memory.
-    ///
-    /// We use a soft heuristic based on our understanding of the memory usage in the GPU prover.
+    /// Get the memory options (shard size, shard batch size, and divisor) for a prover on CPU based
+    /// on the amount of CPU memory.
     #[must_use]
-    pub fn cpu(cpu_ram_gb: usize) -> Self {
-        let (log2_shard_size, shard_batch_size, log2_divisor) = match cpu_ram_gb {
+    fn get_memory_opts(cpu_ram_gb: usize) -> (usize, usize, usize) {
+        match cpu_ram_gb {
             0..33 => (19, 1, 3),
             33..49 => (20, 1, 2),
             49..65 => (21, 1, 3),
             65..81 => (21, 3, 1),
             81.. => (21, 4, 1),
-        };
+        }
+    }
+
+    /// Get the default prover options for a prover on CPU based on the amount of CPU memory.
+    ///
+    /// We use a soft heuristic based on our understanding of the memory usage in the GPU prover.
+    #[must_use]
+    pub fn cpu(cpu_ram_gb: usize) -> Self {
+        let (log2_shard_size, shard_batch_size, log2_divisor) = Self::get_memory_opts(cpu_ram_gb);
 
         let mut opts = SP1ProverOpts::default();
         opts.core_opts.shard_size = 1 << log2_shard_size;
@@ -119,6 +126,59 @@ impl Default for SP1ProverOpts {
 
 impl Default for SP1CoreOpts {
     fn default() -> Self {
+        let cpu_ram_gb = System::new_all().total_memory() / (1024 * 1024 * 1024);
+        let (default_log2_shard_size, default_shard_batch_size, default_log2_divisor) =
+            SP1ProverOpts::get_memory_opts(cpu_ram_gb as usize);
+
+        let mut opts = Self {
+            shard_size: env::var("SHARD_SIZE").map_or_else(
+                |_| 1 << default_log2_shard_size,
+                |s| s.parse::<usize>().unwrap_or(1 << default_log2_shard_size),
+            ),
+            shard_batch_size: env::var("SHARD_BATCH_SIZE").map_or_else(
+                |_| default_shard_batch_size,
+                |s| s.parse::<usize>().unwrap_or(default_shard_batch_size),
+            ),
+            split_opts: SplitOpts::new(MAX_DEFERRED_SPLIT_THRESHOLD),
+            trace_gen_workers: env::var("TRACE_GEN_WORKERS").map_or_else(
+                |_| DEFAULT_TRACE_GEN_WORKERS,
+                |s| s.parse::<usize>().unwrap_or(DEFAULT_TRACE_GEN_WORKERS),
+            ),
+            checkpoints_channel_capacity: env::var("CHECKPOINTS_CHANNEL_CAPACITY").map_or_else(
+                |_| DEFAULT_CHECKPOINTS_CHANNEL_CAPACITY,
+                |s| s.parse::<usize>().unwrap_or(DEFAULT_CHECKPOINTS_CHANNEL_CAPACITY),
+            ),
+            records_and_traces_channel_capacity: env::var("RECORDS_AND_TRACES_CHANNEL_CAPACITY")
+                .map_or_else(
+                    |_| DEFAULT_RECORDS_AND_TRACES_CHANNEL_CAPACITY,
+                    |s| s.parse::<usize>().unwrap_or(DEFAULT_RECORDS_AND_TRACES_CHANNEL_CAPACITY),
+                ),
+        };
+
+        let divisor = 1 << default_log2_divisor;
+        opts.split_opts.deferred /= divisor;
+        opts.split_opts.keccak /= divisor;
+        opts.split_opts.sha_extend /= divisor;
+        opts.split_opts.sha_compress /= divisor;
+        opts.split_opts.memory /= divisor;
+
+        opts
+    }
+}
+
+impl SP1CoreOpts {
+    /// Get the default options for the recursion prover.
+    #[must_use]
+    pub fn recursion() -> Self {
+        let mut opts = Self::max();
+        opts.shard_size = RECURSION_MAX_SHARD_SIZE;
+        opts.shard_batch_size = 2;
+        opts
+    }
+
+    /// Get the maximum options for the core prover.
+    #[must_use]
+    pub fn max() -> Self {
         let split_threshold = env::var("SPLIT_THRESHOLD")
             .map(|s| s.parse::<usize>().unwrap_or(MAX_DEFERRED_SPLIT_THRESHOLD))
             .unwrap_or(MAX_DEFERRED_SPLIT_THRESHOLD)
@@ -148,16 +208,6 @@ impl Default for SP1CoreOpts {
                     |s| s.parse::<usize>().unwrap_or(DEFAULT_RECORDS_AND_TRACES_CHANNEL_CAPACITY),
                 ),
         }
-    }
-}
-
-impl SP1CoreOpts {
-    /// Get the default options for the recursion prover.
-    #[must_use]
-    pub fn recursion() -> Self {
-        let mut opts = Self::default();
-        opts.shard_size = RECURSION_MAX_SHARD_SIZE;
-        opts
     }
 }
 
