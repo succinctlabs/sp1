@@ -78,6 +78,7 @@ network = [
   "dep:backoff",
 ]
 cuda = []
+bigint-rug = ["sp1-core-machine/bigint-rug"]
 
 profiling = ["sp1-core-executor/profiling"]
 
