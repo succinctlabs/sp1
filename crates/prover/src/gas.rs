@@ -9,12 +9,10 @@ use sp1_core_machine::shape::{CoreShapeConfig, CoreShapeError, Shapeable, ShardK
 use sp1_stark::{shape::Shape, SplitOpts};
 
 /// Returns core, precompile, mem shapes
-pub fn get_shapes<F: PrimeField32>(
-    config: &CoreShapeConfig<F>,
+pub fn estimated_records<'a>(
     split_opts: &SplitOpts,
-    precompile_local_mem_events_per_row: &HashMap<RiscvAirId, usize>,
-    estimator: &TraceAreaEstimator,
-) -> Result<EnumMap<ShardKind, Vec<Shape<RiscvAirId>>>, CoreShapeError> {
+    estimator: &'a TraceAreaEstimator,
+) -> Vec<Cow<'a, EnumMap<RiscvAirId, u64>>> {
     // TODO(tqn) decide whether or not to implement the Packed shard estimation
     let TraceAreaEstimator { core_shards, deferred_events } = estimator;
     // `Global` heights are sometimes overestimated.
@@ -24,24 +22,16 @@ pub fn get_shapes<F: PrimeField32>(
     // Calculate and sum the cost of each core shard.
     let core_shapes = core_shards
         .iter()
-        .enumerate()
-        .map(|(i, shard)| {
-            let record = if (shard[RiscvAirId::Global] as f64).log2().fract() < THRESHOLD {
+        .map(|shard| {
+            if (shard[RiscvAirId::Global] as f64).log2().fract() < THRESHOLD {
                 let mut shard = *shard;
                 shard[RiscvAirId::Global] = 1 << shard[RiscvAirId::Global].ilog2();
                 Cow::Owned(shard)
             } else {
                 Cow::Borrowed(shard)
-            };
-            config.find_shape(CoreShard {
-                shard_index: i as u32,
-                record,
-                precompile_local_mem_events_per_row,
-            })
+            }
         })
-        .collect::<Result<Vec<_>, _>>()?;
-
-    let mut num_shards = core_shards.len();
+        .collect::<Vec<_>>();
 
     let precompile_shapes = deferred_events
         .iter()
@@ -71,16 +61,8 @@ pub fn get_shapes<F: PrimeField32>(
                 .take(num_full_airs as usize)
                 .chain((num_remainder_air_rows > 0).then_some((id, num_remainder_air_rows)))
         })
-        .map(|air_entry| {
-            let shape = config.find_shape(CoreShard {
-                shard_index: num_shards as u32,
-                record: Cow::Owned(iter::once(air_entry).collect()),
-                precompile_local_mem_events_per_row,
-            });
-            num_shards += 1;
-            shape
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+        .map(|air_entry| Cow::Owned(iter::once(air_entry).collect()))
+        .collect::<Vec<_>>();
 
     let global_memory_shapes = {
         let num_memory_global_init = deferred_events[RiscvAirId::MemoryGlobalInit];
@@ -98,33 +80,45 @@ pub fn get_shapes<F: PrimeField32>(
             .take(num_full_airs as usize)
             .chain((num_remainder_air_rows > 0).then_some(num_remainder_air_rows))
             .map(|num_rows| {
-                let shape = config.find_shape(CoreShard {
-                    shard_index: num_shards as u32,
-                    record: Cow::Owned(
-                        [
-                            (RiscvAirId::MemoryGlobalInit, num_rows),
-                            (RiscvAirId::MemoryGlobalFinalize, num_rows),
-                            (RiscvAirId::Global, 2 * num_rows),
-                        ]
-                        .into_iter()
-                        .collect(),
-                    ),
-                    precompile_local_mem_events_per_row,
-                });
-                num_shards += 1;
-                shape
+                Cow::Owned(
+                    [
+                        (RiscvAirId::MemoryGlobalInit, num_rows),
+                        (RiscvAirId::MemoryGlobalFinalize, num_rows),
+                        (RiscvAirId::Global, 2 * num_rows),
+                    ]
+                    .into_iter()
+                    .collect(),
+                )
             })
-            .collect::<Result<Vec<_>, _>>()?
+            .collect::<Vec<_>>()
     };
 
-    Ok([
+    [
         (ShardKind::PackedCore, vec![]),
         (ShardKind::Core, core_shapes),
         (ShardKind::GlobalMemory, global_memory_shapes),
         (ShardKind::Precompile, precompile_shapes),
     ]
     .into_iter()
-    .collect())
+    .collect()
+}
+
+pub fn fit_records_to_shapes<'a, F: PrimeField32>(
+    config: &CoreShapeConfig<F>,
+    precompile_local_mem_events_per_row: &HashMap<RiscvAirId, usize>,
+    records: impl IntoIterator<Item = &'a EnumMap<RiscvAirId, u64>>,
+) -> Result<Vec<Shape<RiscvAirId>>, CoreShapeError> {
+    records
+        .into_iter()
+        .enumerate()
+        .map(|(i, record)| {
+            config.find_shape(CoreShard {
+                shard_index: i as u32,
+                record,
+                precompile_local_mem_events_per_row,
+            })
+        })
+        .collect()
 }
 
 pub fn core_prover_gas<F: PrimeField32>(
@@ -133,16 +127,18 @@ pub fn core_prover_gas<F: PrimeField32>(
     precompile_local_mem_events_per_row: &HashMap<RiscvAirId, usize>,
     estimator: &TraceAreaEstimator,
 ) -> Result<usize, CoreShapeError> {
-    Ok(get_shapes(config, split_opts, precompile_local_mem_events_per_row, estimator)?
-        .values()
-        .flatten()
-        .map(|shape| config.estimate_lde_size(shape))
-        .sum::<usize>())
+    let est_records = estimated_records(split_opts, estimator);
+    let shapes = fit_records_to_shapes(
+        config,
+        precompile_local_mem_events_per_row,
+        est_records.iter().map(AsRef::as_ref),
+    )?;
+    Ok(shapes.iter().map(|shape| config.estimate_lde_size(shape)).sum::<usize>())
 }
 
 struct CoreShard<'a> {
     shard_index: u32,
-    record: Cow<'a, EnumMap<RiscvAirId, u64>>,
+    record: &'a EnumMap<RiscvAirId, u64>,
     precompile_local_mem_events_per_row: &'a HashMap<RiscvAirId, usize>,
 }
 
