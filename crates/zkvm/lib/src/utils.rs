@@ -1,6 +1,6 @@
 pub trait AffinePoint<const N: usize>: Clone + Sized {
     /// The generator.
-    #[deprecated = "This const will have the `Self` type in the next major version!"]
+    #[deprecated = "This const will have the `Self` type in the next major version."]
     const GENERATOR: [u32; N];
 
     const GENERATOR_T: Self;

@@ -96,7 +96,7 @@ impl<C: ECDSACurve> FromEncodedPoint<C> for AffinePoint<C> {
 
 impl<C: ECDSACurve> ToEncodedPoint<C> for AffinePoint<C> {
     fn to_encoded_point(&self, compress: bool) -> EncodedPoint<C> {
-        // If the point is the identity point, we can just return the identity point.
+        // If the point is the identity point, just return the identity point.
         if self.is_identity().into() {
             return EncodedPoint::<C>::identity();
         }
@@ -209,7 +209,7 @@ impl<C: ECDSACurve> GroupEncoding for AffinePoint<C> {
     }
 
     fn from_bytes_unchecked(bytes: &Self::Repr) -> CtOption<Self> {
-        // No unchecked conversion possible for compressed points
+        // There is no unchecked conversion for compressed points.
         Self::from_bytes(bytes)
     }
 
