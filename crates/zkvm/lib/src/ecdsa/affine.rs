@@ -114,6 +114,9 @@ impl<C: ECDSACurve> DecompressPoint<C> for AffinePoint<C> {
             let beta = alpha.sqrt();
 
             beta.map(|beta| {
+                // Ensure the element is normalized for consistency.
+                let beta = beta.normalize();
+
                 let y = FieldElement::<C>::conditional_select(
                     &beta.neg(),
                     &beta,
