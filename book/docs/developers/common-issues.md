@@ -139,3 +139,6 @@ The Rust compiler had breaking changes to its names of available options between
 This message indicates that you're trying to use `sp1-build` < `4.0.0` with the 1.82 toolchain,
 `sp1-build` versions >= 4.0.0 have support for the 1.82 and 1.81 toolchains.
 
+## Slow `ProverClient` Initialization
+
+You may encounter slow `ProverClient` initialization times as it loads necessary proving parameters and sets up the environment. It is recommended to initialize the `ProverClient` once and reuse it for subsequent proving operations. You can wrap the `ProverClient` in an `Arc` to share it across tasks.
