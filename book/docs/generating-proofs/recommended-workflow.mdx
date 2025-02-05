@@ -14,7 +14,7 @@ Note that printing out the total number of executed cycles and the full executio
 
 **Crate Setup:** We recommend that your program crate that defines the `main` function (around which you wrap the `sp1_zkvm::entrypoint!` macro) should be kept minimal. Most of your business logic should be in a separate crate (in the same repo/workspace) that can be tested independently and that is not tied to the SP1 zkVM. This will allow you to unit test your program logic without having to worry about the `zkvm` compilation target. This will also allow you to efficient reuse types between your program crate and your crate that generates proofs.
 
-**Note:** The `ProverClient` should be initialized once and reused for subsequent proving operations. This is because the initial initialization may be slow as it loads necessary proving parameters and sets up the environment. For this reason, you should initialize the `ProverClient` once and reuse it rather than creating new instances.
+**Note:** The `ProverClient` should be initialized once and reused for subsequent proving operations rather than creating new instances. This is because the initial initialization may be slow as it loads necessary proving parameters and sets up the environment. You can wrap the `ProverClient` in an `Arc` to share it across tasks.
 
 ## Step 2: Generate proofs
 
