@@ -59,7 +59,7 @@ pub mod fd {
         /// The file descriptor through which to access `hook_fp_sqrt`.
         pub const FD_FP_SQRT: u32 = 10;
 
-        /// The file descriptor through which to access `hook_secp256k1_sqrt`.
+        /// The file descriptor through which to access `hook_fp_inverse`.
         pub const FD_FP_INV: u32 = 11;
     }
 }

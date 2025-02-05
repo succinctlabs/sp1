@@ -350,7 +350,7 @@ mod fp_ops {
 
         #[test]
         fn test_legendre_symbol() {
-            // This is the modulus of the secp256k1 base field.
+            // The modulus of the secp256k1 base field.
             let modulus = BigUint::from_str(
                 "115792089237316195423570985008687907853269984665640564039457584007908834671663",
             )
@@ -371,7 +371,7 @@ mod fp_ops {
 
         #[test]
         fn test_tonelli_shanks() {
-            // This is the modulus of the secp256k1 base field.
+            // The modulus of the secp256k1 base field.
             let p = BigUint::from_str(
                 "115792089237316195423570985008687907853269984665640564039457584007908834671663",
             )

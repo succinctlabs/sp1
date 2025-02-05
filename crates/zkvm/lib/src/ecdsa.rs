@@ -21,8 +21,8 @@ pub use projective::ProjectivePoint;
 pub mod scalar;
 pub use scalar::Scalar;
 
-/// NOTE: Currently, the only supported ECDSA curves are secp256k1 and secp256r1.
-/// These both have 16 limbs in their field elements.
+/// NOTE: The only supported ECDSA curves are secp256k1 and secp256r1, which both
+/// have 16 limbs in their field elements.
 const FIELD_LIMBS: usize = 16;
 
 /// The number of bytes in a field element as an [`usize`].
@@ -32,7 +32,7 @@ const FIELD_BYTES_SIZE_USIZE: usize = 32;
 #[allow(non_camel_case_types)]
 type FIELD_BYTES_SIZE = U32;
 
-/// A weisertstrass curve for ECDSA.
+/// A Weierstrass curve for ECDSA.
 /// Note: This trait is only implemented for 32 byte curves.
 pub trait ECDSACurve
 where
@@ -65,7 +65,7 @@ where
 }
 
 // Note: The `From<Scalar<C>> for C::Uint` impl is required by the [`CurveArithmetic`] trait.
-// Unfortunatly, its impossible to write that at the moment, because Rust lacks specialization, and we
+// Unfortunately, its impossible to write that at the moment, because Rust lacks specialization, and we
 // want to avoid adding this bound everywhere.
 //
 // For now, have a hardcoded `Uint` type, as we also have `FieldBytesSize`.
