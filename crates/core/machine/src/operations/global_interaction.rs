@@ -111,6 +111,7 @@ impl<F: Field> GlobalInteractionOperation<F> {
         is_send: AB::Expr,
         is_real: AB::Var,
         kind: AB::Var,
+        shard_limbs: [AB::Expr; 2],
     ) {
         // Constrain that the `is_real` is boolean.
         builder.assert_bool(is_real);
@@ -122,23 +123,18 @@ impl<F: Field> GlobalInteractionOperation<F> {
             offset = offset.clone() + cols.offset_bits[i] * AB::F::from_canonical_u32(1 << i);
         }
 
-        let diff_16bit_limb = values[0].clone().bitand(AB::Expr::from_canonical_u32(0xFFFF));
-        let diff_8bit_limb = (values[0].clone() >> AB::Expr::from_canonical_u32(16))
-            & AB::Expr::from_canonical_u32(0xFF);
-
         // Range check the first element in the message to be a u16 so that we can encode the interaction kind in the upper 8 bits.
-        builder.send_byte(
-            AB::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
+        builder.eval_range_check_24bits(
             values[0].clone(),
-            AB::Expr::zero(),
-            AB::Expr::zero(),
+            shard_limbs[0].clone(),
+            shard_limbs[1].clone(),
             is_real,
         );
 
         // Turn the message into a hash input. Only the first 8 elements are non-zero, as the rate of the Poseidon2 hash is 8.
         // Combining `values[0]` with `kind` is safe, as `values[0]` is range checked to be u16, and `kind` is known to be u8.
         let m_trial = [
-            values[0].clone() + AB::Expr::from_canonical_u32(1 << 16) * kind,
+            values[0].clone() + AB::Expr::from_canonical_u32(1 << 24) * kind,
             values[1].clone(),
             values[2].clone(),
             values[3].clone(),

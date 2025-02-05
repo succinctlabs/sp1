@@ -39,7 +39,7 @@ const GLOBAL_COL_MAP: GlobalCols<usize> = make_col_map();
 
 pub const GLOBAL_INITIAL_DIGEST_POS: usize = GLOBAL_COL_MAP.accumulation.initial_digest[0].0[0];
 
-pub const GLOBAL_INITIAL_DIGEST_POS_COPY: usize = 377;
+pub const GLOBAL_INITIAL_DIGEST_POS_COPY: usize = 379;
 
 #[repr(C)]
 pub struct Ghost {
@@ -54,6 +54,8 @@ pub struct GlobalChip;
 pub struct GlobalCols<T: Copy> {
     pub message: [T; 7],
     pub kind: T,
+    pub shard_16bit_limb: T,
+    pub shard_8bit_limb: T,
     pub interaction: GlobalInteractionOperation<T>,
     pub is_receive: T,
     pub is_send: T,
@@ -82,7 +84,10 @@ impl<F: PrimeField32> MachineAir<F> for GlobalChip {
             .map(|events| {
                 let mut blu: Vec<ByteLookupEvent> = Vec::new();
                 events.iter().for_each(|event| {
-                    blu.add_u16_range_check(event.message[0].try_into().unwrap());
+                    let message0_16bit_limb = (event.message[0] & 0xffff) as u16;
+                    let message0_8bit_limb = ((event.message[0] >> 16) & 0xff) as u8;
+                    blu.add_u16_range_check(message0_16bit_limb);
+                    blu.add_u8_range_check(0, message0_8bit_limb);
                 });
                 blu
             })
@@ -137,6 +142,8 @@ impl<F: PrimeField32> MachineAir<F> for GlobalChip {
                     } else {
                         cols.is_send = F::one();
                     }
+                    cols.shard_16bit_limb = F::from_canonical_u32(event.message[0] & 0xffff);
+                    cols.shard_8bit_limb = F::from_canonical_u32((event.message[0] >> 16) & 0xff);
                     point_chunks.push(SepticCurveComplete::Affine(SepticCurve {
                         x: SepticExtension(cols.interaction.x_coordinate.0),
                         y: SepticExtension(cols.interaction.y_coordinate.0),
@@ -246,6 +253,7 @@ where
             local.is_send.into(),
             local.is_real,
             local.kind,
+            [local.shard_16bit_limb.into(), local.shard_8bit_limb.into()],
         );
 
         // Evaluate the accumulation.

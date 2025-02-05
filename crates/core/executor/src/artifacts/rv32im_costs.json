@@ -14,7 +14,7 @@
   "KeccakPermute": 93720,
   "Program": 31,
   "MemoryLocal": 100,
-  "Global": 428,
+  "Global": 434,
   "Secp256k1AddAssign": 4461,
   "AddSub": 47,
   "Jump": 50,
@@ -40,7 +40,7 @@
   "SyscallCore": 22,
   "Bn254Fp2AddSubAssign": 1454,
   "Bls12381FpOpAssign": 1098,
-  "Cpu": 109,
+  "Cpu": 110,
   "ShaCompress": 40480,
   "MemoryInstrs": 93,
   "Secp256k1DoubleAssign": 4564
