@@ -6296,7 +6296,6 @@ dependencies = [
  "tonic",
  "tracing",
  "twirp-rs",
- "vergen",
 ]
 
 [[package]]
