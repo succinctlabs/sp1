@@ -124,12 +124,12 @@ impl<F: Field> GlobalInteractionOperation<F> {
         }
 
         // Range check the first element in the message to be a u24 so that we can encode the interaction kind in the upper 8 bits.
-        // builder.eval_range_check_24bits(
-        //     values[0].clone(),
-        //     shard_limbs[0].clone(),
-        //     shard_limbs[1].clone(),
-        //     is_real,
-        // );
+        builder.eval_range_check_24bits(
+            values[0].clone(),
+            shard_limbs[0].clone(),
+            shard_limbs[1].clone(),
+            is_real,
+        );
 
         // Turn the message into a hash input. Only the first 8 elements are non-zero, as the rate of the Poseidon2 hash is 8.
         // Combining `values[0]` with `kind` is safe, as `values[0]` is range checked to be u16, and `kind` is known to be u8.
