@@ -1,3 +1,9 @@
+//! Implementation of the SP1 accelerated projective point.
+//!
+//! This type is mainly used in the `ecdsa-core` algorithms.
+//!
+//! Note: SP1 uses affine arithmetic for all operations.
+
 use super::{AffinePoint, ECDSACurve, SP1AffinePointTrait, Scalar};
 
 use elliptic_curve::{
@@ -19,6 +25,7 @@ use elliptic_curve::{
 use std::iter::Sum;
 use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
+/// The SP1 accerlated projective point.
 #[derive(Clone, Copy, Debug)]
 pub struct ProjectivePoint<C: ECDSACurve> {
     /// The inner affine point.
@@ -32,6 +39,9 @@ impl<C: ECDSACurve> ProjectivePoint<C> {
         ProjectivePoint { inner: AffinePoint::<C>::identity() }
     }
 
+    /// Convert the projective point to an affine point.
+    ///
+    /// Public as its used in patched crates.
     pub fn to_affine(self) -> AffinePoint<C> {
         self.inner
     }
@@ -48,6 +58,9 @@ impl<C: ECDSACurve> ProjectivePoint<C> {
         &mut self.inner.inner
     }
 
+    /// Check if the point is the identity point.
+    ///
+    /// Public as its used in patched crates.
     pub fn is_identity(&self) -> Choice {
         self.inner.is_identity()
     }
@@ -83,12 +96,10 @@ impl<C: ECDSACurve> From<&ProjectivePoint<C>> for AffinePoint<C> {
 
 impl<C: ECDSACurve> Group for ProjectivePoint<C> {
     // Ideally we could just have this type be
-    // type Scalar = <C as CurveArithmetic>::Scalar,
-    // however trait resolution fails on the `Mul` implementation.
-    // specifically for<'a> Mul<&'a C::Scalar> is broken.
+    // type `Scalar = <C as CurveArithmetic>::Scalar`,
     //
-    // These are known limitations of GATs though, so we must wait for the new trait resolver
-    // so we can clean this up.
+    // For more information:
+    // see the rationale in the documention of `<C as ECDSACruve>::ScalarImpl`.
     type Scalar = Scalar<C>;
 
     fn identity() -> Self {

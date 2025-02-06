@@ -1,4 +1,4 @@
-use sp1_test::utils::{post_to_github_pr_sync, pretty_comparsion};
+use sp1_test::utils::{post_to_github_pr_sync, pretty_comparison};
 use sp1_test::BenchEntry;
 
 pub fn main() {
@@ -8,7 +8,7 @@ pub fn main() {
     let old_cycle_stats: Vec<BenchEntry> = serde_json::from_str(&old_cycle_stats).unwrap();
     let new_cycle_stats: Vec<BenchEntry> = serde_json::from_str(&new_cycle_stats).unwrap();
 
-    let comparison = pretty_comparsion(old_cycle_stats, new_cycle_stats).unwrap();
+    let comparison = pretty_comparison(old_cycle_stats, new_cycle_stats).unwrap();
 
     println!("{}", comparison);
 

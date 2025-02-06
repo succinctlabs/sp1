@@ -22,7 +22,6 @@ impl WeierstrassAffinePoint<N> for Secp256r1Point {
 }
 
 impl AffinePoint<N> for Secp256r1Point {
-    /// The values are taken from
     const GENERATOR: [u32; N] = [
         3633889942, 4104206661, 770388896, 1996717441, 1671708914, 4173129445, 3777774151,
         1796723186, 935285237, 3417718888, 1798397646, 734933847, 2081398294, 2397563722,

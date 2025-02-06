@@ -82,7 +82,7 @@ pub async fn post_to_github_pr(
     Ok(())
 }
 
-pub fn pretty_comparsion(
+pub fn pretty_comparison(
     old: Vec<BenchEntry>,
     new: Vec<BenchEntry>,
 ) -> Result<String, Box<dyn std::error::Error>> {
