@@ -102,41 +102,28 @@ pub fn estimated_records<'a>(
 
 pub fn fit_records_to_shapes<'a, F: PrimeField32>(
     config: &CoreShapeConfig<F>,
-    precompile_local_mem_events_per_row: &HashMap<RiscvAirId, usize>,
     records: impl IntoIterator<Item = &'a EnumMap<RiscvAirId, u64>>,
 ) -> Result<Vec<Shape<RiscvAirId>>, CoreShapeError> {
     records
         .into_iter()
         .enumerate()
-        .map(|(i, record)| {
-            config.find_shape(CoreShard {
-                shard_index: i as u32,
-                record,
-                precompile_local_mem_events_per_row,
-            })
-        })
+        .map(|(i, record)| config.find_shape(CoreShard { shard_index: i as u32, record }))
         .collect()
 }
 
 pub fn core_prover_gas<F: PrimeField32>(
     config: &CoreShapeConfig<F>,
     split_opts: &SplitOpts,
-    precompile_local_mem_events_per_row: &HashMap<RiscvAirId, usize>,
     estimator: &TraceAreaEstimator,
 ) -> Result<usize, CoreShapeError> {
     let est_records = estimated_records(split_opts, estimator);
-    let shapes = fit_records_to_shapes(
-        config,
-        precompile_local_mem_events_per_row,
-        est_records.iter().map(AsRef::as_ref),
-    )?;
+    let shapes = fit_records_to_shapes(config, est_records.iter().map(AsRef::as_ref))?;
     Ok(shapes.iter().map(|shape| config.estimate_lde_size(shape)).sum::<usize>())
 }
 
 struct CoreShard<'a> {
     shard_index: u32,
     record: &'a EnumMap<RiscvAirId, u64>,
-    precompile_local_mem_events_per_row: &'a HashMap<RiscvAirId, usize>,
 }
 
 impl<'a, F: PrimeField32> Shapeable<F> for CoreShard<'a> {

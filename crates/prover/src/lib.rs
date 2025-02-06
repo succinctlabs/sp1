@@ -299,7 +299,17 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
         context.subproof_verifier = Some(self);
         let opts = SP1CoreOpts::default();
-        let mut runtime = Executor::with_context_and_elf(opts, context, elf);
+        let mut runtime = Executor::with_context(self.get_program(elf).unwrap(), opts, context);
+        // let mut runtime = Executor::with_context_and_elf(opts, context, elf);
+
+        // TODO(tqn) IMPROVE THIS BY MAKING A REAL API
+        #[cfg(feature = "gas")]
+        {
+            // Needed to figure out where the shard boundaries are.
+            runtime.maximal_shapes = self.core_shape_config.as_ref().map(|config| {
+                config.maximal_core_shapes(opts.shard_size.ilog2() as usize).into_iter().collect()
+            });
+        }
 
         runtime.write_vecs(&stdin.buffer);
         for (proof, vkey) in stdin.proofs.iter() {
@@ -312,15 +322,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         if let (Some(core_shape_config), Some(estimator)) =
             (&self.core_shape_config, &runtime.trace_area_estimator)
         {
-            let precompile_lookup_table =
-                RiscvAir::<Val<CoreSC>>::precompile_airs_with_memory_events_per_row();
-            let area = crate::gas::core_prover_gas(
-                core_shape_config,
-                &opts.split_opts,
-                &precompile_lookup_table,
-                estimator,
-            )
-            .expect("shape should fit"); // TODO(tqn) handle this error better
+            let area = crate::gas::core_prover_gas(core_shape_config, &opts.split_opts, estimator)
+                .expect("shape should fit"); // TODO(tqn) handle this error better
 
             tracing::info!("prover gas: {}", area);
         }
@@ -350,10 +353,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             let _span = span.enter();
             let (proof_tx, proof_rx) = channel();
             let (shape_tx, shape_rx) = channel();
-
-            // Get the program (preprocessed) shape before it leaves us.
-            // In the future, should wrap program in an `Arc`
-            let preprocessed_shape = program.preprocessed_shape.as_ref().unwrap().clone();
 
             let span = tracing::Span::current().clone();
             let handle = s.spawn(move || {
