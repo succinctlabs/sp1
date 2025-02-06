@@ -95,11 +95,11 @@ impl<C: ECDSACurve> From<&ProjectivePoint<C>> for AffinePoint<C> {
 }
 
 impl<C: ECDSACurve> Group for ProjectivePoint<C> {
-    // Ideally we could just have this type be
-    // type `Scalar = <C as CurveArithmetic>::Scalar`,
+    // Ideally this type could just be
+    // type `Scalar = <C as CurveArithmetic>::Scalar`.
     //
-    // For more information:
-    // see the rationale in the documention of `<C as ECDSACruve>::ScalarImpl`.
+    // For more information,
+    // see the rationale in the documentation of `<C as ECDSACruve>::ScalarImpl`.
     type Scalar = Scalar<C>;
 
     fn identity() -> Self {

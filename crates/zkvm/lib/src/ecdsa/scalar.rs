@@ -19,6 +19,9 @@ use std::{
     ops::ShrAssign,
 };
 
+/// The scalar type for SP1.
+///
+/// Note: This is just a wrapper around the upstream scalar type to workaround some GAT limitations.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct Scalar<C: ECDSACurve>(pub(crate) C::ScalarImpl);
 
