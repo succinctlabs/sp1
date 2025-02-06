@@ -11,7 +11,7 @@ use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
 use p3_field::Field;
 use p3_field::PrimeField32;
-use sp1_core_executor::ByteOpcode;
+
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
     air::SP1AirBuilder,
@@ -38,7 +38,7 @@ impl<F: PrimeField32> GlobalInteractionOperation<F> {
         kind: u8,
     ) -> (SepticCurve<F>, u8, [F; 16], [F; 16]) {
         let x_start = SepticExtension::<F>::from_base_fn(|i| F::from_canonical_u32(values.0[i]))
-            + SepticExtension::from_base(F::from_canonical_u32((kind as u32) << 16));
+            + SepticExtension::from_base(F::from_canonical_u32((kind as u32) << 24));
         let (point, offset, m_trial, m_hash) = SepticCurve::<F>::lift_x(x_start);
         if !is_receive {
             return (point.neg(), offset, m_trial, m_hash);
@@ -123,7 +123,7 @@ impl<F: Field> GlobalInteractionOperation<F> {
             offset = offset.clone() + cols.offset_bits[i] * AB::F::from_canonical_u32(1 << i);
         }
 
-        // Range check the first element in the message to be a u16 so that we can encode the interaction kind in the upper 8 bits.
+        // Range check the first element in the message to be a u24 so that we can encode the interaction kind in the upper 8 bits.
         builder.eval_range_check_24bits(
             values[0].clone(),
             shard_limbs[0].clone(),

@@ -84,10 +84,10 @@ impl<F: PrimeField32> MachineAir<F> for GlobalChip {
             .map(|events| {
                 let mut blu: Vec<ByteLookupEvent> = Vec::new();
                 events.iter().for_each(|event| {
-                    let message0_16bit_limb = event.message[0] & 0xffff;
-                    let message0_8bit_limb = (event.message[0] >> 16) & 0xff;
-                    blu.add_u16_range_check(message0_16bit_limb.try_into().unwrap());
-                    blu.add_u8_range_check(0, message0_8bit_limb.try_into().unwrap());
+                    let message0_16bit_limb = (event.message[0] & 0xffff) as u16;
+                    let message0_8bit_limb = ((event.message[0] >> 16) & 0xff) as u8;
+                    blu.add_u16_range_check(message0_16bit_limb);
+                    blu.add_u8_range_check(0, message0_8bit_limb);
                 });
                 blu
             })
@@ -142,8 +142,10 @@ impl<F: PrimeField32> MachineAir<F> for GlobalChip {
                     } else {
                         cols.is_send = F::one();
                     }
-                    cols.shard_16bit_limb = F::from_canonical_u32(event.message[0] & 0xffff);
-                    cols.shard_8bit_limb = F::from_canonical_u32((event.message[0] >> 16) & 0xff);
+                    cols.shard_16bit_limb =
+                        F::from_canonical_u16((event.message[0] & 0xffff) as u16);
+                    cols.shard_8bit_limb =
+                        F::from_canonical_u8(((event.message[0] >> 16) & 0xff) as u8);
                     point_chunks.push(SepticCurveComplete::Affine(SepticCurve {
                         x: SepticExtension(cols.interaction.x_coordinate.0),
                         y: SepticExtension(cols.interaction.y_coordinate.0),
