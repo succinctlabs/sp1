@@ -8,7 +8,7 @@
 //! Weierstrass precompiles.
 //!
 //! In summary, SP1 overrides curve arithmetic entirely, and patches upstream field operations
-//! to be more effcient in the VM, such as `sqrt` or `inverse`.
+//! to be more efficient in the VM, such as `sqrt` or `inverse`.
 
 use crate::utils::AffinePoint as SP1AffinePointTrait;
 
@@ -50,7 +50,7 @@ const FIELD_BYTES_SIZE_USIZE: usize = 32;
 type FIELD_BYTES_SIZE = U32;
 
 /// A [`CurveArithmetic`] implementation for SP1 acceleration.
-/// Patched crates will implement this trait to expose thier field element type to us.
+/// Patched crates will implement this trait to expose their field element type to us.
 ///
 /// Note: This trait only supports 32 byte base field curves.
 pub trait ECDSACurve
@@ -69,7 +69,7 @@ where
     ///
     /// This "newtype" is needed due to some limitations of GATs.
     ///
-    /// Specfically, its impossible to generically implement
+    /// Specifically, its impossible to generically implement
     /// `ProjectivePoint<C>: for<'a> Mul<&'a C::Scalar>`,
     /// as required by the [`ff::Group`] trait.
     ///
