@@ -1,3 +1,14 @@
+//! A wrapper around the [`elliptic_curve::CurveArithmetic`] scalar.
+//!
+//! This "newtype" is needed due to some limitations of GATs.
+//!
+//! Specifically, its impossible to generically implement
+//! `ProjectivePoint<C>: for<'a> Mul<&'a C::Scalar>`,
+//! as required by the [`ff::Group`] trait.
+//!
+//! See this playground for a minimum reproduction:
+//! <https://play.rust-lang.org/?version=stable&mode=debug&edition=2021&gist=507aad241e3609d2f595bd1a95787038>
+
 use super::ECDSACurve;
 
 use elliptic_curve::{
