@@ -158,6 +158,9 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
             }
 
             __macro_internal_cb(__macro_internal_public);
+
+            #[cfg(feature = "bench")]
+            ::sp1_test::write_cycles(concat!(env!("CARGO_CRATE_NAME"), "_", stringify!(#test_name)), __macro_internal_execution_report.total_instruction_count());
         }
     };
 

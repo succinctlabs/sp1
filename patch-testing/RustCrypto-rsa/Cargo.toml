@@ -15,6 +15,7 @@ rsa = { version = "0.9.7", features = ["std", "sha2", "serde"] }
 [features]
 prove = []
 gpu = ["sp1-sdk/cuda"]
+bench = ["sp1-test/bench"]
 
 [build-dependencies]
 sp1-build = { workspace = true }

@@ -4,10 +4,49 @@ pub const DEFAULT_CORPUS_COUNT: u8 = 100;
 /// The maximum length of an item in the corpus, if applicable.
 pub const DEFAULT_CORPUS_MAX_LEN: usize = 100;
 
+/// A lock to enforce serial execution of tests.
 pub static SERIAL_LOCK: parking_lot::Mutex<()> = parking_lot::Mutex::new(());
+
+/// A lock for the benchmark file.
+pub static BENCH_LOCK: parking_lot::Mutex<()> = parking_lot::Mutex::new(());
 
 pub fn lock_serial() -> parking_lot::MutexGuard<'static, ()> {
     SERIAL_LOCK.lock()
+}
+
+// #[cfg(feature = "bench")]
+pub fn write_cycles(name: &str, cycles: u64) {
+    #[derive(serde::Serialize, serde::Deserialize)]
+    struct BenchEntry {
+        name: String,
+        cycles: u64,
+    }
+
+    // Get the file path from the environment variable.
+    let file = std::env::var("SP1_PATCH_BENCH")
+        .map(|s| std::path::PathBuf::from(s))
+        .expect("env var: SP1_PATCH_BENCH must be set");
+
+    // Take the lock to ensure thread safety.
+    let _lock = BENCH_LOCK.lock();
+
+    // Deserialize the file so we can append to it correctly.
+    let mut entries: Vec<BenchEntry> = if file.is_file() {
+        let str = std::fs::read_to_string(&file).unwrap();
+
+        if str.is_empty() {
+            vec![]
+        } else {
+            serde_json::from_str(&str).unwrap()
+        }
+    } else {
+        vec![]
+    };
+
+    entries.push(BenchEntry { name: name.to_string(), cycles });
+
+    // Re-serialize the file.
+    std::fs::write(file, serde_json::to_string(&entries).unwrap()).unwrap();
 }
 
 lazy_static::lazy_static! {

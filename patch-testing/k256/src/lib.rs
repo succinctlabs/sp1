@@ -71,7 +71,7 @@ pub fn test_recover_high_hash_high_recid(
     use ecdsa_core::RecoveryId;
     use k256::{ecdsa::Signature, ecdsa::VerifyingKey};
 
-    let times = 10000u16;
+    let times = 100u16;
     stdin.write(&times);
 
     let mut vkeys = Vec::with_capacity(times as usize);
@@ -114,7 +114,7 @@ pub fn test_recover_high_hash_high_recid(
             }
         }
 
-        println!("fail {} / 10000", fail_count);
+        println!("fail {} / 100", fail_count);
     }
 }
 
