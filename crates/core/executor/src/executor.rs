@@ -2054,6 +2054,12 @@ impl<'a> Executor<'a> {
             tracing::warn!("Not all input bytes were read.");
         }
 
+        #[cfg(feature = "gas")]
+        if let Some(estimator) = &mut self.trace_area_estimator {
+            estimator.deferred_events[RiscvAirId::MemoryGlobalFinalize] +=
+                self.record.program.memory_image.len() as u64;
+        }
+
         if self.emit_global_memory_events
             && (self.executor_mode == ExecutorMode::Trace
                 || self.executor_mode == ExecutorMode::Checkpoint)

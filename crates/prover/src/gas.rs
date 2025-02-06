@@ -2,6 +2,7 @@ use std::{borrow::Cow, iter};
 
 use enum_map::EnumMap;
 use hashbrown::HashMap;
+use itertools::Itertools;
 use p3_field::PrimeField32;
 
 use sp1_core_executor::{estimator::TraceAreaEstimator, RiscvAirId};
@@ -65,26 +66,22 @@ pub fn estimated_records<'a>(
         .collect::<Vec<_>>();
 
     let global_memory_shapes = {
-        let num_memory_global_init = deferred_events[RiscvAirId::MemoryGlobalInit];
-        assert_eq!(
-            num_memory_global_init,
-            deferred_events[RiscvAirId::MemoryGlobalFinalize],
-            "memory finalize AIR height should equal memory initialize AIR height"
-        );
+        let threshold = split_opts.memory;
 
-        let threshold = split_opts.memory as u64;
-        let num_full_airs = num_memory_global_init / threshold;
-        let num_remainder_air_rows = num_memory_global_init % threshold;
-
-        iter::repeat(threshold)
-            .take(num_full_airs as usize)
-            .chain((num_remainder_air_rows > 0).then_some(num_remainder_air_rows))
-            .map(|num_rows| {
+        vec![(); deferred_events[RiscvAirId::MemoryGlobalInit] as usize]
+            .chunks(threshold)
+            .zip_longest(
+                vec![(); deferred_events[RiscvAirId::MemoryGlobalFinalize] as usize]
+                    .chunks(threshold),
+            )
+            .map(|x| {
+                let len = |x: &[()]| x.len() as u64;
+                let (num_init, num_finalize) = x.map_any(len, len).or_default();
                 Cow::Owned(
                     [
-                        (RiscvAirId::MemoryGlobalInit, num_rows),
-                        (RiscvAirId::MemoryGlobalFinalize, num_rows),
-                        (RiscvAirId::Global, 2 * num_rows),
+                        (RiscvAirId::MemoryGlobalInit, num_init),
+                        (RiscvAirId::MemoryGlobalFinalize, num_finalize),
+                        (RiscvAirId::Global, num_init + num_finalize),
                     ]
                     .into_iter()
                     .collect(),
