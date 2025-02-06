@@ -18,7 +18,7 @@ sha3 = "=0.10.6"
 [features]
 prove = []
 gpu = ["sp1-sdk/cuda"]
-bench = []
+
 
 [build-dependencies]
 sp1-build.workspace = true

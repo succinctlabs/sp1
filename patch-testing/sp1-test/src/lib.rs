@@ -25,10 +25,9 @@ pub struct BenchEntry {
 }
 
 pub fn write_cycles(name: &str, cycles: u64) {
-    // Get the file path from the environment variable.
-    let file = std::env::var("SP1_PATCH_BENCH")
-        .map(|s| std::path::PathBuf::from(s))
-        .expect("env var: SP1_PATCH_BENCH must be set");
+    let Some(file) = std::env::var("SP1_PATCH_BENCH").map(|s| std::path::PathBuf::from(s)) else {
+        return;
+    };
 
     // Take the lock to ensure thread safety.
     let _lock = BENCH_LOCK.lock();

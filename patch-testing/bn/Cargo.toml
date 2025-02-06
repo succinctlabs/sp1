@@ -15,7 +15,7 @@ substrate-bn = "0.6.0"
 [features]
 prove = []
 gpu = ["sp1-sdk/cuda"]
-bench = []
+
 
 [build-dependencies]
 sp1-build = { workspace = true }
