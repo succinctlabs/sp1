@@ -1,3 +1,10 @@
+//! Implementation of the SP1 accelerated affine point.
+//!
+//! The [`crate::ecdsa::ProjectivePoint`] type is mainly used in the `ecdsa-core` algorithms,
+//! however, in some cases, the affine point is required.
+//!
+//! Note: SP1 uses affine arithmetic for all operations.
+
 use super::{
     ECDSACurve, ECDSAPoint, Field, FieldElement, SP1AffinePointTrait, FIELD_BYTES_SIZE_USIZE,
 };
@@ -19,6 +26,7 @@ pub struct AffinePoint<C: ECDSACurve> {
 }
 
 impl<C: ECDSACurve> AffinePoint<C> {
+    /// Create an affine point from the given field elements, without checking if the point is on the curve.
     pub fn from_field_elements_unchecked(x: FieldElement<C>, y: FieldElement<C>) -> Self {
         let mut x_slice = x.to_bytes();
         let x_slice = x_slice.as_mut_slice();
@@ -31,6 +39,9 @@ impl<C: ECDSACurve> AffinePoint<C> {
         AffinePoint { inner: <C::SP1AffinePoint as ECDSAPoint>::from(x_slice, y_slice) }
     }
 
+    /// Get the x and y field elements of the point.
+    ///
+    /// The returned elements are always normalized.
     pub fn field_elements(&self) -> (FieldElement<C>, FieldElement<C>) {
         if self.is_identity().into() {
             return (FieldElement::<C>::ZERO, FieldElement::<C>::ZERO);
@@ -53,14 +64,17 @@ impl<C: ECDSACurve> AffinePoint<C> {
         (x, y)
     }
 
+    /// Get the generator point.
     pub fn generator() -> Self {
         AffinePoint { inner: C::SP1AffinePoint::GENERATOR_T }
     }
 
+    /// Get the identity point.
     pub fn identity() -> Self {
         AffinePoint { inner: C::SP1AffinePoint::identity() }
     }
 
+    /// Check if the point is the identity point.
     pub fn is_identity(&self) -> Choice {
         Choice::from(self.inner.is_identity() as u8)
     }
@@ -103,6 +117,7 @@ impl<C: ECDSACurve> ToEncodedPoint<C> for AffinePoint<C> {
 
         let (x, y) = self.field_elements();
 
+        // The field elements are already normalized by virtue of being created via `FromBytes`.
         EncodedPoint::<C>::from_affine_coordinates(&x.to_bytes(), &y.to_bytes(), compress)
     }
 }
@@ -148,14 +163,14 @@ impl<C: ECDSACurve> AffineCoordinates for AffinePoint<C> {
     fn y_is_odd(&self) -> Choice {
         let (_, y) = self.field_elements();
 
-        // As field elements are create via `FromBytes`, they are already normalized.
+        // As field elements are created via [`Field::from_bytes`], they are already normalized.
         y.is_odd()
     }
 }
 
 impl<C: ECDSACurve> ConditionallySelectable for AffinePoint<C> {
     fn conditional_select(a: &Self, b: &Self, choice: Choice) -> Self {
-        // In the vm, we dont care about constant time selection.
+        // In the vm, we dont care about constant time operations.
         if choice.into() {
             *b
         } else {

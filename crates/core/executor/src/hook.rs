@@ -211,6 +211,20 @@ mod ecrecover {
 mod fp_ops {
     use super::{pad_to_be, BigUint, HookEnv, One, Zero};
 
+    /// Compute the inverse of a field element.
+    ///
+    /// # Arguments:
+    /// * `buf` - The buffer containing the data needed to compute the inverse.
+    ///     - [ len || Element || Modulus ]
+    ///     - len is the u32 length of the element and modulus in big endian.
+    ///     - Element is the field element to compute the inverse of, interpreted as a big endian integer of `len` bytes.
+    ///
+    /// # Returns:
+    /// A single 32 byte vector containing the inverse.
+    ///
+    /// # Panics:
+    /// - If the buffer length is not valid.
+    /// - If the element is zero.
     pub fn hook_fp_inverse(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
         let len: usize = u32::from_be_bytes(buf[0..4].try_into().unwrap()) as usize;
 
@@ -229,11 +243,10 @@ mod fp_ops {
 
     /// Compute the square root of a field element.
     ///
-    /// # Arguments
-    /// * `env` - The environment in which the hook is invoked.
+    /// # Arguments:
     /// * `buf` - The buffer containing the data needed to compute the square root.
     ///     - [ len || Element || Modulus || NQR ]
-    ///     - len is the length of the element, modulus, and nqr in Big endian.
+    ///     - len is the length of the element, modulus, and nqr in big endian.
     ///     - Element is the field element to compute the square root of, interpreted as a big endian integer of `len` bytes.
     ///     - Modulus is the modulus of the field, interpreted as a big endian integer of `len` bytes.
     ///     - NQR is the non-quadratic residue of the field, interpreted as a big endian integer of `len` bytes.
@@ -241,8 +254,18 @@ mod fp_ops {
     /// # Assumptions
     /// - NQR is a non-quadratic residue of the field.
     ///
-    /// The result is a single 32 byte vector containing the square root.
-    pub fn hook_fp_sqrt(_env: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
+    /// # Returns:
+    /// [ `status_u8` || `root_bytes` ]
+    ///
+    /// If the status is 0, this is the root of NQR * element.
+    /// If the status is 1, this is the root of element.
+    ///
+    /// # Panics:
+    /// - If the buffer length is not valid.
+    /// - If the element is not less than the modulus.
+    /// - If the nqr is not less than the modulus.
+    /// - If the element is zero.
+    pub fn hook_fp_sqrt(_: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
         let len: usize = u32::from_be_bytes(buf[0..4].try_into().unwrap()) as usize;
 
         assert!(buf.len() == 4 + 3 * len, "FpOp: Invalid buffer length");
@@ -278,8 +301,12 @@ mod fp_ops {
         }
     }
 
+    /// Compute the square root of a field element for some modulus.
+    ///
+    /// Requires a known non-quadratic residue of the field.
     fn sqrt_fp(element: &BigUint, modulus: &BigUint, nqr: &BigUint) -> Option<BigUint> {
-        // If the prime field is of the form p = 3 mod 4, and `x` is a quadratic residue modulo `p`, then one square root of `x` is given by `x^(p+1 / 4) mod p`.
+        // If the prime field is of the form p = 3 mod 4, and `x` is a quadratic residue modulo `p`,
+        // then one square root of `x` is given by `x^(p+1 / 4) mod p`.
         if modulus % BigUint::from(4u64) == BigUint::from(3u64) {
             let maybe_root =
                 element.modpow(&((modulus + BigUint::from(1u64)) / BigUint::from(4u64)), modulus);
@@ -290,6 +317,17 @@ mod fp_ops {
         tonelli_shanks(element, modulus, nqr)
     }
 
+    /// Compute the square root of a field element using the Tonelli-Shanks algorithm.
+    ///
+    /// # Arguments:
+    /// * `element` - The field element to compute the square root of.
+    /// * `modulus` - The modulus of the field.
+    /// * `nqr` - The non-quadratic residue of the field.
+    ///
+    /// # Assumptions:
+    /// - The element is a quadratic residue modulo the modulus.
+    ///
+    /// Ref: <https://en.wikipedia.org/wiki/Tonelli%E2%80%93Shanks_algorithm>
     #[allow(clippy::many_single_char_names)]
     fn tonelli_shanks(element: &BigUint, modulus: &BigUint, nqr: &BigUint) -> Option<BigUint> {
         // First, compute the Legendre symbol of the element.
@@ -337,6 +375,11 @@ mod fp_ops {
         Some(r)
     }
 
+    /// Compute the Legendre symbol of a field element.
+    ///
+    /// This indicates if the element is a quadratic in the prime field.
+    ///
+    /// Ref: <https://en.wikipedia.org/wiki/Legendre_symbol>
     fn legendre_symbol(element: &BigUint, modulus: &BigUint) -> BigUint {
         assert!(!element.is_zero(), "FpOp: Legendre symbol of zero called.");
 
