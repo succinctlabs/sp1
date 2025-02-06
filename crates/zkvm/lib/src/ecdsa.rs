@@ -49,8 +49,9 @@ const FIELD_BYTES_SIZE_USIZE: usize = 32;
 #[allow(non_camel_case_types)]
 type FIELD_BYTES_SIZE = U32;
 
-/// A [`CurveArithmetic`] implementation for SP1 acceleration.
-/// Patched crates will implement this trait to expose their field element type to us.
+/// A [`CurveArithmetic`] extension for SP1 acceleration.
+///
+/// Patched crates implement this trait to take advantage of SP1-specific acceleration in the zkVM context.
 ///
 /// Note: This trait only supports 32 byte base field curves.
 pub trait ECDSACurve
