@@ -14,7 +14,7 @@ sp1-test = { workspace = true }
 [features]
 prove = []
 gpu = ["sp1-sdk/cuda"]
-bench = []
+
 
 
 [build-dependencies]
