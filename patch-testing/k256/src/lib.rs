@@ -114,7 +114,7 @@ pub fn test_recover_high_hash_high_recid(
             }
         }
 
-        println!("fail {} / 10000", fail_count);
+        println!("fail {} / 100", fail_count);
     }
 }
 

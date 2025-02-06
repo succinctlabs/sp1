@@ -910,6 +910,7 @@ dependencies = [
  "ff",
  "generic-array 0.14.7",
  "group",
+ "hkdf",
  "pem-rfc7468",
  "pkcs8",
  "rand_core",
@@ -1174,6 +1175,15 @@ name = "hint-io-test"
 version = "1.1.0"
 dependencies = [
  "sp1-zkvm",
+]
+
+[[package]]
+name = "hkdf"
+version = "0.12.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7b5f8eb2ad728638ea2c7d47a21db23b7b58a72ed6a38256b8a1849f15fbbdf7"
+dependencies = [
+ "hmac",
 ]
 
 [[package]]
@@ -2504,6 +2514,7 @@ name = "sp1-lib"
 version = "4.0.1"
 dependencies = [
  "bincode",
+ "elliptic-curve",
  "serde",
  "sp1-primitives",
 ]

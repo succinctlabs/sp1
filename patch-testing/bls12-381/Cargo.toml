@@ -19,6 +19,7 @@ group = "0.13.0"
 [features]
 prove = []
 gpu = ["sp1-sdk/cuda"]
+bench = ["sp1-test/bench"]
 
 [build-dependencies]
 sp1-build = { workspace = true }
