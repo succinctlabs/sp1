@@ -185,7 +185,7 @@ impl SP1CudaProver {
             }
             std::process::exit(0);
         })
-        .unwrap();
+        .ok();
 
         // Wait a few seconds for the container to start
         std::thread::sleep(Duration::from_secs(2));
