@@ -16,6 +16,18 @@ jobs:
         with:
           fetch-depth: 0  
 
+      - name: Setup CI
+        uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+
+      - name: Install SP1 toolchain from repo
+        run: |
+          cargo run -p sp1-cli -- prove install-toolchain
+          cd crates/cli
+          cargo install --force --locked --path .
+          cargo clean
+
       - name: "Run patch testing on new branch"
         run: |
           cd ./patch-testing
