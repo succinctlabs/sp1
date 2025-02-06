@@ -176,16 +176,16 @@ impl SP1CudaProver {
             }
         });
 
-        // Kill the container on control-c
-        ctrlc::set_handler(move || {
-            tracing::debug!("received Ctrl+C, cleaning up...");
-            if !cleanup_flag.load(Ordering::SeqCst) {
-                cleanup_container(cleanup_name);
-                cleanup_flag.store(true, Ordering::SeqCst);
-            }
-            std::process::exit(0);
-        })
-        .ok();
+        // // Kill the container on control-c
+        // ctrlc::set_handler(move || {
+        //     tracing::debug!("received Ctrl+C, cleaning up...");
+        //     if !cleanup_flag.load(Ordering::SeqCst) {
+        //         cleanup_container(cleanup_name);
+        //         cleanup_flag.store(true, Ordering::SeqCst);
+        //     }
+        //     std::process::exit(0);
+        // })
+        // .ok();
 
         // Wait a few seconds for the container to start
         std::thread::sleep(Duration::from_secs(2));
