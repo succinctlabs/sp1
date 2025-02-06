@@ -3,7 +3,7 @@ use crate::{
 };
 use alloc::alloc::{GlobalAlloc, Layout};
 use critical_section::RawRestoreState;
-use embedded_alloc::LlffHeap as Heap;
+use embedded_alloc::TlsfHeap as Heap;
 
 #[global_allocator]
 static HEAP: EmbeddedAlloc = EmbeddedAlloc;
