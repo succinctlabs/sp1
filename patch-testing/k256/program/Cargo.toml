@@ -18,5 +18,5 @@ k256 = { version = "0.13.3", default-features = false, features = ["ecdsa", "ser
 ecdsa-core = { version = "0.16.9", package = "ecdsa", features = ["verifying"] }
 
 [patch.crates-io]
-ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", tag = "patch-0.16.9-sp1-4.0.0", features = ["verifying"] }
+k256 = { git = "https://github.com/sp1-patches/elliptic-curves", branch = "n/k256-13.4" }
 sp1-lib = { path = "../../../crates/zkvm/lib" }

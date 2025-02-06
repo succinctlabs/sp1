@@ -112,17 +112,15 @@ dependencies = [
 [[package]]
 name = "ecdsa"
 version = "0.16.9"
-source = "git+https://github.com/sp1-patches/signatures?tag=patch-0.16.9-sp1-4.0.0#5a0aefaef40c7a4cf991ab63f43650fea3ea0db0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee27f32b5c5292967d2d4a9d7f1e0b0aed2c15daded5a60300e4abb9d8020bca"
 dependencies = [
- "cfg-if",
  "der",
  "digest",
  "elliptic-curve",
- "hex-literal",
  "rfc6979",
  "serdect",
  "signature",
- "sp1-lib",
  "spki",
 ]
 
@@ -209,10 +207,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
-name = "hex-literal"
-version = "0.4.1"
+name = "hkdf"
+version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6fe2267d4ed49bc07b63801559be28c718ea06c4738b7a03c94df7386d2cde46"
+checksum = "7b5f8eb2ad728638ea2c7d47a21db23b7b58a72ed6a38256b8a1849f15fbbdf7"
+dependencies = [
+ "hmac",
+]
 
 [[package]]
 name = "hkdf"
@@ -244,14 +245,16 @@ dependencies = [
 [[package]]
 name = "k256"
 version = "0.13.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6e3919bbaa2945715f0bb6d3934a173d1e9a59ac23767fbaaef277265a7411b"
+source = "git+https://github.com/sp1-patches/elliptic-curves?branch=n%2Fk256-13.4#fdbaef51664f0fef5b896f955683a53d2270f24e"
 dependencies = [
  "cfg-if",
  "ecdsa",
  "elliptic-curve",
+ "getrandom",
+ "hex",
  "serdect",
  "sha2",
+ "sp1-lib 4.0.1 (git+https://github.com/succinctlabs/sp1.git?branch=n%2Ffp_ops_hook)",
 ]
 
 [[package]]
@@ -503,7 +506,8 @@ dependencies = [
 [[package]]
 name = "rfc6979"
 version = "0.4.0"
-source = "git+https://github.com/sp1-patches/signatures?tag=patch-0.16.9-sp1-4.0.0#5a0aefaef40c7a4cf991ab63f43650fea3ea0db0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8dd2a808d456c4a54e300a23e9f5a67e122c3024119acbfd73e3bf664491cb2"
 dependencies = [
  "hmac",
  "subtle",
@@ -582,12 +586,40 @@ dependencies = [
  "bincode",
  "elliptic-curve",
  "serde",
- "sp1-primitives",
+ "sp1-primitives 4.0.1",
+]
+
+[[package]]
+name = "sp1-lib"
+version = "4.0.1"
+source = "git+https://github.com/succinctlabs/sp1.git?branch=n%2Ffp_ops_hook#ebcb9059c06c5eca6011cbf633a222e49c6b644b"
+dependencies = [
+ "bincode",
+ "elliptic-curve",
+ "serde",
+ "sp1-primitives 4.0.1 (git+https://github.com/succinctlabs/sp1.git?branch=n%2Ffp_ops_hook)",
 ]
 
 [[package]]
 name = "sp1-primitives"
 version = "4.0.1"
+dependencies = [
+ "bincode",
+ "hex",
+ "lazy_static",
+ "num-bigint",
+ "p3-baby-bear",
+ "p3-field",
+ "p3-poseidon2",
+ "p3-symmetric",
+ "serde",
+ "sha2",
+]
+
+[[package]]
+name = "sp1-primitives"
+version = "4.0.1"
+source = "git+https://github.com/succinctlabs/sp1.git?branch=n%2Ffp_ops_hook#ebcb9059c06c5eca6011cbf633a222e49c6b644b"
 dependencies = [
  "bincode",
  "hex",
@@ -611,8 +643,8 @@ dependencies = [
  "libm",
  "rand",
  "sha2",
- "sp1-lib",
- "sp1-primitives",
+ "sp1-lib 4.0.1",
+ "sp1-primitives 4.0.1",
 ]
 
 [[package]]
