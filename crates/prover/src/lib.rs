@@ -351,6 +351,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             let (proof_tx, proof_rx) = channel();
             let (shape_tx, shape_rx) = channel();
 
+            // Get the program (preprocessed) shape before it leaves us.
+            // In the future, should wrap program in an `Arc`
+            let preprocessed_shape = program.preprocessed_shape.as_ref().unwrap().clone();
+
             let span = tracing::Span::current().clone();
             let handle = s.spawn(move || {
                 let _span = span.enter();
