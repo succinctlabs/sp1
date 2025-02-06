@@ -31,7 +31,7 @@ jobs:
       - name: "Run patch testing on new branch"
         run: |
           cd ./patch-testing
-          SP1_PATCH_BENCH=../new_cycle_stats.json cargo test --release --features bench
+          SP1_PATCH_BENCH=../new_cycle_stats.json cargo test --release
 
       - name: "Checkout old patches"
         run: |
@@ -41,7 +41,7 @@ jobs:
       - name: "Run patch testing on old branch"
         run: |
           cd ./patch-testing
-          SP1_PATCH_BENCH=../old_cycle_stats.json cargo test --release --features bench
+          SP1_PATCH_BENCH=../old_cycle_stats.json cargo test --release
 
       - name: "Compare results and create comment"
         run: |
