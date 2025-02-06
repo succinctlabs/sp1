@@ -36,7 +36,7 @@ jobs:
       - name: "Checkout old patches"
         run: |
           cd ./patch-testing
-          git checkout origin ${{ github.event.pull_request.base.ref }} -- . ':(exclude)new_cycle_stats.json' ':(exclude)sp1-test/' ':(exclude)sp1-test-macro/'
+          git checkout origin/${{ github.event.pull_request.base.ref }} -- . ':(exclude)new_cycle_stats.json' ':(exclude)sp1-test/' ':(exclude)sp1-test-macro/'
 
       - name: "Run patch testing on old branch"
         run: |
