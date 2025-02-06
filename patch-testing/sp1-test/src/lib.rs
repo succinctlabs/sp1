@@ -1,3 +1,7 @@
+use serde::{Deserialize, Serialize};
+
+pub mod utils;
+
 /// How many items to generate for the corpus.
 pub const DEFAULT_CORPUS_COUNT: u8 = 100;
 
@@ -14,14 +18,13 @@ pub fn lock_serial() -> parking_lot::MutexGuard<'static, ()> {
     SERIAL_LOCK.lock()
 }
 
-// #[cfg(feature = "bench")]
-pub fn write_cycles(name: &str, cycles: u64) {
-    #[derive(serde::Serialize, serde::Deserialize)]
-    struct BenchEntry {
-        name: String,
-        cycles: u64,
-    }
+#[derive(Serialize, Deserialize)]
+pub struct BenchEntry {
+    pub name: String,
+    pub cycles: u64,
+}
 
+pub fn write_cycles(name: &str, cycles: u64) {
     // Get the file path from the environment variable.
     let file = std::env::var("SP1_PATCH_BENCH")
         .map(|s| std::path::PathBuf::from(s))
