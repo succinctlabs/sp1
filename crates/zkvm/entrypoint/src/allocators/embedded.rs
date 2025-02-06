@@ -31,14 +31,6 @@ pub fn init() {
     unsafe { INNER_HEAP.init(heap_pos, heap_size) };
 }
 
-pub fn used() -> usize {
-    critical_section::with(|_cs| INNER_HEAP.used())
-}
-
-pub fn free() -> usize {
-    critical_section::with(|_cs| INNER_HEAP.free())
-}
-
 struct EmbeddedAlloc;
 
 unsafe impl GlobalAlloc for EmbeddedAlloc {
