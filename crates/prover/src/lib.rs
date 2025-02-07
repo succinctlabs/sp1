@@ -298,11 +298,28 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         mut context: SP1Context<'a>,
     ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
         context.subproof_verifier = Some(self);
-        let opts = SP1CoreOpts::default();
+        // IMPROVE THIS BY MAKING A REAL API
+        let opts = cfg!(feature = "gas")
+            .then(|| SP1CoreOpts {
+                shard_size: 2097152,
+                shard_batch_size: 1,
+                split_opts: sp1_stark::SplitOpts {
+                    combine_memory_threshold: 131072,
+                    deferred: 16384,
+                    keccak: 5461,
+                    sha_extend: 10922,
+                    sha_compress: 6553,
+                    memory: 1048576,
+                },
+                trace_gen_workers: 4,
+                checkpoints_channel_capacity: 128,
+                records_and_traces_channel_capacity: 4,
+            })
+            .unwrap_or_default();
         let mut runtime = Executor::with_context(self.get_program(elf).unwrap(), opts, context);
         // let mut runtime = Executor::with_context_and_elf(opts, context, elf);
 
-        // TODO(tqn) IMPROVE THIS BY MAKING A REAL API
+        // IMPROVE THIS BY MAKING A REAL API
         #[cfg(feature = "gas")]
         {
             // Needed to figure out where the shard boundaries are.
