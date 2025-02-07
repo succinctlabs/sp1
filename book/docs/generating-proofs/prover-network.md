@@ -1,6 +1,8 @@
 # Prover Network Beta
 
 > **See [Supported Versions](./prover-network/versions.md) for the currently supported versions of SP1 on the Prover Network.**
+>
+> **🚨 Please subscribe to our [email list](https://stats.sender.net/forms/elYpO1/view) for critical SP1 updates, prover network upgrades, and security disclosures.**
 
 Succinct [has been building](https://blog.succinct.xyz/succinct-network/) the Succinct Prover Network, a distributed network of provers that can generate proofs of any size quickly and reliably. It's currently in private beta, but you can get access by following the steps below.
 
