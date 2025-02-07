@@ -27,7 +27,7 @@ use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 use std::borrow::Borrow;
 
-/// The SP1 accerlated projective point.
+/// The SP1 accelerated projective point.
 #[derive(Clone, Copy, Debug)]
 pub struct ProjectivePoint<C: ECDSACurve> {
     /// The inner affine point.
