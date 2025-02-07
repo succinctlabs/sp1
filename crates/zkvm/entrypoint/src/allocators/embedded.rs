@@ -3,7 +3,7 @@ use crate::{
 };
 use alloc::alloc::{GlobalAlloc, Layout};
 use critical_section::RawRestoreState;
-use embedded_alloc::LlffHeap as Heap;
+use embedded_alloc::TlsfHeap as Heap;
 
 #[global_allocator]
 static HEAP: EmbeddedAlloc = EmbeddedAlloc;
@@ -29,14 +29,6 @@ pub fn init() {
     // region and the heap position.
     let heap_size: usize = MAX_MEMORY - heap_pos - EMBEDDED_RESERVED_INPUT_REGION_SIZE;
     unsafe { INNER_HEAP.init(heap_pos, heap_size) };
-}
-
-pub fn used() -> usize {
-    critical_section::with(|_cs| INNER_HEAP.used())
-}
-
-pub fn free() -> usize {
-    critical_section::with(|_cs| INNER_HEAP.free())
 }
 
 struct EmbeddedAlloc;
