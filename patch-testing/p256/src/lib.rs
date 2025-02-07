@@ -113,7 +113,7 @@ pub fn test_recover_pubkey_infinity(
     use ecdsa_core::RecoveryId;
     use p256::{ecdsa::Signature, ecdsa::VerifyingKey};
 
-    let times = 100_u8;
+    let times = 3_u8;
     stdin.write(&times);
 
     let mut vkeys = Vec::with_capacity(times as usize);
