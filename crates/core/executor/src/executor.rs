@@ -1779,10 +1779,6 @@ impl<'a> Executor<'a> {
             );
             // The above method estimates event counts only for core shards.
             estimator.core_shards.push(self.event_counts);
-            estimator.deferred_events[RiscvAirId::MemoryGlobalInit] +=
-                self.local_counts.local_mem as u64;
-            estimator.deferred_events[RiscvAirId::MemoryGlobalFinalize] +=
-                self.local_counts.local_mem as u64;
         }
         self.local_counts = LocalCounts::default();
         // Copy all of the existing local memory accesses to the record's local_memory_access vec.
@@ -2056,8 +2052,19 @@ impl<'a> Executor<'a> {
 
         #[cfg(feature = "gas")]
         if let Some(estimator) = &mut self.trace_area_estimator {
-            estimator.deferred_events[RiscvAirId::MemoryGlobalFinalize] +=
-                self.record.program.memory_image.len() as u64;
+            // Mirror the logic below.
+            // Register 0 is always init and finalized, so we add 1
+            // registers 1..32
+            let touched_reg_ct =
+                1 + (1..32).filter(|&r| self.state.memory.registers.get(r).is_some()).count();
+            let total_mem = touched_reg_ct + self.state.memory.page_table.exact_len();
+            // The memory_image is already initialized in the MemoryProgram chip
+            // so we subtract it off. It is initialized in the executor in the `initialize` function.
+            estimator.deferred_events[RiscvAirId::MemoryGlobalInit] += total_mem
+                .checked_sub(self.record.program.memory_image.len())
+                .expect("program memory image should be accounted for in memory exact len")
+                as u64;
+            estimator.deferred_events[RiscvAirId::MemoryGlobalFinalize] += total_mem as u64;
         }
 
         if self.emit_global_memory_events

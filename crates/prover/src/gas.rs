@@ -90,14 +90,7 @@ pub fn estimated_records<'a>(
             .collect::<Vec<_>>()
     };
 
-    [
-        (ShardKind::PackedCore, vec![]),
-        (ShardKind::Core, core_shapes),
-        (ShardKind::GlobalMemory, global_memory_shapes),
-        (ShardKind::Precompile, precompile_shapes),
-    ]
-    .into_iter()
-    .collect()
+    [core_shapes, global_memory_shapes, precompile_shapes].concat()
 }
 
 pub fn fit_records_to_shapes<'a, F: PrimeField32>(
