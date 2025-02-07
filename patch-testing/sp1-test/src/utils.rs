@@ -27,7 +27,7 @@ pub async fn post_to_github_pr(
     let client = Client::new();
     let base_url = format!("https://api.github.com/repos/{}/{}", owner, repo);
 
-    // Get all comments on the PR
+    // Get all comments on the PR.
     let comments_url = format!("{}/issues/{}/comments", base_url, pr_number);
     let comments_response = client
         .get(&comments_url)
@@ -38,7 +38,7 @@ pub async fn post_to_github_pr(
 
     let comments: Vec<serde_json::Value> = comments_response.json().await?;
 
-    // Look for an existing comment from our bot
+    // Look for an existing comment from our bot.
     let bot_comment = comments.iter().find(|comment| {
         comment["user"]["login"]
             .as_str()
@@ -47,7 +47,7 @@ pub async fn post_to_github_pr(
     });
 
     if let Some(existing_comment) = bot_comment {
-        // Update the existing comment
+        // Update the existing comment.
         let comment_url = existing_comment["url"].as_str().unwrap();
         let response = client
             .patch(comment_url)
@@ -63,7 +63,7 @@ pub async fn post_to_github_pr(
             return Err(format!("Failed to update comment: {:?}", response.text().await?).into());
         }
     } else {
-        // Create a new comment
+        // Create a new comment.
         let response = client
             .post(&comments_url)
             .header("Authorization", format!("token {}", token))
@@ -107,11 +107,11 @@ pub fn pretty_comparison(
     for (name, (old, new)) in organized {
         writeln!(
             output,
-            "| {:<50} | {:<25} | {:<25} | {:<25} |",
+            "| {:<50} | {:<25} | {:<25} | {:<25.4}% |",
             name,
             old,
             new,
-            old as f64 / new as f64
+            ((old - new) as f64 / old as f64) * 100.0
         )?;
     }
 
