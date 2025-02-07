@@ -70,7 +70,7 @@ pub struct BuildArgs {
         num_args = 1..
     )]
     pub binaries: Vec<String>,
-    #[clap(long, action, help = "ELF binary name")]
+    #[clap(long, action, requires = "output_directory", help = "ELF binary name")]
     pub elf_name: Option<String>,
     #[clap(alias = "out-dir", long, action, help = "Copy the compiled ELF to this directory")]
     pub output_directory: Option<String>,
