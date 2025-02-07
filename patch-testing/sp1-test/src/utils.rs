@@ -111,7 +111,7 @@ pub fn pretty_comparison(
             name,
             old,
             new,
-            ((old - new) as f64 / old as f64) * 100.0
+            ((old as f64 - new as f64) / old as f64) * 100.0
         )?;
     }
 
