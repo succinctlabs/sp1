@@ -4,13 +4,13 @@
 //!
 //! Note: SP1 uses affine arithmetic for all operations.
 
-use super::{AffinePoint, ECDSACurve, SP1AffinePointTrait, Scalar};
+use super::{AffinePoint, ECDSACurve, SP1AffinePointTrait};
 
 use elliptic_curve::{
     group::{cofactor::CofactorGroup, prime::PrimeGroup},
     ops::MulByGenerator,
     sec1::{CompressedPoint, ModulusSize},
-    FieldBytes,
+    CurveArithmetic, FieldBytes,
 };
 
 use elliptic_curve::{
@@ -24,6 +24,8 @@ use elliptic_curve::{
 
 use std::iter::Sum;
 use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
+
+use std::borrow::Borrow;
 
 /// The SP1 accerlated projective point.
 #[derive(Clone, Copy, Debug)]
@@ -95,19 +97,14 @@ impl<C: ECDSACurve> From<&ProjectivePoint<C>> for AffinePoint<C> {
 }
 
 impl<C: ECDSACurve> Group for ProjectivePoint<C> {
-    // Ideally this type could just be
-    // type `Scalar = <C as CurveArithmetic>::Scalar`.
-    //
-    // For more information,
-    // see the rationale in the documentation of `<C as ECDSACruve>::ScalarImpl`.
-    type Scalar = Scalar<C>;
+    type Scalar = <C as CurveArithmetic>::Scalar;
 
     fn identity() -> Self {
         Self::identity()
     }
 
     fn random(rng: impl RngCore) -> Self {
-        ProjectivePoint::<C>::generator() * Scalar::<C>::random(rng)
+        ProjectivePoint::<C>::generator() * Self::Scalar::random(rng)
     }
 
     fn double(&self) -> Self {
@@ -150,37 +147,20 @@ impl<C: ECDSACurve> LinearCombination for ProjectivePoint<C> {
 
 // Scalar Mul
 
-impl<C: ECDSACurve> Mul<Scalar<C>> for ProjectivePoint<C> {
+impl<C: ECDSACurve, T: Borrow<C::Scalar>> Mul<T> for ProjectivePoint<C> {
     type Output = ProjectivePoint<C>;
 
-    fn mul(mut self, rhs: Scalar<C>) -> Self::Output {
+    fn mul(mut self, rhs: T) -> Self::Output {
         let sp1_point = self.as_mut_zkvm_point();
-        sp1_point.mul_assign(&be_bytes_to_le_words(rhs.to_repr()));
+        sp1_point.mul_assign(&be_bytes_to_le_words(rhs.borrow().to_repr()));
 
         self
     }
 }
 
-impl<C: ECDSACurve> Mul<&Scalar<C>> for ProjectivePoint<C> {
-    type Output = ProjectivePoint<C>;
-
-    fn mul(mut self, rhs: &Scalar<C>) -> Self::Output {
-        let sp1_point = self.as_mut_zkvm_point();
-        sp1_point.mul_assign(&be_bytes_to_le_words(rhs.to_repr()));
-
-        self
-    }
-}
-
-impl<C: ECDSACurve> MulAssign<Scalar<C>> for ProjectivePoint<C> {
-    fn mul_assign(&mut self, rhs: Scalar<C>) {
-        self.as_mut_zkvm_point().mul_assign(&be_bytes_to_le_words(rhs.to_repr()));
-    }
-}
-
-impl<C: ECDSACurve> MulAssign<&Scalar<C>> for ProjectivePoint<C> {
-    fn mul_assign(&mut self, rhs: &Scalar<C>) {
-        self.as_mut_zkvm_point().mul_assign(&be_bytes_to_le_words(rhs.to_repr()));
+impl<C: ECDSACurve, T: Borrow<C::Scalar>> MulAssign<T> for ProjectivePoint<C> {
+    fn mul_assign(&mut self, rhs: T) {
+        self.as_mut_zkvm_point().mul_assign(&be_bytes_to_le_words(rhs.borrow().to_repr()));
     }
 }
 

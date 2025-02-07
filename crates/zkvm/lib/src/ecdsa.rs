@@ -13,16 +13,10 @@
 use crate::utils::AffinePoint as SP1AffinePointTrait;
 
 use elliptic_curve::{
-    bigint::U256,
-    ff,
-    generic_array::typenum::consts::U32,
-    ops::{Invert, Reduce},
-    scalar::{FromUintUnchecked, IsHigh},
-    subtle::CtOption,
-    zeroize::DefaultIsZeroes,
-    CurveArithmetic, FieldBytes, ScalarPrimitive,
+    ff, generic_array::typenum::consts::U32, subtle::CtOption, CurveArithmetic, FieldBytes,
 };
-use std::ops::{Neg, ShrAssign};
+use std::fmt::Debug;
+use std::ops::Neg;
 
 /// The affine point type for SP1.
 pub mod affine;
@@ -31,12 +25,6 @@ pub use affine::AffinePoint;
 /// The projective point type for SP1.
 pub mod projective;
 pub use projective::ProjectivePoint;
-
-/// The scalar type for SP1.
-///
-/// Note: This is just a wrapper to workaround some GAT limitations.
-pub mod scalar;
-pub use scalar::Scalar;
 
 /// NOTE: The only supported ECDSA curves are secp256k1 and secp256r1, which both
 /// have 8 limbs in their field elements.
@@ -58,37 +46,11 @@ pub trait ECDSACurve
 where
     Self: CurveArithmetic<
         FieldBytesSize = FIELD_BYTES_SIZE,
-        Scalar = Scalar<Self>,
         AffinePoint = AffinePoint<Self>,
         ProjectivePoint = ProjectivePoint<Self>,
-        Uint = U256,
     >,
 {
     type FieldElement: Field<Self> + Neg<Output = Self::FieldElement>;
-
-    /// The underlying [`Scalar`] implementation.
-    ///
-    /// This "newtype" is needed due to some limitations of GATs.
-    ///
-    /// Specifically, its impossible to generically implement
-    /// `ProjectivePoint<C>: for<'a> Mul<&'a C::Scalar>`,
-    /// as required by the [`ff::Group`] trait.
-    ///
-    /// See this playground for a minimum reproduction:
-    /// <https://play.rust-lang.org/?version=stable&mode=debug&edition=2021&gist=507aad241e3609d2f595bd1a95787038>
-    type ScalarImpl: DefaultIsZeroes
-        + From<ScalarPrimitive<Self>>
-        + FromUintUnchecked<Uint = Self::Uint>
-        + Into<FieldBytes<Self>>
-        + Into<ScalarPrimitive<Self>>
-        + Into<Self::Uint>
-        + Invert<Output = CtOption<Self::ScalarImpl>>
-        + IsHigh
-        + PartialOrd
-        + Reduce<Self::Uint, Bytes = FieldBytes<Self>>
-        + ShrAssign<usize>
-        + ff::Field
-        + ff::PrimeField<Repr = FieldBytes<Self>>;
 
     /// The underlying [`SP1AffinePointTrait`] implementation.
     type SP1AffinePoint: ECDSAPoint;
@@ -98,25 +60,6 @@ where
 
     /// The `b` coefficient in the curve equation.
     const EQUATION_B: Self::FieldElement;
-}
-
-/// Required by the [`CurveArithmetic`] trait.
-///
-/// Note: In current Rust we cannot write:
-/// ```ignore,no_run
-/// impl<C: ECDSACurve> From<Scalar<C>> for C::Uint {
-///     fn from(scalar: Scalar<C>) -> Self {
-///         scalar.0.into()
-///     }
-/// }
-/// ```
-///
-/// As the compiler claims that C::Uint may be a Scalar<C>,
-/// and this conflicts with the more generic `From<T> for T` implementation.
-impl<C: ECDSACurve> From<Scalar<C>> for U256 {
-    fn from(scalar: Scalar<C>) -> Self {
-        scalar.0.into()
-    }
 }
 
 /// Alias trait for the [`ff::PrimeField`] with 32 byte field elements.
@@ -139,7 +82,7 @@ pub type FieldElement<C> = <C as ECDSACurve>::FieldElement;
 
 /// Alias trait for the [`SP1AffinePointTrait`] with 32 byte field elements.
 pub trait ECDSAPoint:
-    SP1AffinePointTrait<POINT_LIMBS> + Clone + Copy + std::fmt::Debug + Send + Sync
+    SP1AffinePointTrait<POINT_LIMBS> + Clone + Copy + Debug + Send + Sync
 {
     #[inline]
     fn from(x: &[u8], y: &[u8]) -> Self {
@@ -148,7 +91,7 @@ pub trait ECDSAPoint:
 }
 
 impl<P> ECDSAPoint for P where
-    P: SP1AffinePointTrait<POINT_LIMBS> + Clone + Copy + std::fmt::Debug + Send + Sync
+    P: SP1AffinePointTrait<POINT_LIMBS> + Clone + Copy + Debug + Send + Sync
 {
 }
 
