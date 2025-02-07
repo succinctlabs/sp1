@@ -42,8 +42,6 @@ impl<C: ECDSACurve> ProjectivePoint<C> {
     }
 
     /// Convert the projective point to an affine point.
-    ///
-    /// Public as its used in patched crates.
     pub fn to_affine(self) -> AffinePoint<C> {
         self.inner
     }
@@ -61,8 +59,6 @@ impl<C: ECDSACurve> ProjectivePoint<C> {
     }
 
     /// Check if the point is the identity point.
-    ///
-    /// Public as its used in patched crates.
     pub fn is_identity(&self) -> Choice {
         self.inner.is_identity()
     }
