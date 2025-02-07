@@ -1,0 +1,53 @@
+name: Patch Testing Cycles
+
+on:
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - "patch-testing/**/**.rs"
+      - "patch-testing/**/**.toml"
+
+jobs:
+  patch-testing-cycles:
+    runs-on: [runs-on, runner=16cpu-linux-x64, disk=large, "run-id=${{ github.run_id }}"]
+    steps:
+      - name: "Checkout sources"
+        uses: "actions/checkout@v4"
+        with:
+          fetch-depth: 0  
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+
+      - name: Install SP1 toolchain from repo
+        run: |
+          cargo run -p sp1-cli -- prove install-toolchain
+          cd crates/cli
+          cargo install --force --locked --path .
+          cargo clean
+
+      - name: "Run patch testing on new branch"
+        run: |
+          cd ./patch-testing
+          SP1_PATCH_BENCH=../new_cycle_stats.json cargo test --release
+
+      - name: "Checkout old patches"
+        run: |
+          cd ./patch-testing
+          git checkout origin/${{ github.event.pull_request.base.ref }} -- . ':(exclude)new_cycle_stats.json' ':(exclude)sp1-test/' ':(exclude)sp1-test-macro/'
+
+      - name: "Run patch testing on old branch"
+        run: |
+          cd ./patch-testing
+          SP1_PATCH_BENCH=../old_cycle_stats.json cargo test --release
+
+      - name: "Compare results and create comment"
+        run: |
+          cd ./patch-testing
+          cargo run --bin post-to-github
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
