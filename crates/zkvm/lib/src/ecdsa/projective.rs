@@ -145,8 +145,8 @@ impl<C: ECDSACurve> LinearCombination for ProjectivePoint<C> {
     }
 }
 
-// Scalar Mul
-Implementation of scalar multiplication for the projective point.
+// Implementation of scalar multiplication for the projective point.
+
 impl<C: ECDSACurve, T: Borrow<C::Scalar>> Mul<T> for ProjectivePoint<C> {
     type Output = ProjectivePoint<C>;
 
@@ -164,8 +164,8 @@ impl<C: ECDSACurve, T: Borrow<C::Scalar>> MulAssign<T> for ProjectivePoint<C> {
     }
 }
 
-// Projective arithmetic
-Implementation of projective arithmetic.
+// Implementation of projective arithmetic.
+
 impl<C: ECDSACurve> Neg for ProjectivePoint<C> {
     type Output = ProjectivePoint<C>;
 
@@ -261,8 +261,8 @@ impl<C: ECDSACurve> Default for ProjectivePoint<C> {
     }
 }
 
-// Mixed arithmetic
-Implementation of mixed arithmetic.
+// Implementation of mixed arithmetic.
+
 impl<C: ECDSACurve> Add<AffinePoint<C>> for ProjectivePoint<C> {
     type Output = ProjectivePoint<C>;
 

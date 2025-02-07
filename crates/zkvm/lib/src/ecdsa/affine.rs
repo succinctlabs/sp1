@@ -218,7 +218,7 @@ impl<C: ECDSACurve> GroupEncoding for AffinePoint<C> {
             .map(|point| CtOption::new(point, Choice::from(1)))
             .unwrap_or_else(|_| {
                 // SEC1 identity encoding is technically 1-byte 0x00, but the
-                // `GroupEncoding` API requires a fixed-width `Repr`
+                // `GroupEncoding` API requires a fixed-width `Repr`.
                 let is_identity = bytes.ct_eq(&Self::Repr::default());
                 CtOption::new(EncodedPoint::<C>::identity(), is_identity)
             })
