@@ -319,17 +319,11 @@ impl<C: ECDSACurve> SubAssign<&AffinePoint<C>> for ProjectivePoint<C> {
     }
 }
 
-// todo: not actually true?
 impl<C: ECDSACurve> DefaultIsZeroes for ProjectivePoint<C> {}
 
 impl<C: ECDSACurve> ConditionallySelectable for ProjectivePoint<C> {
     fn conditional_select(a: &Self, b: &Self, choice: Choice) -> Self {
-        // Note: we dont care about constant time operations in the vm.
-        if choice.into() {
-            *b
-        } else {
-            *a
-        }
+        Self { inner: AffinePoint::conditional_select(&a.inner, &b.inner, choice) }
     }
 }
 
@@ -347,7 +341,6 @@ impl<C: ECDSACurve> PartialEq for ProjectivePoint<C> {
 
 impl<C: ECDSACurve> Eq for ProjectivePoint<C> {}
 
-// Traits for hash2curve
 impl<C: ECDSACurve> GroupEncoding for ProjectivePoint<C>
 where
     FieldBytes<C>: Copy,
@@ -361,7 +354,7 @@ where
     }
 
     fn from_bytes_unchecked(bytes: &Self::Repr) -> CtOption<Self> {
-        // No unchecked conversion possible for compressed points
+        // No unchecked conversion possible for compressed points.
         Self::from_bytes(bytes)
     }
 
