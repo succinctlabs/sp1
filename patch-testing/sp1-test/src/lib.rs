@@ -25,8 +25,7 @@ pub struct BenchEntry {
 }
 
 pub fn write_cycles(name: &str, cycles: u64) {
-    let Some(file) = std::env::var("SP1_PATCH_BENCH").ok().map(|s| std::path::PathBuf::from(s))
-    else {
+    let Some(file) = std::env::var("SP1_PATCH_BENCH").ok().map(std::path::PathBuf::from) else {
         return;
     };
 
