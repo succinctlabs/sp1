@@ -7,7 +7,7 @@ use crate::{
 pub const N: usize = 16;
 
 /// An affine point on the Secp256k1 curve.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 #[repr(align(4))]
 pub struct Secp256k1Point(pub WeierstrassPoint<N>);
 
@@ -29,12 +29,19 @@ impl AffinePoint<N> for Secp256k1Point {
         1211816567,
     ];
 
+    #[allow(deprecated)]
+    const GENERATOR_T: Self = Self(WeierstrassPoint::Affine(Self::GENERATOR));
+
     fn new(limbs: [u32; N]) -> Self {
         Self(WeierstrassPoint::Affine(limbs))
     }
 
     fn identity() -> Self {
         Self::infinity()
+    }
+
+    fn is_identity(&self) -> bool {
+        self.is_infinity()
     }
 
     fn limbs_ref(&self) -> &[u32; N] {
