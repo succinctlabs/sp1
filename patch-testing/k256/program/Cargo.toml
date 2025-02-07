@@ -14,7 +14,7 @@ path = "bin/recover.rs"
 
 [dependencies]
 sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
-k256 = { version = "0.13.3", default-features = false, features = ["ecdsa", "serde", "alloc"] }
+k256 = { version = "0.13.4", default-features = false, features = ["ecdsa", "serde", "alloc"] }
 ecdsa-core = { version = "0.16.9", package = "ecdsa", features = ["verifying"] }
 
 [patch.crates-io]
