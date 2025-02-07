@@ -1,3 +1,5 @@
+use ecdsa_core::signature::SignerMut;
+
 #[sp1_test::sp1_test("k256_verify", gpu, prove)]
 pub fn test_verify_rand_lte_100(
     stdin: &mut sp1_sdk::SP1Stdin,
@@ -174,6 +176,40 @@ pub fn test_recover_pubkey_infinity(
             assert_eq!(key, vkey);
             assert!(key.is_none());
             assert!(vkey.is_none());
+        }
+    }
+}
+
+#[sp1_test::sp1_test("k256_schnorr_verify", gpu, prove)]
+pub fn test_schnorr_verify(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
+    use k256::{
+        elliptic_curve::rand_core::OsRng,
+        schnorr::{
+            signature::{SignerMut, Verifier},
+            SigningKey,
+        },
+    };
+
+    let times = 100_u8;
+    stdin.write(&times);
+
+    for _ in 0..times {
+        let mut signing_key = SigningKey::random(&mut OsRng);
+
+        let message = rand::random::<[u8; 32]>();
+        let sig = signing_key.sign(&message);
+        let vkey = signing_key.verifying_key();
+
+        assert!(vkey.verify(&message, &sig).is_ok());
+
+        stdin.write(&message);
+        stdin.write_slice(sig.to_bytes().as_slice());
+        stdin.write_slice(vkey.to_bytes().as_slice());
+    }
+
+    move |mut public| {
+        for _ in 0..times {
+            assert!(public.read::<bool>())
         }
     }
 }
