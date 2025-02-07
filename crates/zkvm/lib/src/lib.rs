@@ -5,12 +5,17 @@
 
 pub mod bls12381;
 pub mod bn254;
+
+#[cfg(feature = "ecdsa")]
+pub mod ecdsa;
+
 pub mod ed25519;
 pub mod io;
 pub mod secp256k1;
 pub mod secp256r1;
 pub mod unconstrained;
 pub mod utils;
+
 #[cfg(feature = "verify")]
 pub mod verify;
 

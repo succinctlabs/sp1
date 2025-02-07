@@ -1,6 +1,9 @@
 pub trait AffinePoint<const N: usize>: Clone + Sized {
     /// The generator.
+    #[deprecated = "This const will have the `Self` type in the next major version."]
     const GENERATOR: [u32; N];
+
+    const GENERATOR_T: Self;
 
     /// Creates a new [`AffinePoint`] from the given limbs.
     fn new(limbs: [u32; N]) -> Self;
@@ -14,6 +17,8 @@ pub trait AffinePoint<const N: usize>: Clone + Sized {
     /// Returns a mutable reference to the limbs. If the point is the infinity point, this will
     /// panic.
     fn limbs_mut(&mut self) -> &mut [u32; N];
+
+    fn is_identity(&self) -> bool;
 
     /// Creates a new [`AffinePoint`] from the given x and y coordinates.
     ///
@@ -127,7 +132,7 @@ pub fn bytes_to_words_le(bytes: &[u8]) -> Vec<u32> {
         .collect::<Vec<_>>()
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 /// A representation of a point on a Weierstrass curve.
 pub enum WeierstrassPoint<const N: usize> {
     Infinity,
