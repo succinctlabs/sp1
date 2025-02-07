@@ -170,7 +170,9 @@ impl<C: ECDSACurve> AffineCoordinates for AffinePoint<C> {
 
 impl<C: ECDSACurve> ConditionallySelectable for AffinePoint<C> {
     fn conditional_select(a: &Self, b: &Self, choice: Choice) -> Self {
-        // In the vm, we dont care about constant time operations.
+        // Conditional select is a constant time if-else operation.
+        //
+        // In the SP1 vm, there are no attempts made to prevent side channel attacks.
         if choice.into() {
             *b
         } else {
