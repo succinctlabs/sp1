@@ -1,9 +1,9 @@
-//! Implementation of the SP1 accelerated affine point.
+//! Implementation of an affine point, with acceleration for operations in the context of SP1.
 //!
 //! The [`crate::ecdsa::ProjectivePoint`] type is mainly used in the `ecdsa-core` algorithms,
 //! however, in some cases, the affine point is required.
 //!
-//! Note: SP1 uses affine arithmetic for all operations.
+//! Note: When performing curve operations, accelerated crates for SP1 use affine arithmetic instead of projective arithmetic for performance.
 
 use super::{
     ECDSACurve, ECDSAPoint, Field, FieldElement, SP1AffinePointTrait, FIELD_BYTES_SIZE_USIZE,

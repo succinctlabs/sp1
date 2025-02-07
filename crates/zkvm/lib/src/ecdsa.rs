@@ -4,7 +4,7 @@
 //!
 //! [`CurveArithmetic`] contains all the types needed to implement the ECDSA algorithm over some curve.
 //!
-//! This implementation is specifcially for use inside the SP1zkVM, and internally it uses our
+//! This implementation is specifically for use inside of SP1, and internally uses SP1's Weierstrass precompiles.
 //! Weierstrass precompiles.
 //!
 //! In summary, SP1 overrides curve arithmetic entirely, and patches upstream field operations
