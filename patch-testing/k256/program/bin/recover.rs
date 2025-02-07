@@ -1,8 +1,7 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
-use ecdsa_core::RecoveryId;
-use k256::ecdsa::{Signature, VerifyingKey};
+use k256::ecdsa::{RecoveryId, Signature, VerifyingKey};
 
 pub fn main() {
     let times = sp1_zkvm::io::read::<u8>();
