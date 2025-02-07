@@ -249,67 +249,37 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         Ok(())
     }
 
+    macro_rules! check_len {
+        ($field:expr, $expected:expr, $name:expr) => {
+            if $field.len() != $expected {
+                return Err(OpeningShapeError::$name($expected, $field.len()));
+            }
+        };
+    }
+
     fn verify_opening_shape(
         chip: &MachineChip<SC, A>,
         opening: &ChipOpenedValues<Val<SC>, SC::Challenge>,
     ) -> Result<(), OpeningShapeError> {
         // Verify that the preprocessed width matches the expected value for the chip.
-        if opening.preprocessed.local.len() != chip.preprocessed_width() {
-            return Err(OpeningShapeError::PreprocessedWidthMismatch(
-                chip.preprocessed_width(),
-                opening.preprocessed.local.len(),
-            ));
-        }
-        if opening.preprocessed.next.len() != chip.preprocessed_width() {
-            return Err(OpeningShapeError::PreprocessedWidthMismatch(
-                chip.preprocessed_width(),
-                opening.preprocessed.next.len(),
-            ));
-        }
+        check_len!(opening.preprocessed.local, chip.preprocessed_width(), PreprocessedWidthMismatch);
+        check_len!(opening.preprocessed.next, chip.preprocessed_width(), PreprocessedWidthMismatch);
 
         // Verify that the main width matches the expected value for the chip.
-        if opening.main.local.len() != chip.width() {
-            return Err(OpeningShapeError::MainWidthMismatch(
-                chip.width(),
-                opening.main.local.len(),
-            ));
-        }
-        if opening.main.next.len() != chip.width() {
-            return Err(OpeningShapeError::MainWidthMismatch(
-                chip.width(),
-                opening.main.next.len(),
-            ));
-        }
+        check_len!(opening.main.local, chip.width(), MainWidthMismatch);
+        check_len!(opening.main.next, chip.width(), MainWidthMismatch);
 
         // Verify that the permutation width matches the expected value for the chip.
-        if opening.permutation.local.len() != chip.permutation_width() * SC::Challenge::D {
-            return Err(OpeningShapeError::PermutationWidthMismatch(
-                chip.permutation_width(),
-                opening.permutation.local.len(),
-            ));
-        }
-        if opening.permutation.next.len() != chip.permutation_width() * SC::Challenge::D {
-            return Err(OpeningShapeError::PermutationWidthMismatch(
-                chip.permutation_width(),
-                opening.permutation.next.len(),
-            ));
-        }
-        // Verift that the number of quotient chunks matches the expected value for the chip.
-        if opening.quotient.len() != chip.quotient_width() {
-            return Err(OpeningShapeError::QuotientWidthMismatch(
-                chip.quotient_width(),
-                opening.quotient.len(),
-            ));
-        }
+        check_len!(opening.permutation.local, chip.permutation_width() * SC::Challenge::D, PermutationWidthMismatch);
+        check_len!(opening.permutation.next, chip.permutation_width() * SC::Challenge::D, PermutationWidthMismatch);
+
+        // Verify that the number of quotient chunks matches the expected value for the chip.
+        check_len!(opening.quotient, chip.quotient_width(), QuotientWidthMismatch);
+        
         // For each quotient chunk, verify that the number of elements is equal to the degree of the
         // challenge extension field over the value field.
         for slice in &opening.quotient {
-            if slice.len() != SC::Challenge::D {
-                return Err(OpeningShapeError::QuotientChunkSizeMismatch(
-                    SC::Challenge::D,
-                    slice.len(),
-                ));
-            }
+            check_len!(slice, SC::Challenge::D, QuotientChunkSizeMismatch);
         }
 
         Ok(())
