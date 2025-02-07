@@ -103,7 +103,7 @@ where
 /// Required by the [`CurveArithmetic`] trait.
 ///
 /// Note: In current Rust we cannot write:
-/// ```rust, no_run
+/// ```ignore,no_run
 /// impl<C: ECDSACurve> From<Scalar<C>> for C::Uint {
 ///     fn from(scalar: Scalar<C>) -> Self {
 ///         scalar.0.into()
