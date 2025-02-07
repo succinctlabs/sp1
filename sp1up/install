@@ -54,7 +54,7 @@ fi
 
 # Warn MacOS users that they may need to manually install openssl via Homebrew:
 if [[ "$OSTYPE" =~ ^darwin ]] && [[ ! -f /usr/local/opt/openssl/lib/libssl.3.dylib && ! -f /opt/homebrew/opt/openssl/lib/libssl.3.dylib ]]; then
-    echo && echo "warning: libusb not found. You may need to install it manually on MacOS via Homebrew (brew install openssl)."
+    echo && echo "warning: openssl not found. You may need to install it manually on MacOS via Homebrew (brew install openssl)."
 fi
 
 echo && echo "✅ Installation complete!"
