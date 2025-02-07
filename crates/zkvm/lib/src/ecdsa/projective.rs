@@ -1,8 +1,8 @@
-//! Implementation of the SP1 accelerated projective point.
+//! Implementation of the SP1 accelerated projective point. The projective point wraps the affine point.
 //!
 //! This type is mainly used in the `ecdsa-core` algorithms.
 //!
-//! Note: SP1 uses affine arithmetic for all operations.
+//! Note: When performing curve operations, accelerated crates for SP1 use affine arithmetic instead of projective arithmetic for performance.
 
 use super::{AffinePoint, ECDSACurve, SP1AffinePointTrait};
 
@@ -146,7 +146,7 @@ impl<C: ECDSACurve> LinearCombination for ProjectivePoint<C> {
 }
 
 // Scalar Mul
-
+Implementation of scalar multiplication for the projective point.
 impl<C: ECDSACurve, T: Borrow<C::Scalar>> Mul<T> for ProjectivePoint<C> {
     type Output = ProjectivePoint<C>;
 
@@ -165,7 +165,7 @@ impl<C: ECDSACurve, T: Borrow<C::Scalar>> MulAssign<T> for ProjectivePoint<C> {
 }
 
 // Projective arithmetic
-
+Implementation of projective arithmetic.
 impl<C: ECDSACurve> Neg for ProjectivePoint<C> {
     type Output = ProjectivePoint<C>;
 
@@ -262,7 +262,7 @@ impl<C: ECDSACurve> Default for ProjectivePoint<C> {
 }
 
 // Mixed arithmetic
-
+Implementation of mixed arithmetic.
 impl<C: ECDSACurve> Add<AffinePoint<C>> for ProjectivePoint<C> {
     type Output = ProjectivePoint<C>;
 
