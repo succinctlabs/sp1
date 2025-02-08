@@ -266,3 +266,4 @@ WORKLOADS=$(jq -n \
 # Run the workflow with the list of workloads.
 echo $WORKLOADS | gh workflow run suite.yml --ref $GIT_REF --json
 
+
