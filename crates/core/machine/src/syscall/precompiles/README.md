@@ -192,7 +192,6 @@ In the `get_chips_and_costs` method, add the costs of your new syscall to a cost
 
 ```rust
 pub fn get_chips_and_costs() -> (Vec<Chip<F, Self>>, HashMap<RiscvAirDiscriminants, u64>) {
-    // other syscall update
     let custom_op = Chip::new(RiscvAir::CustomOp(CustomOpChip::default()));
     costs.insert(RiscvAirDiscriminants::CustomOp, custom_op.cost());
     chips.push(custom_op);
@@ -201,7 +200,7 @@ pub fn get_chips_and_costs() -> (Vec<Chip<F, Self>>, HashMap<RiscvAirDiscriminan
 
 ### Update the `estimate_area` method
 
-In the `estimate_area` method, add the costs of your new syscall to the execution trace aera estimation.
+In the `estimate_area` method, add the costs of your new syscall to the execution trace area estimation.
 
 ```rust
 fn estimate_area(&self) -> u64 {
@@ -212,9 +211,9 @@ fn estimate_area(&self) -> u64 {
 }
 ```
 
-## Expose the precompile by Syscall
+## Expose the precompile via Syscall
 
-Create a new file like `zkvm/entrypoint/src/syscalls/custom_op.rs` and expose your precompile by syscall:
+Create a new file like `zkvm/entrypoint/src/syscalls/custom_op.rs` and expose your precompile via syscall:
 
 ```rust
 #[allow(unused_variables)]
