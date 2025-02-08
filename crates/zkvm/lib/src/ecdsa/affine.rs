@@ -65,7 +65,7 @@ impl<C: ECDSACurve> AffinePoint<C> {
     }
 
     /// Get the generator point.
-    pub const fn generator() -> Self {
+    pub fn generator() -> Self {
         AffinePoint { inner: C::SP1AffinePoint::GENERATOR_T }
     }
 
