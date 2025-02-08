@@ -16,6 +16,9 @@ impl AffinePoint<N> for Ed25519AffinePoint {
         3665724614, 2969860233,
     ];
 
+    #[allow(deprecated)]
+    const GENERATOR_T: Self = Self(Self::GENERATOR);
+
     fn new(limbs: [u32; N]) -> Self {
         Self(limbs)
     }
@@ -38,6 +41,10 @@ impl AffinePoint<N> for Ed25519AffinePoint {
         unsafe {
             syscall_ed_add(a, b);
         }
+    }
+
+    fn is_identity(&self) -> bool {
+        self.0 == Self::IDENTITY
     }
 
     /// In Edwards curves, doubling is the same as adding a point to itself.

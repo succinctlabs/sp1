@@ -24,9 +24,6 @@ impl WeierstrassAffinePoint<N> for Bls12381Point {
 }
 
 impl AffinePoint<N> for Bls12381Point {
-    /// The generator was taken from "py_ecc" python library by the Ethereum Foundation:
-    ///
-    /// https://github.com/ethereum/py_ecc/blob/7b9e1b3/py_ecc/bls12_381/bls12_381_curve.py#L38-L45
     const GENERATOR: [u32; N] = [
         3676489403, 4214943754, 4185529071, 1817569343, 387689560, 2706258495, 2541009157,
         3278408783, 1336519695, 647324556, 832034708, 401724327, 1187375073, 212476713, 2726857444,
@@ -34,12 +31,22 @@ impl AffinePoint<N> for Bls12381Point {
         3819610353, 146011265,
     ];
 
+    /// The generator was taken from "py_ecc" python library by the Ethereum Foundation:
+    ///
+    /// https://github.com/ethereum/py_ecc/blob/7b9e1b3/py_ecc/bls12_381/bls12_381_curve.py#L38-L45
+    #[allow(deprecated)]
+    const GENERATOR_T: Self = Self(WeierstrassPoint::Affine(Self::GENERATOR));
+
     fn new(limbs: [u32; N]) -> Self {
         Self(WeierstrassPoint::Affine(limbs))
     }
 
     fn identity() -> Self {
         Self::infinity()
+    }
+
+    fn is_identity(&self) -> bool {
+        self.is_infinity()
     }
 
     fn limbs_ref(&self) -> &[u32; N] {
