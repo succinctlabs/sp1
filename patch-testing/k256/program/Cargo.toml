@@ -12,11 +12,15 @@ path = "bin/verify.rs"
 name = "k256_recover"
 path = "bin/recover.rs"
 
+[[bin]]
+name = "k256_schnorr_verify"
+path = "bin/schnorr_verify.rs"
+
 [dependencies]
 sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
-k256 = { version = "0.13.3", default-features = false, features = ["ecdsa", "serde", "alloc"] }
+k256 = { version = "0.13.4", default-features = false, features = ["ecdsa", "serde", "alloc", "schnorr", "pkcs8"] }
 ecdsa-core = { version = "0.16.9", package = "ecdsa", features = ["verifying"] }
 
 [patch.crates-io]
-ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", tag = "patch-0.16.9-sp1-4.0.0", features = ["verifying"] }
+k256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-k256-13.4-sp1-4.1.0" }
 sp1-lib = { path = "../../../crates/zkvm/lib" }

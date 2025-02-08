@@ -328,7 +328,7 @@ version = "1.1.0"
 dependencies = [
  "common-test-utils",
  "sp1-curves",
- "sp1-lib 4.0.1",
+ "sp1-lib 4.1.0",
  "sp1-zkvm",
 ]
 
@@ -371,7 +371,7 @@ name = "bls12381-mul-test"
 version = "1.1.0"
 dependencies = [
  "sp1-derive",
- "sp1-lib 4.0.1",
+ "sp1-lib 4.1.0",
  "sp1-zkvm",
 ]
 
@@ -381,7 +381,7 @@ version = "1.1.0"
 dependencies = [
  "common-test-utils",
  "sp1-curves",
- "sp1-lib 4.0.1",
+ "sp1-lib 4.1.0",
  "sp1-zkvm",
 ]
 
@@ -424,7 +424,7 @@ name = "bn254-mul-test"
 version = "1.1.0"
 dependencies = [
  "sp1-derive",
- "sp1-lib 4.0.1",
+ "sp1-lib 4.1.0",
  "sp1-zkvm",
 ]
 
@@ -494,7 +494,7 @@ name = "common-test-utils"
 version = "1.1.0"
 dependencies = [
  "num-bigint",
- "sp1-lib 4.0.1",
+ "sp1-lib 4.1.0",
 ]
 
 [[package]]
@@ -910,6 +910,7 @@ dependencies = [
  "ff",
  "generic-array 0.14.7",
  "group",
+ "hkdf",
  "pem-rfc7468",
  "pkcs8",
  "rand_core",
@@ -1174,6 +1175,15 @@ name = "hint-io-test"
 version = "1.1.0"
 dependencies = [
  "sp1-zkvm",
+]
+
+[[package]]
+name = "hkdf"
+version = "0.12.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7b5f8eb2ad728638ea2c7d47a21db23b7b58a72ed6a38256b8a1849f15fbbdf7"
+dependencies = [
+ "hmac",
 ]
 
 [[package]]
@@ -2187,7 +2197,7 @@ version = "1.1.0"
 dependencies = [
  "common-test-utils",
  "sp1-curves",
- "sp1-lib 4.0.1",
+ "sp1-lib 4.1.0",
  "sp1-zkvm",
 ]
 
@@ -2223,7 +2233,7 @@ dependencies = [
  "num",
  "p256",
  "sp1-curves",
- "sp1-lib 4.0.1",
+ "sp1-lib 4.1.0",
  "sp1-zkvm",
 ]
 
@@ -2244,7 +2254,7 @@ dependencies = [
  "num",
  "p256",
  "sp1-curves",
- "sp1-lib 4.0.1",
+ "sp1-lib 4.1.0",
  "sp1-zkvm",
 ]
 
@@ -2449,7 +2459,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
-version = "4.0.1"
+version = "4.1.0"
 dependencies = [
  "cfg-if",
  "dashu",
@@ -2469,7 +2479,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "4.0.1"
+version = "4.1.0"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -2501,16 +2511,17 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "4.0.1"
+version = "4.1.0"
 dependencies = [
  "bincode",
+ "elliptic-curve",
  "serde",
  "sp1-primitives",
 ]
 
 [[package]]
 name = "sp1-primitives"
-version = "4.0.1"
+version = "4.1.0"
 dependencies = [
  "bincode",
  "hex",
@@ -2526,7 +2537,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-stark"
-version = "4.0.1"
+version = "4.1.0"
 dependencies = [
  "arrayref",
  "hashbrown 0.14.5",
@@ -2559,7 +2570,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "4.0.1"
+version = "4.1.0"
 dependencies = [
  "cfg-if",
  "getrandom",
@@ -2569,7 +2580,7 @@ dependencies = [
  "p3-field",
  "rand",
  "sha2 0.10.8",
- "sp1-lib 4.0.1",
+ "sp1-lib 4.1.0",
  "sp1-primitives",
 ]
 
