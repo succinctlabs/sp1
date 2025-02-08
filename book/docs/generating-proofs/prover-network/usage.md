@@ -1,8 +1,9 @@
 # Prover Network: Usage
 
 > **See [Supported Versions](./versions.md) for the currently supported versions of SP1 on the Prover Network.**
->
-> **🚨 Please subscribe to our [email list](https://stats.sender.net/forms/elYpO1/view) for critical SP1 updates, prover network upgrades, and security disclosures.**
+
+**🚨 Please subscribe to our [email list](https://stats.sender.net/forms/elYpO1/view) for critical SP1 updates, prover network upgrades, and security disclosures.**
+
 ## Sending a proof request
 
 To use the prover network to generate a proof, you can run your script that uses `sp1_sdk::ProverClient` as you would normally but with additional environment variables set:
@@ -18,10 +19,12 @@ let mut proof = client.prove(&pk, &stdin).run().unwrap();
 SP1_PROVER=network NETWORK_PRIVATE_KEY=... RUST_LOG=info cargo run --release
 ```
 
-- `SP1_PROVER` should be set to `network` rather than the default `cpu` when using the prover network. This variable allows you to switch between the CPU and network provers.
+- Set `SP1_PROVER` to `network` (default is `cpu`). Configuring this variable to `network` will use the prover network.
 
 - `NETWORK_PRIVATE_KEY` should be set to your [private key](./key-setup.md). You will need
   to be using a [whitelisted](../prover-network) key to use the network.
+
+- `NETWORK_RPC_URL`: Defaults to `https://rpc.production.succinct.xyz`. This is the RPC URL of the prover network.
 
 When you call any of the prove functions in ProverClient now, it will first simulate your program, then wait for it to be proven through the network and finally return the proof.
 
@@ -70,7 +73,7 @@ let proof = prover
     .prove(&pk, &stdin)
     .groth16()
     .skip_simulation(true)
-    .strategy(FulfillmentStrategy::Reserved)
+    .fulfillment_strategy(FulfillmentStrategy::Reserved)
     .timeout(Duration::from_secs(60 * 60))
     .run()
     .unwrap();

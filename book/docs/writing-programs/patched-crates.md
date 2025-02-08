@@ -102,7 +102,7 @@ Apply the following patches based on what crates are in your dependencies.
 - `k256`
 
   ```toml
-  ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", tag = "patch-0.16.9-sp1-4.0.0" }
+  k256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-k256-13.4-sp1-4.1.0" }
   ```
 
   Note: The curve operations for `k256` are inside of the `ecdsa-core` crate, so you don't need to patch `k256` itself, and just patching `ecdsa-core` is enough.
@@ -121,7 +121,7 @@ While `secp256k1` doesnt usually rely on `ecdsa-core` the patched version does, 
 - `p256`
 
   ```toml
-  ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", tag = "patch-0.16.9-sp1-4.0.0" }
+  p256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-p256-13.2-sp1-4.1.0" }
   ```
 
 ### Notes
