@@ -27,7 +27,7 @@
         "writing-programs/proof-aggregation",
         "writing-programs/cycle-tracking"
       ],
-      "collapsed": false
+      "collapsed": true
     },
     {
       "type": "category",
@@ -65,7 +65,7 @@
         },
         "generating-proofs/advanced"
       ],
-      "collapsed": false
+      "collapsed": true
     },
     {
       "type": "category",
@@ -82,7 +82,7 @@
           ]
         }
       ],
-      "collapsed": false
+      "collapsed": true
     },
     {
       "type": "category",
@@ -91,7 +91,7 @@
         "developers/common-issues",
         "developers/usage-in-ci"
       ],
-      "collapsed": false
+      "collapsed": true
     },
     {
       "type": "category",
@@ -121,6 +121,11 @@
           "href": "https://code4rena.com/bounties/succinct"
         }
       ]
-    }
+    },
+    {
+      "type": "link",
+      "label": "Awesome SP1",
+      "href": "https://github.com/gakonst/awesome-sp1"
+     }
   ]
 }
