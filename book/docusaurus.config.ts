@@ -50,7 +50,7 @@ const config: Config = {
   ],
 
   themeConfig: {
-    algolia: {
+    // algolia: {
       // apiKey: "8bfb4b393679faa73e8362e3966be8c3", // Public api key
       // appId: "P3LCHD8MFM",
       // indexName: "succinct",
@@ -58,7 +58,7 @@ const config: Config = {
 
       // // Leaving at the default of `true` for now
       // contextualSearch: true,
-    },
+    // },
     docs: {
       sidebar: {
         hideable: false,
