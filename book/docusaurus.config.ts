@@ -51,13 +51,13 @@ const config: Config = {
 
   themeConfig: {
     algolia: {
-      apiKey: "8bfb4b393679faa73e8362e3966be8c3", // Public api key
-      appId: "P3LCHD8MFM",
-      indexName: "succinct",
-      searchPagePath: "search",
+      // apiKey: "8bfb4b393679faa73e8362e3966be8c3", // Public api key
+      // appId: "P3LCHD8MFM",
+      // indexName: "succinct",
+      // searchPagePath: "search",
 
-      // Leaving at the default of `true` for now
-      contextualSearch: true,
+      // // Leaving at the default of `true` for now
+      // contextualSearch: true,
     },
     docs: {
       sidebar: {
