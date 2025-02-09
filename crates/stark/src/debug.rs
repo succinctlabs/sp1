@@ -199,7 +199,7 @@ where
         if x != y {
             let backtrace = std::backtrace::Backtrace::force_capture();
             eprintln!("constraint failed: {x:?} != {y:?}\n{backtrace}");
-            panic!();
+            panic!("Constraint validation failed: expected {y:?}, got {x:?}");
         }
     }
 }
@@ -226,7 +226,7 @@ where
         if size == 2 {
             self.is_transition
         } else {
-            panic!("only supports a window size of 2")
+            panic!("Unsupported transition window size: {}. Only window size of 2 is supported", size);
         }
     }
 
