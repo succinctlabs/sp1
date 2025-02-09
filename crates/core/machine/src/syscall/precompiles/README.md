@@ -186,6 +186,60 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Arc<dyn Syscall>> {
 }
 ```
 
+### Update `get_chips_and_costs` method
+
+In the `get_chips_and_costs` method, add the costs of your new syscall to a cost hashmap for later cost estimation.
+
+```rust
+pub fn get_chips_and_costs() -> (Vec<Chip<F, Self>>, HashMap<RiscvAirDiscriminants, u64>) {
+    let custom_op = Chip::new(RiscvAir::CustomOp(CustomOpChip::default()));
+    costs.insert(RiscvAirDiscriminants::CustomOp, custom_op.cost());
+    chips.push(custom_op);
+}
+```
+
+### Update the `estimate_area` method
+
+In the `estimate_area` method, add the costs of your new syscall to the execution trace area estimation.
+
+```rust
+fn estimate_area(&self) -> u64 {
+    // other syscall update
+    let custom_op_events = self.syscall_counts[SyscallCode::CUSTOM_OP];
+    total_area += (custom_op_events as u64) * costs[&RiscvAirDiscriminants::CustomOp];
+    total_chips += 1;
+}
+```
+
+## Expose the precompile via Syscall
+
+Create a new file like `zkvm/entrypoint/src/syscalls/custom_op.rs` and expose your precompile via syscall:
+
+```rust
+#[allow(unused_variables)]
+#[no_mangle]
+pub extern "C" fn syscall_custom_op(x: *mut [u32; N], y: *const [u32; N]) {
+    #[cfg(target_os = "zkvm")]
+    unsafe {
+        asm!(
+            "ecall",
+            in("t0") crate::syscalls::CUSTOM_OP,
+            in("a0") x,
+            in("a1") y,
+        );
+    }
+
+    #[cfg(not(target_os = "zkvm"))]
+    unreachable!()
+}
+```
+
+Don't forget to add your custom op in `zkvm/entrypoint/src/syscalls/mod.rs`
+
+```rust
+pub const CUSTOM_OP: u32 = 0x00_01_01_2C;
+```
+
 ## Write Unit Tests for the New Precompile
 ### Create a New SP1 Test Package
 Create a new SP1 crate for your custom precompile test package inside the directory
