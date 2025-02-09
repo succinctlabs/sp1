@@ -21,7 +21,7 @@ And then you can install the SP1 toolchain:
 ```yaml
 - name: Install SP1 toolchain
   run: |
-    curl -L https://sp1.succinct.xyz | bash
+    curl -L https://sp1up.succinct.xyz | bash
     ~/.sp1/bin/sp1up 
     ~/.sp1/bin/cargo-prove prove --version
 ```
