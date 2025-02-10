@@ -1,4 +1,4 @@
-use std::{borrow::Cow, iter};
+use std::borrow::Cow;
 
 use enum_map::EnumMap;
 use hashbrown::HashMap;
@@ -15,7 +15,7 @@ pub fn estimated_records<'a>(
     estimator: &'a TraceAreaEstimator,
 ) -> Vec<Cow<'a, EnumMap<RiscvAirId, u64>>> {
     // TODO(tqn) decide whether or not to implement the Packed shard estimation
-    let TraceAreaEstimator { core_shards, deferred_events } = estimator;
+    let TraceAreaEstimator { core_shards, deferred_events, .. } = estimator;
     // `Global` heights are sometimes overestimated.
     // When the fractional part of the log2 is above this, we round down.
     const THRESHOLD: f64 = 0.1;
@@ -155,11 +155,19 @@ impl<'a, F: PrimeField32> Shapeable<F> for CoreShard<'a> {
     fn precompile_heights(&self) -> impl Iterator<Item = (RiscvAirId, (usize, usize, usize))> {
         self.record.iter().filter_map(|(id, &num_events)| {
             // Filter precompiles.
-            let num_local_mem_events = *self.precompile_local_mem_events_per_row.get(&id)?;
+            let num_local_mem_events_per_row =
+                *self.precompile_local_mem_events_per_row.get(&id)?;
             let num_events = num_events as usize;
             // Skip empty events.
             (num_events > 0).then_some(())?;
             let rows = num_events * id.rows_per_event();
+            let num_local_mem_events = num_events
+                * match id {
+                    RiscvAirId::ShaCompress => 72, //80,
+                    RiscvAirId::ShaExtend => 64,   //48,
+                    RiscvAirId::KeccakPermute => 50,
+                    _ => 1, // num_local_mem_events_per_row
+                };
             let num_global_events = 2 * num_local_mem_events + num_events;
             Some((id, (rows, num_local_mem_events, num_global_events)))
         })

@@ -542,6 +542,7 @@ impl<'a> Executor<'a> {
             }
         };
 
+        // TODO(tqn) update this comment and the other one
         // We update the local memory counter in two cases:
         //  1. This is the first time the address is touched, this corresponds to the
         //     condition record.shard != shard.
@@ -551,6 +552,21 @@ impl<'a> Executor<'a> {
         if !self.unconstrained && (record.shard != shard || local_memory_access.is_some()) {
             self.local_counts.local_mem += 1;
         }
+        #[cfg(feature = "gas")]
+        if !self.unconstrained {
+            if let Some(estimator) = &mut self.trace_area_estimator {
+                if record.shard != shard {
+                    estimator.current_local_mem += 1;
+                }
+                let current_touched_compressed_addresses = if local_memory_access.is_some() {
+                    &mut estimator.current_precompile_touched_compressed_addresses
+                } else {
+                    &mut estimator.current_touched_compressed_addresses
+                };
+                current_touched_compressed_addresses.insert(addr >> 2);
+            }
+        }
+        // local_mem_discrepancy +=
 
         let prev_record = *record;
         record.shard = shard;
@@ -768,6 +784,21 @@ impl<'a> Executor<'a> {
         //     on the .is_some() condition to be true only in the SyscallContext.
         if !self.unconstrained && (record.shard != shard || local_memory_access.is_some()) {
             self.local_counts.local_mem += 1;
+        }
+
+        #[cfg(feature = "gas")]
+        if !self.unconstrained {
+            if let Some(estimator) = &mut self.trace_area_estimator {
+                if record.shard != shard {
+                    estimator.current_local_mem += 1;
+                }
+                let current_touched_compressed_addresses = if local_memory_access.is_some() {
+                    &mut estimator.current_precompile_touched_compressed_addresses
+                } else {
+                    &mut estimator.current_touched_compressed_addresses
+                };
+                current_touched_compressed_addresses.insert(addr >> 2);
+            }
         }
 
         let prev_record = *record;
@@ -1287,8 +1318,9 @@ impl<'a> Executor<'a> {
     }
 
     /// Fetch the instruction at the current program counter.
+    // TODO(tqn) remove pub
     #[inline]
-    fn fetch(&self) -> Instruction {
+    pub fn fetch(&self) -> Instruction {
         *self.program.fetch(self.state.pc)
     }
 
@@ -1772,6 +1804,11 @@ impl<'a> Executor<'a> {
     pub fn bump_record(&mut self) {
         #[cfg(feature = "gas")]
         if let Some(estimator) = &mut self.trace_area_estimator {
+            println!(
+                "BUMPING: {:?} est {:?}",
+                self.local_counts.local_mem, estimator.current_local_mem,
+            );
+            self.local_counts.local_mem = std::mem::take(&mut estimator.current_local_mem);
             Self::estimate_riscv_event_counts(
                 &mut self.event_counts,
                 (self.state.clk >> 2) as u64,
@@ -1779,6 +1816,13 @@ impl<'a> Executor<'a> {
             );
             // The above method estimates event counts only for core shards.
             estimator.core_shards.push(self.event_counts);
+            estimator.current_touched_compressed_addresses.clear();
+            if self.executor_mode == ExecutorMode::Trace {
+                let actual =
+                    self.record.cpu_local_memory_access.len() + self.local_memory_access.len();
+                let estimated = self.local_counts.local_mem;
+                println!("ACTUAL: {actual} ESTIMATED: {estimated}");
+            }
         }
         self.local_counts = LocalCounts::default();
         // Copy all of the existing local memory accesses to the record's local_memory_access vec.
