@@ -102,7 +102,7 @@ impl Syscall for WriteSyscall {
                 panic!(
                     "You are using reserved file descriptor {fd} that is not supported on SP1 versions >= v4.0.0. \
                     Update your patches to the latest versions that are compatible with versions >= v4.0.0. \
-                    See `https://docs.succinct.xyz/docs/writing-programs/patched-crates` for more information"
+                    See `https://docs.succinct.xyz/docs/sp1/writing-programs/patched-crates` for more information"
                 );
             }
         } else if fd == FD_PUBLIC_VALUES {
