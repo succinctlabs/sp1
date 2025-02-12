@@ -1,5 +1,5 @@
-//! A simple program that takes a number `n` as input, and writes the `n-1`th and `n`th fibonacci
-//! number as an output.
+//! A simple program that takes a number `n` as input, and writes the `n-1`th and `n`th Fibonacci
+//! numbers as output (where `n-1` is stored in `a` and `n` in `b` after the loop).
 
 // These two lines are necessary for the program to properly compile.
 //
