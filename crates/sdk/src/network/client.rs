@@ -17,7 +17,7 @@ use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{HashableKey, SP1VerifyingKey};
 use tonic::{transport::Channel, Code};
 
-use super::grpc;
+use super::grpc::GrpcClient;
 use super::retry::{self, RetryableRpc, DEFAULT_RETRY_TIMEOUT};
 use super::utils::Signable;
 use crate::network::proto::artifact::{
@@ -36,6 +36,7 @@ pub struct NetworkClient {
     pub(crate) signer: PrivateKeySigner,
     pub(crate) http: HttpClientWithMiddleware,
     pub(crate) rpc_url: String,
+    pub(crate) rpc_client: GrpcClient,
 }
 
 #[async_trait]
@@ -75,7 +76,13 @@ impl NetworkClient {
             .pool_idle_timeout(Duration::from_secs(240))
             .build()
             .unwrap();
-        Self { signer, http: client.into(), rpc_url: rpc_url.into() }
+        let rpc_url: String = rpc_url.into();
+        Self {
+            signer,
+            http: client.into(),
+            rpc_url: rpc_url.clone(),
+            rpc_client: GrpcClient::new(rpc_url),
+        }
     }
 
     /// Get the latest nonce for this account's address.
@@ -333,12 +340,12 @@ impl NetworkClient {
     }
 
     pub(crate) async fn prover_network_client(&self) -> Result<ProverNetworkClient<Channel>> {
-        let channel = grpc::configure_endpoint(&self.rpc_url)?.connect().await?;
+        let channel = self.rpc_client.get_channel().await?;
         Ok(ProverNetworkClient::new(channel))
     }
 
     pub(crate) async fn artifact_store_client(&self) -> Result<ArtifactStoreClient<Channel>> {
-        let channel = grpc::configure_endpoint(&self.rpc_url)?.connect().await?;
+        let channel = self.rpc_client.get_channel().await?;
         Ok(ArtifactStoreClient::new(channel))
     }
 
