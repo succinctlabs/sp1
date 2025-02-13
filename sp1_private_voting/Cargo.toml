@@ -1,0 +1,7 @@
+[package]
+name = "sp1_private_voting"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+solana-program = "1.17.0"
