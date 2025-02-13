@@ -93,6 +93,11 @@
       ]
     },
     "what-is-a-zkvm",
-    "why-use-sp1"
+    "why-use-sp1",
+    {
+      "type": "link",
+      "label": "Awesome SP1",
+      "href": "https://github.com/gakonst/awesome-sp1"
+     }
   ]
 }
