@@ -44,3 +44,6 @@ prettytable-rs = "0.10"
 textwrap = "0.16.0"
 ctrlc = "3.4.2"
 cargo_metadata = "0.18.1"
+
+[dev-dependencies]
+tempfile = "3.16.0"
