@@ -1271,7 +1271,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     fn check_for_high_cycles(cycles: u64) {
         if cycles > 100_000_000 {
             tracing::warn!(
-                "High cycle count detected ({}M cycles). For better performance, consider using the Succinct Prover Network: https://docs.succinct.xyz/generating-proofs/prover-network",
+                "High cycle count detected ({}M cycles). For better performance, consider using the Succinct Prover Network: https://docs.succinct.xyz/docs/sp1/generating-proofs/prover-network",
                 cycles / 1_000_000
             );
         }

@@ -2,7 +2,7 @@
 //!
 //! A library for interacting with the SP1 RISC-V zkVM.
 //!
-//! Visit the [Getting Started](https://docs.succinct.xyz/docs/getting-started/install) section
+//! Visit the [Getting Started](https://docs.succinct.xyz/docs/sp1/getting-started/install) section
 //! in the official SP1 documentation for a quick start guide.
 
 #![warn(clippy::pedantic)]
