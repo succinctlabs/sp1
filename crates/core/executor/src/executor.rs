@@ -1641,10 +1641,10 @@ impl<'a> Executor<'a> {
         // Execute the instruction.
         self.execute_instruction(&instruction)?;
 
-        if !self.unconstrained {
-            // Increment the clock.
-            self.state.global_clk += 1;
+        // Increment the clock.
+        self.state.global_clk += 1;
 
+        if !self.unconstrained {
             // If there's not enough cycles left for another instruction, move to the next shard.
             let cpu_exit = self.max_syscall_cycles + self.state.clk >= self.shard_size;
 
@@ -1735,12 +1735,12 @@ impl<'a> Executor<'a> {
                 self.state.clk = 0;
                 self.bump_record();
             }
-        }
 
-        // If the cycle limit is exceeded, return an error.
-        if let Some(max_cycles) = self.max_cycles {
-            if self.state.global_clk >= max_cycles {
-                return Err(ExecutionError::ExceededCycleLimit(max_cycles));
+            // If the cycle limit is exceeded, return an error.
+            if let Some(max_cycles) = self.max_cycles {
+                if self.state.global_clk >= max_cycles {
+                    return Err(ExecutionError::ExceededCycleLimit(max_cycles));
+                }
             }
         }
 
