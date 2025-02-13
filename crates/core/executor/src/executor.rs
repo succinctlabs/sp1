@@ -1641,10 +1641,10 @@ impl<'a> Executor<'a> {
         // Execute the instruction.
         self.execute_instruction(&instruction)?;
 
-        // Increment the clock.
-        self.state.global_clk += 1;
-
         if !self.unconstrained {
+            // Increment the clock.
+            self.state.global_clk += 1;
+
             // If there's not enough cycles left for another instruction, move to the next shard.
             let cpu_exit = self.max_syscall_cycles + self.state.clk >= self.shard_size;
 
