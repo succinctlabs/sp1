@@ -9,29 +9,29 @@ use yansi::Paint;
 
 #[derive(Args)]
 #[group(required = true, multiple = false)]
-struct TemplateType {
+pub struct TemplateType {
     /// Use the `bare` template which includes just a program and script.
     #[arg(long)]
-    bare: bool,
+    pub bare: bool,
 
     /// Use the `evm` template which includes Solidity smart contracts for onchain integration.
     #[arg(long)]
-    evm: bool,
+    pub evm: bool,
 }
 
 #[derive(Parser)]
 #[command(name = "new", about = "Setup a new project that runs inside the SP1.")]
 pub struct NewCmd {
     /// The name of the project.
-    name: String,
+    pub name: String,
 
     /// The template to use for the project.
     #[command(flatten)]
-    template: TemplateType,
+    pub template: TemplateType,
 
     /// Version of sp1-project-template to use (branch or tag).
     #[arg(long, default_value = "main")]
-    version: String,
+    pub version: String,
 }
 
 const TEMPLATE_REPOSITORY_URL: &str = "https://github.com/succinctlabs/sp1-project-template";
