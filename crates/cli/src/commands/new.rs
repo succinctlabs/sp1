@@ -79,16 +79,28 @@ impl NewCmd {
                 );
             } else {
                 println!(
-                        "       \x1b[1m{}\x1b[0m Please run `forge install` in the \"contracts\" folder to setup contracts development",
-                        Paint::blue("Info:"),
-                    );
+                    "       \x1b[1m{}\x1b[0m Please run `forge install` in the \"contracts\" folder to setup contracts development",
+                    Paint::blue("Info:"),
+                );
             }
-        } else {
+        } else if self.template.bare {
             // Remove the `contracts` directory.
             fs::remove_dir_all(root.join("contracts"))?;
 
-            // Remove the `.gitmodules` file.
-            fs::remove_file(root.join(".gitmodules"))?;
+            // Remove the `.gitmodules` file if it exists.
+            let gitmodules_path = root.join(".gitmodules");
+            if gitmodules_path.exists() {
+                fs::remove_file(gitmodules_path)?;
+            }
+
+            // Remove the EVM-specific script (e.g., evm.rs).
+            let evm_script_path = root.join("script").join("src").join("bin").join("evm.rs");
+            if evm_script_path.exists() {
+                fs::remove_file(evm_script_path)?;
+            }
+
+            // Recursively remove "alloy-sol" references from any Cargo.toml under the project root
+            remove_alloy_sol_from_cargo_tomls(root)?;
         }
 
         println!(
@@ -100,4 +112,29 @@ impl NewCmd {
 
         Ok(())
     }
+}
+
+/// Recursively walk through the project directory,
+/// remove lines containing "alloy-sol" from any Cargo.toml files
+fn remove_alloy_sol_from_cargo_tomls(dir: &Path) -> Result<()> {
+    if dir.is_dir() {
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            let path = entry.path();
+
+            if path.is_dir() {
+                remove_alloy_sol_from_cargo_tomls(&path)?;
+            } else if path.file_name().map_or(false, |name| name == "Cargo.toml") {
+                // Filter out lines containing "alloy-sol"
+                let cargo_contents = fs::read_to_string(&path)?;
+                let filtered_contents: String = cargo_contents
+                    .lines()
+                    .filter(|line| !line.contains("alloy-sol"))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                fs::write(&path, filtered_contents)?;
+            }
+        }
+    }
+    Ok(())
 }
