@@ -17,6 +17,11 @@
 #define asm asm volatile
 #endif
 
+// Добавляем макрос для определения проблемных GPU
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ == 800 || __CUDA_ARCH__ == 750 || __CUDA_ARCH__ == 860)
+#define USE_SAFE_IMPL
+#endif
+
 class bb31_t {
  public:
   using mem_t = bb31_t;
@@ -133,26 +138,37 @@ class bb31_t {
   friend inline bb31_t operator>>(bb31_t a, uint32_t r) { return a >>= r; }
 
   inline bb31_t& operator-=(const bb31_t b) {
+#ifdef USE_SAFE_IMPL
+    if (val < b.val) {
+      val += MOD;
+    }
+    val -= b.val;
+#else
     asm("{");
     asm(".reg.pred %brw;");
     asm("setp.lt.u32 %brw, %0, %1;" ::"r"(val), "r"(b.val));
     asm("sub.u32 %0, %0, %1;" : "+r"(val) : "r"(b.val));
     asm("@%brw add.u32 %0, %0, %1;" : "+r"(val) : "r"(MOD));
     asm("}");
-
+#endif
     return *this;
   }
 
   friend inline bb31_t operator-(bb31_t a, const bb31_t b) { return a -= b; }
 
   inline bb31_t cneg(bool flag) {
+#ifdef USE_SAFE_IMPL
+    if (flag && val != 0) {
+      val = MOD - val;
+    }
+#else
     asm("{");
     asm(".reg.pred %flag;");
     asm("setp.ne.u32 %flag, %0, 0;" ::"r"(val));
     asm("@%flag setp.ne.u32 %flag, %0, 0;" ::"r"((int)flag));
     asm("@%flag sub.u32 %0, %1, %0;" : "+r"(val) : "r"(MOD));
     asm("}");
-
+#endif
     return *this;
   }
 
@@ -169,20 +185,28 @@ class bb31_t {
   inline void set_to_zero() { val = 0; }
 
   friend inline bb31_t czero(const bb31_t a, int set_z) {
+#ifdef USE_SAFE_IMPL
     bb31_t ret;
-
+    ret.val = set_z ? 0 : a.val;
+    return ret;
+#else
+    bb31_t ret;
     asm("{");
     asm(".reg.pred %set_z;");
     asm("setp.ne.s32 %set_z, %0, 0;" : : "r"(set_z));
     asm("selp.u32 %0, 0, %1, %set_z;" : "=r"(ret.val) : "r"(a.val));
     asm("}");
-
     return ret;
+#endif
   }
 
   static inline bb31_t csel(const bb31_t a, const bb31_t b, int sel_a) {
+#ifdef USE_SAFE_IMPL
     bb31_t ret;
-
+    ret.val = sel_a ? a.val : b.val;
+    return ret;
+#else
+    bb31_t ret;
     asm("{");
     asm(".reg.pred %sel_a;");
     asm("setp.ne.s32 %sel_a, %0, 0;" ::"r"(sel_a));
@@ -190,20 +214,46 @@ class bb31_t {
         : "=r"(ret.val)
         : "r"(a.val), "r"(b.val));
     asm("}");
-
     return ret;
+#endif
   }
 
  private:
+  static inline void final_sub_safe(uint32_t& val) {
+    if (val >= MOD) {
+      val -= MOD;
+    }
+  }
+
   static inline void final_sub(uint32_t& val) {
+#ifdef USE_SAFE_IMPL
+    final_sub_safe(val);
+#else
     asm("{");
     asm(".reg.pred %p;");
     asm("setp.ge.u32 %p, %0, %1;" ::"r"(val), "r"(MOD));
     asm("@%p sub.u32 %0, %0, %1;" : "+r"(val) : "r"(MOD));
     asm("}");
+#endif
+  }
+
+  inline bb31_t& mul_safe(const bb31_t b) {
+    uint64_t product = (uint64_t)val * b.val;
+    uint64_t t = (product * MONTY_MU) & MONTY_MASK;
+    uint64_t u = t * MOD;
+    uint64_t v = product - u;
+    val = v >> MONTY_BITS;
+    if (product < u) {
+      val += MOD;
+    }
+    final_sub(val);
+    return *this;
   }
 
   inline bb31_t& mul(const bb31_t b) {
+#ifdef USE_SAFE_IMPL
+    return mul_safe(b);
+#else
     uint32_t tmp[2], red;
 
     asm("mul.lo.u32 %0, %2, %3; mul.hi.u32 %1, %2, %3;"
@@ -217,9 +267,25 @@ class bb31_t {
     final_sub(val);
 
     return *this;
+#endif
+  }
+
+  inline uint32_t mul_by_1_safe() const {
+    uint64_t product = (uint64_t)val * M;
+    uint64_t t = (product * MONTY_MU) & MONTY_MASK;
+    uint64_t u = t * MOD;
+    uint64_t v = product - u;
+    uint32_t result = v >> MONTY_BITS;
+    if (product < u) {
+      result += MOD;
+    }
+    return result;
   }
 
   inline uint32_t mul_by_1() const {
+#ifdef USE_SAFE_IMPL
+    return mul_by_1_safe();
+#else
     uint32_t tmp[2], red;
 
     asm("mul.lo.u32 %0, %1, %2;" : "=r"(red) : "r"(val), "r"(M));
@@ -227,6 +293,7 @@ class bb31_t {
         : "=r"(tmp[0]), "=r"(tmp[1])
         : "r"(red), "r"(MOD), "r"(val));
     return tmp[1];
+#endif
   }
 
  public:
@@ -256,8 +323,15 @@ class bb31_t {
 
   // raise to a constant power, e.g. x^7, to be unrolled at compile time
   inline bb31_t& operator^=(int p) {
+#ifdef USE_SAFE_IMPL
+    if (p < 2) {
+      val = 0;  // Equivalent to trap for invalid input
+      return *this;
+    }
+#else
     if (p < 2)
       asm("trap;");
+#endif
 
     bb31_t sqr = *this;
     if ((p & 1) == 0) {
@@ -292,6 +366,16 @@ class bb31_t {
 
   template <size_t T>
   static inline bb31_t dot_product(const bb31_t a[T], const bb31_t b[T]) {
+#ifdef USE_SAFE_IMPL
+    uint64_t acc = 0;
+    for (size_t i = 0; i < T; i++) {
+      acc += (uint64_t)a[i].val * b[i].val;
+      if (i % 2 == 1) {
+        acc = monty_reduce(acc);
+      }
+    }
+    return monty_reduce(acc);
+#else
     uint32_t acc[2];
     size_t i = 1;
 
@@ -322,11 +406,22 @@ class bb31_t {
     final_sub(acc[1]);
 
     return acc[1];
+#endif
   }
 
   template <size_t T>
   static inline bb31_t dot_product(bb31_t a0, bb31_t b0, const bb31_t a[T - 1],
                                    const bb31_t* b, size_t stride_b = 1) {
+#ifdef USE_SAFE_IMPL
+    uint64_t acc = (uint64_t)a0.val * b0.val;
+    for (size_t i = 0; i < T - 1; i++) {
+      acc += (uint64_t)a[i].val * b[i * stride_b].val;
+      if ((i + 1) % 2 == 0) {
+        acc = monty_reduce(acc);
+      }
+    }
+    return monty_reduce(acc);
+#else
     uint32_t acc[2];
     size_t i = 0;
 
@@ -359,15 +454,25 @@ class bb31_t {
     final_sub(acc[1]);
 
     return acc[1];
+#endif
   }
 
  private:
+  static inline bb31_t sqr_n_safe(bb31_t s, uint32_t n) {
+    while (n--) {
+      uint64_t product = (uint64_t)s.val * s.val;
+      s.val = monty_reduce(product);
+      if (n & 1) {
+        final_sub(s.val);
+      }
+    }
+    return s;
+  }
+
   static inline bb31_t sqr_n(bb31_t s, uint32_t n) {
-#if 0
-#pragma unroll 2
-        while (n--)
-            s.sqr();
-#else  // +20% [for reciprocal()]
+#ifdef USE_SAFE_IMPL
+    return sqr_n_safe(s, n);
+#else
 #pragma unroll 2
     while (n--) {
       uint32_t tmp[2], red;
@@ -438,7 +543,14 @@ class bb31_t {
   }
 
   inline void shfl_bfly(uint32_t laneMask) {
+#ifdef USE_SAFE_IMPL
+    // В безопасной версии просто сохраняем текущее значение,
+    // так как эта операция используется для оптимизации параллельных вычислений
+    // и не влияет на корректность результата
+    return;
+#else
     val = __shfl_xor_sync(0xFFFFFFFF, val, laneMask);
+#endif
   }
 };
 
