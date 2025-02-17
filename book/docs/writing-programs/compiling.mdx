@@ -110,3 +110,22 @@ fn main() {
     build_program_with_args("../program", &args);
 }
 ```
+
+## Troubleshooting
+
+### C-bindings Compilation Issues
+
+When working with C-bindings in SP1, you might encounter compilation issues. One common solution is to use `clang` as your C compiler. Here's how to set it up:
+
+1. Make sure you have an up-to-date version of `clang` installed on your system
+2. Set the following environment variables before building:
+   ```bash
+   export CC=clang
+   export cc=clang
+   ```
+3. Then run your build command:
+   ```bash
+   cargo prove build
+   ```
+
+This is particularly helpful when you encounter compilation errors related to C-bindings or when the default compiler doesn't work as expected.
