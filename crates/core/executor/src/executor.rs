@@ -1590,13 +1590,6 @@ impl<'a> Executor<'a> {
             self.report.syscall_counts[syscall] += 1;
         }
 
-        #[cfg(feature = "gas")]
-        if let Some(estimator) = &mut self.trace_area_estimator {
-            if let Some(syscall_id) = syscall.as_air_id() {
-                estimator.deferred_events[syscall_id] += 1;
-            }
-        }
-
         // `hint_slice` is allowed in unconstrained mode since it is used to write the hint.
         // Other syscalls are not allowed because they can lead to non-deterministic
         // behavior, especially since many syscalls modify memory in place,
@@ -1633,6 +1626,29 @@ impl<'a> Executor<'a> {
             } else {
                 return Err(ExecutionError::UnsupportedSyscall(syscall_id));
             };
+
+        #[cfg(feature = "gas")]
+        if let (Some(estimator), Some(syscall_id)) =
+            (&mut self.trace_area_estimator, syscall.as_air_id())
+        {
+            let threshold = match syscall_id {
+                RiscvAirId::ShaExtend => self.opts.split_opts.sha_extend,
+                RiscvAirId::ShaCompress => self.opts.split_opts.sha_compress,
+                RiscvAirId::KeccakPermute => self.opts.split_opts.keccak,
+                _ => self.opts.split_opts.deferred,
+            } as u64;
+            let shards = &mut estimator.precompile_records[syscall_id];
+            let local_memory_ct =
+                estimator.current_precompile_touched_compressed_addresses.len() as u64;
+            match shards.last_mut().filter(|shard| shard.0 < threshold) {
+                Some((shard_precompile_event_ct, shard_local_memory_ct)) => {
+                    *shard_precompile_event_ct += 1;
+                    *shard_local_memory_ct += local_memory_ct;
+                }
+                None => shards.push((1, local_memory_ct)),
+            }
+            estimator.current_precompile_touched_compressed_addresses.clear();
+        }
 
         // If the syscall is `EXIT_UNCONSTRAINED`, the memory was restored to pre-unconstrained code
         // in the execute function, so we need to re-read from x10 and x11.  Just do a peek on the
@@ -1815,7 +1831,7 @@ impl<'a> Executor<'a> {
                 &self.local_counts,
             );
             // The above method estimates event counts only for core shards.
-            estimator.core_shards.push(self.event_counts);
+            estimator.core_records.push(self.event_counts);
             estimator.current_touched_compressed_addresses.clear();
             if self.executor_mode == ExecutorMode::Trace {
                 let actual =
@@ -2104,11 +2120,11 @@ impl<'a> Executor<'a> {
             let total_mem = touched_reg_ct + self.state.memory.page_table.exact_len();
             // The memory_image is already initialized in the MemoryProgram chip
             // so we subtract it off. It is initialized in the executor in the `initialize` function.
-            estimator.deferred_events[RiscvAirId::MemoryGlobalInit] += total_mem
+            estimator.memory_global_init_events = total_mem
                 .checked_sub(self.record.program.memory_image.len())
                 .expect("program memory image should be accounted for in memory exact len")
                 as u64;
-            estimator.deferred_events[RiscvAirId::MemoryGlobalFinalize] += total_mem as u64;
+            estimator.memory_global_finalize_events = total_mem as u64;
         }
 
         if self.emit_global_memory_events

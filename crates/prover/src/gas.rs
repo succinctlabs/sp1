@@ -15,13 +15,19 @@ pub fn estimated_records<'a>(
     estimator: &'a TraceAreaEstimator,
 ) -> Vec<Cow<'a, EnumMap<RiscvAirId, u64>>> {
     // TODO(tqn) decide whether or not to implement the Packed shard estimation
-    let TraceAreaEstimator { core_shards, deferred_events, .. } = estimator;
+    let TraceAreaEstimator {
+        ref core_records,
+        ref precompile_records,
+        memory_global_init_events,
+        memory_global_finalize_events,
+        ..
+    } = *estimator;
     // `Global` heights are sometimes overestimated.
     // When the fractional part of the log2 is above this, we round down.
     const THRESHOLD: f64 = 0.1;
 
     // Calculate and sum the cost of each core shard.
-    let core_shapes = core_shards
+    let core_records = core_records
         .iter()
         .map(|shard| {
             if (shard[RiscvAirId::Global] as f64).log2().fract() < THRESHOLD {
@@ -34,46 +40,25 @@ pub fn estimated_records<'a>(
         })
         .collect::<Vec<_>>();
 
-    let precompile_shapes = deferred_events
+    let precompile_records = precompile_records
         .iter()
-        .filter_map(|(id, &count)| {
-            // Skip AIR if there are no events.
-            if count == 0 {
-                return None;
-            }
-            let threshold = match id {
-                RiscvAirId::ShaExtend => split_opts.sha_extend,
-                RiscvAirId::ShaCompress => split_opts.sha_compress,
-                RiscvAirId::KeccakPermute => split_opts.keccak,
-                RiscvAirId::MemoryGlobalInit | RiscvAirId::MemoryGlobalFinalize => {
-                    // Process these in their own shard(s).
-                    return None;
-                }
-                _ => split_opts.deferred,
-            };
-            Some(((id, count), threshold))
+        .flat_map(|(id, shards)| {
+            shards.iter().map(move |&(precompile_events, local_memory_events)| {
+                Cow::Owned(
+                    [(id, precompile_events), (RiscvAirId::MemoryLocal, local_memory_events)]
+                        .into_iter()
+                        .collect(),
+                )
+            })
         })
-        .flat_map(|((id, count), threshold)| {
-            let threshold = threshold as u64;
-            let num_full_airs = count / threshold;
-            let num_remainder_air_rows = count % threshold;
-
-            iter::repeat((id, threshold))
-                .take(num_full_airs as usize)
-                .chain((num_remainder_air_rows > 0).then_some((id, num_remainder_air_rows)))
-        })
-        .map(|air_entry| Cow::Owned(iter::once(air_entry).collect()))
         .collect::<Vec<_>>();
 
-    let global_memory_shapes = {
+    let global_memory_records = {
         let threshold = split_opts.memory;
 
-        vec![(); deferred_events[RiscvAirId::MemoryGlobalInit] as usize]
+        vec![(); memory_global_init_events as usize]
             .chunks(threshold)
-            .zip_longest(
-                vec![(); deferred_events[RiscvAirId::MemoryGlobalFinalize] as usize]
-                    .chunks(threshold),
-            )
+            .zip_longest(vec![(); memory_global_finalize_events as usize].chunks(threshold))
             .map(|x| {
                 let len = |x: &[()]| x.len() as u64;
                 let (num_init, num_finalize) = x.map_any(len, len).or_default();
@@ -90,7 +75,7 @@ pub fn estimated_records<'a>(
             .collect::<Vec<_>>()
     };
 
-    [core_shapes, global_memory_shapes, precompile_shapes].concat()
+    [core_records, global_memory_records, precompile_records].concat()
 }
 
 pub fn fit_records_to_shapes<'a, F: PrimeField32>(
@@ -153,21 +138,12 @@ impl<'a, F: PrimeField32> Shapeable<F> for CoreShard<'a> {
     }
 
     fn precompile_heights(&self) -> impl Iterator<Item = (RiscvAirId, (usize, usize, usize))> {
-        self.record.iter().filter_map(|(id, &num_events)| {
-            // Filter precompiles.
-            let num_local_mem_events_per_row =
-                *self.precompile_local_mem_events_per_row.get(&id)?;
+        let num_local_mem_events = self.record[RiscvAirId::MemoryLocal] as usize;
+        self.record.iter().filter_map(move |(id, &num_events)| {
             let num_events = num_events as usize;
-            // Skip empty events.
-            (num_events > 0).then_some(())?;
+            // Skip empty events and filter by precompiles.
+            (num_events > 0 && id.is_precompile()).then_some(())?;
             let rows = num_events * id.rows_per_event();
-            let num_local_mem_events = num_events
-                * match id {
-                    RiscvAirId::ShaCompress => 72, //80,
-                    RiscvAirId::ShaExtend => 64,   //48,
-                    RiscvAirId::KeccakPermute => 50,
-                    _ => 1, // num_local_mem_events_per_row
-                };
             let num_global_events = 2 * num_local_mem_events + num_events;
             Some((id, (rows, num_local_mem_events, num_global_events)))
         })

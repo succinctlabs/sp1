@@ -12,16 +12,19 @@ use crate::RiscvAirId;
 #[derive(Clone, Debug, Default)]
 pub struct TraceAreaEstimator {
     /// Core shards, represented by the number of events per AIR.
-    pub core_shards: Vec<EnumMap<RiscvAirId, u64>>,
-    /// Deferred events, which are used to calculate trace area after execution has finished.
-    pub deferred_events: EnumMap<RiscvAirId, u64>,
-    /// Keeps track of touched addresses to correctly count local memory events in precompiles.
-    // TODO(tqn) the plan:
-    // in mr/mw (and maybe rr/rw):
-    // when not a precompile, set it. if it was previously unset, add one to the counter.
-    // when a precompile, unset it and do nothing to the counter.
-    // when this is set successfully (returned by .insert), increment the below counter
+    pub core_records: Vec<EnumMap<RiscvAirId, u64>>,
+    /// For each precompile AIR, a list of estimated records in the form
+    /// `(<number of precompile events>, <number of local memory events>)`.
+    pub precompile_records: EnumMap<RiscvAirId, Vec<(u64, u64)>>,
+    /// Number of memory global init events for the whole program.
+    pub memory_global_init_events: u64,
+    /// Number of memory global finalize events for the whole program.
+    pub memory_global_finalize_events: u64,
+    /// Addresses touched in this shard by the main executor.
+    /// Used to calculate local memory events.
     pub current_touched_compressed_addresses: RangeSetBlaze<u32>,
+    /// Addresses touched in this shard by the current precompile execution.
+    /// Used to calculate local memory events.
     pub current_precompile_touched_compressed_addresses: RangeSetBlaze<u32>,
     /// More correct number of local memory events for the current shard.
     pub current_local_mem: usize,

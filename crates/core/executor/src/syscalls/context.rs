@@ -157,7 +157,6 @@ impl<'a, 'b> SyscallContext<'a, 'b> {
                         estimator.current_local_mem += 1;
                     }
                 }
-                estimator.current_precompile_touched_compressed_addresses.clear();
             }
         }
 
