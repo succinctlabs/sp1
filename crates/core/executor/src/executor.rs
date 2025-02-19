@@ -1735,12 +1735,12 @@ impl<'a> Executor<'a> {
                 self.state.clk = 0;
                 self.bump_record();
             }
-        }
 
-        // If the cycle limit is exceeded, return an error.
-        if let Some(max_cycles) = self.max_cycles {
-            if self.state.global_clk >= max_cycles {
-                return Err(ExecutionError::ExceededCycleLimit(max_cycles));
+            // If the cycle limit is exceeded, return an error.
+            if let Some(max_cycles) = self.max_cycles {
+                if self.state.global_clk >= max_cycles {
+                    return Err(ExecutionError::ExceededCycleLimit(max_cycles));
+                }
             }
         }
 

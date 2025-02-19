@@ -1,11 +1,10 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
-use ecdsa_core::RecoveryId;
-use p256::ecdsa::{Signature, VerifyingKey};
+use p256::ecdsa::{RecoveryId, Signature, VerifyingKey};
 
 pub fn main() {
-    let times = sp1_zkvm::io::read::<u16>();
+    let times = sp1_zkvm::io::read::<u8>();
 
     for _ in 0..times {
         let vk = inner();

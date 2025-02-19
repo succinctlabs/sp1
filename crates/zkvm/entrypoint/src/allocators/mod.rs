@@ -9,4 +9,4 @@ mod bump;
 mod embedded;
 
 #[cfg(feature = "embedded")]
-pub use embedded::{free, init, used};
+pub use embedded::init;

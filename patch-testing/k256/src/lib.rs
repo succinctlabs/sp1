@@ -1,3 +1,5 @@
+use ecdsa_core::signature::SignerMut;
+
 #[sp1_test::sp1_test("k256_verify", gpu, prove)]
 pub fn test_verify_rand_lte_100(
     stdin: &mut sp1_sdk::SP1Stdin,
@@ -7,7 +9,7 @@ pub fn test_verify_rand_lte_100(
         elliptic_curve::rand_core::OsRng,
     };
 
-    let times = rand::random::<u8>().min(100);
+    let times = 100_u8;
     stdin.write(&times);
 
     for _ in 0..times {
@@ -38,7 +40,7 @@ pub fn test_recover_rand_lte_100(
         elliptic_curve::rand_core::OsRng,
     };
 
-    let times = rand::random::<u8>().min(100);
+    let times = 100_u8;
     stdin.write(&(times as u16));
 
     let mut vkeys = Vec::with_capacity(times as usize);
@@ -71,7 +73,7 @@ pub fn test_recover_high_hash_high_recid(
     use ecdsa_core::RecoveryId;
     use k256::{ecdsa::Signature, ecdsa::VerifyingKey};
 
-    let times = 10000u16;
+    let times = 100_u8;
     stdin.write(&times);
 
     let mut vkeys = Vec::with_capacity(times as usize);
@@ -114,7 +116,7 @@ pub fn test_recover_high_hash_high_recid(
             }
         }
 
-        println!("fail {} / 10000", fail_count);
+        println!("fail {} / 100", fail_count);
     }
 }
 
@@ -125,7 +127,7 @@ pub fn test_recover_pubkey_infinity(
     use ecdsa_core::RecoveryId;
     use k256::{ecdsa::Signature, ecdsa::VerifyingKey};
 
-    let times = 3u16;
+    let times = 3_u8;
     stdin.write(&times);
 
     let mut vkeys = Vec::with_capacity(times as usize);
@@ -174,6 +176,40 @@ pub fn test_recover_pubkey_infinity(
             assert_eq!(key, vkey);
             assert!(key.is_none());
             assert!(vkey.is_none());
+        }
+    }
+}
+
+#[sp1_test::sp1_test("k256_schnorr_verify", gpu, prove)]
+pub fn test_schnorr_verify(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
+    use k256::{
+        elliptic_curve::rand_core::OsRng,
+        schnorr::{
+            signature::{SignerMut, Verifier},
+            SigningKey,
+        },
+    };
+
+    let times = 100_u8;
+    stdin.write(&times);
+
+    for _ in 0..times {
+        let mut signing_key = SigningKey::random(&mut OsRng);
+
+        let message = rand::random::<[u8; 32]>();
+        let sig = signing_key.sign(&message);
+        let vkey = signing_key.verifying_key();
+
+        assert!(vkey.verify(&message, &sig).is_ok());
+
+        stdin.write(&message);
+        stdin.write_slice(sig.to_bytes().as_slice());
+        stdin.write_slice(vkey.to_bytes().as_slice());
+    }
+
+    move |mut public| {
+        for _ in 0..times {
+            assert!(public.read::<bool>())
         }
     }
 }

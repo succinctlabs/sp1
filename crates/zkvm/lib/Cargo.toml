@@ -14,8 +14,12 @@ bincode = "1.3.3"
 serde = { workspace = true, features = ["derive"] }
 sp1-primitives = { workspace = true }
 
+# ecdsa
+elliptic-curve = { version = "0.13.4", optional = true, features = ["hazmat", "sec1", "ecdh"] }
+
 [features]
-default = []
+default = ["ecdsa"]
+ecdsa = ["dep:elliptic-curve"]
 verify = []
 
 [lints]

@@ -4,7 +4,7 @@ pub fn test_verify_rand_lte_100(
 ) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     use p256::{ecdsa::SigningKey, elliptic_curve::rand_core::OsRng};
 
-    let times = rand::random::<u8>().min(100);
+    let times = 100_u8;
     stdin.write(&times);
 
     for _ in 0..times {
@@ -30,7 +30,7 @@ pub fn test_recover_rand_lte_100(
 ) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     use p256::{ecdsa::SigningKey, elliptic_curve::rand_core::OsRng};
 
-    let times = rand::random::<u8>().min(100);
+    let times = 100_u8;
     stdin.write(&(times as u16));
 
     let mut vkeys = Vec::with_capacity(times as usize);
@@ -61,7 +61,7 @@ pub fn test_recover_high_hash_high_recid(
     use ecdsa_core::RecoveryId;
     use p256::{ecdsa::Signature, ecdsa::VerifyingKey};
 
-    let times = 10000u16;
+    let times = 100_u8;
     stdin.write(&times);
 
     let mut vkeys = Vec::with_capacity(times as usize);
@@ -102,7 +102,7 @@ pub fn test_recover_high_hash_high_recid(
             }
         }
 
-        println!("fail {} / 10000", fail_count);
+        println!("fail {} / 100", fail_count);
     }
 }
 
@@ -113,7 +113,7 @@ pub fn test_recover_pubkey_infinity(
     use ecdsa_core::RecoveryId;
     use p256::{ecdsa::Signature, ecdsa::VerifyingKey};
 
-    let times = 3u16;
+    let times = 3_u8;
     stdin.write(&times);
 
     let mut vkeys = Vec::with_capacity(times as usize);

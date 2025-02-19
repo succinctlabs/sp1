@@ -14,7 +14,7 @@ build the Succinct [Rust toolchain](https://rust-lang.github.io/rustup/concepts/
 `sp1up` is the SP1 toolchain installer. Open your terminal and run the following command and follow the instructions:
 
 ```bash
-curl -L https://sp1.succinct.xyz | bash
+curl -L https://sp1up.succinct.xyz | bash
 ```
 
 Then simply follow the instructions on-screen, which will make the `sp1up` command available in your CLI.
