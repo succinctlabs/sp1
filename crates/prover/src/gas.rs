@@ -84,7 +84,7 @@ pub fn fit_records_to_shapes<'a, F: PrimeField32>(
     records
         .into_iter()
         .enumerate()
-        .map(|(i, record)| config.find_shape(CoreShard { shard_index: i as u32, record }))
+        .map(|(i, record)| config.find_shape(&CoreShard { shard_index: i as u32, record }))
         .collect()
 }
 
@@ -93,7 +93,7 @@ struct CoreShard<'a> {
     record: &'a EnumMap<RiscvAirId, u64>,
 }
 
-impl<'a, F: PrimeField32> Shapeable<F> for CoreShard<'a> {
+impl<'a> Shapeable for CoreShard<'a> {
     fn kind(&self) -> ShardKind {
         let contains_cpu = self.record[RiscvAirId::Cpu] > 0;
         let contains_global_memory = self.record[RiscvAirId::MemoryGlobalInit] > 0

@@ -83,15 +83,15 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         // program.
         record.shape.clone_from(&record.program.preprocessed_shape);
 
-        let shape = self.find_shape(&*record)?;
+        let shape = self.find_shape(record)?;
         record.shape.as_mut().unwrap().extend(shape);
         Ok(())
     }
 
     /// TODO move this into the executor crate
-    pub fn find_shape<R: Shapeable<F>>(
+    pub fn find_shape<R: Shapeable>(
         &self,
-        record: R,
+        record: &R,
     ) -> Result<Shape<RiscvAirId>, CoreShapeError> {
         match record.kind() {
             // If this is a packed "core" record where the cpu events are alongisde the memory init and
