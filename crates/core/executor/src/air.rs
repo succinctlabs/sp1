@@ -156,25 +156,7 @@ impl RiscvAirId {
     /// Whether the ID represents a core AIR.
     #[must_use]
     pub fn is_core(self) -> bool {
-        matches!(
-            self,
-            RiscvAirId::Cpu
-                | RiscvAirId::AddSub
-                | RiscvAirId::Mul
-                | RiscvAirId::Bitwise
-                | RiscvAirId::ShiftLeft
-                | RiscvAirId::ShiftRight
-                | RiscvAirId::DivRem
-                | RiscvAirId::Lt
-                | RiscvAirId::Auipc
-                | RiscvAirId::MemoryLocal
-                | RiscvAirId::MemoryInstrs
-                | RiscvAirId::Branch
-                | RiscvAirId::Jump
-                | RiscvAirId::SyscallCore
-                | RiscvAirId::SyscallInstrs
-                | RiscvAirId::Global,
-        )
+        CoreAirId::try_from(self).is_ok()
     }
 
     /// Whether the ID represents a memory AIR.
@@ -218,7 +200,7 @@ impl RiscvAirId {
         )
     }
 
-    /// >>>>>> FIX BEFORE MERGING make the visibility pub(crate)
+    /// The number of rows in the AIR produced by each event.
     #[must_use]
     pub fn rows_per_event(&self) -> usize {
         match self {

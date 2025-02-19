@@ -239,8 +239,7 @@ impl SyscallCode {
         }
     }
 
-    // >>>>>> FIX BEFORE MERGING make the visibility pub(crate)
-    /// Get the AIR id used in the syscall implementation.
+    /// Get the ID of the AIR used in the syscall implementation.
     #[must_use]
     pub fn as_air_id(self) -> Option<RiscvAirId> {
         Some(match self {

@@ -5,9 +5,7 @@ use core::fmt;
 use hashbrown::{HashMap, HashSet};
 use itertools::Itertools;
 use p3_field::PrimeField32;
-use sp1_core_executor::{
-    events::PrecompileLocalMemory, syscalls::SyscallCode, ExecutionRecord, Program, RiscvAirId,
-};
+use sp1_core_executor::{ExecutionRecord, Program, RiscvAirId};
 use sp1_curves::weierstrass::{bls12_381::Bls12381BaseField, bn254::Bn254BaseField};
 use sp1_stark::{
     air::{InteractionScope, MachineAir, SP1_PROOF_NUM_PV_ELTS},
@@ -461,35 +459,6 @@ impl<F: PrimeField32> RiscvAir<F> {
         ]
     }
 
-    pub(crate) fn memory_heights(record: &ExecutionRecord) -> Vec<(RiscvAirId, usize)> {
-        vec![
-            (RiscvAirId::MemoryGlobalInit, record.global_memory_initialize_events.len()),
-            (RiscvAirId::MemoryGlobalFinalize, record.global_memory_finalize_events.len()),
-            (
-                RiscvAirId::Global,
-                record.global_memory_finalize_events.len()
-                    + record.global_memory_initialize_events.len(),
-            ),
-        ]
-    }
-
-    pub(crate) fn precompile_heights(
-        &self,
-        record: &ExecutionRecord,
-    ) -> Option<(usize, usize, usize)> {
-        record
-            .precompile_events
-            .get_events(self.syscall_code())
-            .filter(|events| !events.is_empty())
-            .map(|events| {
-                (
-                    events.len() * self.rows_per_event(),
-                    events.get_local_mem_events().into_iter().count(),
-                    record.global_interaction_events.len(),
-                )
-            })
-    }
-
     pub(crate) fn get_all_core_airs() -> Vec<Self> {
         vec![
             RiscvAir::Cpu(CpuChip::default()),
@@ -519,10 +488,9 @@ impl<F: PrimeField32> RiscvAir<F> {
         ]
     }
 
-    /// Internal function.
-    ///
-    /// Returns the number of memory events per row of each precompile. Used in estimating trace area.
-    pub fn precompile_airs_with_memory_events_per_row() -> HashMap<RiscvAirId, usize> {
+    /// Returns the upper bound of the number of memory events per row of each precompile. Used in shape-fitting.
+    pub(crate) fn precompile_airs_with_memory_events_per_row(
+    ) -> impl Iterator<Item = (RiscvAirId, usize)> {
         let mut airs: HashSet<_> = Self::get_airs_and_costs().0.into_iter().collect();
 
         // Remove the core airs.
@@ -540,82 +508,20 @@ impl<F: PrimeField32> RiscvAir<F> {
         airs.remove(&Self::Program(ProgramChip::default()));
         airs.remove(&Self::ByteLookup(ByteChip::default()));
 
-        airs.into_iter()
-            .map(|air| {
-                let chip = Chip::new(air);
-                let local_mem_events_per_row: usize = chip
-                    .sends()
-                    .iter()
-                    .chain(chip.receives())
-                    .filter(|interaction| {
-                        interaction.kind == InteractionKind::Memory
-                            && interaction.scope == InteractionScope::Local
-                    })
-                    .count();
+        airs.into_iter().map(|air| {
+            let chip = Chip::new(air);
+            let local_mem_events_per_row: usize = chip
+                .sends()
+                .iter()
+                .chain(chip.receives())
+                .filter(|interaction| {
+                    interaction.kind == InteractionKind::Memory
+                        && interaction.scope == InteractionScope::Local
+                })
+                .count();
 
-                (chip.into_inner().id(), local_mem_events_per_row)
-            })
-            .collect()
-    }
-
-    pub(crate) fn rows_per_event(&self) -> usize {
-        match self {
-            Self::Sha256Compress(_) => 80,
-            Self::Sha256Extend(_) => 48,
-            Self::KeccakP(_) => 24,
-            _ => 1,
-        }
-    }
-
-    pub(crate) fn syscall_code(&self) -> SyscallCode {
-        match self {
-            Self::Bls12381Add(_) => SyscallCode::BLS12381_ADD,
-            Self::Bn254Add(_) => SyscallCode::BN254_ADD,
-            Self::Bn254Double(_) => SyscallCode::BN254_DOUBLE,
-            Self::Bn254Fp(_) => SyscallCode::BN254_FP_ADD,
-            Self::Bn254Fp2AddSub(_) => SyscallCode::BN254_FP2_ADD,
-            Self::Bn254Fp2Mul(_) => SyscallCode::BN254_FP2_MUL,
-            Self::Ed25519Add(_) => SyscallCode::ED_ADD,
-            Self::Ed25519Decompress(_) => SyscallCode::ED_DECOMPRESS,
-            Self::KeccakP(_) => SyscallCode::KECCAK_PERMUTE,
-            Self::Secp256k1Add(_) => SyscallCode::SECP256K1_ADD,
-            Self::Secp256k1Double(_) => SyscallCode::SECP256K1_DOUBLE,
-            Self::Secp256r1Add(_) => SyscallCode::SECP256R1_ADD,
-            Self::Secp256r1Double(_) => SyscallCode::SECP256R1_DOUBLE,
-            Self::Sha256Compress(_) => SyscallCode::SHA_COMPRESS,
-            Self::Sha256Extend(_) => SyscallCode::SHA_EXTEND,
-            Self::Uint256Mul(_) => SyscallCode::UINT256_MUL,
-            Self::U256x2048Mul(_) => SyscallCode::U256XU2048_MUL,
-            Self::Bls12381Decompress(_) => SyscallCode::BLS12381_DECOMPRESS,
-            Self::K256Decompress(_) => SyscallCode::SECP256K1_DECOMPRESS,
-            Self::P256Decompress(_) => SyscallCode::SECP256R1_DECOMPRESS,
-            Self::Bls12381Double(_) => SyscallCode::BLS12381_DOUBLE,
-            Self::Bls12381Fp(_) => SyscallCode::BLS12381_FP_ADD,
-            Self::Bls12381Fp2Mul(_) => SyscallCode::BLS12381_FP2_MUL,
-            Self::Bls12381Fp2AddSub(_) => SyscallCode::BLS12381_FP2_ADD,
-            Self::Add(_) => unreachable!("Invalid for core chip"),
-            Self::Bitwise(_) => unreachable!("Invalid for core chip"),
-            Self::DivRem(_) => unreachable!("Invalid for core chip"),
-            Self::Cpu(_) => unreachable!("Invalid for core chip"),
-            Self::MemoryGlobalInit(_) => unreachable!("Invalid for memory init/final"),
-            Self::MemoryGlobalFinal(_) => unreachable!("Invalid for memory init/final"),
-            Self::MemoryLocal(_) => unreachable!("Invalid for memory local"),
-            Self::Global(_) => unreachable!("Invalid for global chip"),
-            // Self::ProgramMemory(_) => unreachable!("Invalid for memory program"),
-            Self::Program(_) => unreachable!("Invalid for core chip"),
-            Self::Mul(_) => unreachable!("Invalid for core chip"),
-            Self::Lt(_) => unreachable!("Invalid for core chip"),
-            Self::ShiftRight(_) => unreachable!("Invalid for core chip"),
-            Self::ShiftLeft(_) => unreachable!("Invalid for core chip"),
-            Self::Memory(_) => unreachable!("Invalid for memory chip"),
-            Self::AUIPC(_) => unreachable!("Invalid for auipc chip"),
-            Self::Branch(_) => unreachable!("Invalid for branch chip"),
-            Self::Jump(_) => unreachable!("Invalid for jump chip"),
-            Self::SyscallInstrs(_) => unreachable!("Invalid for syscall instr chip"),
-            Self::ByteLookup(_) => unreachable!("Invalid for core chip"),
-            Self::SyscallCore(_) => unreachable!("Invalid for core chip"),
-            Self::SyscallPrecompile(_) => unreachable!("Invalid for syscall precompile chip"),
-        }
+            (chip.into_inner().id(), local_mem_events_per_row)
+        })
     }
 }
 

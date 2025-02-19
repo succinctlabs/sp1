@@ -5,17 +5,16 @@ use hashbrown::HashMap;
 use itertools::Itertools;
 use p3_field::PrimeField32;
 
-use sp1_core_executor::{estimator::TraceAreaEstimator, RiscvAirId};
+use sp1_core_executor::{estimator::RecordEstimator, RiscvAirId};
 use sp1_core_machine::shape::{CoreShapeConfig, CoreShapeError, Shapeable, ShardKind};
 use sp1_stark::{shape::Shape, SplitOpts};
 
-/// Returns core, precompile, mem shapes
+/// Calculates core, precompile, mem records. Does not implement packed or last shard logic.
 pub fn estimated_records<'a>(
     split_opts: &SplitOpts,
-    estimator: &'a TraceAreaEstimator,
+    estimator: &'a RecordEstimator,
 ) -> Vec<Cow<'a, EnumMap<RiscvAirId, u64>>> {
-    // TODO(tqn) decide whether or not to implement the Packed shard estimation
-    let TraceAreaEstimator {
+    let RecordEstimator {
         ref core_records,
         ref precompile_records,
         memory_global_init_events,
@@ -87,16 +86,6 @@ pub fn fit_records_to_shapes<'a, F: PrimeField32>(
         .enumerate()
         .map(|(i, record)| config.find_shape(CoreShard { shard_index: i as u32, record }))
         .collect()
-}
-
-pub fn core_prover_gas<F: PrimeField32>(
-    config: &CoreShapeConfig<F>,
-    split_opts: &SplitOpts,
-    estimator: &TraceAreaEstimator,
-) -> Result<usize, CoreShapeError> {
-    let est_records = estimated_records(split_opts, estimator);
-    let shapes = fit_records_to_shapes(config, est_records.iter().map(AsRef::as_ref))?;
-    Ok(shapes.iter().map(|shape| config.estimate_lde_size(shape)).sum::<usize>())
 }
 
 struct CoreShard<'a> {

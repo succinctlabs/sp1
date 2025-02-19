@@ -298,7 +298,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         mut context: SP1Context<'a>,
     ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
         context.subproof_verifier = Some(self);
-        // IMPROVE THIS BY MAKING A REAL API
+        // TODO(tqn) IMPROVE THIS BY MAKING A REAL API
         let opts = cfg!(feature = "gas")
             .then(|| SP1CoreOpts {
                 shard_size: 2097152,
@@ -319,7 +319,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let mut runtime = Executor::with_context(self.get_program(elf).unwrap(), opts, context);
         // let mut runtime = Executor::with_context_and_elf(opts, context, elf);
 
-        // IMPROVE THIS BY MAKING A REAL API
+        // TODO(tqn) IMPROVE THIS BY MAKING A REAL API
         #[cfg(feature = "gas")]
         {
             // Needed to figure out where the shard boundaries are.
@@ -333,17 +333,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             runtime.write_proof(proof.clone(), vkey.clone());
         }
         runtime.run_fast()?;
-        // >>>>>>>>>> FIX BEFORE MERGING <<<<<<<<<<
-        // figure out where this should be printed
-        #[cfg(feature = "gas")]
-        if let (Some(core_shape_config), Some(estimator)) =
-            (&self.core_shape_config, &runtime.trace_area_estimator)
-        {
-            let area = crate::gas::core_prover_gas(core_shape_config, &opts.split_opts, estimator)
-                .expect("shape should fit"); // TODO(tqn) handle this error better
-
-            tracing::info!("prover gas: {}", area);
-        }
         Ok((SP1PublicValues::from(&runtime.state.public_values_stream), runtime.report))
     }
 
