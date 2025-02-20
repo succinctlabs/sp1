@@ -14,7 +14,7 @@
 pub mod build;
 pub mod components;
 #[cfg(feature = "gas")]
-pub mod gas;
+pub(crate) mod gas;
 pub mod shapes;
 pub mod types;
 pub mod utils;
@@ -304,6 +304,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             if #[cfg(feature = "gas")] {
                 let opts = crate::gas::GAS_OPTS;
                 let program = self.get_program(elf).unwrap();
+                let preprocessed_shape = program.preprocessed_shape.as_ref().unwrap().clone();
             } else {
                 let opts = sp1_stark::SP1CoreOpts::default();
                 let program = Program::from(elf);
@@ -328,6 +329,28 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             runtime.write_proof(proof.clone(), vkey.clone());
         }
         runtime.run_fast()?;
+
+        #[cfg(feature = "gas")]
+        {
+            let est_records = crate::gas::estimated_records(
+                &opts.split_opts,
+                runtime.record_estimator.as_ref().unwrap(),
+            );
+            let gas = crate::gas::fit_records_to_shapes(
+                self.core_shape_config.as_ref().unwrap(),
+                est_records,
+            )
+            .map(|shape| {
+                // TODO(tqn) add more robust error handling
+                let mut shape: sp1_stark::shape::Shape<sp1_core_executor::RiscvAirId> =
+                    shape.expect("predicted shapes should fit");
+                shape.extend(preprocessed_shape.iter().map(|(k, v)| (*k, *v)));
+                crate::gas::predict(enum_map::EnumMap::from_iter(shape).as_array())
+            })
+            .sum::<f64>();
+            tracing::info!("gas: {gas}");
+        }
+
         Ok((SP1PublicValues::from(&runtime.state.public_values_stream), runtime.report))
     }
 

@@ -1,3 +1,7 @@
+mod model;
+
+pub use model::*;
+
 use std::borrow::Cow;
 
 use enum_map::EnumMap;
@@ -8,7 +12,7 @@ use sp1_core_executor::{estimator::RecordEstimator, RiscvAirId};
 use sp1_core_machine::shape::{CoreShapeConfig, CoreShapeError, Shapeable, ShardKind};
 use sp1_stark::{shape::Shape, SP1CoreOpts, SplitOpts};
 
-pub(crate) const GAS_OPTS: SP1CoreOpts = SP1CoreOpts {
+pub const GAS_OPTS: SP1CoreOpts = SP1CoreOpts {
     shard_size: 2097152,
     shard_batch_size: 1,
     split_opts: sp1_stark::SplitOpts {
@@ -25,7 +29,7 @@ pub(crate) const GAS_OPTS: SP1CoreOpts = SP1CoreOpts {
 };
 
 /// Calculates core, precompile, mem records. Does not implement packed or last shard logic.
-pub(crate) fn estimated_records<'a>(
+pub fn estimated_records<'a>(
     split_opts: &SplitOpts,
     estimator: &'a RecordEstimator,
 ) -> impl Iterator<Item = Cow<'a, EnumMap<RiscvAirId, u64>>> {
@@ -90,14 +94,13 @@ pub(crate) fn estimated_records<'a>(
     core_records.chain(global_memory_records).chain(precompile_records)
 }
 
-pub(crate) fn fit_records_to_shapes<'a, F: PrimeField32>(
+pub fn fit_records_to_shapes<'a, F: PrimeField32>(
     config: &'a CoreShapeConfig<F>,
-    records: impl IntoIterator<Item = &'a EnumMap<RiscvAirId, u64>> + 'a,
-) -> impl IntoIterator<Item = Result<Shape<RiscvAirId>, CoreShapeError>> + 'a {
-    records
-        .into_iter()
-        .enumerate()
-        .map(|(i, record)| config.find_shape(&CoreShard { shard_index: i as u32, record }))
+    records: impl IntoIterator<Item = Cow<'a, EnumMap<RiscvAirId, u64>>> + 'a,
+) -> impl Iterator<Item = Result<Shape<RiscvAirId>, CoreShapeError>> + 'a {
+    records.into_iter().enumerate().map(|(i, record)| {
+        config.find_shape(&CoreShard { shard_index: i as u32, record: record.as_ref() })
+    })
 }
 
 struct CoreShard<'a> {
