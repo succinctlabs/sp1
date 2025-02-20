@@ -38,7 +38,7 @@ impl<T> Polynomial<T> {
 
     /// Gets the degree of the polynomial.
     pub fn degree(&self) -> usize {
-        self.coefficients.len() - 1
+        self.coefficients.len().saturating_sub(1)
     }
 
     /// Evaluates the polynomial at a given point.
@@ -46,12 +46,13 @@ impl<T> Polynomial<T> {
     where
         T: AbstractField,
     {
-        let powers = x.powers();
-        self.coefficients
-            .iter()
-            .zip(powers)
-            .map(|(c, x)| x * c.clone())
-            .sum()
+        let mut result = S::zero();
+        let mut power = S::one();
+        for coeff in &self.coefficients {
+            result += power.clone() * coeff.clone();
+            power *= x.clone();
+        }
+        result
     }
 
     /// Computes the root quotient of the polynomial.
@@ -60,17 +61,61 @@ impl<T> Polynomial<T> {
         T: Field,
     {
         let len = self.coefficients.len();
+        if len == 0 {
+            return Self::new(vec![]);
+        }
         let mut result = Vec::with_capacity(len - 1);
         let r_inv = r.inverse();
 
-        result.push(-self.coefficients[0] * r_inv);
+        result.push(-self.coefficients[0].clone() * r_inv.clone());
         for i in 1..len - 1 {
-            let element = result[i - 1] - self.coefficients[i];
-            result.push(element * r_inv);
+            let element = result[i - 1].clone() - self.coefficients[i].clone();
+            result.push(element * r_inv.clone());
         }
         Self {
             coefficients: result,
         }
+    }
+
+    /// Computes the derivative of the polynomial.
+    pub fn derivative(&self) -> Self
+    where
+        T: AbstractField + From<u8>,
+    {
+        if self.coefficients.is_empty() {
+            return Self::new(vec![]);
+        }
+        let mut result = Vec::with_capacity(self.degree());
+        for (i, coeff) in self.coefficients.iter().enumerate().skip(1) {
+            result.push(coeff.clone() * T::from(i as u8));
+        }
+        Self::new(result)
+    }
+
+    /// Computes the integral of the polynomial.
+    pub fn integral(&self) -> Self
+    where
+        T: AbstractField + From<u8>,
+    {
+        let mut result = Vec::with_capacity(self.coefficients.len() + 1);
+        result.push(T::zero());
+        for (i, coeff) in self.coefficients.iter().enumerate() {
+            result.push(coeff.clone() / T::from((i + 1) as u8));
+        }
+        Self::new(result)
+    }
+
+    /// Scales the polynomial by a scalar.
+    pub fn scale(&self, scalar: T) -> Self
+    where
+        T: AbstractField,
+    {
+        Self::new(
+            self.coefficients
+                .iter()
+                .map(|coeff| coeff.clone() * scalar.clone())
+                .collect(),
+        )
     }
 }
 
