@@ -94,7 +94,8 @@ name = "post_trusted_setup"
 path = "scripts/post_trusted_setup.rs"
 
 [features]
-default = ["gas"]                                                # REMOVE ME BEFORE MERGING
+# TODO(tqn) REMOVE ME BEFORE MERGING
+default = ["gas"]
 native-gnark = ["sp1-recursion-gnark-ffi/native"]
 debug = ["sp1-core-machine/debug"]
 gas = ["dep:hashbrown", "dep:enum-map", "sp1-core-executor/gas"]

@@ -2,7 +2,6 @@ use std::borrow::Cow;
 
 use enum_map::EnumMap;
 use hashbrown::HashMap;
-use itertools::Itertools;
 use p3_field::PrimeField32;
 
 use sp1_core_executor::{estimator::RecordEstimator, RiscvAirId};
@@ -13,7 +12,7 @@ use sp1_stark::{shape::Shape, SplitOpts};
 pub fn estimated_records<'a>(
     split_opts: &SplitOpts,
     estimator: &'a RecordEstimator,
-) -> Vec<Cow<'a, EnumMap<RiscvAirId, u64>>> {
+) -> impl Iterator<Item = Cow<'a, EnumMap<RiscvAirId, u64>>> {
     let RecordEstimator {
         ref core_records,
         ref precompile_records,
@@ -26,66 +25,63 @@ pub fn estimated_records<'a>(
     const THRESHOLD: f64 = 0.1;
 
     // Calculate and sum the cost of each core shard.
-    let core_records = core_records
-        .iter()
-        .map(|shard| {
-            if (shard[RiscvAirId::Global] as f64).log2().fract() < THRESHOLD {
-                let mut shard = *shard;
-                shard[RiscvAirId::Global] = 1 << shard[RiscvAirId::Global].ilog2();
-                Cow::Owned(shard)
-            } else {
-                Cow::Borrowed(shard)
-            }
-        })
-        .collect::<Vec<_>>();
+    let core_records = core_records.iter().map(|shard| {
+        if (shard[RiscvAirId::Global] as f64).log2().fract() < THRESHOLD {
+            let mut shard = *shard;
+            shard[RiscvAirId::Global] = 1 << shard[RiscvAirId::Global].ilog2();
+            Cow::Owned(shard)
+        } else {
+            Cow::Borrowed(shard)
+        }
+    });
 
-    let precompile_records = precompile_records
-        .iter()
-        .flat_map(|(id, shards)| {
-            shards.iter().map(move |&(precompile_events, local_memory_events)| {
-                Cow::Owned(
-                    [(id, precompile_events), (RiscvAirId::MemoryLocal, local_memory_events)]
-                        .into_iter()
-                        .collect(),
-                )
-            })
+    let precompile_records = precompile_records.iter().flat_map(|(id, shards)| {
+        shards.iter().map(move |&(precompile_events, local_memory_events)| {
+            Cow::Owned(EnumMap::from_iter([
+                (id, precompile_events),
+                (RiscvAirId::MemoryLocal, local_memory_events),
+            ]))
         })
-        .collect::<Vec<_>>();
+    });
 
     let global_memory_records = {
-        let threshold = split_opts.memory;
+        let threshold = split_opts.memory as u64;
 
-        vec![(); memory_global_init_events as usize]
-            .chunks(threshold)
-            .zip_longest(vec![(); memory_global_finalize_events as usize].chunks(threshold))
-            .map(|x| {
-                let len = |x: &[()]| x.len() as u64;
-                let (num_init, num_finalize) = x.map_any(len, len).or_default();
-                Cow::Owned(
-                    [
-                        (RiscvAirId::MemoryGlobalInit, num_init),
-                        (RiscvAirId::MemoryGlobalFinalize, num_finalize),
-                        (RiscvAirId::Global, num_init + num_finalize),
-                    ]
-                    .into_iter()
-                    .collect(),
-                )
-            })
-            .collect::<Vec<_>>()
+        let init_final_events = [memory_global_init_events, memory_global_finalize_events];
+
+        let quotients = init_final_events.map(|x| x / threshold);
+        let remainders = init_final_events.map(|x| x % threshold);
+
+        let full_airs = quotients.into_iter().min().unwrap();
+
+        #[inline]
+        fn memory_air(init_ht: u64, final_ht: u64) -> EnumMap<RiscvAirId, u64> {
+            EnumMap::from_iter([
+                (RiscvAirId::MemoryGlobalInit, init_ht),
+                (RiscvAirId::MemoryGlobalFinalize, final_ht),
+                (RiscvAirId::Global, init_ht + final_ht),
+            ])
+        }
+
+        std::iter::repeat_n(Cow::Owned(memory_air(threshold, threshold)), full_airs as usize).chain(
+            remainders
+                .iter()
+                .any(|x| *x > 0)
+                .then(|| Cow::Owned(memory_air(remainders[0], remainders[1]))),
+        )
     };
 
-    [core_records, global_memory_records, precompile_records].concat()
+    core_records.chain(global_memory_records).chain(precompile_records)
 }
 
 pub fn fit_records_to_shapes<'a, F: PrimeField32>(
-    config: &CoreShapeConfig<F>,
-    records: impl IntoIterator<Item = &'a EnumMap<RiscvAirId, u64>>,
-) -> Result<Vec<Shape<RiscvAirId>>, CoreShapeError> {
+    config: &'a CoreShapeConfig<F>,
+    records: impl IntoIterator<Item = &'a EnumMap<RiscvAirId, u64>> + 'a,
+) -> impl IntoIterator<Item = Result<Shape<RiscvAirId>, CoreShapeError>> + 'a {
     records
         .into_iter()
         .enumerate()
         .map(|(i, record)| config.find_shape(&CoreShard { shard_index: i as u32, record }))
-        .collect()
 }
 
 struct CoreShard<'a> {
