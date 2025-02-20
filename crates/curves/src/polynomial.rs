@@ -5,7 +5,7 @@ use itertools::Itertools;
 use p3_field::{AbstractExtensionField, AbstractField, Field};
 
 /// A polynomial represented as a vector of coefficients.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Polynomial<T> {
     coefficients: Vec<T>,
 }
@@ -294,28 +294,6 @@ impl<T: AbstractField> Mul<T> for &Polynomial<T> {
     }
 }
 
-impl<T: Eq + AbstractField> PartialEq<Polynomial<T>> for Polynomial<T> {
-    fn eq(&self, other: &Polynomial<T>) -> bool {
-        if self.coefficients.len() != other.coefficients.len() {
-            let (shorter, longer) = if self.coefficients.len() < other.coefficients.len() {
-                (self, other)
-            } else {
-                (other, self)
-            };
-            for i in 0..longer.coefficients.len() {
-                if (i < shorter.coefficients.len()
-                    && shorter.coefficients[i] != longer.coefficients[i])
-                    || (i >= shorter.coefficients.len() && longer.coefficients[i] != T::zero())
-                {
-                    return false;
-                }
-            }
-            return true;
-        }
-        self.coefficients == other.coefficients
-    }
-}
-
 impl Polynomial<u8> {
     pub fn as_field<F: Field>(self) -> Polynomial<F> {
         Polynomial {
@@ -325,5 +303,73 @@ impl Polynomial<u8> {
                 .map(|x| F::from_canonical_u8(*x))
                 .collect(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use p3_field::PrimeField;
+
+    #[test]
+    fn test_new_polynomial() {
+        let poly = Polynomial::new(vec![1, 2, 3]);
+        assert_eq!(poly.coefficients(), &[1, 2, 3]);
+    }
+
+    #[test]
+    fn test_degree() {
+        let poly = Polynomial::new(vec![1, 2, 3]);
+        assert_eq!(poly.degree(), 2);
+    }
+
+    #[test]
+    fn test_eval() {
+        let poly = Polynomial::new(vec![1.0, 2.0, 3.0]);
+        assert_eq!(poly.eval(2.0), 17.0);
+    }
+
+    #[test]
+    fn test_root_quotient() {
+        let poly = Polynomial::new(vec![1.0, 2.0, 3.0]);
+        let root_quotient = poly.root_quotient(1.0);
+        assert_eq!(root_quotient.coefficients(), &[-1.0, -1.0]);
+    }
+
+    #[test]
+    fn test_derivative() {
+        let poly = Polynomial::new(vec![1.0, 2.0, 3.0]);
+        let deriv = poly.derivative();
+        assert_eq!(deriv.coefficients(), &[2.0, 6.0]);
+    }
+
+    #[test]
+    fn test_integral() {
+        let poly = Polynomial::new(vec![2.0, 6.0]);
+        let integral = poly.integral();
+        assert_eq!(integral.coefficients(), &[0.0, 2.0, 3.0]);
+    }
+
+    #[test]
+    fn test_scale() {
+        let poly = Polynomial::new(vec![1.0, 2.0, 3.0]);
+        let scaled = poly.scale(2.0);
+        assert_eq!(scaled.coefficients(), &[2.0, 4.0, 6.0]);
+    }
+
+    #[test]
+    fn test_add_polynomials() {
+        let poly1 = Polynomial::new(vec![1, 2, 3]);
+        let poly2 = Polynomial::new(vec![4, 5, 6]);
+        let result = poly1 + poly2;
+        assert_eq!(result.coefficients(), &[5, 7, 9]);
+    }
+
+    #[test]
+    fn test_mul_polynomials() {
+        let poly1 = Polynomial::new(vec![1, 2]);
+        let poly2 = Polynomial::new(vec![3, 4]);
+        let result = poly1 * poly2;
+        assert_eq!(result.coefficients(), &[3, 10, 8]);
     }
 }
