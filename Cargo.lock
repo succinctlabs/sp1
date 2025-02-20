@@ -6005,6 +6005,7 @@ version = "4.0.1"
 dependencies = [
  "anyhow",
  "bincode",
+ "cfg-if",
  "clap",
  "dirs",
  "downloader",

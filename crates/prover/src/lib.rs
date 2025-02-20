@@ -35,6 +35,7 @@ use std::{
 };
 
 use crate::shapes::SP1CompressProgramShape;
+use cfg_if::cfg_if;
 use lru::LruCache;
 use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, PrimeField, PrimeField32};
@@ -78,8 +79,8 @@ use sp1_recursion_core::{
 pub use sp1_recursion_gnark_ffi::proof::{Groth16Bn254Proof, PlonkBn254Proof};
 use sp1_recursion_gnark_ffi::{groth16_bn254::Groth16Bn254Prover, plonk_bn254::PlonkBn254Prover};
 use sp1_stark::{
-    baby_bear_poseidon2::BabyBearPoseidon2, Challenge, MachineProver, SP1CoreOpts, SP1ProverOpts,
-    ShardProof, StarkGenericConfig, StarkVerifyingKey, Val, Word, DIGEST_SIZE,
+    baby_bear_poseidon2::BabyBearPoseidon2, Challenge, MachineProver, SP1ProverOpts, ShardProof,
+    StarkGenericConfig, StarkVerifyingKey, Val, Word, DIGEST_SIZE,
 };
 use sp1_stark::{shape::OrderedShape, MachineProvingKey};
 use tracing::instrument;
@@ -289,7 +290,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         Ok(program)
     }
 
-    /// Generate a proof of an SP1 program with the specified inputs.
+    /// Execute an SP1 program with the specified inputs.
     #[instrument(name = "execute", level = "info", skip_all)]
     pub fn execute<'a>(
         &'a self,
@@ -298,35 +299,29 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         mut context: SP1Context<'a>,
     ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
         context.subproof_verifier = Some(self);
-        // TODO(tqn) IMPROVE THIS BY MAKING A REAL API
-        let opts = cfg!(feature = "gas")
-            .then(|| SP1CoreOpts {
-                shard_size: 2097152,
-                shard_batch_size: 1,
-                split_opts: sp1_stark::SplitOpts {
-                    combine_memory_threshold: 131072,
-                    deferred: 16384,
-                    keccak: 5461,
-                    sha_extend: 10922,
-                    sha_compress: 6553,
-                    memory: 1048576,
-                },
-                trace_gen_workers: 4,
-                checkpoints_channel_capacity: 128,
-                records_and_traces_channel_capacity: 4,
-            })
-            .unwrap_or_default();
-        let mut runtime = Executor::with_context(self.get_program(elf).unwrap(), opts, context);
-        // let mut runtime = Executor::with_context_and_elf(opts, context, elf);
 
-        // TODO(tqn) IMPROVE THIS BY MAKING A REAL API
+        cfg_if! {
+            if #[cfg(feature = "gas")] {
+                let opts = crate::gas::GAS_OPTS;
+                let program = self.get_program(elf).unwrap();
+            } else {
+                let opts = sp1_stark::SP1CoreOpts::default();
+                let program = Program::from(elf);
+            }
+        }
+
+        let mut runtime = Executor::with_context(program, opts, context);
+
         #[cfg(feature = "gas")]
         {
             // Needed to figure out where the shard boundaries are.
             runtime.maximal_shapes = self.core_shape_config.as_ref().map(|config| {
                 config.maximal_core_shapes(opts.shard_size.ilog2() as usize).into_iter().collect()
             });
+            runtime.record_estimator = Some(Box::default());
         }
+
+        runtime.maybe_setup_profiler(elf);
 
         runtime.write_vecs(&stdin.buffer);
         for (proof, vkey) in stdin.proofs.iter() {

@@ -6,10 +6,26 @@ use p3_field::PrimeField32;
 
 use sp1_core_executor::{estimator::RecordEstimator, RiscvAirId};
 use sp1_core_machine::shape::{CoreShapeConfig, CoreShapeError, Shapeable, ShardKind};
-use sp1_stark::{shape::Shape, SplitOpts};
+use sp1_stark::{shape::Shape, SP1CoreOpts, SplitOpts};
+
+pub(crate) const GAS_OPTS: SP1CoreOpts = SP1CoreOpts {
+    shard_size: 2097152,
+    shard_batch_size: 1,
+    split_opts: sp1_stark::SplitOpts {
+        combine_memory_threshold: 131072,
+        deferred: 16384,
+        keccak: 5461,
+        sha_extend: 10922,
+        sha_compress: 6553,
+        memory: 1048576,
+    },
+    trace_gen_workers: 4,
+    checkpoints_channel_capacity: 128,
+    records_and_traces_channel_capacity: 4,
+};
 
 /// Calculates core, precompile, mem records. Does not implement packed or last shard logic.
-pub fn estimated_records<'a>(
+pub(crate) fn estimated_records<'a>(
     split_opts: &SplitOpts,
     estimator: &'a RecordEstimator,
 ) -> impl Iterator<Item = Cow<'a, EnumMap<RiscvAirId, u64>>> {
@@ -74,7 +90,7 @@ pub fn estimated_records<'a>(
     core_records.chain(global_memory_records).chain(precompile_records)
 }
 
-pub fn fit_records_to_shapes<'a, F: PrimeField32>(
+pub(crate) fn fit_records_to_shapes<'a, F: PrimeField32>(
     config: &'a CoreShapeConfig<F>,
     records: impl IntoIterator<Item = &'a EnumMap<RiscvAirId, u64>> + 'a,
 ) -> impl IntoIterator<Item = Result<Shape<RiscvAirId>, CoreShapeError>> + 'a {

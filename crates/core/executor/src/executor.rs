@@ -6,6 +6,7 @@ use std::{str::FromStr, sync::Arc};
 use crate::estimator::RecordEstimator;
 #[cfg(feature = "profiling")]
 use crate::profiler::Profiler;
+
 use clap::ValueEnum;
 use enum_map::EnumMap;
 use hashbrown::HashMap;
@@ -254,23 +255,20 @@ impl<'a> Executor<'a> {
         Self::with_context(program, opts, SP1Context::default())
     }
 
-    /// Create a new runtime for the program, and setup the profiler if `TRACE_FILE` env var is set
-    /// and the feature flag `profiling` is enabled.
-    #[must_use]
-    pub fn with_context_and_elf(
-        opts: SP1CoreOpts,
-        context: SP1Context<'a>,
-        elf_bytes: &[u8],
-    ) -> Self {
-        let program = Program::from(elf_bytes).expect("Failed to create program from ELF bytes");
-
-        #[cfg(not(feature = "profiling"))]
-        return Self::with_context(program, opts, context);
-
+    /// WARNING: This function's API is subject to change without a major version bump.
+    ///
+    /// If the feature `"profiling"` is enabled, this sets up the profiler. Otherwise, it does nothing.
+    /// The argument `elf_bytes` must describe the same program as `self.program`.
+    ///
+    /// The profiler is configured by the following environment variables:
+    ///
+    /// - `TRACE_FILE`: writes Gecko traces to this path. If unspecified, the profiler is disabled.
+    /// - `TRACE_SAMPLE_RATE`: The period between clock cycles where samples are taken. Defaults to 1.
+    #[inline]
+    #[allow(unused_variables)]
+    pub fn maybe_setup_profiler(&mut self, elf_bytes: &[u8]) {
         #[cfg(feature = "profiling")]
         {
-            let mut this = Self::with_context(program, opts, context);
-
             let trace_buf = std::env::var("TRACE_FILE").ok().map(|file| {
                 let file = File::create(file).unwrap();
                 BufWriter::new(file)
@@ -287,20 +285,16 @@ impl<'a> Executor<'a> {
                     })
                     .unwrap_or(1);
 
-                this.profiler = Some((
+                self.profiler = Some((
                     Profiler::new(elf_bytes, sample_rate as u64)
                         .expect("Failed to create profiler"),
                     trace_buf,
                 ));
             }
-
-            this
         }
     }
 
     /// Create a new runtime from a program, options, and a context.
-    ///
-    /// Note: This function *will not* set up the profiler.
     #[must_use]
     pub fn with_context(program: Program, opts: SP1CoreOpts, context: SP1Context<'a>) -> Self {
         // Create a shared reference to the program.
@@ -342,10 +336,8 @@ impl<'a> Executor<'a> {
             report: ExecutionReport::default(),
             local_counts: LocalCounts::default(),
             print_report: false,
-            // TODO(tqn) >>>>>>>>>> FIX BEFORE MERGING <<<<<<<<<<
-            // figure out when this should be None or Some
             #[cfg(feature = "gas")]
-            record_estimator: Some(Box::default()),
+            record_estimator: None,
             subproof_verifier: context.subproof_verifier,
             hook_registry,
             opts,
