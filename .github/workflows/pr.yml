@@ -314,11 +314,6 @@ jobs:
     steps:
       - name: Checkout Actions Repository
         uses: actions/checkout@v4
-
-      - name: Setup CI
-        uses: ./.github/actions/setup
-        with:
-          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
   
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable

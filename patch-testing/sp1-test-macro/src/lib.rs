@@ -106,6 +106,8 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
         None => panic!("The SP1 test attribute requires an ELF file to be specified"),
     };
 
+    let syscalls = options.syscalls();
+
     let bounds_check = quote! {
         fn __assert_proper_cb<F: FnOnce(::sp1_sdk::SP1PublicValues)>(cb: &F) {
             let _ = cb;
@@ -149,9 +151,15 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
 
             #maybe_client_setup
 
-            let (__macro_internal_public, _) = __macro_internal_client.execute(__MACRO_INTERNAL_ELF, &__macro_internal_stdin).run().unwrap();
+            let (__macro_internal_public, __macro_internal_execution_report) = __macro_internal_client.execute(__MACRO_INTERNAL_ELF, &__macro_internal_stdin).run().unwrap();
+
+            for syscall in [#(::sp1_core_executor::syscalls::SyscallCode::#syscalls),*] {
+                assert!(__macro_internal_execution_report.syscall_counts[syscall] > 0, "Syscall {syscall} has not been emitted");
+            }
 
             __macro_internal_cb(__macro_internal_public);
+
+            ::sp1_test::write_cycles(concat!(env!("CARGO_CRATE_NAME"), "_", stringify!(#test_name)), __macro_internal_execution_report.total_instruction_count());
         }
     };
 

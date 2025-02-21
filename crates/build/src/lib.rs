@@ -70,10 +70,18 @@ pub struct BuildArgs {
         num_args = 1..
     )]
     pub binaries: Vec<String>,
-    #[clap(long, action, help = "ELF binary name")]
+    #[clap(long, action, requires = "output_directory", help = "ELF binary name")]
     pub elf_name: Option<String>,
     #[clap(alias = "out-dir", long, action, help = "Copy the compiled ELF to this directory")]
     pub output_directory: Option<String>,
+
+    #[clap(
+        alias = "workspace-dir",
+        long,
+        action,
+        help = "The top level directory to be used in the docker invocation."
+    )]
+    pub workspace_directory: Option<String>,
 }
 
 // Implement default args to match clap defaults.
@@ -91,6 +99,7 @@ impl Default for BuildArgs {
             output_directory: None,
             locked: false,
             no_default_features: false,
+            workspace_directory: None,
         }
     }
 }

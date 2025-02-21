@@ -211,6 +211,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::print_stdout)]
+
     use crate::{
         air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH, RECURSIVE_PROOF_NUM_PV_ELTS},
         chips::{

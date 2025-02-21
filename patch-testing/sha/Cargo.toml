@@ -7,6 +7,7 @@ publish.workspace = true
 [dependencies]
 sp1-zkvm.workspace = true
 sp1-sdk.workspace = true
+sp1-core-executor.workspace = true
 
 sha2-v0-9-8 = { version = "0.9.8", package = "sha2" }
 sha2-v0-10-6 = { version = "0.10.6", package = "sha2" }
@@ -16,7 +17,8 @@ sha3 = "=0.10.6"
 
 [features]
 prove = []
-gpu = ["sp1-sdk/cuda"] 
+gpu = ["sp1-sdk/cuda"]
+
 
 [build-dependencies]
 sp1-build.workspace = true

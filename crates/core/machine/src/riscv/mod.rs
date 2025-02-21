@@ -450,10 +450,7 @@ impl<F: PrimeField32> RiscvAir<F> {
             (RiscvAirId::Auipc, record.auipc_events.len()),
             (RiscvAirId::Branch, record.branch_events.len()),
             (RiscvAirId::Jump, record.jump_events.len()),
-            (
-                RiscvAirId::Global,
-                2 * record.get_local_mem_events().count() + record.syscall_events.len(),
-            ),
+            (RiscvAirId::Global, record.global_interaction_events.len()),
             (RiscvAirId::SyscallCore, record.syscall_events.len()),
             (RiscvAirId::SyscallInstrs, record.syscall_events.len()),
         ]
@@ -599,6 +596,7 @@ impl From<RiscvAirDiscriminants> for RiscvAirId {
 
 #[cfg(test)]
 #[allow(non_snake_case)]
+#[allow(clippy::print_stdout)]
 pub mod tests {
 
     use crate::{

@@ -1383,6 +1383,7 @@ pub fn compress_program_from_input<C: SP1ProverComponents>(
 
 #[cfg(test)]
 pub mod tests {
+    #![allow(clippy::print_stdout)]
 
     use std::{
         collections::BTreeSet,

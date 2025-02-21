@@ -170,7 +170,8 @@ pub struct Executor<'a> {
     /// The costs of the program.
     pub costs: HashMap<RiscvAirId, u64>,
 
-    /// Skip deferred proof verification.
+    /// Skip deferred proof verification. This check is informational only, not related to circuit
+    /// correctness.
     pub deferred_proof_verification: DeferredProofVerification,
 
     /// The frequency to check the stopping condition.
@@ -273,12 +274,12 @@ impl<'a> Executor<'a> {
             });
 
             if let Some(trace_buf) = trace_buf {
-                println!("Profiling enabled");
+                eprintln!("Profiling enabled");
 
                 let sample_rate = std::env::var("TRACE_SAMPLE_RATE")
                     .ok()
                     .and_then(|rate| {
-                        println!("Profiling sample rate: {rate}");
+                        eprintln!("Profiling sample rate: {rate}");
                         rate.parse::<u32>().ok()
                     })
                     .unwrap_or(1);
@@ -377,6 +378,9 @@ impl<'a> Executor<'a> {
     pub fn recover(program: Program, state: ExecutionState, opts: SP1CoreOpts) -> Self {
         let mut runtime = Self::new(program, opts);
         runtime.state = state;
+        // Disable deferred proof verification since we're recovering from a checkpoint, and the
+        // checkpoint creator already had a chance to check the proofs.
+        runtime.deferred_proof_verification = DeferredProofVerification::Disabled;
         runtime
     }
 
@@ -1370,7 +1374,7 @@ impl<'a> Executor<'a> {
             // See https://github.com/riscv-non-isa/riscv-asm-manual/blob/master/riscv-asm.md#instruction-aliases
             return Err(ExecutionError::Unimplemented());
         } else {
-            println!("unreachable: {:?}", instruction.opcode);
+            eprintln!("unreachable: {:?}", instruction.opcode);
             unreachable!()
         }
 
@@ -1781,12 +1785,12 @@ impl<'a> Executor<'a> {
                 self.state.current_shard += 1;
                 self.state.clk = 0;
             }
-        }
 
-        // If the cycle limit is exceeded, return an error.
-        if let Some(max_cycles) = self.max_cycles {
-            if self.state.global_clk >= max_cycles {
-                return Err(ExecutionError::ExceededCycleLimit(max_cycles));
+            // If the cycle limit is exceeded, return an error.
+            if let Some(max_cycles) = self.max_cycles {
+                if self.state.global_clk >= max_cycles {
+                    return Err(ExecutionError::ExceededCycleLimit(max_cycles));
+                }
             }
         }
 
@@ -1861,12 +1865,14 @@ impl<'a> Executor<'a> {
         self.executor_mode = ExecutorMode::Checkpoint;
         self.emit_global_memory_events = emit_global_memory_events;
 
-        // Clone self.state without memory and uninitialized_memory in it so it's faster.
+        // Clone self.state without memory, uninitialized_memory, proof_stream in it so it's faster.
         let memory = std::mem::take(&mut self.state.memory);
         let uninitialized_memory = std::mem::take(&mut self.state.uninitialized_memory);
+        let proof_stream = std::mem::take(&mut self.state.proof_stream);
         let mut checkpoint = tracing::debug_span!("clone").in_scope(|| self.state.clone());
         self.state.memory = memory;
         self.state.uninitialized_memory = uninitialized_memory;
+        self.state.proof_stream = proof_stream;
 
         let done = tracing::debug_span!("execute").in_scope(|| self.execute())?;
         // Create a checkpoint using `memory_checkpoint`. Just include all memory if `done` since we
@@ -2061,10 +2067,10 @@ impl<'a> Executor<'a> {
             if !buf.is_empty() {
                 match fd {
                     1 => {
-                        println!("stdout: {buf}");
+                        eprintln!("stdout: {buf}");
                     }
                     2 => {
-                        println!("stderr: {buf}");
+                        eprintln!("stderr: {buf}");
                     }
                     _ => {}
                 }

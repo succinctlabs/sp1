@@ -66,3 +66,6 @@ profiling = [
   "dep:gecko_profile",
   "dep:indicatif",
 ]
+
+[lints]
+workspace = true

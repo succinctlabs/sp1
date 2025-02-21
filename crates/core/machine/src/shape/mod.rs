@@ -639,6 +639,7 @@ pub fn create_dummy_record(shape: &Shape<RiscvAirId>) -> ExecutionRecord {
 
 #[cfg(test)]
 pub mod tests {
+    #![allow(clippy::print_stdout)]
 
     use hashbrown::HashSet;
     use sp1_stark::{Dom, MachineProver, StarkGenericConfig};

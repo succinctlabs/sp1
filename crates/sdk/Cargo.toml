@@ -49,9 +49,9 @@ sp1-primitives = { workspace = true }
 itertools = { workspace = true }
 tonic = { version = "0.12", features = ["tls", "tls-roots"], optional = true }
 alloy-sol-types = { version = "0.8", default-features = false, optional = true }
-alloy-signer = { version = "0.8", default-features = false, optional = true }
-alloy-signer-local = { version = "0.8", default-features = false, optional = true }
 alloy-primitives = { version = "0.8", default-features = false, optional = true }
+alloy-signer = { version = "0.11", default-features = false, optional = true }
+alloy-signer-local = { version = "0.11", default-features = false, optional = true }
 backoff = { version = "0.4", features = ["tokio"], optional = true }
 
 [dev-dependencies]
@@ -78,12 +78,9 @@ network = [
   "dep:backoff",
 ]
 cuda = []
+bigint-rug = ["sp1-core-machine/bigint-rug"]
 
 profiling = ["sp1-core-executor/profiling"]
 
-[build-dependencies]
-vergen = { version = "8", default-features = false, features = [
-  "build",
-  "git",
-  "git2",
-] }
+[lints]
+workspace = true

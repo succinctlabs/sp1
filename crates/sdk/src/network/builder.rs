@@ -76,7 +76,7 @@ impl NetworkProverBuilder {
     pub fn build(self) -> NetworkProver {
         let private_key = match self.private_key {
             Some(private_key) => private_key,
-            None => std::env::var("NETWORK_PRIVATE_KEY").expect(
+            None => std::env::var("NETWORK_PRIVATE_KEY").ok().filter(|k| !k.is_empty()).expect(
                 "NETWORK_PRIVATE_KEY environment variable is not set. \
                 Please set it to your private key or use the .private_key() method.",
             ),

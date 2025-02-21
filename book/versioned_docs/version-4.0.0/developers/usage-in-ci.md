@@ -23,7 +23,7 @@ And then you can install the SP1 toolchain:
 ```yaml
 - name: Install SP1 toolchain
   run: |
-    curl -L https://sp1.succinct.xyz | bash
+    curl -L https://sp1up.succinct.xyz | bash
     ~/.sp1/bin/sp1up 
     ~/.sp1/bin/cargo-prove prove --version
 ```
@@ -36,7 +36,7 @@ Try setting a github actions secret to your PAT, and then passing it into the `s
 ```yaml
 - name: Install SP1 toolchain
   run: |
-    curl -L https://sp1.succinct.xyz | bash
+    curl -L https://sp1up.succinct.xyz | bash
     ~/.sp1/bin/sp1up --token "${{ secrets.GH_PAT }}"
     ~/.sp1/bin/cargo-prove prove --version
 ```

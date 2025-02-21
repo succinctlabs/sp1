@@ -7,6 +7,7 @@ publish.workspace = true
 [dependencies]
 sp1-zkvm = { workspace = true }
 sp1-sdk = { workspace = true }
+sp1-core-executor = { workspace = true }
 rand.workspace = true
 sp1-test = { workspace = true }
 
@@ -18,6 +19,7 @@ group = "0.13.0"
 [features]
 prove = []
 gpu = ["sp1-sdk/cuda"]
+
 
 [build-dependencies]
 sp1-build = { workspace = true }

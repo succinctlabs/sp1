@@ -6,6 +6,7 @@ publish.workspace = true
 
 [dependencies]
 sp1-sdk = { workspace = true }
+sp1-core-executor = { workspace = true }
 curve25519-dalek-ng = { workspace = true }
 sp1-test = { workspace = true }
 rand.workspace = true
@@ -13,6 +14,7 @@ rand.workspace = true
 [features]
 prove = []
 gpu = ["sp1-sdk/cuda"]
+
 
 [build-dependencies]
 sp1-build = { workspace = true }

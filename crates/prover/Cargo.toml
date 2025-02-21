@@ -96,3 +96,6 @@ path = "scripts/post_trusted_setup.rs"
 [features]
 native-gnark = ["sp1-recursion-gnark-ffi/native"]
 debug = ["sp1-core-machine/debug"]
+
+[lints]
+workspace = true
