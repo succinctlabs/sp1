@@ -353,10 +353,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             let gas = self.get_gas_calculator(preprocessed_shape.unwrap(), opts.split_opts)(
                 runtime.record_estimator.as_ref().unwrap(),
             );
-            match gas {
-                Ok(gas) => tracing::info!("gas: {}", gas),
-                Err(err) => tracing::error!("Encountered error while calculating gas: {}", err),
-            }
+            runtime.report.gas = gas
+                .inspect_err(|e| tracing::error!("Encountered error while calculating gas: {}", e))
+                .ok();
         }
 
         Ok((SP1PublicValues::from(&runtime.state.public_values_stream), runtime.report))

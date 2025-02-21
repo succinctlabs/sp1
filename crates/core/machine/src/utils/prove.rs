@@ -443,7 +443,7 @@ where
         p2_prover_handle.join().unwrap();
 
         // Log some of the `ExecutionReport` information.
-        let report_aggregate = report_aggregate.lock().unwrap();
+        let mut report_aggregate = report_aggregate.lock().unwrap();
         tracing::info!(
             "execution report (totals): total_cycles={}, total_syscall_cycles={}, touched_memory_addresses={}",
             report_aggregate.total_instruction_count(),
@@ -451,7 +451,10 @@ where
             report_aggregate.touched_memory_addresses,
         );
         match gas {
-            Some(Ok(gas)) => tracing::info!("execution report (gas): {}", gas),
+            Some(Ok(gas)) => {
+                tracing::info!("execution report (gas): {}", gas);
+                report_aggregate.gas = Some(gas);
+            }
             Some(Err(err)) => tracing::error!("Encountered error while calculating gas: {}", err),
             None => (),
         }
