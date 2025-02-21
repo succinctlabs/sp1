@@ -43,9 +43,8 @@ thiserror = "1.0.63"
 rayon = "1.10.0"
 lru = "0.12.4"
 eyre = "0.6.12"
-cfg-if = "1.0.0"
-hashbrown = { workspace = true, features = ["inline-more"], optional = true }
-enum-map = { version = "2.7.3", optional = true }
+hashbrown = { workspace = true, features = ["inline-more"] }
+enum-map = { version = "2.7.3" }
 
 [build-dependencies]
 downloader = { version = "0.2", default-features = false, features = [
@@ -95,8 +94,5 @@ name = "post_trusted_setup"
 path = "scripts/post_trusted_setup.rs"
 
 [features]
-# TODO(tqn) REMOVE ME BEFORE MERGING
-default = ["gas"]
 native-gnark = ["sp1-recursion-gnark-ffi/native"]
 debug = ["sp1-core-machine/debug"]
-gas = ["dep:hashbrown", "dep:enum-map", "sp1-core-executor/gas"]

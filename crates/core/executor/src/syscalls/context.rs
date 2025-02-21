@@ -149,8 +149,7 @@ impl<'a, 'b> SyscallContext<'a, 'b> {
                     syscall_local_mem_events.push(event);
                 }
             }
-            #[cfg(feature = "gas")]
-            if let Some(estimator) = &mut self.rt.record_estimator {
+                        if let Some(estimator) = &mut self.rt.record_estimator {
                 let original_len = estimator.current_touched_compressed_addresses.len();
                 // Remove addresses from the main set that were touched in the precompile.
                 estimator.current_touched_compressed_addresses =

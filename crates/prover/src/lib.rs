@@ -13,7 +13,6 @@
 
 pub mod build;
 pub mod components;
-#[cfg(feature = "gas")]
 pub(crate) mod gas;
 pub mod shapes;
 pub mod types;
@@ -35,7 +34,6 @@ use std::{
 };
 
 use crate::shapes::SP1CompressProgramShape;
-use cfg_if::cfg_if;
 use lru::LruCache;
 use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, PrimeField, PrimeField32};
@@ -300,21 +298,18 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
         context.subproof_verifier = Some(self);
 
-        cfg_if! {
-            if #[cfg(feature = "gas")] {
-                let opts = crate::gas::GAS_OPTS;
-                let program = self.get_program(elf).unwrap();
-                let preprocessed_shape = program.preprocessed_shape.as_ref().unwrap().clone();
-            } else {
-                let opts = sp1_stark::SP1CoreOpts::default();
-                let program = Program::from(elf);
-            }
-        }
+        let calculate_gas = context.calculate_gas;
+
+        let (opts, program) = if calculate_gas {
+            (crate::gas::GAS_OPTS, self.get_program(elf).unwrap())
+        } else {
+            (sp1_stark::SP1CoreOpts::default(), Program::from(elf).unwrap())
+        };
+        let preprocessed_shape = program.preprocessed_shape.clone();
 
         let mut runtime = Executor::with_context(program, opts, context);
 
-        #[cfg(feature = "gas")]
-        {
+        if calculate_gas {
             // Needed to figure out where the shard boundaries are.
             runtime.maximal_shapes = self.core_shape_config.as_ref().map(|config| {
                 config.maximal_core_shapes(opts.shard_size.ilog2() as usize).into_iter().collect()
@@ -330,8 +325,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         }
         runtime.run_fast()?;
 
-        #[cfg(feature = "gas")]
-        {
+        if calculate_gas {
             let est_records = crate::gas::estimated_records(
                 &opts.split_opts,
                 runtime.record_estimator.as_ref().unwrap(),
@@ -344,7 +338,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 // TODO(tqn) add more robust error handling
                 let mut shape: sp1_stark::shape::Shape<sp1_core_executor::RiscvAirId> =
                     shape.expect("predicted shapes should fit");
-                shape.extend(preprocessed_shape.iter().map(|(k, v)| (*k, *v)));
+                shape.extend(preprocessed_shape.as_ref().unwrap().iter().map(|(k, v)| (*k, *v)));
                 crate::gas::predict(enum_map::EnumMap::from_iter(shape).as_array())
             })
             .sum::<f64>();

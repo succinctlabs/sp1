@@ -25,6 +25,10 @@ pub struct SP1Context<'a> {
 
     /// Deferred proof verification.
     pub deferred_proof_verification: bool,
+
+    /// Whether gas should be calculated and printed to stdout.
+    /// Data collection and calculation takes a nontrivial amount of resources.
+    pub calculate_gas: bool,
 }
 
 /// A builder for [`SP1Context`].
@@ -35,6 +39,7 @@ pub struct SP1ContextBuilder<'a> {
     subproof_verifier: Option<&'a dyn SubproofVerifier>,
     max_cycles: Option<u64>,
     deferred_proof_verification: bool,
+    calculate_gas: bool,
 }
 
 impl Default for SP1ContextBuilder<'_> {
@@ -46,6 +51,7 @@ impl Default for SP1ContextBuilder<'_> {
             max_cycles: None,
             // Always verify deferred proofs by default.
             deferred_proof_verification: true,
+            calculate_gas: false,
         }
     }
 }
@@ -100,11 +106,13 @@ impl<'a> SP1ContextBuilder<'a> {
         let subproof_verifier = take(&mut self.subproof_verifier);
         let cycle_limit = take(&mut self.max_cycles);
         let deferred_proof_verification = take(&mut self.deferred_proof_verification);
+        let calculate_gas = take(&mut self.calculate_gas);
         SP1Context {
             hook_registry,
             subproof_verifier,
             max_cycles: cycle_limit,
             deferred_proof_verification,
+            calculate_gas,
         }
     }
 
@@ -133,6 +141,14 @@ impl<'a> SP1ContextBuilder<'a> {
     /// register a hook with the same value of `fd` by calling [`Self::hook`].
     pub fn without_default_hooks(&mut self) -> &mut Self {
         self.no_default_hooks = true;
+        self
+    }
+
+    /// Calculate and print gas when executing or proving.
+    ///
+    /// This option incurs a significant cost and should be avoided in most cases.
+    pub fn calculate_gas(&mut self) -> &mut Self {
+        self.calculate_gas = true;
         self
     }
 

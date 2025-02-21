@@ -2,7 +2,6 @@
 use std::{fs::File, io::BufWriter};
 use std::{str::FromStr, sync::Arc};
 
-#[cfg(feature = "gas")]
 use crate::estimator::RecordEstimator;
 #[cfg(feature = "profiling")]
 use crate::profiler::Profiler;
@@ -108,7 +107,6 @@ pub struct Executor<'a> {
     pub print_report: bool,
 
     /// Data used to estimate total trace area.
-    #[cfg(feature = "gas")]
     pub record_estimator: Option<Box<RecordEstimator>>,
 
     /// Whether we should emit global memory init and finalize events. This can be enabled in
@@ -336,7 +334,6 @@ impl<'a> Executor<'a> {
             report: ExecutionReport::default(),
             local_counts: LocalCounts::default(),
             print_report: false,
-            #[cfg(feature = "gas")]
             record_estimator: None,
             subproof_verifier: context.subproof_verifier,
             hook_registry,
@@ -544,7 +541,6 @@ impl<'a> Executor<'a> {
             self.local_counts.local_mem += 1;
         }
 
-        #[cfg(feature = "gas")]
         if !self.unconstrained {
             if let Some(estimator) = &mut self.record_estimator {
                 if record.shard != shard {
@@ -777,7 +773,6 @@ impl<'a> Executor<'a> {
             self.local_counts.local_mem += 1;
         }
 
-        #[cfg(feature = "gas")]
         if !self.unconstrained {
             if let Some(estimator) = &mut self.record_estimator {
                 if record.shard != shard {
@@ -1617,7 +1612,6 @@ impl<'a> Executor<'a> {
                 return Err(ExecutionError::UnsupportedSyscall(syscall_id));
             };
 
-        #[cfg(feature = "gas")]
         if let (Some(estimator), Some(syscall_id)) =
             (&mut self.record_estimator, syscall.as_air_id())
         {
@@ -1808,7 +1802,6 @@ impl<'a> Executor<'a> {
 
     /// Bump the record.
     pub fn bump_record(&mut self) {
-        #[cfg(feature = "gas")]
         if let Some(estimator) = &mut self.record_estimator {
             self.local_counts.local_mem = std::mem::take(&mut estimator.current_local_mem);
             Self::estimate_riscv_event_counts(
@@ -2090,7 +2083,6 @@ impl<'a> Executor<'a> {
             tracing::warn!("Not all input bytes were read.");
         }
 
-        #[cfg(feature = "gas")]
         if let Some(estimator) = &mut self.record_estimator {
             // Mirror the logic below.
             // Register 0 is always init and finalized, so we add 1
