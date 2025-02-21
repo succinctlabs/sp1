@@ -4,8 +4,8 @@
 
 SP1 is the fastest, most-feature complete zero-knowledge virtual machine (zkVM) that can prove the execution of arbitrary Rust (or any LLVM-compiled language) programs. SP1 makes ZK accessible to *any developer*, by making it easy to write ZKP programs in normal Rust code.
 
-**[Install](https://docs.succinct.xyz/docs/getting-started/install)**
-| [Docs](https://succinctlabs.github.io/sp1)
+**[Install](https://docs.succinct.xyz/docs/sp1/getting-started/install)**
+| [Docs](https://docs.succinct.xyz/)
 | [Examples](https://github.com/succinctlabs/sp1/tree/main/examples)
 | [Telegram Chat](https://t.me/+AzG4ws-kD24yMGYx)
 
