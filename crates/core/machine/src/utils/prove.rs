@@ -1,5 +1,6 @@
 use p3_matrix::dense::RowMajorMatrix;
 use std::{
+    error::Error,
     fs::File,
     io::{self, Seek, SeekFrom},
     str::FromStr,
@@ -27,6 +28,7 @@ use crate::{
     utils::{chunk_vec, concurrency::TurnBasedSync},
 };
 use sp1_core_executor::{
+    estimator::RecordEstimator,
     events::{format_table_line, sorted_table_lines},
     ExecutionState, RiscvAirId,
 };
@@ -72,6 +74,7 @@ where
         proof_tx,
         shape_tx,
         malicious_trace_pv_generator,
+        None,
     )?;
 
     let _: Vec<_> = shape_rx.iter().collect();
@@ -93,6 +96,7 @@ pub fn prove_core_stream<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<S
     proof_tx: Sender<ShardProof<SC>>,
     shape_and_done_tx: Sender<(OrderedShape, bool)>,
     malicious_trace_pv_generator: Option<MaliciousTracePVGeneratorType<SC::Val, P>>, // This is used for failure test cases that generate malicious traces and public values.
+    gas_calculator: Option<Box<dyn FnOnce(&RecordEstimator) -> Result<u64, Box<dyn Error>> + '_>>,
 ) -> Result<(Vec<u8>, u64), SP1CoreProverError>
 where
     SC::Val: PrimeField32,
@@ -102,7 +106,7 @@ where
     PcsProverData<SC>: Send + Sync,
 {
     // Setup the runtime.
-    let mut runtime = Executor::with_context(program.clone(), opts, context);
+    let mut runtime = Box::new(Executor::with_context(program.clone(), opts, context));
     runtime.maximal_shapes = shape_config.map(|config| {
         config.maximal_core_shapes(opts.shard_size.ilog2() as usize).into_iter().collect()
     });
@@ -110,6 +114,10 @@ where
     for proof in stdin.proofs.iter() {
         let (proof, vk) = proof.clone();
         runtime.write_proof(proof, vk);
+    }
+    // Set the record estimator to collect data for gas calculation.
+    if gas_calculator.is_some() {
+        runtime.record_estimator = Some(Box::default());
     }
 
     #[cfg(feature = "debug")]
@@ -158,7 +166,7 @@ where
 
                         // If we've reached the final checkpoint, break out of the loop.
                         if done {
-                            break Ok(runtime.state.public_values_stream);
+                            break Ok(runtime);
                         }
 
                         // Update the index.
@@ -424,7 +432,9 @@ where
         });
 
         // Wait until the checkpoint generator handle has fully finished.
-        let public_values_stream = checkpoint_generator_handle.join().unwrap().unwrap();
+        let runtime = checkpoint_generator_handle.join().unwrap().unwrap();
+        let gas = gas_calculator.map(|calc| calc(runtime.record_estimator.as_ref().unwrap()));
+        let public_values_stream = runtime.state.public_values_stream;
 
         // Wait until the records and traces have been fully generated for phase 2.
         p2_record_and_trace_gen_handles.into_iter().for_each(|handle| handle.join().unwrap());
@@ -440,6 +450,11 @@ where
             report_aggregate.total_syscall_count(),
             report_aggregate.touched_memory_addresses,
         );
+        match gas {
+            Some(Ok(gas)) => tracing::info!("execution report (gas): {}", gas),
+            Some(Err(err)) => tracing::error!("Encountered error while calculating gas: {}", err),
+            None => (),
+        }
 
         // Print the opcode and syscall count tables like `du`: sorted by count (descending) and
         // with the count in the first column.

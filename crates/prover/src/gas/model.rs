@@ -22,6 +22,8 @@ pub(crate) struct Params<const N: usize> {
     pub intercept: f64,
 }
 
+pub(crate) const OVERHEAD: f64 = 140.21;
+
 pub(crate) const PARAMS: Params<INPUT_SIZE> = Params {
     mean: [
         16.361931629605046,

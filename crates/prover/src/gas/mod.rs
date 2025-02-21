@@ -1,6 +1,7 @@
 mod model;
 
 pub use model::*;
+use thiserror::Error;
 
 use std::borrow::Cow;
 
@@ -27,6 +28,29 @@ pub const GAS_OPTS: SP1CoreOpts = SP1CoreOpts {
     checkpoints_channel_capacity: 128,
     records_and_traces_channel_capacity: 4,
 };
+
+#[derive(Error, Debug)]
+pub enum GasError {
+    #[error("Gas is non-finite: {0}")]
+    NonFinite(f64),
+    #[error("Gas is non-positive: {0}")]
+    Negative(f64),
+    #[error("Gas cannot fit inside a u64: {0}")]
+    Overflow(f64),
+}
+
+pub fn final_transform(raw_gas: f64) -> Result<u64, GasError> {
+    let raw_gas = (raw_gas + OVERHEAD).round();
+    if !raw_gas.is_finite() {
+        Err(GasError::NonFinite(raw_gas))
+    } else if raw_gas.is_sign_negative() {
+        Err(GasError::Negative(raw_gas))
+    } else if raw_gas > u64::MAX as f64 {
+        Err(GasError::Overflow(raw_gas))
+    } else {
+        Ok(raw_gas as u64)
+    }
+}
 
 /// Calculates core, precompile, mem records. Does not implement packed or last shard logic.
 pub fn estimated_records<'a>(

@@ -23,6 +23,7 @@ use std::{
     borrow::Borrow,
     collections::BTreeMap,
     env,
+    error::Error,
     num::NonZeroUsize,
     path::Path,
     sync::{
@@ -39,7 +40,10 @@ use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, PrimeField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use shapes::SP1ProofShape;
-use sp1_core_executor::{ExecutionError, ExecutionReport, Executor, Program, SP1Context};
+use sp1_core_executor::{
+    estimator::RecordEstimator, ExecutionError, ExecutionReport, Executor, Program, RiscvAirId,
+    SP1Context,
+};
 use sp1_core_machine::{
     io::SP1Stdin,
     reduce::SP1ReduceProof,
@@ -77,8 +81,8 @@ use sp1_recursion_core::{
 pub use sp1_recursion_gnark_ffi::proof::{Groth16Bn254Proof, PlonkBn254Proof};
 use sp1_recursion_gnark_ffi::{groth16_bn254::Groth16Bn254Prover, plonk_bn254::PlonkBn254Prover};
 use sp1_stark::{
-    baby_bear_poseidon2::BabyBearPoseidon2, Challenge, MachineProver, SP1ProverOpts, ShardProof,
-    StarkGenericConfig, StarkVerifyingKey, Val, Word, DIGEST_SIZE,
+    baby_bear_poseidon2::BabyBearPoseidon2, shape::Shape, Challenge, MachineProver, SP1ProverOpts,
+    ShardProof, SplitOpts, StarkGenericConfig, StarkVerifyingKey, Val, Word, DIGEST_SIZE,
 };
 use sp1_stark::{shape::OrderedShape, MachineProvingKey};
 use tracing::instrument;
@@ -288,6 +292,26 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         Ok(program)
     }
 
+    fn get_gas_calculator(
+        &self,
+        preprocessed_shape: Shape<RiscvAirId>,
+        split_opts: SplitOpts,
+    ) -> impl FnMut(&RecordEstimator) -> Result<u64, Box<dyn Error>> + '_ {
+        move |estimator: &RecordEstimator| -> Result<u64, Box<dyn Error>> {
+            let est_records = gas::estimated_records(&split_opts, estimator);
+            let raw_gas =
+                gas::fit_records_to_shapes(self.core_shape_config.as_ref().unwrap(), est_records)
+                    .map(|shape| {
+                        let mut shape: Shape<RiscvAirId> = shape.map_err(Box::new)?;
+                        shape.extend(preprocessed_shape.iter().map(|(k, v)| (*k, *v)));
+                        Ok(gas::predict(enum_map::EnumMap::from_iter(shape).as_array()))
+                    })
+                    .sum::<Result<_, Box<dyn Error>>>()?;
+            let gas = gas::final_transform(raw_gas).map_err(Box::new)?;
+            Ok(gas)
+        }
+    }
+
     /// Execute an SP1 program with the specified inputs.
     #[instrument(name = "execute", level = "info", skip_all)]
     pub fn execute<'a>(
@@ -301,7 +325,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let calculate_gas = context.calculate_gas;
 
         let (opts, program) = if calculate_gas {
-            (crate::gas::GAS_OPTS, self.get_program(elf).unwrap())
+            (gas::GAS_OPTS, self.get_program(elf).unwrap())
         } else {
             (sp1_stark::SP1CoreOpts::default(), Program::from(elf).unwrap())
         };
@@ -326,23 +350,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         runtime.run_fast()?;
 
         if calculate_gas {
-            let est_records = crate::gas::estimated_records(
-                &opts.split_opts,
+            let gas = self.get_gas_calculator(preprocessed_shape.unwrap(), opts.split_opts)(
                 runtime.record_estimator.as_ref().unwrap(),
             );
-            let gas = crate::gas::fit_records_to_shapes(
-                self.core_shape_config.as_ref().unwrap(),
-                est_records,
-            )
-            .map(|shape| {
-                // TODO(tqn) add more robust error handling
-                let mut shape: sp1_stark::shape::Shape<sp1_core_executor::RiscvAirId> =
-                    shape.expect("predicted shapes should fit");
-                shape.extend(preprocessed_shape.as_ref().unwrap().iter().map(|(k, v)| (*k, *v)));
-                crate::gas::predict(enum_map::EnumMap::from_iter(shape).as_array())
-            })
-            .sum::<f64>();
-            tracing::info!("gas: {gas}");
+            match gas {
+                Ok(gas) => tracing::info!("gas: {}", gas),
+                Err(err) => tracing::error!("Encountered error while calculating gas: {}", err),
+            }
         }
 
         Ok((SP1PublicValues::from(&runtime.state.public_values_stream), runtime.report))
@@ -379,6 +393,18 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 // Copy the proving key to the device.
                 let pk = pk_d;
 
+                // If `context.calculate_gas` is set, we use the logic from the `gas` module
+                // after checkpoint execution to print gas as part of the execution report.
+                #[allow(clippy::type_complexity)]
+                let gas_calculator = context.calculate_gas.then(
+                    || -> Box<dyn FnOnce(&RecordEstimator) -> Result<u64, Box<dyn Error>> + '_> {
+                        let preprocessed_shape = program.preprocessed_shape.clone().unwrap();
+                        Box::new(
+                            self.get_gas_calculator(preprocessed_shape, opts.core_opts.split_opts),
+                        )
+                    },
+                );
+
                 // Prove the core and stream the proofs and shapes.
                 sp1_core_machine::utils::prove_core_stream::<_, C::CoreProver>(
                     &self.core_prover,
@@ -391,6 +417,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                     proof_tx,
                     shape_tx,
                     None,
+                    gas_calculator,
                 )
             });
 
