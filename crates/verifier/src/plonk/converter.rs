@@ -118,6 +118,12 @@ pub(crate) fn load_plonk_proof_from_bytes(
     buffer: &[u8],
     num_bsb22_commitments: usize,
 ) -> Result<PlonkProof, PlonkError> {
+    if buffer.len()
+        < 384 + 5 * 32 + 96 + 128 + num_bsb22_commitments * 32 + num_bsb22_commitments * 64
+    {
+        return Err(PlonkError::GeneralError(Error::InvalidData));
+    }
+
     let lro0 = uncompressed_bytes_to_g1_point(&buffer[..64])?;
     let lro1 = uncompressed_bytes_to_g1_point(&buffer[64..128])?;
     let lro2 = uncompressed_bytes_to_g1_point(&buffer[128..192])?;

@@ -54,6 +54,10 @@ impl PlonkVerifier {
         sp1_vkey_hash: &str,
         plonk_vk: &[u8],
     ) -> Result<(), PlonkError> {
+        if proof.len() < 4 {
+            return Err(PlonkError::GeneralError(Error::InvalidData));
+        }
+
         // Hash the vk and get the first 4 bytes.
         let plonk_vk_hash: [u8; 4] = Sha256::digest(plonk_vk)[..4]
             .try_into()

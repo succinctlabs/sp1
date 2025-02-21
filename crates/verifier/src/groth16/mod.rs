@@ -47,6 +47,10 @@ impl Groth16Verifier {
         sp1_vkey_hash: &str,
         groth16_vk: &[u8],
     ) -> Result<(), Groth16Error> {
+        if proof.len() < 4 {
+            return Err(Groth16Error::GeneralError(Error::InvalidData));
+        }
+
         // Hash the vk and get the first 4 bytes.
         let groth16_vk_hash: [u8; 4] = Sha256::digest(groth16_vk)[..4]
             .try_into()
@@ -96,8 +100,8 @@ impl Groth16Verifier {
         public_inputs: &[[u8; 32]],
         groth16_vk: &[u8],
     ) -> Result<(), Groth16Error> {
-        let proof = load_groth16_proof_from_bytes(proof).unwrap();
-        let groth16_vk = load_groth16_verifying_key_from_bytes(groth16_vk).unwrap();
+        let proof = load_groth16_proof_from_bytes(proof)?;
+        let groth16_vk = load_groth16_verifying_key_from_bytes(groth16_vk)?;
 
         let public_inputs =
             public_inputs.iter().map(|input| Fr::from_slice(input).unwrap()).collect::<Vec<_>>();
