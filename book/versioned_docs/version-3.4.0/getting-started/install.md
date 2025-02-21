@@ -57,6 +57,12 @@ If you experience [rate-limiting](https://docs.github.com/en/rest/using-the-rest
 
 <!-- TODO: We should add an example command here -->
 
+```bash
+sp1up --token YOUR_GITHUB_TOKEN
+```
+
+Note: Replace `YOUR_GITHUB_TOKEN` with your actual GitHub Personal Access Token.
+
 #### Unsupported OS Architectures
 
 Currently our prebuilt binaries are built on Ubuntu 20.04 (22.04 on ARM) and macOS. If your OS uses an older GLIBC version, it's possible these may not work and you will need to [build the toolchain from source](#option-2-building-from-source).
