@@ -26,8 +26,10 @@ pub struct SP1Context<'a> {
     /// Deferred proof verification.
     pub deferred_proof_verification: bool,
 
-    /// Whether gas should be calculated and printed to stdout.
-    /// Data collection and calculation takes a nontrivial amount of resources.
+    /// Whether gas (available in the `ExecutionReport`) should be calculated during execution.
+    /// Does nothing while proving.
+    ///
+    /// This option will noticeably slow down execution, so it should be disabled in most cases.
     pub calculate_gas: bool,
 }
 
@@ -144,9 +146,10 @@ impl<'a> SP1ContextBuilder<'a> {
         self
     }
 
-    /// Calculate and print gas when executing or proving.
+    /// Calculate gas while executing (available in the `ExecutionReport`).
+    /// Does nothing while proving.
     ///
-    /// This option incurs a significant cost and should be avoided in most cases.
+    /// This option will noticeably slow down execution, so it should be left disabled in most cases.
     pub fn calculate_gas(&mut self) -> &mut Self {
         self.calculate_gas = true;
         self
