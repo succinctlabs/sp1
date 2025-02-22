@@ -107,12 +107,14 @@ pub fn estimated_records<'a>(
             ])
         }
 
-        std::iter::repeat_n(Cow::Owned(memory_air(threshold, threshold)), full_airs as usize).chain(
-            remainders
-                .iter()
-                .any(|x| *x > 0)
-                .then(|| Cow::Owned(memory_air(remainders[0], remainders[1]))),
-        )
+        std::iter::repeat(Cow::Owned(memory_air(threshold, threshold)))
+            .take(full_airs as usize)
+            .chain(
+                remainders
+                    .iter()
+                    .any(|x| *x > 0)
+                    .then(|| Cow::Owned(memory_air(remainders[0], remainders[1]))),
+            )
     };
 
     core_records.chain(global_memory_records).chain(precompile_records)
