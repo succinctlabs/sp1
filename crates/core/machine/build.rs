@@ -133,9 +133,7 @@ mod sys {
                     }
                 }
             }
-            Err(cbindgen::Error::ParseSyntaxError { error, crate_name, src_path }) => {
-                panic!("{} {} {}", error, crate_name, src_path);
-            } // Ignore parse errors so rust-analyzer can run.
+            Err(cbindgen::Error::ParseSyntaxError { .. }) => {} // Ignore parse errors so rust-analyzer can run.
             Err(e) => panic!("{:?}", e),
         }
 
