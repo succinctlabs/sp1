@@ -41,7 +41,7 @@ const sidebars: SidebarsConfig = {
         "writing-programs/proof-aggregation",
         "writing-programs/cycle-tracking",
       ],
-      collapsed: false,
+      collapsed: true,
     },
     {
       type: "category",
@@ -73,7 +73,7 @@ const sidebars: SidebarsConfig = {
         },
         "generating-proofs/advanced",
       ],
-      collapsed: false,
+      collapsed: true,
     },
     {
       type: "category",
@@ -90,7 +90,7 @@ const sidebars: SidebarsConfig = {
           ],
         },
       ],
-      collapsed: false,
+      collapsed: true,
     },
     {
       type: "category",
@@ -99,7 +99,7 @@ const sidebars: SidebarsConfig = {
         "developers/common-issues",
         "developers/usage-in-ci",
       ],
-      collapsed: false,
+      collapsed: true,
     },
     {
       type: "category",
@@ -127,9 +127,14 @@ const sidebars: SidebarsConfig = {
           type: "link",
           label: "Bug Bounty",
           href: "https://code4rena.com/bounties/succinct",
-        },
+        }
       ],
     },
+    {
+      type: "link",
+      label: "Awesome SP1",
+      href: "https://github.com/gakonst/awesome-sp1"
+     }
   ],
 };
 
