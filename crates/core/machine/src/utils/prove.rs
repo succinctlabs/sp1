@@ -12,9 +12,9 @@ use std::{
 };
 use web_time::Instant;
 
-use crate::riscv::RiscvAir;
 use crate::shape::CoreShapeConfig;
 use crate::utils::test::MaliciousTracePVGeneratorType;
+use crate::{riscv::RiscvAir, shape::Shapeable};
 use p3_maybe_rayon::prelude::*;
 use sp1_stark::MachineProvingKey;
 use sp1_stark::StarkVerifyingKey;
@@ -453,12 +453,53 @@ where
                             .map(|(record, main_traces)| {
                                 let _span = span.enter();
 
-                                let main_data = prover.commit(&record, main_traces);
+                                let shard_index = record.shard();
+                                let before = Instant::now();
 
-                                let opening_span = tracing::debug_span!("opening").entered();
+                                let main_data = tracing::debug_span!("commit", shard_index)
+                                    .in_scope(|| prover.commit(&record, main_traces));
+
                                 let proof =
-                                    prover.open(pk, main_data, &mut challenger.clone()).unwrap();
-                                opening_span.exit();
+                                    tracing::debug_span!("opening", shard_index).in_scope(|| {
+                                        prover.open(pk, main_data, &mut challenger.clone()).unwrap()
+                                    });
+
+                                let elapsed = before.elapsed();
+
+                                // Log the shard heights/shape as well as how long it took to prove.
+                                let debug_heights_shapes = record.shape.as_ref().map(|shape| {
+                                    use crate::shape::ShardKind;
+
+                                    let heights = match record.kind() {
+                                        ShardKind::PackedCore => {
+                                            let mut heights = record.core_heights();
+                                            heights.extend(record.memory_heights());
+                                            heights
+                                        }
+                                        ShardKind::Core => record.core_heights(),
+                                        ShardKind::GlobalMemory => record.memory_heights(),
+                                        ShardKind::Precompile => {
+                                            let items = record
+                                                .precompile_heights()
+                                                .map(|(id, y)| (id, y.0))
+                                                .collect::<Vec<_>>();
+                                            assert_eq!(items.len(), 1);
+                                            items
+                                        }
+                                    };
+
+                                    let shape = shape
+                                        .iter()
+                                        .filter_map(|(&k, &v)| (v > 0).then_some((k, v)))
+                                        .collect::<Vec<_>>();
+
+                                    (heights, shape)
+                                });
+                                tracing::debug!(
+                                    "proving shard {shard_index} took {} ns: {:?}",
+                                    elapsed.as_nanos(),
+                                    debug_heights_shapes
+                                );
 
                                 #[cfg(debug_assertions)]
                                 {
