@@ -4,8 +4,8 @@
 
 SP1 is the fastest, most-feature complete zero-knowledge virtual machine (zkVM) that can prove the execution of arbitrary Rust (or any LLVM-compiled language) programs. SP1 makes ZK accessible to *any developer*, by making it easy to write ZKP programs in normal Rust code.
 
-**[Install](https://docs.succinct.xyz/docs/getting-started/install)**
-| [Docs](https://succinctlabs.github.io/sp1)
+**[Install](https://docs.succinct.xyz/docs/sp1/getting-started/install)**
+| [Docs](https://docs.succinct.xyz/docs/sp1/introduction)
 | [Examples](https://github.com/succinctlabs/sp1/tree/main/examples)
 | [Telegram Chat](https://t.me/+AzG4ws-kD24yMGYx)
 
@@ -13,7 +13,7 @@ SP1 is the fastest, most-feature complete zero-knowledge virtual machine (zkVM) 
 
 Today, developers can write programs, including complex, large programs like a ZK Tendermint light client or type-1 zkEVM using Reth, in Rust (with std support), generate proofs and verify them. Most Rust crates should be supported and can be used seamlessly by your program. Example programs can be found in the [examples](https://github.com/succinctlabs/sp1/tree/main/examples) folder.
 
-To get started, make sure you have [Rust](https://www.rust-lang.org/tools/install) installed. Then follow the [installation](https://docs.succinct.xyz/docs/getting-started/install) guide in the SP1 book and read the [getting started](https://docs.succinct.xyz/docs/getting-started/quickstart) section.
+To get started, make sure you have [Rust](https://www.rust-lang.org/tools/install) installed. Then follow the [installation](https://docs.succinct.xyz/docs/sp1/getting-started/install) guide in the SP1 book and read the [getting started](https://docs.succinct.xyz/docs/sp1/getting-started/quickstart) section.
 
 ## Security
 
