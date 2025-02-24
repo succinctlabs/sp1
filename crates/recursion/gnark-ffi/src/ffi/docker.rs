@@ -51,13 +51,12 @@ fn call_docker(args: &[&str], mounts: &[(&str, &str)]) -> Result<()> {
     cmd.args(args);
     let result = cmd.output()?;
     if !result.status.success() {
+        let stderr = String::from_utf8_lossy(&result.stderr);
         log::error!("Failed to run `docker run`: {:?}", cmd);
-        log::error!("Execution result: {:?}", result);
+        log::error!("status: {:?}", result.status);
+        log::error!("stderr: {:?}", stderr);
 
-        return Err(anyhow!(
-            "Docker command failed \n stderr: {:?}",
-            String::from_utf8_lossy(&result.stderr)
-        ));
+        return Err(anyhow!("Docker command failed \n stderr: {:?}", stderr));
     }
     Ok(())
 }
