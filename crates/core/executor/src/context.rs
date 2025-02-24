@@ -59,7 +59,7 @@ impl Default for SP1ContextBuilder<'_> {
             max_cycles: None,
             // Always verify deferred proofs by default.
             deferred_proof_verification: true,
-            calculate_gas: false,
+            calculate_gas: true,
         }
     }
 }
@@ -152,12 +152,14 @@ impl<'a> SP1ContextBuilder<'a> {
         self
     }
 
-    /// Calculate gas while executing (available in the `ExecutionReport`).
-    /// Does nothing while proving.
+    /// Whether gas should be calculated while executing. Defaults to `true`.
+    /// Determines whether the gas field in the `ExecutionReport` is `None` or `Some`.
     ///
-    /// This option will noticeably slow down execution, so it should be left disabled in most cases.
-    pub fn calculate_gas(&mut self) -> &mut Self {
-        self.calculate_gas = true;
+    /// During proving, gas is not calculated, so this option has no effect.
+    ///
+    /// Disabling gas calculation will likely speed up execution.
+    pub fn calculate_gas(&mut self, value: bool) -> &mut Self {
+        self.calculate_gas = value;
         self
     }
 
