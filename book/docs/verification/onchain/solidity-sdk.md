@@ -64,6 +64,13 @@ contract Fibonacci {
 
 ```
 
+The recommended on-chain SP1 proof verification workflow is to use the `ISP1Verifier` interface on the [`SP1VerifierGateway`](./contract-addresses.md),
+so the `SP1VerifierGateway` automatically routes your proof to the correct verifier.
+
+Your program’s verification key should be upgradeable within your contract, in case you want to upgrade to a newer version of SP1 or modify your program.
+
+Succinct maintains the ability to freeze verifiers on the canonical verifier gateway in the event of a security issue to prevent abuse. Note that verifier contract deployment is permissionless to enable customizable security configurations.
+
 ### Finding your program vkey
 
 The program vkey (`fibonacciProgramVKey` in the example above) is passed into the `ISP1Verifier` along with the public values and proof bytes. You

@@ -80,7 +80,7 @@ If you want support for a canonical verifier on your chain, contact us [here](ht
 
 ## ISP1Verifier Interface
 
-All verifiers implement the [ISP1Verifier](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/src/ISP1Verifier.sol) interface.
+All verifiers (including the gateway) implement the [ISP1Verifier](https://github.com/succinctlabs/sp1-contracts/blob/main/contracts/src/ISP1Verifier.sol) interface.
 
 ```c++
 // SPDX-License-Identifier: MIT
