@@ -3,7 +3,6 @@ pub use riscv_chips::*;
 use core::fmt;
 
 use hashbrown::{HashMap, HashSet};
-use itertools::Itertools;
 use p3_field::PrimeField32;
 use sp1_core_executor::{ExecutionRecord, Program, RiscvAirId};
 use sp1_curves::weierstrass::{bls12_381::Bls12381BaseField, bn254::Bn254BaseField};
@@ -13,13 +12,11 @@ use sp1_stark::{
 };
 use strum_macros::{EnumDiscriminants, EnumIter};
 
-use crate::bytes::trace::NUM_ROWS as BYTE_CHIP_NUM_ROWS;
+use crate::{bytes::trace::NUM_ROWS as BYTE_CHIP_NUM_ROWS, shape::Shapeable};
 use crate::{
     control_flow::{AuipcChip, BranchChip, JumpChip},
     global::GlobalChip,
-    memory::{
-        MemoryChipType, MemoryInstructionsChip, MemoryLocalChip, NUM_LOCAL_MEMORY_ENTRIES_PER_ROW,
-    },
+    memory::{MemoryChipType, MemoryInstructionsChip, MemoryLocalChip},
     syscall::{
         instructions::SyscallInstrsChip,
         precompiles::fptower::{Fp2AddSubAssignChip, Fp2MulAssignChip, FpOpChip},
@@ -429,31 +426,7 @@ impl<F: PrimeField32> RiscvAir<F> {
 
     /// Get the heights of the chips for a given execution record.
     pub fn core_heights(record: &ExecutionRecord) -> Vec<(RiscvAirId, usize)> {
-        vec![
-            (RiscvAirId::Cpu, record.cpu_events.len()),
-            (RiscvAirId::DivRem, record.divrem_events.len()),
-            (RiscvAirId::AddSub, record.add_events.len() + record.sub_events.len()),
-            (RiscvAirId::Bitwise, record.bitwise_events.len()),
-            (RiscvAirId::Mul, record.mul_events.len()),
-            (RiscvAirId::ShiftRight, record.shift_right_events.len()),
-            (RiscvAirId::ShiftLeft, record.shift_left_events.len()),
-            (RiscvAirId::Lt, record.lt_events.len()),
-            (
-                RiscvAirId::MemoryLocal,
-                record
-                    .get_local_mem_events()
-                    .chunks(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW)
-                    .into_iter()
-                    .count(),
-            ),
-            (RiscvAirId::MemoryInstrs, record.memory_instr_events.len()),
-            (RiscvAirId::Auipc, record.auipc_events.len()),
-            (RiscvAirId::Branch, record.branch_events.len()),
-            (RiscvAirId::Jump, record.jump_events.len()),
-            (RiscvAirId::Global, record.global_interaction_events.len()),
-            (RiscvAirId::SyscallCore, record.syscall_events.len()),
-            (RiscvAirId::SyscallInstrs, record.syscall_events.len()),
-        ]
+        record.core_heights()
     }
 
     pub(crate) fn get_all_core_airs() -> Vec<Self> {
