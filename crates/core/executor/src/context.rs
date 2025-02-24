@@ -10,7 +10,7 @@ use crate::{
 use sp1_primitives::consts::fd::LOWEST_ALLOWED_FD;
 
 /// Context to run a program inside SP1.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct SP1Context<'a> {
     /// The registry of hooks invocable from inside SP1.
     ///
@@ -31,6 +31,12 @@ pub struct SP1Context<'a> {
     ///
     /// This option will noticeably slow down execution, so it should be disabled in most cases.
     pub calculate_gas: bool,
+}
+
+impl<'a> Default for SP1Context<'a> {
+    fn default() -> Self {
+        Self::builder().build()
+    }
 }
 
 /// A builder for [`SP1Context`].
