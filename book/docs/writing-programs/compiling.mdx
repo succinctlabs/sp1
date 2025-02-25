@@ -115,17 +115,25 @@ fn main() {
 
 ### C-bindings Compilation Issues
 
-When working with C-bindings in SP1, you might encounter compilation issues. One common solution is to use `clang` as your C compiler. Here's how to set it up:
+When working with C-bindings in SP1, you might encounter compilation issues. You'll need to set up the RISC-V toolchain properly:
 
-1. Make sure you have an up-to-date version of `clang` installed on your system
-2. Set the following environment variables before building:
+1. Install RISC-V GNU toolchain:
    ```bash
-   export CC=clang
-   export cc=clang
+   # For macOS
+   brew tap riscv-software-src/riscv
+   brew install riscv-gnu-toolchain
+   
+   # For other systems, please refer to RISC-V GNU toolchain installation guide
    ```
+
+2. Set up the compiler flags to point to the RISC-V headers:
+   ```bash
+   export CFLAGS="-I/opt/homebrew/Cellar/riscv-gnu-toolchain/main/riscv64-unknown-elf/include"
+   ```
+
 3. Then run your build command:
    ```bash
    cargo prove build
    ```
 
-This is particularly helpful when you encounter compilation errors related to C-bindings or when the default compiler doesn't work as expected.
+This ensures that the compiler uses the correct RISC-V architecture headers and toolchain for C-bindings compilation.
