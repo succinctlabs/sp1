@@ -25,4 +25,4 @@ pub(crate) const DEFAULT_NETWORK_RPC_URL: &str = "https://rpc.production.succinc
 pub(crate) const DEFAULT_TIMEOUT_SECS: u64 = 14400;
 pub(crate) const DEFAULT_CYCLE_LIMIT: u64 = 100_000_000;
 pub(crate) const DEFAULT_VM_MEMORY_KB: u64 = 100_000;
-pub(crate) const MEMORY_PER_ADDRESS: u64 = 8; // 4 bytes per memory address + 4 bytes per word
+pub(crate) const MEMORY_PER_ADDRESS: u64 = 4;
