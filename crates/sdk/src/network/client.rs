@@ -280,6 +280,7 @@ impl NetworkClient {
     /// * `strategy`: The [`FulfillmentStrategy`] to use.
     /// * `timeout_secs`: The timeout for the proof request in seconds.
     /// * `cycle_limit`: The cycle limit for the proof request.
+    /// * `vm_memory_mb`: The memory limit in megabytes for the VM.
     #[allow(clippy::too_many_arguments)]
     pub async fn request_proof(
         &self,
@@ -290,6 +291,7 @@ impl NetworkClient {
         strategy: FulfillmentStrategy,
         timeout_secs: u64,
         cycle_limit: u64,
+        vm_memory_mb: u64,
     ) -> Result<RequestProofResponse> {
         // Calculate the deadline.
         let start = SystemTime::now();
@@ -315,7 +317,7 @@ impl NetworkClient {
                     stdin_uri: stdin_uri.clone(),
                     deadline,
                     cycle_limit,
-                    vm_memory_mb: 0,
+                    vm_memory_mb,
                 };
                 let request_response = rpc
                     .request_proof(RequestProofRequest {

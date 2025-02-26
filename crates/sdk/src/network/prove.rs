@@ -29,6 +29,7 @@ pub struct NetworkProveBuilder<'a> {
     pub(crate) strategy: FulfillmentStrategy,
     pub(crate) skip_simulation: bool,
     pub(crate) cycle_limit: Option<u64>,
+    pub(crate) vm_memory_mb: Option<u64>,
 }
 
 impl NetworkProveBuilder<'_> {
@@ -269,6 +270,31 @@ impl NetworkProveBuilder<'_> {
         self
     }
 
+    /// Set the VM memory limit in megabytes for the proof request.
+    ///
+    /// # Details
+    /// This sets the maximum amount of memory in megabytes that the VM can use during execution.
+    /// If the program exceeds this limit, the proof request will fail.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().network().build();
+    /// let (pk, vk) = client.setup(elf);
+    /// let builder = client.prove(&pk, &stdin)
+    ///     .vm_memory_mb(1024) // Set 1GB memory limit.
+    ///     .run();
+    /// ```
+    #[must_use]
+    pub fn vm_memory_mb(mut self, vm_memory_mb: u64) -> Self {
+        self.vm_memory_mb = Some(vm_memory_mb);
+        self
+    }
+
     /// Request a proof from the prover network.
     ///
     /// # Details
@@ -316,10 +342,28 @@ impl NetworkProveBuilder<'_> {
     /// })
     /// ```
     pub async fn request_async(self) -> Result<B256> {
-        let Self { prover, mode, pk, stdin, timeout, strategy, skip_simulation, cycle_limit } =
-            self;
+        let Self {
+            prover,
+            mode,
+            pk,
+            stdin,
+            timeout,
+            strategy,
+            skip_simulation,
+            cycle_limit,
+            vm_memory_mb,
+        } = self;
         prover
-            .request_proof_impl(pk, &stdin, mode, strategy, timeout, skip_simulation, cycle_limit)
+            .request_proof_impl(
+                pk,
+                &stdin,
+                mode,
+                strategy,
+                timeout,
+                skip_simulation,
+                cycle_limit,
+                vm_memory_mb,
+            )
             .await
     }
 
@@ -364,8 +408,17 @@ impl NetworkProveBuilder<'_> {
     ///     .run_async();
     /// ```
     pub async fn run_async(self) -> Result<SP1ProofWithPublicValues> {
-        let Self { prover, mode, pk, stdin, timeout, strategy, mut skip_simulation, cycle_limit } =
-            self;
+        let Self {
+            prover,
+            mode,
+            pk,
+            stdin,
+            timeout,
+            strategy,
+            mut skip_simulation,
+            cycle_limit,
+            vm_memory_mb,
+        } = self;
 
         // Check for deprecated environment variable
         if let Ok(val) = std::env::var("SKIP_SIMULATION") {
@@ -377,7 +430,18 @@ impl NetworkProveBuilder<'_> {
 
         sp1_dump(&pk.elf, &stdin);
 
-        prover.prove_impl(pk, &stdin, mode, strategy, timeout, skip_simulation, cycle_limit).await
+        prover
+            .prove_impl(
+                pk,
+                &stdin,
+                mode,
+                strategy,
+                timeout,
+                skip_simulation,
+                cycle_limit,
+                vm_memory_mb,
+            )
+            .await
     }
 }
 
