@@ -37,6 +37,9 @@ pub struct RequestProofRequestBody {
     /// The cycle limit for the request.
     #[prost(uint64, tag = "8")]
     pub cycle_limit: u64,
+    /// The memory limit for the request.
+    #[prost(uint64, tag = "9")]
+    pub vm_memory_mb: u64,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct RequestProofResponse {

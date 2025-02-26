@@ -315,6 +315,7 @@ impl NetworkClient {
                     stdin_uri: stdin_uri.clone(),
                     deadline,
                     cycle_limit,
+                    vm_memory_mb: 0,
                 };
                 let request_response = rpc
                     .request_proof(RequestProofRequest {
