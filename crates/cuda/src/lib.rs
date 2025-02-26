@@ -125,7 +125,7 @@ impl SP1CudaProver {
 
         // Start the docker container
         let rust_log_level = std::env::var("RUST_LOG").unwrap_or_else(|_| "none".to_string());
-        let mut child = Command::new("docker")
+        Command::new("docker")
             .args([
                 "run",
                 "-e",
@@ -139,42 +139,11 @@ impl SP1CudaProver {
                 container_name,
                 &image_name,
             ])
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
+            // Redirect stdout and stderr to the parent process
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
             .spawn()
             .map_err(|e| format!("Failed to start Docker container: {}. Please check your Docker installation and permissions.", e))?;
-
-        let stderr = child.stderr.take().unwrap();
-        std::thread::spawn(move || {
-            let mut reader = BufReader::new(stderr);
-            let mut buffer = [0; 1024];
-            loop {
-                match reader.read(&mut buffer) {
-                    Ok(0) => break,
-                    Ok(n) => {
-                        std::io::stderr().write_all(&buffer[..n]).unwrap();
-                        std::io::stderr().flush().unwrap();
-                    }
-                    Err(_) => break,
-                }
-            }
-        });
-
-        let stdout = child.stdout.take().unwrap();
-        std::thread::spawn(move || {
-            let mut reader = BufReader::new(stdout);
-            let mut buffer = [0; 1024];
-            loop {
-                match reader.read(&mut buffer) {
-                    Ok(0) => break,
-                    Ok(n) => {
-                        std::io::stdout().write_all(&buffer[..n]).unwrap();
-                        std::io::stdout().flush().unwrap();
-                    }
-                    Err(_) => break,
-                }
-            }
-        });
 
         // Kill the container on control-c
         ctrlc::set_handler(move || {
