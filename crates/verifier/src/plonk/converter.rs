@@ -1,4 +1,8 @@
 use crate::{
+    constants::{
+        PLONK_CLAIMED_VALUES_COUNT, PLONK_CLAIMED_VALUES_OFFSET, PLONK_Z_SHIFTED_OPENING_H_OFFSET,
+        PLONK_Z_SHIFTED_OPENING_VALUE_OFFSET,
+    },
     converter::{
         unchecked_compressed_x_to_g1_point, unchecked_compressed_x_to_g2_point,
         uncompressed_bytes_to_g1_point,
@@ -119,7 +123,12 @@ pub(crate) fn load_plonk_proof_from_bytes(
     num_bsb22_commitments: usize,
 ) -> Result<PlonkProof, PlonkError> {
     if buffer.len()
-        < 384 + 5 * 32 + 96 + 128 + num_bsb22_commitments * 32 + num_bsb22_commitments * 64
+        < PLONK_CLAIMED_VALUES_OFFSET
+            + PLONK_CLAIMED_VALUES_COUNT * 32
+            + PLONK_Z_SHIFTED_OPENING_VALUE_OFFSET
+            + PLONK_Z_SHIFTED_OPENING_H_OFFSET
+            + num_bsb22_commitments * 32
+            + num_bsb22_commitments * 64
     {
         return Err(PlonkError::GeneralError(Error::InvalidData));
     }
@@ -132,9 +141,9 @@ pub(crate) fn load_plonk_proof_from_bytes(
     let h2 = uncompressed_bytes_to_g1_point(&buffer[320..384])?;
 
     // Stores l_at_zeta, r_at_zeta, o_at_zeta, s 1_at_zeta, s2_at_zeta, bsb22_commitments
-    let mut claimed_values = Vec::with_capacity(5 + num_bsb22_commitments);
-    let mut offset = 384;
-    for _ in 1..6 {
+    let mut claimed_values = Vec::with_capacity(PLONK_CLAIMED_VALUES_COUNT + num_bsb22_commitments);
+    let mut offset = PLONK_CLAIMED_VALUES_OFFSET;
+    for _ in 0..PLONK_CLAIMED_VALUES_COUNT {
         let value = Fr::from_slice(&buffer[offset..offset + 32])
             .map_err(|e| PlonkError::GeneralError(Error::Field(e)))?;
         claimed_values.push(value);
@@ -144,11 +153,11 @@ pub(crate) fn load_plonk_proof_from_bytes(
     let z = uncompressed_bytes_to_g1_point(&buffer[offset..offset + 64])?;
     let z_shifted_opening_value = Fr::from_slice(&buffer[offset + 64..offset + 96])
         .map_err(|e| PlonkError::GeneralError(Error::Field(e)))?;
-    offset += 96;
+    offset += PLONK_Z_SHIFTED_OPENING_VALUE_OFFSET;
 
     let batched_proof_h = uncompressed_bytes_to_g1_point(&buffer[offset..offset + 64])?;
     let z_shifted_opening_h = uncompressed_bytes_to_g1_point(&buffer[offset + 64..offset + 128])?;
-    offset += 128;
+    offset += PLONK_Z_SHIFTED_OPENING_H_OFFSET;
 
     for _ in 0..num_bsb22_commitments {
         let commitment = Fr::from_slice(&buffer[offset..offset + 32])
