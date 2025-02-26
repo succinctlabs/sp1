@@ -6,7 +6,7 @@
 use std::time::{Duration, Instant};
 
 use super::prove::NetworkProveBuilder;
-use super::{DEFAULT_CYCLE_LIMIT, DEFAULT_VM_MEMORY_MB};
+use super::{DEFAULT_CYCLE_LIMIT, DEFAULT_VM_MEMORY_KB};
 use crate::cpu::execute::CpuExecuteBuilder;
 use crate::cpu::CpuProver;
 use crate::network::proto::network::GetProofRequestStatusResponse;
@@ -109,7 +109,7 @@ impl NetworkProver {
             strategy: FulfillmentStrategy::Hosted,
             skip_simulation: false,
             cycle_limit: None,
-            vm_memory_mb: None,
+            vm_memory_kb: None,
         }
     }
 
@@ -223,7 +223,7 @@ impl NetworkProver {
     /// * `mode`: The proof mode to use for the proof.
     /// * `strategy`: The fulfillment strategy to use for the proof.
     /// * `cycle_limit`: The cycle limit to use for the proof.
-    /// * `vm_memory_mb`: The memory limit for the VM.
+    /// * `vm_memory_kb`: The memory limit for the VM.
     /// * `timeout`: The timeout for the proof request.
     #[allow(clippy::too_many_arguments)]
     pub(crate) async fn request_proof(
@@ -233,7 +233,7 @@ impl NetworkProver {
         mode: ProofMode,
         strategy: FulfillmentStrategy,
         cycle_limit: u64,
-        vm_memory_mb: u64,
+        vm_memory_kb: u64,
         timeout: Option<Duration>,
     ) -> Result<B256> {
         // Get the timeout.
@@ -242,7 +242,7 @@ impl NetworkProver {
         // Log the request.
         log::info!("Requesting proof:");
         log::info!("├─ Cycle limit: {}", cycle_limit);
-        log::info!("├─ VM memory: {}MB", vm_memory_mb);
+        log::info!("├─ VM memory: {}KB", vm_memory_kb);
         log::info!("├─ Proof mode: {:?}", mode);
         log::info!("├─ Strategy: {:?}", strategy);
         log::info!("├─ Timeout: {} seconds", timeout_secs);
@@ -259,7 +259,7 @@ impl NetworkProver {
                 strategy,
                 timeout_secs,
                 cycle_limit,
-                vm_memory_mb,
+                vm_memory_kb,
             )
             .await?;
 
@@ -342,20 +342,20 @@ impl NetworkProver {
         timeout: Option<Duration>,
         skip_simulation: bool,
         cycle_limit: Option<u64>,
-        vm_memory_mb: Option<u64>,
+        vm_memory_kb: Option<u64>,
     ) -> Result<B256> {
         let vk_hash = self.register_program(&pk.vk, &pk.elf).await?;
 
         let mut final_cycle_limit = cycle_limit;
-        let mut final_vm_memory_mb = vm_memory_mb;
-        if !skip_simulation && (final_cycle_limit.is_none() || final_vm_memory_mb.is_none()) {
+        let mut final_vm_memory_kb = vm_memory_kb;
+        if !skip_simulation && (final_cycle_limit.is_none() || final_vm_memory_kb.is_none()) {
             let execution_report = self.get_execution_report(&pk.elf, stdin)?;
 
             if final_cycle_limit.is_none() {
                 final_cycle_limit = Some(execution_report.total_instruction_count());
             }
-            if final_vm_memory_mb.is_none() {
-                final_vm_memory_mb = Some(execution_report.total_memory_addresses);
+            if final_vm_memory_kb.is_none() {
+                final_vm_memory_kb = Some(execution_report.total_memory_addresses);
             }
         }
 
@@ -365,7 +365,7 @@ impl NetworkProver {
             mode.into(),
             strategy,
             final_cycle_limit.unwrap_or(DEFAULT_CYCLE_LIMIT),
-            final_vm_memory_mb.unwrap_or(DEFAULT_VM_MEMORY_MB),
+            final_vm_memory_kb.unwrap_or(DEFAULT_VM_MEMORY_KB),
             timeout,
         )
         .await
@@ -381,7 +381,7 @@ impl NetworkProver {
         timeout: Option<Duration>,
         skip_simulation: bool,
         cycle_limit: Option<u64>,
-        vm_memory_mb: Option<u64>,
+        vm_memory_kb: Option<u64>,
     ) -> Result<SP1ProofWithPublicValues> {
         let request_id = self
             .request_proof_impl(
@@ -392,7 +392,7 @@ impl NetworkProver {
                 timeout,
                 skip_simulation,
                 cycle_limit,
-                vm_memory_mb,
+                vm_memory_kb,
             )
             .await?;
         self.wait_proof(request_id, timeout).await

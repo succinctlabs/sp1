@@ -29,7 +29,7 @@ pub struct NetworkProveBuilder<'a> {
     pub(crate) strategy: FulfillmentStrategy,
     pub(crate) skip_simulation: bool,
     pub(crate) cycle_limit: Option<u64>,
-    pub(crate) vm_memory_mb: Option<u64>,
+    pub(crate) vm_memory_kb: Option<u64>,
 }
 
 impl NetworkProveBuilder<'_> {
@@ -285,12 +285,12 @@ impl NetworkProveBuilder<'_> {
     /// let client = ProverClient::builder().network().build();
     /// let (pk, vk) = client.setup(elf);
     /// let builder = client.prove(&pk, &stdin)
-    ///     .vm_memory_mb(1024) // Set 1GB memory limit.
+    ///     .vm_memory_kb(1024) // Set 1GB memory limit.
     ///     .run();
     /// ```
     #[must_use]
-    pub fn vm_memory_mb(mut self, vm_memory_mb: u64) -> Self {
-        self.vm_memory_mb = Some(vm_memory_mb);
+    pub fn vm_memory_kb(mut self, vm_memory_kb: u64) -> Self {
+        self.vm_memory_kb = Some(vm_memory_kb);
         self
     }
 
@@ -350,7 +350,7 @@ impl NetworkProveBuilder<'_> {
             strategy,
             skip_simulation,
             cycle_limit,
-            vm_memory_mb,
+            vm_memory_kb,
         } = self;
         prover
             .request_proof_impl(
@@ -361,7 +361,7 @@ impl NetworkProveBuilder<'_> {
                 timeout,
                 skip_simulation,
                 cycle_limit,
-                vm_memory_mb,
+                vm_memory_kb,
             )
             .await
     }
@@ -416,7 +416,7 @@ impl NetworkProveBuilder<'_> {
             strategy,
             mut skip_simulation,
             cycle_limit,
-            vm_memory_mb,
+            vm_memory_kb,
         } = self;
 
         // Check for deprecated environment variable
@@ -438,7 +438,7 @@ impl NetworkProveBuilder<'_> {
                 timeout,
                 skip_simulation,
                 cycle_limit,
-                vm_memory_mb,
+                vm_memory_kb,
             )
             .await
     }
