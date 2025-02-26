@@ -17,6 +17,7 @@ pub const MAX_MEMORY: usize = 0x78000000;
 
 // Pointer to next heap address to use, or 0 if the heap has not yet been
 // initialized.
+#[cfg(feature = "bump")]
 static mut HEAP_POS: usize = 0;
 
 /// Allocate memory aligned to the given alignment.
