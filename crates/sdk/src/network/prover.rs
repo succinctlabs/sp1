@@ -6,13 +6,11 @@
 use std::time::{Duration, Instant};
 
 use super::prove::NetworkProveBuilder;
-use super::{
-    DEFAULT_CYCLE_LIMIT, DEFAULT_NETWORK_RPC_URL, DEFAULT_TIMEOUT_SECS, DEFAULT_VM_MEMORY_MB,
-};
+use super::{DEFAULT_CYCLE_LIMIT, DEFAULT_VM_MEMORY_MB};
 use crate::cpu::execute::CpuExecuteBuilder;
 use crate::cpu::CpuProver;
 use crate::network::proto::network::GetProofRequestStatusResponse;
-use crate::network::Error;
+use crate::network::{Error, DEFAULT_NETWORK_RPC_URL, DEFAULT_TIMEOUT_SECS};
 use crate::{
     network::client::NetworkClient,
     network::proto::network::{ExecutionStatus, FulfillmentStatus, FulfillmentStrategy, ProofMode},
