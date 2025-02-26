@@ -13,7 +13,7 @@
 
 pub mod build;
 pub mod components;
-pub(crate) mod gas;
+pub mod gas;
 pub mod shapes;
 pub mod types;
 pub mod utils;
@@ -51,7 +51,8 @@ use sp1_core_machine::{
     shape::CoreShapeConfig,
     utils::{concurrency::TurnBasedSync, SP1CoreProverError},
 };
-use sp1_primitives::{hash_deferred_proof, io::SP1PublicValues};
+use sp1_primitives::hash_deferred_proof;
+pub use sp1_primitives::io::SP1PublicValues;
 use sp1_recursion_circuit::{
     hash::FieldHasher,
     machine::{
