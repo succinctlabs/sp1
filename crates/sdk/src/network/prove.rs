@@ -285,7 +285,7 @@ impl NetworkProveBuilder<'_> {
     /// let client = ProverClient::builder().network().build();
     /// let (pk, vk) = client.setup(elf);
     /// let builder = client.prove(&pk, &stdin)
-    ///     .vm_memory_kb(1024) // Set 1GB memory limit.
+    ///     .vm_memory_kb(10000) // Set 10MB memory limit.
     ///     .run();
     /// ```
     #[must_use]
