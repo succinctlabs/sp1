@@ -1,7 +1,6 @@
 use std::{
     error::Error as StdError,
     future::Future,
-    io::{BufReader, Read, Write},
     process::{Command, Stdio},
     sync::{
         atomic::{AtomicBool, Ordering},
