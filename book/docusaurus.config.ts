@@ -39,6 +39,7 @@ const config: Config = {
       ({
         docs: {
           onlyIncludeVersions: ["4.0.0", "3.4.0"],
+        editUrl: 'https://github.com/succinctlabs/sp1/tree/main/book/',
         },
         blog: false,
         pages: {},
