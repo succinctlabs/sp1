@@ -355,8 +355,9 @@ impl NetworkProver {
                 final_cycle_limit = Some(execution_report.total_instruction_count());
             }
             if final_vm_memory_kb.is_none() {
+                // Convert # of memory addresses to KB
                 final_vm_memory_kb =
-                    Some(execution_report.total_memory_addresses * MEMORY_PER_ADDRESS);
+                    Some((execution_report.total_memory_addresses * MEMORY_PER_ADDRESS) / 1000);
             }
         }
 
