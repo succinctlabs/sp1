@@ -225,7 +225,7 @@ impl NetworkProver {
     /// * `mode`: The proof mode to use for the proof.
     /// * `strategy`: The fulfillment strategy to use for the proof.
     /// * `cycle_limit`: The cycle limit to use for the proof.
-    /// * `vm_memory_mb`: The memory limit in megabytes for the VM.
+    /// * `vm_memory_mb`: The memory limit for the VM.
     /// * `timeout`: The timeout for the proof request.
     #[allow(clippy::too_many_arguments)]
     pub(crate) async fn request_proof(
