@@ -68,8 +68,8 @@ __SP1_HOSTDEV__ __SP1_INLINE__ uint32_t
 word_to_u32(const Word<decltype(F::val)>& word) {
     return ((uint8_t)F(word._0[0]).as_canonical_u32())
         + ((uint8_t)F(word._0[1]).as_canonical_u32() << 8)
-        + ((uint8_t)F(word._0[1]).as_canonical_u32() << 16)
-        + ((uint8_t)F(word._0[1]).as_canonical_u32() << 24);
+        + ((uint8_t)F(word._0[2]).as_canonical_u32() << 16)
+        + ((uint8_t)F(word._0[3]).as_canonical_u32() << 24);
 }
 
 template<class F>
