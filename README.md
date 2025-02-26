@@ -8,6 +8,7 @@ SP1 is the fastest, most-feature complete zero-knowledge virtual machine (zkVM) 
 | [Docs](https://docs.succinct.xyz/docs/sp1/introduction)
 | [Examples](https://github.com/succinctlabs/sp1/tree/main/examples)
 | [Telegram Chat](https://t.me/+AzG4ws-kD24yMGYx)
+| [Discord](https://discord.com/invite/succinctlabs)
 
 ## Getting Started 
 
