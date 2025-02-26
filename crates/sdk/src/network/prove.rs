@@ -273,8 +273,7 @@ impl NetworkProveBuilder<'_> {
     /// Set the VM memory limit in megabytes for the proof request.
     ///
     /// # Details
-    /// This sets the maximum amount of memory in megabytes that the VM can use during execution.
-    /// If the program exceeds this limit, the proof request will fail.
+    /// This sets the maximum amount of memory that the VM can use during execution.
     ///
     /// # Example
     /// ```rust,no_run
