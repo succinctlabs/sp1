@@ -78,7 +78,7 @@ impl BuildToolchainCmd {
         Command::new("python3")
             .env("RUST_TARGET_PATH", &temp_dir)
             .env("CARGO_TARGET_RISCV32IM_SUCCINCT_ZKVM_ELF_RUSTFLAGS", "-Cpasses=lower-atomic")
-            .args(["x.py", "build"])
+            .args(["x.py", "build", "-v"])
             .current_dir(&rust_dir)
             .run()?;
 
@@ -86,7 +86,7 @@ impl BuildToolchainCmd {
         Command::new("python3")
             .env("RUST_TARGET_PATH", &temp_dir)
             .env("CARGO_TARGET_RISCV32IM_SUCCINCT_ZKVM_ELF_RUSTFLAGS", "-Cpasses=lower-atomic")
-            .args(["x.py", "build", "--stage", "2"])
+            .args(["x.py", "build", "--stage", "2", "-v"])
             .current_dir(&rust_dir)
             .run()?;
 
