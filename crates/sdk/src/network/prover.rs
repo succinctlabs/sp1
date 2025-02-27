@@ -356,8 +356,8 @@ impl NetworkProver {
             }
             if final_vm_memory_kb.is_none() {
                 // Convert # of memory addresses to KB
-                final_vm_memory_kb =
-                    Some((execution_report.estimated_max_memory_addresses * BYTES_PER_WORD) / 1000);
+                let bytes = execution_report.estimated_max_memory_words * BYTES_PER_WORD;
+                final_vm_memory_kb = Some((bytes + 1024 - 1) / 1024); // Rounds up to the nearest KB
             }
         }
 

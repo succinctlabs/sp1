@@ -2029,8 +2029,7 @@ impl<'a> Executor<'a> {
         }
 
         // Record the total number of memory addresses created.
-        self.report.estimated_max_memory_addresses =
-            self.state.memory.page_table.estimate_len() as u64;
+        self.report.estimated_max_memory_words = self.state.memory.page_table.estimate_len() as u64;
 
         if self.emit_global_memory_events
             && (self.executor_mode == ExecutorMode::Trace
