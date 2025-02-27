@@ -242,7 +242,7 @@ impl NetworkProver {
         // Log the request.
         log::info!("Requesting proof:");
         log::info!("├─ Cycle limit: {}", cycle_limit);
-        log::info!("├─ VM memory: {}KB", vm_memory_kb);
+        log::info!("├─ VM memory limit: {}KB", vm_memory_kb);
         log::info!("├─ Proof mode: {:?}", mode);
         log::info!("├─ Strategy: {:?}", strategy);
         log::info!("├─ Timeout: {} seconds", timeout_secs);
