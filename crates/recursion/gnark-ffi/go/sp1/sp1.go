@@ -173,8 +173,8 @@ func (circuit *Circuit) Define(api frontend.API) error {
 			vars[cs.Args[0][0]] = api.Select(vars[cs.Args[1][0]], vars[cs.Args[2][0]], vars[cs.Args[3][0]])
 		case "SelectF":
 			felts[cs.Args[0][0]] = fieldAPI.SelectF(vars[cs.Args[1][0]], felts[cs.Args[2][0]], felts[cs.Args[3][0]])
-		case "SelectE":
-			exts[cs.Args[0][0]] = fieldAPI.SelectE(vars[cs.Args[1][0]], exts[cs.Args[2][0]], exts[cs.Args[3][0]])
+		case "selected, select":
+			exts[cs.Args[0][0]] = fieldAPI.selected, select(vars[cs.Args[1][0]], exts[cs.Args[2][0]], exts[cs.Args[3][0]])
 		case "Ext2Felt":
 			out := fieldAPI.Ext2Felt(exts[cs.Args[4][0]])
 			for i := 0; i < 4; i++ {
