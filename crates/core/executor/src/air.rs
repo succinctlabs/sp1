@@ -6,7 +6,7 @@ use std::{
 use enum_map::{Enum, EnumMap};
 use serde::{Deserialize, Serialize};
 use sp1_stark::shape::Shape;
-use strum::{EnumIter, IntoEnumIterator};
+use strum::{EnumIter, IntoEnumIterator, IntoStaticStr};
 use subenum::subenum;
 
 /// RV32IM AIR Identifiers.
@@ -17,7 +17,19 @@ use subenum::subenum;
 /// The [`CoreAirId`]s are the AIRs that are not part of precompile shards and not the program or byte AIR.
 #[subenum(CoreAirId)]
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, EnumIter, PartialOrd, Ord, Enum,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+    EnumIter,
+    IntoStaticStr,
+    PartialOrd,
+    Ord,
+    Enum,
 )]
 pub enum RiscvAirId {
     /// The CPU chip.
@@ -213,54 +225,8 @@ impl RiscvAirId {
 
     /// Returns the string representation of the AIR.
     #[must_use]
-    pub fn as_str(&self) -> &str {
-        match self {
-            Self::Cpu => "Cpu",
-            Self::Program => "Program",
-            Self::ShaExtend => "ShaExtend",
-            Self::ShaCompress => "ShaCompress",
-            Self::EdAddAssign => "EdAddAssign",
-            Self::EdDecompress => "EdDecompress",
-            Self::Secp256k1Decompress => "Secp256k1Decompress",
-            Self::Secp256k1AddAssign => "Secp256k1AddAssign",
-            Self::Secp256k1DoubleAssign => "Secp256k1DoubleAssign",
-            Self::Secp256r1Decompress => "Secp256r1Decompress",
-            Self::Secp256r1AddAssign => "Secp256r1AddAssign",
-            Self::Secp256r1DoubleAssign => "Secp256r1DoubleAssign",
-            Self::KeccakPermute => "KeccakPermute",
-            Self::Bn254AddAssign => "Bn254AddAssign",
-            Self::Bn254DoubleAssign => "Bn254DoubleAssign",
-            Self::Bls12381AddAssign => "Bls12381AddAssign",
-            Self::Bls12381DoubleAssign => "Bls12381DoubleAssign",
-            Self::Uint256MulMod => "Uint256MulMod",
-            Self::U256XU2048Mul => "U256XU2048Mul",
-            Self::Bls12381FpOpAssign => "Bls12381FpOpAssign",
-            Self::Bls12381Fp2AddSubAssign => "Bls12381Fp2AddSubAssign",
-            Self::Bls12381Fp2MulAssign => "Bls12381Fp2MulAssign",
-            Self::Bn254FpOpAssign => "Bn254FpOpAssign",
-            Self::Bn254Fp2AddSubAssign => "Bn254Fp2AddSubAssign",
-            Self::Bn254Fp2MulAssign => "Bn254Fp2MulAssign",
-            Self::Bls12381Decompress => "Bls12381Decompress",
-            Self::SyscallCore => "SyscallCore",
-            Self::SyscallPrecompile => "SyscallPrecompile",
-            Self::DivRem => "DivRem",
-            Self::AddSub => "AddSub",
-            Self::Bitwise => "Bitwise",
-            Self::Mul => "Mul",
-            Self::ShiftRight => "ShiftRight",
-            Self::ShiftLeft => "ShiftLeft",
-            Self::Lt => "Lt",
-            Self::MemoryInstrs => "MemoryInstrs",
-            Self::Auipc => "Auipc",
-            Self::Branch => "Branch",
-            Self::Jump => "Jump",
-            Self::SyscallInstrs => "SyscallInstrs",
-            Self::MemoryGlobalInit => "MemoryGlobalInit",
-            Self::MemoryGlobalFinalize => "MemoryGlobalFinalize",
-            Self::MemoryLocal => "MemoryLocal",
-            Self::Global => "Global",
-            Self::Byte => "Byte",
-        }
+    pub fn as_str(&self) -> &'static str {
+        self.into()
     }
 }
 
