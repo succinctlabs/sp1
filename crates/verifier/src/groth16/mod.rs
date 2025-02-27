@@ -8,7 +8,9 @@ pub(crate) use verify::*;
 
 use error::Groth16Error;
 
-use crate::{decode_sp1_vkey_hash, error::Error, hash_public_inputs};
+use crate::{
+    constants::VK_HASH_PREFIX_LENGTH, decode_sp1_vkey_hash, error::Error, hash_public_inputs,
+};
 
 use alloc::vec::Vec;
 use sha2::{Digest, Sha256};
@@ -47,8 +49,12 @@ impl Groth16Verifier {
         sp1_vkey_hash: &str,
         groth16_vk: &[u8],
     ) -> Result<(), Groth16Error> {
+        if proof.len() < VK_HASH_PREFIX_LENGTH {
+            return Err(Groth16Error::GeneralError(Error::InvalidData));
+        }
+
         // Hash the vk and get the first 4 bytes.
-        let groth16_vk_hash: [u8; 4] = Sha256::digest(groth16_vk)[..4]
+        let groth16_vk_hash: [u8; 4] = Sha256::digest(groth16_vk)[..VK_HASH_PREFIX_LENGTH]
             .try_into()
             .map_err(|_| Groth16Error::GeneralError(Error::InvalidData))?;
 
@@ -57,14 +63,14 @@ impl Groth16Verifier {
         //
         // SP1 prepends the raw Groth16 proof with the first 4 bytes of the groth16 vkey to
         // facilitate this check.
-        if groth16_vk_hash != proof[..4] {
+        if groth16_vk_hash != proof[..VK_HASH_PREFIX_LENGTH] {
             return Err(Groth16Error::Groth16VkeyHashMismatch);
         }
 
         let sp1_vkey_hash = decode_sp1_vkey_hash(sp1_vkey_hash)?;
 
         Self::verify_gnark_proof(
-            &proof[4..],
+            &proof[VK_HASH_PREFIX_LENGTH..],
             &[sp1_vkey_hash, hash_public_inputs(sp1_public_inputs)],
             groth16_vk,
         )
@@ -96,8 +102,8 @@ impl Groth16Verifier {
         public_inputs: &[[u8; 32]],
         groth16_vk: &[u8],
     ) -> Result<(), Groth16Error> {
-        let proof = load_groth16_proof_from_bytes(proof).unwrap();
-        let groth16_vk = load_groth16_verifying_key_from_bytes(groth16_vk).unwrap();
+        let proof = load_groth16_proof_from_bytes(proof)?;
+        let groth16_vk = load_groth16_verifying_key_from_bytes(groth16_vk)?;
 
         let public_inputs =
             public_inputs.iter().map(|input| Fr::from_slice(input).unwrap()).collect::<Vec<_>>();
