@@ -152,6 +152,9 @@ extern "C" {
 
     /// Reads a buffer from the input stream.
     pub fn read_vec_raw() -> ReadVecResult;
+
+    /// 
+    pub fn syscall_inner_product(p: *mut u32, q: *const u32);
 }
 
 #[repr(C)]

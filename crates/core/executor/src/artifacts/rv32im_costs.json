@@ -43,5 +43,6 @@
   "Cpu": 109,
   "ShaCompress": 40480,
   "MemoryInstrs": 93,
-  "Secp256k1DoubleAssign": 4564
+  "Secp256k1DoubleAssign": 4564,
+  "InnerProduct": 1234
 }

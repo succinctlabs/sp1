@@ -154,6 +154,9 @@ pub enum SyscallCode {
 
     /// Executes the `SECP256R1_DECOMPRESS` precompile.
     SECP256R1_DECOMPRESS = 0x00_00_01_2E,
+
+    /// Executes the `INNER_PRODUCT` precompile.
+    INNER_PRODUCT = 0x00_00_01_30,
 }
 
 impl SyscallCode {

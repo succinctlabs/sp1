@@ -1,5 +1,6 @@
 pub mod edwards;
 pub mod fptower;
+pub mod inner_product;
 pub mod keccak256;
 pub mod sha256;
 pub mod u256x2048_mul;

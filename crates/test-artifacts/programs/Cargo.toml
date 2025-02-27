@@ -41,6 +41,8 @@ members = [
   "uint256-mul",
   "verify-proof",
   "u256x2048-mul",
+  "inner-product",
+  "inner-product_naive",
 ]
 resolver = "2"
 

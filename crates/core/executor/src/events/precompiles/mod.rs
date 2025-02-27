@@ -6,6 +6,7 @@ mod sha256_compress;
 mod sha256_extend;
 mod u256x2048_mul;
 mod uint256;
+mod inner_product;
 
 use super::{MemoryLocalEvent, SyscallEvent};
 use crate::syscalls::SyscallCode;
@@ -21,6 +22,7 @@ pub use sha256_extend::*;
 use strum::{EnumIter, IntoEnumIterator};
 pub use u256x2048_mul::*;
 pub use uint256::*;
+pub use inner_product::*;
 
 #[derive(Clone, Debug, Serialize, Deserialize, EnumIter)]
 /// Precompile event.  There should be one variant for every precompile syscall.
@@ -75,6 +77,8 @@ pub enum PrecompileEvent {
     Uint256Mul(Uint256MulEvent),
     /// U256XU2048 mul precompile event.
     U256xU2048Mul(U256xU2048MulEvent),
+    /// InnerProduct precompile event.
+    InnerProduct(InnerProductEvent),
 }
 
 /// Trait to retrieve all the local memory events from a vec of precompile events.
@@ -133,6 +137,9 @@ impl PrecompileLocalMemory for Vec<(SyscallEvent, PrecompileEvent)> {
                     iterators.push(e.local_mem_access.iter());
                 }
                 PrecompileEvent::Bls12381Fp2Mul(e) | PrecompileEvent::Bn254Fp2Mul(e) => {
+                    iterators.push(e.local_mem_access.iter());
+                }
+                PrecompileEvent::InnerProduct(e) => {
                     iterators.push(e.local_mem_access.iter());
                 }
             }

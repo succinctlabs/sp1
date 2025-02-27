@@ -4,6 +4,7 @@ mod bn254;
 mod ed25519;
 mod fptower;
 mod halt;
+mod inner_product;
 mod io;
 mod keccak_permute;
 mod memory;
@@ -24,6 +25,7 @@ pub use bn254::*;
 pub use ed25519::*;
 pub use fptower::*;
 pub use halt::*;
+pub use inner_product::*;
 pub use io::*;
 pub use keccak_permute::*;
 pub use memory::*;
@@ -157,3 +159,6 @@ pub const BN254_FP2_SUB: u32 = 0x00_01_01_2A;
 
 /// Executes the `BN254_FP2_MUL` precompile.
 pub const BN254_FP2_MUL: u32 = 0x00_01_01_2B;
+
+/// Executes the `INNER_PRODUCT` precompile.
+pub const INNER_PRODUCT: u32 = 0x00_00_01_30;

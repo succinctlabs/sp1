@@ -126,6 +126,8 @@ pub enum RiscvAirId {
     Global = 43,
     /// The byte chip.
     Byte = 44,
+    /// The inner product chip  
+    InnerProduct = 45,
 }
 
 impl RiscvAirId {
@@ -200,6 +202,7 @@ impl RiscvAirId {
             Self::MemoryLocal => "MemoryLocal",
             Self::Global => "Global",
             Self::Byte => "Byte",
+            Self::InnerProduct => "InnerProduct",
         }
     }
 }

@@ -40,6 +40,7 @@ pub(crate) mod riscv_chips {
             chip::SyscallChip,
             precompiles::{
                 edwards::{EdAddAssignChip, EdDecompressChip},
+                inner_product::InnerProductChip,
                 keccak256::KeccakPermuteChip,
                 sha256::{ShaCompressChip, ShaExtendChip},
                 u256x2048_mul::U256x2048MulChip,
@@ -148,6 +149,8 @@ pub enum RiscvAir<F: PrimeField32> {
     Bls12381Double(WeierstrassDoubleAssignChip<SwCurve<Bls12381Parameters>>),
     /// A precompile for uint256 mul.
     Uint256Mul(Uint256MulChip),
+    /// A precompile for inner_product.
+    InnerProduct(InnerProductChip),
     /// A precompile for u256x2048 mul.
     U256x2048Mul(U256x2048MulChip),
     /// A precompile for decompressing a point on the BLS12-381 curve.
@@ -297,6 +300,10 @@ impl<F: PrimeField32> RiscvAir<F> {
         let u256x2048_mul = Chip::new(RiscvAir::U256x2048Mul(U256x2048MulChip::default()));
         costs.insert(u256x2048_mul.name(), u256x2048_mul.cost());
         chips.push(u256x2048_mul);
+
+        let inner_product = Chip::new(RiscvAir::InnerProduct(InnerProductChip::default()));
+        costs.insert(inner_product.name(), inner_product.cost());
+        chips.push(inner_product);
 
         let bls12381_fp = Chip::new(RiscvAir::Bls12381Fp(FpOpChip::<Bls12381BaseField>::new()));
         costs.insert(bls12381_fp.name(), bls12381_fp.cost());
@@ -576,6 +583,7 @@ impl<F: PrimeField32> RiscvAir<F> {
             Self::Sha256Extend(_) => SyscallCode::SHA_EXTEND,
             Self::Uint256Mul(_) => SyscallCode::UINT256_MUL,
             Self::U256x2048Mul(_) => SyscallCode::U256XU2048_MUL,
+            Self::InnerProduct(_) => SyscallCode::INNER_PRODUCT,
             Self::Bls12381Decompress(_) => SyscallCode::BLS12381_DECOMPRESS,
             Self::K256Decompress(_) => SyscallCode::SECP256K1_DECOMPRESS,
             Self::P256Decompress(_) => SyscallCode::SECP256R1_DECOMPRESS,

@@ -1267,6 +1267,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "inner-product"
+version = "1.0.0"
+dependencies = [
+ "num",
+ "num-bigint",
+ "sp1-derive",
+ "sp1-zkvm",
+]
+
+[[package]]
+name = "inner-product_naive"
+version = "1.0.0"
+dependencies = [
+ "num",
+ "num-bigint",
+ "sp1-derive",
+ "sp1-zkvm",
+]
+
+[[package]]
 name = "itertools"
 version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
