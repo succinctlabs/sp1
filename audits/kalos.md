@@ -244,7 +244,7 @@ This allows us to read incorrect previous values - at clock 2, the intuitive pre
 
 The addresses of each row should be enforced to be different - this can be done by constraining that the address increases over the rows via bitwise decomposition. Note that adding this check in the initialize stage only is sufficient to resolve this issue.
 
-Also, the verifier needs to enforce that only one table of `MemoryGlobalChip` exists, so that double initializtion/finalization cannot happen using multiple tables.
+Also, the verifier needs to enforce that only one table of `MemoryGlobalChip` exists, so that double initialization/finalization cannot happen using multiple tables.
 
 As similar vulnerability was found in the Core VM, and similar defenses can be applied here.
 
