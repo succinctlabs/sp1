@@ -6,7 +6,7 @@
 use std::time::{Duration, Instant};
 
 use super::prove::NetworkProveBuilder;
-use super::{DEFAULT_CYCLE_LIMIT, DEFAULT_VM_MEMORY_KB, MEMORY_PER_ADDRESS};
+use super::{BYTES_PER_WORD, DEFAULT_CYCLE_LIMIT, DEFAULT_VM_MEMORY_KB};
 use crate::cpu::execute::CpuExecuteBuilder;
 use crate::cpu::CpuProver;
 use crate::network::proto::network::GetProofRequestStatusResponse;
@@ -357,7 +357,7 @@ impl NetworkProver {
             if final_vm_memory_kb.is_none() {
                 // Convert # of memory addresses to KB
                 final_vm_memory_kb =
-                    Some((execution_report.total_memory_addresses * MEMORY_PER_ADDRESS) / 1000);
+                    Some((execution_report.estimated_max_memory_addresses * BYTES_PER_WORD) / 1000);
             }
         }
 

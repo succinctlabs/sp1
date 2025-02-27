@@ -20,7 +20,7 @@ pub struct ExecutionReport {
     /// The unique memory address counts.
     pub touched_memory_addresses: u64,
     /// The upper limit of total memory addresses created in the memory.
-    pub total_memory_addresses: u64,
+    pub estimated_max_memory_addresses: u64,
 }
 
 impl ExecutionReport {
