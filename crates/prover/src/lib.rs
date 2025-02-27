@@ -302,9 +302,11 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             let est_records = gas::estimated_records(&split_opts, estimator);
             let raw_gas =
                 gas::fit_records_to_shapes(self.core_shape_config.as_ref().unwrap(), est_records)
-                    .map(|shape| {
+                    .enumerate()
+                    .map(|(i, shape)| {
                         let mut shape: Shape<RiscvAirId> = shape.map_err(Box::new)?;
                         shape.extend(preprocessed_shape.iter().map(|(k, v)| (*k, *v)));
+                        tracing::debug!("shape for estimated shard {i}: {:?}", &shape.inner);
                         Ok(gas::predict(enum_map::EnumMap::from_iter(shape).as_array()))
                     })
                     .sum::<Result<_, Box<dyn Error>>>()?;
