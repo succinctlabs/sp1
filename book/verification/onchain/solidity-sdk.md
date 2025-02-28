@@ -37,7 +37,7 @@ contract Fibonacci {
     /// @dev This can either be a specific SP1Verifier for a specific version, or the
     ///      SP1VerifierGateway which can be used to verify proofs for any version of SP1.
     ///      For the list of supported verifiers on each chain, see:
-    ///      [https://docs.succinct.xyz/docs/network/contract-addresses]
+    ///      https://docs.succinct.xyz/docs/network/contract-addresses
     address public verifier;
 
     /// @notice The verification key for the fibonacci program.
