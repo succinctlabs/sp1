@@ -5785,7 +5785,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-build"
+<<<<<<< HEAD
 version = "4.1.1"
+=======
+version = "4.1.0"
+>>>>>>> main
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -5796,7 +5800,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-cli"
+<<<<<<< HEAD
 version = "4.1.1"
+=======
+version = "4.1.0"
+>>>>>>> main
 dependencies = [
  "anstyle",
  "anyhow",
@@ -5825,7 +5833,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-executor"
+<<<<<<< HEAD
 version = "4.1.1"
+=======
+version = "4.1.0"
+>>>>>>> main
 dependencies = [
  "bincode",
  "bytemuck",
@@ -5852,7 +5864,11 @@ dependencies = [
  "serde",
  "serde_json",
  "sp1-curves",
+<<<<<<< HEAD
  "sp1-primitives 4.1.1",
+=======
+ "sp1-primitives 4.1.0",
+>>>>>>> main
  "sp1-stark",
  "sp1-zkvm",
  "strum",
@@ -5868,7 +5884,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-machine"
+<<<<<<< HEAD
 version = "4.1.1"
+=======
+version = "4.1.0"
+>>>>>>> main
 dependencies = [
  "bincode",
  "cbindgen",
@@ -5908,7 +5928,11 @@ dependencies = [
  "sp1-core-executor",
  "sp1-curves",
  "sp1-derive",
+<<<<<<< HEAD
  "sp1-primitives 4.1.1",
+=======
+ "sp1-primitives 4.1.0",
+>>>>>>> main
  "sp1-stark",
  "sp1-zkvm",
  "static_assertions",
@@ -5927,7 +5951,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-cuda"
+<<<<<<< HEAD
 version = "4.1.1"
+=======
+version = "4.1.0"
+>>>>>>> main
 dependencies = [
  "bincode",
  "ctrlc",
@@ -5945,7 +5973,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
+<<<<<<< HEAD
 version = "4.1.1"
+=======
+version = "4.1.0"
+>>>>>>> main
 dependencies = [
  "cfg-if",
  "dashu",
@@ -5960,14 +5992,22 @@ dependencies = [
  "rug",
  "serde",
  "snowbridge-amcl",
+<<<<<<< HEAD
  "sp1-primitives 4.1.1",
+=======
+ "sp1-primitives 4.1.0",
+>>>>>>> main
  "sp1-stark",
  "typenum",
 ]
 
 [[package]]
 name = "sp1-derive"
+<<<<<<< HEAD
 version = "4.1.1"
+=======
+version = "4.1.0"
+>>>>>>> main
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -5975,7 +6015,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-eval"
+<<<<<<< HEAD
 version = "4.1.1"
+=======
+version = "4.1.0"
+>>>>>>> main
 dependencies = [
  "anyhow",
  "bincode",
@@ -5993,7 +6037,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-helper"
+<<<<<<< HEAD
 version = "4.1.1"
+=======
+version = "4.1.0"
+>>>>>>> main
 dependencies = [
  "sp1-build",
 ]
@@ -6011,17 +6059,29 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
+<<<<<<< HEAD
 version = "4.1.1"
+=======
+version = "4.1.0"
+>>>>>>> main
 dependencies = [
  "bincode",
  "elliptic-curve",
  "serde",
+<<<<<<< HEAD
  "sp1-primitives 4.1.1",
+=======
+ "sp1-primitives 4.1.0",
+>>>>>>> main
 ]
 
 [[package]]
 name = "sp1-perf"
+<<<<<<< HEAD
 version = "4.1.1"
+=======
+version = "4.1.0"
+>>>>>>> main
 dependencies = [
  "bincode",
  "clap",
@@ -6059,7 +6119,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
+<<<<<<< HEAD
 version = "4.1.1"
+=======
+version = "4.1.0"
+>>>>>>> main
 dependencies = [
  "bincode",
  "hex",
@@ -6075,7 +6139,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-prover"
+<<<<<<< HEAD
 version = "4.1.1"
+=======
+version = "4.1.0"
+>>>>>>> main
 dependencies = [
  "anyhow",
  "bincode",
@@ -6102,7 +6170,11 @@ dependencies = [
  "sha2 0.10.8",
  "sp1-core-executor",
  "sp1-core-machine",
+<<<<<<< HEAD
  "sp1-primitives 4.1.1",
+=======
+ "sp1-primitives 4.1.0",
+>>>>>>> main
  "sp1-recursion-circuit",
  "sp1-recursion-compiler",
  "sp1-recursion-core",
@@ -6117,7 +6189,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-circuit"
+<<<<<<< HEAD
 version = "4.1.1"
+=======
+version = "4.1.0"
+>>>>>>> main
 dependencies = [
  "ff 0.13.0",
  "hashbrown 0.14.5",
@@ -6143,7 +6219,11 @@ dependencies = [
  "sp1-core-executor",
  "sp1-core-machine",
  "sp1-derive",
+<<<<<<< HEAD
  "sp1-primitives 4.1.1",
+=======
+ "sp1-primitives 4.1.0",
+>>>>>>> main
  "sp1-recursion-compiler",
  "sp1-recursion-core",
  "sp1-recursion-gnark-ffi",
@@ -6155,7 +6235,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-compiler"
+<<<<<<< HEAD
 version = "4.1.1"
+=======
+version = "4.1.0"
+>>>>>>> main
 dependencies = [
  "backtrace",
  "criterion",
@@ -6170,7 +6254,11 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "sp1-core-machine",
+<<<<<<< HEAD
  "sp1-primitives 4.1.1",
+=======
+ "sp1-primitives 4.1.0",
+>>>>>>> main
  "sp1-recursion-core",
  "sp1-recursion-derive",
  "sp1-stark",
@@ -6180,7 +6268,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-core"
+<<<<<<< HEAD
 version = "4.1.1"
+=======
+version = "4.1.0"
+>>>>>>> main
 dependencies = [
  "backtrace",
  "cbindgen",
@@ -6212,7 +6304,11 @@ dependencies = [
  "smallvec",
  "sp1-core-machine",
  "sp1-derive",
+<<<<<<< HEAD
  "sp1-primitives 4.1.1",
+=======
+ "sp1-primitives 4.1.0",
+>>>>>>> main
  "sp1-stark",
  "static_assertions",
  "thiserror 1.0.69",
@@ -6223,7 +6319,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-derive"
+<<<<<<< HEAD
 version = "4.1.1"
+=======
+version = "4.1.0"
+>>>>>>> main
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -6231,7 +6331,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-cli"
+<<<<<<< HEAD
 version = "4.1.1"
+=======
+version = "4.1.0"
+>>>>>>> main
 dependencies = [
  "bincode",
  "clap",
@@ -6240,7 +6344,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-ffi"
+<<<<<<< HEAD
 version = "4.1.1"
+=======
+version = "4.1.0"
+>>>>>>> main
 dependencies = [
  "anyhow",
  "bincode",
@@ -6264,7 +6372,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-sdk"
+<<<<<<< HEAD
 version = "4.1.1"
+=======
+version = "4.1.0"
+>>>>>>> main
 dependencies = [
  "alloy-primitives",
  "alloy-signer",
@@ -6294,7 +6406,11 @@ dependencies = [
  "sp1-core-executor",
  "sp1-core-machine",
  "sp1-cuda",
+<<<<<<< HEAD
  "sp1-primitives 4.1.1",
+=======
+ "sp1-primitives 4.1.0",
+>>>>>>> main
  "sp1-prover",
  "sp1-stark",
  "strum",
@@ -6311,7 +6427,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-stark"
+<<<<<<< HEAD
 version = "4.1.1"
+=======
+version = "4.1.0"
+>>>>>>> main
 dependencies = [
  "arrayref",
  "hashbrown 0.14.5",
@@ -6335,7 +6455,11 @@ dependencies = [
  "rayon-scan",
  "serde",
  "sp1-derive",
+<<<<<<< HEAD
  "sp1-primitives 4.1.1",
+=======
+ "sp1-primitives 4.1.0",
+>>>>>>> main
  "sp1-zkvm",
  "strum",
  "strum_macros",
@@ -6345,7 +6469,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-verifier"
+<<<<<<< HEAD
 version = "4.1.1"
+=======
+version = "4.1.0"
+>>>>>>> main
 dependencies = [
  "ark-bn254",
  "ark-ec",
@@ -6367,7 +6495,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
+<<<<<<< HEAD
 version = "4.1.1"
+=======
+version = "4.1.0"
+>>>>>>> main
 dependencies = [
  "cfg-if",
  "critical-section",
@@ -6379,8 +6511,13 @@ dependencies = [
  "p3-field",
  "rand 0.8.5",
  "sha2 0.10.8",
+<<<<<<< HEAD
  "sp1-lib 4.1.1",
  "sp1-primitives 4.1.1",
+=======
+ "sp1-lib 4.1.0",
+ "sp1-primitives 4.1.0",
+>>>>>>> main
 ]
 
 [[package]]
@@ -6718,7 +6855,11 @@ dependencies = [
 
 [[package]]
 name = "test-artifacts"
+<<<<<<< HEAD
 version = "4.1.1"
+=======
+version = "4.1.0"
+>>>>>>> main
 dependencies = [
  "sp1-build",
 ]

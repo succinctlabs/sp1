@@ -328,7 +328,11 @@ version = "1.1.0"
 dependencies = [
  "common-test-utils",
  "sp1-curves",
+<<<<<<< HEAD
  "sp1-lib 4.1.1",
+=======
+ "sp1-lib 4.1.0",
+>>>>>>> main
  "sp1-zkvm",
 ]
 
@@ -371,7 +375,11 @@ name = "bls12381-mul-test"
 version = "1.1.0"
 dependencies = [
  "sp1-derive",
+<<<<<<< HEAD
  "sp1-lib 4.1.1",
+=======
+ "sp1-lib 4.1.0",
+>>>>>>> main
  "sp1-zkvm",
 ]
 
@@ -381,7 +389,11 @@ version = "1.1.0"
 dependencies = [
  "common-test-utils",
  "sp1-curves",
+<<<<<<< HEAD
  "sp1-lib 4.1.1",
+=======
+ "sp1-lib 4.1.0",
+>>>>>>> main
  "sp1-zkvm",
 ]
 
@@ -424,7 +436,11 @@ name = "bn254-mul-test"
 version = "1.1.0"
 dependencies = [
  "sp1-derive",
+<<<<<<< HEAD
  "sp1-lib 4.1.1",
+=======
+ "sp1-lib 4.1.0",
+>>>>>>> main
  "sp1-zkvm",
 ]
 
@@ -494,7 +510,11 @@ name = "common-test-utils"
 version = "1.1.0"
 dependencies = [
  "num-bigint",
+<<<<<<< HEAD
  "sp1-lib 4.1.1",
+=======
+ "sp1-lib 4.1.0",
+>>>>>>> main
 ]
 
 [[package]]
@@ -2197,7 +2217,11 @@ version = "1.1.0"
 dependencies = [
  "common-test-utils",
  "sp1-curves",
+<<<<<<< HEAD
  "sp1-lib 4.1.1",
+=======
+ "sp1-lib 4.1.0",
+>>>>>>> main
  "sp1-zkvm",
 ]
 
@@ -2233,7 +2257,11 @@ dependencies = [
  "num",
  "p256",
  "sp1-curves",
+<<<<<<< HEAD
  "sp1-lib 4.1.1",
+=======
+ "sp1-lib 4.1.0",
+>>>>>>> main
  "sp1-zkvm",
 ]
 
@@ -2254,7 +2282,11 @@ dependencies = [
  "num",
  "p256",
  "sp1-curves",
+<<<<<<< HEAD
  "sp1-lib 4.1.1",
+=======
+ "sp1-lib 4.1.0",
+>>>>>>> main
  "sp1-zkvm",
 ]
 
@@ -2459,7 +2491,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
+<<<<<<< HEAD
 version = "4.1.1"
+=======
+version = "4.1.0"
+>>>>>>> main
 dependencies = [
  "cfg-if",
  "dashu",
@@ -2479,7 +2515,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
+<<<<<<< HEAD
 version = "4.1.1"
+=======
+version = "4.1.0"
+>>>>>>> main
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -2511,7 +2551,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
+<<<<<<< HEAD
 version = "4.1.1"
+=======
+version = "4.1.0"
+>>>>>>> main
 dependencies = [
  "bincode",
  "elliptic-curve",
@@ -2521,7 +2565,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
+<<<<<<< HEAD
 version = "4.1.1"
+=======
+version = "4.1.0"
+>>>>>>> main
 dependencies = [
  "bincode",
  "hex",
@@ -2537,7 +2585,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-stark"
+<<<<<<< HEAD
 version = "4.1.1"
+=======
+version = "4.1.0"
+>>>>>>> main
 dependencies = [
  "arrayref",
  "hashbrown 0.14.5",
@@ -2570,7 +2622,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
+<<<<<<< HEAD
 version = "4.1.1"
+=======
+version = "4.1.0"
+>>>>>>> main
 dependencies = [
  "cfg-if",
  "getrandom",
@@ -2580,7 +2636,11 @@ dependencies = [
  "p3-field",
  "rand",
  "sha2 0.10.8",
+<<<<<<< HEAD
  "sp1-lib 4.1.1",
+=======
+ "sp1-lib 4.1.0",
+>>>>>>> main
  "sp1-primitives",
 ]
 
