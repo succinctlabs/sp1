@@ -126,7 +126,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
                 let mut row = [F::zero(); NUM_PROGRAM_MULT_COLS];
                 let cols: &mut ProgramMultiplicityCols<F> = row.as_mut_slice().borrow_mut();
                 cols.multiplicity =
-                    F::from_canonical_usize(*instruction_counts.get(&pc).unwrap_or(&0));
+                    F::from_canonical_usize(*instruction_counts.get(&pc).unwrap_or(0));
                 row
             })
             .collect::<Vec<_>>();
