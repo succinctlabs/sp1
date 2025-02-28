@@ -354,6 +354,13 @@ jobs:
         run: |
           find -name Cargo.lock -type f -exec rm {} \;
 
+
+      # We need `cargo prove` to verify the locked version of `sp1-zkvm`
+      - name: Install SP1
+        run: |
+          cd crates/cli
+          cargo install --locked --force --path .
+
       # We need the SP1 toolchain to be installed in order to build test-artifacts
       - name: Install SP1 toolchain
         run: |
