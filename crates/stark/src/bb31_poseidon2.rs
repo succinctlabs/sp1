@@ -52,6 +52,7 @@ pub fn inner_perm() -> InnerPerm {
 }
 
 /// The FRI config for sp1 proofs.
+/// This targets by default 100 bits of security.
 #[must_use]
 pub fn sp1_fri_config() -> FriConfig<InnerChallengeMmcs> {
     let perm = inner_perm();
@@ -60,12 +61,13 @@ pub fn sp1_fri_config() -> FriConfig<InnerChallengeMmcs> {
     let challenge_mmcs = InnerChallengeMmcs::new(InnerValMmcs::new(hash, compress));
     let num_queries = match std::env::var("FRI_QUERIES") {
         Ok(value) => value.parse().unwrap(),
-        Err(_) => 100,
+        Err(_) => 84,
     };
     FriConfig { log_blowup: 1, num_queries, proof_of_work_bits: 16, mmcs: challenge_mmcs }
 }
 
 /// The FRI config for inner recursion.
+/// This targets by default 100 bits of security.
 #[must_use]
 pub fn inner_fri_config() -> FriConfig<InnerChallengeMmcs> {
     let perm = inner_perm();
@@ -74,7 +76,7 @@ pub fn inner_fri_config() -> FriConfig<InnerChallengeMmcs> {
     let challenge_mmcs = InnerChallengeMmcs::new(InnerValMmcs::new(hash, compress));
     let num_queries = match std::env::var("FRI_QUERIES") {
         Ok(value) => value.parse().unwrap(),
-        Err(_) => 100,
+        Err(_) => 84,
     };
     FriConfig { log_blowup: 1, num_queries, proof_of_work_bits: 16, mmcs: challenge_mmcs }
 }
@@ -208,6 +210,7 @@ pub mod baby_bear_poseidon2 {
     }
 
     #[must_use]
+    /// This targets by default 100 bits of security.
     pub fn default_fri_config() -> FriConfig<ChallengeMmcs> {
         let perm = my_perm();
         let hash = MyHash::new(perm.clone());
@@ -215,12 +218,13 @@ pub mod baby_bear_poseidon2 {
         let challenge_mmcs = ChallengeMmcs::new(ValMmcs::new(hash, compress));
         let num_queries = match std::env::var("FRI_QUERIES") {
             Ok(value) => value.parse().unwrap(),
-            Err(_) => 100,
+            Err(_) => 84,
         };
         FriConfig { log_blowup: 1, num_queries, proof_of_work_bits: 16, mmcs: challenge_mmcs }
     }
 
     #[must_use]
+    /// This targets by default 100 bits of security.
     pub fn compressed_fri_config() -> FriConfig<ChallengeMmcs> {
         let perm = my_perm();
         let hash = MyHash::new(perm.clone());
@@ -228,12 +232,13 @@ pub mod baby_bear_poseidon2 {
         let challenge_mmcs = ChallengeMmcs::new(ValMmcs::new(hash, compress));
         let num_queries = match std::env::var("FRI_QUERIES") {
             Ok(value) => value.parse().unwrap(),
-            Err(_) => 50,
+            Err(_) => 42,
         };
         FriConfig { log_blowup: 2, num_queries, proof_of_work_bits: 16, mmcs: challenge_mmcs }
     }
 
     #[must_use]
+    /// This targets by default 100 bits of security.
     pub fn ultra_compressed_fri_config() -> FriConfig<ChallengeMmcs> {
         let perm = my_perm();
         let hash = MyHash::new(perm.clone());
@@ -241,7 +246,7 @@ pub mod baby_bear_poseidon2 {
         let challenge_mmcs = ChallengeMmcs::new(ValMmcs::new(hash, compress));
         let num_queries = match std::env::var("FRI_QUERIES") {
             Ok(value) => value.parse().unwrap(),
-            Err(_) => 33,
+            Err(_) => 28,
         };
         FriConfig { log_blowup: 3, num_queries, proof_of_work_bits: 16, mmcs: challenge_mmcs }
     }
