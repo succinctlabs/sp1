@@ -74,7 +74,7 @@ impl BuildToolchainCmd {
         }
         std::fs::File::create(temp_dir.join("riscv32im-succinct-zkvm-elf.json"))?;
 
-        // Build the toolchain (stage 2).
+        // Build the toolchain.
         Command::new("python3")
             .env("RUST_TARGET_PATH", &temp_dir)
             .env("CARGO_TARGET_RISCV32IM_SUCCINCT_ZKVM_ELF_RUSTFLAGS", "-Cpasses=lower-atomic")
@@ -103,19 +103,6 @@ impl BuildToolchainCmd {
             "Found built toolchain directory at {}.",
             toolchain_dir.as_path().to_str().unwrap()
         );
-
-        // Copy over the stage2-tools-bin directory to the toolchain bin directory.
-        let tools_bin_dir = toolchain_dir.parent().unwrap().join("stage2-tools-bin");
-        if tools_bin_dir.exists() {
-            let target_bin_dir = toolchain_dir.join("bin");
-            for tool in tools_bin_dir.read_dir()? {
-                let tool = tool?;
-                let tool_name = tool.file_name();
-                std::fs::copy(tool.path(), target_bin_dir.join(tool_name))?;
-            }
-        } else {
-            println!("No stage2-tools-bin directory found, skipping copying tools.");
-        }
 
         // Link the toolchain to rustup.
         Command::new("rustup")
