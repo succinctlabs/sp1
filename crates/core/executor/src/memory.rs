@@ -314,6 +314,16 @@ impl<V: Copy> PagedMemory<V> {
         })
     }
 
+    /// Get the exact number of addresses in use. This function iterates through each page
+    /// and is therefore somewhat expensive.
+    pub fn exact_len(&self) -> usize {
+        self.index
+            .iter()
+            .filter(|&&i| i != NO_PAGE)
+            .map(|index| self.page_table[*index as usize].0.iter().filter(|v| v.is_some()).count())
+            .sum()
+    }
+
     /// Estimate the number of addresses in use.
     pub fn estimate_len(&self) -> usize {
         self.index.iter().filter(|&i| *i != NO_PAGE).count() * PAGE_LEN

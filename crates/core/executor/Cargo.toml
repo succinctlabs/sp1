@@ -46,6 +46,7 @@ vec_map = { version = "0.8.2", features = ["serde"] }
 enum-map = { version = "2.7.3", features = ["serde"] }
 clap = { version = "4.5.9", features = ["derive"] }
 subenum = "1.1.2"
+range-set-blaze = "0.1.16"
 
 # profiling
 goblin = { version = "0.9", optional = true }

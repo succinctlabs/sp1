@@ -134,18 +134,30 @@ impl<'a, 'b> SyscallContext<'a, 'b> {
     pub fn postprocess(&mut self) -> Vec<MemoryLocalEvent> {
         let mut syscall_local_mem_events = Vec::new();
 
-        if !self.rt.unconstrained && self.rt.executor_mode == ExecutorMode::Trace {
-            // Will need to transfer the existing memory local events in the executor to it's
-            // record, and return all the syscall memory local events.  This is similar
-            // to what `bump_record` does.
-            for (addr, event) in self.local_memory_access.drain() {
-                let local_mem_access = self.rt.local_memory_access.remove(&addr);
+        if !self.rt.unconstrained {
+            if self.rt.executor_mode == ExecutorMode::Trace {
+                // Will need to transfer the existing memory local events in the executor to it's
+                // record, and return all the syscall memory local events.  This is similar
+                // to what `bump_record` does.
+                for (addr, event) in self.local_memory_access.drain() {
+                    let local_mem_access = self.rt.local_memory_access.remove(&addr);
 
-                if let Some(local_mem_access) = local_mem_access {
-                    self.rt.record.cpu_local_memory_access.push(local_mem_access);
+                    if let Some(local_mem_access) = local_mem_access {
+                        self.rt.record.cpu_local_memory_access.push(local_mem_access);
+                    }
+
+                    syscall_local_mem_events.push(event);
                 }
-
-                syscall_local_mem_events.push(event);
+            }
+            if let Some(estimator) = &mut self.rt.record_estimator {
+                let original_len = estimator.current_touched_compressed_addresses.len();
+                // Remove addresses from the main set that were touched in the precompile.
+                estimator.current_touched_compressed_addresses =
+                    core::mem::take(&mut estimator.current_touched_compressed_addresses)
+                        - &estimator.current_precompile_touched_compressed_addresses;
+                // Add the number of addresses that were removed from the main set.
+                estimator.current_local_mem +=
+                    original_len - estimator.current_touched_compressed_addresses.len();
             }
         }
 

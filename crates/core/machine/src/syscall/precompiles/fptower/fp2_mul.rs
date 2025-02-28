@@ -132,7 +132,7 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2MulAssignChip<P> {
     fn name(&self) -> String {
         match P::FIELD_TYPE {
             FieldType::Bn254 => "Bn254Fp2MulAssign".to_string(),
-            FieldType::Bls12381 => "Bls12831Fp2MulAssign".to_string(),
+            FieldType::Bls12381 => "Bls12381Fp2MulAssign".to_string(),
         }
     }
 

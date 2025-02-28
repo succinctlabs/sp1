@@ -19,6 +19,8 @@ pub struct ExecutionReport {
     pub cycle_tracker: HashMap<String, u64>,
     /// The unique memory address counts.
     pub touched_memory_addresses: u64,
+    /// The gas, if it was calculated.
+    pub gas: Option<u64>,
 }
 
 impl ExecutionReport {
