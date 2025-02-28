@@ -334,7 +334,7 @@ mod tests {
     use super::verify_locked_version;
 
     #[test]
-    fn test_locked_version_mismach() {
+    fn test_locked_version_mismatch() {
         let result = verify_locked_version("./fixtures/fibonacci-old-zkvm", false);
 
         assert!(result.is_err());
