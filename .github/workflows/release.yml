@@ -6,8 +6,6 @@ on:
   push:
     branches:
       - main
-    tags:
-      - "v*.*.*"
   workflow_dispatch:
 
 env:
@@ -41,8 +39,11 @@ jobs:
             echo "tag_name=nightly-${GITHUB_SHA}" >> $GITHUB_OUTPUT
             echo "release_name=Nightly ($(date '+%Y-%m-%d'))" >> $GITHUB_OUTPUT
           elif [[ "${GITHUB_REF_NAME}" == "main" ]]; then
-            echo "tag_name=latest" >> $GITHUB_OUTPUT
-            echo "release_name=Latest" >> $GITHUB_OUTPUT
+            # Parse the version from the `Cargo.toml` file.
+            VERSION=$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[] | select(.name == "sp1-build") | .version')
+
+            echo "tag_name=v${VERSION}" >> $GITHUB_OUTPUT 
+            echo "release_name=v${VERSION}" >> $GITHUB_OUTPUT
           else
             echo "tag_name=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
             echo "release_name=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
