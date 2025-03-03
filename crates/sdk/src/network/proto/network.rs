@@ -37,6 +37,9 @@ pub struct RequestProofRequestBody {
     /// The cycle limit for the request.
     #[prost(uint64, tag = "8")]
     pub cycle_limit: u64,
+    /// The memory limit for the request.
+    #[prost(uint64, tag = "9")]
+    pub vm_memory_kb: u64,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct RequestProofResponse {
@@ -1496,11 +1499,11 @@ pub mod prover_network_client {
             F: tonic::service::Interceptor,
             T::ResponseBody: Default,
             T: tonic::codegen::Service<
-                    http::Request<tonic::body::BoxBody>,
-                    Response = http::Response<
-                        <T as tonic::client::GrpcService<tonic::body::BoxBody>>::ResponseBody,
-                    >,
+                http::Request<tonic::body::BoxBody>,
+                Response = http::Response<
+                    <T as tonic::client::GrpcService<tonic::body::BoxBody>>::ResponseBody,
                 >,
+            >,
             <T as tonic::codegen::Service<http::Request<tonic::body::BoxBody>>>::Error:
                 Into<StdError> + std::marker::Send + std::marker::Sync,
         {

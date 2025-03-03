@@ -6,7 +6,7 @@
 use std::time::{Duration, Instant};
 
 use super::prove::NetworkProveBuilder;
-use super::DEFAULT_CYCLE_LIMIT;
+use super::{BYTES_PER_WORD, DEFAULT_CYCLE_LIMIT, DEFAULT_VM_MEMORY_KB};
 use crate::cpu::execute::CpuExecuteBuilder;
 use crate::cpu::CpuProver;
 use crate::network::proto::network::GetProofRequestStatusResponse;
@@ -18,6 +18,7 @@ use crate::{
 };
 use alloy_primitives::B256;
 use anyhow::Result;
+use sp1_core_executor::ExecutionReport;
 use sp1_core_executor::{SP1Context, SP1ContextBuilder};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{components::CpuProverComponents, SP1Prover, SP1_CIRCUIT_VERSION};
@@ -108,6 +109,7 @@ impl NetworkProver {
             strategy: FulfillmentStrategy::Hosted,
             skip_simulation: false,
             cycle_limit: None,
+            vm_memory_kb: None,
         }
     }
 
@@ -221,6 +223,9 @@ impl NetworkProver {
     /// * `mode`: The proof mode to use for the proof.
     /// * `strategy`: The fulfillment strategy to use for the proof.
     /// * `cycle_limit`: The cycle limit to use for the proof.
+    /// * `vm_memory_kb`: The memory limit for the VM.
+    /// * `timeout`: The timeout for the proof request.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn request_proof(
         &self,
         vk_hash: B256,
@@ -228,6 +233,7 @@ impl NetworkProver {
         mode: ProofMode,
         strategy: FulfillmentStrategy,
         cycle_limit: u64,
+        vm_memory_kb: u64,
         timeout: Option<Duration>,
     ) -> Result<B256> {
         // Get the timeout.
@@ -236,6 +242,7 @@ impl NetworkProver {
         // Log the request.
         log::info!("Requesting proof:");
         log::info!("├─ Cycle limit: {}", cycle_limit);
+        log::info!("├─ VM memory limit: {}KB", vm_memory_kb);
         log::info!("├─ Proof mode: {:?}", mode);
         log::info!("├─ Strategy: {:?}", strategy);
         log::info!("├─ Timeout: {} seconds", timeout_secs);
@@ -252,6 +259,7 @@ impl NetworkProver {
                 strategy,
                 timeout_secs,
                 cycle_limit,
+                vm_memory_kb,
             )
             .await?;
 
@@ -310,6 +318,20 @@ impl NetworkProver {
         }
     }
 
+    fn get_execution_report(&self, elf: &[u8], stdin: &SP1Stdin) -> Result<ExecutionReport> {
+        self.prover
+            .inner()
+            .execute(elf, stdin, SP1Context::default())
+            .map(|(_, report)| report)
+            .map_err(|_| Error::SimulationFailed.into())
+    }
+
+    /// The cycle limit is determined according to the following priority:
+    ///
+    /// 1. If a cycle limit was explicitly set by the requester, use the specified value.
+    /// 2. If simulation is enabled, calculate the limit by simulating the
+    ///    execution of the program. This is the default behavior.
+    /// 3. Otherwise, use the default cycle limit ([`DEFAULT_CYCLE_LIMIT`]).
     #[allow(clippy::too_many_arguments)]
     pub(crate) async fn request_proof_impl(
         &self,
@@ -320,10 +342,35 @@ impl NetworkProver {
         timeout: Option<Duration>,
         skip_simulation: bool,
         cycle_limit: Option<u64>,
+        vm_memory_kb: Option<u64>,
     ) -> Result<B256> {
         let vk_hash = self.register_program(&pk.vk, &pk.elf).await?;
-        let cycle_limit = self.get_cycle_limit(cycle_limit, &pk.elf, stdin, skip_simulation)?;
-        self.request_proof(vk_hash, stdin, mode.into(), strategy, cycle_limit, timeout).await
+
+        let mut final_cycle_limit = cycle_limit;
+        let mut final_vm_memory_kb = vm_memory_kb;
+        if !skip_simulation && (final_cycle_limit.is_none() || final_vm_memory_kb.is_none()) {
+            let execution_report = self.get_execution_report(&pk.elf, stdin)?;
+
+            if final_cycle_limit.is_none() {
+                final_cycle_limit = Some(execution_report.total_instruction_count());
+            }
+            if final_vm_memory_kb.is_none() {
+                // Convert # of memory addresses to KB
+                let bytes = execution_report.estimated_max_memory_words * BYTES_PER_WORD;
+                final_vm_memory_kb = Some((bytes + 1024 - 1) / 1024); // Rounds up to the nearest KB
+            }
+        }
+
+        self.request_proof(
+            vk_hash,
+            stdin,
+            mode.into(),
+            strategy,
+            final_cycle_limit.unwrap_or(DEFAULT_CYCLE_LIMIT),
+            final_vm_memory_kb.unwrap_or(DEFAULT_VM_MEMORY_KB),
+            timeout,
+        )
+        .await
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -336,39 +383,21 @@ impl NetworkProver {
         timeout: Option<Duration>,
         skip_simulation: bool,
         cycle_limit: Option<u64>,
+        vm_memory_kb: Option<u64>,
     ) -> Result<SP1ProofWithPublicValues> {
         let request_id = self
-            .request_proof_impl(pk, stdin, mode, strategy, timeout, skip_simulation, cycle_limit)
+            .request_proof_impl(
+                pk,
+                stdin,
+                mode,
+                strategy,
+                timeout,
+                skip_simulation,
+                cycle_limit,
+                vm_memory_kb,
+            )
             .await?;
         self.wait_proof(request_id, timeout).await
-    }
-
-    /// The cycle limit is determined according to the following priority:
-    ///
-    /// 1. If a cycle limit was explicitly set by the requester, use the specified value.
-    /// 2. If simulation is enabled, calculate the limit by simulating the
-    ///    execution of the program. This is the default behavior.
-    /// 3. Otherwise, use the default cycle limit ([`DEFAULT_CYCLE_LIMIT`]).
-    fn get_cycle_limit(
-        &self,
-        cycle_limit: Option<u64>,
-        elf: &[u8],
-        stdin: &SP1Stdin,
-        skip_simulation: bool,
-    ) -> Result<u64> {
-        if let Some(cycle_limit) = cycle_limit {
-            return Ok(cycle_limit);
-        }
-
-        if skip_simulation {
-            Ok(DEFAULT_CYCLE_LIMIT)
-        } else {
-            self.prover
-                .inner()
-                .execute(elf, stdin, SP1Context::default())
-                .map(|(_, report)| report.total_instruction_count())
-                .map_err(|_| Error::SimulationFailed.into())
-        }
     }
 }
 
@@ -387,7 +416,16 @@ impl Prover<CpuProverComponents> for NetworkProver {
         stdin: &SP1Stdin,
         mode: SP1ProofMode,
     ) -> Result<SP1ProofWithPublicValues> {
-        block_on(self.prove_impl(pk, stdin, mode, FulfillmentStrategy::Hosted, None, false, None))
+        block_on(self.prove_impl(
+            pk,
+            stdin,
+            mode,
+            FulfillmentStrategy::Hosted,
+            None,
+            false,
+            None,
+            None,
+        ))
     }
 }
 
