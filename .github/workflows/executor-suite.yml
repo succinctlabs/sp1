@@ -64,7 +64,6 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: run
-          toolchain: 1.81.0
           args: --release -p sp1-perf --bin sp1-perf-executor -- --program workdir/program.bin --stdin workdir/stdin.bin --executor-mode simple
         env:
           RUST_LOG: info
@@ -117,7 +116,6 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: run
-          toolchain: 1.81.0
           args: --release -p sp1-perf --bin sp1-perf-executor -- --program workdir/program.bin --stdin workdir/stdin.bin --executor-mode checkpoint
         env:
           RUST_LOG: info
@@ -170,7 +168,6 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: run
-          toolchain: 1.81.0
           args: --release -p sp1-perf --bin sp1-perf-executor -- --program workdir/program.bin --stdin workdir/stdin.bin --executor-mode trace
         env:
           RUST_LOG: info

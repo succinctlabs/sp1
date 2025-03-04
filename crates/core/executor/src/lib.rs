@@ -60,6 +60,7 @@ pub use report::*;
 pub use state::*;
 pub use utils::*;
 
+/// Used for testing.
 #[cfg(test)]
 pub mod programs {
     #[allow(dead_code)]

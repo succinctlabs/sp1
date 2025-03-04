@@ -2317,6 +2317,7 @@ mod tests {
 
     /// Runtime needs to be Send so we can use it across async calls.
     fn _assert_runtime_is_send() {
+        #[allow(clippy::used_underscore_items)]
         _assert_send::<Executor>();
     }
 

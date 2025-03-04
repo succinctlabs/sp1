@@ -12,7 +12,8 @@ ENV PATH="/usr/local/go/bin:$PATH"
 WORKDIR /sp1
 
 # Install Rust toolchain
-COPY ./rust-toolchain /sp1/rust-toolchain
+COPY ./rust-toolchain.toml /sp1/rust-toolchain.toml
+RUN rustup install stable
 RUN rustup show
 
 # Copy repo

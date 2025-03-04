@@ -1,10 +1,12 @@
 use alloc::vec::Vec;
 
 use crate::{
+    constants::GROTH16_PROOF_LENGTH,
     converter::{
         unchecked_compressed_x_to_g1_point, unchecked_compressed_x_to_g2_point,
         uncompressed_bytes_to_g1_point, uncompressed_bytes_to_g2_point,
     },
+    error::Error,
     groth16::{Groth16G1, Groth16G2, Groth16Proof, Groth16VerifyingKey},
 };
 
@@ -15,6 +17,10 @@ use super::error::Groth16Error;
 /// The byte slice is represented as 2 uncompressed g1 points, and one uncompressed g2 point,
 /// as outputted from Gnark.
 pub(crate) fn load_groth16_proof_from_bytes(buffer: &[u8]) -> Result<Groth16Proof, Groth16Error> {
+    if buffer.len() < GROTH16_PROOF_LENGTH {
+        return Err(Groth16Error::GeneralError(Error::InvalidData));
+    }
+
     let ar = uncompressed_bytes_to_g1_point(&buffer[..64])?;
     let bs = uncompressed_bytes_to_g2_point(&buffer[64..192])?;
     let krs = uncompressed_bytes_to_g1_point(&buffer[192..256])?;
