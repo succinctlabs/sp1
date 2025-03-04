@@ -17,7 +17,7 @@ pub struct ExecutionReport {
     pub syscall_counts: Box<EnumMap<SyscallCode, u64>>,
     /// The cycle tracker counts.
     pub cycle_tracker: HashMap<String, u64>,
-    /// The invocation tracker counts.
+    /// Tracker for the number of `cycle-tracker-report-*` invocations for a specific label.
     pub invocation_tracker: HashMap<String, u64>,
     /// The unique memory address counts.
     pub touched_memory_addresses: u64,

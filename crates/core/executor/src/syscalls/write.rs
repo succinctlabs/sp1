@@ -161,7 +161,7 @@ fn handle_cycle_tracker_command(rt: &mut Executor, command: CycleTrackerCommand)
         }
         CycleTrackerCommand::ReportEnd(name) => {
             // Attempt to end the cycle tracker and accumulate the total cycles in the fn_name's
-            // entry in the ExecutionReport.
+            // entry in the ExecutionReport. Also increment the number of invocations.
             if let Some(total_cycles) = end_cycle_tracker(rt, &name) {
                 rt.report
                     .cycle_tracker
