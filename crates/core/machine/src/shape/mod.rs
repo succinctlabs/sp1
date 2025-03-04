@@ -88,7 +88,6 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         Ok(())
     }
 
-    /// TODO move this into the executor crate
     pub fn find_shape<R: Shapeable>(
         &self,
         record: &R,
@@ -97,14 +96,12 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             // If this is a packed "core" record where the cpu events are alongisde the memory init and
             // finalize events, try to fix the shape using the tiny shapes.
             ShardKind::PackedCore => {
-                // Get the heights of the core airs in the record.
                 let mut heights = record.core_heights();
                 heights.extend(record.memory_heights());
 
                 let (cluster_index, shape, _) = self
                     .minimal_cluster_shape(self.partial_small_shapes.iter().enumerate(), &heights)
                     .ok_or_else(|| {
-                        // No shape found, so return an error.
                         CoreShapeError::ShapeError(
                             heights
                                 .iter()
@@ -129,11 +126,7 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             }
             ShardKind::Core => {
                 // If this is a normal "core" record, try to fix the shape as such.
-
-                // Get the heights of the core airs in the record.
                 let heights = record.core_heights();
-
-                // Try to find the smallest shape fitting within at least one of the candidate shapes.
                 let log2_shard_size = record.log2_shard_size();
 
                 let (cluster_index, shape, _) = self
@@ -143,7 +136,6 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                             .flat_map(|(_, clusters)| clusters.iter().enumerate()),
                         &heights,
                     )
-                    // No shape found, so return an error.
                     .ok_or_else(|| CoreShapeError::ShapeError(record.debug_stats()))?;
 
                 let shard = record.shard();
@@ -162,8 +154,6 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                 Ok(shape)
             }
             ShardKind::GlobalMemory => {
-                // If the record is a does not have the CPU chip and is a global memory init/finalize
-                // record, try to fix the shape as such.
                 let heights = record.memory_heights();
                 let shape = self
                     .partial_memory_shapes
@@ -172,11 +162,9 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                 Ok(shape)
             }
             ShardKind::Precompile => {
-                // Try to fix the shape as a precompile record.
                 for (&air, (memory_events_per_row, allowed_log2_heights)) in
                     self.partial_precompile_shapes.iter()
                 {
-                    // Filter to check that the shard and shape air match.
                     let Some((height, num_memory_local_events, num_global_events)) =
                         record.precompile_heights().find_map(|x| (x.0 == air).then_some(x.1))
                     else {
@@ -230,7 +218,6 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
     where
         I: IntoIterator<Item = (N, &'a ShapeCluster<RiscvAirId>)>,
     {
-        // Try to find a shape fitting within at least one of the candidate shapes.
         indexed_shape_clusters
             .into_iter()
             .filter_map(|(i, cluster)| {
@@ -238,17 +225,15 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                 let area = self.estimate_lde_size(&shape);
                 Some((i, shape, area))
             })
-            .min_by_key(|x| x.2) // Find minimum by area.
+            .min_by_key(|x| x.2)
     }
 
-    // TODO: this function is atrocious, fix this
     fn get_precompile_shapes(
         &self,
         air_id: RiscvAirId,
         memory_events_per_row: usize,
         allowed_log2_height: usize,
     ) -> Vec<[(String, usize); 4]> {
-        // TODO: This is a temporary fix to the shape, concretely fix this
         (1..=4 * air_id.rows_per_event())
             .rev()
             .map(|rows_per_event| {
@@ -317,9 +302,9 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         memory_heights.extend(preprocessed_heights.clone());
 
         let precompile_only_shapes = self.partial_precompile_shapes.iter().flat_map(
-            move |(&air, (mem_events_per_row, allowed_log_heights))| {
-                allowed_log_heights.iter().flat_map(move |allowed_log_height| {
-                    self.get_precompile_shapes(air, *mem_events_per_row, *allowed_log_height)
+            move |(&air, (mem_events_per_row, allowed_log2_heights))| {
+                allowed_log2_heights.iter().flat_map(move |allowed_log2_height| {
+                    self.get_precompile_shapes(air, *mem_events_per_row, *allowed_log2_height)
                 })
             },
         );
@@ -401,11 +386,11 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
             .collect::<HashMap<_, _>>();
 
         let precompile_only_shapes = self.partial_precompile_shapes.iter().flat_map(
-            move |(&air, (mem_events_per_row, allowed_log_heights))| {
+            move |(&air, (mem_events_per_row, allowed_log2_heights))| {
                 self.get_precompile_shapes(
                     air,
                     *mem_events_per_row,
-                    *allowed_log_heights.last().unwrap(),
+                    *allowed_log2_heights.last().unwrap(),
                 )
             },
         );
@@ -429,7 +414,6 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         shape.iter().map(|(air, height)| self.costs[air] * (1 << height)).sum()
     }
 
-    // TODO: cleanup..
     pub fn small_program_shapes(&self) -> Vec<OrderedShape> {
         self.partial_small_shapes
             .iter()
@@ -452,35 +436,27 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
 
 impl<F: PrimeField32> Default for CoreShapeConfig<F> {
     fn default() -> Self {
-        // Load the maximal shapes.
         let maximal_shapes: BTreeMap<usize, Vec<Shape<RiscvAirId>>> =
             serde_json::from_slice(MAXIMAL_SHAPES).unwrap();
         let small_shapes: Vec<Shape<RiscvAirId>> = serde_json::from_slice(SMALL_SHAPES).unwrap();
 
-        // Set the allowed preprocessed log2 heights.
         let allowed_preprocessed_log2_heights = HashMap::from([
             (RiscvAirId::Program, vec![Some(19), Some(20), Some(21), Some(22)]),
             (RiscvAirId::Byte, vec![Some(16)]),
         ]);
 
-        // Generate the clusters from the maximal shapes and register them indexed by log2 shard
-        //  size.
+        let mut core_allowed_log2_heights = BTreeMap::new();
         let blacklist = [
             27, 33, 47, 68, 75, 102, 104, 114, 116, 118, 137, 138, 139, 144, 145, 153, 155, 157,
             158, 169, 170, 171, 184, 185, 187, 195, 216, 243, 252, 275, 281, 282, 285,
         ];
-        let mut core_allowed_log2_heights = BTreeMap::new();
         for (log2_shard_size, maximal_shapes) in maximal_shapes {
             let mut clusters = vec![];
 
             for (i, maximal_shape) in maximal_shapes.iter().enumerate() {
-                // WARNING: This must be tuned carefully.
-                //
-                // This is current hardcoded, but in the future it should be computed dynamically.
                 if log2_shard_size == 21 && blacklist.contains(&i) {
                     continue;
                 }
-
                 let cluster = derive_cluster_from_maximal_shape(maximal_shape);
                 clusters.push(cluster);
             }
@@ -488,21 +464,17 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
             core_allowed_log2_heights.insert(log2_shard_size, clusters);
         }
 
-        // Set the memory init and finalize heights.
-        let memory_allowed_log2_heights = HashMap::from(
-            [
-                (
-                    RiscvAirId::MemoryGlobalInit,
-                    vec![None, Some(10), Some(16), Some(18), Some(19), Some(20), Some(21)],
-                ),
-                (
-                    RiscvAirId::MemoryGlobalFinalize,
-                    vec![None, Some(10), Some(16), Some(18), Some(19), Some(20), Some(21)],
-                ),
-                (RiscvAirId::Global, vec![None, Some(11), Some(17), Some(19), Some(21), Some(22)]),
-            ]
-            .map(|(air, log_heights)| (air, log_heights)),
-        );
+        let memory_allowed_log2_heights = HashMap::from([
+            (
+                RiscvAirId::MemoryGlobalInit,
+                vec![None, Some(10), Some(16), Some(18), Some(19), Some(20), Some(21)],
+            ),
+            (
+                RiscvAirId::MemoryGlobalFinalize,
+                vec![None, Some(10), Some(16), Some(18), Some(19), Some(20), Some(21)],
+            ),
+            (RiscvAirId::Global, vec![None, Some(11), Some(17), Some(19), Some(21), Some(22)]),
+        ]);
 
         let mut precompile_allowed_log2_heights = HashMap::new();
         let precompile_heights = (3..21).collect::<Vec<_>>();
@@ -531,7 +503,6 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
 }
 
 fn derive_cluster_from_maximal_shape(shape: &Shape<RiscvAirId>) -> ShapeCluster<RiscvAirId> {
-    // We first define a heuristic to derive the log heights from the maximal shape.
     let log2_gap_from_21 = 21 - shape.log2_height(&RiscvAirId::Cpu).unwrap();
     let min_log2_height_threshold = 18 - log2_gap_from_21;
     let log2_height_buffer = 10;
@@ -656,18 +627,11 @@ pub mod tests {
         let program = create_dummy_program(shape);
         let record = create_dummy_record(shape);
 
-        // Try doing setup.
         let (pk, _) = prover.setup(&program);
-
-        // Try to generate traces.
         let main_traces = prover.generate_traces(&record);
-
-        // Try to commit the traces.
         let main_data = prover.commit(&record, main_traces);
 
         let mut challenger = prover.machine().config().challenger();
-
-        // Try to "open".
         prover.open(&pk, main_data, &mut challenger).unwrap();
     }
 
@@ -713,7 +677,6 @@ pub mod tests {
 
         let shape = Shape::new(height_map);
 
-        // Try generating preprocessed traces.
         let config = SC::default();
         let machine = A::machine(config);
         let prover = CpuProver::new(machine);
