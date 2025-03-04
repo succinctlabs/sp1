@@ -22,7 +22,9 @@ pub(crate) struct Params<const N: usize> {
     pub intercept: f64,
 }
 
-pub(crate) const OVERHEAD: f64 = 140.21;
+pub(crate) const APPROX_CYCLES_PER_RAW_GAS: f64 = 1492.48790519;
+
+pub(crate) const OVERHEAD: f64 = 377.91;
 
 pub(crate) const PARAMS: Params<INPUT_SIZE> = Params {
     mean: [

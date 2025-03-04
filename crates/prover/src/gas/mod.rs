@@ -40,7 +40,7 @@ pub enum GasError {
 }
 
 pub fn final_transform(raw_gas: f64) -> Result<u64, GasError> {
-    let raw_gas = (raw_gas + OVERHEAD).round();
+    let raw_gas = (APPROX_CYCLES_PER_RAW_GAS * (raw_gas + OVERHEAD)).round();
     if !raw_gas.is_finite() {
         Err(GasError::NonFinite(raw_gas))
     } else if raw_gas.is_sign_negative() {
