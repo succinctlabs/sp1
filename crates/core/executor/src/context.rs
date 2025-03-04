@@ -33,7 +33,7 @@ pub struct SP1Context<'a> {
     pub calculate_gas: bool,
 }
 
-impl<'a> Default for SP1Context<'a> {
+impl Default for SP1Context<'_> {
     fn default() -> Self {
         Self::builder().build()
     }
