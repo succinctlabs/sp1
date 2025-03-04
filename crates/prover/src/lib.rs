@@ -357,7 +357,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 runtime.record_estimator.as_ref().unwrap(),
             );
             runtime.report.gas = gas
-                .inspect(|g| tracing::info!("Gas: {}", g))
+                .inspect(|g| tracing::info!("gas: {}", g))
                 .inspect_err(|e| tracing::error!("Encountered error while calculating gas: {}", e))
                 .ok();
         }

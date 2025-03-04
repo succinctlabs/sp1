@@ -67,6 +67,9 @@ impl Add for ExecutionReport {
 
 impl Display for ExecutionReport {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        if let Some(gas) = self.gas {
+            writeln!(f, "gas: {gas}")?;
+        }
         writeln!(f, "opcode counts ({} total instructions):", self.total_instruction_count())?;
         for line in generate_execution_report(self.opcode_counts.as_ref()) {
             writeln!(f, "  {line}")?;
