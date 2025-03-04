@@ -134,7 +134,7 @@ struct CoreShard<'a> {
     record: &'a EnumMap<RiscvAirId, u64>,
 }
 
-impl<'a> Shapeable for CoreShard<'a> {
+impl Shapeable for CoreShard<'_> {
     fn kind(&self) -> ShardKind {
         let contains_cpu = self.record[RiscvAirId::Cpu] > 0;
         let contains_global_memory = self.record[RiscvAirId::MemoryGlobalInit] > 0
