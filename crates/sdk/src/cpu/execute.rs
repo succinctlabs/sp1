@@ -113,6 +113,37 @@ impl<'a> CpuExecuteBuilder<'a> {
         self
     }
 
+    /// Whether to enable gas calculation in the executor.
+    ///
+    /// # Arguments
+    /// * `value` - Whether to enable gas calculation in the executor.
+    ///
+    /// # Details
+    /// Default: `true`. If set to `false`, the executor will not calculate gas.
+    /// This is useful for reducing the execution time of the program, since gas calculation
+    /// must perform extra work to simulate parts of the proving process.
+    ///
+    /// Gas may be retrieved through the [`ExecutionReport`] available through [`Self::run`].
+    /// It will be `None` if and only if this option is disabled.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().cpu().build();
+    /// let builder = client.execute(elf, &stdin)
+    ///     .calculate_gas(false)
+    ///     .run();
+    /// ```
+    #[must_use]
+    pub fn calculate_gas(mut self, value: bool) -> Self {
+        self.context_builder.calculate_gas(value);
+        self
+    }
+
     /// Executes the program on the input with the built arguments.
     ///
     /// # Details
