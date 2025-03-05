@@ -1,5 +1,6 @@
 use std::time::Duration;
-use tonic::transport::{ClientTlsConfig, Endpoint, Error};
+use tokio::sync::OnceCell;
+use tonic::transport::{Channel, ClientTlsConfig, Endpoint, Error};
 
 /// Configures the endpoint for the gRPC client.
 ///
@@ -21,4 +22,31 @@ pub fn configure_endpoint(addr: &str) -> Result<Endpoint, Error> {
     }
 
     Ok(endpoint)
+}
+
+/// Creates a reusable channel for gRPC connections
+pub async fn create_persistent_channel(addr: &str) -> Result<Channel, Error> {
+    let endpoint = configure_endpoint(addr)?;
+    endpoint.connect().await
+}
+
+/// A thread-safe wrapper for managing a persistent gRPC channel
+pub struct GrpcClient {
+    channel: OnceCell<Channel>,
+    addr: String,
+}
+
+impl GrpcClient {
+    pub fn new(addr: String) -> Self {
+        Self { channel: OnceCell::new(), addr }
+    }
+
+    /// Gets or initializes the channel
+    pub async fn get_channel(&self) -> Result<Channel, Error> {
+        let channel = self
+            .channel
+            .get_or_try_init(|| async { create_persistent_channel(&self.addr).await })
+            .await?;
+        Ok(channel.clone())
+    }
 }
