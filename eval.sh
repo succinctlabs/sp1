@@ -30,7 +30,11 @@ for program in "${programs[@]}"; do
 
     echo "Building $program done"
     elf_path="${program_directory}/elf/riscv32im-succinct-zkvm-elf"
-
+    if [ ! -f "$elf_path" ]; then
+        echo "ERROR: ELF file not found at $elf_path, skipping $program..."
+        continue
+    fi
+    
     cd "${root_directory}/eval"
     for hash_fn in "${hash_functions[@]}"; do
         for shard_size in "${shard_sizes[@]}"; do
