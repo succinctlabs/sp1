@@ -24,3 +24,4 @@ pub use error::*;
 pub(crate) const DEFAULT_NETWORK_RPC_URL: &str = "https://rpc.production.succinct.xyz/";
 pub(crate) const DEFAULT_TIMEOUT_SECS: u64 = 14400;
 pub(crate) const DEFAULT_CYCLE_LIMIT: u64 = 100_000_000;
+pub(crate) const DEFAULT_GAS_LIMIT: u64 = 100_000_000;
