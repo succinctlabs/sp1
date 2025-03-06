@@ -82,7 +82,14 @@ where
                 } else {
                     // Check for common transport errors.
                     let error_msg = e.to_string().to_lowercase();
-                    let is_transient = error_msg.contains("tls handshake") ||
+                    let error_debug_msg = format!("{e:?}");
+
+                    if error_debug_msg.contains("no native certs found") {
+                        log::error!("Permanent error when {}: no native certs found", operation_name);
+                        Err(BackoffError::permanent(e))
+                    }
+                    else {
+                        let is_transient =  error_msg.contains("tls handshake") ||
                         error_msg.contains("dns error") ||
                         error_msg.contains("connection reset") ||
                         error_msg.contains("broken pipe") ||
@@ -91,16 +98,17 @@ where
                         error_msg.contains("timeout") ||
                         error_msg.contains("deadline exceeded");
 
-                    if is_transient {
-                        log::warn!(
-                            "Transient transport error when {}: {}, retrying...",
-                            operation_name,
-                            error_msg
-                        );
-                        Err(BackoffError::transient(e))
-                    } else {
-                        log::error!("Permanent error when {}: {}", operation_name, error_msg);
-                        Err(BackoffError::permanent(e))
+                        if is_transient {
+                            log::warn!(
+                                "Transient transport error when {}: {}, retrying...",
+                                operation_name,
+                                error_msg
+                            );
+                            Err(BackoffError::transient(e))
+                        } else {
+                            log::error!("Permanent error when {}: {}", operation_name, error_msg);
+                            Err(BackoffError::permanent(e))
+                        }
                     }
                 }
             }
