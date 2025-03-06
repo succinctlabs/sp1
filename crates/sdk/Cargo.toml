@@ -55,7 +55,7 @@ alloy-signer-local = { version = "0.11", default-features = false, optional = tr
 backoff = { version = "0.4", features = ["tokio"], optional = true }
 
 [dev-dependencies]
-test-artifacts = { workspace = true }
+test-artifacts = { path = "../test-artifacts" }
 tokio-test = { version = "0.4"}
 
 [features]
