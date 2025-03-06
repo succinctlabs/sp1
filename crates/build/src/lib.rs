@@ -7,7 +7,7 @@ pub use command::TOOLCHAIN_NAME;
 
 use clap::Parser;
 
-const DEFAULT_DOCKER_TAG: &str = env!("CARGO_PKG_VERSION");
+const DEFAULT_DOCKER_TAG: &str = concat!("v", env!("CARGO_PKG_VERSION"));
 const BUILD_TARGET: &str = "riscv32im-succinct-zkvm-elf";
 const HELPER_TARGET_SUBDIR: &str = "elf-compilation";
 
@@ -85,7 +85,7 @@ impl Default for BuildArgs {
     fn default() -> Self {
         Self {
             docker: false,
-            tag: format!("v{}", DEFAULT_DOCKER_TAG),
+            tag: DEFAULT_DOCKER_TAG.to_string(),
             features: vec![],
             rustflags: vec![],
             ignore_rust_version: false,
