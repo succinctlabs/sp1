@@ -378,7 +378,6 @@ impl NetworkProver {
         stdin: &SP1Stdin,
         skip_simulation: bool,
     ) -> Result<(u64, u64)> {
-        // Handle case where cycle_limit is explicitly provided
         let cycle_limit_value = if let Some(cycles) = cycle_limit {
             cycles
         } else if skip_simulation {
@@ -388,7 +387,6 @@ impl NetworkProver {
             0
         };
 
-        // Handle case where gas_limit is explicitly provided
         let gas_limit_value = if let Some(gas) = gas_limit {
             gas
         } else if skip_simulation {
