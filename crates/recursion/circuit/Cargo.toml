@@ -42,7 +42,7 @@ rayon = "1.10.0"
 
 [dev-dependencies]
 sp1-core-executor = { path = "../../core/executor" }
-sp1-recursion-core = { path = "../core" }
+sp1-recursion-core = { path = "../core", features = ["program_validation"] }
 ff = { version = "0.13", features = ["derive", "derive_bits"] }
 p3-challenger = { workspace = true }
 p3-symmetric = { workspace = true }
