@@ -50,7 +50,7 @@ jobs:
           fi
 
       # Creates a tag for this release.
-      - name: Create build-specific nightly tag
+      - name: Create build-specific tag
         uses: actions/github-script@v7
         env:
           TAG_NAME: ${{ steps.release_info.outputs.tag_name }}
@@ -217,14 +217,14 @@ jobs:
           fi
 
       # Creates the release for this specific version
-      # If this is for latest, this will override the files there, but not change the commit to the current main.
-      # todo(n): change this to override the commit as well somehow.
+      # Note: If this CI job runs again on the same tag, 
+      # it will override the files there, but not change the commit to the current main.
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
           name: ${{ needs.prepare.outputs.release_name }}
           tag_name: ${{ needs.prepare.outputs.tag_name }}
-          prerelease: ${{ env.IS_NIGHTLY || needs.prepare.outputs.tag_name == 'latest' }}
+          prerelease: ${{ env.IS_NIGHTLY }}
           body: ${{ needs.prepare.outputs.changelog }}
           files: |
             ${{ steps.artifacts.outputs.file_name }}
