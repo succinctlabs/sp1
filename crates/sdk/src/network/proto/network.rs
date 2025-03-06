@@ -1842,7 +1842,7 @@ pub struct SubmitEthBlockMetadataBody {
     /// The account nonce of the sender.
     #[prost(uint64, tag = "1")]
     pub nonce: u64,
-    /// The request identifer for which this metadata is for.
+    /// The request identifier for which this metadata is for.
     #[prost(bytes = "vec", tag = "2")]
     pub request_id: ::prost::alloc::vec::Vec<u8>,
     /// The chain identifier.
