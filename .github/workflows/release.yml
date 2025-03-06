@@ -30,8 +30,8 @@ jobs:
         with:
           pull_token: ${{ secrets.PULL_TOKEN }}
 
-      # If it's a nightly release, tag with the release time. If the tag is `main`, we want to use
-      # `latest` as the tag name. else, use the tag name as is.
+      # If it's a nightly release, tag with the release time. If the tag is `main`,
+      # we want to use the version from the `Cargo.toml` file.
       - name: Compute release name and tag
         id: release_info
         run: |
