@@ -211,7 +211,7 @@ pub struct LocalCounts {
     pub local_mem: usize,
 }
 
-/// Errors that the [``Executor``] can throw.
+/// Errors that the [`Executor`] can throw.
 #[derive(Error, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ExecutionError {
     /// The execution failed with a non-zero exit code.
@@ -248,7 +248,7 @@ pub enum ExecutionError {
 }
 
 impl<'a> Executor<'a> {
-    /// Create a new [``Executor``] from a program and options.
+    /// Create a new [`Executor`] from a program and options.
     #[must_use]
     pub fn new(program: Program, opts: SP1CoreOpts) -> Self {
         Self::with_context(program, opts, SP1Context::default())
