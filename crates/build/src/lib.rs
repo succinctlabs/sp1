@@ -7,7 +7,11 @@ pub use command::TOOLCHAIN_NAME;
 
 use clap::Parser;
 
-const DEFAULT_DOCKER_TAG: &str = concat!("v", env!("CARGO_PKG_VERSION"));
+// todo!(n): Remove this for v4 and change it back to `SP1_CIRCUIT_VERSION`.
+// This is convenient because everything else (circuit artifacts) use rc.3 still.
+/// This is the minimum version of the Docker image that supports the 1.82 `succinct` toolchain.
+const MIN_SP1_1_82_SUPPORT_TAG: &str = "v4.0.0-rc.10";
+
 const BUILD_TARGET: &str = "riscv32im-succinct-zkvm-elf";
 const HELPER_TARGET_SUBDIR: &str = "elf-compilation";
 
@@ -27,7 +31,7 @@ pub struct BuildArgs {
     #[clap(
         long,
         help = "The ghcr.io/succinctlabs/sp1 image tag to use when building with Docker.",
-        default_value = DEFAULT_DOCKER_TAG
+        default_value = MIN_SP1_1_82_SUPPORT_TAG
     )]
     pub tag: String,
     #[clap(
@@ -85,7 +89,7 @@ impl Default for BuildArgs {
     fn default() -> Self {
         Self {
             docker: false,
-            tag: DEFAULT_DOCKER_TAG.to_string(),
+            tag: MIN_SP1_1_82_SUPPORT_TAG.to_string(),
             features: vec![],
             rustflags: vec![],
             ignore_rust_version: false,

@@ -137,15 +137,7 @@ main() {
     determine_architecture
 
     # Compute the URL of the release tarball in the sp1 repository.
-    if [[ "$SP1UP_TAG" == "latest" ]]; then
-      # <https://docs.github.com/en/repositories/releasing-projects-on-github/linking-to-releases>
-      RELEASE_URL="https://github.com/${SP1UP_REPO}/releases/latest/download/"
-      # Get the actual version from the release API
-      SP1UP_VERSION=$(curl -s https://api.github.com/repos/${SP1UP_REPO}/releases/latest | jq -r .tag_name)
-    else
-      RELEASE_URL="https://github.com/${SP1UP_REPO}/releases/download/${SP1UP_TAG}/"
-    fi
-
+    RELEASE_URL="https://github.com/${SP1UP_REPO}/releases/download/${SP1UP_TAG}/"
     BIN_ARCHIVE_URL="${RELEASE_URL}cargo_prove_${SP1UP_VERSION}_${PLATFORM}_${ARCHITECTURE}.$EXT"
 
     check_url "$BIN_ARCHIVE_URL" "binary"
