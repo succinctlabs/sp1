@@ -196,6 +196,8 @@ jobs:
           PLATFORM_NAME: ${{ matrix.platform }}
           TARGET: ${{ matrix.target }}
           ARCH: ${{ matrix.arch }}
+          # NOTE: SP1UP Relies on the version name being the tag name, 
+          # DO NOT CHANGE THIS WITHOUT UPDATING SP1UP TOO.
           VERSION_NAME: ${{ (env.IS_NIGHTLY && 'nightly') || needs.prepare.outputs.tag_name }}
         shell: bash
         run: |
