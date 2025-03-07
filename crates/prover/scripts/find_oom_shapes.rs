@@ -12,10 +12,8 @@ use sp1_stark::shape::Shape;
 struct Args {
     #[arg(short, long)]
     maximal_shapes_json: Option<PathBuf>,
-    
     #[arg(short, long)]
     small_shapes_json: Option<PathBuf>,
-    
     #[arg(short, long)]
     lde_threshold_bytes: usize,
 }
