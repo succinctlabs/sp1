@@ -123,7 +123,7 @@ fn main() {
     for s3_path in program_list {
         // Download program and stdin files from S3.
         tracing::info!("download elf and input for {}", s3_path);
-        
+
         // Download program.bin.
         let status = std::process::Command::new("aws")
             .args([
@@ -151,7 +151,7 @@ fn main() {
         if !status.success() {
             panic!("Failed to download stdin.bin from S3");
         }
-        
+
         // Read the program and stdin.
         let elf = std::fs::read("program.bin").expect("failed to read program");
         let stdin = std::fs::read("stdin.bin").expect("failed to read stdin");
@@ -181,7 +181,7 @@ fn main() {
         std::fs::remove_file("stdin.bin").expect("failed to remove stdin.bin");
     }
     drop(tx);
-    
+
     // As the shapes are collected, update the maximal shapes.
     for (log_shard_size, s3_path, collected_maximal_shapes) in rx {
         let current_maximal_shapes = all_maximal_shapes.entry(log_shard_size).or_default();
@@ -197,7 +197,7 @@ fn main() {
             log_shard_size
         );
     }
-    
+
     // Print the total number of maximal shapes.
     for log_shard_size in args.shard_sizes {
         tracing::info!(
@@ -206,7 +206,7 @@ fn main() {
             log_shard_size
         );
     }
-    
+
     // Write the maximal shapes to the output file.
     if let Some(output) = args.output {
         let output = if !output.to_string_lossy().ends_with(".json") {
