@@ -62,7 +62,7 @@ fn collect_maximal_shapes(
     maximal_shapes
 }
 
-fn insert(inner: &mut Vec<Shape<RiscvAirId>>, element: Shape<RiscvAirId>>) {
+fn insert(inner: &mut Vec<Shape<RiscvAirId>>, element: Shape<RiscvAirId>) {
     let mut to_remove = vec![];
     for (i, maximal_element) in inner.iter().enumerate() {
         match PartialOrd::partial_cmp(&element, maximal_element) {
@@ -121,8 +121,10 @@ fn main() {
     let (tx, rx) = mpsc::sync_channel(10);
     let program_list = args.list;
     for s3_path in program_list {
+        // Download program and stdin files from S3.
         tracing::info!("download elf and input for {}", s3_path);
-
+        
+        // Download program.bin.
         let status = std::process::Command::new("aws")
             .args([
                 "s3",
@@ -136,6 +138,7 @@ fn main() {
             panic!("Failed to download program.bin from S3");
         }
 
+        // Download stdin.bin.
         let status = std::process::Command::new("aws")
             .args([
                 "s3",
@@ -148,11 +151,13 @@ fn main() {
         if !status.success() {
             panic!("Failed to download stdin.bin from S3");
         }
-
+        
+        // Read the program and stdin.
         let elf = std::fs::read("program.bin").expect("failed to read program");
         let stdin = std::fs::read("stdin.bin").expect("failed to read stdin");
         let stdin: SP1Stdin = bincode::deserialize(&stdin).expect("failed to deserialize stdin");
 
+        // Collect the maximal shapes for each shard size.
         for &log_shard_size in args.shard_sizes.iter() {
             let tx = tx.clone();
             let elf = elf.clone();
@@ -176,7 +181,8 @@ fn main() {
         std::fs::remove_file("stdin.bin").expect("failed to remove stdin.bin");
     }
     drop(tx);
-
+    
+    // As the shapes are collected, update the maximal shapes.
     for (log_shard_size, s3_path, collected_maximal_shapes) in rx {
         let current_maximal_shapes = all_maximal_shapes.entry(log_shard_size).or_default();
         for shape in collected_maximal_shapes {
@@ -191,7 +197,8 @@ fn main() {
             log_shard_size
         );
     }
-
+    
+    // Print the total number of maximal shapes.
     for log_shard_size in args.shard_sizes {
         tracing::info!(
             "there are {} maximal shapes in total for log shard size {}",
@@ -199,7 +206,8 @@ fn main() {
             log_shard_size
         );
     }
-
+    
+    // Write the maximal shapes to the output file.
     if let Some(output) = args.output {
         let output = if !output.to_string_lossy().ends_with(".json") {
             output.with_extension("json")
