@@ -7,15 +7,15 @@ use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAir, utils::setup_logger};
 use sp1_stark::{shape::Shape, SP1CoreOpts};
 
 #[derive(Parser, Debug)]
-#[clap(author, version, about, long_about = None)]
+#[command(author, version, about, long_about = None)]
 struct Args {
-    #[clap(short, long, value_delimiter = ' ')]
+    #[arg(short, long, value_delimiter = ' ')]
     list: Vec<String>,
-    #[clap(short, long, value_delimiter = ' ')]
+    #[arg(short, long, value_delimiter = ' ')]
     shard_sizes: Vec<usize>,
-    #[clap(short, long)]
+    #[arg(short, long)]
     initial: Option<PathBuf>,
-    #[clap(short, long, default_value = "maximal_shapes.json")]
+    #[arg(short, long, default_value = "maximal_shapes.json")]
     output: Option<PathBuf>,
 }
 
@@ -25,7 +25,6 @@ fn collect_maximal_shapes(
     opts: SP1CoreOpts,
     context: SP1Context,
 ) -> Vec<Shape<RiscvAirId>> {
-    // Setup the executor.
     let program = Program::from(elf).unwrap();
     let mut executor = Executor::with_context(program, opts, context);
     executor.write_vecs(&stdin.buffer);
@@ -33,13 +32,11 @@ fn collect_maximal_shapes(
         executor.write_proof(proof.clone(), vkey.clone());
     }
 
-    // Use this to make sure we don't collect too many shapes that will just OOM out of the box.
     if opts.shard_size == 1 << 22 {
         executor.lde_size_check = true;
         executor.lde_size_threshold = 14 * 1_000_000_000;
     }
 
-    // Collect the maximal shapes.
     let mut maximal_shapes = Vec::new();
     let mut finished = false;
     while !finished {
@@ -50,7 +47,7 @@ fn collect_maximal_shapes(
                 let _ = record.defer();
                 let core_shape: Shape<RiscvAirId> = RiscvAir::<BabyBear>::core_heights(&record)
                     .into_iter()
-                    .filter(|&(_, height)| (height != 0))
+                    .filter(|&(_, height)| height != 0)
                     .map(|(air, height)| (air, height.next_power_of_two().ilog2() as usize))
                     .collect();
 
@@ -82,16 +79,12 @@ fn insert(inner: &mut Vec<Shape<RiscvAirId>>, element: Shape<RiscvAirId>) {
 }
 
 fn main() {
-    // Setup logger.
     setup_logger();
 
-    // Parse arguments.
     let args = Args::parse();
 
-    // Setup the options.
     let mut opts = SP1CoreOpts { shard_batch_size: 1, ..Default::default() };
 
-    // Load the initial maximal shapes.
     let mut all_maximal_shapes: BTreeMap<usize, Vec<Shape<RiscvAirId>>> =
         if let Some(initial) = args.initial {
             let initial = if !initial.to_string_lossy().ends_with(".json") {
@@ -108,7 +101,6 @@ fn main() {
             BTreeMap::new()
         };
 
-    // Print the initial maximal shapes.
     for log_shard_size in args.shard_sizes.iter() {
         tracing::info!(
             "there are {} initial maximal shapes for log shard size {}",
@@ -117,14 +109,11 @@ fn main() {
         );
     }
 
-    // For each program, collect the maximal shapes.
     let (tx, rx) = mpsc::sync_channel(10);
     let program_list = args.list;
     for s3_path in program_list {
-        // Download program and stdin files from S3.
         tracing::info!("download elf and input for {}", s3_path);
 
-        // Download program.bin.
         let status = std::process::Command::new("aws")
             .args([
                 "s3",
@@ -138,7 +127,6 @@ fn main() {
             panic!("Failed to download program.bin from S3");
         }
 
-        // Download stdin.bin.
         let status = std::process::Command::new("aws")
             .args([
                 "s3",
@@ -152,12 +140,10 @@ fn main() {
             panic!("Failed to download stdin.bin from S3");
         }
 
-        // Read the program and stdin.
         let elf = std::fs::read("program.bin").expect("failed to read program");
         let stdin = std::fs::read("stdin.bin").expect("failed to read stdin");
         let stdin: SP1Stdin = bincode::deserialize(&stdin).expect("failed to deserialize stdin");
 
-        // Collect the maximal shapes for each shard size.
         for &log_shard_size in args.shard_sizes.iter() {
             let tx = tx.clone();
             let elf = elf.clone();
@@ -182,7 +168,6 @@ fn main() {
     }
     drop(tx);
 
-    // As the shapes are collected, update the maximal shapes.
     for (log_shard_size, s3_path, collected_maximal_shapes) in rx {
         let current_maximal_shapes = all_maximal_shapes.entry(log_shard_size).or_default();
         for shape in collected_maximal_shapes {
@@ -198,7 +183,6 @@ fn main() {
         );
     }
 
-    // Print the total number of maximal shapes.
     for log_shard_size in args.shard_sizes {
         tracing::info!(
             "there are {} maximal shapes in total for log shard size {}",
@@ -207,7 +191,6 @@ fn main() {
         );
     }
 
-    // Write the maximal shapes to the output file.
     if let Some(output) = args.output {
         let output = if !output.to_string_lossy().ends_with(".json") {
             output.with_extension("json")
