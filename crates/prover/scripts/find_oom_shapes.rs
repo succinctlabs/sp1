@@ -2,19 +2,21 @@
 
 use std::{collections::BTreeMap, path::PathBuf};
 
-use clap::Parser;
+use clap::{Parser, Command, Arg};
 use sp1_core_executor::{rv32im_costs, RiscvAirId};
 use sp1_core_machine::utils::setup_logger;
 use sp1_stark::shape::Shape;
 
 #[derive(Parser, Debug)]
-#[clap(author, version, about, long_about = None)]
+#[command(author, version, about, long_about = None)]
 struct Args {
-    #[clap(short, long)]
+    #[arg(short, long)]
     maximal_shapes_json: Option<PathBuf>,
-    #[clap(short, long)]
+    
+    #[arg(short, long)]
     small_shapes_json: Option<PathBuf>,
-    #[clap(short, long)]
+    
+    #[arg(short, long)]
     lde_threshold_bytes: usize,
 }
 
