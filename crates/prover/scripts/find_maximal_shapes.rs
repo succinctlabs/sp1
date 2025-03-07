@@ -25,6 +25,7 @@ fn collect_maximal_shapes(
     opts: SP1CoreOpts,
     context: SP1Context,
 ) -> Vec<Shape<RiscvAirId>> {
+    // Setup the executor.
     let program = Program::from(elf).unwrap();
     let mut executor = Executor::with_context(program, opts, context);
     executor.write_vecs(&stdin.buffer);
@@ -32,11 +33,13 @@ fn collect_maximal_shapes(
         executor.write_proof(proof.clone(), vkey.clone());
     }
 
+    // Use this to make sure we don't collect too many shapes that will just OOM out of the box.
     if opts.shard_size == 1 << 22 {
         executor.lde_size_check = true;
         executor.lde_size_threshold = 14 * 1_000_000_000;
     }
 
+    // Collect the maximal shapes.
     let mut maximal_shapes = Vec::new();
     let mut finished = false;
     while !finished {
@@ -47,7 +50,7 @@ fn collect_maximal_shapes(
                 let _ = record.defer();
                 let core_shape: Shape<RiscvAirId> = RiscvAir::<BabyBear>::core_heights(&record)
                     .into_iter()
-                    .filter(|&(_, height)| height != 0)
+                    .filter(|&(_, height)| (height != 0))
                     .map(|(air, height)| (air, height.next_power_of_two().ilog2() as usize))
                     .collect();
 
@@ -59,7 +62,7 @@ fn collect_maximal_shapes(
     maximal_shapes
 }
 
-fn insert(inner: &mut Vec<Shape<RiscvAirId>>, element: Shape<RiscvAirId>) {
+fn insert(inner: &mut Vec<Shape<RiscvAirId>>, element: Shape<RiscvAirId>>) {
     let mut to_remove = vec![];
     for (i, maximal_element) in inner.iter().enumerate() {
         match PartialOrd::partial_cmp(&element, maximal_element) {
@@ -79,12 +82,16 @@ fn insert(inner: &mut Vec<Shape<RiscvAirId>>, element: Shape<RiscvAirId>) {
 }
 
 fn main() {
+    // Setup logger.
     setup_logger();
 
+    // Parse arguments.
     let args = Args::parse();
 
+    // Setup the options.
     let mut opts = SP1CoreOpts { shard_batch_size: 1, ..Default::default() };
 
+    // Load the initial maximal shapes.
     let mut all_maximal_shapes: BTreeMap<usize, Vec<Shape<RiscvAirId>>> =
         if let Some(initial) = args.initial {
             let initial = if !initial.to_string_lossy().ends_with(".json") {
@@ -101,6 +108,7 @@ fn main() {
             BTreeMap::new()
         };
 
+    // Print the initial maximal shapes.
     for log_shard_size in args.shard_sizes.iter() {
         tracing::info!(
             "there are {} initial maximal shapes for log shard size {}",
@@ -109,6 +117,7 @@ fn main() {
         );
     }
 
+    // For each program, collect the maximal shapes.
     let (tx, rx) = mpsc::sync_channel(10);
     let program_list = args.list;
     for s3_path in program_list {
