@@ -10,10 +10,8 @@ use sp1_stark::shape::Shape;
 struct Args {
     #[arg(short, long)]
     maximal_shapes_json: PathBuf,
-    
     #[arg(short, long, value_delimiter = ' ')]
     log2_memory_heights: Vec<usize>,
-    
     #[arg(short, long)]
     output: PathBuf,
 }
