@@ -25,9 +25,11 @@ fn test_shape_fixing(
     context: SP1Context,
     shape_config: &CoreShapeConfig<BabyBear>,
 ) {
+    // Setup the program.
     let mut program = Program::from(elf).unwrap();
     shape_config.fix_preprocessed_shape(&mut program).unwrap();
 
+    // Setup the executor.
     let mut executor = Executor::with_context(program, opts, context);
     executor.maximal_shapes = Some(
         shape_config.maximal_core_shapes(log2_ceil_usize(opts.shard_size)).into_iter().collect(),
@@ -37,6 +39,7 @@ fn test_shape_fixing(
         executor.write_proof(proof.clone(), vkey.clone());
     }
 
+    // Collect the maximal shapes.
     let mut finished = false;
     while !finished {
         let (records, f) = executor.execute_record(true).unwrap();
@@ -58,18 +61,24 @@ fn test_shape_fixing(
 }
 
 fn main() {
+    // Setup logger.
     setup_logger();
 
+    // Parse arguments.
     let args = Args::parse();
 
+    // Setup the options.
     let config = CoreShapeConfig::<BabyBear>::default();
     let mut opts = SP1CoreOpts { shard_batch_size: 1, ..Default::default() };
     opts.shard_size = 1 << args.shard_size;
 
+    // For each program, collect the maximal shapes.
     let program_list = args.list;
     for s3_path in program_list {
+        // Download program and stdin files from S3.
         tracing::info!("download elf and input for {}", s3_path);
 
+        // Download program.bin.
         let status = std::process::Command::new("aws")
             .args([
                 "s3",
@@ -83,6 +92,7 @@ fn main() {
             panic!("Failed to download program.bin from S3");
         }
 
+        // Download stdin.bin.
         let status = std::process::Command::new("aws")
             .args([
                 "s3",
@@ -96,10 +106,12 @@ fn main() {
             panic!("Failed to download stdin.bin from S3");
         }
 
+        // Read the program and stdin.
         let elf = std::fs::read("program.bin").expect("failed to read program");
         let stdin = std::fs::read("stdin.bin").expect("failed to read stdin");
         let stdin: SP1Stdin = bincode::deserialize(&stdin).expect("failed to deserialize stdin");
 
+        // Collect the maximal shapes for each shard size.
         let elf = elf.clone();
         let stdin = stdin.clone();
         let new_context = SP1Context::default();
