@@ -194,6 +194,7 @@ impl NetworkClient {
         limit: Option<u32>,
         page: Option<u32>,
         mode: Option<i32>,
+        not_bid_by: Option<Vec<u8>>,
     ) -> Result<GetFilteredProofRequestsResponse> {
         self.with_retry(
             || {
@@ -201,6 +202,7 @@ impl NetworkClient {
                 let vk_hash = vk_hash.clone();
                 let requester = requester.clone();
                 let fulfiller = fulfiller.clone();
+                let not_bid_by = not_bid_by.clone();
 
                 async move {
                     let mut rpc = self.prover_network_client().await?;
@@ -218,6 +220,7 @@ impl NetworkClient {
                             limit,
                             page,
                             mode,
+                            not_bid_by,
                         })
                         .await?
                         .into_inner())
@@ -280,6 +283,7 @@ impl NetworkClient {
     /// * `strategy`: The [`FulfillmentStrategy`] to use.
     /// * `timeout_secs`: The timeout for the proof request in seconds.
     /// * `cycle_limit`: The cycle limit for the proof request.
+    /// * `gas_limit`: The gas limit for the proof request.
     #[allow(clippy::too_many_arguments)]
     pub async fn request_proof(
         &self,
@@ -290,6 +294,7 @@ impl NetworkClient {
         strategy: FulfillmentStrategy,
         timeout_secs: u64,
         cycle_limit: u64,
+        gas_limit: u64,
     ) -> Result<RequestProofResponse> {
         // Calculate the deadline.
         let start = SystemTime::now();
@@ -315,6 +320,7 @@ impl NetworkClient {
                     stdin_uri: stdin_uri.clone(),
                     deadline,
                     cycle_limit,
+                    gas_limit,
                 };
                 let request_response = rpc
                     .request_proof(RequestProofRequest {
