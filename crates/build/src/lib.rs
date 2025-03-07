@@ -21,7 +21,6 @@ const HELPER_TARGET_SUBDIR: &str = "elf-compilation";
 /// Docker, specifying binary and ELF names, ignoring Rust version checks, and enabling specific
 /// features.
 #[derive(Clone, Parser, Debug)]
-#[command(author, version, about, long_about = None)]
 pub struct BuildArgs {
     #[arg(
         long,
