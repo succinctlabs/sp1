@@ -1717,9 +1717,11 @@ impl<'a> Executor<'a> {
                         pad_rv32im_event_counts(self.event_counts, self.shape_check_frequency);
                     let padded_lde_size = estimate_riscv_lde_size(padded_event_counts, &self.costs);
                     if padded_lde_size > self.lde_size_threshold {
+                        #[allow(clippy::cast_precision_loss)]
+                        let size_gib = (padded_lde_size as f64) / (1 << 9) as f64;
                         tracing::warn!(
-                            "stopping shard early due to lde size: {} gb",
-                            (padded_lde_size as u64) / 1_000_000_000
+                            "Stopping shard early since the estimated LDE size is too large: {:.3} GiB",
+                            size_gib
                         );
                         shape_match_found = false;
                     }
@@ -1769,12 +1771,11 @@ impl<'a> Executor<'a> {
 
                     if !shape_match_found {
                         self.record.counts = Some(self.event_counts);
-                        log::warn!(
-                            "stopping shard early due to no shapes fitting: \
-                            clk: {},
-                            clk_usage: {}",
-                            (self.state.clk / 4).next_power_of_two().ilog2(),
-                            ((self.state.clk / 4) as f64).log2(),
+                        tracing::debug!(
+                            "Stopping shard {} to stay within some maximal shape. clk = {} pc = 0x{:x?}",
+                            self.shard(),
+                            self.state.global_clk,
+                            self.state.pc,
                         );
                     }
                 }
@@ -1798,7 +1799,7 @@ impl<'a> Executor<'a> {
             || self.state.pc.wrapping_sub(self.program.pc_base)
                 >= (self.program.instructions.len() * 4) as u32;
         if done && self.unconstrained {
-            log::error!("program ended in unconstrained mode at clk {}", self.state.global_clk);
+            tracing::error!("program ended in unconstrained mode at clk {}", self.state.global_clk);
             return Err(ExecutionError::EndInUnconstrained());
         }
         Ok(done)
@@ -2281,7 +2282,7 @@ impl<'a> Executor<'a> {
         }
 
         if !self.unconstrained && self.state.global_clk % 10_000_000 == 0 {
-            log::info!("clk = {} pc = 0x{:x?}", self.state.global_clk, self.state.pc);
+            tracing::info!("clk = {} pc = 0x{:x?}", self.state.global_clk, self.state.pc);
         }
     }
 }

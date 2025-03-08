@@ -240,13 +240,13 @@ impl NetworkProver {
         let timeout_secs = timeout.map_or(DEFAULT_TIMEOUT_SECS, |dur| dur.as_secs());
 
         // Log the request.
-        log::info!("Requesting proof:");
-        log::info!("├─ Cycle limit: {}", cycle_limit);
-        log::info!("├─ Gas limit: {}", gas_limit);
-        log::info!("├─ Proof mode: {:?}", mode);
-        log::info!("├─ Strategy: {:?}", strategy);
-        log::info!("├─ Timeout: {} seconds", timeout_secs);
-        log::info!("└─ Circuit version: {}", SP1_CIRCUIT_VERSION);
+        tracing::info!("Requesting proof:");
+        tracing::info!("├─ Cycle limit: {}", cycle_limit);
+        tracing::info!("├─ Gas limit: {}", gas_limit);
+        tracing::info!("├─ Proof mode: {:?}", mode);
+        tracing::info!("├─ Strategy: {:?}", strategy);
+        tracing::info!("├─ Timeout: {} seconds", timeout_secs);
+        tracing::info!("└─ Circuit version: {}", SP1_CIRCUIT_VERSION);
 
         // Request the proof.
         let response = self
@@ -266,10 +266,10 @@ impl NetworkProver {
         // Log the request ID and transaction hash.
         let tx_hash = B256::from_slice(&response.tx_hash);
         let request_id = B256::from_slice(&response.body.unwrap().request_id);
-        log::info!("Created request {} in transaction {:?}", request_id, tx_hash);
+        tracing::info!("Created request {} in transaction {:?}", request_id, tx_hash);
 
         if self.client.rpc_url == DEFAULT_NETWORK_RPC_URL {
-            log::info!(
+            tracing::info!(
                 "View request status at: https://network.succinct.xyz/request/{}",
                 request_id
             );
@@ -310,7 +310,7 @@ impl NetworkProver {
             if fulfillment_status == FulfillmentStatus::Fulfilled {
                 return Ok(maybe_proof.unwrap());
             } else if fulfillment_status == FulfillmentStatus::Assigned && !is_assigned {
-                log::info!("Proof request assigned, proving...");
+                tracing::info!("Proof request assigned, proving...");
                 is_assigned = true;
             }
 
