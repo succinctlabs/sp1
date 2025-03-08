@@ -68,9 +68,9 @@ tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 criterion = "0.5.1"
 num = { version = "0.4.3", features = ["rand"] }
 rand = "0.8.5"
-sp1-zkvm = { workspace = true }
-sp1-core-executor = { workspace = true }
-test-artifacts = { workspace = true }
+sp1-zkvm = { path = "../../zkvm/entrypoint" }
+sp1-core-executor = { path = "../executor" }
+test-artifacts = { path = "../../test-artifacts" }
 
 [build-dependencies]
 sp1-stark = { workspace = true }

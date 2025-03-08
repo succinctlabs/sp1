@@ -55,8 +55,8 @@ gecko_profile = { version = "0.4.0", optional = true }
 indicatif = { version = "0.17.8", optional = true }
 
 [dev-dependencies]
-sp1-zkvm = { workspace = true, features = ["lib"] }
-test-artifacts = { workspace = true }
+sp1-zkvm = { path = "../../zkvm/entrypoint", features = ["lib"] }
+test-artifacts = { path = "../../test-artifacts" }
 
 [features]
 bigint-rug = ["sp1-curves/bigint-rug"]

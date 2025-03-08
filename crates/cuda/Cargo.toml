@@ -25,8 +25,8 @@ prost-build = { version = "0.13", optional = true }
 twirp-build = { package = "twirp-build-rs", version = "0.13.0-succinct", optional = true }
 
 [dev-dependencies]
-sp1-core-machine = { workspace = true }
-test-artifacts = { workspace = true }
+sp1-core-machine = { path = "../core/machine" }
+test-artifacts = { path = "../test-artifacts" }
 
 [features]
 default = []
