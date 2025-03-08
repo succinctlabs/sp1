@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::error::Error;
 
 use clap::Parser;
 use sp1_core_machine::utils::setup_logger;
@@ -25,10 +26,11 @@ struct Args {
     end: Option<usize>,
 }
 
-fn main() {
-    setup_logger();
-    let args = Args::parse();
+fn main() -> Result<(), Box<dyn Error>> {
+        sp1_core_machine::utils::setup_logger()
+        .map_err(|e| format!("Logger initialization failed: {}", e))?;
 
+    let args = Args::try_parse()?;  
     let reduce_batch_size = args.reduce_batch_size;
     let build_dir = args.build_dir;
     let dummy = args.dummy;
@@ -37,7 +39,7 @@ fn main() {
     let range_start = args.start;
     let range_end = args.end;
 
-    build_vk_map_to_file::<CpuProverComponents>(
+        sp1_prover::shapes::build_vk_map_to_file::<CpuProverComponents>(
         build_dir,
         reduce_batch_size,
         dummy,
@@ -45,6 +47,7 @@ fn main() {
         num_setup_workers,
         range_start,
         range_end,
-    )
-    .unwrap();
+    )?;
+
+    Ok(())
 }
