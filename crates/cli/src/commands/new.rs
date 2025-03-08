@@ -59,12 +59,12 @@ impl NewCmd {
             .arg("--depth=1");
 
         // Stream output to stdout.
-        command.stdout(Stdio::inherit()).stderr(Stdio::inherit());
+        command.stdout(Stdio::inherit()).stderr(Stdio::piped());
 
         let output = command.output().expect("failed to execute command");
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow::anyhow!("failed to clone repository: {}", stderr));
+            return Err(anyhow::anyhow!("Failed to clone repository: {}", stderr));
         }
 
         // Remove the .git directory.
