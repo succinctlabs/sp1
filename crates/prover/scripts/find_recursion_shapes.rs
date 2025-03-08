@@ -14,19 +14,19 @@ use sp1_recursion_core::shape::RecursionShapeConfig;
 use sp1_stark::{shape::OrderedShape, MachineProver};
 
 #[derive(Parser, Debug)]
-#[clap(author, version, about, long_about = None)]
+#[command(author, version, about, long_about = None)]
 struct Args {
-    #[clap(short, long, default_value_t = false)]
+    #[arg(short, long, default_value_t = false)]
     dummy: bool,
-    #[clap(short, long, default_value_t = REDUCE_BATCH_SIZE)]
+    #[arg(short, long, default_value_t = REDUCE_BATCH_SIZE)]
     recursion_batch_size: usize,
-    #[clap(short, long, default_value_t = 1)]
+    #[arg(short, long, default_value_t = 1)]
     num_compiler_workers: usize,
-    #[clap(short, long, default_value_t = 1)]
+    #[arg(short, long, default_value_t = 1)]
     num_setup_workers: usize,
-    #[clap(short, long)]
+    #[arg(short, long)]
     start: Option<usize>,
-    #[clap(short, long)]
+    #[arg(short, long)]
     end: Option<usize>,
 }
 
