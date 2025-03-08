@@ -172,6 +172,7 @@ impl<'a> SP1ContextBuilder<'a> {
     }
 
     /// Set the maximum number of cpu cycles to use for execution.
+    /// `report.total_instruction_count()` will be less than or equal to `max_cycles`.
     pub fn max_cycles(&mut self, max_cycles: u64) -> &mut Self {
         self.max_cycles = Some(max_cycles);
         self

@@ -1788,7 +1788,7 @@ impl<'a> Executor<'a> {
 
             // If the cycle limit is exceeded, return an error.
             if let Some(max_cycles) = self.max_cycles {
-                if self.state.global_clk >= max_cycles {
+                if self.state.global_clk > max_cycles {
                     return Err(ExecutionError::ExceededCycleLimit(max_cycles));
                 }
             }
@@ -2309,7 +2309,7 @@ mod tests {
         simple_memory_program, simple_program, ssz_withdrawals_program, u256xu2048_mul_program,
     };
 
-    use crate::Register;
+    use crate::{Register, SP1Context};
 
     use super::{Executor, Instruction, Opcode, Program};
 
@@ -2333,6 +2333,20 @@ mod tests {
     fn test_fibonacci_program_run() {
         let program = fibonacci_program();
         let mut runtime = Executor::new(program, SP1CoreOpts::default());
+        runtime.run().unwrap();
+    }
+
+    #[test]
+    fn test_fibonacci_program_run_with_max_cycles() {
+        let program = fibonacci_program();
+        let mut runtime = Executor::new(program, SP1CoreOpts::default());
+        runtime.run().unwrap();
+
+        let max_cycles = runtime.state.global_clk;
+
+        let program = fibonacci_program();
+        let context = SP1Context::builder().max_cycles(max_cycles).build();
+        let mut runtime = Executor::with_context(program, SP1CoreOpts::default(), context);
         runtime.run().unwrap();
     }
 
