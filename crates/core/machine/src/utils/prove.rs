@@ -270,7 +270,7 @@ where
                                 // See if any deferred shards are ready to be committed to.
                                 let mut deferred =
                                     deferred.split(done, last_record, opts.split_opts);
-                                log::info!("deferred {} records", deferred.len());
+                                tracing::info!("deferred {} records", deferred.len());
 
                                 // Update the public values & prover state for the shards which do not
                                 // contain "cpu events" before committing to them.
@@ -323,7 +323,7 @@ where
                             if shape_fixed_records.is_none() {
                                 // See if any deferred shards are ready to be committed to.
                                 let mut deferred = deferred.split(done, None, opts.split_opts);
-                                log::info!("deferred {} records", deferred.len());
+                                tracing::info!("deferred {} records", deferred.len());
 
                                 // Update the public values & prover state for the shards which do not
                                 // contain "cpu events" before committing to them.

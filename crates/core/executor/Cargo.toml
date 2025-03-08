@@ -38,7 +38,6 @@ thiserror = "1.0.63"
 tracing = { workspace = true }
 strum_macros = "0.26.4"
 strum = { version = "0.26.3", features = ["derive"] }
-log = "0.4.22"
 hex = "0.4.3"
 bytemuck = "1.16.3"
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
