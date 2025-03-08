@@ -113,7 +113,7 @@ impl NetworkClient {
         } else {
             // The program doesn't exist, create it.
             self.create_program(vk_hash, vk, elf).await?;
-            log::info!("Registered program {:?}", vk_hash);
+            tracing::info!("Registered program {:?}", vk_hash);
             Ok(vk_hash)
         }
     }

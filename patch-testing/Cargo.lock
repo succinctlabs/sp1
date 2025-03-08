@@ -4009,7 +4009,6 @@ dependencies = [
  "hex",
  "itertools 0.13.0",
  "k256 0.13.3",
- "log",
  "num",
  "num_cpus",
  "p256 0.13.2",
@@ -4273,7 +4272,6 @@ dependencies = [
  "cc",
  "cfg-if",
  "hex",
- "log",
  "num-bigint 0.4.6",
  "p3-baby-bear",
  "p3-field",
@@ -4285,6 +4283,7 @@ dependencies = [
  "sp1-recursion-compiler",
  "sp1-stark",
  "tempfile",
+ "tracing",
 ]
 
 [[package]]
@@ -4301,7 +4300,6 @@ dependencies = [
  "hex",
  "indicatif",
  "itertools 0.13.0",
- "log",
  "p3-baby-bear",
  "p3-field",
  "p3-fri",
