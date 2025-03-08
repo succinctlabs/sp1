@@ -52,7 +52,6 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          toolchain: 1.81.0
           args: --release -p sp1-sdk --features native-gnark -- test_e2e_groth16_plonk --nocapture
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
@@ -93,7 +92,6 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          toolchain: 1.81.0
           args: --release -p sp1-sdk -- test_e2e_prove_groth16 --nocapture
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
@@ -134,7 +132,6 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          toolchain: 1.81.0
           args: --release -p sp1-sdk --features native-gnark -- test_e2e_prove_plonk --nocapture
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
@@ -175,7 +172,6 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          toolchain: 1.81.0
           args: --release -p sp1-sdk -- test_e2e_prove_plonk --nocapture
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native

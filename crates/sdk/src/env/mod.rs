@@ -41,7 +41,7 @@ impl EnvProver {
         let mode = if let Ok(mode) = env::var("SP1_PROVER") {
             mode
         } else {
-            log::warn!("SP1_PROVER environment variable not set, defaulting to 'cpu'");
+            tracing::warn!("SP1_PROVER environment variable not set, defaulting to 'cpu'");
             "cpu".to_string()
         };
 

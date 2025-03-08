@@ -68,7 +68,6 @@ fn main() {
                 time_operation(|| prover.execute(&elf, &stdin, context.clone()));
 
             let cycles = report.expect("execution failed").1.total_instruction_count();
-
             let (core_proof, prove_core_duration) = time_operation(|| {
                 prover.prove_core(&pk_d, program, &stdin, opts, context).unwrap()
             });

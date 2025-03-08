@@ -17,8 +17,12 @@ pub struct ExecutionReport {
     pub syscall_counts: Box<EnumMap<SyscallCode, u64>>,
     /// The cycle tracker counts.
     pub cycle_tracker: HashMap<String, u64>,
+    /// Tracker for the number of `cycle-tracker-report-*` invocations for a specific label.
+    pub invocation_tracker: HashMap<String, u64>,
     /// The unique memory address counts.
     pub touched_memory_addresses: u64,
+    /// The gas, if it was calculated.
+    pub gas: Option<u64>,
 }
 
 impl ExecutionReport {
@@ -65,6 +69,9 @@ impl Add for ExecutionReport {
 
 impl Display for ExecutionReport {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        if let Some(gas) = self.gas {
+            writeln!(f, "gas: {gas}")?;
+        }
         writeln!(f, "opcode counts ({} total instructions):", self.total_instruction_count())?;
         for line in generate_execution_report(self.opcode_counts.as_ref()) {
             writeln!(f, "  {line}")?;
