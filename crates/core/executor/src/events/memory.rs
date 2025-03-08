@@ -196,8 +196,8 @@ impl MemoryRecordEnum {
 impl MemoryInitializeFinalizeEvent {
     /// Creates a new [``MemoryInitializeFinalizeEvent``] for an initialization.
     #[must_use]
-    pub const fn initialize(addr: u32, value: u32, used: bool) -> Self {
-        Self { addr, value, shard: 1, timestamp: 1, used: if used { 1 } else { 0 } }
+    pub const fn initialize(addr: u32, value: u32, used: bool, shard: u32, timestamp: u32) -> Self {
+        Self { addr, value, shard, timestamp, used: if used { 1 } else { 0 } }
     }
 
     /// Creates a new [``MemoryInitializeFinalizeEvent``] for a finalization.
