@@ -25,6 +25,7 @@ mod context;
 mod cost;
 mod dependencies;
 mod disassembler;
+pub mod estimator;
 pub mod events;
 mod executor;
 mod hook;
@@ -59,6 +60,7 @@ pub use report::*;
 pub use state::*;
 pub use utils::*;
 
+/// Used for testing.
 #[cfg(test)]
 pub mod programs {
     #[allow(dead_code)]

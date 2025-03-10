@@ -45,7 +45,7 @@ sysinfo = "0.30.13"
 num-traits = "0.2.19"
 
 [dev-dependencies]
-sp1-zkvm = { workspace = true }
+sp1-zkvm = { path = "../zkvm/entrypoint" }
 
 [lints]
 workspace = true

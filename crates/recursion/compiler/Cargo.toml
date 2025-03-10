@@ -28,7 +28,7 @@ tracing = { workspace = true }
 vec_map = "0.8.2"
 
 [dev-dependencies]
-sp1-recursion-core = { workspace = true, features = ["program_validation"] }
+sp1-recursion-core = { path = "../core", features = ["program_validation"] }
 p3-challenger = { workspace = true }
 p3-dft = { workspace = true }
 p3-merkle-tree = { workspace = true }

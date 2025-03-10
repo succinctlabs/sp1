@@ -6,11 +6,12 @@
 use std::time::{Duration, Instant};
 
 use super::prove::NetworkProveBuilder;
-use super::DEFAULT_CYCLE_LIMIT;
 use crate::cpu::execute::CpuExecuteBuilder;
 use crate::cpu::CpuProver;
 use crate::network::proto::network::GetProofRequestStatusResponse;
-use crate::network::{Error, DEFAULT_NETWORK_RPC_URL, DEFAULT_TIMEOUT_SECS};
+use crate::network::{
+    Error, DEFAULT_CYCLE_LIMIT, DEFAULT_GAS_LIMIT, DEFAULT_NETWORK_RPC_URL, DEFAULT_TIMEOUT_SECS,
+};
 use crate::{
     network::client::NetworkClient,
     network::proto::network::{ExecutionStatus, FulfillmentStatus, FulfillmentStrategy, ProofMode},
@@ -108,6 +109,7 @@ impl NetworkProver {
             strategy: FulfillmentStrategy::Hosted,
             skip_simulation: false,
             cycle_limit: None,
+            gas_limit: None,
         }
     }
 
@@ -221,6 +223,9 @@ impl NetworkProver {
     /// * `mode`: The proof mode to use for the proof.
     /// * `strategy`: The fulfillment strategy to use for the proof.
     /// * `cycle_limit`: The cycle limit to use for the proof.
+    /// * `gas_limit`: The gas limit to use for the proof.
+    /// * `timeout`: The timeout for the proof request.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn request_proof(
         &self,
         vk_hash: B256,
@@ -228,18 +233,20 @@ impl NetworkProver {
         mode: ProofMode,
         strategy: FulfillmentStrategy,
         cycle_limit: u64,
+        gas_limit: u64,
         timeout: Option<Duration>,
     ) -> Result<B256> {
         // Get the timeout.
         let timeout_secs = timeout.map_or(DEFAULT_TIMEOUT_SECS, |dur| dur.as_secs());
 
         // Log the request.
-        log::info!("Requesting proof:");
-        log::info!("├─ Cycle limit: {}", cycle_limit);
-        log::info!("├─ Proof mode: {:?}", mode);
-        log::info!("├─ Strategy: {:?}", strategy);
-        log::info!("├─ Timeout: {} seconds", timeout_secs);
-        log::info!("└─ Circuit version: {}", SP1_CIRCUIT_VERSION);
+        tracing::info!("Requesting proof:");
+        tracing::info!("├─ Cycle limit: {}", cycle_limit);
+        tracing::info!("├─ Gas limit: {}", gas_limit);
+        tracing::info!("├─ Proof mode: {:?}", mode);
+        tracing::info!("├─ Strategy: {:?}", strategy);
+        tracing::info!("├─ Timeout: {} seconds", timeout_secs);
+        tracing::info!("└─ Circuit version: {}", SP1_CIRCUIT_VERSION);
 
         // Request the proof.
         let response = self
@@ -252,16 +259,17 @@ impl NetworkProver {
                 strategy,
                 timeout_secs,
                 cycle_limit,
+                gas_limit,
             )
             .await?;
 
         // Log the request ID and transaction hash.
         let tx_hash = B256::from_slice(&response.tx_hash);
         let request_id = B256::from_slice(&response.body.unwrap().request_id);
-        log::info!("Created request {} in transaction {:?}", request_id, tx_hash);
+        tracing::info!("Created request {} in transaction {:?}", request_id, tx_hash);
 
         if self.client.rpc_url == DEFAULT_NETWORK_RPC_URL {
-            log::info!(
+            tracing::info!(
                 "View request status at: https://network.succinct.xyz/request/{}",
                 request_id
             );
@@ -302,7 +310,7 @@ impl NetworkProver {
             if fulfillment_status == FulfillmentStatus::Fulfilled {
                 return Ok(maybe_proof.unwrap());
             } else if fulfillment_status == FulfillmentStatus::Assigned && !is_assigned {
-                log::info!("Proof request assigned, proving...");
+                tracing::info!("Proof request assigned, proving...");
                 is_assigned = true;
             }
 
@@ -320,10 +328,13 @@ impl NetworkProver {
         timeout: Option<Duration>,
         skip_simulation: bool,
         cycle_limit: Option<u64>,
+        gas_limit: Option<u64>,
     ) -> Result<B256> {
         let vk_hash = self.register_program(&pk.vk, &pk.elf).await?;
-        let cycle_limit = self.get_cycle_limit(cycle_limit, &pk.elf, stdin, skip_simulation)?;
-        self.request_proof(vk_hash, stdin, mode.into(), strategy, cycle_limit, timeout).await
+        let (cycle_limit, gas_limit) =
+            self.get_execution_limits(cycle_limit, gas_limit, &pk.elf, stdin, skip_simulation)?;
+        self.request_proof(vk_hash, stdin, mode.into(), strategy, cycle_limit, gas_limit, timeout)
+            .await
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -336,39 +347,83 @@ impl NetworkProver {
         timeout: Option<Duration>,
         skip_simulation: bool,
         cycle_limit: Option<u64>,
+        gas_limit: Option<u64>,
     ) -> Result<SP1ProofWithPublicValues> {
         let request_id = self
-            .request_proof_impl(pk, stdin, mode, strategy, timeout, skip_simulation, cycle_limit)
+            .request_proof_impl(
+                pk,
+                stdin,
+                mode,
+                strategy,
+                timeout,
+                skip_simulation,
+                cycle_limit,
+                gas_limit,
+            )
             .await?;
         self.wait_proof(request_id, timeout).await
     }
 
-    /// The cycle limit is determined according to the following priority:
+    /// The cycle limit and gas limit are determined according to the following priority:
     ///
-    /// 1. If a cycle limit was explicitly set by the requester, use the specified value.
-    /// 2. If simulation is enabled, calculate the limit by simulating the
+    /// 1. If either of the limits are explicitly set by the requester, use the specified value.
+    /// 2. If simulation is enabled, calculate the limits by simulating the
     ///    execution of the program. This is the default behavior.
-    /// 3. Otherwise, use the default cycle limit ([`DEFAULT_CYCLE_LIMIT`]).
-    fn get_cycle_limit(
+    /// 3. Otherwise, use the default limits ([`DEFAULT_CYCLE_LIMIT`] and [`DEFAULT_GAS_LIMIT`]).
+    fn get_execution_limits(
         &self,
         cycle_limit: Option<u64>,
+        gas_limit: Option<u64>,
         elf: &[u8],
         stdin: &SP1Stdin,
         skip_simulation: bool,
-    ) -> Result<u64> {
-        if let Some(cycle_limit) = cycle_limit {
-            return Ok(cycle_limit);
+    ) -> Result<(u64, u64)> {
+        let cycle_limit_value = if let Some(cycles) = cycle_limit {
+            cycles
+        } else if skip_simulation {
+            DEFAULT_CYCLE_LIMIT
+        } else {
+            // Will be calculated through simulation.
+            0
+        };
+
+        let gas_limit_value = if let Some(gas) = gas_limit {
+            gas
+        } else if skip_simulation {
+            DEFAULT_GAS_LIMIT
+        } else {
+            // Will be calculated through simulation.
+            0
+        };
+
+        // If both limits were explicitly provided or skip_simulation is true, return immediately.
+        if (cycle_limit.is_some() && gas_limit.is_some()) || skip_simulation {
+            return Ok((cycle_limit_value, gas_limit_value));
         }
 
-        if skip_simulation {
-            Ok(DEFAULT_CYCLE_LIMIT)
+        // One of the limits were not provided and simulation is not skipped, so simulate to get one
+        // or both limits
+        let execute_result = self
+            .prover
+            .inner()
+            .execute(elf, stdin, SP1Context::builder().calculate_gas(true).build())
+            .map_err(|_| Error::SimulationFailed)?;
+
+        let (_, report) = execute_result;
+
+        // Use simulated values for the ones that are not explicitly provided.
+        let final_cycle_limit = if cycle_limit.is_none() {
+            report.total_instruction_count()
         } else {
-            self.prover
-                .inner()
-                .execute(elf, stdin, SP1Context::default())
-                .map(|(_, report)| report.total_instruction_count())
-                .map_err(|_| Error::SimulationFailed.into())
-        }
+            cycle_limit_value
+        };
+        let final_gas_limit = if gas_limit.is_none() {
+            report.gas.unwrap_or(DEFAULT_GAS_LIMIT)
+        } else {
+            gas_limit_value
+        };
+
+        Ok((final_cycle_limit, final_gas_limit))
     }
 }
 
@@ -387,7 +442,16 @@ impl Prover<CpuProverComponents> for NetworkProver {
         stdin: &SP1Stdin,
         mode: SP1ProofMode,
     ) -> Result<SP1ProofWithPublicValues> {
-        block_on(self.prove_impl(pk, stdin, mode, FulfillmentStrategy::Hosted, None, false, None))
+        block_on(self.prove_impl(
+            pk,
+            stdin,
+            mode,
+            FulfillmentStrategy::Hosted,
+            None,
+            false,
+            None,
+            None,
+        ))
     }
 }
 
