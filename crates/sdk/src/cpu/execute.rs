@@ -144,6 +144,28 @@ impl<'a> CpuExecuteBuilder<'a> {
         self
     }
 
+    /// Get the context builder.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().cpu().build();
+    /// let builder = client.execute(elf, &stdin);
+    ///
+    /// let context_builder = builder.context_builder();
+    /// context_builder.set_stdout(std::io::stdout());
+    ///
+    /// builder.run();
+    /// ```
+    #[must_use]
+    pub fn context_builder(&mut self) -> &mut SP1ContextBuilder<'a> {
+        &mut self.context_builder
+    }
+
     /// Executes the program on the input with the built arguments.
     ///
     /// # Details
