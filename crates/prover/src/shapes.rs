@@ -13,8 +13,7 @@ use p3_field::AbstractField;
 use serde::{Deserialize, Serialize};
 use sp1_core_machine::shape::CoreShapeConfig;
 use sp1_recursion_circuit::machine::{
-    SP1CompressWithVKeyWitnessValues, SP1CompressWithVkeyShape, SP1DeferredShape,
-    SP1DeferredWitnessValues, SP1RecursionShape, SP1RecursionWitnessValues,
+    SP1CompressWithVKeyWitnessValues, SP1DeferredWitnessValues, SP1RecursionWitnessValues,
 };
 use sp1_recursion_core::{
     shape::{RecursionShape, RecursionShapeConfig},
@@ -22,6 +21,10 @@ use sp1_recursion_core::{
 };
 use sp1_stark::{shape::OrderedShape, MachineProver, DIGEST_SIZE};
 use thiserror::Error;
+
+pub use sp1_recursion_circuit::machine::{
+    SP1CompressWithVkeyShape, SP1DeferredShape, SP1RecursionShape,
+};
 
 use crate::{components::SP1ProverComponents, CompressAir, HashableKey, SP1Prover, ShrinkAir};
 

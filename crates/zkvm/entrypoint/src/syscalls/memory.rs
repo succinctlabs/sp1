@@ -15,6 +15,11 @@
 // Memory addresses must be lower than BabyBear prime.
 pub const MAX_MEMORY: usize = 0x78000000;
 
+// Pointer to next heap address to use, or 0 if the heap has not yet been
+// initialized.
+#[cfg(feature = "bump")]
+static mut HEAP_POS: usize = 0;
+
 /// Allocate memory aligned to the given alignment.
 ///
 /// Only available when the `bump` feature is enabled.
@@ -26,10 +31,6 @@ pub unsafe extern "C" fn sys_alloc_aligned(bytes: usize, align: usize) -> *mut u
         // https://lld.llvm.org/ELF/linker_script.html#sections-command
         static _end: u8;
     }
-
-    // Pointer to next heap address to use, or 0 if the heap has not yet been
-    // initialized.
-    static mut HEAP_POS: usize = 0;
 
     // SAFETY: Single threaded, so nothing else can touch this while we're working.
     let mut heap_pos = unsafe { HEAP_POS };
@@ -52,4 +53,10 @@ pub unsafe extern "C" fn sys_alloc_aligned(bytes: usize, align: usize) -> *mut u
 
     unsafe { HEAP_POS = heap_pos };
     ptr
+}
+
+/// Used memory in bytes.
+#[cfg(feature = "bump")]
+pub fn used_memory() -> usize {
+    unsafe { HEAP_POS }
 }

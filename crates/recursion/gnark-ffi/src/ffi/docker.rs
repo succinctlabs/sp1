@@ -41,7 +41,7 @@ fn get_docker_image() -> String {
 /// Note: files created here by `call_docker` are read-only for after the process exits.
 /// To fix this, manually set the docker user to the current user by supplying a `-u` flag.
 fn call_docker(args: &[&str], mounts: &[(&str, &str)]) -> Result<()> {
-    log::info!("Running {} in docker", args[0]);
+    tracing::info!("Running {} in docker", args[0]);
     let mut cmd = Command::new("docker");
     cmd.args(["run", "--rm"]);
     for (src, dest) in mounts {
@@ -49,11 +49,14 @@ fn call_docker(args: &[&str], mounts: &[(&str, &str)]) -> Result<()> {
     }
     cmd.arg(get_docker_image());
     cmd.args(args);
-    let result = cmd.status()?;
-    if !result.success() {
-        log::error!("Failed to run `docker run`: {:?}", cmd);
-        log::error!("Execution result: {:?}", result);
-        return Err(anyhow!("docker command failed"));
+    let result = cmd.output()?;
+    if !result.status.success() {
+        let stderr = String::from_utf8_lossy(&result.stderr);
+        tracing::error!("Failed to run `docker run`: {:?}", cmd);
+        tracing::error!("status: {:?}", result.status);
+        tracing::error!("stderr: {:?}", stderr);
+
+        return Err(anyhow!("Docker command failed \n stderr: {:?}", stderr));
     }
     Ok(())
 }

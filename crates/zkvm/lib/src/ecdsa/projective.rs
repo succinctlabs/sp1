@@ -394,13 +394,12 @@ where
 }
 
 #[inline]
-fn be_bytes_to_le_words<T: AsMut<[u8]>>(mut bytes: T) -> [u32; 16] {
+fn be_bytes_to_le_words<T: AsMut<[u8]>>(mut bytes: T) -> [u32; 8] {
     let bytes = bytes.as_mut();
     bytes.reverse();
 
-    core::array::from_fn(|_| {
-        bytes.chunks(4).map(|b| u32::from_le_bytes(b.try_into().unwrap())).next().unwrap()
-    })
+    let mut iter = bytes.chunks(4).map(|b| u32::from_le_bytes(b.try_into().unwrap()));
+    core::array::from_fn(|_| iter.next().unwrap())
 }
 
 /// Convert big-endian bytes with the most significant bit first to little-endian bytes with the least significant bit first.
