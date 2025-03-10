@@ -124,6 +124,23 @@ mod tests {
     }
 
     #[test]
+    fn test_e2e_io_override() {
+        utils::setup_logger();
+        let client = ProverClient::builder().cpu().build();
+        let elf = test_artifacts::HELLO_WORLD_ELF;
+
+        let mut stdout = Vec::new();
+
+        // Generate proof & verify.
+        let stdin = SP1Stdin::new();
+        let mut builder = client.execute(elf, &stdin);
+        builder.context_builder().stdout(&mut stdout);
+        let _ = builder.run().unwrap();
+
+        assert_eq!(stdout, b"Hello, world!\n");
+    }
+
+    #[test]
     fn test_e2e_compressed() {
         utils::setup_logger();
         let client = ProverClient::builder().cpu().build();

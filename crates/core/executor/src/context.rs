@@ -125,7 +125,7 @@ impl<'a> SP1ContextBuilder<'a> {
             max_cycles: cycle_limit,
             deferred_proof_verification,
             calculate_gas,
-            io_options: IoOptions::default(),
+            io_options: take(&mut self.io_options),
         }
     }
 
