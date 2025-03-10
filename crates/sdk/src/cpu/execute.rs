@@ -149,6 +149,7 @@ impl<'a> CpuExecuteBuilder<'a> {
     /// # Example
     /// ```rust,no_run
     /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
+    /// let stdout = Vec::new();
     ///
     /// let elf = &[1, 2, 3];
     /// let stdin = SP1Stdin::new();
@@ -156,8 +157,8 @@ impl<'a> CpuExecuteBuilder<'a> {
     /// let client = ProverClient::builder().cpu().build();
     /// let builder = client.execute(elf, &stdin);
     ///
-    /// let context_builder = builder.context_builder();
-    /// context_builder.stdout(&mut std::io::stdout());
+    /// let mut context_builder = builder.context_builder();
+    /// context_builder.stdout(&mut stdout);
     ///
     /// builder.run();
     /// ```
