@@ -275,7 +275,7 @@ impl<'a> CpuProveBuilder<'a> {
     /// let builder = client.execute(elf, &stdin);
     ///
     /// let context_builder = builder.context_builder();
-    /// context_builder.set_stdout(std::io::stdout());
+    /// context_builder.stdout(&mut std::io::stdout());
     ///
     /// builder.run();
     /// ```

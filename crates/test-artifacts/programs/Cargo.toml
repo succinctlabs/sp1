@@ -41,6 +41,7 @@ members = [
   "uint256-mul",
   "verify-proof",
   "u256x2048-mul",
+  "hello-world"
 ]
 resolver = "2"
 
