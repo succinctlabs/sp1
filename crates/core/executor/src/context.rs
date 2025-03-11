@@ -219,11 +219,11 @@ impl Clone for IoOptions<'_> {
     }
 }
 
-/// A trait for [`Write`] types that are also [`Send`] and [`Sync`].
-pub trait IoWriter: Write + Send + Sync {}
+/// A trait for [`Write`] types that are also [`Send`].
+pub trait IoWriter: Write + Send {}
 
 /// Generic implementation of [`IoWriter`] for any [`Write`] type that are compatible.
-impl<W: Write + Send + Sync> IoWriter for W {}
+impl<W: Write + Send> IoWriter for W {}
 
 #[cfg(test)]
 mod tests {
