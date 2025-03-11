@@ -36,7 +36,12 @@ pub fn populate_local_permutation_row<F: PrimeField, EF: ExtensionField<F>>(
     batch_size: usize,
 ) {
     let alpha = random_elements[0];
-    let betas = random_elements[1].powers(); // TODO: optimize
+    let mut beta = random_elements[1];
+    let mut betas = vec![EF::one(), beta];
+    for _ in 2..sends.len() + receives.len() {
+        beta = beta * random_elements[1];
+        betas.push(beta);
+    }
 
     let interaction_chunks = &sends
         .iter()
