@@ -19,6 +19,7 @@ members = [
   "ed-decompress",
   "ed25519",
   "fibonacci",
+  "fibonacci-blake3",
   "hint-io",
   "keccak-permute",
   "keccak256",
