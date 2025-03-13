@@ -87,7 +87,6 @@ pub(crate) fn create_docker_command(
     let parsed_version = {
         let mut cmd = run_command_in_docker(&image);
         cmd.args(["rustc", "--version"]);
-        cmd.env("RUSTUP_TOOLCHAIN", super::TOOLCHAIN_NAME);
 
         let output = cmd.output().expect("rustc --version should succeed in docker image");
 
@@ -106,23 +105,26 @@ pub(crate) fn create_docker_command(
         super::utils::parse_rustc_version(&stdout_string)
     };
 
+    std::thread::sleep(std::time::Duration::from_secs(2));
+
     let rustc_bin = {
         let mut cmd = run_command_in_docker(&image);
         cmd.args(["rustc", "--print", "sysroot"]);
-        cmd.env("RUSTUP_TOOLCHAIN", super::TOOLCHAIN_NAME);
 
         let output = cmd.output().expect("rustc --bin rustc should succeed in docker image");
+
         let stdout_string =
             String::from_utf8(output.stdout).expect("Can't parse rustc --bin rustc stdout");
 
         PathBuf::from(stdout_string.trim()).join("bin/rustc")
     };
 
+    println!("cargo:warning=docker: rustc_bin: {:?}", rustc_bin);
+
     // When executing the Docker command:
     // 1. Set the target directory to a subdirectory of the program's target directory to avoid
     //    build
     // conflicts with the parent process. Source: https://github.com/rust-lang/cargo/issues/6412
-    // 2. Set the rustup toolchain to succinct.
     // 3. Set the encoded rust flags.
     // Note: In Docker, you can't use the .env command to set environment variables, you have to use
     // the -e flag.
@@ -137,13 +139,13 @@ pub(crate) fn create_docker_command(
         program_dir_path,
         "-e".to_string(),
         format!("CARGO_TARGET_DIR={}", target_dir),
-        "-e".to_string(),
-        format!("RUSTC={}", rustc_bin.display()),
         // TODO: remove once trim-paths is supported - https://github.com/rust-lang/rust/issues/111540
         "-e".to_string(),
         "RUSTC_BOOTSTRAP=1".to_string(), // allows trim-paths.
         "-e".to_string(),
         format!("CARGO_ENCODED_RUSTFLAGS={}", get_rust_compiler_flags(args, &parsed_version)),
+        "-e".to_string(),
+        format!("RUSTC={}", rustc_bin.display()),
         "--entrypoint".to_string(),
         "".to_string(),
         image,
@@ -159,11 +161,15 @@ pub(crate) fn create_docker_command(
 }
 
 /// Setups a command to be run in the docker image.
+///
+/// Sets the toolchain override to [`super::TOOLCHAIN_NAME`].
 fn run_command_in_docker(image: &str) -> Command {
     let mut cmd = Command::new("docker");
 
     // Setups the command to run in the docker image.
-    cmd.args(["run", "--rm", "--platform", "linux/amd64", "--entrypoint", "", "-i", image]);
+    cmd.args(["run", "--rm"]);
+    cmd.args(["-e", &format!("RUSTUP_TOOLCHAIN={}", super::TOOLCHAIN_NAME)]);
+    cmd.args(["--platform", "linux/amd64", "--entrypoint", "", "-i", image]);
 
     cmd
 }
