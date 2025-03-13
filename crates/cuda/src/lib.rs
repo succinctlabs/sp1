@@ -106,10 +106,9 @@ pub struct WrapRequestPayload {
 }
 
 impl SP1CudaProver {
-    /// Creates a new [SP1Prover] that runs inside a Docker container and returns a
-    /// [SP1ProverClient] that can be used to communicate with the container.
-    pub fn new() -> Result<Self, Box<dyn StdError>> {
-        let moongate_endpoint = std::env::var("SP1_MOONGATE_ENDPOINT").ok();
+    /// Creates a new [SP1CudaProver] that can be used to communicate with the Moongate server at
+    /// `moongate_endpoint`, or if not provided, create one that runs inside a Docker container.
+    pub fn new(moongate_endpoint: Option<String>) -> Result<Self, Box<dyn StdError>> {
         let reqwest_middlewares = vec![Box::new(LoggingMiddleware) as Box<dyn Middleware>];
 
         let prover = match moongate_endpoint {
@@ -123,78 +122,7 @@ impl SP1CudaProver {
 
                 SP1CudaProver { client, managed_container: None }
             }
-            None => {
-                // If the moongate endpoint url hasn't been provided, we start the Docker container
-                let container_name = "sp1-gpu";
-                let image_name = std::env::var("SP1_GPU_IMAGE")
-                    .unwrap_or_else(|_| "public.ecr.aws/succinct-labs/moongate:v4.1.0".to_string());
-
-                let cleaned_up = Arc::new(AtomicBool::new(false));
-                let cleanup_name = container_name;
-                let cleanup_flag = cleaned_up.clone();
-
-                // Check if Docker is available and the user has necessary permissions
-                if !Self::check_docker_availability()? {
-                    return Err("Docker is not available or you don't have the necessary permissions. Please ensure Docker is installed and you are part of the docker group.".into());
-                }
-
-                // Pull the docker image if it's not present
-                if let Err(e) = Command::new("docker").args(["pull", &image_name]).output() {
-                    return Err(format!("Failed to pull Docker image: {}. Please check your internet connection and Docker permissions.", e).into());
-                }
-
-                // Start the docker container
-                let rust_log_level =
-                    std::env::var("RUST_LOG").unwrap_or_else(|_| "none".to_string());
-                Command::new("docker")
-                    .args([
-                        "run",
-                        "-e",
-                        &format!("RUST_LOG={}", rust_log_level),
-                        "-p",
-                        "3000:3000",
-                        "--rm",
-                        "--gpus",
-                        "all",
-                        "--name",
-                        container_name,
-                        &image_name,
-                    ])
-                    // Redirect stdout and stderr to the parent process
-                    .stdout(Stdio::inherit())
-                    .stderr(Stdio::inherit())
-                    .spawn()
-                    .map_err(|e| format!("Failed to start Docker container: {}. Please check your Docker installation and permissions.", e))?;
-
-                // Kill the container on control-c
-                ctrlc::set_handler(move || {
-                    tracing::debug!("received Ctrl+C, cleaning up...");
-                    if !cleanup_flag.load(Ordering::SeqCst) {
-                        cleanup_container(cleanup_name);
-                        cleanup_flag.store(true, Ordering::SeqCst);
-                    }
-                    std::process::exit(0);
-                })
-                .unwrap();
-
-                // Wait a few seconds for the container to start
-                std::thread::sleep(Duration::from_secs(2));
-
-                let client = Client::new(
-                    Url::parse("http://localhost:3000/twirp/").expect("failed to parse url"),
-                    reqwest::Client::new(),
-                    reqwest_middlewares,
-                )
-                .expect("failed to create client");
-
-                SP1CudaProver {
-                    client,
-                    managed_container: Some(CudaProverContainer {
-                        name: container_name.to_string(),
-                        cleaned_up: cleaned_up.clone(),
-                    }),
-                }
-            }
+            None => Self::start_moongate_server(reqwest_middlewares)?,
         };
 
         let timeout = Duration::from_secs(300);
@@ -233,6 +161,80 @@ impl SP1CudaProver {
             Ok(output) => Ok(output.status.success()),
             Err(_) => Ok(false),
         }
+    }
+
+    fn start_moongate_server(
+        reqwest_middlewares: Vec<Box<dyn Middleware>>,
+    ) -> Result<SP1CudaProver, Box<dyn StdError>> {
+        // If the moongate endpoint url hasn't been provided, we start the Docker container
+        let container_name = "sp1-gpu";
+        let image_name = std::env::var("SP1_GPU_IMAGE")
+            .unwrap_or_else(|_| "public.ecr.aws/succinct-labs/moongate:v4.1.0".to_string());
+
+        let cleaned_up = Arc::new(AtomicBool::new(false));
+        let cleanup_name = container_name;
+        let cleanup_flag = cleaned_up.clone();
+
+        // Check if Docker is available and the user has necessary permissions
+        if !Self::check_docker_availability()? {
+            return Err("Docker is not available or you don't have the necessary permissions. Please ensure Docker is installed and you are part of the docker group.".into());
+        }
+
+        // Pull the docker image if it's not present
+        if let Err(e) = Command::new("docker").args(["pull", &image_name]).output() {
+            return Err(format!("Failed to pull Docker image: {}. Please check your internet connection and Docker permissions.", e).into());
+        }
+
+        // Start the docker container
+        let rust_log_level = std::env::var("RUST_LOG").unwrap_or_else(|_| "none".to_string());
+        Command::new("docker")
+                    .args([
+                        "run",
+                        "-e",
+                        &format!("RUST_LOG={}", rust_log_level),
+                        "-p",
+                        "3000:3000",
+                        "--rm",
+                        "--gpus",
+                        "all",
+                        "--name",
+                        container_name,
+                        &image_name,
+                    ])
+                    // Redirect stdout and stderr to the parent process
+                    .stdout(Stdio::inherit())
+                    .stderr(Stdio::inherit())
+                    .spawn()
+                    .map_err(|e| format!("Failed to start Docker container: {}. Please check your Docker installation and permissions.", e))?;
+
+        // Kill the container on control-c
+        ctrlc::set_handler(move || {
+            tracing::debug!("received Ctrl+C, cleaning up...");
+            if !cleanup_flag.load(Ordering::SeqCst) {
+                cleanup_container(cleanup_name);
+                cleanup_flag.store(true, Ordering::SeqCst);
+            }
+            std::process::exit(0);
+        })
+        .unwrap();
+
+        // Wait a few seconds for the container to start
+        std::thread::sleep(Duration::from_secs(2));
+
+        let client = Client::new(
+            Url::parse("http://localhost:3000/twirp/").expect("failed to parse url"),
+            reqwest::Client::new(),
+            reqwest_middlewares,
+        )
+        .expect("failed to create client");
+
+        Ok(SP1CudaProver {
+            client,
+            managed_container: Some(CudaProverContainer {
+                name: container_name.to_string(),
+                cleaned_up: cleaned_up.clone(),
+            }),
+        })
     }
 
     /// Executes the [sp1_prover::SP1Prover::setup] method inside the container.
@@ -310,7 +312,7 @@ impl SP1CudaProver {
 
 impl Default for SP1CudaProver {
     fn default() -> Self {
-        Self::new().expect("Failed to create SP1CudaProver")
+        Self::new(None).expect("Failed to create SP1CudaProver")
     }
 }
 
