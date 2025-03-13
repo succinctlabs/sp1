@@ -1435,6 +1435,7 @@ pub mod tests {
         Shrink,
         Wrap,
         CircuitTest,
+        Plonk,
         All,
     }
 
@@ -1575,6 +1576,10 @@ pub mod tests {
 
         prover.verify_plonk_bn254(&plonk_bn254_proof, &vk, &public_values, &artifacts_dir)?;
 
+        if test_kind == Test::Plonk {
+            return Ok(());
+        }
+
         tracing::info!("generate groth16 bn254 proof");
         let artifacts_dir = try_build_groth16_bn254_artifacts_dev(
             &wrapped_bn254_proof.vk,
@@ -1710,11 +1715,8 @@ pub mod tests {
         let elf = test_artifacts::FIBONACCI_ELF;
         setup_logger();
         let opts = SP1ProverOpts::auto();
-        // TODO(mattstam): We should Test::Plonk here, but this uses the existing
-        // docker image which has a different API than the current. So we need to wait until the
-        // next release (v1.2.0+), and then switch it back.
         let prover = SP1Prover::<CpuProverComponents>::new();
-        test_e2e_prover::<CpuProverComponents>(&prover, elf, SP1Stdin::default(), opts, Test::All)
+        test_e2e_prover::<CpuProverComponents>(&prover, elf, SP1Stdin::default(), opts, Test::Plonk)
     }
 
     /// Tests an end-to-end workflow of proving a program across the entire proof generation
