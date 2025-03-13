@@ -262,7 +262,7 @@ impl<'a> CpuProveBuilder<'a> {
         self
     }
 
-    /// Overide the default stdout of the guest program.
+    /// Override the default stdout of the guest program.
     ///
     /// # Example
     /// ```rust,no_run
@@ -283,7 +283,7 @@ impl<'a> CpuProveBuilder<'a> {
         self
     }
 
-    /// Overide the default stdout of the guest program.
+    /// Override the default stdout of the guest program.
     ///
     /// # Example
     /// ```rust,no_run

@@ -222,12 +222,13 @@ impl Clone for IoOptions<'_> {
 /// A trait for [`Write`] types to be used in the executor.
 ///
 /// This trait is useful as you may have a writer behind a lock,
-/// and its not ideal to have the underlying [`Write`] implentation call `.lock()`
+/// and its not ideal to have the underlying [`Write`] implementation call `.lock()`
 /// if the executor is making multiple calls to write quickly.
 ///
 /// ```rust,no_run
 /// use std::sync::{Arc, Mutex};
 /// use std::io::Write;
+/// use sp1_core_executor::MakeWriter;
 ///
 /// struct LockedWriter {
 ///     inner: Arc<Mutex<Vec<u8>>>,
