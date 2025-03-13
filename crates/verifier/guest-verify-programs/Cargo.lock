@@ -520,6 +520,7 @@ dependencies = [
 name = "sp1-verifier"
 version = "4.1.3"
 dependencies = [
+ "blake3",
  "cfg-if",
  "hex",
  "lazy_static",
