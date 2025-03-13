@@ -30,8 +30,8 @@ impl CudaProverBuilder {
     ///     .build();
     /// ```
     #[must_use]
-    pub fn with_moongate_endpoint(mut self, endpoint: String) -> Self {
-        self.moongate_endpoint = Some(endpoint);
+    pub fn with_moongate_endpoint(mut self, endpoint: &str) -> Self {
+        self.moongate_endpoint = Some(endpoint.to_string());
         self
     }
 
