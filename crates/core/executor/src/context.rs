@@ -190,13 +190,13 @@ impl<'a> SP1ContextBuilder<'a> {
     }
 
     /// Set the `stdout` writer.
-    pub fn stdout<W: MakeWriter>(&mut self, writer: &'a mut W) -> &mut Self {
+    pub fn stdout<W: IoWriter>(&mut self, writer: &'a mut W) -> &mut Self {
         self.io_options.stdout = Some(writer);
         self
     }
 
     /// Set the `stderr` writer.
-    pub fn stderr<W: MakeWriter>(&mut self, writer: &'a mut W) -> &mut Self {
+    pub fn stderr<W: IoWriter>(&mut self, writer: &'a mut W) -> &mut Self {
         self.io_options.stderr = Some(writer);
         self
     }
@@ -208,9 +208,9 @@ impl<'a> SP1ContextBuilder<'a> {
 #[derive(Default)]
 pub struct IoOptions<'a> {
     /// A writer to redirect `stdout` to.
-    pub stdout: Option<&'a mut dyn MakeWriter>,
+    pub stdout: Option<&'a mut dyn IoWriter>,
     /// A writer to redirect `stderr` to.
-    pub stderr: Option<&'a mut dyn MakeWriter>,
+    pub stderr: Option<&'a mut dyn IoWriter>,
 }
 
 impl Clone for IoOptions<'_> {
@@ -221,37 +221,10 @@ impl Clone for IoOptions<'_> {
 
 /// A trait for [`Write`] types to be used in the executor.
 ///
-/// This trait is useful as you may have a writer behind a lock,
-/// and its not ideal to have the underlying [`Write`] implementation call `.lock()`
-/// if the executor is making multiple calls to write quickly.
-///
-/// ```rust,no_run
-/// use std::sync::{Arc, Mutex};
-/// use std::io::Write;
-/// use sp1_core_executor::MakeWriter;
-///
-/// struct LockedWriter {
-///     inner: Arc<Mutex<Vec<u8>>>,
-/// }
-///
-/// impl MakeWriter for LockedWriter {
-///     fn make_writer(&mut self) -> &mut dyn Write {
-///         self.inner.lock().unwrap()
-///     }
-/// }
-/// ```
-///
 /// This trait is generically implemented for any [`Write`] + [`Send`] type.
-pub trait MakeWriter: Send {
-    /// Get the underlying writer.
-    fn make_writer(&mut self) -> &mut dyn Write;
-}
+pub trait IoWriter: Write + Send {}
 
-impl<W: Write + Send> MakeWriter for W {
-    fn make_writer(&mut self) -> &mut dyn Write {
-        self
-    }
-}
+impl<W: Write + Send> IoWriter for W {}
 
 #[cfg(test)]
 mod tests {

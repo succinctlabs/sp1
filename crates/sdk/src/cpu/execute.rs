@@ -3,7 +3,7 @@
 //! This module provides a builder for simulating the execution of a program on the CPU.
 
 use anyhow::Result;
-use sp1_core_executor::{ExecutionReport, HookEnv, MakeWriter, SP1ContextBuilder};
+use sp1_core_executor::{ExecutionReport, HookEnv, IoWriter, SP1ContextBuilder};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_primitives::io::SP1PublicValues;
 use sp1_prover::{components::CpuProverComponents, SP1Prover};
@@ -160,7 +160,7 @@ impl<'a> CpuExecuteBuilder<'a> {
     /// ```
     ///
     #[must_use]
-    pub fn stdout<W: MakeWriter>(mut self, writer: &'a mut W) -> Self {
+    pub fn stdout<W: IoWriter>(mut self, writer: &'a mut W) -> Self {
         self.context_builder.stdout(writer);
         self
     }
@@ -171,7 +171,7 @@ impl<'a> CpuExecuteBuilder<'a> {
     /// ```rust,no_run
     /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
     ///
-    /// let mut stdout = Vec::new();
+    /// let mut stderr = Vec::new();
     ///
     /// let elf = &[1, 2, 3];
     /// let stdin = SP1Stdin::new();
@@ -181,7 +181,7 @@ impl<'a> CpuExecuteBuilder<'a> {
     /// ```
     ///
     #[must_use]
-    pub fn stderr<W: MakeWriter>(mut self, writer: &'a mut W) -> Self {
+    pub fn stderr<W: IoWriter>(mut self, writer: &'a mut W) -> Self {
         self.context_builder.stderr(writer);
         self
     }

@@ -54,15 +54,11 @@ impl Syscall for WriteSyscall {
                     if !flush_s.is_empty() {
                         match rt.io_options.stdout {
                             Some(ref mut writer) => {
-                                flush_s.into_iter().for_each(|line| {
-                                    let writer = writer.make_writer();
+                                flush_s.into_iter().for_each(|mut line| {
+                                    line.push('\n');
 
                                     writer
                                         .write_all(line.as_bytes())
-                                        .expect("failed to write to stdout io override");
-
-                                    writer
-                                        .write_all(b"\n")
                                         .expect("failed to write to stdout io override");
 
                                     writer.flush().expect("failed to flush stdout io override");
@@ -81,14 +77,12 @@ impl Syscall for WriteSyscall {
             if !flush_s.is_empty() {
                 match rt.io_options.stderr {
                     Some(ref mut writer) => {
-                        flush_s.into_iter().for_each(|line| {
-                            let writer = writer.make_writer();
+                        flush_s.into_iter().for_each(|mut line| {
+                            line.push('\n');
 
                             writer
                                 .write_all(line.as_bytes())
                                 .expect("failed to write to stderr io override");
-
-                            writer.write_all(b"\n").expect("failed to write to stderr io override");
 
                             writer.flush().expect("failed to flush stderr io override");
                         });
