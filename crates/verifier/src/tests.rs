@@ -3,10 +3,10 @@ use sp1_sdk::{install::try_install_circuit_artifacts, HashableKey, ProverClient,
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "blake3")] {
-        use test_artifacts::FIBONACCI_BLAKE3_ELF as FIBONACCI_ELF;
+        const FIBONACCI_ELF: &[u8] = include_bytes!("../fibonacci-blake3/fibonacci-blake3");
     }
     else {
-use test_artifacts::FIBONACCI_ELF;
+        use test_artifacts::FIBONACCI_ELF;
     }
 }
 
@@ -111,6 +111,9 @@ fn test_verify_invalid_groth16() {
 #[serial]
 #[test]
 fn test_verify_plonk() {
+    #[cfg(feature = "blake3")]
+    const PLONK_ELF: &[u8] = include_bytes!("../guest-verify-programs/plonk_verify_blake3");
+    #[cfg(not(feature = "blake3"))]
     const PLONK_ELF: &[u8] = include_bytes!("../guest-verify-programs/plonk_verify");
 
     // Set up the pk and vk.
