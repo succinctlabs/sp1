@@ -55,6 +55,8 @@ impl Syscall for WriteSyscall {
                         match rt.io_options.stdout {
                             Some(ref mut writer) => {
                                 flush_s.into_iter().for_each(|line| {
+                                    let writer = writer.make_writer();
+
                                     writer
                                         .write_all(line.as_bytes())
                                         .expect("failed to write to stdout io override");
@@ -80,6 +82,8 @@ impl Syscall for WriteSyscall {
                 match rt.io_options.stderr {
                     Some(ref mut writer) => {
                         flush_s.into_iter().for_each(|line| {
+                            let writer = writer.make_writer();
+
                             writer
                                 .write_all(line.as_bytes())
                                 .expect("failed to write to stderr io override");

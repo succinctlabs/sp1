@@ -133,9 +133,7 @@ mod tests {
 
         // Generate proof & verify.
         let stdin = SP1Stdin::new();
-        let mut builder = client.execute(elf, &stdin);
-        builder.context_builder().stdout(&mut stdout);
-        let _ = builder.run().unwrap();
+        let _ = client.execute(elf, &stdin).stdout(&mut stdout).run().unwrap();
 
         assert_eq!(stdout, b"Hello, world!\n");
     }

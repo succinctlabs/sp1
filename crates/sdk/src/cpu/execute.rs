@@ -3,7 +3,7 @@
 //! This module provides a builder for simulating the execution of a program on the CPU.
 
 use anyhow::Result;
-use sp1_core_executor::{ExecutionReport, HookEnv, SP1ContextBuilder};
+use sp1_core_executor::{ExecutionReport, HookEnv, MakeWriter, SP1ContextBuilder};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_primitives::io::SP1PublicValues;
 use sp1_prover::{components::CpuProverComponents, SP1Prover};
@@ -144,27 +144,46 @@ impl<'a> CpuExecuteBuilder<'a> {
         self
     }
 
-    /// Get the context builder.
+    /// Overide the default stdout of the guest program.
     ///
     /// # Example
     /// ```rust,no_run
     /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
+    ///
     /// let mut stdout = Vec::new();
     ///
     /// let elf = &[1, 2, 3];
     /// let stdin = SP1Stdin::new();
     ///
     /// let client = ProverClient::builder().cpu().build();
-    /// let mut builder = client.execute(elf, &stdin);
-    ///
-    /// let mut context_builder = builder.context_builder();
-    /// context_builder.stdout(&mut stdout);
-    ///
-    /// builder.run();
+    /// client.execute(elf, &stdin).stdout(&mut stdout).run();
     /// ```
+    ///
     #[must_use]
-    pub fn context_builder(&mut self) -> &mut SP1ContextBuilder<'a> {
-        &mut self.context_builder
+    pub fn stdout<W: MakeWriter>(mut self, writer: &'a mut W) -> Self {
+        self.context_builder.stdout(writer);
+        self
+    }
+
+    /// Overide the default stdout of the guest program.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
+    ///
+    /// let mut stdout = Vec::new();
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().cpu().build();
+    /// client.execute(elf, &stdin).stderr(&mut stderr).run();
+    /// ```
+    ///
+    #[must_use]
+    pub fn stderr<W: MakeWriter>(mut self, writer: &'a mut W) -> Self {
+        self.context_builder.stderr(writer);
+        self
     }
 
     /// Executes the program on the input with the built arguments.
