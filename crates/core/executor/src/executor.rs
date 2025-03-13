@@ -2037,11 +2037,15 @@ impl<'a> Executor<'a> {
 
             // Flush stdout and stderr.
             if let Some(ref mut w) = self.io_options.stdout {
-                w.flush().expect("failed to flush stdout override");
+                if let Err(e) = w.flush() {
+                    tracing::error!("failed to flush stdout override: {e}");
+                }
             }
 
             if let Some(ref mut w) = self.io_options.stderr {
-                w.flush().expect("failed to flush stderr override");
+                if let Err(e) = w.flush() {
+                    tracing::error!("failed to flush stderr override: {e}");
+                }
             }
         }
 

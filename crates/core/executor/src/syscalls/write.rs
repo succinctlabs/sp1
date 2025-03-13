@@ -57,9 +57,11 @@ impl Syscall for WriteSyscall {
                                 flush_s.into_iter().for_each(|mut line| {
                                     line.push('\n');
 
-                                    writer
-                                        .write_all(line.as_bytes())
-                                        .expect("failed to write to stdout io override");
+                                    if let Err(e) = writer.write_all(line.as_bytes()) {
+                                        tracing::error!(
+                                            "failed to write to stdout io override: {e}"
+                                        );
+                                    }
                                 });
                             }
                             None => {
@@ -78,9 +80,9 @@ impl Syscall for WriteSyscall {
                         flush_s.into_iter().for_each(|mut line| {
                             line.push('\n');
 
-                            writer
-                                .write_all(line.as_bytes())
-                                .expect("failed to write to stderr io override");
+                            if let Err(e) = writer.write_all(line.as_bytes()) {
+                                tracing::error!("failed to write to stderr io override: {e}");
+                            }
                         });
                     }
                     None => {
