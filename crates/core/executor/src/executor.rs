@@ -2034,6 +2034,15 @@ impl<'a> Executor<'a> {
 
             // Push the remaining execution record with memory initialize & finalize events.
             self.bump_record();
+
+            // Flush stdout and stderr.
+            if let Some(ref mut w) = self.io_options.stdout {
+                w.flush().expect("failed to flush stdout override");
+            }
+
+            if let Some(ref mut w) = self.io_options.stderr {
+                w.flush().expect("failed to flush stderr override");
+            }
         }
 
         // Push the remaining execution record, if there are any CPU events.

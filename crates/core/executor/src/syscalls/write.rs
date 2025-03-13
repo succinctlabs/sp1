@@ -60,8 +60,6 @@ impl Syscall for WriteSyscall {
                                     writer
                                         .write_all(line.as_bytes())
                                         .expect("failed to write to stdout io override");
-
-                                    writer.flush().expect("failed to flush stdout io override");
                                 });
                             }
                             None => {
@@ -83,8 +81,6 @@ impl Syscall for WriteSyscall {
                             writer
                                 .write_all(line.as_bytes())
                                 .expect("failed to write to stderr io override");
-
-                            writer.flush().expect("failed to flush stderr io override");
                         });
                     }
                     None => {
