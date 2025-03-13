@@ -1,4 +1,7 @@
-use std::process::{exit, Command, Stdio};
+use std::{
+    path::PathBuf,
+    process::{exit, Command, Stdio},
+};
 
 use anyhow::{Context, Result};
 use cargo_metadata::camino::Utf8PathBuf;
@@ -82,23 +85,11 @@ pub(crate) fn create_docker_command(
     );
 
     let parsed_version = {
-        let output = Command::new("docker")
-            .args([
-                "run",
-                "--rm",
-                "--platform",
-                "linux/amd64",
-                "-e",
-                &format!("RUSTUP_TOOLCHAIN={}", super::TOOLCHAIN_NAME),
-                "--entrypoint",
-                "",
-                "-i",
-                &image,
-                "rustc",
-                "--version",
-            ])
-            .output()
-            .expect("rustc --version should succeed in docker image");
+        let mut cmd = run_command_in_docker(&image);
+        cmd.args(["rustc", "--version"]);
+        cmd.env("RUSTUP_TOOLCHAIN", super::TOOLCHAIN_NAME);
+
+        let output = cmd.output().expect("rustc --version should succeed in docker image");
 
         if !output.status.success() {
             return Err(anyhow::anyhow!(
@@ -113,6 +104,18 @@ pub(crate) fn create_docker_command(
         println!("cargo:warning=docker: rustc +succinct --version: {:?}", stdout_string);
 
         super::utils::parse_rustc_version(&stdout_string)
+    };
+
+    let rustc_bin = {
+        let mut cmd = run_command_in_docker(&image);
+        cmd.args(["rustc", "--print", "sysroot"]);
+        cmd.env("RUSTUP_TOOLCHAIN", super::TOOLCHAIN_NAME);
+
+        let output = cmd.output().expect("rustc --bin rustc should succeed in docker image");
+        let stdout_string =
+            String::from_utf8(output.stdout).expect("Can't parse rustc --bin rustc stdout");
+
+        PathBuf::from(stdout_string.trim()).join("bin/rustc")
     };
 
     // When executing the Docker command:
@@ -135,7 +138,7 @@ pub(crate) fn create_docker_command(
         "-e".to_string(),
         format!("CARGO_TARGET_DIR={}", target_dir),
         "-e".to_string(),
-        format!("RUSTUP_TOOLCHAIN={}", super::TOOLCHAIN_NAME),
+        format!("RUSTC={}", rustc_bin.display()),
         // TODO: remove once trim-paths is supported - https://github.com/rust-lang/rust/issues/111540
         "-e".to_string(),
         "RUSTC_BOOTSTRAP=1".to_string(), // allows trim-paths.
@@ -153,4 +156,14 @@ pub(crate) fn create_docker_command(
     let mut command = Command::new("docker");
     command.current_dir(canonicalized_program_dir.clone()).args(&docker_args);
     Ok(command)
+}
+
+/// Setups a command to be run in the docker image.
+fn run_command_in_docker(image: &str) -> Command {
+    let mut cmd = Command::new("docker");
+
+    // Setups the command to run in the docker image.
+    cmd.args(["run", "--rm", "--platform", "linux/amd64", "--entrypoint", "", "-i", image]);
+
+    cmd
 }
