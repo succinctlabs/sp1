@@ -118,7 +118,7 @@ impl ProverClientBuilder {
     /// ```
     #[must_use]
     pub fn cuda(&self) -> CudaProverBuilder {
-        CudaProverBuilder
+        CudaProverBuilder::default()
     }
 
     /// Builds a [`NetworkProver`] specifically for proving on the network.

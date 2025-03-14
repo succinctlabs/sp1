@@ -16,7 +16,7 @@ use strum::IntoEnumIterator;
 use thiserror::Error;
 
 use crate::{
-    context::SP1Context,
+    context::{IoOptions, SP1Context},
     dependencies::{
         emit_auipc_dependency, emit_branch_dependencies, emit_divrem_dependencies,
         emit_jump_dependencies, emit_memory_dependencies,
@@ -182,6 +182,9 @@ pub struct Executor<'a> {
 
     /// The maximum LDE size to allow.
     pub lde_size_threshold: u64,
+
+    /// The options for the IO.
+    pub io_options: IoOptions<'a>,
 
     /// Temporary event counts for the current shard. This is a field to reuse memory.
     event_counts: EnumMap<RiscvAirId, u64>,
@@ -350,6 +353,7 @@ impl<'a> Executor<'a> {
             lde_size_check: false,
             lde_size_threshold: 0,
             event_counts: EnumMap::default(),
+            io_options: context.io_options,
         }
     }
 
@@ -2030,6 +2034,19 @@ impl<'a> Executor<'a> {
 
             // Push the remaining execution record with memory initialize & finalize events.
             self.bump_record();
+
+            // Flush stdout and stderr.
+            if let Some(ref mut w) = self.io_options.stdout {
+                if let Err(e) = w.flush() {
+                    tracing::error!("failed to flush stdout override: {e}");
+                }
+            }
+
+            if let Some(ref mut w) = self.io_options.stderr {
+                if let Err(e) = w.flush() {
+                    tracing::error!("failed to flush stderr override: {e}");
+                }
+            }
         }
 
         // Push the remaining execution record, if there are any CPU events.

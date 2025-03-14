@@ -49,7 +49,7 @@ impl EnvProver {
             "mock" => Box::new(CpuProver::mock()),
             "cpu" => Box::new(CpuProver::new()),
             "cuda" => {
-                Box::new(CudaProver::new(SP1Prover::new()))
+                Box::new(CudaProver::new(SP1Prover::new(), None))
             }
             "network" => {
                 #[cfg(not(feature = "network"))]
