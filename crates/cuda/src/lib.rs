@@ -188,24 +188,24 @@ impl SP1CudaProver {
         // Start the docker container
         let rust_log_level = std::env::var("RUST_LOG").unwrap_or_else(|_| "none".to_string());
         Command::new("docker")
-                    .args([
-                        "run",
-                        "-e",
-                        &format!("RUST_LOG={}", rust_log_level),
-                        "-p",
-                        "3000:3000",
-                        "--rm",
-                        "--gpus",
-                        "all",
-                        "--name",
-                        container_name,
-                        &image_name,
-                    ])
-                    // Redirect stdout and stderr to the parent process
-                    .stdout(Stdio::inherit())
-                    .stderr(Stdio::inherit())
-                    .spawn()
-                    .map_err(|e| format!("Failed to start Docker container: {}. Please check your Docker installation and permissions.", e))?;
+            .args([
+                "run",
+                "-e",
+                &format!("RUST_LOG={}", rust_log_level),
+                "-p",
+                "3000:3000",
+                "--rm",
+                "--gpus",
+                "all",
+                "--name",
+                container_name,
+                &image_name,
+            ])
+            // Redirect stdout and stderr to the parent process
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .spawn()
+            .map_err(|e| format!("Failed to start Docker container: {}. Please check your Docker installation and permissions.", e))?;
 
         // Kill the container on control-c
         ctrlc::set_handler(move || {

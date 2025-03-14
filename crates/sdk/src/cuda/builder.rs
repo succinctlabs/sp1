@@ -18,8 +18,8 @@ impl CudaProverBuilder {
     /// Sets the Moongate server endpoint.
     ///
     /// # Details
-    /// This method will set the Moongate server to use, instead using the built-in Moongate server
-    /// that is inside a Docker container,
+    /// Run the CUDA prover with the provided endpoint for the Moongate (GPU prover) server.
+    /// Enables more customization and avoids `DinD` configurations.
     ///
     /// # Example
     /// ```rust,no_run
