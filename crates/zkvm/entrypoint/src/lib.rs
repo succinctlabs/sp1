@@ -146,7 +146,14 @@ mod zkvm {
         }
     }
 
-    pub static mut PUBLIC_VALUES_HASHER: Option<Sha256> = None;
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "blake3")] {
+            pub static mut PUBLIC_VALUES_HASHER: Option<blake3::Hasher> = None;
+        }
+        else {
+            pub static mut PUBLIC_VALUES_HASHER: Option<Sha256> = None;
+        }
+    }
 
     #[no_mangle]
     unsafe extern "C" fn __start() {
@@ -154,7 +161,15 @@ mod zkvm {
             #[cfg(all(target_os = "zkvm", feature = "embedded"))]
             crate::allocators::init();
 
-            PUBLIC_VALUES_HASHER = Some(Sha256::new());
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "blake3")] {
+                    PUBLIC_VALUES_HASHER = Some(blake3::Hasher::new());
+                }
+                else {
+                    PUBLIC_VALUES_HASHER = Some(Sha256::new());
+                }
+            }
+
             #[cfg(feature = "verify")]
             {
                 DEFERRED_PROOFS_DIGEST = Some([BabyBear::zero(); 8]);

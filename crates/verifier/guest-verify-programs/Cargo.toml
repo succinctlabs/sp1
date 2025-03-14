@@ -9,9 +9,22 @@ name = "groth16_verify"
 path = "src/groth16_verify.rs"
 
 [[bin]]
+name = "groth16_verify_blake3"
+path = "src/groth16_verify.rs"
+required-features = ["blake3"]
+
+[[bin]]
 name = "plonk_verify"
 path = "src/plonk_verify.rs"
+
+[[bin]]
+name = "plonk_verify_blake3"
+path = "src/plonk_verify.rs"
+required-features = ["blake3"]
 
 [dependencies]
 sp1-zkvm = { path = "../../zkvm/entrypoint" }
 sp1-verifier = { path = "../" }
+
+[features]
+blake3 = ["sp1-zkvm/blake3", "sp1-verifier/blake3"]
