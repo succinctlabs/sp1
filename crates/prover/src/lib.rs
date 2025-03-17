@@ -187,12 +187,12 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let wrap_prover = C::WrapProver::new(wrap_machine);
 
         let core_cache_size = NonZeroUsize::new(
-            env::var("PROVER_CORE_CACHE_SIZE")
+            env::var("CORE_CACHE_SIZE")
                 .unwrap_or_else(|_| CORE_CACHE_SIZE.to_string())
                 .parse()
                 .unwrap_or(CORE_CACHE_SIZE),
         )
-        .expect("PROVER_CORE_CACHE_SIZE must be a non-zero usize");
+        .expect("CORE_CACHE_SIZE must be a non-zero usize");
 
         let core_shape_config = env::var("FIX_CORE_SHAPES")
             .map(|v| v.eq_ignore_ascii_case("true"))
