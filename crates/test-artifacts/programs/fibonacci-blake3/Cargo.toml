@@ -1,3 +1,5 @@
+# This crate is in its own workspace because of the `blake3` feature that we don't want enabled
+# everywhere.
 [workspace]
 [package]
 name = "fibonacci-blake3-test"
