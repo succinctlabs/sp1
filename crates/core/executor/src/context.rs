@@ -1,16 +1,16 @@
 use core::mem::take;
 
-use hashbrown::HashMap;
-
 use crate::{
     hook::{hookify, BoxedHook, HookEnv, HookRegistry},
     subproof::SubproofVerifier,
 };
+use hashbrown::HashMap;
+use std::io::Write;
 
 use sp1_primitives::consts::fd::LOWEST_ALLOWED_FD;
 
 /// Context to run a program inside SP1.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct SP1Context<'a> {
     /// The registry of hooks invocable from inside SP1.
     ///
@@ -25,16 +25,32 @@ pub struct SP1Context<'a> {
 
     /// Deferred proof verification.
     pub deferred_proof_verification: bool,
+
+    /// Whether gas (available in the `ExecutionReport`) should be calculated during execution.
+    /// Does nothing while proving.
+    ///
+    /// This option will noticeably slow down execution, so it should be disabled in most cases.
+    pub calculate_gas: bool,
+
+    /// The IO options for the [`SP1Executor`].
+    pub io_options: IoOptions<'a>,
+}
+
+impl Default for SP1Context<'_> {
+    fn default() -> Self {
+        Self::builder().build()
+    }
 }
 
 /// A builder for [`SP1Context`].
-#[derive(Clone)]
 pub struct SP1ContextBuilder<'a> {
     no_default_hooks: bool,
     hook_registry_entries: Vec<(u32, BoxedHook<'a>)>,
     subproof_verifier: Option<&'a dyn SubproofVerifier>,
     max_cycles: Option<u64>,
     deferred_proof_verification: bool,
+    calculate_gas: bool,
+    io_options: IoOptions<'a>,
 }
 
 impl Default for SP1ContextBuilder<'_> {
@@ -46,6 +62,8 @@ impl Default for SP1ContextBuilder<'_> {
             max_cycles: None,
             // Always verify deferred proofs by default.
             deferred_proof_verification: true,
+            calculate_gas: true,
+            io_options: IoOptions::default(),
         }
     }
 }
@@ -100,11 +118,14 @@ impl<'a> SP1ContextBuilder<'a> {
         let subproof_verifier = take(&mut self.subproof_verifier);
         let cycle_limit = take(&mut self.max_cycles);
         let deferred_proof_verification = take(&mut self.deferred_proof_verification);
+        let calculate_gas = take(&mut self.calculate_gas);
         SP1Context {
             hook_registry,
             subproof_verifier,
             max_cycles: cycle_limit,
             deferred_proof_verification,
+            calculate_gas,
+            io_options: take(&mut self.io_options),
         }
     }
 
@@ -136,6 +157,17 @@ impl<'a> SP1ContextBuilder<'a> {
         self
     }
 
+    /// Whether gas should be calculated while executing. Defaults to `true`.
+    /// Determines whether the gas field in the `ExecutionReport` is `None` or `Some`.
+    ///
+    /// During proving, gas is not calculated, so this option has no effect.
+    ///
+    /// Disabling gas calculation will likely speed up execution.
+    pub fn calculate_gas(&mut self, value: bool) -> &mut Self {
+        self.calculate_gas = value;
+        self
+    }
+
     /// Add a subproof verifier.
     ///
     /// The verifier is used to sanity check `verify_sp1_proof` during runtime.
@@ -145,6 +177,7 @@ impl<'a> SP1ContextBuilder<'a> {
     }
 
     /// Set the maximum number of cpu cycles to use for execution.
+    /// `report.total_instruction_count()` will be less than or equal to `max_cycles`.
     pub fn max_cycles(&mut self, max_cycles: u64) -> &mut Self {
         self.max_cycles = Some(max_cycles);
         self
@@ -155,7 +188,43 @@ impl<'a> SP1ContextBuilder<'a> {
         self.deferred_proof_verification = value;
         self
     }
+
+    /// Set the `stdout` writer.
+    pub fn stdout<W: IoWriter>(&mut self, writer: &'a mut W) -> &mut Self {
+        self.io_options.stdout = Some(writer);
+        self
+    }
+
+    /// Set the `stderr` writer.
+    pub fn stderr<W: IoWriter>(&mut self, writer: &'a mut W) -> &mut Self {
+        self.io_options.stderr = Some(writer);
+        self
+    }
 }
+
+/// The IO options for the [`SP1Executor`].
+///
+/// This struct is used to redirect the `stdout` and `stderr` of the [`SP1Executor`].
+#[derive(Default)]
+pub struct IoOptions<'a> {
+    /// A writer to redirect `stdout` to.
+    pub stdout: Option<&'a mut dyn IoWriter>,
+    /// A writer to redirect `stderr` to.
+    pub stderr: Option<&'a mut dyn IoWriter>,
+}
+
+impl Clone for IoOptions<'_> {
+    fn clone(&self) -> Self {
+        IoOptions { stdout: None, stderr: None }
+    }
+}
+
+/// A trait for [`Write`] types to be used in the executor.
+///
+/// This trait is generically implemented for any [`Write`] + [`Send`] type.
+pub trait IoWriter: Write + Send {}
+
+impl<W: Write + Send> IoWriter for W {}
 
 #[cfg(test)]
 mod tests {

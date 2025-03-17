@@ -3,7 +3,7 @@
 //! This module provides a builder for proving a program on the CPU.
 
 use anyhow::Result;
-use sp1_core_executor::SP1ContextBuilder;
+use sp1_core_executor::{IoWriter, SP1ContextBuilder};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::SP1ProvingKey;
 use sp1_stark::{SP1CoreOpts, SP1ProverOpts};
@@ -26,7 +26,7 @@ pub struct CpuProveBuilder<'a> {
     pub(crate) mock: bool,
 }
 
-impl CpuProveBuilder<'_> {
+impl<'a> CpuProveBuilder<'a> {
     /// Set the proof kind to [`SP1ProofKind::Core`] mode.
     ///
     /// # Details
@@ -259,6 +259,48 @@ impl CpuProveBuilder<'_> {
     #[must_use]
     pub fn deferred_proof_verification(mut self, value: bool) -> Self {
         self.context_builder.set_deferred_proof_verification(value);
+        self
+    }
+
+    /// Override the default stdout of the guest program.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
+    ///
+    /// let mut stdout = Vec::new();
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().cpu().build();
+    /// client.execute(elf, &stdin).stdout(&mut stdout).run();
+    /// ```
+    ///
+    #[must_use]
+    pub fn stdout<W: IoWriter>(mut self, writer: &'a mut W) -> Self {
+        self.context_builder.stdout(writer);
+        self
+    }
+
+    /// Override the default stdout of the guest program.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
+    ///
+    /// let mut stderr = Vec::new();
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().cpu().build();
+    /// client.execute(elf, &stdin).stderr(&mut stderr).run();
+    /// ```````
+    ///
+    #[must_use]
+    pub fn stderr<W: IoWriter>(mut self, writer: &'a mut W) -> Self {
+        self.context_builder.stderr(writer);
         self
     }
 

@@ -9,9 +9,32 @@ use super::CudaProver;
 /// A builder for the [`CudaProver`].
 ///
 /// The builder is used to configure the [`CudaProver`] before it is built.
-pub struct CudaProverBuilder;
+#[derive(Debug, Default)]
+pub struct CudaProverBuilder {
+    moongate_endpoint: Option<String>,
+}
 
 impl CudaProverBuilder {
+    /// Sets the Moongate server endpoint.
+    ///
+    /// # Details
+    /// Run the CUDA prover with the provided endpoint for the Moongate (GPU prover) server.
+    /// Enables more customization and avoids `DinD` configurations.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient};
+    ///
+    /// let prover = ProverClient::builder().cuda()
+    ///     .with_moongate_endpoint("http://...")
+    ///     .build();
+    /// ```
+    #[must_use]
+    pub fn with_moongate_endpoint(mut self, endpoint: &str) -> Self {
+        self.moongate_endpoint = Some(endpoint.to_string());
+        self
+    }
+
     /// Builds a [`CudaProver`].
     ///
     /// # Details
@@ -26,6 +49,6 @@ impl CudaProverBuilder {
     /// ```
     #[must_use]
     pub fn build(self) -> CudaProver {
-        CudaProver::new(SP1Prover::new())
+        CudaProver::new(SP1Prover::new(), self.moongate_endpoint)
     }
 }

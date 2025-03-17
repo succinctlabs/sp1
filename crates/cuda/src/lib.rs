@@ -1,7 +1,6 @@
 use std::{
     error::Error as StdError,
     future::Future,
-    io::{BufReader, Read, Write},
     process::{Command, Stdio},
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -40,8 +39,13 @@ pub mod proto {
 pub struct SP1CudaProver {
     /// The gRPC client to communicate with the container.
     client: Client,
+    /// The Moongate server container, if managed by the prover.
+    managed_container: Option<CudaProverContainer>,
+}
+
+pub struct CudaProverContainer {
     /// The name of the container.
-    container_name: String,
+    name: String,
     /// A flag to indicate whether the container has already been cleaned up.
     cleaned_up: Arc<AtomicBool>,
 }
@@ -102,9 +106,67 @@ pub struct WrapRequestPayload {
 }
 
 impl SP1CudaProver {
-    /// Creates a new [SP1Prover] that runs inside a Docker container and returns a
-    /// [SP1ProverClient] that can be used to communicate with the container.
-    pub fn new() -> Result<Self, Box<dyn StdError>> {
+    /// Creates a new [SP1CudaProver] that can be used to communicate with the Moongate server at
+    /// `moongate_endpoint`, or if not provided, create one that runs inside a Docker container.
+    pub fn new(moongate_endpoint: Option<String>) -> Result<Self, Box<dyn StdError>> {
+        let reqwest_middlewares = vec![Box::new(LoggingMiddleware) as Box<dyn Middleware>];
+
+        let prover = match moongate_endpoint {
+            Some(moongate_endpoint) => {
+                let client = Client::new(
+                    Url::parse(&moongate_endpoint).expect("failed to parse url"),
+                    reqwest::Client::new(),
+                    reqwest_middlewares,
+                )
+                .expect("failed to create client");
+
+                SP1CudaProver { client, managed_container: None }
+            }
+            None => Self::start_moongate_server(reqwest_middlewares)?,
+        };
+
+        let timeout = Duration::from_secs(300);
+        let start_time = Instant::now();
+
+        block_on(async {
+            tracing::info!("waiting for proving server to be ready");
+            loop {
+                if start_time.elapsed() > timeout {
+                    return Err("Timeout: proving server did not become ready within 60 seconds. Please check your Docker container and network settings.".to_string());
+                }
+
+                let request = ReadyRequest {};
+                match prover.client.ready(request).await {
+                    Ok(response) if response.ready => {
+                        tracing::info!("proving server is ready");
+                        break;
+                    }
+                    Ok(_) => {
+                        tracing::info!("proving server is not ready, retrying...");
+                    }
+                    Err(e) => {
+                        tracing::warn!("Error checking server readiness: {}", e);
+                    }
+                }
+                tokio::time::sleep(Duration::from_secs(2)).await;
+            }
+            Ok(())
+        })?;
+
+        Ok(prover)
+    }
+
+    fn check_docker_availability() -> Result<bool, Box<dyn std::error::Error>> {
+        match Command::new("docker").arg("version").output() {
+            Ok(output) => Ok(output.status.success()),
+            Err(_) => Ok(false),
+        }
+    }
+
+    fn start_moongate_server(
+        reqwest_middlewares: Vec<Box<dyn Middleware>>,
+    ) -> Result<SP1CudaProver, Box<dyn StdError>> {
+        // If the moongate endpoint url hasn't been provided, we start the Docker container
         let container_name = "sp1-gpu";
         let image_name = std::env::var("SP1_GPU_IMAGE")
             .unwrap_or_else(|_| "public.ecr.aws/succinct-labs/moongate:v4.1.0".to_string());
@@ -125,7 +187,7 @@ impl SP1CudaProver {
 
         // Start the docker container
         let rust_log_level = std::env::var("RUST_LOG").unwrap_or_else(|_| "none".to_string());
-        let mut child = Command::new("docker")
+        Command::new("docker")
             .args([
                 "run",
                 "-e",
@@ -139,42 +201,11 @@ impl SP1CudaProver {
                 container_name,
                 &image_name,
             ])
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
+            // Redirect stdout and stderr to the parent process
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
             .spawn()
             .map_err(|e| format!("Failed to start Docker container: {}. Please check your Docker installation and permissions.", e))?;
-
-        let stderr = child.stderr.take().unwrap();
-        std::thread::spawn(move || {
-            let mut reader = BufReader::new(stderr);
-            let mut buffer = [0; 1024];
-            loop {
-                match reader.read(&mut buffer) {
-                    Ok(0) => break,
-                    Ok(n) => {
-                        std::io::stderr().write_all(&buffer[..n]).unwrap();
-                        std::io::stderr().flush().unwrap();
-                    }
-                    Err(_) => break,
-                }
-            }
-        });
-
-        let stdout = child.stdout.take().unwrap();
-        std::thread::spawn(move || {
-            let mut reader = BufReader::new(stdout);
-            let mut buffer = [0; 1024];
-            loop {
-                match reader.read(&mut buffer) {
-                    Ok(0) => break,
-                    Ok(n) => {
-                        std::io::stdout().write_all(&buffer[..n]).unwrap();
-                        std::io::stdout().flush().unwrap();
-                    }
-                    Err(_) => break,
-                }
-            }
-        });
 
         // Kill the container on control-c
         ctrlc::set_handler(move || {
@@ -190,59 +221,20 @@ impl SP1CudaProver {
         // Wait a few seconds for the container to start
         std::thread::sleep(Duration::from_secs(2));
 
-        // Check if the container is ready
-        let client = Client::from_base_url(
-            Url::parse("http://localhost:3000/twirp/").expect("failed to parse url"),
-        )
-        .expect("failed to create client");
-
-        let timeout = Duration::from_secs(300);
-        let start_time = Instant::now();
-
-        block_on(async {
-            tracing::info!("waiting for proving server to be ready");
-            loop {
-                if start_time.elapsed() > timeout {
-                    return Err("Timeout: proving server did not become ready within 60 seconds. Please check your Docker container and network settings.".to_string());
-                }
-
-                let request = ReadyRequest {};
-                match client.ready(request).await {
-                    Ok(response) if response.ready => {
-                        tracing::info!("proving server is ready");
-                        break;
-                    }
-                    Ok(_) => {
-                        tracing::info!("proving server is not ready, retrying...");
-                    }
-                    Err(e) => {
-                        tracing::warn!("Error checking server readiness: {}", e);
-                    }
-                }
-                tokio::time::sleep(Duration::from_secs(2)).await;
-            }
-            Ok(())
-        })?;
-
         let client = Client::new(
             Url::parse("http://localhost:3000/twirp/").expect("failed to parse url"),
             reqwest::Client::new(),
-            vec![Box::new(LoggingMiddleware) as Box<dyn Middleware>],
+            reqwest_middlewares,
         )
         .expect("failed to create client");
 
         Ok(SP1CudaProver {
             client,
-            container_name: container_name.to_string(),
-            cleaned_up: cleaned_up.clone(),
+            managed_container: Some(CudaProverContainer {
+                name: container_name.to_string(),
+                cleaned_up: cleaned_up.clone(),
+            }),
         })
-    }
-
-    fn check_docker_availability() -> Result<bool, Box<dyn std::error::Error>> {
-        match Command::new("docker").arg("version").output() {
-            Ok(output) => Ok(output.status.success()),
-            Err(_) => Ok(false),
-        }
     }
 
     /// Executes the [sp1_prover::SP1Prover::setup] method inside the container.
@@ -320,16 +312,18 @@ impl SP1CudaProver {
 
 impl Default for SP1CudaProver {
     fn default() -> Self {
-        Self::new().expect("Failed to create SP1CudaProver")
+        Self::new(None).expect("Failed to create SP1CudaProver")
     }
 }
 
 impl Drop for SP1CudaProver {
     fn drop(&mut self) {
-        if !self.cleaned_up.load(Ordering::SeqCst) {
-            tracing::debug!("dropping SP1ProverClient, cleaning up...");
-            cleanup_container(&self.container_name);
-            self.cleaned_up.store(true, Ordering::SeqCst);
+        if let Some(container) = &self.managed_container {
+            if !container.cleaned_up.load(Ordering::SeqCst) {
+                tracing::debug!("dropping SP1ProverClient, cleaning up...");
+                cleanup_container(&container.name);
+                container.cleaned_up.store(true, Ordering::SeqCst);
+            }
         }
     }
 }

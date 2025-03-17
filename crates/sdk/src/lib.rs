@@ -2,7 +2,7 @@
 //!
 //! A library for interacting with the SP1 RISC-V zkVM.
 //!
-//! Visit the [Getting Started](https://docs.succinct.xyz/docs/getting-started/install) section
+//! Visit the [Getting Started](https://docs.succinct.xyz/docs/sp1/getting-started/install) section
 //! in the official SP1 documentation for a quick start guide.
 
 #![warn(clippy::pedantic)]
@@ -121,6 +121,21 @@ mod tests {
         if client.verify(&proof, &vk).is_ok() {
             panic!("verified proof with invalid public values")
         }
+    }
+
+    #[test]
+    fn test_e2e_io_override() {
+        utils::setup_logger();
+        let client = ProverClient::builder().cpu().build();
+        let elf = test_artifacts::HELLO_WORLD_ELF;
+
+        let mut stdout = Vec::new();
+
+        // Generate proof & verify.
+        let stdin = SP1Stdin::new();
+        let _ = client.execute(elf, &stdin).stdout(&mut stdout).run().unwrap();
+
+        assert_eq!(stdout, b"Hello, world!\n");
     }
 
     #[test]

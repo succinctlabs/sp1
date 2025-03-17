@@ -2,6 +2,13 @@
 name = "sp1-build"
 description = "Build an SP1 program."
 readme = "README.md"
+
+# Note: The release workflow depends on `sp1-build` version being set by the workspace, and that the `sp1-build` version refers to the canonical version.
+# **Do not change this**, unless the release workflow is changed accordingly.
+#
+# The version of `sp1-build` is used for:
+# - The name of the release tag on merge to `main`.
+# - The default Docker image tag for this SP1 version..
 version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
