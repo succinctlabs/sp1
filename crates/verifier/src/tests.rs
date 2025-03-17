@@ -3,7 +3,7 @@ use sp1_sdk::{install::try_install_circuit_artifacts, HashableKey, ProverClient,
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "blake3")] {
-        const FIBONACCI_ELF: &[u8] = include_bytes!("../fibonacci-blake3/fibonacci-blake3");
+        use test_artifacts::FIBONACCI_BLAKE3_ELF as FIBONACCI_ELF;
     }
     else {
         use test_artifacts::FIBONACCI_ELF;

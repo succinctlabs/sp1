@@ -108,7 +108,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
 
 [[package]]
-name = "fibonacci-blake3-program-tests"
+name = "fibonacci-blake3-test"
 version = "1.1.0"
 dependencies = [
  "sp1-zkvm",
