@@ -71,7 +71,7 @@ pub fn compute_merkle_root(mut leaves: Vec<[u8; 32]>) -> [u8; 32] {
         }
         leaves = next;
     }
-    leaves[0] as [u8; 32]
+    leaves[0]
 }
 
 pub fn main() {
