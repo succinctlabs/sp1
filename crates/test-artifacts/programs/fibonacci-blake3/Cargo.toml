@@ -1,5 +1,5 @@
-# This crate is in its own workspace because of the `blake3` feature that we don't want enabled
-# everywhere.
+# Because of the `blake3` feature enabled on `sp1-zkvm`, this program should be in its own 
+# workspace. Otherwise, it changes PV hashing for all programs to `blake3`.
 [workspace]
 [package]
 name = "fibonacci-blake3-test"
