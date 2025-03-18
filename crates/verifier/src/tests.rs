@@ -1,12 +1,23 @@
 use serial_test::serial;
 use sp1_sdk::{install::try_install_circuit_artifacts, HashableKey, ProverClient, SP1Stdin};
-use test_artifacts::FIBONACCI_ELF;
+
+cfg_if::cfg_if! {
+    if #[cfg(feature = "blake3")] {
+        use test_artifacts::FIBONACCI_BLAKE3_ELF as FIBONACCI_ELF;
+    }
+    else {
+        use test_artifacts::FIBONACCI_ELF;
+    }
+}
 
 use crate::{error::Error, Groth16Error, PlonkError};
 
 #[serial]
 #[test]
 fn test_verify_groth16() {
+    #[cfg(feature = "blake3")]
+    const GROTH16_ELF: &[u8] = include_bytes!("../guest-verify-programs/groth16_verify_blake3");
+    #[cfg(not(feature = "blake3"))]
     const GROTH16_ELF: &[u8] = include_bytes!("../guest-verify-programs/groth16_verify");
 
     // Set up the pk and vk.
@@ -103,6 +114,9 @@ fn test_verify_invalid_groth16() {
 #[serial]
 #[test]
 fn test_verify_plonk() {
+    #[cfg(feature = "blake3")]
+    const PLONK_ELF: &[u8] = include_bytes!("../guest-verify-programs/plonk_verify_blake3");
+    #[cfg(not(feature = "blake3"))]
     const PLONK_ELF: &[u8] = include_bytes!("../guest-verify-programs/plonk_verify");
 
     // Set up the pk and vk.
