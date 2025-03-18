@@ -206,7 +206,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         let vk_verification =
             env::var("VERIFY_VK").map(|v| v.eq_ignore_ascii_case("true")).unwrap_or(true);
-        tracing::info!("vk verification: {}", vk_verification);
+        tracing::debug!("vk verification: {}", vk_verification);
 
         // Read the shapes from the shapes directory and deserialize them into memory.
         let allowed_vk_map: BTreeMap<[BabyBear; DIGEST_SIZE], usize> = if vk_verification {
@@ -846,7 +846,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 handle.join().unwrap();
             }
             handle.join().unwrap();
-            tracing::info!("joined handles");
+            tracing::debug!("joined handles");
 
             let (_, _, vk, proof) = proofs_rx.lock().unwrap().recv().unwrap();
             (vk, proof)
@@ -954,7 +954,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         tracing::debug!("wrap proving time: {:?}", elapsed);
         let mut wrap_challenger = self.wrap_prover.config().challenger();
         self.wrap_prover.machine().verify(&wrap_vk, &wrap_proof, &mut wrap_challenger).unwrap();
-        tracing::info!("wrapping successful");
+        tracing::debug!("wrapping successful");
 
         Ok(SP1ReduceProof { vk: wrap_vk, proof: wrap_proof.shard_proofs.pop().unwrap() })
     }
