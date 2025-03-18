@@ -270,7 +270,7 @@ where
                                 // See if any deferred shards are ready to be committed to.
                                 let mut deferred =
                                     deferred.split(done, last_record, opts.split_opts);
-                                tracing::info!("deferred {} records", deferred.len());
+                                tracing::debug!("deferred {} records", deferred.len());
 
                                 // Update the public values & prover state for the shards which do not
                                 // contain "cpu events" before committing to them.
@@ -323,7 +323,7 @@ where
                             if shape_fixed_records.is_none() {
                                 // See if any deferred shards are ready to be committed to.
                                 let mut deferred = deferred.split(done, None, opts.split_opts);
-                                tracing::info!("deferred {} records", deferred.len());
+                                tracing::debug!("deferred {} records", deferred.len());
 
                                 // Update the public values & prover state for the shards which do not
                                 // contain "cpu events" before committing to them.
@@ -523,7 +523,7 @@ where
 
         // Log some of the `ExecutionReport` information.
         let mut report_aggregate = report_aggregate.lock().unwrap();
-        tracing::info!(
+        tracing::debug!(
             "execution report (totals): total_cycles={}, total_syscall_cycles={}, touched_memory_addresses={}",
             report_aggregate.total_instruction_count(),
             report_aggregate.total_syscall_count(),
@@ -531,7 +531,7 @@ where
         );
         match gas {
             Some(Ok(gas)) => {
-                tracing::info!("execution report (gas): {}", gas);
+                tracing::debug!("execution report (gas): {}", gas);
                 report_aggregate.gas = Some(gas);
             }
             Some(Err(err)) => tracing::error!("Encountered error while calculating gas: {}", err),
@@ -540,21 +540,21 @@ where
 
         // Print the opcode and syscall count tables like `du`: sorted by count (descending) and
         // with the count in the first column.
-        tracing::info!("execution report (opcode counts):");
+        tracing::debug!("execution report (opcode counts):");
         let (width, lines) = sorted_table_lines(report_aggregate.opcode_counts.as_ref());
         for (label, count) in lines {
             if *count > 0 {
-                tracing::info!("  {}", format_table_line(&width, &label, count));
+                tracing::debug!("  {}", format_table_line(&width, &label, count));
             } else {
                 tracing::debug!("  {}", format_table_line(&width, &label, count));
             }
         }
 
-        tracing::info!("execution report (syscall counts):");
+        tracing::debug!("execution report (syscall counts):");
         let (width, lines) = sorted_table_lines(report_aggregate.syscall_counts.as_ref());
         for (label, count) in lines {
             if *count > 0 {
-                tracing::info!("  {}", format_table_line(&width, &label, count));
+                tracing::debug!("  {}", format_table_line(&width, &label, count));
             } else {
                 tracing::debug!("  {}", format_table_line(&width, &label, count));
             }
@@ -564,7 +564,7 @@ where
 
         // Print the summary.
         let proving_time = proving_start.elapsed().as_secs_f64();
-        tracing::info!(
+        tracing::debug!(
             "summary: cycles={}, e2e={}s, khz={:.2}",
             cycles,
             proving_time,
