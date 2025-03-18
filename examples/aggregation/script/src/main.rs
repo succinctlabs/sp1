@@ -27,7 +27,6 @@ fn main() {
     let client = ProverClient::from_env();
 
     // Setup the proving and verifying keys.
-    let (aggregation_pk, _) = client.setup(AGGREGATION_ELF);
     let (fibonacci_pk, fibonacci_vk) = client.setup(FIBONACCI_ELF);
 
     // Generate the fibonacci proofs.
@@ -54,6 +53,7 @@ fn main() {
     let inputs = vec![input_1, input_2, input_3];
 
     // Aggregate the proofs.
+    let (aggregation_pk, _) = client.setup(AGGREGATION_ELF);
     tracing::info_span!("aggregate the proofs").in_scope(|| {
         let mut stdin = SP1Stdin::new();
 
