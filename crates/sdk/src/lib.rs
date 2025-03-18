@@ -201,7 +201,7 @@ mod deprecated_check {
     fn cuda_is_deprecated() {}
 
     /// Show a warning if the `cuda` feature is enabled.
-    #[allow(deprecated, unused)]
+    #[allow(unused)]
     fn show_cuda_warning() {
         cuda_is_deprecated();
     }
