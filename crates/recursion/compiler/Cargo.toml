@@ -29,11 +29,7 @@ vec_map = "0.8.2"
 
 [dev-dependencies]
 sp1-recursion-core = { path = "../core", features = ["program_validation"] }
-p3-challenger = { workspace = true }
-p3-dft = { workspace = true }
-p3-merkle-tree = { workspace = true }
 rand = "0.8.5"
-criterion = { version = "0.5.1", features = ["html_reports"] }
 
 [features]
 default = ["debug"]

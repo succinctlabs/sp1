@@ -20,17 +20,18 @@ tracing = { workspace = true }
 twirp = { package = "twirp-rs", version = "0.13.0-succinct" }
 ctrlc = "3.4.4"
 
-[build-dependencies]
-prost-build = { version = "0.13", optional = true }
-twirp-build = { package = "twirp-build-rs", version = "0.13.0-succinct", optional = true }
+# Commented out for the same reason that the logic in `build.rs` is commented out.
+# [build-dependencies]
+# prost-build = { version = "0.13", optional = true }
+# twirp-build = { package = "twirp-build-rs", version = "0.13.0-succinct", optional = true }
 
 [dev-dependencies]
 sp1-core-machine = { path = "../core/machine" }
-test-artifacts = { path = "../test-artifacts" }
 
 [features]
 default = []
-protobuf = ["dep:prost-build", "dep:twirp-build"]
+# Does nothing for now.
+protobuf = [] # ["dep:prost-build", "dep:twirp-build"]
 
 [lints]
 workspace = true

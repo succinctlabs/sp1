@@ -20,12 +20,9 @@ p3-baby-bear = { workspace = true }
 sp1-stark = { workspace = true }
 sp1-cuda = { workspace = true }
 test-artifacts = { workspace = true }
-tracing = { workspace = true }
-serde_json = { workspace = true }
 rand = "0.8.5"
 clap = { version = "4.5.9", features = ["derive"] }
 bincode = "1.3.3"
-time = "0.3.26"
 
 [[bin]]
 name = "sp1-perf"

@@ -12,8 +12,6 @@ categories = { workspace = true }
 [dependencies]
 prost = { version = "0.13", optional = true }
 serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true }
-twirp = { package = "twirp-rs", version = "0.13.0-succinct", optional = true }
 async-trait = "0.1.81"
 reqwest-middleware = { version = "0.3.2", optional = true }
 reqwest = { version = "0.12.4", default-features = false, features = [
@@ -47,7 +45,6 @@ sp1-stark = { workspace = true }
 sp1-primitives = { workspace = true }
 itertools = { workspace = true }
 tonic = { version = "0.12", features = ["tls", "tls-roots"], optional = true }
-alloy-sol-types = { version = "0.8", default-features = false, optional = true }
 alloy-primitives = { version = "0.8", default-features = false, optional = true }
 alloy-signer = { version = "0.11", default-features = false, optional = true }
 alloy-signer-local = { version = "0.11", default-features = false, optional = true }
@@ -55,7 +52,6 @@ backoff = { version = "0.4", features = ["tokio"], optional = true }
 
 [dev-dependencies]
 test-artifacts = { path = "../test-artifacts" }
-tokio-test = { version = "0.4" }
 
 [features]
 default = ["network"]
@@ -64,14 +60,12 @@ native-gnark = ["sp1-prover/native-gnark"]
 # dependency resolution issues.
 network = [
   "dep:prost",
-  "dep:alloy-sol-types",
   "dep:alloy-signer",
   "dep:alloy-signer-local",
   "dep:alloy-primitives",
   "dep:tokio",
   "dep:alloy-signer",
   "dep:reqwest",
-  "dep:twirp",
   "dep:reqwest-middleware",
   "dep:tonic",
   "dep:backoff",

@@ -38,7 +38,6 @@ serde = { workspace = true, features = ["derive", "rc"] }
 backtrace = { version = "0.3.71", features = ["serde"] }
 static_assertions = "1.1.0"
 thiserror = "1.0.60"
-vec_map = "0.8.2"
 range-set-blaze = { version = "0.1.16", optional = true }
 smallvec = { version = "1.13.2", features = [
     "const_generics",
@@ -47,7 +46,6 @@ smallvec = { version = "1.13.2", features = [
     "union",
     "write",
 ], optional = true }
-num_cpus = "1.16.0"
 rand = "0.8.5"
 cfg-if = "1.0.0"
 
