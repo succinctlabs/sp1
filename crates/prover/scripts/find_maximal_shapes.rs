@@ -110,7 +110,7 @@ fn main() {
 
     // Print the initial maximal shapes.
     for log_shard_size in args.shard_sizes.iter() {
-        tracing::info!(
+        tracing::debug!(
             "there are {} initial maximal shapes for log shard size {}",
             all_maximal_shapes.get(log_shard_size).map_or(0, |x| x.len()),
             log_shard_size
@@ -122,7 +122,7 @@ fn main() {
     let program_list = args.list;
     for s3_path in program_list {
         // Download program and stdin files from S3.
-        tracing::info!("download elf and input for {}", s3_path);
+        tracing::debug!("download elf and input for {}", s3_path);
 
         // Download program.bin.
         let status = std::process::Command::new("aws")
@@ -167,7 +167,7 @@ fn main() {
             rayon::spawn(move || {
                 opts.shard_size = 1 << log_shard_size;
                 let maximal_shapes = collect_maximal_shapes(&elf, &stdin, opts, new_context);
-                tracing::info!(
+                tracing::debug!(
                     "there are {} maximal shapes for {} for log shard size {}",
                     maximal_shapes.len(),
                     s3_path,
@@ -190,7 +190,7 @@ fn main() {
         }
 
         let new_len = all_maximal_shapes.get(&log_shard_size).map_or(0, |x| x.len());
-        tracing::info!(
+        tracing::debug!(
             "added shapes from {}, now there are {} maximal shapes for log shard size {}",
             s3_path,
             new_len,
@@ -200,7 +200,7 @@ fn main() {
 
     // Print the total number of maximal shapes.
     for log_shard_size in args.shard_sizes {
-        tracing::info!(
+        tracing::debug!(
             "there are {} maximal shapes in total for log shard size {}",
             all_maximal_shapes.get(&log_shard_size).map_or(0, |x| x.len()),
             log_shard_size
