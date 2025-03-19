@@ -52,6 +52,7 @@ backoff = { version = "0.4", features = ["tokio"], optional = true }
 
 [dev-dependencies]
 test-artifacts = { path = "../test-artifacts" }
+tokio-test = { version = "0.4" }
 
 [features]
 default = ["network"]
