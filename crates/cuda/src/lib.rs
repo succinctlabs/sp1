@@ -129,7 +129,7 @@ impl SP1CudaProver {
         let start_time = Instant::now();
 
         block_on(async {
-            tracing::info!("waiting for proving server to be ready");
+            tracing::debug!("waiting for proving server to be ready");
             loop {
                 if start_time.elapsed() > timeout {
                     return Err("Timeout: proving server did not become ready within 60 seconds. Please check your Docker container and network settings.".to_string());
@@ -138,11 +138,11 @@ impl SP1CudaProver {
                 let request = ReadyRequest {};
                 match prover.client.ready(request).await {
                     Ok(response) if response.ready => {
-                        tracing::info!("proving server is ready");
+                        tracing::debug!("proving server is ready");
                         break;
                     }
                     Ok(_) => {
-                        tracing::info!("proving server is not ready, retrying...");
+                        tracing::debug!("proving server is not ready, retrying...");
                     }
                     Err(e) => {
                         tracing::warn!("Error checking server readiness: {}", e);
@@ -363,7 +363,7 @@ impl Middleware for LoggingMiddleware {
         let response = next.run(req).await;
         match response {
             Ok(response) => {
-                tracing::info!("{:?}", response);
+                tracing::debug!("{:?}", response);
                 Ok(response)
             }
             Err(e) => Err(e),
@@ -433,7 +433,7 @@ impl Middleware for LoggingMiddleware {
 //         let proof: SP1CoreProof = bincode::deserialize(&proof.result).unwrap();
 //         prover.verify(&proof.proof, &vk).unwrap();
 
-//         tracing::info!("compress");
+//         tracing::debug!("compress");
 //         let payload = CompressRequestPayload { vk: vk.clone(), proof, deferred_proofs: vec![] };
 //         let request =
 //             crate::proto::api::CompressRequest { data: bincode::serialize(&payload).unwrap() };
@@ -441,7 +441,7 @@ impl Middleware for LoggingMiddleware {
 //         let compressed_proof: SP1ReduceProof<InnerSC> =
 //             bincode::deserialize(&compressed_proof.result).unwrap();
 
-//         tracing::info!("verify compressed");
+//         tracing::debug!("verify compressed");
 //         prover.verify_compressed(&compressed_proof, &vk).unwrap();
 //     }
 // }
