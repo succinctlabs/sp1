@@ -123,7 +123,7 @@ pub fn build_constraints_and_witness(
     template_vk: &StarkVerifyingKey<OuterSC>,
     template_proof: &ShardProof<OuterSC>,
 ) -> (Vec<Constraint>, OuterWitness<OuterConfig>) {
-    tracing::info!("building verifier constraints");
+    tracing::debug!("building verifier constraints");
     let template_input = SP1CompressWitnessValues {
         vks_and_proofs: vec![(template_vk.clone(), template_proof.clone())],
         is_complete: true,
@@ -137,7 +137,7 @@ pub fn build_constraints_and_witness(
         words_to_bytes(&pv.committed_value_digest).try_into().unwrap();
     let committed_values_digest = babybear_bytes_to_bn254(&committed_values_digest_bytes);
 
-    tracing::info!("building template witness");
+    tracing::debug!("building template witness");
     let mut witness = OuterWitness::default();
     template_input.write(&mut witness);
     witness.write_committed_values_digest(committed_values_digest);
@@ -151,26 +151,26 @@ pub fn build_constraints_and_witness(
 pub fn dummy_proof() -> (StarkVerifyingKey<OuterSC>, ShardProof<OuterSC>) {
     let elf = include_bytes!("../elf/riscv32im-succinct-zkvm-elf");
 
-    tracing::info!("initializing prover");
+    tracing::debug!("initializing prover");
     let prover: SP1Prover = SP1Prover::new();
     let opts = SP1ProverOpts::auto();
     let context = SP1Context::default();
 
-    tracing::info!("setup elf");
+    tracing::debug!("setup elf");
     let (_, pk_d, program, vk) = prover.setup(elf);
 
-    tracing::info!("prove core");
+    tracing::debug!("prove core");
     let mut stdin = SP1Stdin::new();
     stdin.write(&500u32);
     let core_proof = prover.prove_core(&pk_d, program, &stdin, opts, context).unwrap();
 
-    tracing::info!("compress");
+    tracing::debug!("compress");
     let compressed_proof = prover.compress(&vk, core_proof, vec![], opts).unwrap();
 
-    tracing::info!("shrink");
+    tracing::debug!("shrink");
     let shrink_proof = prover.shrink(compressed_proof, opts).unwrap();
 
-    tracing::info!("wrap");
+    tracing::debug!("wrap");
     let wrapped_proof = prover.wrap_bn254(shrink_proof, opts).unwrap();
 
     (wrapped_proof.vk, wrapped_proof.proof)
