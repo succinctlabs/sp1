@@ -48,7 +48,7 @@ fn main() {
     let (pk, vk) = prover.setup(elf);
 
     for (shard_size, iterations, batch_size) in iproduct!(shard_sizes, iterations, batch_sizes) {
-        tracing::info!(
+        tracing::debug!(
             "running: shard_size={}, iterations={}, batch_size={}",
             shard_size,
             iterations,
@@ -56,7 +56,7 @@ fn main() {
         );
         std::env::set_var("SHARD_SIZE", shard_size.to_string());
 
-        tracing::info!("proving leaves");
+        tracing::debug!("proving leaves");
         let stdin = SP1Stdin {
             buffer: vec![bincode::serialize::<u32>(&iterations).unwrap()],
             ptr: 0,
@@ -67,12 +67,12 @@ fn main() {
             .prove_core(&pk, &stdin, SP1ProverOpts::default(), SP1Context::default())
             .unwrap();
         let leaf_proving_duration = leaf_proving_start.elapsed().as_secs_f64();
-        tracing::info!("leaf_proving_duration={}", leaf_proving_duration);
+        tracing::debug!("leaf_proving_duration={}", leaf_proving_duration);
 
-        tracing::info!("proving inner");
+        tracing::debug!("proving inner");
         let recursion_proving_start = Instant::now();
         let _ = prover.compress(&vk, proof, vec![], SP1ProverOpts::default());
         let recursion_proving_duration = recursion_proving_start.elapsed().as_secs_f64();
-        tracing::info!("recursion_proving_duration={}", recursion_proving_duration);
+        tracing::debug!("recursion_proving_duration={}", recursion_proving_duration);
     }
 }
