@@ -113,7 +113,7 @@ impl NetworkClient {
         } else {
             // The program doesn't exist, create it.
             self.create_program(vk_hash, vk, elf).await?;
-            log::info!("Registered program {:?}", vk_hash);
+            tracing::info!("Registered program {:?}", vk_hash);
             Ok(vk_hash)
         }
     }
@@ -194,6 +194,7 @@ impl NetworkClient {
         limit: Option<u32>,
         page: Option<u32>,
         mode: Option<i32>,
+        not_bid_by: Option<Vec<u8>>,
     ) -> Result<GetFilteredProofRequestsResponse> {
         self.with_retry(
             || {
@@ -201,6 +202,7 @@ impl NetworkClient {
                 let vk_hash = vk_hash.clone();
                 let requester = requester.clone();
                 let fulfiller = fulfiller.clone();
+                let not_bid_by = not_bid_by.clone();
 
                 async move {
                     let mut rpc = self.prover_network_client().await?;
@@ -218,6 +220,7 @@ impl NetworkClient {
                             limit,
                             page,
                             mode,
+                            not_bid_by,
                         })
                         .await?
                         .into_inner())
@@ -281,6 +284,7 @@ impl NetworkClient {
     /// * `timeout_secs`: The timeout for the proof request in seconds.
     /// * `cycle_limit`: The cycle limit for the proof request.
     /// * `vm_memory_kb`: The memory limit for the VM.
+    /// * `gas_limit`: The gas limit for the proof request.
     #[allow(clippy::too_many_arguments)]
     pub async fn request_proof(
         &self,
@@ -292,6 +296,7 @@ impl NetworkClient {
         timeout_secs: u64,
         cycle_limit: u64,
         vm_memory_kb: u64,
+        gas_limit: u64,
     ) -> Result<RequestProofResponse> {
         // Calculate the deadline.
         let start = SystemTime::now();
@@ -318,6 +323,7 @@ impl NetworkClient {
                     deadline,
                     cycle_limit,
                     vm_memory_kb,
+                    gas_limit,
                 };
                 let request_response = rpc
                     .request_proof(RequestProofRequest {

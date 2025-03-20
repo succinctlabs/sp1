@@ -30,6 +30,7 @@ pub struct NetworkProveBuilder<'a> {
     pub(crate) skip_simulation: bool,
     pub(crate) cycle_limit: Option<u64>,
     pub(crate) vm_memory_kb: Option<u64>,
+    pub(crate) gas_limit: Option<u64>,
 }
 
 impl NetworkProveBuilder<'_> {
@@ -294,6 +295,27 @@ impl NetworkProveBuilder<'_> {
         self
     }
 
+    /// Sets the gas limit for the proof request.
+    ///
+    /// # Details
+    /// The gas limit determines the maximum amount of gas that the program should consume. By default,
+    /// the gas limit is determined by simulating the program locally. However, you can manually set it
+    /// if you know the exact gas count needed and want to skip the simulation step locally.
+    ///
+    /// The gas limit ensures that a prover on the network will stop generating a proof once the
+    /// gas limit is reached, which prevents denial of service attacks.
+    /// let proof = client.prove(&pk, &stdin)
+    ///     .gas_limit(1_000_000) // Set 1M gas limit.
+    ///     .skip_simulation(true)  // Skip simulation since the limit is set manually.
+    ///     .run()
+    ///     .unwrap();
+    /// ```
+    #[must_use]
+    pub fn gas_limit(mut self, gas_limit: u64) -> Self {
+        self.gas_limit = Some(gas_limit);
+        self
+    }
+
     /// Request a proof from the prover network.
     ///
     /// # Details
@@ -351,6 +373,7 @@ impl NetworkProveBuilder<'_> {
             skip_simulation,
             cycle_limit,
             vm_memory_kb,
+            gas_limit,
         } = self;
         prover
             .request_proof_impl(
@@ -362,6 +385,7 @@ impl NetworkProveBuilder<'_> {
                 skip_simulation,
                 cycle_limit,
                 vm_memory_kb,
+                gas_limit,
             )
             .await
     }
@@ -417,6 +441,7 @@ impl NetworkProveBuilder<'_> {
             mut skip_simulation,
             cycle_limit,
             vm_memory_kb,
+            gas_limit,
         } = self;
 
         // Check for deprecated environment variable
@@ -439,6 +464,7 @@ impl NetworkProveBuilder<'_> {
                 skip_simulation,
                 cycle_limit,
                 vm_memory_kb,
+                gas_limit,
             )
             .await
     }

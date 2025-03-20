@@ -13,8 +13,7 @@ use p3_field::AbstractField;
 use serde::{Deserialize, Serialize};
 use sp1_core_machine::shape::CoreShapeConfig;
 use sp1_recursion_circuit::machine::{
-    SP1CompressWithVKeyWitnessValues, SP1CompressWithVkeyShape, SP1DeferredShape,
-    SP1DeferredWitnessValues, SP1RecursionShape, SP1RecursionWitnessValues,
+    SP1CompressWithVKeyWitnessValues, SP1DeferredWitnessValues, SP1RecursionWitnessValues,
 };
 use sp1_recursion_core::{
     shape::{RecursionShape, RecursionShapeConfig},
@@ -22,6 +21,10 @@ use sp1_recursion_core::{
 };
 use sp1_stark::{shape::OrderedShape, MachineProver, DIGEST_SIZE};
 use thiserror::Error;
+
+pub use sp1_recursion_circuit::machine::{
+    SP1CompressWithVkeyShape, SP1DeferredShape, SP1RecursionShape,
+};
 
 use crate::{components::SP1ProverComponents, CompressAir, HashableKey, SP1Prover, ShrinkAir};
 
@@ -80,7 +83,7 @@ pub fn check_shapes<C: SP1ProverComponents>(
     )
     .collect::<BTreeSet<SP1ProofShape>>();
     let num_shapes = all_maximal_shapes.len();
-    tracing::info!("number of shapes: {}", num_shapes);
+    tracing::debug!("number of shapes: {}", num_shapes);
 
     // The Merkle tree height.
     let height = num_shapes.next_power_of_two().ilog2() as usize;
@@ -96,7 +99,7 @@ pub fn check_shapes<C: SP1ProverComponents>(
             let panic_tx = panic_tx.clone();
             s.spawn(move || {
                 while let Ok(shape) = shape_rx.lock().unwrap().recv() {
-                    tracing::info!("shape is {:?}", shape);
+                    tracing::debug!("shape is {:?}", shape);
                     let program = catch_unwind(AssertUnwindSafe(|| {
                         // Try to build the recursion program from the given shape.
                         prover.program_from_shape(shape.clone(), None)
@@ -165,7 +168,7 @@ pub fn build_vk_map<C: SP1ProverComponents + 'static>(
         let height = dummy_set.len().next_power_of_two().ilog2() as usize;
         (dummy_set, vec![], height)
     } else {
-        tracing::info!("building vk map");
+        tracing::debug!("building vk map");
 
         // Setup the channels.
         let (vk_tx, vk_rx) = std::sync::mpsc::channel();
@@ -190,7 +193,7 @@ pub fn build_vk_map<C: SP1ProverComponents + 'static>(
         }
 
         let num_shapes = all_shapes.len();
-        tracing::info!("number of shapes: {} in {:?}", num_shapes, start.elapsed());
+        tracing::debug!("number of shapes: {} in {:?}", num_shapes, start.elapsed());
 
         let height = num_shapes.next_power_of_two().ilog2() as usize;
         let chunk_size = indices_set.as_ref().map(|indices| indices.len()).unwrap_or(num_shapes);
@@ -257,7 +260,7 @@ pub fn build_vk_map<C: SP1ProverComponents + 'static>(
                         let vk = vk.unwrap();
 
                         let vk_digest = vk.hash_babybear();
-                        tracing::info!(
+                        tracing::debug!(
                             "program {} = {:?}, {}% done",
                             i,
                             vk_digest,
@@ -293,14 +296,14 @@ pub fn build_vk_map<C: SP1ProverComponents + 'static>(
             let panic_indices = panic_rx.iter().collect::<Vec<_>>();
             for (i, shape) in subset_shapes {
                 if panic_indices.contains(&i) {
-                    tracing::info!("panic shape {}: {:?}", i, shape);
+                    tracing::debug!("panic shape {}: {:?}", i, shape);
                 }
             }
 
             (vk_set, panic_indices, height)
         })
     };
-    tracing::info!("compress vks generated, number of keys: {}", vk_set.len());
+    tracing::debug!("compress vks generated, number of keys: {}", vk_set.len());
     (vk_set, panic_indices, height)
 }
 

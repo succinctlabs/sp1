@@ -43,17 +43,19 @@ thiserror = "1.0.63"
 rayon = "1.10.0"
 lru = "0.12.4"
 eyre = "0.6.12"
+hashbrown = { workspace = true, features = ["inline-more"] }
+enum-map = { version = "2.7.3" }
 
 [build-dependencies]
 downloader = { version = "0.2", default-features = false, features = [
   "rustls-tls",
   "verify",
-]}
+] }
 sha2 = { version = "0.10" }
 hex = "0.4"
 
 [dev-dependencies]
-test-artifacts = { workspace = true }
+test-artifacts = { path = "../test-artifacts" }
 
 [[bin]]
 name = "build_plonk_bn254"

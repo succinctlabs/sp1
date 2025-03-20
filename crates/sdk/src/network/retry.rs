@@ -53,8 +53,11 @@ where
                 // Check for tonic status errors.
                 if let Some(status) = e.downcast_ref::<tonic::Status>() {
                     match status.code() {
-                        Code::Unavailable | Code::DeadlineExceeded | Code::Internal | Code::Aborted => {
-                            log::warn!(
+                        Code::Unavailable
+                        | Code::DeadlineExceeded
+                        | Code::Internal
+                        | Code::Aborted => {
+                            tracing::warn!(
                                 "Network temporarily unavailable when {} due to {}, retrying...",
                                 operation_name,
                                 status.message(),
@@ -62,7 +65,7 @@ where
                             Err(BackoffError::transient(e))
                         }
                         Code::NotFound => {
-                            log::error!(
+                            tracing::error!(
                                 "{} not found due to {}",
                                 operation_name,
                                 status.message(),
@@ -70,7 +73,7 @@ where
                             Err(BackoffError::permanent(e))
                         }
                         _ => {
-                            log::error!(
+                            tracing::error!(
                                 "Permanent error encountered when {}: {} ({})",
                                 operation_name,
                                 status.message(),
@@ -82,25 +85,39 @@ where
                 } else {
                     // Check for common transport errors.
                     let error_msg = e.to_string().to_lowercase();
-                    let is_transient = error_msg.contains("tls handshake") ||
-                        error_msg.contains("dns error") ||
-                        error_msg.contains("connection reset") ||
-                        error_msg.contains("broken pipe") ||
-                        error_msg.contains("transport error") ||
-                        error_msg.contains("failed to lookup") ||
-                        error_msg.contains("timeout") ||
-                        error_msg.contains("deadline exceeded");
+                    let error_debug_msg = format!("{e:?}");
 
-                    if is_transient {
-                        log::warn!(
-                            "Transient transport error when {}: {}, retrying...",
-                            operation_name,
-                            error_msg
+                    if error_debug_msg.contains("no native certs found") {
+                        tracing::error!(
+                            "Permanent error when {}: no native certs found",
+                            operation_name
                         );
-                        Err(BackoffError::transient(e))
-                    } else {
-                        log::error!("Permanent error when {}: {}", operation_name, error_msg);
                         Err(BackoffError::permanent(e))
+                    } else {
+                        let is_transient = error_msg.contains("tls handshake")
+                            || error_msg.contains("dns error")
+                            || error_msg.contains("connection reset")
+                            || error_msg.contains("broken pipe")
+                            || error_msg.contains("transport error")
+                            || error_msg.contains("failed to lookup")
+                            || error_msg.contains("timeout")
+                            || error_msg.contains("deadline exceeded");
+
+                        if is_transient {
+                            tracing::warn!(
+                                "Transient transport error when {}: {}, retrying...",
+                                operation_name,
+                                error_msg
+                            );
+                            Err(BackoffError::transient(e))
+                        } else {
+                            tracing::error!(
+                                "Permanent error when {}: {}",
+                                operation_name,
+                                error_msg
+                            );
+                            Err(BackoffError::permanent(e))
+                        }
                     }
                 }
             }

@@ -13,6 +13,7 @@
 
 pub mod build;
 pub mod components;
+pub mod gas;
 pub mod shapes;
 pub mod types;
 pub mod utils;
@@ -22,6 +23,7 @@ use std::{
     borrow::Borrow,
     collections::BTreeMap,
     env,
+    error::Error,
     num::NonZeroUsize,
     path::Path,
     sync::{
@@ -38,7 +40,10 @@ use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, PrimeField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use shapes::SP1ProofShape;
-use sp1_core_executor::{ExecutionError, ExecutionReport, Executor, Program, SP1Context};
+use sp1_core_executor::{
+    estimator::RecordEstimator, ExecutionError, ExecutionReport, Executor, Program, RiscvAirId,
+    SP1Context,
+};
 use sp1_core_machine::{
     io::SP1Stdin,
     reduce::SP1ReduceProof,
@@ -46,7 +51,8 @@ use sp1_core_machine::{
     shape::CoreShapeConfig,
     utils::{concurrency::TurnBasedSync, SP1CoreProverError},
 };
-use sp1_primitives::{hash_deferred_proof, io::SP1PublicValues};
+use sp1_primitives::hash_deferred_proof;
+pub use sp1_primitives::io::SP1PublicValues;
 use sp1_recursion_circuit::{
     hash::FieldHasher,
     machine::{
@@ -76,8 +82,8 @@ use sp1_recursion_core::{
 pub use sp1_recursion_gnark_ffi::proof::{Groth16Bn254Proof, PlonkBn254Proof};
 use sp1_recursion_gnark_ffi::{groth16_bn254::Groth16Bn254Prover, plonk_bn254::PlonkBn254Prover};
 use sp1_stark::{
-    baby_bear_poseidon2::BabyBearPoseidon2, Challenge, MachineProver, SP1CoreOpts, SP1ProverOpts,
-    ShardProof, StarkGenericConfig, StarkVerifyingKey, Val, Word, DIGEST_SIZE,
+    baby_bear_poseidon2::BabyBearPoseidon2, shape::Shape, Challenge, MachineProver, SP1ProverOpts,
+    ShardProof, SplitOpts, StarkGenericConfig, StarkVerifyingKey, Val, Word, DIGEST_SIZE,
 };
 use sp1_stark::{shape::OrderedShape, MachineProvingKey};
 use tracing::instrument;
@@ -200,7 +206,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         let vk_verification =
             env::var("VERIFY_VK").map(|v| v.eq_ignore_ascii_case("true")).unwrap_or(true);
-        tracing::info!("vk verification: {}", vk_verification);
+        tracing::debug!("vk verification: {}", vk_verification);
 
         // Read the shapes from the shapes directory and deserialize them into memory.
         let allowed_vk_map: BTreeMap<[BabyBear; DIGEST_SIZE], usize> = if vk_verification {
@@ -287,7 +293,29 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         Ok(program)
     }
 
-    /// Generate a proof of an SP1 program with the specified inputs.
+    fn get_gas_calculator(
+        &self,
+        preprocessed_shape: Shape<RiscvAirId>,
+        split_opts: SplitOpts,
+    ) -> impl FnMut(&RecordEstimator) -> Result<u64, Box<dyn Error>> + '_ {
+        move |estimator: &RecordEstimator| -> Result<u64, Box<dyn Error>> {
+            let est_records = gas::estimated_records(&split_opts, estimator);
+            let raw_gas =
+                gas::fit_records_to_shapes(self.core_shape_config.as_ref().unwrap(), est_records)
+                    .enumerate()
+                    .map(|(i, shape)| {
+                        let mut shape: Shape<RiscvAirId> = shape.map_err(Box::new)?;
+                        shape.extend(preprocessed_shape.iter().map(|(k, v)| (*k, *v)));
+                        tracing::debug!("shape for estimated shard {i}: {:?}", &shape.inner);
+                        Ok(gas::predict(enum_map::EnumMap::from_iter(shape).as_array()))
+                    })
+                    .sum::<Result<_, Box<dyn Error>>>()?;
+            let gas = gas::final_transform(raw_gas).map_err(Box::new)?;
+            Ok(gas)
+        }
+    }
+
+    /// Execute an SP1 program with the specified inputs.
     #[instrument(name = "execute", level = "info", skip_all)]
     pub fn execute<'a>(
         &'a self,
@@ -296,14 +324,44 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         mut context: SP1Context<'a>,
     ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
         context.subproof_verifier = Some(self);
-        let opts = SP1CoreOpts::default();
-        let mut runtime = Executor::with_context_and_elf(opts, context, elf);
+
+        let calculate_gas = context.calculate_gas;
+
+        let (opts, program) = if calculate_gas {
+            (gas::GAS_OPTS, self.get_program(elf).unwrap())
+        } else {
+            (sp1_stark::SP1CoreOpts::default(), Program::from(elf).unwrap())
+        };
+        let preprocessed_shape = program.preprocessed_shape.clone();
+
+        let mut runtime = Executor::with_context(program, opts, context);
+
+        if calculate_gas {
+            // Needed to figure out where the shard boundaries are.
+            runtime.maximal_shapes = self.core_shape_config.as_ref().map(|config| {
+                config.maximal_core_shapes(opts.shard_size.ilog2() as usize).into_iter().collect()
+            });
+            runtime.record_estimator = Some(Box::default());
+        }
+
+        runtime.maybe_setup_profiler(elf);
 
         runtime.write_vecs(&stdin.buffer);
         for (proof, vkey) in stdin.proofs.iter() {
             runtime.write_proof(proof.clone(), vkey.clone());
         }
         runtime.run_fast()?;
+
+        if calculate_gas {
+            let gas = self.get_gas_calculator(preprocessed_shape.unwrap(), opts.split_opts)(
+                runtime.record_estimator.as_ref().unwrap(),
+            );
+            runtime.report.gas = gas
+                .inspect(|g| tracing::info!("gas: {}", g))
+                .inspect_err(|e| tracing::error!("Encountered error while calculating gas: {}", e))
+                .ok();
+        }
+
         Ok((SP1PublicValues::from(&runtime.state.public_values_stream), runtime.report))
     }
 
@@ -338,6 +396,35 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 // Copy the proving key to the device.
                 let pk = pk_d;
 
+                // We may calculate gas while proving if the opts match the hardcoded variant.
+                // This ensures that the gas number is consistent between `execute` and `prove_core`.
+                // This behavior is undocumented because it is confusing and not very useful.
+                //
+                // If `context.calculate_gas` is set, we use the logic from the `gas` module
+                // after checkpoint execution to print gas as part of the execution report.
+                #[allow(clippy::type_complexity)]
+                let gas_calculator = (context.calculate_gas
+                    && std::env::var("SP1_FORCE_GAS").is_ok())
+                .then(
+                    || -> Box<dyn FnOnce(&RecordEstimator) -> Result<u64, Box<dyn Error>> + '_> {
+                        tracing::info!("Forcing calculation of gas while proving.");
+                        if opts.core_opts == gas::GAS_OPTS {
+                            tracing::info!(
+                                "The SP1CoreOpts matches the gas opts, so gas will be consistent."
+                            );
+                        } else {
+                            tracing::warn!(
+                                "The SP1CoreOpts does not match the gas opts. \
+                                Gas will likely disagree with the standard gas calculated when executing."
+                            );
+                        }
+                        let preprocessed_shape = program.preprocessed_shape.clone().unwrap();
+                        Box::new(
+                            self.get_gas_calculator(preprocessed_shape, opts.core_opts.split_opts),
+                        )
+                    },
+                );
+
                 // Prove the core and stream the proofs and shapes.
                 sp1_core_machine::utils::prove_core_stream::<_, C::CoreProver>(
                     &self.core_prover,
@@ -350,6 +437,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                     proof_tx,
                     shape_tx,
                     None,
+                    gas_calculator,
                 )
             });
 
@@ -758,7 +846,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 handle.join().unwrap();
             }
             handle.join().unwrap();
-            tracing::info!("joined handles");
+            tracing::debug!("joined handles");
 
             let (_, _, vk, proof) = proofs_rx.lock().unwrap().recv().unwrap();
             (vk, proof)
@@ -866,7 +954,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         tracing::debug!("wrap proving time: {:?}", elapsed);
         let mut wrap_challenger = self.wrap_prover.config().challenger();
         self.wrap_prover.machine().verify(&wrap_vk, &wrap_proof, &mut wrap_challenger).unwrap();
-        tracing::info!("wrapping successful");
+        tracing::debug!("wrapping successful");
 
         Ok(SP1ReduceProof { vk: wrap_vk, proof: wrap_proof.shard_proofs.pop().unwrap() })
     }

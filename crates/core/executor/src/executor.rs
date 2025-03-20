@@ -2,8 +2,10 @@
 use std::{fs::File, io::BufWriter};
 use std::{str::FromStr, sync::Arc};
 
+use crate::estimator::RecordEstimator;
 #[cfg(feature = "profiling")]
 use crate::profiler::Profiler;
+
 use clap::ValueEnum;
 use enum_map::EnumMap;
 use hashbrown::HashMap;
@@ -14,7 +16,7 @@ use strum::IntoEnumIterator;
 use thiserror::Error;
 
 use crate::{
-    context::SP1Context,
+    context::{IoOptions, SP1Context},
     dependencies::{
         emit_auipc_dependency, emit_branch_dependencies, emit_divrem_dependencies,
         emit_jump_dependencies, emit_memory_dependencies,
@@ -104,6 +106,9 @@ pub struct Executor<'a> {
     /// Whether we should write to the report.
     pub print_report: bool,
 
+    /// Data used to estimate total trace area.
+    pub record_estimator: Option<Box<RecordEstimator>>,
+
     /// Whether we should emit global memory init and finalize events. This can be enabled in
     /// Checkpoint mode and disabled in Trace mode.
     pub emit_global_memory_events: bool,
@@ -178,8 +183,11 @@ pub struct Executor<'a> {
     /// The maximum LDE size to allow.
     pub lde_size_threshold: u64,
 
-    /// event counts for the current shard.
-    pub event_counts: EnumMap<RiscvAirId, u64>,
+    /// The options for the IO.
+    pub io_options: IoOptions<'a>,
+
+    /// Temporary event counts for the current shard. This is a field to reuse memory.
+    event_counts: EnumMap<RiscvAirId, u64>,
 }
 
 /// The different modes the executor can run in.
@@ -249,23 +257,20 @@ impl<'a> Executor<'a> {
         Self::with_context(program, opts, SP1Context::default())
     }
 
-    /// Create a new runtime for the program, and setup the profiler if `TRACE_FILE` env var is set
-    /// and the feature flag `profiling` is enabled.
-    #[must_use]
-    pub fn with_context_and_elf(
-        opts: SP1CoreOpts,
-        context: SP1Context<'a>,
-        elf_bytes: &[u8],
-    ) -> Self {
-        let program = Program::from(elf_bytes).expect("Failed to create program from ELF bytes");
-
-        #[cfg(not(feature = "profiling"))]
-        return Self::with_context(program, opts, context);
-
+    /// WARNING: This function's API is subject to change without a major version bump.
+    ///
+    /// If the feature `"profiling"` is enabled, this sets up the profiler. Otherwise, it does nothing.
+    /// The argument `elf_bytes` must describe the same program as `self.program`.
+    ///
+    /// The profiler is configured by the following environment variables:
+    ///
+    /// - `TRACE_FILE`: writes Gecko traces to this path. If unspecified, the profiler is disabled.
+    /// - `TRACE_SAMPLE_RATE`: The period between clock cycles where samples are taken. Defaults to 1.
+    #[inline]
+    #[allow(unused_variables)]
+    pub fn maybe_setup_profiler(&mut self, elf_bytes: &[u8]) {
         #[cfg(feature = "profiling")]
         {
-            let mut this = Self::with_context(program, opts, context);
-
             let trace_buf = std::env::var("TRACE_FILE").ok().map(|file| {
                 let file = File::create(file).unwrap();
                 BufWriter::new(file)
@@ -282,20 +287,16 @@ impl<'a> Executor<'a> {
                     })
                     .unwrap_or(1);
 
-                this.profiler = Some((
+                self.profiler = Some((
                     Profiler::new(elf_bytes, sample_rate as u64)
                         .expect("Failed to create profiler"),
                     trace_buf,
                 ));
             }
-
-            this
         }
     }
 
     /// Create a new runtime from a program, options, and a context.
-    ///
-    /// Note: This function *will not* set up the profiler.
     #[must_use]
     pub fn with_context(program: Program, opts: SP1CoreOpts, context: SP1Context<'a>) -> Self {
         // Create a shared reference to the program.
@@ -337,6 +338,7 @@ impl<'a> Executor<'a> {
             report: ExecutionReport::default(),
             local_counts: LocalCounts::default(),
             print_report: false,
+            record_estimator: None,
             subproof_verifier: context.subproof_verifier,
             hook_registry,
             opts,
@@ -351,6 +353,7 @@ impl<'a> Executor<'a> {
             lde_size_check: false,
             lde_size_threshold: 0,
             event_counts: EnumMap::default(),
+            io_options: context.io_options,
         }
     }
 
@@ -544,6 +547,20 @@ impl<'a> Executor<'a> {
         //     on the .is_some() condition to be true only in the SyscallContext.
         if !self.unconstrained && (record.shard != shard || local_memory_access.is_some()) {
             self.local_counts.local_mem += 1;
+        }
+
+        if !self.unconstrained {
+            if let Some(estimator) = &mut self.record_estimator {
+                if record.shard != shard {
+                    estimator.current_local_mem += 1;
+                }
+                let current_touched_compressed_addresses = if local_memory_access.is_some() {
+                    &mut estimator.current_precompile_touched_compressed_addresses
+                } else {
+                    &mut estimator.current_touched_compressed_addresses
+                };
+                current_touched_compressed_addresses.insert(addr >> 2);
+            }
         }
 
         let prev_record = *record;
@@ -762,6 +779,20 @@ impl<'a> Executor<'a> {
         //     on the .is_some() condition to be true only in the SyscallContext.
         if !self.unconstrained && (record.shard != shard || local_memory_access.is_some()) {
             self.local_counts.local_mem += 1;
+        }
+
+        if !self.unconstrained {
+            if let Some(estimator) = &mut self.record_estimator {
+                if record.shard != shard {
+                    estimator.current_local_mem += 1;
+                }
+                let current_touched_compressed_addresses = if local_memory_access.is_some() {
+                    &mut estimator.current_precompile_touched_compressed_addresses
+                } else {
+                    &mut estimator.current_touched_compressed_addresses
+                };
+                current_touched_compressed_addresses.insert(addr >> 2);
+            }
         }
 
         let prev_record = *record;
@@ -1306,7 +1337,9 @@ impl<'a> Executor<'a> {
         let mut syscall = SyscallCode::default();
 
         if !self.unconstrained {
-            self.report.opcode_counts[instruction.opcode] += 1;
+            if self.print_report {
+                self.report.opcode_counts[instruction.opcode] += 1;
+            }
             self.local_counts.event_counts[instruction.opcode] += 1;
             if instruction.is_memory_load_instruction() {
                 self.local_counts.event_counts[Opcode::ADD] += 2;
@@ -1587,6 +1620,28 @@ impl<'a> Executor<'a> {
                 return Err(ExecutionError::UnsupportedSyscall(syscall_id));
             };
 
+        if let (Some(estimator), Some(syscall_id)) =
+            (&mut self.record_estimator, syscall.as_air_id())
+        {
+            let threshold = match syscall_id {
+                RiscvAirId::ShaExtend => self.opts.split_opts.sha_extend,
+                RiscvAirId::ShaCompress => self.opts.split_opts.sha_compress,
+                RiscvAirId::KeccakPermute => self.opts.split_opts.keccak,
+                _ => self.opts.split_opts.deferred,
+            } as u64;
+            let shards = &mut estimator.precompile_records[syscall_id];
+            let local_memory_ct =
+                estimator.current_precompile_touched_compressed_addresses.len() as u64;
+            match shards.last_mut().filter(|shard| shard.0 < threshold) {
+                Some((shard_precompile_event_ct, shard_local_memory_ct)) => {
+                    *shard_precompile_event_ct += 1;
+                    *shard_local_memory_ct += local_memory_ct;
+                }
+                None => shards.push((1, local_memory_ct)),
+            }
+            estimator.current_precompile_touched_compressed_addresses.clear();
+        }
+
         // If the syscall is `EXIT_UNCONSTRAINED`, the memory was restored to pre-unconstrained code
         // in the execute function, so we need to re-read from x10 and x11.  Just do a peek on the
         // registers.
@@ -1654,11 +1709,10 @@ impl<'a> Executor<'a> {
             let mut shape_match_found = true;
             if self.state.global_clk % self.shape_check_frequency == 0 {
                 // Estimate the number of events in the trace.
-                self.estimate_riscv_event_counts(
+                Self::estimate_riscv_event_counts(
+                    &mut self.event_counts,
                     (self.state.clk >> 2) as u64,
-                    self.local_counts.local_mem as u64,
-                    self.local_counts.syscalls_sent as u64,
-                    *self.local_counts.event_counts,
+                    &self.local_counts,
                 );
 
                 // Check if the LDE size is too large.
@@ -1667,9 +1721,11 @@ impl<'a> Executor<'a> {
                         pad_rv32im_event_counts(self.event_counts, self.shape_check_frequency);
                     let padded_lde_size = estimate_riscv_lde_size(padded_event_counts, &self.costs);
                     if padded_lde_size > self.lde_size_threshold {
+                        #[allow(clippy::cast_precision_loss)]
+                        let size_gib = (padded_lde_size as f64) / (1 << 9) as f64;
                         tracing::warn!(
-                            "stopping shard early due to lde size: {} gb",
-                            (padded_lde_size as u64) / 1_000_000_000
+                            "Stopping shard early since the estimated LDE size is too large: {:.3} GiB",
+                            size_gib
                         );
                         shape_match_found = false;
                     }
@@ -1719,26 +1775,25 @@ impl<'a> Executor<'a> {
 
                     if !shape_match_found {
                         self.record.counts = Some(self.event_counts);
-                        log::warn!(
-                            "stopping shard early due to no shapes fitting: \
-                            clk: {},
-                            clk_usage: {}",
-                            (self.state.clk / 4).next_power_of_two().ilog2(),
-                            ((self.state.clk / 4) as f64).log2(),
+                        tracing::debug!(
+                            "Stopping shard {} to stay within some maximal shape. clk = {} pc = 0x{:x?}",
+                            self.shard(),
+                            self.state.global_clk,
+                            self.state.pc,
                         );
                     }
                 }
             }
 
             if cpu_exit || !shape_match_found {
+                self.bump_record();
                 self.state.current_shard += 1;
                 self.state.clk = 0;
-                self.bump_record();
             }
 
             // If the cycle limit is exceeded, return an error.
             if let Some(max_cycles) = self.max_cycles {
-                if self.state.global_clk >= max_cycles {
+                if self.state.global_clk > max_cycles {
                     return Err(ExecutionError::ExceededCycleLimit(max_cycles));
                 }
             }
@@ -1748,7 +1803,7 @@ impl<'a> Executor<'a> {
             || self.state.pc.wrapping_sub(self.program.pc_base)
                 >= (self.program.instructions.len() * 4) as u32;
         if done && self.unconstrained {
-            log::error!("program ended in unconstrained mode at clk {}", self.state.global_clk);
+            tracing::error!("program ended in unconstrained mode at clk {}", self.state.global_clk);
             return Err(ExecutionError::EndInUnconstrained());
         }
         Ok(done)
@@ -1756,6 +1811,17 @@ impl<'a> Executor<'a> {
 
     /// Bump the record.
     pub fn bump_record(&mut self) {
+        if let Some(estimator) = &mut self.record_estimator {
+            self.local_counts.local_mem = std::mem::take(&mut estimator.current_local_mem);
+            Self::estimate_riscv_event_counts(
+                &mut self.event_counts,
+                (self.state.clk >> 2) as u64,
+                &self.local_counts,
+            );
+            // The above method estimates event counts only for core shards.
+            estimator.core_records.push(self.event_counts);
+            estimator.current_touched_compressed_addresses.clear();
+        }
         self.local_counts = LocalCounts::default();
         // Copy all of the existing local memory accesses to the record's local_memory_access vec.
         if self.executor_mode == ExecutorMode::Trace {
@@ -1968,6 +2034,19 @@ impl<'a> Executor<'a> {
 
             // Push the remaining execution record with memory initialize & finalize events.
             self.bump_record();
+
+            // Flush stdout and stderr.
+            if let Some(ref mut w) = self.io_options.stdout {
+                if let Err(e) = w.flush() {
+                    tracing::error!("failed to flush stdout override: {e}");
+                }
+            }
+
+            if let Some(ref mut w) = self.io_options.stderr {
+                if let Err(e) = w.flush() {
+                    tracing::error!("failed to flush stderr override: {e}");
+                }
+            }
         }
 
         // Push the remaining execution record, if there are any CPU events.
@@ -2030,6 +2109,22 @@ impl<'a> Executor<'a> {
 
         // Record the total number of memory addresses created.
         self.report.estimated_max_memory_words = self.state.memory.page_table.estimate_len() as u64;
+
+        if let Some(estimator) = &mut self.record_estimator {
+            // Mirror the logic below.
+            // Register 0 is always init and finalized, so we add 1
+            // registers 1..32
+            let touched_reg_ct =
+                1 + (1..32).filter(|&r| self.state.memory.registers.get(r).is_some()).count();
+            let total_mem = touched_reg_ct + self.state.memory.page_table.exact_len();
+            // The memory_image is already initialized in the MemoryProgram chip
+            // so we subtract it off. It is initialized in the executor in the `initialize` function.
+            estimator.memory_global_init_events = total_mem
+                .checked_sub(self.record.program.memory_image.len())
+                .expect("program memory image should be accounted for in memory exact len")
+                as u64;
+            estimator.memory_global_finalize_events = total_mem as u64;
+        }
 
         if self.emit_global_memory_events
             && (self.executor_mode == ExecutorMode::Trace
@@ -2108,53 +2203,53 @@ impl<'a> Executor<'a> {
     }
 
     /// Maps the opcode counts to the number of events in each air.
-    pub fn estimate_riscv_event_counts(
-        &mut self,
+    fn estimate_riscv_event_counts(
+        event_counts: &mut EnumMap<RiscvAirId, u64>,
         cpu_cycles: u64,
-        touched_addresses: u64,
-        syscalls_sent: u64,
-        opcode_counts: EnumMap<Opcode, u64>,
+        local_counts: &LocalCounts,
     ) {
+        let touched_addresses: u64 = local_counts.local_mem as u64;
+        let syscalls_sent: u64 = local_counts.syscalls_sent as u64;
+        let opcode_counts: &EnumMap<Opcode, u64> = &local_counts.event_counts;
+
         // Compute the number of events in the cpu chip.
-        self.event_counts[RiscvAirId::Cpu] = cpu_cycles;
+        event_counts[RiscvAirId::Cpu] = cpu_cycles;
 
         // Compute the number of events in the add sub chip.
-        self.event_counts[RiscvAirId::AddSub] =
-            opcode_counts[Opcode::ADD] + opcode_counts[Opcode::SUB];
+        event_counts[RiscvAirId::AddSub] = opcode_counts[Opcode::ADD] + opcode_counts[Opcode::SUB];
 
         // Compute the number of events in the mul chip.
-        self.event_counts[RiscvAirId::Mul] = opcode_counts[Opcode::MUL]
+        event_counts[RiscvAirId::Mul] = opcode_counts[Opcode::MUL]
             + opcode_counts[Opcode::MULH]
             + opcode_counts[Opcode::MULHU]
             + opcode_counts[Opcode::MULHSU];
 
         // Compute the number of events in the bitwise chip.
-        self.event_counts[RiscvAirId::Bitwise] =
+        event_counts[RiscvAirId::Bitwise] =
             opcode_counts[Opcode::XOR] + opcode_counts[Opcode::OR] + opcode_counts[Opcode::AND];
 
         // Compute the number of events in the shift left chip.
-        self.event_counts[RiscvAirId::ShiftLeft] = opcode_counts[Opcode::SLL];
+        event_counts[RiscvAirId::ShiftLeft] = opcode_counts[Opcode::SLL];
 
         // Compute the number of events in the shift right chip.
-        self.event_counts[RiscvAirId::ShiftRight] =
+        event_counts[RiscvAirId::ShiftRight] =
             opcode_counts[Opcode::SRL] + opcode_counts[Opcode::SRA];
 
         // Compute the number of events in the divrem chip.
-        self.event_counts[RiscvAirId::DivRem] = opcode_counts[Opcode::DIV]
+        event_counts[RiscvAirId::DivRem] = opcode_counts[Opcode::DIV]
             + opcode_counts[Opcode::DIVU]
             + opcode_counts[Opcode::REM]
             + opcode_counts[Opcode::REMU];
 
         // Compute the number of events in the lt chip.
-        self.event_counts[RiscvAirId::Lt] =
-            opcode_counts[Opcode::SLT] + opcode_counts[Opcode::SLTU];
+        event_counts[RiscvAirId::Lt] = opcode_counts[Opcode::SLT] + opcode_counts[Opcode::SLTU];
 
         // Compute the number of events in the memory local chip.
-        self.event_counts[RiscvAirId::MemoryLocal] =
+        event_counts[RiscvAirId::MemoryLocal] =
             touched_addresses.div_ceil(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW_EXEC as u64);
 
         // Compute the number of events in the branch chip.
-        self.event_counts[RiscvAirId::Branch] = opcode_counts[Opcode::BEQ]
+        event_counts[RiscvAirId::Branch] = opcode_counts[Opcode::BEQ]
             + opcode_counts[Opcode::BNE]
             + opcode_counts[Opcode::BLT]
             + opcode_counts[Opcode::BGE]
@@ -2162,16 +2257,15 @@ impl<'a> Executor<'a> {
             + opcode_counts[Opcode::BGEU];
 
         // Compute the number of events in the jump chip.
-        self.event_counts[RiscvAirId::Jump] =
-            opcode_counts[Opcode::JAL] + opcode_counts[Opcode::JALR];
+        event_counts[RiscvAirId::Jump] = opcode_counts[Opcode::JAL] + opcode_counts[Opcode::JALR];
 
         // Compute the number of events in the auipc chip.
-        self.event_counts[RiscvAirId::Auipc] = opcode_counts[Opcode::AUIPC]
+        event_counts[RiscvAirId::Auipc] = opcode_counts[Opcode::AUIPC]
             + opcode_counts[Opcode::UNIMP]
             + opcode_counts[Opcode::EBREAK];
 
         // Compute the number of events in the memory instruction chip.
-        self.event_counts[RiscvAirId::MemoryInstrs] = opcode_counts[Opcode::LB]
+        event_counts[RiscvAirId::MemoryInstrs] = opcode_counts[Opcode::LB]
             + opcode_counts[Opcode::LH]
             + opcode_counts[Opcode::LW]
             + opcode_counts[Opcode::LBU]
@@ -2181,18 +2275,18 @@ impl<'a> Executor<'a> {
             + opcode_counts[Opcode::SW];
 
         // Compute the number of events in the syscall instruction chip.
-        self.event_counts[RiscvAirId::SyscallInstrs] = opcode_counts[Opcode::ECALL];
+        event_counts[RiscvAirId::SyscallInstrs] = opcode_counts[Opcode::ECALL];
 
         // Compute the number of events in the syscall core chip.
-        self.event_counts[RiscvAirId::SyscallCore] = syscalls_sent;
+        event_counts[RiscvAirId::SyscallCore] = syscalls_sent;
 
         // Compute the number of events in the global chip.
-        self.event_counts[RiscvAirId::Global] =
-            2 * touched_addresses + self.event_counts[RiscvAirId::SyscallInstrs];
+        event_counts[RiscvAirId::Global] =
+            2 * touched_addresses + event_counts[RiscvAirId::SyscallInstrs];
 
         // Adjust for divrem dependencies.
-        self.event_counts[RiscvAirId::Mul] += self.event_counts[RiscvAirId::DivRem];
-        self.event_counts[RiscvAirId::Lt] += self.event_counts[RiscvAirId::DivRem];
+        event_counts[RiscvAirId::Mul] += event_counts[RiscvAirId::DivRem];
+        event_counts[RiscvAirId::Lt] += event_counts[RiscvAirId::DivRem];
 
         // Note: we ignore the additional dependencies for addsub, since they are accounted for in
         // the maximal shapes.
@@ -2208,7 +2302,7 @@ impl<'a> Executor<'a> {
         }
 
         if !self.unconstrained && self.state.global_clk % 10_000_000 == 0 {
-            log::info!("clk = {} pc = 0x{:x?}", self.state.global_clk, self.state.pc);
+            tracing::info!("clk = {} pc = 0x{:x?}", self.state.global_clk, self.state.pc);
         }
     }
 }
@@ -2236,7 +2330,7 @@ mod tests {
         simple_memory_program, simple_program, ssz_withdrawals_program, u256xu2048_mul_program,
     };
 
-    use crate::Register;
+    use crate::{Register, SP1Context};
 
     use super::{Executor, Instruction, Opcode, Program};
 
@@ -2244,6 +2338,7 @@ mod tests {
 
     /// Runtime needs to be Send so we can use it across async calls.
     fn _assert_runtime_is_send() {
+        #[allow(clippy::used_underscore_items)]
         _assert_send::<Executor>();
     }
 
@@ -2259,6 +2354,20 @@ mod tests {
     fn test_fibonacci_program_run() {
         let program = fibonacci_program();
         let mut runtime = Executor::new(program, SP1CoreOpts::default());
+        runtime.run().unwrap();
+    }
+
+    #[test]
+    fn test_fibonacci_program_run_with_max_cycles() {
+        let program = fibonacci_program();
+        let mut runtime = Executor::new(program, SP1CoreOpts::default());
+        runtime.run().unwrap();
+
+        let max_cycles = runtime.state.global_clk;
+
+        let program = fibonacci_program();
+        let context = SP1Context::builder().max_cycles(max_cycles).build();
+        let mut runtime = Executor::with_context(program, SP1CoreOpts::default(), context);
         runtime.run().unwrap();
     }
 

@@ -124,6 +124,21 @@ mod tests {
     }
 
     #[test]
+    fn test_e2e_io_override() {
+        utils::setup_logger();
+        let client = ProverClient::builder().cpu().build();
+        let elf = test_artifacts::HELLO_WORLD_ELF;
+
+        let mut stdout = Vec::new();
+
+        // Generate proof & verify.
+        let stdin = SP1Stdin::new();
+        let _ = client.execute(elf, &stdin).stdout(&mut stdout).run().unwrap();
+
+        assert_eq!(stdout, b"Hello, world!\n");
+    }
+
+    #[test]
     fn test_e2e_compressed() {
         utils::setup_logger();
         let client = ProverClient::builder().cpu().build();
@@ -186,7 +201,7 @@ mod deprecated_check {
     fn cuda_is_deprecated() {}
 
     /// Show a warning if the `cuda` feature is enabled.
-    #[allow(deprecated, unused)]
+    #[allow(unused)]
     fn show_cuda_warning() {
         cuda_is_deprecated();
     }

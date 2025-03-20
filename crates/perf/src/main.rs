@@ -68,7 +68,6 @@ fn main() {
                 time_operation(|| prover.execute(&elf, &stdin, context.clone()));
 
             let cycles = report.expect("execution failed").1.total_instruction_count();
-
             let (core_proof, prove_core_duration) = time_operation(|| {
                 prover.prove_core(&pk_d, program, &stdin, opts, context).unwrap()
             });
@@ -138,7 +137,7 @@ fn main() {
             println!("{:?}", result);
         }
         ProverMode::Cuda => {
-            let server = SP1CudaProver::new().expect("failed to initialize CUDA prover");
+            let server = SP1CudaProver::new(None).expect("failed to initialize CUDA prover");
 
             let context = SP1Context::default();
             let (report, execution_duration) =
