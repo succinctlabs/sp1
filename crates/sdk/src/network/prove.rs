@@ -304,6 +304,16 @@ impl NetworkProveBuilder<'_> {
     ///
     /// The gas limit ensures that a prover on the network will stop generating a proof once the
     /// gas limit is reached, which prevents denial of service attacks.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().network().build();
+    /// let (pk, vk) = client.setup(elf);
     /// let proof = client.prove(&pk, &stdin)
     ///     .gas_limit(1_000_000) // Set 1M gas limit.
     ///     .skip_simulation(true)  // Skip simulation since the limit is set manually.

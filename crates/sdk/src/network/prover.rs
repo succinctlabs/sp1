@@ -10,7 +10,8 @@ use crate::cpu::execute::CpuExecuteBuilder;
 use crate::cpu::CpuProver;
 use crate::network::proto::network::GetProofRequestStatusResponse;
 use crate::network::{
-    Error, DEFAULT_CYCLE_LIMIT, DEFAULT_GAS_LIMIT, DEFAULT_NETWORK_RPC_URL, DEFAULT_TIMEOUT_SECS,
+    Error, BYTES_PER_WORD, DEFAULT_CYCLE_LIMIT, DEFAULT_GAS_LIMIT, DEFAULT_NETWORK_RPC_URL,
+    DEFAULT_TIMEOUT_SECS, DEFAULT_VM_MEMORY_KB,
 };
 use crate::{
     network::client::NetworkClient,
@@ -19,7 +20,6 @@ use crate::{
 };
 use alloy_primitives::B256;
 use anyhow::Result;
-use sp1_core_executor::ExecutionReport;
 use sp1_core_executor::{SP1Context, SP1ContextBuilder};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{components::CpuProverComponents, SP1Prover, SP1_CIRCUIT_VERSION};
@@ -324,20 +324,6 @@ impl NetworkProver {
         }
     }
 
-    fn get_execution_report(&self, elf: &[u8], stdin: &SP1Stdin) -> Result<ExecutionReport> {
-        self.prover
-            .inner()
-            .execute(elf, stdin, SP1Context::default())
-            .map(|(_, report)| report)
-            .map_err(|_| Error::SimulationFailed.into())
-    }
-
-    /// The cycle limit is determined according to the following priority:
-    ///
-    /// 1. If a cycle limit was explicitly set by the requester, use the specified value.
-    /// 2. If simulation is enabled, calculate the limit by simulating the
-    ///    execution of the program. This is the default behavior.
-    /// 3. Otherwise, use the default cycle limit ([`DEFAULT_CYCLE_LIMIT`]).
     #[allow(clippy::too_many_arguments)]
     pub(crate) async fn request_proof_impl(
         &self,
@@ -352,15 +338,21 @@ impl NetworkProver {
         gas_limit: Option<u64>,
     ) -> Result<B256> {
         let vk_hash = self.register_program(&pk.vk, &pk.elf).await?;
-        let (cycle_limit, gas_limit) =
-            self.get_execution_limits(cycle_limit, gas_limit, &pk.elf, stdin, skip_simulation)?;
+        let (cycle_limit, gas_limit, vm_memory_kb) = self.get_execution_limits(
+            cycle_limit,
+            gas_limit,
+            vm_memory_kb,
+            &pk.elf,
+            stdin,
+            skip_simulation,
+        )?;
         self.request_proof(
             vk_hash,
             stdin,
             mode.into(),
             strategy,
             cycle_limit,
-            vm_memory_kb.unwrap_or(0),
+            vm_memory_kb,
             gas_limit,
             timeout,
         )
@@ -396,20 +388,21 @@ impl NetworkProver {
         self.wait_proof(request_id, timeout).await
     }
 
-    /// The cycle limit and gas limit are determined according to the following priority:
+    /// The cycle limit, gas limit, and vm memory are determined according to the following priority:
     ///
-    /// 1. If either of the limits are explicitly set by the requester, use the specified value.
+    /// 1. If any of the limits are explicitly set by the requester, use the specified value.
     /// 2. If simulation is enabled, calculate the limits by simulating the
     ///    execution of the program. This is the default behavior.
-    /// 3. Otherwise, use the default limits ([`DEFAULT_CYCLE_LIMIT`] and [`DEFAULT_GAS_LIMIT`]).
+    /// 3. Otherwise, use the default limits ([`DEFAULT_CYCLE_LIMIT`], [`DEFAULT_GAS_LIMIT`], and [`DEFAULT_VM_MEMORY_KB`]).
     fn get_execution_limits(
         &self,
         cycle_limit: Option<u64>,
         gas_limit: Option<u64>,
+        vm_memory_kb: Option<u64>,
         elf: &[u8],
         stdin: &SP1Stdin,
         skip_simulation: bool,
-    ) -> Result<(u64, u64)> {
+    ) -> Result<(u64, u64, u64)> {
         let cycle_limit_value = if let Some(cycles) = cycle_limit {
             cycles
         } else if skip_simulation {
@@ -428,9 +421,20 @@ impl NetworkProver {
             0
         };
 
-        // If both limits were explicitly provided or skip_simulation is true, return immediately.
-        if (cycle_limit.is_some() && gas_limit.is_some()) || skip_simulation {
-            return Ok((cycle_limit_value, gas_limit_value));
+        let vm_memory_kb_value = if let Some(memory) = vm_memory_kb {
+            memory
+        } else if skip_simulation {
+            DEFAULT_VM_MEMORY_KB
+        } else {
+            // Will be calculated through simulation.
+            0
+        };
+
+        // If all limits were explicitly provided or skip_simulation is true, return immediately.
+        if (cycle_limit.is_some() && gas_limit.is_some() && vm_memory_kb.is_some())
+            || skip_simulation
+        {
+            return Ok((cycle_limit_value, gas_limit_value, vm_memory_kb_value));
         }
 
         // One of the limits were not provided and simulation is not skipped, so simulate to get one
@@ -455,7 +459,15 @@ impl NetworkProver {
             gas_limit_value
         };
 
-        Ok((final_cycle_limit, final_gas_limit))
+        let final_vm_memory_kb = if vm_memory_kb.is_none() {
+            // Convert # of memory addresses to KB
+            let bytes = report.estimated_max_memory_words * BYTES_PER_WORD;
+            (bytes + 1024 - 1) / 1024 // Rounds up to the nearest KB
+        } else {
+            vm_memory_kb_value
+        };
+
+        Ok((final_cycle_limit, final_gas_limit, final_vm_memory_kb))
     }
 }
 
