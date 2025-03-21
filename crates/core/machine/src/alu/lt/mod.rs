@@ -80,7 +80,7 @@ pub struct LtCols<T> {
     pub is_sign_eq: T,
     /// The comparison bytes to be looked up.
     pub comparison_bytes: [T; 2],
-    /// Boolean fags to indicate which byte differs between the perands `b_comp`, `c_comp`.
+    /// Boolean fags to indicate which byte differs between the operands `b_comp`, `c_comp`.
     pub byte_equality_check: [T; 4],
 }
 
