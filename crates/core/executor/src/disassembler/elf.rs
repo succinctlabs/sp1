@@ -114,7 +114,7 @@ impl Elf {
             // Read the segment and decode each word as an instruction.
             for i in (0..mem_size).step_by(WORD_SIZE) {
                 let addr = vaddr.checked_add(i).ok_or_else(|| eyre::eyre!("vaddr overflow"))?;
-                if addr == MAXIMUM_MEMORY_SIZE {
+                if addr >= MAXIMUM_MEMORY_SIZE {
                     eyre::bail!(
                         "address [0x{addr:08x}] exceeds maximum address for guest programs [0x{MAXIMUM_MEMORY_SIZE:08x}]"
                     );
