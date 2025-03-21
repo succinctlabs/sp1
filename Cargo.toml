@@ -29,7 +29,7 @@ members = [
   "crates/recursion/gnark-ffi",
   "crates/sdk",
   "crates/cuda",
-  # "crates/verifier",
+  "crates/verifier",
   "crates/stark",
   "crates/zkvm/*",
   "crates/test-artifacts",
