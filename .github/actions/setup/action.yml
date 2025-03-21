@@ -77,8 +77,8 @@ runs:
           ~/.cargo/git/db/
           target/
           ~/.rustup/
-        key: rust-
-        restore-keys: rust-
+        key: sp1-rust-
+        restore-keys: sp1-rust-
 
     - name: Setup toolchain
       id: rustc-toolchain
