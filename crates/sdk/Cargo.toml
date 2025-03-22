@@ -35,7 +35,6 @@ p3-fri = { workspace = true }
 indicatif = "0.17.8"
 tracing = { workspace = true }
 hex = "0.4.3"
-log = "0.4.22"
 dirs = "5.0.1"
 tempfile = "3.10.1"
 cfg-if = "1.0"
@@ -56,7 +55,7 @@ backoff = { version = "0.4", features = ["tokio"], optional = true }
 
 [dev-dependencies]
 test-artifacts = { path = "../test-artifacts" }
-tokio-test = { version = "0.4"}
+tokio-test = { version = "0.4" }
 
 [features]
 default = ["network"]

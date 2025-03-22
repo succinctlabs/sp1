@@ -114,10 +114,10 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                     })?;
 
                 let shard = record.shard();
-                tracing::info!("Shard Lifted: Index={}, Cluster={}", shard, cluster_index);
+                tracing::debug!("Shard Lifted: Index={}, Cluster={}", shard, cluster_index);
                 for (air, height) in heights.iter() {
                     if shape.contains(air) {
-                        tracing::info!(
+                        tracing::debug!(
                             "Chip {:<20}: {:<3} -> {:<3}",
                             air,
                             log2_ceil_usize(*height),
@@ -147,11 +147,11 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                     .ok_or_else(|| CoreShapeError::ShapeError(record.debug_stats()))?;
 
                 let shard = record.shard();
-                tracing::info!("Shard Lifted: Index={}, Cluster={}", shard, cluster_index);
+                tracing::debug!("Shard Lifted: Index={}, Cluster={}", shard, cluster_index);
 
                 for (air, height) in heights.iter() {
                     if shape.contains(air) {
-                        tracing::info!(
+                        tracing::debug!(
                             "Chip {:<20}: {:<3} -> {:<3}",
                             air,
                             log2_ceil_usize(*height),

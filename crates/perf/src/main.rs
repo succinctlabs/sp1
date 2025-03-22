@@ -137,7 +137,7 @@ fn main() {
             println!("{:?}", result);
         }
         ProverMode::Cuda => {
-            let server = SP1CudaProver::new().expect("failed to initialize CUDA prover");
+            let server = SP1CudaProver::new(None).expect("failed to initialize CUDA prover");
 
             let context = SP1Context::default();
             let (report, execution_duration) =

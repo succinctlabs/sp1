@@ -16,7 +16,7 @@ use strum::IntoEnumIterator;
 use thiserror::Error;
 
 use crate::{
-    context::SP1Context,
+    context::{IoOptions, SP1Context},
     dependencies::{
         emit_auipc_dependency, emit_branch_dependencies, emit_divrem_dependencies,
         emit_jump_dependencies, emit_memory_dependencies,
@@ -182,6 +182,9 @@ pub struct Executor<'a> {
 
     /// The maximum LDE size to allow.
     pub lde_size_threshold: u64,
+
+    /// The options for the IO.
+    pub io_options: IoOptions<'a>,
 
     /// Temporary event counts for the current shard. This is a field to reuse memory.
     event_counts: EnumMap<RiscvAirId, u64>,
@@ -350,6 +353,7 @@ impl<'a> Executor<'a> {
             lde_size_check: false,
             lde_size_threshold: 0,
             event_counts: EnumMap::default(),
+            io_options: context.io_options,
         }
     }
 
@@ -1717,9 +1721,11 @@ impl<'a> Executor<'a> {
                         pad_rv32im_event_counts(self.event_counts, self.shape_check_frequency);
                     let padded_lde_size = estimate_riscv_lde_size(padded_event_counts, &self.costs);
                     if padded_lde_size > self.lde_size_threshold {
+                        #[allow(clippy::cast_precision_loss)]
+                        let size_gib = (padded_lde_size as f64) / (1 << 9) as f64;
                         tracing::warn!(
-                            "stopping shard early due to lde size: {} gb",
-                            (padded_lde_size as u64) / 1_000_000_000
+                            "Stopping shard early since the estimated LDE size is too large: {:.3} GiB",
+                            size_gib
                         );
                         shape_match_found = false;
                     }
@@ -1769,12 +1775,11 @@ impl<'a> Executor<'a> {
 
                     if !shape_match_found {
                         self.record.counts = Some(self.event_counts);
-                        log::warn!(
-                            "stopping shard early due to no shapes fitting: \
-                            clk: {},
-                            clk_usage: {}",
-                            (self.state.clk / 4).next_power_of_two().ilog2(),
-                            ((self.state.clk / 4) as f64).log2(),
+                        tracing::debug!(
+                            "Stopping shard {} to stay within some maximal shape. clk = {} pc = 0x{:x?}",
+                            self.shard(),
+                            self.state.global_clk,
+                            self.state.pc,
                         );
                     }
                 }
@@ -1788,7 +1793,7 @@ impl<'a> Executor<'a> {
 
             // If the cycle limit is exceeded, return an error.
             if let Some(max_cycles) = self.max_cycles {
-                if self.state.global_clk >= max_cycles {
+                if self.state.global_clk > max_cycles {
                     return Err(ExecutionError::ExceededCycleLimit(max_cycles));
                 }
             }
@@ -1798,7 +1803,7 @@ impl<'a> Executor<'a> {
             || self.state.pc.wrapping_sub(self.program.pc_base)
                 >= (self.program.instructions.len() * 4) as u32;
         if done && self.unconstrained {
-            log::error!("program ended in unconstrained mode at clk {}", self.state.global_clk);
+            tracing::error!("program ended in unconstrained mode at clk {}", self.state.global_clk);
             return Err(ExecutionError::EndInUnconstrained());
         }
         Ok(done)
@@ -2029,6 +2034,19 @@ impl<'a> Executor<'a> {
 
             // Push the remaining execution record with memory initialize & finalize events.
             self.bump_record();
+
+            // Flush stdout and stderr.
+            if let Some(ref mut w) = self.io_options.stdout {
+                if let Err(e) = w.flush() {
+                    tracing::error!("failed to flush stdout override: {e}");
+                }
+            }
+
+            if let Some(ref mut w) = self.io_options.stderr {
+                if let Err(e) = w.flush() {
+                    tracing::error!("failed to flush stderr override: {e}");
+                }
+            }
         }
 
         // Push the remaining execution record, if there are any CPU events.
@@ -2281,7 +2299,7 @@ impl<'a> Executor<'a> {
         }
 
         if !self.unconstrained && self.state.global_clk % 10_000_000 == 0 {
-            log::info!("clk = {} pc = 0x{:x?}", self.state.global_clk, self.state.pc);
+            tracing::info!("clk = {} pc = 0x{:x?}", self.state.global_clk, self.state.pc);
         }
     }
 }
@@ -2309,7 +2327,7 @@ mod tests {
         simple_memory_program, simple_program, ssz_withdrawals_program, u256xu2048_mul_program,
     };
 
-    use crate::Register;
+    use crate::{Register, SP1Context};
 
     use super::{Executor, Instruction, Opcode, Program};
 
@@ -2333,6 +2351,20 @@ mod tests {
     fn test_fibonacci_program_run() {
         let program = fibonacci_program();
         let mut runtime = Executor::new(program, SP1CoreOpts::default());
+        runtime.run().unwrap();
+    }
+
+    #[test]
+    fn test_fibonacci_program_run_with_max_cycles() {
+        let program = fibonacci_program();
+        let mut runtime = Executor::new(program, SP1CoreOpts::default());
+        runtime.run().unwrap();
+
+        let max_cycles = runtime.state.global_clk;
+
+        let program = fibonacci_program();
+        let context = SP1Context::builder().max_cycles(max_cycles).build();
+        let mut runtime = Executor::with_context(program, SP1CoreOpts::default(), context);
         runtime.run().unwrap();
     }
 
