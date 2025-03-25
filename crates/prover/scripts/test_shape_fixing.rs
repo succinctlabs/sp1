@@ -10,11 +10,11 @@ use sp1_core_machine::{
 use sp1_stark::SP1CoreOpts;
 
 #[derive(Parser, Debug)]
-#[clap(author, version, about, long_about = None)]
+#[command(author, version, about, long_about = None)]
 struct Args {
-    #[clap(short, long, value_delimiter = ' ')]
+    #[arg(short, long, value_delimiter = ' ')]
     list: Vec<String>,
-    #[clap(short, long, value_delimiter = ' ')]
+    #[arg(short, long, value_delimiter = ' ')]
     shard_size: usize,
 }
 
