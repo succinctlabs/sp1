@@ -8,13 +8,13 @@ use sp1_core_machine::utils::setup_logger;
 use sp1_stark::shape::Shape;
 
 #[derive(Parser, Debug)]
-#[clap(author, version, about, long_about = None)]
+#[command(author, version, about, long_about = None)]
 struct Args {
-    #[clap(short, long)]
+    #[arg(short, long)]
     maximal_shapes_json: Option<PathBuf>,
-    #[clap(short, long)]
+    #[arg(short, long)]
     small_shapes_json: Option<PathBuf>,
-    #[clap(short, long)]
+    #[arg(short, long)]
     lde_threshold_bytes: usize,
 }
 
