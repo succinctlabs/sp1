@@ -37,6 +37,10 @@ const MAXIMAL_SHAPES: &[u8] = include_bytes!("maximal_shapes.json");
 /// These shapes are used to optimize performance for smaller programs.
 const SMALL_SHAPES: &[u8] = include_bytes!("small_shapes.json");
 
+/// Constants for program chip heights
+const PROGRAM_CHIP_HEIGHT: usize = 19;
+const BYTE_CHIP_HEIGHT: usize = 16;
+
 /// A configuration for what shapes are allowed to be used by the prover.
 #[derive(Debug)]
 pub struct CoreShapeConfig<F: PrimeField32> {
@@ -429,21 +433,31 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         shape.iter().map(|(air, height)| self.costs[air] * (1 << height)).sum()
     }
 
-    // TODO: cleanup..
+    /// Returns a vector of ordered shapes for small programs.
+    ///
+    /// This method generates shapes specifically optimized for small programs by:
+    /// 1. Converting log heights from partial small shapes
+    /// 2. Filtering out None values
+    /// 3. Adding standard program and byte chip configurations
+    ///
+    /// The resulting shapes are ordered to ensure consistent processing.
     pub fn small_program_shapes(&self) -> Vec<OrderedShape> {
         self.partial_small_shapes
             .iter()
             .map(|log_heights| {
+                let base_heights: Vec<_> = log_heights
+                    .iter()
+                    .filter(|(_, v)| v[0].is_some())
+                    .map(|(k, v)| (k.to_string(), v.last().unwrap().unwrap()))
+                    .collect();
+
+                let standard_chips = vec![
+                    (MachineAir::<BabyBear>::name(&ProgramChip), PROGRAM_CHIP_HEIGHT),
+                    (MachineAir::<BabyBear>::name(&ByteChip::default()), BYTE_CHIP_HEIGHT),
+                ];
+
                 OrderedShape::from_log2_heights(
-                    &log_heights
-                        .iter()
-                        .filter(|(_, v)| v[0].is_some())
-                        .map(|(k, v)| (k.to_string(), v.last().unwrap().unwrap()))
-                        .chain(vec![
-                            (MachineAir::<BabyBear>::name(&ProgramChip), 19),
-                            (MachineAir::<BabyBear>::name(&ByteChip::default()), 16),
-                        ])
-                        .collect::<Vec<_>>(),
+                    &base_heights.into_iter().chain(standard_chips).collect::<Vec<_>>(),
                 )
             })
             .collect()
