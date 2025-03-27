@@ -2,6 +2,8 @@
 //!
 //! This module provides a builder for the [`NetworkProver`].
 
+use alloy_primitives::Address;
+
 use crate::network::DEFAULT_NETWORK_RPC_URL;
 use crate::NetworkProver;
 
@@ -12,6 +14,7 @@ use crate::NetworkProver;
 pub struct NetworkProverBuilder {
     pub(crate) private_key: Option<String>,
     pub(crate) rpc_url: Option<String>,
+    pub(crate) tee_signers: Option<Vec<Address>>,
 }
 
 impl NetworkProverBuilder {
@@ -56,6 +59,15 @@ impl NetworkProverBuilder {
         self
     }
 
+    /// Sets the list of TEE signers, used for verifying TEE proofs.
+    ///
+    ///
+    #[must_use]
+    pub fn tee_signers(mut self, tee_signers: &[Address]) -> Self {
+        self.tee_signers = Some(tee_signers.to_vec());
+        self
+    }
+
     /// Builds a [`NetworkProver`].
     ///
     /// # Details
@@ -87,6 +99,10 @@ impl NetworkProverBuilder {
             None => std::env::var("NETWORK_RPC_URL").unwrap_or(DEFAULT_NETWORK_RPC_URL.to_string()),
         };
 
-        NetworkProver::new(&private_key, &rpc_url)
+        if let Some(tee_signers) = self.tee_signers {
+            NetworkProver::new(&private_key, &rpc_url).with_tee_signers(tee_signers)
+        } else {
+            NetworkProver::new(&private_key, &rpc_url)
+        }
     }
 }

@@ -79,6 +79,9 @@ pub enum SP1VerificationError {
     /// An error that occurs when the Groth16 verification fails.
     #[error("Groth16 verification error: {0}")]
     Groth16(anyhow::Error),
+    /// An error that occurs when the proof is invalid.
+    #[error("Unexpected error: {0:?}")]
+    Other(anyhow::Error),
 }
 
 pub(crate) fn verify_proof<C: SP1ProverComponents>(
