@@ -148,6 +148,8 @@ pub(crate) fn create_docker_command(
         format!("CARGO_ENCODED_RUSTFLAGS={}", get_rust_compiler_flags(args, &parsed_version)),
         "-e".to_string(),
         format!("RUSTC={}", rustc_bin.display()),
+        "-e".to_string(),
+        "CFLAGS=-D__ILP32__".to_string(),
         "--entrypoint".to_string(),
         "".to_string(),
         image,
