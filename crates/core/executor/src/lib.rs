@@ -45,6 +45,9 @@ pub mod subproof;
 pub mod syscalls;
 mod utils;
 
+/// The current package version of the SP1 executor.
+pub const SP1_EXECUTOR_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 pub use air::*;
 pub use context::*;
 pub use cost::*;

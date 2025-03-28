@@ -58,7 +58,9 @@ pub use prover::SP1VerificationError;
 
 // Re-export the build utilities and executor primitives.
 pub use sp1_build::include_elf;
-pub use sp1_core_executor::{ExecutionReport, Executor, HookEnv, SP1Context, SP1ContextBuilder};
+pub use sp1_core_executor::{
+    ExecutionReport, Executor, HookEnv, SP1Context, SP1ContextBuilder, SP1_EXECUTOR_VERSION,
+};
 
 // Re-export the machine/prover primitives.
 pub use sp1_core_machine::io::SP1Stdin;

@@ -57,7 +57,7 @@ impl TEEResponse {
         let mut bytes = Vec::new();
 
         // Include the version of the SP1 circuit.
-        let version_bytes = sp1_prover::SP1_CIRCUIT_VERSION.as_bytes();
+        let version_bytes = crate::SP1_EXECUTOR_VERSION.as_bytes();
 
         // The length of the version bytes, panics if the length is greater than 255.
         let version_bytes_len: u8 = version_bytes.len().try_into().unwrap();

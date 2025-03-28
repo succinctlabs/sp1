@@ -1,10 +1,10 @@
 use super::api::{EventPayload, GetAddressResponse, TEERequest, TEEResponse};
 
+use crate::SP1_EXECUTOR_VERSION;
 use alloy_primitives::Address;
 use eventsource_stream::{EventStreamError, Eventsource};
 use futures::stream::StreamExt;
 use reqwest::{Client as HttpClient, Error as HttpError};
-use sp1_prover::SP1_CIRCUIT_VERSION;
 
 /// Errors that can occur when interacting with the TEE server.
 #[derive(Debug, thiserror::Error)]
@@ -71,7 +71,7 @@ impl Client {
         let payload: EventPayload = self
             .client
             .post(format!("{}/execute", self.url))
-            .header("X-SP1-Version", SP1_CIRCUIT_VERSION)
+            .header("X-SP1-Version", SP1_EXECUTOR_VERSION)
             .body(bincode::serialize(&request)?)
             .send()
             .await?
@@ -111,7 +111,7 @@ impl Client {
         let response = self
             .client
             .get(format!("{}/address", self.url))
-            .header("X-SP1-Version", SP1_CIRCUIT_VERSION)
+            .header("X-SP1-Version", SP1_EXECUTOR_VERSION)
             .send()
             .await?
             .json::<GetAddressResponse>()
@@ -130,7 +130,7 @@ impl Client {
         let response = self
             .client
             .get(format!("{}/signers", self.url))
-            .header("X-SP1-Version", SP1_CIRCUIT_VERSION)
+            .header("X-SP1-Version", SP1_EXECUTOR_VERSION)
             .send()
             .await?
             .bytes()
