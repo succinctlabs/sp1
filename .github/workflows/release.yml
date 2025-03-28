@@ -6,7 +6,6 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -30,43 +29,28 @@ jobs:
         with:
           pull_token: ${{ secrets.PULL_TOKEN }}
 
-      # If it's a nightly release, tag with the release time. If the tag is `main`,
-      # we want to use the version from the `Cargo.toml` file.
       - name: Compute release name and tag
         id: release_info
         run: |
-          if [[ $IS_NIGHTLY ]]; then
-            echo "tag_name=nightly-${GITHUB_SHA}" >> $GITHUB_OUTPUT
-            echo "release_name=Nightly ($(date '+%Y-%m-%d'))" >> $GITHUB_OUTPUT
-          elif [[ "${GITHUB_REF_NAME}" == "main" ]]; then
-            # Parse the version from the `Cargo.toml` file.
-            VERSION=$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[] | select(.name == "sp1-build") | .version')
-
-            echo "tag_name=v${VERSION}" >> $GITHUB_OUTPUT 
-            echo "release_name=v${VERSION}" >> $GITHUB_OUTPUT
-          else
-            echo "tag_name=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
-            echo "release_name=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
-          fi
-
-      # Creates a tag for this release.
-      - name: Create build-specific tag
-        uses: actions/github-script@v7
-        env:
-          TAG_NAME: ${{ steps.release_info.outputs.tag_name }}
-        with:
-          script: |
-            const createTag = require('./.github/scripts/create-tag.js')
-            await createTag({ github, context }, process.env.TAG_NAME)
+          # Parse the version from the `Cargo.toml` file.
+          VERSION=$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[] | select(.name == "sp1-build") | .version')
+          echo "tag_name=v${VERSION}" >> $GITHUB_OUTPUT 
+          echo "release_name=v${VERSION}" >> $GITHUB_OUTPUT
 
       - name: Build changelog
         id: build_changelog
         uses: mikepenz/release-changelog-builder-action@v4
         with:
-          fromTag: ${{ env.IS_NIGHTLY && 'nightly' || '' }}
           toTag: ${{ steps.release_info.outputs.tag_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create release
+        id: create_release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create ${{ steps.release_info.outputs.tag_name }} --target main --latest --notes ${{ steps.build_changelog.outputs.changelog }}
 
   release:
     name: ${{ matrix.target }} (${{ matrix.runner }})
@@ -109,24 +93,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install rust toolchain
-        id: rustc-toolchain
-        uses: actions-rs/toolchain@v1
+      # Install rust and go.
+      - name: Setup CI
+        uses: ./.github/actions/setup
         with:
-          toolchain: stable
-          profile: minimal
-          override: true
-          targets: ${{ matrix.target }}
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: ${{ matrix.target }}
-          cache-on-failure: true
-
-      - name: Install go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "^1.22.1"
+          pull_token: ${{ secrets.PULL_TOKEN }}
 
       - name: Check go installation
         run: |
@@ -199,7 +170,7 @@ jobs:
           ARCH: ${{ matrix.arch }}
           # NOTE: SP1UP Relies on the version name being the tag name, 
           # DO NOT CHANGE THIS WITHOUT UPDATING SP1UP TOO.
-          VERSION_NAME: ${{ (env.IS_NIGHTLY && 'nightly') || needs.prepare.outputs.tag_name }}
+          VERSION_NAME: ${{ needs.prepare.outputs.tag_name }}
         shell: bash
         run: |
           if [ "$PLATFORM_NAME" == "linux" ]; then
@@ -217,33 +188,14 @@ jobs:
             echo "file_name=cargo_prove_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.zip" >> $GITHUB_OUTPUT
           fi
 
-      # Creates the release for this specific version
-      # Note: If this CI job runs again on the same tag, 
-      # it will override the files there, but not change the commit to the current main.
-      - name: Create release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: ${{ needs.prepare.outputs.release_name }}
-          tag_name: ${{ needs.prepare.outputs.tag_name }}
-          prerelease: ${{ env.IS_NIGHTLY }}
-          body: ${{ needs.prepare.outputs.changelog }}
-          files: |
-            ${{ steps.artifacts.outputs.file_name }}
-            ${{ steps.man.outputs.cargo_prove_man }}
-
-      # If this is a nightly release, it also updates the release
-      # tagged `nightly` for compatibility with `sp1up`
-      - name: Update nightly release
-        if: ${{ env.IS_NIGHTLY }}
-        uses: softprops/action-gh-release@v2
-        with:
-          name: "Nightly"
-          tag_name: "nightly"
-          prerelease: true
-          body: ${{ needs.prepare.outputs.changelog }}
-          files: |
-            ${{ steps.artifacts.outputs.file_name }}
-            ${{ steps.man.outputs.cargo_prove_man }}
+      # Upload the artifacts to the release.
+      - name: Upload Release artifact
+        id: upload_release_artifact
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload ${{ needs.prepare.outputs.tag_name }} ${{ steps.artifacts.outputs.file_name }}
+          
 
   toolchain-test:
     name: "Test toolchain installation (${{ matrix.name }})"
@@ -316,39 +268,16 @@ jobs:
       AWS_SG_ID: "${{ secrets.AWS_SG_ID }}"
       GH_PAT: ${{ secrets.GH_PAT }}
 
-  cleanup:
-    name: Release cleanup
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    needs: release
-    if: always()
-    steps:
-      - uses: actions/checkout@v4
-
-      # Moves the `nightly` tag to `HEAD`
-      - name: Move nightly tag
-        if: ${{ env.IS_NIGHTLY }}
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const moveTag = require('./.github/scripts/move-tag.js')
-            await moveTag({ github, context }, 'nightly')
-
-      - name: Delete old nightlies
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const prunePrereleases = require('./.github/scripts/prune-prereleases.js')
-            await prunePrereleases({github, context})
-
   # If any of the jobs fail, this will create a high-priority issue to signal so.
   issue:
     name: Open an issue
     runs-on: ubuntu-latest
-    needs: [prepare, release, cleanup]
+    needs: [prepare, release]
     if: failure()
     steps:
       - uses: actions/checkout@v4
+
+      # todo remove this and use GH cli to create the issue
       - uses: JasonEtco/create-an-issue@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -357,3 +286,7 @@ jobs:
         with:
           update_existing: true
           filename: .github/RELEASE_FAILURE_ISSUE_TEMPLATE.md
+
+      - name: Delete failed release
+        run: |
+          gh release delete ${{ needs.prepare.outputs.tag_name }} --cleanup-tag
