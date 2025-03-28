@@ -14,7 +14,6 @@ p3-field = { workspace = true }
 p3-symmetric = { workspace = true }
 p3-baby-bear = { workspace = true }
 sp1-recursion-compiler = { workspace = true }
-sp1-core-machine = { workspace = true }
 sp1-stark = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -29,7 +28,6 @@ hex = "0.4.3"
 
 [build-dependencies]
 bindgen = "0.70.1"
-cc = "1.1"
 cfg-if = "1.0"
 
 [features]
