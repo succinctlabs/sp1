@@ -57,7 +57,7 @@ impl TEEResponse {
         let mut bytes = Vec::new();
 
         // Include the version of the SP1 circuit.
-        let version_bytes = crate::SP1_EXECUTOR_VERSION.as_bytes();
+        let version_bytes = super::SP1_TEE_VERSION.to_le_bytes();
 
         // The length of the version bytes, panics if the length is greater than 255.
         let version_bytes_len: u8 = version_bytes.len().try_into().unwrap();
@@ -71,7 +71,7 @@ impl TEEResponse {
         // Push the version bytes length.
         bytes.push(version_bytes_len);
         // Push the version bytes.
-        bytes.extend_from_slice(version_bytes);
+        bytes.extend_from_slice(&version_bytes);
 
         bytes
     }

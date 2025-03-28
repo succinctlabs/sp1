@@ -525,7 +525,8 @@ impl Prover<CpuProverComponents> for NetworkProver {
             let mut bytes = Vec::new();
 
             // Push the version hash.
-            let version_hash = alloy_primitives::keccak256(crate::SP1_EXECUTOR_VERSION.as_bytes());
+            let version_hash =
+                alloy_primitives::keccak256(crate::network::tee::SP1_TEE_VERSION.to_le_bytes());
             bytes.extend_from_slice(version_hash.as_ref());
 
             // Push the vkey.

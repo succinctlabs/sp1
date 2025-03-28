@@ -11,6 +11,12 @@ pub mod api;
 /// The client for the TEE server.
 pub mod client;
 
+/// The SP1 TEE backend version to use.
+///
+/// Since this doesn't necessarily correspond to new versions of SP1,
+/// we opt to keep track of it manually here.
+pub const SP1_TEE_VERSION: u32 = 1;
+
 /// The type of TEE proof to use.
 pub enum TEEProof {
     /// Use a Nitro TEE instance to create an integrity proof.
