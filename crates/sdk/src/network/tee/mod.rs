@@ -23,7 +23,7 @@ pub enum TEEProof {
 /// report the list of signers.
 ///
 /// This is a convenience method, if you want to actually verify attestions from the TEE server,
-/// you need to build the Enclave image yourself, and use the provided functionality from the `sp1-tee`
+/// you need to build the enclave image yourself, and use the provided functionality from the `sp1-tee`
 /// crate to verify the signers you care about.
 ///
 /// Signers may be cross checked from the on-chain state with attestaions stored in s3.
@@ -32,10 +32,8 @@ pub enum TEEProof {
 ///
 /// # Errors
 /// - [`client::ClientError::Http`] - If the request fails to send.
-pub async fn get_tee_signers(
-    pcr0: Option<&str>,
-) -> Result<Vec<alloy_primitives::Address>, client::ClientError> {
+pub async fn get_tee_signers() -> Result<Vec<alloy_primitives::Address>, client::ClientError> {
     let client = client::Client::default();
 
-    client.get_signers(pcr0).await
+    client.get_signers().await
 }

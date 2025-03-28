@@ -120,20 +120,17 @@ impl Client {
         Ok(response.address)
     }
 
-    /// Get the list of signers for the TEE server.
+    /// Get the list of signers for the TEE server corresponding to the current SP1 circuit version.
     ///
     /// This function will send a request to the TEE server, and await a response.
     ///
     /// # Errors
     /// - [`ClientError::Http`] - If the request fails to send.
-    pub async fn get_signers(&self, pcr0: Option<&str>) -> Result<Vec<Address>, ClientError> {
-        let params = if let Some(pcr0) = pcr0 { vec![("pcr0", pcr0)] } else { vec![] };
-
+    pub async fn get_signers(&self) -> Result<Vec<Address>, ClientError> {
         let response = self
             .client
             .get(format!("{}/signers", self.url))
             .header("X-SP1-Version", SP1_CIRCUIT_VERSION)
-            .query(&params)
             .send()
             .await?
             .bytes()
