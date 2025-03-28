@@ -321,12 +321,12 @@ impl NetworkProveBuilder<'_> {
     ///     let client = ProverClient::builder().network().build();
     ///     let (pk, vk) = client.setup(elf);
     ///     let builder = client.prove(&pk, &stdin)
-    ///         .tee_proof(TEEProof::NitroIntegrity)
+    ///         .tee_2fa_proof(TEEProof::NitroIntegrity)
     ///         .run();
     /// }
     /// ```
     #[must_use]
-    pub fn tee_proof(mut self, tee_proof_type: TEEProof) -> Self {
+    pub fn tee_2fa_proof(mut self, tee_proof_type: TEEProof) -> Self {
         self.tee_proof_type = tee_proof_type;
         self
     }
