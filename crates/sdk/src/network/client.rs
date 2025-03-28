@@ -339,13 +339,25 @@ impl NetworkClient {
     }
 
     pub(crate) async fn prover_network_client(&self) -> Result<ProverNetworkClient<Channel>> {
-        let channel = grpc::configure_endpoint(&self.rpc_url)?.connect().await?;
-        Ok(ProverNetworkClient::new(channel))
+        self.with_retry(
+            || async {
+                let channel = grpc::configure_endpoint(&self.rpc_url)?.connect().await?;
+                Ok(ProverNetworkClient::new(channel))
+            },
+            "creating network client",
+        )
+        .await
     }
 
     pub(crate) async fn artifact_store_client(&self) -> Result<ArtifactStoreClient<Channel>> {
-        let channel = grpc::configure_endpoint(&self.rpc_url)?.connect().await?;
-        Ok(ArtifactStoreClient::new(channel))
+        self.with_retry(
+            || async {
+                let channel = grpc::configure_endpoint(&self.rpc_url)?.connect().await?;
+                Ok(ArtifactStoreClient::new(channel))
+            },
+            "creating artifact client",
+        )
+        .await
     }
 
     pub(crate) async fn create_artifact_with_content<T: Serialize + Send + Sync>(

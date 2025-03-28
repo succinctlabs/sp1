@@ -6,13 +6,13 @@ use sp1_core_machine::utils::setup_logger;
 use sp1_stark::shape::Shape;
 
 #[derive(Parser, Debug)]
-#[clap(author, version, about, long_about = None)]
+#[command(author, version, about, long_about = None)]
 struct Args {
-    #[clap(short, long)]
+    #[arg(short, long)]
     maximal_shapes_json: PathBuf,
-    #[clap(short, long, value_delimiter = ' ')]
+    #[arg(short, long, value_delimiter = ' ')]
     log2_memory_heights: Vec<usize>,
-    #[clap(short, long)]
+    #[arg(short, long)]
     output: PathBuf,
 }
 

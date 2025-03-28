@@ -7,15 +7,15 @@ use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAir, utils::setup_logger};
 use sp1_stark::{shape::Shape, SP1CoreOpts};
 
 #[derive(Parser, Debug)]
-#[clap(author, version, about, long_about = None)]
+#[command(author, version, about, long_about = None)]
 struct Args {
-    #[clap(short, long, value_delimiter = ' ')]
+    #[arg(short, long, value_delimiter = ' ')]
     list: Vec<String>,
-    #[clap(short, long, value_delimiter = ' ')]
+    #[arg(short, long, value_delimiter = ' ')]
     shard_sizes: Vec<usize>,
-    #[clap(short, long)]
+    #[arg(short, long)]
     initial: Option<PathBuf>,
-    #[clap(short, long, default_value = "maximal_shapes.json")]
+    #[arg(short, long, default_value = "maximal_shapes.json")]
     output: Option<PathBuf>,
 }
 
