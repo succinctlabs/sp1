@@ -2601,9 +2601,9 @@ dependencies = [
 
 [[package]]
 name = "p3-air"
-version = "0.2.1-succinct"
+version = "0.2.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eab448037b7057ffb4212374a8884aa6d74556097a7877fe5eff84693377a854"
+checksum = "3b3079235eaa131553ae7ff992317ebeb1d431d238896315672869570ef0c38d"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -2611,9 +2611,9 @@ dependencies = [
 
 [[package]]
 name = "p3-baby-bear"
-version = "0.2.1-succinct"
+version = "0.2.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8cb78ed180f93f297480787f344d8191893942ad454404b5f5695f8bb7db9caf"
+checksum = "49ecc3edc6fb8186268e05031c26a8b2b1e567957d63adcae1026d55d6bb189b"
 dependencies = [
  "num-bigint 0.4.6",
  "p3-field",
@@ -2626,9 +2626,9 @@ dependencies = [
 
 [[package]]
 name = "p3-bn254-fr"
-version = "0.2.1-succinct"
+version = "0.2.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ffd31ad7999da119ef0012717ddf1aa1fe7583dd4482f40e6cbefc6ad12c0b72"
+checksum = "80e3df8d85259448803639657a4aafdf4caad9422f9be6264187f179fa0bc761"
 dependencies = [
  "ff 0.13.0",
  "num-bigint 0.4.6",
@@ -2641,9 +2641,9 @@ dependencies = [
 
 [[package]]
 name = "p3-challenger"
-version = "0.2.1-succinct"
+version = "0.2.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23a8359a42daf36eb433c82261eaa700301dce529d43d295484d4b3f4ed50ba3"
+checksum = "11466fe23e14dd6d61512c8ce5a068de87e3d92954058b05b24ae12b7824a960"
 dependencies = [
  "p3-field",
  "p3-maybe-rayon",
@@ -2655,9 +2655,9 @@ dependencies = [
 
 [[package]]
 name = "p3-commit"
-version = "0.2.1-succinct"
+version = "0.2.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df5925a1fbc61a51307a3a517ae84dbffbcc2b6f662dc565a7c5c8804f997155"
+checksum = "30877bdc426bfa5ebb0033dbc45ba1b083dfeb0db7ad7628c72a5be7562324ce"
 dependencies = [
  "itertools 0.12.1",
  "p3-challenger",
@@ -2669,9 +2669,9 @@ dependencies = [
 
 [[package]]
 name = "p3-dft"
-version = "0.2.1-succinct"
+version = "0.2.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c0790c522c282efcce3a2fcee4bc3f08f85554c3186af6ae2b80609af85e7c4b"
+checksum = "eece7b035978976138622b116fefe6c4cc372b1ce70739c40e7a351a9bb68f1f"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -2682,9 +2682,9 @@ dependencies = [
 
 [[package]]
 name = "p3-field"
-version = "0.2.1-succinct"
+version = "0.2.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f0042a53ff45c6fbd48e7809ae9da442a72619fe5199a7608ae0176848f59e0"
+checksum = "b6f0edf3fde4fd0d1455e901fc871c558010ae18db6e68f1b0fa111391855316"
 dependencies = [
  "itertools 0.12.1",
  "num-bigint 0.4.6",
@@ -2696,9 +2696,9 @@ dependencies = [
 
 [[package]]
 name = "p3-fri"
-version = "0.2.1-succinct"
+version = "0.2.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9dde25430d4c3921cbf4499f8417bcada27d903c3ec25241d6f2473a0b7a2eca"
+checksum = "07df36a633712e2a73387674a7e1922f3e58bc28b4e55359b2d3749e146f8faa"
 dependencies = [
  "itertools 0.12.1",
  "p3-challenger",
@@ -2715,9 +2715,9 @@ dependencies = [
 
 [[package]]
 name = "p3-interpolation"
-version = "0.2.1-succinct"
+version = "0.2.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be797f9352afcf6cf738956df4e0292db9579368ddda250d2ffeb9f284131a53"
+checksum = "a09b01809167d6e39e8a34779eb2d5fca50d0ff7b2d13661953b46dc74bf1619"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -2726,9 +2726,9 @@ dependencies = [
 
 [[package]]
 name = "p3-keccak-air"
-version = "0.2.1-succinct"
+version = "0.2.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6508a946c4aa5f3103da5e3089b9178e13d300f809097fc88dbbd3221eb0052c"
+checksum = "d9f6bacf49ba7c1d9c436994ace80a96c3532462c655e4339919d5b397035e56"
 dependencies = [
  "p3-air",
  "p3-field",
@@ -2740,9 +2740,9 @@ dependencies = [
 
 [[package]]
 name = "p3-matrix"
-version = "0.2.1-succinct"
+version = "0.2.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1534966235a3f1d18060c3c30f19dde660ce3a6b5b3971aa7167f606c5e28216"
+checksum = "60961b4d7ffd2e8412ce4e66e213de610356df71cc4e396519c856a664138a27"
 dependencies = [
  "itertools 0.12.1",
  "p3-field",
@@ -2755,18 +2755,18 @@ dependencies = [
 
 [[package]]
 name = "p3-maybe-rayon"
-version = "0.2.1-succinct"
+version = "0.2.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6f1c9f082bdcc02ca518889a6de856c1e2457c5aece70a480b8903f499c23021"
+checksum = "7bbe762738c382c9483410f52348ab9de41bb42c391e8171643a71486cf1ef8f"
 dependencies = [
  "rayon",
 ]
 
 [[package]]
 name = "p3-mds"
-version = "0.2.1-succinct"
+version = "0.2.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21e6eb5891c3f395a761a6451386aba4549ec4cd2a2dd0ed66fd86edbdbdfd22"
+checksum = "4127956cc6c783b7d021c5c42d5d89456d5f3bda4a7b165fcc2a3fd4e78fbede"
 dependencies = [
  "itertools 0.12.1",
  "p3-dft",
@@ -2779,9 +2779,9 @@ dependencies = [
 
 [[package]]
 name = "p3-merkle-tree"
-version = "0.2.1-succinct"
+version = "0.2.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "83b7f4296de3f4164c402d3ee9b82da175338f3f5292c541c72e04e90e631c5a"
+checksum = "74f7eff1ddec74ee4178b40b2b4630f4bf5a02abf2d9619c8c4f8295e59d02a1"
 dependencies = [
  "itertools 0.12.1",
  "p3-commit",
@@ -2796,9 +2796,9 @@ dependencies = [
 
 [[package]]
 name = "p3-poseidon2"
-version = "0.2.1-succinct"
+version = "0.2.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a24abe96fff52632152b167b95a0f0ab0805502d98f858dbac792aeabf24fa39"
+checksum = "be09497da406a98e89dc05c1ce539eeef29541bad61a5b2108a44ffe94dd0b4c"
 dependencies = [
  "gcd",
  "p3-field",
@@ -2810,9 +2810,9 @@ dependencies = [
 
 [[package]]
 name = "p3-symmetric"
-version = "0.2.1-succinct"
+version = "0.2.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b479c0a51ba4cd432c77a8e7bedbacf94426ba6ee2639578d589d8f724f25589"
+checksum = "6e7d954033f657d48490344ca4b3dbcc054962a0e92831b736666bb2f5e5820b"
 dependencies = [
  "itertools 0.12.1",
  "p3-field",
@@ -2821,9 +2821,9 @@ dependencies = [
 
 [[package]]
 name = "p3-uni-stark"
-version = "0.2.1-succinct"
+version = "0.2.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1314f815516e2c87e78b5167ec568e66fc9fba368a80a0bf8df195f9992d1f7"
+checksum = "064b3923492d182e768dff8a19a36d7742b0166dbff75455fdc99187d3115dd3"
 dependencies = [
  "itertools 0.12.1",
  "p3-air",
@@ -2840,9 +2840,9 @@ dependencies = [
 
 [[package]]
 name = "p3-util"
-version = "0.2.1-succinct"
+version = "0.2.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c93e679f867938dbfa5b40361e8642fd21986a7273eeb4cad2bad1b8a3a3d03b"
+checksum = "4a6ce0b6bee23fd54e05306f6752ae80b0b71a91166553ab39d7899801497237"
 dependencies = [
  "serde",
 ]
@@ -3948,7 +3948,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-build"
-version = "4.1.5"
+version = "4.1.6"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -3959,7 +3959,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-executor"
-version = "4.1.5"
+version = "4.1.6"
 dependencies = [
  "bincode",
  "bytemuck",
@@ -3996,7 +3996,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-machine"
-version = "4.1.5"
+version = "4.1.6"
 dependencies = [
  "bincode",
  "cbindgen",
@@ -4050,7 +4050,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-cuda"
-version = "4.1.5"
+version = "4.1.6"
 dependencies = [
  "bincode",
  "ctrlc",
@@ -4065,7 +4065,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
-version = "4.1.5"
+version = "4.1.6"
 dependencies = [
  "cfg-if",
  "dashu",
@@ -4085,7 +4085,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "4.1.5"
+version = "4.1.6"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -4093,7 +4093,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "4.1.5"
+version = "4.1.6"
 dependencies = [
  "bincode",
  "elliptic-curve",
@@ -4103,7 +4103,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "4.1.5"
+version = "4.1.6"
 dependencies = [
  "bincode",
  "hex",
@@ -4119,7 +4119,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-prover"
-version = "4.1.5"
+version = "4.1.6"
 dependencies = [
  "anyhow",
  "bincode",
@@ -4162,7 +4162,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-circuit"
-version = "4.1.5"
+version = "4.1.6"
 dependencies = [
  "hashbrown 0.14.5",
  "itertools 0.13.0",
@@ -4195,7 +4195,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-compiler"
-version = "4.1.5"
+version = "4.1.6"
 dependencies = [
  "backtrace",
  "itertools 0.13.0",
@@ -4215,7 +4215,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-core"
-version = "4.1.5"
+version = "4.1.6"
 dependencies = [
  "backtrace",
  "cbindgen",
@@ -4256,7 +4256,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-derive"
-version = "4.1.5"
+version = "4.1.6"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -4264,7 +4264,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-ffi"
-version = "4.1.5"
+version = "4.1.6"
 dependencies = [
  "anyhow",
  "bincode",
@@ -4288,7 +4288,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-sdk"
-version = "4.1.5"
+version = "4.1.6"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4321,7 +4321,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-stark"
-version = "4.1.5"
+version = "4.1.6"
 dependencies = [
  "arrayref",
  "hashbrown 0.14.5",
@@ -4379,7 +4379,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "4.1.5"
+version = "4.1.6"
 dependencies = [
  "cfg-if",
  "getrandom 0.2.15",
