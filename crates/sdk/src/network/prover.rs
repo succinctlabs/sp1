@@ -26,7 +26,7 @@ use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::HashableKey;
 use sp1_prover::{components::CpuProverComponents, SP1Prover, SP1_CIRCUIT_VERSION};
 
-use crate::network::tee::{client::Client as TeeClient, TEEProof};
+use crate::network::tee::client::Client as TeeClient;
 
 use {crate::utils::block_on, tokio::time::sleep};
 
@@ -124,8 +124,7 @@ impl NetworkProver {
             skip_simulation: false,
             cycle_limit: None,
             gas_limit: None,
-
-            tee_proof_type: TEEProof::None,
+            tee_2fa: false,
         }
     }
 
@@ -364,7 +363,7 @@ impl NetworkProver {
         skip_simulation: bool,
         cycle_limit: Option<u64>,
         gas_limit: Option<u64>,
-        tee_proof_type: TEEProof,
+        tee_2fa: bool,
     ) -> Result<SP1ProofWithPublicValues> {
         let request_id = self
             .request_proof_impl(
@@ -382,7 +381,7 @@ impl NetworkProver {
         // If 2FA is enabled, spawn a task to get the tee proof.
         // Note: We only support one type of TEE proof for now.
 
-        let handle = if matches!(tee_proof_type, TEEProof::NitroIntegrity) {
+        let handle = if tee_2fa {
             let request = super::tee::api::TEERequest::new(
                 &self.client.signer,
                 *request_id,
@@ -506,7 +505,7 @@ impl Prover<CpuProverComponents> for NetworkProver {
             false,
             None,
             None,
-            TEEProof::None,
+            false,
         ))
     }
 

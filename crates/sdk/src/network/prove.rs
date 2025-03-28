@@ -19,8 +19,6 @@ use std::future::Future;
 use std::future::IntoFuture;
 use std::pin::Pin;
 
-use crate::network::tee::TEEProof;
-
 /// A builder for creating a proof request to the network.
 pub struct NetworkProveBuilder<'a> {
     pub(crate) prover: &'a NetworkProver,
@@ -32,7 +30,7 @@ pub struct NetworkProveBuilder<'a> {
     pub(crate) skip_simulation: bool,
     pub(crate) cycle_limit: Option<u64>,
     pub(crate) gas_limit: Option<u64>,
-    pub(crate) tee_proof_type: TEEProof,
+    pub(crate) tee_2fa: bool,
 }
 
 impl NetworkProveBuilder<'_> {
@@ -321,13 +319,13 @@ impl NetworkProveBuilder<'_> {
     ///     let client = ProverClient::builder().network().build();
     ///     let (pk, vk) = client.setup(elf);
     ///     let builder = client.prove(&pk, &stdin)
-    ///         .tee_2fa_proof(TEEProof::NitroIntegrity)
+    ///         .tee_2fa()
     ///         .run();
     /// }
     /// ```
     #[must_use]
-    pub fn tee_2fa_proof(mut self, tee_proof_type: TEEProof) -> Self {
-        self.tee_proof_type = tee_proof_type;
+    pub fn tee_2fa(mut self) -> Self {
+        self.tee_2fa = true;
         self
     }
 
@@ -378,29 +376,16 @@ impl NetworkProveBuilder<'_> {
     /// })
     /// ```
     pub async fn request_async(self) -> Result<B256> {
-        let Self {
-            prover,
-            mode,
-            pk,
-            stdin,
-            timeout,
-            strategy,
-            skip_simulation,
-            cycle_limit,
-            gas_limit,
-
-            tee_proof_type: _,
-        } = self;
-        prover
+        self.prover
             .request_proof_impl(
-                pk,
-                &stdin,
-                mode,
-                strategy,
-                timeout,
-                skip_simulation,
-                cycle_limit,
-                gas_limit,
+                &self.pk,
+                &self.stdin,
+                self.mode,
+                self.strategy,
+                self.timeout,
+                self.skip_simulation,
+                self.cycle_limit,
+                self.gas_limit,
             )
             .await
     }
@@ -445,42 +430,28 @@ impl NetworkProveBuilder<'_> {
     /// let proof = client.prove(&pk, &stdin)
     ///     .run_async();
     /// ```
-    pub async fn run_async(self) -> Result<SP1ProofWithPublicValues> {
-        let Self {
-            prover,
-            mode,
-            pk,
-            stdin,
-            timeout,
-            strategy,
-            mut skip_simulation,
-            cycle_limit,
-            gas_limit,
-
-            tee_proof_type,
-        } = self;
-
+    pub async fn run_async(mut self) -> Result<SP1ProofWithPublicValues> {
         // Check for deprecated environment variable
         if let Ok(val) = std::env::var("SKIP_SIMULATION") {
             eprintln!(
                 "Warning: SKIP_SIMULATION environment variable is deprecated. Please use .skip_simulation() instead."
             );
-            skip_simulation = matches!(val.to_lowercase().as_str(), "true" | "1");
+            self.skip_simulation = matches!(val.to_lowercase().as_str(), "true" | "1");
         }
 
-        sp1_dump(&pk.elf, &stdin);
+        sp1_dump(&self.pk.elf, &self.stdin);
 
-        prover
+        self.prover
             .prove_impl(
-                pk,
-                &stdin,
-                mode,
-                strategy,
-                timeout,
-                skip_simulation,
-                cycle_limit,
-                gas_limit,
-                tee_proof_type,
+                self.pk,
+                &self.stdin,
+                self.mode,
+                self.strategy,
+                self.timeout,
+                self.skip_simulation,
+                self.cycle_limit,
+                self.gas_limit,
+                self.tee_2fa,
             )
             .await
     }

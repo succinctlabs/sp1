@@ -50,9 +50,6 @@ pub mod proof;
 pub use proof::*;
 pub mod prover;
 
-#[cfg(feature = "network")]
-pub use crate::network::tee::TEEProof;
-
 pub use prover::Prover;
 pub use prover::SP1VerificationError;
 

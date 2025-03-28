@@ -17,14 +17,6 @@ pub mod client;
 /// we opt to keep track of it manually here.
 pub const SP1_TEE_VERSION: u32 = 1;
 
-/// The type of TEE proof to use.
-pub enum TEEProof {
-    /// Use a Nitro TEE instance to create an integrity proof.
-    NitroIntegrity,
-    /// Do not create a TEE proof.
-    None,
-}
-
 /// This method will get the list of signers for the TEE server, trusting the server to honestly
 /// report the list of signers.
 ///
