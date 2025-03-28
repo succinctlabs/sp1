@@ -28,6 +28,8 @@ pub(crate) fn create_local_command(
         }
     }
 
+    command.env("CFLAGS", "-D__ILP32__");
+
     let parsed_version = {
         let output = Command::new("rustc")
             .arg("--version")
