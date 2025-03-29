@@ -95,11 +95,6 @@ jobs:
           sudo apt-get install -y build-essential pkg-config libssl-dev git
 
       - name: "Install SP1"
-        env:
-          # Releases occur on pushes to `main` and tags. If pushing to a tag, the SP1UP_VERSION is
-          # the tag name. If pushing to `main`, the SP1UP_VERSION is `latest`.
-          # TODO: Once we change the release workflow on `main` to push to tag `main`, we can remove this.
-          SP1UP_VERSION: ${{ github.ref_name == 'main' && 'latest' || github.ref_name }}
         run: |
           cd sp1up
           chmod +x sp1up
