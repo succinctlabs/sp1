@@ -22,25 +22,15 @@ anyhow = { version = "1.0.83", features = ["backtrace"] }
 clap = { version = "4.5.9", features = ["derive", "env"] }
 sp1-build = { workspace = true }
 sp1-sdk = { workspace = true }
-sp1-core-machine = { workspace = true }
 reqwest = { version = "0.12.4", features = [
   "stream",
   "json",
   "rustls-tls",
 ], default-features = false }
-indicatif = "0.17.8"
 tokio = { version = "1", features = ["full"] }
 dirs = "5.0"
 rand = "0.8"
 serde_json = { workspace = true }
 yansi = "1.0.1"
-hex = "0.4.3"
-anstyle = "1.0.8"
 target-lexicon = "0.12.15"
-rustc-demangle = "0.1.18"
-goblin = "0.8"
-regex = "1.5.4"
-prettytable-rs = "0.10"
-textwrap = "0.16.0"
-ctrlc = "3.4.2"
 cargo_metadata = "0.18.1"

@@ -18,14 +18,12 @@ itertools = { workspace = true }
 num = { version = "0.4.3" }
 p3-air = { workspace = true }
 p3-baby-bear = { workspace = true }
-p3-challenger = { workspace = true }
 p3-field = { workspace = true }
 p3-keccak-air = { workspace = true }
 p3-matrix = { workspace = true }
 p3-maybe-rayon = { workspace = true, features = ["parallel"] }
 p3-uni-stark = { workspace = true }
 p3-util = { workspace = true }
-p3-symmetric = { workspace = true }
 sp1-derive = { workspace = true }
 sp1-primitives = { workspace = true }
 
@@ -44,7 +42,6 @@ k256 = { version = "0.13.3", features = ["expose-field"] }
 p256 = { version = "0.13.2", features = ["expose-field"] }
 
 num_cpus = "1.16.0"
-size = "0.4.1"
 tempfile = "3.10.1"
 tracing = { workspace = true }
 tracing-forest = { version = "0.1.6", features = ["ansi", "smallvec"] }
@@ -55,7 +52,6 @@ web-time = "1.1.0"
 thiserror = "1.0.63"
 rand = "0.8.5"
 hashbrown = { workspace = true, features = ["serde", "inline-more"] }
-static_assertions = "1.1.0"
 
 sp1-stark = { workspace = true }
 sp1-core-executor = { workspace = true }
@@ -64,7 +60,6 @@ p3-poseidon2 = { workspace = true }
 
 [dev-dependencies]
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
-criterion = "0.5.1"
 num = { version = "0.4.3", features = ["rand"] }
 rand = "0.8.5"
 sp1-zkvm = { path = "../../zkvm/entrypoint" }
