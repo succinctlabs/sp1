@@ -21,6 +21,8 @@ members = [
   "json/lib",
   "json/program",
   "json/script",
+  "public_values_demo/program",
+  "public_values_demo/script",
   "regex/program",
   "regex/script",
   "rsa/program",
