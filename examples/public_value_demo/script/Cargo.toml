@@ -1,0 +1,9 @@
+[package]
+name = "sp1-public-values-demo-script"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+sp1-core = { path = "../../../crates/core" }
+sp1-primitives = { path = "../../../crates/primitives" } 
