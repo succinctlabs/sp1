@@ -77,6 +77,22 @@ impl SP1PublicValues {
         // Return the masked hash as a BigUint.
         BigUint::from_bytes_be(hash.as_slice())
     }
+
+    /// Returns the SHA-256 digest of the public values to be used in verification
+    /// of SP1 proofs. This is convenient for recursive proofs when verifying
+    /// a previously generated proof.
+    pub fn digest(&self) -> [u8; 32] {
+        let mut hasher = Sha256::new();
+        hasher.update(self.buffer.data.as_slice());
+        hasher.finalize().into()
+    }
+
+    /// Reads and deserializes the program output from the public values.
+    /// This is convenient for recursive proofs when accessing the output
+    /// of a previously generated proof.
+    pub fn output<T: DeserializeOwned>(&self) -> T {
+        bincode::deserialize(&self.buffer.data).expect("Failed to deserialize program output")
+    }
 }
 
 impl AsRef<[u8]> for SP1PublicValues {
