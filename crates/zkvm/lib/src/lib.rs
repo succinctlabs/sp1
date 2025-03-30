@@ -19,6 +19,9 @@ pub mod utils;
 #[cfg(feature = "verify")]
 pub mod verify;
 
+// Re-export SP1PublicValues from sp1_primitives for convenience in recursive proofs
+pub use sp1_primitives::io::SP1PublicValues;
+
 extern "C" {
     /// Halts the program with the given exit code.
     pub fn syscall_halt(exit_code: u8) -> !;
