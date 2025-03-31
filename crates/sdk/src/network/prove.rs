@@ -311,7 +311,7 @@ impl NetworkProveBuilder<'_> {
     /// ```rust,no_run
     ///
     /// fn create_proof() {
-    ///     use sp1_sdk::{ProverClient, SP1Stdin, Prover, TEEProof};
+    ///     use sp1_sdk::{ProverClient, SP1Stdin, Prover};
     ///
     ///     let elf = &[1, 2, 3];
     ///     let stdin = SP1Stdin::new();
