@@ -212,7 +212,7 @@ fn start_cycle_tracker(rt: &mut Executor, name: &str) {
     let depth = rt.cycle_tracker.len() as u32;
     rt.cycle_tracker.insert(name.to_string(), (rt.state.global_clk, depth));
     let padding = "│ ".repeat(depth as usize);
-    tracing::info!("{}┌╴{}", padding, name);
+    tracing::debug!("{}┌╴{}", padding, name);
 }
 
 /// End tracking cycles for the given name, print out the log, and return the total number of cycles
@@ -221,7 +221,7 @@ fn end_cycle_tracker(rt: &mut Executor, name: &str) -> Option<u64> {
     if let Some((start, depth)) = rt.cycle_tracker.remove(name) {
         let padding = "│ ".repeat(depth as usize);
         let total_cycles = rt.state.global_clk - start;
-        tracing::info!("{}└╴{} cycles", padding, num_to_comma_separated(total_cycles));
+        tracing::debug!("{}└╴{} cycles", padding, num_to_comma_separated(total_cycles));
         return Some(total_cycles);
     }
     None
