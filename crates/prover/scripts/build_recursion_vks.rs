@@ -7,21 +7,21 @@ use sp1_prover::{
 };
 
 #[derive(Parser, Debug)]
-#[clap(author, version, about, long_about = None)]
+#[command(author, version, about, long_about = None)]
 struct Args {
-    #[clap(short, long)]
+    #[arg(short, long)]
     build_dir: PathBuf,
-    //     #[clap(short, long, default_value_t = false)]
+    //     #[arg(short, long, default_value_t = false)]
     //     dummy: bool,
-    //     #[clap(short, long, default_value_t = REDUCE_BATCH_SIZE)]
+    //     #[arg(short, long, default_value_t = REDUCE_BATCH_SIZE)]
     //     reduce_batch_size: usize,
-    //     #[clap(short, long, default_value_t = 1)]
+    //     #[arg(short, long, default_value_t = 1)]
     //     num_compiler_workers: usize,
-    //     #[clap(short, long, default_value_t = 1)]
+    //     #[arg(short, long, default_value_t = 1)]
     //     num_setup_workers: usize,
-    //     #[clap(short, long)]
+    //     #[arg(short, long)]
     //     start: Option<usize>,
-    //     #[clap(short, long)]
+    //     #[arg(short, long)]
     //     end: Option<usize>,
 }
 
