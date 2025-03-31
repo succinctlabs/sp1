@@ -28,6 +28,19 @@ pub fn test_pkcs_verify_100(
     |_| {}
 }
 
+#[sp1_test::sp1_test("rsa_test_email", syscalls = [U256XU2048_MUL], gpu, prove)]
+pub fn test_pkcs_verify_email(
+    stdin: &mut sp1_sdk::SP1Stdin,
+) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
+    const RSA_3072_PRIV_PEM: &str = include_str!("../assets/rsa3072-priv.pem");
+    const EMAIL: &str = include_str!("../assets/email.eml");
+
+    stdin.write(&RSA_3072_PRIV_PEM.to_string());
+    stdin.write(&EMAIL.to_string());
+
+    |_| {}
+}
+
 #[cfg(test)]
 fn sign_inner() -> (Signature, VerifyingKey<Sha256>, Vec<u8>) {
     use rsa::pkcs1v15::SigningKey;
