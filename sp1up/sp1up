@@ -21,59 +21,59 @@ main() {
     case $1 in
         --)
             shift; break;;
-
-        -r|--repo)
+        
+        -r|--repo)        
             shift
             check_required_arg "--repo" "$1"
             SP1UP_REPO=$1;;
-
-        -b|--branch)
+            
+        -b|--branch)      
             shift
             check_required_arg "--branch" "$1"
             SP1UP_BRANCH=$1;;
-
-        -v|--version)
+            
+        -v|--version)     
             shift
             check_required_arg "--version" "$1"
             SP1UP_VERSION=$1;;
-
-        -p|--path)
+            
+        -p|--path)        
             shift
             check_required_arg "--path" "$1"
             SP1UP_LOCAL_REPO=$1;;
-
-        -P|--pr)
+            
+        -P|--pr)          
             shift
             check_required_arg "--pr" "$1"
             SP1UP_PR=$1;;
-
-        -C|--commit)
+            
+        -C|--commit)      
             shift
             check_required_arg "--commit" "$1"
             SP1UP_COMMIT=$1;;
-
+            
         -c|--c-toolchain) SP1UP_C_TOOLCHAIN=true;;
-
-        --arch)
+        
+        --arch)           
             shift
             check_required_arg "--arch" "$1"
             SP1UP_ARCH=$1;;
-
-        --platform)
+            
+        --platform)       
             shift
             check_required_arg "--platform" "$1"
             SP1UP_PLATFORM=$1;;
-
-        -t|--token)
+            
+        -t|--token)       
             shift
             check_required_arg "--token" "$1"
             GITHUB_TOKEN=$1;;
-
+            
         -h|--help)
             usage
             exit 0
             ;;
-
+            
         *)
             warn "unknown option: $1"
             usage
@@ -321,7 +321,7 @@ determine_platform() {
 check_url() {
     local url="$1"
     local description="$2"
-
+    
     if ! curl --head --silent --fail "$url" --output /dev/null 2> /dev/null; then
         echo "Error: Unable to access the $description at: $url" >&2
         echo "Please check:" >&2
@@ -338,7 +338,7 @@ check_url() {
 check_required_arg() {
     local option=$1
     local value=$2
-
+    
     if [[ -z $value ]]; then
         warn "Error: $option requires a value"
         usage
@@ -431,7 +431,7 @@ download() {
   fi
 }
 
-# Banner Function for sp1
+# Banner Function for sp1 
 banner() {
   printf "
 .______  ._______ ._______ ._______ ._______ ._______ ._______ ._______ ._______
@@ -439,16 +439,16 @@ banner() {
    _____  ____  ___
   / ___/ / __ \<  /
   \__ \ / /_/ // /                        A performant, 100%% open-source,
- ___/ // ____// /                              general-purpose zkVM.
-/____//_/    /_/
+ ___/ // ____// /                              general-purpose zkVM.  
+/____//_/    /_/   
 
-._______ ._______ ._______ ._______ ._______ ._______ ._______ ._______ ._______
+._______ ._______ ._______ ._______ ._______ ._______ ._______ ._______ ._______ 
 
 Repo       : https://github.com/succinctlabs/sp1
 Book       : https://docs.succinct.xyz/
 Telegram   : https://t.me/+AzG4ws-kD24yMGYx
 
-._______ ._______ ._______ ._______ ._______ ._______ ._______ ._______ ._______
+._______ ._______ ._______ ._______ ._______ ._______ ._______ ._______ ._______ 
 
 "
 }
