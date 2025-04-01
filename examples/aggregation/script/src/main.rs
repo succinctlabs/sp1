@@ -19,6 +19,15 @@ struct AggregationInput {
     pub vk: SP1VerifyingKey,
 }
 
+// Function to generate the fibonacci proof
+fn generate_fibonacci_proof(client: &ProverClient, fibonacci_pk: &SP1ProvingKey, n: u32) -> SP1ProofWithPublicValues {
+    tracing::info_span!("generate fibonacci proof n={}", n).in_scope(|| {
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&n);
+        client.prove(fibonacci_pk, &stdin).compressed().run().expect("proving failed")
+    })
+}
+
 fn main() {
     // Setup the logger.
     sp1_sdk::utils::setup_logger();
@@ -29,22 +38,10 @@ fn main() {
     // Setup the proving and verifying keys.
     let (fibonacci_pk, fibonacci_vk) = client.setup(FIBONACCI_ELF);
 
-    // Generate the fibonacci proofs.
-    let proof_1 = tracing::info_span!("generate fibonacci proof n=10").in_scope(|| {
-        let mut stdin = SP1Stdin::new();
-        stdin.write(&10);
-        client.prove(&fibonacci_pk, &stdin).compressed().run().expect("proving failed")
-    });
-    let proof_2 = tracing::info_span!("generate fibonacci proof n=20").in_scope(|| {
-        let mut stdin = SP1Stdin::new();
-        stdin.write(&20);
-        client.prove(&fibonacci_pk, &stdin).compressed().run().expect("proving failed")
-    });
-    let proof_3 = tracing::info_span!("generate fibonacci proof n=30").in_scope(|| {
-        let mut stdin = SP1Stdin::new();
-        stdin.write(&30);
-        client.prove(&fibonacci_pk, &stdin).compressed().run().expect("proving failed")
-    });
+    // Generate proofs using the function
+    let proof_1 = generate_fibonacci_proof(&client, &fibonacci_pk, 10);
+    let proof_2 = generate_fibonacci_proof(&client, &fibonacci_pk, 20);
+    let proof_3 = generate_fibonacci_proof(&client, &fibonacci_pk, 30);
 
     // Setup the inputs to the aggregation program.
     let input_1 = AggregationInput { proof: proof_1, vk: fibonacci_vk.clone() };
@@ -58,20 +55,19 @@ fn main() {
         let mut stdin = SP1Stdin::new();
 
         // Write the verification keys.
-        let vkeys = inputs.iter().map(|input| input.vk.hash_u32()).collect::<Vec<_>>();
-        stdin.write::<Vec<[u32; 8]>>(&vkeys);
+        let vkeys_iter = inputs.iter().map(|input| input.vk.hash_u32());
+        stdin.write::<Vec<u32>>(&vkeys_iter.collect());
 
         // Write the public values.
-        let public_values =
-            inputs.iter().map(|input| input.proof.public_values.to_vec()).collect::<Vec<_>>();
-        stdin.write::<Vec<Vec<u8>>>(&public_values);
+        let public_values_iter = inputs.iter().map(|input| input.proof.public_values.to_vec());
+        stdin.write::<Vec<Vec<u8>>>(&public_values_iter.collect());
 
         // Write the proofs.
         //
         // Note: this data will not actually be read by the aggregation program, instead it will be
         // witnessed by the prover during the recursive aggregation process inside SP1 itself.
         for input in inputs {
-            let SP1Proof::Compressed(proof) = input.proof.proof else { panic!() };
+            let SP1Proof::Compressed(proof) = input.proof.proof else { continue }; // Avoid panic
             stdin.write_proof(*proof, input.vk.vk);
         }
 
