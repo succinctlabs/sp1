@@ -86,7 +86,6 @@ impl From<ProofFromNetwork> for SP1ProofWithPublicValues {
             proof: value.proof,
             public_values: value.public_values,
             sp1_version: value.sp1_version,
-
             tee_proof: None,
         }
     }
@@ -293,7 +292,6 @@ mod tests {
             }),
             public_values: SP1PublicValues::new(),
             sp1_version: String::new(),
-
             tee_proof: None,
         };
         let expected_bytes = [vec![0, 0, 0, 0], hex::decode("ab").unwrap()].concat();
@@ -311,7 +309,6 @@ mod tests {
             }),
             public_values: SP1PublicValues::new(),
             sp1_version: String::new(),
-
             tee_proof: None,
         };
         let expected_bytes = [vec![0, 0, 0, 0], hex::decode("ab").unwrap()].concat();
@@ -329,7 +326,6 @@ mod tests {
             }),
             public_values: SP1PublicValues::new(),
             sp1_version: String::new(),
-
             tee_proof: None,
         };
         assert_eq!(mock_plonk_proof.bytes(), Vec::<u8>::new());
@@ -346,7 +342,6 @@ mod tests {
             }),
             public_values: SP1PublicValues::new(),
             sp1_version: String::new(),
-
             tee_proof: None,
         };
         assert_eq!(mock_groth16_proof.bytes(), Vec::<u8>::new());
@@ -361,9 +356,30 @@ mod tests {
             proof: SP1Proof::Core(vec![]),
             public_values: SP1PublicValues::new(),
             sp1_version: String::new(),
-
             tee_proof: None,
         };
         println!("{:?}", core_proof.bytes());
+    }
+
+    #[test]
+    fn test_deser_backwards_compat() {
+        let round_trip = SP1ProofWithPublicValues {
+            proof: SP1Proof::Core(vec![]),
+            public_values: SP1PublicValues::new(),
+            sp1_version: String::new(),
+            tee_proof: None,
+        };
+
+        let round_trip_bytes = bincode::serialize(&round_trip).unwrap();
+
+        bincode::deserialize::<SP1ProofWithPublicValues>(&round_trip_bytes).unwrap();
+
+        let _ = ProofFromNetwork {
+            proof: SP1Proof::Core(vec![]),
+            public_values: SP1PublicValues::new(),
+            sp1_version: String::new(),
+        };
+
+        let _ = bincode::deserialize::<ProofFromNetwork>(&round_trip_bytes).unwrap();
     }
 }

@@ -99,10 +99,13 @@ impl NetworkProverBuilder {
             None => std::env::var("NETWORK_RPC_URL").unwrap_or(DEFAULT_NETWORK_RPC_URL.to_string()),
         };
 
-        if let Some(tee_signers) = self.tee_signers {
-            NetworkProver::new(&private_key, &rpc_url).with_tee_signers(tee_signers)
-        } else {
-            NetworkProver::new(&private_key, &rpc_url)
-        }
+        let tee_signers = match self.tee_signers {
+            Some(tee_signers) => tee_signers,
+            None => crate::utils::block_on(async {
+                crate::network::tee::get_tee_signers().await.expect("Failed to get TEE signers")
+            }),
+        };
+
+        NetworkProver::new(&private_key, &rpc_url).with_tee_signers(tee_signers)
     }
 }
