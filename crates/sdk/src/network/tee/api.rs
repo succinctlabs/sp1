@@ -44,7 +44,7 @@ pub struct TEEResponse {
     /// The public values computed by the TEE server.
     pub public_values: Vec<u8>,
     /// The signature over the public values and the vkey.
-    /// Computed as keccak256([`keccack256(vresion)` || `vkey` || `keccack256(public_values)`]).
+    /// Computed as keccak256([`keccack256(version)` || `vkey` || `keccack256(public_values)`]).
     pub signature: Signature,
     /// The recovery id computed by the TEE server.
     pub recovery_id: u8,
