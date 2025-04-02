@@ -559,7 +559,7 @@ impl Prover<CpuProverComponents> for NetworkProver {
                 verify_proof(self.prover.inner(), self.version(), bundle, vkey)
             } else {
                 Err(crate::SP1VerificationError::Other(anyhow::anyhow!(
-                    "Invalid TEE proof, signed by unknwon address {}",
+                    "Invalid TEE proof, signed by unknown address {}",
                     address
                 )))
             }

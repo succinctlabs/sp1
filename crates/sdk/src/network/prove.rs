@@ -378,7 +378,7 @@ impl NetworkProveBuilder<'_> {
     pub async fn request_async(self) -> Result<B256> {
         self.prover
             .request_proof_impl(
-                &self.pk,
+                self.pk,
                 &self.stdin,
                 self.mode,
                 self.strategy,
