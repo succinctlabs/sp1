@@ -114,7 +114,7 @@ impl<E: EdwardsParameters> AffinePoint<EdwardsCurve<E>> {
     ) -> AffinePoint<EdwardsCurve<E>> {
         let p = <E as EllipticCurveParameters>::BaseField::modulus();
         let x_3n = (&self.x * &other.y + &self.y * &other.x) % &p;
-        let y_3n = (&self.y * &other.y + &self.x * &other.x) % &p;
+        let y_3n = (&self.y * &other.y - &self.x * &other.x) % &p;
 
         let all_xy = (&self.x * &self.y * &other.x * &other.y) % &p;
         let d = E::d_biguint();
