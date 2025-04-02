@@ -55,7 +55,7 @@ alloy-signer-local = { version = "0.11", default-features = false, optional = tr
 backoff = { version = "0.4", features = ["tokio"], optional = true }
 
 # TEE Dependencies
-k256 = { version = "0.13.4", features = ["serde"] } # Signing
+k256 = { version = "0.13.3", features = ["serde"] } # Signing
 eventsource-stream = { version = "0.2.0" } # SSE Extenstion for reqwest
 
 [dev-dependencies]
