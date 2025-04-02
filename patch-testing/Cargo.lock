@@ -1304,6 +1304,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "eventsource-stream"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "74fef4569247a5f429d9156b9d0a2599914385dd189c539334c625d8099d90ab"
+dependencies = [
+ "futures-core",
+ "nom",
+ "pin-project-lite",
+]
+
+[[package]]
 name = "eyre"
 version = "0.6.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2094,9 +2105,9 @@ dependencies = [
 
 [[package]]
 name = "k256"
-version = "0.13.3"
+version = "0.13.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "956ff9b67e26e1a6a866cb758f12c6f8746208489e3e4a4b5580802f2f0a587b"
+checksum = "f6e3919bbaa2945715f0bb6d3934a173d1e9a59ac23767fbaaef277265a7411b"
 dependencies = [
  "cfg-if",
  "ecdsa 0.16.9 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2128,7 +2139,7 @@ version = "1.1.0"
 dependencies = [
  "ecdsa 0.16.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex-literal",
- "k256 0.13.3",
+ "k256 0.13.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand",
  "sp1-build",
  "sp1-core-executor",
@@ -3672,7 +3683,7 @@ version = "0.29.1"
 source = "git+https://github.com/sp1-patches/rust-secp256k1?tag=patch-0.29.1-sp1-4.1.0#b2f7c49c8554c5820040c7275445788808ac979d"
 dependencies = [
  "cfg-if",
- "k256 0.13.4",
+ "k256 0.13.4 (git+https://github.com/sp1-patches/elliptic-curves?tag=patch-k256-13.4-sp1-4.1.0)",
  "rand",
  "secp256k1-sys",
  "serde",
@@ -4043,7 +4054,7 @@ dependencies = [
  "hashbrown 0.14.5",
  "hex",
  "itertools 0.13.0",
- "k256 0.13.3",
+ "k256 0.13.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "num",
  "num_cpus",
  "p256 0.13.2",
@@ -4107,7 +4118,7 @@ dependencies = [
  "elliptic-curve",
  "generic-array 1.1.0",
  "itertools 0.13.0",
- "k256 0.13.3",
+ "k256 0.13.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "num",
  "p256 0.13.2",
  "p3-field",
@@ -4330,11 +4341,13 @@ dependencies = [
  "bincode",
  "cfg-if",
  "dirs",
+ "eventsource-stream",
  "futures",
  "hashbrown 0.14.5",
  "hex",
  "indicatif",
  "itertools 0.13.0",
+ "k256 0.13.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "p3-baby-bear",
  "p3-field",
  "p3-fri",

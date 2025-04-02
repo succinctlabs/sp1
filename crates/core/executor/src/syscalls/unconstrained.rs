@@ -20,6 +20,7 @@ impl Syscall for EnterUnconstrainedSyscall {
             record: std::mem::take(&mut ctx.rt.record),
             op_record: std::mem::take(&mut ctx.rt.memory_accesses),
             executor_mode: ctx.rt.executor_mode,
+            total_unconstrained_cycles: ctx.rt.unconstrained_state.total_unconstrained_cycles,
         });
         ctx.rt.executor_mode = ExecutorMode::Simple;
         Some(1)
@@ -30,6 +31,8 @@ pub(crate) struct ExitUnconstrainedSyscall;
 
 impl Syscall for ExitUnconstrainedSyscall {
     fn execute(&self, ctx: &mut SyscallContext, _: SyscallCode, _: u32, _: u32) -> Option<u32> {
+        let total_unconstrained_cycles = ctx.rt.unconstrained_state.total_unconstrained_cycles;
+
         // Reset the state of the runtime.
         if ctx.rt.unconstrained {
             ctx.rt.state.global_clk = ctx.rt.unconstrained_state.global_clk;
@@ -51,7 +54,11 @@ impl Syscall for ExitUnconstrainedSyscall {
             ctx.rt.executor_mode = ctx.rt.unconstrained_state.executor_mode;
             ctx.rt.unconstrained = false;
         }
+
         ctx.rt.unconstrained_state = Box::new(ForkState::default());
+        // Persist the total number of unconstrained cycles.
+        ctx.rt.unconstrained_state.total_unconstrained_cycles = total_unconstrained_cycles;
+
         Some(0)
     }
 }
