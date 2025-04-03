@@ -103,6 +103,8 @@ pub struct ForkState {
     pub record: ExecutionRecord,
     /// Whether `emit_events` was enabled at the fork point.
     pub executor_mode: ExecutorMode,
+    /// The cumulative number of unconstrained cycles during the entire execution.
+    pub total_unconstrained_cycles: u64,
 }
 
 impl ExecutionState {

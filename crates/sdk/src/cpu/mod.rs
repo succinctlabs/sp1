@@ -121,11 +121,11 @@ impl CpuProver {
         let proof: SP1ProofWithMetadata<SP1CoreProofData> =
             self.prover.prove_core(&pk.pk, program, stdin, opts, context)?;
         if mode == SP1ProofMode::Core {
-            return Ok(SP1ProofWithPublicValues {
-                proof: SP1Proof::Core(proof.proof.0),
-                public_values: proof.public_values,
-                sp1_version: self.version().to_string(),
-            });
+            return Ok(SP1ProofWithPublicValues::new(
+                SP1Proof::Core(proof.proof.0),
+                proof.public_values,
+                self.version().to_string(),
+            ));
         }
 
         // Generate the compressed proof.
@@ -134,11 +134,11 @@ impl CpuProver {
         let public_values = proof.public_values.clone();
         let reduce_proof = self.prover.compress(&pk.vk, proof, deferred_proofs, opts)?;
         if mode == SP1ProofMode::Compressed {
-            return Ok(SP1ProofWithPublicValues {
-                proof: SP1Proof::Compressed(Box::new(reduce_proof)),
+            return Ok(SP1ProofWithPublicValues::new(
+                SP1Proof::Compressed(Box::new(reduce_proof)),
                 public_values,
-                sp1_version: self.version().to_string(),
-            });
+                self.version().to_string(),
+            ));
         }
 
         // Generate the shrink proof.
@@ -160,11 +160,11 @@ impl CpuProver {
                 };
 
                 let proof = self.prover.wrap_groth16_bn254(outer_proof, &groth16_bn254_artifacts);
-                Ok(SP1ProofWithPublicValues {
-                    proof: SP1Proof::Groth16(proof),
+                Ok(SP1ProofWithPublicValues::new(
+                    SP1Proof::Groth16(proof),
                     public_values,
-                    sp1_version: self.version().to_string(),
-                })
+                    self.version().to_string(),
+                ))
             }
             SP1ProofMode::Plonk => {
                 let plonk_bn254_artifacts = if sp1_prover::build::sp1_dev_mode() {
@@ -176,11 +176,11 @@ impl CpuProver {
                     try_install_circuit_artifacts("plonk")
                 };
                 let proof = self.prover.wrap_plonk_bn254(outer_proof, &plonk_bn254_artifacts);
-                Ok(SP1ProofWithPublicValues {
-                    proof: SP1Proof::Plonk(proof),
+                Ok(SP1ProofWithPublicValues::new(
+                    SP1Proof::Plonk(proof),
                     public_values,
-                    sp1_version: self.version().to_string(),
-                })
+                    self.version().to_string(),
+                ))
             }
             _ => unreachable!(),
         }

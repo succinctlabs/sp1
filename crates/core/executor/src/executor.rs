@@ -248,6 +248,10 @@ pub enum ExecutionError {
     /// The program ended in unconstrained mode.
     #[error("program ended in unconstrained mode")]
     EndInUnconstrained(),
+
+    /// The unconstrained cycle limit was exceeded.
+    #[error("unconstrained cycle limit exceeded")]
+    UnconstrainedCycleLimitExceeded(u64),
 }
 
 impl<'a> Executor<'a> {
@@ -1699,6 +1703,10 @@ impl<'a> Executor<'a> {
         // Increment the clock.
         self.state.global_clk += 1;
 
+        if self.unconstrained {
+            self.unconstrained_state.total_unconstrained_cycles += 1;
+        }
+
         if !self.unconstrained {
             // If there's not enough cycles left for another instruction, move to the next shard.
             let cpu_exit = self.max_syscall_cycles + self.state.clk >= self.shard_size;
@@ -2006,6 +2014,9 @@ impl<'a> Executor<'a> {
             self.initialize();
         }
 
+        let unconstrained_cycle_limit =
+            std::env::var("UNCONSTRAINED_CYCLE_LIMIT").map(|v| v.parse::<u64>().unwrap()).ok();
+
         // Loop until we've executed `self.shard_batch_size` shards if `self.shard_batch_size` is
         // set.
         let mut done = false;
@@ -2015,6 +2026,15 @@ impl<'a> Executor<'a> {
             if self.execute_cycle()? {
                 done = true;
                 break;
+            }
+
+            // Check if the unconstrained cycle limit was exceeded.
+            if let Some(unconstrained_cycle_limit) = unconstrained_cycle_limit {
+                if self.unconstrained_state.total_unconstrained_cycles > unconstrained_cycle_limit {
+                    return Err(ExecutionError::UnconstrainedCycleLimitExceeded(
+                        unconstrained_cycle_limit,
+                    ));
+                }
             }
 
             if self.shard_batch_size > 0 && current_shard != self.state.current_shard {

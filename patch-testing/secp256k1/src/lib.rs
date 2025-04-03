@@ -43,7 +43,7 @@ fn test_recover_rand_lte_100(
     }
 }
 
-#[sp1_test::sp1_test("secp256k1_verify")]
+#[sp1_test::sp1_test("secp256k1_verify", syscalls = [SECP256K1_DOUBLE, SECP256K1_ADD])]
 fn test_verify_rand_lte_100(
     stdin: &mut sp1_sdk::SP1Stdin,
 ) -> impl FnOnce(sp1_sdk::SP1PublicValues) {

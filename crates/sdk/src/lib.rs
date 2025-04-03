@@ -41,6 +41,7 @@ pub use crate::client::ProverClient;
 pub use crate::cpu::CpuProver;
 pub use crate::cuda::CudaProver;
 pub use crate::env::EnvProver;
+
 #[cfg(feature = "network")]
 pub use crate::network::prover::NetworkProver;
 
@@ -48,6 +49,7 @@ pub use crate::network::prover::NetworkProver;
 pub mod proof;
 pub use proof::*;
 pub mod prover;
+
 pub use prover::Prover;
 pub use prover::SP1VerificationError;
 

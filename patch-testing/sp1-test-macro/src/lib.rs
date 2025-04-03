@@ -159,6 +159,8 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
 
             __macro_internal_cb(__macro_internal_public);
 
+            println!("Cycle Count: {}", __macro_internal_execution_report.total_instruction_count());
+
             ::sp1_test::write_cycles(concat!(env!("CARGO_CRATE_NAME"), "_", stringify!(#test_name)), __macro_internal_execution_report.total_instruction_count());
         }
     };

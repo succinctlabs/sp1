@@ -16,10 +16,11 @@ serde_json = { workspace = true }
 twirp = { package = "twirp-rs", version = "0.13.0-succinct", optional = true }
 async-trait = "0.1.81"
 reqwest-middleware = { version = "0.3.2", optional = true }
-reqwest = { version = "0.12.4", default-features = false, features = [
+reqwest = { version = "0.12.12", default-features = false, features = [
   "rustls-tls",
   "trust-dns",
   "stream",
+  "json",
 ], optional = true }
 anyhow = "1.0.83"
 sp1-prover = { workspace = true }
@@ -52,6 +53,10 @@ alloy-primitives = { version = "0.8", default-features = false, optional = true 
 alloy-signer = { version = "0.11", default-features = false, optional = true }
 alloy-signer-local = { version = "0.11", default-features = false, optional = true }
 backoff = { version = "0.4", features = ["tokio"], optional = true }
+
+# TEE Dependencies
+k256 = { version = "0.13.3", features = ["serde"] } # Signing
+eventsource-stream = { version = "0.2.0" } # SSE Extenstion for reqwest
 
 [dev-dependencies]
 test-artifacts = { path = "../test-artifacts" }

@@ -404,7 +404,7 @@ where
         builder.assert_eq(c_comp_byte, c_comparison_byte);
 
         // Using the values above, we can constrain the `local.is_comp_eq` flag. We already asserted
-        // in the loop that when `local.is_comp_eq == 1` then all bytes are euqal. It is left to
+        // in the loop that when `local.is_comp_eq == 1` then all bytes are equal. It is left to
         // verify that when `local.is_comp_eq == 0` the comparison bytes are indeed not equal.
         // This is done using the inverse hint `not_eq_inv`.
         builder
