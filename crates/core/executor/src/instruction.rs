@@ -140,12 +140,12 @@ impl Debug for Instruction {
         let mnemonic = self.opcode.mnemonic();
         let op_a_formatted = format!("%x{}", self.op_a);
         let op_b_formatted = if self.imm_b || self.opcode == Opcode::AUIPC {
-            format!("{}", self.op_b as i32)
+            format!("{}", self.op_b)
         } else {
-            format!("%x{}", self.op_b)
+            format!("{:#x}", self.op_b)
         };
         let op_c_formatted =
-            if self.imm_c { format!("{}", self.op_c as i32) } else { format!("%x{}", self.op_c) };
+            if self.imm_c { format!("{}", self.op_c) } else { format!("{:#x}", self.op_c) };
 
         let width = 10;
         write!(
