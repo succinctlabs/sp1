@@ -107,6 +107,7 @@ impl Prover<CpuProverComponents> for CudaProver {
                 SP1Proof::Core(proof.proof.0),
                 proof.public_values,
                 self.version().to_string(),
+                proof.cycles,
             ));
         }
 
@@ -120,6 +121,7 @@ impl Prover<CpuProverComponents> for CudaProver {
                 SP1Proof::Compressed(Box::new(reduce_proof)),
                 public_values,
                 self.version().to_string(),
+                0,
             ));
         }
 
@@ -143,6 +145,7 @@ impl Prover<CpuProverComponents> for CudaProver {
                 SP1Proof::Plonk(proof),
                 public_values,
                 self.version().to_string(),
+                0,
             ));
         } else if kind == SP1ProofMode::Groth16 {
             let groth16_bn254_artifacts = if sp1_prover::build::sp1_dev_mode() {
@@ -159,6 +162,7 @@ impl Prover<CpuProverComponents> for CudaProver {
                 SP1Proof::Groth16(proof),
                 public_values,
                 self.version().to_string(),
+                0,
             ));
         }
 
