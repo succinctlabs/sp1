@@ -1,7 +1,6 @@
-use std::path::PathBuf;
-use std::{env, process::Command};
+use std::{env, path::PathBuf, process::Command};
 
-use crate::{BuildArgs, HELPER_TARGET_SUBDIR};
+use crate::{BuildArgs, WarningLevel, HELPER_TARGET_SUBDIR};
 use cargo_metadata::camino::Utf8PathBuf;
 use dirs::home_dir;
 
@@ -46,7 +45,9 @@ pub(crate) fn create_local_command(
         let stdout_string =
             String::from_utf8(output.stdout).expect("Can't parse rustc --version stdout");
 
-        println!("cargo:warning=rustc +succinct --version: {:?}", stdout_string);
+        if matches!(args.warning_level, WarningLevel::All) {
+            println!("cargo:warning=rustc +succinct --version: {:?}", stdout_string);
+        }
 
         super::utils::parse_rustc_version(&stdout_string)
     };
