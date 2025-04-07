@@ -5,11 +5,21 @@ use build::build_program_internal;
 pub use build::{execute_build_program, generate_elf_paths};
 pub use command::TOOLCHAIN_NAME;
 
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 
 const DEFAULT_DOCKER_TAG: &str = concat!("v", env!("CARGO_PKG_VERSION"));
 const BUILD_TARGET: &str = "riscv32im-succinct-zkvm-elf";
 const HELPER_TARGET_SUBDIR: &str = "elf-compilation";
+
+/// Controls the warning message verbosity in the build process.
+#[derive(Clone, Copy, ValueEnum, Debug, Default)]
+pub enum WarningLevel {
+    /// Show all warning messages (default).
+    #[default]
+    All,
+    /// Suppress non-essential warnings; show only critical stuff.
+    Minimal,
+}
 
 /// Compile an SP1 program.
 ///
@@ -78,6 +88,9 @@ pub struct BuildArgs {
         help = "The top level directory to be used in the docker invocation."
     )]
     pub workspace_directory: Option<String>,
+
+    #[arg(long, value_enum, default_value = "all", help = "Control warning message verbosity")]
+    pub warning_level: WarningLevel,
 }
 
 // Implement default args to match clap defaults.
@@ -96,6 +109,7 @@ impl Default for BuildArgs {
             locked: false,
             no_default_features: false,
             workspace_directory: None,
+            warning_level: WarningLevel::All,
         }
     }
 }
