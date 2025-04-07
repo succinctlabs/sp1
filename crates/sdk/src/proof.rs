@@ -44,6 +44,66 @@ pub enum SP1Proof {
     Groth16(Groth16Bn254Proof),
 }
 
+impl SP1Proof {
+    /// The proof in the byte encoding the onchain verifiers accepts for [`SP1ProofMode::Groth16`] and
+    /// [`SP1ProofMode::Plonk`] proofs.
+    ///
+    /// # Details
+    /// The bytes consist of the first four bytes of Groth16/Plonk vkey hash followed by the encoded
+    /// proof, in a form optimized for onchain verification.
+    #[must_use]
+    pub fn bytes(&self) -> Vec<u8> {
+        match self {
+            SP1Proof::Plonk(plonk_proof) => {
+                // If the proof is empty, then this is a mock proof. The mock SP1 verifier
+                // expects an empty byte array for verification, so return an empty byte array.
+                if plonk_proof.encoded_proof.is_empty() {
+                    return Vec::new();
+                }
+
+                let proof_bytes =
+                    hex::decode(&plonk_proof.encoded_proof).expect("Invalid Plonk proof");
+
+                if let Some(tee_proof) = &self.tee_proof {
+                    return [
+                        tee_proof.clone(),
+                        plonk_proof.plonk_vkey_hash[..4].to_vec(),
+                        proof_bytes,
+                    ]
+                    .concat();
+                }
+
+                [plonk_proof.plonk_vkey_hash[..4].to_vec(), proof_bytes].concat()
+            }
+            SP1Proof::Groth16(groth16_proof) => {
+                // If the proof is empty, then this is a mock proof. The mock SP1 verifier
+                // expects an empty byte array for verification, so return an empty byte array.
+                if groth16_proof.encoded_proof.is_empty() {
+                    return Vec::new();
+                }
+
+                let proof_bytes =
+                    hex::decode(&groth16_proof.encoded_proof).expect("Invalid Groth16 proof");
+
+                if let Some(tee_proof) = &self.tee_proof {
+                    return [
+                        tee_proof.clone(),
+                        groth16_proof.groth16_vkey_hash[..4].to_vec(),
+                        proof_bytes,
+                    ]
+                    .concat();
+                }
+
+                [groth16_proof.groth16_vkey_hash[..4].to_vec(), proof_bytes].concat()
+            }
+            proof => panic!(
+                "Proof type {proof} is not supported for onchain verification. \
+                Only Plonk and Groth16 proofs are verifiable onchain"
+            ),
+        }
+    }
+}
+
 impl Display for SP1Proof {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
@@ -118,59 +178,10 @@ impl SP1ProofWithPublicValues {
     /// The proof in the byte encoding the onchain verifiers accepts for [`SP1ProofMode::Groth16`] and
     /// [`SP1ProofMode::Plonk`] proofs.
     ///
-    /// # Details
-    /// The bytes consist of the first four bytes of Groth16/Plonk vkey hash followed by the encoded
-    /// proof, in a form optimized for onchain verification.
+    /// See [`SP1Proof::bytes`]
     #[must_use]
     pub fn bytes(&self) -> Vec<u8> {
-        match &self.proof {
-            SP1Proof::Plonk(plonk_proof) => {
-                // If the proof is empty, then this is a mock proof. The mock SP1 verifier
-                // expects an empty byte array for verification, so return an empty byte array.
-                if plonk_proof.encoded_proof.is_empty() {
-                    return Vec::new();
-                }
-
-                let proof_bytes =
-                    hex::decode(&plonk_proof.encoded_proof).expect("Invalid Plonk proof");
-
-                if let Some(tee_proof) = &self.tee_proof {
-                    return [
-                        tee_proof.clone(),
-                        plonk_proof.plonk_vkey_hash[..4].to_vec(),
-                        proof_bytes,
-                    ]
-                    .concat();
-                }
-
-                [plonk_proof.plonk_vkey_hash[..4].to_vec(), proof_bytes].concat()
-            }
-            SP1Proof::Groth16(groth16_proof) => {
-                // If the proof is empty, then this is a mock proof. The mock SP1 verifier
-                // expects an empty byte array for verification, so return an empty byte array.
-                if groth16_proof.encoded_proof.is_empty() {
-                    return Vec::new();
-                }
-
-                let proof_bytes =
-                    hex::decode(&groth16_proof.encoded_proof).expect("Invalid Groth16 proof");
-
-                if let Some(tee_proof) = &self.tee_proof {
-                    return [
-                        tee_proof.clone(),
-                        groth16_proof.groth16_vkey_hash[..4].to_vec(),
-                        proof_bytes,
-                    ]
-                    .concat();
-                }
-
-                [groth16_proof.groth16_vkey_hash[..4].to_vec(), proof_bytes].concat()
-            }
-            proof => panic!(
-                "Proof type {proof} is not supported for onchain verification. \
-                Only Plonk and Groth16 proofs are verifiable onchain"
-            ),
-        }
+        self.proof.bytes()
     }
 
     /// Creates a mock proof for the specified proof mode from the public values.
