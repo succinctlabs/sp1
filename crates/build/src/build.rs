@@ -130,7 +130,7 @@ pub(crate) fn build_program_internal(path: &str, args: Option<BuildArgs>) {
 
     // Build the program with the given arguments.
     let path_output = if let Some(args) = &args {
-        execute_build_program(&args, Some(program_dir.to_path_buf()))
+        execute_build_program(args, Some(program_dir.to_path_buf()))
     } else {
         execute_build_program(&BuildArgs::default(), Some(program_dir.to_path_buf()))
     };
