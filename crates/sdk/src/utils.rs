@@ -35,3 +35,10 @@ pub(crate) fn block_on<T>(fut: impl std::future::Future<Output = T>) -> T {
         rt.block_on(fut)
     }
 }
+
+/// Forbid `sp1-sdk` to be compiled in debug to avoid teams doing benchmarks and forget to build in
+/// release seeing degraded performances.
+pub(crate) fn check_release_build() {
+    #[cfg(debug_assertions)]
+    panic!("sp1-sdk must be built in release mode. please compile with the --release flag.");
+}
