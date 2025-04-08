@@ -173,10 +173,10 @@ impl MemoryInstructionsChip {
 
             // Set the `mem_value_is_pos_not_x0` composite flag.
             cols.mem_value_is_pos_not_x0 = F::from_bool(
-                ((matches!(event.opcode, Opcode::LB | Opcode::LH)
-                    && (cols.most_sig_bit == F::zero()))
-                    || matches!(event.opcode, Opcode::LBU | Opcode::LHU | Opcode::LW))
-                    && !event.op_a_0,
+                ((matches!(event.opcode, Opcode::LB | Opcode::LH) &&
+                    (cols.most_sig_bit == F::zero())) ||
+                    matches!(event.opcode, Opcode::LBU | Opcode::LHU | Opcode::LW)) &&
+                    !event.op_a_0,
             )
         }
 

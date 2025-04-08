@@ -2,17 +2,18 @@ use std::borrow::Borrow;
 
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_matrix::Matrix;
-use sp1_core_machine::operations::poseidon2::air::eval_external_round;
-use sp1_core_machine::operations::poseidon2::air::eval_internal_rounds;
+use sp1_core_machine::operations::poseidon2::air::{eval_external_round, eval_internal_rounds};
 
-use sp1_core_machine::operations::poseidon2::permutation::NUM_POSEIDON2_DEGREE3_COLS;
-use sp1_core_machine::operations::poseidon2::permutation::NUM_POSEIDON2_DEGREE9_COLS;
-use sp1_core_machine::operations::poseidon2::NUM_EXTERNAL_ROUNDS;
-use sp1_core_machine::operations::poseidon2::WIDTH;
+use sp1_core_machine::operations::poseidon2::{
+    permutation::{NUM_POSEIDON2_DEGREE3_COLS, NUM_POSEIDON2_DEGREE9_COLS},
+    NUM_EXTERNAL_ROUNDS, WIDTH,
+};
 
 use super::Poseidon2WideChip;
-use crate::builder::SP1RecursionAirBuilder;
-use crate::chips::poseidon2_wide::columns::preprocessed::Poseidon2PreprocessedColsWide;
+use crate::{
+    builder::SP1RecursionAirBuilder,
+    chips::poseidon2_wide::columns::preprocessed::Poseidon2PreprocessedColsWide,
+};
 
 impl<F, const DEGREE: usize> BaseAir<F> for Poseidon2WideChip<DEGREE> {
     fn width(&self) -> usize {

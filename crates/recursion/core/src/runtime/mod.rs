@@ -6,23 +6,21 @@ mod record;
 
 // Avoid triggering annoying branch of thiserror derive macro.
 use backtrace::Backtrace as Trace;
-use instruction::HintAddCurveInstr;
 pub use instruction::Instruction;
-use instruction::{FieldEltType, HintBitsInstr, HintExt2FeltsInstr, HintInstr, PrintInstr};
+use instruction::{
+    FieldEltType, HintAddCurveInstr, HintBitsInstr, HintExt2FeltsInstr, HintInstr, PrintInstr,
+};
 use itertools::Itertools;
 use memory::*;
 pub use opcode::*;
-use p3_field::AbstractExtensionField;
-use p3_field::{AbstractField, ExtensionField, PrimeField32};
+use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, PrimeField32};
 use p3_maybe_rayon::prelude::*;
 use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
 use p3_symmetric::{CryptographicPermutation, Permutation};
 use p3_util::reverse_bits_len;
 pub use program::*;
 pub use record::*;
-use sp1_stark::septic_curve::SepticCurve;
-use sp1_stark::septic_extension::SepticExtension;
-use sp1_stark::MachineRecord;
+use sp1_stark::{septic_curve::SepticCurve, septic_extension::SepticExtension, MachineRecord};
 use std::{
     array,
     borrow::Borrow,

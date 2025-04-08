@@ -203,15 +203,15 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 return Err(MachineVerificationError::InvalidPublicValues(
                     "last_init_addr_bits != last_finalize_addr_bits_prev",
                 ));
-            } else if !shard_proof.contains_global_memory_init()
-                && public_values.previous_init_addr_bits != public_values.last_init_addr_bits
+            } else if !shard_proof.contains_global_memory_init() &&
+                public_values.previous_init_addr_bits != public_values.last_init_addr_bits
             {
                 return Err(MachineVerificationError::InvalidPublicValues(
                     "previous_init_addr_bits != last_init_addr_bits",
                 ));
-            } else if !shard_proof.contains_global_memory_finalize()
-                && public_values.previous_finalize_addr_bits
-                    != public_values.last_finalize_addr_bits
+            } else if !shard_proof.contains_global_memory_finalize() &&
+                public_values.previous_finalize_addr_bits !=
+                    public_values.last_finalize_addr_bits
             {
                 return Err(MachineVerificationError::InvalidPublicValues(
                     "previous_finalize_addr_bits != last_finalize_addr_bits",
@@ -248,26 +248,26 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         for shard_proof in proof.0.iter() {
             let public_values: &PublicValues<Word<_>, _> =
                 shard_proof.public_values.as_slice().borrow();
-            if committed_value_digest_prev != zero_committed_value_digest
-                && public_values.committed_value_digest != committed_value_digest_prev
+            if committed_value_digest_prev != zero_committed_value_digest &&
+                public_values.committed_value_digest != committed_value_digest_prev
             {
                 return Err(MachineVerificationError::InvalidPublicValues(
                     "committed_value_digest != committed_value_digest_prev",
                 ));
-            } else if deferred_proofs_digest_prev != zero_deferred_proofs_digest
-                && public_values.deferred_proofs_digest != deferred_proofs_digest_prev
+            } else if deferred_proofs_digest_prev != zero_deferred_proofs_digest &&
+                public_values.deferred_proofs_digest != deferred_proofs_digest_prev
             {
                 return Err(MachineVerificationError::InvalidPublicValues(
                     "deferred_proofs_digest != deferred_proofs_digest_prev",
                 ));
-            } else if !shard_proof.contains_cpu()
-                && public_values.committed_value_digest != committed_value_digest_prev
+            } else if !shard_proof.contains_cpu() &&
+                public_values.committed_value_digest != committed_value_digest_prev
             {
                 return Err(MachineVerificationError::InvalidPublicValues(
                     "committed_value_digest != committed_value_digest_prev",
                 ));
-            } else if !shard_proof.contains_cpu()
-                && public_values.deferred_proofs_digest != deferred_proofs_digest_prev
+            } else if !shard_proof.contains_cpu() &&
+                public_values.deferred_proofs_digest != deferred_proofs_digest_prev
             {
                 return Err(MachineVerificationError::InvalidPublicValues(
                     "deferred_proofs_digest != deferred_proofs_digest_prev",

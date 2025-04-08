@@ -16,9 +16,9 @@ use std::{cmp::Reverse, env, fmt::Debug, iter::once, time::Instant};
 use tracing::instrument;
 
 use super::{debug_constraints, Dom};
-use crate::count_permutation_constraints;
 use crate::{
     air::{InteractionScope, MachineAir, MachineProgram},
+    count_permutation_constraints,
     lookup::{debug_interactions_with_all_chips, InteractionKind},
     record::MachineRecord,
     DebugConstraintBuilder, ShardProof, VerifierConstraintFolder,
@@ -259,8 +259,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             for i in 0..chips.len() {
                 let trace_width = traces[i].0.width();
                 let pre_width = traces[i].1.map_or(0, p3_matrix::Matrix::width);
-                let permutation_width = permutation_traces[i].width()
-                    * <SC::Challenge as AbstractExtensionField<SC::Val>>::D;
+                let permutation_width = permutation_traces[i].width() *
+                    <SC::Challenge as AbstractExtensionField<SC::Val>>::D;
                 let total_width = trace_width + pre_width + permutation_width;
                 tracing::debug!(
                     "{:<11} | Main Cols = {:<5} | Pre Cols = {:<5} | Perm Cols = {:<5} | Rows = {:<10} | Cells = {:<10}",
@@ -338,7 +338,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>> + Air<SymbolicAirBuilder<Val
         self.chips().iter().map(|chip| proof.chip_ordering.get(&chip.name()).copied()).collect()
     }
 
-    /// The setup preprocessing phase. Same as `setup` but initial global cumulative sum is precomputed.
+    /// The setup preprocessing phase. Same as `setup` but initial global cumulative sum is
+    /// precomputed.
     pub fn setup_core(
         &self,
         program: &A::Program,

@@ -74,11 +74,13 @@ pub struct MemoryInstructionsColumns<T> {
     /// Used for load memory instructions to store the unsigned memory value.
     pub unsigned_mem_val: Word<T>,
 
-    /// The most significant bit of `unsigned_mem_val`.  This is relevant for LB and LH instructions.
+    /// The most significant bit of `unsigned_mem_val`.  This is relevant for LB and LH
+    /// instructions.
     pub most_sig_bit: T,
 
-    /// The most significant byte of `unsigned_mem_val`.  This is relevant for LB and LH instructions.
-    /// For LB this is equal to unsigned_mem_val\[0\] and for LH this is equal to unsigned_mem_val\[1\].
+    /// The most significant byte of `unsigned_mem_val`.  This is relevant for LB and LH
+    /// instructions. For LB this is equal to unsigned_mem_val\[0\] and for LH this is equal to
+    /// unsigned_mem_val\[1\].
     pub most_sig_byte: T,
 
     /// Flag for load memory instructions that contains bool value of
@@ -88,6 +90,7 @@ pub struct MemoryInstructionsColumns<T> {
     /// (memory value is pos) && (op_a != registor 0).
     pub mem_value_is_pos_not_x0: T,
 
-    /// This is used to check if the most significant three bytes of the memory address are all zero.
+    /// This is used to check if the most significant three bytes of the memory address are all
+    /// zero.
     pub most_sig_bytes_zero: IsZeroOperation<T>,
 }

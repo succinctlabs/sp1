@@ -1,23 +1,18 @@
 use crate::operations::GlobalInteractionOperation;
 use p3_air::AirBuilder;
-use p3_field::AbstractExtensionField;
-use p3_field::AbstractField;
-use p3_field::Field;
-use p3_field::PrimeField32;
+use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField32};
 use sp1_derive::AlignedBorrow;
-use sp1_stark::air::BaseAirBuilder;
-use sp1_stark::air::SepticExtensionAirBuilder;
-use sp1_stark::septic_curve::SepticCurveComplete;
 use sp1_stark::{
-    air::SP1AirBuilder,
-    septic_curve::SepticCurve,
+    air::{BaseAirBuilder, SP1AirBuilder, SepticExtensionAirBuilder},
+    septic_curve::{SepticCurve, SepticCurveComplete},
     septic_digest::SepticDigest,
     septic_extension::{SepticBlock, SepticExtension},
 };
 
 /// A set of columns needed to compute the global interaction elliptic curve digest.
-/// It is critical that this struct is at the end of the main trace, as the permutation constraints will be dependent on this fact.
-/// It is also critical the the cumulative sum is at the end of this struct, for the same reason.
+/// It is critical that this struct is at the end of the main trace, as the permutation constraints
+/// will be dependent on this fact. It is also critical the the cumulative sum is at the end of this
+/// struct, for the same reason.
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct GlobalAccumulationOperation<T, const N: usize> {
@@ -166,14 +161,16 @@ impl<F: Field, const N: usize> GlobalAccumulationOperation<F, N> {
         builder.when_first_row().assert_septic_ext_eq(initial_digest.x.clone(), zero_digest.x);
         builder.when_first_row().assert_septic_ext_eq(initial_digest.y.clone(), zero_digest.y);
 
-        // Constrain that when `is_real = 1`, addition is being carried out, and when `is_real = 0`, the sum remains the same.
+        // Constrain that when `is_real = 1`, addition is being carried out, and when `is_real = 0`,
+        // the sum remains the same.
         for i in 0..N {
             let current_sum =
                 if i == 0 { initial_digest.clone() } else { ith_cumulative_sum(i - 1) };
             let point_to_add = ith_point_to_add(i);
             let next_sum = ith_cumulative_sum(i);
             // If `local_is_real[i] == 1`, current_sum + point_to_add == next_sum must hold.
-            // To do this, constrain that `sum_checker_x` and `sum_checker_y` are both zero when `is_real == 1`.
+            // To do this, constrain that `sum_checker_x` and `sum_checker_y` are both zero when
+            // `is_real == 1`.
             let sum_checker_x = SepticCurve::<AB::Expr>::sum_checker_x(
                 current_sum.clone(),
                 point_to_add.clone(),
@@ -187,9 +184,11 @@ impl<F: Field, const N: usize> GlobalAccumulationOperation<F, N> {
             let witnessed_sum_checker_x = SepticExtension::<AB::Expr>::from_base_fn(|idx| {
                 local_accumulation.sum_checker[i].0[idx].into()
             });
-            // Since `sum_checker_x` is degree 3, we constrain it to be equal to `witnessed_sum_checker_x` first.
+            // Since `sum_checker_x` is degree 3, we constrain it to be equal to
+            // `witnessed_sum_checker_x` first.
             builder.assert_septic_ext_eq(sum_checker_x, witnessed_sum_checker_x.clone());
-            // Now we can constrain that when `local_is_real[i] == 1`, the two `sum_checker` values are both zero.
+            // Now we can constrain that when `local_is_real[i] == 1`, the two `sum_checker` values
+            // are both zero.
             builder
                 .when(local_is_real[i])
                 .assert_septic_ext_eq(witnessed_sum_checker_x, SepticExtension::<AB::Expr>::zero());

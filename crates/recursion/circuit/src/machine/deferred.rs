@@ -12,11 +12,11 @@ use p3_field::AbstractField;
 use p3_matrix::dense::RowMajorMatrix;
 use sp1_primitives::consts::WORD_SIZE;
 use sp1_recursion_compiler::ir::{Builder, Felt};
-use sp1_stark::septic_curve::SepticCurve;
-use sp1_stark::septic_digest::SepticDigest;
 use sp1_stark::{
     air::{MachineAir, POSEIDON_NUM_WORDS},
     baby_bear_poseidon2::BabyBearPoseidon2,
+    septic_curve::SepticCurve,
+    septic_digest::SepticDigest,
     Dom, ShardProof, StarkMachine, StarkVerifyingKey, Word,
 };
 

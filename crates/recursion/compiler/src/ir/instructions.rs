@@ -366,8 +366,8 @@ impl<C: Config> DslIrProgram<C> {
     ///   - The block's last instruction comes before the first instruction in the parent's next
     ///     sequential block, if it exists.
     ///   - If the sequential blocks mentioned in eiither of the previous two rules do not exist,
-    ///     then the situation is that of two consecutive [`DslIr::Parallel`] instructions `x` and `y`.
-    ///     Then each last instruction of `x` comes before each first instruction of `y`.
+    ///     then the situation is that of two consecutive [`DslIr::Parallel`] instructions `x` and
+    ///     `y`. Then each last instruction of `x` comes before each first instruction of `y`.
     pub unsafe fn new_unchecked(block: DslIrBlock<C>) -> Self {
         Self(block)
     }

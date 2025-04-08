@@ -2,8 +2,10 @@ use crate::*;
 use p3_field::Field;
 use serde::{Deserialize, Serialize};
 use shape::RecursionShape;
-use sp1_stark::air::{MachineAir, MachineProgram};
-use sp1_stark::septic_digest::SepticDigest;
+use sp1_stark::{
+    air::{MachineAir, MachineProgram},
+    septic_digest::SepticDigest,
+};
 use std::ops::Deref;
 
 pub use basic_block::BasicBlock;
@@ -27,12 +29,17 @@ impl<F> RecursionProgram<F> {
     /// - `SeqBlock`s in a `RawProgram` are linearly ordered, meaning:
     ///     - Each `SeqBlock` has a set of initial instructions `I` and final instructions `O`.
     ///     - For `SeqBlock::Basic`:
-    ///         - `I` is the singleton consisting of the first instruction in the enclosed `BasicBlock`.
-    ///         - `O` is the singleton consisting of the last instruction in the enclosed `BasicBlock`.
+    ///         - `I` is the singleton consisting of the first instruction in the enclosed
+    ///           `BasicBlock`.
+    ///         - `O` is the singleton consisting of the last instruction in the enclosed
+    ///           `BasicBlock`.
     ///     - For `SeqBlock::Parallel`:
-    ///         - `I` is the set of initial instructions `I` in the first `SeqBlock` of the enclosed `RawProgram`.
-    ///         - `O` is the set of final instructions in the last `SeqBlock` of the enclosed `RawProgram`.
-    ///     - For consecutive `SeqBlock`s, each element of the first one's `O` happens before the second one's `I`.
+    ///         - `I` is the set of initial instructions `I` in the first `SeqBlock` of the enclosed
+    ///           `RawProgram`.
+    ///         - `O` is the set of final instructions in the last `SeqBlock` of the enclosed
+    ///           `RawProgram`.
+    ///     - For consecutive `SeqBlock`s, each element of the first one's `O` happens before the
+    ///       second one's `I`.
     pub unsafe fn new_unchecked(program: RootProgram<F>) -> Self {
         Self(program)
     }

@@ -95,7 +95,7 @@ impl<P: FpOpField> Syscall for Fp2MulSyscall<P> {
                 syscall_event,
                 PrecompileEvent::Bls12381Fp2Mul(event),
             ),
-        };
+        }
         None
     }
 

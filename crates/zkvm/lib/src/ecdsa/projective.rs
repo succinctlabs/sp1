@@ -1,8 +1,10 @@
-//! Implementation of the SP1 accelerated projective point. The projective point wraps the affine point.
+//! Implementation of the SP1 accelerated projective point. The projective point wraps the affine
+//! point.
 //!
 //! This type is mainly used in the `ecdsa-core` algorithms.
 //!
-//! Note: When performing curve operations, accelerated crates for SP1 use affine arithmetic instead of projective arithmetic for performance.
+//! Note: When performing curve operations, accelerated crates for SP1 use affine arithmetic instead
+//! of projective arithmetic for performance.
 
 use super::{AffinePoint, ECDSACurve, SP1AffinePointTrait};
 
@@ -22,8 +24,10 @@ use elliptic_curve::{
     zeroize::DefaultIsZeroes,
 };
 
-use std::iter::Sum;
-use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
+use std::{
+    iter::Sum,
+    ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign},
+};
 
 use std::borrow::Borrow;
 
@@ -402,8 +406,8 @@ fn be_bytes_to_le_words<T: AsMut<[u8]>>(mut bytes: T) -> [u32; 8] {
     core::array::from_fn(|_| iter.next().unwrap())
 }
 
-/// Convert big-endian bytes with the most significant bit first to little-endian bytes with the least significant bit first.
-/// Panics: If the bytes have len > 32.
+/// Convert big-endian bytes with the most significant bit first to little-endian bytes with the
+/// least significant bit first. Panics: If the bytes have len > 32.
 #[inline]
 fn be_bytes_to_le_bits(be_bytes: &[u8]) -> [bool; 256] {
     let mut bits = [false; 256];

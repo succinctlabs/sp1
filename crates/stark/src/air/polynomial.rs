@@ -246,9 +246,9 @@ impl<T: Eq + AbstractField> PartialEq<Polynomial<T>> for Polynomial<T> {
                 (other, self)
             };
             for i in 0..longer.coefficients.len() {
-                if (i < shorter.coefficients.len()
-                    && shorter.coefficients[i] != longer.coefficients[i])
-                    || (i >= shorter.coefficients.len() && longer.coefficients[i] != T::zero())
+                if (i < shorter.coefficients.len() &&
+                    shorter.coefficients[i] != longer.coefficients[i]) ||
+                    (i >= shorter.coefficients.len() && longer.coefficients[i] != T::zero())
                 {
                     return false;
                 }

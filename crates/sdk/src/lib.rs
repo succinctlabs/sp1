@@ -38,9 +38,7 @@ pub mod utils;
 pub use crate::client::ProverClient;
 
 // Re-export the provers.
-pub use crate::cpu::CpuProver;
-pub use crate::cuda::CudaProver;
-pub use crate::env::EnvProver;
+pub use crate::{cpu::CpuProver, cuda::CudaProver, env::EnvProver};
 
 #[cfg(feature = "network")]
 pub use crate::network::prover::NetworkProver;
@@ -50,8 +48,7 @@ pub mod proof;
 pub use proof::*;
 pub mod prover;
 
-pub use prover::Prover;
-pub use prover::SP1VerificationError;
+pub use prover::{Prover, SP1VerificationError};
 
 // Re-export the build utilities and executor primitives.
 pub use sp1_build::include_elf;
@@ -203,7 +200,7 @@ mod deprecated_check {
     fn cuda_is_deprecated() {}
 
     /// Show a warning if the `cuda` feature is enabled.
-    #[allow(unused)]
+    #[allow(unused, deprecated)]
     fn show_cuda_warning() {
         cuda_is_deprecated();
     }
