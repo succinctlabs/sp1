@@ -4,8 +4,7 @@
 
 use alloy_primitives::Address;
 
-use crate::network::DEFAULT_NETWORK_RPC_URL;
-use crate::NetworkProver;
+use crate::{network::DEFAULT_NETWORK_RPC_URL, NetworkProver};
 
 /// A builder for the [`NetworkProver`].
 ///
@@ -26,11 +25,9 @@ impl NetworkProverBuilder {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient};
+    /// use sp1_sdk::ProverClient;
     ///
-    /// let prover = ProverClient::builder().network()
-    ///     .private_key("...")
-    ///     .build();
+    /// let prover = ProverClient::builder().network().private_key("...").build();
     /// ```
     #[must_use]
     pub fn private_key(mut self, private_key: &str) -> Self {
@@ -46,12 +43,9 @@ impl NetworkProverBuilder {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient};
+    /// use sp1_sdk::ProverClient;
     ///
-    /// let prover = ProverClient::builder()
-    ///     .network()
-    ///     .rpc_url("...")
-    ///     .build();
+    /// let prover = ProverClient::builder().network().rpc_url("...").build();
     /// ```
     #[must_use]
     pub fn rpc_url(mut self, rpc_url: &str) -> Self {
@@ -60,7 +54,6 @@ impl NetworkProverBuilder {
     }
 
     /// Sets the list of TEE signers, used for verifying TEE proofs.
-    ///
     ///
     #[must_use]
     pub fn tee_signers(mut self, tee_signers: &[Address]) -> Self {
@@ -76,13 +69,9 @@ impl NetworkProverBuilder {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient};
+    /// use sp1_sdk::ProverClient;
     ///
-    /// let prover = ProverClient::builder()
-    ///     .network()
-    ///     .private_key("...")
-    ///     .rpc_url("...")
-    ///     .build();
+    /// let prover = ProverClient::builder().network().private_key("...").rpc_url("...").build();
     /// ```
     #[must_use]
     pub fn build(self) -> NetworkProver {

@@ -139,17 +139,17 @@ impl CpuChip {
         *cols.op_b_access.value_mut() = event.b.into();
         *cols.op_c_access.value_mut() = event.c.into();
 
-        cols.shard_to_send = if instruction.is_memory_load_instruction()
-            || instruction.is_memory_store_instruction()
-            || instruction.is_ecall_instruction()
+        cols.shard_to_send = if instruction.is_memory_load_instruction() ||
+            instruction.is_memory_store_instruction() ||
+            instruction.is_ecall_instruction()
         {
             cols.shard
         } else {
             F::zero()
         };
-        cols.clk_to_send = if instruction.is_memory_load_instruction()
-            || instruction.is_memory_store_instruction()
-            || instruction.is_ecall_instruction()
+        cols.clk_to_send = if instruction.is_memory_load_instruction() ||
+            instruction.is_memory_store_instruction() ||
+            instruction.is_ecall_instruction()
         {
             F::from_canonical_u32(event.clk)
         } else {
@@ -159,9 +159,10 @@ impl CpuChip {
         // Populate memory accesses for a, b, and c.
         if let Some(record) = event.a_record {
             if instruction.is_ecall_instruction() {
-                // For ecall instructions, pass in a dummy byte lookup vector.  This syscall instruction
-                // chip also has a op_a_access field that will be populated and that will contribute
-                // to the byte lookup dependencies.
+                // For ecall instructions, pass in a dummy byte lookup vector.  This syscall
+                // instruction chip also has a op_a_access field that will be
+                // populated and that will contribute to the byte lookup
+                // dependencies.
                 cols.op_a_access.populate(record, &mut Vec::new());
             } else {
                 cols.op_a_access.populate(record, blu_events);

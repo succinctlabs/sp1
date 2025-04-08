@@ -62,7 +62,9 @@ pub struct ReadVecResult {
 ///
 /// When there is no allocator selected, the program will fail to compile.
 ///
-/// If the input stream is exhausted, the failed flag will be returned as true. In this case, the other outputs from the function are likely incorrect, which is fine as `sp1-lib` always panics in the case that the input stream is exhausted.
+/// If the input stream is exhausted, the failed flag will be returned as true. In this case, the
+/// other outputs from the function are likely incorrect, which is fine as `sp1-lib` always panics
+/// in the case that the input stream is exhausted.
 #[no_mangle]
 pub extern "C" fn read_vec_raw() -> ReadVecResult {
     #[cfg(not(target_os = "zkvm"))]

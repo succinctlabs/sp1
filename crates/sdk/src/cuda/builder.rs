@@ -23,11 +23,9 @@ impl CudaProverBuilder {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient};
+    /// use sp1_sdk::ProverClient;
     ///
-    /// let prover = ProverClient::builder().cuda()
-    ///     .with_moongate_endpoint("http://...")
-    ///     .build();
+    /// let prover = ProverClient::builder().cuda().with_moongate_endpoint("http://...").build();
     /// ```
     #[must_use]
     pub fn with_moongate_endpoint(mut self, endpoint: &str) -> Self {

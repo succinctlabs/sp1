@@ -48,9 +48,10 @@ impl<F: PrimeField64> MemVec<F> {
     pub unsafe fn mr_unchecked(&self, addr: Address<F>) -> &MemoryEntry<F> {
         match self.0.get(addr.as_usize()).map(|c| unsafe {
             // SAFETY: The pointer is dereferenceable. It has already been written to due to the
-            // happens-before relation (in `mw_unchecked`), so no mutable/unique reference can exist.
-            // The immutable/shared reference returned indeed remains valid as long as the lifetime
-            // of `&self` (lifetimes are elided) since it refers to memory directly owned by `self`.
+            // happens-before relation (in `mw_unchecked`), so no mutable/unique reference can
+            // exist. The immutable/shared reference returned indeed remains valid as
+            // long as the lifetime of `&self` (lifetimes are elided) since it refers to
+            // memory directly owned by `self`.
             &*c.0.get()
         }) {
             Some(entry) => unsafe {

@@ -153,8 +153,8 @@ impl<'a, 'b> SyscallContext<'a, 'b> {
                 let original_len = estimator.current_touched_compressed_addresses.len();
                 // Remove addresses from the main set that were touched in the precompile.
                 estimator.current_touched_compressed_addresses =
-                    core::mem::take(&mut estimator.current_touched_compressed_addresses)
-                        - &estimator.current_precompile_touched_compressed_addresses;
+                    core::mem::take(&mut estimator.current_touched_compressed_addresses) -
+                        &estimator.current_precompile_touched_compressed_addresses;
                 // Add the number of addresses that were removed from the main set.
                 estimator.current_local_mem +=
                     original_len - estimator.current_touched_compressed_addresses.len();

@@ -6,8 +6,8 @@ use std::fmt::Display;
 /// 1. The number of characters of the highest count, that can be used to right-justify the count
 ///    column.
 ///
-/// 2. The table sorted first by count (descending) and then by label (ascending). The table
-///    itself is an iterator of a tuple (label, count).
+/// 2. The table sorted first by count (descending) and then by label (ascending). The table itself
+///    is an iterator of a tuple (label, count).
 pub fn sorted_table_lines<'a, K, V>(
     table: impl IntoIterator<Item = (K, &'a V)> + 'a,
 ) -> (usize, impl Iterator<Item = (String, &'a V)>)

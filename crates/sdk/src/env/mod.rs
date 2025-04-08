@@ -14,12 +14,13 @@ use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{components::CpuProverComponents, SP1Prover, SP1ProvingKey, SP1VerifyingKey};
 
 use super::{Prover, SP1VerificationError};
-use crate::cpu::execute::CpuExecuteBuilder;
-use crate::cpu::CpuProver;
-use crate::cuda::CudaProver;
 #[cfg(feature = "network")]
 use crate::network::builder::NetworkProverBuilder;
-use crate::{SP1ProofMode, SP1ProofWithPublicValues};
+use crate::{
+    cpu::{execute::CpuExecuteBuilder, CpuProver},
+    cuda::CudaProver,
+    SP1ProofMode, SP1ProofWithPublicValues,
+};
 
 /// A prover that can execute programs and generate proofs with a different implementation based on
 /// the value of certain environment variables.
@@ -33,7 +34,8 @@ impl EnvProver {
     /// Creates a new [`EnvProver`] with the given configuration.
     ///
     /// The following environment variables are used to configure the prover:
-    /// - `SP1_PROVER`: The type of prover to use. Must be one of `mock`, `local`, `cuda`, or `network`.
+    /// - `SP1_PROVER`: The type of prover to use. Must be one of `mock`, `local`, `cuda`, or
+    ///   `network`.
     /// - `NETWORK_PRIVATE_KEY`: The private key to use for the network prover.
     /// - `NETWORK_RPC_URL`: The RPC URL to use for the network prover.
     #[must_use]
@@ -80,15 +82,13 @@ impl EnvProver {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
+    /// use sp1_sdk::{Prover, ProverClient, SP1Stdin};
     ///
     /// let elf = &[1, 2, 3];
     /// let stdin = SP1Stdin::new();
     ///
     /// let client = ProverClient::from_env();
-    /// let (public_values, execution_report) = client.execute(elf, &stdin)
-    ///     .run()
-    ///     .unwrap();
+    /// let (public_values, execution_report) = client.execute(elf, &stdin).run().unwrap();
     /// ```
     #[must_use]
     pub fn execute<'a>(&'a self, elf: &'a [u8], stdin: &SP1Stdin) -> CpuExecuteBuilder<'a> {
@@ -107,16 +107,14 @@ impl EnvProver {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
+    /// use sp1_sdk::{Prover, ProverClient, SP1Stdin};
     ///
     /// let elf = &[1, 2, 3];
     /// let stdin = SP1Stdin::new();
     ///
     /// let client = ProverClient::from_env();
     /// let (pk, vk) = client.setup(elf);
-    /// let builder = client.prove(&pk, &stdin)
-    ///     .core()
-    ///     .run();
+    /// let builder = client.prove(&pk, &stdin).core().run();
     /// ```
     #[must_use]
     pub fn prove<'a>(&'a self, pk: &'a SP1ProvingKey, stdin: &'a SP1Stdin) -> EnvProveBuilder<'a> {

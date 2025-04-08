@@ -1,4 +1,5 @@
-//! Elliptic Curve `y^2 = x^3 + 2x + 26z^5` over the `F_{p^7} = F_p[z]/(z^7 - 2z - 5)` extension field.
+//! Elliptic Curve `y^2 = x^3 + 2x + 26z^5` over the `F_{p^7} = F_p[z]/(z^7 - 2z - 5)` extension
+//! field.
 use crate::{baby_bear_poseidon2::BabyBearPoseidon2, septic_extension::SepticExtension};
 use p3_baby_bear::BabyBear;
 use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField32};
@@ -6,7 +7,8 @@ use p3_symmetric::Permutation;
 use serde::{Deserialize, Serialize};
 use std::ops::Add;
 
-/// A septic elliptic curve point on y^2 = x^3 + 2x + 26z^5 over field `F_{p^7} = F_p[z]/(z^7 - 2z - 5)`.
+/// A septic elliptic curve point on y^2 = x^3 + 2x + 26z^5 over field `F_{p^7} = F_p[z]/(z^7 - 2z -
+/// 5)`.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[repr(C)]
 pub struct SepticCurve<F> {
@@ -50,7 +52,8 @@ impl<F: Field> SepticCurve<F> {
     }
 
     #[must_use]
-    /// Adds two elliptic curve points, assuming that the addition doesn't lead to the exception cases of weierstrass addition.
+    /// Adds two elliptic curve points, assuming that the addition doesn't lead to the exception
+    /// cases of weierstrass addition.
     pub fn add_incomplete(&self, other: SepticCurve<F>) -> Self {
         let slope = (other.y - self.y) / (other.x - self.x);
         let result_x = slope.square() - self.x - other.x;
@@ -58,7 +61,8 @@ impl<F: Field> SepticCurve<F> {
         Self { x: result_x, y: result_y }
     }
 
-    /// Add assigns an elliptic curve point, assuming that the addition doesn't lead to the exception cases of weierstrass addition.
+    /// Add assigns an elliptic curve point, assuming that the addition doesn't lead to the
+    /// exception cases of weierstrass addition.
     pub fn add_assign(&mut self, other: SepticCurve<F>) {
         let result = self.add_incomplete(other);
         self.x = result.x;
@@ -74,13 +78,15 @@ impl<F: Field> SepticCurve<F> {
         Self { x: result_x, y: result_y }
     }
 
-    /// Subtracts two elliptic curve points, assuming that the subtraction doesn't lead to the exception cases of weierstrass addition.
+    /// Subtracts two elliptic curve points, assuming that the subtraction doesn't lead to the
+    /// exception cases of weierstrass addition.
     #[must_use]
     pub fn sub_incomplete(&self, other: SepticCurve<F>) -> Self {
         self.add_incomplete(other.neg())
     }
 
-    /// Subtract assigns an elliptic curve point, assuming that the subtraction doesn't lead to the exception cases of weierstrass addition.
+    /// Subtract assigns an elliptic curve point, assuming that the subtraction doesn't lead to the
+    /// exception cases of weierstrass addition.
     pub fn sub_assign(&mut self, other: SepticCurve<F>) {
         let result = self.add_incomplete(other.neg());
         self.x = result.x;
@@ -91,9 +97,9 @@ impl<F: Field> SepticCurve<F> {
 impl<F: AbstractField> SepticCurve<F> {
     /// Evaluates the curve formula x^3 + 2x + 26z^5
     pub fn curve_formula(x: SepticExtension<F>) -> SepticExtension<F> {
-        x.cube()
-            + x * F::two()
-            + SepticExtension::from_base_slice(&[
+        x.cube() +
+            x * F::two() +
+            SepticExtension::from_base_slice(&[
                 F::zero(),
                 F::zero(),
                 F::zero(),
@@ -107,9 +113,10 @@ impl<F: AbstractField> SepticCurve<F> {
 
 impl<F: PrimeField32> SepticCurve<F> {
     /// Lift an x coordinate into an elliptic curve.
-    /// As an x-coordinate may not be a valid one, we allow an additional value in `[0, 256)` to the hash input.
-    /// Also, we always return the curve point with y-coordinate within `[1, (p-1)/2]`, where p is the characteristic.
-    /// The returned values are the curve point, the offset used, and the hash input and output.
+    /// As an x-coordinate may not be a valid one, we allow an additional value in `[0, 256)` to the
+    /// hash input. Also, we always return the curve point with y-coordinate within `[1,
+    /// (p-1)/2]`, where p is the characteristic. The returned values are the curve point, the
+    /// offset used, and the hash input and output.
     pub fn lift_x(m: SepticExtension<F>) -> (Self, u8, [F; 16], [F; 16]) {
         let perm = BabyBearPoseidon2::new().perm;
         for offset in 0..=255 {
@@ -153,29 +160,32 @@ impl<F: PrimeField32> SepticCurve<F> {
 }
 
 impl<F: AbstractField> SepticCurve<F> {
-    /// Given three points p1, p2, p3, the function is zero if and only if p3.x == (p1 + p2).x assuming that no weierstrass edge cases occur.
+    /// Given three points p1, p2, p3, the function is zero if and only if p3.x == (p1 + p2).x
+    /// assuming that no weierstrass edge cases occur.
     pub fn sum_checker_x(
         p1: SepticCurve<F>,
         p2: SepticCurve<F>,
         p3: SepticCurve<F>,
     ) -> SepticExtension<F> {
-        (p1.x.clone() + p2.x.clone() + p3.x) * (p2.x.clone() - p1.x.clone()).square()
-            - (p2.y - p1.y).square()
+        (p1.x.clone() + p2.x.clone() + p3.x) * (p2.x.clone() - p1.x.clone()).square() -
+            (p2.y - p1.y).square()
     }
 
-    /// Given three points p1, p2, p3, the function is zero if and only if p3.y == (p1 + p2).y assuming that no weierstrass edge cases occur.
+    /// Given three points p1, p2, p3, the function is zero if and only if p3.y == (p1 + p2).y
+    /// assuming that no weierstrass edge cases occur.
     pub fn sum_checker_y(
         p1: SepticCurve<F>,
         p2: SepticCurve<F>,
         p3: SepticCurve<F>,
     ) -> SepticExtension<F> {
-        (p1.y.clone() + p3.y.clone()) * (p2.x.clone() - p1.x.clone())
-            - (p2.y - p1.y.clone()) * (p1.x - p3.x)
+        (p1.y.clone() + p3.y.clone()) * (p2.x.clone() - p1.x.clone()) -
+            (p2.y - p1.y.clone()) * (p1.x - p3.x)
     }
 }
 
 impl<T> SepticCurve<T> {
-    /// Convert a `SepticCurve<S>` into `SepticCurve<T>`, with a map that implements `FnMut(S) -> T`.
+    /// Convert a `SepticCurve<S>` into `SepticCurve<T>`, with a map that implements `FnMut(S) ->
+    /// T`.
     pub fn convert<S: Copy, G: FnMut(S) -> T>(point: SepticCurve<S>, mut f: G) -> Self {
         SepticCurve {
             x: SepticExtension(point.x.0.map(&mut f)),
@@ -184,7 +194,8 @@ impl<T> SepticCurve<T> {
     }
 }
 
-/// A septic elliptic curve point on y^2 = x^3 + 2x + 26z^5 over field `F_{p^7} = F_p[z]/(z^7 - 2z - 5)`, including the point at infinity.
+/// A septic elliptic curve point on y^2 = x^3 + 2x + 26z^5 over field `F_{p^7} = F_p[z]/(z^7 - 2z -
+/// 5)`, including the point at infinity.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum SepticCurveComplete<T> {
     /// The point at infinity.
@@ -237,8 +248,9 @@ mod tests {
     #![allow(clippy::print_stdout)]
 
     use p3_baby_bear::BabyBear;
-    use p3_maybe_rayon::prelude::ParallelIterator;
-    use p3_maybe_rayon::prelude::{IndexedParallelIterator, IntoParallelIterator};
+    use p3_maybe_rayon::prelude::{
+        IndexedParallelIterator, IntoParallelIterator, ParallelIterator,
+    };
     use rayon_scan::ScanParallelIterator;
     use std::time::Instant;
 
@@ -305,12 +317,12 @@ mod tests {
         let start = Instant::now();
         for i in 0..(D as usize) {
             assert!(
-                SepticCurve::<BabyBear>::sum_checker_x(vec[i], vec[(i + 1) % D as usize], sum[i])
-                    == SepticExtension::<BabyBear>::zero()
+                SepticCurve::<BabyBear>::sum_checker_x(vec[i], vec[(i + 1) % D as usize], sum[i]) ==
+                    SepticExtension::<BabyBear>::zero()
             );
             assert!(
-                SepticCurve::<BabyBear>::sum_checker_y(vec[i], vec[(i + 1) % D as usize], sum[i])
-                    == SepticExtension::<BabyBear>::zero()
+                SepticCurve::<BabyBear>::sum_checker_y(vec[i], vec[(i + 1) % D as usize], sum[i]) ==
+                    SepticExtension::<BabyBear>::zero()
             );
         }
         println!("Time elapsed: {:?}", start.elapsed());

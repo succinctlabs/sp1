@@ -6,29 +6,31 @@
 use std::time::{Duration, Instant};
 
 use super::prove::NetworkProveBuilder;
-use crate::cpu::execute::CpuExecuteBuilder;
-use crate::cpu::CpuProver;
-use crate::network::proto::network::GetProofRequestStatusResponse;
-use crate::network::{
-    Error, DEFAULT_CYCLE_LIMIT, DEFAULT_GAS_LIMIT, DEFAULT_NETWORK_RPC_URL, DEFAULT_TIMEOUT_SECS,
-};
-use crate::prover::verify_proof;
-use crate::ProofFromNetwork;
 use crate::{
-    network::client::NetworkClient,
-    network::proto::network::{ExecutionStatus, FulfillmentStatus, FulfillmentStrategy, ProofMode},
-    Prover, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
+    cpu::{execute::CpuExecuteBuilder, CpuProver},
+    network::{
+        client::NetworkClient,
+        proto::network::{
+            ExecutionStatus, FulfillmentStatus, FulfillmentStrategy, GetProofRequestStatusResponse,
+            ProofMode,
+        },
+        Error, DEFAULT_CYCLE_LIMIT, DEFAULT_GAS_LIMIT, DEFAULT_NETWORK_RPC_URL,
+        DEFAULT_TIMEOUT_SECS,
+    },
+    prover::verify_proof,
+    ProofFromNetwork, Prover, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey,
+    SP1VerifyingKey,
 };
 use alloy_primitives::{Address, B256};
 use anyhow::{Context, Result};
 use sp1_core_executor::{SP1Context, SP1ContextBuilder};
 use sp1_core_machine::io::SP1Stdin;
-use sp1_prover::HashableKey;
-use sp1_prover::{components::CpuProverComponents, SP1Prover, SP1_CIRCUIT_VERSION};
+use sp1_prover::{components::CpuProverComponents, HashableKey, SP1Prover, SP1_CIRCUIT_VERSION};
 
 use crate::network::tee::client::Client as TeeClient;
 
-use {crate::utils::block_on, tokio::time::sleep};
+use crate::utils::block_on;
+use tokio::time::sleep;
 
 /// An implementation of [`crate::ProverClient`] that can generate proofs on a remote RPC server.
 pub struct NetworkProver {
@@ -73,15 +75,13 @@ impl NetworkProver {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
+    /// use sp1_sdk::{Prover, ProverClient, SP1Stdin};
     ///
     /// let elf = &[1, 2, 3];
     /// let stdin = SP1Stdin::new();
     ///
     /// let client = ProverClient::builder().cpu().build();
-    /// let (public_values, execution_report) = client.execute(elf, &stdin)
-    ///     .run()
-    ///     .unwrap();
+    /// let (public_values, execution_report) = client.execute(elf, &stdin).run().unwrap();
     /// ```
     pub fn execute<'a>(&'a self, elf: &'a [u8], stdin: &SP1Stdin) -> CpuExecuteBuilder<'a> {
         CpuExecuteBuilder {
@@ -100,7 +100,7 @@ impl NetworkProver {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
+    /// use sp1_sdk::{Prover, ProverClient, SP1Stdin};
     ///
     /// let elf = &[1, 2, 3];
     /// let stdin = SP1Stdin::new();
@@ -139,7 +139,7 @@ impl NetworkProver {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin, Prover};
+    /// use sp1_sdk::{Prover, ProverClient, SP1Stdin};
     ///
     /// let elf = &[1, 2, 3];
     /// let client = ProverClient::builder().network().build();
@@ -158,12 +158,12 @@ impl NetworkProver {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient, network::B256};
+    /// use sp1_sdk::{network::B256, ProverClient};
     ///
     /// tokio_test::block_on(async {
     ///     let request_id = B256::from_slice(&vec![1u8; 32]);
     ///     let client = ProverClient::builder().network().build();
-    ///     let (status, maybe_proof) = client.get_proof_status(request_id).await.unwrap();   
+    ///     let (status, maybe_proof) = client.get_proof_status(request_id).await.unwrap();
     /// })
     /// ```
     pub async fn get_proof_status(
@@ -184,12 +184,13 @@ impl NetworkProver {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient, network::B256};
+    /// use sp1_sdk::{network::B256, ProverClient};
     ///
     /// tokio_test::block_on(async {
     ///     let request_id = B256::from_slice(&vec![1u8; 32]);
     ///     let client = ProverClient::builder().network().build();
-    ///     let (maybe_proof, fulfillment_status) = client.process_proof_status(request_id, None).await.unwrap();   
+    ///     let (maybe_proof, fulfillment_status) =
+    ///         client.process_proof_status(request_id, None).await.unwrap();
     /// })
     /// ```
     pub async fn process_proof_status(
@@ -421,8 +422,8 @@ impl NetworkProver {
     /// The cycle limit and gas limit are determined according to the following priority:
     ///
     /// 1. If either of the limits are explicitly set by the requester, use the specified value.
-    /// 2. If simulation is enabled, calculate the limits by simulating the
-    ///    execution of the program. This is the default behavior.
+    /// 2. If simulation is enabled, calculate the limits by simulating the execution of the
+    ///    program. This is the default behavior.
     /// 3. Otherwise, use the default limits ([`DEFAULT_CYCLE_LIMIT`] and [`DEFAULT_GAS_LIMIT`]).
     fn get_execution_limits(
         &self,

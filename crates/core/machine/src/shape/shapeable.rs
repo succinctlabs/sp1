@@ -28,8 +28,8 @@ pub trait Shapeable {
 
 impl Shapeable for ExecutionRecord {
     fn kind(&self) -> ShardKind {
-        let contains_global_memory = !self.global_memory_initialize_events.is_empty()
-            || !self.global_memory_finalize_events.is_empty();
+        let contains_global_memory = !self.global_memory_initialize_events.is_empty() ||
+            !self.global_memory_finalize_events.is_empty();
         match (self.contains_cpu(), contains_global_memory) {
             (true, true) => ShardKind::PackedCore,
             (true, false) => ShardKind::Core,
@@ -82,8 +82,8 @@ impl Shapeable for ExecutionRecord {
             (RiscvAirId::MemoryGlobalFinalize, self.global_memory_finalize_events.len()),
             (
                 RiscvAirId::Global,
-                self.global_memory_finalize_events.len()
-                    + self.global_memory_initialize_events.len(),
+                self.global_memory_finalize_events.len() +
+                    self.global_memory_initialize_events.len(),
             ),
         ]
     }
