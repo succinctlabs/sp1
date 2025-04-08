@@ -119,8 +119,8 @@ where
     for r in 0..NUM_INTERNAL_ROUNDS {
         // Add the round constant.
         let round = r + NUM_EXTERNAL_ROUNDS / 2;
-        let add_rc = if r == 0 { state[0].clone() } else { s0[r - 1].into() }
-            + AB::Expr::from_wrapped_u32(RC_16_30_U32[round][0]);
+        let add_rc = if r == 0 { state[0].clone() } else { s0[r - 1].into() } +
+            AB::Expr::from_wrapped_u32(RC_16_30_U32[round][0]);
 
         let mut sbox_deg_3 = add_rc.clone() * add_rc.clone() * add_rc.clone();
         if let Some(internal_sbox) = local_row.internal_rounds_sbox() {

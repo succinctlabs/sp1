@@ -6,14 +6,12 @@ use std::{
 use crate::utils::{next_power_of_two, zeroed_f_vec};
 
 use p3_air::{Air, BaseAir};
-use p3_field::AbstractField;
-use p3_field::PrimeField32;
+use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{
     IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator,
 };
-use sp1_core_executor::events::GlobalInteractionEvent;
-use sp1_core_executor::{ExecutionRecord, Program};
+use sp1_core_executor::{events::GlobalInteractionEvent, ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
     air::{AirInteraction, InteractionScope, MachineAir, SP1AirBuilder},
@@ -273,9 +271,8 @@ where
 mod tests {
     #![allow(clippy::print_stdout)]
 
-    use crate::programs::tests::*;
     use crate::{
-        memory::MemoryLocalChip, riscv::RiscvAir,
+        memory::MemoryLocalChip, programs::tests::*, riscv::RiscvAir,
         syscall::precompiles::sha256::extend_tests::sha_extend_program, utils::setup_logger,
     };
     use p3_baby_bear::BabyBear;
@@ -441,7 +438,7 @@ mod tests {
         type F = BabyBear;
         // Generate the trace rows for each event.
         let events = input.get_local_mem_events().collect::<Vec<_>>();
-        let nb_rows = (events.len() + 3) / 4;
+        let nb_rows = events.len().div_ceil(4);
         let padded_nb_rows = height;
         let mut values = zeroed_f_vec(padded_nb_rows * NUM_MEMORY_LOCAL_INIT_COLS);
         let chunk_size = std::cmp::max(nb_rows / num_cpus::get(), 0) + 1;

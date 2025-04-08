@@ -12,11 +12,12 @@ use sp1_stark::{
 };
 use strum_macros::{EnumDiscriminants, EnumIter};
 
-use crate::{bytes::trace::NUM_ROWS as BYTE_CHIP_NUM_ROWS, shape::Shapeable};
 use crate::{
+    bytes::trace::NUM_ROWS as BYTE_CHIP_NUM_ROWS,
     control_flow::{AuipcChip, BranchChip, JumpChip},
     global::GlobalChip,
     memory::{MemoryChipType, MemoryInstructionsChip, MemoryLocalChip},
+    shape::Shapeable,
     syscall::{
         instructions::SyscallInstrsChip,
         precompiles::fptower::{Fp2AddSubAssignChip, Fp2MulAssignChip, FpOpChip},
@@ -458,7 +459,8 @@ impl<F: PrimeField32> RiscvAir<F> {
         ]
     }
 
-    /// Returns the upper bound of the number of memory events per row of each precompile. Used in shape-fitting.
+    /// Returns the upper bound of the number of memory events per row of each precompile. Used in
+    /// shape-fitting.
     pub(crate) fn precompile_airs_with_memory_events_per_row(
     ) -> impl Iterator<Item = (RiscvAirId, usize)> {
         let mut airs: HashSet<_> = Self::get_airs_and_costs().0.into_iter().collect();
@@ -485,8 +487,8 @@ impl<F: PrimeField32> RiscvAir<F> {
                 .iter()
                 .chain(chip.receives())
                 .filter(|interaction| {
-                    interaction.kind == InteractionKind::Memory
-                        && interaction.scope == InteractionScope::Local
+                    interaction.kind == InteractionKind::Memory &&
+                        interaction.scope == InteractionScope::Local
                 })
                 .count();
 
@@ -583,10 +585,9 @@ pub mod tests {
     use itertools::Itertools;
     use p3_baby_bear::BabyBear;
     use sp1_core_executor::{Instruction, Opcode, Program, RiscvAirId, SP1Context};
-    use sp1_stark::air::MachineAir;
     use sp1_stark::{
-        baby_bear_poseidon2::BabyBearPoseidon2, CpuProver, MachineProver, SP1CoreOpts,
-        StarkProvingKey, StarkVerifyingKey,
+        air::MachineAir, baby_bear_poseidon2::BabyBearPoseidon2, CpuProver, MachineProver,
+        SP1CoreOpts, StarkProvingKey, StarkVerifyingKey,
     };
     use strum::IntoEnumIterator;
     #[test]

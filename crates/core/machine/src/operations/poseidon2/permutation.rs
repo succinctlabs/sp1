@@ -1,13 +1,14 @@
-use std::mem::transmute;
 use std::{
     borrow::{Borrow, BorrowMut},
-    mem::size_of,
+    mem::{size_of, transmute},
 };
 
 use sp1_derive::AlignedBorrow;
 
-use crate::operations::poseidon2::{NUM_EXTERNAL_ROUNDS, NUM_INTERNAL_ROUNDS, WIDTH};
-use crate::utils::indices_arr;
+use crate::{
+    operations::poseidon2::{NUM_EXTERNAL_ROUNDS, NUM_INTERNAL_ROUNDS, WIDTH},
+    utils::indices_arr,
+};
 
 /// A column map for a Poseidon2 AIR with degree 3 constraints.
 pub const POSEIDON2_DEGREE3_COL_MAP: Poseidon2Degree3Cols<usize> = make_col_map_degree3();

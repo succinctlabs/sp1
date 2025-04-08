@@ -11,8 +11,8 @@ pub fn predict(input: &[usize; INPUT_SIZE / 2]) -> f64 {
             let term = ((x - mu) / sigma) * b;
             (term.is_finite()).then_some(term)
         })
-        .sum::<f64>()
-        + PARAMS.intercept
+        .sum::<f64>() +
+        PARAMS.intercept
 }
 
 pub(crate) struct Params<const N: usize> {

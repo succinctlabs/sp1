@@ -1,6 +1,5 @@
 use crate::SP1Stdin;
-use alloy_primitives::Address;
-use alloy_primitives::PrimitiveSignature;
+use alloy_primitives::{Address, PrimitiveSignature};
 use alloy_signer::SignerSync;
 use serde::{Deserialize, Serialize};
 

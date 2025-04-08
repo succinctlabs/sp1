@@ -12,12 +12,13 @@ use std::{
 };
 use web_time::Instant;
 
-use crate::shape::CoreShapeConfig;
-use crate::utils::test::MaliciousTracePVGeneratorType;
-use crate::{riscv::RiscvAir, shape::Shapeable};
+use crate::{
+    riscv::RiscvAir,
+    shape::{CoreShapeConfig, Shapeable},
+    utils::test::MaliciousTracePVGeneratorType,
+};
 use p3_maybe_rayon::prelude::*;
-use sp1_stark::MachineProvingKey;
-use sp1_stark::StarkVerifyingKey;
+use sp1_stark::{MachineProvingKey, StarkVerifyingKey};
 use thiserror::Error;
 
 use p3_field::PrimeField32;
@@ -95,7 +96,7 @@ pub fn prove_core_stream<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<S
     shape_config: Option<&CoreShapeConfig<SC::Val>>,
     proof_tx: Sender<ShardProof<SC>>,
     shape_and_done_tx: Sender<(OrderedShape, bool)>,
-    malicious_trace_pv_generator: Option<MaliciousTracePVGeneratorType<SC::Val, P>>, // This is used for failure test cases that generate malicious traces and public values.
+    malicious_trace_pv_generator: Option<MaliciousTracePVGeneratorType<SC::Val, P>>, /* This is used for failure test cases that generate malicious traces and public values. */
     gas_calculator: Option<Box<dyn FnOnce(&RecordEstimator) -> Result<u64, Box<dyn Error>> + '_>>,
 ) -> Result<(Vec<u8>, u64), SP1CoreProverError>
 where
@@ -258,12 +259,12 @@ where
 
                             // We combine the memory init/finalize events if they are "small"
                             // and would affect performance.
-                            let mut shape_fixed_records = if done
-                                && num_cycles < 1 << 21
-                                && deferred.global_memory_initialize_events.len()
-                                    < opts.split_opts.combine_memory_threshold
-                                && deferred.global_memory_finalize_events.len()
-                                    < opts.split_opts.combine_memory_threshold
+                            let mut shape_fixed_records = if done &&
+                                num_cycles < 1 << 21 &&
+                                deferred.global_memory_initialize_events.len() <
+                                    opts.split_opts.combine_memory_threshold &&
+                                deferred.global_memory_finalize_events.len() <
+                                    opts.split_opts.combine_memory_threshold
                             {
                                 let mut records_clone = records.clone();
                                 let last_record = records_clone.last_mut();
@@ -272,8 +273,9 @@ where
                                     deferred.split(done, last_record, opts.split_opts);
                                 tracing::debug!("deferred {} records", deferred.len());
 
-                                // Update the public values & prover state for the shards which do not
-                                // contain "cpu events" before committing to them.
+                                // Update the public values & prover state for the shards which do
+                                // not contain "cpu events" before
+                                // committing to them.
                                 if !done {
                                     state.execution_shard += 1;
                                 }
@@ -325,8 +327,9 @@ where
                                 let mut deferred = deferred.split(done, None, opts.split_opts);
                                 tracing::debug!("deferred {} records", deferred.len());
 
-                                // Update the public values & prover state for the shards which do not
-                                // contain "cpu events" before committing to them.
+                                // Update the public values & prover state for the shards which do
+                                // not contain "cpu events" before
+                                // committing to them.
                                 if !done {
                                     state.execution_shard += 1;
                                 }

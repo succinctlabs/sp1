@@ -188,15 +188,16 @@ where
         let local: &AddSubCols<AB::Var> = (*local).borrow();
 
         // SAFETY: All selectors `is_add` and `is_sub` are checked to be boolean.
-        // Each "real" row has exactly one selector turned on, as `is_real = is_add + is_sub` is boolean.
-        // Therefore, the `opcode` matches the corresponding opcode of the instruction.
+        // Each "real" row has exactly one selector turned on, as `is_real = is_add + is_sub` is
+        // boolean. Therefore, the `opcode` matches the corresponding opcode of the
+        // instruction.
         let is_real = local.is_add + local.is_sub;
         builder.assert_bool(local.is_add);
         builder.assert_bool(local.is_sub);
         builder.assert_bool(is_real.clone());
 
-        let opcode = AB::Expr::from_f(Opcode::ADD.as_field()) * local.is_add
-            + AB::Expr::from_f(Opcode::SUB.as_field()) * local.is_sub;
+        let opcode = AB::Expr::from_f(Opcode::ADD.as_field()) * local.is_add +
+            AB::Expr::from_f(Opcode::SUB.as_field()) * local.is_sub;
 
         // Evaluate the addition operation.
         // This is enforced only when `op_a_not_0 == 1`.
@@ -209,7 +210,8 @@ where
             local.op_a_not_0.into(),
         );
 
-        // SAFETY: We check that a padding row has `op_a_not_0 == 0`, to prevent a padding row sending byte lookups.
+        // SAFETY: We check that a padding row has `op_a_not_0 == 0`, to prevent a padding row
+        // sending byte lookups.
         builder.when(local.op_a_not_0).assert_one(is_real.clone());
 
         // Receive the arguments.  There are separate receives for ADD and SUB.
@@ -480,7 +482,8 @@ mod tests {
                     let add_sub_chip_name = chip_name!(AddSubChip, BabyBear);
                     for (chip_name, trace) in traces.iter_mut() {
                         if *chip_name == add_sub_chip_name {
-                            // Add the add instructions are added first to the trace, before the sub instructions.
+                            // Add the add instructions are added first to the trace, before the sub
+                            // instructions.
                             let index = if opcode == Opcode::ADD { 0 } else { 1 };
 
                             let first_row = trace.row_mut(index);
@@ -501,8 +504,8 @@ mod tests {
                 println!("Result for {:?}: {:?}", opcode, result);
                 let add_sub_chip_name = chip_name!(AddSubChip, BabyBear);
                 assert!(
-                    result.is_err()
-                        && result.unwrap_err().is_constraints_failing(&add_sub_chip_name)
+                    result.is_err() &&
+                        result.unwrap_err().is_constraints_failing(&add_sub_chip_name)
                 );
             }
         }
