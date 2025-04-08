@@ -270,6 +270,12 @@ impl<F: AbstractField> Sub for SepticExtension<F> {
 impl<F: AbstractField> SubAssign for SepticExtension<F> {
     fn sub_assign(&mut self, rhs: Self) {
         self.0[0] -= rhs.0[0].clone();
+        self.0[1] -= rhs.0[1].clone();
+        self.0[2] -= rhs.0[2].clone();
+        self.0[3] -= rhs.0[3].clone();
+        self.0[4] -= rhs.0[4].clone();
+        self.0[5] -= rhs.0[5].clone();
+        self.0[6] -= rhs.0[6].clone();
     }
 }
 
