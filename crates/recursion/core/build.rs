@@ -153,8 +153,8 @@ mod sys {
                     rel_symlink_file(header_path, target_include_dir_fixed.join(cbindgen_hpp));
                 }
             }
-            Err(cbindgen::Error::ParseSyntaxError { .. }) => {} /* Ignore parse errors so
-                                                                  * rust-analyzer can run. */
+            Err(cbindgen::Error::ParseSyntaxError { .. }) => {} /* Ignore parse errors so */
+            // rust-analyzer can run.
             Err(e) => panic!("{:?}", e),
         }
 

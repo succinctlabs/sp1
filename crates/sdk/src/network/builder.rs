@@ -54,7 +54,6 @@ impl NetworkProverBuilder {
     }
 
     /// Sets the list of TEE signers, used for verifying TEE proofs.
-    ///
     #[must_use]
     pub fn tee_signers(mut self, tee_signers: &[Address]) -> Self {
         self.tee_signers = Some(tee_signers.to_vec());

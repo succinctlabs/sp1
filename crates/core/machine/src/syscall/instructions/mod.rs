@@ -57,8 +57,8 @@ mod tests {
             TestCase {
                 program: vec![
                     Instruction::new(Opcode::ADD, 5, 0, SHA_EXTEND, false, true), /* Set the syscall code in register x5. */
-                    Instruction::new(Opcode::ADD, 10, 0, 40, false, true), /* Set the syscall
-                                                                            * arg1 to 40. */
+                    Instruction::new(Opcode::ADD, 10, 0, 40, false, true),        /* Set the syscall
+                                                                                   * arg1 to 40. */
                     Instruction::new(Opcode::ECALL, 5, 10, 11, false, false), // Call the syscall.
                     Instruction::new(Opcode::ADD, 30, 0, 100, false, true),
                 ],
