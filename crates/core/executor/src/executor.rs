@@ -1406,7 +1406,7 @@ impl<'a> Executor<'a> {
                 self.memory_accesses,
                 exit_code,
             );
-        };
+        }
 
         // Update the program counter.
         self.state.pc = next_pc;
@@ -1741,7 +1741,11 @@ impl<'a> Executor<'a> {
                 // Check if we're too "close" to a maximal shape.
                 else if let Some(maximal_shapes) = &self.maximal_shapes {
                     let distance = |threshold: usize, count: usize| {
-                        (count != 0).then(|| threshold - count).unwrap_or(usize::MAX)
+                        if count != 0 {
+                            threshold - count
+                        } else {
+                            usize::MAX
+                        }
                     };
 
                     shape_match_found = false;
@@ -2291,7 +2295,7 @@ impl<'a> Executor<'a> {
             + opcode_counts[Opcode::SH]
             + opcode_counts[Opcode::SW];
 
-        // Compute the number of events in the syscall instruction chip.
+        // Compute the number of events in the syscall instruction chip.b
         event_counts[RiscvAirId::SyscallInstrs] = opcode_counts[Opcode::ECALL];
 
         // Compute the number of events in the syscall core chip.

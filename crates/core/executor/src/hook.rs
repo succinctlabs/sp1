@@ -655,7 +655,7 @@ pub(crate) mod deprecated_hooks {
         if let Some(sig_normalized) = sig.normalize_s() {
             sig = sig_normalized;
             recovery_id ^= 1;
-        };
+        }
         let recid = RecoveryId::from_byte(recovery_id).expect("Computed recovery ID is invalid!");
 
         let recovered_key = VerifyingKey::recover_from_prehash(&msg_hash[..], &sig, recid).unwrap();
@@ -722,7 +722,7 @@ pub(crate) mod deprecated_hooks {
         if let Some(sig_normalized) = sig.normalize_s() {
             sig = sig_normalized;
             recovery_id ^= 1;
-        };
+        }
         let recid = RecoveryId::from_byte(recovery_id)
             .expect("Computed recovery ID is invalid, this is a bug.");
 
