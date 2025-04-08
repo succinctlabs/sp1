@@ -665,7 +665,7 @@ impl<F: Field> SepticExtension<F> {
 impl<F: PrimeField32> SepticExtension<F> {
     /// Returns whether the extension field element viewed as an y-coordinate of a digest represents a receive interaction.
     pub fn is_receive(&self) -> bool {
-        1 <= self.0[6].as_canonical_u32() && self.0[6].as_canonical_u32() <= (F::ORDER_U32 - 1) / 2
+        1 <= self.0[6].as_canonical_u32() && self.0[6].as_canonical_u32() <= F::ORDER_U32.div_ceil(2)
     }
 
     /// Returns whether the extension field element viewed as an y-coordinate of a digest represents a send interaction.

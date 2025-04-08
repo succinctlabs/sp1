@@ -62,7 +62,7 @@ impl<F: PrimeField32> GlobalInteractionOperation<F> {
             let range_check_value = if is_receive {
                 point.y.0[6].as_canonical_u32() - 1
             } else {
-                point.y.0[6].as_canonical_u32() - (F::ORDER_U32 + 1) / 2
+                point.y.0[6].as_canonical_u32() - F::ORDER_U32.div_ceil(2)
             };
             let mut top_4_bits = F::zero();
             for i in 0..30 {
