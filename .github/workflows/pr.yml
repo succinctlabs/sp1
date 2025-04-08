@@ -181,6 +181,9 @@ jobs:
           cd crates/cli
           cargo install --force --locked --path .
           cargo clean
+      
+      - name: Set rust toolchain to nightly
+        run: rustup default nightly
 
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1
@@ -276,6 +279,7 @@ jobs:
       - name: Run cargo fmt
         run: |
           cd ./examples/
+          rustup default nightly
           cargo fmt --all -- --check
 
       - name: Run cargo check
