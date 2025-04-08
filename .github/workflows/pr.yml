@@ -190,6 +190,7 @@ jobs:
         with:
           command: fmt
           args: --all -- --check
+          toolchain: nightly
         env:
           CARGO_INCREMENTAL: 1
 
@@ -277,10 +278,13 @@ jobs:
           cargo clean
 
       - name: Run cargo fmt
-        run: |
-          cd ./examples/
-          rustup default nightly
-          cargo fmt --all -- --check
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
+          toolchain: nightly
+        env:
+          CARGO_INCREMENTAL: 1
 
       - name: Run cargo check
         run: |
