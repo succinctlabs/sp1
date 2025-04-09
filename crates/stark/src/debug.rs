@@ -125,8 +125,15 @@ fn catch_unwind_silent<F: FnOnce() -> R + panic::UnwindSafe, R>(f: F) -> std::th
 ///
 /// Note that this does not actually verify the proof.
 pub fn debug_cumulative_sums<F: Field, EF: ExtensionField<F>>(perms: &[RowMajorMatrix<EF>]) {
-    let sum: EF = perms.iter().map(|perm| *perm.row_slice(perm.height() - 1).last().unwrap()).sum();
-    assert_eq!(sum, EF::zero());
+    let sum: EF = perms.iter().map(|perm| {
+        if perm.width() == 0 || perm.height() == 0 {
+            EF::zero()
+        } else {
+            *perm.row_slice(perm.height() - 1).last().unwrap_or(&EF::zero())
+        }
+    }).sum();
+    
+    assert_eq!(sum, EF::zero(), "Cumulative sum mismatch in debug check");
 }
 
 /// A builder for debugging constraints.
