@@ -40,5 +40,5 @@ pub(crate) fn block_on<T>(fut: impl std::future::Future<Output = T>) -> T {
 /// will be performant, which is important for benchmarking.
 pub(crate) fn check_release_build() {
     #[cfg(debug_assertions)]
-    panic!("sp1-sdk must be built in release mode. please compile with the --release flag.");
+    panic!("sp1-sdk must be built in release mode, please compile with the --release flag.");
 }
