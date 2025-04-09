@@ -153,9 +153,17 @@ pub fn build_program_with_args(path: &str, args: BuildArgs) {
 /// not be the case for non-standard project structures. For example, placing the entrypoint source
 /// file at `src/bin/my_entry.rs` would result in the program target being named `my_entry`, in
 /// which case the invocation should be `include_elf!("my_entry")` instead.
+///
+/// When running `cargo clippy`, the actual ELF file may not be built, causing a compile-time error
+/// due to `include_bytes!`. To work around this, we return an empty byte slice during Clippy runs.
+/// This is safe because Clippy does not execute the compiled binary - it's only analyzing the code.
 #[macro_export]
 macro_rules! include_elf {
     ($arg:tt) => {{
-        include_bytes!(env!(concat!("SP1_ELF_", $arg)))
+        if cfg!(clippy) {
+            &[]
+        } else {
+            include_bytes!(env!(concat!("SP1_ELF_", $arg)))
+        }
     }};
 }
