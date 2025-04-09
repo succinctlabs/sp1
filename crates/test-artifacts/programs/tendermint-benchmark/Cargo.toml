@@ -9,6 +9,6 @@ sp1-zkvm = { path = "../../../../crates/zkvm/entrypoint" }
 serde_json = { workspace = true, default-features = false, features = ["alloc"] }
 serde = { workspace = true, default-features = false, features = ["derive"] }
 tendermint = { version = "0.34.0", default-features = false }
-tendermint-light-client-verifier = { version = "0.34.0", default-features = false, features = [
+tendermint-light-client-verifier = { version = "0.40.3", default-features = false, features = [
   "rust-crypto",
 ] }
