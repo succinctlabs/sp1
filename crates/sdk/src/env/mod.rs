@@ -19,6 +19,7 @@ use crate::network::builder::NetworkProverBuilder;
 use crate::{
     cpu::{execute::CpuExecuteBuilder, CpuProver},
     cuda::CudaProver,
+    utils::check_release_build,
     SP1ProofMode, SP1ProofWithPublicValues,
 };
 
@@ -49,8 +50,12 @@ impl EnvProver {
 
         let prover: Box<dyn Prover<CpuProverComponents>> = match mode.as_str() {
             "mock" => Box::new(CpuProver::mock()),
-            "cpu" => Box::new(CpuProver::new()),
+            "cpu" => {
+                check_release_build();
+                Box::new(CpuProver::new())
+            },
             "cuda" => {
+                check_release_build();
                 Box::new(CudaProver::new(SP1Prover::new(), None))
             }
             "network" => {
