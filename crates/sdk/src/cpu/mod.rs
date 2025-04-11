@@ -126,7 +126,7 @@ impl CpuProver {
                 SP1Proof::Core(proof.proof.0),
                 proof.public_values,
                 self.version().to_string(),
-                cycles,
+                Some(cycles),
             ));
         }
 
@@ -140,7 +140,7 @@ impl CpuProver {
                 SP1Proof::Compressed(Box::new(reduce_proof)),
                 public_values,
                 self.version().to_string(),
-                cycles,
+                Some(cycles),
             ));
         }
 
@@ -167,7 +167,7 @@ impl CpuProver {
                     SP1Proof::Groth16(proof),
                     public_values,
                     self.version().to_string(),
-                    cycles,
+                    Some(cycles),
                 ))
             }
             SP1ProofMode::Plonk => {
@@ -184,7 +184,7 @@ impl CpuProver {
                     SP1Proof::Plonk(proof),
                     public_values,
                     self.version().to_string(),
-                    cycles,
+                    Some(cycles),
                 ))
             }
             _ => unreachable!(),
