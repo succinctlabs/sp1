@@ -12,8 +12,7 @@ use std::{
 use anyhow::Result;
 use hashbrown::HashMap;
 use p3_baby_bear::BabyBear;
-use p3_field::PrimeField;
-use p3_field::{extension::BinomialExtensionField, AbstractField};
+use p3_field::{extension::BinomialExtensionField, AbstractField, PrimeField};
 use p3_fri::{FriProof, TwoAdicFriPcsProof};
 use serde::{Deserialize, Serialize};
 use sp1_core_executor::SP1ReduceProof;
@@ -119,8 +118,8 @@ impl SP1ProofWithPublicValues {
             .map_err(Into::into)
     }
 
-    /// The proof in the byte encoding the onchain verifiers accepts for [`SP1ProofMode::Groth16`] and
-    /// [`SP1ProofMode::Plonk`] proofs.
+    /// The proof in the byte encoding the onchain verifiers accepts for [`SP1ProofMode::Groth16`]
+    /// and [`SP1ProofMode::Plonk`] proofs.
     ///
     /// # Details
     /// The bytes consist of the first four bytes of Groth16/Plonk vkey hash followed by the encoded
@@ -181,7 +180,9 @@ impl SP1ProofWithPublicValues {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin, SP1ProofMode, Prover, SP1ProofWithPublicValues, SP1_CIRCUIT_VERSION};
+    /// use sp1_sdk::{
+    ///     Prover, ProverClient, SP1ProofMode, SP1ProofWithPublicValues, SP1Stdin, SP1_CIRCUIT_VERSION,
+    /// };
     ///
     /// let elf = &[1, 2, 3];
     /// let stdin = SP1Stdin::new();
@@ -191,7 +192,12 @@ impl SP1ProofWithPublicValues {
     /// let (public_values, _) = client.execute(&pk.elf, &stdin).run().unwrap();
     ///
     /// // Create a mock Plonk proof.
-    /// let mock_proof = SP1ProofWithPublicValues::create_mock_proof(&pk, public_values, SP1ProofMode::Plonk, SP1_CIRCUIT_VERSION);
+    /// let mock_proof = SP1ProofWithPublicValues::create_mock_proof(
+    ///     &pk,
+    ///     public_values,
+    ///     SP1ProofMode::Plonk,
+    ///     SP1_CIRCUIT_VERSION,
+    /// );
     /// ```
     #[must_use]
     pub fn create_mock_proof(

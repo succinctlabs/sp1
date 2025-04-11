@@ -94,7 +94,8 @@ impl<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>> VerifyingK
     }
 
     /// Hash the verifying key + prep domains into a single digest.
-    /// poseidon2( commit[0..8] || pc_start || initial_global_cumulative_sum || prep_domains[N].{log_n, .size, .shift, .g})
+    /// poseidon2( commit[0..8] || pc_start || initial_global_cumulative_sum ||
+    /// prep_domains[N].{log_n, .size, .shift, .g})
     pub fn hash(&self, builder: &mut Builder<C>) -> SC::DigestVariable
     where
         C::F: TwoAdicField,

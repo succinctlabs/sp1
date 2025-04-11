@@ -7,14 +7,11 @@ pub use cluster::*;
 pub use ordered::*;
 
 use itertools::Itertools;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 
-use std::fmt::Debug;
-use std::{hash::Hash, str::FromStr};
+use std::{fmt::Debug, hash::Hash, str::FromStr};
 
-use hashbrown::hash_map::IntoIter;
-use hashbrown::{HashMap, HashSet};
+use hashbrown::{hash_map::IntoIter, HashMap, HashSet};
 use p3_field::PrimeField;
 use serde::{Deserialize, Serialize};
 

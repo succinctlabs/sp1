@@ -209,13 +209,14 @@ where
         let next = main.row_slice(1);
         let next: &GlobalCols<AB::Var> = (*next).borrow();
 
-        // Receive the arguments, which consists of 7 message columns, `is_send`, `is_receive`, and `kind`.
-        // In MemoryGlobal, MemoryLocal, Syscall chips, `is_send`, `is_receive`, `kind` are sent with correct constant values.
-        // For a global send interaction, `is_send = 1` and `is_receive = 0` are used.
-        // For a global receive interaction, `is_send = 0` and `is_receive = 1` are used.
-        // For a memory global interaction, `kind = InteractionKind::Memory` is used.
-        // For a syscall global interaction, `kind = InteractionKind::Syscall` is used.
-        // Therefore, `is_send`, `is_receive` are already known to be boolean, and `kind` is also known to be a `u8` value.
+        // Receive the arguments, which consists of 7 message columns, `is_send`, `is_receive`, and
+        // `kind`. In MemoryGlobal, MemoryLocal, Syscall chips, `is_send`, `is_receive`,
+        // `kind` are sent with correct constant values. For a global send interaction,
+        // `is_send = 1` and `is_receive = 0` are used. For a global receive interaction,
+        // `is_send = 0` and `is_receive = 1` are used. For a memory global interaction,
+        // `kind = InteractionKind::Memory` is used. For a syscall global interaction, `kind
+        // = InteractionKind::Syscall` is used. Therefore, `is_send`, `is_receive` are
+        // already known to be boolean, and `kind` is also known to be a `u8` value.
         // Note that `local.is_real` is constrained to be boolean in `eval_single_digest`.
         builder.receive(
             AirInteraction::new(

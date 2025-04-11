@@ -143,15 +143,15 @@ impl ShaCompressChip {
         // Assert that the is_compression flag is correct.
         builder.assert_eq(
             local.is_compression,
-            (local.octet_num[1]
-                + local.octet_num[2]
-                + local.octet_num[3]
-                + local.octet_num[4]
-                + local.octet_num[5]
-                + local.octet_num[6]
-                + local.octet_num[7]
-                + local.octet_num[8])
-                * local.is_real,
+            (local.octet_num[1] +
+                local.octet_num[2] +
+                local.octet_num[3] +
+                local.octet_num[4] +
+                local.octet_num[5] +
+                local.octet_num[6] +
+                local.octet_num[7] +
+                local.octet_num[8]) *
+                local.is_real,
         );
 
         // Assert that the is_finalize flag is correct.
@@ -230,10 +230,10 @@ impl ShaCompressChip {
         // Verify correct mem address for compression phase
         builder.when(local.is_compression).assert_eq(
             local.mem_addr,
-            local.w_ptr
-                + (((cycle_num - AB::Expr::one()) * AB::Expr::from_canonical_u32(8))
-                    + cycle_step.clone())
-                    * AB::Expr::from_canonical_u32(4),
+            local.w_ptr +
+                (((cycle_num - AB::Expr::one()) * AB::Expr::from_canonical_u32(8)) +
+                    cycle_step.clone()) *
+                    AB::Expr::from_canonical_u32(4),
         );
 
         // Verify correct mem address for finalize phase

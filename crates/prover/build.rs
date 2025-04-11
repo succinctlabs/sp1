@@ -1,6 +1,5 @@
-use std::env;
 use std::{
-    fs,
+    env, fs,
     path::{Path, PathBuf},
     str::FromStr,
 };

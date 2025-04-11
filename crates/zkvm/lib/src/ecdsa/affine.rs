@@ -3,7 +3,8 @@
 //! The [`crate::ecdsa::ProjectivePoint`] type is mainly used in the `ecdsa-core` algorithms,
 //! however, in some cases, the affine point is required.
 //!
-//! Note: When performing curve operations, accelerated crates for SP1 use affine arithmetic instead of projective arithmetic for performance.
+//! Note: When performing curve operations, accelerated crates for SP1 use affine arithmetic instead
+//! of projective arithmetic for performance.
 
 use super::{
     ECDSACurve, ECDSAPoint, Field, FieldElement, SP1AffinePointTrait, FIELD_BYTES_SIZE_USIZE,
@@ -26,7 +27,8 @@ pub struct AffinePoint<C: ECDSACurve> {
 }
 
 impl<C: ECDSACurve> AffinePoint<C> {
-    /// Create an affine point from the given field elements, without checking if the point is on the curve.
+    /// Create an affine point from the given field elements, without checking if the point is on
+    /// the curve.
     pub fn from_field_elements_unchecked(x: FieldElement<C>, y: FieldElement<C>) -> Self {
         let mut x_slice = x.to_bytes();
         let x_slice = x_slice.as_mut_slice();

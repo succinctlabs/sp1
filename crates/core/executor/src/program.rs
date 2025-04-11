@@ -8,18 +8,16 @@ use crate::{
     RiscvAirId,
 };
 use hashbrown::HashMap;
-use p3_field::Field;
-use p3_field::{AbstractExtensionField, PrimeField32};
-use p3_maybe_rayon::prelude::IntoParallelIterator;
-use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
+use p3_field::{AbstractExtensionField, Field, PrimeField32};
+use p3_maybe_rayon::prelude::{IntoParallelIterator, ParallelBridge, ParallelIterator};
 use serde::{Deserialize, Serialize};
-use sp1_stark::septic_curve::{SepticCurve, SepticCurveComplete};
-use sp1_stark::septic_digest::SepticDigest;
-use sp1_stark::septic_extension::SepticExtension;
-use sp1_stark::InteractionKind;
 use sp1_stark::{
     air::{MachineAir, MachineProgram},
+    septic_curve::{SepticCurve, SepticCurveComplete},
+    septic_digest::SepticDigest,
+    septic_extension::SepticExtension,
     shape::Shape,
+    InteractionKind,
 };
 
 /// A program that can be executed by the SP1 zkVM.

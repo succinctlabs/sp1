@@ -425,8 +425,8 @@ where
         // Constrain the operation flags.
 
         // SAFETY: All selectors `is_slt`, `is_sltu` are checked to be boolean.
-        // Each "real" row has exactly one selector turned on, as `is_real = is_slt + is_sltu` is boolean.
-        // Therefore, the `opcode` matches the corresponding opcode.
+        // Each "real" row has exactly one selector turned on, as `is_real = is_slt + is_sltu` is
+        // boolean. Therefore, the `opcode` matches the corresponding opcode.
 
         // Check that the operation flags are boolean.
         builder.assert_bool(local.is_slt);
@@ -450,8 +450,8 @@ where
             local.pc,
             local.pc + AB::Expr::from_canonical_u32(DEFAULT_PC_INC),
             AB::Expr::zero(),
-            local.is_slt * AB::F::from_canonical_u32(Opcode::SLT as u32)
-                + local.is_sltu * AB::F::from_canonical_u32(Opcode::SLTU as u32),
+            local.is_slt * AB::F::from_canonical_u32(Opcode::SLT as u32) +
+                local.is_sltu * AB::F::from_canonical_u32(Opcode::SLTU as u32),
             Word::extend_var::<AB>(local.a),
             local.b,
             local.c,

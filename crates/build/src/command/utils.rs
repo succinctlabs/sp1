@@ -51,7 +51,8 @@ pub(crate) fn get_program_build_args(args: &BuildArgs) -> Vec<String> {
 
 /// Rust flags for compilation of C libraries.
 pub(crate) fn get_rust_compiler_flags(args: &BuildArgs, version: &semver::Version) -> String {
-    // Note: as of 1.81.0, the `-C passes=loweratomic` flag is deprecated, because of a change to llvm.
+    // Note: as of 1.81.0, the `-C passes=loweratomic` flag is deprecated, because of a change to
+    // llvm.
     let atomic_lower_pass = if version > &semver::Version::new(1, 81, 0) {
         "passes=lower-atomic"
     } else {

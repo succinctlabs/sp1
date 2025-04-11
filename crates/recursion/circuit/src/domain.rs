@@ -50,8 +50,8 @@ where
     ) -> LagrangeSelectors<Ext<<C as Config>::F, <C as Config>::EF>> {
         let unshifted_point: Ext<_, _> = builder.eval(point * self.shift.inverse());
         let z_h_expr = builder
-            .exp_power_of_2_v::<Ext<_, _>>(unshifted_point, Usize::Const(self.log_n))
-            - C::EF::one();
+            .exp_power_of_2_v::<Ext<_, _>>(unshifted_point, Usize::Const(self.log_n)) -
+            C::EF::one();
         let z_h: Ext<_, _> = builder.eval(z_h_expr);
         let g = C::F::two_adic_generator(self.log_n);
         let ginv = g.inverse();
@@ -69,8 +69,8 @@ where
         point: Ext<<C as Config>::F, <C as Config>::EF>,
     ) -> Ext<<C as Config>::F, <C as Config>::EF> {
         let unshifted_power = builder.exp_power_of_2_v::<Ext<_, _>>(
-            point
-                * C::EF::from_base_slice(&[self.shift, C::F::zero(), C::F::zero(), C::F::zero()])
+            point *
+                C::EF::from_base_slice(&[self.shift, C::F::zero(), C::F::zero(), C::F::zero()])
                     .inverse()
                     .cons(),
             Usize::Const(self.log_n),

@@ -5997,7 +5997,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sp1-curves",
- "sp1-primitives",
+ "sp1-primitives 4.2.0",
  "sp1-stark",
  "sp1-zkvm",
  "strum",
@@ -6052,7 +6052,7 @@ dependencies = [
  "sp1-core-executor",
  "sp1-curves",
  "sp1-derive",
- "sp1-primitives",
+ "sp1-primitives 4.2.0",
  "sp1-stark",
  "sp1-zkvm",
  "static_assertions",
@@ -6104,7 +6104,7 @@ dependencies = [
  "rug",
  "serde",
  "snowbridge-amcl",
- "sp1-primitives",
+ "sp1-primitives 4.2.0",
  "sp1-stark",
  "typenum",
 ]
@@ -6144,12 +6144,14 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "3.4.0"
+version = "4.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a5729da1b05d56c01457e5ecabdc77f1cc941df23f2921163a2f325aec22428"
+checksum = "0e4b2747ae411bca4ba0dd4112779246b101ac7e8f70afc1a33cf8ee003980d7"
 dependencies = [
  "bincode",
+ "elliptic-curve",
  "serde",
+ "sp1-primitives 4.1.7",
 ]
 
 [[package]]
@@ -6159,7 +6161,7 @@ dependencies = [
  "bincode",
  "elliptic-curve",
  "serde",
- "sp1-primitives",
+ "sp1-primitives 4.2.0",
 ]
 
 [[package]]
@@ -6180,6 +6182,24 @@ dependencies = [
  "test-artifacts",
  "time 0.3.41",
  "tracing",
+]
+
+[[package]]
+name = "sp1-primitives"
+version = "4.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7939f86891aa5995fa863abf296645a5ad4611d9598a8101389f85c624d41043"
+dependencies = [
+ "bincode",
+ "hex",
+ "lazy_static",
+ "num-bigint 0.4.6",
+ "p3-baby-bear",
+ "p3-field",
+ "p3-poseidon2",
+ "p3-symmetric",
+ "serde",
+ "sha2 0.10.8",
 ]
 
 [[package]]
@@ -6229,7 +6249,7 @@ dependencies = [
  "sha2 0.10.8",
  "sp1-core-executor",
  "sp1-core-machine",
- "sp1-primitives",
+ "sp1-primitives 4.2.0",
  "sp1-recursion-circuit",
  "sp1-recursion-compiler",
  "sp1-recursion-core",
@@ -6270,7 +6290,7 @@ dependencies = [
  "sp1-core-executor",
  "sp1-core-machine",
  "sp1-derive",
- "sp1-primitives",
+ "sp1-primitives 4.2.0",
  "sp1-recursion-compiler",
  "sp1-recursion-core",
  "sp1-recursion-gnark-ffi",
@@ -6297,7 +6317,7 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "sp1-core-machine",
- "sp1-primitives",
+ "sp1-primitives 4.2.0",
  "sp1-recursion-core",
  "sp1-recursion-derive",
  "sp1-stark",
@@ -6339,7 +6359,7 @@ dependencies = [
  "smallvec",
  "sp1-core-machine",
  "sp1-derive",
- "sp1-primitives",
+ "sp1-primitives 4.2.0",
  "sp1-stark",
  "static_assertions",
  "thiserror 1.0.69",
@@ -6422,7 +6442,7 @@ dependencies = [
  "sp1-core-executor",
  "sp1-core-machine",
  "sp1-cuda",
- "sp1-primitives",
+ "sp1-primitives 4.2.0",
  "sp1-prover",
  "sp1-stark",
  "strum",
@@ -6463,7 +6483,7 @@ dependencies = [
  "rayon-scan",
  "serde",
  "sp1-derive",
- "sp1-primitives",
+ "sp1-primitives 4.2.0",
  "sp1-zkvm",
  "strum",
  "strum_macros",
@@ -6510,7 +6530,7 @@ dependencies = [
  "rand 0.8.5",
  "sha2 0.10.8",
  "sp1-lib 4.2.0",
- "sp1-primitives",
+ "sp1-primitives 4.2.0",
 ]
 
 [[package]]
@@ -6662,9 +6682,9 @@ dependencies = [
 
 [[package]]
 name = "substrate-bn-succinct"
-version = "0.6.0"
+version = "0.6.0-v4.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "114c855c26ad0594c830129cb868552fb41415603a6133276c2ecdd9e5ef4255"
+checksum = "f8ac8ce0a40e721f790e2ef99beab32b99b3121c58edaaa140ffd8f1795a6af7"
 dependencies = [
  "bytemuck",
  "byteorder",
@@ -6674,7 +6694,7 @@ dependencies = [
  "num-bigint 0.4.6",
  "rand 0.8.5",
  "rustc-hex",
- "sp1-lib 3.4.0",
+ "sp1-lib 4.1.7",
 ]
 
 [[package]]

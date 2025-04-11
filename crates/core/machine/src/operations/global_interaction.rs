@@ -1,15 +1,11 @@
-use super::poseidon2::permutation::Poseidon2Cols;
-use super::poseidon2::trace::populate_perm_deg3;
-use super::poseidon2::Poseidon2Operation;
 use super::poseidon2::{
     air::{eval_external_round, eval_internal_rounds},
-    NUM_EXTERNAL_ROUNDS,
+    permutation::Poseidon2Cols,
+    trace::populate_perm_deg3,
+    Poseidon2Operation, NUM_EXTERNAL_ROUNDS,
 };
 use p3_air::AirBuilder;
-use p3_field::AbstractExtensionField;
-use p3_field::AbstractField;
-use p3_field::Field;
-use p3_field::PrimeField32;
+use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField32};
 use sp1_core_executor::ByteOpcode;
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
@@ -36,8 +32,8 @@ impl<F: PrimeField32> GlobalInteractionOperation<F> {
         is_receive: bool,
         kind: u8,
     ) -> (SepticCurve<F>, u8, [F; 16], [F; 16]) {
-        let x_start = SepticExtension::<F>::from_base_fn(|i| F::from_canonical_u32(values.0[i]))
-            + SepticExtension::from_base(F::from_canonical_u32((kind as u32) << 16));
+        let x_start = SepticExtension::<F>::from_base_fn(|i| F::from_canonical_u32(values.0[i])) +
+            SepticExtension::from_base(F::from_canonical_u32((kind as u32) << 16));
         let (point, offset, m_trial, m_hash) = SepticCurve::<F>::lift_x(x_start);
         if !is_receive {
             return (point.neg(), offset, m_trial, m_hash);
@@ -62,7 +58,7 @@ impl<F: PrimeField32> GlobalInteractionOperation<F> {
             let range_check_value = if is_receive {
                 point.y.0[6].as_canonical_u32() - 1
             } else {
-                point.y.0[6].as_canonical_u32() - (F::ORDER_U32 + 1) / 2
+                point.y.0[6].as_canonical_u32() - F::ORDER_U32.div_ceil(2)
             };
             let mut top_4_bits = F::zero();
             for i in 0..30 {
@@ -121,7 +117,8 @@ impl<F: Field> GlobalInteractionOperation<F> {
             offset = offset.clone() + cols.offset_bits[i] * AB::F::from_canonical_u32(1 << i);
         }
 
-        // Range check the first element in the message to be a u16 so that we can encode the interaction kind in the upper 8 bits.
+        // Range check the first element in the message to be a u16 so that we can encode the
+        // interaction kind in the upper 8 bits.
         builder.send_byte(
             AB::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
             values[0].clone(),
@@ -130,8 +127,9 @@ impl<F: Field> GlobalInteractionOperation<F> {
             is_real,
         );
 
-        // Turn the message into a hash input. Only the first 8 elements are non-zero, as the rate of the Poseidon2 hash is 8.
-        // Combining `values[0]` with `kind` is safe, as `values[0]` is range checked to be u16, and `kind` is known to be u8.
+        // Turn the message into a hash input. Only the first 8 elements are non-zero, as the rate
+        // of the Poseidon2 hash is 8. Combining `values[0]` with `kind` is safe, as
+        // `values[0]` is range checked to be u16, and `kind` is known to be u8.
         let m_trial = [
             values[0].clone() + AB::Expr::from_canonical_u32(1 << 16) * kind,
             values[1].clone(),
@@ -179,8 +177,9 @@ impl<F: Field> GlobalInteractionOperation<F> {
         builder.assert_septic_ext_eq(y2, x3_2x_26z5);
 
         // Constrain that `0 <= y6_value < (p - 1) / 2 = 2^30 - 2^26`.
-        // Decompose `y6_value` into 30 bits, and then constrain that the top 4 bits cannot be all 1.
-        // To do this, check that the sum of the top 4 bits is not equal to 4, which can be done by providing an inverse.
+        // Decompose `y6_value` into 30 bits, and then constrain that the top 4 bits cannot be all
+        // 1. To do this, check that the sum of the top 4 bits is not equal to 4, which can
+        // be done by providing an inverse.
         let mut y6_value = AB::Expr::zero();
         let mut top_4_bits = AB::Expr::zero();
         for i in 0..30 {
@@ -190,7 +189,8 @@ impl<F: Field> GlobalInteractionOperation<F> {
                 top_4_bits = top_4_bits.clone() + cols.y6_bit_decomp[i];
             }
         }
-        // If `is_real` is true, check that `top_4_bits - 4` is non-zero, by checking `range_check_witness` is an inverse of it.
+        // If `is_real` is true, check that `top_4_bits - 4` is non-zero, by checking
+        // `range_check_witness` is an inverse of it.
         builder.when(is_real).assert_eq(
             cols.range_check_witness * (top_4_bits - AB::Expr::from_canonical_u8(4)),
             AB::Expr::one(),
@@ -198,7 +198,8 @@ impl<F: Field> GlobalInteractionOperation<F> {
 
         // Constrain that y has correct sign.
         // If it's a receive: `1 <= y_6 <= (p - 1) / 2`, so `0 <= y_6 - 1 = y6_value < (p - 1) / 2`.
-        // If it's a send: `(p + 1) / 2 <= y_6 <= p - 1`, so `0 <= y_6 - (p + 1) / 2 = y6_value < (p - 1) / 2`.
+        // If it's a send: `(p + 1) / 2 <= y_6 <= p - 1`, so `0 <= y_6 - (p + 1) / 2 = y6_value < (p
+        // - 1) / 2`.
         builder.when(is_receive).assert_eq(y.0[6].clone(), AB::Expr::one() + y6_value.clone());
         builder.when(is_send).assert_eq(
             y.0[6].clone(),

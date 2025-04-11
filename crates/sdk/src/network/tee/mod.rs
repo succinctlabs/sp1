@@ -21,8 +21,8 @@ pub const SP1_TEE_VERSION: u32 = 1;
 /// report the list of signers.
 ///
 /// This is a convenience method, if you want to actually verify attestions from the TEE server,
-/// you need to build the enclave image yourself, and use the provided functionality from the `sp1-tee`
-/// crate to verify the signers you care about.
+/// you need to build the enclave image yourself, and use the provided functionality from the
+/// `sp1-tee` crate to verify the signers you care about.
 ///
 /// Signers may be cross checked from the on-chain state with attestaions stored in s3.
 ///

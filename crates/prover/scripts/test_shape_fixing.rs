@@ -51,8 +51,8 @@ fn test_shape_fixing(
 
             shape_config.fix_shape(&mut record).unwrap();
 
-            if record.contains_cpu()
-                && record.shape.unwrap().height(&RiscvAirId::Cpu).unwrap() > opts.shard_size
+            if record.contains_cpu() &&
+                record.shape.unwrap().height(&RiscvAirId::Cpu).unwrap() > opts.shard_size
             {
                 panic!("something went wrong")
             }

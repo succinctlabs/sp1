@@ -69,7 +69,8 @@ mod tests {
 
         for test_case in test_cases {
             let instructions = vec![
-                Instruction::new(Opcode::ADD, 29, 0, 0xDEADBEEF, false, true), // Set the stored value to 5.
+                Instruction::new(Opcode::ADD, 29, 0, 0xDEADBEEF, false, true), /* Set the stored
+                                                                                * value to 5. */
                 Instruction::new(Opcode::ADD, 30, 0, 100, false, true), // Set the address to 100.
                 Instruction::new(test_case.opcode, 29, 30, 0, false, true),
             ];
@@ -99,8 +100,8 @@ mod tests {
                 FailureType::ConstraintsFailing => {
                     let memory_instr_chip_name = chip_name!(MemoryInstructionsChip, BabyBear);
                     assert!(
-                        result.is_err()
-                            && result.unwrap_err().is_constraints_failing(&memory_instr_chip_name)
+                        result.is_err() &&
+                            result.unwrap_err().is_constraints_failing(&memory_instr_chip_name)
                     );
                 }
                 FailureType::CumulativeSumFailing => {
@@ -144,10 +145,12 @@ mod tests {
 
         for test_case in test_cases {
             let instructions = vec![
-                Instruction::new(Opcode::ADD, 29, 0, 0xDEADBEEF, false, true), // Set the stored value to 0xDEADBEEF.
+                Instruction::new(Opcode::ADD, 29, 0, 0xDEADBEEF, false, true), /* Set the stored value to 0xDEADBEEF. */
                 Instruction::new(Opcode::ADD, 30, 0, 100, false, true), // Set the address to 100.
-                Instruction::new(Opcode::SW, 29, 30, 0, false, true), // Store the value to memory.
-                Instruction::new(test_case.opcode, 25, 30, 0, false, true), // Load the value from memory.
+                Instruction::new(Opcode::SW, 29, 30, 0, false, true),   /* Store the value to
+                                                                         * memory. */
+                Instruction::new(test_case.opcode, 25, 30, 0, false, true), /* Load the value
+                                                                             * from memory. */
             ];
             let program = Program::new(instructions, 0, 0);
             let stdin = SP1Stdin::new();
@@ -172,8 +175,8 @@ mod tests {
                 FailureType::ConstraintsFailing => {
                     let memory_instr_chip_name = chip_name!(MemoryInstructionsChip, BabyBear);
                     assert!(
-                        result.is_err()
-                            && result.unwrap_err().is_constraints_failing(&memory_instr_chip_name)
+                        result.is_err() &&
+                            result.unwrap_err().is_constraints_failing(&memory_instr_chip_name)
                     );
                 }
                 FailureType::CumulativeSumFailing => {

@@ -12,10 +12,9 @@ use sp1_core_machine::io::SP1Stdin;
 use sp1_cuda::SP1CudaProver;
 use sp1_prover::{components::CpuProverComponents, SP1Prover};
 
-use crate::cpu::execute::CpuExecuteBuilder;
-use crate::install::try_install_circuit_artifacts;
 use crate::{
-    Prover, SP1Proof, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
+    cpu::execute::CpuExecuteBuilder, install::try_install_circuit_artifacts, Prover, SP1Proof,
+    SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
 };
 
 /// A prover that uses the CPU for execution and the CUDA for proving.
@@ -42,15 +41,13 @@ impl CudaProver {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
+    /// use sp1_sdk::{include_elf, Prover, ProverClient, SP1Stdin};
     ///
     /// let elf = &[1, 2, 3];
     /// let stdin = SP1Stdin::new();
     ///
     /// let client = ProverClient::builder().cuda().build();
-    /// let (public_values, execution_report) = client.execute(elf, &stdin)
-    ///     .run()
-    ///     .unwrap();
+    /// let (public_values, execution_report) = client.execute(elf, &stdin).run().unwrap();
     /// ```
     pub fn execute<'a>(&'a self, elf: &'a [u8], stdin: &SP1Stdin) -> CpuExecuteBuilder<'a> {
         CpuExecuteBuilder {
@@ -68,16 +65,14 @@ impl CudaProver {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
+    /// use sp1_sdk::{include_elf, Prover, ProverClient, SP1Stdin};
     ///
     /// let elf = &[1, 2, 3];
     /// let stdin = SP1Stdin::new();
     ///
     /// let client = ProverClient::builder().cuda().build();
     /// let (pk, vk) = client.setup(elf);
-    /// let proof = client.prove(&pk, &stdin)
-    ///     .run()
-    ///     .unwrap();
+    /// let proof = client.prove(&pk, &stdin).run().unwrap();
     /// ```
     pub fn prove<'a>(&'a self, pk: &'a SP1ProvingKey, stdin: &'a SP1Stdin) -> CudaProveBuilder<'a> {
         CudaProveBuilder { prover: self, mode: SP1ProofMode::Core, pk, stdin: stdin.clone() }
