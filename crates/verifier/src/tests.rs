@@ -14,7 +14,64 @@ use crate::{error::Error, Groth16Error, PlonkError};
 
 #[serial]
 #[test]
+fn test_verify_core() {
+    // Set up the pk and vk.
+    let client = ProverClient::from_env();
+    let (pk, vk) = client.setup(FIBONACCI_ELF);
+
+    // Generate the proof.
+    let sp1_proof_with_public_values = client.prove(&pk, &SP1Stdin::new()).core().run().unwrap();
+
+    // Verify.
+    client.verify(&sp1_proof_with_public_values, &vk).expect("Proof is invalid");
+}
+
+#[serial]
+#[test]
+fn test_verify_compressed() {
+    // Set up the pk and vk.
+    let client = ProverClient::from_env();
+    let (pk, vk) = client.setup(FIBONACCI_ELF);
+
+    // Generate the proof.
+    let sp1_proof_with_public_values =
+        client.prove(&pk, &SP1Stdin::new()).compressed().run().unwrap();
+
+    // Verify.
+    client.verify(&sp1_proof_with_public_values, &vk).expect("Proof is invalid");
+}
+
+#[serial]
+#[test]
 fn test_verify_groth16() {
+    // Set up the pk and vk.
+    let client = ProverClient::from_env();
+    let (pk, vk) = client.setup(FIBONACCI_ELF);
+
+    // Generate the proof.
+    let sp1_proof_with_public_values = client.prove(&pk, &SP1Stdin::new()).groth16().run().unwrap();
+
+    // Verify.
+    client.verify(&sp1_proof_with_public_values, &vk).expect("Proof is invalid");
+}
+
+#[serial]
+#[test]
+fn test_verify_plonk() {
+    // Set up the pk and vk.
+    let client = ProverClient::from_env();
+    let (pk, vk) = client.setup(FIBONACCI_ELF);
+
+    // Generate the proof.
+    let sp1_proof_with_public_values = client.prove(&pk, &SP1Stdin::new()).plonk().run().unwrap();
+
+    // Verify.
+    client.verify(&sp1_proof_with_public_values, &vk).expect("Proof is invalid");
+}
+
+#[serial]
+#[test]
+fn test_groth16_verifier() {
     #[cfg(feature = "blake3")]
     const GROTH16_ELF: &[u8] = include_bytes!("../guest-verify-programs/groth16_verify_blake3");
     #[cfg(not(feature = "blake3"))]
@@ -113,7 +170,7 @@ fn test_verify_invalid_groth16() {
 
 #[serial]
 #[test]
-fn test_verify_plonk() {
+fn test_plonk_verifier() {
     #[cfg(feature = "blake3")]
     const PLONK_ELF: &[u8] = include_bytes!("../guest-verify-programs/plonk_verify_blake3");
     #[cfg(not(feature = "blake3"))]

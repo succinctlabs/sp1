@@ -1,7 +1,6 @@
 use crate::types::Buffer;
 use num_bigint::BigUint;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 
 /// Public values for the prover.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -54,9 +53,7 @@ impl SP1PublicValues {
 
     /// Hash the public values.
     pub fn hash(&self) -> Vec<u8> {
-        let mut hasher = Sha256::new();
-        hasher.update(self.buffer.data.as_slice());
-        hasher.finalize().to_vec()
+        hash(self.buffer.data.as_slice()).to_vec()
     }
 
     /// Hash the public values, mask the top 3 bits and return a BigUint. Matches the implementation
@@ -67,9 +64,7 @@ impl SP1PublicValues {
     /// ```
     pub fn hash_bn254(&self) -> BigUint {
         // Hash the public values.
-        let mut hasher = Sha256::new();
-        hasher.update(self.buffer.data.as_slice());
-        let mut hash = hasher.finalize();
+        let mut hash = hash(self.buffer.data.as_slice());
 
         // Mask the top 3 bits.
         hash[0] &= 0b00011111;
@@ -82,6 +77,21 @@ impl SP1PublicValues {
 impl AsRef<[u8]> for SP1PublicValues {
     fn as_ref(&self) -> &[u8] {
         &self.buffer.data
+    }
+}
+
+fn hash(inputs: &[u8]) -> [u8; 32] {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "blake3")] {
+            *blake3::hash(inputs).as_bytes()
+        }
+        else {
+            use sha2::{Digest, Sha256};
+
+            let mut hasher = Sha256::new();
+            hasher.update(inputs);
+            hasher.finalize().into()
+        }
     }
 }
 

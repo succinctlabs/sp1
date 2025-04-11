@@ -83,6 +83,7 @@ network = [
 ]
 cuda = []
 bigint-rug = ["sp1-core-machine/bigint-rug"]
+blake3 = ["sp1-primitives/blake3"]
 
 profiling = ["sp1-core-executor/profiling"]
 
