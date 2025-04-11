@@ -274,8 +274,12 @@ pub mod tests {
     use sp1_core_machine::utils::run_test_machine;
     use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, StarkGenericConfig};
 
-    // TODO expand glob import
-    use crate::{runtime::instruction as instr, *};
+    use crate::air::Block;
+    use crate::instruction::{Instruction, base_alu, ext_alu, mem, mem_single, mem_ext};
+    use crate::opcode::{BaseAluOpcode, ExtAluOpcode, MemAccessKind};
+    use crate::program::linear_program;
+    use crate::runtime::Runtime;
+    use crate::RecursionProgram;
 
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
