@@ -36,9 +36,11 @@ fn test_recover_rand_lte_100(
     }
 
     move |mut public| {
-        println!("checking publioc values");
+        println!("checking public values");
         for key in pubkeys {
-            assert_eq!(public.read::<Option<PublicKey>>(), Some(key));
+            let (v0_29_1, v0_30_0) = public.read::<(Option<PublicKey>, Option<PublicKey>)>();
+            assert_eq!(v0_29_1, Some(key));
+            assert_eq!(v0_30_0, Some(key));
         }
     }
 }
@@ -69,12 +71,16 @@ fn test_verify_rand_lte_100(
 
         stdin.write_vec(msg);
         stdin.write_vec(signature);
+        // Write the pubkey twice, once for v0.29.1 and once for v0.30.0
+        stdin.write(&public);
         stdin.write(&public);
     }
 
     move |mut public| {
         for _ in 0..times {
-            assert!(public.read::<bool>());
+            let (v0_29_1, v0_30_0) = public.read::<(bool, bool)>();
+            assert!(v0_29_1);
+            assert!(v0_30_0);
         }
     }
 }
