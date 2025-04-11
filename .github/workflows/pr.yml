@@ -209,11 +209,9 @@ jobs:
 
       # Ensure include_elf! macro does not break under cargo clippy (e.g., due to missing ELF files)
       - name: Check include_elf! with cargo clippy
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --package aggregation-script
-        working-directory: examples
+        run: |
+          cd examples
+          cargo clippy --package aggregation-script
         env:
           CARGO_INCREMENTAL: 1
 
