@@ -122,6 +122,16 @@ pub(crate) fn build_program_internal(path: &str, args: Option<BuildArgs>) {
         let target_elf_paths = generate_elf_paths(&metadata, args.as_ref())
             .expect("failed to collect target ELF paths");
 
+        for (_, elf_path) in target_elf_paths.iter() {
+            // Create a dummy empty file if Clippy is enabled, otherwise a compile-time error
+            // will occur due to `include_bytes!` when running `cargo clippy`.
+            if let Some(parent) = elf_path.parent() {
+                std::fs::create_dir_all(parent).expect("Failed to create directory for dummy ELF");
+            }
+            std::fs::File::create(elf_path)
+                .unwrap_or_else(|e| panic!("Failed to create dummy ELF at {elf_path:?}: {e}"));
+        }
+
         print_elf_paths_cargo_directives(&target_elf_paths);
 
         println!("cargo:warning=Skipping build due to clippy invocation.");
