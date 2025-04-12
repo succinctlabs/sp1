@@ -1,10 +1,17 @@
-#[cfg(test)]
 use secp256k1::{Message, PublicKey, Secp256k1};
 
 #[sp1_test::sp1_test("secp256k1_recover", syscalls = [SECP256K1_DOUBLE, SECP256K1_ADD])]
-fn test_recover_rand_lte_100(
-    stdin: &mut sp1_sdk::SP1Stdin,
-) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
+fn test_recover(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
+    recover_rand_lte_100(stdin)
+}
+
+#[sp1_test::sp1_test("secp256k1_recover_v0_30_0", syscalls = [SECP256K1_DOUBLE, SECP256K1_ADD])]
+fn test_recover_v0_30_0(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
+    recover_rand_lte_100(stdin)
+}
+
+#[allow(dead_code)]
+fn recover_rand_lte_100(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     let times = 100_u8;
 
     stdin.write(&times);
@@ -38,17 +45,23 @@ fn test_recover_rand_lte_100(
     move |mut public| {
         println!("checking public values");
         for key in pubkeys {
-            let (v0_29_1, v0_30_0) = public.read::<(Option<PublicKey>, Option<PublicKey>)>();
-            assert_eq!(v0_29_1, Some(key));
-            assert_eq!(v0_30_0, Some(key));
+            assert_eq!(public.read::<Option<PublicKey>>(), Some(key));
         }
     }
 }
 
 #[sp1_test::sp1_test("secp256k1_verify", syscalls = [SECP256K1_DOUBLE, SECP256K1_ADD])]
-fn test_verify_rand_lte_100(
-    stdin: &mut sp1_sdk::SP1Stdin,
-) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
+fn test_verify(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
+    verify_rand_lte_100(stdin)
+}
+
+#[sp1_test::sp1_test("secp256k1_verify_v0_30_0", syscalls = [SECP256K1_DOUBLE, SECP256K1_ADD])]
+fn test_verify_v0_30_0(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
+    verify_rand_lte_100(stdin)
+}
+
+#[allow(dead_code)]
+fn verify_rand_lte_100(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     let times = 100_u8;
     stdin.write(&times);
 
@@ -71,16 +84,12 @@ fn test_verify_rand_lte_100(
 
         stdin.write_vec(msg);
         stdin.write_vec(signature);
-        // Write the pubkey twice, once for v0.29.1 and once for v0.30.0
-        stdin.write(&public);
         stdin.write(&public);
     }
 
     move |mut public| {
         for _ in 0..times {
-            let (v0_29_1, v0_30_0) = public.read::<(bool, bool)>();
-            assert!(v0_29_1);
-            assert!(v0_30_0);
+            assert!(public.read::<bool>());
         }
     }
 }
