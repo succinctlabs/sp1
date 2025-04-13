@@ -119,7 +119,7 @@ impl<E: EdwardsParameters> AffinePoint<EdwardsCurve<E>> {
         let all_xy = (&self.x * &self.y * &other.x * &other.y) % &p;
         let d = E::d_biguint();
         let dxy = (d * &all_xy) % &p;
-        let den_x = ((1u32 + &dxy) % &p).modpow(&(&p - 2u32), &p);
+        let den_x = ((BigUint::from(1u32) + &dxy) % &p).modpow(&(&p - 2u32), &p);
         let den_y = ((1u32 + &p - &dxy) % &p).modpow(&(&p - 2u32), &p);
 
         let x_3 = (&x_3n * &den_x) % &p;
