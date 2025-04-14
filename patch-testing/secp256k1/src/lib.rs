@@ -1,12 +1,16 @@
 use secp256k1::{Message, PublicKey, Secp256k1};
 
 #[sp1_test::sp1_test("secp256k1_recover", syscalls = [SECP256K1_DOUBLE, SECP256K1_ADD])]
-fn test_recover(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
+fn test_recover_rand_lte_100(
+    stdin: &mut sp1_sdk::SP1Stdin,
+) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     recover_rand_lte_100(stdin)
 }
 
 #[sp1_test::sp1_test("secp256k1_recover_v0_30_0", syscalls = [SECP256K1_DOUBLE, SECP256K1_ADD])]
-fn test_recover_v0_30_0(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
+fn test_recover_v0_30_0_rand_lte_100(
+    stdin: &mut sp1_sdk::SP1Stdin,
+) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     recover_rand_lte_100(stdin)
 }
 
@@ -51,12 +55,16 @@ fn recover_rand_lte_100(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::S
 }
 
 #[sp1_test::sp1_test("secp256k1_verify", syscalls = [SECP256K1_DOUBLE, SECP256K1_ADD])]
-fn test_verify(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
+fn test_verify_rand_lte_100(
+    stdin: &mut sp1_sdk::SP1Stdin,
+) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     verify_rand_lte_100(stdin)
 }
 
 #[sp1_test::sp1_test("secp256k1_verify_v0_30_0", syscalls = [SECP256K1_DOUBLE, SECP256K1_ADD])]
-fn test_verify_v0_30_0(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
+fn test_verify_v0_30_0_rand_lte_100(
+    stdin: &mut sp1_sdk::SP1Stdin,
+) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     verify_rand_lte_100(stdin)
 }
 
