@@ -1,14 +1,32 @@
-#[cfg(test)]
+use sha2::Digest;
 use sp1_sdk::SP1PublicValues;
 use sp1_test::sp1_test;
 
-#[sp1_test("sha2", syscalls = [SHA_COMPRESS, SHA_EXTEND], gpu, prove)]
-fn test_sha2_expected_digest_lte_100_times(
+#[sp1_test("sha2_v0_9_9", syscalls = [SHA_COMPRESS, SHA_EXTEND], gpu, prove)]
+fn test_sha2_v0_9_9_expected_digest_lte_100_times(
     stdin: &mut sp1_sdk::SP1Stdin,
 ) -> impl FnOnce(SP1PublicValues) {
-    use sha2_v0_10_6::Digest as D2;
-    use sha2_v0_9_8::Digest as D1;
+    sha2_expected_digest_lte_100_times(stdin)
+}
 
+#[sp1_test("sha2_v0_10_6", syscalls = [SHA_COMPRESS, SHA_EXTEND], gpu, prove)]
+fn test_sha2_v0_10_6_expected_digest_lte_100_times(
+    stdin: &mut sp1_sdk::SP1Stdin,
+) -> impl FnOnce(SP1PublicValues) {
+    sha2_expected_digest_lte_100_times(stdin)
+}
+
+#[sp1_test("sha2_v0_10_8", syscalls = [SHA_COMPRESS, SHA_EXTEND], gpu, prove)]
+fn test_sha2_v0_10_8_expected_digest_lte_100_times(
+    stdin: &mut sp1_sdk::SP1Stdin,
+) -> impl FnOnce(SP1PublicValues) {
+    sha2_expected_digest_lte_100_times(stdin)
+}
+
+#[allow(dead_code)]
+fn sha2_expected_digest_lte_100_times(
+    stdin: &mut sp1_sdk::SP1Stdin,
+) -> impl FnOnce(SP1PublicValues) {
     use sp1_test::DEFAULT_CORPUS_COUNT;
     use sp1_test::DEFAULT_CORPUS_MAX_LEN;
 
@@ -20,15 +38,12 @@ fn test_sha2_expected_digest_lte_100_times(
     let digests = preimages
         .iter()
         .map(|preimage| {
-            let mut sha256_9_8 = sha2_v0_9_8::Sha256::new();
-            sha256_9_8.update(preimage);
+            let mut sha256 = sha2::Sha256::new();
+            sha256.update(preimage);
 
-            let mut sha256_10_6 = sha2_v0_10_6::Sha256::new();
-            sha256_10_6.update(preimage);
-
-            (sha256_9_8.finalize().into(), sha256_10_6.finalize().into())
+            sha256.finalize().into()
         })
-        .collect::<Vec<([u8; 32], [u8; 32])>>();
+        .collect::<Vec<[u8; 32]>>();
 
     // Write the number of preimages to the SP1Stdin
     // This should be equal to the number of digests.
@@ -37,12 +52,15 @@ fn test_sha2_expected_digest_lte_100_times(
 
     move |mut public| {
         for digest in digests {
-            let committed = public.read::<([u8; 32], [u8; 32])>();
+            let committed = public.read::<[u8; 32]>();
 
             assert_eq!(digest, committed);
         }
     }
 }
+
+#[allow(dead_code)]
+fn build_digests() {}
 
 #[sp1_test("sha3", syscalls = [SHA_COMPRESS, SHA_EXTEND], gpu, prove)]
 fn test_sha3_expected_digest_lte_100_times(

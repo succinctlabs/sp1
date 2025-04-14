@@ -9,8 +9,7 @@ sp1-zkvm.workspace = true
 sp1-sdk.workspace = true
 sp1-core-executor.workspace = true
 
-sha2-v0-9-8 = { version = "0.9.8", package = "sha2" }
-sha2-v0-10-6 = { version = "0.10.6", package = "sha2" }
+sha2 = { version = "0.9.9", package = "sha2" }
 rand = "0.8.5"
 sp1-test.workspace = true
 sha3 = "=0.10.6"
