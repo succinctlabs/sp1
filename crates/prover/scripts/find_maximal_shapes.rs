@@ -50,7 +50,7 @@ fn collect_maximal_shapes(
                 let _ = record.defer();
                 let core_shape: Shape<RiscvAirId> = RiscvAir::<BabyBear>::core_heights(&record)
                     .into_iter()
-                    .filter(|&(_, height)| (height != 0))
+                    .filter(|&(_, height)| height != 0)
                     .map(|(air, height)| (air, height.next_power_of_two().ilog2() as usize))
                     .collect();
 
@@ -65,7 +65,7 @@ fn collect_maximal_shapes(
 fn insert(inner: &mut Vec<Shape<RiscvAirId>>, element: Shape<RiscvAirId>) {
     let mut to_remove = vec![];
     for (i, maximal_element) in inner.iter().enumerate() {
-        match PartialOrd::partial_cmp(&element, maximal_element) {
+        match element.partial_cmp(maximal_element) {
             Some(Ordering::Greater) => {
                 to_remove.push(i);
             }
@@ -89,7 +89,7 @@ fn main() {
     let args = Args::parse();
 
     // Setup the options.
-    let mut opts = SP1CoreOpts { shard_batch_size: 1, ..Default::default() };
+    let opts = SP1CoreOpts { shard_batch_size: 1, ..Default::default() };
 
     // Load the initial maximal shapes.
     let mut all_maximal_shapes: BTreeMap<usize, Vec<Shape<RiscvAirId>>> =
@@ -159,14 +159,16 @@ fn main() {
 
         // Collect the maximal shapes for each shard size.
         for &log_shard_size in args.shard_sizes.iter() {
+            let mut local_opts = opts.clone();
+            local_opts.shard_size = 1 << log_shard_size;
             let tx = tx.clone();
             let elf = elf.clone();
             let stdin = stdin.clone();
             let new_context = SP1Context::default();
             let s3_path = s3_path.clone();
+
             rayon::spawn(move || {
-                opts.shard_size = 1 << log_shard_size;
-                let maximal_shapes = collect_maximal_shapes(&elf, &stdin, opts, new_context);
+                let maximal_shapes = collect_maximal_shapes(&elf, &stdin, local_opts, new_context);
                 tracing::info!(
                     "there are {} maximal shapes for {} for log shard size {}",
                     maximal_shapes.len(),
