@@ -45,6 +45,21 @@ pub fn time_operation<T, F: FnOnce() -> T>(operation: F) -> (T, std::time::Durat
     (result, duration)
 }
 
+fn calculate_mhz(cycles: u64, duration: Duration) -> f64 {
+    cycles as f64 / 1_000_000.0 / duration.as_secs_f64()
+}
+
+fn run_and_report<F>(mode: &str, executor: &mut Executor<BabyBear>, run_fn: F)
+where
+    F: FnOnce(&mut Executor<BabyBear>),
+{
+    let (_, duration) = time_operation(|| run_fn(executor));
+    let cycles = executor.state.global_clk;
+    println!("{} mode:", mode);
+    println!("cycles: {}", cycles);
+    println!("MHZ: {}", calculate_mhz(cycles, duration));
+}
+
 fn main() {
     sp1_sdk::utils::setup_logger();
     let args = PerfArgs::parse();
@@ -61,7 +76,7 @@ fn main() {
     let maximal_shapes = shape_config
         .maximal_core_shapes(opts.core_opts.shard_size.ilog2() as usize)
         .into_iter()
-        .collect::<_>();
+        .collect::<Vec<_>>();
 
     let mut executor = Executor::new(program, opts.core_opts);
     executor.maximal_shapes = Some(maximal_shapes);
@@ -71,33 +86,11 @@ fn main() {
     }
 
     match args.executor_mode {
-        ExecutorMode::Simple => {
-            let (_, execution_duration) = time_operation(|| executor.run_fast());
-            println!("Simple mode:");
-            println!("cycles: {}", executor.state.global_clk);
-            println!(
-                "MHZ: {}",
-                executor.state.global_clk as f64 / 1_000_000.0 / execution_duration.as_secs_f64()
-            );
-        }
+        ExecutorMode::Simple => run_and_report("Simple", &mut executor, |e| e.run_fast()),
         ExecutorMode::Checkpoint => {
-            let (_, execution_duration) = time_operation(|| executor.run_checkpoint(true));
-            println!("Checkpoint mode:");
-            println!("cycles: {}", executor.state.global_clk);
-            println!(
-                "MHZ: {}",
-                executor.state.global_clk as f64 / 1_000_000.0 / execution_duration.as_secs_f64()
-            );
+            run_and_report("Checkpoint", &mut executor, |e| e.run_checkpoint(true))
         }
-        ExecutorMode::Trace => {
-            let (_, execution_duration) = time_operation(|| executor.run());
-            println!("Trace mode:");
-            println!("cycles: {}", executor.state.global_clk);
-            println!(
-                "MHZ: {}",
-                executor.state.global_clk as f64 / 1_000_000.0 / execution_duration.as_secs_f64()
-            );
-        }
+        ExecutorMode::Trace => run_and_report("Trace", &mut executor, |e| e.run()),
         ExecutorMode::ShapeCollection => unimplemented!(),
     }
 }
