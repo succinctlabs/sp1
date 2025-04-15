@@ -1,8 +1,16 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
-use sha2_v0_9_8::{Digest as D1, Sha256 as Sha256_9_8};
-use sha2_v0_10_8::{Digest as D2, Sha256 as Sha256_10_8};
+#[cfg(feature = "v0-9-9")]
+extern crate sha2_v0_9_9 as sha2;
+
+#[cfg(feature = "v0-10-6")]
+extern crate sha2_v0_10_6 as sha2;
+
+#[cfg(feature = "v0-10-8")]
+extern crate sha2_v0_10_8 as sha2;
+
+use sha2::{Digest, Sha256};
 
 /// Emits SHA_COMPRESS and SHA_EXTEND syscalls.
 pub fn main() {
@@ -11,15 +19,11 @@ pub fn main() {
     for _ in 0..times {
         let preimage = sp1_zkvm::io::read_vec();
 
-        let mut sha256_9_8 = Sha256_9_8::new();
-        sha256_9_8.update(&preimage);
+        let mut sha256 = Sha256::new();
+        sha256.update(&preimage);
 
-        let mut sha256_10_6 = Sha256_10_8::new();
-        sha256_10_6.update(&preimage);
+        let output: [u8; 32] = sha256.finalize().into();
 
-        let output_9_8: [u8; 32] = sha256_9_8.finalize().into();
-        let output_10_6: [u8; 32] = sha256_10_6.finalize().into();
-
-        sp1_zkvm::io::commit(&(output_9_8, output_10_6));
+        sp1_zkvm::io::commit(&output);
     }
 }
