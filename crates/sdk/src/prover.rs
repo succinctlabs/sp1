@@ -85,6 +85,10 @@ pub enum SP1VerificationError {
     Other(anyhow::Error),
 }
 
+// As SHA256 and BLAKE3 are both designed to be collision resistant, it is computationally
+// infeasible to find two distinct inputs—one processed with SHA256 and the other with BLAKE3,
+// that yield the same hash value. Indeed, this would require breaking both algorithms
+// simultaneously, a task that is beyond current computational capabilities.
 pub(crate) fn verify_proof<C: SP1ProverComponents>(
     prover: &SP1Prover<C>,
     version: &str,
@@ -109,8 +113,10 @@ pub(crate) fn verify_proof<C: SP1ProverComponents>(
                 .collect_vec();
 
             // Make sure the committed value digest matches the public values hash.
-            for (a, b) in committed_value_digest_bytes.iter().zip_eq(bundle.public_values.hash()) {
-                if *a != b {
+            for (a, (sha_b, blake3_b)) in committed_value_digest_bytes.iter().zip_eq(
+                bundle.public_values.hash().into_iter().zip(bundle.public_values.blake3_hash()),
+            ) {
+                if *a != sha_b && *a != blake3_b {
                     return Err(SP1VerificationError::InvalidPublicValues);
                 }
             }
@@ -132,8 +138,10 @@ pub(crate) fn verify_proof<C: SP1ProverComponents>(
                 .collect_vec();
 
             // Make sure the committed value digest matches the public values hash.
-            for (a, b) in committed_value_digest_bytes.iter().zip_eq(bundle.public_values.hash()) {
-                if *a != b {
+            for (a, (sha_b, blake3_b)) in committed_value_digest_bytes.iter().zip_eq(
+                bundle.public_values.hash().into_iter().zip(bundle.public_values.blake3_hash()),
+            ) {
+                if *a != sha_b && *a != blake3_b {
                     return Err(SP1VerificationError::InvalidPublicValues);
                 }
             }

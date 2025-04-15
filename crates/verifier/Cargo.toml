@@ -37,7 +37,7 @@ serial_test = "3.2.0"
 default = ["std"]
 std = ["thiserror/std"]
 ark = ["ark-bn254", "ark-serialize", "ark-ff", "ark-groth16", "ark-ec"]
-blake3 = ["dep:blake3", "sp1-sdk/blake3"]
+blake3 = ["dep:blake3"]
 
 [lints]
 workspace = true
