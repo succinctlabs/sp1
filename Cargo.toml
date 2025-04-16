@@ -103,7 +103,7 @@ serde = "1.0.204"
 serde_json = "1.0.132"
 tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
-blake3 = "1.6.1"
+blake3 = { version = "1.6.1", default-features = false }
 
 [workspace.metadata.typos]
 default.extend-ignore-re = [
