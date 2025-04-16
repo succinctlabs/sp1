@@ -85,10 +85,15 @@ pub enum SP1VerificationError {
     Other(anyhow::Error),
 }
 
-// As SHA256 and BLAKE3 are both designed to be collision resistant, it is computationally
-// infeasible to find two distinct inputs, one processed with SHA256 and the other with Blake3,
-// that yield the same hash value. Indeed, this would require breaking both algorithms
-// simultaneously, a task that is beyond current computational capabilities.
+/// In SP1, a proof's public values can either be hashed with SHA2 or Blake3. In SP1 V4, there is no
+/// metadata attached to the proof about which hasher function was used for public values hashing.
+/// Instead, when verifying the proof, the public values are hashed with SHA2 and Blake3, and
+/// if either matches the `expected_public_values_hash`, the verification is successful.
+///
+/// The security for this verification in SP1 V4 derives from the fact that both SHA2 and Blake3 are
+/// designed to be collision resistant. It is computationally infeasible to find an input i1 for
+/// SHA256 and an input i2 for Blake3 that the same hash value. Doing so would require breaking both
+/// algorithms simultaneously.
 pub(crate) fn verify_proof<C: SP1ProverComponents>(
     prover: &SP1Prover<C>,
     version: &str,
@@ -115,10 +120,8 @@ pub(crate) fn verify_proof<C: SP1ProverComponents>(
             // Make sure the committed value digest matches the public values hash.
             // It is computationally infeasible to find two distinct inputs, one processed with
             // SHA256 and the other with Blake3, that yield the same hash value.
-            let sha256_hash = bundle.public_values.hash();
-            let blake3_hash = bundle.public_values.blake3_hash();
-            if committed_value_digest_bytes != sha256_hash &&
-                committed_value_digest_bytes != blake3_hash
+            if committed_value_digest_bytes != bundle.public_values.hash() &&
+                committed_value_digest_bytes != bundle.public_values.blake3_hash()
             {
                 return Err(SP1VerificationError::InvalidPublicValues);
             }
@@ -142,10 +145,8 @@ pub(crate) fn verify_proof<C: SP1ProverComponents>(
             // Make sure the committed value digest matches the public values hash.
             // It is computationally infeasible to find two distinct inputs, one processed with
             // SHA256 and the other with Blake3, that yield the same hash value.
-            let sha256_hash = bundle.public_values.hash();
-            let blake3_hash = bundle.public_values.blake3_hash();
-            if committed_value_digest_bytes != sha256_hash &&
-                committed_value_digest_bytes != blake3_hash
+            if committed_value_digest_bytes != bundle.public_values.hash() &&
+                committed_value_digest_bytes != bundle.public_values.blake3_hash()
             {
                 return Err(SP1VerificationError::InvalidPublicValues);
             }

@@ -476,14 +476,21 @@ pub fn verify_groth16_bn254_public_inputs(
     Ok(())
 }
 
-// As SHA256 and BLAKE3 are both designed to be collision resistant, it is computationally
-// infeasible to find two distinct inputs, one processed with SHA256 and the other with Blake3,
-// that yield the same hash value. Indeed, this would require breaking both algorithms
-// simultaneously, a task that is beyond current computational capabilities.
+/// In SP1, a proof's public values can either be hashed with SHA2 or Blake3. In SP1 V4, there is no
+/// metadata attached to the proof about which hasher function was used for public values hashing.
+/// Instead, when verifying the proof, the public values are hashed with SHA2 and Blake3, and
+/// if either matches the `expected_public_values_hash`, the verification is successful.
+///
+/// The security for this verification in SP1 V4 derives from the fact that both SHA2 and Blake3 are
+/// designed to be collision resistant. It is computationally infeasible to find an input i1 for
+/// SHA256 and an input i2 for Blake3 that the same hash value. Doing so would require breaking both
+/// algorithms simultaneously.
 fn verify_public_values(
     public_values: &SP1PublicValues,
     expected_public_values_hash: BigUint,
 ) -> Result<()> {
+    // First, check if the public values are hashed with SHA256. If that fails, attempt hashing with
+    // Blake3. If neither match, return an error.
     let sha256_public_values_hash = public_values.hash_bn254();
     if sha256_public_values_hash != expected_public_values_hash {
         let blake3_public_values_hash = public_values.hash_bn254_with_fn(blake3_hash);
