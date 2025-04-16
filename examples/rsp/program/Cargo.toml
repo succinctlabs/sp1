@@ -7,4 +7,4 @@ publish = false
 [dependencies]
 sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
 bincode = "1.3.3"
-rsp-client-executor = { git = "https://github.com/succinctlabs/rsp/", rev = "3647076" }
+rsp-client-executor = { git = "https://github.com/succinctlabs/rsp/", rev = "06a2a97" }

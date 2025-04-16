@@ -1,6 +1,6 @@
 use alloy_primitives::B256;
 use clap::Parser;
-use rsp_client_executor::{io::ClientExecutorInput, CHAIN_ID_ETH_MAINNET};
+use rsp_client_executor::io::EthClientExecutorInput;
 use std::path::PathBuf;
 
 use sp1_sdk::{include_elf, utils, ProverClient, SP1Stdin};
@@ -12,10 +12,10 @@ struct Args {
     prove: bool,
 }
 
-fn load_input_from_cache(chain_id: u64, block_number: u64) -> ClientExecutorInput {
+fn load_input_from_cache(chain_id: u64, block_number: u64) -> EthClientExecutorInput {
     let cache_path = PathBuf::from(format!("./input/{}/{}.bin", chain_id, block_number));
     let mut cache_file = std::fs::File::open(cache_path).unwrap();
-    let client_input: ClientExecutorInput = bincode::deserialize_from(&mut cache_file).unwrap();
+    let client_input: EthClientExecutorInput = bincode::deserialize_from(&mut cache_file).unwrap();
 
     client_input
 }
@@ -28,7 +28,7 @@ fn main() {
     let args = Args::parse();
 
     // Load the input from the cache.
-    let client_input = load_input_from_cache(CHAIN_ID_ETH_MAINNET, 20526624);
+    let client_input = load_input_from_cache(1, 20526624);
 
     // Generate the proof.
     let client = ProverClient::from_env();
