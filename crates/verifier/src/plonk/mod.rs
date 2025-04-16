@@ -84,16 +84,16 @@ impl PlonkVerifier {
             &[sp1_vkey_hash, hash_public_inputs(sp1_public_inputs)],
             plonk_vk,
         )
-        .is_err()
+        .is_ok()
         {
-            Self::verify_gnark_proof(
-                &proof[VK_HASH_PREFIX_LENGTH..],
-                &[sp1_vkey_hash, hash_public_inputs_with_fn(sp1_public_inputs, blake3_hash)],
-                plonk_vk,
-            )
-        } else {
-            Ok(())
+            return Ok(())
         }
+
+        Self::verify_gnark_proof(
+            &proof[VK_HASH_PREFIX_LENGTH..],
+            &[sp1_vkey_hash, hash_public_inputs_with_fn(sp1_public_inputs, blake3_hash)],
+            plonk_vk,
+        )
     }
 
     /// Verifies a Gnark PLONK proof using raw byte inputs.

@@ -77,16 +77,16 @@ impl Groth16Verifier {
             &[sp1_vkey_hash, hash_public_inputs(sp1_public_inputs)],
             groth16_vk,
         )
-        .is_err()
+        .is_ok()
         {
-            Self::verify_gnark_proof(
-                &proof[VK_HASH_PREFIX_LENGTH..],
-                &[sp1_vkey_hash, hash_public_inputs_with_fn(sp1_public_inputs, blake3_hash)],
-                groth16_vk,
-            )
-        } else {
-            Ok(())
+            return Ok(())
         }
+
+        Self::verify_gnark_proof(
+            &proof[VK_HASH_PREFIX_LENGTH..],
+            &[sp1_vkey_hash, hash_public_inputs_with_fn(sp1_public_inputs, blake3_hash)],
+            groth16_vk,
+        )
     }
 
     /// Verifies a Gnark Groth16 proof using raw byte inputs.

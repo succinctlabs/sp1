@@ -115,12 +115,12 @@ pub(crate) fn verify_proof<C: SP1ProverComponents>(
             // Make sure the committed value digest matches the public values hash.
             // It is computationally infeasible to find two distinct inputs, one processed with
             // SHA256 and the other with Blake3, that yield the same hash value.
-            for (a, (sha_b, blake3_b)) in committed_value_digest_bytes.iter().zip_eq(
-                bundle.public_values.hash().into_iter().zip(bundle.public_values.blake3_hash()),
-            ) {
-                if *a != sha_b && *a != blake3_b {
-                    return Err(SP1VerificationError::InvalidPublicValues);
-                }
+            let sha256_hash = bundle.public_values.hash();
+            let blake3_hash = bundle.public_values.blake3_hash();
+            if committed_value_digest_bytes != sha256_hash &&
+                committed_value_digest_bytes != blake3_hash
+            {
+                return Err(SP1VerificationError::InvalidPublicValues);
             }
 
             // Verify the core proof.
@@ -142,12 +142,12 @@ pub(crate) fn verify_proof<C: SP1ProverComponents>(
             // Make sure the committed value digest matches the public values hash.
             // It is computationally infeasible to find two distinct inputs, one processed with
             // SHA256 and the other with Blake3, that yield the same hash value.
-            for (a, (sha_b, blake3_b)) in committed_value_digest_bytes.iter().zip_eq(
-                bundle.public_values.hash().into_iter().zip(bundle.public_values.blake3_hash()),
-            ) {
-                if *a != sha_b && *a != blake3_b {
-                    return Err(SP1VerificationError::InvalidPublicValues);
-                }
+            let sha256_hash = bundle.public_values.hash();
+            let blake3_hash = bundle.public_values.blake3_hash();
+            if committed_value_digest_bytes != sha256_hash &&
+                committed_value_digest_bytes != blake3_hash
+            {
+                return Err(SP1VerificationError::InvalidPublicValues);
             }
 
             prover.verify_compressed(proof, vkey).map_err(SP1VerificationError::Recursion)
