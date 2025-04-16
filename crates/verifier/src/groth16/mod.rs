@@ -72,11 +72,13 @@ impl Groth16Verifier {
 
         // It is computationally infeasible to find two distinct inputs, one processed with
         // SHA256 and the other with Blake3, that yield the same hash value.
-        if let Err(_) = Self::verify_gnark_proof(
+        if Self::verify_gnark_proof(
             &proof[VK_HASH_PREFIX_LENGTH..],
             &[sp1_vkey_hash, hash_public_inputs(sp1_public_inputs)],
             groth16_vk,
-        ) {
+        )
+        .is_err()
+        {
             Self::verify_gnark_proof(
                 &proof[VK_HASH_PREFIX_LENGTH..],
                 &[sp1_vkey_hash, hash_public_inputs_with_fn(sp1_public_inputs, blake3_hash)],
