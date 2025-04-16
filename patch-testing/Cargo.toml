@@ -52,7 +52,7 @@ curve25519-dalek = { version = "4.1.3", default-features = false, features = ["a
 curve25519-dalek-ng = { version = "4.1", default-features = false, features = ["u32_backend", "alloc", "serde"] }
 k256 = { version = "0.13.3", default-features = false, features = ["ecdsa", "serde", "alloc"] }
 p256 = { version = "0.13.2", default-features = false, features = ["ecdsa", "alloc", "serde"] }
-alloy-primitives = { version = "0.8", features = ["k256"] }
+alloy-primitives = { version = "1.0", features = ["k256"] }
 secp256k1 = { git = "https://github.com/sp1-patches/rust-secp256k1", tag = "patch-0.29.1-sp1-4.1.0", features = ["recovery", "global-context", "rand", "serde"] }
 revm-precompile = { version = "11.0.1", default-features = false, features = ["kzg-rs", "secp256r1"] }
 hex-literal = "0.4.1"

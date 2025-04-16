@@ -1,5 +1,5 @@
 use crate::SP1Stdin;
-use alloy_primitives::{Address, PrimitiveSignature};
+use alloy_primitives::{Address, Signature as AlloySignature};
 use alloy_signer::SignerSync;
 use serde::{Deserialize, Serialize};
 
@@ -17,7 +17,7 @@ pub struct TEERequest {
     /// The stdin for the program.
     pub stdin: SP1Stdin,
     /// The signature of the request id.
-    pub signature: PrimitiveSignature,
+    pub signature: AlloySignature,
 }
 
 impl TEERequest {
