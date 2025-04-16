@@ -451,13 +451,7 @@ pub fn verify_plonk_bn254_public_inputs(
         return Err(PlonkVerificationError::InvalidVerificationKey.into());
     }
 
-    let sha256_public_values_hash = public_values.hash_bn254();
-    if sha256_public_values_hash != expected_public_values_hash {
-        let blake3_public_values_hash = public_values.hash_bn254_with_fn(blake3_hash);
-        if blake3_public_values_hash != expected_public_values_hash {
-            return Err(Groth16VerificationError::InvalidPublicValues.into());
-        }
-    }
+    verify_public_values(public_values, expected_public_values_hash)?;
 
     Ok(())
 }
@@ -477,6 +471,19 @@ pub fn verify_groth16_bn254_public_inputs(
         return Err(Groth16VerificationError::InvalidVerificationKey.into());
     }
 
+    verify_public_values(public_values, expected_public_values_hash)?;
+
+    Ok(())
+}
+
+// As SHA256 and BLAKE3 are both designed to be collision resistant, it is computationally
+// infeasible to find two distinct inputs, one processed with SHA256 and the other with Blake3,
+// that yield the same hash value. Indeed, this would require breaking both algorithms
+// simultaneously, a task that is beyond current computational capabilities.
+fn verify_public_values(
+    public_values: &SP1PublicValues,
+    expected_public_values_hash: BigUint,
+) -> Result<()> {
     let sha256_public_values_hash = public_values.hash_bn254();
     if sha256_public_values_hash != expected_public_values_hash {
         let blake3_public_values_hash = public_values.hash_bn254_with_fn(blake3_hash);
