@@ -77,8 +77,9 @@ impl PlonkVerifier {
 
         let sp1_vkey_hash = decode_sp1_vkey_hash(sp1_vkey_hash)?;
 
-        // It is computationally infeasible to find two distinct inputs, one processed with
-        // SHA256 and the other with Blake3, that yield the same hash value.
+        // First, check if the public values hashed with SHA2 match the expected public values.
+        // If not, try hashing with Blake3. If both fail, return an error. We perform the checks
+        // sequentially to avoid calculating both hashes unless necessary.
         if Self::verify_gnark_proof(
             &proof[VK_HASH_PREFIX_LENGTH..],
             &[sp1_vkey_hash, hash_public_inputs(sp1_public_inputs)],
