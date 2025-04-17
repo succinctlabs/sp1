@@ -323,7 +323,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         elf: &[u8],
         stdin: &SP1Stdin,
         mut context: SP1Context<'a>,
-    ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
+    ) -> Result<(SP1PublicValues, [u8; 32], ExecutionReport), ExecutionError> {
         context.subproof_verifier = Some(self);
 
         let calculate_gas = context.calculate_gas;
@@ -363,7 +363,19 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 .ok();
         }
 
-        Ok((SP1PublicValues::from(&runtime.state.public_values_stream), runtime.report))
+        let mut committed_value_digest = [0u8; 32];
+        runtime.record.public_values.committed_value_digest.iter().enumerate().for_each(
+            |(i, word)| {
+                let bytes = word.to_le_bytes();
+                committed_value_digest[i * 4..(i + 1) * 4].copy_from_slice(&bytes);
+            },
+        );
+
+        Ok((
+            SP1PublicValues::from(&runtime.state.public_values_stream),
+            committed_value_digest,
+            runtime.report,
+        ))
     }
 
     /// Generate shard proofs which split up and prove the valid execution of a RISC-V program with

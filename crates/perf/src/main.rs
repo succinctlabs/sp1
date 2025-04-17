@@ -66,7 +66,7 @@ fn main() {
             let (report, execution_duration) =
                 time_operation(|| prover.execute(&elf, &stdin, context.clone()));
 
-            let cycles = report.expect("execution failed").1.total_instruction_count();
+            let cycles = report.expect("execution failed").2.total_instruction_count();
             let (core_proof, prove_core_duration) = time_operation(|| {
                 prover.prove_core(&pk_d, program, &stdin, opts, context).unwrap()
             });
@@ -142,7 +142,7 @@ fn main() {
             let (report, execution_duration) =
                 time_operation(|| prover.execute(&elf, &stdin, context.clone()));
 
-            let cycles = report.expect("execution failed").1.total_instruction_count();
+            let cycles = report.expect("execution failed").2.total_instruction_count();
 
             let (_, _) = time_operation(|| server.setup(&elf).unwrap());
 
