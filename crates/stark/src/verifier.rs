@@ -275,10 +275,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             ));
         }
         if opening.main.next.len() != chip.width() {
-            return Err(OpeningShapeError::MainWidthMismatch(
-                chip.width(),
-                opening.main.next.len(),
-            ));
+            return Err(OpeningShapeError::MainWidthMismatch(chip.width(), opening.main.next.len()));
         }
 
         // Verify that the permutation width matches the expected value for the chip.
@@ -417,8 +414,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
                     .enumerate()
                     .filter(|(j, _)| *j != i)
                     .map(|(_, other_domain)| {
-                        other_domain.zp_at_point(zeta)
-                            * other_domain.zp_at_point(domain.first_point()).inverse()
+                        other_domain.zp_at_point(zeta) *
+                            other_domain.zp_at_point(domain.first_point()).inverse()
                     })
                     .product::<SC::Challenge>()
             })

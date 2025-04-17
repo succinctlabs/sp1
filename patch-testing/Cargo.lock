@@ -391,6 +391,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "blake3"
+version = "1.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "389a099b34312839e16420d499a9cad9650541715937ffbdd40d36f49e77eeb3"
+dependencies = [
+ "arrayref",
+ "arrayvec",
+ "cc",
+ "cfg-if",
+ "constant_time_eq",
+]
+
+[[package]]
 name = "block-buffer"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1159,7 +1172,7 @@ dependencies = [
  "der",
  "digest 0.10.7",
  "elliptic-curve",
- "rfc6979",
+ "rfc6979 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serdect",
  "signature",
  "spki",
@@ -1176,6 +1189,18 @@ dependencies = [
  "hex-literal",
  "signature",
  "sp1-lib",
+]
+
+[[package]]
+name = "ecdsa"
+version = "0.16.9"
+source = "git+https://github.com/sp1-patches/signatures.git?tag=patch-16.9-sp1-4.1.0#1880299a48fe7ef249edaa616fd411239fb5daf1"
+dependencies = [
+ "der",
+ "digest 0.10.7",
+ "elliptic-curve",
+ "rfc6979 0.4.0 (git+https://github.com/sp1-patches/signatures.git?tag=patch-16.9-sp1-4.1.0)",
+ "signature",
  "spki",
 ]
 
@@ -1289,6 +1314,17 @@ checksum = "33d852cb9b869c2a9b3df2f71a3074817f01e1844f839a144f5fcef059a4eb5d"
 dependencies = [
  "libc",
  "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "eventsource-stream"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "74fef4569247a5f429d9156b9d0a2599914385dd189c539334c625d8099d90ab"
+dependencies = [
+ "futures-core",
+ "nom",
+ "pin-project-lite",
 ]
 
 [[package]]
@@ -2082,9 +2118,9 @@ dependencies = [
 
 [[package]]
 name = "k256"
-version = "0.13.3"
+version = "0.13.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "956ff9b67e26e1a6a866cb758f12c6f8746208489e3e4a4b5580802f2f0a587b"
+checksum = "f6e3919bbaa2945715f0bb6d3934a173d1e9a59ac23767fbaaef277265a7411b"
 dependencies = [
  "cfg-if",
  "ecdsa 0.16.9 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2097,11 +2133,26 @@ dependencies = [
 
 [[package]]
 name = "k256"
+version = "0.13.4"
+source = "git+https://github.com/sp1-patches/elliptic-curves?tag=patch-k256-13.4-sp1-4.1.0#dbb97456cb6bda207eb212011ac834582263e88b"
+dependencies = [
+ "cfg-if",
+ "ecdsa 0.16.9 (git+https://github.com/sp1-patches/signatures.git?tag=patch-16.9-sp1-4.1.0)",
+ "elliptic-curve",
+ "hex",
+ "once_cell",
+ "sha2 0.10.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "signature",
+ "sp1-lib",
+]
+
+[[package]]
+name = "k256"
 version = "1.1.0"
 dependencies = [
  "ecdsa 0.16.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex-literal",
- "k256 0.13.3",
+ "k256 0.13.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand",
  "sp1-build",
  "sp1-core-executor",
@@ -3364,6 +3415,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "rfc6979"
+version = "0.4.0"
+source = "git+https://github.com/sp1-patches/signatures.git?tag=patch-16.9-sp1-4.1.0#1880299a48fe7ef249edaa616fd411239fb5daf1"
+dependencies = [
+ "hmac",
+ "subtle",
+]
+
+[[package]]
 name = "ring"
 version = "0.17.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3633,11 +3693,10 @@ dependencies = [
 [[package]]
 name = "secp256k1"
 version = "0.29.1"
-source = "git+https://github.com/sp1-patches/rust-secp256k1?tag=patch-0.29.1-sp1-4.0.0#d3a398cfc7928cdb9b92ea2ab45232e6468ef230"
+source = "git+https://github.com/sp1-patches/rust-secp256k1?tag=patch-0.29.1-sp1-4.1.0#b2f7c49c8554c5820040c7275445788808ac979d"
 dependencies = [
  "cfg-if",
- "ecdsa 0.16.9 (git+https://github.com/sp1-patches/signatures?tag=patch-0.16.9-sp1-4.0.0)",
- "k256 0.13.3",
+ "k256 0.13.4 (git+https://github.com/sp1-patches/elliptic-curves?tag=patch-k256-13.4-sp1-4.1.0)",
  "rand",
  "secp256k1-sys",
  "serde",
@@ -3658,7 +3717,7 @@ dependencies = [
 [[package]]
 name = "secp256k1-sys"
 version = "0.10.0"
-source = "git+https://github.com/sp1-patches/rust-secp256k1?tag=patch-0.29.1-sp1-4.0.0#d3a398cfc7928cdb9b92ea2ab45232e6468ef230"
+source = "git+https://github.com/sp1-patches/rust-secp256k1?tag=patch-0.29.1-sp1-4.1.0#b2f7c49c8554c5820040c7275445788808ac979d"
 dependencies = [
  "cc",
 ]
@@ -3798,7 +3857,6 @@ name = "sha"
 version = "1.1.0"
 dependencies = [
  "rand",
- "sha2 0.10.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "sha2 0.9.9",
  "sha3 0.10.6",
  "sp1-build",
@@ -3948,7 +4006,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-build"
-version = "4.1.7"
+version = "4.2.0"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -3959,7 +4017,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-executor"
-version = "4.1.7"
+version = "4.2.0"
 dependencies = [
  "bincode",
  "bytemuck",
@@ -3996,7 +4054,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-machine"
-version = "4.1.7"
+version = "4.2.0"
 dependencies = [
  "bincode",
  "cbindgen",
@@ -4008,7 +4066,7 @@ dependencies = [
  "hashbrown 0.14.5",
  "hex",
  "itertools 0.13.0",
- "k256 0.13.3",
+ "k256 0.13.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "num",
  "num_cpus",
  "p256 0.13.2",
@@ -4050,7 +4108,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-cuda"
-version = "4.1.7"
+version = "4.2.0"
 dependencies = [
  "bincode",
  "ctrlc",
@@ -4065,14 +4123,14 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
-version = "4.1.7"
+version = "4.2.0"
 dependencies = [
  "cfg-if",
  "dashu",
  "elliptic-curve",
  "generic-array 1.1.0",
  "itertools 0.13.0",
- "k256 0.13.3",
+ "k256 0.13.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "num",
  "p256 0.13.2",
  "p3-field",
@@ -4085,7 +4143,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "4.1.7"
+version = "4.2.0"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -4093,7 +4151,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "4.1.7"
+version = "4.2.0"
 dependencies = [
  "bincode",
  "elliptic-curve",
@@ -4103,9 +4161,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "4.1.7"
+version = "4.2.0"
 dependencies = [
  "bincode",
+ "blake3",
+ "cfg-if",
  "hex",
  "lazy_static",
  "num-bigint 0.4.6",
@@ -4119,7 +4179,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-prover"
-version = "4.1.7"
+version = "4.2.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -4162,7 +4222,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-circuit"
-version = "4.1.7"
+version = "4.2.0"
 dependencies = [
  "hashbrown 0.14.5",
  "itertools 0.13.0",
@@ -4195,7 +4255,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-compiler"
-version = "4.1.7"
+version = "4.2.0"
 dependencies = [
  "backtrace",
  "itertools 0.13.0",
@@ -4215,7 +4275,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-core"
-version = "4.1.7"
+version = "4.2.0"
 dependencies = [
  "backtrace",
  "cbindgen",
@@ -4256,7 +4316,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-derive"
-version = "4.1.7"
+version = "4.2.0"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -4264,7 +4324,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-ffi"
-version = "4.1.7"
+version = "4.2.0"
 dependencies = [
  "anyhow",
  "bincode",
@@ -4288,18 +4348,20 @@ dependencies = [
 
 [[package]]
 name = "sp1-sdk"
-version = "4.1.7"
+version = "4.2.0"
 dependencies = [
  "anyhow",
  "async-trait",
  "bincode",
  "cfg-if",
  "dirs",
+ "eventsource-stream",
  "futures",
  "hashbrown 0.14.5",
  "hex",
  "indicatif",
  "itertools 0.13.0",
+ "k256 0.13.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "p3-baby-bear",
  "p3-field",
  "p3-fri",
@@ -4321,7 +4383,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-stark"
-version = "4.1.7"
+version = "4.2.0"
 dependencies = [
  "arrayref",
  "hashbrown 0.14.5",
@@ -4379,7 +4441,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "4.1.7"
+version = "4.2.0"
 dependencies = [
  "cfg-if",
  "getrandom 0.2.15",

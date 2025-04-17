@@ -7,17 +7,41 @@ edition = "2021"
 [[bin]]
 name = "secp256k1_verify"
 path = "bin/verify.rs"
+required-features = ["v0-29-1"]
 
 [[bin]]
 name = "secp256k1_recover"
 path = "bin/recover.rs"
+required-features = ["v0-29-1"]
+
+
+[[bin]]
+name = "secp256k1_verify_v0_30_0"
+path = "bin/verify.rs"
+required-features = ["v0-30-0"]
+
+[[bin]]
+name = "secp256k1_recover_v0_30_0"
+path = "bin/recover.rs"
+required-features = ["v0-30-0"]
 
 [dependencies]
 sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
 serde = { version = "1.0.215", features = ["derive"] }
-secp256k1 = { version = "=0.29", features = ["recovery", "global-context", "rand", "serde"] }
+secp256k1-v0-29-1 = { git = "https://github.com/sp1-patches/rust-secp256k1", package = "secp256k1", tag = "patch-0.29.1-sp1-4.1.0", features = [
+    "recovery",
+    "global-context",
+    "serde",
+], optional = true }
+secp256k1-v0-30-0 = { git = "https://github.com/sp1-patches/rust-secp256k1", package = "secp256k1", tag = "patch-0.30.0-sp1-4.1.0", features = [
+    "recovery",
+    "global-context",
+    "serde",
+], optional = true }
+
+[features]
+v0-29-1 = ["dep:secp256k1-v0-29-1"]
+v0-30-0 = ["dep:secp256k1-v0-30-0"]
 
 [patch.crates-io]
-secp256k1 = { git = "https://github.com/sp1-patches/rust-secp256k1", tag = "patch-0.29.1-sp1-4.0.0"}
-ecdsa-core = { git = "https://github.com/sp1-patches/signatures", package = "ecdsa", tag = "patch-0.16.9-sp1-4.0.0", features = ["verifying"] }
 sp1-lib = { path = "../../../crates/zkvm/lib" }

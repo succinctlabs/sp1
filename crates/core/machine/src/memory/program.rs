@@ -9,8 +9,7 @@ use p3_matrix::{dense::RowMajorMatrix, Matrix};
 
 use p3_field::PrimeField32;
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
-use sp1_core_executor::events::GlobalInteractionEvent;
-use sp1_core_executor::{ExecutionRecord, Program};
+use sp1_core_executor::{events::GlobalInteractionEvent, ExecutionRecord, Program};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
     air::{

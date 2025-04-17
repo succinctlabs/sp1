@@ -1,28 +1,88 @@
+use rstest::rstest;
 use serial_test::serial;
 use sp1_sdk::{install::try_install_circuit_artifacts, HashableKey, ProverClient, SP1Stdin};
-
-cfg_if::cfg_if! {
-    if #[cfg(feature = "blake3")] {
-        use test_artifacts::FIBONACCI_BLAKE3_ELF as FIBONACCI_ELF;
-    }
-    else {
-        use test_artifacts::FIBONACCI_ELF;
-    }
-}
+use test_artifacts::{FIBONACCI_BLAKE3_ELF, FIBONACCI_ELF};
 
 use crate::{error::Error, Groth16Error, PlonkError};
 
-#[serial]
-#[test]
-fn test_verify_groth16() {
-    #[cfg(feature = "blake3")]
-    const GROTH16_ELF: &[u8] = include_bytes!("../guest-verify-programs/groth16_verify_blake3");
-    #[cfg(not(feature = "blake3"))]
-    const GROTH16_ELF: &[u8] = include_bytes!("../guest-verify-programs/groth16_verify");
+const GROTH16_ELF: &[u8] = include_bytes!("../guest-verify-programs/groth16_verify");
+const GROTH16_BLAKE3_ELF: &[u8] = include_bytes!("../guest-verify-programs/groth16_verify_blake3");
+const PLONK_ELF: &[u8] = include_bytes!("../guest-verify-programs/plonk_verify");
+const PLONK_BLAKE3_ELF: &[u8] = include_bytes!("../guest-verify-programs/plonk_verify_blake3");
 
+#[rstest]
+#[case(FIBONACCI_ELF)]
+#[case(FIBONACCI_BLAKE3_ELF)]
+#[serial]
+fn test_verify_core(#[case] elf: &[u8]) {
     // Set up the pk and vk.
     let client = ProverClient::from_env();
-    let (pk, vk) = client.setup(FIBONACCI_ELF);
+    let (pk, vk) = client.setup(elf);
+
+    // Generate the proof.
+    let sp1_proof_with_public_values = client.prove(&pk, &SP1Stdin::new()).core().run().unwrap();
+
+    // Verify.
+    client.verify(&sp1_proof_with_public_values, &vk).expect("Proof is invalid");
+}
+
+#[rstest]
+#[case(FIBONACCI_ELF)]
+#[case(FIBONACCI_BLAKE3_ELF)]
+#[serial]
+fn test_verify_compressed(#[case] elf: &[u8]) {
+    // Set up the pk and vk.
+    let client = ProverClient::from_env();
+    let (pk, vk) = client.setup(elf);
+
+    // Generate the proof.
+    let sp1_proof_with_public_values =
+        client.prove(&pk, &SP1Stdin::new()).compressed().run().unwrap();
+
+    // Verify.
+    client.verify(&sp1_proof_with_public_values, &vk).expect("Proof is invalid");
+}
+
+#[rstest]
+#[case(FIBONACCI_ELF)]
+#[case(FIBONACCI_BLAKE3_ELF)]
+#[serial]
+fn test_verify_groth16(#[case] elf: &[u8]) {
+    // Set up the pk and vk.
+    let client = ProverClient::from_env();
+    let (pk, vk) = client.setup(elf);
+
+    // Generate the proof.
+    let sp1_proof_with_public_values = client.prove(&pk, &SP1Stdin::new()).groth16().run().unwrap();
+
+    // Verify.
+    client.verify(&sp1_proof_with_public_values, &vk).expect("Proof is invalid");
+}
+
+#[rstest]
+#[case(FIBONACCI_ELF)]
+#[case(FIBONACCI_BLAKE3_ELF)]
+#[serial]
+fn test_verify_plonk(#[case] elf: &[u8]) {
+    // Set up the pk and vk.
+    let client = ProverClient::from_env();
+    let (pk, vk) = client.setup(elf);
+
+    // Generate the proof.
+    let sp1_proof_with_public_values = client.prove(&pk, &SP1Stdin::new()).plonk().run().unwrap();
+
+    // Verify.
+    client.verify(&sp1_proof_with_public_values, &vk).expect("Proof is invalid");
+}
+
+#[rstest]
+#[case(FIBONACCI_ELF, GROTH16_ELF)]
+#[case(FIBONACCI_BLAKE3_ELF, GROTH16_BLAKE3_ELF)]
+#[serial]
+fn test_groth16_verifier(#[case] elf: &[u8], #[case] groth16_elf: &[u8]) {
+    // Set up the pk and vk.
+    let client = ProverClient::from_env();
+    let (pk, vk) = client.setup(elf);
 
     // Generate the Groth16 proof.
     let sp1_proof_with_public_values = client.prove(&pk, &SP1Stdin::new()).groth16().run().unwrap();
@@ -62,15 +122,17 @@ fn test_verify_groth16() {
     stdin.write_slice(&public_inputs);
     stdin.write(&vkey_hash);
 
-    let _ = client.execute(GROTH16_ELF, &stdin).run().unwrap();
+    let _ = client.execute(groth16_elf, &stdin).run().unwrap();
 }
 
+#[rstest]
+#[case(FIBONACCI_ELF)]
+#[case(FIBONACCI_BLAKE3_ELF)]
 #[serial]
-#[test]
-fn test_verify_invalid_groth16() {
+fn test_verify_invalid_groth16(#[case] elf: &[u8]) {
     // Set up the pk and vk.
     let client = ProverClient::from_env();
-    let (pk, vk) = client.setup(FIBONACCI_ELF);
+    let (pk, vk) = client.setup(elf);
 
     // Generate the Groth16 proof.
     let sp1_proof_with_public_values = client.prove(&pk, &SP1Stdin::new()).groth16().run().unwrap();
@@ -111,17 +173,14 @@ fn test_verify_invalid_groth16() {
     assert!(matches!(result, Err(Groth16Error::GeneralError(Error::InvalidData))));
 }
 
+#[rstest]
+#[case(FIBONACCI_ELF, PLONK_ELF)]
+#[case(FIBONACCI_BLAKE3_ELF, PLONK_BLAKE3_ELF)]
 #[serial]
-#[test]
-fn test_verify_plonk() {
-    #[cfg(feature = "blake3")]
-    const PLONK_ELF: &[u8] = include_bytes!("../guest-verify-programs/plonk_verify_blake3");
-    #[cfg(not(feature = "blake3"))]
-    const PLONK_ELF: &[u8] = include_bytes!("../guest-verify-programs/plonk_verify");
-
+fn test_plonk_verifier(#[case] elf: &[u8], #[case] plonk_elf: &[u8]) {
     // Set up the pk and vk.
     let client = ProverClient::from_env();
-    let (pk, vk) = client.setup(FIBONACCI_ELF);
+    let (pk, vk) = client.setup(elf);
 
     // Generate the Plonk proof.
     let sp1_proof_with_public_values = client.prove(&pk, &SP1Stdin::new()).plonk().run().unwrap();
@@ -142,15 +201,17 @@ fn test_verify_plonk() {
     stdin.write_slice(&public_inputs);
     stdin.write(&vkey_hash);
 
-    let _ = client.execute(PLONK_ELF, &stdin).run().unwrap();
+    let _ = client.execute(plonk_elf, &stdin).run().unwrap();
 }
 
+#[rstest]
+#[case(FIBONACCI_ELF)]
+#[case(FIBONACCI_BLAKE3_ELF)]
 #[serial]
-#[test]
-fn test_verify_invalid_plonk() {
+fn test_verify_invalid_plonk(#[case] elf: &[u8]) {
     // Set up the pk and vk.
     let client = ProverClient::from_env();
-    let (pk, vk) = client.setup(FIBONACCI_ELF);
+    let (pk, vk) = client.setup(elf);
 
     // Generate the Plonk proof.
     let sp1_proof_with_public_values = client.prove(&pk, &SP1Stdin::new()).plonk().run().unwrap();

@@ -294,8 +294,8 @@ where
         // 3 is the maximum number of bits necessary to represent num_bits_to_shift as
         // num_bits_to_shift is in [0, 7].
         for i in 0..3 {
-            num_bits_to_shift = num_bits_to_shift.clone()
-                + local.c_least_sig_byte[i] * AB::F::from_canonical_u32(1 << i);
+            num_bits_to_shift = num_bits_to_shift.clone() +
+                local.c_least_sig_byte[i] * AB::F::from_canonical_u32(1 << i);
         }
         for i in 0..BYTE_SIZE {
             builder
@@ -313,8 +313,8 @@ where
         // Check bit_shift_result = b * bit_shift_multiplier by using bit_shift_result_carry to
         // carry-propagate.
         for i in 0..WORD_SIZE {
-            let mut v = local.b[i] * local.bit_shift_multiplier
-                - local.bit_shift_result_carry[i] * base.clone();
+            let mut v = local.b[i] * local.bit_shift_multiplier -
+                local.bit_shift_result_carry[i] * base.clone();
             if i > 0 {
                 v = v.clone() + local.bit_shift_result_carry[i - 1].into();
             }
@@ -381,8 +381,9 @@ where
         );
 
         // SAFETY: `is_real` is checked to be boolean.
-        // All interactions are done with multiplicity `is_real`, so padding rows lead to no interactions.
-        // This chip only deals with the `SLL` opcode, so the opcode matches the instruction.
+        // All interactions are done with multiplicity `is_real`, so padding rows lead to no
+        // interactions. This chip only deals with the `SLL` opcode, so the opcode matches
+        // the instruction.
         builder.assert_bool(local.is_real);
 
         // Receive the arguments.
@@ -551,8 +552,8 @@ mod tests {
                 run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
             let shift_left_chip_name = chip_name!(ShiftLeft, BabyBear);
             assert!(
-                result.is_err()
-                    && result.unwrap_err().is_constraints_failing(&shift_left_chip_name)
+                result.is_err() &&
+                    result.unwrap_err().is_constraints_failing(&shift_left_chip_name)
             );
         }
     }

@@ -23,13 +23,12 @@ mod tests {
 
     use crate::{
         io::SP1Stdin,
+        syscall::precompiles::u256x2048_mul::air::U256x2048MulChip,
         utils::{
             self, run_test,
             uni_stark::{uni_stark_prove, uni_stark_verify},
+            words_to_bytes_le_vec,
         },
-    };
-    use crate::{
-        syscall::precompiles::u256x2048_mul::air::U256x2048MulChip, utils::words_to_bytes_le_vec,
     };
 
     fn generate_test_execution_record(pass: bool) -> ExecutionRecord {

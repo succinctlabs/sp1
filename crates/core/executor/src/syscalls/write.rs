@@ -1,5 +1,7 @@
-use sp1_primitives::consts::fd::{FD_HINT, FD_PUBLIC_VALUES, LOWEST_ALLOWED_FD};
-use sp1_primitives::consts::num_to_comma_separated;
+use sp1_primitives::consts::{
+    fd::{FD_HINT, FD_PUBLIC_VALUES, LOWEST_ALLOWED_FD},
+    num_to_comma_separated,
+};
 
 use crate::{Executor, Register};
 

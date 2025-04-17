@@ -62,8 +62,8 @@ impl<F: Field> BabyBearWordRangeChecker<F> {
 
         let mut is_real_builder = builder.when(is_real.clone());
 
-        // If the range check bit is off, the most significant byte is >=120, so to be a valid BabyBear
-        // word we need the most significant byte to be =120.
+        // If the range check bit is off, the most significant byte is >=120, so to be a valid
+        // BabyBear word we need the most significant byte to be =120.
         is_real_builder
             .when_not(cols.most_sig_byte_lt_120)
             .assert_eq(ms_byte, AB::Expr::from_canonical_u8(120));

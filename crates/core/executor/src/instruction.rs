@@ -47,24 +47,24 @@ impl Instruction {
     pub const fn is_alu_instruction(&self) -> bool {
         matches!(
             self.opcode,
-            Opcode::ADD
-                | Opcode::SUB
-                | Opcode::XOR
-                | Opcode::OR
-                | Opcode::AND
-                | Opcode::SLL
-                | Opcode::SRL
-                | Opcode::SRA
-                | Opcode::SLT
-                | Opcode::SLTU
-                | Opcode::MUL
-                | Opcode::MULH
-                | Opcode::MULHU
-                | Opcode::MULHSU
-                | Opcode::DIV
-                | Opcode::DIVU
-                | Opcode::REM
-                | Opcode::REMU
+            Opcode::ADD |
+                Opcode::SUB |
+                Opcode::XOR |
+                Opcode::OR |
+                Opcode::AND |
+                Opcode::SLL |
+                Opcode::SRL |
+                Opcode::SRA |
+                Opcode::SLT |
+                Opcode::SLTU |
+                Opcode::MUL |
+                Opcode::MULH |
+                Opcode::MULHU |
+                Opcode::MULHSU |
+                Opcode::DIV |
+                Opcode::DIVU |
+                Opcode::REM |
+                Opcode::REMU
         )
     }
 

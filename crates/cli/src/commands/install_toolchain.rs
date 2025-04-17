@@ -68,10 +68,10 @@ impl InstallToolchainCmd {
                     if let Ok(entry) = entry {
                         let entry_path = entry.path();
                         let entry_name = entry_path.file_name().unwrap();
-                        if entry_path.is_dir()
-                            && entry_name != "bin"
-                            && entry_name != "circuits"
-                            && entry_name != "toolchains"
+                        if entry_path.is_dir() &&
+                            entry_name != "bin" &&
+                            entry_name != "circuits" &&
+                            entry_name != "toolchains"
                         {
                             if let Err(err) = fs::remove_dir_all(&entry_path) {
                                 println!("Failed to remove directory {:?}: {}", entry_path, err);

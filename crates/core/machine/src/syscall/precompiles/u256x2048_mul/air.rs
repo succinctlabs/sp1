@@ -355,7 +355,8 @@ where
             builder,
             &a_limbs,
             &b_limb_array[0],
-            &Polynomial::from_coefficients(&[AB::Expr::zero()]), // Zero polynomial for no previous carry
+            &Polynomial::from_coefficients(&[AB::Expr::zero()]), /* Zero polynomial for no
+                                                                  * previous carry */
             &modulus_polynomial,
             local.is_real,
         );
@@ -376,7 +377,8 @@ where
             .when(local.is_real)
             .assert_all_eq(outputs[outputs.len() - 1].carry, value_as_limbs(&local.hi_memory));
 
-        // Loop through chunks of 8 for lo_memory and assert that each chunk is equal to corresponding result of outputs.
+        // Loop through chunks of 8 for lo_memory and assert that each chunk is equal to
+        // corresponding result of outputs.
         for i in 0..8 {
             builder.when(local.is_real).assert_all_eq(
                 outputs[i].result,

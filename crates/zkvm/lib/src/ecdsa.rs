@@ -2,10 +2,11 @@
 //!
 //! [`CurveArithmetic`] is a trait that is used in [RustCryptos ECDSA](https://github.com/RustCrypto/signatures).
 //!
-//! [`CurveArithmetic`] contains all the types needed to implement the ECDSA algorithm over some curve.
+//! [`CurveArithmetic`] contains all the types needed to implement the ECDSA algorithm over some
+//! curve.
 //!
-//! This implementation is specifically for use inside of SP1, and internally uses SP1's Weierstrass precompiles.
-//! Weierstrass precompiles.
+//! This implementation is specifically for use inside of SP1, and internally uses SP1's Weierstrass
+//! precompiles. Weierstrass precompiles.
 //!
 //! In summary, SP1 overrides curve arithmetic entirely, and patches upstream field operations
 //! to be more efficient in the VM, such as `sqrt` or `inverse`.
@@ -15,8 +16,7 @@ use crate::utils::AffinePoint as SP1AffinePointTrait;
 use elliptic_curve::{
     ff, generic_array::typenum::consts::U32, subtle::CtOption, CurveArithmetic, FieldBytes,
 };
-use std::fmt::Debug;
-use std::ops::Neg;
+use std::{fmt::Debug, ops::Neg};
 
 /// The affine point type for SP1.
 pub mod affine;
@@ -39,7 +39,8 @@ type FIELD_BYTES_SIZE = U32;
 
 /// A [`CurveArithmetic`] extension for SP1 acceleration.
 ///
-/// Patched crates implement this trait to take advantage of SP1-specific acceleration in the zkVM context.
+/// Patched crates implement this trait to take advantage of SP1-specific acceleration in the zkVM
+/// context.
 ///
 /// Note: This trait only supports 32 byte base field curves.
 pub trait ECDSACurve

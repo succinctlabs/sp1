@@ -5,9 +5,7 @@ use crate::{
 use hashbrown::HashMap;
 use itertools::Itertools;
 use p3_air::{AirBuilder, ExtensionBuilder, PairBuilder};
-use p3_field::AbstractExtensionField;
-use p3_field::AbstractField;
-use p3_field::{ExtensionField, Field, PrimeField};
+use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Field, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::*;
 use rayon_scan::ScanParallelIterator;
@@ -274,9 +272,9 @@ pub fn eval_permutation_constraints<'a, F, AB>(
                 let mut rlc = alpha.clone();
                 let mut betas = beta.powers();
 
-                rlc = rlc.clone()
-                    + betas.next().unwrap()
-                        * AB::ExprEF::from_canonical_usize(interaction.argument_index());
+                rlc = rlc.clone() +
+                    betas.next().unwrap() *
+                        AB::ExprEF::from_canonical_usize(interaction.argument_index());
                 for (field, beta) in interaction.values.iter().zip(betas.clone()) {
                     let elem = field.apply::<AB::Expr, AB::Var>(&preprocessed_local, main_local);
                     rlc = rlc.clone() + beta * elem;
@@ -287,8 +285,8 @@ pub fn eval_permutation_constraints<'a, F, AB>(
                 multiplicities.push(
                     interaction
                         .multiplicity
-                        .apply::<AB::Expr, AB::Var>(&preprocessed_local, main_local)
-                        * send_factor,
+                        .apply::<AB::Expr, AB::Var>(&preprocessed_local, main_local) *
+                        send_factor,
                 );
             }
 
@@ -336,7 +334,8 @@ pub fn eval_permutation_constraints<'a, F, AB>(
     }
 
     // Handle global cumulative sums.
-    // If the chip's scope is `InteractionScope::Global`, the last row's final 14 columns is equal to the global cumulative sum.
+    // If the chip's scope is `InteractionScope::Global`, the last row's final 14 columns is equal
+    // to the global cumulative sum.
     let global_cumulative_sum = builder.global_cumulative_sum();
     if commit_scope == InteractionScope::Global {
         for i in 0..7 {
@@ -354,7 +353,8 @@ pub fn eval_permutation_constraints<'a, F, AB>(
 ///
 /// IMPORTANT: This function must be manually updated if any changes are made to
 /// `eval_permutation_constraints`. The current count includes:
-/// - For local interactions: `local_permutation_trace_width(sends.len() + receives.len(), batch_size)` + 3 local cumulative sum constraints.
+/// - For local interactions: `local_permutation_trace_width(sends.len() + receives.len(),
+///   batch_size)` + 3 local cumulative sum constraints.
 /// - For global scope: 14 additional constraints for the global cumulative sum.
 pub fn count_permutation_constraints<F: Field>(
     sends: &[Interaction<F>],
@@ -378,8 +378,8 @@ pub fn count_permutation_constraints<F: Field>(
         count += local_permutation_width - 1;
 
         // One assert that cumulative sum is initialized to `phi_local` on the first row.
-        // Two asserts that the cumulative sum is constrained to `phi_next - phi_local` on the transition
-        // rows.
+        // Two asserts that the cumulative sum is constrained to `phi_next - phi_local` on the
+        // transition rows.
         count += 3;
     }
 

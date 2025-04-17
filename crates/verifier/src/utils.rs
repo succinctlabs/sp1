@@ -1,13 +1,21 @@
 use bn::Fr;
-#[cfg(not(feature = "blake3"))]
 use sha2::{Digest, Sha256};
 
 use crate::error::Error;
 
 /// Hashes the public inputs in the same format as the Plonk and Groth16 verifiers.
-/// Uses `Sha256`, or `Blake3` if the `blake3` feature is enabled.
+/// Uses `Sha256`.
 pub fn hash_public_inputs(public_inputs: &[u8]) -> [u8; 32] {
-    let mut result = hash(public_inputs);
+    hash_public_inputs_with_fn(public_inputs, sha256_hash)
+}
+
+/// Hashes the public inputs in the same format as the Plonk and Groth16 verifiers,
+/// using the provided hash function.
+pub fn hash_public_inputs_with_fn<F>(public_inputs: &[u8], hasher: F) -> [u8; 32]
+where
+    F: Fn(&[u8]) -> [u8; 32],
+{
+    let mut result = hasher(public_inputs);
 
     // The Plonk and Groth16 verifiers operate over a 254 bit field, so we need to zero
     // out the first 3 bits. The same logic happens in the SP1 Ethereum verifier contract.
@@ -16,17 +24,14 @@ pub fn hash_public_inputs(public_inputs: &[u8]) -> [u8; 32] {
     result
 }
 
-/// Hashes the public input using `Sha256`, or `Blake3` if the `blake3` feature
-/// is enabled.
-pub fn hash(inputs: &[u8]) -> [u8; 32] {
-    cfg_if::cfg_if! {
-        if #[cfg(feature = "blake3")] {
-            *blake3::hash(inputs).as_bytes()
-        }
-        else {
-            Sha256::digest(inputs).into()
-        }
-    }
+/// Hashes the public input using `Sha256`.
+pub fn sha256_hash(inputs: &[u8]) -> [u8; 32] {
+    Sha256::digest(inputs).into()
+}
+
+/// Hash the input using `Blake3`.
+pub fn blake3_hash(inputs: &[u8]) -> [u8; 32] {
+    *blake3::hash(inputs).as_bytes()
 }
 
 /// Formats the sp1 vkey hash and public inputs for use in either the Plonk or Groth16 verifier.

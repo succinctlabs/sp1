@@ -14,7 +14,8 @@ use subenum::subenum;
 /// These identifiers are for the various chips in the rv32im prover. We need them in the
 /// executor to compute the memory cost of the current shard of execution.
 ///
-/// The [`CoreAirId`]s are the AIRs that are not part of precompile shards and not the program or byte AIR.
+/// The [`CoreAirId`]s are the AIRs that are not part of precompile shards and not the program or
+/// byte AIR.
 #[subenum(CoreAirId)]
 #[derive(
     Debug,
@@ -185,30 +186,30 @@ impl RiscvAirId {
     pub fn is_precompile(self) -> bool {
         matches!(
             self,
-            RiscvAirId::ShaExtend
-                | RiscvAirId::ShaCompress
-                | RiscvAirId::EdAddAssign
-                | RiscvAirId::EdDecompress
-                | RiscvAirId::Secp256k1Decompress
-                | RiscvAirId::Secp256k1AddAssign
-                | RiscvAirId::Secp256k1DoubleAssign
-                | RiscvAirId::Secp256r1Decompress
-                | RiscvAirId::Secp256r1AddAssign
-                | RiscvAirId::Secp256r1DoubleAssign
-                | RiscvAirId::KeccakPermute
-                | RiscvAirId::Bn254AddAssign
-                | RiscvAirId::Bn254DoubleAssign
-                | RiscvAirId::Bls12381AddAssign
-                | RiscvAirId::Bls12381DoubleAssign
-                | RiscvAirId::Uint256MulMod
-                | RiscvAirId::U256XU2048Mul
-                | RiscvAirId::Bls12381FpOpAssign
-                | RiscvAirId::Bls12381Fp2AddSubAssign
-                | RiscvAirId::Bls12381Fp2MulAssign
-                | RiscvAirId::Bn254FpOpAssign
-                | RiscvAirId::Bn254Fp2AddSubAssign
-                | RiscvAirId::Bn254Fp2MulAssign
-                | RiscvAirId::Bls12381Decompress
+            RiscvAirId::ShaExtend |
+                RiscvAirId::ShaCompress |
+                RiscvAirId::EdAddAssign |
+                RiscvAirId::EdDecompress |
+                RiscvAirId::Secp256k1Decompress |
+                RiscvAirId::Secp256k1AddAssign |
+                RiscvAirId::Secp256k1DoubleAssign |
+                RiscvAirId::Secp256r1Decompress |
+                RiscvAirId::Secp256r1AddAssign |
+                RiscvAirId::Secp256r1DoubleAssign |
+                RiscvAirId::KeccakPermute |
+                RiscvAirId::Bn254AddAssign |
+                RiscvAirId::Bn254DoubleAssign |
+                RiscvAirId::Bls12381AddAssign |
+                RiscvAirId::Bls12381DoubleAssign |
+                RiscvAirId::Uint256MulMod |
+                RiscvAirId::U256XU2048Mul |
+                RiscvAirId::Bls12381FpOpAssign |
+                RiscvAirId::Bls12381Fp2AddSubAssign |
+                RiscvAirId::Bls12381Fp2MulAssign |
+                RiscvAirId::Bn254FpOpAssign |
+                RiscvAirId::Bn254Fp2AddSubAssign |
+                RiscvAirId::Bn254Fp2MulAssign |
+                RiscvAirId::Bls12381Decompress
         )
     }
 

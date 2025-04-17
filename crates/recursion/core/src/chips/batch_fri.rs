@@ -206,26 +206,26 @@ impl<const DEGREE: usize> BatchFRIChip<DEGREE> {
         // Constrain the accumulator value of the first row.
         builder.when_first_row().assert_ext_eq(
             local.acc.as_extension::<AB>(),
-            local.alpha_pow.as_extension::<AB>()
-                * (local.p_at_z.as_extension::<AB>()
-                    - BinomialExtension::from_base(local.p_at_x.into())),
+            local.alpha_pow.as_extension::<AB>() *
+                (local.p_at_z.as_extension::<AB>() -
+                    BinomialExtension::from_base(local.p_at_x.into())),
         );
 
         // Constrain the accumulator of the next row when the current row is the end of loop.
         builder.when_transition().when(local_prepr.is_end).assert_ext_eq(
             next.acc.as_extension::<AB>(),
-            next.alpha_pow.as_extension::<AB>()
-                * (next.p_at_z.as_extension::<AB>()
-                    - BinomialExtension::from_base(next.p_at_x.into())),
+            next.alpha_pow.as_extension::<AB>() *
+                (next.p_at_z.as_extension::<AB>() -
+                    BinomialExtension::from_base(next.p_at_x.into())),
         );
 
         // Constrain the accumulator of the next row when the current row is not the end of loop.
         builder.when_transition().when_not(local_prepr.is_end).assert_ext_eq(
             next.acc.as_extension::<AB>(),
-            local.acc.as_extension::<AB>()
-                + next.alpha_pow.as_extension::<AB>()
-                    * (next.p_at_z.as_extension::<AB>()
-                        - BinomialExtension::from_base(next.p_at_x.into())),
+            local.acc.as_extension::<AB>() +
+                next.alpha_pow.as_extension::<AB>() *
+                    (next.p_at_z.as_extension::<AB>() -
+                        BinomialExtension::from_base(next.p_at_x.into())),
         );
     }
 

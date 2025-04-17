@@ -107,10 +107,10 @@ impl<F: Field> Add4Operation<F> {
                 builder_is_real.assert_bool(cols.is_carry_2[i]);
                 builder_is_real.assert_bool(cols.is_carry_3[i]);
                 builder_is_real.assert_eq(
-                    cols.is_carry_0[i]
-                        + cols.is_carry_1[i]
-                        + cols.is_carry_2[i]
-                        + cols.is_carry_3[i],
+                    cols.is_carry_0[i] +
+                        cols.is_carry_1[i] +
+                        cols.is_carry_2[i] +
+                        cols.is_carry_3[i],
                     AB::Expr::one(),
                 );
             }
@@ -125,9 +125,9 @@ impl<F: Field> Add4Operation<F> {
             for i in 0..WORD_SIZE {
                 builder_is_real.assert_eq(
                     cols.carry[i],
-                    cols.is_carry_1[i] * one.clone()
-                        + cols.is_carry_2[i] * two
-                        + cols.is_carry_3[i] * three,
+                    cols.is_carry_1[i] * one.clone() +
+                        cols.is_carry_2[i] * two +
+                        cols.is_carry_3[i] * three,
                 );
             }
         }

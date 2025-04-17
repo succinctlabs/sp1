@@ -47,7 +47,7 @@ impl Syscall for VerifySyscall {
                     });
             } else if rt.state.proof_stream_ptr == 1 {
                 tracing::info!("Not verifying sub proof during runtime");
-            };
+            }
         }
 
         None

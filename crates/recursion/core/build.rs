@@ -153,11 +153,13 @@ mod sys {
                     rel_symlink_file(header_path, target_include_dir_fixed.join(cbindgen_hpp));
                 }
             }
-            Err(cbindgen::Error::ParseSyntaxError { .. }) => {} // Ignore parse errors so rust-analyzer can run.
+            Err(cbindgen::Error::ParseSyntaxError { .. }) => {} /* Ignore parse errors so */
+            // rust-analyzer can run.
             Err(e) => panic!("{:?}", e),
         }
 
-        // Copy the headers to the include directory and symlink them to the fixed include directory.
+        // Copy the headers to the include directory and symlink them to the fixed include
+        // directory.
         for header in &headers {
             // Get the path of the header relative to the source include directory.
             let relpath = diff_paths(header, &source_include_dir).unwrap();

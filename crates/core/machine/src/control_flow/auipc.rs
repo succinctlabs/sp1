@@ -76,17 +76,17 @@ where
         let local: &AuipcColumns<AB::Var> = (*local).borrow();
 
         // SAFETY: All selectors `is_auipc`, `is_unimp`, `is_ebreak` are checked to be boolean.
-        // Each "real" row has exactly one selector turned on, as `is_real`, the sum of the three selectors, is boolean.
-        // Therefore, the `opcode` matches the corresponding opcode.
+        // Each "real" row has exactly one selector turned on, as `is_real`, the sum of the three
+        // selectors, is boolean. Therefore, the `opcode` matches the corresponding opcode.
         builder.assert_bool(local.is_auipc);
         builder.assert_bool(local.is_unimp);
         builder.assert_bool(local.is_ebreak);
         let is_real = local.is_auipc + local.is_unimp + local.is_ebreak;
         builder.assert_bool(is_real.clone());
 
-        let opcode = AB::Expr::from_canonical_u32(Opcode::AUIPC as u32) * local.is_auipc
-            + AB::Expr::from_canonical_u32(Opcode::UNIMP as u32) * local.is_unimp
-            + AB::Expr::from_canonical_u32(Opcode::EBREAK as u32) * local.is_ebreak;
+        let opcode = AB::Expr::from_canonical_u32(Opcode::AUIPC as u32) * local.is_auipc +
+            AB::Expr::from_canonical_u32(Opcode::UNIMP as u32) * local.is_unimp +
+            AB::Expr::from_canonical_u32(Opcode::EBREAK as u32) * local.is_ebreak;
 
         // SAFETY: This checks the following.
         // - `next_pc = pc + 4`
@@ -150,7 +150,8 @@ where
             local.op_a_not_0,
         );
 
-        // Assert that in padding rows, `op_a_not_0 == 0`, so all interactions are with zero multiplicity.
+        // Assert that in padding rows, `op_a_not_0 == 0`, so all interactions are with zero
+        // multiplicity.
         builder.when(local.op_a_not_0).assert_one(is_real);
     }
 }

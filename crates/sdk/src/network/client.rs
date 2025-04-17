@@ -2,9 +2,11 @@
 //!
 //! This module provides a client for directly interacting with the network prover service.
 
-use std::result::Result::Ok as StdOk;
-use std::str::FromStr;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::{
+    result::Result::Ok as StdOk,
+    str::FromStr,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 use alloy_primitives::B256;
 use alloy_signer::SignerSync;
@@ -17,18 +19,21 @@ use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{HashableKey, SP1VerifyingKey};
 use tonic::{transport::Channel, Code};
 
-use super::grpc;
-use super::retry::{self, RetryableRpc, DEFAULT_RETRY_TIMEOUT};
-use super::utils::Signable;
-use crate::network::proto::artifact::{
-    artifact_store_client::ArtifactStoreClient, ArtifactType, CreateArtifactRequest,
+use super::{
+    grpc,
+    retry::{self, RetryableRpc, DEFAULT_RETRY_TIMEOUT},
+    utils::Signable,
 };
-use crate::network::proto::network::{
-    prover_network_client::ProverNetworkClient, CreateProgramRequest, CreateProgramRequestBody,
-    CreateProgramResponse, FulfillmentStatus, FulfillmentStrategy, GetFilteredProofRequestsRequest,
-    GetFilteredProofRequestsResponse, GetNonceRequest, GetProgramRequest, GetProgramResponse,
-    GetProofRequestStatusRequest, GetProofRequestStatusResponse, MessageFormat, ProofMode,
-    RequestProofRequest, RequestProofRequestBody, RequestProofResponse,
+use crate::network::proto::{
+    artifact::{artifact_store_client::ArtifactStoreClient, ArtifactType, CreateArtifactRequest},
+    network::{
+        prover_network_client::ProverNetworkClient, CreateProgramRequest, CreateProgramRequestBody,
+        CreateProgramResponse, FulfillmentStatus, FulfillmentStrategy,
+        GetFilteredProofRequestsRequest, GetFilteredProofRequestsResponse, GetNonceRequest,
+        GetProgramRequest, GetProgramResponse, GetProofRequestStatusRequest,
+        GetProofRequestStatusResponse, MessageFormat, ProofMode, RequestProofRequest,
+        RequestProofRequestBody, RequestProofResponse,
+    },
 };
 
 /// A client for interacting with the network.

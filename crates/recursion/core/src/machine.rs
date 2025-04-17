@@ -218,8 +218,8 @@ impl<F> AddAssign<&Instruction<F>> for RecursionAirEventCount {
             Instruction::ExpReverseBitsLen(ExpReverseBitsInstr { addrs, .. }) => {
                 self.exp_reverse_bits_len_events += addrs.exp.len()
             }
-            Instruction::Hint(HintInstr { output_addrs_mults })
-            | Instruction::HintBits(HintBitsInstr {
+            Instruction::Hint(HintInstr { output_addrs_mults }) |
+            Instruction::HintBits(HintBitsInstr {
                 output_addrs_mults,
                 input_addr: _, // No receive interaction for the hint operation
             }) => self.mem_var_events += output_addrs_mults.len(),
@@ -304,7 +304,8 @@ pub mod tests {
             .expect("Verification failed");
     }
 
-    /// Constructs a linear program and runs it on machines that use the wide and skinny Poseidon2 chips.
+    /// Constructs a linear program and runs it on machines that use the wide and skinny Poseidon2
+    /// chips.
     pub fn test_recursion_linear_program(instrs: Vec<Instruction<F>>) {
         run_recursion_test_machines(linear_program(instrs).unwrap());
     }

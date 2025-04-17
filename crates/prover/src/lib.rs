@@ -82,10 +82,11 @@ use sp1_recursion_core::{
 pub use sp1_recursion_gnark_ffi::proof::{Groth16Bn254Proof, PlonkBn254Proof};
 use sp1_recursion_gnark_ffi::{groth16_bn254::Groth16Bn254Prover, plonk_bn254::PlonkBn254Prover};
 use sp1_stark::{
-    baby_bear_poseidon2::BabyBearPoseidon2, shape::Shape, Challenge, MachineProver, SP1ProverOpts,
-    ShardProof, SplitOpts, StarkGenericConfig, StarkVerifyingKey, Val, Word, DIGEST_SIZE,
+    baby_bear_poseidon2::BabyBearPoseidon2,
+    shape::{OrderedShape, Shape},
+    Challenge, MachineProver, MachineProvingKey, SP1ProverOpts, ShardProof, SplitOpts,
+    StarkGenericConfig, StarkVerifyingKey, Val, Word, DIGEST_SIZE,
 };
-use sp1_stark::{shape::OrderedShape, MachineProvingKey};
 use tracing::instrument;
 
 pub use types::*;
@@ -447,7 +448,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                     let recursion_shape =
                         SP1RecursionShape { proof_shapes: vec![shape], is_complete };
 
-                    // Only need to compile the recursion program if we're not in the one-shard case.
+                    // Only need to compile the recursion program if we're not in the one-shard
+                    // case.
                     let compress_shape = SP1CompressProgramShape::Recursion(recursion_shape);
 
                     // Insert the program into the cache.

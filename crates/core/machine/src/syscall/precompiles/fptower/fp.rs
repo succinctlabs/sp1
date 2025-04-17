@@ -164,10 +164,10 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
         // check for that operation.
 
         assert!(
-            shard.get_precompile_events(SyscallCode::BN254_FP_SUB).is_empty()
-                && shard.get_precompile_events(SyscallCode::BN254_FP_MUL).is_empty()
-                && shard.get_precompile_events(SyscallCode::BLS12381_FP_SUB).is_empty()
-                && shard.get_precompile_events(SyscallCode::BLS12381_FP_MUL).is_empty()
+            shard.get_precompile_events(SyscallCode::BN254_FP_SUB).is_empty() &&
+                shard.get_precompile_events(SyscallCode::BN254_FP_MUL).is_empty() &&
+                shard.get_precompile_events(SyscallCode::BLS12381_FP_SUB).is_empty() &&
+                shard.get_precompile_events(SyscallCode::BLS12381_FP_MUL).is_empty()
         );
 
         if let Some(shape) = shard.shape.as_ref() {
@@ -268,9 +268,9 @@ where
                 AB::F::from_canonical_u32(SyscallCode::BLS12381_FP_MUL.syscall_id()),
             ),
         };
-        let syscall_id_felt = local.is_add * add_syscall_id
-            + local.is_sub * sub_syscall_id
-            + local.is_mul * mul_syscall_id;
+        let syscall_id_felt = local.is_add * add_syscall_id +
+            local.is_sub * sub_syscall_id +
+            local.is_mul * mul_syscall_id;
 
         builder.receive_syscall(
             local.shard,

@@ -358,8 +358,8 @@ where
             // of bits to shift.
             let mut num_bits_to_shift = AB::Expr::zero();
             for i in 0..3 {
-                num_bits_to_shift = num_bits_to_shift.clone()
-                    + local.c_least_sig_byte[i] * AB::F::from_canonical_u32(1 << i);
+                num_bits_to_shift = num_bits_to_shift.clone() +
+                    local.c_least_sig_byte[i] * AB::F::from_canonical_u32(1 << i);
             }
             for i in 0..BYTE_SIZE {
                 builder
@@ -375,8 +375,8 @@ where
 
             // The 2-bit number represented by the 3rd and 4th least significant bits of c is the
             // number of bytes to shift.
-            let num_bytes_to_shift = local.c_least_sig_byte[3]
-                + local.c_least_sig_byte[4] * AB::F::from_canonical_u32(2);
+            let num_bytes_to_shift = local.c_least_sig_byte[3] +
+                local.c_least_sig_byte[4] * AB::F::from_canonical_u32(2);
 
             // If shift_by_n_bytes[i] = 1, then i = num_bytes_to_shift.
             for i in 0..WORD_SIZE {
@@ -420,16 +420,16 @@ where
             // The carry multiplier is 2^(8 - num_bits_to_shift).
             let mut carry_multiplier = AB::Expr::from_canonical_u8(0);
             for i in 0..BYTE_SIZE {
-                carry_multiplier = carry_multiplier.clone()
-                    + AB::Expr::from_canonical_u32(1u32 << (8 - i)) * local.shift_by_n_bits[i];
+                carry_multiplier = carry_multiplier.clone() +
+                    AB::Expr::from_canonical_u32(1u32 << (8 - i)) * local.shift_by_n_bits[i];
             }
 
             // The 3-bit number represented by the 3 least significant bits of c equals the number
             // of bits to shift.
             let mut num_bits_to_shift = AB::Expr::zero();
             for i in 0..3 {
-                num_bits_to_shift = num_bits_to_shift.clone()
-                    + local.c_least_sig_byte[i] * AB::F::from_canonical_u32(1 << i);
+                num_bits_to_shift = num_bits_to_shift.clone() +
+                    local.c_least_sig_byte[i] * AB::F::from_canonical_u32(1 << i);
             }
 
             // Calculate ShrCarry.
@@ -495,8 +495,8 @@ where
         }
 
         // SAFETY: All selectors `is_srl`, `is_sra` are checked to be boolean.
-        // Each "real" row has exactly one selector turned on, as `is_real = is_srl + is_sra` is boolean.
-        // All interactions are done with multiplicity `is_real`.
+        // Each "real" row has exactly one selector turned on, as `is_real = is_srl + is_sra` is
+        // boolean. All interactions are done with multiplicity `is_real`.
         // Therefore, the `opcode` matches the corresponding opcode.
 
         // Check that the operation flags are boolean.
@@ -523,8 +523,8 @@ where
             local.pc,
             local.pc + AB::Expr::from_canonical_u32(DEFAULT_PC_INC),
             AB::Expr::zero(),
-            local.is_srl * AB::F::from_canonical_u32(Opcode::SRL as u32)
-                + local.is_sra * AB::F::from_canonical_u32(Opcode::SRA as u32),
+            local.is_srl * AB::F::from_canonical_u32(Opcode::SRL as u32) +
+                local.is_sra * AB::F::from_canonical_u32(Opcode::SRA as u32),
             local.a,
             local.b,
             local.c,
@@ -693,8 +693,8 @@ mod tests {
                     run_malicious_test::<P>(program, stdin, Box::new(malicious_trace_pv_generator));
                 let shift_right_chip_name = chip_name!(ShiftRightChip, BabyBear);
                 assert!(
-                    result.is_err()
-                        && result.unwrap_err().is_constraints_failing(&shift_right_chip_name)
+                    result.is_err() &&
+                        result.unwrap_err().is_constraints_failing(&shift_right_chip_name)
                 );
             }
         }

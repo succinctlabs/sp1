@@ -150,17 +150,17 @@ where
                             other_domain.shift.exp_power_of_2(other_domain.log_n).inverse();
                         // This is `other_domain.zp_at_point_f(builder, domain.first_point())`.
                         // We compute it as a constant here.
-                        let z_f = domain.first_point().exp_power_of_2(other_domain.log_n)
-                            * shift_power
-                            - C::F::one();
+                        let z_f = domain.first_point().exp_power_of_2(other_domain.log_n) *
+                            shift_power -
+                            C::F::one();
                         (
                             {
                                 // We use the precomputed powers of zeta to compute (inline) the
                                 // value of `other_domain.
                                 // zp_at_point_variable(builder, zeta)`.
                                 let z: Ext<_, _> = builder.eval(
-                                    zetas[other_domain.log_n] * SymbolicFelt::from_f(shift_power)
-                                        - SymbolicExt::from_f(C::EF::one()),
+                                    zetas[other_domain.log_n] * SymbolicFelt::from_f(shift_power) -
+                                        SymbolicExt::from_f(C::EF::one()),
                                 );
                                 z.to_operand().symbolic()
                             },
@@ -184,8 +184,8 @@ where
                 .enumerate()
                 .map(|(ch_i, ch)| {
                     assert_eq!(ch.len(), C::EF::D);
-                    zps[ch_i].to_operand().symbolic()
-                        * ch.iter()
+                    zps[ch_i].to_operand().symbolic() *
+                        ch.iter()
                             .enumerate()
                             .map(|(e_i, &c)| C::EF::monomial(e_i).cons() * SymbolicExt::from(c))
                             .sum::<SymbolicExt<_, _>>()
@@ -221,23 +221,20 @@ where
             ));
         }
         if opening.main.next.len() != chip.width() {
-            return Err(OpeningShapeError::MainWidthMismatch(
-                chip.width(),
-                opening.main.next.len(),
-            ));
+            return Err(OpeningShapeError::MainWidthMismatch(chip.width(), opening.main.next.len()));
         }
 
         // Verify that the permutation width matches the expected value for the chip.
-        if opening.permutation.local.len()
-            != chip.permutation_width() * <SC::Challenge as AbstractExtensionField<C::F>>::D
+        if opening.permutation.local.len() !=
+            chip.permutation_width() * <SC::Challenge as AbstractExtensionField<C::F>>::D
         {
             return Err(OpeningShapeError::PermutationWidthMismatch(
                 chip.permutation_width(),
                 opening.permutation.local.len(),
             ));
         }
-        if opening.permutation.next.len()
-            != chip.permutation_width() * <SC::Challenge as AbstractExtensionField<C::F>>::D
+        if opening.permutation.next.len() !=
+            chip.permutation_width() * <SC::Challenge as AbstractExtensionField<C::F>>::D
         {
             return Err(OpeningShapeError::PermutationWidthMismatch(
                 chip.permutation_width(),

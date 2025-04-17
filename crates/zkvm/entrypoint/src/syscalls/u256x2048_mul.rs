@@ -3,7 +3,8 @@ use core::arch::asm;
 
 /// Multiplication operation between a 256-bit and a 2048-bit unsigned integer.
 ///
-/// The low 2048-bit result is written to the `lo` pointer, and the high 256-bit overflow is written to the `hi` pointer.
+/// The low 2048-bit result is written to the `lo` pointer, and the high 256-bit overflow is written
+/// to the `hi` pointer.
 #[allow(unused_variables)]
 #[no_mangle]
 pub extern "C" fn syscall_u256x2048_mul(
