@@ -434,6 +434,8 @@ name = "sp1-primitives"
 version = "4.2.0"
 dependencies = [
  "bincode",
+ "blake3",
+ "cfg-if",
  "hex",
  "lazy_static",
  "num-bigint",

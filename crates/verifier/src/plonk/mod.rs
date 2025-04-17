@@ -23,7 +23,8 @@ use error::PlonkError;
 use sha2::{Digest, Sha256};
 
 use crate::{
-    constants::VK_HASH_PREFIX_LENGTH, decode_sp1_vkey_hash, error::Error, hash_public_inputs,
+    blake3_hash, constants::VK_HASH_PREFIX_LENGTH, decode_sp1_vkey_hash, error::Error,
+    hash_public_inputs, hash_public_inputs_with_fn,
 };
 /// A verifier for Plonk zero-knowledge proofs.
 #[derive(Debug)]
@@ -76,9 +77,22 @@ impl PlonkVerifier {
 
         let sp1_vkey_hash = decode_sp1_vkey_hash(sp1_vkey_hash)?;
 
-        Self::verify_gnark_proof(
+        // First, check if the public values hashed with SHA2 match the expected public values.
+        // If not, try hashing with Blake3. If both fail, return an error. We perform the checks
+        // sequentially to avoid calculating both hashes unless necessary.
+        if Self::verify_gnark_proof(
             &proof[VK_HASH_PREFIX_LENGTH..],
             &[sp1_vkey_hash, hash_public_inputs(sp1_public_inputs)],
+            plonk_vk,
+        )
+        .is_ok()
+        {
+            return Ok(())
+        }
+
+        Self::verify_gnark_proof(
+            &proof[VK_HASH_PREFIX_LENGTH..],
+            &[sp1_vkey_hash, hash_public_inputs_with_fn(sp1_public_inputs, blake3_hash)],
             plonk_vk,
         )
     }

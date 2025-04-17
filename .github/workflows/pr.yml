@@ -152,15 +152,6 @@ jobs:
           RUSTFLAGS: -Copt-level=3 -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
 
-      - name: Run cargo test with Blake3 PV hashing
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --release --package sp1-verifier -F blake3
-        env:
-          RUSTFLAGS: -Copt-level=3 -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
-          RUST_BACKTRACE: 1
-
   lint:
     name: Formatting & Clippy
     runs-on: [runs-on, runner=16cpu-linux-x64, disk=large, "run-id=${{ github.run_id }}"]

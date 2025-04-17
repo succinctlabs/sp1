@@ -9,7 +9,8 @@ pub(crate) use verify::*;
 use error::Groth16Error;
 
 use crate::{
-    constants::VK_HASH_PREFIX_LENGTH, decode_sp1_vkey_hash, error::Error, hash_public_inputs,
+    blake3_hash, constants::VK_HASH_PREFIX_LENGTH, decode_sp1_vkey_hash, error::Error,
+    hash_public_inputs, hash_public_inputs_with_fn,
 };
 
 use alloc::vec::Vec;
@@ -69,9 +70,21 @@ impl Groth16Verifier {
 
         let sp1_vkey_hash = decode_sp1_vkey_hash(sp1_vkey_hash)?;
 
-        Self::verify_gnark_proof(
+        // It is computationally infeasible to find two distinct inputs, one processed with
+        // SHA256 and the other with Blake3, that yield the same hash value.
+        if Self::verify_gnark_proof(
             &proof[VK_HASH_PREFIX_LENGTH..],
             &[sp1_vkey_hash, hash_public_inputs(sp1_public_inputs)],
+            groth16_vk,
+        )
+        .is_ok()
+        {
+            return Ok(())
+        }
+
+        Self::verify_gnark_proof(
+            &proof[VK_HASH_PREFIX_LENGTH..],
+            &[sp1_vkey_hash, hash_public_inputs_with_fn(sp1_public_inputs, blake3_hash)],
             groth16_vk,
         )
     }
@@ -96,7 +109,7 @@ impl Groth16Verifier {
     /// # Note
     ///
     /// This method expects the raw proof bytes without the 4-byte vkey hash prefix that
-    /// [`verify`] checks. If you have a complete proof with the prefix, use [`verify`] instead.    
+    /// [`verify`] checks. If you have a complete proof with the prefix, use [`verify`] instead.
     pub fn verify_gnark_proof(
         proof: &[u8],
         public_inputs: &[[u8; 32]],
