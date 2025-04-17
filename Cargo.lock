@@ -6205,6 +6205,7 @@ dependencies = [
  "ctrlc",
  "prost",
  "prost-build",
+ "regex",
  "serde",
  "sp1-core-machine",
  "sp1-prover",

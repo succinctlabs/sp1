@@ -1,6 +1,7 @@
 use std::{
     error::Error as StdError,
     future::Future,
+    io::{BufRead, BufReader},
     process::{Command, Stdio},
     sync::{
         Arc,
@@ -12,6 +13,7 @@ use std::{
 use crate::proto::api::ProverServiceClient;
 use async_trait::async_trait;
 use proto::api::ReadyRequest;
+use regex::Regex;
 use reqwest::{Request, Response};
 use serde::{Deserialize, Serialize};
 use sp1_core_machine::{io::SP1Stdin, reduce::SP1ReduceProof, utils::SP1CoreProverError};
@@ -185,13 +187,8 @@ impl SP1CudaProver {
         }
 
         // Start the docker container
-        // let rust_log_level = if std::env::var("DISABLE_SP1_CUDA_LOG").is_ok() {
-        //     "none".to_string()
-        // } else {
-        //     std::env::var("RUST_LOG").unwrap_or_else(|_| "none".to_string())
-        // };
         let rust_log_level = "debug".to_string();
-        Command::new("docker")
+        let mut child = Command::new("docker")
             .args([
                 "run",
                 "-e",
@@ -205,11 +202,20 @@ impl SP1CudaProver {
                 container_name,
                 &image_name,
             ])
-            // Redirect stdout and stderr to the parent process
-            .stdout(Stdio::inherit())
+            .stdout(Stdio::piped())
             .stderr(Stdio::inherit())
             .spawn()
             .map_err(|e| format!("Failed to start Docker container: {}. Please check your Docker installation and permissions.", e))?;
+
+        // Stream the stdout and parse logs in real-time
+        if let Some(stdout) = child.stdout.take() {
+            let reader = BufReader::new(stdout);
+            for line in reader.lines() {
+                if let Ok(line) = line {
+                    parse_and_log_index(&line);
+                }
+            }
+        }
 
         // Kill the container on control-c
         ctrlc::set_handler(move || {
@@ -371,6 +377,15 @@ impl Middleware for LoggingMiddleware {
                 Ok(response)
             }
             Err(e) => Err(e),
+        }
+    }
+}
+
+fn parse_and_log_index(output: &str) {
+    let re = Regex::new(r"Shard Lifted: Index=(\d+), Cluster=\d+").unwrap();
+    if let Some(caps) = re.captures(output) {
+        if let Some(index) = caps.get(1) {
+            tracing::info!("Extracted Index: {}", index.as_str());
         }
     }
 }
