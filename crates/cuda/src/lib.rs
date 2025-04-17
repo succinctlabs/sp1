@@ -3,8 +3,8 @@ use std::{
     future::Future,
     process::{Command, Stdio},
     sync::{
-        atomic::{AtomicBool, Ordering},
         Arc,
+        atomic::{AtomicBool, Ordering},
     },
     time::{Duration, Instant},
 };
@@ -20,10 +20,9 @@ use sp1_prover::{
 };
 use tokio::task::block_in_place;
 use twirp::{
-    async_trait,
+    Client, ClientError, Middleware, Next, async_trait,
     reqwest::{self},
     url::Url,
-    Client, ClientError, Middleware, Next,
 };
 
 #[rustfmt::skip]
@@ -186,7 +185,7 @@ impl SP1CudaProver {
         }
 
         // Start the docker container
-        let rust_log_level = std::env::var("RUST_LOG").unwrap_or_else(|_| "none".to_string());
+        let rust_log_level = "off";
         Command::new("docker")
             .args([
                 "run",
