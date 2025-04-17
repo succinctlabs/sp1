@@ -7,6 +7,7 @@ use std::{
         Arc,
         atomic::{AtomicBool, Ordering},
     },
+    thread,
     time::{Duration, Instant},
 };
 
@@ -207,14 +208,16 @@ impl SP1CudaProver {
             .spawn()
             .map_err(|e| format!("Failed to start Docker container: {}. Please check your Docker installation and permissions.", e))?;
 
-        // Stream the stdout and parse logs in real-time
+        // Stream the stdout and parse logs in real-time on a separate thread
         if let Some(stdout) = child.stdout.take() {
-            let reader = BufReader::new(stdout);
-            for line in reader.lines() {
-                if let Ok(line) = line {
-                    parse_and_log_index(&line);
+            thread::spawn(move || {
+                let reader = BufReader::new(stdout);
+                for line in reader.lines() {
+                    if let Ok(line) = line {
+                        parse_and_log_index(&line);
+                    }
                 }
-            }
+            });
         }
 
         // Kill the container on control-c
