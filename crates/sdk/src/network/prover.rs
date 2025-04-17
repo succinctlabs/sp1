@@ -464,7 +464,7 @@ impl NetworkProver {
             .execute(elf, stdin, SP1Context::builder().calculate_gas(true).build())
             .map_err(|_| Error::SimulationFailed)?;
 
-        let (_, report) = execute_result;
+        let (_, _, report) = execute_result;
 
         // Use simulated values for the ones that are not explicitly provided.
         let final_cycle_limit = if cycle_limit.is_none() {
