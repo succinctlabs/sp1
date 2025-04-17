@@ -185,11 +185,12 @@ impl SP1CudaProver {
         }
 
         // Start the docker container
-        let rust_log_level = if std::env::var("DISABLE_SP1_CUDA_LOG").is_ok() {
-            "none".to_string()
-        } else {
-            std::env::var("RUST_LOG").unwrap_or_else(|_| "none".to_string())
-        };
+        // let rust_log_level = if std::env::var("DISABLE_SP1_CUDA_LOG").is_ok() {
+        //     "none".to_string()
+        // } else {
+        //     std::env::var("RUST_LOG").unwrap_or_else(|_| "none".to_string())
+        // };
+        let rust_log_level = "debug".to_string();
         Command::new("docker")
             .args([
                 "run",
