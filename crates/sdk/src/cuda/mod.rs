@@ -5,7 +5,7 @@
 pub mod builder;
 pub mod prove;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use prove::CudaProveBuilder;
 use sp1_core_executor::SP1ContextBuilder;
 use sp1_core_machine::io::SP1Stdin;
@@ -81,7 +81,7 @@ impl CudaProver {
 
 impl Prover<CpuProverComponents> for CudaProver {
     fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
-        let (pk, vk) = self.cuda_prover.setup(elf).unwrap();
+        let (pk, _, _, vk) = self.cpu_prover.setup(elf);
         (pk, vk)
     }
 
@@ -95,6 +95,8 @@ impl Prover<CpuProverComponents> for CudaProver {
         stdin: &SP1Stdin,
         kind: SP1ProofMode,
     ) -> Result<SP1ProofWithPublicValues> {
+        self.cuda_prover.setup(&pk.elf).map_err(|e| anyhow!("Failed to setup CUDA prover: {}", e))?;
+
         // Generate the core proof.
         let proof = self.cuda_prover.prove_core(stdin)?;
         if kind == SP1ProofMode::Core {
