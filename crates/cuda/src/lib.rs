@@ -72,6 +72,8 @@ pub struct SetupResponsePayload {
 /// We use this object to serialize and deserialize the payload from the client to the server.
 #[derive(Serialize, Deserialize)]
 pub struct ProveCoreRequestPayload {
+    /// The proving key.
+    pub pk: SP1ProvingKey,
     /// The input stream.
     pub stdin: SP1Stdin,
 }
@@ -250,8 +252,8 @@ impl SP1CudaProver {
     /// Executes the [sp1_prover::SP1Prover::prove_core] method inside the container.
     ///
     /// You will need at least 24GB of VRAM to run this method.
-    pub fn prove_core(&self, stdin: &SP1Stdin) -> Result<SP1CoreProof, SP1CoreProverError> {
-        let payload = ProveCoreRequestPayload { stdin: stdin.clone() };
+    pub fn prove_core(&self, pk: &SP1ProvingKey, stdin: &SP1Stdin) -> Result<SP1CoreProof, SP1CoreProverError> {
+        let payload = ProveCoreRequestPayload { pk: pk.clone(), stdin: stdin.clone() };
         let request =
             crate::proto::api::ProveCoreRequest { data: bincode::serialize(&payload).unwrap() };
         let response = block_on(async { self.client.prove_core(request).await }).unwrap();
