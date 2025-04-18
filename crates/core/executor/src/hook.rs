@@ -113,7 +113,7 @@ pub struct HookEnv<'a, 'b: 'a> {
 /// The input should be of the form [(`curve_id_u8` | `r_is_y_odd_u8` << 7) || `r` || `alpha`]
 /// where:
 /// * `curve_id` is 1 for secp256k1 and 2 for secp256r1
-/// * `r_is_y_odd` is 0 if r is even and 1 if r is is odd
+/// * `r_is_y_odd` is 0 if r is even and 1 if r is odd
 /// * r is the x-coordinate of the point, which should be 32 bytes,
 /// * alpha := r * r * r * (a * r) + b, which should be 32 bytes.
 ///
