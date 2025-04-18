@@ -397,7 +397,7 @@ where
 
         // Register %x0 should always be 0. See 2.6 Load and Store Instruction on
         // P.18 of the RISC-V spec.  To ensure that, we will constrain that the value is zero
-        // whenever the `is_first_comp` flag is set to to zero as well. This guarantees that the
+        // whenever the `is_first_comp` flag is set to zero as well. This guarantees that the
         // presence of this flag asserts the initialization/finalization of %x0 to zero.
         //
         // **Remark**: it is up to the verifier to ensure that this flag is set to zero exactly
