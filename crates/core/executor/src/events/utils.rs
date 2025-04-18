@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-/// Returns a tuple containing everything needed to to correctly display a table of counts
+/// Returns a tuple containing everything needed to correctly display a table of counts
 /// (e.g. `opcode_counts`):
 ///
 /// 1. The number of characters of the highest count, that can be used to right-justify the count
