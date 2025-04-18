@@ -9,7 +9,7 @@ use sp1_stark::air::{InteractionScope, MessageBuilder};
 pub struct MultiBuilder<'a, AB: AirBuilder> {
     inner: FilteredAirBuilder<'a, AB>,
 
-    /// These fields are used to determine whether a row is is the first or last row of the
+    /// These fields are used to determine whether a row is the first or last row of the
     /// subtable, which requires hinting from the parent table.
     is_first_row: AB::Expr,
     is_last_row: AB::Expr,
