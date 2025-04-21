@@ -48,7 +48,7 @@ fn main() {
     }
 
     let mut downloader = Downloader::builder().download_folder(out_dir).build().unwrap();
-    let url = "https://sp1-circuits.s3.us-east-2.amazonaws.com/vk-map-v4.0.0-rc.3".to_string();
+    let url = "https://sp1-circuits.s3.us-east-2.amazonaws.com/vk-map-v4.2.0-dev".to_string();
     eprintln!("Downloading {url}");
     let dl = Download::new(&url)
         .file_name(&PathBuf::from_str(FILENAME).unwrap())
