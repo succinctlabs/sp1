@@ -28,7 +28,7 @@ pub fn test_pkcs_verify_100(
     |_| {}
 }
 
-#[sp1_test::sp1_test("rsa_test_email", syscalls = [U256XU2048_MUL], gpu, prove)]
+#[sp1_test::sp1_test("rsa_test_email", gpu, prove)]
 pub fn test_pkcs_verify_email(
     stdin: &mut sp1_sdk::SP1Stdin,
 ) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
