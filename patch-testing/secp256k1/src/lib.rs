@@ -9,7 +9,7 @@ mod tests {
         recover_rand_lte_100(stdin)
     }
 
-    /* TODO: Find a solution to avoid conflics on secp256k1-sys
+    /* TODO: Find a solution to avoid conflicts on secp256k1-sys
     #[sp1_test::sp1_test("secp256k1_recover_v0_30_0", syscalls = [SECP256K1_DOUBLE, SECP256K1_ADD], prove)]
     fn test_recover_v0_30_0_rand_lte_100(
         stdin: &mut sp1_sdk::SP1Stdin,
@@ -66,7 +66,7 @@ mod tests {
         verify_rand_lte_100(stdin)
     }
 
-    /* TODO: Find a solution to avoid conflics on secp256k1-sys
+    /* TODO: Find a solution to avoid conflicts on secp256k1-sys
     #[sp1_test::sp1_test("secp256k1_verify_v0_30_0", syscalls = [SECP256K1_DOUBLE, SECP256K1_ADD], prove)]
     fn test_verify_v0_30_0_rand_lte_100(
         stdin: &mut sp1_sdk::SP1Stdin,
