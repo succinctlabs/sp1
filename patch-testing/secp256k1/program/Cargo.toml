@@ -33,15 +33,17 @@ secp256k1-v0-29-1 = { git = "https://github.com/sp1-patches/rust-secp256k1", pac
     "global-context",
     "serde",
 ], optional = true }
-secp256k1-v0-30-0 = { git = "https://github.com/sp1-patches/rust-secp256k1", package = "secp256k1", tag = "patch-0.30.0-sp1-4.1.0", features = [
-    "recovery",
-    "global-context",
-    "serde",
-], optional = true }
+
+# TODO: Find a solution to avoid conflics on secp256k1-sys
+# secp256k1-v0-30-0 = { git = "https://github.com/sp1-patches/rust-secp256k1", package = "secp256k1", tag = "patch-0.30.0-sp1-4.1.0", features = [
+#     "recovery",
+#     "global-context",
+#     "serde",
+# ], optional = true }
 
 [features]
 v0-29-1 = ["dep:secp256k1-v0-29-1"]
-v0-30-0 = ["dep:secp256k1-v0-30-0"]
+# v0-30-0 = ["dep:secp256k1-v0-30-0"]
 
 [patch.crates-io]
 sp1-lib = { path = "../../../crates/zkvm/lib" }
