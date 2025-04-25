@@ -1,8 +1,14 @@
 use gecko_profile::{Frame, ProfileBuilder, StringIndex, ThreadBuilder};
+use gimli::{
+    AttributeValue, DW_AT_MIPS_linkage_name, DW_AT_high_pc, DW_AT_linkage_name, DW_AT_name,
+    DW_AT_ranges, DW_TAG_inlined_subroutine, DebugInfoOffset, DebuggingInformationEntry, DwAt,
+    Dwarf, EndianRcSlice, Range, Reader, RunTimeEndian, SectionId, Unit, UnitOffset,
+};
 use goblin::elf::{sym::STT_FUNC, Elf};
 use indicatif::{ProgressBar, ProgressStyle};
+use object::{File, Object, ObjectSection};
 use rustc_demangle::demangle;
-use std::collections::HashMap;
+use std::{borrow::Cow, collections::HashMap, rc::Rc};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ProfilerError {
@@ -12,6 +18,20 @@ pub enum ProfilerError {
     Elf(#[from] goblin::error::Error),
     #[error("Failed to serialize samples {}", .0)]
     Serde(#[from] serde_json::Error),
+    #[error("Failed retrieve inline functions {}", .0)]
+    InlineRetrieval(#[from] gimli::Error),
+    #[error("No unit for offset {}", .0)]
+    NoUnitForOffset(usize),
+    #[error("Invalid abstract origin")]
+    InvalidAbstractOrigin,
+    #[error("DwAt {} missing", .0)]
+    DwAtMissing(DwAt),
+    #[error("Onvalid attribute abstract origin")]
+    InvalidAttributeAbstractOrigin,
+    #[error("Unexpected abstract origin")]
+    UnexpectedAbstractOrigin,
+    #[error("Unexpected low pc")]
+    UnexpectedLowPc,
 }
 
 /// During execution, the profiler always keeps track of the callstack
@@ -20,6 +40,8 @@ pub struct Profiler {
     sample_rate: u64,
     /// `start_address`-> index in `function_ranges`
     start_lookup: HashMap<u64, usize>,
+    /// `start_address`-> index in `function_ranges` for inlined functions
+    inline_functions_start_lookup: HashMap<u64, Vec<usize>>,
     /// the start and end of the function
     function_ranges: Vec<(u64, u64, Frame)>,
 
@@ -44,11 +66,21 @@ struct Sample {
 impl Profiler {
     pub(super) fn new(elf_bytes: &[u8], sample_rate: u64) -> Result<Self, ProfilerError> {
         let elf = Elf::parse(elf_bytes)?;
+        let file = File::parse(elf_bytes).unwrap();
+        let dwarf = load_dwarf(&file)?;
+        let mut units = vec![];
+        let mut iter = dwarf.units();
+
+        while let Some(header) = iter.next()? {
+            units.push(dwarf.unit(header)?);
+        }
 
         let mut start_lookup = HashMap::new();
+        let mut inline_functions_start_lookup = HashMap::new();
         let mut function_ranges = Vec::new();
         let mut builder = ThreadBuilder::new(1, 0, std::time::Instant::now(), false, false);
-
+        let inline_fn_builder = InlineFunctionFrameBuilder::new(&dwarf, &units);
+        let mut frames_to_names = HashMap::new();
         // We need to extract all the functions from the ELF file
         // and their corresponding PC ranges.
         let mut main_idx = None;
@@ -71,7 +103,27 @@ impl Profiler {
 
                 let start_idx = function_ranges.len();
                 function_ranges.push((start_address, end_address, Frame::Label(string_idx)));
+                frames_to_names.insert(start_address, demangled_name);
                 start_lookup.insert(start_address, start_idx);
+            }
+        }
+
+        let mut iter = dwarf.units();
+
+        while let Some(header) = iter.next()? {
+            let unit = dwarf.unit(header)?;
+
+            let mut entries = unit.entries();
+            while let Some((_, entry)) = entries.next_dfs()? {
+                if entry.tag() == DW_TAG_inlined_subroutine {
+                    inline_fn_builder.build(
+                        &unit,
+                        entry,
+                        &mut builder,
+                        &mut function_ranges,
+                        &mut inline_functions_start_lookup,
+                    )?;
+                }
             }
         }
 
@@ -81,6 +133,7 @@ impl Profiler {
             sample_rate,
             samples: Vec::new(),
             start_lookup,
+            inline_functions_start_lookup,
             function_ranges,
             function_stack: Vec::new(),
             function_stack_indices: Vec::new(),
@@ -96,8 +149,13 @@ impl Profiler {
                 self.samples.push(Sample { stack: self.function_stack.clone() });
             }
 
-            return;
+            // Don't return early if we found a inline function
+            if !self.inline_functions_start_lookup.contains_key(&pc) {
+                return;
+            }
         }
+
+        self.move_to_parent(pc);
 
         // Jump to a new function (or the same one).
         if let Some(f) = self.start_lookup.get(&pc) {
@@ -109,39 +167,57 @@ impl Profiler {
                 self.function_stack_ranges.push((*start, *end));
                 self.function_stack.push(name.clone());
             }
-        } else {
-            // This means pc now points to an instruction that is
-            //
-            // 1. not in the current function's range
-            // 2. not a new function call
-            //
-            // We now account for a new possibility where we're returning to a function in the
-            // stack this need not be the immediate parent and can be any of the existing
-            // functions in the stack due to some optimizations that the compiler can make.
-            let mut unwind_point = 0;
-            let mut unwind_found = false;
-            for (c, (s, e)) in self.function_stack_ranges.iter().enumerate() {
-                if pc > *s && pc <= *e {
-                    unwind_point = c;
-                    unwind_found = true;
-                    break;
+        }
+
+        // Jump to a new inline function (or the same one).
+        if let Some(inline_functions) = self.inline_functions_start_lookup.get_mut(&pc) {
+            for f in inline_functions.iter() {
+                // Jump to a new function (not recursive).
+                if !self.function_stack_indices.contains(f) {
+                    self.function_stack_indices.push(*f);
+                    let (start, end, name) = self.function_ranges.get(*f).unwrap();
+                    self.current_function_range = (*start, *end);
+                    self.function_stack_ranges.push((*start, *end));
+                    self.function_stack.push(name.clone());
                 }
             }
-
-            // Unwinding until the parent.
-            if unwind_found {
-                self.function_stack.truncate(unwind_point + 1);
-                self.function_stack_ranges.truncate(unwind_point + 1);
-                self.function_stack_indices.truncate(unwind_point + 1);
-            }
-
-            // If no unwind point has been found, that means we jumped to some random location
-            // so we'll just increment the counts for everything in the stack.
         }
 
         if clk % self.sample_rate == 0 {
             self.samples.push(Sample { stack: self.function_stack.clone() });
         }
+    }
+
+    fn move_to_parent(&mut self, pc: u64) {
+        // This means pc now points to an instruction that is
+        //
+        // 1. not in the current function's range
+        // 2. not a new function call
+        //
+        // We now account for a new possibility where we're returning to a function in the
+        // stack this need not be the immediate parent and can be any of the existing
+        // functions in the stack due to some optimizations that the compiler can make.
+        let mut unwind_point = 0;
+        let mut unwind_found = false;
+        // We are iterating `function_stack_ranges` backward to avoid skipping inline fn
+        // parents, as they overlap.
+        for (c, (s, e)) in self.function_stack_ranges.iter().enumerate().rev() {
+            if pc > *s && pc <= *e {
+                unwind_point = c;
+                unwind_found = true;
+                break;
+            }
+        }
+
+        // Unwinding until the parent.
+        if unwind_found {
+            self.function_stack.truncate(unwind_point + 1);
+            self.function_stack_ranges.truncate(unwind_point + 1);
+            self.function_stack_indices.truncate(unwind_point + 1);
+        }
+
+        // If no unwind point has been found, that means we jumped to some random location
+        // so we'll just increment the counts for everything in the stack.
     }
 
     /// Write the captured samples so far to the `std::io::Write`. This will output a JSON gecko
@@ -224,5 +300,215 @@ impl Profiler {
                 main_ratio * 100.0
             );
         }
+    }
+}
+
+struct InlineFunctionFrameBuilder<'a> {
+    dwarf: &'a Dwarf<EndianRcSlice<RunTimeEndian>>,
+    units: &'a [Unit<EndianRcSlice<RunTimeEndian>>],
+}
+
+impl<'a> InlineFunctionFrameBuilder<'a> {
+    pub fn new(
+        dwarf: &'a Dwarf<EndianRcSlice<RunTimeEndian>>,
+        units: &'a [Unit<EndianRcSlice<RunTimeEndian>>],
+    ) -> Self {
+        Self { dwarf, units }
+    }
+
+    pub fn build(
+        &self,
+        unit: &Unit<EndianRcSlice<RunTimeEndian>>,
+        entry: &DebuggingInformationEntry<'_, '_, EndianRcSlice<RunTimeEndian>>,
+        thread_builder: &mut ThreadBuilder,
+        function_ranges: &mut Vec<(u64, u64, Frame)>,
+        start_lookup: &mut HashMap<u64, Vec<usize>>,
+    ) -> Result<(), ProfilerError> {
+        let name = self.get_abstract_origin_name(unit, entry)?;
+
+        let demangled_name = demangle(&name).to_string();
+
+        if demangled_name.starts_with("core::") ||
+            demangled_name.starts_with("<core::") ||
+            demangled_name.contains(" as core::")
+        {
+            return Ok(());
+        }
+
+        eprintln!("{demangled_name}");
+
+        let mut ranges = vec![];
+
+        if let Some(range) = self.get_pc_range(unit, entry)? {
+            ranges.push(range);
+        } else {
+            ranges.extend(self.get_pc_ranges(unit, entry)?);
+        }
+
+        for (low_pc, high_pc) in ranges {
+            let string_idx = thread_builder.intern_string(&demangled_name);
+            let start_idx = function_ranges.len();
+            let start_lookup_entry = start_lookup.entry(low_pc).or_default();
+
+            start_lookup_entry.push(start_idx);
+            function_ranges.push((low_pc, high_pc, Frame::Label(string_idx)));
+        }
+
+        Ok(())
+    }
+
+    fn get_pc_ranges(
+        &self,
+        unit: &Unit<EndianRcSlice<RunTimeEndian>>,
+        entry: &DebuggingInformationEntry<'_, '_, EndianRcSlice<RunTimeEndian>>,
+    ) -> Result<Vec<(u64, u64)>, gimli::Error> {
+        let Ok(value) = dwarf_attr(entry, DW_AT_ranges) else {
+            return Ok(vec![]);
+        };
+
+        let Some(ranges_offset) = self.dwarf.attr_ranges_offset(unit, value)? else {
+            return Ok(vec![]);
+        };
+
+        let mut ranges = vec![];
+        let mut range_iter = self.dwarf.ranges(unit, ranges_offset)?;
+        while let Some(Range { begin, end }) = range_iter.next()? {
+            if begin < end && begin != 0 {
+                ranges.push((begin, end));
+            }
+        }
+
+        Ok(ranges)
+    }
+
+    fn get_pc_range(
+        &self,
+        unit: &Unit<EndianRcSlice<RunTimeEndian>>,
+        entry: &DebuggingInformationEntry<'_, '_, EndianRcSlice<RunTimeEndian>>,
+    ) -> Result<Option<(u64, u64)>, ProfilerError> {
+        let Some(low_pc) = self.get_low_pc(unit, entry)? else {
+            return Ok(None);
+        };
+        let high_pc = self.get_high_pc(unit, entry, low_pc)?;
+
+        Ok(Some((low_pc, high_pc)))
+    }
+
+    fn get_low_pc(
+        &self,
+        unit: &gimli::Unit<gimli::EndianRcSlice<gimli::RunTimeEndian>>,
+        entry: &gimli::DebuggingInformationEntry<
+            '_,
+            '_,
+            gimli::EndianRcSlice<gimli::RunTimeEndian>,
+        >,
+    ) -> Result<Option<u64>, ProfilerError> {
+        let Ok(value) = dwarf_attr(entry, gimli::DW_AT_low_pc) else {
+            return Ok(None);
+        };
+        let low_pc = match value {
+            AttributeValue::Addr(val) => Ok(val),
+            AttributeValue::DebugAddrIndex(index) => Ok(self.dwarf.address(unit, index)?),
+            _ => Err(ProfilerError::UnexpectedLowPc),
+        }?;
+        Ok((low_pc != 0).then_some(low_pc))
+    }
+
+    fn get_high_pc(
+        &self,
+        unit: &Unit<EndianRcSlice<RunTimeEndian>>,
+        entry: &DebuggingInformationEntry<'_, '_, EndianRcSlice<RunTimeEndian>>,
+        low_pc: u64,
+    ) -> Result<u64, ProfilerError> {
+        match dwarf_attr(entry, DW_AT_high_pc)? {
+            AttributeValue::Addr(val) => Ok(val),
+            AttributeValue::DebugAddrIndex(index) => Ok(self.dwarf.address(unit, index)?),
+            AttributeValue::Udata(val) => Ok(low_pc + val),
+            _ => Err(ProfilerError::UnexpectedAbstractOrigin),
+        }
+    }
+
+    fn get_abstract_origin_name(
+        &self,
+        unit: &Unit<EndianRcSlice<RunTimeEndian>>,
+        entry: &DebuggingInformationEntry<'_, '_, EndianRcSlice<RunTimeEndian>>,
+    ) -> Result<String, ProfilerError> {
+        match dwarf_attr(entry, gimli::DW_AT_abstract_origin)? {
+            gimli::AttributeValue::UnitRef(unit_offset) => {
+                Ok(get_abstract_origin_name(self.dwarf, unit, unit_offset)?)
+            }
+            gimli::AttributeValue::DebugInfoRef(debug_info_offset) => {
+                let unit = find_unit(self.units, debug_info_offset)?;
+                let unit_offset = debug_info_offset
+                    .to_unit_offset(&unit.header)
+                    .ok_or(ProfilerError::InvalidAttributeAbstractOrigin)?;
+                Ok(get_abstract_origin_name(self.dwarf, unit, unit_offset)?)
+            }
+            _ => Err(ProfilerError::UnexpectedAbstractOrigin),
+        }
+    }
+}
+
+fn load_dwarf(file: &File) -> Result<Dwarf<EndianRcSlice<RunTimeEndian>>, ProfilerError> {
+    let endian = if file.is_little_endian() {
+        gimli::RunTimeEndian::Little
+    } else {
+        gimli::RunTimeEndian::Big
+    };
+
+    let dwarf = Dwarf::load(&|id| Ok::<_, gimli::Error>(load_section(id, file, endian)))?;
+
+    Ok(dwarf)
+}
+
+fn load_section(id: SectionId, file: &File, endian: RunTimeEndian) -> EndianRcSlice<RunTimeEndian> {
+    let data = file
+        .section_by_name(id.name())
+        .and_then(|section| section.uncompressed_data().ok())
+        .unwrap_or(Cow::Borrowed(&[]));
+
+    EndianRcSlice::new(Rc::from(&*data), endian)
+}
+
+fn dwarf_attr<ReaderT: Reader>(
+    entry: &DebuggingInformationEntry<'_, '_, ReaderT>,
+    dw_at: DwAt,
+) -> Result<AttributeValue<ReaderT>, ProfilerError> {
+    Ok(entry.attr(dw_at)?.ok_or(ProfilerError::DwAtMissing(dw_at))?.value())
+}
+
+fn get_abstract_origin_name(
+    dwarf: &Dwarf<EndianRcSlice<RunTimeEndian>>,
+    unit: &Unit<EndianRcSlice<RunTimeEndian>>,
+    abstract_origin: UnitOffset<usize>,
+) -> Result<String, ProfilerError> {
+    let mut entries = unit.entries_raw(Some(abstract_origin))?;
+    let abbrev = entries.read_abbreviation()?.ok_or(ProfilerError::InvalidAbstractOrigin)?;
+
+    for spec in abbrev.attributes() {
+        let attr = entries.read_attribute(*spec)?;
+        match attr.name() {
+            DW_AT_linkage_name | DW_AT_MIPS_linkage_name => {
+                return Ok(dwarf.attr_string(unit, attr.value())?.to_string_lossy()?.into());
+            }
+            DW_AT_name => {
+                return Ok(dwarf.attr_string(unit, attr.value())?.to_string_lossy()?.into());
+            }
+            _ => {}
+        }
+    }
+
+    Err(ProfilerError::InvalidAbstractOrigin)
+}
+
+fn find_unit(
+    units: &[Unit<EndianRcSlice<RunTimeEndian>>],
+    offset: DebugInfoOffset<usize>,
+) -> Result<&Unit<EndianRcSlice<RunTimeEndian>>, ProfilerError> {
+    match units.binary_search_by_key(&offset.0, |unit| {
+        unit.header.offset().as_debug_info_offset().unwrap().0
+    }) {
+        Ok(_) | Err(0) => Err(ProfilerError::NoUnitForOffset(offset.0)),
+        Err(i) => Ok(&units[i - 1]),
     }
 }
