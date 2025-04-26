@@ -70,7 +70,7 @@ The computation of `is_external_layer` is incorrect. The range of the iteration 
         .sum::<AB::Expr>();
 
     // Second half of the external rounds.
-    is_external_layer += (rounds_p_end..rounds_p + rounds_f)
+    is_external_layer += (rounds_p_end..2 + rounds_p + rounds_f)
         .map(|i| local.rounds[i].into())
         .sum::<AB::Expr>();
 ```
