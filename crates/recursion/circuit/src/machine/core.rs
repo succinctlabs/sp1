@@ -18,10 +18,8 @@ use sp1_core_machine::{
 };
 
 use sp1_recursion_core::air::PV_DIGEST_NUM_WORDS;
-use sp1_stark::air::InteractionScope;
-use sp1_stark::air::MachineAir;
 use sp1_stark::{
-    air::{PublicValues, POSEIDON_NUM_WORDS},
+    air::{InteractionScope, MachineAir, PublicValues, POSEIDON_NUM_WORDS},
     baby_bear_poseidon2::BabyBearPoseidon2,
     shape::OrderedShape,
     Dom, StarkMachine, Word,
@@ -260,8 +258,9 @@ where
                 // If it's the first shard (which is the first execution shard), then the `start_pc`
                 // should be vk.pc_start.
                 builder.assert_felt_eq(is_first_shard * (start_pc - vk.pc_start), C::F::zero());
-                // If it's the first shard, we add the vk's `initial_global_cumulative_sum` to the digest.
-                // If it's not the first shard, we add the zero digest to the digest.
+                // If it's the first shard, we add the vk's `initial_global_cumulative_sum` to the
+                // digest. If it's not the first shard, we add the zero digest to
+                // the digest.
                 global_cumulative_sums.push(builder.select_global_cumulative_sum(
                     is_first_shard,
                     vk.initial_global_cumulative_sum,
@@ -524,7 +523,8 @@ where
             C::range_check_felt(builder, public_values.shard, MAX_LOG_NUMBER_OF_SHARDS);
 
             // We add the global cumulative sums of the global chips.
-            // Note that we constrain that the non-global chips have zero global cumulative sum in `verify_shard`.
+            // Note that we constrain that the non-global chips have zero global cumulative sum in
+            // `verify_shard`.
             for (chip, values) in chips.iter().zip(shard_proof.opened_values.chips.iter()) {
                 if chip.commit_scope() == InteractionScope::Global {
                     global_cumulative_sums.push(values.global_cumulative_sum);

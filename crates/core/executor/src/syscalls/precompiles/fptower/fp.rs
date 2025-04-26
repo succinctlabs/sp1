@@ -83,9 +83,9 @@ impl<P: FpOpField> Syscall for FpOpSyscall<P> {
         match P::FIELD_TYPE {
             FieldType::Bn254 => {
                 let syscall_code_key = match syscall_code {
-                    SyscallCode::BN254_FP_ADD
-                    | SyscallCode::BN254_FP_SUB
-                    | SyscallCode::BN254_FP_MUL => SyscallCode::BN254_FP_ADD,
+                    SyscallCode::BN254_FP_ADD |
+                    SyscallCode::BN254_FP_SUB |
+                    SyscallCode::BN254_FP_MUL => SyscallCode::BN254_FP_ADD,
                     _ => unreachable!(),
                 };
 
@@ -99,9 +99,9 @@ impl<P: FpOpField> Syscall for FpOpSyscall<P> {
             }
             FieldType::Bls12381 => {
                 let syscall_code_key = match syscall_code {
-                    SyscallCode::BLS12381_FP_ADD
-                    | SyscallCode::BLS12381_FP_SUB
-                    | SyscallCode::BLS12381_FP_MUL => SyscallCode::BLS12381_FP_ADD,
+                    SyscallCode::BLS12381_FP_ADD |
+                    SyscallCode::BLS12381_FP_SUB |
+                    SyscallCode::BLS12381_FP_MUL => SyscallCode::BLS12381_FP_ADD,
                     _ => unreachable!(),
                 };
 

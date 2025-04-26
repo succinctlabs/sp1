@@ -6,6 +6,7 @@ use elf::{
     file::Class,
     ElfBytes,
 };
+use eyre::OptionExt;
 use hashbrown::HashMap;
 use sp1_primitives::consts::{MAXIMUM_MEMORY_SIZE, WORD_SIZE};
 
@@ -82,6 +83,11 @@ impl Elf {
         let mut instructions: Vec<u32> = Vec::new();
         let mut base_address = u32::MAX;
 
+        // Data about the last segment.
+        let mut prev_segment_end_addr = None;
+
+        // Check that the segments are sorted and disjoint.
+
         // Only read segments that are executable instructions that are also PT_LOAD.
         for segment in segments.iter().filter(|x| x.p_type == PT_LOAD) {
             // Get the file size of the segment as an u32.
@@ -102,10 +108,30 @@ impl Elf {
                 eyre::bail!("vaddr {vaddr:08x} is unaligned");
             }
 
-            // If the virtual address is less than the first memory address, then update the first
-            // memory address.
-            if (segment.p_flags & PF_X) != 0 && base_address > vaddr {
-                base_address = vaddr;
+            // Check that the ELF structure is supported.
+            if let Some(last_addr) = prev_segment_end_addr {
+                eyre::ensure!(last_addr <= vaddr, "unsupported elf structure");
+            }
+            prev_segment_end_addr =
+                Some(vaddr.checked_add(mem_size).ok_or_eyre("last addr overflow")?);
+
+            if (segment.p_flags & PF_X) != 0 {
+                if base_address == u32::MAX {
+                    base_address = vaddr;
+                    eyre::ensure!(
+                        base_address > 0x20,
+                        "base address {base_address} should be greater than 0x20"
+                    );
+                } else {
+                    let instr_len: u32 = WORD_SIZE
+                        .checked_mul(instructions.len())
+                        .ok_or_eyre("instructions length overflow")?
+                        .try_into()?;
+                    let last_instruction_addr = base_address
+                        .checked_add(instr_len)
+                        .ok_or_eyre("instruction addr overflow")?;
+                    eyre::ensure!(vaddr == last_instruction_addr, "unsupported elf structure");
+                }
             }
 
             // Get the offset to the segment.

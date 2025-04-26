@@ -12,12 +12,13 @@ use std::{
 };
 use web_time::Instant;
 
-use crate::shape::CoreShapeConfig;
-use crate::utils::test::MaliciousTracePVGeneratorType;
-use crate::{riscv::RiscvAir, shape::Shapeable};
+use crate::{
+    riscv::RiscvAir,
+    shape::{CoreShapeConfig, Shapeable},
+    utils::test::MaliciousTracePVGeneratorType,
+};
 use p3_maybe_rayon::prelude::*;
-use sp1_stark::MachineProvingKey;
-use sp1_stark::StarkVerifyingKey;
+use sp1_stark::{MachineProvingKey, StarkVerifyingKey};
 use thiserror::Error;
 
 use p3_field::PrimeField32;
@@ -95,7 +96,7 @@ pub fn prove_core_stream<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<S
     shape_config: Option<&CoreShapeConfig<SC::Val>>,
     proof_tx: Sender<ShardProof<SC>>,
     shape_and_done_tx: Sender<(OrderedShape, bool)>,
-    malicious_trace_pv_generator: Option<MaliciousTracePVGeneratorType<SC::Val, P>>, // This is used for failure test cases that generate malicious traces and public values.
+    malicious_trace_pv_generator: Option<MaliciousTracePVGeneratorType<SC::Val, P>>, /* This is used for failure test cases that generate malicious traces and public values. */
     gas_calculator: Option<Box<dyn FnOnce(&RecordEstimator) -> Result<u64, Box<dyn Error>> + '_>>,
 ) -> Result<(Vec<u8>, u64), SP1CoreProverError>
 where
@@ -258,22 +259,23 @@ where
 
                             // We combine the memory init/finalize events if they are "small"
                             // and would affect performance.
-                            let mut shape_fixed_records = if done
-                                && num_cycles < 1 << 21
-                                && deferred.global_memory_initialize_events.len()
-                                    < opts.split_opts.combine_memory_threshold
-                                && deferred.global_memory_finalize_events.len()
-                                    < opts.split_opts.combine_memory_threshold
+                            let mut shape_fixed_records = if done &&
+                                num_cycles < 1 << 21 &&
+                                deferred.global_memory_initialize_events.len() <
+                                    opts.split_opts.combine_memory_threshold &&
+                                deferred.global_memory_finalize_events.len() <
+                                    opts.split_opts.combine_memory_threshold
                             {
                                 let mut records_clone = records.clone();
                                 let last_record = records_clone.last_mut();
                                 // See if any deferred shards are ready to be committed to.
                                 let mut deferred =
                                     deferred.split(done, last_record, opts.split_opts);
-                                tracing::info!("deferred {} records", deferred.len());
+                                tracing::debug!("deferred {} records", deferred.len());
 
-                                // Update the public values & prover state for the shards which do not
-                                // contain "cpu events" before committing to them.
+                                // Update the public values & prover state for the shards which do
+                                // not contain "cpu events" before
+                                // committing to them.
                                 if !done {
                                     state.execution_shard += 1;
                                 }
@@ -323,10 +325,11 @@ where
                             if shape_fixed_records.is_none() {
                                 // See if any deferred shards are ready to be committed to.
                                 let mut deferred = deferred.split(done, None, opts.split_opts);
-                                tracing::info!("deferred {} records", deferred.len());
+                                tracing::debug!("deferred {} records", deferred.len());
 
-                                // Update the public values & prover state for the shards which do not
-                                // contain "cpu events" before committing to them.
+                                // Update the public values & prover state for the shards which do
+                                // not contain "cpu events" before
+                                // committing to them.
                                 if !done {
                                     state.execution_shard += 1;
                                 }
@@ -523,7 +526,7 @@ where
 
         // Log some of the `ExecutionReport` information.
         let mut report_aggregate = report_aggregate.lock().unwrap();
-        tracing::info!(
+        tracing::debug!(
             "execution report (totals): total_cycles={}, total_syscall_cycles={}, touched_memory_addresses={}",
             report_aggregate.total_instruction_count(),
             report_aggregate.total_syscall_count(),
@@ -531,7 +534,7 @@ where
         );
         match gas {
             Some(Ok(gas)) => {
-                tracing::info!("execution report (gas): {}", gas);
+                tracing::debug!("execution report (gas): {}", gas);
                 report_aggregate.gas = Some(gas);
             }
             Some(Err(err)) => tracing::error!("Encountered error while calculating gas: {}", err),
@@ -540,21 +543,21 @@ where
 
         // Print the opcode and syscall count tables like `du`: sorted by count (descending) and
         // with the count in the first column.
-        tracing::info!("execution report (opcode counts):");
+        tracing::debug!("execution report (opcode counts):");
         let (width, lines) = sorted_table_lines(report_aggregate.opcode_counts.as_ref());
         for (label, count) in lines {
             if *count > 0 {
-                tracing::info!("  {}", format_table_line(&width, &label, count));
+                tracing::debug!("  {}", format_table_line(&width, &label, count));
             } else {
                 tracing::debug!("  {}", format_table_line(&width, &label, count));
             }
         }
 
-        tracing::info!("execution report (syscall counts):");
+        tracing::debug!("execution report (syscall counts):");
         let (width, lines) = sorted_table_lines(report_aggregate.syscall_counts.as_ref());
         for (label, count) in lines {
             if *count > 0 {
-                tracing::info!("  {}", format_table_line(&width, &label, count));
+                tracing::debug!("  {}", format_table_line(&width, &label, count));
             } else {
                 tracing::debug!("  {}", format_table_line(&width, &label, count));
             }
@@ -564,7 +567,7 @@ where
 
         // Print the summary.
         let proving_time = proving_start.elapsed().as_secs_f64();
-        tracing::info!(
+        tracing::debug!(
             "summary: cycles={}, e2e={}s, khz={:.2}",
             cycles,
             proving_time,

@@ -26,8 +26,7 @@ use typenum::Unsigned;
 
 use crate::{
     memory::{value_as_limbs, MemoryReadCols, MemoryWriteCols},
-    operations::field::field_op::FieldOpCols,
-    operations::field::range::FieldLtCols,
+    operations::field::{field_op::FieldOpCols, range::FieldLtCols},
     utils::{limbs_from_prev_access, pad_rows_fixed, words_to_bytes_le_vec},
 };
 

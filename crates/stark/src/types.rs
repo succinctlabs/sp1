@@ -8,8 +8,7 @@ use p3_matrix::{dense::RowMajorMatrixView, stack::VerticalPair};
 use serde::{Deserialize, Serialize};
 
 use super::{Challenge, Com, OpeningProof, StarkGenericConfig, Val};
-use crate::septic_digest::SepticDigest;
-use crate::shape::OrderedShape;
+use crate::{septic_digest::SepticDigest, shape::OrderedShape};
 
 pub type QuotientOpenedValues<T> = Vec<T>;
 

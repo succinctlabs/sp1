@@ -2,8 +2,9 @@
 //!
 //! This module provides a builder for the [`NetworkProver`].
 
-use crate::network::DEFAULT_NETWORK_RPC_URL;
-use crate::NetworkProver;
+use alloy_primitives::Address;
+
+use crate::{network::DEFAULT_NETWORK_RPC_URL, NetworkProver};
 
 /// A builder for the [`NetworkProver`].
 ///
@@ -12,6 +13,7 @@ use crate::NetworkProver;
 pub struct NetworkProverBuilder {
     pub(crate) private_key: Option<String>,
     pub(crate) rpc_url: Option<String>,
+    pub(crate) tee_signers: Option<Vec<Address>>,
 }
 
 impl NetworkProverBuilder {
@@ -23,11 +25,9 @@ impl NetworkProverBuilder {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient};
+    /// use sp1_sdk::ProverClient;
     ///
-    /// let prover = ProverClient::builder().network()
-    ///     .private_key("...")
-    ///     .build();
+    /// let prover = ProverClient::builder().network().private_key("...").build();
     /// ```
     #[must_use]
     pub fn private_key(mut self, private_key: &str) -> Self {
@@ -43,16 +43,20 @@ impl NetworkProverBuilder {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient};
+    /// use sp1_sdk::ProverClient;
     ///
-    /// let prover = ProverClient::builder()
-    ///     .network()
-    ///     .rpc_url("...")
-    ///     .build();
+    /// let prover = ProverClient::builder().network().rpc_url("...").build();
     /// ```
     #[must_use]
     pub fn rpc_url(mut self, rpc_url: &str) -> Self {
         self.rpc_url = Some(rpc_url.to_string());
+        self
+    }
+
+    /// Sets the list of TEE signers, used for verifying TEE proofs.
+    #[must_use]
+    pub fn tee_signers(mut self, tee_signers: &[Address]) -> Self {
+        self.tee_signers = Some(tee_signers.to_vec());
         self
     }
 
@@ -64,13 +68,9 @@ impl NetworkProverBuilder {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient};
+    /// use sp1_sdk::ProverClient;
     ///
-    /// let prover = ProverClient::builder()
-    ///     .network()
-    ///     .private_key("...")
-    ///     .rpc_url("...")
-    ///     .build();
+    /// let prover = ProverClient::builder().network().private_key("...").rpc_url("...").build();
     /// ```
     #[must_use]
     pub fn build(self) -> NetworkProver {
@@ -87,6 +87,13 @@ impl NetworkProverBuilder {
             None => std::env::var("NETWORK_RPC_URL").unwrap_or(DEFAULT_NETWORK_RPC_URL.to_string()),
         };
 
-        NetworkProver::new(&private_key, &rpc_url)
+        let tee_signers = match self.tee_signers {
+            Some(tee_signers) => tee_signers,
+            None => crate::utils::block_on(async {
+                crate::network::tee::get_tee_signers().await.expect("Failed to get TEE signers")
+            }),
+        };
+
+        NetworkProver::new(&private_key, &rpc_url).with_tee_signers(tee_signers)
     }
 }

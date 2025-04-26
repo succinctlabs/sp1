@@ -24,64 +24,64 @@ pub fn estimate_riscv_lde_size(
         (num_events_per_air[RiscvAirId::Cpu]).next_power_of_two() * costs_per_air[&RiscvAirId::Cpu];
 
     // Compute the addsub chip contribution.
-    cells += (num_events_per_air[RiscvAirId::AddSub]).next_power_of_two()
-        * costs_per_air[&RiscvAirId::AddSub];
+    cells += (num_events_per_air[RiscvAirId::AddSub]).next_power_of_two() *
+        costs_per_air[&RiscvAirId::AddSub];
 
     // Compute the mul chip contribution.
     cells +=
         (num_events_per_air[RiscvAirId::Mul]).next_power_of_two() * costs_per_air[&RiscvAirId::Mul];
 
     // Compute the bitwise chip contribution.
-    cells += (num_events_per_air[RiscvAirId::Bitwise]).next_power_of_two()
-        * costs_per_air[&RiscvAirId::Bitwise];
+    cells += (num_events_per_air[RiscvAirId::Bitwise]).next_power_of_two() *
+        costs_per_air[&RiscvAirId::Bitwise];
 
     // Compute the shift left chip contribution.
-    cells += (num_events_per_air[RiscvAirId::ShiftLeft]).next_power_of_two()
-        * costs_per_air[&RiscvAirId::ShiftLeft];
+    cells += (num_events_per_air[RiscvAirId::ShiftLeft]).next_power_of_two() *
+        costs_per_air[&RiscvAirId::ShiftLeft];
 
     // Compute the shift right chip contribution.
-    cells += (num_events_per_air[RiscvAirId::ShiftRight]).next_power_of_two()
-        * costs_per_air[&RiscvAirId::ShiftRight];
+    cells += (num_events_per_air[RiscvAirId::ShiftRight]).next_power_of_two() *
+        costs_per_air[&RiscvAirId::ShiftRight];
 
     // Compute the divrem chip contribution.
-    cells += (num_events_per_air[RiscvAirId::DivRem]).next_power_of_two()
-        * costs_per_air[&RiscvAirId::DivRem];
+    cells += (num_events_per_air[RiscvAirId::DivRem]).next_power_of_two() *
+        costs_per_air[&RiscvAirId::DivRem];
 
     // Compute the lt chip contribution.
     cells +=
         (num_events_per_air[RiscvAirId::Lt]).next_power_of_two() * costs_per_air[&RiscvAirId::Lt];
 
     // Compute the memory local chip contribution.
-    cells += (num_events_per_air[RiscvAirId::MemoryLocal]).next_power_of_two()
-        * costs_per_air[&RiscvAirId::MemoryLocal];
+    cells += (num_events_per_air[RiscvAirId::MemoryLocal]).next_power_of_two() *
+        costs_per_air[&RiscvAirId::MemoryLocal];
 
     // Compute the branch chip contribution.
-    cells += (num_events_per_air[RiscvAirId::Branch]).next_power_of_two()
-        * costs_per_air[&RiscvAirId::Branch];
+    cells += (num_events_per_air[RiscvAirId::Branch]).next_power_of_two() *
+        costs_per_air[&RiscvAirId::Branch];
 
     // Compute the jump chip contribution.
-    cells += (num_events_per_air[RiscvAirId::Jump]).next_power_of_two()
-        * costs_per_air[&RiscvAirId::Jump];
+    cells += (num_events_per_air[RiscvAirId::Jump]).next_power_of_two() *
+        costs_per_air[&RiscvAirId::Jump];
 
     // Compute the auipc chip contribution.
-    cells += (num_events_per_air[RiscvAirId::Auipc]).next_power_of_two()
-        * costs_per_air[&RiscvAirId::Auipc];
+    cells += (num_events_per_air[RiscvAirId::Auipc]).next_power_of_two() *
+        costs_per_air[&RiscvAirId::Auipc];
 
     // Compute the memory instruction chip contribution.
-    cells += (num_events_per_air[RiscvAirId::MemoryInstrs]).next_power_of_two()
-        * costs_per_air[&RiscvAirId::MemoryInstrs];
+    cells += (num_events_per_air[RiscvAirId::MemoryInstrs]).next_power_of_two() *
+        costs_per_air[&RiscvAirId::MemoryInstrs];
 
     // Compute the syscall instruction chip contribution.
-    cells += (num_events_per_air[RiscvAirId::SyscallInstrs]).next_power_of_two()
-        * costs_per_air[&RiscvAirId::SyscallInstrs];
+    cells += (num_events_per_air[RiscvAirId::SyscallInstrs]).next_power_of_two() *
+        costs_per_air[&RiscvAirId::SyscallInstrs];
 
     // Compute the syscall core chip contribution.
-    cells += (num_events_per_air[RiscvAirId::SyscallCore]).next_power_of_two()
-        * costs_per_air[&RiscvAirId::SyscallCore];
+    cells += (num_events_per_air[RiscvAirId::SyscallCore]).next_power_of_two() *
+        costs_per_air[&RiscvAirId::SyscallCore];
 
     // Compute the global chip contribution.
-    cells += (num_events_per_air[RiscvAirId::Global]).next_power_of_two()
-        * costs_per_air[&RiscvAirId::Global];
+    cells += (num_events_per_air[RiscvAirId::Global]).next_power_of_two() *
+        costs_per_air[&RiscvAirId::Global];
 
     cells * ((core::mem::size_of::<BabyBear>() << 1) as u64)
 }

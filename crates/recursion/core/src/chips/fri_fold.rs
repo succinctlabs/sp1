@@ -361,8 +361,7 @@ mod tests {
         MemAccessKind, RecursionProgram,
     };
     use p3_baby_bear::BabyBear;
-    use p3_field::AbstractExtensionField;
-    use p3_field::AbstractField;
+    use p3_field::{AbstractExtensionField, AbstractField};
     use p3_matrix::dense::RowMajorMatrix;
     use rand::{rngs::StdRng, Rng, SeedableRng};
     use sp1_core_machine::utils::setup_logger;
@@ -430,10 +429,10 @@ mod tests {
                 let ro_output = (0..i)
                     .map(|i| {
                         let i = i as usize;
-                        ro_input[i].ext::<EF>()
-                            + alpha_pow_input[i].ext::<EF>()
-                                * (-ps_at_z[i].ext::<EF>() + mat_opening[i].ext::<EF>())
-                                / (-z.ext::<EF>() + x)
+                        ro_input[i].ext::<EF>() +
+                            alpha_pow_input[i].ext::<EF>() *
+                                (-ps_at_z[i].ext::<EF>() + mat_opening[i].ext::<EF>()) /
+                                (-z.ext::<EF>() + x)
                     })
                     .collect::<Vec<EF>>();
 

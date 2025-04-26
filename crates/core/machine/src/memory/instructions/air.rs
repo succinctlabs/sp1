@@ -27,18 +27,19 @@ where
         let local = main.row_slice(0);
         let local: &MemoryInstructionsColumns<AB::Var> = (*local).borrow();
 
-        // SAFETY: All selectors `is_lb`, `is_lbu`, `is_lh`, `is_lhu`, `is_lw`, `is_sb`, `is_sh`, `is_sw` are checked to be boolean.
-        // Each "real" row has exactly one selector turned on, as `is_real`, the sum of the eight selectors, is boolean.
-        // Therefore, the `opcode` matches the corresponding opcode.
+        // SAFETY: All selectors `is_lb`, `is_lbu`, `is_lh`, `is_lhu`, `is_lw`, `is_sb`, `is_sh`,
+        // `is_sw` are checked to be boolean. Each "real" row has exactly one selector
+        // turned on, as `is_real`, the sum of the eight selectors, is boolean. Therefore,
+        // the `opcode` matches the corresponding opcode.
 
-        let is_real = local.is_lb
-            + local.is_lbu
-            + local.is_lh
-            + local.is_lhu
-            + local.is_lw
-            + local.is_sb
-            + local.is_sh
-            + local.is_sw;
+        let is_real = local.is_lb +
+            local.is_lbu +
+            local.is_lh +
+            local.is_lhu +
+            local.is_lw +
+            local.is_sb +
+            local.is_sh +
+            local.is_sw;
 
         builder.assert_bool(local.is_lb);
         builder.assert_bool(local.is_lbu);
@@ -65,7 +66,8 @@ where
         // - `is_memory = 1`
         // - `is_syscall = 0`
         // - `is_halt = 0`
-        // `op_a_value` when the instruction is load still has to be constrained, as well as memory opcode behavior.
+        // `op_a_value` when the instruction is load still has to be constrained, as well as memory
+        // opcode behavior.
         builder.receive_instruction(
             local.shard,
             local.clk,
@@ -92,14 +94,14 @@ impl MemoryInstructionsChip {
         &self,
         local: &MemoryInstructionsColumns<AB::Var>,
     ) -> AB::Expr {
-        local.is_lb * Opcode::LB.as_field::<AB::F>()
-            + local.is_lbu * Opcode::LBU.as_field::<AB::F>()
-            + local.is_lh * Opcode::LH.as_field::<AB::F>()
-            + local.is_lhu * Opcode::LHU.as_field::<AB::F>()
-            + local.is_lw * Opcode::LW.as_field::<AB::F>()
-            + local.is_sb * Opcode::SB.as_field::<AB::F>()
-            + local.is_sh * Opcode::SH.as_field::<AB::F>()
-            + local.is_sw * Opcode::SW.as_field::<AB::F>()
+        local.is_lb * Opcode::LB.as_field::<AB::F>() +
+            local.is_lbu * Opcode::LBU.as_field::<AB::F>() +
+            local.is_lh * Opcode::LH.as_field::<AB::F>() +
+            local.is_lhu * Opcode::LHU.as_field::<AB::F>() +
+            local.is_lw * Opcode::LW.as_field::<AB::F>() +
+            local.is_sb * Opcode::SB.as_field::<AB::F>() +
+            local.is_sh * Opcode::SH.as_field::<AB::F>() +
+            local.is_sw * Opcode::SW.as_field::<AB::F>()
     }
 
     /// Constrains the addr_aligned, addr_offset, and addr_word memory columns.
@@ -134,8 +136,8 @@ impl MemoryInstructionsChip {
             is_real.clone(),
         );
 
-        // Range check the addr_word to be a valid babybear word. Note that this will also implicitly
-        // do a byte range check on the most significant byte.
+        // Range check the addr_word to be a valid babybear word. Note that this will also
+        // implicitly do a byte range check on the most significant byte.
         BabyBearWordRangeChecker::<AB::F>::range_check(
             builder,
             local.addr_word,
@@ -148,7 +150,8 @@ impl MemoryInstructionsChip {
         builder.slice_range_check_u8(&local.addr_word.0[1..3], is_real.clone());
 
         // We check that `addr_word >= 32`, or `addr_word > 31` to avoid registers.
-        // Check that if the most significant bytes are zero, then the least significant byte is at least 32.
+        // Check that if the most significant bytes are zero, then the least significant byte is at
+        // least 32.
         builder.send_byte(
             ByteOpcode::LTU.as_field::<AB::F>(),
             AB::Expr::one(),
@@ -159,12 +162,13 @@ impl MemoryInstructionsChip {
 
         // SAFETY: Check that the above interaction is only sent if one of the opcode flags is set.
         // If `is_real = 0`, then `local.most_sig_bytes_zero.result = 0`, leading to no interaction.
-        // Note that when `is_real = 1`, due to `IsZeroOperation`, `local.most_sig_bytes_zero.result` is boolean.
+        // Note that when `is_real = 1`, due to `IsZeroOperation`,
+        // `local.most_sig_bytes_zero.result` is boolean.
         builder.when(local.most_sig_bytes_zero.result).assert_one(is_real.clone());
 
-        // Check the most_sig_byte_zero flag.  Note that we can simply add up the three most significant bytes
-        // and check if the sum is zero.  Those bytes are going to be byte range checked, so the only way
-        // the sum is zero is if all bytes are 0.
+        // Check the most_sig_byte_zero flag.  Note that we can simply add up the three most
+        // significant bytes and check if the sum is zero.  Those bytes are going to be byte
+        // range checked, so the only way the sum is zero is if all bytes are 0.
         IsZeroOperation::<AB::F>::eval(
             builder,
             local.addr_word[1] + local.addr_word[2] + local.addr_word[3],
@@ -217,9 +221,11 @@ impl MemoryInstructionsChip {
         self.eval_unsigned_mem_value(builder, local);
 
         // Assert that correct value of `mem_value_is_neg_not_x0`.
-        // SAFETY: If the opcode is not `lb` or `lh`, then `is_lb + is_lh = 0`, so `mem_value_is_neg_not_x0 = 0`.
-        // In the other case, `is_lb + is_lh = 1` (at most one selector is on), so `most_sig_byte` and `most_sig_bit` are correct.
-        // Since `op_a_0` is known to be correct, we can conclude that `mem_value_is_neg_not_x0` is correct for all cases, including padding rows.
+        // SAFETY: If the opcode is not `lb` or `lh`, then `is_lb + is_lh = 0`, so
+        // `mem_value_is_neg_not_x0 = 0`. In the other case, `is_lb + is_lh = 1` (at most
+        // one selector is on), so `most_sig_byte` and `most_sig_bit` are correct.
+        // Since `op_a_0` is known to be correct, we can conclude that `mem_value_is_neg_not_x0` is
+        // correct for all cases, including padding rows.
         builder.assert_eq(
             local.mem_value_is_neg_not_x0,
             (local.is_lb + local.is_lh) * local.most_sig_bit * (AB::Expr::one() - local.op_a_0),
@@ -248,7 +254,8 @@ impl MemoryInstructionsChip {
             AB::Expr::zero(),
         ]);
 
-        // SAFETY: As we mentioned before, `mem_value_is_neg_not_x0` is correct in all cases and boolean in all cases.
+        // SAFETY: As we mentioned before, `mem_value_is_neg_not_x0` is correct in all cases and
+        // boolean in all cases.
         builder.send_instruction(
             AB::Expr::zero(),
             AB::Expr::zero(),
@@ -270,11 +277,12 @@ impl MemoryInstructionsChip {
         // Assert that correct value of `mem_value_is_pos_not_x0`.
         // SAFETY: If it's a store instruction or a padding row, `mem_value_is_pos = 0`.
         // If it's an unsigned instruction (LBU, LHU, LW), then `mem_value_is_pos = 1`.
-        // If it's signed instruction (LB, LH), then `most_sig_bit` will be constrained correctly, and same for `mem_value_is_pos`.
-        let mem_value_is_pos = (local.is_lb + local.is_lh) * (AB::Expr::one() - local.most_sig_bit)
-            + local.is_lbu
-            + local.is_lhu
-            + local.is_lw;
+        // If it's signed instruction (LB, LH), then `most_sig_bit` will be constrained correctly,
+        // and same for `mem_value_is_pos`.
+        let mem_value_is_pos = (local.is_lb + local.is_lh) * (AB::Expr::one() - local.most_sig_bit) +
+            local.is_lbu +
+            local.is_lhu +
+            local.is_lw;
         builder.assert_eq(
             local.mem_value_is_pos_not_x0,
             mem_value_is_pos * (AB::Expr::one() - local.op_a_0),
@@ -287,7 +295,8 @@ impl MemoryInstructionsChip {
             .assert_word_eq(local.unsigned_mem_val, local.op_a_value);
 
         // These two cases combine for all cases where it's a load instruction and `op_a_0 == 0`.
-        // Since the store instructions have `op_a_immutable = 1`, this completely constrains the `op_a`'s value.
+        // Since the store instructions have `op_a_immutable = 1`, this completely constrains the
+        // `op_a`'s value.
     }
 
     /// Evaluates constraints related to storing to memory.
@@ -310,14 +319,14 @@ impl MemoryInstructionsChip {
         let mem_val = *local.memory_access.value();
         let prev_mem_val = *local.memory_access.prev_value();
         let sb_expected_stored_value = Word([
-            a_val[0] * offset_is_zero.clone()
-                + (one.clone() - offset_is_zero.clone()) * prev_mem_val[0],
-            a_val[0] * local.ls_bits_is_one
-                + (one.clone() - local.ls_bits_is_one) * prev_mem_val[1],
-            a_val[0] * local.ls_bits_is_two
-                + (one.clone() - local.ls_bits_is_two) * prev_mem_val[2],
-            a_val[0] * local.ls_bits_is_three
-                + (one.clone() - local.ls_bits_is_three) * prev_mem_val[3],
+            a_val[0] * offset_is_zero.clone() +
+                (one.clone() - offset_is_zero.clone()) * prev_mem_val[0],
+            a_val[0] * local.ls_bits_is_one +
+                (one.clone() - local.ls_bits_is_one) * prev_mem_val[1],
+            a_val[0] * local.ls_bits_is_two +
+                (one.clone() - local.ls_bits_is_two) * prev_mem_val[2],
+            a_val[0] * local.ls_bits_is_three +
+                (one.clone() - local.ls_bits_is_three) * prev_mem_val[3],
         ]);
         builder
             .when(local.is_sb)
@@ -333,8 +342,8 @@ impl MemoryInstructionsChip {
         let a_is_lower_half = offset_is_zero;
         let a_is_upper_half = local.ls_bits_is_two;
         let sh_expected_stored_value = Word([
-            a_val[0] * a_is_lower_half.clone()
-                + (one.clone() - a_is_lower_half.clone()) * prev_mem_val[0],
+            a_val[0] * a_is_lower_half.clone() +
+                (one.clone() - a_is_lower_half.clone()) * prev_mem_val[0],
             a_val[1] * a_is_lower_half.clone() + (one.clone() - a_is_lower_half) * prev_mem_val[1],
             a_val[0] * a_is_upper_half + (one.clone() - a_is_upper_half) * prev_mem_val[2],
             a_val[1] * a_is_upper_half + (one.clone() - a_is_upper_half) * prev_mem_val[3],
@@ -365,10 +374,10 @@ impl MemoryInstructionsChip {
             AB::Expr::one() - local.ls_bits_is_one - local.ls_bits_is_two - local.ls_bits_is_three;
 
         // Compute the byte value.
-        let mem_byte = mem_val[0] * offset_is_zero.clone()
-            + mem_val[1] * local.ls_bits_is_one
-            + mem_val[2] * local.ls_bits_is_two
-            + mem_val[3] * local.ls_bits_is_three;
+        let mem_byte = mem_val[0] * offset_is_zero.clone() +
+            mem_val[1] * local.ls_bits_is_one +
+            mem_val[2] * local.ls_bits_is_two +
+            mem_val[3] * local.ls_bits_is_three;
         let byte_value = Word::extend_expr::<AB>(mem_byte.clone());
 
         // When the instruction is LB or LBU, just use the lower byte.
@@ -416,15 +425,16 @@ impl MemoryInstructionsChip {
 
         // Assert that only one of the value flags is true
         builder.assert_one(
-            offset_is_zero.clone()
-                + local.ls_bits_is_one
-                + local.ls_bits_is_two
-                + local.ls_bits_is_three,
+            offset_is_zero.clone() +
+                local.ls_bits_is_one +
+                local.ls_bits_is_two +
+                local.ls_bits_is_three,
         );
 
         // Assert that the correct value flag is set
-        // SAFETY: Due to the constraints here, at most one of the four flags can be turned on (non-zero).
-        // As their sum is constrained to be 1, the only possibility is that exactly one flag is on, with value 1.
+        // SAFETY: Due to the constraints here, at most one of the four flags can be turned on
+        // (non-zero). As their sum is constrained to be 1, the only possibility is that
+        // exactly one flag is on, with value 1.
         builder.when(offset_is_zero).assert_zero(local.addr_ls_two_bits);
         builder.when(local.ls_bits_is_one).assert_one(local.addr_ls_two_bits);
         builder.when(local.ls_bits_is_two).assert_eq(local.addr_ls_two_bits, AB::Expr::two());

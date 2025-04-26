@@ -122,13 +122,13 @@ pub(crate) fn load_plonk_proof_from_bytes(
     buffer: &[u8],
     num_bsb22_commitments: usize,
 ) -> Result<PlonkProof, PlonkError> {
-    if buffer.len()
-        < PLONK_CLAIMED_VALUES_OFFSET
-            + PLONK_CLAIMED_VALUES_COUNT * 32
-            + PLONK_Z_SHIFTED_OPENING_VALUE_OFFSET
-            + PLONK_Z_SHIFTED_OPENING_H_OFFSET
-            + num_bsb22_commitments * 32
-            + num_bsb22_commitments * 64
+    if buffer.len() <
+        PLONK_CLAIMED_VALUES_OFFSET +
+            PLONK_CLAIMED_VALUES_COUNT * 32 +
+            PLONK_Z_SHIFTED_OPENING_VALUE_OFFSET +
+            PLONK_Z_SHIFTED_OPENING_H_OFFSET +
+            num_bsb22_commitments * 32 +
+            num_bsb22_commitments * 64
     {
         return Err(PlonkError::GeneralError(Error::InvalidData));
     }

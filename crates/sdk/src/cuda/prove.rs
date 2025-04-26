@@ -29,16 +29,14 @@ impl CudaProveBuilder<'_> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
+    /// use sp1_sdk::{include_elf, Prover, ProverClient, SP1Stdin};
     ///
     /// let elf = &[1, 2, 3];
     /// let stdin = SP1Stdin::new();
     ///
     /// let client = ProverClient::builder().cuda().build();
     /// let (pk, vk) = client.setup(elf);
-    /// let builder = client.prove(&pk, &stdin)
-    ///     .core()
-    ///     .run();
+    /// let builder = client.prove(&pk, &stdin).core().run();
     /// ```
     #[must_use]
     pub fn core(mut self) -> Self {
@@ -55,16 +53,14 @@ impl CudaProveBuilder<'_> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
+    /// use sp1_sdk::{include_elf, Prover, ProverClient, SP1Stdin};
     ///
     /// let elf = &[1, 2, 3];
     /// let stdin = SP1Stdin::new();
     ///
     /// let client = ProverClient::builder().cuda().build();
     /// let (pk, vk) = client.setup(elf);
-    /// let builder = client.prove(&pk, &stdin)
-    ///     .compressed()
-    ///     .run();
+    /// let builder = client.prove(&pk, &stdin).compressed().run();
     /// ```
     #[must_use]
     pub fn compressed(mut self) -> Self {
@@ -82,16 +78,14 @@ impl CudaProveBuilder<'_> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
+    /// use sp1_sdk::{include_elf, Prover, ProverClient, SP1Stdin};
     ///
     /// let elf = &[1, 2, 3];
     /// let stdin = SP1Stdin::new();
     ///
     /// let client = ProverClient::builder().cuda().build();
     /// let (pk, vk) = client.setup(elf);
-    /// let builder = client.prove(&pk, &stdin)
-    ///     .plonk()
-    ///     .run();
+    /// let builder = client.prove(&pk, &stdin).plonk().run();
     /// ```
     #[must_use]
     pub fn plonk(mut self) -> Self {
@@ -107,16 +101,14 @@ impl CudaProveBuilder<'_> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
+    /// use sp1_sdk::{include_elf, Prover, ProverClient, SP1Stdin};
     ///
     /// let elf = &[1, 2, 3];
     /// let stdin = SP1Stdin::new();
     ///
     /// let client = ProverClient::builder().cuda().build();
     /// let (pk, vk) = client.setup(elf);
-    /// let builder = client.prove(&pk, &stdin)
-    ///     .groth16()
-    ///     .run();
+    /// let builder = client.prove(&pk, &stdin).groth16().run();
     /// ```
     #[must_use]
     pub fn groth16(mut self) -> Self {
@@ -131,16 +123,14 @@ impl CudaProveBuilder<'_> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, SP1ProofMode, Prover};
+    /// use sp1_sdk::{include_elf, Prover, ProverClient, SP1ProofMode, SP1Stdin};
     ///
     /// let elf = &[1, 2, 3];
     /// let stdin = SP1Stdin::new();
     ///
     /// let client = ProverClient::builder().cuda().build();
     /// let (pk, vk) = client.setup(elf);
-    /// let builder = client.prove(&pk, &stdin)
-    ///     .mode(SP1ProofMode::Groth16)
-    ///     .run();
+    /// let builder = client.prove(&pk, &stdin).mode(SP1ProofMode::Groth16).run();
     /// ```
     #[must_use]
     pub fn mode(mut self, mode: SP1ProofMode) -> Self {
@@ -156,16 +146,14 @@ impl CudaProveBuilder<'_> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{ProverClient, SP1Stdin, include_elf, Prover};
+    /// use sp1_sdk::{include_elf, Prover, ProverClient, SP1Stdin};
     ///
     /// let elf = &[1, 2, 3];
     /// let stdin = SP1Stdin::new();
     ///
     /// let client = ProverClient::builder().cuda().build();
     /// let (pk, vk) = client.setup(elf);
-    /// let proof = client.prove(&pk, &stdin)
-    ///     .run()
-    ///     .unwrap();
+    /// let proof = client.prove(&pk, &stdin).run().unwrap();
     /// ```
     pub fn run(self) -> Result<SP1ProofWithPublicValues> {
         let Self { prover, mode: kind, pk, stdin } = self;

@@ -243,20 +243,20 @@ install_c_toolchain() {
   case $PLATFORM in
     linux)
       case $ARCHITECTURE in
-        amd64) TOOLCHAIN_URL="https://github.com/risc0/toolchain/releases/download/2022.03.25/riscv32im-linux-x86_64.tar.xz" ;;
+        amd64) TOOLCHAIN_URL="https://github.com/risc0/toolchain/releases/download/2024.01.05/riscv32im-linux-x86_64.tar.xz" ;;
         *) err "unsupported architecture for Linux: $ARCHITECTURE" ;;
       esac
       ;;
     darwin)
       case $ARCHITECTURE in
-        arm64) TOOLCHAIN_URL="https://github.com/risc0/toolchain/releases/download/2022.03.25/riscv32im-osx-arm64.tar.xz" ;;
-        amd64) TOOLCHAIN_URL="https://github.com/risc0/toolchain/releases/download/2022.03.25/riscv32im-osx-x86_64.tar.xz" ;;
+        arm64) TOOLCHAIN_URL="https://github.com/risc0/toolchain/releases/download/2024.01.05/riscv32im-osx-arm64.tar.xz" ;;
+        amd64) TOOLCHAIN_URL="https://github.com/risc0/toolchain/releases/download/2024.01.05/riscv32im-osx-x86_64.tar.xz" ;;
         *) err "unsupported architecture for macOS: $ARCHITECTURE" ;;
       esac
       ;;
     win32)
       case $ARCHITECTURE in
-        amd64) TOOLCHAIN_URL="https://github.com/risc0/toolchain/releases/download/2022.03.25/riscv32im-windows-x86_64.tar.xz" ;;
+        amd64) TOOLCHAIN_URL="https://github.com/risc0/toolchain/releases/download/2024.01.05/riscv32im-windows-x86_64.tar.xz" ;;
         *) err "unsupported architecture for Windows: $ARCHITECTURE" ;;
       esac
       ;;

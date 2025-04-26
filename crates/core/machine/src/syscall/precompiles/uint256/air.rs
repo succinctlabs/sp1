@@ -259,9 +259,9 @@ where
         coeff_2_256.resize(32, AB::Expr::zero());
         coeff_2_256.push(AB::Expr::one());
         let modulus_polynomial: Polynomial<AB::Expr> = modulus_limbs.into();
-        let p_modulus: Polynomial<AB::Expr> = modulus_polynomial
-            * (AB::Expr::one() - modulus_is_zero.into())
-            + Polynomial::from_coefficients(&coeff_2_256) * modulus_is_zero.into();
+        let p_modulus: Polynomial<AB::Expr> = modulus_polynomial *
+            (AB::Expr::one() - modulus_is_zero.into()) +
+            Polynomial::from_coefficients(&coeff_2_256) * modulus_is_zero.into();
 
         // Evaluate the uint256 multiplication
         local.output.eval_with_modulus(

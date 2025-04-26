@@ -82,10 +82,11 @@ use sp1_recursion_core::{
 pub use sp1_recursion_gnark_ffi::proof::{Groth16Bn254Proof, PlonkBn254Proof};
 use sp1_recursion_gnark_ffi::{groth16_bn254::Groth16Bn254Prover, plonk_bn254::PlonkBn254Prover};
 use sp1_stark::{
-    baby_bear_poseidon2::BabyBearPoseidon2, shape::Shape, Challenge, MachineProver, SP1ProverOpts,
-    ShardProof, SplitOpts, StarkGenericConfig, StarkVerifyingKey, Val, Word, DIGEST_SIZE,
+    baby_bear_poseidon2::BabyBearPoseidon2,
+    shape::{OrderedShape, Shape},
+    Challenge, MachineProver, MachineProvingKey, SP1ProverOpts, ShardProof, SplitOpts,
+    StarkGenericConfig, StarkVerifyingKey, Val, Word, DIGEST_SIZE,
 };
-use sp1_stark::{shape::OrderedShape, MachineProvingKey};
 use tracing::instrument;
 
 pub use types::*;
@@ -206,7 +207,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         let vk_verification =
             env::var("VERIFY_VK").map(|v| v.eq_ignore_ascii_case("true")).unwrap_or(true);
-        tracing::info!("vk verification: {}", vk_verification);
+        tracing::debug!("vk verification: {}", vk_verification);
 
         // Read the shapes from the shapes directory and deserialize them into memory.
         let allowed_vk_map: BTreeMap<[BabyBear; DIGEST_SIZE], usize> = if vk_verification {
@@ -447,7 +448,8 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                     let recursion_shape =
                         SP1RecursionShape { proof_shapes: vec![shape], is_complete };
 
-                    // Only need to compile the recursion program if we're not in the one-shard case.
+                    // Only need to compile the recursion program if we're not in the one-shard
+                    // case.
                     let compress_shape = SP1CompressProgramShape::Recursion(recursion_shape);
 
                     // Insert the program into the cache.
@@ -846,7 +848,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 handle.join().unwrap();
             }
             handle.join().unwrap();
-            tracing::info!("joined handles");
+            tracing::debug!("joined handles");
 
             let (_, _, vk, proof) = proofs_rx.lock().unwrap().recv().unwrap();
             (vk, proof)
@@ -954,7 +956,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         tracing::debug!("wrap proving time: {:?}", elapsed);
         let mut wrap_challenger = self.wrap_prover.config().challenger();
         self.wrap_prover.machine().verify(&wrap_vk, &wrap_proof, &mut wrap_challenger).unwrap();
-        tracing::info!("wrapping successful");
+        tracing::debug!("wrapping successful");
 
         Ok(SP1ReduceProof { vk: wrap_vk, proof: wrap_proof.shard_proofs.pop().unwrap() })
     }
