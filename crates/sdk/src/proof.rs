@@ -9,7 +9,7 @@ use std::{
     path::Path,
 };
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use hashbrown::HashMap;
 use p3_baby_bear::BabyBear;
 use p3_field::{extension::BinomialExtensionField, AbstractField, PrimeField};
@@ -104,14 +104,21 @@ impl SP1ProofWithPublicValues {
 
     /// Saves the proof to a path.
     pub fn save(&self, path: impl AsRef<Path>) -> Result<()> {
-        bincode::serialize_into(File::create(path).expect("failed to open file"), self)
-            .map_err(Into::into)
+        bincode::serialize_into(
+            File::create(path.as_ref()).with_context(|| {
+                format!("failed to create file for saving proof: {}", path.as_ref().display())
+            })?,
+            self,
+        )
+        .map_err(Into::into)
     }
 
     /// Loads a proof from a path.
     pub fn load(path: impl AsRef<Path>) -> Result<Self> {
-        bincode::deserialize_from(File::open(path).expect("failed to open file"))
-            .map_err(Into::into)
+        bincode::deserialize_from(File::open(path.as_ref()).with_context(|| {
+            format!("failed to open file for loading proof: {}", path.as_ref().display())
+        })?)
+        .map_err(Into::into)
     }
 
     /// The proof in the byte encoding the onchain verifiers accepts for [`SP1ProofMode::Groth16`]
