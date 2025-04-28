@@ -91,20 +91,10 @@ impl FunctionKind {
 impl Profiler {
     pub(super) fn new(elf_bytes: &[u8], sample_rate: u64) -> Result<Self, ProfilerError> {
         let elf = Elf::parse(elf_bytes)?;
-        let file = File::parse(elf_bytes).unwrap();
-        let dwarf = load_dwarf(&file)?;
-        let mut units = vec![];
-        let mut iter = dwarf.units();
-
-        while let Some(header) = iter.next()? {
-            units.push(dwarf.unit(header)?);
-        }
-
         let mut start_lookup = HashMap::new();
         let mut inline_functions_start_lookup = HashMap::new();
         let mut function_ranges = Vec::new();
         let mut builder = ThreadBuilder::new(1, 0, std::time::Instant::now(), false, false);
-        let inline_fn_builder = InlineFunctionFrameBuilder::new(&dwarf, &units);
         let mut frames_to_names = HashMap::new();
         // We need to extract all the functions from the ELF file
         // and their corresponding PC ranges.
@@ -133,21 +123,26 @@ impl Profiler {
             }
         }
 
-        let mut iter = dwarf.units();
+        if trace_inline_functions() {
+            let file = File::parse(elf_bytes).unwrap();
+            let dwarf = load_dwarf(&file)?;
+            let inline_fn_builder = InlineFunctionFrameBuilder::new(&dwarf);
+            let mut iter = dwarf.units();
 
-        while let Some(header) = iter.next()? {
-            let unit = dwarf.unit(header)?;
+            while let Some(header) = iter.next()? {
+                let unit = dwarf.unit(header)?;
 
-            let mut entries = unit.entries();
-            while let Some((_, entry)) = entries.next_dfs()? {
-                if entry.tag() == DW_TAG_inlined_subroutine {
-                    inline_fn_builder.build(
-                        &unit,
-                        entry,
-                        &mut builder,
-                        &mut function_ranges,
-                        &mut inline_functions_start_lookup,
-                    )?;
+                let mut entries = unit.entries();
+                while let Some((_, entry)) = entries.next_dfs()? {
+                    if entry.tag() == DW_TAG_inlined_subroutine {
+                        inline_fn_builder.build(
+                            &unit,
+                            entry,
+                            &mut builder,
+                            &mut function_ranges,
+                            &mut inline_functions_start_lookup,
+                        )?;
+                    }
                 }
             }
         }
@@ -319,14 +314,17 @@ impl Profiler {
 
 struct InlineFunctionFrameBuilder<'a> {
     dwarf: &'a Dwarf<EndianArcSlice<RunTimeEndian>>,
-    units: &'a [Unit<EndianArcSlice<RunTimeEndian>>],
+    units: Vec<Unit<EndianArcSlice<RunTimeEndian>>>,
 }
 
 impl<'a> InlineFunctionFrameBuilder<'a> {
-    pub fn new(
-        dwarf: &'a Dwarf<EndianArcSlice<RunTimeEndian>>,
-        units: &'a [Unit<EndianArcSlice<RunTimeEndian>>],
-    ) -> Self {
+    pub fn new(dwarf: &'a Dwarf<EndianArcSlice<RunTimeEndian>>) -> Self {
+        let mut units = vec![];
+        let mut iter = dwarf.units();
+
+        while let Some(header) = iter.next().unwrap() {
+            units.push(dwarf.unit(header).unwrap());
+        }
         Self { dwarf, units }
     }
 
@@ -364,6 +362,8 @@ impl<'a> InlineFunctionFrameBuilder<'a> {
 
             start_lookup_entry.push(start_idx);
             function_ranges.push((low_pc, high_pc, Frame::Label(string_idx)));
+
+            eprintln!("{demangled_name} {low_pc} -> {high_pc}, {string_idx:?}");
         }
 
         Ok(())
@@ -450,7 +450,7 @@ impl<'a> InlineFunctionFrameBuilder<'a> {
                 Ok(get_abstract_origin_name(self.dwarf, unit, unit_offset)?)
             }
             gimli::AttributeValue::DebugInfoRef(debug_info_offset) => {
-                let unit = find_unit(self.units, debug_info_offset)?;
+                let unit = find_unit(self.units.as_slice(), debug_info_offset)?;
                 let unit_offset = debug_info_offset
                     .to_unit_offset(&unit.header)
                     .ok_or(ProfilerError::InvalidAttributeAbstractOrigin)?;
@@ -527,4 +527,9 @@ fn find_unit(
         Ok(_) | Err(0) => Err(ProfilerError::NoUnitForOffset(offset.0)),
         Err(i) => Ok(&units[i - 1]),
     }
+}
+
+fn trace_inline_functions() -> bool {
+    let value = std::env::var("TRACE_INLINE_FUNCTIONS").unwrap_or_else(|_| "false".to_string());
+    value == "1" || value.to_lowercase() == "true"
 }

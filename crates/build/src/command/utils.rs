@@ -59,16 +59,12 @@ pub(crate) fn get_rust_compiler_flags(args: &BuildArgs, version: &semver::Versio
         "passes=loweratomic"
     };
 
-    let rust_flags = [
-        "-C",
-        atomic_lower_pass,
-        "-C",
-        "link-arg=-Ttext=0x00200800",
-        "-C",
-        "panic=abort",
-        "-C",
-        "debuginfo=1",
-    ];
+    let mut rust_flags =
+        vec!["-C", atomic_lower_pass, "-C", "link-arg=-Ttext=0x00200800", "-C", "panic=abort"];
+
+    if trace_inline_functions() {
+        rust_flags.extend_from_slice(&["-C", "debuginfo=1"]);
+    }
 
     let rust_flags: Vec<_> =
         rust_flags.into_iter().chain(args.rustflags.iter().map(String::as_str)).collect();
@@ -117,4 +113,9 @@ pub(crate) fn parse_rustc_version(version: &str) -> semver::Version {
         version.split(" ").nth(1).expect("Can't parse rustc --version stdout").trim();
 
     semver::Version::parse(version_string).expect("Can't parse rustc --version stdout")
+}
+
+fn trace_inline_functions() -> bool {
+    let value = std::env::var("TRACE_INLINE_FUNCTIONS").unwrap_or_else(|_| "false".to_string());
+    value == "1" || value.to_lowercase() == "true"
 }
