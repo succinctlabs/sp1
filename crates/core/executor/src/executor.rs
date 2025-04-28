@@ -204,6 +204,31 @@ pub enum ExecutorMode {
     ShapeCollection,
 }
 
+/// Represents different types of stack operations that can occur during program execution.
+#[derive(Debug)]
+pub enum StackEvent {
+    /// Indicates a push operation onto the stack.
+    Push,
+    /// Indicates a pop operation from the stack.
+    Pop,
+    /// Indicates a combined pop and push operation on the stack.
+    PopPush,
+}
+
+impl StackEvent {
+    /// Returns `true` if the event represents pushing onto the stack.
+    #[must_use]
+    pub fn is_push(&self) -> bool {
+        matches!(self, StackEvent::Push | StackEvent::PopPush)
+    }
+
+    /// Returns `true` if the event represents popping from the stack.
+    #[must_use]
+    pub fn is_pop(&self) -> bool {
+        matches!(self, StackEvent::Pop | StackEvent::PopPush)
+    }
+}
+
 /// Information about event counts which are relevant for shape fixing.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct LocalCounts {
@@ -1697,11 +1722,17 @@ impl<'a> Executor<'a> {
         // Fetch the instruction at the current program counter.
         let instruction = self.fetch();
 
+        #[cfg(feature = "profiling")]
+        let previous_pc = self.state.pc;
+
         // Log the current state of the runtime.
-        self.log(&instruction);
+        self.log();
 
         // Execute the instruction.
         self.execute_instruction(&instruction)?;
+
+        #[cfg(feature = "profiling")]
+        self.profile(&instruction, previous_pc.into());
 
         // Increment the clock.
         self.state.global_clk += 1;
@@ -2319,16 +2350,48 @@ impl<'a> Executor<'a> {
     }
 
     #[inline]
-    fn log(&mut self, _: &Instruction) {
-        #[cfg(feature = "profiling")]
-        if let Some((ref mut profiler, _)) = self.profiler {
-            if !self.unconstrained {
-                profiler.record(self.state.global_clk, self.state.pc as u64);
-            }
-        }
-
+    fn log(&self) {
         if !self.unconstrained && self.state.global_clk % 10_000_000 == 0 {
             tracing::info!("clk = {} pc = 0x{:x?}", self.state.global_clk, self.state.pc);
+        }
+    }
+
+    #[cfg(feature = "profiling")]
+    #[inline]
+    fn profile(&mut self, i: &Instruction, previous_pc: u64) {
+        if let Some((ref mut profiler, _)) = self.profiler {
+            if !self.unconstrained {
+                let stack_event = match i.opcode {
+                    // A JAL instruction should push the return address onto a return-address
+                    // stack (RAS) only when rd=x1/x5.
+                    Opcode::JAL => {
+                        if i.op_a == Register::X1 as u8 || i.op_a == Register::X5 as u8 {
+                            Some(StackEvent::Push)
+                        } else {
+                            None
+                        }
+                    }
+                    Opcode::JALR => {
+                        let rd_link = i.op_a == Register::X1 as u8 || i.op_a == Register::X5 as u8;
+                        let rs1_link =
+                            i.op_b == Register::X1 as u32 || i.op_b == Register::X5 as u32;
+                        match (rd_link, rs1_link) {
+                            (false, false) => None,
+                            (false, true) => Some(StackEvent::Pop),
+                            (true, true) if i.op_a as u32 != i.op_b => Some(StackEvent::PopPush),
+                            (true, _) => Some(StackEvent::Push),
+                        }
+                    }
+                    _ => None,
+                };
+
+                profiler.record(
+                    self.state.global_clk,
+                    self.state.pc as u64,
+                    previous_pc,
+                    stack_event.as_ref(),
+                );
+            }
         }
     }
 }
