@@ -48,9 +48,7 @@ pub struct Profiler {
     function_ranges: Vec<(u64, u64, Frame)>,
 
     /// the current known call stack
-    function_stack: Vec<Frame>,
-    /// useful for quick search as to not count recursive calls
-    function_stack_ranges: Vec<Function>,
+    function_stack: Vec<Function>,
     pop_stack: Vec<u64>,
 
     main_idx: Option<StringIndex>,
@@ -63,16 +61,28 @@ struct Sample {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-enum Function {
-    Regular { start: u64 },
-    Inline { start: u64, end: u64 },
+struct Function {
+    pub frame: Frame,
+    pub kind: FunctionKind,
 }
 
 impl Function {
-    pub fn regular(start: u64) -> Self {
-        Self::Regular { start }
+    pub fn regular(frame: Frame) -> Self {
+        Self { frame, kind: FunctionKind::Regular }
     }
 
+    pub fn inline(frame: Frame, start: u64, end: u64) -> Self {
+        Self { frame, kind: FunctionKind::inline(start, end) }
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+enum FunctionKind {
+    Regular,
+    Inline { start: u64, end: u64 },
+}
+
+impl FunctionKind {
     pub fn inline(start: u64, end: u64) -> Self {
         Self::Inline { start, end }
     }
@@ -151,7 +161,6 @@ impl Profiler {
             inline_functions_start_lookup,
             function_ranges,
             function_stack: Vec::new(),
-            function_stack_ranges: Vec::new(),
             pop_stack: Vec::new(),
         })
     }
@@ -167,13 +176,13 @@ impl Profiler {
             if stack_event.is_pop() {
                 loop {
                     // Pop all inline functions
-                    while matches!(self.function_stack_ranges.last(), Some(Function::Inline { .. }))
-                    {
-                        self.function_stack_ranges.pop();
+                    while matches!(
+                        self.function_stack.last().map(|f| f.kind),
+                        Some(FunctionKind::Inline { .. })
+                    ) {
                         self.function_stack.pop();
                     }
 
-                    self.function_stack_ranges.pop();
                     self.function_stack.pop();
                     let popped = self.pop_stack.pop().unwrap();
 
@@ -187,8 +196,7 @@ impl Profiler {
                 if let Some(f) = self.start_lookup.get(&pc) {
                     // Jump to a new function.
                     let (_, _, name) = self.function_ranges.get(*f).unwrap();
-                    self.function_stack_ranges.push(Function::regular(previous_pc));
-                    self.function_stack.push(name.clone());
+                    self.function_stack.push(Function::regular(name.clone()));
                     self.pop_stack.push(previous_pc);
                 }
             }
@@ -196,14 +204,15 @@ impl Profiler {
 
         // Pop inline functions when the current PC is not in theirs range
         loop {
-            let Some(Function::Inline { start, end }) = self.function_stack_ranges.last() else {
+            let Some(FunctionKind::Inline { start, end }) =
+                self.function_stack.last().map(|f| f.kind)
+            else {
                 break;
             };
 
-            if *start <= pc && pc < *end {
+            if start <= pc && pc < end {
                 break;
             }
-            self.function_stack_ranges.pop();
             self.function_stack.pop();
         }
 
@@ -211,16 +220,17 @@ impl Profiler {
         if let Some(inline_functions) = self.inline_functions_start_lookup.get(&pc) {
             for f in inline_functions {
                 let (start, end, name) = self.function_ranges.get(*f).unwrap();
-                let f = Function::inline(*start, *end);
-                if self.function_stack_ranges.last() != Some(&f) {
-                    self.function_stack_ranges.push(f);
-                    self.function_stack.push(name.clone());
+                let f = Function::inline(name.clone(), *start, *end);
+                if self.function_stack.last() != Some(&f) {
+                    self.function_stack.push(f);
                 }
             }
         }
 
         if clk % self.sample_rate == 0 {
-            self.samples.push(Sample { stack: self.function_stack.clone() });
+            self.samples.push(Sample {
+                stack: self.function_stack.iter().map(|f| f.frame.clone()).collect(),
+            });
         }
     }
 
