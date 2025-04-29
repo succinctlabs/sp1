@@ -6,6 +6,7 @@ service ProverService {
     rpc Setup(SetupRequest) returns (SetupResponse) {}
     rpc Ready(ReadyRequest) returns (ReadyResponse) {}
     rpc ProveCore(ProveCoreRequest) returns (ProveCoreResponse) {}
+    rpc ProveCoreStateless(ProveCoreRequest) returns (ProveCoreResponse) {}
     rpc Compress(CompressRequest) returns (CompressResponse) {}
     rpc Shrink(ShrinkRequest) returns (ShrinkResponse) {}
     rpc Wrap(WrapRequest) returns (WrapResponse) {}

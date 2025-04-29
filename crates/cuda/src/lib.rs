@@ -76,6 +76,19 @@ pub struct ProveCoreRequestPayload {
     pub stdin: SP1Stdin,
 }
 
+/// The payload for the [sp1_prover::SP1Prover::stateless_prove_core] method.
+///
+/// We use this object to serialize and deserialize the payload from the client to the server.
+/// The ELF is included in the payload to allow to build the program and the pk on the Moongate
+/// server
+#[derive(Serialize, Deserialize)]
+pub struct StatelessProveCoreRequestPayload {
+    /// The input stream.
+    pub stdin: SP1Stdin,
+    /// The ELF.
+    pub elf: Vec<u8>,
+}
+
 /// The payload for the [sp1_prover::SP1Prover::compress] method.
 ///
 /// We use this object to serialize and deserialize the payload from the client to the server.
@@ -255,6 +268,22 @@ impl SP1CudaProver {
         let request =
             crate::proto::api::ProveCoreRequest { data: bincode::serialize(&payload).unwrap() };
         let response = block_on(async { self.client.prove_core(request).await }).unwrap();
+        let proof: SP1CoreProof = bincode::deserialize(&response.result).unwrap();
+        Ok(proof)
+    }
+
+    /// Executes the [sp1_prover::SP1Prover::prove_core] method inside the container.
+    ///
+    /// You will need at least 24GB of VRAM to run this method.
+    pub fn prove_core_stateless(
+        &self,
+        elf: Vec<u8>,
+        stdin: &SP1Stdin,
+    ) -> Result<SP1CoreProof, SP1CoreProverError> {
+        let payload = StatelessProveCoreRequestPayload { elf, stdin: stdin.clone() };
+        let request =
+            crate::proto::api::ProveCoreRequest { data: bincode::serialize(&payload).unwrap() };
+        let response = block_on(async { self.client.prove_core_stateless(request).await }).unwrap();
         let proof: SP1CoreProof = bincode::deserialize(&response.result).unwrap();
         Ok(proof)
     }
