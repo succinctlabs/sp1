@@ -88,7 +88,7 @@ impl CudaProver {
         kind: SP1ProofMode,
     ) -> Result<(SP1ProofWithPublicValues, u64)> {
         // Generate the core proof.
-        let proof = self.cuda_prover.prove_core_stateless(pk.elf.clone(), stdin)?;
+        let proof = self.cuda_prover.prove_core_stateless(pk.clone(), stdin)?;
         // TODO: Return the prover gas
         let cycles = proof.cycles;
         if kind == SP1ProofMode::Core {

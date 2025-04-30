@@ -85,8 +85,8 @@ pub struct ProveCoreRequestPayload {
 pub struct StatelessProveCoreRequestPayload {
     /// The input stream.
     pub stdin: SP1Stdin,
-    /// The ELF.
-    pub elf: Vec<u8>,
+    /// The proving key.
+    pub pk: SP1ProvingKey,
 }
 
 /// The payload for the [sp1_prover::SP1Prover::compress] method.
@@ -277,10 +277,10 @@ impl SP1CudaProver {
     /// You will need at least 24GB of VRAM to run this method.
     pub fn prove_core_stateless(
         &self,
-        elf: Vec<u8>,
+        pk: SP1ProvingKey,
         stdin: &SP1Stdin,
     ) -> Result<SP1CoreProof, SP1CoreProverError> {
-        let payload = StatelessProveCoreRequestPayload { elf, stdin: stdin.clone() };
+        let payload = StatelessProveCoreRequestPayload { pk, stdin: stdin.clone() };
         let request =
             crate::proto::api::ProveCoreRequest { data: bincode::serialize(&payload).unwrap() };
         let response = block_on(async { self.client.prove_core_stateless(request).await }).unwrap();
