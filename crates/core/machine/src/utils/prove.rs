@@ -263,12 +263,12 @@ where
 
                             // We combine the memory init/finalize events if they are "small"
                             // and would affect performance.
-                            let mut shape_fixed_records = if done
-                                && num_cycles < 1 << 21
-                                && deferred.global_memory_initialize_events.len()
-                                    < opts.split_opts.combine_memory_threshold
-                                && deferred.global_memory_finalize_events.len()
-                                    < opts.split_opts.combine_memory_threshold
+                            let mut shape_fixed_records = if done &&
+                                num_cycles < 1 << 21 &&
+                                deferred.global_memory_initialize_events.len() <
+                                    opts.split_opts.combine_memory_threshold &&
+                                deferred.global_memory_finalize_events.len() <
+                                    opts.split_opts.combine_memory_threshold
                             {
                                 let mut records_clone = records.clone();
                                 let last_record = records_clone.last_mut();
@@ -620,9 +620,9 @@ where
     let pv = records.last().unwrap().public_values;
 
     // Handle the case where the COMMIT happens across the last two shards.
-    if !done
-        && (pv.committed_value_digest.iter().any(|v| *v != 0)
-            || pv.deferred_proofs_digest.iter().any(|v| *v != 0))
+    if !done &&
+        (pv.committed_value_digest.iter().any(|v| *v != 0) ||
+            pv.deferred_proofs_digest.iter().any(|v| *v != 0))
     {
         // We turn off the `print_report` flag to avoid modifying the report.
         runtime.print_report = false;
