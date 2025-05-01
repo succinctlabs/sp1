@@ -81,7 +81,7 @@ impl CudaProver {
     /// Proves the given program on the given input in the given proof mode.
     ///
     /// Returns the cycle count in addition to the proof.
-    pub fn prove_with_report(
+    pub fn prove_with_cycles(
         &self,
         pk: &SP1ProvingKey,
         stdin: &SP1Stdin,
@@ -89,6 +89,7 @@ impl CudaProver {
     ) -> Result<(SP1ProofWithPublicValues, u64)> {
         // Generate the core proof.
         let proof = self.cuda_prover.prove_core(stdin)?;
+        // TODO: Return the prover gas
         let cycles = proof.cycles;
         if kind == SP1ProofMode::Core {
             let proof_with_pv = SP1ProofWithPublicValues::new(
@@ -174,7 +175,7 @@ impl Prover<CpuProverComponents> for CudaProver {
         stdin: &SP1Stdin,
         kind: SP1ProofMode,
     ) -> Result<SP1ProofWithPublicValues> {
-        self.prove_with_report(pk, stdin, kind).map(|(p, _)| p)
+        self.prove_with_cycles(pk, stdin, kind).map(|(p, _)| p)
     }
 }
 
