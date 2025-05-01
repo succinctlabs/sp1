@@ -1,6 +1,20 @@
+// Copyright 2023 RISC Zero, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 use gecko_profile::{Frame, ProfileBuilder, StringIndex, ThreadBuilder};
 use gimli::{
-    AttributeValue, DW_AT_high_pc, DW_AT_ranges, DW_TAG_inlined_subroutine, DebugInfoOffset,
+    AttributeValue, DW_AT_high_pc, DW_AT_ranges, DW_TAG_inlined_subroutine,
     DebuggingInformationEntry, DwAt, Dwarf, EndianArcSlice, Range, Reader, RunTimeEndian,
     SectionId, Unit, UnitOffset,
 };
@@ -124,6 +138,8 @@ impl Profiler {
         }
 
         if trace_inline_functions() {
+            eprintln!("Inline functions profiling enabled");
+
             let file = File::parse(elf_bytes).unwrap();
             let dwarf = load_dwarf(&file)?;
             let inline_fn_builder = InlineFunctionFrameBuilder::new(&dwarf);
@@ -336,7 +352,7 @@ impl<'a> InlineFunctionFrameBuilder<'a> {
         function_ranges: &mut Vec<(u64, u64, Frame)>,
         start_lookup: &mut HashMap<u64, Vec<usize>>,
     ) -> Result<(), ProfilerError> {
-        let name = self.get_abstract_origin_name(unit, entry)?;
+        let name = self.abstract_origin_name(unit, entry)?;
 
         let demangled_name = demangle(&name).to_string();
 
@@ -349,10 +365,10 @@ impl<'a> InlineFunctionFrameBuilder<'a> {
 
         let mut ranges = vec![];
 
-        if let Some(range) = self.get_pc_range(unit, entry)? {
+        if let Some(range) = self.pc_range(unit, entry)? {
             ranges.push(range);
         } else {
-            ranges.extend(self.get_pc_ranges(unit, entry)?);
+            ranges.extend(self.pc_ranges(unit, entry)?);
         }
 
         for (low_pc, high_pc) in ranges {
@@ -369,12 +385,12 @@ impl<'a> InlineFunctionFrameBuilder<'a> {
         Ok(())
     }
 
-    fn get_pc_ranges(
+    fn pc_ranges(
         &self,
         unit: &Unit<EndianArcSlice<RunTimeEndian>>,
         entry: &DebuggingInformationEntry<'_, '_, EndianArcSlice<RunTimeEndian>>,
     ) -> Result<Vec<(u64, u64)>, gimli::Error> {
-        let Ok(value) = dwarf_attr(entry, DW_AT_ranges) else {
+        let Ok(value) = entry_attr(entry, DW_AT_ranges) else {
             return Ok(vec![]);
         };
 
@@ -393,29 +409,25 @@ impl<'a> InlineFunctionFrameBuilder<'a> {
         Ok(ranges)
     }
 
-    fn get_pc_range(
+    fn pc_range(
         &self,
         unit: &Unit<EndianArcSlice<RunTimeEndian>>,
         entry: &DebuggingInformationEntry<'_, '_, EndianArcSlice<RunTimeEndian>>,
     ) -> Result<Option<(u64, u64)>, ProfilerError> {
-        let Some(low_pc) = self.get_low_pc(unit, entry)? else {
+        let Some(low_pc) = self.low_pc(unit, entry)? else {
             return Ok(None);
         };
-        let high_pc = self.get_high_pc(unit, entry, low_pc)?;
+        let high_pc = self.high_pc(unit, entry, low_pc)?;
 
         Ok(Some((low_pc, high_pc)))
     }
 
-    fn get_low_pc(
+    fn low_pc(
         &self,
-        unit: &gimli::Unit<gimli::EndianArcSlice<gimli::RunTimeEndian>>,
-        entry: &gimli::DebuggingInformationEntry<
-            '_,
-            '_,
-            gimli::EndianArcSlice<gimli::RunTimeEndian>,
-        >,
+        unit: &Unit<EndianArcSlice<RunTimeEndian>>,
+        entry: &DebuggingInformationEntry<'_, '_, EndianArcSlice<RunTimeEndian>>,
     ) -> Result<Option<u64>, ProfilerError> {
-        let Ok(value) = dwarf_attr(entry, gimli::DW_AT_low_pc) else {
+        let Ok(value) = entry_attr(entry, gimli::DW_AT_low_pc) else {
             return Ok(None);
         };
         let low_pc = match value {
@@ -426,13 +438,13 @@ impl<'a> InlineFunctionFrameBuilder<'a> {
         Ok((low_pc != 0).then_some(low_pc))
     }
 
-    fn get_high_pc(
+    fn high_pc(
         &self,
         unit: &Unit<EndianArcSlice<RunTimeEndian>>,
         entry: &DebuggingInformationEntry<'_, '_, EndianArcSlice<RunTimeEndian>>,
         low_pc: u64,
     ) -> Result<u64, ProfilerError> {
-        match dwarf_attr(entry, DW_AT_high_pc)? {
+        match entry_attr(entry, DW_AT_high_pc)? {
             AttributeValue::Addr(val) => Ok(val),
             AttributeValue::DebugAddrIndex(index) => Ok(self.dwarf.address(unit, index)?),
             AttributeValue::Udata(val) => Ok(low_pc + val),
@@ -440,21 +452,26 @@ impl<'a> InlineFunctionFrameBuilder<'a> {
         }
     }
 
-    fn get_abstract_origin_name(
+    fn abstract_origin_name(
         &self,
         unit: &Unit<EndianArcSlice<RunTimeEndian>>,
         entry: &DebuggingInformationEntry<'_, '_, EndianArcSlice<RunTimeEndian>>,
     ) -> Result<String, ProfilerError> {
-        match dwarf_attr(entry, gimli::DW_AT_abstract_origin)? {
+        match entry_attr(entry, gimli::DW_AT_abstract_origin)? {
             gimli::AttributeValue::UnitRef(unit_offset) => {
-                Ok(get_abstract_origin_name(self.dwarf, unit, unit_offset)?)
+                Ok(abstract_origin_name(self.dwarf, unit, unit_offset)?)
             }
             gimli::AttributeValue::DebugInfoRef(debug_info_offset) => {
-                let unit = find_unit(self.units.as_slice(), debug_info_offset)?;
+                let unit = match self.units.binary_search_by_key(&debug_info_offset.0, |unit| {
+                    unit.header.offset().as_debug_info_offset().unwrap().0
+                }) {
+                    Ok(_) | Err(0) => Err(ProfilerError::NoUnitForOffset(debug_info_offset.0)),
+                    Err(i) => Ok(&self.units[i - 1]),
+                }?;
                 let unit_offset = debug_info_offset
                     .to_unit_offset(&unit.header)
                     .ok_or(ProfilerError::InvalidAttributeAbstractOrigin)?;
-                Ok(get_abstract_origin_name(self.dwarf, unit, unit_offset)?)
+                Ok(abstract_origin_name(self.dwarf, unit, unit_offset)?)
             }
             _ => Err(ProfilerError::UnexpectedAbstractOrigin),
         }
@@ -486,14 +503,14 @@ fn load_section(
     EndianArcSlice::new(Arc::from(&*data), endian)
 }
 
-fn dwarf_attr<ReaderT: Reader>(
+fn entry_attr<ReaderT: Reader>(
     entry: &DebuggingInformationEntry<'_, '_, ReaderT>,
     dw_at: DwAt,
 ) -> Result<AttributeValue<ReaderT>, ProfilerError> {
     Ok(entry.attr(dw_at)?.ok_or(ProfilerError::DwAtMissing(dw_at))?.value())
 }
 
-fn get_abstract_origin_name(
+fn abstract_origin_name(
     dwarf: &Dwarf<EndianArcSlice<RunTimeEndian>>,
     unit: &Unit<EndianArcSlice<RunTimeEndian>>,
     abstract_origin: UnitOffset<usize>,
@@ -504,10 +521,7 @@ fn get_abstract_origin_name(
     for spec in abbrev.attributes() {
         let attr = entries.read_attribute(*spec)?;
         match attr.name() {
-            gimli::DW_AT_linkage_name | gimli::DW_AT_MIPS_linkage_name => {
-                return Ok(dwarf.attr_string(unit, attr.value())?.to_string_lossy()?.into());
-            }
-            gimli::DW_AT_name => {
+            gimli::DW_AT_linkage_name | gimli::DW_AT_MIPS_linkage_name | gimli::DW_AT_name => {
                 return Ok(dwarf.attr_string(unit, attr.value())?.to_string_lossy()?.into());
             }
             _ => {}
@@ -515,18 +529,6 @@ fn get_abstract_origin_name(
     }
 
     Err(ProfilerError::InvalidAbstractOrigin)
-}
-
-fn find_unit(
-    units: &[Unit<EndianArcSlice<RunTimeEndian>>],
-    offset: DebugInfoOffset<usize>,
-) -> Result<&Unit<EndianArcSlice<RunTimeEndian>>, ProfilerError> {
-    match units.binary_search_by_key(&offset.0, |unit| {
-        unit.header.offset().as_debug_info_offset().unwrap().0
-    }) {
-        Ok(_) | Err(0) => Err(ProfilerError::NoUnitForOffset(offset.0)),
-        Err(i) => Ok(&units[i - 1]),
-    }
 }
 
 fn trace_inline_functions() -> bool {
