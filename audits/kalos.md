@@ -23,7 +23,7 @@ core/src
 - lookup: builder.rs
 - utils: ec subfolder, buffer.rs
 - stark: verifier.rs, folder.rs, machine.rs, permutation.rs, chip.rs, prover.rs, air.rs
-- machine derive macro: https://github.com/succinctlabs/sp1/blob/main/derive/src/lib.rs
+- machine derive macro: https://github.com/succinctlabs/sp1/blob/dev/crates/derive/src/lib.rs
 
 recursion/core/src
 
