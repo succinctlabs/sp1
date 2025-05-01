@@ -79,8 +79,7 @@ pub struct ProveCoreRequestPayload {
 /// The payload for the [sp1_prover::SP1Prover::stateless_prove_core] method.
 ///
 /// We use this object to serialize and deserialize the payload from the client to the server.
-/// The ELF is included in the payload to allow to build the program and the pk on the Moongate
-/// server
+/// The proving key is sent in the payload with the request to allow the Moongate server to generate proofs without re-generating the proving key. 
 #[derive(Serialize, Deserialize)]
 pub struct StatelessProveCoreRequestPayload {
     /// The input stream.
