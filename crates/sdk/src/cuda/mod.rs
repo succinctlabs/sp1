@@ -9,7 +9,7 @@ use anyhow::Result;
 use prove::CudaProveBuilder;
 use sp1_core_executor::SP1ContextBuilder;
 use sp1_core_machine::io::SP1Stdin;
-use sp1_cuda::SP1CudaProver;
+use sp1_cuda::{MoongateServer, SP1CudaProver};
 use sp1_prover::{components::CpuProverComponents, SP1Prover};
 
 use crate::{
@@ -25,8 +25,8 @@ pub struct CudaProver {
 
 impl CudaProver {
     /// Creates a new [`CudaProver`].
-    pub fn new(prover: SP1Prover, moongate_endpoint: Option<String>) -> Self {
-        let cuda_prover = SP1CudaProver::new(moongate_endpoint);
+    pub fn new(prover: SP1Prover, moongate_server: MoongateServer) -> Self {
+        let cuda_prover = SP1CudaProver::new(moongate_server);
         Self {
             cpu_prover: prover,
             cuda_prover: cuda_prover.expect("Failed to initialize CUDA prover"),
@@ -181,6 +181,6 @@ impl Prover<CpuProverComponents> for CudaProver {
 
 impl Default for CudaProver {
     fn default() -> Self {
-        Self::new(SP1Prover::new(), None)
+        Self::new(SP1Prover::new(), MoongateServer::default())
     }
 }

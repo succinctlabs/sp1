@@ -118,16 +118,29 @@ pub struct WrapRequestPayload {
     pub reduced_proof: SP1ReduceProof<InnerSC>,
 }
 
+/// Defines how the Moongate server is created.
+#[derive(Debug)]
+pub enum MoongateServer {
+    External { endpoint: String },
+    Embedded { visible_device_index: Option<u64>, port: Option<u64> },
+}
+
+impl Default for MoongateServer {
+    fn default() -> Self {
+        Self::Embedded { visible_device_index: None, port: None }
+    }
+}
+
 impl SP1CudaProver {
     /// Creates a new [SP1CudaProver] that can be used to communicate with the Moongate server at
     /// `moongate_endpoint`, or if not provided, create one that runs inside a Docker container.
-    pub fn new(moongate_endpoint: Option<String>) -> Result<Self, Box<dyn StdError>> {
+    pub fn new(moongate_server: MoongateServer) -> Result<Self, Box<dyn StdError>> {
         let reqwest_middlewares = vec![Box::new(LoggingMiddleware) as Box<dyn Middleware>];
 
-        let prover = match moongate_endpoint {
-            Some(moongate_endpoint) => {
+        let prover = match moongate_server {
+            MoongateServer::External { endpoint } => {
                 let client = Client::new(
-                    Url::parse(&moongate_endpoint).expect("failed to parse url"),
+                    Url::parse(&endpoint).expect("failed to parse url"),
                     reqwest::Client::new(),
                     reqwest_middlewares,
                 )
@@ -135,7 +148,9 @@ impl SP1CudaProver {
 
                 SP1CudaProver { client, managed_container: None }
             }
-            None => Self::start_moongate_server(reqwest_middlewares)?,
+            MoongateServer::Embedded { visible_device_index, port } => {
+                Self::start_moongate_server(reqwest_middlewares, visible_device_index, port)?
+            }
         };
 
         let timeout = Duration::from_secs(300);
@@ -178,15 +193,20 @@ impl SP1CudaProver {
 
     fn start_moongate_server(
         reqwest_middlewares: Vec<Box<dyn Middleware>>,
+        visible_device_index: Option<u64>,
+        port: Option<u64>,
     ) -> Result<SP1CudaProver, Box<dyn StdError>> {
         // If the moongate endpoint url hasn't been provided, we start the Docker container
-        let container_name = "sp1-gpu";
+        let container_name = port.map(|p| format!("sp1-gpu-{p}")).unwrap_or("sp1-gpu".to_string());
         let image_name = std::env::var("SP1_GPU_IMAGE")
             .unwrap_or_else(|_| "public.ecr.aws/succinct-labs/moongate:v4.2.1".to_string());
 
         let cleaned_up = Arc::new(AtomicBool::new(false));
-        let cleanup_name = container_name;
+        let cleanup_name = container_name.clone();
         let cleanup_flag = cleaned_up.clone();
+        let port = port.unwrap_or(3000);
+        let gpus =
+            visible_device_index.map(|i| format!("device = {i}")).unwrap_or("all".to_string());
 
         // Check if Docker is available and the user has necessary permissions
         if !Self::check_docker_availability()? {
@@ -204,14 +224,14 @@ impl SP1CudaProver {
             .args([
                 "run",
                 "-e",
-                &format!("RUST_LOG={}", rust_log_level),
+                &format!("RUST_LOG={rust_log_level}"),
                 "-p",
-                "3000:3000",
+                &format!("{port}:3000"),
                 "--rm",
                 "--gpus",
-                "all",
+                &gpus,
                 "--name",
-                container_name,
+                &container_name,
                 &image_name,
             ])
             // Redirect stdout and stderr to the parent process
@@ -224,7 +244,7 @@ impl SP1CudaProver {
         ctrlc::set_handler(move || {
             tracing::debug!("received Ctrl+C, cleaning up...");
             if !cleanup_flag.load(Ordering::SeqCst) {
-                cleanup_container(cleanup_name);
+                cleanup_container(&cleanup_name);
                 cleanup_flag.store(true, Ordering::SeqCst);
             }
             std::process::exit(0);
@@ -341,7 +361,7 @@ impl SP1CudaProver {
 
 impl Default for SP1CudaProver {
     fn default() -> Self {
-        Self::new(None).expect("Failed to create SP1CudaProver")
+        Self::new(Default::default()).expect("Failed to create SP1CudaProver")
     }
 }
 
