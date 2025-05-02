@@ -160,6 +160,9 @@ mod zkvm {
     #[no_mangle]
     unsafe extern "C" fn __start() {
         {
+            #[cfg(all(target_os = "zkvm", feature = "bump", feature = "embedded"))]
+            compile_error!("The `bump` and `embedded` features cannot both be enabled.");
+
             #[cfg(all(target_os = "zkvm", feature = "embedded"))]
             crate::allocators::init();
 
