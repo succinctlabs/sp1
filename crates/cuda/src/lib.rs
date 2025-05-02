@@ -205,8 +205,7 @@ impl SP1CudaProver {
         let cleanup_name = container_name.clone();
         let cleanup_flag = cleaned_up.clone();
         let port = port.unwrap_or(3000);
-        let gpus =
-            visible_device_index.map(|i| format!("device = {i}")).unwrap_or("all".to_string());
+        let gpus = visible_device_index.map(|i| format!("device={i}")).unwrap_or("all".to_string());
 
         // Check if Docker is available and the user has necessary permissions
         if !Self::check_docker_availability()? {
