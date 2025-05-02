@@ -254,7 +254,7 @@ impl SP1CudaProver {
         std::thread::sleep(Duration::from_secs(2));
 
         let client = Client::new(
-            Url::parse("http://localhost:3000/twirp/").expect("failed to parse url"),
+            Url::parse(&format!("http://localhost:{port}/twirp/")).expect("failed to parse url"),
             reqwest::Client::new(),
             reqwest_middlewares,
         )
