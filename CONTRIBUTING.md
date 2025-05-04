@@ -49,7 +49,7 @@ If you have reviewed existing documentation and still have questions, or you are
 *opening a discussion**. This repository comes with a discussions board where you can also ask for help. Click the "
 Discussions" tab at the top.
 
-As SP1 is still in heavy development, the documentation can be a bit scattered. The [SP1 Book](https://succinctlabs.github.io/sp1/) is our
+As SP1 is still in heavy development, the documentation can be a bit scattered. The [SP1 Book](https://docs.succinct.xyz/docs/sp1/introduction) is our
 current best-effort attempt at keeping up-to-date information.
 
 ### Submitting a bug report
