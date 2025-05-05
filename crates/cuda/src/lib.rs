@@ -52,7 +52,7 @@ pub struct CudaProverContainer {
 
 /// The payload for the [sp1_prover::SP1Prover::setup] method.
 ///
-/// We use this object to serialize and deserialize the payload from the client to the server.
+/// This object is used to serialize and deserialize the payloads for the Moongate server.
 #[derive(Serialize, Deserialize)]
 pub struct SetupRequestPayload {
     pub elf: Vec<u8>,
@@ -69,7 +69,7 @@ pub struct SetupResponsePayload {
 
 /// The payload for the [sp1_prover::SP1Prover::prove_core] method.
 ///
-/// We use this object to serialize and deserialize the payload from the client to the server.
+/// This object is used to serialize and deserialize the payloads for the Moongate server.
 #[derive(Serialize, Deserialize)]
 pub struct ProveCoreRequestPayload {
     /// The input stream.
@@ -78,8 +78,9 @@ pub struct ProveCoreRequestPayload {
 
 /// The payload for the [sp1_prover::SP1Prover::stateless_prove_core] method.
 ///
-/// We use this object to serialize and deserialize the payload from the client to the server.
-/// The proving key is sent in the payload with the request to allow the Moongate server to generate proofs without re-generating the proving key. 
+/// This object is used to serialize and deserialize the payloads for the Moongate server.
+/// The proving key is sent in the payload with the request to allow the Moongate server to generate
+/// proofs without re-generating the proving key.
 #[derive(Serialize, Deserialize)]
 pub struct StatelessProveCoreRequestPayload {
     /// The input stream.
@@ -90,7 +91,7 @@ pub struct StatelessProveCoreRequestPayload {
 
 /// The payload for the [sp1_prover::SP1Prover::compress] method.
 ///
-/// We use this object to serialize and deserialize the payload from the client to the server.
+/// This object is used to serialize and deserialize the payloads for the Moongate server.
 #[derive(Serialize, Deserialize)]
 pub struct CompressRequestPayload {
     /// The verifying key.
@@ -103,7 +104,7 @@ pub struct CompressRequestPayload {
 
 /// The payload for the [sp1_prover::SP1Prover::shrink] method.
 ///
-/// We use this object to serialize and deserialize the payload from the client to the server.
+/// This object is used to serialize and deserialize the payloads for the Moongate server.
 #[derive(Serialize, Deserialize)]
 pub struct ShrinkRequestPayload {
     pub reduced_proof: SP1ReduceProof<InnerSC>,
@@ -111,7 +112,7 @@ pub struct ShrinkRequestPayload {
 
 /// The payload for the [sp1_prover::SP1Prover::wrap_bn254] method.
 ///
-/// We use this object to serialize and deserialize the payload from the client to the server.
+/// This object is used to serialize and deserialize the payloads for the Moongate server.
 #[derive(Serialize, Deserialize)]
 pub struct WrapRequestPayload {
     pub reduced_proof: SP1ReduceProof<InnerSC>,
@@ -276,10 +277,10 @@ impl SP1CudaProver {
     /// You will need at least 24GB of VRAM to run this method.
     pub fn prove_core_stateless(
         &self,
-        pk: SP1ProvingKey,
+        pk: &SP1ProvingKey,
         stdin: &SP1Stdin,
     ) -> Result<SP1CoreProof, SP1CoreProverError> {
-        let payload = StatelessProveCoreRequestPayload { pk, stdin: stdin.clone() };
+        let payload = StatelessProveCoreRequestPayload { pk: pk.clone(), stdin: stdin.clone() };
         let request =
             crate::proto::api::ProveCoreRequest { data: bincode::serialize(&payload).unwrap() };
         let response = block_on(async { self.client.prove_core_stateless(request).await }).unwrap();
