@@ -122,12 +122,12 @@ pub struct WrapRequestPayload {
 #[derive(Debug)]
 pub enum MoongateServer {
     External { endpoint: String },
-    Embedded { visible_device_index: Option<u64>, port: Option<u64> },
+    Local { visible_device_index: Option<u64>, port: Option<u64> },
 }
 
 impl Default for MoongateServer {
     fn default() -> Self {
-        Self::Embedded { visible_device_index: None, port: None }
+        Self::Local { visible_device_index: None, port: None }
     }
 }
 
@@ -148,7 +148,7 @@ impl SP1CudaProver {
 
                 SP1CudaProver { client, managed_container: None }
             }
-            MoongateServer::Embedded { visible_device_index, port } => {
+            MoongateServer::Local { visible_device_index, port } => {
                 Self::start_moongate_server(reqwest_middlewares, visible_device_index, port)?
             }
         };

@@ -26,13 +26,10 @@ impl CudaProverBuilder {
     /// ```rust,no_run
     /// use sp1_sdk::ProverClient;
     ///
-    /// let prover = ProverClient::builder().cuda().with_external_moongate_server("http://...").build();
+    /// let prover = ProverClient::builder().cuda().server("http://...").build();
     /// ```
     #[must_use]
-    pub fn with_external_moongate_server(
-        self,
-        endpoint: &str,
-    ) -> ExternalMoonGateServerCudaProverBuilder {
+    pub fn server(self, endpoint: &str) -> ExternalMoonGateServerCudaProverBuilder {
         ExternalMoonGateServerCudaProverBuilder { endpoint: endpoint.to_string() }
     }
 
@@ -47,11 +44,11 @@ impl CudaProverBuilder {
     /// ```rust,no_run
     /// use sp1_sdk::ProverClient;
     ///
-    /// let prover = ProverClient::builder().cuda().with_embedded_moongate_server().port(3200).build();
+    /// let prover = ProverClient::builder().cuda().local().port(3200).build();
     /// ```
     #[must_use]
-    pub fn with_embedded_moongate_server(self) -> EmbeddedMoonGateServerCudaProverBuilder {
-        EmbeddedMoonGateServerCudaProverBuilder::default()
+    pub fn local(self) -> LocalMoonGateServerCudaProverBuilder {
+        LocalMoonGateServerCudaProverBuilder::default()
     }
 
     /// Builds a [`CudaProver`].
@@ -73,7 +70,7 @@ impl CudaProverBuilder {
 
 /// A builder for the [`CudaProver`] with an external Moongate server.
 ///
-/// This is not meant to be used directly. Use [`CudaProverBuilder::with_external_moongate_server`]
+/// This is not meant to be used directly. Use [`CudaProverBuilder::server`]
 /// instead.
 #[derive(Debug)]
 pub struct ExternalMoonGateServerCudaProverBuilder {
@@ -90,7 +87,7 @@ impl ExternalMoonGateServerCudaProverBuilder {
     /// ```rust,no_run
     /// use sp1_sdk::ProverClient;
     ///
-    /// let prover = ProverClient::builder().cuda().with_external_moongate_server("http://...").build();
+    /// let prover = ProverClient::builder().cuda().server("http://...").build();
     /// ```
     #[must_use]
     pub fn build(self) -> CudaProver {
@@ -100,15 +97,15 @@ impl ExternalMoonGateServerCudaProverBuilder {
 
 /// A builder for the [`CudaProver`] with the embedded Moongate server.
 ///
-/// This is not meant to be used directly. Use [`CudaProverBuilder::with_embedded_moongate_server`]
+/// This is not meant to be used directly. Use [`CudaProverBuilder::local`]
 /// instead.
 #[derive(Debug, Default)]
-pub struct EmbeddedMoonGateServerCudaProverBuilder {
+pub struct LocalMoonGateServerCudaProverBuilder {
     visible_device_index: Option<u64>,
     port: Option<u64>,
 }
 
-impl EmbeddedMoonGateServerCudaProverBuilder {
+impl LocalMoonGateServerCudaProverBuilder {
     /// Sets the embedded Moongate server port.
     ///
     /// If not set, the default value is `3000`.
@@ -136,18 +133,13 @@ impl EmbeddedMoonGateServerCudaProverBuilder {
     /// ```rust,no_run
     /// use sp1_sdk::ProverClient;
     ///
-    /// let prover = ProverClient::builder()
-    ///     .cuda()
-    ///     .with_embedded_moongate_server()
-    ///     .visible_device(2)
-    ///     .port(3002)
-    ///     .build();
+    /// let prover = ProverClient::builder().cuda().local().visible_device(2).port(3002).build();
     /// ```
     #[must_use]
     pub fn build(self) -> CudaProver {
         CudaProver::new(
             SP1Prover::new(),
-            MoongateServer::Embedded {
+            MoongateServer::Local {
                 visible_device_index: self.visible_device_index,
                 port: self.port,
             },
