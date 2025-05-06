@@ -147,7 +147,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --release --package sp1-verifier
+          args: --release --package sp1-verifier -F ark
         env:
           RUSTFLAGS: -Copt-level=3 -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
