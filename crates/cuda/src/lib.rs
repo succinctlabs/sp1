@@ -240,15 +240,16 @@ impl SP1CudaProver {
             .map_err(|e| format!("Failed to start Docker container: {}. Please check your Docker installation and permissions.", e))?;
 
         // Kill the container on control-c
-        ctrlc::set_handler(move || {
+        // The error returned by set_handler is ignored to avoid panic when the handler has already
+        // been set.
+        let _ = ctrlc::set_handler(move || {
             tracing::debug!("received Ctrl+C, cleaning up...");
             if !cleanup_flag.load(Ordering::SeqCst) {
                 cleanup_container(&cleanup_name);
                 cleanup_flag.store(true, Ordering::SeqCst);
             }
             std::process::exit(0);
-        })
-        .unwrap();
+        });
 
         // Wait a few seconds for the container to start
         std::thread::sleep(Duration::from_secs(2));
