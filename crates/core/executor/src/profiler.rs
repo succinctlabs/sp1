@@ -213,7 +213,7 @@ impl Profiler {
             }
         }
 
-        // Pop inline functions when the current PC is not in theirs range
+        // Pop inline functions when the current PC is not in the range of the function stack.
         loop {
             let Some(FunctionKind::Inline { start, end }) =
                 self.function_stack.last().map(|f| f.kind)

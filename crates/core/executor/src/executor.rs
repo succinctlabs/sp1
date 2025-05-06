@@ -2363,7 +2363,7 @@ impl<'a> Executor<'a> {
             if !self.unconstrained {
                 let stack_event = match i.opcode {
                     // A JAL instruction should push the return address onto a return-address
-                    // stack (RAS) only when rd=x1/x5.
+                    // stack (RAS) only when rd=x1 or x5.
                     Opcode::JAL => {
                         if i.op_a == Register::X1 as u8 || i.op_a == Register::X5 as u8 {
                             Some(StackEvent::Push)
