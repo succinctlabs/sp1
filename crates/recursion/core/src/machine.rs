@@ -218,8 +218,8 @@ impl<F> AddAssign<&Instruction<F>> for RecursionAirEventCount {
             Instruction::ExpReverseBitsLen(ExpReverseBitsInstr { addrs, .. }) => {
                 self.exp_reverse_bits_len_events += addrs.exp.len()
             }
-            Instruction::Hint(HintInstr { output_addrs_mults }) |
-            Instruction::HintBits(HintBitsInstr {
+            Instruction::Hint(HintInstr { output_addrs_mults })
+            | Instruction::HintBits(HintBitsInstr {
                 output_addrs_mults,
                 input_addr: _, // No receive interaction for the hint operation
             }) => self.mem_var_events += output_addrs_mults.len(),
