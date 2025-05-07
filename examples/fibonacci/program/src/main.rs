@@ -8,30 +8,46 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
+/// Computes the (n-1)th and nth Fibonacci numbers modulo 7919.
 pub fn main() {
-    // Read an input to the program.
-    //
-    // Behind the scenes, this compiles down to a system call which handles reading inputs
-    // from the prover.
+    // Read the input.
     let n = sp1_zkvm::io::read::<u32>();
 
-    // Write n to public input
-    sp1_zkvm::io::commit(&n);
-
-    // Compute the n'th fibonacci number, using normal Rust code.
-    let mut a = 0;
-    let mut b = 1;
-    for _ in 0..n {
-        let mut c = a + b;
-        c %= 7919; // Modulus to prevent overflow.
-        a = b;
-        b = c;
+    // Validate input to prevent excessive computation.
+    if n > 1000 {
+        panic!("Input n is too large (max 1000)");
     }
 
-    // Write the output of the program.
-    //
-    // Behind the scenes, this also compiles down to a system call which handles writing
-    // outputs to the prover.
+    // Commit the input to public output.
+    sp1_zkvm::io::commit(&n);
+
+    // Compute the (n-1)th and nth Fibonacci numbers modulo 7919.
+    let (a, b) = fibonacci(n);
+
+    // Commit the outputs.
     sp1_zkvm::io::commit(&a);
     sp1_zkvm::io::commit(&b);
+}
+
+/// Computes the (n-1)th and nth Fibonacci numbers modulo 7919.
+/// Returns (a, b) where a is the (n-1)th and b is the nth number.
+fn fibonacci(n: u32) -> (u64, u64) {
+    if n == 0 {
+        return (0, 0); // (n-1)th is undefined, so return 0 for consistency.
+    }
+    if n == 1 {
+        return (0, 1);
+    }
+
+    let mut a: u64 = 0;
+    let mut b: u64 = 1;
+    const MOD: u64 = 7919;
+
+    for _ in 2..=n {
+        // Use checked arithmetic to ensure safety.
+        let c = a.checked_add(b).unwrap_or_else(|| panic!("Addition overflow"));
+        a = b;
+        b = c % MOD;
+    }
+    (a, b)
 }
