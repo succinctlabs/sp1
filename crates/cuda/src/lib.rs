@@ -1,16 +1,18 @@
 use std::{
+    collections::HashMap,
     error::Error as StdError,
     future::Future,
     process::{Command, Stdio},
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc,
+        Arc, Mutex,
     },
     time::{Duration, Instant},
 };
 
 use crate::proto::api::ProverServiceClient;
 use async_trait::async_trait;
+use once_cell::sync::Lazy;
 use proto::api::ReadyRequest;
 use reqwest::{Request, Response};
 use serde::{Deserialize, Serialize};
@@ -30,6 +32,9 @@ use twirp::{
 pub mod proto {
     pub mod api;
 }
+
+static MOONGATE_CONTAINERS: Lazy<Mutex<HashMap<String, Arc<AtomicBool>>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
 
 /// A remote client to [sp1_prover::SP1Prover] that runs inside a container.
 ///
@@ -202,8 +207,6 @@ impl SP1CudaProver {
             .unwrap_or_else(|_| "public.ecr.aws/succinct-labs/moongate:v4.2.1".to_string());
 
         let cleaned_up = Arc::new(AtomicBool::new(false));
-        let cleanup_name = container_name.clone();
-        let cleanup_flag = cleaned_up.clone();
         let port = port.unwrap_or(3000);
         let gpus = visible_device_index.map(|i| format!("device={i}")).unwrap_or("all".to_string());
 
@@ -239,14 +242,19 @@ impl SP1CudaProver {
             .spawn()
             .map_err(|e| format!("Failed to start Docker container: {}. Please check your Docker installation and permissions.", e))?;
 
+        MOONGATE_CONTAINERS.lock()?.insert(container_name.clone(), cleaned_up.clone());
+
         // Kill the container on control-c
         // The error returned by set_handler is ignored to avoid panic when the handler has already
         // been set.
         let _ = ctrlc::set_handler(move || {
-            tracing::debug!("received Ctrl+C, cleaning up...");
-            if !cleanup_flag.load(Ordering::SeqCst) {
-                cleanup_container(&cleanup_name);
-                cleanup_flag.store(true, Ordering::SeqCst);
+            tracing::info!("received Ctrl+C, cleaning up...");
+
+            for (container_name, cleanup_flag) in MOONGATE_CONTAINERS.lock().unwrap().iter() {
+                if !cleanup_flag.load(Ordering::SeqCst) {
+                    cleanup_container(container_name);
+                    cleanup_flag.store(true, Ordering::SeqCst);
+                }
             }
             std::process::exit(0);
         });
@@ -263,10 +271,7 @@ impl SP1CudaProver {
 
         Ok(SP1CudaProver {
             client,
-            managed_container: Some(CudaProverContainer {
-                name: container_name.to_string(),
-                cleaned_up: cleaned_up.clone(),
-            }),
+            managed_container: Some(CudaProverContainer { name: container_name, cleaned_up }),
         })
     }
 
