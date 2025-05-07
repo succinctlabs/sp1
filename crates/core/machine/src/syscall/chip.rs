@@ -2,18 +2,18 @@ use crate::utils::next_power_of_two;
 use core::fmt;
 use itertools::Itertools;
 use p3_air::{Air, BaseAir};
-use p3_field::AbstractField;
-use p3_field::PrimeField32;
+use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use p3_maybe_rayon::prelude::IntoParallelRefIterator;
-use p3_maybe_rayon::prelude::ParallelBridge;
-use p3_maybe_rayon::prelude::ParallelIterator;
-use sp1_core_executor::events::GlobalInteractionEvent;
-use sp1_core_executor::{events::SyscallEvent, ExecutionRecord, Program};
+use p3_maybe_rayon::prelude::{IntoParallelRefIterator, ParallelBridge, ParallelIterator};
+use sp1_core_executor::{
+    events::{GlobalInteractionEvent, SyscallEvent},
+    ExecutionRecord, Program,
+};
 use sp1_derive::AlignedBorrow;
-use sp1_stark::air::AirInteraction;
-use sp1_stark::air::{InteractionScope, MachineAir, SP1AirBuilder};
-use sp1_stark::InteractionKind;
+use sp1_stark::{
+    air::{AirInteraction, InteractionScope, MachineAir, SP1AirBuilder},
+    InteractionKind,
+};
 use std::{
     borrow::{Borrow, BorrowMut},
     mem::size_of,
@@ -177,14 +177,14 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
                         .iter()
                         .filter(|e| e.syscall_code.should_send() == 1)
                         .take(1)
-                        .count()
-                        > 0
+                        .count() >
+                        0
                 }
                 SyscallShardKind::Precompile => {
-                    !shard.precompile_events.is_empty()
-                        && shard.cpu_events.is_empty()
-                        && shard.global_memory_initialize_events.is_empty()
-                        && shard.global_memory_finalize_events.is_empty()
+                    !shard.precompile_events.is_empty() &&
+                        shard.cpu_events.is_empty() &&
+                        shard.global_memory_initialize_events.is_empty() &&
+                        shard.global_memory_finalize_events.is_empty()
                 }
             }
         }

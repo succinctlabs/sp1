@@ -1,7 +1,6 @@
 use crate::{
     alu::{AddSubCols, BitwiseCols, LtCols, MulCols, ShiftLeftCols, ShiftRightCols},
-    memory::MemoryInitCols,
-    memory::SingleMemoryLocal,
+    memory::{MemoryInitCols, SingleMemoryLocal},
     syscall::chip::SyscallCols,
 };
 use p3_baby_bear::BabyBear;

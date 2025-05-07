@@ -1,5 +1,7 @@
-use sp1_primitives::consts::fd::{FD_HINT, FD_PUBLIC_VALUES, LOWEST_ALLOWED_FD};
-use sp1_primitives::consts::num_to_comma_separated;
+use sp1_primitives::consts::{
+    fd::{FD_HINT, FD_PUBLIC_VALUES, LOWEST_ALLOWED_FD},
+    num_to_comma_separated,
+};
 
 use crate::{Executor, Register};
 
@@ -131,7 +133,7 @@ impl Syscall for WriteSyscall {
                 panic!(
                     "You are using reserved file descriptor {fd} that is not supported on SP1 versions >= v4.0.0. \
                     Update your patches to the latest versions that are compatible with versions >= v4.0.0. \
-                    See `https://docs.succinct.xyz/docs/sp1/writing-programs/patched-crates` for more information"
+                    See `https://docs.succinct.xyz/docs/sp1/optimizing-programs/precompiles` for more information"
                 );
             }
         } else if fd == FD_PUBLIC_VALUES {

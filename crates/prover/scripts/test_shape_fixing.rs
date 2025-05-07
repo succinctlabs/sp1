@@ -10,11 +10,11 @@ use sp1_core_machine::{
 use sp1_stark::SP1CoreOpts;
 
 #[derive(Parser, Debug)]
-#[clap(author, version, about, long_about = None)]
+#[command(author, version, about, long_about = None)]
 struct Args {
-    #[clap(short, long, value_delimiter = ' ')]
+    #[arg(short, long, value_delimiter = ' ')]
     list: Vec<String>,
-    #[clap(short, long, value_delimiter = ' ')]
+    #[arg(short, long, value_delimiter = ' ')]
     shard_size: usize,
 }
 
@@ -51,8 +51,8 @@ fn test_shape_fixing(
 
             shape_config.fix_shape(&mut record).unwrap();
 
-            if record.contains_cpu()
-                && record.shape.unwrap().height(&RiscvAirId::Cpu).unwrap() > opts.shard_size
+            if record.contains_cpu() &&
+                record.shape.unwrap().height(&RiscvAirId::Cpu).unwrap() > opts.shard_size
             {
                 panic!("something went wrong")
             }

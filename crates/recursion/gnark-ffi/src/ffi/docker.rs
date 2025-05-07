@@ -1,5 +1,4 @@
-use crate::ProofBn254;
-use crate::{Groth16Bn254Proof, PlonkBn254Proof, SP1_CIRCUIT_VERSION};
+use crate::{Groth16Bn254Proof, PlonkBn254Proof, ProofBn254, SP1_CIRCUIT_VERSION};
 use anyhow::{anyhow, Result};
 use std::{io::Write, process::Command};
 

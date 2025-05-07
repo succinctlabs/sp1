@@ -1,8 +1,10 @@
 use itertools::Itertools;
 use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
-use sp1_recursion_compiler::circuit::CircuitV2Builder;
-use sp1_recursion_compiler::ir::{Builder, Config, Felt};
+use sp1_recursion_compiler::{
+    circuit::CircuitV2Builder,
+    ir::{Builder, Config, Felt},
+};
 use sp1_recursion_core::air::RecursionPublicValues;
 
 /// Assertions on recursion public values which represent a complete proof.

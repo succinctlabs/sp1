@@ -2,8 +2,7 @@ mod shapeable;
 
 pub use shapeable::*;
 
-use std::str::FromStr;
-use std::{collections::BTreeMap, marker::PhantomData};
+use std::{collections::BTreeMap, marker::PhantomData, str::FromStr};
 
 use hashbrown::HashMap;
 use itertools::Itertools;
@@ -94,8 +93,8 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         record: &R,
     ) -> Result<Shape<RiscvAirId>, CoreShapeError> {
         match record.kind() {
-            // If this is a packed "core" record where the cpu events are alongisde the memory init and
-            // finalize events, try to fix the shape using the tiny shapes.
+            // If this is a packed "core" record where the cpu events are alongisde the memory init
+            // and finalize events, try to fix the shape using the tiny shapes.
             ShardKind::PackedCore => {
                 // Get the heights of the core airs in the record.
                 let mut heights = record.core_heights();
@@ -114,10 +113,10 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                     })?;
 
                 let shard = record.shard();
-                tracing::info!("Shard Lifted: Index={}, Cluster={}", shard, cluster_index);
+                tracing::debug!("Shard Lifted: Index={}, Cluster={}", shard, cluster_index);
                 for (air, height) in heights.iter() {
                     if shape.contains(air) {
-                        tracing::info!(
+                        tracing::debug!(
                             "Chip {:<20}: {:<3} -> {:<3}",
                             air,
                             log2_ceil_usize(*height),
@@ -133,7 +132,8 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                 // Get the heights of the core airs in the record.
                 let heights = record.core_heights();
 
-                // Try to find the smallest shape fitting within at least one of the candidate shapes.
+                // Try to find the smallest shape fitting within at least one of the candidate
+                // shapes.
                 let log2_shard_size = record.log2_shard_size();
 
                 let (cluster_index, shape, _) = self
@@ -147,11 +147,11 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                     .ok_or_else(|| CoreShapeError::ShapeError(record.debug_stats()))?;
 
                 let shard = record.shard();
-                tracing::info!("Shard Lifted: Index={}, Cluster={}", shard, cluster_index);
+                tracing::debug!("Shard Lifted: Index={}, Cluster={}", shard, cluster_index);
 
                 for (air, height) in heights.iter() {
                     if shape.contains(air) {
-                        tracing::info!(
+                        tracing::debug!(
                             "Chip {:<20}: {:<3} -> {:<3}",
                             air,
                             log2_ceil_usize(*height),
@@ -162,8 +162,8 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                 Ok(shape)
             }
             ShardKind::GlobalMemory => {
-                // If the record is a does not have the CPU chip and is a global memory init/finalize
-                // record, try to fix the shape as such.
+                // If the record is a does not have the CPU chip and is a global memory
+                // init/finalize record, try to fix the shape as such.
                 let heights = record.memory_heights();
                 let shape = self
                     .partial_memory_shapes
@@ -193,9 +193,9 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                                 let mem_events_height = shape[2].1;
                                 let global_events_height = shape[3].1;
                                 if num_memory_local_events
-                                    .div_ceil(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW)
-                                    <= (1 << mem_events_height)
-                                    && num_global_events <= (1 << global_events_height)
+                                    .div_ceil(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW) <=
+                                    (1 << mem_events_height) &&
+                                    num_global_events <= (1 << global_events_height)
                                 {
                                     let mut actual_shape: Shape<RiscvAirId> = Shape::default();
                                     actual_shape.extend(
@@ -221,7 +221,8 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
         }
     }
 
-    /// Returns the area, cluster index, and shape of the minimal shape from candidates that fit a given collection of heights.
+    /// Returns the area, cluster index, and shape of the minimal shape from candidates that fit a
+    /// given collection of heights.
     pub fn minimal_cluster_shape<'a, N, I>(
         &self,
         indexed_shape_clusters: I,
@@ -274,8 +275,8 @@ impl<F: PrimeField32> CoreShapeConfig<F> {
                     ),
                     (
                         RiscvAir::<F>::Global(GlobalChip).name(),
-                        ((2 * num_local_mem_events
-                            + (1 << allowed_log2_height).div_ceil(&air_id.rows_per_event()))
+                        ((2 * num_local_mem_events +
+                            (1 << allowed_log2_height).div_ceil(&air_id.rows_per_event()))
                         .next_power_of_two()
                         .ilog2() as usize)
                             .max(4),
@@ -524,7 +525,8 @@ impl<F: PrimeField32> Default for CoreShapeConfig<F> {
                     ShapeCluster::new(x.into_iter().map(|(k, v)| (k, vec![Some(v)])).collect())
                 })
                 .collect(),
-            costs: serde_json::from_str(include_str!("rv32im_costs.json")).unwrap(),
+            costs: serde_json::from_str(include_str!("rv32im_costs.json"))
+                .expect("Failed to load rv32im_costs.json file. Verify that `git config core.symlinks` is not set to false."),
             _data: PhantomData,
         }
     }

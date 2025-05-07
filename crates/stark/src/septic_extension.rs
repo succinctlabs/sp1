@@ -1,13 +1,16 @@
 //! A septic extension with an irreducible polynomial `z^7 - 2z - 5`.
 use num_bigint::BigUint;
 use num_traits::One;
-use p3_field::PrimeField32;
-use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Field, Packable};
+use p3_field::{
+    AbstractExtensionField, AbstractField, ExtensionField, Field, Packable, PrimeField32,
+};
 use serde::{Deserialize, Serialize};
-use std::array;
-use std::fmt::Display;
-use std::iter::{Product, Sum};
-use std::ops::{Add, AddAssign, Div, Index, IndexMut, Mul, MulAssign, Neg, Sub, SubAssign};
+use std::{
+    array,
+    fmt::Display,
+    iter::{Product, Sum},
+    ops::{Add, AddAssign, Div, Index, IndexMut, Mul, MulAssign, Neg, Sub, SubAssign},
+};
 
 use crate::air::{SP1AirBuilder, SepticExtensionAirBuilder};
 
@@ -270,6 +273,12 @@ impl<F: AbstractField> Sub for SepticExtension<F> {
 impl<F: AbstractField> SubAssign for SepticExtension<F> {
     fn sub_assign(&mut self, rhs: Self) {
         self.0[0] -= rhs.0[0].clone();
+        self.0[1] -= rhs.0[1].clone();
+        self.0[2] -= rhs.0[2].clone();
+        self.0[3] -= rhs.0[3].clone();
+        self.0[4] -= rhs.0[4].clone();
+        self.0[5] -= rhs.0[5].clone();
+        self.0[6] -= rhs.0[6].clone();
     }
 }
 
@@ -663,18 +672,22 @@ impl<F: Field> SepticExtension<F> {
 }
 
 impl<F: PrimeField32> SepticExtension<F> {
-    /// Returns whether the extension field element viewed as an y-coordinate of a digest represents a receive interaction.
+    /// Returns whether the extension field element viewed as an y-coordinate of a digest represents
+    /// a receive interaction.
     pub fn is_receive(&self) -> bool {
-        1 <= self.0[6].as_canonical_u32() && self.0[6].as_canonical_u32() <= (F::ORDER_U32 - 1) / 2
+        1 <= self.0[6].as_canonical_u32() &&
+            self.0[6].as_canonical_u32() <= F::ORDER_U32.div_ceil(2)
     }
 
-    /// Returns whether the extension field element viewed as an y-coordinate of a digest represents a send interaction.
+    /// Returns whether the extension field element viewed as an y-coordinate of a digest represents
+    /// a send interaction.
     pub fn is_send(&self) -> bool {
-        (F::ORDER_U32 + 1) / 2 <= self.0[6].as_canonical_u32()
-            && self.0[6].as_canonical_u32() <= (F::ORDER_U32 - 1)
+        F::ORDER_U32.div_ceil(2) <= self.0[6].as_canonical_u32() &&
+            self.0[6].as_canonical_u32() <= (F::ORDER_U32 - 1)
     }
 
-    /// Returns whether the extension field element viewed as an y-coordinate of a digest cannot represent anything.
+    /// Returns whether the extension field element viewed as an y-coordinate of a digest cannot
+    /// represent anything.
     pub fn is_exception(&self) -> bool {
         self.0[6].as_canonical_u32() == 0
     }

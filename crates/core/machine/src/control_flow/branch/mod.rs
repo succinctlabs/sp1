@@ -186,8 +186,8 @@ mod tests {
                 ErrorType::ConstraintsFailing => {
                     let branch_chip_name = chip_name!(BranchChip, BabyBear);
                     assert!(
-                        result.is_err()
-                            && result.unwrap_err().is_constraints_failing(&branch_chip_name)
+                        result.is_err() &&
+                            result.unwrap_err().is_constraints_failing(&branch_chip_name)
                     );
                 }
             }

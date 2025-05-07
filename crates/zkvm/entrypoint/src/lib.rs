@@ -62,7 +62,9 @@ pub struct ReadVecResult {
 ///
 /// When there is no allocator selected, the program will fail to compile.
 ///
-/// If the input stream is exhausted, the failed flag will be returned as true. In this case, the other outputs from the function are likely incorrect, which is fine as `sp1-lib` always panics in the case that the input stream is exhausted.
+/// If the input stream is exhausted, the failed flag will be returned as true. In this case, the
+/// other outputs from the function are likely incorrect, which is fine as `sp1-lib` always panics
+/// in the case that the input stream is exhausted.
 #[no_mangle]
 pub extern "C" fn read_vec_raw() -> ReadVecResult {
     #[cfg(not(target_os = "zkvm"))]
@@ -146,7 +148,14 @@ mod zkvm {
         }
     }
 
-    pub static mut PUBLIC_VALUES_HASHER: Option<Sha256> = None;
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "blake3")] {
+            pub static mut PUBLIC_VALUES_HASHER: Option<blake3::Hasher> = None;
+        }
+        else {
+            pub static mut PUBLIC_VALUES_HASHER: Option<Sha256> = None;
+        }
+    }
 
     #[no_mangle]
     unsafe extern "C" fn __start() {
@@ -154,7 +163,15 @@ mod zkvm {
             #[cfg(all(target_os = "zkvm", feature = "embedded"))]
             crate::allocators::init();
 
-            PUBLIC_VALUES_HASHER = Some(Sha256::new());
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "blake3")] {
+                    PUBLIC_VALUES_HASHER = Some(blake3::Hasher::new());
+                }
+                else {
+                    PUBLIC_VALUES_HASHER = Some(Sha256::new());
+                }
+            }
+
             #[cfg(feature = "verify")]
             {
                 DEFERRED_PROOFS_DIGEST = Some([BabyBear::zero(); 8]);

@@ -181,10 +181,10 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                 // The blu map stores shard -> map(byte lookup event -> multiplicity).
                 let mut blu = Vec::new();
                 ops.iter().for_each(|(_, op)| match op {
-                    PrecompileEvent::Secp256k1Add(event)
-                    | PrecompileEvent::Secp256r1Add(event)
-                    | PrecompileEvent::Bn254Add(event)
-                    | PrecompileEvent::Bls12381Add(event) => {
+                    PrecompileEvent::Secp256k1Add(event) |
+                    PrecompileEvent::Secp256r1Add(event) |
+                    PrecompileEvent::Bn254Add(event) |
+                    PrecompileEvent::Bls12381Add(event) => {
                         let mut row = zeroed_f_vec(num_cols);
                         let cols: &mut WeierstrassAddAssignCols<F, E::BaseField> =
                             row.as_mut_slice().borrow_mut();
@@ -241,10 +241,10 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                     let mut new_byte_lookup_events = Vec::new();
                     let cols: &mut WeierstrassAddAssignCols<F, E::BaseField> = row.borrow_mut();
                     match &events[idx].1 {
-                        PrecompileEvent::Secp256k1Add(event)
-                        | PrecompileEvent::Secp256r1Add(event)
-                        | PrecompileEvent::Bn254Add(event)
-                        | PrecompileEvent::Bls12381Add(event) => {
+                        PrecompileEvent::Secp256k1Add(event) |
+                        PrecompileEvent::Secp256r1Add(event) |
+                        PrecompileEvent::Bn254Add(event) |
+                        PrecompileEvent::Bls12381Add(event) => {
                             Self::populate_row(event, cols, &mut new_byte_lookup_events);
                         }
                         _ => unreachable!(),
@@ -314,7 +314,8 @@ where
 
             local.slope_denominator.eval(builder, &q_x, &p_x, FieldOperation::Sub, local.is_real);
 
-            // We check that (q.x - p.x) is non-zero in the base field, by computing 1 / (q.x - p.x).
+            // We check that (q.x - p.x) is non-zero in the base field, by computing 1 / (q.x -
+            // p.x).
             let mut coeff_1 = Vec::new();
             coeff_1.resize(<E::BaseField as NumLimbs>::Limbs::USIZE, AB::Expr::zero());
             coeff_1[0] = AB::Expr::one();

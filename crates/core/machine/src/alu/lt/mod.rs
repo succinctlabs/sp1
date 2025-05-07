@@ -404,7 +404,7 @@ where
         builder.assert_eq(c_comp_byte, c_comparison_byte);
 
         // Using the values above, we can constrain the `local.is_comp_eq` flag. We already asserted
-        // in the loop that when `local.is_comp_eq == 1` then all bytes are euqal. It is left to
+        // in the loop that when `local.is_comp_eq == 1` then all bytes are equal. It is left to
         // verify that when `local.is_comp_eq == 0` the comparison bytes are indeed not equal.
         // This is done using the inverse hint `not_eq_inv`.
         builder
@@ -425,8 +425,8 @@ where
         // Constrain the operation flags.
 
         // SAFETY: All selectors `is_slt`, `is_sltu` are checked to be boolean.
-        // Each "real" row has exactly one selector turned on, as `is_real = is_slt + is_sltu` is boolean.
-        // Therefore, the `opcode` matches the corresponding opcode.
+        // Each "real" row has exactly one selector turned on, as `is_real = is_slt + is_sltu` is
+        // boolean. Therefore, the `opcode` matches the corresponding opcode.
 
         // Check that the operation flags are boolean.
         builder.assert_bool(local.is_slt);
@@ -450,8 +450,8 @@ where
             local.pc,
             local.pc + AB::Expr::from_canonical_u32(DEFAULT_PC_INC),
             AB::Expr::zero(),
-            local.is_slt * AB::F::from_canonical_u32(Opcode::SLT as u32)
-                + local.is_sltu * AB::F::from_canonical_u32(Opcode::SLTU as u32),
+            local.is_slt * AB::F::from_canonical_u32(Opcode::SLT as u32) +
+                local.is_sltu * AB::F::from_canonical_u32(Opcode::SLTU as u32),
             Word::extend_var::<AB>(local.a),
             local.b,
             local.c,

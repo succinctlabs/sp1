@@ -1,9 +1,7 @@
-use std::fmt;
-use std::{cmp::Reverse, collections::BTreeSet};
+use std::{cmp::Reverse, collections::BTreeSet, fmt};
 
 use itertools::Itertools;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use serde::{Deserialize, Serialize};
 
 /// A way to keep track of the log2 heights of some set of chips and in canonical order.

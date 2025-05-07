@@ -277,8 +277,8 @@ where
             {
                 // Assert that `contains_execution_shard` is boolean.
                 builder.assert_felt_eq(
-                    current_public_values.contains_execution_shard
-                        * (SymbolicFelt::one() - current_public_values.contains_execution_shard),
+                    current_public_values.contains_execution_shard *
+                        (SymbolicFelt::one() - current_public_values.contains_execution_shard),
                     C::F::zero(),
                 );
                 // A flag to indicate whether the first execution shard has been seen. We have:
@@ -288,26 +288,26 @@ where
                 // seen an execution shard, we can use it to denote if we have seen an execution
                 // shard before.
                 let is_first_execution_shard_seen: Felt<_> = builder.eval(
-                    current_public_values.contains_execution_shard
-                        * (SymbolicFelt::one() - contains_execution_shard),
+                    current_public_values.contains_execution_shard *
+                        (SymbolicFelt::one() - contains_execution_shard),
                 );
 
                 // If this is the first execution shard, then we update the start execution shard
                 // and the `execution_shard` values.
                 compress_public_values.start_execution_shard = builder.eval(
-                    current_public_values.start_execution_shard * is_first_execution_shard_seen
-                        + compress_public_values.start_execution_shard
-                            * (SymbolicFelt::one() - is_first_execution_shard_seen),
+                    current_public_values.start_execution_shard * is_first_execution_shard_seen +
+                        compress_public_values.start_execution_shard *
+                            (SymbolicFelt::one() - is_first_execution_shard_seen),
                 );
                 execution_shard = builder.eval(
-                    current_public_values.start_execution_shard * is_first_execution_shard_seen
-                        + execution_shard * (SymbolicFelt::one() - is_first_execution_shard_seen),
+                    current_public_values.start_execution_shard * is_first_execution_shard_seen +
+                        execution_shard * (SymbolicFelt::one() - is_first_execution_shard_seen),
                 );
 
                 // If this is an execution shard, make the assertion that the value is consistent.
                 builder.assert_felt_eq(
-                    current_public_values.contains_execution_shard
-                        * (execution_shard - current_public_values.start_execution_shard),
+                    current_public_values.contains_execution_shard *
+                        (execution_shard - current_public_values.start_execution_shard),
                     C::F::zero(),
                 );
             }
@@ -405,17 +405,17 @@ where
             // - If the current shard has an execution shard and the flag is set to one, it will
             //   remain set to one.
             contains_execution_shard = builder.eval(
-                contains_execution_shard
-                    + current_public_values.contains_execution_shard
-                        * (SymbolicFelt::one() - contains_execution_shard),
+                contains_execution_shard +
+                    current_public_values.contains_execution_shard *
+                        (SymbolicFelt::one() - contains_execution_shard),
             );
 
             // If this proof contains an execution shard, we update the execution shard value.
             execution_shard = builder.eval(
-                current_public_values.next_execution_shard
-                    * current_public_values.contains_execution_shard
-                    + execution_shard
-                        * (SymbolicFelt::one() - current_public_values.contains_execution_shard),
+                current_public_values.next_execution_shard *
+                    current_public_values.contains_execution_shard +
+                    execution_shard *
+                        (SymbolicFelt::one() - current_public_values.contains_execution_shard),
             );
 
             // Update the reconstruct deferred proof digest.

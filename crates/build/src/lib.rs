@@ -5,11 +5,21 @@ use build::build_program_internal;
 pub use build::{execute_build_program, generate_elf_paths};
 pub use command::TOOLCHAIN_NAME;
 
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 
 const DEFAULT_DOCKER_TAG: &str = concat!("v", env!("CARGO_PKG_VERSION"));
 const BUILD_TARGET: &str = "riscv32im-succinct-zkvm-elf";
 const HELPER_TARGET_SUBDIR: &str = "elf-compilation";
+
+/// Controls the warning message verbosity in the build process.
+#[derive(Clone, Copy, ValueEnum, Debug, Default)]
+pub enum WarningLevel {
+    /// Show all warning messages (default).
+    #[default]
+    All,
+    /// Suppress non-essential warnings; show only critical stuff.
+    Minimal,
+}
 
 /// Compile an SP1 program.
 ///
@@ -18,39 +28,39 @@ const HELPER_TARGET_SUBDIR: &str = "elf-compilation";
 /// features.
 #[derive(Clone, Parser, Debug)]
 pub struct BuildArgs {
-    #[clap(
+    #[arg(
         long,
         action,
         help = "Run compilation using a Docker container for reproducible builds."
     )]
     pub docker: bool,
-    #[clap(
+    #[arg(
         long,
         help = "The ghcr.io/succinctlabs/sp1 image tag to use when building with Docker.",
         default_value = DEFAULT_DOCKER_TAG
     )]
     pub tag: String,
-    #[clap(
+    #[arg(
         long,
         action,
         value_delimiter = ',',
         help = "Space or comma separated list of features to activate"
     )]
     pub features: Vec<String>,
-    #[clap(
+    #[arg(
         long,
         action,
         value_delimiter = ',',
         help = "Space or comma separated list of extra flags to invokes `rustc` with"
     )]
     pub rustflags: Vec<String>,
-    #[clap(long, action, help = "Do not activate the `default` feature")]
+    #[arg(long, action, help = "Do not activate the `default` feature")]
     pub no_default_features: bool,
-    #[clap(long, action, help = "Ignore `rust-version` specification in packages")]
+    #[arg(long, action, help = "Ignore `rust-version` specification in packages")]
     pub ignore_rust_version: bool,
-    #[clap(long, action, help = "Assert that `Cargo.lock` will remain unchanged")]
+    #[arg(long, action, help = "Assert that `Cargo.lock` will remain unchanged")]
     pub locked: bool,
-    #[clap(
+    #[arg(
         short,
         long,
         action,
@@ -58,7 +68,7 @@ pub struct BuildArgs {
         num_args = 1..
     )]
     pub packages: Vec<String>,
-    #[clap(
+    #[arg(
         alias = "bin",
         long,
         action,
@@ -66,18 +76,21 @@ pub struct BuildArgs {
         num_args = 1..
     )]
     pub binaries: Vec<String>,
-    #[clap(long, action, requires = "output_directory", help = "ELF binary name")]
+    #[arg(long, action, requires = "output_directory", help = "ELF binary name")]
     pub elf_name: Option<String>,
-    #[clap(alias = "out-dir", long, action, help = "Copy the compiled ELF to this directory")]
+    #[arg(alias = "out-dir", long, action, help = "Copy the compiled ELF to this directory")]
     pub output_directory: Option<String>,
 
-    #[clap(
+    #[arg(
         alias = "workspace-dir",
         long,
         action,
         help = "The top level directory to be used in the docker invocation."
     )]
     pub workspace_directory: Option<String>,
+
+    #[arg(long, value_enum, default_value = "all", help = "Control warning message verbosity")]
+    pub warning_level: WarningLevel,
 }
 
 // Implement default args to match clap defaults.
@@ -96,6 +109,7 @@ impl Default for BuildArgs {
             locked: false,
             no_default_features: false,
             workspace_directory: None,
+            warning_level: WarningLevel::All,
         }
     }
 }

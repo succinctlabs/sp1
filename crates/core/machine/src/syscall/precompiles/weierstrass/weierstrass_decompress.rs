@@ -289,8 +289,8 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
 impl<F, E: EllipticCurve> BaseAir<F> for WeierstrassDecompressChip<E> {
     fn width(&self) -> usize {
-        num_weierstrass_decompress_cols::<E::BaseField>()
-            + match self.sign_rule {
+        num_weierstrass_decompress_cols::<E::BaseField>() +
+            match self.sign_rule {
                 SignChoiceRule::LeastSignificantBit => 0,
                 SignChoiceRule::Lexicographic => {
                     size_of::<LexicographicChoiceCols<u8, E::BaseField>>()
@@ -356,8 +356,9 @@ where
             limbs_from_vec::<AB::Expr, <E::BaseField as NumLimbs>::Limbs, AB::F>(modulus_limbs);
         local.neg_y_range_check.eval(builder, &local.neg_y.result, &modulus_limbs, local.is_real);
 
-        // Constrain that `y` is a square root. Note that `y.multiplication.result` is constrained to be canonical here.
-        // Since `y_limbs` is constrained to be either `y.multiplication.result` or `neg_y.result`, `y_limbs` will be canonical.
+        // Constrain that `y` is a square root. Note that `y.multiplication.result` is constrained
+        // to be canonical here. Since `y_limbs` is constrained to be either
+        // `y.multiplication.result` or `neg_y.result`, `y_limbs` will be canonical.
         local.y.eval(builder, &local.x_3_plus_b_plus_ax.result, local.y.lsb, local.is_real);
 
         let y_limbs: Limbs<AB::Var, <E::BaseField as NumLimbs>::Limbs> =
@@ -389,9 +390,8 @@ where
 
                 // Get the choice columns from the row slice
                 let choice_cols: &LexicographicChoiceCols<AB::Var, E::BaseField> = (*local_slice)
-                    [weierstrass_cols
-                        ..weierstrass_cols
-                            + size_of::<LexicographicChoiceCols<u8, E::BaseField>>()]
+                    [weierstrass_cols..
+                        weierstrass_cols + size_of::<LexicographicChoiceCols<u8, E::BaseField>>()]
                     .borrow();
 
                 // Assert that the flags are booleans.
