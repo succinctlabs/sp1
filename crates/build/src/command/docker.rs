@@ -149,7 +149,7 @@ pub(crate) fn create_docker_command(
         "-e".to_string(),
         format!("RUSTC={}", rustc_bin.display()),
         "-e".to_string(),
-        "CFLAGS=-D__ILP32__".to_string(),
+        "CFLAGS_riscv32im_succinct_zkvm_elf=-D__ILP32__".to_string(),
         "--entrypoint".to_string(),
         "".to_string(),
         image,
