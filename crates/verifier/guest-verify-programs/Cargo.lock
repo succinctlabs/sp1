@@ -895,7 +895,7 @@ checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
 name = "sp1-build"
-version = "4.2.0"
+version = "4.2.1"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -907,40 +907,22 @@ dependencies = [
 [[package]]
 name = "sp1-lib"
 version = "4.2.0"
-dependencies = [
- "bincode",
- "serde",
- "sp1-primitives 4.2.0",
-]
-
-[[package]]
-name = "sp1-lib"
-version = "4.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b3ef88f90458b6116da164e9c4c4596c49c8cca1944bfe02850b48b232a06b90"
 dependencies = [
  "bincode",
  "elliptic-curve",
  "serde",
- "sp1-primitives 4.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp1-primitives 4.2.0",
 ]
 
 [[package]]
-name = "sp1-primitives"
-version = "4.2.0"
+name = "sp1-lib"
+version = "4.2.1"
 dependencies = [
  "bincode",
- "blake3",
- "cfg-if",
- "hex",
- "lazy_static",
- "num-bigint",
- "p3-baby-bear",
- "p3-field",
- "p3-poseidon2",
- "p3-symmetric",
  "serde",
- "sha2",
+ "sp1-primitives 4.2.1",
 ]
 
 [[package]]
@@ -964,8 +946,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp1-primitives"
+version = "4.2.1"
+dependencies = [
+ "bincode",
+ "blake3",
+ "cfg-if",
+ "hex",
+ "lazy_static",
+ "num-bigint",
+ "p3-baby-bear",
+ "p3-field",
+ "p3-poseidon2",
+ "p3-symmetric",
+ "serde",
+ "sha2",
+]
+
+[[package]]
 name = "sp1-verifier"
-version = "4.2.0"
+version = "4.2.1"
 dependencies = [
  "blake3",
  "cfg-if",
@@ -979,7 +979,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "4.2.0"
+version = "4.2.1"
 dependencies = [
  "blake3",
  "cfg-if",
@@ -988,8 +988,8 @@ dependencies = [
  "libm",
  "rand",
  "sha2",
- "sp1-lib 4.2.0",
- "sp1-primitives 4.2.0",
+ "sp1-lib 4.2.1",
+ "sp1-primitives 4.2.1",
 ]
 
 [[package]]
@@ -1018,7 +1018,7 @@ dependencies = [
  "num-bigint",
  "rand",
  "rustc-hex",
- "sp1-lib 4.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp1-lib 4.2.0",
 ]
 
 [[package]]
