@@ -29,7 +29,7 @@ pub(crate) fn create_local_command(
 
     // the following flag is added to avoid build failure on ring:
     // https://github.com/briansmith/ring/blob/bcf68dd27a071ff1947b6327d4c6bde526e24b60/include/ring-core/target.h#L47
-    command.env("CFLAGS", "-D__ILP32__");
+    command.env("CFLAGS_riscv32im_succinct_zkvm_elf", "-D__ILP32__");
 
     let parsed_version = {
         let output = Command::new("rustc")

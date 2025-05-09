@@ -2,7 +2,7 @@ use std::time::{Duration, Instant};
 
 use clap::{command, Parser};
 use rand::Rng;
-use sp1_cuda::SP1CudaProver;
+use sp1_cuda::{MoongateServer, SP1CudaProver};
 use sp1_prover::{components::CpuProverComponents, HashableKey, ProverMode};
 use sp1_sdk::{self, Prover, ProverClient, SP1Context, SP1Prover, SP1Stdin};
 use sp1_stark::SP1ProverOpts;
@@ -136,7 +136,8 @@ fn main() {
             println!("{:?}", result);
         }
         ProverMode::Cuda => {
-            let server = SP1CudaProver::new(None).expect("failed to initialize CUDA prover");
+            let server = SP1CudaProver::new(MoongateServer::default())
+                .expect("failed to initialize CUDA prover");
 
             let context = SP1Context::default();
             let (report, execution_duration) =

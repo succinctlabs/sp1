@@ -170,7 +170,10 @@ impl NetworkProver {
         &self,
         request_id: B256,
     ) -> Result<(GetProofRequestStatusResponse, Option<SP1ProofWithPublicValues>)> {
-        self.client.get_proof_request_status(request_id, None).await
+        let (status, maybe_proof): (GetProofRequestStatusResponse, Option<ProofFromNetwork>) =
+            self.client.get_proof_request_status(request_id, None).await?;
+        let maybe_proof = maybe_proof.map(Into::into);
+        Ok((status, maybe_proof))
     }
 
     /// Gets the status of a proof request with handling for timeouts and unfulfillable requests.

@@ -3,7 +3,7 @@ use std::{
     path::PathBuf,
 };
 
-use sp1_build::build_program_with_args;
+use sp1_build::{build_program_with_args, BuildArgs};
 
 fn main() -> Result<()> {
     let tests_path =
@@ -26,6 +26,23 @@ fn main() -> Result<()> {
             .to_str()
             .ok_or_else(|| Error::other(format!("expected {tests_path:?} to be valid UTF-8")))?,
         Default::default(),
+    );
+
+    build_program_with_args(
+        "../verifier/guest-verify-programs",
+        BuildArgs {
+            binaries: vec!["groth16_verify".to_string(), "plonk_verify".to_string()],
+            ..Default::default()
+        },
+    );
+
+    build_program_with_args(
+        "../verifier/guest-verify-programs",
+        BuildArgs {
+            binaries: vec!["groth16_verify_blake3".to_string(), "plonk_verify_blake3".to_string()],
+            features: vec!["blake3".to_string()],
+            ..Default::default()
+        },
     );
 
     Ok(())

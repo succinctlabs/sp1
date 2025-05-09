@@ -2179,12 +2179,15 @@ impl<'a> Executor<'a> {
 
             // Count the number of touched memory addresses manually, since `PagedMemory` doesn't
             // already know its length.
-            self.report.touched_memory_addresses = 0;
+            if self.print_report {
+                self.report.touched_memory_addresses = 0;
+            }
             for addr in 1..32 {
                 let record = self.state.memory.registers.get(addr);
                 if record.is_some() {
-                    self.report.touched_memory_addresses += 1;
-
+                    if self.print_report {
+                        self.report.touched_memory_addresses += 1;
+                    }
                     // Program memory is initialized in the MemoryProgram chip and doesn't require
                     // any events, so we only send init events for other memory
                     // addresses.
@@ -2204,7 +2207,9 @@ impl<'a> Executor<'a> {
                 }
             }
             for addr in self.state.memory.page_table.keys() {
-                self.report.touched_memory_addresses += 1;
+                if self.print_report {
+                    self.report.touched_memory_addresses += 1;
+                }
 
                 // Program memory is initialized in the MemoryProgram chip and doesn't require any
                 // events, so we only send init events for other memory addresses.

@@ -1031,9 +1031,14 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         &self,
         input: &SP1RecursionWitnessValues<CoreSC>,
     ) -> Arc<RecursionProgram<BabyBear>> {
+        // Check if the program is in the cache.
         let mut cache = self.lift_programs_lru.lock().unwrap_or_else(|e| e.into_inner());
-        cache
-            .get_or_insert(input.shape(), || {
+        let shape = input.shape();
+        let program = cache.get(&shape).cloned();
+        drop(cache);
+        match program {
+            Some(program) => program,
+            None => {
                 let misses = self.lift_cache_misses.fetch_add(1, Ordering::Relaxed);
                 tracing::debug!("core cache miss, misses: {}", misses);
                 // Get the operations.
@@ -1061,9 +1066,14 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 }
                 let program = Arc::new(program);
                 compiler_span.exit();
+
+                // Insert the program into the cache.
+                let mut cache = self.lift_programs_lru.lock().unwrap_or_else(|e| e.into_inner());
+                cache.put(shape, program.clone());
+                drop(cache);
                 program
-            })
-            .clone()
+            }
+        }
     }
 
     pub fn compress_program(

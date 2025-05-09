@@ -87,6 +87,11 @@ pub trait ProverService {
         ctx: twirp::Context,
         req: ProveCoreRequest,
     ) -> Result<ProveCoreResponse, twirp::TwirpErrorResponse>;
+    async fn prove_core_stateless(
+        &self,
+        ctx: twirp::Context,
+        req: ProveCoreRequest,
+    ) -> Result<ProveCoreResponse, twirp::TwirpErrorResponse>;
     async fn compress(
         &self,
         ctx: twirp::Context,
@@ -128,6 +133,13 @@ where
         req: ProveCoreRequest,
     ) -> Result<ProveCoreResponse, twirp::TwirpErrorResponse> {
         T::prove_core(&*self, ctx, req).await
+    }
+    async fn prove_core_stateless(
+        &self,
+        ctx: twirp::Context,
+        req: ProveCoreRequest,
+    ) -> Result<ProveCoreResponse, twirp::TwirpErrorResponse> {
+        T::prove_core_stateless(&*self, ctx, req).await
     }
     async fn compress(
         &self,
@@ -175,6 +187,12 @@ where
             },
         )
         .route(
+            "/ProveCoreStateless",
+            |api: T, ctx: twirp::Context, req: ProveCoreRequest| async move {
+                api.prove_core_stateless(ctx, req).await
+            },
+        )
+        .route(
             "/Compress",
             |api: T, ctx: twirp::Context, req: CompressRequest| async move {
                 api.compress(ctx, req).await
@@ -208,6 +226,10 @@ pub trait ProverServiceClient: Send + Sync + std::fmt::Debug {
         &self,
         req: ProveCoreRequest,
     ) -> Result<ProveCoreResponse, twirp::ClientError>;
+    async fn prove_core_stateless(
+        &self,
+        req: ProveCoreRequest,
+    ) -> Result<ProveCoreResponse, twirp::ClientError>;
     async fn compress(
         &self,
         req: CompressRequest,
@@ -237,6 +259,12 @@ impl ProverServiceClient for twirp::client::Client {
         req: ProveCoreRequest,
     ) -> Result<ProveCoreResponse, twirp::ClientError> {
         self.request("api.ProverService/ProveCore", req).await
+    }
+    async fn prove_core_stateless(
+        &self,
+        req: ProveCoreRequest,
+    ) -> Result<ProveCoreResponse, twirp::ClientError> {
+        self.request("api.ProverService/ProveCoreStateless", req).await
     }
     async fn compress(
         &self,
