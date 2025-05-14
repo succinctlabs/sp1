@@ -35,7 +35,7 @@ serial_test = "3.2.0"
 rstest = "0.25.0"
 
 [build-dependencies]
-sp1-build = { path = "../build" }
+sp1-build = { workspace = true }
 
 [features]
 default = ["std"]
