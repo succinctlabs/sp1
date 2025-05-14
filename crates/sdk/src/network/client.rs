@@ -8,7 +8,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use alloy_primitives::B256;
+use alloy_primitives::{B256, U256};
 use alloy_signer::SignerSync;
 use alloy_signer_local::PrivateKeySigner;
 use anyhow::{Context, Ok, Result};
@@ -102,14 +102,14 @@ impl NetworkClient {
     ///
     /// # Details
     /// Uses the key that the client was initialized with.
-    pub async fn get_balance(&self) -> Result<String> {
+    pub async fn get_balance(&self) -> Result<U256> {
         self.with_retry(
             || async {
                 let mut rpc = self.prover_network_client().await?;
                 let res = rpc
                     .get_balance(GetBalanceRequest { address: self.signer.address().to_vec() })
                     .await?;
-                Ok(res.into_inner().amount)
+                Ok(U256::from_str(&res.into_inner().amount).unwrap_or_default())
             },
             "getting balance",
         )

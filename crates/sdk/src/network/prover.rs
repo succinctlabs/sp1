@@ -21,7 +21,7 @@ use crate::{
     ProofFromNetwork, Prover, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey,
     SP1VerifyingKey,
 };
-use alloy_primitives::{Address, B256};
+use alloy_primitives::{Address, B256, U256};
 use anyhow::{Context, Result};
 use sp1_core_executor::{SP1Context, SP1ContextBuilder};
 use sp1_core_machine::io::SP1Stdin;
@@ -82,7 +82,7 @@ impl NetworkProver {
     ///     let balance = client.get_balance().await.unwrap();
     /// })
     /// ```
-    pub async fn get_balance(&self) -> Result<String> {
+    pub async fn get_balance(&self) -> Result<U256> {
         self.client.get_balance().await
     }
 
@@ -160,11 +160,13 @@ impl NetworkProver {
     /// ```rust,no_run
     /// use sp1_sdk::{Prover, ProverClient, SP1Stdin};
     ///
-    /// let elf = &[1, 2, 3];
-    /// let client = ProverClient::builder().network().build();
-    /// let (pk, vk) = client.setup(elf);
+    /// tokio_test::block_on(async {
+    ///     let elf = &[1, 2, 3];
+    ///     let client = ProverClient::builder().network().build();
+    ///     let (pk, vk) = client.setup(elf);
     ///
-    /// let vk_hash = client.register_program(&vk, elf);
+    ///     let vk_hash = client.register_program(&vk, elf).await.unwrap();
+    /// })
     /// ```
     pub async fn register_program(&self, vk: &SP1VerifyingKey, elf: &[u8]) -> Result<B256> {
         self.client.register_program(vk, elf).await
