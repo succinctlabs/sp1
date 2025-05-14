@@ -21,7 +21,7 @@ use crate::{
     ProofFromNetwork, Prover, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey,
     SP1VerifyingKey,
 };
-use alloy_primitives::{Address, B256};
+use alloy_primitives::{Address, B256, U256};
 use anyhow::{Context, Result};
 use sp1_core_executor::{SP1Context, SP1ContextBuilder};
 use sp1_core_machine::io::SP1Stdin;
@@ -65,6 +65,21 @@ impl NetworkProver {
         self.tee_signers = tee_signers;
 
         self
+    }
+
+    /// Get the credit balance of your account on the prover network.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin};
+    ///
+    /// tokio_test::block_on(async {
+    ///     let client = ProverClient::builder().network().build();
+    ///     let balance = client.get_balance().await.unwrap();
+    /// })
+    /// ```
+    pub async fn get_balance(&self) -> Result<U256> {
+        self.client.get_balance().await
     }
 
     /// Creates a new [`CpuExecuteBuilder`] for simulating the execution of a program on the CPU.

@@ -8,7 +8,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use alloy_primitives::B256;
+use alloy_primitives::{B256, U256};
 use alloy_signer::SignerSync;
 use alloy_signer_local::PrivateKeySigner;
 use anyhow::{Context, Ok, Result};
@@ -28,7 +28,7 @@ use crate::network::proto::{
     artifact::{artifact_store_client::ArtifactStoreClient, ArtifactType, CreateArtifactRequest},
     network::{
         prover_network_client::ProverNetworkClient, CreateProgramRequest, CreateProgramRequestBody,
-        CreateProgramResponse, FulfillmentStatus, FulfillmentStrategy,
+        CreateProgramResponse, FulfillmentStatus, FulfillmentStrategy, GetBalanceRequest,
         GetFilteredProofRequestsRequest, GetFilteredProofRequestsResponse, GetNonceRequest,
         GetProgramRequest, GetProgramResponse, GetProofRequestStatusRequest,
         GetProofRequestStatusResponse, MessageFormat, ProofMode, RequestProofRequest,
@@ -94,6 +94,24 @@ impl NetworkClient {
                 Ok(res.into_inner().nonce)
             },
             "getting nonce",
+        )
+        .await
+    }
+
+    /// Get the credit balance of your account.
+    ///
+    /// # Details
+    /// Uses the key that the client was initialized with.
+    pub async fn get_balance(&self) -> Result<U256> {
+        self.with_retry(
+            || async {
+                let mut rpc = self.prover_network_client().await?;
+                let res = rpc
+                    .get_balance(GetBalanceRequest { address: self.signer.address().to_vec() })
+                    .await?;
+                Ok(U256::from_str(&res.into_inner().amount).unwrap())
+            },
+            "getting balance",
         )
         .await
     }
