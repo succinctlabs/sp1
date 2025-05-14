@@ -28,8 +28,8 @@ use crate::network::proto::{
     artifact::{artifact_store_client::ArtifactStoreClient, ArtifactType, CreateArtifactRequest},
     network::{
         prover_network_client::ProverNetworkClient, CreateProgramRequest, CreateProgramRequestBody,
-        CreateProgramResponse, FulfillmentStatus, FulfillmentStrategy,
-        GetFilteredProofRequestsRequest, GetFilteredProofRequestsResponse, GetNonceRequest, GetBalanceRequest,
+        CreateProgramResponse, FulfillmentStatus, FulfillmentStrategy, GetBalanceRequest,
+        GetFilteredProofRequestsRequest, GetFilteredProofRequestsResponse, GetNonceRequest,
         GetProgramRequest, GetProgramResponse, GetProofRequestStatusRequest,
         GetProofRequestStatusResponse, MessageFormat, ProofMode, RequestProofRequest,
         RequestProofRequestBody, RequestProofResponse,
@@ -106,7 +106,9 @@ impl NetworkClient {
         self.with_retry(
             || async {
                 let mut rpc = self.prover_network_client().await?;
-                let res = rpc.get_balance(GetBalanceRequest { address: self.signer.address().to_vec() }).await?;
+                let res = rpc
+                    .get_balance(GetBalanceRequest { address: self.signer.address().to_vec() })
+                    .await?;
                 Ok(res.into_inner().amount)
             },
             "getting balance",
