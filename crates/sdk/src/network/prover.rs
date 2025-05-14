@@ -69,10 +69,6 @@ impl NetworkProver {
 
     /// Get the credit balance of your account on the prover network.
     ///
-    /// # Details
-    /// This is returned as a string as the balance is a 256-bit integer, typically represented
-    /// with 6 decimal places.
-    ///
     /// # Example
     /// ```rust,no_run
     /// use sp1_sdk::{ProverClient, SP1Stdin};

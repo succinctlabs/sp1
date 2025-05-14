@@ -98,7 +98,7 @@ impl NetworkClient {
         .await
     }
 
-    /// Get the balance of your account.
+    /// Get the credit balance of your account.
     ///
     /// # Details
     /// Uses the key that the client was initialized with.
