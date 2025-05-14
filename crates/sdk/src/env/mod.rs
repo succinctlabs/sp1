@@ -11,6 +11,7 @@ use anyhow::Result;
 use prove::EnvProveBuilder;
 use sp1_core_executor::SP1ContextBuilder;
 use sp1_core_machine::io::SP1Stdin;
+use sp1_cuda::MoongateServer;
 use sp1_prover::{components::CpuProverComponents, SP1Prover, SP1ProvingKey, SP1VerifyingKey};
 
 use super::{Prover, SP1VerificationError};
@@ -56,7 +57,7 @@ impl EnvProver {
             },
             "cuda" => {
                 check_release_build();
-                Box::new(CudaProver::new(SP1Prover::new(), None))
+                Box::new(CudaProver::new(SP1Prover::new(), MoongateServer::default()))
             }
             "network" => {
                 #[cfg(not(feature = "network"))]

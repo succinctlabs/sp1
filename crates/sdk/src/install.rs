@@ -22,13 +22,23 @@ pub const CIRCUIT_ARTIFACTS_URL_BASE: &str = "https://sp1-circuits.s3-us-east-2.
 /// The directory where the groth16 circuit artifacts will be stored.
 #[must_use]
 pub fn groth16_circuit_artifacts_dir() -> PathBuf {
-    dirs::home_dir().unwrap().join(".sp1").join("circuits/groth16").join(SP1_CIRCUIT_VERSION)
+    std::env::var("SP1_GROTH16_CIRCUIT_PATH")
+        .map_or_else(
+            |_| dirs::home_dir().unwrap().join(".sp1").join("circuits/groth16"),
+            |path| path.parse().unwrap(),
+        )
+        .join(SP1_CIRCUIT_VERSION)
 }
 
 /// The directory where the plonk circuit artifacts will be stored.
 #[must_use]
 pub fn plonk_circuit_artifacts_dir() -> PathBuf {
-    dirs::home_dir().unwrap().join(".sp1").join("circuits/plonk").join(SP1_CIRCUIT_VERSION)
+    std::env::var("SP1_PLONK_CIRCUIT_PATH")
+        .map_or_else(
+            |_| dirs::home_dir().unwrap().join(".sp1").join("circuits/plonk"),
+            |path| path.parse().unwrap(),
+        )
+        .join(SP1_CIRCUIT_VERSION)
 }
 
 /// Tries to install the groth16 circuit artifacts if they are not already installed.

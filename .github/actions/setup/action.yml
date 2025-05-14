@@ -13,6 +13,10 @@ inputs:
     description: "Whether to install AWS CLI or not"
     required: false
     default: 'true'
+  rustup_override:
+    description: "Optional toolchain to override"
+    required: false
+    default: null
 runs:
   using: "composite"
   steps:
@@ -85,9 +89,16 @@ runs:
       shell: bash
       run: |
         curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-        . "$HOME/.cargo/env" 
+        . "$HOME/.cargo/env"
         rustup show
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+    
+    - name: Override toolchain
+      if: inputs.rustup_override != null
+      shell: bash
+      run: |
+        rustup override set ${{ inputs.rustup_override }}
+        rustup show
 
     # install pkg-config and openssl
     - name: Install pkg-config and openssl

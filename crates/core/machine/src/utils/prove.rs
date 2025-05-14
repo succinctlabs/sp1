@@ -244,10 +244,14 @@ where
                                 state.execution_shard = record.public_values.execution_shard;
                                 state.start_pc = record.public_values.start_pc;
                                 state.next_pc = record.public_values.next_pc;
-                                state.committed_value_digest =
-                                    record.public_values.committed_value_digest;
-                                state.deferred_proofs_digest =
-                                    record.public_values.deferred_proofs_digest;
+                                if state.committed_value_digest == [0u32; 8] {
+                                    state.committed_value_digest =
+                                        record.public_values.committed_value_digest;
+                                }
+                                if state.deferred_proofs_digest == [0u32; 8] {
+                                    state.deferred_proofs_digest =
+                                        record.public_values.deferred_proofs_digest;
+                                }
                                 record.public_values = *state;
                             }
 
@@ -610,9 +614,26 @@ where
     runtime.subproof_verifier = Some(&noop);
 
     // Execute from the checkpoint.
-    let (records, _) = runtime.execute_record(true).unwrap();
+    let (records, done) = runtime.execute_record(true).unwrap();
 
-    (records.into_iter().map(|r| *r).collect(), runtime.report)
+    let mut records = records.into_iter().map(|r| *r).collect::<Vec<_>>();
+    let pv = records.last().unwrap().public_values;
+
+    // Handle the case where the COMMIT happens across the last two shards.
+    if !done &&
+        (pv.committed_value_digest.iter().any(|v| *v != 0) ||
+            pv.deferred_proofs_digest.iter().any(|v| *v != 0))
+    {
+        // We turn off the `print_report` flag to avoid modifying the report.
+        runtime.print_report = false;
+        let (_, next_pv, _) = runtime.execute_state(true).unwrap();
+        for record in records.iter_mut() {
+            record.public_values.committed_value_digest = next_pv.committed_value_digest;
+            record.public_values.deferred_proofs_digest = next_pv.deferred_proofs_digest;
+        }
+    }
+
+    (records, runtime.report)
 }
 
 #[derive(Error, Debug)]

@@ -1,16 +1,18 @@
 use std::{
+    collections::HashMap,
     error::Error as StdError,
     future::Future,
     process::{Command, Stdio},
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc,
+        Arc, Mutex,
     },
     time::{Duration, Instant},
 };
 
 use crate::proto::api::ProverServiceClient;
 use async_trait::async_trait;
+use once_cell::sync::Lazy;
 use proto::api::ReadyRequest;
 use reqwest::{Request, Response};
 use serde::{Deserialize, Serialize};
@@ -30,6 +32,9 @@ use twirp::{
 pub mod proto {
     pub mod api;
 }
+
+static MOONGATE_CONTAINERS: Lazy<Mutex<HashMap<String, Arc<AtomicBool>>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
 
 /// A remote client to [sp1_prover::SP1Prover] that runs inside a container.
 ///
@@ -52,7 +57,7 @@ pub struct CudaProverContainer {
 
 /// The payload for the [sp1_prover::SP1Prover::setup] method.
 ///
-/// We use this object to serialize and deserialize the payload from the client to the server.
+/// This object is used to serialize and deserialize the payloads for the Moongate server.
 #[derive(Serialize, Deserialize)]
 pub struct SetupRequestPayload {
     pub elf: Vec<u8>,
@@ -69,16 +74,29 @@ pub struct SetupResponsePayload {
 
 /// The payload for the [sp1_prover::SP1Prover::prove_core] method.
 ///
-/// We use this object to serialize and deserialize the payload from the client to the server.
+/// This object is used to serialize and deserialize the payloads for the Moongate server.
 #[derive(Serialize, Deserialize)]
 pub struct ProveCoreRequestPayload {
     /// The input stream.
     pub stdin: SP1Stdin,
 }
 
+/// The payload for the [sp1_prover::SP1Prover::stateless_prove_core] method.
+///
+/// This object is used to serialize and deserialize the payloads for the Moongate server.
+/// The proving key is sent in the payload with the request to allow the Moongate server to generate
+/// proofs without re-generating the proving key.
+#[derive(Serialize, Deserialize)]
+pub struct StatelessProveCoreRequestPayload {
+    /// The input stream.
+    pub stdin: SP1Stdin,
+    /// The proving key.
+    pub pk: SP1ProvingKey,
+}
+
 /// The payload for the [sp1_prover::SP1Prover::compress] method.
 ///
-/// We use this object to serialize and deserialize the payload from the client to the server.
+/// This object is used to serialize and deserialize the payloads for the Moongate server.
 #[derive(Serialize, Deserialize)]
 pub struct CompressRequestPayload {
     /// The verifying key.
@@ -91,7 +109,7 @@ pub struct CompressRequestPayload {
 
 /// The payload for the [sp1_prover::SP1Prover::shrink] method.
 ///
-/// We use this object to serialize and deserialize the payload from the client to the server.
+/// This object is used to serialize and deserialize the payloads for the Moongate server.
 #[derive(Serialize, Deserialize)]
 pub struct ShrinkRequestPayload {
     pub reduced_proof: SP1ReduceProof<InnerSC>,
@@ -99,22 +117,35 @@ pub struct ShrinkRequestPayload {
 
 /// The payload for the [sp1_prover::SP1Prover::wrap_bn254] method.
 ///
-/// We use this object to serialize and deserialize the payload from the client to the server.
+/// This object is used to serialize and deserialize the payloads for the Moongate server.
 #[derive(Serialize, Deserialize)]
 pub struct WrapRequestPayload {
     pub reduced_proof: SP1ReduceProof<InnerSC>,
 }
 
+/// Defines how the Moongate server is created.
+#[derive(Debug)]
+pub enum MoongateServer {
+    External { endpoint: String },
+    Local { visible_device_index: Option<u64>, port: Option<u64> },
+}
+
+impl Default for MoongateServer {
+    fn default() -> Self {
+        Self::Local { visible_device_index: None, port: None }
+    }
+}
+
 impl SP1CudaProver {
     /// Creates a new [SP1CudaProver] that can be used to communicate with the Moongate server at
     /// `moongate_endpoint`, or if not provided, create one that runs inside a Docker container.
-    pub fn new(moongate_endpoint: Option<String>) -> Result<Self, Box<dyn StdError>> {
+    pub fn new(moongate_server: MoongateServer) -> Result<Self, Box<dyn StdError>> {
         let reqwest_middlewares = vec![Box::new(LoggingMiddleware) as Box<dyn Middleware>];
 
-        let prover = match moongate_endpoint {
-            Some(moongate_endpoint) => {
+        let prover = match moongate_server {
+            MoongateServer::External { endpoint } => {
                 let client = Client::new(
-                    Url::parse(&moongate_endpoint).expect("failed to parse url"),
+                    Url::parse(&endpoint).expect("failed to parse url"),
                     reqwest::Client::new(),
                     reqwest_middlewares,
                 )
@@ -122,7 +153,9 @@ impl SP1CudaProver {
 
                 SP1CudaProver { client, managed_container: None }
             }
-            None => Self::start_moongate_server(reqwest_middlewares)?,
+            MoongateServer::Local { visible_device_index, port } => {
+                Self::start_moongate_server(reqwest_middlewares, visible_device_index, port)?
+            }
         };
 
         let timeout = Duration::from_secs(300);
@@ -165,15 +198,17 @@ impl SP1CudaProver {
 
     fn start_moongate_server(
         reqwest_middlewares: Vec<Box<dyn Middleware>>,
+        visible_device_index: Option<u64>,
+        port: Option<u64>,
     ) -> Result<SP1CudaProver, Box<dyn StdError>> {
         // If the moongate endpoint url hasn't been provided, we start the Docker container
-        let container_name = "sp1-gpu";
+        let container_name = port.map(|p| format!("sp1-gpu-{p}")).unwrap_or("sp1-gpu".to_string());
         let image_name = std::env::var("SP1_GPU_IMAGE")
-            .unwrap_or_else(|_| "public.ecr.aws/succinct-labs/moongate:v4.1.0".to_string());
+            .unwrap_or_else(|_| "public.ecr.aws/succinct-labs/moongate:v4.2.1".to_string());
 
         let cleaned_up = Arc::new(AtomicBool::new(false));
-        let cleanup_name = container_name;
-        let cleanup_flag = cleaned_up.clone();
+        let port = port.unwrap_or(3000);
+        let gpus = visible_device_index.map(|i| format!("device={i}")).unwrap_or("all".to_string());
 
         // Check if Docker is available and the user has necessary permissions
         if !Self::check_docker_availability()? {
@@ -191,14 +226,14 @@ impl SP1CudaProver {
             .args([
                 "run",
                 "-e",
-                &format!("RUST_LOG={}", rust_log_level),
+                &format!("RUST_LOG={rust_log_level}"),
                 "-p",
-                "3000:3000",
+                &format!("{port}:3000"),
                 "--rm",
                 "--gpus",
-                "all",
+                &gpus,
                 "--name",
-                container_name,
+                &container_name,
                 &image_name,
             ])
             // Redirect stdout and stderr to the parent process
@@ -207,22 +242,28 @@ impl SP1CudaProver {
             .spawn()
             .map_err(|e| format!("Failed to start Docker container: {}. Please check your Docker installation and permissions.", e))?;
 
+        MOONGATE_CONTAINERS.lock()?.insert(container_name.clone(), cleaned_up.clone());
+
         // Kill the container on control-c
-        ctrlc::set_handler(move || {
-            tracing::debug!("received Ctrl+C, cleaning up...");
-            if !cleanup_flag.load(Ordering::SeqCst) {
-                cleanup_container(cleanup_name);
-                cleanup_flag.store(true, Ordering::SeqCst);
+        // The error returned by set_handler is ignored to avoid panic when the handler has already
+        // been set.
+        let _ = ctrlc::set_handler(move || {
+            tracing::info!("received Ctrl+C, cleaning up...");
+
+            for (container_name, cleanup_flag) in MOONGATE_CONTAINERS.lock().unwrap().iter() {
+                if !cleanup_flag.load(Ordering::SeqCst) {
+                    cleanup_container(container_name);
+                    cleanup_flag.store(true, Ordering::SeqCst);
+                }
             }
             std::process::exit(0);
-        })
-        .unwrap();
+        });
 
         // Wait a few seconds for the container to start
         std::thread::sleep(Duration::from_secs(2));
 
         let client = Client::new(
-            Url::parse("http://localhost:3000/twirp/").expect("failed to parse url"),
+            Url::parse(&format!("http://localhost:{port}/twirp/")).expect("failed to parse url"),
             reqwest::Client::new(),
             reqwest_middlewares,
         )
@@ -230,10 +271,7 @@ impl SP1CudaProver {
 
         Ok(SP1CudaProver {
             client,
-            managed_container: Some(CudaProverContainer {
-                name: container_name.to_string(),
-                cleaned_up: cleaned_up.clone(),
-            }),
+            managed_container: Some(CudaProverContainer { name: container_name, cleaned_up }),
         })
     }
 
@@ -255,6 +293,22 @@ impl SP1CudaProver {
         let request =
             crate::proto::api::ProveCoreRequest { data: bincode::serialize(&payload).unwrap() };
         let response = block_on(async { self.client.prove_core(request).await }).unwrap();
+        let proof: SP1CoreProof = bincode::deserialize(&response.result).unwrap();
+        Ok(proof)
+    }
+
+    /// Executes the [sp1_prover::SP1Prover::prove_core] method inside the container.
+    ///
+    /// You will need at least 24GB of VRAM to run this method.
+    pub fn prove_core_stateless(
+        &self,
+        pk: &SP1ProvingKey,
+        stdin: &SP1Stdin,
+    ) -> Result<SP1CoreProof, SP1CoreProverError> {
+        let payload = StatelessProveCoreRequestPayload { pk: pk.clone(), stdin: stdin.clone() };
+        let request =
+            crate::proto::api::ProveCoreRequest { data: bincode::serialize(&payload).unwrap() };
+        let response = block_on(async { self.client.prove_core_stateless(request).await }).unwrap();
         let proof: SP1CoreProof = bincode::deserialize(&response.result).unwrap();
         Ok(proof)
     }
@@ -312,7 +366,7 @@ impl SP1CudaProver {
 
 impl Default for SP1CudaProver {
     fn default() -> Self {
-        Self::new(None).expect("Failed to create SP1CudaProver")
+        Self::new(Default::default()).expect("Failed to create SP1CudaProver")
     }
 }
 

@@ -14,29 +14,64 @@ pub fn words_to_bytes_le(words: &[u32; 8]) -> [u8; 32] {
     bytes
 }
 
-/// Encode a list of vkeys and committed values into a single byte array. In the future this could
-/// be a merkle tree or some other commitment scheme.
+/// Encode a vkey and a committed value into a single byte array.
 ///
-/// ( vkeys.len() || vkeys || committed_values[0].len as u32 || committed_values[0] || ... )
-pub fn commit_proof_pairs(vkeys: &[[u32; 8]], committed_values: &[Vec<u8>]) -> Vec<u8> {
-    assert_eq!(vkeys.len(), committed_values.len());
-    let mut res = Vec::with_capacity(
-        4 + vkeys.len() * 32
-            + committed_values.len() * 4
-            + committed_values.iter().map(|vals| vals.len()).sum::<usize>(),
-    );
-
+/// ( words_to_bytes_le(vkey) || (committed_value.len() as u32).to_be_bytes() || committed_value )
+pub fn commit_proof_pair(vkey: &[u32; 8], committed_value: &Vec<u8>) -> Vec<u8> {
+    let mut res = Vec::new();
+    res.extend_from_slice(&words_to_bytes_le(vkey));
     // Note we use big endian because abi.encodePacked in solidity does also
-    res.extend_from_slice(&(vkeys.len() as u32).to_be_bytes());
-    for vkey in vkeys.iter() {
-        res.extend_from_slice(&words_to_bytes_le(vkey));
-    }
-    for vals in committed_values.iter() {
-        res.extend_from_slice(&(vals.len() as u32).to_be_bytes());
-        res.extend_from_slice(vals);
+    res.extend_from_slice(&(committed_value.len() as u32).to_be_bytes());
+    res.extend_from_slice(committed_value);
+    res
+}
+
+/// Computes hash of a leaf in a merkle tree.
+///
+/// A leaf in a merkle tree is a pair of a verification key and a committed value.
+/// The leaf is encoded as a byte array using `commit_proof_pair` and then hashed using sha256.
+pub fn compute_leaf_hash(vkey: &[u32; 8], committed_value: &Vec<u8>) -> [u8; 32] {
+    // encode the leaf as a byte array
+    let leaf = commit_proof_pair(vkey, committed_value);
+    let digest = Sha256::digest(&leaf);
+    let mut res = [0u8; 32];
+    res.copy_from_slice(&digest);
+    res
+}
+
+/// Hashes a pair of already hashed leaves.
+///
+/// The hash is computed as sha256(left || right).
+pub fn hash_pair(left: &[u8], right: &[u8]) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(left);
+    hasher.update(right);
+    let digest = hasher.finalize();
+    let mut res = [0u8; 32];
+    res.copy_from_slice(&digest);
+    res
+}
+
+/// Computes the root of a merkle tree given the leaves.
+///
+/// The leaves are hashed using `compute_leaf_hash` and then the hashes are combined to form the root.
+/// The root is computed by hashing pairs of hashes until only one hash remains.
+pub fn compute_merkle_root(mut leaves: Vec<[u8; 32]>) -> [u8; 32] {
+    if leaves.is_empty() {
+        return [0u8; 32];
     }
 
-    res
+
+    while leaves.len() > 1 {
+        let mut next = Vec::new();
+        for i in (0..leaves.len()).step_by(2) {
+            let left = &leaves[i];
+            let right = if i + 1 < leaves.len() { &leaves[i + 1] } else { &leaves[i] };
+            next.push(hash_pair(left, right));
+        }
+        leaves = next;
+    }
+    leaves[0]
 }
 
 pub fn main() {
@@ -55,10 +90,16 @@ pub fn main() {
         sp1_zkvm::lib::verify::verify_sp1_proof(vkey, &public_values_digest.into());
     }
 
-    // TODO: Do something interesting with the proofs here.
-    //
-    // For example, commit to the verified proofs in a merkle tree. For now, we'll just commit to
-    // all the (vkey, input) pairs.
-    let commitment = commit_proof_pairs(&vkeys, &public_values);
-    sp1_zkvm::io::commit_slice(&commitment);
+    // Convert the (vkey, public_value) pairs into leaves of a merkle tree.
+    let leaves: Vec<[u8; 32]> = vkeys
+        .iter()
+        .zip(public_values.iter())
+        .map(|(vkey, public_value)| compute_leaf_hash(vkey, public_value))
+        .collect();
+
+    // Traverse the merkle tree bottom-up to compute the root.
+    let merkle_root = compute_merkle_root(leaves);
+
+    // Commit the root.
+    sp1_zkvm::io::commit_slice(&merkle_root);
 }

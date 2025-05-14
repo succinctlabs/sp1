@@ -27,4 +27,4 @@ sp1-zkvm = { path = "../../zkvm/entrypoint" }
 sp1-verifier = { path = "../" }
 
 [features]
-blake3 = ["sp1-zkvm/blake3", "sp1-verifier/blake3"]
+blake3 = ["sp1-zkvm/blake3"]
