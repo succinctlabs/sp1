@@ -156,13 +156,11 @@ impl NetworkProver {
     /// ```rust,no_run
     /// use sp1_sdk::{Prover, ProverClient, SP1Stdin};
     ///
-    /// tokio_test::block_on(async {
-    ///     let elf = &[1, 2, 3];
-    ///     let client = ProverClient::builder().network().build();
-    ///     let (pk, vk) = client.setup(elf);
+    /// let elf = &[1, 2, 3];
+    /// let client = ProverClient::builder().network().build();
+    /// let (pk, vk) = client.setup(elf);
     ///
-    ///     let vk_hash = client.register_program(&vk, elf).await.unwrap();
-    /// })
+    /// let vk_hash = client.register_program(&vk, elf);
     /// ```
     pub async fn register_program(&self, vk: &SP1VerifyingKey, elf: &[u8]) -> Result<B256> {
         self.client.register_program(vk, elf).await
