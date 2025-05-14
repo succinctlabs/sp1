@@ -29,7 +29,7 @@ use crate::network::proto::{
     network::{
         prover_network_client::ProverNetworkClient, CreateProgramRequest, CreateProgramRequestBody,
         CreateProgramResponse, FulfillmentStatus, FulfillmentStrategy,
-        GetFilteredProofRequestsRequest, GetFilteredProofRequestsResponse, GetNonceRequest,
+        GetFilteredProofRequestsRequest, GetFilteredProofRequestsResponse, GetNonceRequest, GetBalanceRequest,
         GetProgramRequest, GetProgramResponse, GetProofRequestStatusRequest,
         GetProofRequestStatusResponse, MessageFormat, ProofMode, RequestProofRequest,
         RequestProofRequestBody, RequestProofResponse,
@@ -94,6 +94,22 @@ impl NetworkClient {
                 Ok(res.into_inner().nonce)
             },
             "getting nonce",
+        )
+        .await
+    }
+
+    /// Get the balance of your account.
+    ///
+    /// # Details
+    /// Uses the key that the client was initialized with.
+    pub async fn get_balance(&self) -> Result<String> {
+        self.with_retry(
+            || async {
+                let mut rpc = self.prover_network_client().await?;
+                let res = rpc.get_balance(GetBalanceRequest { address: self.signer.address().to_vec() }).await?;
+                Ok(res.into_inner().amount)
+            },
+            "getting balance",
         )
         .await
     }

@@ -67,6 +67,23 @@ impl NetworkProver {
         self
     }
 
+    /// Get the credit balance of your account on the prover network.
+    ///
+    /// # Details
+    /// This is returned as a string as the balance is a 256-bit integer, typically represented
+    /// with 6 decimal places.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1Stdin};
+    ///
+    /// let client = ProverClient::builder().network().build();
+    /// let balance = client.get_balance().await.unwrap();
+    /// ```
+    pub async fn get_balance(&self) -> Result<String> {
+        self.client.get_balance().await
+    }
+
     /// Creates a new [`CpuExecuteBuilder`] for simulating the execution of a program on the CPU.
     ///
     /// # Details
