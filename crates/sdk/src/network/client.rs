@@ -109,7 +109,7 @@ impl NetworkClient {
                 let res = rpc
                     .get_balance(GetBalanceRequest { address: self.signer.address().to_vec() })
                     .await?;
-                Ok(U256::from_str(&res.into_inner().amount).unwrap_or_default())
+                Ok(U256::from_str(&res.into_inner().amount).unwrap())
             },
             "getting balance",
         )
