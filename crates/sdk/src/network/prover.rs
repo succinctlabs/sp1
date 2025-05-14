@@ -77,8 +77,10 @@ impl NetworkProver {
     /// ```rust,no_run
     /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
-    /// let client = ProverClient::builder().network().build();
-    /// let balance = client.get_balance().await.unwrap();
+    /// tokio_test::block_on(async {
+    ///     let client = ProverClient::builder().network().build();
+    ///     let balance = client.get_balance().await.unwrap();
+    /// })
     /// ```
     pub async fn get_balance(&self) -> Result<String> {
         self.client.get_balance().await
