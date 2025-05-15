@@ -13,6 +13,7 @@ use super::{
 pub struct InnerBuilder<C: Config> {
     pub(crate) variable_count: u32,
     pub operations: Vec<DslIr<C>>,
+    pub ext_handle_ptr: *mut ExtHandle<C::F, C::EF>,
 }
 
 /// A builder for the DSL.
@@ -48,14 +49,19 @@ impl<C: Config> Builder<C> {
         let mut inner = Box::new(UnsafeCell::new(InnerBuilder {
             variable_count: 0,
             operations: Default::default(),
+            ext_handle_ptr: std::ptr::null_mut(),
         }));
 
-        let var_handle = Box::new(VarOperations::var_handle(&mut inner));
         let mut ext_handle = Box::new(ExtOperations::ext_handle(&mut inner));
+
+        inner.get_mut().ext_handle_ptr = ext_handle.as_mut() as *mut _;
+
         let felt_handle = Box::new(FeltOperations::felt_handle(
             &mut inner,
             ext_handle.as_mut() as *mut _ as *mut (),
         ));
+
+        let var_handle = Box::new(VarOperations::var_handle(&mut inner));
 
         let mut new_builder = Self {
             inner,
