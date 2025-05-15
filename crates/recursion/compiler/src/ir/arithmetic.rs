@@ -578,7 +578,7 @@ impl<C: Config> ExtOperations<C::F, C::EF> for UnsafeCell<InnerBuilder<C>> {
         let mut inner = unsafe { ManuallyDrop::new(Box::from_raw(ptr as *mut Self)) };
         let inner = inner.get_mut();
         let idx = inner.variable_count;
-        let res = Ext::new(idx, rhs.handle); // rhs.handle doğru çünkü çıktının aynı handle’da olması gerek
+        let res = Ext::new(idx, rhs.handle);
         inner.variable_count += 1;
 
         inner.operations.push(DslIr::SubFE(res, lhs, rhs));
