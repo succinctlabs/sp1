@@ -1,6 +1,6 @@
 use std::{cell::UnsafeCell, mem::ManuallyDrop};
 
-use p3_field::{AbstractExtensionField, AbstractField, Field};
+use p3_field::{AbstractExtensionField, Field};
 
 use crate::ir::DslIr;
 
@@ -455,7 +455,8 @@ impl<C: Config> ExtOperations<C::F, C::EF> for UnsafeCell<InnerBuilder<C>> {
         let mut inner = unsafe { ManuallyDrop::new(Box::from_raw(ptr as *mut Self)) };
         let inner = inner.get_mut();
         let idx = inner.variable_count;
-        let res = Ext::new(idx, lhs.handle);
+        let handle = inner.ext_handle_ptr as *mut ExtHandle<_, _>;
+        let res = Ext::new(idx, handle);
         inner.variable_count += 1;
 
         inner.operations.push(DslIr::AddE(res, lhs, rhs));
@@ -467,7 +468,7 @@ impl<C: Config> ExtOperations<C::F, C::EF> for UnsafeCell<InnerBuilder<C>> {
         let mut inner = unsafe { ManuallyDrop::new(Box::from_raw(ptr as *mut Self)) };
         let inner = inner.get_mut();
         let idx = inner.variable_count;
-        let res = Ext::new(idx, lhs.handle);
+        let res = Ext::new(idx, inner.ext_handle_ptr);
         inner.variable_count += 1;
 
         inner.operations.push(DslIr::AddEF(res, lhs, rhs));
@@ -574,9 +575,14 @@ impl<C: Config> ExtOperations<C::F, C::EF> for UnsafeCell<InnerBuilder<C>> {
     }
 
     fn sub_base_ext(ptr: *mut (), lhs: Felt<C::F>, rhs: Ext<C::F, C::EF>) -> Ext<C::F, C::EF> {
-        // TODO: optimize to one opcode.
-        let rhs = Self::neg_ext(ptr, rhs);
-        Self::add_ext_base(ptr, rhs, lhs)
+        let mut inner = unsafe { ManuallyDrop::new(Box::from_raw(ptr as *mut Self)) };
+        let inner = inner.get_mut();
+        let idx = inner.variable_count;
+        let res = Ext::new(idx, rhs.handle); // rhs.handle doğru çünkü çıktının aynı handle’da olması gerek
+        inner.variable_count += 1;
+
+        inner.operations.push(DslIr::SubFE(res, lhs, rhs));
+        res
     }
 
     fn neg_ext(ptr: *mut (), lhs: Ext<C::F, C::EF>) -> Ext<C::F, C::EF> {
@@ -631,11 +637,16 @@ impl<C: Config> ExtOperations<C::F, C::EF> for UnsafeCell<InnerBuilder<C>> {
         ptr: *mut (),
         lhs: Felt<C::F>,
         rhs: C::EF,
-        handle: *mut ExtHandle<C::F, C::EF>,
+        _handle: *mut ExtHandle<C::F, C::EF>,
     ) -> Ext<C::F, C::EF> {
-        // TODO: optimize to one opcode.
-        let lhs = Self::add_felt_const_ext(ptr, lhs, C::EF::zero(), handle);
-        Self::mul_const_ext(ptr, lhs, rhs)
+        let mut inner = unsafe { ManuallyDrop::new(Box::from_raw(ptr as *mut Self)) };
+        let inner = inner.get_mut();
+        let idx = inner.variable_count;
+        let res = Ext::new(idx, inner.ext_handle_ptr);
+        inner.variable_count += 1;
+
+        inner.operations.push(DslIr::MulFEI(res, lhs, rhs));
+        res
     }
 
     fn div_ext(ptr: *mut (), lhs: Ext<C::F, C::EF>, rhs: Ext<C::F, C::EF>) -> Ext<C::F, C::EF> {
@@ -667,9 +678,14 @@ impl<C: Config> ExtOperations<C::F, C::EF> for UnsafeCell<InnerBuilder<C>> {
     }
 
     fn div_base_ext(ptr: *mut (), lhs: Felt<C::F>, rhs: Ext<C::F, C::EF>) -> Ext<C::F, C::EF> {
-        // TODO: optimize to one opcode.
-        let lhs = Self::add_felt_const_ext(ptr, lhs, C::EF::zero(), rhs.handle);
-        Self::div_ext(ptr, lhs, rhs)
+        let mut inner = unsafe { ManuallyDrop::new(Box::from_raw(ptr as *mut Self)) };
+        let inner = inner.get_mut();
+        let idx = inner.variable_count;
+        let res = Ext::new(idx, rhs.handle);
+        inner.variable_count += 1;
+
+        inner.operations.push(DslIr::DivFE(res, lhs, rhs));
+        res
     }
 
     fn div_ext_base(ptr: *mut (), lhs: Ext<C::F, C::EF>, rhs: Felt<C::F>) -> Ext<C::F, C::EF> {
