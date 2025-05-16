@@ -43,11 +43,11 @@ pub struct RequestProofRequestBody {
     #[prost(uint64, tag = "9")]
     pub gas_limit: u64,
     /// The minimum period a request can be in auction in seconds. Zero indicates no minimum. Only
-    /// applicable if the mode is auction.
+    /// applicable if the strategy is auction.
     #[prost(uint64, tag = "10")]
     pub min_auction_period: u64,
     /// The whitelist of provers that can bid and prove this request. An empty list indicates that
-    /// any prover can particpate. Only applicable if the mode is auction.
+    /// any prover can participate. Only applicable if the strategy is auction.
     #[prost(bytes = "vec", repeated, tag = "11")]
     pub whitelist: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
 }
@@ -349,7 +349,7 @@ pub struct ProofRequest {
     #[prost(uint64, tag = "32")]
     pub min_auction_period: u64,
     /// The whitelist of provers that can bid and prove this request. An empty list indicates that
-    /// any prover can particpate. Only applicable if the strategy is auction.
+    /// any prover can participate. Only applicable if the strategy is auction.
     #[prost(bytes = "vec", repeated, tag = "33")]
     pub whitelist: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
 }
@@ -1433,7 +1433,7 @@ pub struct GetBillingSummaryRequest {
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetBillingSummaryResponse {
-    /// A list summarizing charges by month and clusters for the specifed payer.
+    /// A list summarizing charges by month and clusters for the specified payer.
     #[prost(message, repeated, tag = "1")]
     pub billing_summary: ::prost::alloc::vec::Vec<PayerBillingSummary>,
 }
@@ -1617,7 +1617,7 @@ pub struct GetUsageSummaryRequest {
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetUsageSummaryResponse {
-    /// A list summarizing usage by month and clusters for the specifed payer.
+    /// A list summarizing usage by month and clusters for the specified payer.
     #[prost(message, repeated, tag = "1")]
     pub usage_summary: ::prost::alloc::vec::Vec<PayerUsageSummary>,
 }
