@@ -140,8 +140,8 @@ impl NetworkProver {
             cycle_limit: None,
             gas_limit: None,
             tee_2fa: false,
-            min_auction_period: None,
-            whitelist: None,
+            min_auction_period: 0,
+            whitelist: vec![],
         }
     }
 
