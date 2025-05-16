@@ -33,8 +33,8 @@ pub struct NetworkProveBuilder<'a> {
     pub(crate) cycle_limit: Option<u64>,
     pub(crate) gas_limit: Option<u64>,
     pub(crate) tee_2fa: bool,
-    pub(crate) min_auction_period: Option<u64>,
-    pub(crate) whitelist: Option<Vec<Address>>,
+    pub(crate) min_auction_period: u64,
+    pub(crate) whitelist: Vec<Address>,
 }
 
 impl NetworkProveBuilder<'_> {
@@ -336,7 +336,7 @@ impl NetworkProveBuilder<'_> {
     /// ```
     #[must_use]
     pub fn min_auction_period(mut self, min_auction_period: u64) -> Self {
-        self.min_auction_period = Some(min_auction_period);
+        self.min_auction_period = min_auction_period;
         self
     }
 
@@ -360,7 +360,7 @@ impl NetworkProveBuilder<'_> {
     /// ```
     #[must_use]
     pub fn whitelist(mut self, whitelist: Vec<Address>) -> Self {
-        self.whitelist = Some(whitelist);
+        self.whitelist = whitelist;
         self
     }
 
