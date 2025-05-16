@@ -8,7 +8,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use alloy_primitives::{B256, U256};
+use alloy_primitives::{Address, B256, U256};
 use alloy_signer::SignerSync;
 use alloy_signer_local::PrivateKeySigner;
 use anyhow::{Context, Ok, Result};
@@ -218,6 +218,8 @@ impl NetworkClient {
         page: Option<u32>,
         mode: Option<i32>,
         not_bid_by: Option<Vec<u8>>,
+        execute_fail_cause: Option<i32>,
+        settlement_status: Option<i32>,
     ) -> Result<GetFilteredProofRequestsResponse> {
         self.with_retry(
             || {
@@ -244,6 +246,8 @@ impl NetworkClient {
                             page,
                             mode,
                             not_bid_by,
+                            execute_fail_cause,
+                            settlement_status,
                         })
                         .await?
                         .into_inner())
@@ -307,6 +311,8 @@ impl NetworkClient {
     /// * `timeout_secs`: The timeout for the proof request in seconds.
     /// * `cycle_limit`: The cycle limit for the proof request.
     /// * `gas_limit`: The gas limit for the proof request.
+    /// * `min_auction_period`: The minimum auction period for the proof request in seconds.
+    /// * `whitelist`: The auction whitelist for the proof request.
     #[allow(clippy::too_many_arguments)]
     pub async fn request_proof(
         &self,
@@ -318,6 +324,8 @@ impl NetworkClient {
         timeout_secs: u64,
         cycle_limit: u64,
         gas_limit: u64,
+        min_auction_period: u64,
+        whitelist: Vec<Address>,
     ) -> Result<RequestProofResponse> {
         // Calculate the deadline.
         let start = SystemTime::now();
@@ -344,6 +352,8 @@ impl NetworkClient {
                     deadline,
                     cycle_limit,
                     gas_limit,
+                    min_auction_period,
+                    whitelist: whitelist.clone().into_iter().map(|addr| addr.to_vec()).collect(),
                 };
                 let request_response = rpc
                     .request_proof(RequestProofRequest {
