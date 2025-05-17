@@ -349,6 +349,7 @@ impl NetworkProveBuilder<'_> {
     /// # Example
     /// ```rust,no_run
     /// use sp1_sdk::{Prover, ProverClient, SP1Stdin};
+    /// use alloy_primitives::Address;
     ///
     /// let elf = &[1, 2, 3];
     /// let stdin = SP1Stdin::new();
