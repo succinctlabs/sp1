@@ -58,6 +58,8 @@ pub enum DslIr<C: Config> {
     SubF(Felt<C::F>, Felt<C::F>, Felt<C::F>),
     /// Subtracts a field element and a field immediate (felt = felt - field imm).
     SubFI(Felt<C::F>, Felt<C::F>, C::F),
+    /// Subtracts a field element and an extension field element (ext = felt - ext).
+    SubFE(Ext<C::F, C::EF>, Felt<C::F>, Ext<C::F, C::EF>),
     /// Subtracts a field immediate and a field element (felt = field imm - felt).
     SubFIN(Felt<C::F>, C::F, Felt<C::F>),
     /// Subtracts two extension field elements (ext = ext - ext).
@@ -80,6 +82,8 @@ pub enum DslIr<C: Config> {
     MulVI(Var<C::N>, Var<C::N>, C::N),
     /// Multiplies two field elements (felt = felt * felt).
     MulF(Felt<C::F>, Felt<C::F>, Felt<C::F>),
+    /// Multiplies a felt and an extension field immediate (ext = felt * ext field imm).
+    MulFEI(Ext<C::F, C::EF>, Felt<C::F>, C::EF),
     /// Multiplies a field element and a field immediate (felt = felt * field imm).
     MulFI(Felt<C::F>, Felt<C::F>, C::F),
     /// Multiplies two extension field elements (ext = ext * ext).
@@ -95,6 +99,8 @@ pub enum DslIr<C: Config> {
     // Divisions.
     /// Divides two variables (var = var / var).
     DivF(Felt<C::F>, Felt<C::F>, Felt<C::F>),
+    /// Divides a field element and an extension field element (ext = felt / ext).
+    DivFE(Ext<C::F, C::EF>, Felt<C::F>, Ext<C::F, C::EF>),
     /// Divides a field element and a field immediate (felt = felt / field imm).
     DivFI(Felt<C::F>, Felt<C::F>, C::F),
     /// Divides a field immediate and a field element (felt = field imm / felt).
