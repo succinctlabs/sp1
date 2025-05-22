@@ -4013,6 +4013,7 @@ dependencies = [
  "chrono",
  "clap",
  "dirs",
+ "sp1-prover",
 ]
 
 [[package]]
