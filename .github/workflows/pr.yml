@@ -70,7 +70,7 @@ jobs:
     runs-on:
       [
         runs-on,
-        runner=64cpu-linux-arm64,
+        runner=48cpu-linux-arm64,
         spot=false,
         disk=large,
         "run-id=${{ github.run_id }}",
@@ -114,7 +114,7 @@ jobs:
     runs-on:
       [
         runs-on,
-        runner=64cpu-linux-x64,
+        runner=48cpu-linux-arm64,
         spot=false,
         disk=large,
         "run-id=${{ github.run_id }}",
