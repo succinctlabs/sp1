@@ -20,7 +20,7 @@ jobs:
     runs-on:
       [
         runs-on,
-        runner=64cpu-linux-arm64,
+        runner=48cpu-linux-arm64,
         disk=large,
         spot=false,
         "run-id=${{ github.run_id }}",
