@@ -10,6 +10,7 @@ on:
       - "crates/**"
       - "examples/**"
       - "Cargo.toml"
+      - "rust-toolchain.toml"
       - ".github/workflows/**"
   merge_group:
 
