@@ -44,7 +44,7 @@ jobs:
 
       - name: Downgrade Rustup
         run: |
-          rustup default 1.28.1
+          sudo apt-get install rustup=1.28.1
 
       - name: Install SP1 toolchain from repo
         run: |
