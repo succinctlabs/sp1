@@ -10,7 +10,7 @@ use num::Integer;
 use p3_baby_bear::BabyBear;
 use p3_field::PrimeField32;
 use p3_util::log2_ceil_usize;
-use sp1_core_executor::{ExecutionRecord, Program, RiscvAirId};
+use sp1_core_executor::{ExecutionRecord, Instruction, Opcode, Program, RiscvAirId};
 use sp1_stark::{
     air::MachineAir,
     shape::{OrderedShape, Shape, ShapeCluster},
@@ -627,7 +627,8 @@ pub enum CoreShapeError {
 }
 
 pub fn create_dummy_program(shape: &Shape<RiscvAirId>) -> Program {
-    let mut program = Program::new(vec![], 1 << 5, 1 << 5);
+    let mut program =
+        Program::new(vec![Instruction::new(Opcode::ADD, 30, 0, 0, false, false)], 1 << 5, 1 << 5);
     program.preprocessed_shape = Some(shape.clone());
     program
 }

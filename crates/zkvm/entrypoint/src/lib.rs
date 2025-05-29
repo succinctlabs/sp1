@@ -88,7 +88,7 @@ pub extern "C" fn read_vec_raw() -> ReadVecResult {
                 // Get the existing pointer in the reserved region which is the start of the vec.
                 // Increment the pointer by the capacity to set the new pointer to the end of the vec.
                 let ptr = unsafe { EMBEDDED_RESERVED_INPUT_PTR };
-                if ptr + capacity > MAX_MEMORY {
+                if ptr.saturating_add(capacity) > MAX_MEMORY {
                     panic!("Input region overflowed.")
                 }
 
@@ -106,7 +106,7 @@ pub extern "C" fn read_vec_raw() -> ReadVecResult {
                     len,
                     capacity,
                 }
-            } else if #[cfg(feature = "bump")] {
+            } else {
                 // Allocate a buffer of the required length that is 4 byte aligned.
                 let layout = std::alloc::Layout::from_size_align(capacity, 4).expect("vec is too large");
 
@@ -124,9 +124,6 @@ pub extern "C" fn read_vec_raw() -> ReadVecResult {
                     len,
                     capacity,
                 }
-            } else {
-                // An allocator must be selected.
-                compile_error!("There is no allocator selected. Please enable the `bump` or `embedded` feature.");
             }
         }
     }

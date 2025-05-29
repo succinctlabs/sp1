@@ -1954,6 +1954,8 @@ impl<'a> Executor<'a> {
         for (&addr, value) in &self.program.memory_image {
             self.state.memory.insert(addr, MemoryRecord { value: *value, shard: 0, timestamp: 0 });
         }
+        // Insert the memory record for 0.
+        self.state.memory.insert(0, MemoryRecord { value: 0, shard: 0, timestamp: 0 });
     }
 
     /// Executes the program without tracing and without emitting events.
@@ -2165,7 +2167,7 @@ impl<'a> Executor<'a> {
 
             let addr_0_final_record = match addr_0_record {
                 Some(record) => record,
-                None => &MemoryRecord { value: 0, shard: 0, timestamp: 1 },
+                None => &MemoryRecord { value: 0, shard: 0, timestamp: 0 },
             };
             memory_finalize_events
                 .push(MemoryInitializeFinalizeEvent::finalize_from_record(0, addr_0_final_record));
@@ -2173,8 +2175,7 @@ impl<'a> Executor<'a> {
             let memory_initialize_events = &mut self.record.global_memory_initialize_events;
             memory_initialize_events
                 .reserve_exact(self.state.memory.page_table.estimate_len() + 32);
-            let addr_0_initialize_event =
-                MemoryInitializeFinalizeEvent::initialize(0, 0, addr_0_record.is_some());
+            let addr_0_initialize_event = MemoryInitializeFinalizeEvent::initialize(0, 0);
             memory_initialize_events.push(addr_0_initialize_event);
 
             // Count the number of touched memory addresses manually, since `PagedMemory` doesn't
@@ -2194,11 +2195,8 @@ impl<'a> Executor<'a> {
                     if !self.record.program.memory_image.contains_key(&addr) {
                         let initial_value =
                             self.state.uninitialized_memory.registers.get(addr).unwrap_or(&0);
-                        memory_initialize_events.push(MemoryInitializeFinalizeEvent::initialize(
-                            addr,
-                            *initial_value,
-                            true,
-                        ));
+                        memory_initialize_events
+                            .push(MemoryInitializeFinalizeEvent::initialize(addr, *initial_value));
                     }
 
                     let record = *record.unwrap();
@@ -2215,11 +2213,8 @@ impl<'a> Executor<'a> {
                 // events, so we only send init events for other memory addresses.
                 if !self.record.program.memory_image.contains_key(&addr) {
                     let initial_value = self.state.uninitialized_memory.get(addr).unwrap_or(&0);
-                    memory_initialize_events.push(MemoryInitializeFinalizeEvent::initialize(
-                        addr,
-                        *initial_value,
-                        true,
-                    ));
+                    memory_initialize_events
+                        .push(MemoryInitializeFinalizeEvent::initialize(addr, *initial_value));
                 }
 
                 let record = *self.state.memory.get(addr).unwrap();

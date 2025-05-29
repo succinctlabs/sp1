@@ -10,6 +10,7 @@ use crate::{
     Groth16Bn254Proof, SP1_CIRCUIT_VERSION,
 };
 
+use anyhow::Result;
 use num_bigint::BigUint;
 use sha2::{Digest, Sha256};
 use sp1_recursion_compiler::{
@@ -110,19 +111,21 @@ impl Groth16Bn254Prover {
         vkey_hash: &BigUint,
         committed_values_digest: &BigUint,
         build_dir: &Path,
-    ) {
+    ) -> Result<()> {
         if proof.groth16_vkey_hash != Self::get_vkey_hash(build_dir) {
-            panic!(
+            return Err(anyhow::anyhow!(
                 "Proof vkey hash does not match circuit vkey hash, it was generated with a different circuit."
-            );
+            ));
         }
         verify_groth16_bn254(
-            build_dir.to_str().unwrap(),
+            build_dir
+                .to_str()
+                .ok_or_else(|| anyhow::anyhow!("Failed to convert build dir to string"))?,
             &proof.raw_proof,
             &vkey_hash.to_string(),
             &committed_values_digest.to_string(),
         )
-        .expect("failed to verify proof")
+        .map_err(|e| anyhow::anyhow!("failed to verify proof: {}", e))
     }
 }
 

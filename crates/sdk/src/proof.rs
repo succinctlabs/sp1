@@ -73,10 +73,10 @@ pub struct SP1ProofWithPublicValues {
 ///
 /// Since [`bincode`] is not self describing, it cannot handle "nullable" optional values.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct ProofFromNetwork {
-    proof: SP1Proof,
-    public_values: SP1PublicValues,
-    sp1_version: String,
+pub struct ProofFromNetwork {
+    pub proof: SP1Proof,
+    pub public_values: SP1PublicValues,
+    pub sp1_version: String,
 }
 
 impl From<ProofFromNetwork> for SP1ProofWithPublicValues {

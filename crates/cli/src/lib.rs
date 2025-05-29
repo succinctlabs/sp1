@@ -10,7 +10,7 @@ pub const RUSTUP_TOOLCHAIN_NAME: &str = "succinct";
 ///
 /// This tag has support for older x86 libc versions (like the one found in Ubuntu 20.04).
 /// This tag has support for the recent Macos and ARM targets.
-pub const LATEST_SUPPORTED_TOOLCHAIN_VERSION_TAG: &str = "succinct-1.85.0";
+pub const LATEST_SUPPORTED_TOOLCHAIN_VERSION_TAG: &str = "succinct-1.85.0-v2";
 
 pub const SP1_VERSION_MESSAGE: &str =
     concat!("sp1", " (", env!("VERGEN_GIT_SHA"), " ", env!("VERGEN_BUILD_TIMESTAMP"), ")");

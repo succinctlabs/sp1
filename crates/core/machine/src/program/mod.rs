@@ -80,15 +80,15 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
             .par_bridge()
             .for_each(|(i, rows)| {
                 rows.chunks_mut(NUM_PROGRAM_PREPROCESSED_COLS).enumerate().for_each(|(j, row)| {
-                    let idx = i * chunk_size + j;
-
-                    if idx < nb_rows {
-                        let cols: &mut ProgramPreprocessedCols<F> = row.borrow_mut();
-                        let instruction = &program.instructions[idx];
-                        let pc = program.pc_base + (idx as u32 * 4);
-                        cols.pc = F::from_canonical_u32(pc);
-                        cols.instruction.populate(instruction);
+                    let mut idx = i * chunk_size + j;
+                    if idx >= nb_rows {
+                        idx = 0;
                     }
+                    let cols: &mut ProgramPreprocessedCols<F> = row.borrow_mut();
+                    let instruction = &program.instructions[idx];
+                    let pc = program.pc_base + (idx as u32 * 4);
+                    cols.pc = F::from_canonical_u32(pc);
+                    cols.instruction.populate(instruction);
                 });
             });
 

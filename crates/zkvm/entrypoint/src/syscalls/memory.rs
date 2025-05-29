@@ -17,7 +17,7 @@ pub const MAX_MEMORY: usize = 0x78000000;
 
 // Pointer to next heap address to use, or 0 if the heap has not yet been
 // initialized.
-#[cfg(feature = "bump")]
+#[cfg(not(feature = "embedded"))]
 static mut HEAP_POS: usize = 0;
 
 /// Allocate memory aligned to the given alignment.
@@ -25,7 +25,7 @@ static mut HEAP_POS: usize = 0;
 /// Only available when the `bump` feature is enabled.
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
-#[cfg(feature = "bump")]
+#[cfg(all(target_os = "zkvm", not(feature = "embedded")))]
 pub unsafe extern "C" fn sys_alloc_aligned(bytes: usize, align: usize) -> *mut u8 {
     extern "C" {
         // https://lld.llvm.org/ELF/linker_script.html#sections-command
@@ -55,8 +55,20 @@ pub unsafe extern "C" fn sys_alloc_aligned(bytes: usize, align: usize) -> *mut u
     ptr
 }
 
+/// Allocate memory aligned to the given alignment.
+///
+/// Only available when the `embedded` feature is enabled.
+#[allow(clippy::missing_safety_doc)]
+#[no_mangle]
+#[cfg(all(target_os = "zkvm", feature = "embedded"))]
+pub unsafe extern "C" fn sys_alloc_aligned(bytes: usize, align: usize) -> *mut u8 {
+    use std::alloc::GlobalAlloc;
+    crate::allocators::embedded::INNER_HEAP
+        .alloc(std::alloc::Layout::from_size_align(bytes, align).unwrap())
+}
+
 /// Used memory in bytes.
-#[cfg(feature = "bump")]
+#[cfg(not(feature = "embedded"))]
 pub fn used_memory() -> usize {
     unsafe { HEAP_POS }
 }

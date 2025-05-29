@@ -9,10 +9,11 @@ use sha2::{Digest, Sha256};
 
 const FILENAME: &str = "vk_map.bin";
 const SRC_PATH: &str = "src/vk_map.bin";
-const SHA256_HASH: &str = "5791e67cb339f4936f21f0e7aa40fea6e534b4284175285444935613f7d61827";
+const SHA256_HASH: &str = "5e735f6e44f56e9eee91e5626252663afcc5263287d1c5980367b3f9f930a0e8";
 
 fn check_sha2(path: &Path) -> bool {
     let data = fs::read(path).unwrap();
+
     hex::encode(Sha256::digest(data)) == SHA256_HASH
 }
 
@@ -48,7 +49,7 @@ fn main() {
     }
 
     let mut downloader = Downloader::builder().download_folder(out_dir).build().unwrap();
-    let url = "https://sp1-circuits.s3.us-east-2.amazonaws.com/vk-map-v4.0.0-rc.3".to_string();
+    let url = "https://sp1-circuits.s3.us-east-2.amazonaws.com/vk-map-v5.0.0".to_string();
     eprintln!("Downloading {url}");
     let dl = Download::new(&url)
         .file_name(&PathBuf::from_str(FILENAME).unwrap())

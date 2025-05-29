@@ -3,6 +3,12 @@ use itertools::{izip, Itertools};
 
 use num_traits::cast::ToPrimitive;
 
+use crate::{
+    challenger::CanObserveVariable,
+    fri::{dummy_hash, dummy_pcs_proof, PolynomialBatchShape, PolynomialShape},
+    hash::FieldHasherVariable,
+    BabyBearFriConfig, CircuitConfig, TwoAdicPcsMatsVariable, TwoAdicPcsProofVariable,
+};
 use p3_air::{Air, BaseAir};
 use p3_baby_bear::BabyBear;
 use p3_commit::{Mmcs, Pcs, PolynomialSpace, TwoAdicMultiplicativeCoset};
@@ -17,16 +23,9 @@ use sp1_stark::{
     air::{InteractionScope, MachineAir},
     baby_bear_poseidon2::BabyBearPoseidon2,
     shape::OrderedShape,
-    AirOpenedValues, Challenger, Chip, ChipOpenedValues, InnerChallenge, ShardCommitment,
-    ShardOpenedValues, ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey, Val,
-    PROOF_MAX_NUM_PVS,
-};
-
-use crate::{
-    challenger::CanObserveVariable,
-    fri::{dummy_hash, dummy_pcs_proof, PolynomialBatchShape, PolynomialShape},
-    hash::FieldHasherVariable,
-    BabyBearFriConfig, CircuitConfig, TwoAdicPcsMatsVariable, TwoAdicPcsProofVariable,
+    AirOpenedValues, Challenger, Chip, ChipOpenedValues, InnerChallenge, InteractionKind,
+    ShardCommitment, ShardOpenedValues, ShardProof, StarkGenericConfig, StarkMachine,
+    StarkVerifyingKey, Val, PROOF_MAX_NUM_PVS,
 };
 
 use crate::{
@@ -263,23 +262,25 @@ where
             public_values,
         } = proof;
 
-        tracing::debug_span!("assert byte multiplicities").in_scope(|| {
-            // Assert that the byte multiplicities don't overflow.
-            let mut max_byte_lookup_mult = 0u64;
-            chips.iter().zip(opened_values.chips.iter()).for_each(|(chip, val)| {
-                max_byte_lookup_mult = max_byte_lookup_mult
-                    .checked_add(
-                        (chip.num_sent_byte_lookups() as u64)
-                            .checked_mul(1u64.checked_shl(val.log_degree as u32).unwrap())
-                            .unwrap(),
-                    )
-                    .unwrap();
-            });
-
-            assert!(
-                max_byte_lookup_mult <= SC::Val::order().to_u64().unwrap(),
-                "Byte multiplicities overflow"
-            );
+        tracing::debug_span!("assert lookup multiplicities").in_scope(|| {
+            // Assert that the lookup multiplicities don't overflow.
+            for kind in InteractionKind::all_kinds() {
+                let mut max_lookup_mult = 0u64;
+                chips.iter().zip(opened_values.chips.iter()).for_each(|(chip, val)| {
+                    max_lookup_mult = max_lookup_mult
+                        .checked_add(
+                            (chip.num_sends_by_kind(kind) as u64 +
+                                chip.num_receives_by_kind(kind) as u64)
+                                .checked_mul(1u64.checked_shl(val.log_degree as u32).unwrap())
+                                .unwrap(),
+                        )
+                        .unwrap();
+                });
+                assert!(
+                    max_lookup_mult < SC::Val::order().to_u64().unwrap(),
+                    "Lookup multiplicities overflow"
+                );
+            }
         });
 
         let log_degrees = opened_values.chips.iter().map(|val| val.log_degree).collect::<Vec<_>>();
@@ -338,6 +339,7 @@ where
             .iter()
             .map(|(name, domain, _)| {
                 let i = chip_ordering[name];
+                assert_eq!(name, &chips[i].name());
                 let values = opened_values.chips[i].preprocessed.clone();
                 if !chips[i].local_only() {
                     TwoAdicPcsMatsVariable::<C> {
