@@ -187,7 +187,7 @@ impl CpuProver {
         context: SP1Context<'a>,
         mode: SP1ProofMode,
     ) -> Result<SP1ProofWithPublicValues> {
-        let (public_values, _) = self.prover.execute(&pk.elf, stdin, context)?;
+        let (public_values, _, _) = self.prover.execute(&pk.elf, stdin, context)?;
         Ok(SP1ProofWithPublicValues::create_mock_proof(pk, public_values, mode, self.version()))
     }
 

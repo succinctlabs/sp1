@@ -59,25 +59,31 @@ pub fn root_public_values_digest(
     hash.hash_slice(&input)
 }
 
-pub fn assert_root_public_values_valid(
+pub fn is_root_public_values_valid(
     config: &InnerSC,
     public_values: &RootPublicValues<BabyBear>,
-) {
+) -> bool {
     let expected_digest = root_public_values_digest(config, public_values);
     for (value, expected) in public_values.digest().iter().copied().zip_eq(expected_digest) {
-        assert_eq!(value, expected);
+        if value != expected {
+            return false;
+        }
     }
+    true
 }
 
-/// Assert that the digest of the public values is correct.
-pub fn assert_recursion_public_values_valid(
+/// Check if the digest of the public values is correct.
+pub fn is_recursion_public_values_valid(
     config: &InnerSC,
     public_values: &RecursionPublicValues<BabyBear>,
-) {
+) -> bool {
     let expected_digest = recursion_public_values_digest(config, public_values);
     for (value, expected) in public_values.digest.iter().copied().zip_eq(expected_digest) {
-        assert_eq!(value, expected);
+        if value != expected {
+            return false;
+        }
     }
+    true
 }
 
 /// Get the committed values Bn Poseidon2 digest this reduce proof is representing.

@@ -36,7 +36,8 @@ pub trait Prover<C: SP1ProverComponents>: Send + Sync {
 
     /// Executes the program on the given input.
     fn execute(&self, elf: &[u8], stdin: &SP1Stdin) -> Result<(SP1PublicValues, ExecutionReport)> {
-        Ok(self.inner().execute(elf, stdin, SP1Context::default())?)
+        let (pv, _, report) = self.inner().execute(elf, stdin, SP1Context::default())?;
+        Ok((pv, report))
     }
 
     /// Proves the given program on the given input in the given proof mode.
