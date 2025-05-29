@@ -59,8 +59,16 @@ pub(crate) fn get_rust_compiler_flags(args: &BuildArgs, version: &semver::Versio
         "passes=loweratomic"
     };
 
-    let rust_flags =
-        ["-C", atomic_lower_pass, "-C", "link-arg=-Ttext=0x00200800", "-C", "panic=abort"];
+    let rust_flags = [
+        "-C",
+        atomic_lower_pass,
+        "-C",
+        "link-arg=-Ttext=0x00201000",
+        "-C",
+        "link-arg=--image-base=0x00200800",
+        "-C",
+        "panic=abort",
+    ];
     let rust_flags: Vec<_> =
         rust_flags.into_iter().chain(args.rustflags.iter().map(String::as_str)).collect();
     rust_flags.join("\x1f")

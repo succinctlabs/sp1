@@ -27,7 +27,7 @@ critical-section = { version = "1.2.0", optional = true }
 blake3 = { workspace = true, optional = true }
 
 [features]
-default = ["libm", "lib", "bump"]
+default = ["libm", "lib"]
 embedded = ["dep:embedded-alloc", "dep:critical-section"]
 libm = ["dep:libm"]
 lib = ["dep:sp1-lib"]
@@ -36,7 +36,6 @@ verify = [
   "dep:p3-field",
   "sp1-lib/verify",
 ]
-bump = []
 blake3 = ["dep:blake3"]
 
 [lints]

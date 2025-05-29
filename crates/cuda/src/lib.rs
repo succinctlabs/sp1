@@ -12,7 +12,6 @@ use std::{
 
 use crate::proto::api::ProverServiceClient;
 use async_trait::async_trait;
-use once_cell::sync::Lazy;
 use proto::api::ReadyRequest;
 use reqwest::{Request, Response};
 use serde::{Deserialize, Serialize};
@@ -20,6 +19,7 @@ use sp1_core_machine::{io::SP1Stdin, reduce::SP1ReduceProof, utils::SP1CoreProve
 use sp1_prover::{
     InnerSC, OuterSC, SP1CoreProof, SP1ProvingKey, SP1RecursionProverError, SP1VerifyingKey,
 };
+use std::sync::LazyLock;
 use tokio::task::block_in_place;
 use twirp::{
     async_trait,
@@ -33,8 +33,8 @@ pub mod proto {
     pub mod api;
 }
 
-static MOONGATE_CONTAINERS: Lazy<Mutex<HashMap<String, Arc<AtomicBool>>>> =
-    Lazy::new(|| Mutex::new(HashMap::new()));
+static MOONGATE_CONTAINERS: LazyLock<Mutex<HashMap<String, Arc<AtomicBool>>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// A remote client to [sp1_prover::SP1Prover] that runs inside a container.
 ///
@@ -204,7 +204,7 @@ impl SP1CudaProver {
         // If the moongate endpoint url hasn't been provided, we start the Docker container
         let container_name = port.map(|p| format!("sp1-gpu-{p}")).unwrap_or("sp1-gpu".to_string());
         let image_name = std::env::var("SP1_GPU_IMAGE")
-            .unwrap_or_else(|_| "public.ecr.aws/succinct-labs/moongate:v4.2.1".to_string());
+            .unwrap_or_else(|_| "public.ecr.aws/succinct-labs/moongate:v5.0.0".to_string());
 
         let cleaned_up = Arc::new(AtomicBool::new(false));
         let port = port.unwrap_or(3000);

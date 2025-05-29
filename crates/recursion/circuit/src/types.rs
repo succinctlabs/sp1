@@ -49,6 +49,7 @@ pub struct FriQueryProofVariable<C: CircuitConfig, H: FieldHasherVariable<C>> {
 pub struct FriChallenges<C: CircuitConfig> {
     pub query_indices: Vec<Vec<C::Bit>>,
     pub betas: Vec<Ext<C::F, C::EF>>,
+    pub betas_squared: Vec<Ext<C::F, C::EF>>,
 }
 
 #[derive(Clone)]
@@ -101,20 +102,28 @@ impl<C: CircuitConfig<F = SC::Val>, SC: BabyBearFriConfigVariable<C>> VerifyingK
         C::F: TwoAdicField,
         SC::DigestVariable: IntoIterator<Item = Felt<C::F>>,
     {
-        let prep_domains = self.chip_information.iter().map(|(_, domain, _)| domain);
-        let num_inputs = DIGEST_SIZE + 1 + 14 + (4 * prep_domains.len());
+        let mut num_inputs = DIGEST_SIZE + 1 + 14 + (7 * self.chip_information.len());
+        for (name, _, _) in self.chip_information.iter() {
+            num_inputs += name.len();
+        }
         let mut inputs = Vec::with_capacity(num_inputs);
         inputs.extend(self.commitment);
         inputs.push(self.pc_start);
         inputs.extend(self.initial_global_cumulative_sum.0.x.0);
         inputs.extend(self.initial_global_cumulative_sum.0.y.0);
-        for domain in prep_domains {
+        for (name, domain, dimension) in self.chip_information.iter() {
             inputs.push(builder.eval(C::F::from_canonical_usize(domain.log_n)));
             let size = 1 << domain.log_n;
             inputs.push(builder.eval(C::F::from_canonical_usize(size)));
             let g = C::F::two_adic_generator(domain.log_n);
             inputs.push(builder.eval(domain.shift));
             inputs.push(builder.eval(g));
+            inputs.push(builder.eval(C::F::from_canonical_usize(dimension.width)));
+            inputs.push(builder.eval(C::F::from_canonical_usize(dimension.height)));
+            inputs.push(builder.eval(C::F::from_canonical_usize(name.len())));
+            for byte in name.as_bytes() {
+                inputs.push(builder.eval(C::F::from_canonical_u8(*byte)));
+            }
         }
 
         SC::hash(builder, &inputs)

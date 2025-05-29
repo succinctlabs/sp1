@@ -198,6 +198,7 @@ impl<'a> CpuExecuteBuilder<'a> {
     pub fn run(self) -> Result<(SP1PublicValues, ExecutionReport)> {
         let Self { prover, elf, stdin, mut context_builder } = self;
         let context = context_builder.build();
-        Ok(prover.execute(elf, &stdin, context)?)
+        let (pv, _, report) = prover.execute(elf, &stdin, context)?;
+        Ok((pv, report))
     }
 }

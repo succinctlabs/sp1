@@ -58,6 +58,7 @@ pub trait RecursionMemoryAirBuilder: RecursionInteractionAirBuilder {
         );
     }
 
+    #[allow(clippy::manual_repeat_n)]
     fn recursion_eval_memory_access_single<E: Into<Self::Expr> + Clone>(
         &mut self,
         timestamp: impl Into<Self::Expr>,

@@ -2,7 +2,7 @@
 
 use p3_challenger::{CanObserve, CanSample, FieldChallenger};
 use p3_commit::{Pcs, PolynomialSpace};
-use p3_field::{ExtensionField, Field, PrimeField};
+use p3_field::{ExtensionField, Field, PrimeField32, TwoAdicField};
 use serde::{de::DeserializeOwned, Serialize};
 
 pub type Domain<SC> = <<SC as StarkGenericConfig>::Pcs as Pcs<
@@ -49,7 +49,7 @@ pub type Challenge<SC> = <SC as StarkGenericConfig>::Challenge;
 pub type Challenger<SC> = <SC as StarkGenericConfig>::Challenger;
 
 pub trait StarkGenericConfig: 'static + Send + Sync + Serialize + DeserializeOwned + Clone {
-    type Val: PrimeField;
+    type Val: PrimeField32 + TwoAdicField;
 
     type Domain: PolynomialSpace<Val = Self::Val> + Sync;
 
