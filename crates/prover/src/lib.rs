@@ -211,8 +211,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
         // Read the shapes from the shapes directory and deserialize them into memory.
         let allowed_vk_map: BTreeMap<[BabyBear; DIGEST_SIZE], usize> = if vk_verification {
-            // change this to include_bytes!(concat!(env!("OUT_DIR"), "/vk_map.bin")) later
-            bincode::deserialize(include_bytes!("./vk_map.bin")).unwrap()
+            bincode::deserialize(include_bytes!(concat!(env!("OUT_DIR"), "/vk_map.bin"))).unwrap()
         } else {
             bincode::deserialize(include_bytes!("vk_map_dummy.bin")).unwrap()
         };
