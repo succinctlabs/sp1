@@ -92,8 +92,9 @@ pub(crate) fn create_docker_command(
 
         if !output.status.success() {
             return Err(anyhow::anyhow!(
-                "Failed to run rustc --version in docker image {}",
-                String::from_utf8_lossy(&output.stdout)
+                "Failed to run rustc --version in docker image stdout: {} \n stderr: {}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
             ));
         }
 
