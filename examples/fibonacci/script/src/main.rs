@@ -24,7 +24,7 @@ fn main() {
 
     // Generate the proof for the given program and input.
     let (pk, vk) = client.setup(ELF);
-    let mut proof = client.prove(&pk, &stdin).compressed().run().unwrap();
+    let mut proof = client.prove(&pk, &stdin).plonk().run().unwrap();
 
     println!("generated proof");
 
