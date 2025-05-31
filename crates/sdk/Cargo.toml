@@ -49,10 +49,7 @@ sp1-stark = { workspace = true }
 sp1-primitives = { workspace = true }
 itertools = { workspace = true }
 tonic = { version = "0.12", features = ["tls", "tls-roots"], optional = true }
-alloy-sol-types = { version = "1.0", default-features = false, optional = true }
-alloy-primitives = { version = "1.0", default-features = false, optional = true }
-alloy-signer = { version = "1.0", default-features = false, optional = true }
-alloy-signer-local = { version = "1.0", default-features = false, optional = true }
+alloy-primitives = { version = "1.0", default-features = false, optional = true, features = ["k256", "serde"] }
 backoff = { version = "0.4", features = ["tokio"], optional = true }
 
 # TEE Dependencies
@@ -70,12 +67,8 @@ native-gnark = ["sp1-prover/native-gnark"]
 # dependency resolution issues.
 network = [
   "dep:prost",
-  "dep:alloy-sol-types",
-  "dep:alloy-signer",
-  "dep:alloy-signer-local",
   "dep:alloy-primitives",
   "dep:tokio",
-  "dep:alloy-signer",
   "dep:reqwest",
   "dep:twirp",
   "dep:reqwest-middleware",

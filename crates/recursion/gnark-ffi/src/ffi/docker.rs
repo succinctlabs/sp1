@@ -58,11 +58,7 @@ fn call_docker(args: &[&str], mounts: &[(&str, &str)]) -> Result<()> {
         tracing::error!("status: {:?}", result.status);
         tracing::error!("stderr: {:?}", stderr);
 
-        return Err(anyhow!(
-            "Docker command failed \n stdout: {:?}\n stderr: {:?}",
-            stdout,
-            stderr
-        ));
+        return Err(anyhow!("Docker command failed \n stdout: {:?}\n stderr: {:?}", stdout, stderr));
     }
     Ok(())
 }
