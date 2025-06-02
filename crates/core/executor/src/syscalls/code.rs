@@ -288,7 +288,7 @@ impl SyscallCode {
             | SyscallCode::VERIFY_SP1_PROOF
             | SyscallCode::HINT_LEN
             | SyscallCode::HINT_READ => return None,
-            SyscallCode::BLAKE2F_COMPRESS => todo!(),
+            SyscallCode::BLAKE2F_COMPRESS => RiscvAirId::Blake2fCompress,
         })
     }
 }
