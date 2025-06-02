@@ -91,3 +91,5 @@ pub const GROTH16_BLAKE3_ELF: &[u8] = include_elf!("groth16_verify_blake3");
 pub const PLONK_ELF: &[u8] = include_elf!("plonk_verify");
 
 pub const PLONK_BLAKE3_ELF: &[u8] = include_elf!("plonk_verify_blake3");
+
+pub const BLAKE2F_COMPRESS_ELF: &[u8] = include_elf!("blake2f-compress-test");
