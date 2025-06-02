@@ -206,6 +206,7 @@ impl SyscallCode {
             0x00_00_01_2D => SyscallCode::SECP256R1_DOUBLE,
             0x00_00_01_2E => SyscallCode::SECP256R1_DECOMPRESS,
             0x00_01_0C_0C => SyscallCode::BLAKE2F_COMPRESS,
+            0x00_01_0C_0C => SyscallCode::BLAKE2F_COMPRESS,
             _ => panic!("invalid syscall number: {value}"),
         }
     }
@@ -262,9 +263,9 @@ impl SyscallCode {
             SyscallCode::U256XU2048_MUL => RiscvAirId::U256XU2048Mul,
             SyscallCode::BLS12381_ADD => RiscvAirId::Bls12381AddAssign,
             SyscallCode::BLS12381_DOUBLE => RiscvAirId::Bls12381DoubleAssign,
-            SyscallCode::BLS12381_FP_ADD |
-            SyscallCode::BLS12381_FP_SUB |
-            SyscallCode::BLS12381_FP_MUL => RiscvAirId::Bls12381FpOpAssign,
+            SyscallCode::BLS12381_FP_ADD
+            | SyscallCode::BLS12381_FP_SUB
+            | SyscallCode::BLS12381_FP_MUL => RiscvAirId::Bls12381FpOpAssign,
             SyscallCode::BLS12381_FP2_ADD | SyscallCode::BLS12381_FP2_SUB => {
                 RiscvAirId::Bls12381Fp2AddSubAssign
             }
