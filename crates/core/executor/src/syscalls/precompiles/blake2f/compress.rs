@@ -1,5 +1,6 @@
 use crate::{
     events::MemoryReadRecord,
+    events::{Blake2fCompressEvent, PrecompileEvent},
     syscalls::{Syscall, SyscallCode, SyscallContext},
 };
 
@@ -81,6 +82,28 @@ impl Syscall for Blake2fCompressSyscall {
         // Write
         rt.clk += 1;
         let write_records = rt.mw_slice(base_ptr + 213, &result_u32);
+
+        // Push event
+        let shard = rt.current_shard();
+        let event = PrecompileEvent::Blake2fCompress(Blake2fCompressEvent {
+            shard,
+            clk: start_clk,
+            base_ptr,
+            rounds,
+            h,
+            m,
+            t0,
+            t1,
+            f,
+            result,
+            read_records,
+            write_records,
+            local_mem_access: rt.postprocess(),
+        });
+
+        let syscall_event =
+            rt.rt.syscall_event(start_clk, None, None, syscall_code, arg1, arg2, rt.next_pc);
+        rt.add_precompile_event(syscall_code, syscall_event, event);
 
         None
     }
