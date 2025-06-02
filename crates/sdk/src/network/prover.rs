@@ -4,18 +4,19 @@
 //! on a remote RPC server.
 
 use std::time::{Duration, Instant};
+use std::str::FromStr;
 
 use super::prove::NetworkProveBuilder;
 use crate::{
     cpu::{execute::CpuExecuteBuilder, CpuProver},
     network::{
         client::NetworkClient,
-        proto::network::{
+        proto::types::{
             ExecutionStatus, FulfillmentStatus, FulfillmentStrategy, GetProofRequestStatusResponse,
             ProofMode,
         },
         Error, DEFAULT_CYCLE_LIMIT, DEFAULT_GAS_LIMIT, DEFAULT_NETWORK_RPC_URL,
-        DEFAULT_TIMEOUT_SECS,
+        DEFAULT_TIMEOUT_SECS, DEFAULT_AUCTIONEER_ADDRESS, DEFAULT_EXECUTOR_ADDRESS,
     },
     prover::verify_proof,
     ProofFromNetwork, Prover, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey,
@@ -142,6 +143,8 @@ impl NetworkProver {
             tee_2fa: false,
             min_auction_period: 0,
             whitelist: vec![],
+            auctioneer: Address::from_str(DEFAULT_AUCTIONEER_ADDRESS).unwrap(),
+            executor: Address::from_str(DEFAULT_EXECUTOR_ADDRESS).unwrap(),
         }
     }
 
@@ -263,6 +266,8 @@ impl NetworkProver {
     /// * `timeout`: The timeout for the proof request.
     /// * `min_auction_period`: The minimum auction period for the proof request in seconds.
     /// * `whitelist`: The auction whitelist for the proof request.
+    /// * `auctioneer`: The auctioneer address for the proof request.
+    /// * `executor`: The executor address for the proof request.
     #[allow(clippy::too_many_arguments)]
     pub(crate) async fn request_proof(
         &self,
@@ -275,6 +280,8 @@ impl NetworkProver {
         timeout: Option<Duration>,
         min_auction_period: u64,
         whitelist: Vec<Address>,
+        auctioneer: Address,
+        executor: Address,
     ) -> Result<B256> {
         // Get the timeout.
         let timeout_secs = timeout.map_or(DEFAULT_TIMEOUT_SECS, |dur| dur.as_secs());
@@ -307,6 +314,8 @@ impl NetworkProver {
                 gas_limit,
                 min_auction_period,
                 whitelist,
+                auctioneer,
+                executor,
             )
             .await?;
 
@@ -378,6 +387,8 @@ impl NetworkProver {
         gas_limit: Option<u64>,
         min_auction_period: u64,
         whitelist: Vec<Address>,
+        auctioneer: Address,
+        executor: Address,
     ) -> Result<B256> {
         let vk_hash = self.register_program(&pk.vk, &pk.elf).await?;
         let (cycle_limit, gas_limit) =
@@ -392,6 +403,8 @@ impl NetworkProver {
             timeout,
             min_auction_period,
             whitelist,
+            auctioneer,
+            executor,
         )
         .await
     }
@@ -410,6 +423,8 @@ impl NetworkProver {
         tee_2fa: bool,
         min_auction_period: u64,
         whitelist: Vec<Address>,
+        auctioneer: Address,
+        executor: Address,
     ) -> Result<SP1ProofWithPublicValues> {
         let request_id = self
             .request_proof_impl(
@@ -423,6 +438,8 @@ impl NetworkProver {
                 gas_limit,
                 min_auction_period,
                 whitelist,
+                auctioneer,
+                executor,
             )
             .await?;
 
@@ -556,6 +573,8 @@ impl Prover<CpuProverComponents> for NetworkProver {
             false,
             0,
             vec![],
+            Address::from_str(DEFAULT_AUCTIONEER_ADDRESS).unwrap(),
+            Address::from_str(DEFAULT_EXECUTOR_ADDRESS).unwrap(),
         ))
     }
 

@@ -26,8 +26,9 @@ use super::{
 };
 use crate::network::proto::{
     artifact::{artifact_store_client::ArtifactStoreClient, ArtifactType, CreateArtifactRequest},
-    network::{
-        prover_network_client::ProverNetworkClient, CreateProgramRequest, CreateProgramRequestBody,
+    network::prover_network_client::ProverNetworkClient,
+    types::{
+        CreateProgramRequest, CreateProgramRequestBody,
         CreateProgramResponse, FulfillmentStatus, FulfillmentStrategy, GetBalanceRequest,
         GetFilteredProofRequestsRequest, GetFilteredProofRequestsResponse, GetNonceRequest,
         GetProgramRequest, GetProgramResponse, GetProofRequestStatusRequest,
@@ -326,6 +327,8 @@ impl NetworkClient {
         gas_limit: u64,
         min_auction_period: u64,
         whitelist: Vec<Address>,
+        auctioneer: Address,
+        executor: Address,
     ) -> Result<RequestProofResponse> {
         // Calculate the deadline.
         let start = SystemTime::now();
@@ -354,6 +357,8 @@ impl NetworkClient {
                     gas_limit,
                     min_auction_period,
                     whitelist: whitelist.clone().into_iter().map(|addr| addr.to_vec()).collect(),
+                    auctioneer: auctioneer.to_vec(),
+                    executor: executor.to_vec(),
                 };
                 let request_response = rpc
                     .request_proof(RequestProofRequest {

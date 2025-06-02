@@ -18,7 +18,7 @@ pub mod tee;
 
 pub mod utils;
 
-pub use crate::network::{client::NetworkClient, proto::network::FulfillmentStrategy};
+pub use crate::network::{client::NetworkClient, proto::types::FulfillmentStrategy};
 pub use alloy_primitives::B256;
 pub use error::*;
 
@@ -28,3 +28,6 @@ pub(crate) const DEFAULT_TEE_SERVER_URL: &str = "https://tee.production.succinct
 pub(crate) const DEFAULT_TIMEOUT_SECS: u64 = 14400;
 pub(crate) const DEFAULT_CYCLE_LIMIT: u64 = 100_000_000;
 pub(crate) const DEFAULT_GAS_LIMIT: u64 = 1_000_000_000;
+
+pub(crate) const DEFAULT_AUCTIONEER_ADDRESS: &str = "0x29cf94C0809Bac6DFC837B5DA92D0c7F088E7Da1";
+pub(crate) const DEFAULT_EXECUTOR_ADDRESS: &str = "0x29cf94C0809Bac6DFC837B5DA92D0c7F088E7Da1";
