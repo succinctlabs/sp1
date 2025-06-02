@@ -8,17 +8,17 @@
     "editor.rulers": [
         100
     ],
-    // "rust-analyzer.check.overrideCommand": [
-    //     "cargo",
-    //     "clippy",
-    //     "--workspace",
-    //     "--message-format=json",
-    //     "--all-features",
-    //     "--all-targets",
-    //     "--",
-    //     "-A",
-    //     "incomplete-features"
-    // ],
+    "rust-analyzer.check.overrideCommand": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--message-format=json",
+        "--all-features",
+        "--all-targets",
+        "--",
+        "-A",
+        "incomplete-features"
+    ],
     "rust-analyzer.linkedProjects": [
         "Cargo.toml",
         // "patch-testing/Cargo.toml",

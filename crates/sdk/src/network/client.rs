@@ -122,8 +122,8 @@ impl NetworkClient {
     /// # Details
     /// The verifying key hash is used to identify a program.
     pub fn get_vk_hash(vk: &SP1VerifyingKey) -> Result<B256> {
-        let vk_hash_str = B256::from_str(&vk.bytes32())?;
-        Ok(vk_hash_str)
+        let vk_hash = vk.hash_bytes();
+        Ok(B256::from_slice(&vk_hash))
     }
 
     /// Registers a program with the network if it is not already registered.
