@@ -139,6 +139,8 @@ pub enum RiscvAirId {
     Global = 43,
     /// The byte chip.
     Byte = 44,
+    /// The Blake2f compress chip.
+    Blake2fCompress = 45,
 }
 
 impl RiscvAirId {
@@ -186,30 +188,31 @@ impl RiscvAirId {
     pub fn is_precompile(self) -> bool {
         matches!(
             self,
-            RiscvAirId::ShaExtend |
-                RiscvAirId::ShaCompress |
-                RiscvAirId::EdAddAssign |
-                RiscvAirId::EdDecompress |
-                RiscvAirId::Secp256k1Decompress |
-                RiscvAirId::Secp256k1AddAssign |
-                RiscvAirId::Secp256k1DoubleAssign |
-                RiscvAirId::Secp256r1Decompress |
-                RiscvAirId::Secp256r1AddAssign |
-                RiscvAirId::Secp256r1DoubleAssign |
-                RiscvAirId::KeccakPermute |
-                RiscvAirId::Bn254AddAssign |
-                RiscvAirId::Bn254DoubleAssign |
-                RiscvAirId::Bls12381AddAssign |
-                RiscvAirId::Bls12381DoubleAssign |
-                RiscvAirId::Uint256MulMod |
-                RiscvAirId::U256XU2048Mul |
-                RiscvAirId::Bls12381FpOpAssign |
-                RiscvAirId::Bls12381Fp2AddSubAssign |
-                RiscvAirId::Bls12381Fp2MulAssign |
-                RiscvAirId::Bn254FpOpAssign |
-                RiscvAirId::Bn254Fp2AddSubAssign |
-                RiscvAirId::Bn254Fp2MulAssign |
-                RiscvAirId::Bls12381Decompress
+            RiscvAirId::ShaExtend
+                | RiscvAirId::ShaCompress
+                | RiscvAirId::EdAddAssign
+                | RiscvAirId::EdDecompress
+                | RiscvAirId::Secp256k1Decompress
+                | RiscvAirId::Secp256k1AddAssign
+                | RiscvAirId::Secp256k1DoubleAssign
+                | RiscvAirId::Secp256r1Decompress
+                | RiscvAirId::Secp256r1AddAssign
+                | RiscvAirId::Secp256r1DoubleAssign
+                | RiscvAirId::KeccakPermute
+                | RiscvAirId::Bn254AddAssign
+                | RiscvAirId::Bn254DoubleAssign
+                | RiscvAirId::Bls12381AddAssign
+                | RiscvAirId::Bls12381DoubleAssign
+                | RiscvAirId::Uint256MulMod
+                | RiscvAirId::U256XU2048Mul
+                | RiscvAirId::Bls12381FpOpAssign
+                | RiscvAirId::Bls12381Fp2AddSubAssign
+                | RiscvAirId::Bls12381Fp2MulAssign
+                | RiscvAirId::Bn254FpOpAssign
+                | RiscvAirId::Bn254Fp2AddSubAssign
+                | RiscvAirId::Bn254Fp2MulAssign
+                | RiscvAirId::Bls12381Decompress
+                | RiscvAirId::Blake2fCompress
         )
     }
 

@@ -357,6 +357,7 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Arc<dyn Syscall>> {
     syscall_map.insert(SyscallCode::HALT, Arc::new(SyscallHalt {}));
     syscall_map.insert(SyscallCode::SHA_EXTEND, Arc::new(ShaExtendChip::new()));
     syscall_map.insert(SyscallCode::SHA_COMPRESS, Arc::new(ShaCompressChip::new()));
+    // Blake2f todo: syscall_map.insert(SyscallCode::BLAKE2F_COMPRESS, Arc::new());
     syscall_map.insert(SyscallCode::ED_ADD, Arc::new(EdAddAssignChip::<Ed25519>::new()));
     syscall_map
         .insert(SyscallCode::ED_DECOMPRESS, Arc::new(EdDecompressChip::<Ed25519Parameters>::new()));
