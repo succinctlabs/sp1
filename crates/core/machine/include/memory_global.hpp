@@ -30,6 +30,6 @@ namespace sp1_core_machine_sys::memory_global {
         for(uintptr_t i = 0 ; i < 32 ; i++) {
             cols->value[i] = F::from_canonical_u32(((event->value) >> i) & 1);
         }
-        cols->is_real = F::from_canonical_u32(event->used);
+        cols->is_real = F::one();
     }
 }  // namespace sp1::memory_local

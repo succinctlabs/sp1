@@ -1,8 +1,7 @@
 [workspace.package]
-version = "4.2.1"
+version = "5.0.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-rust-version = "1.79"
 repository = "https://github.com/succinctlabs/sp1"
 keywords = ["sp1", "succinct", "zero-knowledge", "zkvm"]
 categories = ["cryptography"]
@@ -50,51 +49,52 @@ debug-assertions = true
 
 [workspace.dependencies]
 # sp1
-sp1-build = { path = "crates/build", version = "4.2.1" }
-sp1-cli = { path = "crates/cli", version = "4.2.1", default-features = false }
-sp1-core-machine = { path = "crates/core/machine", version = "4.2.1" }
-sp1-core-executor = { path = "crates/core/executor", version = "4.2.1" }
-sp1-curves = { path = "crates/curves", version = "4.2.1" }
-sp1-derive = { path = "crates/derive", version = "4.2.1" }
-sp1-eval = { path = "crates/eval", version = "4.2.1" }
-sp1-helper = { path = "crates/helper", version = "4.2.1", default-features = false }
-sp1-primitives = { path = "crates/primitives", version = "4.2.1" }
-sp1-prover = { path = "crates/prover", version = "4.2.1" }
-sp1-recursion-compiler = { path = "crates/recursion/compiler", version = "4.2.1" }
-sp1-recursion-core = { path = "crates/recursion/core", version = "4.2.1" }
-sp1-recursion-derive = { path = "crates/recursion/derive", version = "4.2.1", default-features = false }
-sp1-recursion-gnark-ffi = { path = "crates/recursion/gnark-ffi", version = "4.2.1", default-features = false }
-sp1-recursion-circuit = { path = "crates/recursion/circuit", version = "4.2.1", default-features = false }
-sp1-sdk = { path = "crates/sdk", version = "4.2.1" }
-sp1-cuda = { path = "crates/cuda", version = "4.2.1" }
-sp1-stark = { path = "crates/stark", version = "4.2.1" }
-sp1-lib = { path = "crates/zkvm/lib", version = "4.2.1", default-features = false }
-sp1-zkvm = { path = "crates/zkvm/entrypoint", version = "4.2.1", default-features = false }
+sp1-build = { path = "crates/build", version = "5.0.0" }
+sp1-cli = { path = "crates/cli", version = "5.0.0", default-features = false }
+sp1-core-machine = { path = "crates/core/machine", version = "5.0.0" }
+sp1-core-executor = { path = "crates/core/executor", version = "5.0.0" }
+sp1-curves = { path = "crates/curves", version = "5.0.0" }
+sp1-derive = { path = "crates/derive", version = "5.0.0" }
+sp1-eval = { path = "crates/eval", version = "5.0.0" }
+sp1-helper = { path = "crates/helper", version = "5.0.0", default-features = false }
+sp1-primitives = { path = "crates/primitives", version = "5.0.0" }
+sp1-prover = { path = "crates/prover", version = "5.0.0" }
+sp1-recursion-compiler = { path = "crates/recursion/compiler", version = "5.0.0" }
+sp1-recursion-core = { path = "crates/recursion/core", version = "5.0.0" }
+sp1-recursion-derive = { path = "crates/recursion/derive", version = "5.0.0", default-features = false }
+sp1-recursion-gnark-ffi = { path = "crates/recursion/gnark-ffi", version = "5.0.0", default-features = false }
+sp1-recursion-circuit = { path = "crates/recursion/circuit", version = "5.0.0", default-features = false }
+sp1-sdk = { path = "crates/sdk", version = "5.0.0" }
+sp1-cuda = { path = "crates/cuda", version = "5.0.0" }
+sp1-stark = { path = "crates/stark", version = "5.0.0" }
+sp1-lib = { path = "crates/zkvm/lib", version = "5.0.0", default-features = false }
+sp1-zkvm = { path = "crates/zkvm/entrypoint", version = "5.0.0", default-features = false }
 
 # For testing.
 test-artifacts = { path = "crates/test-artifacts" }
 
 # p3
-p3-air = "=0.2.2-succinct"
-p3-field = "=0.2.2-succinct"
-p3-commit = "=0.2.2-succinct"
-p3-matrix = "=0.2.2-succinct"
-p3-baby-bear = { version = "=0.2.2-succinct", features = ["nightly-features"] }
-p3-util = "=0.2.2-succinct"
-p3-challenger = "=0.2.2-succinct"
-p3-dft = "=0.2.2-succinct"
-p3-fri = "=0.2.2-succinct"
-p3-goldilocks = "=0.2.2-succinct"
-p3-keccak = "=0.2.2-succinct"
-p3-keccak-air = "=0.2.2-succinct"
-p3-blake3 = "=0.2.2-succinct"
-p3-mds = "=0.2.2-succinct"
-p3-merkle-tree = "=0.2.2-succinct"
-p3-poseidon2 = "=0.2.2-succinct"
-p3-symmetric = "=0.2.2-succinct"
-p3-uni-stark = "=0.2.2-succinct"
-p3-maybe-rayon = "=0.2.2-succinct"
-p3-bn254-fr = "=0.2.2-succinct"
+p3-field = { version = "=0.2.3-succinct" }
+p3-air = { version = "=0.2.3-succinct" }
+p3-baby-bear = { version = "=0.2.3-succinct" }
+p3-bn254-fr = { version = "=0.2.3-succinct" }
+p3-poseidon2 = { version = "=0.2.3-succinct" }
+p3-symmetric = { version = "=0.2.3-succinct" }
+p3-dft = { version = "=0.2.3-succinct" }
+p3-matrix = { version = "=0.2.3-succinct" }
+p3-merkle-tree = { version = "=0.2.3-succinct" }
+p3-commit = { version = "=0.2.3-succinct" }
+p3-fri = { version = "=0.2.3-succinct" }
+p3-challenger = { version = "=0.2.3-succinct" }
+p3-util = { version = "=0.2.3-succinct" }
+p3-interpolation = { version = "=0.2.3-succinct" }
+p3-uni-stark =  { version = "=0.2.3-succinct" }
+p3-goldilocks = { version = "=0.2.3-succinct" }
+p3-keccak = { version = "=0.2.3-succinct" }
+p3-keccak-air = { version = "=0.2.3-succinct" }
+p3-blake3 = { version = "=0.2.3-succinct" }
+p3-mds = { version = "=0.2.3-succinct" }
+p3-maybe-rayon = { version = "=0.2.3-succinct" }
 
 # misc
 hashbrown = "0.14.5"

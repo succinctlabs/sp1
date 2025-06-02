@@ -8,7 +8,7 @@ use embedded_alloc::TlsfHeap as Heap;
 #[global_allocator]
 static HEAP: EmbeddedAlloc = EmbeddedAlloc;
 
-static INNER_HEAP: Heap = Heap::empty();
+pub static INNER_HEAP: Heap = Heap::empty();
 
 struct CriticalSection;
 critical_section::set_impl!(CriticalSection);
@@ -25,9 +25,10 @@ pub fn init() {
         static _end: u8;
     }
     let heap_pos: usize = unsafe { (&_end) as *const u8 as usize };
+    assert!(heap_pos <= EMBEDDED_RESERVED_INPUT_START);
     // The heap size that is available for the program is the total memory minus the reserved input
     // region and the heap position.
-    let heap_size: usize = MAX_MEMORY - heap_pos - EMBEDDED_RESERVED_INPUT_REGION_SIZE;
+    let heap_size: usize = EMBEDDED_RESERVED_INPUT_START - heap_pos;
     unsafe { INNER_HEAP.init(heap_pos, heap_size) };
 }
 

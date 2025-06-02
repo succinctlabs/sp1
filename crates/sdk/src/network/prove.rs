@@ -4,7 +4,7 @@
 
 use std::time::Duration;
 
-use alloy_primitives::B256;
+use alloy_primitives::{Address, B256};
 use anyhow::Result;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::SP1ProvingKey;
@@ -33,6 +33,8 @@ pub struct NetworkProveBuilder<'a> {
     pub(crate) cycle_limit: Option<u64>,
     pub(crate) gas_limit: Option<u64>,
     pub(crate) tee_2fa: bool,
+    pub(crate) min_auction_period: u64,
+    pub(crate) whitelist: Vec<Address>,
 }
 
 impl NetworkProveBuilder<'_> {
@@ -314,6 +316,56 @@ impl NetworkProveBuilder<'_> {
         self
     }
 
+    /// Set the minimum auction period for the proof request in seconds.
+    ///
+    /// # Details
+    /// This method sets the minimum auction period for the proof request. Only relevant if the
+    /// strategy is set to [`FulfillmentStrategy::Auction`].
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{Prover, ProverClient, SP1Stdin};
+    /// use std::time::Duration;
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().network().build();
+    /// let (pk, vk) = client.setup(elf);
+    /// let builder = client.prove(&pk, &stdin).min_auction_period(60).run();
+    /// ```
+    #[must_use]
+    pub fn min_auction_period(mut self, min_auction_period: u64) -> Self {
+        self.min_auction_period = min_auction_period;
+        self
+    }
+
+    /// Set the whitelist for the proof request.
+    ///
+    /// # Details
+    /// Only provers specified in the whitelist will be able to bid and prove on the request. Only
+    /// relevant if the strategy is set to [`FulfillmentStrategy::Auction`].
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use alloy_primitives::Address;
+    /// use sp1_sdk::{Prover, ProverClient, SP1Stdin};
+    /// use std::str::FromStr;
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().network().build();
+    /// let (pk, vk) = client.setup(elf);
+    /// let whitelist = vec![Address::from_str("0x123").unwrap(), Address::from_str("0x456").unwrap()];
+    /// let builder = client.prove(&pk, &stdin).whitelist(whitelist).run();
+    /// ```
+    #[must_use]
+    pub fn whitelist(mut self, whitelist: Vec<Address>) -> Self {
+        self.whitelist = whitelist;
+        self
+    }
+
     /// Request a proof from the prover network.
     ///
     /// # Details
@@ -366,6 +418,8 @@ impl NetworkProveBuilder<'_> {
                 self.skip_simulation,
                 self.cycle_limit,
                 self.gas_limit,
+                self.min_auction_period,
+                self.whitelist,
             )
             .await
     }
@@ -429,6 +483,8 @@ impl NetworkProveBuilder<'_> {
                 self.cycle_limit,
                 self.gas_limit,
                 self.tee_2fa,
+                self.min_auction_period,
+                self.whitelist,
             )
             .await
     }

@@ -323,7 +323,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         elf: &[u8],
         stdin: &SP1Stdin,
         mut context: SP1Context<'a>,
-    ) -> Result<(SP1PublicValues, ExecutionReport), ExecutionError> {
+    ) -> Result<(SP1PublicValues, [u8; 32], ExecutionReport), ExecutionError> {
         context.subproof_verifier = Some(self);
 
         let calculate_gas = context.calculate_gas;
@@ -363,7 +363,19 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 .ok();
         }
 
-        Ok((SP1PublicValues::from(&runtime.state.public_values_stream), runtime.report))
+        let mut committed_value_digest = [0u8; 32];
+        runtime.record.public_values.committed_value_digest.iter().enumerate().for_each(
+            |(i, word)| {
+                let bytes = word.to_le_bytes();
+                committed_value_digest[i * 4..(i + 1) * 4].copy_from_slice(&bytes);
+            },
+        );
+
+        Ok((
+            SP1PublicValues::from(&runtime.state.public_values_stream),
+            committed_value_digest,
+            runtime.report,
+        ))
     }
 
     /// Generate shard proofs which split up and prove the valid execution of a RISC-V program with
@@ -984,12 +996,14 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let proof = prover.prove(witness, build_dir.to_path_buf());
 
         // Verify the proof.
-        prover.verify(
-            &proof,
-            &vkey_hash.as_canonical_biguint(),
-            &committed_values_digest.as_canonical_biguint(),
-            build_dir,
-        );
+        prover
+            .verify(
+                &proof,
+                &vkey_hash.as_canonical_biguint(),
+                &committed_values_digest.as_canonical_biguint(),
+                build_dir,
+            )
+            .unwrap();
 
         proof
     }
@@ -1017,12 +1031,14 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         let proof = prover.prove(witness, build_dir.to_path_buf());
 
         // Verify the proof.
-        prover.verify(
-            &proof,
-            &vkey_hash.as_canonical_biguint(),
-            &committed_values_digest.as_canonical_biguint(),
-            build_dir,
-        );
+        prover
+            .verify(
+                &proof,
+                &vkey_hash.as_canonical_biguint(),
+                &committed_values_digest.as_canonical_biguint(),
+                build_dir,
+            )
+            .unwrap();
 
         proof
     }
@@ -1240,14 +1256,14 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         core_inputs
     }
 
-    pub fn get_recursion_deferred_inputs<'a>(
+    pub fn get_recursion_deferred_inputs_with_initial_digest<'a>(
         &'a self,
         vk: &'a StarkVerifyingKey<CoreSC>,
         deferred_proofs: &[SP1ReduceProof<InnerSC>],
+        mut deferred_digest: [Val<CoreSC>; 8],
         batch_size: usize,
     ) -> (Vec<SP1DeferredWitnessValues<InnerSC>>, [BabyBear; 8]) {
         // Prepare the inputs for the deferred proofs recursive verification.
-        let mut deferred_digest = [Val::<CoreSC>::zero(); DIGEST_SIZE];
         let mut deferred_inputs = Vec::new();
 
         for batch in deferred_proofs.chunks(batch_size) {
@@ -1276,6 +1292,20 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             deferred_digest = Self::hash_deferred_proofs(deferred_digest, batch);
         }
         (deferred_inputs, deferred_digest)
+    }
+
+    pub fn get_recursion_deferred_inputs<'a>(
+        &'a self,
+        vk: &'a StarkVerifyingKey<CoreSC>,
+        deferred_proofs: &[SP1ReduceProof<InnerSC>],
+        batch_size: usize,
+    ) -> (Vec<SP1DeferredWitnessValues<InnerSC>>, [BabyBear; 8]) {
+        self.get_recursion_deferred_inputs_with_initial_digest(
+            vk,
+            deferred_proofs,
+            [Val::<CoreSC>::zero(); DIGEST_SIZE],
+            batch_size,
+        )
     }
 
     /// Generate the inputs for the first layer of recursive proofs.

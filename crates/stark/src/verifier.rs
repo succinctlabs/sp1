@@ -5,11 +5,10 @@ use std::{
 };
 
 use itertools::Itertools;
-use num_traits::cast::ToPrimitive;
 use p3_air::{Air, BaseAir};
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{LagrangeSelectors, Pcs, PolynomialSpace};
-use p3_field::{AbstractExtensionField, AbstractField, Field};
+use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField64, TwoAdicField};
 
 use super::{
     folder::VerifierConstraintFolder,
@@ -18,7 +17,7 @@ use super::{
 };
 use crate::{
     air::{InteractionScope, MachineAir},
-    MachineChip,
+    InteractionKind, MachineChip,
 };
 
 /// A verifier for a collection of air chips.
@@ -54,27 +53,36 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             return Err(VerificationError::ChipOpeningLengthMismatch);
         }
 
-        // Assert that the byte multiplicities don't overflow.
-        let mut max_byte_lookup_mult = 0u64;
-        chips.iter().zip(opened_values.chips.iter()).for_each(|(chip, val)| {
-            max_byte_lookup_mult = max_byte_lookup_mult
-                .checked_add(
-                    (chip.num_sent_byte_lookups() as u64)
-                        .checked_mul(1u64.checked_shl(val.log_degree as u32).unwrap())
-                        .unwrap(),
-                )
-                .unwrap();
-        });
-
-        assert!(
-            max_byte_lookup_mult <= SC::Val::order().to_u64().unwrap(),
-            "Byte multiplicities overflow"
-        );
-
         let log_degrees = opened_values.chips.iter().map(|val| val.log_degree).collect::<Vec<_>>();
 
         let log_quotient_degrees =
             chips.iter().map(|chip| chip.log_quotient_degree()).collect::<Vec<_>>();
+
+        // Assert that the log degree of chips are valid.
+        for ((chip, log_degree), log_quotient_degree) in
+            chips.iter().zip_eq(log_degrees.iter()).zip_eq(log_quotient_degrees.iter())
+        {
+            if log_degree.saturating_add(*log_quotient_degree) > SC::Val::TWO_ADICITY {
+                return Err(VerificationError::InvalidLogDegree(chip.name(), *log_degree));
+            }
+        }
+
+        // Assert that the lookup multiplicities don't overflow.
+        // SAFETY: The number of chips is bounded by the fixed `StarkMachine` structure.
+        // Also, `val.log_degree` is checked to be at most `min(SC::Val::TWO_ADICITY, 32)`.
+        // Therefore, this summation cannot overflow u64. Use saturating ops for extra safety.
+        for kind in InteractionKind::all_kinds() {
+            let mut max_lookup_mult = 0u64;
+            chips.iter().zip(opened_values.chips.iter()).for_each(|(chip, val)| {
+                max_lookup_mult = max_lookup_mult.saturating_add(
+                    (chip.num_sends_by_kind(kind) as u64 + chip.num_receives_by_kind(kind) as u64)
+                        .saturating_mul(1u64 << val.log_degree),
+                );
+            });
+            if max_lookup_mult >= SC::Val::ORDER_U64 {
+                return Err(VerificationError::LookupMultiplicityOverflow);
+            }
+        }
 
         let trace_domains = log_degrees
             .iter()
@@ -128,7 +136,9 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             .chip_information
             .iter()
             .map(|(name, domain, _)| {
-                let i = chip_ordering[name];
+                let i = *chip_ordering.get(name).filter(|&&i| i < chips.len()).ok_or(
+                    VerificationError::PreprocessedChipIdMismatch(name.clone(), String::new()),
+                )?;
                 if name != &chips[i].name() {
                     return Err(VerificationError::PreprocessedChipIdMismatch(
                         name.clone(),
@@ -362,7 +372,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
     where
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
     {
-        // Reconstruct the prmutation opening values as extension elements.
+        // Reconstruct the permutation opening values as extension elements.
+        // SAFETY: The opening shapes are already verified.
         let unflatten = |v: &[SC::Challenge]| {
             v.chunks_exact(SC::Challenge::D)
                 .map(|chunk| {
@@ -426,6 +437,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             .iter()
             .enumerate()
             .map(|(ch_i, ch)| {
+                // SAFETY: The opening shapes are already verified.
                 assert_eq!(ch.len(), SC::Challenge::D);
                 ch.iter()
                     .enumerate()
@@ -471,6 +483,10 @@ pub enum VerificationError<SC: StarkGenericConfig> {
     PreprocessedChipIdMismatch(String, String),
     /// Cumulative sums error
     CumulativeSumsError(&'static str),
+    /// The log degree of a chip is invalid.
+    InvalidLogDegree(String, usize),
+    /// The lookup multiplicity can overflow.
+    LookupMultiplicityOverflow,
 }
 
 impl Debug for OpeningShapeError {
@@ -525,6 +541,12 @@ impl<SC: StarkGenericConfig> Debug for VerificationError<SC> {
                 write!(f, "Preprocessed chip id mismatch: expected {}, got {}", expected, actual)
             }
             VerificationError::CumulativeSumsError(s) => write!(f, "cumulative sums error: {}", s),
+            VerificationError::InvalidLogDegree(chip, log_degree) => {
+                write!(f, "Invalid log degree for chip {}: got {}", chip, log_degree)
+            }
+            VerificationError::LookupMultiplicityOverflow => {
+                write!(f, "Lookup multiplicity overflow")
+            }
         }
     }
 }
@@ -551,6 +573,12 @@ impl<SC: StarkGenericConfig> Display for VerificationError<SC> {
             VerificationError::CumulativeSumsError(s) => write!(f, "cumulative sums error: {}", s),
             VerificationError::PreprocessedChipIdMismatch(expected, actual) => {
                 write!(f, "Preprocessed chip id mismatch: expected {}, got {}", expected, actual)
+            }
+            VerificationError::InvalidLogDegree(chip, log_degree) => {
+                write!(f, "Invalid log degree for chip {}: got {}", chip, log_degree)
+            }
+            VerificationError::LookupMultiplicityOverflow => {
+                write!(f, "Lookup multiplicity overflow")
             }
         }
     }

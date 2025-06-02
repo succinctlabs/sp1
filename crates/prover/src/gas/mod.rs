@@ -53,6 +53,7 @@ pub fn final_transform(raw_gas: f64) -> Result<u64, GasError> {
 }
 
 /// Calculates core, precompile, mem records. Does not implement packed or last shard logic.
+#[allow(clippy::manual_repeat_n)]
 pub fn estimated_records<'a>(
     split_opts: &SplitOpts,
     estimator: &'a RecordEstimator,

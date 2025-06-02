@@ -8,11 +8,10 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use alloy_primitives::B256;
-use alloy_signer::SignerSync;
-use alloy_signer_local::PrivateKeySigner;
+use alloy_primitives::{Address, B256, U256};
 use anyhow::{Context, Ok, Result};
 use async_trait::async_trait;
+use k256::ecdsa::SigningKey;
 use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
 use serde::{de::DeserializeOwned, Serialize};
 use sp1_core_machine::io::SP1Stdin;
@@ -22,13 +21,13 @@ use tonic::{transport::Channel, Code};
 use super::{
     grpc,
     retry::{self, RetryableRpc, DEFAULT_RETRY_TIMEOUT},
-    utils::Signable,
+    utils::{sign_raw, Signable},
 };
 use crate::network::proto::{
     artifact::{artifact_store_client::ArtifactStoreClient, ArtifactType, CreateArtifactRequest},
     network::{
         prover_network_client::ProverNetworkClient, CreateProgramRequest, CreateProgramRequestBody,
-        CreateProgramResponse, FulfillmentStatus, FulfillmentStrategy,
+        CreateProgramResponse, FulfillmentStatus, FulfillmentStrategy, GetBalanceRequest,
         GetFilteredProofRequestsRequest, GetFilteredProofRequestsResponse, GetNonceRequest,
         GetProgramRequest, GetProgramResponse, GetProofRequestStatusRequest,
         GetProofRequestStatusResponse, MessageFormat, ProofMode, RequestProofRequest,
@@ -38,7 +37,7 @@ use crate::network::proto::{
 
 /// A client for interacting with the network.
 pub struct NetworkClient {
-    pub(crate) signer: PrivateKeySigner,
+    pub(crate) signer: SigningKey,
     pub(crate) http: HttpClientWithMiddleware,
     pub(crate) rpc_url: String,
 }
@@ -72,9 +71,27 @@ impl RetryableRpc for NetworkClient {
 }
 
 impl NetworkClient {
+    pub(crate) fn address(&self) -> Address {
+        Address::from_public_key(self.signer.verifying_key())
+    }
+
+    pub(crate) fn sign_message(&self, message: &[u8]) -> Result<Vec<u8>> {
+        let (sig, v) = sign_raw(message, &self.signer);
+        let mut signature_bytes = sig.to_vec();
+
+        // Ethereum uses 27 + v for the recovery id.
+        signature_bytes.push(v.to_byte() + 27);
+
+        Ok(signature_bytes)
+    }
+}
+
+impl NetworkClient {
     /// Creates a new [`NetworkClient`] with the given private key and rpc url.
     pub fn new(private_key: impl Into<String>, rpc_url: impl Into<String>) -> Self {
-        let signer = PrivateKeySigner::from_str(&private_key.into()).unwrap();
+        let private_key_bytes = hex::decode(private_key.into()).expect("Invalid private key");
+        let signer = SigningKey::from_slice(&private_key_bytes).expect("Invalid private key");
+
         let client = reqwest::Client::builder()
             .pool_max_idle_per_host(0)
             .pool_idle_timeout(Duration::from_secs(240))
@@ -88,12 +105,28 @@ impl NetworkClient {
         self.with_retry(
             || async {
                 let mut rpc = self.prover_network_client().await?;
-                let res = rpc
-                    .get_nonce(GetNonceRequest { address: self.signer.address().to_vec() })
-                    .await?;
+                let res =
+                    rpc.get_nonce(GetNonceRequest { address: self.address().to_vec() }).await?;
                 Ok(res.into_inner().nonce)
             },
             "getting nonce",
+        )
+        .await
+    }
+
+    /// Get the credit balance of your account.
+    ///
+    /// # Details
+    /// Uses the key that the client was initialized with.
+    pub async fn get_balance(&self) -> Result<U256> {
+        self.with_retry(
+            || async {
+                let mut rpc = self.prover_network_client().await?;
+                let res =
+                    rpc.get_balance(GetBalanceRequest { address: self.address().to_vec() }).await?;
+                Ok(U256::from_str(&res.into_inner().amount).unwrap())
+            },
+            "getting balance",
         )
         .await
     }
@@ -172,7 +205,7 @@ impl NetworkClient {
                 Ok(rpc
                     .create_program(CreateProgramRequest {
                         format: MessageFormat::Binary.into(),
-                        signature: request_body.sign(&self.signer).into(),
+                        signature: request_body.sign(&self.signer),
                         body: Some(request_body),
                     })
                     .await?
@@ -200,6 +233,8 @@ impl NetworkClient {
         page: Option<u32>,
         mode: Option<i32>,
         not_bid_by: Option<Vec<u8>>,
+        execute_fail_cause: Option<i32>,
+        settlement_status: Option<i32>,
     ) -> Result<GetFilteredProofRequestsResponse> {
         self.with_retry(
             || {
@@ -226,6 +261,8 @@ impl NetworkClient {
                             page,
                             mode,
                             not_bid_by,
+                            execute_fail_cause,
+                            settlement_status,
                         })
                         .await?
                         .into_inner())
@@ -289,6 +326,8 @@ impl NetworkClient {
     /// * `timeout_secs`: The timeout for the proof request in seconds.
     /// * `cycle_limit`: The cycle limit for the proof request.
     /// * `gas_limit`: The gas limit for the proof request.
+    /// * `min_auction_period`: The minimum auction period for the proof request in seconds.
+    /// * `whitelist`: The auction whitelist for the proof request.
     #[allow(clippy::too_many_arguments)]
     pub async fn request_proof(
         &self,
@@ -300,6 +339,8 @@ impl NetworkClient {
         timeout_secs: u64,
         cycle_limit: u64,
         gas_limit: u64,
+        min_auction_period: u64,
+        whitelist: Vec<Address>,
     ) -> Result<RequestProofResponse> {
         // Calculate the deadline.
         let start = SystemTime::now();
@@ -326,11 +367,13 @@ impl NetworkClient {
                     deadline,
                     cycle_limit,
                     gas_limit,
+                    min_auction_period,
+                    whitelist: whitelist.clone().into_iter().map(|addr| addr.to_vec()).collect(),
                 };
                 let request_response = rpc
                     .request_proof(RequestProofRequest {
                         format: MessageFormat::Binary.into(),
-                        signature: request_body.sign(&self.signer).into(),
+                        signature: request_body.sign(&self.signer),
                         body: Some(request_body),
                     })
                     .await?
@@ -371,11 +414,8 @@ impl NetworkClient {
         artifact_type: ArtifactType,
         item: &T,
     ) -> Result<String> {
-        let signature = self.signer.sign_message_sync("create_artifact".as_bytes())?;
-        let request = CreateArtifactRequest {
-            artifact_type: artifact_type.into(),
-            signature: signature.as_bytes().to_vec(),
-        };
+        let signature = self.sign_message("create_artifact".as_bytes())?;
+        let request = CreateArtifactRequest { artifact_type: artifact_type.into(), signature };
 
         // Create the artifact.
         let response = store.create_artifact(request).await?.into_inner();

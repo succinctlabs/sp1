@@ -48,14 +48,17 @@ fn call_docker(args: &[&str], mounts: &[(&str, &str)]) -> Result<()> {
     }
     cmd.arg(get_docker_image());
     cmd.args(args);
+    cmd.stdout(std::process::Stdio::piped());
+    cmd.stderr(std::process::Stdio::piped());
     let result = cmd.output()?;
     if !result.status.success() {
         let stderr = String::from_utf8_lossy(&result.stderr);
+        let stdout = String::from_utf8_lossy(&result.stdout);
         tracing::error!("Failed to run `docker run`: {:?}", cmd);
         tracing::error!("status: {:?}", result.status);
         tracing::error!("stderr: {:?}", stderr);
 
-        return Err(anyhow!("Docker command failed \n stderr: {:?}", stderr));
+        return Err(anyhow!("Docker command failed \n stdout: {:?}\n stderr: {:?}", stdout, stderr));
     }
     Ok(())
 }
