@@ -1,4 +1,5 @@
 mod bigint;
+mod blake2f_compress;
 mod bls12381;
 mod bn254;
 mod ed25519;
@@ -19,6 +20,7 @@ mod unconstrained;
 mod verify;
 
 pub use bigint::*;
+pub use blake2f_compress::*;
 pub use bls12381::*;
 pub use bn254::*;
 pub use ed25519::*;
@@ -58,6 +60,9 @@ pub const SHA_EXTEND: u32 = 0x00_30_01_05;
 
 /// Executes `SHA_COMPRESS`.
 pub const SHA_COMPRESS: u32 = 0x00_01_01_06;
+
+/// Executes `BLAKE2F_COMPRESS`.
+pub const BLAKE2F_COMPRESS: u32 = 0x00_01_0C_0C;
 
 /// Executes `ED_ADD`.
 pub const ED_ADD: u32 = 0x00_01_01_07;
