@@ -263,9 +263,9 @@ impl SyscallCode {
             SyscallCode::U256XU2048_MUL => RiscvAirId::U256XU2048Mul,
             SyscallCode::BLS12381_ADD => RiscvAirId::Bls12381AddAssign,
             SyscallCode::BLS12381_DOUBLE => RiscvAirId::Bls12381DoubleAssign,
-            SyscallCode::BLS12381_FP_ADD
-            | SyscallCode::BLS12381_FP_SUB
-            | SyscallCode::BLS12381_FP_MUL => RiscvAirId::Bls12381FpOpAssign,
+            SyscallCode::BLS12381_FP_ADD |
+            SyscallCode::BLS12381_FP_SUB |
+            SyscallCode::BLS12381_FP_MUL => RiscvAirId::Bls12381FpOpAssign,
             SyscallCode::BLS12381_FP2_ADD | SyscallCode::BLS12381_FP2_SUB => {
                 RiscvAirId::Bls12381Fp2AddSubAssign
             }
