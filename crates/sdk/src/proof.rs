@@ -115,10 +115,36 @@ impl SP1ProofWithPublicValues {
 
     /// Loads a proof from a path.
     pub fn load(path: impl AsRef<Path>) -> Result<Self> {
-        bincode::deserialize_from(File::open(path.as_ref()).with_context(|| {
-            format!("failed to open file for loading proof: {}", path.as_ref().display())
-        })?)
-        .map_err(Into::into)
+        // Try to load a [`Self`] from the file.
+        let maybe_this: Result<Self> =
+            bincode::deserialize_from(File::open(path.as_ref()).with_context(|| {
+                format!("failed to open file for loading proof: {}", path.as_ref().display())
+            })?)
+            .map_err(Into::into);
+
+        // This may be a proof from the prover network, which lacks the TEE proof field.
+        match maybe_this {
+            Ok(this) => Ok(this),
+            Err(e) => {
+                // If the file does not contain a [`Self`], try to load a [`ProofFromNetwork`] instead.
+                let maybe_proof_from_network: Result<ProofFromNetwork> =
+                    bincode::deserialize_from(File::open(path.as_ref()).with_context(|| {
+                        format!(
+                            "failed to open file for loading proof: {}",
+                            path.as_ref().display()
+                        )
+                    })?)
+                    .map_err(Into::into);
+
+                if let Ok(proof_from_network) = maybe_proof_from_network {
+                    // The file contains a [`ProofFromNetwork`], which lacks the TEE proof field.
+                    Ok(proof_from_network.into())
+                } else {
+                    // Return the original error from trying to load a [`Self`].
+                    Err(e)
+                }
+            }
+        }
     }
 
     /// The proof in the byte encoding the onchain verifiers accepts for [`SP1ProofMode::Groth16`]
@@ -394,5 +420,27 @@ mod tests {
         };
 
         let _ = bincode::deserialize::<ProofFromNetwork>(&round_trip_bytes).unwrap();
+    }
+
+    #[test]
+    fn test_round_trip_proof_save_load() {
+        use crate::Prover;
+
+        let prover = crate::CpuProver::new();
+        let (pk, _) = prover.setup(test_artifacts::FIBONACCI_BLAKE3_ELF);
+        let proof = prover.prove(&pk, &crate::SP1Stdin::new()).compressed().run().unwrap();
+
+        // Verify the original proof
+        prover.verify(&proof, &pk.vk).unwrap();
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let path = temp_dir.path().join("proof.bin");
+        std::fs::File::create(&path).unwrap();
+        proof.save(&path).unwrap();
+
+        let proof_loaded = SP1ProofWithPublicValues::load(&path).unwrap();
+
+        // Verify the loaded proof
+        prover.verify(&proof_loaded, &pk.vk).unwrap();
     }
 }

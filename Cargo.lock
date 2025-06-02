@@ -3557,6 +3557,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "once_cell"
+version = "1.21.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "42f5e15c9953c5e4ccceeb2e7382a716482c34515315f7b03532b8b4e8393d2d"
+
+[[package]]
+name = "once_cell_polyfill"
+version = "1.70.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4895175b425cb1f87721b59f0f286c2092bd4af812243672510e1ac53e2e0ad"
+
+[[package]]
 name = "oorandom"
 version = "11.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5543,7 +5555,6 @@ version = "5.0.0"
 dependencies = [
  "bincode",
  "ctrlc",
- "once_cell",
  "prost",
  "prost-build",
  "serde",
@@ -5884,7 +5895,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-sdk"
-version = "5.0.2"
+version = "5.0.3"
 dependencies = [
  "alloy-primitives",
  "anyhow",
