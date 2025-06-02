@@ -262,9 +262,9 @@ impl SyscallCode {
             SyscallCode::U256XU2048_MUL => RiscvAirId::U256XU2048Mul,
             SyscallCode::BLS12381_ADD => RiscvAirId::Bls12381AddAssign,
             SyscallCode::BLS12381_DOUBLE => RiscvAirId::Bls12381DoubleAssign,
-            SyscallCode::BLS12381_FP_ADD
-            | SyscallCode::BLS12381_FP_SUB
-            | SyscallCode::BLS12381_FP_MUL => RiscvAirId::Bls12381FpOpAssign,
+            SyscallCode::BLS12381_FP_ADD |
+            SyscallCode::BLS12381_FP_SUB |
+            SyscallCode::BLS12381_FP_MUL => RiscvAirId::Bls12381FpOpAssign,
             SyscallCode::BLS12381_FP2_ADD | SyscallCode::BLS12381_FP2_SUB => {
                 RiscvAirId::Bls12381Fp2AddSubAssign
             }
@@ -279,15 +279,15 @@ impl SyscallCode {
             SyscallCode::SECP256R1_ADD => RiscvAirId::Secp256r1AddAssign,
             SyscallCode::SECP256R1_DOUBLE => RiscvAirId::Secp256r1DoubleAssign,
             SyscallCode::SECP256R1_DECOMPRESS => RiscvAirId::Secp256r1Decompress,
-            SyscallCode::HALT
-            | SyscallCode::WRITE
-            | SyscallCode::ENTER_UNCONSTRAINED
-            | SyscallCode::EXIT_UNCONSTRAINED
-            | SyscallCode::COMMIT
-            | SyscallCode::COMMIT_DEFERRED_PROOFS
-            | SyscallCode::VERIFY_SP1_PROOF
-            | SyscallCode::HINT_LEN
-            | SyscallCode::HINT_READ => return None,
+            SyscallCode::HALT |
+            SyscallCode::WRITE |
+            SyscallCode::ENTER_UNCONSTRAINED |
+            SyscallCode::EXIT_UNCONSTRAINED |
+            SyscallCode::COMMIT |
+            SyscallCode::COMMIT_DEFERRED_PROOFS |
+            SyscallCode::VERIFY_SP1_PROOF |
+            SyscallCode::HINT_LEN |
+            SyscallCode::HINT_READ => return None,
             SyscallCode::BLAKE2F_COMPRESS => RiscvAirId::Blake2fCompress,
         })
     }
