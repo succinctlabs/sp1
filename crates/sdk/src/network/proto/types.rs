@@ -50,11 +50,14 @@ pub struct RequestProofRequestBody {
     /// any prover can participate. Only applicable if the strategy is auction.
     #[prost(bytes = "vec", repeated, tag = "11")]
     pub whitelist: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
-    /// The address of the auctioneer.
+    /// The domain separator for the request.
     #[prost(bytes = "vec", tag = "12")]
-    pub auctioneer: ::prost::alloc::vec::Vec<u8>,
-    /// The address of the executor.
+    pub domain: ::prost::alloc::vec::Vec<u8>,
+    /// The auctioneer address.
     #[prost(bytes = "vec", tag = "13")]
+    pub auctioneer: ::prost::alloc::vec::Vec<u8>,
+    /// The executor address.
+    #[prost(bytes = "vec", tag = "14")]
     pub executor: ::prost::alloc::vec::Vec<u8>,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -109,6 +112,9 @@ pub struct FulfillProofRequestBody {
     /// The optional metadata for reserved proofs.
     #[prost(message, optional, tag = "4")]
     pub reserved_metadata: ::core::option::Option<ReservedMetadata>,
+    /// The domain separator for the request.
+    #[prost(bytes = "vec", tag = "5")]
+    pub domain: ::prost::alloc::vec::Vec<u8>,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -160,6 +166,9 @@ pub struct ExecuteProofRequestBody {
     /// the request is valid.
     #[prost(uint64, optional, tag = "6")]
     pub gas_used: ::core::option::Option<u64>,
+    /// The domain separator for the request.
+    #[prost(bytes = "vec", tag = "7")]
+    pub domain: ::prost::alloc::vec::Vec<u8>,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -604,187 +613,6 @@ pub struct GetNonceResponse {
     #[prost(uint64, tag = "1")]
     pub nonce: u64,
 }
-#[derive(serde::Serialize, serde::Deserialize)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Delegation {
-    /// The address of the owner.
-    #[prost(bytes = "vec", tag = "1")]
-    pub owner: ::prost::alloc::vec::Vec<u8>,
-    /// The address of the delegate (the account with granted permissions).
-    #[prost(bytes = "vec", tag = "2")]
-    pub delegate: ::prost::alloc::vec::Vec<u8>,
-    /// Whether the delegation has been accepted.
-    #[prost(bool, tag = "3")]
-    pub accepted: bool,
-    /// The unix timestamp of when the delegation was created.
-    #[prost(uint64, tag = "4")]
-    pub created_at: u64,
-}
-#[derive(serde::Serialize, serde::Deserialize)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GetFilteredDelegationsRequest {
-    /// The optional owner address to filter for.
-    #[prost(bytes = "vec", optional, tag = "1")]
-    pub owner: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
-    /// The optional maximum number of requests to return (default is 10,
-    /// maximum is 100).
-    #[prost(uint32, optional, tag = "2")]
-    pub limit: ::core::option::Option<u32>,
-    /// The optional page number to return (default is 1).
-    #[prost(uint32, optional, tag = "3")]
-    pub page: ::core::option::Option<u32>,
-}
-#[derive(serde::Serialize, serde::Deserialize)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GetFilteredDelegationsResponse {
-    /// The delegations that matched the filter criteria.
-    #[prost(message, repeated, tag = "1")]
-    pub delegations: ::prost::alloc::vec::Vec<Delegation>,
-}
-#[derive(serde::Serialize, serde::Deserialize)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct AddDelegationRequest {
-    /// The message format of the body.
-    #[prost(enumeration = "MessageFormat", tag = "1")]
-    pub format: i32,
-    /// The signature of the sender.
-    #[prost(bytes = "vec", tag = "2")]
-    pub signature: ::prost::alloc::vec::Vec<u8>,
-    /// The body of the request.
-    #[prost(message, optional, tag = "3")]
-    pub body: ::core::option::Option<AddDelegationRequestBody>,
-}
-#[derive(serde::Serialize, serde::Deserialize)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct AddDelegationRequestBody {
-    /// The account nonce of the sender.
-    #[prost(uint64, tag = "1")]
-    pub nonce: u64,
-    /// The delegate address to add.
-    #[prost(bytes = "vec", tag = "2")]
-    pub delegate: ::prost::alloc::vec::Vec<u8>,
-}
-#[derive(serde::Serialize, serde::Deserialize)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct AddDelegationResponse {
-    /// The transaction hash.
-    #[prost(bytes = "vec", tag = "1")]
-    pub tx_hash: ::prost::alloc::vec::Vec<u8>,
-    /// The body of the response.
-    #[prost(message, optional, tag = "2")]
-    pub body: ::core::option::Option<AddDelegationResponseBody>,
-}
-#[derive(serde::Serialize, serde::Deserialize)]
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
-pub struct AddDelegationResponseBody {}
-#[derive(serde::Serialize, serde::Deserialize)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct RemoveDelegationRequest {
-    /// The message format of the body.
-    #[prost(enumeration = "MessageFormat", tag = "1")]
-    pub format: i32,
-    /// The signature of the sender.
-    #[prost(bytes = "vec", tag = "2")]
-    pub signature: ::prost::alloc::vec::Vec<u8>,
-    /// The body of the request.
-    #[prost(message, optional, tag = "3")]
-    pub body: ::core::option::Option<RemoveDelegationRequestBody>,
-}
-#[derive(serde::Serialize, serde::Deserialize)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct RemoveDelegationRequestBody {
-    /// The account nonce of the sender.
-    #[prost(uint64, tag = "1")]
-    pub nonce: u64,
-    /// The delegate address to remove.
-    #[prost(bytes = "vec", tag = "2")]
-    pub delegate: ::prost::alloc::vec::Vec<u8>,
-}
-#[derive(serde::Serialize, serde::Deserialize)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct RemoveDelegationResponse {
-    /// The transaction hash.
-    #[prost(bytes = "vec", tag = "1")]
-    pub tx_hash: ::prost::alloc::vec::Vec<u8>,
-    /// The body of the response.
-    #[prost(message, optional, tag = "2")]
-    pub body: ::core::option::Option<RemoveDelegationResponseBody>,
-}
-#[derive(serde::Serialize, serde::Deserialize)]
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
-pub struct RemoveDelegationResponseBody {}
-#[derive(serde::Serialize, serde::Deserialize)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct TerminateDelegationRequest {
-    /// The message format of the body.
-    #[prost(enumeration = "MessageFormat", tag = "1")]
-    pub format: i32,
-    /// The signature of the sender.
-    #[prost(bytes = "vec", tag = "2")]
-    pub signature: ::prost::alloc::vec::Vec<u8>,
-    /// The body of the request.
-    #[prost(message, optional, tag = "3")]
-    pub body: ::core::option::Option<TerminateDelegationRequestBody>,
-}
-#[derive(serde::Serialize, serde::Deserialize)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct TerminateDelegationRequestBody {
-    /// The account nonce of the sender.
-    #[prost(uint64, tag = "1")]
-    pub nonce: u64,
-    /// The address of the owner whose delegation to terminate.
-    #[prost(bytes = "vec", tag = "2")]
-    pub owner: ::prost::alloc::vec::Vec<u8>,
-}
-#[derive(serde::Serialize, serde::Deserialize)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct TerminateDelegationResponse {
-    /// The transaction hash.
-    #[prost(bytes = "vec", tag = "1")]
-    pub tx_hash: ::prost::alloc::vec::Vec<u8>,
-    /// The body of the response.
-    #[prost(message, optional, tag = "2")]
-    pub body: ::core::option::Option<TerminateDelegationResponseBody>,
-}
-#[derive(serde::Serialize, serde::Deserialize)]
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
-pub struct TerminateDelegationResponseBody {}
-#[derive(serde::Serialize, serde::Deserialize)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct AcceptDelegationRequest {
-    /// The message format of the body.
-    #[prost(enumeration = "MessageFormat", tag = "1")]
-    pub format: i32,
-    /// The signature of the sender.
-    #[prost(bytes = "vec", tag = "2")]
-    pub signature: ::prost::alloc::vec::Vec<u8>,
-    /// The body of the request.
-    #[prost(message, optional, tag = "3")]
-    pub body: ::core::option::Option<AcceptDelegationRequestBody>,
-}
-#[derive(serde::Serialize, serde::Deserialize)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct AcceptDelegationRequestBody {
-    /// The account nonce of the sender.
-    #[prost(uint64, tag = "1")]
-    pub nonce: u64,
-    /// The address of the owner who requested the delegation
-    #[prost(bytes = "vec", tag = "2")]
-    pub owner: ::prost::alloc::vec::Vec<u8>,
-}
-#[derive(serde::Serialize, serde::Deserialize)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct AcceptDelegationResponse {
-    /// The transaction hash.
-    #[prost(bytes = "vec", tag = "1")]
-    pub tx_hash: ::prost::alloc::vec::Vec<u8>,
-    /// The body of the response.
-    #[prost(message, optional, tag = "2")]
-    pub body: ::core::option::Option<AcceptDelegationResponseBody>,
-}
-#[derive(serde::Serialize, serde::Deserialize)]
-#[derive(Clone, Copy, PartialEq, ::prost::Message)]
-pub struct AcceptDelegationResponseBody {}
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SetAccountNameRequest {
@@ -1250,6 +1078,48 @@ pub struct AddCreditResponse {
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct AddCreditResponseBody {}
+#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TransferRequest {
+    /// The message format of the body.
+    #[prost(enumeration = "MessageFormat", tag = "1")]
+    pub format: i32,
+    /// The signature of the sender.
+    #[prost(bytes = "vec", tag = "2")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the request.
+    #[prost(message, optional, tag = "3")]
+    pub body: ::core::option::Option<TransferRequestBody>,
+}
+#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TransferRequestBody {
+    /// The account nonce of the sender.
+    #[prost(uint64, tag = "1")]
+    pub nonce: u64,
+    /// The address of the recipient account to transfer credits to.
+    #[prost(bytes = "vec", tag = "2")]
+    pub to: ::prost::alloc::vec::Vec<u8>,
+    /// The amount of credits to transfer.
+    #[prost(string, tag = "3")]
+    pub amount: ::prost::alloc::string::String,
+    /// The domain of the request.
+    #[prost(bytes = "vec", tag = "4")]
+    pub domain: ::prost::alloc::vec::Vec<u8>,
+}
+#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TransferResponse {
+    /// The transaction hash.
+    #[prost(bytes = "vec", tag = "1")]
+    pub tx_hash: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the response.
+    #[prost(message, optional, tag = "2")]
+    pub body: ::core::option::Option<TransferResponseBody>,
+}
+#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct TransferResponseBody {}
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct GetLatestBridgeBlockRequest {
@@ -1784,8 +1654,11 @@ pub struct BidRequestBody {
     /// The amount to bid.
     #[prost(string, tag = "3")]
     pub amount: ::prost::alloc::string::String,
-    /// The address of the prover they are bidding for.
+    /// The domain separator for the request.
     #[prost(bytes = "vec", tag = "4")]
+    pub domain: ::prost::alloc::vec::Vec<u8>,
+    /// The address of the prover.
+    #[prost(bytes = "vec", tag = "5")]
     pub prover: ::prost::alloc::vec::Vec<u8>,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -1826,6 +1699,9 @@ pub struct SettleRequestBody {
     /// The winner of the auction.
     #[prost(bytes = "vec", tag = "3")]
     pub winner: ::prost::alloc::vec::Vec<u8>,
+    /// The domain separator for the request.
+    #[prost(bytes = "vec", tag = "4")]
+    pub domain: ::prost::alloc::vec::Vec<u8>,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -4189,6 +4065,9 @@ pub struct Prover {
     /// The transaction hash of the prover was created in.
     #[prost(bytes = "vec", tag = "5")]
     pub tx_hash: ::prost::alloc::vec::Vec<u8>,
+    /// The staker fee in bips.
+    #[prost(string, tag = "6")]
+    pub staker_fee_bips: ::prost::alloc::string::String,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
@@ -4316,6 +4195,32 @@ pub struct GetFilteredProverStakeBalanceLogsResponse {
     #[prost(message, repeated, tag = "1")]
     pub logs: ::prost::alloc::vec::Vec<StakeBalanceLog>,
 }
+#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SetDelegationRequest {
+    /// The message format of the body.
+    #[prost(enumeration = "MessageFormat", tag = "1")]
+    pub format: i32,
+    /// The signature of the sender.
+    #[prost(bytes = "vec", tag = "2")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the request.
+    #[prost(message, optional, tag = "3")]
+    pub body: ::core::option::Option<SetDelegationRequestBody>,
+}
+#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SetDelegationRequestBody {
+    /// The nonce of the request.
+    #[prost(uint64, tag = "1")]
+    pub nonce: u64,
+    /// The delegate to set.
+    #[prost(bytes = "vec", tag = "2")]
+    pub delegate: ::prost::alloc::vec::Vec<u8>,
+}
+#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct SetDelegationResponse {}
 /// Format to help decode signature in backend.
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
@@ -4585,12 +4490,12 @@ pub enum BalanceOperation {
     Deposit = 1,
     /// A withdrawal operation (negative).
     Withdrawal = 2,
-    /// A credit operation (positive).
-    Credit = 3,
-    /// A deduction operation (negative).
-    Deduction = 4,
-    /// A refund operation (positive).
-    Refund = 5,
+    /// A reward operation (positive).
+    Reward = 3,
+    /// A transfer-out operation (negative).
+    TransferOut = 4,
+    /// A transfer-in operation (positive).
+    TransferIn = 5,
 }
 impl BalanceOperation {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -4604,9 +4509,9 @@ impl BalanceOperation {
             }
             Self::Deposit => "DEPOSIT",
             Self::Withdrawal => "WITHDRAWAL",
-            Self::Credit => "CREDIT",
-            Self::Deduction => "DEDUCTION",
-            Self::Refund => "REFUND",
+            Self::Reward => "REWARD",
+            Self::TransferOut => "TRANSFER_OUT",
+            Self::TransferIn => "TRANSFER_IN",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -4617,9 +4522,9 @@ impl BalanceOperation {
             }
             "DEPOSIT" => Some(Self::Deposit),
             "WITHDRAWAL" => Some(Self::Withdrawal),
-            "CREDIT" => Some(Self::Credit),
-            "DEDUCTION" => Some(Self::Deduction),
-            "REFUND" => Some(Self::Refund),
+            "REWARD" => Some(Self::Reward),
+            "TRANSFER_OUT" => Some(Self::TransferOut),
+            "TRANSFER_IN" => Some(Self::TransferIn),
             _ => None,
         }
     }

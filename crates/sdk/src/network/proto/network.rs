@@ -495,142 +495,7 @@ pub mod prover_network_client {
                 .insert(GrpcMethod::new("network.ProverNetwork", "GetNonce"));
             self.inner.unary(req, path, codec).await
         }
-        /// Get the delegations of the account.
-        pub async fn get_filtered_delegations(
-            &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::GetFilteredDelegationsRequest,
-            >,
-        ) -> std::result::Result<
-            tonic::Response<super::super::types::GetFilteredDelegationsResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
-            let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/GetFilteredDelegations",
-            );
-            let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(
-                    GrpcMethod::new("network.ProverNetwork", "GetFilteredDelegations"),
-                );
-            self.inner.unary(req, path, codec).await
-        }
-        /// Add a delegation. Only callable by the owner of an account.
-        pub async fn add_delegation(
-            &mut self,
-            request: impl tonic::IntoRequest<super::super::types::AddDelegationRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::super::types::AddDelegationResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
-            let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/AddDelegation",
-            );
-            let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("network.ProverNetwork", "AddDelegation"));
-            self.inner.unary(req, path, codec).await
-        }
-        /// Remove a delegation. Only callable by the owner of an account.
-        pub async fn remove_delegation(
-            &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::RemoveDelegationRequest,
-            >,
-        ) -> std::result::Result<
-            tonic::Response<super::super::types::RemoveDelegationResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
-            let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/RemoveDelegation",
-            );
-            let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("network.ProverNetwork", "RemoveDelegation"));
-            self.inner.unary(req, path, codec).await
-        }
-        /// Terminate a delegation. Only callable by the delegate of a delegation.
-        pub async fn terminate_delegation(
-            &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::TerminateDelegationRequest,
-            >,
-        ) -> std::result::Result<
-            tonic::Response<super::super::types::TerminateDelegationResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
-            let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/TerminateDelegation",
-            );
-            let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("network.ProverNetwork", "TerminateDelegation"));
-            self.inner.unary(req, path, codec).await
-        }
-        /// Accept a delegation. Only callable by the delegate of a delegation.
-        pub async fn accept_delegation(
-            &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::AcceptDelegationRequest,
-            >,
-        ) -> std::result::Result<
-            tonic::Response<super::super::types::AcceptDelegationResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
-            let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/AcceptDelegation",
-            );
-            let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("network.ProverNetwork", "AcceptDelegation"));
-            self.inner.unary(req, path, codec).await
-        }
-        /// Set the name of the account. Only callable by the owner of an account.
+        /// Set the name of the account.
         pub async fn set_account_name(
             &mut self,
             request: impl tonic::IntoRequest<super::super::types::SetAccountNameRequest>,
@@ -1152,6 +1017,31 @@ pub mod prover_network_client {
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("network.ProverNetwork", "GetUsageSummary"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Transfer $PROVE from one account to another.
+        pub async fn transfer(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::TransferRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::TransferResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/network.ProverNetwork/Transfer",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "Transfer"));
             self.inner.unary(req, path, codec).await
         }
         /// Get the reservations that meet the filter criteria.
@@ -3050,6 +2940,31 @@ pub mod prover_network_client {
                 );
             self.inner.unary(req, path, codec).await
         }
+        /// Set a delegation.
+        pub async fn set_delegation(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::SetDelegationRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::SetDelegationResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/network.ProverNetwork/SetDelegation",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "SetDelegation"));
+            self.inner.unary(req, path, codec).await
+        }
     }
 }
 /// Generated server implementations.
@@ -3194,47 +3109,7 @@ pub mod prover_network_server {
             tonic::Response<super::super::types::GetNonceResponse>,
             tonic::Status,
         >;
-        /// Get the delegations of the account.
-        async fn get_filtered_delegations(
-            &self,
-            request: tonic::Request<super::super::types::GetFilteredDelegationsRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::super::types::GetFilteredDelegationsResponse>,
-            tonic::Status,
-        >;
-        /// Add a delegation. Only callable by the owner of an account.
-        async fn add_delegation(
-            &self,
-            request: tonic::Request<super::super::types::AddDelegationRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::super::types::AddDelegationResponse>,
-            tonic::Status,
-        >;
-        /// Remove a delegation. Only callable by the owner of an account.
-        async fn remove_delegation(
-            &self,
-            request: tonic::Request<super::super::types::RemoveDelegationRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::super::types::RemoveDelegationResponse>,
-            tonic::Status,
-        >;
-        /// Terminate a delegation. Only callable by the delegate of a delegation.
-        async fn terminate_delegation(
-            &self,
-            request: tonic::Request<super::super::types::TerminateDelegationRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::super::types::TerminateDelegationResponse>,
-            tonic::Status,
-        >;
-        /// Accept a delegation. Only callable by the delegate of a delegation.
-        async fn accept_delegation(
-            &self,
-            request: tonic::Request<super::super::types::AcceptDelegationRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::super::types::AcceptDelegationResponse>,
-            tonic::Status,
-        >;
-        /// Set the name of the account. Only callable by the owner of an account.
+        /// Set the name of the account.
         async fn set_account_name(
             &self,
             request: tonic::Request<super::super::types::SetAccountNameRequest>,
@@ -3392,6 +3267,14 @@ pub mod prover_network_server {
             request: tonic::Request<super::super::types::GetUsageSummaryRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetUsageSummaryResponse>,
+            tonic::Status,
+        >;
+        /// Transfer $PROVE from one account to another.
+        async fn transfer(
+            &self,
+            request: tonic::Request<super::super::types::TransferRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::TransferResponse>,
             tonic::Status,
         >;
         /// Get the reservations that meet the filter criteria.
@@ -3971,6 +3854,14 @@ pub mod prover_network_server {
             tonic::Response<
                 super::super::types::GetFilteredProverStakeBalanceLogsResponse,
             >,
+            tonic::Status,
+        >;
+        /// Set a delegation.
+        async fn set_delegation(
+            &self,
+            request: tonic::Request<super::super::types::SetDelegationRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::SetDelegationResponse>,
             tonic::Status,
         >;
     }
@@ -4781,253 +4672,6 @@ pub mod prover_network_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let method = GetNonceSvc(inner);
-                        let codec = tonic::codec::ProstCodec::default();
-                        let mut grpc = tonic::server::Grpc::new(codec)
-                            .apply_compression_config(
-                                accept_compression_encodings,
-                                send_compression_encodings,
-                            )
-                            .apply_max_message_size_config(
-                                max_decoding_message_size,
-                                max_encoding_message_size,
-                            );
-                        let res = grpc.unary(method, req).await;
-                        Ok(res)
-                    };
-                    Box::pin(fut)
-                }
-                "/network.ProverNetwork/GetFilteredDelegations" => {
-                    #[allow(non_camel_case_types)]
-                    struct GetFilteredDelegationsSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetFilteredDelegationsRequest,
-                    > for GetFilteredDelegationsSvc<T> {
-                        type Response = super::super::types::GetFilteredDelegationsResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
-                        fn call(
-                            &mut self,
-                            request: tonic::Request<
-                                super::super::types::GetFilteredDelegationsRequest,
-                            >,
-                        ) -> Self::Future {
-                            let inner = Arc::clone(&self.0);
-                            let fut = async move {
-                                <T as ProverNetwork>::get_filtered_delegations(
-                                        &inner,
-                                        request,
-                                    )
-                                    .await
-                            };
-                            Box::pin(fut)
-                        }
-                    }
-                    let accept_compression_encodings = self.accept_compression_encodings;
-                    let send_compression_encodings = self.send_compression_encodings;
-                    let max_decoding_message_size = self.max_decoding_message_size;
-                    let max_encoding_message_size = self.max_encoding_message_size;
-                    let inner = self.inner.clone();
-                    let fut = async move {
-                        let method = GetFilteredDelegationsSvc(inner);
-                        let codec = tonic::codec::ProstCodec::default();
-                        let mut grpc = tonic::server::Grpc::new(codec)
-                            .apply_compression_config(
-                                accept_compression_encodings,
-                                send_compression_encodings,
-                            )
-                            .apply_max_message_size_config(
-                                max_decoding_message_size,
-                                max_encoding_message_size,
-                            );
-                        let res = grpc.unary(method, req).await;
-                        Ok(res)
-                    };
-                    Box::pin(fut)
-                }
-                "/network.ProverNetwork/AddDelegation" => {
-                    #[allow(non_camel_case_types)]
-                    struct AddDelegationSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::AddDelegationRequest,
-                    > for AddDelegationSvc<T> {
-                        type Response = super::super::types::AddDelegationResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
-                        fn call(
-                            &mut self,
-                            request: tonic::Request<
-                                super::super::types::AddDelegationRequest,
-                            >,
-                        ) -> Self::Future {
-                            let inner = Arc::clone(&self.0);
-                            let fut = async move {
-                                <T as ProverNetwork>::add_delegation(&inner, request).await
-                            };
-                            Box::pin(fut)
-                        }
-                    }
-                    let accept_compression_encodings = self.accept_compression_encodings;
-                    let send_compression_encodings = self.send_compression_encodings;
-                    let max_decoding_message_size = self.max_decoding_message_size;
-                    let max_encoding_message_size = self.max_encoding_message_size;
-                    let inner = self.inner.clone();
-                    let fut = async move {
-                        let method = AddDelegationSvc(inner);
-                        let codec = tonic::codec::ProstCodec::default();
-                        let mut grpc = tonic::server::Grpc::new(codec)
-                            .apply_compression_config(
-                                accept_compression_encodings,
-                                send_compression_encodings,
-                            )
-                            .apply_max_message_size_config(
-                                max_decoding_message_size,
-                                max_encoding_message_size,
-                            );
-                        let res = grpc.unary(method, req).await;
-                        Ok(res)
-                    };
-                    Box::pin(fut)
-                }
-                "/network.ProverNetwork/RemoveDelegation" => {
-                    #[allow(non_camel_case_types)]
-                    struct RemoveDelegationSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::RemoveDelegationRequest,
-                    > for RemoveDelegationSvc<T> {
-                        type Response = super::super::types::RemoveDelegationResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
-                        fn call(
-                            &mut self,
-                            request: tonic::Request<
-                                super::super::types::RemoveDelegationRequest,
-                            >,
-                        ) -> Self::Future {
-                            let inner = Arc::clone(&self.0);
-                            let fut = async move {
-                                <T as ProverNetwork>::remove_delegation(&inner, request)
-                                    .await
-                            };
-                            Box::pin(fut)
-                        }
-                    }
-                    let accept_compression_encodings = self.accept_compression_encodings;
-                    let send_compression_encodings = self.send_compression_encodings;
-                    let max_decoding_message_size = self.max_decoding_message_size;
-                    let max_encoding_message_size = self.max_encoding_message_size;
-                    let inner = self.inner.clone();
-                    let fut = async move {
-                        let method = RemoveDelegationSvc(inner);
-                        let codec = tonic::codec::ProstCodec::default();
-                        let mut grpc = tonic::server::Grpc::new(codec)
-                            .apply_compression_config(
-                                accept_compression_encodings,
-                                send_compression_encodings,
-                            )
-                            .apply_max_message_size_config(
-                                max_decoding_message_size,
-                                max_encoding_message_size,
-                            );
-                        let res = grpc.unary(method, req).await;
-                        Ok(res)
-                    };
-                    Box::pin(fut)
-                }
-                "/network.ProverNetwork/TerminateDelegation" => {
-                    #[allow(non_camel_case_types)]
-                    struct TerminateDelegationSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::TerminateDelegationRequest,
-                    > for TerminateDelegationSvc<T> {
-                        type Response = super::super::types::TerminateDelegationResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
-                        fn call(
-                            &mut self,
-                            request: tonic::Request<
-                                super::super::types::TerminateDelegationRequest,
-                            >,
-                        ) -> Self::Future {
-                            let inner = Arc::clone(&self.0);
-                            let fut = async move {
-                                <T as ProverNetwork>::terminate_delegation(&inner, request)
-                                    .await
-                            };
-                            Box::pin(fut)
-                        }
-                    }
-                    let accept_compression_encodings = self.accept_compression_encodings;
-                    let send_compression_encodings = self.send_compression_encodings;
-                    let max_decoding_message_size = self.max_decoding_message_size;
-                    let max_encoding_message_size = self.max_encoding_message_size;
-                    let inner = self.inner.clone();
-                    let fut = async move {
-                        let method = TerminateDelegationSvc(inner);
-                        let codec = tonic::codec::ProstCodec::default();
-                        let mut grpc = tonic::server::Grpc::new(codec)
-                            .apply_compression_config(
-                                accept_compression_encodings,
-                                send_compression_encodings,
-                            )
-                            .apply_max_message_size_config(
-                                max_decoding_message_size,
-                                max_encoding_message_size,
-                            );
-                        let res = grpc.unary(method, req).await;
-                        Ok(res)
-                    };
-                    Box::pin(fut)
-                }
-                "/network.ProverNetwork/AcceptDelegation" => {
-                    #[allow(non_camel_case_types)]
-                    struct AcceptDelegationSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::AcceptDelegationRequest,
-                    > for AcceptDelegationSvc<T> {
-                        type Response = super::super::types::AcceptDelegationResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
-                        fn call(
-                            &mut self,
-                            request: tonic::Request<
-                                super::super::types::AcceptDelegationRequest,
-                            >,
-                        ) -> Self::Future {
-                            let inner = Arc::clone(&self.0);
-                            let fut = async move {
-                                <T as ProverNetwork>::accept_delegation(&inner, request)
-                                    .await
-                            };
-                            Box::pin(fut)
-                        }
-                    }
-                    let accept_compression_encodings = self.accept_compression_encodings;
-                    let send_compression_encodings = self.send_compression_encodings;
-                    let max_decoding_message_size = self.max_decoding_message_size;
-                    let max_encoding_message_size = self.max_encoding_message_size;
-                    let inner = self.inner.clone();
-                    let fut = async move {
-                        let method = AcceptDelegationSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
@@ -6006,6 +5650,51 @@ pub mod prover_network_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let method = GetUsageSummarySvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/Transfer" => {
+                    #[allow(non_camel_case_types)]
+                    struct TransferSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<
+                        T: ProverNetwork,
+                    > tonic::server::UnaryService<super::super::types::TransferRequest>
+                    for TransferSvc<T> {
+                        type Response = super::super::types::TransferResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::super::types::TransferRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::transfer(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = TransferSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
@@ -9439,6 +9128,54 @@ pub mod prover_network_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let method = GetFilteredProverStakeBalanceLogsSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/SetDelegation" => {
+                    #[allow(non_camel_case_types)]
+                    struct SetDelegationSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<
+                        T: ProverNetwork,
+                    > tonic::server::UnaryService<
+                        super::super::types::SetDelegationRequest,
+                    > for SetDelegationSvc<T> {
+                        type Response = super::super::types::SetDelegationResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::SetDelegationRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::set_delegation(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = SetDelegationSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(

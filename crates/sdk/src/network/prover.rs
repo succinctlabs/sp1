@@ -3,8 +3,10 @@
 //! This module provides an implementation of the [`crate::Prover`] trait that can generate proofs
 //! on a remote RPC server.
 
-use std::time::{Duration, Instant};
-use std::str::FromStr;
+use std::{
+    str::FromStr,
+    time::{Duration, Instant},
+};
 
 use super::prove::NetworkProveBuilder;
 use crate::{
@@ -15,8 +17,8 @@ use crate::{
             ExecutionStatus, FulfillmentStatus, FulfillmentStrategy, GetProofRequestStatusResponse,
             ProofMode,
         },
-        Error, DEFAULT_CYCLE_LIMIT, DEFAULT_GAS_LIMIT, DEFAULT_NETWORK_RPC_URL,
-        DEFAULT_TIMEOUT_SECS, DEFAULT_AUCTIONEER_ADDRESS, DEFAULT_EXECUTOR_ADDRESS,
+        Error, DEFAULT_AUCTIONEER_ADDRESS, DEFAULT_CYCLE_LIMIT, DEFAULT_EXECUTOR_ADDRESS,
+        DEFAULT_GAS_LIMIT, DEFAULT_NETWORK_RPC_URL, DEFAULT_TIMEOUT_SECS,
     },
     prover::verify_proof,
     ProofFromNetwork, Prover, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey,

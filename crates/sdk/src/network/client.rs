@@ -24,17 +24,22 @@ use super::{
     retry::{self, RetryableRpc, DEFAULT_RETRY_TIMEOUT},
     utils::Signable,
 };
-use crate::network::proto::{
-    artifact::{artifact_store_client::ArtifactStoreClient, ArtifactType, CreateArtifactRequest},
-    network::prover_network_client::ProverNetworkClient,
-    types::{
-        CreateProgramRequest, CreateProgramRequestBody,
-        CreateProgramResponse, FulfillmentStatus, FulfillmentStrategy, GetBalanceRequest,
-        GetFilteredProofRequestsRequest, GetFilteredProofRequestsResponse, GetNonceRequest,
-        GetProgramRequest, GetProgramResponse, GetProofRequestStatusRequest,
-        GetProofRequestStatusResponse, MessageFormat, ProofMode, RequestProofRequest,
-        RequestProofRequestBody, RequestProofResponse,
+use crate::network::{
+    proto::{
+        artifact::{
+            artifact_store_client::ArtifactStoreClient, ArtifactType, CreateArtifactRequest,
+        },
+        network::prover_network_client::ProverNetworkClient,
+        types::{
+            CreateProgramRequest, CreateProgramRequestBody, CreateProgramResponse,
+            FulfillmentStatus, FulfillmentStrategy, GetBalanceRequest,
+            GetFilteredProofRequestsRequest, GetFilteredProofRequestsResponse, GetNonceRequest,
+            GetProgramRequest, GetProgramResponse, GetProofRequestStatusRequest,
+            GetProofRequestStatusResponse, MessageFormat, ProofMode, RequestProofRequest,
+            RequestProofRequestBody, RequestProofResponse,
+        },
     },
+    SPN_SEPOLIA_V1_DOMAIN,
 };
 
 /// A client for interacting with the network.
@@ -357,6 +362,7 @@ impl NetworkClient {
                     gas_limit,
                     min_auction_period,
                     whitelist: whitelist.clone().into_iter().map(|addr| addr.to_vec()).collect(),
+                    domain: SPN_SEPOLIA_V1_DOMAIN.to_vec(),
                     auctioneer: auctioneer.to_vec(),
                     executor: executor.to_vec(),
                 };
