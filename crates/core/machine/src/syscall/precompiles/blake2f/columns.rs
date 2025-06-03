@@ -9,4 +9,6 @@ pub struct  Blake2fCompressColumns<T> {
     pub shard: T,
     pub clk: T,
     pub w_ptr: T,
+    /// Final block flag (used as a selector/flag in AIR)
+    pub f_flag: T,
 }
