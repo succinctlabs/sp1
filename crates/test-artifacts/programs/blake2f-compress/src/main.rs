@@ -24,4 +24,6 @@ pub fn main() {
     }
 
     syscall_blake2f_compress(&mut state);
+
+    // Expected output: 75ab69d3190a562c51aef8d88f1c2775876944407270c42c9844252c26d2875298743e7f6d5ea2f2d3e8d226039cd31b4e426ac4f2d3d666a610c2116fde4735
 }
