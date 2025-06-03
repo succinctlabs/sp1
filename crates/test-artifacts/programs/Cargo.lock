@@ -303,6 +303,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "blake2f-compress-test"
+version = "1.0.0"
+dependencies = [
+ "sp1-zkvm",
+]
+
+[[package]]
 name = "blake3"
 version = "1.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
