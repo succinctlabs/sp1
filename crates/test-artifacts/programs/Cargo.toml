@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "common",
+  "blake2f-compress",
   "bls12381-add",
   "bls12381-decompress",
   "bls12381-double",
