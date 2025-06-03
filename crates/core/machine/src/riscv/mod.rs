@@ -20,7 +20,7 @@ use crate::{
     shape::Shapeable,
     syscall::{
         instructions::SyscallInstrsChip,
-        precompiles::fptower::{Fp2AddSubAssignChip, Fp2MulAssignChip, FpOpChip},
+        precompiles::{blake2f::Blake2fCompressChip, fptower::{Fp2AddSubAssignChip, Fp2MulAssignChip, FpOpChip}},
     },
 };
 
@@ -116,6 +116,8 @@ pub enum RiscvAir<F: PrimeField32> {
     Sha256Extend(ShaExtendChip),
     /// A precompile for sha256 compress.
     Sha256Compress(ShaCompressChip),
+    // A precompile for blake2f compress.
+    Blake2fCompress(Blake2fCompressChip),
     /// A precompile for addition on the Elliptic curve ed25519.
     Ed25519Add(EdAddAssignChip<EdwardsCurve<Ed25519Parameters>>),
     /// A precompile for decompressing a point on the Edwards curve ed25519.
@@ -211,6 +213,10 @@ impl<F: PrimeField32> RiscvAir<F> {
         let sha_compress = Chip::new(RiscvAir::Sha256Compress(ShaCompressChip::default()));
         costs.insert(sha_compress.name(), sha_compress.cost());
         chips.push(sha_compress);
+
+        let blake2f_compress = Chip::new(RiscvAir::Blake2fCompress(Blake2fCompressChip::default()));
+        costs.insert(blake2f_compress.name(), blake2f_compress.cost());
+        chips.push(blake2f_compress);
 
         let ed_add_assign = Chip::new(RiscvAir::Ed25519Add(EdAddAssignChip::<
             EdwardsCurve<Ed25519Parameters>,
@@ -543,6 +549,7 @@ impl From<RiscvAirDiscriminants> for RiscvAirId {
             RiscvAirDiscriminants::Global => RiscvAirId::Global,
             RiscvAirDiscriminants::Sha256Extend => RiscvAirId::ShaExtend,
             RiscvAirDiscriminants::Sha256Compress => RiscvAirId::ShaCompress,
+            RiscvAirDiscriminants::Blake2fCompress => RiscvAirId::Blake2fCompress,
             RiscvAirDiscriminants::Ed25519Add => RiscvAirId::EdAddAssign,
             RiscvAirDiscriminants::Ed25519Decompress => RiscvAirId::EdDecompress,
             RiscvAirDiscriminants::K256Decompress => RiscvAirId::Secp256k1Decompress,
