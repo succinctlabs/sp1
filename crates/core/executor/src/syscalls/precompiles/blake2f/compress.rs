@@ -75,6 +75,7 @@ impl Syscall for Blake2fCompressSyscall {
 
         // Perform actual blake2f compress
         let result = compress(rounds, h, m, t0, t1, f);
+        println!("Calculated Result: {}", result.iter().map(|x| format!("{:016x}", x)).collect::<Vec<_>>().join(""));
 
         // Split back into u32 words
         let result_u32: [u32; 16] = u64_slice_to_words_le::<16>(&result);
@@ -144,7 +145,9 @@ pub fn compress(rounds: u32, h: [u64; 8], m: [u64; 16], t0: u64, t1: u64, f: boo
 
     let mut out = [0u64; 8];
     for i in 0..8 {
-        out[i] = h[i] ^ v[i] ^ v[i + 8];
+        // Need to reverse the bytes order, use big endian to do this
+        // In reality, this result is actually little endian
+        out[i] = (h[i] ^ v[i] ^ v[i + 8]).to_be();
     }
     out
 }
@@ -169,10 +172,19 @@ fn words_to_u64_le<const N: usize>(words: &[u32]) -> [u64; N] {
 
     let mut result = [0u64; N];
     for i in 0..N {
-        // For little-endian, we need to swap the order of the u32s
-        let lo = words[2 * i + 1] as u64;  // high 32 bits come first in little-endian
-        let hi = words[2 * i] as u64;      // low 32 bits come second in little-endian
-        result[i] = lo | (hi << 32);
+        // Literally just keep the same ordering of bytes, just concatenate them together
+        let bytes = [
+            words[2 * i] as u8,
+            (words[2 * i] >> 8) as u8,
+            (words[2 * i] >> 16) as u8,
+            (words[2 * i] >> 24) as u8,
+            words[2 * i + 1] as u8,
+            (words[2 * i + 1] >> 8) as u8,
+            (words[2 * i + 1] >> 16) as u8,
+            (words[2 * i + 1] >> 24) as u8,
+        ];
+        // Read the resulting 16 bytes as little endian
+        result[i] = u64::from_le_bytes(bytes);
     }
     result
 }
