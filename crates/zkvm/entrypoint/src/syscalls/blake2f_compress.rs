@@ -9,7 +9,7 @@ use core::arch::asm;
 /// boundary.
 #[allow(unused_variables)]
 #[no_mangle]
-pub extern "C" fn syscall_blake2f_compress(state: *mut [u32; 212]) {
+pub extern "C" fn syscall_blake2f_compress(state: *mut [u32; 213]) {
     #[cfg(target_os = "zkvm")]
     unsafe {
         asm!(

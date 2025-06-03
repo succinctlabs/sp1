@@ -57,7 +57,7 @@ pub enum SyscallCode {
     SHA_COMPRESS = 0x00_01_01_06,
 
     // Executes the `BLAKE2F_COMPRESS` precompile.
-    BLAKE2F_COMPRESS = 0x00_01_0C_0C,
+    BLAKE2F_COMPRESS = 0x00_01_01_30,
 
     /// Executes the `ED_ADD` precompile.
     ED_ADD = 0x00_01_01_07,
@@ -202,7 +202,7 @@ impl SyscallCode {
             0x00_01_01_2A => SyscallCode::BN254_FP2_SUB,
             0x00_01_01_2B => SyscallCode::BN254_FP2_MUL,
             0x00_00_01_1C => SyscallCode::BLS12381_DECOMPRESS,
-            0x00_01_0C_0C => SyscallCode::BLAKE2F_COMPRESS,
+            0x00_01_01_30 => SyscallCode::BLAKE2F_COMPRESS,
             _ => panic!("invalid syscall number: {}", value),
         }
     }

@@ -62,7 +62,7 @@ pub const SHA_EXTEND: u32 = 0x00_30_01_05;
 pub const SHA_COMPRESS: u32 = 0x00_01_01_06;
 
 /// Executes `BLAKE2F_COMPRESS`.
-pub const BLAKE2F_COMPRESS: u32 = 0x00_01_0C_0C;
+pub const BLAKE2F_COMPRESS: u32 = 0x00_01_01_30;
 
 /// Executes `ED_ADD`.
 pub const ED_ADD: u32 = 0x00_01_01_07;

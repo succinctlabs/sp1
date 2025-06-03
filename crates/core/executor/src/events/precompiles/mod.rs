@@ -187,6 +187,7 @@ impl PrecompileEvents {
         syscall_event: SyscallEvent,
         event: PrecompileEvent,
     ) {
+        println!("{}", syscall_code);
         assert!(syscall_code.should_send() == 1);
         self.events.entry(syscall_code).or_default().push((syscall_event, event));
     }

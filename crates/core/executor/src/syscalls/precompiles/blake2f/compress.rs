@@ -81,7 +81,8 @@ impl Syscall for Blake2fCompressSyscall {
 
         // Write
         rt.clk += 1;
-        let write_records = rt.mw_slice(base_ptr + 213, &result_u32);
+        // Blake2f todo: Is this the right pointer offset?
+        let write_records = rt.mw_slice(base_ptr + 216 as u32, &result_u32);
 
         // Push event
         let shard = rt.current_shard();
@@ -168,8 +169,9 @@ fn words_to_u64_le<const N: usize>(words: &[u32]) -> [u64; N] {
 
     let mut result = [0u64; N];
     for i in 0..N {
-        let lo = words[2 * i] as u64;
-        let hi = words[2 * i + 1] as u64;
+        // For little-endian, we need to swap the order of the u32s
+        let lo = words[2 * i + 1] as u64;  // high 32 bits come first in little-endian
+        let hi = words[2 * i] as u64;      // low 32 bits come second in little-endian
         result[i] = lo | (hi << 32);
     }
     result
@@ -180,7 +182,7 @@ fn u64_slice_to_words_le<const N: usize>(words: &[u64]) -> [u32; N] {
     assert_eq!(words.len(), N / 2, "Expected {} u64s for {} u32s", N / 2, N);
 
     let mut result = [0u32; N];
-    for i in 0..N {
+    for i in 0..(N / 2) {
         result[2 * i] = words[i] as u32; // low 32 bits
         result[2 * i + 1] = (words[i] >> 32) as u32; // high 32 bits
     }
