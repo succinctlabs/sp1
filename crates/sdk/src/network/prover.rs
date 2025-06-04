@@ -18,7 +18,7 @@ use crate::{
             ProofMode,
         },
         Error, DEFAULT_AUCTIONEER_ADDRESS, DEFAULT_CYCLE_LIMIT, DEFAULT_EXECUTOR_ADDRESS,
-        DEFAULT_GAS_LIMIT, DEFAULT_NETWORK_RPC_URL, DEFAULT_TIMEOUT_SECS,
+        DEFAULT_GAS_LIMIT, DEFAULT_NETWORK_RPC_URL, DEFAULT_TIMEOUT_SECS, DEFAULT_VERIFIER_ADDRESS,
     },
     prover::verify_proof,
     ProofFromNetwork, Prover, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey,
@@ -147,6 +147,7 @@ impl NetworkProver {
             whitelist: vec![],
             auctioneer: Address::from_str(DEFAULT_AUCTIONEER_ADDRESS).unwrap(),
             executor: Address::from_str(DEFAULT_EXECUTOR_ADDRESS).unwrap(),
+            verifier: Address::from_str(DEFAULT_VERIFIER_ADDRESS).unwrap(),
         }
     }
 
@@ -270,6 +271,7 @@ impl NetworkProver {
     /// * `whitelist`: The auction whitelist for the proof request.
     /// * `auctioneer`: The auctioneer address for the proof request.
     /// * `executor`: The executor address for the proof request.
+    /// * `verifier`: The verifier address for the proof request.
     #[allow(clippy::too_many_arguments)]
     pub(crate) async fn request_proof(
         &self,
@@ -284,6 +286,7 @@ impl NetworkProver {
         whitelist: Vec<Address>,
         auctioneer: Address,
         executor: Address,
+        verifier: Address,
     ) -> Result<B256> {
         // Get the timeout.
         let timeout_secs = timeout.map_or(DEFAULT_TIMEOUT_SECS, |dur| dur.as_secs());
@@ -318,6 +321,7 @@ impl NetworkProver {
                 whitelist,
                 auctioneer,
                 executor,
+                verifier,
             )
             .await?;
 
@@ -391,6 +395,7 @@ impl NetworkProver {
         whitelist: Vec<Address>,
         auctioneer: Address,
         executor: Address,
+        verifier: Address,
     ) -> Result<B256> {
         let vk_hash = self.register_program(&pk.vk, &pk.elf).await?;
         let (cycle_limit, gas_limit) =
@@ -407,6 +412,7 @@ impl NetworkProver {
             whitelist,
             auctioneer,
             executor,
+            verifier,
         )
         .await
     }
@@ -577,6 +583,7 @@ impl Prover<CpuProverComponents> for NetworkProver {
             vec![],
             Address::from_str(DEFAULT_AUCTIONEER_ADDRESS).unwrap(),
             Address::from_str(DEFAULT_EXECUTOR_ADDRESS).unwrap(),
+            Address::from_str(DEFAULT_VERIFIER_ADDRESS).unwrap(),
         ))
     }
 

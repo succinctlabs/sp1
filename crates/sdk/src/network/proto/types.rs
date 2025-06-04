@@ -59,6 +59,9 @@ pub struct RequestProofRequestBody {
     /// The executor address.
     #[prost(bytes = "vec", tag = "14")]
     pub executor: ::prost::alloc::vec::Vec<u8>,
+    /// The verifier address.
+    #[prost(bytes = "vec", tag = "15")]
+    pub verifier: ::prost::alloc::vec::Vec<u8>,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -985,6 +988,20 @@ pub struct GetBalanceRequest {
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetBalanceResponse {
+    /// The amount of credits owned by the account.
+    #[prost(string, tag = "1")]
+    pub amount: ::prost::alloc::string::String,
+}
+#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetDelegatedBalanceRequest {
+    /// The address of the account.
+    #[prost(bytes = "vec", tag = "1")]
+    pub address: ::prost::alloc::vec::Vec<u8>,
+}
+#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetDelegatedBalanceResponse {
     /// The amount of credits owned by the account.
     #[prost(string, tag = "1")]
     pub amount: ::prost::alloc::string::String,
@@ -2899,6 +2916,20 @@ pub struct SetRollupHighScoreResponse {
 pub struct SetRollupHighScoreResponseBody {}
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetPendingStarsRequest {
+    /// The address of the account.
+    #[prost(bytes = "vec", tag = "1")]
+    pub address: ::prost::alloc::vec::Vec<u8>,
+}
+#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct GetPendingStarsResponse {
+    /// The pending stars for the account.
+    #[prost(uint64, tag = "1")]
+    pub pending_stars: u64,
+}
+#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SocialIdentity {
     /// The social platform.
     #[prost(enumeration = "SocialPlatform", tag = "1")]
@@ -3878,6 +3909,9 @@ pub struct ConfigValues {
     /// The disable explorer trends flag.
     #[prost(bool, tag = "4")]
     pub disable_explorer_trends: bool,
+    /// The disable pending stars flag.
+    #[prost(bool, tag = "5")]
+    pub disable_pending_stars: bool,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -4214,13 +4248,52 @@ pub struct SetDelegationRequestBody {
     /// The nonce of the request.
     #[prost(uint64, tag = "1")]
     pub nonce: u64,
-    /// The delegate to set.
+    /// The delegate address to set.
     #[prost(bytes = "vec", tag = "2")]
     pub delegate: ::prost::alloc::vec::Vec<u8>,
+    /// The prover address that the delegation applies to.
+    #[prost(bytes = "vec", tag = "3")]
+    pub prover: ::prost::alloc::vec::Vec<u8>,
+    /// The domain of the request.
+    #[prost(bytes = "vec", tag = "4")]
+    pub domain: ::prost::alloc::vec::Vec<u8>,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct SetDelegationResponse {}
+#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetFilteredWithdrawalReceiptsRequest {
+    /// The page number to return.
+    #[prost(uint32, optional, tag = "1")]
+    pub page: ::core::option::Option<u32>,
+    /// The optional maximum number of receipts to return.
+    #[prost(uint32, optional, tag = "2")]
+    pub limit: ::core::option::Option<u32>,
+    /// The optional account address to filter for.
+    #[prost(bytes = "vec", optional, tag = "3")]
+    pub address: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
+}
+#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct WithdrawalReceipt {
+    /// Withdrawal transaction hash.
+    #[prost(bytes = "vec", tag = "1")]
+    pub tx_hash: ::prost::alloc::vec::Vec<u8>,
+    /// Withdrawal amount.
+    #[prost(string, tag = "2")]
+    pub amount: ::prost::alloc::string::String,
+    /// The withdrawal timestamp.
+    #[prost(uint64, tag = "3")]
+    pub created_at: u64,
+}
+#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetFilteredWithdrawalReceiptsResponse {
+    /// The withdrawal receipts.
+    #[prost(message, repeated, tag = "1")]
+    pub receipts: ::prost::alloc::vec::Vec<WithdrawalReceipt>,
+}
 /// Format to help decode signature in backend.
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]

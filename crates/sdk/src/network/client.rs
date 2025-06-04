@@ -319,6 +319,9 @@ impl NetworkClient {
     /// * `gas_limit`: The gas limit for the proof request.
     /// * `min_auction_period`: The minimum auction period for the proof request in seconds.
     /// * `whitelist`: The auction whitelist for the proof request.
+    /// * `auctioneer`: The auctioneer for the proof request.
+    /// * `executor`: The executor for the proof request.
+    /// * `verifier`: The verifier for the proof request.
     #[allow(clippy::too_many_arguments)]
     pub async fn request_proof(
         &self,
@@ -334,6 +337,7 @@ impl NetworkClient {
         whitelist: Vec<Address>,
         auctioneer: Address,
         executor: Address,
+        verifier: Address,
     ) -> Result<RequestProofResponse> {
         // Calculate the deadline.
         let start = SystemTime::now();
@@ -365,6 +369,7 @@ impl NetworkClient {
                     domain: SPN_SEPOLIA_V1_DOMAIN.to_vec(),
                     auctioneer: auctioneer.to_vec(),
                     executor: executor.to_vec(),
+                    verifier: verifier.to_vec(),
                 };
                 let request_response = rpc
                     .request_proof(RequestProofRequest {

@@ -37,6 +37,7 @@ pub struct NetworkProveBuilder<'a> {
     pub(crate) whitelist: Vec<Address>,
     pub(crate) auctioneer: Address,
     pub(crate) executor: Address,
+    pub(crate) verifier: Address,
 }
 
 impl NetworkProveBuilder<'_> {
@@ -420,6 +421,24 @@ impl NetworkProveBuilder<'_> {
         self
     }
 
+    /// Set the verifier for the proof request.
+    ///
+    /// # Details
+    /// Only the specified verifier will be able to verify the proof. Only relevant if the mode is
+    /// not [`SP1ProofMode::Compressed`], as this mode will be verified within the VApp.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use alloy_primitives::Address;
+    /// use sp1_sdk::{Prover, ProverClient, SP1Stdin};
+    /// use std::str::FromStr;
+    /// ```
+    #[must_use]
+    pub fn verifier(mut self, verifier: Address) -> Self {
+        self.verifier = verifier;
+        self
+    }
+
     /// Request a proof from the prover network.
     ///
     /// # Details
@@ -476,6 +495,7 @@ impl NetworkProveBuilder<'_> {
                 self.whitelist,
                 self.auctioneer,
                 self.executor,
+                self.verifier,
             )
             .await
     }
