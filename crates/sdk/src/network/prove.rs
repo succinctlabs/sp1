@@ -563,6 +563,7 @@ impl NetworkProveBuilder<'_> {
                 self.whitelist,
                 self.auctioneer,
                 self.executor,
+                self.verifier,
             )
             .await
     }

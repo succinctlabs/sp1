@@ -433,6 +433,7 @@ impl NetworkProver {
         whitelist: Vec<Address>,
         auctioneer: Address,
         executor: Address,
+        verifier: Address,
     ) -> Result<SP1ProofWithPublicValues> {
         let request_id = self
             .request_proof_impl(
@@ -448,6 +449,7 @@ impl NetworkProver {
                 whitelist,
                 auctioneer,
                 executor,
+                verifier,
             )
             .await?;
 
