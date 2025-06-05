@@ -20,5 +20,5 @@ fn inner_verify() -> bool {
     let pubkey = sp1_zkvm::io::read::<PublicKey>();
     let secp = secp256k1::Secp256k1::new();
 
-    secp.verify_ecdsa(message, &signature, &pubkey).is_ok()
+    secp.verify_ecdsa(&message, &signature, &pubkey).is_ok()
 }

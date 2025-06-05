@@ -24,5 +24,5 @@ fn inner_recover() -> Option<PublicKey> {
     let sig = RecoverableSignature::from_compact(&sig, recid).unwrap();
     let secp = Secp256k1::new();
 
-    secp.recover_ecdsa(message, &sig).ok()
+    secp.recover_ecdsa(&message, &sig).ok()
 }
