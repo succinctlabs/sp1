@@ -12,8 +12,8 @@ rand.workspace = true
 sp1-test = { workspace = true }
 
 # note: we use the patched version (which should be mostly equivalent to the original, outside the vm)
-# becasue we want to test the field ops which are not exposed in the original
-bls12_381 = { git = "https://github.com/sp1-patches/bls12_381", tag = "patch-0.8.0-sp1-4.0.0-rc.3-v1", features = ["groups"] }
+# because we want to test the field ops which are not exposed in the original
+bls12_381 = { git = "https://github.com/sp1-patches/bls12_381", tag = "patch-0.8.0-sp1-5.0.0", features = ["groups"] }
 group = "0.13.0"
 
 [features]
