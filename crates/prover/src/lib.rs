@@ -1063,7 +1063,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
                 let input =
                     tracing::debug_span!("read input").in_scope(|| input.read(&mut builder));
+                tracing::debug!("about to enter verify");
                 tracing::debug_span!("verify").in_scope(|| {
+                    tracing::debug!("starting verify");
                     SP1RecursiveVerifier::verify(&mut builder, self.core_prover.machine(), input)
                 });
                 let block =

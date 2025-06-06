@@ -153,6 +153,8 @@ where
         let mut current_finalize_addr_bits: [Felt<_>; 32] =
             unsafe { MaybeUninit::zeroed().assume_init() };
 
+        tracing::debug!("assumed init");
+
         // Initialize the exit code variable.
         let mut exit_code: Felt<_> = unsafe { MaybeUninit::zeroed().assume_init() };
 
@@ -166,6 +168,8 @@ where
 
         // Initialize the cumulative sum.
         let mut global_cumulative_sums = Vec::new();
+
+        tracing::debug!("created global cumulative sum array");
 
         // Assert that the number of proofs is not zero.
         assert!(!shard_proofs.is_empty());
@@ -535,8 +539,12 @@ where
         // We sum the digests in `global_cumulative_sums` to get the overall global cumulative sum.
         let global_cumulative_sum = builder.sum_digest_v2(global_cumulative_sums);
 
+        tracing::debug!("computed global cumulative sum");
+
         // Assert that the last exit code is zero.
         builder.assert_felt_eq(exit_code, C::F::zero());
+
+        tracing::debug!("asserted exit code is zero");
 
         // Write all values to the public values struct and commit to them.
         {
