@@ -126,7 +126,8 @@ impl SP1ProofWithPublicValues {
         match maybe_this {
             Ok(this) => Ok(this),
             Err(e) => {
-                // If the file does not contain a [`Self`], try to load a [`ProofFromNetwork`] instead.
+                // If the file does not contain a [`Self`], try to load a [`ProofFromNetwork`]
+                // instead.
                 let maybe_proof_from_network: Result<ProofFromNetwork> =
                     bincode::deserialize_from(File::open(path.as_ref()).with_context(|| {
                         format!(
