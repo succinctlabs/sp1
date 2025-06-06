@@ -343,6 +343,8 @@ impl<C: Config> Variable<C> for Felt<C::F> {
         let lhs = lhs.into();
         let rhs = rhs.into();
 
+        tracing::debug!("Felt<C::F>::assert_eq");
+
         match (lhs, rhs) {
             (SymbolicFelt::Const(lhs), SymbolicFelt::Const(rhs)) => {
                 assert_eq!(lhs, rhs, "Assertion failed at compile time");
