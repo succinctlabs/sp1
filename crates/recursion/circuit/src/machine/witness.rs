@@ -121,12 +121,19 @@ where
     type WitnessVariable = SP1RecursionWitnessVariable<C, BabyBearPoseidon2>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
+        tracing::debug!("starting vk read.");
         let vk = self.vk.read(builder);
+        tracing::debug!("vk read");
         let shard_proofs = self.shard_proofs.read(builder);
+        tracing::debug!("shard_proofs read");
         let reconstruct_deferred_digest = self.reconstruct_deferred_digest.read(builder);
+        tracing::debug!("reconstruct_deferred_digest read");
         let is_complete = InnerVal::from_bool(self.is_complete).read(builder);
+        tracing::debug!("is_complete read");
         let is_first_shard = InnerVal::from_bool(self.is_first_shard).read(builder);
+        tracing::debug!("is_first_shard read");
         let vk_root = self.vk_root.read(builder);
+        tracing::debug!("vk_root read");
         SP1RecursionWitnessVariable {
             vk,
             shard_proofs,
