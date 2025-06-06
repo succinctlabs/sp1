@@ -217,6 +217,7 @@ impl<C: Config> Builder<C> {
         lhs: LhsExpr,
         rhs: RhsExpr,
     ) {
+        tracing::debug!("asserting felt eq");
         self.assert_eq::<Felt<C::F>>(lhs, rhs);
     }
 
