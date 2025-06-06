@@ -47,7 +47,7 @@ jobs:
         env:
           SP1_GNARK_IMAGE: sp1-gnark
           RUST_LOG: info
-          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
           RUST_BACKTRACE: 1   
         with:
           command: test
