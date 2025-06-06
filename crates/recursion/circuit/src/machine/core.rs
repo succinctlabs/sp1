@@ -183,9 +183,13 @@ where
             let contains_memory_init = shard_proof.contains_memory_init();
             let contains_memory_finalize = shard_proof.contains_memory_finalize();
 
+            tracing::debug!("got contains cpu, memory init, and memory finalize");
+
             // Get the public values.
             let public_values: &PublicValues<Word<Felt<_>>, Felt<_>> =
                 shard_proof.public_values.as_slice().borrow();
+
+            tracing::debug!("got public values");
 
             // If this is the first proof in the batch, initialize the variables.
             if i == 0 {
@@ -219,6 +223,8 @@ where
                     *first_bit = *pub_bit;
                 }
 
+                tracing::debug!("initialized memory initialization and finalization address bits");
+
                 // Exit code.
                 exit_code = public_values.exit_code;
 
@@ -232,6 +238,8 @@ where
                     }
                 }
 
+                tracing::debug!("initialized committed public values digests");
+
                 // Deferred proofs digests.
                 for (digest, first_digest) in deferred_proofs_digest
                     .iter_mut()
@@ -240,9 +248,13 @@ where
                     *digest = *first_digest;
                 }
 
+                tracing::debug!("initialized deferred proofs digests");
+
                 // First shard constraints. We verify the validity of the `is_first_shard` boolean
                 // flag, and make assertions for that are specific to the first shard using that
                 // flag.
+
+                tracing::debug!("asserting first shard constraints");
 
                 // We assert that `is_first_shard == (initial_shard == 1)` in three steps.
 
@@ -259,6 +271,8 @@ where
                     C::F::one(),
                 );
 
+                tracing::debug!("asserted first shard constraints");
+
                 // If it's the first shard (which is the first execution shard), then the `start_pc`
                 // should be vk.pc_start.
                 builder.assert_felt_eq(is_first_shard * (start_pc - vk.pc_start), C::F::zero());
@@ -270,6 +284,10 @@ where
                     vk.initial_global_cumulative_sum,
                 ));
 
+                tracing::debug!(
+                    "added vk's initial global cumulative sum to global cumulative sums"
+                );
+
                 // Assert that `init_addr_bits` and `finalize_addr_bits` are zero for the first
                 for bit in current_init_addr_bits.iter() {
                     builder.assert_felt_eq(is_first_shard * *bit, C::F::zero());
@@ -277,6 +295,8 @@ where
                 for bit in current_finalize_addr_bits.iter() {
                     builder.assert_felt_eq(is_first_shard * *bit, C::F::zero());
                 }
+
+                tracing::debug!("asserted first shard constraints");
             }
 
             // Verify the shard.
