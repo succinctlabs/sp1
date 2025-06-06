@@ -88,10 +88,15 @@ where
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let commitment = self.commit.read(builder);
+        tracing::debug!("commit read");
         let pc_start = self.pc_start.read(builder);
+        tracing::debug!("pc_start read");
         let initial_global_cumulative_sum = self.initial_global_cumulative_sum.read(builder);
+        tracing::debug!("initial_global_cumulative_sum read");
         let chip_information = self.chip_information.clone();
+        tracing::debug!("chip_information read");
         let chip_ordering = self.chip_ordering.clone();
+        tracing::debug!("chip_ordering read");
         VerifyingKeyVariable {
             commitment,
             pc_start,
