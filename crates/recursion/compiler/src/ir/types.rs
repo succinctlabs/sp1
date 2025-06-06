@@ -347,15 +347,19 @@ impl<C: Config> Variable<C> for Felt<C::F> {
 
         match (lhs, rhs) {
             (SymbolicFelt::Const(lhs), SymbolicFelt::Const(rhs)) => {
+                tracing::debug!("lhs and rhs are constants");
                 assert_eq!(lhs, rhs, "Assertion failed at compile time");
             }
             (SymbolicFelt::Const(lhs), SymbolicFelt::Val(rhs)) => {
                 builder.push_traced_op(DslIr::AssertEqFI(rhs, lhs));
+                tracing::debug!("lhs is constant, rhs is variable");
             }
             (SymbolicFelt::Val(lhs), SymbolicFelt::Const(rhs)) => {
+                tracing::debug!("lhs is variable, rhs is constant");
                 builder.push_traced_op(DslIr::AssertEqFI(lhs, rhs));
             }
             (SymbolicFelt::Val(lhs), SymbolicFelt::Val(rhs)) => {
+                tracing::debug!("lhs and rhs are variables");
                 builder.push_traced_op(DslIr::AssertEqF(lhs, rhs));
             }
         }

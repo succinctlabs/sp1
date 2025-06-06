@@ -107,7 +107,6 @@ impl<C: Config> Builder<C> {
     /// Pushes an operation to the builder.
     #[inline(always)]
     pub fn push_op(&mut self, op: DslIr<C>) {
-        tracing::debug!("pushing op");
         self.inner.get_mut().operations.push(op);
     }
 
@@ -121,7 +120,9 @@ impl<C: Config> Builder<C> {
         #[cfg(feature = "debug")]
         {
             tracing::debug!("pushing backtrace");
-            self.push_op(DslIr::DebugBacktrace(backtrace::Backtrace::new_unresolved()));
+            let backtrace = backtrace::Backtrace::new_unresolved();
+            tracing::debug!("created backtrace");
+            self.push_op(DslIr::DebugBacktrace(backtrace));
         }
     }
 
