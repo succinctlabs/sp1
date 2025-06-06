@@ -265,15 +265,18 @@ where
                 // First, we assert that the `is_first_shard` flag is boolean.
                 builder
                     .assert_felt_eq(is_first_shard * (is_first_shard - C::F::one()), C::F::zero());
+                tracing::debug!("first assert done");
                 // Assert that if `is_first_shard == 1`, then `initial_shard == 1`.
                 builder
                     .assert_felt_eq(is_first_shard * (initial_shard - C::F::one()), C::F::zero());
+                tracing::debug!("second assert done");
                 // Assert that if `is_first_shard == 0`, then `initial_shard != 1`.
                 // This asserts that if `initial_shard == 1`, then `is_first_shard == 1`.
                 builder.assert_felt_ne(
                     (SymbolicFelt::one() - is_first_shard) * initial_shard,
                     C::F::one(),
                 );
+                tracing::debug!("third assert done");
 
                 tracing::debug!("asserted first shard constraints");
 
