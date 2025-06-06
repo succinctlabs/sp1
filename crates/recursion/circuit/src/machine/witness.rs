@@ -87,6 +87,7 @@ where
     type WitnessVariable = VerifyingKeyVariable<C, SC>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
+        tracing::debug!("starting vk read.");
         let commitment = self.commit.read(builder);
         tracing::debug!("commit read");
         let pc_start = self.pc_start.read(builder);
