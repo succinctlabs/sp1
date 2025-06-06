@@ -287,6 +287,8 @@ where
             // Prepare a challenger.
             let mut challenger = machine.config().challenger_variable(builder);
 
+            tracing::debug!("created challenger");
+
             // Observe the vk and start pc.
             challenger.observe(builder, vk.commitment);
             challenger.observe(builder, vk.pc_start);
@@ -295,6 +297,8 @@ where
             // Observe the padding.
             let zero: Felt<_> = builder.eval(C::F::zero());
             challenger.observe(builder, zero);
+
+            tracing::debug!("observed vk and start pc");
 
             // Observe the public values.
             challenger.observe_slice(
@@ -305,6 +309,8 @@ where
                 StarkVerifier::verify_shard(builder, &vk, machine, &mut challenger, &shard_proof)
             });
 
+            tracing::debug!("verified shard");
+
             let chips = machine.shard_chips_ordered(&shard_proof.chip_ordering).collect::<Vec<_>>();
 
             // Assert that first shard has a "CPU". Equivalently, assert that if the shard does
@@ -312,6 +318,8 @@ where
             if !contains_cpu {
                 builder.assert_felt_ne(current_shard, C::F::one());
             }
+
+            tracing::debug!("asserted first shard has cpu");
 
             // CPU log degree bound check constraints (this assertion is made in compile time).
             if shard_proof.contains_cpu() {
@@ -347,6 +355,8 @@ where
                 }
             }
 
+            tracing::debug!("asserted execution shard");
+
             // Program counter constraints.
             {
                 // Assert that the start_pc of the proof is equal to the current pc.
@@ -365,11 +375,15 @@ where
                 current_pc = public_values.next_pc;
             }
 
+            tracing::debug!("updated current pc");
+
             // Exit code constraints.
             {
                 // Assert that the exit code is zero (success) for all proofs.
                 builder.assert_felt_eq(exit_code, C::F::zero());
             }
+
+            tracing::debug!("asserted exit code is zero");
 
             // Memory initialization & finalization constraints.
             {
@@ -427,6 +441,8 @@ where
                     *bit = *pub_bit;
                 }
             }
+
+            tracing::debug!("updated memory initialization and finalization address bits");
 
             // Digest constraints.
             {
@@ -521,6 +537,8 @@ where
                 // Update the deferred proofs digest.
                 deferred_proofs_digest.copy_from_slice(&public_values.deferred_proofs_digest);
             }
+
+            tracing::debug!("updated deferred proofs digest");
 
             // Verify that the number of shards is not too large, i.e. that for every shard, we
             // have shard < 2^{MAX_LOG_NUMBER_OF_SHARDS}.
