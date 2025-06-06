@@ -89,7 +89,9 @@ impl NetworkClient {
 impl NetworkClient {
     /// Creates a new [`NetworkClient`] with the given private key and rpc url.
     pub fn new(private_key: impl Into<String>, rpc_url: impl Into<String>) -> Self {
-        let private_key_bytes = hex::decode(private_key.into()).expect("Invalid private key");
+        let pk = private_key.into();
+        let private_key_bytes =
+            hex::decode(pk.strip_prefix("0x").unwrap_or(&pk)).expect("Invalid private key");
         let signer = SigningKey::from_slice(&private_key_bytes).expect("Invalid private key");
 
         let client = reqwest::Client::builder()
@@ -466,5 +468,19 @@ impl NetworkClient {
             "downloading artifact",
         )
         .await
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::network::DEFAULT_NETWORK_RPC_URL;
+
+    #[test]
+    fn test_can_create_network_client_with_0x_bytes() {
+        // Anvil private key
+        let _ = super::NetworkClient::new(
+            "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+            DEFAULT_NETWORK_RPC_URL,
+        );
     }
 }
