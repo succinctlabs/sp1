@@ -23,16 +23,22 @@ use super::{
     retry::{self, RetryableRpc, DEFAULT_RETRY_TIMEOUT},
     utils::{sign_raw, Signable},
 };
-use crate::network::proto::{
-    artifact::{artifact_store_client::ArtifactStoreClient, ArtifactType, CreateArtifactRequest},
-    network::{
-        prover_network_client::ProverNetworkClient, CreateProgramRequest, CreateProgramRequestBody,
-        CreateProgramResponse, FulfillmentStatus, FulfillmentStrategy, GetBalanceRequest,
-        GetFilteredProofRequestsRequest, GetFilteredProofRequestsResponse, GetNonceRequest,
-        GetProgramRequest, GetProgramResponse, GetProofRequestStatusRequest,
-        GetProofRequestStatusResponse, MessageFormat, ProofMode, RequestProofRequest,
-        RequestProofRequestBody, RequestProofResponse,
+use crate::network::{
+    proto::{
+        artifact::{
+            artifact_store_client::ArtifactStoreClient, ArtifactType, CreateArtifactRequest,
+        },
+        network::prover_network_client::ProverNetworkClient,
+        types::{
+            CreateProgramRequest, CreateProgramRequestBody, CreateProgramResponse,
+            FulfillmentStatus, FulfillmentStrategy, GetBalanceRequest,
+            GetFilteredProofRequestsRequest, GetFilteredProofRequestsResponse, GetNonceRequest,
+            GetProgramRequest, GetProgramResponse, GetProofRequestStatusRequest,
+            GetProofRequestStatusResponse, MessageFormat, ProofMode, RequestProofRequest,
+            RequestProofRequestBody, RequestProofResponse,
+        },
     },
+    SPN_SEPOLIA_V1_DOMAIN,
 };
 
 /// A client for interacting with the network.
@@ -136,8 +142,8 @@ impl NetworkClient {
     /// # Details
     /// The verifying key hash is used to identify a program.
     pub fn get_vk_hash(vk: &SP1VerifyingKey) -> Result<B256> {
-        let vk_hash_str = B256::from_str(&vk.bytes32())?;
-        Ok(vk_hash_str)
+        let vk_hash = vk.hash_bytes();
+        Ok(B256::from_slice(&vk_hash))
     }
 
     /// Registers a program with the network if it is not already registered.
@@ -328,6 +334,9 @@ impl NetworkClient {
     /// * `gas_limit`: The gas limit for the proof request.
     /// * `min_auction_period`: The minimum auction period for the proof request in seconds.
     /// * `whitelist`: The auction whitelist for the proof request.
+    /// * `auctioneer`: The auctioneer for the proof request.
+    /// * `executor`: The executor for the proof request.
+    /// * `verifier`: The verifier for the proof request.
     #[allow(clippy::too_many_arguments)]
     pub async fn request_proof(
         &self,
@@ -341,6 +350,9 @@ impl NetworkClient {
         gas_limit: u64,
         min_auction_period: u64,
         whitelist: Vec<Address>,
+        auctioneer: Address,
+        executor: Address,
+        verifier: Address,
     ) -> Result<RequestProofResponse> {
         // Calculate the deadline.
         let start = SystemTime::now();
@@ -369,6 +381,10 @@ impl NetworkClient {
                     gas_limit,
                     min_auction_period,
                     whitelist: whitelist.clone().into_iter().map(|addr| addr.to_vec()).collect(),
+                    domain: SPN_SEPOLIA_V1_DOMAIN.to_vec(),
+                    auctioneer: auctioneer.to_vec(),
+                    executor: executor.to_vec(),
+                    verifier: verifier.to_vec(),
                 };
                 let request_response = rpc
                     .request_proof(RequestProofRequest {
