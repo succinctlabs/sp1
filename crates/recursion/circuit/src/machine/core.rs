@@ -174,11 +174,15 @@ where
         // Assert that the number of proofs is not zero.
         assert!(!shard_proofs.is_empty());
 
+        tracing::debug!("checked shard proofs is not empty");
+
         // Initialize a flag to denote the first (if any) CPU shard.
         let mut cpu_shard_seen = false;
 
         // Verify proofs.
         for (i, shard_proof) in shard_proofs.into_iter().enumerate() {
+            tracing::debug!("starting proof {}", i);
+
             let contains_cpu = shard_proof.contains_cpu();
             let contains_memory_init = shard_proof.contains_memory_init();
             let contains_memory_finalize = shard_proof.contains_memory_finalize();
