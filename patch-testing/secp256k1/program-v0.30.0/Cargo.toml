@@ -16,7 +16,7 @@ path = "bin/recover.rs"
 [dependencies]
 sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
 serde = { version = "1.0.215", features = ["derive"] }
-secp256k1 = { git = "https://github.com/sp1-patches/rust-secp256k1", package = "secp256k1", tag = "patch-0.30.0-sp1-4.1.0", features = [
+secp256k1 = { git = "https://github.com/sp1-patches/rust-secp256k1", package = "secp256k1", tag = "patch-0.30.0-sp1-5.0.0", features = [
     "recovery",
     "global-context",
     "serde",
