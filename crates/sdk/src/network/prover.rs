@@ -193,6 +193,27 @@ impl NetworkProver {
         Ok((status, maybe_proof))
     }
 
+    /// Gets the cycle count of a proof request, if avaliable.
+    ///
+    /// # Details
+    /// * `request_id`: The request ID to get the status of.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{network::B256, ProverClient};
+    ///
+    /// tokio_test::block_on(async {
+    ///     let request_id = B256::from_slice(&vec![1u8; 32]);
+    ///     let client = ProverClient::builder().network().build();
+    ///     let cycles = client.get_proof_cycles(request_id).await.unwrap();
+    /// })
+    /// ```
+    pub async fn get_proof_cycles(&self, request_id: B256) -> Result<Option<u64>> {
+        let request = self.client.get_proof_request_details(request_id, None).await?;
+
+        Ok(request.request.and_then(|r| r.cycles))
+    }
+
     /// Gets the status of a proof request with handling for timeouts and unfulfillable requests.
     ///
     /// Returns the proof if it is fulfilled and the fulfillment status. Handles statuses indicating
