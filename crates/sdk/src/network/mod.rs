@@ -19,7 +19,7 @@ pub mod tee;
 pub mod utils;
 
 pub use crate::network::{client::NetworkClient, proto::types::FulfillmentStrategy};
-pub use alloy_primitives::B256;
+pub use alloy_primitives::{Address, B256};
 use alloy_sol_types::eip712_domain;
 pub use error::*;
 use std::sync::LazyLock;
