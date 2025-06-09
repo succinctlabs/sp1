@@ -193,7 +193,7 @@ impl NetworkProver {
         Ok((status, maybe_proof))
     }
 
-    /// Gets the cycle count of a proof request, if avaliable.
+    /// Gets the cycle count of a proof request, if available.
     ///
     /// # Details
     /// * `request_id`: The request ID to get the status of.
