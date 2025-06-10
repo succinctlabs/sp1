@@ -12,7 +12,7 @@ use crate::{
         client::NetworkClient,
         proto::network::{
             ExecutionStatus, FulfillmentStatus, FulfillmentStrategy, GetProofRequestStatusResponse,
-            ProofMode,
+            ProofMode, ProofRequest,
         },
         Error, DEFAULT_CYCLE_LIMIT, DEFAULT_GAS_LIMIT, DEFAULT_NETWORK_RPC_URL,
         DEFAULT_TIMEOUT_SECS,
@@ -191,6 +191,30 @@ impl NetworkProver {
             self.client.get_proof_request_status(request_id, None).await?;
         let maybe_proof = maybe_proof.map(Into::into);
         Ok((status, maybe_proof))
+    }
+
+    /// Gets the proof request details, if available.
+    ///
+    /// The [`ProofRequest`] type contains useful information about the request, like the cycle
+    /// count, or the gas used.
+    ///
+    /// # Details
+    /// * `request_id`: The request ID to get the status of.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{network::B256, ProverClient};
+    ///
+    /// tokio_test::block_on(async {
+    ///     let request_id = B256::from_slice(&vec![1u8; 32]);
+    ///     let client = ProverClient::builder().network().build();
+    ///     let request = client.get_proof_request(request_id).await.unwrap();
+    /// })
+    /// ```
+    pub async fn get_proof_request(&self, request_id: B256) -> Result<Option<ProofRequest>> {
+        let res = self.client.get_proof_request_details(request_id, None).await?;
+
+        Ok(res.request)
     }
 
     /// Gets the status of a proof request with handling for timeouts and unfulfillable requests.

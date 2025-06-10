@@ -29,7 +29,8 @@ use crate::network::proto::{
         prover_network_client::ProverNetworkClient, CreateProgramRequest, CreateProgramRequestBody,
         CreateProgramResponse, FulfillmentStatus, FulfillmentStrategy, GetBalanceRequest,
         GetFilteredProofRequestsRequest, GetFilteredProofRequestsResponse, GetNonceRequest,
-        GetProgramRequest, GetProgramResponse, GetProofRequestStatusRequest,
+        GetProgramRequest, GetProgramResponse, GetProofRequestDetailsRequest,
+        GetProofRequestDetailsResponse, GetProofRequestStatusRequest,
         GetProofRequestStatusResponse, MessageFormat, ProofMode, RequestProofRequest,
         RequestProofRequestBody, RequestProofResponse,
     },
@@ -315,6 +316,31 @@ impl NetworkClient {
         };
 
         Ok((res, proof))
+    }
+
+    /// Get the details of a given proof request.
+    pub async fn get_proof_request_details(
+        &self,
+        request_id: B256,
+        timeout: Option<Duration>,
+    ) -> Result<GetProofRequestDetailsResponse> {
+        let res = self
+            .with_retry_timeout(
+                || async {
+                    let mut rpc = self.prover_network_client().await?;
+                    Ok(rpc
+                        .get_proof_request_details(GetProofRequestDetailsRequest {
+                            request_id: request_id.to_vec(),
+                        })
+                        .await?
+                        .into_inner())
+                },
+                timeout.unwrap_or(DEFAULT_RETRY_TIMEOUT),
+                "getting proof request details",
+            )
+            .await?;
+
+        Ok(res)
     }
 
     /// Creates a proof request with the given verifying key hash and stdin.
