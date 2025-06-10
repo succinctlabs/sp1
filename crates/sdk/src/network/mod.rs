@@ -18,7 +18,10 @@ pub mod tee;
 
 pub mod utils;
 
-pub use crate::network::{client::NetworkClient, proto::network::FulfillmentStrategy};
+pub use crate::network::{
+    client::NetworkClient,
+    proto::network::{FulfillmentStrategy, ProofRequest},
+};
 pub use alloy_primitives::B256;
 pub use error::*;
 
