@@ -287,6 +287,7 @@ impl NetworkProver {
         auctioneer: Address,
         executor: Address,
         verifier: Address,
+        public_values_hash: Option<Vec<u8>>,
     ) -> Result<B256> {
         // Get the timeout.
         let timeout_secs = timeout.map_or(DEFAULT_TIMEOUT_SECS, |dur| dur.as_secs());
@@ -303,6 +304,10 @@ impl NetworkProver {
         if strategy == FulfillmentStrategy::Auction {
             tracing::info!("├─ Minimum auction period: {:?}", min_auction_period);
             tracing::info!("├─ Whitelist: {:?}", whitelist);
+        }
+
+        if let Some(ref hash) = public_values_hash {
+            tracing::info!("├─ Public values hash: 0x{}", hex::encode(hash));
         }
 
         // Request the proof.
@@ -322,6 +327,7 @@ impl NetworkProver {
                 auctioneer,
                 executor,
                 verifier,
+                public_values_hash,
             )
             .await?;
 
@@ -398,7 +404,7 @@ impl NetworkProver {
         verifier: Address,
     ) -> Result<B256> {
         let vk_hash = self.register_program(&pk.vk, &pk.elf).await?;
-        let (cycle_limit, gas_limit) =
+        let (cycle_limit, gas_limit, public_values_hash) =
             self.get_execution_limits(cycle_limit, gas_limit, &pk.elf, stdin, skip_simulation)?;
         self.request_proof(
             vk_hash,
@@ -413,6 +419,7 @@ impl NetworkProver {
             auctioneer,
             executor,
             verifier,
+            public_values_hash,
         )
         .await
     }
@@ -506,7 +513,7 @@ impl NetworkProver {
         elf: &[u8],
         stdin: &SP1Stdin,
         skip_simulation: bool,
-    ) -> Result<(u64, u64)> {
+    ) -> Result<(u64, u64, Option<Vec<u8>>)> {
         let cycle_limit_value = if let Some(cycles) = cycle_limit {
             cycles
         } else if skip_simulation {
@@ -527,7 +534,7 @@ impl NetworkProver {
 
         // If both limits were explicitly provided or skip_simulation is true, return immediately.
         if (cycle_limit.is_some() && gas_limit.is_some()) || skip_simulation {
-            return Ok((cycle_limit_value, gas_limit_value));
+            return Ok((cycle_limit_value, gas_limit_value, None));
         }
 
         // One of the limits were not provided and simulation is not skipped, so simulate to get one
@@ -538,7 +545,7 @@ impl NetworkProver {
             .execute(elf, stdin, SP1Context::builder().calculate_gas(true).build())
             .map_err(|_| Error::SimulationFailed)?;
 
-        let (_, _, report) = execute_result;
+        let (_, committed_value_digest, report) = execute_result;
 
         // Use simulated values for the ones that are not explicitly provided.
         let final_cycle_limit = if cycle_limit.is_none() {
@@ -552,7 +559,9 @@ impl NetworkProver {
             gas_limit_value
         };
 
-        Ok((final_cycle_limit, final_gas_limit))
+        let public_values_hash = Some(committed_value_digest.to_vec());
+
+        Ok((final_cycle_limit, final_gas_limit, public_values_hash))
     }
 }
 

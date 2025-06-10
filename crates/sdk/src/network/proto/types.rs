@@ -62,6 +62,9 @@ pub struct RequestProofRequestBody {
     /// The verifier address.
     #[prost(bytes = "vec", tag = "15")]
     pub verifier: ::prost::alloc::vec::Vec<u8>,
+    /// The optional public values hash.
+    #[prost(bytes = "vec", optional, tag = "16")]
+    pub public_values_hash: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -4261,6 +4264,33 @@ pub struct SetDelegationRequestBody {
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct SetDelegationResponse {}
+#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetDelegationRequest {
+    /// The prover address to get the delegation for.
+    #[prost(bytes = "vec", tag = "1")]
+    pub prover: ::prost::alloc::vec::Vec<u8>,
+}
+#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Delegation {
+    /// The owner of the delegation.
+    #[prost(bytes = "vec", tag = "1")]
+    pub owner: ::prost::alloc::vec::Vec<u8>,
+    /// The delegate address.
+    #[prost(bytes = "vec", tag = "2")]
+    pub delegate: ::prost::alloc::vec::Vec<u8>,
+    /// The date the delegation was created.
+    #[prost(uint64, tag = "3")]
+    pub created_at: u64,
+}
+#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetDelegationResponse {
+    /// The delegation.
+    #[prost(message, optional, tag = "1")]
+    pub delegation: ::core::option::Option<Delegation>,
+}
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetFilteredWithdrawalReceiptsRequest {

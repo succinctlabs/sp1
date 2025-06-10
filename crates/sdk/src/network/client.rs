@@ -353,6 +353,7 @@ impl NetworkClient {
         auctioneer: Address,
         executor: Address,
         verifier: Address,
+        public_values_hash: Option<Vec<u8>>,
     ) -> Result<RequestProofResponse> {
         // Calculate the deadline.
         let start = SystemTime::now();
@@ -385,6 +386,7 @@ impl NetworkClient {
                     auctioneer: auctioneer.to_vec(),
                     executor: executor.to_vec(),
                     verifier: verifier.to_vec(),
+                    public_values_hash: public_values_hash.clone(),
                 };
                 let request_response = rpc
                     .request_proof(RequestProofRequest {
