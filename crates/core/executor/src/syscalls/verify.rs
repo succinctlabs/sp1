@@ -31,7 +31,6 @@ impl Syscall for VerifySyscall {
                 panic!("Not enough proofs were written to the runtime.");
             }
             let (proof, proof_vk) = &rt.state.proof_stream[proof_index].clone();
-            rt.state.proof_stream_ptr += 1;
 
             let vkey_bytes: [u32; 8] = vkey.try_into().unwrap();
             let pv_digest_bytes: [u32; 8] = pv_digest.try_into().unwrap();
@@ -45,7 +44,10 @@ impl Syscall for VerifySyscall {
                             e
                         )
                     });
-            } else if rt.state.proof_stream_ptr == 1 {
+                // Only increment the proof stream pointer if verification actually happened
+                rt.state.proof_stream_ptr += 1;
+            } else {
+                // Only log but don't increment proof_stream_ptr when not verifying
                 tracing::info!("Not verifying sub proof during runtime");
             }
         }
