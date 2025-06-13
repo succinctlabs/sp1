@@ -15,7 +15,7 @@ use crate::{
             ProofMode, ProofRequest,
         },
         Error, DEFAULT_CYCLE_LIMIT, DEFAULT_GAS_LIMIT, DEFAULT_NETWORK_RPC_URL,
-        DEFAULT_TIMEOUT_SECS,
+        DEFAULT_TIMEOUT_SECS, PRIVATE_EXPLORER_URL, PRIVATE_NETWORK_RPC_URL, PUBLIC_EXPLORER_URL,
     },
     prover::verify_proof,
     ProofFromNetwork, Prover, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey,
@@ -339,11 +339,14 @@ impl NetworkProver {
         let request_id = B256::from_slice(&response.body.unwrap().request_id);
         tracing::info!("Created request {} in transaction {:?}", request_id, tx_hash);
 
-        if self.client.rpc_url == DEFAULT_NETWORK_RPC_URL {
-            tracing::info!(
-                "View request status at: https://network.succinct.xyz/request/{}",
-                request_id
-            );
+        let explorer = match self.client.rpc_url.trim_end_matches('/') {
+            DEFAULT_NETWORK_RPC_URL => Some(PUBLIC_EXPLORER_URL),
+            PRIVATE_NETWORK_RPC_URL => Some(PRIVATE_EXPLORER_URL),
+            _ => None,
+        };
+
+        if let Some(base_url) = explorer {
+            tracing::info!("View request status at: {}/request/{}", base_url, request_id);
         }
 
         Ok(request_id)
