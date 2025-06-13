@@ -15,7 +15,7 @@ pub mod client;
 ///
 /// Since this doesn't necessarily correspond to new versions of SP1,
 /// we opt to keep track of it manually here.
-pub const SP1_TEE_VERSION: u32 = 1;
+pub const SP1_TEE_VERSION: u32 = 2;
 
 /// This method will get the list of signers for the TEE server, trusting the server to honestly
 /// report the list of signers.
