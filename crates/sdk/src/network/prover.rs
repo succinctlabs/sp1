@@ -17,8 +17,9 @@ use crate::{
             ExecutionStatus, FulfillmentStatus, FulfillmentStrategy, GetProofRequestStatusResponse,
             ProofMode,
         },
-        Error, DEFAULT_AUCTIONEER_ADDRESS, DEFAULT_CYCLE_LIMIT, DEFAULT_EXECUTOR_ADDRESS,
-        DEFAULT_GAS_LIMIT, DEFAULT_NETWORK_RPC_URL, DEFAULT_TIMEOUT_SECS, DEFAULT_VERIFIER_ADDRESS,
+        Error, DEFAULT_AUCTIONEER_ADDRESS, DEFAULT_BASE_FEE, DEFAULT_CYCLE_LIMIT,
+        DEFAULT_EXECUTOR_ADDRESS, DEFAULT_GAS_LIMIT, DEFAULT_MAX_PRICE_PER_PGU,
+        DEFAULT_NETWORK_RPC_URL, DEFAULT_TIMEOUT_SECS, DEFAULT_VERIFIER_ADDRESS,
     },
     prover::verify_proof,
     ProofFromNetwork, Prover, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey,
@@ -148,6 +149,8 @@ impl NetworkProver {
             auctioneer: Address::from_str(DEFAULT_AUCTIONEER_ADDRESS).unwrap(),
             executor: Address::from_str(DEFAULT_EXECUTOR_ADDRESS).unwrap(),
             verifier: Address::from_str(DEFAULT_VERIFIER_ADDRESS).unwrap(),
+            base_fee: None,
+            max_price_per_pgu: None,
         }
     }
 
@@ -272,6 +275,9 @@ impl NetworkProver {
     /// * `auctioneer`: The auctioneer address for the proof request.
     /// * `executor`: The executor address for the proof request.
     /// * `verifier`: The verifier address for the proof request.
+    /// * `public_values_hash`: The hash of the public values to use for the proof.
+    /// * `base_fee`: The base fee to use for the proof request.
+    /// * `max_price_per_pgu`: The maximum price per PGU to use for the proof request.
     #[allow(clippy::too_many_arguments)]
     pub(crate) async fn request_proof(
         &self,
@@ -288,6 +294,8 @@ impl NetworkProver {
         executor: Address,
         verifier: Address,
         public_values_hash: Option<Vec<u8>>,
+        base_fee: u64,
+        max_price_per_pgu: u64,
     ) -> Result<B256> {
         // Get the timeout.
         let timeout_secs = timeout.map_or(DEFAULT_TIMEOUT_SECS, |dur| dur.as_secs());
@@ -304,6 +312,8 @@ impl NetworkProver {
         if strategy == FulfillmentStrategy::Auction {
             tracing::info!("├─ Minimum auction period: {:?}", min_auction_period);
             tracing::info!("├─ Whitelist: {:?}", whitelist);
+            tracing::info!("├─ Base fee: {}", base_fee);
+            tracing::info!("├─ Max price per PGU: {}", max_price_per_pgu);
         }
 
         if let Some(ref hash) = public_values_hash {
@@ -328,6 +338,8 @@ impl NetworkProver {
                 executor,
                 verifier,
                 public_values_hash,
+                base_fee,
+                max_price_per_pgu,
             )
             .await?;
 
@@ -338,7 +350,7 @@ impl NetworkProver {
 
         if self.client.rpc_url == DEFAULT_NETWORK_RPC_URL {
             tracing::info!(
-                "View request status at: https://network.succinct.xyz/request/{}",
+                "View request status at: https://explorer.succinct.xyz/request/{}",
                 request_id
             );
         }
@@ -402,10 +414,14 @@ impl NetworkProver {
         auctioneer: Address,
         executor: Address,
         verifier: Address,
+        base_fee: Option<u64>,
+        max_price_per_pgu: Option<u64>,
     ) -> Result<B256> {
         let vk_hash = self.register_program(&pk.vk, &pk.elf).await?;
         let (cycle_limit, gas_limit, public_values_hash) =
             self.get_execution_limits(cycle_limit, gas_limit, &pk.elf, stdin, skip_simulation)?;
+        let (base_fee, max_price_per_pgu) =
+            Self::get_request_price_parameters(base_fee, max_price_per_pgu);
         self.request_proof(
             vk_hash,
             stdin,
@@ -420,6 +436,8 @@ impl NetworkProver {
             executor,
             verifier,
             public_values_hash,
+            base_fee,
+            max_price_per_pgu,
         )
         .await
     }
@@ -441,6 +459,8 @@ impl NetworkProver {
         auctioneer: Address,
         executor: Address,
         verifier: Address,
+        base_fee: Option<u64>,
+        max_price_per_pgu: Option<u64>,
     ) -> Result<SP1ProofWithPublicValues> {
         let request_id = self
             .request_proof_impl(
@@ -457,6 +477,8 @@ impl NetworkProver {
                 auctioneer,
                 executor,
                 verifier,
+                base_fee,
+                max_price_per_pgu,
             )
             .await?;
 
@@ -563,6 +585,26 @@ impl NetworkProver {
 
         Ok((final_cycle_limit, final_gas_limit, public_values_hash))
     }
+
+    /// The base fee and max price per PGU are determined according to the following priority:
+    ///
+    /// 1. If either of the values are explicitly set by the requester, use the specified value.
+    /// 2. Otherwise, use default values ([`DEFAULT_BASE_FEE`] and [`DEFAULT_MAX_PRICE_PER_PGU`]).
+    fn get_request_price_parameters(
+        base_fee: Option<u64>,
+        max_price_per_pgu: Option<u64>,
+    ) -> (u64, u64) {
+        let base_fee_value =
+            if let Some(base_fee) = base_fee { base_fee } else { DEFAULT_BASE_FEE };
+
+        let max_price_per_pgu_value = if let Some(max_price_per_pgu) = max_price_per_pgu {
+            max_price_per_pgu
+        } else {
+            DEFAULT_MAX_PRICE_PER_PGU
+        };
+
+        (base_fee_value, max_price_per_pgu_value)
+    }
 }
 
 impl Prover<CpuProverComponents> for NetworkProver {
@@ -595,6 +637,8 @@ impl Prover<CpuProverComponents> for NetworkProver {
             Address::from_str(DEFAULT_AUCTIONEER_ADDRESS).unwrap(),
             Address::from_str(DEFAULT_EXECUTOR_ADDRESS).unwrap(),
             Address::from_str(DEFAULT_VERIFIER_ADDRESS).unwrap(),
+            None,
+            None,
         ))
     }
 

@@ -354,6 +354,8 @@ impl NetworkClient {
         executor: Address,
         verifier: Address,
         public_values_hash: Option<Vec<u8>>,
+        base_fee: u64,
+        max_price_per_pgu: u64,
     ) -> Result<RequestProofResponse> {
         // Calculate the deadline.
         let start = SystemTime::now();
@@ -387,6 +389,8 @@ impl NetworkClient {
                     executor: executor.to_vec(),
                     verifier: verifier.to_vec(),
                     public_values_hash: public_values_hash.clone(),
+                    base_fee: base_fee.to_string(),
+                    max_price_per_pgu: max_price_per_pgu.to_string(),
                 };
                 let request_response = rpc
                     .request_proof(RequestProofRequest {
