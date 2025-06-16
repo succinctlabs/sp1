@@ -33,6 +33,7 @@ pub(crate) const DEFAULT_TEE_SERVER_URL: &str = "https://tee.production.succinct
 pub(crate) const DEFAULT_TIMEOUT_SECS: u64 = 14400;
 pub(crate) const DEFAULT_CYCLE_LIMIT: u64 = 100_000_000;
 pub(crate) const DEFAULT_GAS_LIMIT: u64 = 1_000_000_000;
+
 pub(crate) const DEFAULT_BASE_FEE: u64 = 100_000_000_000_000_000u64;
 pub(crate) const DEFAULT_MAX_PRICE_PER_PGU: u64 = 1_000_000_000_000_000_000u64;
 

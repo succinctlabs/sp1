@@ -38,7 +38,6 @@ pub struct NetworkProveBuilder<'a> {
     pub(crate) auctioneer: Address,
     pub(crate) executor: Address,
     pub(crate) verifier: Address,
-    pub(crate) base_fee: Option<u64>,
     pub(crate) max_price_per_pgu: Option<u64>,
 }
 
@@ -441,37 +440,6 @@ impl NetworkProveBuilder<'_> {
         self
     }
 
-    /// Sets the base fee for the proof request.
-    ///
-    /// # Details
-    /// The base fee covers fixed costs that apply to any proof regardless of size, such as setup
-    /// overhead, bid preparation, and baseline infrastructure costs. If the base fee is not
-    /// provided, a default value will be used.
-    ///
-    /// The base fee ensures provers are compensated for fixed costs before variable execution costs
-    /// are considered, making participation economically viable even for small requests.
-    ///
-    /// # Example
-    /// ```rust,no_run
-    /// use sp1_sdk::{Prover, ProverClient, SP1Stdin};
-    ///
-    /// let elf = &[1, 2, 3];
-    /// let stdin = SP1Stdin::new();
-    ///
-    /// let client = ProverClient::builder().network().build();
-    /// let (pk, vk) = client.setup(elf);
-    /// let proof = client
-    ///     .prove(&pk, &stdin)
-    ///     .base_fee(100_000_000_000_000_000u64) // Set 0.1 PROVE (18 decimals).
-    ///     .run()
-    ///     .unwrap();
-    /// ```
-    #[must_use]
-    pub fn base_fee(mut self, base_fee: u64) -> Self {
-        self.base_fee = Some(base_fee);
-        self
-    }
-
     /// Sets the max price per PGU for the proof request.
     ///
     /// # Details
@@ -557,7 +525,6 @@ impl NetworkProveBuilder<'_> {
                 self.auctioneer,
                 self.executor,
                 self.verifier,
-                self.base_fee,
                 self.max_price_per_pgu,
             )
             .await
@@ -627,7 +594,6 @@ impl NetworkProveBuilder<'_> {
                 self.auctioneer,
                 self.executor,
                 self.verifier,
-                self.base_fee,
                 self.max_price_per_pgu,
             )
             .await

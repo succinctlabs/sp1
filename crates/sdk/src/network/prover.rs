@@ -151,7 +151,6 @@ impl NetworkProver {
             auctioneer: Address::from_str(DEFAULT_AUCTIONEER_ADDRESS).unwrap(),
             executor: Address::from_str(DEFAULT_EXECUTOR_ADDRESS).unwrap(),
             verifier: Address::from_str(DEFAULT_VERIFIER_ADDRESS).unwrap(),
-            base_fee: None,
             max_price_per_pgu: None,
         }
     }
@@ -328,23 +327,29 @@ impl NetworkProver {
 
         // Log the request.
         tracing::info!("Requesting proof:");
-        tracing::info!("├─ Cycle limit: {}", cycle_limit);
-        tracing::info!("├─ Gas limit: {}", gas_limit);
-        tracing::info!("├─ Proof mode: {:?}", mode);
         tracing::info!("├─ Strategy: {:?}", strategy);
+        tracing::info!("├─ Proof mode: {:?}", mode);
+        tracing::info!("├─ Circuit version: {}", SP1_CIRCUIT_VERSION);
         tracing::info!("├─ Timeout: {} seconds", timeout_secs);
-        tracing::info!("└─ Circuit version: {}", SP1_CIRCUIT_VERSION);
-
-        if strategy == FulfillmentStrategy::Auction {
-            tracing::info!("├─ Minimum auction period: {:?}", min_auction_period);
-            tracing::info!("├─ Whitelist: {:?}", whitelist);
-            tracing::info!("├─ Base fee: {}", base_fee);
-            tracing::info!("├─ Max price per PGU: {}", max_price_per_pgu);
-        }
-
         if let Some(ref hash) = public_values_hash {
             tracing::info!("├─ Public values hash: 0x{}", hex::encode(hash));
         }
+        if strategy == FulfillmentStrategy::Auction {
+            tracing::info!(
+                "├─ Base fee: {} ({} $PROVE)",
+                base_fee,
+                Self::format_prove_amount(base_fee)
+            );
+            tracing::info!(
+                "├─ Max price per PGU: {} ({} $PROVE)",
+                max_price_per_pgu,
+                Self::format_prove_amount(max_price_per_pgu)
+            );
+            tracing::info!("├─ Minimum auction period: {:?} seconds", min_auction_period);
+            tracing::info!("├─ Prover Whitelist: {:?}", whitelist);
+        }
+        tracing::info!("├─ Cycle limit: {} cycles", cycle_limit);
+        tracing::info!("└─ Gas limit: {} PGUs", gas_limit);
 
         // Request the proof.
         let response = self
@@ -443,14 +448,12 @@ impl NetworkProver {
         auctioneer: Address,
         executor: Address,
         verifier: Address,
-        base_fee: Option<u64>,
         max_price_per_pgu: Option<u64>,
     ) -> Result<B256> {
         let vk_hash = self.register_program(&pk.vk, &pk.elf).await?;
         let (cycle_limit, gas_limit, public_values_hash) =
             self.get_execution_limits(cycle_limit, gas_limit, &pk.elf, stdin, skip_simulation)?;
-        let (base_fee, max_price_per_pgu) =
-            Self::get_request_price_parameters(base_fee, max_price_per_pgu);
+        let (base_fee, max_price_per_pgu) = Self::get_request_price_parameters(max_price_per_pgu);
         self.request_proof(
             vk_hash,
             stdin,
@@ -488,7 +491,6 @@ impl NetworkProver {
         auctioneer: Address,
         executor: Address,
         verifier: Address,
-        base_fee: Option<u64>,
         max_price_per_pgu: Option<u64>,
     ) -> Result<SP1ProofWithPublicValues> {
         let request_id = self
@@ -506,7 +508,6 @@ impl NetworkProver {
                 auctioneer,
                 executor,
                 verifier,
-                base_fee,
                 max_price_per_pgu,
             )
             .await?;
@@ -615,16 +616,13 @@ impl NetworkProver {
         Ok((final_cycle_limit, final_gas_limit, public_values_hash))
     }
 
-    /// The base fee and max price per PGU are determined according to the following priority:
+    /// The max price per PGU is determined according to the following priority:
     ///
-    /// 1. If either of the values are explicitly set by the requester, use the specified value.
-    /// 2. Otherwise, use default values ([`DEFAULT_BASE_FEE`] and [`DEFAULT_MAX_PRICE_PER_PGU`]).
-    fn get_request_price_parameters(
-        base_fee: Option<u64>,
-        max_price_per_pgu: Option<u64>,
-    ) -> (u64, u64) {
-        let base_fee_value =
-            if let Some(base_fee) = base_fee { base_fee } else { DEFAULT_BASE_FEE };
+    /// 1. If the value is explicitly set by the requester, use the specified value.
+    /// 2. Otherwise, use the default value ([`DEFAULT_MAX_PRICE_PER_PGU`]).
+    fn get_request_price_parameters(max_price_per_pgu: Option<u64>) -> (u64, u64) {
+        // TODO: Eventually base fee will differ based on proof mode and be set by the network.
+        let base_fee_value = DEFAULT_BASE_FEE;
 
         let max_price_per_pgu_value = if let Some(max_price_per_pgu) = max_price_per_pgu {
             max_price_per_pgu
@@ -633,6 +631,14 @@ impl NetworkProver {
         };
 
         (base_fee_value, max_price_per_pgu_value)
+    }
+
+    /// Formats a PROVE amount (with 18 decimals) as a string with 4 decimal places.
+    fn format_prove_amount(amount: u64) -> String {
+        let whole = amount / 1_000_000_000_000_000_000;
+        let remainder = amount % 1_000_000_000_000_000_000;
+        let frac = remainder / 100_000_000_000_000;
+        format!("{whole}.{frac:04}")
     }
 }
 
@@ -666,7 +672,6 @@ impl Prover<CpuProverComponents> for NetworkProver {
             Address::from_str(DEFAULT_AUCTIONEER_ADDRESS).unwrap(),
             Address::from_str(DEFAULT_EXECUTOR_ADDRESS).unwrap(),
             Address::from_str(DEFAULT_VERIFIER_ADDRESS).unwrap(),
-            None,
             None,
         ))
     }
