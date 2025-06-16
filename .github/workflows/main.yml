@@ -54,7 +54,7 @@ jobs:
           command: test
           args: --release -p sp1-sdk --features native-gnark -- test_e2e_groth16_plonk --nocapture
         env:
-          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
           RUST_BACKTRACE: 1
 
   groth16-docker:
@@ -94,7 +94,7 @@ jobs:
           command: test
           args: --release -p sp1-sdk -- test_e2e_prove_groth16 --nocapture
         env:
-          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
           RUST_BACKTRACE: 1
 
   plonk:
@@ -134,7 +134,7 @@ jobs:
           command: test
           args: --release -p sp1-sdk --features native-gnark -- test_e2e_prove_plonk --nocapture
         env:
-          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
           RUST_BACKTRACE: 1
 
   plonk-docker:
@@ -174,7 +174,7 @@ jobs:
           command: test
           args: --release -p sp1-sdk -- test_e2e_prove_plonk --nocapture
         env:
-          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
           RUST_BACKTRACE: 1
 
   check-branch:

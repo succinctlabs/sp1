@@ -61,7 +61,7 @@ jobs:
           command: test
           args: --release --features native-gnark --workspace --exclude sp1-verifier
         env:
-          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
           RUST_BACKTRACE: 1
           SP1_DEV: 1
 
@@ -105,7 +105,7 @@ jobs:
           command: test
           args: --release --features native-gnark --workspace --exclude sp1-verifier
         env:
-          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
           RUST_BACKTRACE: 1
           SP1_DEV: 1
 
@@ -149,7 +149,7 @@ jobs:
           command: test
           args: --release --package sp1-verifier -F ark
         env:
-          RUSTFLAGS: -Copt-level=3 -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
+          RUSTFLAGS: -Copt-level=3 -Coverflow-checks=y -Cdebuginfo=0
           RUST_BACKTRACE: 1
 
   lint:

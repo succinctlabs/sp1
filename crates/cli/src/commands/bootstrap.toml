@@ -1,5 +1,4 @@
 [build]
-target = ["riscv32im-succinct-zkvm-elf"]
 extended = true
 tools = ["cargo", "cargo-clippy", "clippy", "rustfmt"]
 configure-args = []

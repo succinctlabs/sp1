@@ -24,7 +24,10 @@ use alloy_sol_types::eip712_domain;
 pub use error::*;
 use std::sync::LazyLock;
 
-pub(crate) const DEFAULT_NETWORK_RPC_URL: &str = "https://rpc.production.succinct.xyz/";
+pub(crate) const PRIVATE_NETWORK_RPC_URL: &str = "https://rpc.private.succinct.xyz";
+pub(crate) const PRIVATE_EXPLORER_URL: &str = "https://explorer-private.succinct.xyz";
+pub(crate) const PUBLIC_EXPLORER_URL: &str = "https://explorer.succinct.xyz";
+pub(crate) const DEFAULT_NETWORK_RPC_URL: &str = "https://rpc.production.succinct.xyz";
 pub(crate) const DEFAULT_TEE_SERVER_URL: &str = "https://tee.production.succinct.xyz";
 
 pub(crate) const DEFAULT_TIMEOUT_SECS: u64 = 14400;

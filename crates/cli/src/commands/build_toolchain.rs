@@ -60,11 +60,11 @@ impl BuildToolchainCmd {
             }
         };
 
-        // Install our config.toml.
-        let config_toml = include_str!("config.toml");
-        let config_file = rust_dir.join("config.toml");
-        std::fs::write(&config_file, config_toml)
-            .with_context(|| format!("while writing configuration to {:?}", config_file))?;
+        // Install our bootstrap.toml.
+        let bootstrap_toml = include_str!("bootstrap.toml");
+        let bootstrap_file = rust_dir.join("bootstrap.toml");
+        std::fs::write(&bootstrap_file, bootstrap_toml)
+            .with_context(|| format!("while writing configuration to {:?}", bootstrap_file))?;
 
         // Work around target sanity check added in
         // rust-lang/rust@09c076810cb7649e5817f316215010d49e78e8d7.
@@ -78,7 +78,16 @@ impl BuildToolchainCmd {
         Command::new("python3")
             .env("RUST_TARGET_PATH", &temp_dir)
             .env("CARGO_TARGET_RISCV32IM_SUCCINCT_ZKVM_ELF_RUSTFLAGS", "-Cpasses=lower-atomic")
-            .args(["x.py", "build", "--stage", "2", "compiler/rustc", "library"])
+            .args([
+                "x.py",
+                "build",
+                "--stage",
+                "2",
+                "compiler/rustc",
+                "library",
+                "--target",
+                &format!("riscv32im-succinct-zkvm-elf,{}", get_target()),
+            ])
             .current_dir(&rust_dir)
             .run()?;
 

@@ -15,16 +15,18 @@ use crate::{
         client::NetworkClient,
         proto::types::{
             ExecutionStatus, FulfillmentStatus, FulfillmentStrategy, GetProofRequestStatusResponse,
-            ProofMode,
+            ProofMode, ProofRequest,
         },
         Error, DEFAULT_AUCTIONEER_ADDRESS, DEFAULT_BASE_FEE, DEFAULT_CYCLE_LIMIT,
         DEFAULT_EXECUTOR_ADDRESS, DEFAULT_GAS_LIMIT, DEFAULT_MAX_PRICE_PER_PGU,
         DEFAULT_NETWORK_RPC_URL, DEFAULT_TIMEOUT_SECS, DEFAULT_VERIFIER_ADDRESS,
+        PRIVATE_EXPLORER_URL, PRIVATE_NETWORK_RPC_URL, PUBLIC_EXPLORER_URL,
     },
     prover::verify_proof,
     ProofFromNetwork, Prover, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey,
     SP1VerifyingKey,
 };
+
 use alloy_primitives::{Address, B256, U256};
 use anyhow::{Context, Result};
 use sp1_core_executor::{SP1Context, SP1ContextBuilder};
@@ -202,6 +204,30 @@ impl NetworkProver {
         Ok((status, maybe_proof))
     }
 
+    /// Gets the proof request details, if available.
+    ///
+    /// The [`ProofRequest`] type contains useful information about the request, like the cycle
+    /// count, or the gas used.
+    ///
+    /// # Details
+    /// * `request_id`: The request ID to get the status of.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{network::B256, ProverClient};
+    ///
+    /// tokio_test::block_on(async {
+    ///     let request_id = B256::from_slice(&vec![1u8; 32]);
+    ///     let client = ProverClient::builder().network().build();
+    ///     let request = client.get_proof_request(request_id).await.unwrap();
+    /// })
+    /// ```
+    pub async fn get_proof_request(&self, request_id: B256) -> Result<Option<ProofRequest>> {
+        let res = self.client.get_proof_request_details(request_id, None).await?;
+
+        Ok(res.request)
+    }
+
     /// Gets the status of a proof request with handling for timeouts and unfulfillable requests.
     ///
     /// Returns the proof if it is fulfilled and the fulfillment status. Handles statuses indicating
@@ -348,11 +374,14 @@ impl NetworkProver {
         let request_id = B256::from_slice(&response.body.unwrap().request_id);
         tracing::info!("Created request {} in transaction {:?}", request_id, tx_hash);
 
-        if self.client.rpc_url == DEFAULT_NETWORK_RPC_URL {
-            tracing::info!(
-                "View request status at: https://explorer.succinct.xyz/request/{}",
-                request_id
-            );
+        let explorer = match self.client.rpc_url.trim_end_matches('/') {
+            DEFAULT_NETWORK_RPC_URL => Some(PUBLIC_EXPLORER_URL),
+            PRIVATE_NETWORK_RPC_URL => Some(PRIVATE_EXPLORER_URL),
+            _ => None,
+        };
+
+        if let Some(base_url) = explorer {
+            tracing::info!("View request status at: {}/request/{}", base_url, request_id);
         }
 
         Ok(request_id)
