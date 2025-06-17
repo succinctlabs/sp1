@@ -57,7 +57,23 @@ impl EnvProver {
             },
             "cuda" => {
                 check_release_build();
-                Box::new(CudaProver::new(SP1Prover::new(), MoongateServer::default()))
+                let visible_device_index: Option<u64> = match env::var("SP1_GPU_ID") {
+                    Ok(visible_device_index) => {
+                        let visible_device_index: u64 = visible_device_index.parse().unwrap_or_else(|_| panic!("invalid GPU index value: {visible_device_index}"));
+                        Some(visible_device_index)
+                    },
+                    Err(_) => None,
+                };
+
+                let port : Option<u64> = match env::var("SP1_PORT") {
+                    Ok(port) => {
+                        let port: u64 = port.parse().unwrap_or_else(|_| panic!("invalid device port: {port}"));
+                        Some(port)
+                    },
+                    Err(_) => None,
+                };
+
+                Box::new(CudaProver::new(SP1Prover::new(), MoongateServer::new_local_server(visible_device_index, port)))
             }
             "network" => {
                 #[cfg(not(feature = "network"))]
