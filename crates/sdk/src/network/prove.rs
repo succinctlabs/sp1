@@ -391,8 +391,8 @@ impl NetworkProveBuilder<'_> {
     /// let builder = client.prove(&pk, &stdin).auctioneer(auctioneer).run();
     /// ```
     #[must_use]
-    pub fn auctioneer(mut self, auctioneer: Option<Address>) -> Self {
-        self.auctioneer = auctioneer;
+    pub fn auctioneer(mut self, auctioneer: Address) -> Self {
+        self.auctioneer = Some(auctioneer);
         self
     }
 
@@ -417,8 +417,8 @@ impl NetworkProveBuilder<'_> {
     /// let builder = client.prove(&pk, &stdin).executor(executor).run();
     /// ```
     #[must_use]
-    pub fn executor(mut self, executor: Option<Address>) -> Self {
-        self.executor = executor;
+    pub fn executor(mut self, executor: Address) -> Self {
+        self.executor = Some(executor);
         self
     }
 
@@ -435,8 +435,8 @@ impl NetworkProveBuilder<'_> {
     /// use std::str::FromStr;
     /// ```
     #[must_use]
-    pub fn verifier(mut self, verifier: Option<Address>) -> Self {
-        self.verifier = verifier;
+    pub fn verifier(mut self, verifier: Address) -> Self {
+        self.verifier = Some(verifier);
         self
     }
 
