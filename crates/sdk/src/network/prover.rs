@@ -322,6 +322,23 @@ impl NetworkProver {
         base_fee: u64,
         max_price_per_pgu: u64,
     ) -> Result<B256> {
+        // Ensure the strategy is supported in the network.
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "sepolia")] {
+                if strategy != FulfillmentStrategy::Auction {
+                    return Err(anyhow::anyhow!(
+                        "Strategy not supported with \"sepolia\" feature. Use FulfillmentStrategy::Auction."
+                    ));
+                }
+            } else {
+                if strategy == FulfillmentStrategy::Auction {
+                    return Err(anyhow::anyhow!(
+                        "FulfillmentStrategy::Auction requires the \"sepolia\" feature."
+                    ));
+                }
+            }
+        }
+
         // Get the timeout.
         let timeout_secs = timeout.map_or(DEFAULT_TIMEOUT_SECS, |dur| dur.as_secs());
 
