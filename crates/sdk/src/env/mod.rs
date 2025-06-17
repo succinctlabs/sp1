@@ -40,8 +40,8 @@ impl EnvProver {
     ///   `network`.
     /// - `NETWORK_PRIVATE_KEY`: The private key to use for the network prover.
     /// - `NETWORK_RPC_URL`: The RPC URL to use for the network prover.
-    /// - `SP1_GPU_ID`: The GPU ID to associated with the moongate docker server.
-    /// - `SP1_PORT`: The host PORT to associated with the moongate docker server.
+    /// - `SP1_GPU_ID`: The GPU ID to associated with the moongate docker server. If you have two gpus like 0 and 1, can use to pass the gpu id as SP1_GPU_ID=0 or SP1_GPU_ID=1 ... .
+    /// - `SP1_PORT`: The host PORT to associated with the moongate docker server. Can be passed as SP1_PORT=3001 ... .
 
     #[must_use]
     pub fn new() -> Self {
