@@ -1,5 +1,5 @@
 [workspace.package]
-version = "5.0.0"
+version = "5.0.5"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/succinctlabs/sp1"
@@ -49,26 +49,26 @@ debug-assertions = true
 
 [workspace.dependencies]
 # sp1
-sp1-build = { path = "crates/build", version = "5.0.0" }
-sp1-cli = { path = "crates/cli", version = "5.0.0", default-features = false }
-sp1-core-machine = { path = "crates/core/machine", version = "5.0.0" }
-sp1-core-executor = { path = "crates/core/executor", version = "5.0.0" }
-sp1-curves = { path = "crates/curves", version = "5.0.0" }
-sp1-derive = { path = "crates/derive", version = "5.0.0" }
-sp1-eval = { path = "crates/eval", version = "5.0.0" }
-sp1-helper = { path = "crates/helper", version = "5.0.0", default-features = false }
-sp1-primitives = { path = "crates/primitives", version = "5.0.0" }
-sp1-prover = { path = "crates/prover", version = "5.0.0" }
-sp1-recursion-compiler = { path = "crates/recursion/compiler", version = "5.0.0" }
-sp1-recursion-core = { path = "crates/recursion/core", version = "5.0.0" }
-sp1-recursion-derive = { path = "crates/recursion/derive", version = "5.0.0", default-features = false }
-sp1-recursion-gnark-ffi = { path = "crates/recursion/gnark-ffi", version = "5.0.0", default-features = false }
-sp1-recursion-circuit = { path = "crates/recursion/circuit", version = "5.0.0", default-features = false }
-sp1-sdk = { path = "crates/sdk", version = "5.0.0" }
-sp1-cuda = { path = "crates/cuda", version = "5.0.0" }
-sp1-stark = { path = "crates/stark", version = "5.0.0" }
-sp1-lib = { path = "crates/zkvm/lib", version = "5.0.0", default-features = false }
-sp1-zkvm = { path = "crates/zkvm/entrypoint", version = "5.0.0", default-features = false }
+sp1-build = { path = "crates/build", version = "5.0.5" }
+sp1-cli = { path = "crates/cli", version = "5.0.5", default-features = false }
+sp1-core-machine = { path = "crates/core/machine", version = "5.0.5" }
+sp1-core-executor = { path = "crates/core/executor", version = "5.0.5" }
+sp1-curves = { path = "crates/curves", version = "5.0.5" }
+sp1-derive = { path = "crates/derive", version = "5.0.5" }
+sp1-eval = { path = "crates/eval", version = "5.0.5" }
+sp1-helper = { path = "crates/helper", version = "5.0.5", default-features = false }
+sp1-primitives = { path = "crates/primitives", version = "5.0.5" }
+sp1-prover = { path = "crates/prover", version = "5.0.5" }
+sp1-recursion-compiler = { path = "crates/recursion/compiler", version = "5.0.5" }
+sp1-recursion-core = { path = "crates/recursion/core", version = "5.0.5" }
+sp1-recursion-derive = { path = "crates/recursion/derive", version = "5.0.5", default-features = false }
+sp1-recursion-gnark-ffi = { path = "crates/recursion/gnark-ffi", version = "5.0.5", default-features = false }
+sp1-recursion-circuit = { path = "crates/recursion/circuit", version = "5.0.5", default-features = false }
+sp1-sdk = { path = "crates/sdk", version = "5.0.5" }
+sp1-cuda = { path = "crates/cuda", version = "5.0.5" }
+sp1-stark = { path = "crates/stark", version = "5.0.5" }
+sp1-lib = { path = "crates/zkvm/lib", version = "5.0.5", default-features = false }
+sp1-zkvm = { path = "crates/zkvm/entrypoint", version = "5.0.5", default-features = false }
 
 # For testing.
 test-artifacts = { path = "crates/test-artifacts" }
