@@ -165,6 +165,16 @@ pub fn words_to_bytes_be(words: &[u32; 8]) -> [u8; 32] {
     bytes
 }
 
+/// Utility method for converting 32 big-endian bytes back into eight u32 words.
+pub fn bytes_to_words_be(bytes: &[u8; 32]) -> [u32; 8] {
+    let mut words = [0u32; 8];
+    for i in 0..8 {
+        let chunk: [u8; 4] = bytes[i * 4..(i + 1) * 4].try_into().unwrap();
+        words[i] = u32::from_be_bytes(chunk);
+    }
+    words
+}
+
 pub trait MaybeTakeIterator<I: Iterator>: Iterator<Item = I::Item> {
     fn maybe_skip(self, bound: Option<usize>) -> RangedIterator<Self>
     where

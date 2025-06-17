@@ -18,17 +18,22 @@ pub mod tee;
 
 pub mod utils;
 
-pub use crate::network::{
-    client::NetworkClient,
-    proto::network::{FulfillmentStrategy, ProofRequest},
-};
-pub use alloy_primitives::B256;
+pub use crate::network::{client::NetworkClient, proto::types::FulfillmentStrategy};
+pub use alloy_primitives::{Address, B256};
 pub use error::*;
+
+cfg_if::cfg_if! {
+    if #[cfg(feature = "sepolia")] {
+        pub(crate) const PUBLIC_EXPLORER_URL: &str = "https://explorer.sepolia.succinct.xyz";
+        pub(crate) const DEFAULT_NETWORK_RPC_URL: &str = "https://rpc.sepolia.succinct.xyz";
+    } else {
+        pub(crate) const PUBLIC_EXPLORER_URL: &str = "https://explorer.succinct.xyz";
+        pub(crate) const DEFAULT_NETWORK_RPC_URL: &str = "https://rpc.production.succinct.xyz";
+    }
+}
 
 pub(crate) const PRIVATE_NETWORK_RPC_URL: &str = "https://rpc.private.succinct.xyz";
 pub(crate) const PRIVATE_EXPLORER_URL: &str = "https://explorer-private.succinct.xyz";
-pub(crate) const PUBLIC_EXPLORER_URL: &str = "https://explorer.succinct.xyz";
-pub(crate) const DEFAULT_NETWORK_RPC_URL: &str = "https://rpc.production.succinct.xyz";
 pub(crate) const DEFAULT_TEE_SERVER_URL: &str = "https://tee.production.succinct.xyz";
 
 pub(crate) const DEFAULT_TIMEOUT_SECS: u64 = 14400;
