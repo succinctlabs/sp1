@@ -2,7 +2,7 @@
     "editor.inlineSuggest.enabled": true,
     "[rust]": {
         "editor.defaultFormatter": "rust-lang.rust-analyzer",
-        "editor.formatOnSave": false,
+        "editor.formatOnSave": true,
         "editor.hover.enabled": true
     },
     "editor.rulers": [
@@ -21,8 +21,8 @@
     ],
     "rust-analyzer.linkedProjects": [
         "Cargo.toml",
-        // "patch-testing/Cargo.toml",
-        // "patch-testing/rustcrypto-bigint/program/Cargo.toml",
+        "patch-testing/Cargo.toml",
+        "patch-testing/rustcrypto-bigint/program/Cargo.toml",
         // // Examples.
         // "examples/chess/program/Cargo.toml",
         // "examples/chess/script/Cargo.toml",
