@@ -130,6 +130,12 @@ pub enum MoongateServer {
     Local { visible_device_index: Option<u64>, port: Option<u64> },
 }
 
+impl MoongateServer {
+    pub fn new_local_server(visible_device_index: Option<u64>, port: Option<u64>) -> Self {
+        Self::Local { visible_device_index, port }
+    }
+}
+
 impl Default for MoongateServer {
     fn default() -> Self {
         Self::Local { visible_device_index: None, port: None }
