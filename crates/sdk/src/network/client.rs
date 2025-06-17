@@ -23,24 +23,21 @@ use super::{
     retry::{self, RetryableRpc, DEFAULT_RETRY_TIMEOUT},
     utils::{sign_raw, Signable},
 };
-use crate::network::{
-    proto::{
-        artifact::{
-            artifact_store_client::ArtifactStoreClient, ArtifactType, CreateArtifactRequest,
-        },
-        network::prover_network_client::ProverNetworkClient,
-        types::{
-            CreateProgramRequest, CreateProgramRequestBody, CreateProgramResponse,
-            FulfillmentStatus, FulfillmentStrategy, GetBalanceRequest,
-            GetFilteredProofRequestsRequest, GetFilteredProofRequestsResponse, GetNonceRequest,
-            GetProgramRequest, GetProgramResponse, GetProofRequestDetailsRequest,
-            GetProofRequestDetailsResponse, GetProofRequestStatusRequest,
-            GetProofRequestStatusResponse, MessageFormat, ProofMode, RequestProofRequest,
-            RequestProofRequestBody, RequestProofResponse,
-        },
+use crate::network::proto::{
+    artifact::{artifact_store_client::ArtifactStoreClient, ArtifactType, CreateArtifactRequest},
+    network::prover_network_client::ProverNetworkClient,
+    types::{
+        CreateProgramRequest, CreateProgramRequestBody, CreateProgramResponse, FulfillmentStatus,
+        FulfillmentStrategy, GetBalanceRequest, GetFilteredProofRequestsRequest,
+        GetFilteredProofRequestsResponse, GetNonceRequest, GetProgramRequest, GetProgramResponse,
+        GetProofRequestDetailsRequest, GetProofRequestDetailsResponse,
+        GetProofRequestStatusRequest, GetProofRequestStatusResponse, MessageFormat, ProofMode,
+        RequestProofRequest, RequestProofRequestBody, RequestProofResponse,
     },
-    SPN_SEPOLIA_V1_DOMAIN,
 };
+
+#[cfg(feature = "sepolia")]
+use crate::network::SPN_SEPOLIA_V1_DOMAIN;
 
 /// A client for interacting with the network.
 pub struct NetworkClient {
@@ -366,6 +363,7 @@ impl NetworkClient {
     /// * `executor`: The executor for the proof request.
     /// * `verifier`: The verifier for the proof request.
     #[allow(clippy::too_many_arguments)]
+    #[allow(unused_variables)]
     pub async fn request_proof(
         &self,
         vk_hash: B256,
@@ -400,26 +398,45 @@ impl NetworkClient {
             || async {
                 let mut rpc = self.prover_network_client().await?;
                 let nonce = self.get_nonce().await?;
-                let request_body = RequestProofRequestBody {
-                    nonce,
-                    version: format!("sp1-{version}"),
-                    vk_hash: vk_hash.to_vec(),
-                    mode: mode.into(),
-                    strategy: strategy.into(),
-                    stdin_uri: stdin_uri.clone(),
-                    deadline,
-                    cycle_limit,
-                    gas_limit,
-                    min_auction_period,
-                    whitelist: whitelist.clone().into_iter().map(|addr| addr.to_vec()).collect(),
-                    domain: SPN_SEPOLIA_V1_DOMAIN.to_vec(),
-                    auctioneer: auctioneer.to_vec(),
-                    executor: executor.to_vec(),
-                    verifier: verifier.to_vec(),
-                    public_values_hash: public_values_hash.clone(),
-                    base_fee: base_fee.to_string(),
-                    max_price_per_pgu: max_price_per_pgu.to_string(),
-                };
+
+                cfg_if::cfg_if! {
+                    if #[cfg(feature = "sepolia")] {
+                        let request_body = RequestProofRequestBody {
+                            nonce,
+                            version: format!("sp1-{version}"),
+                            vk_hash: vk_hash.to_vec(),
+                            mode: mode.into(),
+                            strategy: strategy.into(),
+                            stdin_uri: stdin_uri.clone(),
+                            deadline,
+                            cycle_limit,
+                            gas_limit,
+                            min_auction_period,
+                            whitelist: whitelist.clone().into_iter().map(|addr| addr.to_vec()).collect(),
+                            domain: SPN_SEPOLIA_V1_DOMAIN.to_vec(),
+                            auctioneer: auctioneer.to_vec(),
+                            executor: executor.to_vec(),
+                            verifier: verifier.to_vec(),
+                            public_values_hash: public_values_hash.clone(),
+                            base_fee: base_fee.to_string(),
+                            max_price_per_pgu: max_price_per_pgu.to_string(),
+                        };
+                } else {
+                    let request_body = RequestProofRequestBody {
+                        nonce,
+                        version: format!("sp1-{version}"),
+                        vk_hash: vk_hash.to_vec(),
+                        mode: mode.into(),
+                        strategy: strategy.into(),
+                        stdin_uri: stdin_uri.clone(),
+                        deadline,
+                        cycle_limit,
+                        gas_limit,
+                        min_auction_period,
+                        whitelist: whitelist.clone().into_iter().map(|addr| addr.to_vec()).collect(),
+                    };
+                }}
+
                 let request_response = rpc
                     .request_proof(RequestProofRequest {
                         format: MessageFormat::Binary.into(),

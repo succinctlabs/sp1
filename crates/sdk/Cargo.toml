@@ -68,7 +68,6 @@ native-gnark = ["sp1-prover/native-gnark"]
 # dependency resolution issues.
 network = [
   "dep:prost",
-  "dep:alloy-sol-types",
   "dep:alloy-primitives",
   "dep:tokio",
   "dep:reqwest",
@@ -76,6 +75,10 @@ network = [
   "dep:reqwest-middleware",
   "dep:tonic",
   "dep:backoff",
+]
+sepolia = [
+  "network",
+  "dep:alloy-sol-types",
 ]
 cuda = []
 bigint-rug = ["sp1-core-machine/bigint-rug"]
