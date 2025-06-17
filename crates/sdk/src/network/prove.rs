@@ -35,9 +35,9 @@ pub struct NetworkProveBuilder<'a> {
     pub(crate) tee_2fa: bool,
     pub(crate) min_auction_period: u64,
     pub(crate) whitelist: Vec<Address>,
-    pub(crate) auctioneer: Address,
-    pub(crate) executor: Address,
-    pub(crate) verifier: Address,
+    pub(crate) auctioneer: Option<Address>,
+    pub(crate) executor: Option<Address>,
+    pub(crate) verifier: Option<Address>,
     pub(crate) max_price_per_pgu: Option<u64>,
 }
 
@@ -391,7 +391,7 @@ impl NetworkProveBuilder<'_> {
     /// let builder = client.prove(&pk, &stdin).auctioneer(auctioneer).run();
     /// ```
     #[must_use]
-    pub fn auctioneer(mut self, auctioneer: Address) -> Self {
+    pub fn auctioneer(mut self, auctioneer: Option<Address>) -> Self {
         self.auctioneer = auctioneer;
         self
     }
@@ -417,7 +417,7 @@ impl NetworkProveBuilder<'_> {
     /// let builder = client.prove(&pk, &stdin).executor(executor).run();
     /// ```
     #[must_use]
-    pub fn executor(mut self, executor: Address) -> Self {
+    pub fn executor(mut self, executor: Option<Address>) -> Self {
         self.executor = executor;
         self
     }
@@ -435,7 +435,7 @@ impl NetworkProveBuilder<'_> {
     /// use std::str::FromStr;
     /// ```
     #[must_use]
-    pub fn verifier(mut self, verifier: Address) -> Self {
+    pub fn verifier(mut self, verifier: Option<Address>) -> Self {
         self.verifier = verifier;
         self
     }

@@ -37,10 +37,7 @@ use crate::network::proto::{
 };
 
 #[cfg(feature = "sepolia")]
-use crate::network::{
-    proto::types::{GetProofRequestParamsRequest, GetProofRequestParamsResponse},
-    SPN_SEPOLIA_V1_DOMAIN,
-};
+use crate::network::proto::types::{GetProofRequestParamsRequest, GetProofRequestParamsResponse};
 
 /// A client for interacting with the network.
 pub struct NetworkClient {
@@ -384,6 +381,10 @@ impl NetworkClient {
     /// * `auctioneer`: The auctioneer for the proof request.
     /// * `executor`: The executor for the proof request.
     /// * `verifier`: The verifier for the proof request.
+    /// * `public_values_hash`: The hash of the public values to use for the proof.
+    /// * `base_fee`: The base fee to use for the proof request.
+    /// * `max_price_per_pgu`: The maximum price per PGU to use for the proof request.
+    /// * `domain`: The domain bytes to use for the proof request.
     #[allow(clippy::too_many_arguments)]
     #[allow(unused_variables)]
     pub async fn request_proof(
@@ -404,6 +405,7 @@ impl NetworkClient {
         public_values_hash: Option<Vec<u8>>,
         base_fee: u64,
         max_price_per_pgu: u64,
+        domain: Vec<u8>,
     ) -> Result<RequestProofResponse> {
         // Calculate the deadline.
         let start = SystemTime::now();
@@ -435,7 +437,7 @@ impl NetworkClient {
                             gas_limit,
                             min_auction_period,
                             whitelist: whitelist.clone().into_iter().map(|addr| addr.to_vec()).collect(),
-                            domain: SPN_SEPOLIA_V1_DOMAIN.to_vec(),
+                            domain: domain.clone(),
                             auctioneer: auctioneer.to_vec(),
                             executor: executor.to_vec(),
                             verifier: verifier.to_vec(),
