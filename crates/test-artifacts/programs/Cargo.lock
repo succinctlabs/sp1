@@ -346,7 +346,7 @@ version = "1.1.0"
 dependencies = [
  "common-test-utils",
  "sp1-curves",
- "sp1-lib 5.0.0",
+ "sp1-lib 5.0.5",
  "sp1-zkvm",
 ]
 
@@ -389,7 +389,7 @@ name = "bls12381-mul-test"
 version = "1.1.0"
 dependencies = [
  "sp1-derive",
- "sp1-lib 5.0.0",
+ "sp1-lib 5.0.5",
  "sp1-zkvm",
 ]
 
@@ -399,7 +399,7 @@ version = "1.1.0"
 dependencies = [
  "common-test-utils",
  "sp1-curves",
- "sp1-lib 5.0.0",
+ "sp1-lib 5.0.5",
  "sp1-zkvm",
 ]
 
@@ -442,7 +442,7 @@ name = "bn254-mul-test"
 version = "1.1.0"
 dependencies = [
  "sp1-derive",
- "sp1-lib 5.0.0",
+ "sp1-lib 5.0.5",
  "sp1-zkvm",
 ]
 
@@ -512,7 +512,7 @@ name = "common-test-utils"
 version = "1.1.0"
 dependencies = [
  "num-bigint",
- "sp1-lib 5.0.0",
+ "sp1-lib 5.0.5",
 ]
 
 [[package]]
@@ -2347,7 +2347,7 @@ version = "1.1.0"
 dependencies = [
  "common-test-utils",
  "sp1-curves",
- "sp1-lib 5.0.0",
+ "sp1-lib 5.0.5",
  "sp1-zkvm",
 ]
 
@@ -2383,7 +2383,7 @@ dependencies = [
  "num",
  "p256",
  "sp1-curves",
- "sp1-lib 5.0.0",
+ "sp1-lib 5.0.5",
  "sp1-zkvm",
 ]
 
@@ -2404,7 +2404,7 @@ dependencies = [
  "num",
  "p256",
  "sp1-curves",
- "sp1-lib 5.0.0",
+ "sp1-lib 5.0.5",
  "sp1-zkvm",
 ]
 
@@ -2619,7 +2619,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
-version = "5.0.0"
+version = "5.0.5"
 dependencies = [
  "cfg-if",
  "dashu",
@@ -2639,7 +2639,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "5.0.0"
+version = "5.0.5"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -2657,7 +2657,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "5.0.0"
+version = "5.0.5"
 dependencies = [
  "bincode",
  "elliptic-curve",
@@ -2667,7 +2667,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "5.0.0"
+version = "5.0.5"
 dependencies = [
  "bincode",
  "blake3",
@@ -2685,7 +2685,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-stark"
-version = "5.0.0"
+version = "5.0.5"
 dependencies = [
  "arrayref",
  "hashbrown 0.14.5",
@@ -2718,7 +2718,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "5.0.0"
+version = "5.0.5"
 dependencies = [
  "cfg-if",
  "getrandom 0.2.16",
@@ -2728,7 +2728,7 @@ dependencies = [
  "p3-field",
  "rand 0.8.5",
  "sha2 0.10.9",
- "sp1-lib 5.0.0",
+ "sp1-lib 5.0.5",
  "sp1-primitives",
 ]
 

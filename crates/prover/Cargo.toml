@@ -2,8 +2,7 @@
 name = "sp1-prover"
 description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
 readme = "../../README.md"
-# todo!(n): update version to use workspace on next release
-version = "5.0.1"
+version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
 repository = { workspace = true }
