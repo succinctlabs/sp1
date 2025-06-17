@@ -40,6 +40,9 @@ impl EnvProver {
     ///   `network`.
     /// - `NETWORK_PRIVATE_KEY`: The private key to use for the network prover.
     /// - `NETWORK_RPC_URL`: The RPC URL to use for the network prover.
+    /// - `SP1_GPU_ID`: The GPU ID to associated with the moongate docker server.
+    /// - `SP1_PORT`: The host PORT to associated with the moongate docker server.
+
     #[must_use]
     pub fn new() -> Self {
         let mode = if let Ok(mode) = env::var("SP1_PROVER") {
