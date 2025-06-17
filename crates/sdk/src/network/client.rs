@@ -37,7 +37,10 @@ use crate::network::proto::{
 };
 
 #[cfg(feature = "sepolia")]
-use crate::network::SPN_SEPOLIA_V1_DOMAIN;
+use crate::network::{
+    proto::types::{GetProofRequestParamsRequest, GetProofRequestParamsResponse},
+    SPN_SEPOLIA_V1_DOMAIN,
+};
 
 /// A client for interacting with the network.
 pub struct NetworkClient {
@@ -218,6 +221,25 @@ impl NetworkClient {
                     .into_inner())
             },
             "creating program",
+        )
+        .await
+    }
+
+    /// Gets the proof request parameters from the network.
+    #[cfg(feature = "sepolia")]
+    pub async fn get_proof_request_params(
+        &self,
+        mode: ProofMode,
+    ) -> Result<GetProofRequestParamsResponse> {
+        self.with_retry(
+            || async {
+                let mut rpc = self.prover_network_client().await?;
+                Ok(rpc
+                    .get_proof_request_params(GetProofRequestParamsRequest { mode: mode.into() })
+                    .await?
+                    .into_inner())
+            },
+            "getting proof request parameters",
         )
         .await
     }

@@ -17,6 +17,7 @@ use crate::{
             ExecutionStatus, FulfillmentStatus, FulfillmentStrategy, GetProofRequestStatusResponse,
             ProofMode, ProofRequest,
         },
+        tee::client::Client as TeeClient,
         Error, DEFAULT_AUCTIONEER_ADDRESS, DEFAULT_BASE_FEE, DEFAULT_CYCLE_LIMIT,
         DEFAULT_EXECUTOR_ADDRESS, DEFAULT_GAS_LIMIT, DEFAULT_MAX_PRICE_PER_PGU,
         DEFAULT_NETWORK_RPC_URL, DEFAULT_TIMEOUT_SECS, DEFAULT_VERIFIER_ADDRESS,
@@ -27,13 +28,14 @@ use crate::{
     SP1VerifyingKey,
 };
 
+#[cfg(feature = "sepolia")]
+use crate::network::proto::types::GetProofRequestParamsResponse;
+
 use alloy_primitives::{Address, B256, U256};
 use anyhow::{Context, Result};
 use sp1_core_executor::{SP1Context, SP1ContextBuilder};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{components::CpuProverComponents, HashableKey, SP1Prover, SP1_CIRCUIT_VERSION};
-
-use crate::network::tee::client::Client as TeeClient;
 
 use crate::utils::block_on;
 use tokio::time::sleep;
@@ -176,6 +178,28 @@ impl NetworkProver {
     /// ```
     pub async fn register_program(&self, vk: &SP1VerifyingKey, elf: &[u8]) -> Result<B256> {
         self.client.register_program(vk, elf).await
+    }
+
+    /// Gets the proof request parameters from the network.
+    ///
+    /// # Details
+    /// * `mode`: The proof mode to get the parameters for.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1ProofMode};
+    /// tokio_test::block_on(async {
+    ///     let client = ProverClient::builder().network().build();
+    ///     let params = client.get_proof_request_params(SP1ProofMode::Compressed).await.unwrap();
+    /// })
+    /// ```
+    #[cfg(feature = "sepolia")]
+    pub async fn get_request_params(
+        &self,
+        mode: SP1ProofMode,
+    ) -> Result<GetProofRequestParamsResponse> {
+        let response = self.client.get_proof_request_params(mode.into()).await?;
+        Ok(response)
     }
 
     /// Gets the status of a proof request. Re-exposes the status response from the client.
