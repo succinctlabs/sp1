@@ -11,7 +11,7 @@ use sp1_stark::{
 
 /// A set of columns needed to compute the global interaction elliptic curve digest.
 /// It is critical that this struct is at the end of the main trace, as the permutation constraints
-/// will be dependent on this fact. It is also critical the the cumulative sum is at the end of this
+/// will be dependent on this fact. It is also critical the cumulative sum is at the end of this
 /// struct, for the same reason.
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]

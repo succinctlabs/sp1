@@ -11,13 +11,13 @@ pub struct BabyBearBitDecomposition<T> {
     /// The bit decoposition of the`value`.
     pub bits: [T; 32],
 
-    /// The product of the the bits 3 to 5 in `most_sig_byte_decomp`.
+    /// The product of the bits 3 to 5 in `most_sig_byte_decomp`.
     pub and_most_sig_byte_decomp_3_to_5: T,
 
-    /// The product of the the bits 3 to 6 in `most_sig_byte_decomp`.
+    /// The product of the bits 3 to 6 in `most_sig_byte_decomp`.
     pub and_most_sig_byte_decomp_3_to_6: T,
 
-    /// The product of the the bits 3 to 7 in `most_sig_byte_decomp`.
+    /// The product of the bits 3 to 7 in `most_sig_byte_decomp`.
     pub and_most_sig_byte_decomp_3_to_7: T,
 }
 
