@@ -2,7 +2,7 @@
 name = "sp1-sdk"
 description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
 readme = "../../README.md"
-version = { workspace = true }
+version = "5.0.6"
 edition = { workspace = true }
 license = { workspace = true }
 repository = { workspace = true }

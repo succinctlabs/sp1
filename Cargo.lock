@@ -5992,7 +5992,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-sdk"
-version = "5.0.5"
+version = "5.0.6"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
