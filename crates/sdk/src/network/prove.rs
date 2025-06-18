@@ -14,7 +14,7 @@ use crate::{
     NetworkProver, SP1ProofMode, SP1ProofWithPublicValues,
 };
 
-use super::proto::network::FulfillmentStrategy;
+use super::proto::types::FulfillmentStrategy;
 
 use std::{
     future::{Future, IntoFuture},
@@ -35,6 +35,10 @@ pub struct NetworkProveBuilder<'a> {
     pub(crate) tee_2fa: bool,
     pub(crate) min_auction_period: u64,
     pub(crate) whitelist: Vec<Address>,
+    pub(crate) auctioneer: Option<Address>,
+    pub(crate) executor: Option<Address>,
+    pub(crate) verifier: Option<Address>,
+    pub(crate) max_price_per_pgu: Option<u64>,
 }
 
 impl NetworkProveBuilder<'_> {
@@ -366,6 +370,104 @@ impl NetworkProveBuilder<'_> {
         self
     }
 
+    /// Set the auctioneer for the proof request.
+    ///
+    /// # Details
+    /// Only the specified auctioneer will be able to manage the auction for this request. Only
+    /// relevant if the strategy is set to [`FulfillmentStrategy::Auction`].
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use alloy_primitives::Address;
+    /// use sp1_sdk::{Prover, ProverClient, SP1Stdin};
+    /// use std::str::FromStr;
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().network().build();
+    /// let (pk, vk) = client.setup(elf);
+    /// let auctioneer = Address::from_str("0x0000000000000000000000000000000000000000").unwrap();
+    /// let builder = client.prove(&pk, &stdin).auctioneer(auctioneer).run();
+    /// ```
+    #[must_use]
+    pub fn auctioneer(mut self, auctioneer: Address) -> Self {
+        self.auctioneer = Some(auctioneer);
+        self
+    }
+
+    /// Set the executor for the proof request.
+    ///
+    /// # Details
+    /// Only the specified executor will be able to fulfill this request. This is useful for
+    /// whitelisting specific provers for private or prioritized jobs.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use alloy_primitives::Address;
+    /// use sp1_sdk::{Prover, ProverClient, SP1Stdin};
+    /// use std::str::FromStr;
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().network().build();
+    /// let (pk, vk) = client.setup(elf);
+    /// let executor = Address::from_str("0x0000000000000000000000000000000000000000").unwrap();
+    /// let builder = client.prove(&pk, &stdin).executor(executor).run();
+    /// ```
+    #[must_use]
+    pub fn executor(mut self, executor: Address) -> Self {
+        self.executor = Some(executor);
+        self
+    }
+
+    /// Set the verifier for the proof request.
+    ///
+    /// # Details
+    /// Only the specified verifier will be able to verify the proof. Only relevant if the mode is
+    /// not [`SP1ProofMode::Compressed`], as this mode will be verified within the `VApp`.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use alloy_primitives::Address;
+    /// use sp1_sdk::{Prover, ProverClient, SP1Stdin};
+    /// use std::str::FromStr;
+    /// ```
+    #[must_use]
+    pub fn verifier(mut self, verifier: Address) -> Self {
+        self.verifier = Some(verifier);
+        self
+    }
+
+    /// Sets the max price per PGU for the proof request.
+    ///
+    /// # Details
+    /// The max price per PGU (prover gas unit) creates a hard ceiling on variable costs, protecting
+    /// requesters from unexpected price escalation due to complex execution paths or resource
+    /// consumption. If the base fee is not provided, a default value will be used.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{Prover, ProverClient, SP1Stdin};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().network().build();
+    /// let (pk, vk) = client.setup(elf);
+    /// let proof = client
+    ///     .prove(&pk, &stdin)
+    ///     .max_price_per_pgu(1_000_000_000_000_000_000u64) // Set 1 PROVE (18 decimals).
+    ///     .run()
+    ///     .unwrap();
+    /// ```
+    #[must_use]
+    pub fn max_price_per_pgu(mut self, max_price_per_pgu: u64) -> Self {
+        self.max_price_per_pgu = Some(max_price_per_pgu);
+        self
+    }
+
     /// Request a proof from the prover network.
     ///
     /// # Details
@@ -420,6 +522,10 @@ impl NetworkProveBuilder<'_> {
                 self.gas_limit,
                 self.min_auction_period,
                 self.whitelist,
+                self.auctioneer,
+                self.executor,
+                self.verifier,
+                self.max_price_per_pgu,
             )
             .await
     }
@@ -485,6 +591,10 @@ impl NetworkProveBuilder<'_> {
                 self.tee_2fa,
                 self.min_auction_period,
                 self.whitelist,
+                self.auctioneer,
+                self.executor,
+                self.verifier,
+                self.max_price_per_pgu,
             )
             .await
     }

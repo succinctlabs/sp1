@@ -131,6 +131,64 @@ dependencies = [
 ]
 
 [[package]]
+name = "alloy-sol-macro"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d4be1ce1274ddd7fdfac86e5ece1b225e9bba1f2327e20fbb30ee6b9cc1423fe"
+dependencies = [
+ "alloy-sol-macro-expander",
+ "alloy-sol-macro-input",
+ "proc-macro-error2",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.101",
+]
+
+[[package]]
+name = "alloy-sol-macro-expander"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "01e92f3708ea4e0d9139001c86c051c538af0146944a2a9c7181753bd944bf57"
+dependencies = [
+ "alloy-sol-macro-input",
+ "const-hex",
+ "heck 0.5.0",
+ "indexmap 2.9.0",
+ "proc-macro-error2",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.101",
+ "syn-solidity",
+ "tiny-keccak",
+]
+
+[[package]]
+name = "alloy-sol-macro-input"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9afe1bd348a41f8c9b4b54dfb314886786d6201235b0b3f47198b9d910c86bb2"
+dependencies = [
+ "const-hex",
+ "dunce",
+ "heck 0.5.0",
+ "macro-string",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.101",
+ "syn-solidity",
+]
+
+[[package]]
+name = "alloy-sol-types"
+version = "1.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "584cb97bfc5746cb9dcc4def77da11694b5d6d7339be91b7480a6a68dc129387"
+dependencies = [
+ "alloy-primitives",
+ "alloy-sol-macro",
+]
+
+[[package]]
 name = "android-tzdata"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1803,6 +1861,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "dunce"
+version = "1.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
+
+[[package]]
 name = "ecdsa"
 version = "0.16.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3243,6 +3307,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "112b39cec0b298b6c1999fee3e31427f74f676e4cb9879ed1a121b43661a4154"
 
 [[package]]
+name = "macro-string"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b27834086c65ec3f9387b096d66e99f221cf081c2b738042aa252bcd41204e3"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.101",
+]
+
+[[package]]
 name = "matchers"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4226,6 +4301,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "edce586971a4dfaa28950c6f18ed55e0406c1ab88bbce2c6f6293a7aaba73d35"
 dependencies = [
  "toml_edit 0.22.26",
+]
+
+[[package]]
+name = "proc-macro-error-attr2"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "96de42df36bb9bba5542fe9f1a054b8cc87e172759a1868aa05c1f3acc89dfc5"
+dependencies = [
+ "proc-macro2",
+ "quote",
+]
+
+[[package]]
+name = "proc-macro-error2"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "11ec05c52be0a07b08061f7dd003e7d7092e0472bc731b4af7bb1ef876109802"
+dependencies = [
+ "proc-macro-error-attr2",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.101",
 ]
 
 [[package]]
@@ -5409,7 +5506,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-build"
-version = "5.0.0"
+version = "5.0.5"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -5421,7 +5518,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-cli"
-version = "5.0.0"
+version = "5.0.5"
 dependencies = [
  "anstyle",
  "anyhow",
@@ -5450,7 +5547,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-executor"
-version = "5.0.0"
+version = "5.0.5"
 dependencies = [
  "bincode",
  "bytemuck",
@@ -5477,7 +5574,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sp1-curves",
- "sp1-primitives 5.0.0",
+ "sp1-primitives 5.0.5",
  "sp1-stark",
  "sp1-zkvm",
  "strum",
@@ -5493,7 +5590,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-machine"
-version = "5.0.0"
+version = "5.0.5"
 dependencies = [
  "bincode",
  "cbindgen",
@@ -5532,7 +5629,7 @@ dependencies = [
  "sp1-core-executor",
  "sp1-curves",
  "sp1-derive",
- "sp1-primitives 5.0.0",
+ "sp1-primitives 5.0.5",
  "sp1-stark",
  "sp1-zkvm",
  "static_assertions",
@@ -5551,7 +5648,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-cuda"
-version = "5.0.0"
+version = "5.0.5"
 dependencies = [
  "bincode",
  "ctrlc",
@@ -5569,7 +5666,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
-version = "5.0.0"
+version = "5.0.5"
 dependencies = [
  "cfg-if",
  "dashu",
@@ -5584,14 +5681,14 @@ dependencies = [
  "rug",
  "serde",
  "snowbridge-amcl",
- "sp1-primitives 5.0.0",
+ "sp1-primitives 5.0.5",
  "sp1-stark",
  "typenum",
 ]
 
 [[package]]
 name = "sp1-derive"
-version = "5.0.0"
+version = "5.0.5"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -5599,7 +5696,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-eval"
-version = "5.0.0"
+version = "5.0.5"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5617,19 +5714,9 @@ dependencies = [
 
 [[package]]
 name = "sp1-helper"
-version = "5.0.0"
+version = "5.0.5"
 dependencies = [
  "sp1-build",
-]
-
-[[package]]
-name = "sp1-lib"
-version = "5.0.0"
-dependencies = [
- "bincode",
- "elliptic-curve",
- "serde",
- "sp1-primitives 5.0.0",
 ]
 
 [[package]]
@@ -5641,12 +5728,22 @@ dependencies = [
  "bincode",
  "elliptic-curve",
  "serde",
- "sp1-primitives 5.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp1-primitives 5.0.0",
+]
+
+[[package]]
+name = "sp1-lib"
+version = "5.0.5"
+dependencies = [
+ "bincode",
+ "elliptic-curve",
+ "serde",
+ "sp1-primitives 5.0.5",
 ]
 
 [[package]]
 name = "sp1-perf"
-version = "5.0.0"
+version = "5.0.5"
 dependencies = [
  "bincode",
  "clap",
@@ -5662,24 +5759,6 @@ dependencies = [
  "test-artifacts",
  "time 0.3.41",
  "tracing",
-]
-
-[[package]]
-name = "sp1-primitives"
-version = "5.0.0"
-dependencies = [
- "bincode",
- "blake3",
- "cfg-if",
- "hex",
- "lazy_static",
- "num-bigint 0.4.6",
- "p3-baby-bear",
- "p3-field",
- "p3-poseidon2",
- "p3-symmetric",
- "serde",
- "sha2 0.10.9",
 ]
 
 [[package]]
@@ -5703,8 +5782,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp1-primitives"
+version = "5.0.5"
+dependencies = [
+ "bincode",
+ "blake3",
+ "cfg-if",
+ "hex",
+ "lazy_static",
+ "num-bigint 0.4.6",
+ "p3-baby-bear",
+ "p3-field",
+ "p3-poseidon2",
+ "p3-symmetric",
+ "serde",
+ "sha2 0.10.9",
+]
+
+[[package]]
 name = "sp1-prover"
-version = "5.0.1"
+version = "5.0.5"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5733,7 +5830,7 @@ dependencies = [
  "sha2 0.10.9",
  "sp1-core-executor",
  "sp1-core-machine",
- "sp1-primitives 5.0.0",
+ "sp1-primitives 5.0.5",
  "sp1-recursion-circuit",
  "sp1-recursion-compiler",
  "sp1-recursion-core",
@@ -5748,7 +5845,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-circuit"
-version = "5.0.0"
+version = "5.0.5"
 dependencies = [
  "ff 0.13.1",
  "hashbrown 0.14.5",
@@ -5774,7 +5871,7 @@ dependencies = [
  "sp1-core-executor",
  "sp1-core-machine",
  "sp1-derive",
- "sp1-primitives 5.0.0",
+ "sp1-primitives 5.0.5",
  "sp1-recursion-compiler",
  "sp1-recursion-core",
  "sp1-recursion-gnark-ffi",
@@ -5786,7 +5883,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-compiler"
-version = "5.0.0"
+version = "5.0.5"
 dependencies = [
  "backtrace",
  "criterion",
@@ -5801,7 +5898,7 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "sp1-core-machine",
- "sp1-primitives 5.0.0",
+ "sp1-primitives 5.0.5",
  "sp1-recursion-core",
  "sp1-recursion-derive",
  "sp1-stark",
@@ -5811,7 +5908,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-core"
-version = "5.0.0"
+version = "5.0.5"
 dependencies = [
  "backtrace",
  "cbindgen",
@@ -5843,7 +5940,7 @@ dependencies = [
  "smallvec",
  "sp1-core-machine",
  "sp1-derive",
- "sp1-primitives 5.0.0",
+ "sp1-primitives 5.0.5",
  "sp1-stark",
  "static_assertions",
  "thiserror 1.0.69",
@@ -5854,7 +5951,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-derive"
-version = "5.0.0"
+version = "5.0.5"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -5862,7 +5959,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-cli"
-version = "5.0.0"
+version = "5.0.5"
 dependencies = [
  "bincode",
  "clap",
@@ -5871,7 +5968,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-ffi"
-version = "5.0.0"
+version = "5.0.5"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5895,9 +5992,10 @@ dependencies = [
 
 [[package]]
 name = "sp1-sdk"
-version = "5.0.4"
+version = "5.0.6"
 dependencies = [
  "alloy-primitives",
+ "alloy-sol-types",
  "anyhow",
  "async-trait",
  "backoff",
@@ -5923,7 +6021,7 @@ dependencies = [
  "sp1-core-executor",
  "sp1-core-machine",
  "sp1-cuda",
- "sp1-primitives 5.0.0",
+ "sp1-primitives 5.0.5",
  "sp1-prover",
  "sp1-stark",
  "strum",
@@ -5940,7 +6038,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-stark"
-version = "5.0.0"
+version = "5.0.5"
 dependencies = [
  "arrayref",
  "hashbrown 0.14.5",
@@ -5964,7 +6062,7 @@ dependencies = [
  "rayon-scan",
  "serde",
  "sp1-derive",
- "sp1-primitives 5.0.0",
+ "sp1-primitives 5.0.5",
  "sp1-zkvm",
  "strum",
  "strum_macros",
@@ -5974,7 +6072,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-verifier"
-version = "5.0.0"
+version = "5.0.5"
 dependencies = [
  "ark-bn254",
  "ark-ec",
@@ -5999,7 +6097,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "5.0.0"
+version = "5.0.5"
 dependencies = [
  "blake3",
  "cfg-if",
@@ -6012,8 +6110,8 @@ dependencies = [
  "p3-field",
  "rand 0.8.5",
  "sha2 0.10.9",
- "sp1-lib 5.0.0",
- "sp1-primitives 5.0.0",
+ "sp1-lib 5.0.5",
+ "sp1-primitives 5.0.5",
 ]
 
 [[package]]
@@ -6177,7 +6275,7 @@ dependencies = [
  "num-bigint 0.4.6",
  "rand 0.8.5",
  "rustc-hex",
- "sp1-lib 5.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp1-lib 5.0.0",
 ]
 
 [[package]]
@@ -6242,6 +6340,18 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "syn-solidity"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "14c8c8f496c33dc6343dac05b4be8d9e0bca180a4caa81d7b8416b10cc2273cd"
+dependencies = [
+ "paste",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.101",
 ]
 
 [[package]]
@@ -6338,7 +6448,7 @@ dependencies = [
 
 [[package]]
 name = "test-artifacts"
-version = "5.0.0"
+version = "5.0.5"
 dependencies = [
  "sp1-build",
 ]
