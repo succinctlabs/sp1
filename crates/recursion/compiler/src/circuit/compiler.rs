@@ -834,7 +834,16 @@ macro_rules! impl_reg_vaddr {
             }
 
             fn write_many(&self, compiler: &mut AsmCompiler<C>, len: usize) -> Vec<Address<C::F>> {
-                (0..len).map(|i| compiler.write_fp((self.idx + i as u32) as usize)).collect()
+                let base_addr = self.write(compiler);
+                let mut addrs = vec![base_addr];
+                
+                for i in 1..len {
+                    let next_addr = Address(base_addr.0 + C::F::from_canonical_usize(i));
+                    compiler.write_addr(next_addr);
+                    addrs.push(next_addr);
+                }
+                
+                addrs
             }
         }
     };
@@ -879,8 +888,17 @@ impl<C: Config<F: PrimeField64>> Reg<C> for Address<C::F> {
         *self
     }
 
-    fn write_many(&self, _compiler: &mut AsmCompiler<C>, _len: usize) -> Vec<Address<C::F>> {
-        todo!()
+    fn write_many(&self, compiler: &mut AsmCompiler<C>, len: usize) -> Vec<Address<C::F>> {
+        let base_addr = self.write(compiler);
+        let mut addrs = vec![base_addr];
+        
+        for i in 1..len {
+            let next_addr = Address(base_addr.0 + C::F::from_canonical_usize(i));
+            compiler.write_addr(next_addr);
+            addrs.push(next_addr);
+        }
+        
+        addrs
     }
 }
 
@@ -991,7 +1009,6 @@ mod tests {
             F::from_canonical_u32(2),
             F::from_canonical_u32(2),
             F::from_canonical_u32(2),
-            F::from_canonical_u32(3),
             F::from_canonical_u32(3),
             F::from_canonical_u32(3),
             F::from_canonical_u32(3),

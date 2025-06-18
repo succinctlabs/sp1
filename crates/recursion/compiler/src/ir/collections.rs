@@ -30,8 +30,19 @@ impl<C: Config, V: MemVariable<C>> Array<C, V> {
     /// Shifts the array by `shift` elements.
     pub fn shift(&self, builder: &mut Builder<C>, shift: Var<C::N>) -> Array<C, V> {
         match self {
-            Self::Fixed(_) => {
-                todo!()
+            Self::Fixed(vec) => {
+                let shift_val = match shift {
+                    Var::Const(s) => s.as_canonical_usize(),
+                    _ => panic!("Can only shift fixed arrays by constant values"),
+                };
+                if shift_val >= vec.len() {
+                    panic!(
+                        "Shift value {} is greater than or equal to array length {}",
+                        shift_val,
+                        vec.len()
+                    );
+                }
+                Array::Fixed(vec[shift_val..].to_vec())
             }
             Self::Dyn(ptr, len) => {
                 assert!(V::size_of() == 1, "only support variables of size 1");
@@ -47,8 +58,16 @@ impl<C: Config, V: MemVariable<C>> Array<C, V> {
     /// Truncates the array to `len` elements.
     pub fn truncate(&self, builder: &mut Builder<C>, len: Usize<C::N>) {
         match self {
-            Self::Fixed(_) => {
-                todo!()
+            Self::Fixed(vec) => {
+                if let Usize::Const(len_val) = len {
+                    if len_val > vec.len() {
+                        panic!(
+                            "Cannot truncate fixed array to length larger than its current size"
+                        );
+                    }
+                } else {
+                    panic!("Cannot truncate a fixed array to variable length");
+                }
             }
             Self::Dyn(_, old_len) => {
                 builder.assign(*old_len, len);
@@ -158,7 +177,7 @@ impl<C: Config> Builder<C> {
 
         match slice {
             Array::Fixed(_) => {
-                todo!()
+                panic!("Cannot get pointer to an element in a fixed array");
             }
             Array::Dyn(ptr, len) => {
                 if self.debug {
@@ -184,8 +203,16 @@ impl<C: Config> Builder<C> {
         let index = index.into();
 
         match slice {
-            Array::Fixed(_) => {
-                todo!()
+            Array::Fixed(vec) => {
+                if let Usize::Const(idx) = index {
+                    if idx < vec.len() {
+                        vec[idx] = self.eval(value);
+                    } else {
+                        panic!("Index out of bounds for fixed array: {} >= {}", idx, vec.len());
+                    }
+                } else {
+                    panic!("Cannot index into a fixed array with a variable index");
+                }
             }
             Array::Dyn(ptr, len) => {
                 if self.debug {
@@ -210,8 +237,16 @@ impl<C: Config> Builder<C> {
         let index = index.into();
 
         match slice {
-            Array::Fixed(_) => {
-                todo!()
+            Array::Fixed(vec) => {
+                if let Usize::Const(idx) = index {
+                    if idx < vec.len() {
+                        vec[idx] = value;
+                    } else {
+                        panic!("Index out of bounds for fixed array: {} >= {}", idx, vec.len());
+                    }
+                } else {
+                    panic!("Cannot index into a fixed array with a variable index");
+                }
             }
             Array::Dyn(ptr, _) => {
                 let index = MemIndex { index, offset: 0, size: V::size_of() };
