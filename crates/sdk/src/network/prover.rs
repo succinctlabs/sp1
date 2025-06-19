@@ -303,7 +303,7 @@ impl NetworkProver {
 
         Ok((None, fulfillment_status))
     }
- 
+
     /// Waits for a proof to be generated and returns the proof. If a timeout is supplied, the
     /// function will return an error if the proof is not generated within the timeout.
     pub async fn wait_proof(
@@ -371,7 +371,14 @@ impl NetworkProver {
 
         // Get the auction request parameters.
         let (auctioneer, executor, verifier, max_price_per_pgu, base_fee, domain, whitelist) = self
-            .get_auction_request_params(mode, auctioneer, executor, verifier, max_price_per_pgu, whitelist)
+            .get_auction_request_params(
+                mode,
+                auctioneer,
+                executor,
+                verifier,
+                max_price_per_pgu,
+                whitelist,
+            )
             .await?;
 
         // Ensure the strategy is supported in the network.
@@ -386,7 +393,7 @@ impl NetworkProver {
             return Err(anyhow::anyhow!(
                 "`FulfillmentStrategy::Auction` requires the \"sepolia\" feature."
             ));
-        } 
+        }
 
         // Get the timeout.
         let timeout_secs = timeout.map_or(DEFAULT_TIMEOUT_SECS, |dur| dur.as_secs());
