@@ -37,7 +37,7 @@ use crate::network::proto::{
 };
 
 #[cfg(feature = "sepolia")]
-use crate::network::proto::types::{GetProofRequestParamsRequest, GetProofRequestParamsResponse, GetProverWhitelistRequest};
+use crate::network::proto::types::{GetProofRequestParamsRequest, GetProofRequestParamsResponse, GetProversByUptimeRequest};
 
 /// A client for interacting with the network.
 pub struct NetworkClient {
@@ -151,13 +151,13 @@ impl NetworkClient {
     /// # Details
     /// Uses the key that the client was initialized with.
     #[cfg(feature = "sepolia")]
-    pub async fn get_prover_whitelist(&self) -> Result<Vec<Address>> {
+    pub async fn get_provers_by_uptime(&self) -> Result<Vec<Address>> {
         self.with_retry(
             || async {
                 let mut rpc = self.prover_network_client().await?;
                 let res =
-                    rpc.get_prover_whitelist(GetProverWhitelistRequest {}).await?;
-                Ok(res.into_inner().addresses.into_iter().map(|p| Address::from_slice(&p)).collect())
+                    rpc.get_provers_by_uptime(GetProversByUptimeRequest {}).await?;
+                Ok(res.into_inner().provers.into_iter().map(|p| Address::from_slice(&p)).collect())
             },
             "getting prover whitelist",
         )

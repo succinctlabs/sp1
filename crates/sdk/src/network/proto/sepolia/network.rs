@@ -1207,14 +1207,14 @@ pub mod prover_network_client {
                 .insert(GrpcMethod::new("network.ProverNetwork", "Settle"));
             self.inner.unary(req, path, codec).await
         }
-        /// Get the recommended addresses that are allowed to bid on proof requests.
-        pub async fn get_prover_whitelist(
+        /// Get the provers that have historically had reliable uptime.
+        pub async fn get_provers_by_uptime(
             &mut self,
             request: impl tonic::IntoRequest<
-                super::super::types::GetProverWhitelistRequest,
+                super::super::types::GetProversByUptimeRequest,
             >,
         ) -> std::result::Result<
-            tonic::Response<super::super::types::GetProverWhitelistResponse>,
+            tonic::Response<super::super::types::GetProversByUptimeResponse>,
             tonic::Status,
         > {
             self.inner
@@ -1227,11 +1227,11 @@ pub mod prover_network_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/GetProverWhitelist",
+                "/network.ProverNetwork/GetProversByUptime",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(GrpcMethod::new("network.ProverNetwork", "GetProverWhitelist"));
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetProversByUptime"));
             self.inner.unary(req, path, codec).await
         }
         /// Sign in with Ethereum
@@ -3496,12 +3496,12 @@ pub mod prover_network_server {
             tonic::Response<super::super::types::SettleResponse>,
             tonic::Status,
         >;
-        /// Get the recommended addresses that are allowed to bid on proof requests.
-        async fn get_prover_whitelist(
+        /// Get the provers that have historically had reliable uptime.
+        async fn get_provers_by_uptime(
             &self,
-            request: tonic::Request<super::super::types::GetProverWhitelistRequest>,
+            request: tonic::Request<super::super::types::GetProversByUptimeRequest>,
         ) -> std::result::Result<
-            tonic::Response<super::super::types::GetProverWhitelistResponse>,
+            tonic::Response<super::super::types::GetProversByUptimeResponse>,
             tonic::Status,
         >;
         /// Sign in with Ethereum
@@ -6221,15 +6221,15 @@ pub mod prover_network_server {
                     };
                     Box::pin(fut)
                 }
-                "/network.ProverNetwork/GetProverWhitelist" => {
+                "/network.ProverNetwork/GetProversByUptime" => {
                     #[allow(non_camel_case_types)]
-                    struct GetProverWhitelistSvc<T: ProverNetwork>(pub Arc<T>);
+                    struct GetProversByUptimeSvc<T: ProverNetwork>(pub Arc<T>);
                     impl<
                         T: ProverNetwork,
                     > tonic::server::UnaryService<
-                        super::super::types::GetProverWhitelistRequest,
-                    > for GetProverWhitelistSvc<T> {
-                        type Response = super::super::types::GetProverWhitelistResponse;
+                        super::super::types::GetProversByUptimeRequest,
+                    > for GetProversByUptimeSvc<T> {
+                        type Response = super::super::types::GetProversByUptimeResponse;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
@@ -6237,12 +6237,12 @@ pub mod prover_network_server {
                         fn call(
                             &mut self,
                             request: tonic::Request<
-                                super::super::types::GetProverWhitelistRequest,
+                                super::super::types::GetProversByUptimeRequest,
                             >,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ProverNetwork>::get_prover_whitelist(&inner, request)
+                                <T as ProverNetwork>::get_provers_by_uptime(&inner, request)
                                     .await
                             };
                             Box::pin(fut)
@@ -6254,7 +6254,7 @@ pub mod prover_network_server {
                     let max_encoding_message_size = self.max_encoding_message_size;
                     let inner = self.inner.clone();
                     let fut = async move {
-                        let method = GetProverWhitelistSvc(inner);
+                        let method = GetProversByUptimeSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(

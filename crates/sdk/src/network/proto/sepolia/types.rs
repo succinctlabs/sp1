@@ -1743,13 +1743,13 @@ pub struct SettleResponse {
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
-pub struct GetProverWhitelistRequest {}
+pub struct GetProversByUptimeRequest {}
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GetProverWhitelistResponse {
-    /// The recommended addresses that are allowed to bid on proof requests.
+pub struct GetProversByUptimeResponse {
+    /// The provers that have historically had reliable uptime.
     #[prost(bytes = "vec", repeated, tag = "1")]
-    pub addresses: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    pub provers: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]

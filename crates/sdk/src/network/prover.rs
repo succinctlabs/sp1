@@ -651,7 +651,7 @@ impl NetworkProver {
                 let whitelist = if let Some(whitelist) = whitelist {
                     whitelist
                 } else {
-                    self.client.get_prover_whitelist().await?
+                    self.client.get_provers_by_uptime().await?
                 };
 
                 Ok((auctioneer_value, executor_value, verifier_value, max_price_per_pgu_value, base_fee, params.domain, whitelist))
