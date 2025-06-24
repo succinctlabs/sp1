@@ -3518,6 +3518,7 @@ dependencies = [
  "blake3",
  "cfg-if",
  "getrandom 0.2.16",
+ "getrandom 0.3.3",
  "lazy_static",
  "libm",
  "rand 0.8.5",

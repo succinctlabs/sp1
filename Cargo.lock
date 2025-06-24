@@ -6104,6 +6104,7 @@ dependencies = [
  "critical-section",
  "embedded-alloc",
  "getrandom 0.2.16",
+ "getrandom 0.3.3",
  "lazy_static",
  "libm",
  "p3-baby-bear",
