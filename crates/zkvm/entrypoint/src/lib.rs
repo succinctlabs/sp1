@@ -204,7 +204,7 @@ mod zkvm {
         sym STACK_TOP
     );
 
-    pub fn zkvm_getrandom(s: &mut [u8]) -> Result<(), getrandom::Error> {
+    pub fn zkvm_getrandom_v2(s: &mut [u8]) -> Result<(), getrandom_v2::Error> {
         unsafe {
             crate::syscalls::sys_rand(s.as_mut_ptr(), s.len());
         }
@@ -212,7 +212,19 @@ mod zkvm {
         Ok(())
     }
 
-    getrandom::register_custom_getrandom!(zkvm_getrandom);
+    getrandom_v2::register_custom_getrandom!(zkvm_getrandom_v2);
+
+    #[no_mangle]
+    unsafe extern "Rust" fn __getrandom_v03_custom(
+        dest: *mut u8,
+        len: usize,
+    ) -> Result<(), getrandom_v3::Error> {
+        unsafe {
+            crate::syscalls::sys_rand(dest, len);
+        }
+
+        Ok(())
+    }
 }
 
 #[macro_export]
