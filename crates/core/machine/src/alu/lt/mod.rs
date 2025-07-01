@@ -74,7 +74,7 @@ pub struct LtCols<T> {
 
     /// The result of the intermediate SLTU operation `b_comp < c_comp`.
     pub sltu: T,
-    /// A bollean flag for an intermediate comparison.
+    /// A boolean flag for an intermediate comparison.
     pub is_comp_eq: T,
     /// A boolean flag for comparing the sign bits.
     pub is_sign_eq: T,

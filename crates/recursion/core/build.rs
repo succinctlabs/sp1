@@ -49,7 +49,7 @@ mod sys {
                     break dir;
                 }
                 if !dir.pop() {
-                    panic!("OUT_DIR does not have parent called \"target\": {:?}", out_dir);
+                    panic!("OUT_DIR does not have parent called \"target\": {out_dir:?}");
                 }
             }
         };
@@ -155,7 +155,7 @@ mod sys {
             }
             Err(cbindgen::Error::ParseSyntaxError { .. }) => {} /* Ignore parse errors so */
             // rust-analyzer can run.
-            Err(e) => panic!("{:?}", e),
+            Err(e) => panic!("{e:?}"),
         }
 
         // Copy the headers to the include directory and symlink them to the fixed include
