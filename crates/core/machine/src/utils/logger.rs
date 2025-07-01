@@ -46,7 +46,7 @@ pub fn setup_logger() {
                     .init();
             }
             _ => {
-                panic!("Invalid logger type: {}", logger_type);
+                panic!("Invalid logger type: {logger_type}");
             }
         };
 
