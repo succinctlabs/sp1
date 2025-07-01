@@ -32,7 +32,7 @@ fn assert_docker() {
 
 fn get_docker_image() -> String {
     std::env::var("SP1_GNARK_IMAGE")
-        .unwrap_or_else(|_| format!("ghcr.io/succinctlabs/sp1-gnark:{}", SP1_CIRCUIT_VERSION))
+        .unwrap_or_else(|_| format!("ghcr.io/succinctlabs/sp1-gnark:{SP1_CIRCUIT_VERSION}"))
 }
 
 /// Calls `docker run` with the given arguments and bind mounts.
@@ -44,7 +44,7 @@ fn call_docker(args: &[&str], mounts: &[(&str, &str)]) -> Result<()> {
     let mut cmd = Command::new("docker");
     cmd.args(["run", "--rm"]);
     for (src, dest) in mounts {
-        cmd.arg("-v").arg(format!("{}:{}", src, dest));
+        cmd.arg("-v").arg(format!("{src}:{dest}"));
     }
     cmd.arg(get_docker_image());
     cmd.args(args);

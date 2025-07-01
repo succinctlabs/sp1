@@ -289,7 +289,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
+    #[ignore = "TODO"]
     fn test_simple_bench() {
         const D: u32 = 1 << 16;
         let mut vec = Vec::with_capacity(D as usize);
@@ -329,7 +329,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
+    #[ignore = "TODO"]
     fn test_parallel_bench() {
         const D: u32 = 1 << 20;
         let mut vec = Vec::with_capacity(D as usize);

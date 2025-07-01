@@ -21,7 +21,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
     type Program = crate::RecursionProgram<F>;
 
     fn name(&self) -> String {
-        format!("Poseidon2WideDeg{}", DEGREE)
+        format!("Poseidon2WideDeg{DEGREE}")
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {

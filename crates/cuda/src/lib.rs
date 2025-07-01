@@ -217,7 +217,7 @@ impl SP1CudaProver {
 
         // Pull the docker image if it's not present
         if let Err(e) = Command::new("docker").args(["pull", &image_name]).output() {
-            return Err(format!("Failed to pull Docker image: {}. Please check your internet connection and Docker permissions.", e).into());
+            return Err(format!("Failed to pull Docker image: {e}. Please check your internet connection and Docker permissions.").into());
         }
 
         // Start the docker container
@@ -240,7 +240,7 @@ impl SP1CudaProver {
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
             .spawn()
-            .map_err(|e| format!("Failed to start Docker container: {}. Please check your Docker installation and permissions.", e))?;
+            .map_err(|e| format!("Failed to start Docker container: {e}. Please check your Docker installation and permissions."))?;
 
         MOONGATE_CONTAINERS.lock()?.insert(container_name.clone(), cleaned_up.clone());
 
@@ -386,8 +386,7 @@ impl Drop for SP1CudaProver {
 fn cleanup_container(container_name: &str) {
     if let Err(e) = Command::new("docker").args(["rm", "-f", container_name]).output() {
         eprintln!(
-            "Failed to remove container: {}. You may need to manually remove it using 'docker rm -f {}'",
-            e, container_name
+            "Failed to remove container: {e}. You may need to manually remove it using 'docker rm -f {container_name}'"
         );
     }
 }

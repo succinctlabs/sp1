@@ -144,7 +144,7 @@ pub(crate) mod tests {
         let (pk_9, vk_9) = machine_deg_9.setup(&program);
         let result_deg_9 = run_test_machine(vec![runtime.record], machine_deg_9, pk_9, vk_9);
         if let Err(e) = result_deg_9 {
-            panic!("Verification failed: {:?}", e);
+            panic!("Verification failed: {e:?}");
         }
     }
 }

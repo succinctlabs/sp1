@@ -83,14 +83,12 @@ pub async fn get_toolchain_download_url(client: &Client, target: String) -> Stri
         })
         .unwrap_or_else(|| {
             panic!(
-                "No release found for the expected tag: {}",
-                LATEST_SUPPORTED_TOOLCHAIN_VERSION_TAG
+                "No release found for the expected tag: {LATEST_SUPPORTED_TOOLCHAIN_VERSION_TAG}",
             );
         });
 
     let url = format!(
-        "https://github.com/succinctlabs/rust/releases/download/{}/rust-toolchain-{}.tar.gz",
-        LATEST_SUPPORTED_TOOLCHAIN_VERSION_TAG, target
+        "https://github.com/succinctlabs/rust/releases/download/{LATEST_SUPPORTED_TOOLCHAIN_VERSION_TAG}/rust-toolchain-{target}.tar.gz"
     );
 
     url

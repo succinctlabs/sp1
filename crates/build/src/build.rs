@@ -135,7 +135,7 @@ pub(crate) fn build_program_internal(path: &str, args: Option<BuildArgs>) {
         execute_build_program(&BuildArgs::default(), Some(program_dir.to_path_buf()))
     };
     if let Err(err) = path_output {
-        panic!("Failed to build SP1 program: {}.", err);
+        panic!("Failed to build SP1 program: {err}.");
     }
 
     if args.map(|args| matches!(args.warning_level, WarningLevel::All)).unwrap_or(true) {

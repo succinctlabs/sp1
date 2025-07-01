@@ -75,7 +75,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize>
             let shape = RecursionShape { inner: shape };
             *program.shape_mut() = Some(shape);
         } else {
-            panic!("no shape found for heights: {:?}", heights);
+            panic!("no shape found for heights: {heights:?}");
         }
     }
 
