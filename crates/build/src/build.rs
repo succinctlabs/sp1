@@ -205,6 +205,6 @@ pub fn generate_elf_paths(
 /// Prints cargo directives setting relevant `SP1_ELF_` environment variables.
 fn print_elf_paths_cargo_directives(target_elf_paths: &[(String, Utf8PathBuf)]) {
     for (target_name, elf_path) in target_elf_paths.iter() {
-        println!("cargo:rustc-env=SP1_ELF_{}={}", target_name, elf_path);
+        println!("cargo:rustc-env=SP1_ELF_{target_name}={elf_path}");
     }
 }
