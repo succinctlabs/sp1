@@ -1,3 +1,7 @@
+//! # Env Proving
+//!
+//! This module provides a builder for proving a program.
+
 use anyhow::Result;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{components::CpuProverComponents, SP1ProvingKey};
@@ -31,6 +35,7 @@ impl EnvProveBuilder<'_> {
     /// let (pk, vk) = client.setup(elf);
     /// let builder = client.prove(&pk, &stdin).core().run();
     /// ```
+    #[must_use]
     pub fn core(mut self) -> Self {
         self.mode = SP1ProofMode::Core;
         self
@@ -54,6 +59,7 @@ impl EnvProveBuilder<'_> {
     /// let (pk, vk) = client.setup(elf);
     /// let builder = client.prove(&pk, &stdin).compressed().run();
     /// ```
+    #[must_use]
     pub fn compressed(mut self) -> Self {
         self.mode = SP1ProofMode::Compressed;
         self
@@ -78,6 +84,7 @@ impl EnvProveBuilder<'_> {
     /// let (pk, vk) = client.setup(elf);
     /// let builder = client.prove(&pk, &stdin).plonk().run();
     /// ```
+    #[must_use]
     pub fn plonk(mut self) -> Self {
         self.mode = SP1ProofMode::Plonk;
         self
@@ -100,6 +107,7 @@ impl EnvProveBuilder<'_> {
     /// let (pk, vk) = client.setup(elf);
     /// let builder = client.prove(&pk, &stdin).groth16().run();
     /// ```
+    #[must_use]
     pub fn groth16(mut self) -> Self {
         self.mode = SP1ProofMode::Groth16;
         self
@@ -121,6 +129,7 @@ impl EnvProveBuilder<'_> {
     /// let (pk, vk) = client.setup(elf);
     /// let builder = client.prove(&pk, &stdin).mode(SP1ProofMode::Groth16).run();
     /// ```
+    #[must_use]
     pub fn mode(mut self, mode: SP1ProofMode) -> Self {
         self.mode = mode;
         self
