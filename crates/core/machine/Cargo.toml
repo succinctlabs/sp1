@@ -31,6 +31,7 @@ sp1-primitives = { workspace = true }
 
 rayon = "1.10.0"
 rayon-scan = "0.1.1"
+sysinfo = "0.30.13"
 
 amcl = { package = "snowbridge-amcl", version = "1.0.2", default-features = false, features = [
   "bls381",

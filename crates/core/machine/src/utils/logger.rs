@@ -1,5 +1,10 @@
-use std::sync::Once;
+use std::{
+    sync::Once,
+    thread::{sleep, spawn},
+    time::Duration,
+};
 
+use sysinfo::{MemoryRefreshKind, RefreshKind, System};
 use tracing_forest::ForestLayer;
 use tracing_subscriber::{
     fmt::format::FmtSpan, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Registry,
@@ -43,6 +48,27 @@ pub fn setup_logger() {
             _ => {
                 panic!("Invalid logger type: {}", logger_type);
             }
-        }
+        };
+
+        // Spawn a thread to warn when used memory is high
+        spawn(|| {
+            let mut sys = System::new_with_specifics(
+                RefreshKind::new().with_memory(MemoryRefreshKind::new().with_ram()),
+            );
+
+            let total_memory = sys.total_memory();
+
+            loop {
+                sleep(Duration::from_secs(10));
+                sys.refresh_memory();
+
+                let used_memory = sys.used_memory();
+                let ratio = used_memory as f64 / total_memory as f64;
+
+                if ratio > 0.8 {
+                    tracing::warn!("Memory usage is high: {:.2}%", ratio * 100.0);
+                }
+            }
+        });
     });
 }
