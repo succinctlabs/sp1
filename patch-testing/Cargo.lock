@@ -4328,7 +4328,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-sdk"
-version = "5.0.6"
+version = "5.0.7"
 dependencies = [
  "anyhow",
  "async-trait",

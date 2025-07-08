@@ -73,7 +73,7 @@ impl NetworkProverBuilder {
     /// let prover = ProverClient::builder().network().private_key("...").rpc_url("...").build();
     /// ```
     #[must_use]
-    pub fn build(self) -> NetworkProver {
+    pub fn build(mut self) -> NetworkProver {
         let private_key = match self.private_key {
             Some(private_key) => private_key,
             None => std::env::var("NETWORK_PRIVATE_KEY").ok().filter(|k| !k.is_empty()).expect(
@@ -87,13 +87,7 @@ impl NetworkProverBuilder {
             None => std::env::var("NETWORK_RPC_URL").unwrap_or(DEFAULT_NETWORK_RPC_URL.to_string()),
         };
 
-        let tee_signers = match self.tee_signers {
-            Some(tee_signers) => tee_signers,
-            None => crate::utils::block_on(async {
-                crate::network::tee::get_tee_signers().await.expect("Failed to get TEE signers")
-            }),
-        };
-
-        NetworkProver::new(&private_key, &rpc_url).with_tee_signers(tee_signers)
+        NetworkProver::new(&private_key, &rpc_url)
+            .with_tee_signers(self.tee_signers.take().unwrap_or_default())
     }
 }
