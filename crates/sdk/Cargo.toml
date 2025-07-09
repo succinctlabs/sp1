@@ -75,6 +75,7 @@ network = [
   "dep:tonic",
   "dep:backoff",
 ]
+tee-2fa = []
 sepolia = [
   "network",
   "dep:alloy-sol-types",
