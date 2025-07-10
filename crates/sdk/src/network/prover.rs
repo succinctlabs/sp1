@@ -368,6 +368,8 @@ impl NetworkProver {
             |dur| dur.as_secs(),
         );
 
+        let max_price_per_bpgu = max_price_per_pgu * 1_000_000_000;
+
         // Log the request.
         tracing::info!("Requesting proof:");
         tracing::info!("├─ Strategy: {:?}", strategy);
@@ -384,9 +386,9 @@ impl NetworkProver {
                 Self::format_prove_amount(base_fee)
             );
             tracing::info!(
-                "├─ Max price per PGU: {} ({} $PROVE)",
-                max_price_per_pgu,
-                Self::format_prove_amount(max_price_per_pgu)
+                "├─ Max price per bPGU: {} ({} $PROVE)",
+                max_price_per_bpgu,
+                Self::format_prove_amount(max_price_per_bpgu)
             );
             tracing::info!("├─ Minimum auction period: {:?} seconds", min_auction_period);
             tracing::info!("├─ Prover Whitelist: {:?}", whitelist);
