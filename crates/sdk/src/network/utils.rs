@@ -3,6 +3,7 @@
 //! This module provides utility functions for the network module.
 
 #![allow(deprecated)]
+
 use std::cmp::max;
 
 use prost::Message;
