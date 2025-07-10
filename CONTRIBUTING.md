@@ -1,184 +1,137 @@
-## Contributing to SP1
+# Contributing to SP1
 
 Thanks for your interest in improving SP1!
 
-There are multiple opportunities to contribute at any level. It doesn't matter if you are just getting started with Rust
-or an expert, we can use your help.
+There are many ways to contribute at any level. Whether you're just getting started with Rust or you're already an expert, your help is welcome.
 
-**No contribution is too small and all contributions are valued.**
+No contribution is too small—every contribution is valued.
 
-This document will help you get started. **Do not let the document intimidate you**.
-It should be considered as a guide to help you navigate the process.
+This document is a guide to help you get started. Don’t let it intimidate you; it’s here to help you navigate the process.
 
-The [Telegram](https://t.me/+AzG4ws-kD24yMGYx) is available for any concerns you may have that are not covered in this guide.
+If you have questions not addressed in this guide, feel free to ask in the Telegram group.
 
-If you contribute to this project, your contributions will be made to the project under both Apache 2.0 and the MIT
-license.
+> ⚠️ Contributions to this project are made under both the Apache 2.0 and MIT licenses.
 
-### Code of Conduct
+---
 
-The SP1 project adheres to the [Rust Code of Conduct][rust-coc]. This code of conduct describes the _minimum_ behavior
-expected from all contributors.
+## Code of Conduct
 
-Instances of violations of the Code of Conduct can be reported by contacting the team.
+The SP1 project follows the Rust Code of Conduct. This outlines the minimum behavior expected from all contributors.
 
-### Ways to contribute
+Violations can be reported to the team directly.
 
-There are fundamentally three ways an individual can contribute:
+---
 
-1. **By opening an issue:** For example, if you believe that you have uncovered a bug
-   in SP1, creating a new issue in the issue tracker is the way to report it.
-2. **By adding context:** Providing additional context to existing issues,
-   such as screenshots and code snippets to help resolve issues.
-3. **By resolving issues:** Typically this is done in the form of either
-   demonstrating that the issue reported is not a problem after all, or more often,
-   by opening a pull request that fixes the underlying problem, in a concrete and
-   reviewable manner.
+## Ways to Contribute
 
-**Anybody can participate in any stage of contribution**. We urge you to participate in the discussion around bugs and
-participate in reviewing PRs.
+You can contribute in several ways:
 
-### Contributions Related to Spelling and Grammar
+- **Open an issue**: If you believe you’ve found a bug in SP1, open an issue to report it.
+- **Add context**: Share screenshots, logs, or code snippets that can help clarify existing issues.
+- **Fix issues**: Submit a pull request to fix bugs or confirm if an issue is no longer valid.
 
-At this time, we will not be accepting contributions that only fix spelling or grammatical errors in documentation, code or
-elsewhere.
+We encourage you to join discussions, help review PRs, and grow with the community.
 
-### Asking for help
+> 🔤 _Note: At this time, we are not accepting contributions that only fix spelling or grammar errors._
 
-If you have reviewed existing documentation and still have questions, or you are having problems, you can get help by *
-*opening a discussion**. This repository comes with a discussions board where you can also ask for help. Click the "
-Discussions" tab at the top.
+---
 
-As SP1 is still in heavy development, the documentation can be a bit scattered. The [SP1 Book](https://succinctlabs.github.io/sp1/) is our
-current best-effort attempt at keeping up-to-date information.
+## Asking for Help
 
-### Submitting a bug report
+If you've reviewed the documentation and still have questions, you can ask for help by [opening a discussion](../../discussions). Click the **Discussions** tab at the top.
 
-The most important pieces of information we need in a bug report are:
+Since SP1 is under heavy development, documentation may sometimes be incomplete. The [SP1 Book](https://docs.succinct.xyz/docs/sp1/introduction) is our best effort to provide updated information.
 
-- The SP1 version you are on (and that it is up to date)
-- The platform you are on (Windows, macOS, an M1 Mac or Linux)
-- Code snippets if this is happening in relation to testing or building code
-- Concrete steps to reproduce the bug
+---
 
-In order to rule out the possibility of the bug being in your project, the code snippets should be as minimal as
-possible. It is better if you can reproduce the bug with a small snippet as opposed to an entire project!
+## Submitting a Bug Report
 
-See [this guide][mcve] on how to create a minimal, complete, and verifiable example.
+When submitting a bug report, please include:
 
-### Submitting a feature request
+- The SP1 version you're using
+- Your platform (Windows, macOS, Linux, etc.)
+- Any relevant code snippets
+- Exact steps to reproduce the bug
 
-Please include as detailed of an explanation as possible of the feature you would like, adding additional context if
-necessary.
+Keep examples minimal and self-contained when possible.
 
-If you have examples of other tools that have the feature you are requesting, please include them as well.
+---
 
-### Resolving an issue
+## Submitting a Feature Request
 
-Pull requests are the way concrete changes are made to the code, documentation, and dependencies of SP1.
+Clearly describe the feature you'd like to see. Include context and examples (other tools, workflows) if helpful.
 
-Even tiny pull requests, like fixing wording, are greatly appreciated. Before making a large change, it is usually a
-good idea to first open an issue describing the change to solicit feedback and guidance. This will increase the
-likelihood of the PR getting merged.
+---
 
-If you are working on a larger feature, we encourage you to open up a draft pull request, to make sure that other
-contributors are not duplicating work.
+## Resolving an Issue
 
-#### Adding tests
+Pull requests (PRs) are the main way to propose changes to the code, documentation, or dependencies.
 
-If the change being proposed alters code, it is either adding new functionality to SP1, or fixing existing, broken
-functionality.
-In both of these cases, the pull request should include one or more tests to ensure that SP1 does not regress in the
-future.
+Even small PRs—such as wording improvements—are welcome. For major changes, open an issue first to get feedback.
 
-Types of tests include:
+For large features, start with a **draft PR** to avoid duplication.
 
-- **Unit tests**: Functions which have very specific tasks should be unit tested.
-- **Integration tests**: For general purpose, far reaching functionality,
-  integration tests should be added. The best way to add a new integration test is to look at existing ones and follow
-  the style.
+---
 
-#### Commits
+## Adding Tests
 
-It is a recommended best practice to keep your changes as logically grouped as possible within individual commits. There
-is no limit to the number of commits any single pull request may have, and many contributors find it easier to review
-changes that are split across multiple commits.
+If you're changing code, please include tests:
 
-That said, if you have a number of commits that are "checkpoints" and don't represent a single logical change, please
-squash those together.
+- **Unit tests**: For specific functions
+- **Integration tests**: For broader functionality. Refer to existing tests for guidance.
 
-**Conventional Commit Messages and PR Titles:**
-To ensure consistency and aid in automated tooling (such as changelog generation), please follow the
-[Conventional Commits](https://www.conventionalcommits.org/) style for commit messages and PR titles. Prefix your commit
-messages and PR titles with one of the following types:
+---
 
-- **feat:** for new features
-- **fix:** for bug fixes
-- **docs:** for documentation-only changes
-- **refactor:** for code changes that neither fix a bug nor add a feature
-- **chore:** for changes to the build process or auxiliary tools
-- **test:** for adding or updating tests
+## Commit Best Practices
 
-For example:
-- `docs: Update README with corrected links`
-- `fix: Resolve race condition in event loop`
+- Keep commits logically grouped.
+- Squash trivial commits when possible.
+- Follow [Conventional Commits](https://www.conventionalcommits.org/) format for commit messages and PR titles:
+  - `feat:` for new features
+  - `fix:` for bug fixes
+  - `docs:` for documentation changes
+  - `refactor:` for non-feature/non-bug code changes
+  - `chore:` for build/tooling changes
+  - `test:` for test additions/updates
 
-If your pull request title does not contain a valid prefix, automated checks may fail. You can amend your commit and
-force-push to correct this before merging.
+**Examples**:
 
-#### Opening the pull request
-
-From within GitHub, opening a new pull request will present you with a template that should be filled out. Please try
-your best at filling out the details, but feel free to skip parts if you're not sure what to put.
-
-#### Discuss and update
-
-You will probably get feedback or requests for changes to your pull request.
-This is a big part of the submission process, so don't be discouraged! Some contributors may sign off on the pull
-request right away, others may have more detailed comments or feedback. This is a necessary part of the process in order
-to evaluate whether the changes are correct and necessary.
-
-**Any community member can review a PR, so you might get conflicting feedback**. Keep an eye out for comments from code
-owners to provide guidance on conflicting feedback.
-
-#### Reviewing pull requests
-
-**Any SP1 community member is welcome to review any pull request**.
-
-All contributors who choose to review and provide feedback on pull requests have a responsibility to both the project
-and individual making the contribution. Reviews and feedback must be helpful, insightful, and geared towards improving
-the contribution as opposed to simply blocking it. If there are reasons why you feel the PR should not be merged,
-explain what those are. Do not expect to be able to block a PR from advancing simply because you say "no" without giving
-an explanation. Be open to having your mind changed. Be open to working _with_ the contributor to make the pull request
-better.
-
-Reviews that are dismissive or disrespectful of the contributor or any other reviewers are strictly counter to
-the [Code of Conduct][coc-header].
-
-When reviewing a pull request, the primary goals are for the codebase to improve and for the person submitting the
-request to succeed. **Even if a pull request is not merged, the submitter should come away from the experience feeling
-like their effort was not unappreciated**. Every PR from a new contributor is an opportunity to grow the community.
-
-##### Be aware of the person behind the code
-
-Be aware that _how_ you communicate requests and reviews in your feedback can have a significant impact on the success
-of the pull request. Yes, we may merge a particular change that makes SP1 better, but the individual might just not
-want to have anything to do with SP1 ever again. The goal is not just having good code.
-
-##### Abandoned or stale pull requests
-
-If a pull request appears to be abandoned or stalled, it is polite to first check with the contributor to see if they
-intend to continue the work before checking if they would mind if you took it over (especially if it just has nits
-left). When doing so, it is courteous to give the original contributor credit for the work they started, either by
-preserving their name and e-mail address in the commit log, or by using the `Author: ` or `Co-authored-by: ` metadata
-tag in the commits.
-
-_Adapted from the [Reth contributing guide](https://raw.githubusercontent.com/paradigmxyz/reth/main/CONTRIBUTING.md)_.
-
-[rust-coc]: https://github.com/rust-lang/rust/blob/master/CODE_OF_CONDUCT.md
 
 [coc-header]: #code-of-conduct
 
 [mcve]: https://stackoverflow.com/help/mcve
 
 [hiding-a-comment]: https://help.github.com/articles/managing-disruptive-comments/#hiding-a-comment
+
+---
+
+## Opening a Pull Request
+
+When opening a PR, fill out the template as best you can. It’s okay to skip parts if unsure.
+
+---
+
+## Discuss and Update
+
+You may receive feedback on your PR. That’s expected!
+
+Collaboration improves the codebase and helps you grow as a contributor. All PRs are opportunities to grow the SP1 community—even if they’re not merged.
+
+---
+
+## Reviewing PRs
+
+Anyone is welcome to review pull requests.
+
+Be helpful, respectful, and constructive in your feedback. Dismissive or vague reviews go against our Code of Conduct.
+
+---
+
+## Abandoned PRs
+
+If a PR appears stalled, check with the contributor before continuing their work. If you take over, give credit using `Author:` or `Co-authored-by:` in the commit message.
+
+---
+
+_Adapted from the Reth contributing guide._
+
