@@ -417,6 +417,9 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     ) -> Result<SP1CoreProof, SP1CoreProverError> {
         context.subproof_verifier = Some(self);
 
+        // Always calculate gas in prover for gas limit enforcement and reporting.
+        context.calculate_gas = true;
+
         // Launch two threads to simultaneously prove the core and compile the first few
         // recursion programs in parallel.
         let span = tracing::Span::current().clone();
@@ -432,34 +435,29 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 // Copy the proving key to the device.
                 let pk = pk_d;
 
-                // We may calculate gas while proving if the opts match the hardcoded variant.
-                // This ensures that the gas number is consistent between `execute` and `prove_core`.
-                // This behavior is undocumented because it is confusing and not very useful.
-                //
-                // If `context.calculate_gas` is set, we use the logic from the `gas` module
-                // after checkpoint execution to print gas as part of the execution report.
-                #[allow(clippy::type_complexity)]
-                let gas_calculator = (context.calculate_gas
-                    && std::env::var("SP1_FORCE_GAS").is_ok())
-                .then(
-                    || -> Box<dyn FnOnce(&RecordEstimator) -> Result<u64, Box<dyn Error>> + '_> {
-                        tracing::info!("Forcing calculation of gas while proving.");
-                        if opts.core_opts == gas::GAS_OPTS {
-                            tracing::info!(
-                                "The SP1CoreOpts matches the gas opts, so gas will be consistent."
-                            );
-                        } else {
-                            tracing::warn!(
-                                "The SP1CoreOpts does not match the gas opts. \
-                                Gas will likely disagree with the standard gas calculated when executing."
-                            );
-                        }
-                        let preprocessed_shape = program.preprocessed_shape.clone().unwrap();
-                        Box::new(
-                            self.get_gas_calculator(preprocessed_shape, opts.core_opts.split_opts),
-                        )
-                    },
-                );
+                // Set up gas calculator, since we always calculate gas now.
+                let gas_calculator = if context.max_gas.is_some() {
+                    tracing::info!(
+                        "Setting up gas calculator for proving with gas limit enforcement."
+                    );
+                    if opts.core_opts == gas::GAS_OPTS {
+                        tracing::info!(
+                            "The SP1CoreOpts matches the gas opts, so gas will be consistent."
+                        );
+                    } else {
+                        tracing::warn!(
+                            "The SP1CoreOpts does not match the gas opts. \
+                            Gas may disagree with the standard gas calculated when executing."
+                        );
+                    }
+                    let preprocessed_shape = program.preprocessed_shape.clone().unwrap();
+                    Some(Box::new(
+                        self.get_gas_calculator(preprocessed_shape, opts.core_opts.split_opts),
+                    )
+                        as Box<dyn FnOnce(&RecordEstimator) -> Result<u64, Box<dyn Error>> + '_>)
+                } else {
+                    None
+                };
 
                 // Prove the core and stream the proofs and shapes.
                 sp1_core_machine::utils::prove_core_stream::<_, C::CoreProver>(
