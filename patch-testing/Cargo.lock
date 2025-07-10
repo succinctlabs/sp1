@@ -4077,6 +4077,7 @@ dependencies = [
  "static_assertions",
  "strum",
  "strum_macros",
+ "sysinfo",
  "tempfile",
  "thiserror 1.0.69",
  "tracing",

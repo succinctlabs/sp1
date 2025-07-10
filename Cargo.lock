@@ -5635,6 +5635,7 @@ dependencies = [
  "static_assertions",
  "strum",
  "strum_macros",
+ "sysinfo",
  "tempfile",
  "test-artifacts",
  "thiserror 1.0.69",
