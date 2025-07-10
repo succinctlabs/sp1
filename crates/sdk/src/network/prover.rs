@@ -564,63 +564,93 @@ impl NetworkProver {
         max_price_per_pgu: Option<u64>,
         auction_timeout: Option<Duration>,
     ) -> Result<SP1ProofWithPublicValues> {
-        let request_id = self
-            .request_proof_impl(
-                pk,
-                stdin,
-                mode,
-                strategy,
-                timeout,
-                skip_simulation,
-                cycle_limit,
-                gas_limit,
-                min_auction_period,
-                whitelist,
-                auctioneer,
-                executor,
-                verifier,
-                max_price_per_pgu,
-            )
-            .await?;
+        let mut whitelist = whitelist.clone();
 
-        // If 2FA is enabled, spawn a task to get the tee proof.
-        // Note: We only support one type of TEE proof for now.
+        // Attempt to get proof, with retry logic for failed auction requests
+        loop {
+            let request_id = self
+                .request_proof_impl(
+                    pk,
+                    stdin,
+                    mode,
+                    strategy,
+                    timeout,
+                    skip_simulation,
+                    cycle_limit,
+                    gas_limit,
+                    min_auction_period,
+                    whitelist.clone(),
+                    auctioneer,
+                    executor,
+                    verifier,
+                    max_price_per_pgu,
+                )
+                .await?;
 
-        let handle = if tee_2fa {
-            let request = super::tee::api::TEERequest::new(
-                &self.client.signer,
-                *request_id,
-                pk.elf.clone(),
-                stdin.clone(),
-                cycle_limit.unwrap_or(DEFAULT_CYCLE_LIMIT),
-            );
+            // If 2FA is enabled, spawn a task to get the tee proof.
+            // Note: We only support one type of TEE proof for now.
 
-            Some(tokio::spawn(async move {
-                let tee_client = TeeClient::default();
+            let handle = if tee_2fa {
+                let request = super::tee::api::TEERequest::new(
+                    &self.client.signer,
+                    *request_id,
+                    pk.elf.clone(),
+                    stdin.clone(),
+                    cycle_limit.unwrap_or(DEFAULT_CYCLE_LIMIT),
+                );
 
-                tee_client.execute(request).await
-            }))
-        } else {
-            None
-        };
+                Some(tokio::spawn(async move {
+                    let tee_client = TeeClient::default();
 
-        // Wait for the proof to be generated.
-        #[allow(unused_mut)]
-        let mut proof = self.wait_proof(request_id, timeout, auction_timeout).await?;
+                    tee_client.execute(request).await
+                }))
+            } else {
+                None
+            };
 
-        // If 2FA is enabled, wait for the tee proof to be generated and add it to the proof.
-        if let Some(handle) = handle {
-            let tee_proof = handle
-                .await
-                .context("Spawning a new task to get the tee proof failed")?
-                .context("Error response from TEE server")?;
+            // Wait for the proof to be generated.
+            let mut proof = match self.wait_proof(request_id, timeout, auction_timeout).await {
+                Ok(proof) => proof,
+                Err(e) => {
+                    // Check if this is an auction request that we can retry
+                    if let Some(network_error) = e.downcast_ref::<Error>() {
+                        if matches!(
+                            network_error,
+                            Error::RequestUnfulfillable { .. }
+                                | Error::RequestTimedOut { .. }
+                                | Error::RequestAuctionTimedOut { .. }
+                        ) && strategy == FulfillmentStrategy::Auction
+                            && whitelist.is_none()
+                        {
+                            tracing::warn!("Retrying auction request with fallback whitelist...");
 
-            proof.tee_proof = Some(tee_proof.as_prefix_bytes());
+                            // Get fallback whitelist and retry
+                            let fallback_whitelist = super::utils::get_fallback_whitelist().await;
+                            if !fallback_whitelist.is_empty() {
+                                whitelist = Some(fallback_whitelist);
+                                continue;
+                            }
+                        }
+                    }
 
+                    // If we can't retry, return the error
+                    return Err(e);
+                }
+            };
+
+            // If 2FA is enabled, wait for the tee proof to be generated and add it to the proof.
+            if let Some(handle) = handle {
+                let tee_proof = handle
+                    .await
+                    .context("Spawning a new task to get the tee proof failed")?
+                    .context("Error response from TEE server")?;
+
+                proof.tee_proof = Some(tee_proof.as_prefix_bytes());
+            }
+
+            // Success! Return the proof
             return Ok(proof);
         }
-
-        Ok(proof)
     }
 
     /// The cycle limit and gas limit are determined according to the following priority:

@@ -37,3 +37,7 @@ pub(crate) fn calculate_timeout_from_gas_limit(gas_limit: u64) -> u64 {
     let gas_based_timeout = gas_limit / 2_000_000 + 1;
     max(base_timeout, gas_based_timeout)
 }
+
+pub(crate) async fn get_fallback_whitelist() -> Vec<alloy_primitives::Address> {
+    vec![]
+}

@@ -16,7 +16,9 @@ fn main() {
     stdin.write(&n);
 
     // Create a `ProverClient` method.
-    let client = ProverClient::from_env();
+    let client = ProverClient::builder().network().build();
+
+    use sp1_sdk::{network::FulfillmentStrategy, Prover};
 
     // Execute the program using the `ProverClient.execute` method, without generating a proof.
     let (_, report) = client.execute(ELF, &stdin).run().unwrap();
@@ -24,7 +26,12 @@ fn main() {
 
     // Generate the proof for the given program and input.
     let (pk, vk) = client.setup(ELF);
-    let mut proof = client.prove(&pk, &stdin).plonk().run().unwrap();
+    let mut proof = client
+        .prove(&pk, &stdin)
+        .strategy(FulfillmentStrategy::Auction)
+        .compressed()
+        .run()
+        .unwrap();
 
     println!("generated proof");
 
