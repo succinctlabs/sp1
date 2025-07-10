@@ -34,7 +34,7 @@ pub struct NetworkProveBuilder<'a> {
     pub(crate) gas_limit: Option<u64>,
     pub(crate) tee_2fa: bool,
     pub(crate) min_auction_period: u64,
-    pub(crate) whitelist: Vec<Address>,
+    pub(crate) whitelist: Option<Vec<Address>>,
     pub(crate) auctioneer: Option<Address>,
     pub(crate) executor: Option<Address>,
     pub(crate) verifier: Option<Address>,
@@ -350,6 +350,8 @@ impl NetworkProveBuilder<'_> {
     /// Only provers specified in the whitelist will be able to bid and prove on the request. Only
     /// relevant if the strategy is set to [`FulfillmentStrategy::Auction`].
     ///
+    /// If whitelist is `None` when requesting a proof, a set of recently reliable provers will be used.
+    ///
     /// # Example
     /// ```rust,no_run
     /// use alloy_primitives::Address;
@@ -362,10 +364,10 @@ impl NetworkProveBuilder<'_> {
     /// let client = ProverClient::builder().network().build();
     /// let (pk, vk) = client.setup(elf);
     /// let whitelist = vec![Address::from_str("0x123").unwrap(), Address::from_str("0x456").unwrap()];
-    /// let builder = client.prove(&pk, &stdin).whitelist(whitelist).run();
+    /// let builder = client.prove(&pk, &stdin).whitelist(Some(whitelist)).run();
     /// ```
     #[must_use]
-    pub fn whitelist(mut self, whitelist: Vec<Address>) -> Self {
+    pub fn whitelist(mut self, whitelist: Option<Vec<Address>>) -> Self {
         self.whitelist = whitelist;
         self
     }
