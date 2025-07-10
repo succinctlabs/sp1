@@ -34,9 +34,6 @@ cfg-if = "1.0.0"
 serial_test = "3.2.0"
 rstest = "0.25.0"
 
-[build-dependencies]
-sp1-build = { workspace = true }
-
 [features]
 default = ["std"]
 std = ["thiserror/std"]
