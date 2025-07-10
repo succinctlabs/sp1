@@ -1717,24 +1717,6 @@ pub struct GetFilteredSettleableRequestsResponse {
     pub requests: ::prost::alloc::vec::Vec<SettleableRequest>,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
-pub struct GetProverSuccessRateRequest {
-    /// The address of the prover
-    #[prost(bytes = "vec", tag = "1")]
-    pub prover: ::prost::alloc::vec::Vec<u8>,
-    /// The start time of the period to check.
-    #[prost(uint64, tag = "2")]
-    pub start_time: u64,
-    /// The end time of the period to check.
-    #[prost(uint64, tag = "3")]
-    pub end_time: u64,
-}
-#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
-pub struct GetProverSuccessRateResponse {
-    /// The success rate over the specified time period.
-    #[prost(float, tag = "1")]
-    pub success_rate: f32,
-}
-#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct SuspendProverRequest {
     /// The message format of the body.
     #[prost(enumeration = "MessageFormat", tag = "1")]
