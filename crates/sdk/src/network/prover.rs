@@ -448,7 +448,7 @@ impl NetworkProver {
         let mut is_assigned = false;
         let start_time = Instant::now();
         let mut requested_start_time: Option<Instant> = None;
-        let auction_timeout_duration = auction_timeout.unwrap_or(Duration::from_secs(30));
+        let auction_timeout_duration = auction_timeout.unwrap_or(DEFAULT_AUCTION_TIMEOUT_DURATION);
 
         loop {
             // Calculate the remaining timeout.
