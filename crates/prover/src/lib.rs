@@ -326,24 +326,41 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     ) -> Result<(SP1PublicValues, [u8; 32], ExecutionReport), ExecutionError> {
         context.subproof_verifier = Some(self);
 
-        let calculate_gas = context.calculate_gas;
+        // Always calculate gas in prover for gas limit enforcement and reporting.
+        context.calculate_gas = true;
 
-        let (opts, program) = if calculate_gas {
-            (gas::GAS_OPTS, self.get_program(elf).unwrap())
-        } else {
-            (sp1_stark::SP1CoreOpts::default(), Program::from(elf).unwrap())
-        };
+        let (opts, program) = (gas::GAS_OPTS, self.get_program(elf).unwrap());
         let preprocessed_shape = program.preprocessed_shape.clone();
 
         let mut runtime = Executor::with_context(program, opts, context);
 
-        if calculate_gas {
-            // Needed to figure out where the shard boundaries are.
-            runtime.maximal_shapes = self.core_shape_config.as_ref().map(|config| {
-                config.maximal_core_shapes(opts.shard_size.ilog2() as usize).into_iter().collect()
-            });
-            runtime.record_estimator = Some(Box::default());
-        }
+        // Figure out where the shard boundaries are.
+        runtime.maximal_shapes = self.core_shape_config.as_ref().map(|config| {
+            config.maximal_core_shapes(opts.shard_size.ilog2() as usize).into_iter().collect()
+        });
+        runtime.record_estimator = Some(Box::default());
+
+        // Set up gas calculator for shard gas checking.
+        let split_opts = opts.split_opts;
+        runtime.gas_calculator = Some(Box::new(move |estimator: &RecordEstimator| -> u64 {
+            let est_records = gas::estimated_records(&split_opts, estimator);
+            let raw_gas = est_records
+                .map(|shape| {
+                    gas::predict(
+                        enum_map::EnumMap::from_iter(shape.iter().map(|(k, v)| (k, *v as usize)))
+                            .as_array(),
+                    )
+                })
+                .sum::<f64>();
+
+            match gas::final_transform(raw_gas) {
+                Ok(gas) => gas,
+                Err(e) => {
+                    tracing::error!("Gas calculation failed: {}", e);
+                    0
+                }
+            }
+        }));
 
         runtime.maybe_setup_profiler(elf);
 
@@ -353,7 +370,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         }
         runtime.run_fast()?;
 
-        if calculate_gas {
+        // Calculate gas for reporting.
+        if runtime.gas_used > 0 {
+            // If we tracked gas during execution, use the accumulated gas.
+            runtime.report.gas = Some(runtime.gas_used);
+            tracing::info!("gas: {}", runtime.gas_used);
+        } else {
+            // Otherwise, calculate gas using the full record estimator.
             let gas = self.get_gas_calculator(preprocessed_shape.unwrap(), opts.split_opts)(
                 runtime.record_estimator.as_ref().unwrap(),
             );

@@ -49,6 +49,9 @@ pub const UNUSED_PC: u32 = 1;
 /// The maximum number of instructions in a program.
 pub const MAX_PROGRAM_SIZE: usize = 1 << 22;
 
+/// A thread-safe boxed closure that calculates gas consumption from `RecordEstimator`.
+pub type GasCalculator = Box<dyn FnMut(&RecordEstimator) -> u64 + Send>;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// Whether to verify deferred proofs during execution.
 pub enum DeferredProofVerification {
@@ -139,7 +142,7 @@ pub struct Executor<'a> {
     pub gas_used: u64,
 
     /// The gas calculator function used to calculate gas from execution records.
-    pub gas_calculator: Option<Box<dyn FnMut(&RecordEstimator) -> u64>>,
+    pub gas_calculator: Option<GasCalculator>,
 
     /// The current trace of the execution that is being collected.
     pub record: Box<ExecutionRecord>,
