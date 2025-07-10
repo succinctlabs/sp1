@@ -119,7 +119,7 @@ where
         let (width, lines) = sorted_table_lines(instr_cts);
         let lines = lines.map(|(label, count)| format_table_line(&width, &label, count));
 
-        once(format!("{}", name))
+        once(format!("{name}"))
             .chain(
                 children
                     .iter()

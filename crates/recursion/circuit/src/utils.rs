@@ -142,7 +142,7 @@ pub(crate) mod tests {
         proof_wide_span.exit();
 
         if let Err(e) = result {
-            panic!("Verification failed: {:?}", e);
+            panic!("Verification failed: {e:?}");
         }
     }
 

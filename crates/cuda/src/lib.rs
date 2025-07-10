@@ -204,7 +204,7 @@ impl SP1CudaProver {
         // If the moongate endpoint url hasn't been provided, we start the Docker container
         let container_name = port.map(|p| format!("sp1-gpu-{p}")).unwrap_or("sp1-gpu".to_string());
         let image_name = std::env::var("SP1_GPU_IMAGE")
-            .unwrap_or_else(|_| "public.ecr.aws/succinct-labs/moongate:v5.0.0".to_string());
+            .unwrap_or_else(|_| "public.ecr.aws/succinct-labs/moongate:v5.0.8".to_string());
 
         let cleaned_up = Arc::new(AtomicBool::new(false));
         let port = port.unwrap_or(3000);
@@ -217,7 +217,7 @@ impl SP1CudaProver {
 
         // Pull the docker image if it's not present
         if let Err(e) = Command::new("docker").args(["pull", &image_name]).output() {
-            return Err(format!("Failed to pull Docker image: {}. Please check your internet connection and Docker permissions.", e).into());
+            return Err(format!("Failed to pull Docker image: {e}. Please check your internet connection and Docker permissions.").into());
         }
 
         // Start the docker container
@@ -240,7 +240,7 @@ impl SP1CudaProver {
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
             .spawn()
-            .map_err(|e| format!("Failed to start Docker container: {}. Please check your Docker installation and permissions.", e))?;
+            .map_err(|e| format!("Failed to start Docker container: {e}. Please check your Docker installation and permissions."))?;
 
         MOONGATE_CONTAINERS.lock()?.insert(container_name.clone(), cleaned_up.clone());
 
@@ -386,8 +386,7 @@ impl Drop for SP1CudaProver {
 fn cleanup_container(container_name: &str) {
     if let Err(e) = Command::new("docker").args(["rm", "-f", container_name]).output() {
         eprintln!(
-            "Failed to remove container: {}. You may need to manually remove it using 'docker rm -f {}'",
-            e, container_name
+            "Failed to remove container: {e}. You may need to manually remove it using 'docker rm -f {container_name}'"
         );
     }
 }

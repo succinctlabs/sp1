@@ -316,6 +316,7 @@ impl NetworkProveBuilder<'_> {
     /// }
     /// ```
     #[must_use]
+    #[cfg(feature = "tee-2fa")]
     pub fn tee_2fa(mut self) -> Self {
         self.tee_2fa = true;
         self

@@ -298,7 +298,7 @@ mod tests {
         println!("{:?}", trace.values);
 
         for mem_event in shard.global_memory_finalize_events {
-            println!("{:?}", mem_event);
+            println!("{mem_event:?}");
         }
     }
 

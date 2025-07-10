@@ -48,8 +48,7 @@ impl InstallToolchainCmd {
                     let mut headers = reqwest::header::HeaderMap::new();
                     headers.insert(
                         reqwest::header::AUTHORIZATION,
-                        reqwest::header::HeaderValue::from_str(&format!("token {}", token))
-                            .unwrap(),
+                        reqwest::header::HeaderValue::from_str(&format!("token {token}")).unwrap(),
                     );
                     headers
                 })
@@ -74,11 +73,11 @@ impl InstallToolchainCmd {
                             entry_name != "toolchains"
                         {
                             if let Err(err) = fs::remove_dir_all(&entry_path) {
-                                println!("Failed to remove directory {:?}: {}", entry_path, err);
+                                println!("Failed to remove directory {entry_path:?}: {err}");
                             }
                         } else if entry_path.is_file() {
                             if let Err(err) = fs::remove_file(&entry_path) {
-                                println!("Failed to remove file {:?}: {}", entry_path, err);
+                                println!("Failed to remove file {entry_path:?}: {err}");
                             }
                         }
                     }
@@ -89,7 +88,7 @@ impl InstallToolchainCmd {
         println!("Successfully cleaned up ~/.sp1 directory.");
         match fs::create_dir_all(&root_dir) {
             Ok(_) => println!("Successfully created ~/.sp1 directory."),
-            Err(err) => println!("Failed to create ~/.sp1 directory: {}", err),
+            Err(err) => println!("Failed to create ~/.sp1 directory: {err}"),
         };
 
         assert!(
@@ -97,7 +96,7 @@ impl InstallToolchainCmd {
             "Unsupported architecture. Please build the toolchain from source."
         );
         let target = get_target();
-        let toolchain_asset_name = format!("rust-toolchain-{}.tar.gz", target);
+        let toolchain_asset_name = format!("rust-toolchain-{target}.tar.gz");
         let toolchain_archive_path = root_dir.join(toolchain_asset_name.clone());
         let toolchain_dir = root_dir.join(&target);
         let rt = tokio::runtime::Runtime::new()?;
@@ -164,7 +163,7 @@ impl InstallToolchainCmd {
 
         // Ensure permissions.
         let bin_dir = new_toolchain_dir.join("bin");
-        let rustlib_bin_dir = new_toolchain_dir.join(format!("lib/rustlib/{}/bin", target));
+        let rustlib_bin_dir = new_toolchain_dir.join(format!("lib/rustlib/{target}/bin"));
         for entry in fs::read_dir(bin_dir)?.chain(fs::read_dir(rustlib_bin_dir)?) {
             let entry = entry?;
             if entry.path().is_file() {

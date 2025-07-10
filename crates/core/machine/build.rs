@@ -135,7 +135,7 @@ mod sys {
             }
             Err(cbindgen::Error::ParseSyntaxError { .. }) => {} /* Ignore parse errors so */
             // rust-analyzer can run.
-            Err(e) => panic!("{:?}", e),
+            Err(e) => panic!("{e:?}"),
         }
 
         // Copy the headers to the include directory and symlink them to the fixed include
