@@ -66,7 +66,10 @@ pub fn setup_logger() {
                 let ratio = used_memory as f64 / total_memory as f64;
 
                 if ratio > 0.8 {
-                    tracing::warn!("Memory usage is high: {:.2}%", ratio * 100.0);
+                    tracing::warn!(
+                        "Memory usage is high: {:.2}%, we recommand using the prover network",
+                        ratio * 100.0
+                    );
                 }
             }
         });
