@@ -135,7 +135,7 @@ mod tests {
             let x_2 = (&x * &x) % Secp256k1BaseField::modulus();
             let sqrt = secp256k1_sqrt(&x_2);
 
-            println!("sqrt: {}", sqrt);
+            println!("sqrt: {sqrt}");
 
             let sqrt_2 = (&sqrt * &sqrt) % Secp256k1BaseField::modulus();
 

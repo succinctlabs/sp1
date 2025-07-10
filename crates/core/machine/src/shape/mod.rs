@@ -680,7 +680,7 @@ pub mod tests {
         use p3_baby_bear::BabyBear;
         let shape_config = CoreShapeConfig::<BabyBear>::default();
         let num_shapes = shape_config.all_shapes().collect::<HashSet<_>>().len();
-        println!("There are {} core shapes", num_shapes);
+        println!("There are {num_shapes} core shapes");
         assert!(num_shapes < 1 << 24);
     }
 

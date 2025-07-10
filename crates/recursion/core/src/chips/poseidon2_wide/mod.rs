@@ -109,7 +109,7 @@ pub(crate) mod tests {
         let result_deg_3 =
             run_test_machine(vec![runtime.record.clone()], machine_deg_3, pk_3, vk_3);
         if let Err(e) = result_deg_3 {
-            panic!("Verification failed: {:?}", e);
+            panic!("Verification failed: {e:?}");
         }
 
         let config = SC::new();
@@ -117,7 +117,7 @@ pub(crate) mod tests {
         let (pk_9, vk_9) = machine_deg_9.setup(&program);
         let result_deg_9 = run_test_machine(vec![runtime.record], machine_deg_9, pk_9, vk_9);
         if let Err(e) = result_deg_9 {
-            panic!("Verification failed: {:?}", e);
+            panic!("Verification failed: {e:?}");
         }
     }
 }

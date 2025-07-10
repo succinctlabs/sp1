@@ -10,7 +10,7 @@ pub const RUSTUP_TOOLCHAIN_NAME: &str = "succinct";
 ///
 /// This tag has support for older x86 libc versions (like the one found in Ubuntu 20.04).
 /// This tag has support for the recent Macos and ARM targets.
-pub const LATEST_SUPPORTED_TOOLCHAIN_VERSION_TAG: &str = "succinct-1.87.0";
+pub const LATEST_SUPPORTED_TOOLCHAIN_VERSION_TAG: &str = "succinct-1.88.0";
 
 pub const SP1_VERSION_MESSAGE: &str =
     concat!("sp1", " (", env!("VERGEN_GIT_SHA"), " ", env!("VERGEN_BUILD_TIMESTAMP"), ")");
@@ -83,14 +83,12 @@ pub async fn get_toolchain_download_url(client: &Client, target: String) -> Stri
         })
         .unwrap_or_else(|| {
             panic!(
-                "No release found for the expected tag: {}",
-                LATEST_SUPPORTED_TOOLCHAIN_VERSION_TAG
+                "No release found for the expected tag: {LATEST_SUPPORTED_TOOLCHAIN_VERSION_TAG}",
             );
         });
 
     let url = format!(
-        "https://github.com/succinctlabs/rust/releases/download/{}/rust-toolchain-{}.tar.gz",
-        LATEST_SUPPORTED_TOOLCHAIN_VERSION_TAG, target
+        "https://github.com/succinctlabs/rust/releases/download/{LATEST_SUPPORTED_TOOLCHAIN_VERSION_TAG}/rust-toolchain-{target}.tar.gz"
     );
 
     url

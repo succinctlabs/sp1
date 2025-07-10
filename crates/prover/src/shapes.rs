@@ -207,7 +207,7 @@ pub fn build_vk_map<C: SP1ProverComponents + 'static>(
                 let panic_tx = panic_tx.clone();
                 s.spawn(move || {
                     while let Ok((i, shape)) = shape_rx.lock().unwrap().recv() {
-                        eprintln!("shape: {:?}", shape);
+                        eprintln!("shape: {shape:?}");
                         let is_shrink = matches!(shape, SP1CompressProgramShape::Shrink(_));
                         let prover = prover.clone();
                         let shape_clone = shape.clone();

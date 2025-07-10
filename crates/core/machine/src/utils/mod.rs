@@ -88,7 +88,7 @@ pub fn next_power_of_two(n: usize, fixed_power: Option<usize>) -> usize {
                 );
             }
             if n > padded_nb_rows {
-                panic!("fixed log2 rows is too small: got {}, expected {}", n, padded_nb_rows);
+                panic!("fixed log2 rows is too small: got {n}, expected {padded_nb_rows}");
             }
             padded_nb_rows
         }

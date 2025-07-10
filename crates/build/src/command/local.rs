@@ -50,7 +50,7 @@ pub(crate) fn create_local_command(
             String::from_utf8(output.stdout).expect("Can't parse rustc --version stdout");
 
         if matches!(args.warning_level, WarningLevel::All) {
-            println!("cargo:warning=rustc +succinct --version: {:?}", stdout_string);
+            println!("cargo:warning=rustc +succinct --version: {stdout_string:?}");
         }
 
         super::utils::parse_rustc_version(&stdout_string)

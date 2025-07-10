@@ -78,7 +78,7 @@ struct EvalArgs {
 pub async fn evaluate_performance<C: SP1ProverComponents>(
     opts: SP1ProverOpts,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    println!("opts: {:?}", opts);
+    println!("opts: {opts:?}");
 
     let args = EvalArgs::parse();
 
@@ -200,13 +200,13 @@ fn run_evaluation<C: SP1ProverComponents>(
 fn format_results(args: &EvalArgs, results: &[PerformanceReport]) -> Vec<String> {
     let mut detail_text = String::new();
     if let Some(branch_name) = &args.branch_name {
-        detail_text.push_str(&format!("*Branch*: {}\n", branch_name));
+        detail_text.push_str(&format!("*Branch*: {branch_name}\n"));
     }
     if let Some(commit_hash) = &args.commit_hash {
         detail_text.push_str(&format!("*Commit*: {}\n", &commit_hash[..8]));
     }
     if let Some(author) = &args.author {
-        detail_text.push_str(&format!("*Author*: {}\n", author));
+        detail_text.push_str(&format!("*Author*: {author}\n"));
     }
 
     let mut table_text = String::new();
@@ -253,9 +253,9 @@ fn format_duration(duration: f64) -> String {
     let seconds = secs % 60;
 
     if minutes > 0 {
-        format!("{}m{}s", minutes, seconds)
+        format!("{minutes}m{seconds}s")
     } else if seconds > 0 {
-        format!("{}s", seconds)
+        format!("{seconds}s")
     } else {
         format!("{}ms", (duration * 1000.0).round() as u64)
     }
@@ -306,13 +306,13 @@ async fn post_to_github_pr(
     message: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::new();
-    let base_url = format!("https://api.github.com/repos/{}/{}", owner, repo);
+    let base_url = format!("https://api.github.com/repos/{owner}/{repo}");
 
     // Get all comments on the PR
-    let comments_url = format!("{}/issues/{}/comments", base_url, pr_number);
+    let comments_url = format!("{base_url}/issues/{pr_number}/comments");
     let comments_response = client
         .get(&comments_url)
-        .header("Authorization", format!("token {}", token))
+        .header("Authorization", format!("token {token}"))
         .header("User-Agent", "sp1-perf-bot")
         .send()
         .await?;
@@ -332,7 +332,7 @@ async fn post_to_github_pr(
         let comment_url = existing_comment["url"].as_str().unwrap();
         let response = client
             .patch(comment_url)
-            .header("Authorization", format!("token {}", token))
+            .header("Authorization", format!("token {token}"))
             .header("User-Agent", "sp1-perf-bot")
             .json(&json!({
                 "body": message
@@ -347,7 +347,7 @@ async fn post_to_github_pr(
         // Create a new comment
         let response = client
             .post(&comments_url)
-            .header("Authorization", format!("token {}", token))
+            .header("Authorization", format!("token {token}"))
             .header("User-Agent", "sp1-perf-bot")
             .json(&json!({
                 "body": message
@@ -409,7 +409,7 @@ mod tests {
         let formatted_results = format_results(&args, &dummy_reports);
 
         for line in &formatted_results {
-            println!("{}", line);
+            println!("{line}");
         }
 
         assert_eq!(formatted_results.len(), 3);

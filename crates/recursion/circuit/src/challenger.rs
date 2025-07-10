@@ -468,9 +468,9 @@ pub(crate) mod tests {
         challenger.observe(F::two());
         challenger.observe(F::two());
         let result: F = challenger.sample();
-        println!("expected result: {}", result);
+        println!("expected result: {result}");
         let result_ef: EF = challenger.sample_ext_element();
-        println!("expected result_ef: {}", result_ef);
+        println!("expected result_ef: {result_ef}");
 
         let mut builder = AsmBuilder::<F, EF>::default();
 
@@ -515,16 +515,16 @@ pub(crate) mod tests {
         let commit = Hash::from([N::two()]);
         challenger.observe(commit);
         let result: F = challenger.sample();
-        println!("expected result: {}", result);
+        println!("expected result: {result}");
         let result_ef: EF = challenger.sample_ext_element();
-        println!("expected result_ef: {}", result_ef);
+        println!("expected result_ef: {result_ef}");
         let mut bits = challenger.sample_bits(30);
         let mut bits_vec = vec![];
         for _ in 0..30 {
             bits_vec.push(bits % 2);
             bits >>= 1;
         }
-        println!("expected bits: {:?}", bits_vec);
+        println!("expected bits: {bits_vec:?}");
 
         let mut builder = Builder::<C>::default();
 
