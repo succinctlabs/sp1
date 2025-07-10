@@ -1675,7 +1675,11 @@ pub struct SettleResponse {
 #[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
 pub struct SettleResponseBody {}
 #[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
-pub struct GetProversByUptimeRequest {}
+pub struct GetProversByUptimeRequest {
+    /// Whether to only return high availability provers.
+    #[prost(bool, tag = "1")]
+    pub high_availability_only: bool,
+}
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct GetProversByUptimeResponse {
     /// The provers that have historically had reliable uptime.
@@ -3774,6 +3778,8 @@ pub struct ProverStats {
     pub image_url: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(string, optional, tag = "16")]
     pub ip_address: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "17")]
+    pub staker_fee_bips: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
 pub struct GetFilteredProverStatsRequest {
@@ -3827,6 +3833,9 @@ pub struct StakingProverSearchResult {
     /// The staked balance.
     #[prost(string, tag = "4")]
     pub stake_balance: ::prost::alloc::string::String,
+    /// The staker fee in bips.
+    #[prost(string, optional, tag = "5")]
+    pub staker_fee_bips: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct GetStakingProverSearchRequest {

@@ -564,6 +564,7 @@ impl NetworkProver {
         max_price_per_pgu: Option<u64>,
         auction_timeout: Option<Duration>,
     ) -> Result<SP1ProofWithPublicValues> {
+        #[allow(unused_mut)]
         let mut whitelist = whitelist.clone();
 
         // Attempt to get proof, with retry logic for failed auction requests
@@ -612,6 +613,7 @@ impl NetworkProver {
             let mut proof = match self.wait_proof(request_id, timeout, auction_timeout).await {
                 Ok(proof) => proof,
                 Err(e) => {
+                    #[cfg(feature = "sepolia")]
                     // Check if this is an auction request that we can retry
                     if let Some(network_error) = e.downcast_ref::<Error>() {
                         if matches!(
@@ -624,8 +626,20 @@ impl NetworkProver {
                         {
                             tracing::warn!("Retrying auction request with fallback whitelist...");
 
-                            // Get fallback whitelist and retry
-                            let fallback_whitelist = super::utils::get_fallback_whitelist().await;
+                            // Get fallback high availability provers and retry
+                            let mut rpc = self.client.prover_network_client().await?;
+                            let fallback_whitelist = rpc
+                                .get_provers_by_uptime(
+                                    crate::network::proto::types::GetProversByUptimeRequest {
+                                        high_availability_only: true,
+                                    },
+                                )
+                                .await?
+                                .into_inner()
+                                .provers
+                                .into_iter()
+                                .map(|p| Address::from_slice(&p))
+                                .collect::<Vec<_>>();
                             if !fallback_whitelist.is_empty() {
                                 whitelist = Some(fallback_whitelist);
                                 continue;

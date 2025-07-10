@@ -431,7 +431,9 @@ impl NetworkClient {
                         let whitelist = if let Some(whitelist) = &whitelist {
                             whitelist.iter().map(|addr| addr.to_vec()).collect()
                         } else {
-                            let result = rpc.get_provers_by_uptime(GetProversByUptimeRequest {}).await?;
+                            let result = rpc.get_provers_by_uptime(GetProversByUptimeRequest {
+                                high_availability_only: false,
+                            }).await?;
                             result.into_inner().provers
                         };
                         let request_body = RequestProofRequestBody {
