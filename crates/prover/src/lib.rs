@@ -451,10 +451,26 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                         );
                     }
                     let preprocessed_shape = program.preprocessed_shape.clone().unwrap();
+                    let split_opts = opts.core_opts.split_opts;
                     Some(Box::new(
-                        self.get_gas_calculator(preprocessed_shape, opts.core_opts.split_opts),
+                        move |estimator: &RecordEstimator| -> Result<u64, Box<dyn Error>> {
+                            let est_records = gas::estimated_records(&split_opts, estimator);
+                            let raw_gas = est_records
+                                .map(|shape| {
+                                    let mut shape_map = enum_map::EnumMap::from_iter(
+                                        shape.iter().map(|(k, v)| (k, *v as usize)),
+                                    );
+                                    for (k, v) in preprocessed_shape.iter() {
+                                        shape_map[*k] += v;
+                                    }
+                                    gas::predict(shape_map.as_array())
+                                })
+                                .sum::<f64>();
+                            let gas = gas::final_transform(raw_gas).map_err(Box::new)?;
+                            Ok(gas)
+                        },
                     )
-                        as Box<dyn FnOnce(&RecordEstimator) -> Result<u64, Box<dyn Error>> + '_>)
+                        as Box<dyn FnMut(&RecordEstimator) -> Result<u64, Box<dyn Error>> + Send>)
                 } else {
                     None
                 };
