@@ -6,6 +6,9 @@ use alloy_primitives::Address;
 
 use crate::{network::DEFAULT_NETWORK_RPC_URL, NetworkProver};
 
+#[cfg(feature = "tee-2fa")]
+use crate::network::retry::{self, DEFAULT_RETRY_TIMEOUT};
+
 /// A builder for the [`NetworkProver`].
 ///
 /// The builder is used to configure the [`NetworkProver`] before it is built.
@@ -87,12 +90,25 @@ impl NetworkProverBuilder {
             None => std::env::var("NETWORK_RPC_URL").unwrap_or(DEFAULT_NETWORK_RPC_URL.to_string()),
         };
 
-        let tee_signers = match self.tee_signers {
-            Some(tee_signers) => tee_signers,
-            None => crate::utils::block_on(async {
-                crate::network::tee::get_tee_signers().await.expect("Failed to get TEE signers")
-            }),
-        };
+        let tee_signers = self.tee_signers.unwrap_or_else(|| {
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "tee-2fa")] {
+                    crate::utils::block_on(
+                        async {
+                            retry::retry_operation(
+                                || async {
+                                    crate::network::tee::get_tee_signers().await.map_err(Into::into)
+                                },
+                                Some(DEFAULT_RETRY_TIMEOUT),
+                                "get tee signers"
+                            ).await.expect("Failed to get TEE signers")
+                        }
+                    )
+                } else {
+                    vec![]
+                }
+            }
+        });
 
         NetworkProver::new(&private_key, &rpc_url).with_tee_signers(tee_signers)
     }

@@ -48,6 +48,7 @@ sp1-stark = { workspace = true }
 sp1-primitives = { workspace = true }
 itertools = { workspace = true }
 tonic = { version = "0.12", features = ["tls", "tls-roots"], optional = true }
+alloy-sol-types = { version = "1.0", default-features = false, optional = true }
 alloy-primitives = { version = "1.0", default-features = false, optional = true, features = ["k256", "serde"] }
 backoff = { version = "0.4", features = ["tokio"], optional = true }
 
@@ -73,6 +74,11 @@ network = [
   "dep:reqwest-middleware",
   "dep:tonic",
   "dep:backoff",
+]
+tee-2fa = []
+sepolia = [
+  "network",
+  "dep:alloy-sol-types",
 ]
 cuda = []
 bigint-rug = ["sp1-core-machine/bigint-rug"]

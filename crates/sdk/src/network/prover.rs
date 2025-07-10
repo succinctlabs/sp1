@@ -10,10 +10,11 @@ use crate::{
     cpu::{execute::CpuExecuteBuilder, CpuProver},
     network::{
         client::NetworkClient,
-        proto::network::{
+        proto::types::{
             ExecutionStatus, FulfillmentStatus, FulfillmentStrategy, GetProofRequestStatusResponse,
             ProofMode, ProofRequest,
         },
+        tee::client::Client as TeeClient,
         Error, DEFAULT_CYCLE_LIMIT, DEFAULT_GAS_LIMIT, DEFAULT_NETWORK_RPC_URL,
         DEFAULT_TIMEOUT_SECS, PRIVATE_EXPLORER_URL, PRIVATE_NETWORK_RPC_URL, PUBLIC_EXPLORER_URL,
     },
@@ -21,13 +22,15 @@ use crate::{
     ProofFromNetwork, Prover, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey,
     SP1VerifyingKey,
 };
+
+#[cfg(feature = "sepolia")]
+use crate::network::proto::types::GetProofRequestParamsResponse;
+
 use alloy_primitives::{Address, B256, U256};
 use anyhow::{Context, Result};
 use sp1_core_executor::{SP1Context, SP1ContextBuilder};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{components::CpuProverComponents, HashableKey, SP1Prover, SP1_CIRCUIT_VERSION};
-
-use crate::network::tee::client::Client as TeeClient;
 
 use crate::utils::block_on;
 use tokio::time::sleep;
@@ -142,6 +145,10 @@ impl NetworkProver {
             tee_2fa: false,
             min_auction_period: 0,
             whitelist: vec![],
+            auctioneer: None,
+            executor: None,
+            verifier: None,
+            max_price_per_pgu: None,
         }
     }
 
@@ -166,6 +173,28 @@ impl NetworkProver {
     /// ```
     pub async fn register_program(&self, vk: &SP1VerifyingKey, elf: &[u8]) -> Result<B256> {
         self.client.register_program(vk, elf).await
+    }
+
+    /// Gets the proof request parameters from the network.
+    ///
+    /// # Details
+    /// * `mode`: The proof mode to get the parameters for.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, SP1ProofMode};
+    /// tokio_test::block_on(async {
+    ///     let client = ProverClient::builder().network().build();
+    ///     let params = client.get_proof_request_params(SP1ProofMode::Compressed).await.unwrap();
+    /// })
+    /// ```
+    #[cfg(feature = "sepolia")]
+    pub async fn get_proof_request_params(
+        &self,
+        mode: SP1ProofMode,
+    ) -> Result<GetProofRequestParamsResponse> {
+        let response = self.client.get_proof_request_params(mode.into()).await?;
+        Ok(response)
     }
 
     /// Gets the status of a proof request. Re-exposes the status response from the client.
@@ -287,6 +316,13 @@ impl NetworkProver {
     /// * `timeout`: The timeout for the proof request.
     /// * `min_auction_period`: The minimum auction period for the proof request in seconds.
     /// * `whitelist`: The auction whitelist for the proof request.
+    /// * `auctioneer`: The auctioneer address for the proof request.
+    /// * `executor`: The executor address for the proof request.
+    /// * `verifier`: The verifier address for the proof request.
+    /// * `public_values_hash`: The hash of the public values to use for the proof.
+    /// * `base_fee`: The base fee to use for the proof request.
+    /// * `max_price_per_pgu`: The maximum price per PGU to use for the proof request.
+    /// * `domain`: The domain bytes to use for the proof request.
     #[allow(clippy::too_many_arguments)]
     pub(crate) async fn request_proof(
         &self,
@@ -299,23 +335,59 @@ impl NetworkProver {
         timeout: Option<Duration>,
         min_auction_period: u64,
         whitelist: Vec<Address>,
+        auctioneer: Address,
+        executor: Address,
+        verifier: Address,
+        public_values_hash: Option<Vec<u8>>,
+        base_fee: u64,
+        max_price_per_pgu: u64,
+        domain: Vec<u8>,
     ) -> Result<B256> {
+        // Ensure the strategy is supported in the network.
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "sepolia")] {
+                if strategy != FulfillmentStrategy::Auction {
+                    return Err(anyhow::anyhow!(
+                        "Strategy not supported with \"sepolia\" feature. Use FulfillmentStrategy::Auction."
+                    ));
+                }
+            } else {
+                if strategy == FulfillmentStrategy::Auction {
+                    return Err(anyhow::anyhow!(
+                        "FulfillmentStrategy::Auction requires the \"sepolia\" feature."
+                    ));
+                }
+            }
+        }
+
         // Get the timeout.
         let timeout_secs = timeout.map_or(DEFAULT_TIMEOUT_SECS, |dur| dur.as_secs());
 
         // Log the request.
         tracing::info!("Requesting proof:");
-        tracing::info!("├─ Cycle limit: {}", cycle_limit);
-        tracing::info!("├─ Gas limit: {}", gas_limit);
-        tracing::info!("├─ Proof mode: {:?}", mode);
         tracing::info!("├─ Strategy: {:?}", strategy);
+        tracing::info!("├─ Proof mode: {:?}", mode);
+        tracing::info!("├─ Circuit version: {}", SP1_CIRCUIT_VERSION);
         tracing::info!("├─ Timeout: {} seconds", timeout_secs);
-        tracing::info!("└─ Circuit version: {}", SP1_CIRCUIT_VERSION);
-
-        if strategy == FulfillmentStrategy::Auction {
-            tracing::info!("├─ Minimum auction period: {:?}", min_auction_period);
-            tracing::info!("├─ Whitelist: {:?}", whitelist);
+        if let Some(ref hash) = public_values_hash {
+            tracing::info!("├─ Public values hash: 0x{}", hex::encode(hash));
         }
+        if strategy == FulfillmentStrategy::Auction {
+            tracing::info!(
+                "├─ Base fee: {} ({} $PROVE)",
+                base_fee,
+                Self::format_prove_amount(base_fee)
+            );
+            tracing::info!(
+                "├─ Max price per PGU: {} ({} $PROVE)",
+                max_price_per_pgu,
+                Self::format_prove_amount(max_price_per_pgu)
+            );
+            tracing::info!("├─ Minimum auction period: {:?} seconds", min_auction_period);
+            tracing::info!("├─ Prover Whitelist: {:?}", whitelist);
+        }
+        tracing::info!("├─ Cycle limit: {} cycles", cycle_limit);
+        tracing::info!("└─ Gas limit: {} PGUs", gas_limit);
 
         // Request the proof.
         let response = self
@@ -331,6 +403,13 @@ impl NetworkProver {
                 gas_limit,
                 min_auction_period,
                 whitelist,
+                auctioneer,
+                executor,
+                verifier,
+                public_values_hash,
+                base_fee,
+                max_price_per_pgu,
+                domain,
             )
             .await?;
 
@@ -405,10 +484,18 @@ impl NetworkProver {
         gas_limit: Option<u64>,
         min_auction_period: u64,
         whitelist: Vec<Address>,
+        auctioneer: Option<Address>,
+        executor: Option<Address>,
+        verifier: Option<Address>,
+        max_price_per_pgu: Option<u64>,
     ) -> Result<B256> {
         let vk_hash = self.register_program(&pk.vk, &pk.elf).await?;
-        let (cycle_limit, gas_limit) =
+        let (cycle_limit, gas_limit, public_values_hash) =
             self.get_execution_limits(cycle_limit, gas_limit, &pk.elf, stdin, skip_simulation)?;
+        let (auctioneer, executor, verifier, max_price_per_pgu, base_fee, domain) = self
+            .get_auction_request_params(mode, auctioneer, executor, verifier, max_price_per_pgu)
+            .await?;
+
         self.request_proof(
             vk_hash,
             stdin,
@@ -419,6 +506,13 @@ impl NetworkProver {
             timeout,
             min_auction_period,
             whitelist,
+            auctioneer,
+            executor,
+            verifier,
+            public_values_hash,
+            base_fee,
+            max_price_per_pgu,
+            domain,
         )
         .await
     }
@@ -437,6 +531,10 @@ impl NetworkProver {
         tee_2fa: bool,
         min_auction_period: u64,
         whitelist: Vec<Address>,
+        auctioneer: Option<Address>,
+        executor: Option<Address>,
+        verifier: Option<Address>,
+        max_price_per_pgu: Option<u64>,
     ) -> Result<SP1ProofWithPublicValues> {
         let request_id = self
             .request_proof_impl(
@@ -450,6 +548,10 @@ impl NetworkProver {
                 gas_limit,
                 min_auction_period,
                 whitelist,
+                auctioneer,
+                executor,
+                verifier,
+                max_price_per_pgu,
             )
             .await?;
 
@@ -506,7 +608,7 @@ impl NetworkProver {
         elf: &[u8],
         stdin: &SP1Stdin,
         skip_simulation: bool,
-    ) -> Result<(u64, u64)> {
+    ) -> Result<(u64, u64, Option<Vec<u8>>)> {
         let cycle_limit_value = if let Some(cycles) = cycle_limit {
             cycles
         } else if skip_simulation {
@@ -527,7 +629,7 @@ impl NetworkProver {
 
         // If both limits were explicitly provided or skip_simulation is true, return immediately.
         if (cycle_limit.is_some() && gas_limit.is_some()) || skip_simulation {
-            return Ok((cycle_limit_value, gas_limit_value));
+            return Ok((cycle_limit_value, gas_limit_value, None));
         }
 
         // One of the limits were not provided and simulation is not skipped, so simulate to get one
@@ -538,7 +640,7 @@ impl NetworkProver {
             .execute(elf, stdin, SP1Context::builder().calculate_gas(true).build())
             .map_err(|_| Error::SimulationFailed)?;
 
-        let (_, _, report) = execute_result;
+        let (_, committed_value_digest, report) = execute_result;
 
         // Use simulated values for the ones that are not explicitly provided.
         let final_cycle_limit = if cycle_limit.is_none() {
@@ -552,7 +654,69 @@ impl NetworkProver {
             gas_limit_value
         };
 
-        Ok((final_cycle_limit, final_gas_limit))
+        let public_values_hash = Some(committed_value_digest.to_vec());
+
+        Ok((final_cycle_limit, final_gas_limit, public_values_hash))
+    }
+
+    /// The proof request parameters for the auction strategy are determined according to the
+    /// following priority:
+    ///
+    /// 1. If the parameter is explicitly set by the requester, use the specified value.
+    /// 2. Otherwise, use the default values fetched from the network RPC.
+    #[allow(unused_variables)]
+    #[allow(clippy::unused_async)]
+    async fn get_auction_request_params(
+        &self,
+        mode: SP1ProofMode,
+        auctioneer: Option<Address>,
+        executor: Option<Address>,
+        verifier: Option<Address>,
+        max_price_per_pgu: Option<u64>,
+    ) -> Result<(Address, Address, Address, u64, u64, Vec<u8>)> {
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "sepolia")] {
+                let params = self.get_proof_request_params(mode).await?;
+                let auctioneer_value = if let Some(auctioneer) = auctioneer {
+                    auctioneer
+                } else {
+                    Address::from_slice(&params.auctioneer)
+                };
+                let executor_value = if let Some(executor) = executor {
+                    executor
+                } else {
+                    Address::from_slice(&params.executor)
+                };
+                let verifier_value = if let Some(verifier) = verifier {
+                    verifier
+                } else {
+                    Address::from_slice(&params.verifier)
+                };
+                let max_price_per_pgu_value = if let Some(max_price_per_pgu) = max_price_per_pgu {
+                    max_price_per_pgu
+                } else {
+                    params
+                        .max_price_per_pgu
+                        .parse::<u64>()
+                        .expect("invalid max_price_per_pgu")
+                };
+                let base_fee = params
+                    .base_fee
+                    .parse::<u64>()
+                    .expect("invalid base_fee");
+                Ok((auctioneer_value, executor_value, verifier_value, max_price_per_pgu_value, base_fee, params.domain))
+            } else {
+                Ok((Address::ZERO, Address::ZERO, Address::ZERO, 0, 0, vec![]))
+            }
+        }
+    }
+
+    /// Formats a PROVE amount (with 18 decimals) as a string with 4 decimal places.
+    fn format_prove_amount(amount: u64) -> String {
+        let whole = amount / 1_000_000_000_000_000_000;
+        let remainder = amount % 1_000_000_000_000_000_000;
+        let frac = remainder / 100_000_000_000_000;
+        format!("{whole}.{frac:04}")
     }
 }
 
@@ -583,6 +747,10 @@ impl Prover<CpuProverComponents> for NetworkProver {
             false,
             0,
             vec![],
+            None,
+            None,
+            None,
+            None,
         ))
     }
 

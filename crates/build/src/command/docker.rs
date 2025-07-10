@@ -15,7 +15,7 @@ use super::utils::{get_program_build_args, get_rust_compiler_flags};
 fn get_docker_image(tag: &str) -> String {
     std::env::var("SP1_DOCKER_IMAGE").unwrap_or_else(|_| {
         let image_base = "ghcr.io/succinctlabs/sp1";
-        format!("{}:{}", image_base, tag)
+        format!("{image_base}:{tag}")
     })
 }
 
@@ -68,7 +68,7 @@ pub(crate) fn create_docker_command(
 
     // Mount the entire workspace, and set the working directory to the program dir. Note: If the
     // program dir has local dependencies outside of the workspace, building with Docker will fail.
-    let workspace_root_path = format!("{}:/root/program", workspace_root);
+    let workspace_root_path = format!("{workspace_root}:/root/program");
     let program_dir_path = format!(
         "/root/program/{}",
         canonicalized_program_dir.strip_prefix(workspace_root).unwrap()
@@ -102,7 +102,7 @@ pub(crate) fn create_docker_command(
             String::from_utf8(output.stdout).expect("Can't parse rustc --version stdout");
 
         if matches!(args.warning_level, WarningLevel::All) {
-            println!("cargo:warning=docker: rustc +succinct --version: {:?}", stdout_string);
+            println!("cargo:warning=docker: rustc +succinct --version: {stdout_string:?}");
         }
 
         super::utils::parse_rustc_version(&stdout_string)
@@ -122,7 +122,7 @@ pub(crate) fn create_docker_command(
         PathBuf::from(stdout_string.trim()).join("bin/rustc")
     };
 
-    println!("cargo:warning=docker: rustc_bin: {:?}", rustc_bin);
+    println!("cargo:warning=docker: rustc_bin: {rustc_bin:?}");
 
     // When executing the Docker command:
     // 1. Set the target directory to a subdirectory of the program's target directory to avoid

@@ -67,7 +67,7 @@ impl Syscall for WriteSyscall {
                                 });
                             }
                             None => {
-                                flush_s.into_iter().for_each(|line| eprintln!("stdout: {}", line));
+                                flush_s.into_iter().for_each(|line| eprintln!("stdout: {line}"));
                             }
                         }
                     }
@@ -88,7 +88,7 @@ impl Syscall for WriteSyscall {
                         });
                     }
                     None => {
-                        flush_s.into_iter().for_each(|line| eprintln!("stderr: {}", line));
+                        flush_s.into_iter().for_each(|line| eprintln!("stderr: {line}"));
                     }
                 }
             }

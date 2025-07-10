@@ -265,7 +265,7 @@ mod tests {
         let perm = inner_perm();
         let zeros = [BabyBear::zero(); 16];
         let result = perm.permute(zeros);
-        println!("{:?}", result);
+        println!("{result:?}");
         super::test_babybear_poseidon2();
     }
 }

@@ -33,7 +33,7 @@ impl BuildToolchainCmd {
                 let repo_url = match github_access_token {
                     Ok(github_access_token) => {
                         println!("Detected GITHUB_ACCESS_TOKEN, using it to clone rust.");
-                        format!("https://{}@github.com/succinctlabs/rust", github_access_token)
+                        format!("https://{github_access_token}@github.com/succinctlabs/rust")
                     }
                     Err(_) => {
                         println!("No GITHUB_ACCESS_TOKEN detected. If you get throttled by Github, set it to bypass the rate limit.");
@@ -46,7 +46,7 @@ impl BuildToolchainCmd {
                         &repo_url,
                         "--depth=1",
                         "--single-branch",
-                        &format!("--branch={}", LATEST_SUPPORTED_TOOLCHAIN_VERSION_TAG),
+                        &format!("--branch={LATEST_SUPPORTED_TOOLCHAIN_VERSION_TAG}"),
                         "sp1-rust",
                     ])
                     .current_dir(&temp_dir)
@@ -64,7 +64,7 @@ impl BuildToolchainCmd {
         let bootstrap_toml = include_str!("bootstrap.toml");
         let bootstrap_file = rust_dir.join("bootstrap.toml");
         std::fs::write(&bootstrap_file, bootstrap_toml)
-            .with_context(|| format!("while writing configuration to {:?}", bootstrap_file))?;
+            .with_context(|| format!("while writing configuration to {bootstrap_file:?}"))?;
 
         // Work around target sanity check added in
         // rust-lang/rust@09c076810cb7649e5817f316215010d49e78e8d7.
@@ -122,7 +122,7 @@ impl BuildToolchainCmd {
 
         // Compressing toolchain directory to tar.gz.
         let target = get_target();
-        let tar_gz_path = format!("rust-toolchain-{}.tar.gz", target);
+        let tar_gz_path = format!("rust-toolchain-{target}.tar.gz");
         Command::new("tar")
             .args([
                 "--exclude",
@@ -136,7 +136,7 @@ impl BuildToolchainCmd {
                 ".",
             ])
             .run()?;
-        println!("Successfully compressed the toolchain to {}.", tar_gz_path);
+        println!("Successfully compressed the toolchain to {tar_gz_path}.");
 
         Ok(())
     }

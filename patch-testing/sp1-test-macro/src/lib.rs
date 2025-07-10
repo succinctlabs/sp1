@@ -166,7 +166,7 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     let maybe_prove_test = if options.prove() {
-        let prove_name = syn::Ident::new(&format!("{}_prove", test_name), test_name.span());
+        let prove_name = syn::Ident::new(&format!("{test_name}_prove"), test_name.span());
 
         let prove_fn = quote! {
             #[cfg(feature = "prove")]
@@ -199,7 +199,7 @@ pub fn sp1_test(attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     let gpu_prove = if options.gpu() {
-        let gpu_prove_name = syn::Ident::new(&format!("{}_gpu_prove", test_name), test_name.span());
+        let gpu_prove_name = syn::Ident::new(&format!("{test_name}_gpu_prove"), test_name.span());
 
         Some(quote! {
             #[cfg(feature = "gpu")]

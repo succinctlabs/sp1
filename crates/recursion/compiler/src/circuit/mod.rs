@@ -99,7 +99,7 @@ mod tests {
         match runtime.run() {
             Err(RuntimeError::EmptyWitnessStream) => (),
             Ok(_) => panic!("should not succeed"),
-            Err(x) => panic!("should not yield error variant: {}", x),
+            Err(x) => panic!("should not yield error variant: {x}"),
         }
     }
 }

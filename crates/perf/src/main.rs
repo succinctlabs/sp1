@@ -133,7 +133,7 @@ fn main() {
                 verify_wrap_duration,
             };
 
-            println!("{:?}", result);
+            println!("{result:?}");
         }
         ProverMode::Cuda => {
             let server = SP1CudaProver::new(MoongateServer::default())
@@ -187,7 +187,7 @@ fn main() {
                 ..Default::default()
             };
 
-            println!("{:?}", result);
+            println!("{result:?}");
         }
         ProverMode::Network => {
             let prover = ProverClient::builder().network().build();

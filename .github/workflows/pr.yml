@@ -323,27 +323,6 @@ jobs:
         run: |
           cd ./examples/
 
-  typos:
-    name: Spell Check
-    runs-on: [runs-on, runner=16cpu-linux-x64, disk=large, "run-id=${{ github.run_id }}"]
-    steps:
-      - name: Checkout Actions Repository
-        uses: actions/checkout@v4
-
-      - name: Setup CI
-        uses: ./.github/actions/setup
-        with:
-          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
-
-      - name: Check all typos
-        uses: crate-ci/typos@master
-        with:
-          write_changes: true
-
-      - uses: getsentry/action-git-diff-suggestions@main
-        with:
-          message: typos
-
   check-verifier-no-std:
     name: Check Verifier `no_std`
     runs-on: [runs-on, runner=16cpu-linux-x64, disk=large, "run-id=${{ github.run_id }}"]

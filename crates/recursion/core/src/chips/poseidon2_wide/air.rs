@@ -22,7 +22,7 @@ impl<F, const DEGREE: usize> BaseAir<F> for Poseidon2WideChip<DEGREE> {
         } else if DEGREE == 9 || DEGREE == 17 {
             NUM_POSEIDON2_DEGREE9_COLS
         } else {
-            panic!("Unsupported degree: {}", DEGREE);
+            panic!("Unsupported degree: {DEGREE}");
         }
     }
 }

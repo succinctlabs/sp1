@@ -1,5 +1,7 @@
-use sp1_test::utils::{post_to_github_pr_sync, pretty_comparison};
-use sp1_test::BenchEntry;
+use sp1_test::{
+    utils::{post_to_github_pr_sync, pretty_comparison},
+    BenchEntry,
+};
 
 pub fn main() {
     let old_cycle_stats = std::fs::read_to_string("old_cycle_stats.json").unwrap();
@@ -10,7 +12,7 @@ pub fn main() {
 
     let comparison = pretty_comparison(old_cycle_stats, new_cycle_stats).unwrap();
 
-    println!("{}", comparison);
+    println!("{comparison}");
 
     let pr_number = std::env::var("PR_NUMBER").unwrap();
     let token = std::env::var("GITHUB_TOKEN").unwrap();

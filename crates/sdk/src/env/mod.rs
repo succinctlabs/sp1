@@ -3,7 +3,7 @@
 //! A prover that can execute programs and generate proofs with a different implementation based on
 //! the value of certain environment variables.
 
-mod prove;
+pub mod prove;
 
 use std::env;
 
@@ -106,7 +106,7 @@ impl EnvProver {
         }
     }
 
-    /// Creates a new [`EnvProve`] for proving a program on the CPU.
+    /// Creates a new [`EnvProveBuilder`] for proving a program on the CPU.
     ///
     /// # Details
     /// The builder is used for only the [`crate::cpu::CpuProver`] client type.

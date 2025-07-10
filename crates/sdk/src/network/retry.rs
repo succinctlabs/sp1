@@ -101,7 +101,8 @@ where
                             error_msg.contains("transport error") ||
                             error_msg.contains("failed to lookup") ||
                             error_msg.contains("timeout") ||
-                            error_msg.contains("deadline exceeded");
+                            error_msg.contains("deadline exceeded") ||
+                            error_msg.contains("error sending request for url");
 
                         if is_transient {
                             tracing::warn!(

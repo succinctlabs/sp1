@@ -90,9 +90,7 @@ impl AttrOption {
 impl Parse for AttrOptions {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         if input.is_empty() {
-            return Err(
-                input.error("No attribute options provided, expected at least an ELF name.")
-            );
+            return Err(input.error("No attribute options provided, expected at least an ELF name."));
         }
 
         let mut options = AttrOptions::new();
@@ -148,8 +146,6 @@ fn parse_option(input: &ParseStream) -> syn::Result<(Span, AttrOption)> {
 
             Ok((ident.span(), AttrOption::Syscalls(vec_syscalls)))
         }
-        _ => {
-            Err(syn::Error::new(ident.span(), format!("Found Unknown attribute option {}", ident)))
-        }
+        _ => Err(syn::Error::new(ident.span(), format!("Found Unknown attribute option {ident}"))),
     }
 }
