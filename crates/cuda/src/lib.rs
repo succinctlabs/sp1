@@ -216,9 +216,15 @@ impl SP1CudaProver {
         }
 
         // Pull the docker image if it's not present
-        if let Err(e) = Command::new("docker").args(["pull", &image_name]).output() {
-            return Err(format!("Failed to pull Docker image: {}. Please check your internet connection and Docker permissions.", e).into());
+        let status = Command::new("docker")
+            .args(&["pull", &image_name])
+            .status()
+            .map_err(|e| format!("Failed to pull Docker image: {}. Please check your internet connection and Docker permissions.", e))?;
+        
+        if !status.success() {
+            return Err(format!("`docker pull` exited with: {}", status).into());
         }
+
 
         // Start the docker container
         let rust_log_level = std::env::var("RUST_LOG").unwrap_or_else(|_| "none".to_string());
