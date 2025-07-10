@@ -1,0 +1,91 @@
+Delivered-To: ivanruch@gmail.com
+Received: by 2002:a05:6214:2d09:b0:6d4:dbb:92cf with SMTP id mz9csp1915278qvb;
+        Thu, 12 Dec 2024 06:59:19 -0800 (PST)
+X-Received: by 2002:a05:600c:548a:b0:434:fddf:5bfa with SMTP id 5b1f17b1804b1-43622827721mr35174785e9.2.1734015559529;
+        Thu, 12 Dec 2024 06:59:19 -0800 (PST)
+ARC-Seal: i=1; a=rsa-sha256; t=1734015559; cv=none;
+        d=google.com; s=arc-20240605;
+        b=KWPo00JyojZ5SoZqrXNYbjoiMN+zhth6SwTLDnxbs+st9c0w6fyICGAZ1KAiGQklN1
+         DYE+r7DNyX7LSUU+SWrrniVusdyTHjKj5LKSKI0eUaGlGxd0tmqWrIFxHQg80uRmdQZp
+         Y1TORbLZxY63p2zc6hmTE7P2w7Dh78iZ4ik703xXaLBEExZ4nGeL25AI5fWjqCT0XupP
+         C5mEyPgQR9/bJYOuTWB0jnob+FzUyeLBNcwTH23a0v/5U4D04a9V9qVtzxI2t/+CzAlL
+         B3vfg0bBQr383sBfTS0gZw4Yw2becvU+8TF2pmxTZKcGrTk/SVscHvmydQjPJPnQy6BS
+         qZlA==
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=google.com; s=arc-20240605;
+        h=to:subject:message-id:date:from:mime-version:dkim-signature;
+        bh=LQGIbyldyaEXkRjxP4juA1p6OWt0/mVaK304rMbruQY=;
+        fh=3LUvcuUZaLqvahvUvchtCVlQobQXIXW53quuqPC6hCI=;
+        b=DqPm3joccCXxFS0NRJPOk/dUrD+bhebK6kvj6wYNXmk67Pnmm5E0vbFV1GQNaV77CM
+         iISioNjQ7WgtZUPTj893SNidmT9UgM5RW/6FzzTq67LzExuul56OcFEupJV6UNvGs3IG
+         Q3Vwr71dGL5QVLl2OP5f84jcFZqd+m6Tbn65vHS1vYGGYHqkpxtAmtGmKXRCfuid+9QQ
+         KE+acbks4KChrOcCzixqnZAMUJ6KooKiAANVFMFyN8G5FnOjwzNo2Mq2l15S8D3D16tK
+         Wf2pwyF/ykEE92ojoS1KD7lZlu5JnB7uLIBDz+STbyEKFz/qIOWVr3w5d5/XyER+45bh
+         ByJg==;
+        dara=google.com
+ARC-Authentication-Results: i=1; mx.google.com;
+       dkim=pass header.i=@vlayer.xyz header.s=google header.b=hIqUilaZ;
+       spf=pass (google.com: domain of ivan@vlayer.xyz designates 209.85.220.41 as permitted sender) smtp.mailfrom=ivan@vlayer.xyz;
+       dmarc=pass (p=NONE sp=NONE dis=NONE) header.from=vlayer.xyz;
+       dara=pass header.i=@gmail.com
+Return-Path: <ivan@vlayer.xyz>
+Received: from mail-sor-f41.google.com (mail-sor-f41.google.com. [209.85.220.41])
+        by mx.google.com with SMTPS id 5b1f17b1804b1-434d9e4a3d6sor65113945e9.2.2024.12.12.06.59.19
+        for <ivanruch@gmail.com>
+        (Google Transport Security);
+        Thu, 12 Dec 2024 06:59:19 -0800 (PST)
+Received-SPF: pass (google.com: domain of ivan@vlayer.xyz designates 209.85.220.41 as permitted sender) client-ip=209.85.220.41;
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@vlayer.xyz header.s=google header.b=hIqUilaZ;
+       spf=pass (google.com: domain of ivan@vlayer.xyz designates 209.85.220.41 as permitted sender) smtp.mailfrom=ivan@vlayer.xyz;
+       dmarc=pass (p=NONE sp=NONE dis=NONE) header.from=vlayer.xyz;
+       dara=pass header.i=@gmail.com
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed;
+        d=vlayer.xyz; s=google; t=1734015558; x=1734620358; dara=google.com;
+        h=to:subject:message-id:date:from:mime-version:from:to:cc:subject
+         :date:message-id:reply-to;
+        bh=LQGIbyldyaEXkRjxP4juA1p6OWt0/mVaK304rMbruQY=;
+        b=hIqUilaZaT7Cnb69SGufg0RsEJqnJEWP4FexFHd/NL7xzuv1KLyBW9Tz7GYKvK5CWn
+         bJ99X8zGC0LMAzA+am7D2FCmE5Jsm6NfavwxAxTspVgk+BnA6IZipUJggQhT19KmW7Ze
+         j66JmDQkgdd1OXTMLyujAPyZK4aIxgAbgT0+eKMN8c+fYyG8it4nEQxacy9IaEk1hX8j
+         QL4Lv2ZaCVqjHz+5d/ryy2ZxCzGbL6kg5xiwcaZg6QKzjIuvN2WmcfPGKyNnE7M/cIlH
+         T73IFDJ1FN2eaSVknr62k1rx/TdbOfwGaWNVUBpY0f2fxmfW582AODNvX9TNu5U0d6RJ
+         m8ow==
+X-Google-DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed;
+        d=1e100.net; s=20230601; t=1734015558; x=1734620358;
+        h=to:subject:message-id:date:from:mime-version:x-gm-message-state
+         :from:to:cc:subject:date:message-id:reply-to;
+        bh=LQGIbyldyaEXkRjxP4juA1p6OWt0/mVaK304rMbruQY=;
+        b=fFkK+aSuCiSvCiT130BeZvSfPYp0ZnRctMw0JEwsCI/r6a5aL7TMbn17/lkD+F2mAf
+         JJOOUrbxw6yzWuBkhWdTpmRRjGv9M9s+P7ww0PT5bxg5rSZP9NCmHWmNYw0uXPEB5C6U
+         K4MuoFPyESd/HZjxpLSv7qRJHvUpscpnLGXd3idkXp2vcmQHEtXeRXseDRPEJJydtHnp
+         fqXslBey3okUcckOJnF/f5IGH001uIcLS79SYOLLCdcgwqwgQ+eOjhCrOf1G/SCfwVZA
+         wwChSDKuyZyUznOqMi62QDvSe4wqueLtEZXJephky6EfxKjBOM15mkZ5y+P4ihhyuRDK
+         IBbg==
+X-Gm-Message-State: AOJu0YxigaTqCodPl+s7mSOCec8OOm54wJ7vrrMcw9yKCEXr+5E5jaaB
+	0PXpuZKikQjFGxAD4hwy4h26al6KCN2qJIugeM9fWR/i3rOxfdSFvFcwUj7bXHj+u+w75vmc6UK
+	o5LgdcRg1eLfxfRqlE6fhfeEZT7PmFHnEeNyhWw6wROA0Vm4XTKH5LQ==
+X-Gm-Gg: ASbGnctKYoQ8xWAuHhqO/S0ZhtX47EgtY7pNpmdS63/HfwZef59+fYi6uqgOEmqRgn5
+	ImSzmu2H0xdcW4lByIXMtSu9arjPsooDT/2x/yA==
+X-Google-Smtp-Source: AGHT+IGp3tJvotti3YsJZd97gPY5N08B7hLPlCz8DEjyIOKcnyhuk3+7AC0iwTvCrXhF1qNuJSC9LXZZjG/xgUQ36TQ=
+X-Received: by 2002:a05:6000:4706:b0:386:3825:2c3b with SMTP id
+ ffacd0b85a97d-387876912f7mr3010625f8f.18.1734015558386; Thu, 12 Dec 2024
+ 06:59:18 -0800 (PST)
+MIME-Version: 1.0
+From: Ivan Rukhavets <ivan@vlayer.xyz>
+Date: Thu, 12 Dec 2024 15:59:07 +0100
+Message-ID: <CAM-4p2UYUgouPwaP_aCddBiRr-ba4p_mJnORuGUHb5XULpe6TQ@mail.gmail.com>
+Subject: Is dinner ready?
+To: Ivan Rukhavets <ivanruch@gmail.com>
+Content-Type: multipart/alternative; boundary="00000000000064b16c062913f525"
+
+--00000000000064b16c062913f525
+Content-Type: text/plain; charset="UTF-8"
+
+Foo bar
+
+--00000000000064b16c062913f525
+Content-Type: text/html; charset="UTF-8"
+
+<div dir="ltr">Foo bar</div>
+
+--00000000000064b16c062913f525--
