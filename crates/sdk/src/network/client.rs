@@ -467,7 +467,7 @@ impl NetworkClient {
                         cycle_limit,
                         gas_limit,
                         min_auction_period,
-                        whitelist: whitelist.clone().into_iter().map(|addr| addr.to_vec()).collect(),
+                        whitelist: whitelist.clone().map(|list| list.into_iter().map(|addr| addr.to_vec()).collect()).unwrap_or_default(),
                     };
                 }}
 

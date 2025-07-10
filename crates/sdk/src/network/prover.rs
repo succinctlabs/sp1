@@ -16,7 +16,7 @@ use crate::{
         },
         tee::client::Client as TeeClient,
         Error, DEFAULT_CYCLE_LIMIT, DEFAULT_GAS_LIMIT, DEFAULT_NETWORK_RPC_URL,
-        DEFAULT_TIMEOUT_SECS, PRIVATE_EXPLORER_URL, PRIVATE_NETWORK_RPC_URL, PUBLIC_EXPLORER_URL,
+        PRIVATE_EXPLORER_URL, PRIVATE_NETWORK_RPC_URL, PUBLIC_EXPLORER_URL,
     },
     prover::verify_proof,
     ProofFromNetwork, Prover, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey,
@@ -360,8 +360,11 @@ impl NetworkProver {
             }
         }
 
-        // Get the timeout.
-        let timeout_secs = timeout.map_or(DEFAULT_TIMEOUT_SECS, |dur| dur.as_secs());
+        // Get the timeout. If no timeout is specified, auto-calculate based on gas limit.
+        let timeout_secs = timeout.map_or_else(
+            || super::utils::calculate_timeout_from_gas_limit(gas_limit),
+            |dur| dur.as_secs()
+        );
 
         // Log the request.
         tracing::info!("Requesting proof:");
