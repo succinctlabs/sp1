@@ -149,6 +149,7 @@ impl NetworkProver {
             executor: None,
             verifier: None,
             max_price_per_pgu: None,
+            auction_timeout: None,
         }
     }
 
@@ -363,7 +364,7 @@ impl NetworkProver {
         // Get the timeout. If no timeout is specified, auto-calculate based on gas limit.
         let timeout_secs = timeout.map_or_else(
             || super::utils::calculate_timeout_from_gas_limit(gas_limit),
-            |dur| dur.as_secs()
+            |dur| dur.as_secs(),
         );
 
         // Log the request.
@@ -436,13 +437,18 @@ impl NetworkProver {
 
     /// Waits for a proof to be generated and returns the proof. If a timeout is supplied, the
     /// function will return an error if the proof is not generated within the timeout.
+    /// If `auction_timeout` is supplied, the function will return an error if the proof request
+    /// remains in "requested" status for longer than the auction timeout.
     pub async fn wait_proof(
         &self,
         request_id: B256,
         timeout: Option<Duration>,
+        auction_timeout: Option<Duration>,
     ) -> Result<SP1ProofWithPublicValues> {
         let mut is_assigned = false;
         let start_time = Instant::now();
+        let mut requested_start_time: Option<Instant> = None;
+        let auction_timeout_duration = auction_timeout.unwrap_or(Duration::from_secs(30));
 
         loop {
             // Calculate the remaining timeout.
@@ -468,6 +474,21 @@ impl NetworkProver {
             } else if fulfillment_status == FulfillmentStatus::Assigned && !is_assigned {
                 tracing::info!("Proof request assigned, proving...");
                 is_assigned = true;
+            } else if fulfillment_status == FulfillmentStatus::Requested {
+                // Track when we first entered requested status
+                if requested_start_time.is_none() {
+                    requested_start_time = Some(Instant::now());
+                }
+
+                // Check if we've exceeded the auction timeout
+                if let Some(req_start) = requested_start_time {
+                    if req_start.elapsed() > auction_timeout_duration {
+                        return Err(Error::RequestAuctionTimedOut {
+                            request_id: request_id.to_vec(),
+                        }
+                        .into());
+                    }
+                }
             }
 
             sleep(Duration::from_secs(2)).await;
@@ -538,6 +559,7 @@ impl NetworkProver {
         executor: Option<Address>,
         verifier: Option<Address>,
         max_price_per_pgu: Option<u64>,
+        auction_timeout: Option<Duration>,
     ) -> Result<SP1ProofWithPublicValues> {
         let request_id = self
             .request_proof_impl(
@@ -581,7 +603,7 @@ impl NetworkProver {
 
         // Wait for the proof to be generated.
         #[allow(unused_mut)]
-        let mut proof = self.wait_proof(request_id, timeout).await?;
+        let mut proof = self.wait_proof(request_id, timeout, auction_timeout).await?;
 
         // If 2FA is enabled, wait for the tee proof to be generated and add it to the proof.
         if let Some(handle) = handle {
@@ -749,6 +771,7 @@ impl Prover<CpuProverComponents> for NetworkProver {
             None,
             false,
             0,
+            None,
             None,
             None,
             None,

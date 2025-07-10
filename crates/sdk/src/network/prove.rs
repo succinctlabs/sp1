@@ -39,6 +39,7 @@ pub struct NetworkProveBuilder<'a> {
     pub(crate) executor: Option<Address>,
     pub(crate) verifier: Option<Address>,
     pub(crate) max_price_per_pgu: Option<u64>,
+    pub(crate) auction_timeout: Option<Duration>,
 }
 
 impl NetworkProveBuilder<'_> {
@@ -470,6 +471,35 @@ impl NetworkProveBuilder<'_> {
         self
     }
 
+    /// Sets the auction timeout for the proof request.
+    ///
+    /// # Details
+    /// The auction timeout determines how long to wait for a prover to pick up the request when it's
+    /// in "requested" status. If no prover picks up the request within this timeout, the request
+    /// will be considered failed. Default is 30 seconds.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{Prover, ProverClient, SP1Stdin};
+    /// use std::time::Duration;
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().network().build();
+    /// let (pk, vk) = client.setup(elf);
+    /// let proof = client
+    ///     .prove(&pk, &stdin)
+    ///     .auction_timeout(Duration::from_secs(60)) // Wait 60 seconds for a prover to pick up the request.
+    ///     .run()
+    ///     .unwrap();
+    /// ```
+    #[must_use]
+    pub fn auction_timeout(mut self, auction_timeout: Duration) -> Self {
+        self.auction_timeout = Some(auction_timeout);
+        self
+    }
+
     /// Request a proof from the prover network.
     ///
     /// # Details
@@ -597,6 +627,7 @@ impl NetworkProveBuilder<'_> {
                 self.executor,
                 self.verifier,
                 self.max_price_per_pgu,
+                self.auction_timeout,
             )
             .await
     }

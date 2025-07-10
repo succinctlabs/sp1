@@ -29,6 +29,13 @@ pub enum Error {
         request_id: Vec<u8>,
     },
 
+    /// The proof request timed out waiting for a prover to bid on it.
+    #[error("Proof request 0x{} timed out during the auction", hex::encode(.request_id))]
+    RequestAuctionTimedOut {
+        /// The ID of the request that timed out during auction.
+        request_id: Vec<u8>,
+    },
+
     /// An error occurred while interacting with the RPC server.
     #[error("RPC error")]
     RpcError(#[from] Status),
