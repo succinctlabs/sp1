@@ -103,12 +103,22 @@ pub fn next_power_of_two(n: usize, fixed_power: Option<usize>) -> usize {
 }
 
 pub fn chunk_vec<T>(mut vec: Vec<T>, chunk_size: usize) -> Vec<Vec<T>> {
-    let mut result = Vec::new();
+    if chunk_size == 0 || vec.is_empty() {
+        return Vec::new();
+    }
+    
+    // Pre-allocate the result vector with the correct capacity
+    let num_chunks = (vec.len() + chunk_size - 1) / chunk_size;
+    let mut result = Vec::with_capacity(num_chunks);
+    
+    // Reserve capacity for each chunk to avoid reallocations
     while !vec.is_empty() {
         let current_chunk_size = std::cmp::min(chunk_size, vec.len());
-        let current_chunk = vec.drain(..current_chunk_size).collect::<Vec<T>>();
+        let mut current_chunk = Vec::with_capacity(current_chunk_size);
+        current_chunk.extend(vec.drain(..current_chunk_size));
         result.push(current_chunk);
     }
+    
     result
 }
 

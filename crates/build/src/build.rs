@@ -41,7 +41,7 @@ pub fn execute_build_program(
     let cmd = if args.docker {
         create_docker_command(args, &program_dir, &program_metadata)?
     } else {
-        create_local_command(args, &program_dir, &program_metadata)
+        create_local_command(args, &program_dir, &program_metadata)?
     };
 
     let target_elf_paths = generate_elf_paths(&program_metadata, Some(args))?;
