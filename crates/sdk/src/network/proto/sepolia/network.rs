@@ -1048,6 +1048,33 @@ pub mod prover_network_client {
                 .insert(GrpcMethod::new("network.ProverNetwork", "Transfer"));
             self.inner.unary(req, path, codec).await
         }
+        /// Get transfer parameters.
+        pub async fn get_transfer_params(
+            &mut self,
+            request: impl tonic::IntoRequest<
+                super::super::types::GetTransferParamsRequest,
+            >,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetTransferParamsResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/network.ProverNetwork/GetTransferParams",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetTransferParams"));
+            self.inner.unary(req, path, codec).await
+        }
         /// Get withdraw parameters.
         pub async fn get_withdraw_params(
             &mut self,
@@ -1287,6 +1314,38 @@ pub mod prover_network_client {
                     GrpcMethod::new(
                         "network.ProverNetwork",
                         "GetFilteredSettleableRequests",
+                    ),
+                );
+            self.inner.unary(req, path, codec).await
+        }
+        /// Get suspendable provers that have recently failed proofs.
+        pub async fn get_filtered_suspendable_provers(
+            &mut self,
+            request: impl tonic::IntoRequest<
+                super::super::types::GetFilteredSuspendableProversRequest,
+            >,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetFilteredSuspendableProversResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/network.ProverNetwork/GetFilteredSuspendableProvers",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new(
+                        "network.ProverNetwork",
+                        "GetFilteredSuspendableProvers",
                     ),
                 );
             self.inner.unary(req, path, codec).await
@@ -2893,6 +2952,38 @@ pub mod prover_network_client {
                 );
             self.inner.unary(req, path, codec).await
         }
+        /// Get filtered bid history for a prover with pagination
+        pub async fn get_filtered_prover_bid_history(
+            &mut self,
+            request: impl tonic::IntoRequest<
+                super::super::types::GetFilteredProverBidHistoryRequest,
+            >,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetFilteredProverBidHistoryResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/network.ProverNetwork/GetFilteredProverBidHistory",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new(
+                        "network.ProverNetwork",
+                        "GetFilteredProverBidHistory",
+                    ),
+                );
+            self.inner.unary(req, path, codec).await
+        }
         /// Check if the user is whitelisted to use the TEE service.
         pub async fn get_tee_whitelist_status(
             &mut self,
@@ -3530,6 +3621,14 @@ pub mod prover_network_server {
             tonic::Response<super::super::types::TransferResponse>,
             tonic::Status,
         >;
+        /// Get transfer parameters.
+        async fn get_transfer_params(
+            &self,
+            request: tonic::Request<super::super::types::GetTransferParamsRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetTransferParamsResponse>,
+            tonic::Status,
+        >;
         /// Get withdraw parameters.
         async fn get_withdraw_params(
             &self,
@@ -3604,6 +3703,16 @@ pub mod prover_network_server {
             >,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetFilteredSettleableRequestsResponse>,
+            tonic::Status,
+        >;
+        /// Get suspendable provers that have recently failed proofs.
+        async fn get_filtered_suspendable_provers(
+            &self,
+            request: tonic::Request<
+                super::super::types::GetFilteredSuspendableProversRequest,
+            >,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetFilteredSuspendableProversResponse>,
             tonic::Status,
         >;
         /// Suspend a prover.
@@ -4089,6 +4198,16 @@ pub mod prover_network_server {
             request: tonic::Request<super::super::types::GetFilteredBidHistoryRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetFilteredBidHistoryResponse>,
+            tonic::Status,
+        >;
+        /// Get filtered bid history for a prover with pagination
+        async fn get_filtered_prover_bid_history(
+            &self,
+            request: tonic::Request<
+                super::super::types::GetFilteredProverBidHistoryRequest,
+            >,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetFilteredProverBidHistoryResponse>,
             tonic::Status,
         >;
         /// Check if the user is whitelisted to use the TEE service.
@@ -6043,6 +6162,55 @@ pub mod prover_network_server {
                     };
                     Box::pin(fut)
                 }
+                "/network.ProverNetwork/GetTransferParams" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetTransferParamsSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<
+                        T: ProverNetwork,
+                    > tonic::server::UnaryService<
+                        super::super::types::GetTransferParamsRequest,
+                    > for GetTransferParamsSvc<T> {
+                        type Response = super::super::types::GetTransferParamsResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::GetTransferParamsRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_transfer_params(&inner, request)
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetTransferParamsSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
                 "/network.ProverNetwork/GetWithdrawParams" => {
                     #[allow(non_camel_case_types)]
                     struct GetWithdrawParamsSvc<T: ProverNetwork>(pub Arc<T>);
@@ -6464,6 +6632,60 @@ pub mod prover_network_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let method = GetFilteredSettleableRequestsSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/GetFilteredSuspendableProvers" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetFilteredSuspendableProversSvc<T: ProverNetwork>(
+                        pub Arc<T>,
+                    );
+                    impl<
+                        T: ProverNetwork,
+                    > tonic::server::UnaryService<
+                        super::super::types::GetFilteredSuspendableProversRequest,
+                    > for GetFilteredSuspendableProversSvc<T> {
+                        type Response = super::super::types::GetFilteredSuspendableProversResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::GetFilteredSuspendableProversRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_filtered_suspendable_provers(
+                                        &inner,
+                                        request,
+                                    )
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetFilteredSuspendableProversSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
@@ -9391,6 +9613,58 @@ pub mod prover_network_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let method = GetFilteredBidHistorySvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/GetFilteredProverBidHistory" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetFilteredProverBidHistorySvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<
+                        T: ProverNetwork,
+                    > tonic::server::UnaryService<
+                        super::super::types::GetFilteredProverBidHistoryRequest,
+                    > for GetFilteredProverBidHistorySvc<T> {
+                        type Response = super::super::types::GetFilteredProverBidHistoryResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::GetFilteredProverBidHistoryRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_filtered_prover_bid_history(
+                                        &inner,
+                                        request,
+                                    )
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetFilteredProverBidHistorySvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
