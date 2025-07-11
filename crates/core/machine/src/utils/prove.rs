@@ -97,7 +97,7 @@ pub fn prove_core_stream<SC: StarkGenericConfig, P: MachineProver<SC, RiscvAir<S
     proof_tx: Sender<ShardProof<SC>>,
     shape_and_done_tx: Sender<(OrderedShape, bool)>,
     malicious_trace_pv_generator: Option<MaliciousTracePVGeneratorType<SC::Val, P>>, /* This is used for failure test cases that generate malicious traces and public values. */
-    gas_calculator: Option<Box<dyn FnOnce(&RecordEstimator) -> Result<u64, Box<dyn Error>> + '_>>,
+    gas_calculator: Option<Box<dyn FnMut(&RecordEstimator) -> Result<u64, Box<dyn Error>> + Send>>,
 ) -> Result<(Vec<u8>, u64), SP1CoreProverError>
 where
     SC::Val: PrimeField32,
@@ -116,9 +116,25 @@ where
         let (proof, vk) = proof.clone();
         runtime.write_proof(proof, vk);
     }
-    // Set the record estimator to collect data for gas calculation.
-    if gas_calculator.is_some() {
+    // Set up the gas calculator for shard gas checking and reporting.
+    let shared_gas_calculator = if gas_calculator.is_some() {
         runtime.record_estimator = Some(Box::default());
+        gas_calculator.map(|calc| Arc::new(Mutex::new(calc)))
+    } else {
+        None
+    };
+
+    if let Some(ref shared_calc) = shared_gas_calculator {
+        let calc_clone = Arc::clone(shared_calc);
+        runtime.gas_calculator = Some(Box::new(move |estimator: &RecordEstimator| -> u64 {
+            match calc_clone.lock().unwrap()(estimator) {
+                Ok(gas) => gas,
+                Err(e) => {
+                    tracing::error!("Gas calculation failed: {}", e);
+                    0
+                }
+            }
+        }));
     }
 
     #[cfg(feature = "debug")]
@@ -519,7 +535,9 @@ where
 
         // Wait until the checkpoint generator handle has fully finished.
         let runtime = checkpoint_generator_handle.join().unwrap().unwrap();
-        let gas = gas_calculator.map(|calc| calc(runtime.record_estimator.as_ref().unwrap()));
+        let gas = shared_gas_calculator
+            .as_ref()
+            .map(|calc| calc.lock().unwrap()(runtime.record_estimator.as_ref().unwrap()));
         let public_values_stream = runtime.state.public_values_stream;
 
         // Wait until the records and traces have been fully generated for phase 2.
