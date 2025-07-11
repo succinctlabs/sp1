@@ -617,11 +617,11 @@ impl NetworkProver {
                     if let Some(network_error) = e.downcast_ref::<Error>() {
                         if matches!(
                             network_error,
-                            Error::RequestUnfulfillable { .. } |
-                                Error::RequestTimedOut { .. } |
-                                Error::RequestAuctionTimedOut { .. }
-                        ) && strategy == FulfillmentStrategy::Auction &&
-                            whitelist.is_none()
+                            Error::RequestUnfulfillable { .. }
+                                | Error::RequestTimedOut { .. }
+                                | Error::RequestAuctionTimedOut { .. }
+                        ) && strategy == FulfillmentStrategy::Auction
+                            && whitelist.is_none()
                         {
                             tracing::warn!("Retrying auction request with fallback whitelist...");
 
@@ -639,7 +639,7 @@ impl NetworkProver {
                                 .into_iter()
                                 .map(|p| Address::from_slice(&p))
                                 .collect::<Vec<_>>();
-                            if fallback_whitelist.is_some() {
+                            if fallback_whitelist.is_empty() {
                                 tracing::warn!("No fallback high availability provers found.");
                                 return Err(e);
                             }
