@@ -491,7 +491,7 @@ impl NetworkProver {
     ) -> Result<B256> {
         let vk_hash = self.register_program(&pk.vk, &pk.elf).await?;
         let (cycle_limit, gas_limit, public_values_hash) =
-            self.get_execution_limits(cycle_limit, gas_limit, &pk.elf, stdin, skip_simulation)?;
+            self.get_execution_params(cycle_limit, gas_limit, &pk.elf, stdin, skip_simulation)?;
         let (auctioneer, executor, verifier, max_price_per_pgu, base_fee, domain) = self
             .get_auction_request_params(mode, auctioneer, executor, verifier, max_price_per_pgu)
             .await?;
@@ -595,13 +595,15 @@ impl NetworkProver {
         Ok(proof)
     }
 
-    /// The cycle limit and gas limit are determined according to the following priority:
+    /// Returns the public values hash, cycle limit, and gas limit, based on the following:
     ///
-    /// 1. If either of the limits are explicitly set by the requester, use the specified value.
-    /// 2. If simulation is enabled, calculate the limits by simulating the execution of the
-    ///    program. This is the default behavior.
-    /// 3. Otherwise, use the default limits ([`DEFAULT_CYCLE_LIMIT`] and [`DEFAULT_GAS_LIMIT`]).
-    fn get_execution_limits(
+    /// 1. If either limit is explicitly set by the requester, use the specified value.
+    /// 2. If simulation is enabled, calculate the limits and public values hash by simulating the
+    ///    execution of the program. This is the default behavior.
+    /// 3. Otherwise, use [`DEFAULT_GAS_LIMIT`]).
+    ///
+    /// NOTE: Cycle limit is deprecated and will be completely removed in the future.
+    fn get_execution_params(
         &self,
         cycle_limit: Option<u64>,
         gas_limit: Option<u64>,
@@ -609,54 +611,33 @@ impl NetworkProver {
         stdin: &SP1Stdin,
         skip_simulation: bool,
     ) -> Result<(u64, u64, Option<Vec<u8>>)> {
-        let cycle_limit_value = if let Some(cycles) = cycle_limit {
-            cycles
-        } else if skip_simulation {
-            DEFAULT_CYCLE_LIMIT
+        if skip_simulation {
+            // When skipping simulation, determine limits based on what was provided.
+            let (final_cycle_limit, final_gas_limit) = match (cycle_limit, gas_limit) {
+                (_, Some(gas)) => (0, gas),
+                (Some(cycles), None) => (cycles, 0),
+                (None, None) => (0, DEFAULT_GAS_LIMIT),
+            };
+            Ok((final_cycle_limit, final_gas_limit, None))
         } else {
-            // Will be calculated through simulation.
-            0
-        };
+            // Simulate to get public_values_hash and determine limits based on what was provided.
+            let execute_result = self
+                .prover
+                .inner()
+                .execute(elf, stdin, SP1Context::builder().calculate_gas(true).build())
+                .map_err(|_| Error::SimulationFailed)?;
 
-        let gas_limit_value = if let Some(gas) = gas_limit {
-            gas
-        } else if skip_simulation {
-            DEFAULT_GAS_LIMIT
-        } else {
-            // Will be calculated through simulation.
-            0
-        };
+            let (_, committed_value_digest, report) = execute_result;
+            let public_values_hash = Some(committed_value_digest.to_vec());
 
-        // If both limits were explicitly provided or skip_simulation is true, return immediately.
-        if (cycle_limit.is_some() && gas_limit.is_some()) || skip_simulation {
-            return Ok((cycle_limit_value, gas_limit_value, None));
+            let (final_cycle_limit, final_gas_limit) = match (cycle_limit, gas_limit) {
+                (_, Some(gas)) => (0, gas),
+                (Some(cycles), None) => (cycles, 0),
+                (None, None) => (0, report.gas.unwrap_or(DEFAULT_GAS_LIMIT)),
+            };
+
+            Ok((final_cycle_limit, final_gas_limit, public_values_hash))
         }
-
-        // One of the limits were not provided and simulation is not skipped, so simulate to get one
-        // or both limits
-        let execute_result = self
-            .prover
-            .inner()
-            .execute(elf, stdin, SP1Context::builder().calculate_gas(true).build())
-            .map_err(|_| Error::SimulationFailed)?;
-
-        let (_, committed_value_digest, report) = execute_result;
-
-        // Use simulated values for the ones that are not explicitly provided.
-        let final_cycle_limit = if cycle_limit.is_none() {
-            report.total_instruction_count()
-        } else {
-            cycle_limit_value
-        };
-        let final_gas_limit = if gas_limit.is_none() {
-            report.gas.unwrap_or(DEFAULT_GAS_LIMIT)
-        } else {
-            gas_limit_value
-        };
-
-        let public_values_hash = Some(committed_value_digest.to_vec());
-
-        Ok((final_cycle_limit, final_gas_limit, public_values_hash))
     }
 
     /// The proof request parameters for the auction strategy are determined according to the
