@@ -567,7 +567,7 @@ impl NetworkProver {
         #[allow(unused_mut)]
         let mut whitelist = whitelist.clone();
 
-        // Attempt to get proof, with retry logic for failed auction requests
+        // Attempt to get proof, with retry logic for failed auction requests.
         loop {
             let request_id = self
                 .request_proof_impl(
@@ -590,7 +590,6 @@ impl NetworkProver {
 
             // If 2FA is enabled, spawn a task to get the tee proof.
             // Note: We only support one type of TEE proof for now.
-
             let handle = if tee_2fa {
                 let request = super::tee::api::TEERequest::new(
                     &self.client.signer,
@@ -614,19 +613,19 @@ impl NetworkProver {
                 Ok(proof) => proof,
                 Err(e) => {
                     #[cfg(feature = "sepolia")]
-                    // Check if this is an auction request that we can retry
+                    // Check if this is an auction request that we can retry.
                     if let Some(network_error) = e.downcast_ref::<Error>() {
                         if matches!(
                             network_error,
-                            Error::RequestUnfulfillable { .. }
-                                | Error::RequestTimedOut { .. }
-                                | Error::RequestAuctionTimedOut { .. }
-                        ) && strategy == FulfillmentStrategy::Auction
-                            && whitelist.is_none()
+                            Error::RequestUnfulfillable { .. } |
+                                Error::RequestTimedOut { .. } |
+                                Error::RequestAuctionTimedOut { .. }
+                        ) && strategy == FulfillmentStrategy::Auction &&
+                            whitelist.is_none()
                         {
                             tracing::warn!("Retrying auction request with fallback whitelist...");
 
-                            // Get fallback high availability provers and retry
+                            // Get fallback high availability provers and retry.
                             let mut rpc = self.client.prover_network_client().await?;
                             let fallback_whitelist = rpc
                                 .get_provers_by_uptime(
@@ -643,11 +642,14 @@ impl NetworkProver {
                             if !fallback_whitelist.is_empty() {
                                 whitelist = Some(fallback_whitelist);
                                 continue;
+                            } else {
+                                tracing::warn!("No fallback high availability provers found.");
+                                return Err(e);
                             }
                         }
                     }
 
-                    // If we can't retry, return the error
+                    // If we can't retry, return the error.
                     return Err(e);
                 }
             };
@@ -662,7 +664,6 @@ impl NetworkProver {
                 proof.tee_proof = Some(tee_proof.as_prefix_bytes());
             }
 
-            // Success! Return the proof
             return Ok(proof);
         }
     }

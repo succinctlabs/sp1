@@ -34,6 +34,6 @@ pub(crate) fn sign_raw(message: &[u8], signer: &SigningKey) -> (Signature, Recov
 /// Uses a base timeout of 5 minutes plus 1 second per 2000000 prover gas.
 pub(crate) fn calculate_timeout_from_gas_limit(gas_limit: u64) -> u64 {
     let base_timeout = 300; // 5 minutes
-    let gas_based_timeout = gas_limit / 2_000_000 + 1;
+    let gas_based_timeout = gas_limit / 2_000_000;
     max(base_timeout, gas_based_timeout)
 }

@@ -352,7 +352,8 @@ impl NetworkProveBuilder<'_> {
     /// Only provers specified in the whitelist will be able to bid and prove on the request. Only
     /// relevant if the strategy is set to [`FulfillmentStrategy::Auction`].
     ///
-    /// If whitelist is `None` when requesting a proof, a set of recently reliable provers will be used.
+    /// If whitelist is `None` when requesting a proof, a set of recently reliable provers will be
+    /// used.
     ///
     /// # Example
     /// ```rust,no_run
@@ -475,9 +476,9 @@ impl NetworkProveBuilder<'_> {
     /// Sets the auction timeout for the proof request.
     ///
     /// # Details
-    /// The auction timeout determines how long to wait for a prover to pick up the request when it's
-    /// in "requested" status. If no prover picks up the request within this timeout, the request
-    /// will be considered failed. Default is 30 seconds.
+    /// The auction timeout determines how long to wait for a prover to pick up the request when
+    /// it's in "requested" status. If no prover picks up the request within this timeout, the
+    /// request will be considered failed. Default is 30 seconds.
     ///
     /// # Example
     /// ```rust,no_run
