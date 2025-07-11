@@ -326,41 +326,24 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     ) -> Result<(SP1PublicValues, [u8; 32], ExecutionReport), ExecutionError> {
         context.subproof_verifier = Some(self);
 
-        // Always calculate gas in prover for gas limit enforcement and reporting.
-        context.calculate_gas = true;
+        let calculate_gas = context.calculate_gas;
 
-        let (opts, program) = (gas::GAS_OPTS, self.get_program(elf).unwrap());
+        let (opts, program) = if calculate_gas {
+            (gas::GAS_OPTS, self.get_program(elf).unwrap())
+        } else {
+            (sp1_stark::SP1CoreOpts::default(), Program::from(elf).unwrap())
+        };
         let preprocessed_shape = program.preprocessed_shape.clone();
 
         let mut runtime = Executor::with_context(program, opts, context);
 
-        // Figure out where the shard boundaries are.
-        runtime.maximal_shapes = self.core_shape_config.as_ref().map(|config| {
-            config.maximal_core_shapes(opts.shard_size.ilog2() as usize).into_iter().collect()
-        });
-        runtime.record_estimator = Some(Box::default());
-
-        // Set up gas calculator for shard gas checking.
-        let split_opts = opts.split_opts;
-        runtime.gas_calculator = Some(Box::new(move |estimator: &RecordEstimator| -> u64 {
-            let est_records = gas::estimated_records(&split_opts, estimator);
-            let raw_gas = est_records
-                .map(|shape| {
-                    gas::predict(
-                        enum_map::EnumMap::from_iter(shape.iter().map(|(k, v)| (k, *v as usize)))
-                            .as_array(),
-                    )
-                })
-                .sum::<f64>();
-
-            match gas::final_transform(raw_gas) {
-                Ok(gas) => gas,
-                Err(e) => {
-                    tracing::error!("Gas calculation failed: {}", e);
-                    0
-                }
-            }
-        }));
+        if calculate_gas {
+            // Needed to figure out where the shard boundaries are.
+            runtime.maximal_shapes = self.core_shape_config.as_ref().map(|config| {
+                config.maximal_core_shapes(opts.shard_size.ilog2() as usize).into_iter().collect()
+            });
+            runtime.record_estimator = Some(Box::default());
+        }
 
         runtime.maybe_setup_profiler(elf);
 
@@ -370,13 +353,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         }
         runtime.run_fast()?;
 
-        // Calculate gas for reporting.
-        if runtime.gas_used > 0 {
-            // If we tracked gas during execution, use the accumulated gas.
-            runtime.report.gas = Some(runtime.gas_used);
-            tracing::info!("gas: {}", runtime.gas_used);
-        } else {
-            // Otherwise, calculate gas using the full record estimator.
+        if calculate_gas {
             let gas = self.get_gas_calculator(preprocessed_shape.unwrap(), opts.split_opts)(
                 runtime.record_estimator.as_ref().unwrap(),
             );
@@ -417,9 +394,6 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     ) -> Result<SP1CoreProof, SP1CoreProverError> {
         context.subproof_verifier = Some(self);
 
-        // Always calculate gas in prover for gas limit enforcement and reporting.
-        context.calculate_gas = true;
-
         // Launch two threads to simultaneously prove the core and compile the first few
         // recursion programs in parallel.
         let span = tracing::Span::current().clone();
@@ -435,45 +409,34 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 // Copy the proving key to the device.
                 let pk = pk_d;
 
-                // Set up gas calculator, since we always calculate gas now.
-                let gas_calculator = if context.max_gas.is_some() {
-                    tracing::info!(
-                        "Setting up gas calculator for proving with gas limit enforcement."
-                    );
-                    if opts.core_opts == gas::GAS_OPTS {
-                        tracing::info!(
-                            "The SP1CoreOpts matches the gas opts, so gas will be consistent."
-                        );
-                    } else {
-                        tracing::warn!(
-                            "The SP1CoreOpts does not match the gas opts. \
-                            Gas may disagree with the standard gas calculated when executing."
-                        );
-                    }
-                    let preprocessed_shape = program.preprocessed_shape.clone().unwrap();
-                    let split_opts = opts.core_opts.split_opts;
-                    Some(Box::new(
-                        move |estimator: &RecordEstimator| -> Result<u64, Box<dyn Error>> {
-                            let est_records = gas::estimated_records(&split_opts, estimator);
-                            let raw_gas = est_records
-                                .map(|shape| {
-                                    let mut shape_map = enum_map::EnumMap::from_iter(
-                                        shape.iter().map(|(k, v)| (k, *v as usize)),
-                                    );
-                                    for (k, v) in preprocessed_shape.iter() {
-                                        shape_map[*k] += v;
-                                    }
-                                    gas::predict(shape_map.as_array())
-                                })
-                                .sum::<f64>();
-                            let gas = gas::final_transform(raw_gas).map_err(Box::new)?;
-                            Ok(gas)
-                        },
-                    )
-                        as Box<dyn FnMut(&RecordEstimator) -> Result<u64, Box<dyn Error>> + Send>)
-                } else {
-                    None
-                };
+                // We may calculate gas while proving if the opts match the hardcoded variant.
+                // This ensures that the gas number is consistent between `execute` and `prove_core`.
+                // This behavior is undocumented because it is confusing and not very useful.
+                //
+                // If `context.calculate_gas` is set, we use the logic from the `gas` module
+                // after checkpoint execution to print gas as part of the execution report.
+                #[allow(clippy::type_complexity)]
+                let gas_calculator = (context.calculate_gas
+                    && std::env::var("SP1_FORCE_GAS").is_ok())
+                .then(
+                    || -> Box<dyn FnOnce(&RecordEstimator) -> Result<u64, Box<dyn Error>> + '_> {
+                        tracing::info!("Forcing calculation of gas while proving.");
+                        if opts.core_opts == gas::GAS_OPTS {
+                            tracing::info!(
+                                "The SP1CoreOpts matches the gas opts, so gas will be consistent."
+                            );
+                        } else {
+                            tracing::warn!(
+                                "The SP1CoreOpts does not match the gas opts. \
+                                Gas will likely disagree with the standard gas calculated when executing."
+                            );
+                        }
+                        let preprocessed_shape = program.preprocessed_shape.clone().unwrap();
+                        Box::new(
+                            self.get_gas_calculator(preprocessed_shape, opts.core_opts.split_opts),
+                        )
+                    },
+                );
 
                 // Prove the core and stream the proofs and shapes.
                 sp1_core_machine::utils::prove_core_stream::<_, C::CoreProver>(
