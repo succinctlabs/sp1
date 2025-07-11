@@ -37,7 +37,9 @@ use crate::network::proto::{
 };
 
 #[cfg(feature = "sepolia")]
-use crate::network::proto::types::{GetProofRequestParamsRequest, GetProofRequestParamsResponse};
+use crate::network::proto::types::{
+    GetProofRequestParamsRequest, GetProofRequestParamsResponse, GetProversByUptimeRequest,
+};
 
 /// A client for interacting with the network.
 pub struct NetworkClient {
@@ -144,6 +146,23 @@ impl NetworkClient {
     pub fn get_vk_hash(vk: &SP1VerifyingKey) -> Result<B256> {
         let vk_hash = vk.hash_bytes();
         Ok(B256::from_slice(&vk_hash))
+    }
+
+    /// Get the prover whitelist.
+    ///
+    /// # Details
+    /// Uses the key that the client was initialized with.
+    #[cfg(feature = "sepolia")]
+    pub async fn get_provers_by_uptime(&self) -> Result<Vec<Address>> {
+        self.with_retry(
+            || async {
+                let mut rpc = self.prover_network_client().await?;
+                let res = rpc.get_provers_by_uptime(GetProversByUptimeRequest {}).await?;
+                Ok(res.into_inner().provers.into_iter().map(|p| Address::from_slice(&p)).collect())
+            },
+            "getting prover whitelist",
+        )
+        .await
     }
 
     /// Registers a program with the network if it is not already registered.

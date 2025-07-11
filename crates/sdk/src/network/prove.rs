@@ -34,11 +34,11 @@ pub struct NetworkProveBuilder<'a> {
     pub(crate) gas_limit: Option<u64>,
     pub(crate) tee_2fa: bool,
     pub(crate) min_auction_period: u64,
-    pub(crate) whitelist: Vec<Address>,
+    pub(crate) whitelist: Option<Vec<Address>>,
     pub(crate) auctioneer: Option<Address>,
     pub(crate) executor: Option<Address>,
     pub(crate) verifier: Option<Address>,
-    pub(crate) max_price_per_pgu: Option<u64>,
+    pub(crate) max_price_per_gas: Option<u64>,
 }
 
 impl NetworkProveBuilder<'_> {
@@ -203,8 +203,34 @@ impl NetworkProveBuilder<'_> {
     /// let builder = client.prove(&pk, &stdin).skip_simulation(true).run();
     /// ```
     #[must_use]
+    #[deprecated(note = "Use `simulate` instead")]
     pub fn skip_simulation(mut self, skip_simulation: bool) -> Self {
         self.skip_simulation = skip_simulation;
+        self
+    }
+
+    /// Set whether to skip the local execution simulation step.
+    ///
+    /// # Details
+    /// This method sets whether to skip the local execution simulation step. If the simulation
+    /// step is skipped, the request will sent to the network without verifying that the execution
+    /// succeeds locally (without generating a proof). This feature is recommended for users who
+    /// want to optimize the latency of the proof generation on the network.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{Prover, ProverClient, SP1Stdin};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().network().build();
+    /// let (pk, vk) = client.setup(elf);
+    /// let builder = client.prove(&pk, &stdin).simulate(true).run();
+    /// ```
+    #[must_use]
+    pub fn simulate(mut self, simulate: bool) -> Self {
+        self.skip_simulation = !simulate;
         self
     }
 
@@ -258,6 +284,7 @@ impl NetworkProveBuilder<'_> {
     ///     .unwrap();
     /// ```
     #[must_use]
+    #[cfg(not(feature = "sepolia"))]
     pub fn cycle_limit(mut self, cycle_limit: u64) -> Self {
         self.cycle_limit = Some(cycle_limit);
         self
@@ -291,6 +318,7 @@ impl NetworkProveBuilder<'_> {
     ///     .unwrap();
     /// ```
     #[must_use]
+    #[cfg(feature = "sepolia")]
     pub fn gas_limit(mut self, gas_limit: u64) -> Self {
         self.gas_limit = Some(gas_limit);
         self
@@ -340,6 +368,7 @@ impl NetworkProveBuilder<'_> {
     /// let builder = client.prove(&pk, &stdin).min_auction_period(60).run();
     /// ```
     #[must_use]
+    #[cfg(feature = "sepolia")]
     pub fn min_auction_period(mut self, min_auction_period: u64) -> Self {
         self.min_auction_period = min_auction_period;
         self
@@ -366,8 +395,9 @@ impl NetworkProveBuilder<'_> {
     /// let builder = client.prove(&pk, &stdin).whitelist(whitelist).run();
     /// ```
     #[must_use]
+    #[cfg(feature = "sepolia")]
     pub fn whitelist(mut self, whitelist: Vec<Address>) -> Self {
-        self.whitelist = whitelist;
+        self.whitelist = Some(whitelist);
         self
     }
 
@@ -392,6 +422,7 @@ impl NetworkProveBuilder<'_> {
     /// let builder = client.prove(&pk, &stdin).auctioneer(auctioneer).run();
     /// ```
     #[must_use]
+    #[cfg(feature = "sepolia")]
     pub fn auctioneer(mut self, auctioneer: Address) -> Self {
         self.auctioneer = Some(auctioneer);
         self
@@ -418,6 +449,7 @@ impl NetworkProveBuilder<'_> {
     /// let builder = client.prove(&pk, &stdin).executor(executor).run();
     /// ```
     #[must_use]
+    #[cfg(feature = "sepolia")]
     pub fn executor(mut self, executor: Address) -> Self {
         self.executor = Some(executor);
         self
@@ -436,6 +468,7 @@ impl NetworkProveBuilder<'_> {
     /// use std::str::FromStr;
     /// ```
     #[must_use]
+    #[cfg(feature = "sepolia")]
     pub fn verifier(mut self, verifier: Address) -> Self {
         self.verifier = Some(verifier);
         self
@@ -464,8 +497,9 @@ impl NetworkProveBuilder<'_> {
     ///     .unwrap();
     /// ```
     #[must_use]
-    pub fn max_price_per_pgu(mut self, max_price_per_pgu: u64) -> Self {
-        self.max_price_per_pgu = Some(max_price_per_pgu);
+    #[cfg(feature = "sepolia")]
+    pub fn max_price_per_gas(mut self, max_price_per_gas: u64) -> Self {
+        self.max_price_per_gas = Some(max_price_per_gas);
         self
     }
 
@@ -526,7 +560,7 @@ impl NetworkProveBuilder<'_> {
                 self.auctioneer,
                 self.executor,
                 self.verifier,
-                self.max_price_per_pgu,
+                self.max_price_per_gas,
             )
             .await
     }
@@ -595,7 +629,7 @@ impl NetworkProveBuilder<'_> {
                 self.auctioneer,
                 self.executor,
                 self.verifier,
-                self.max_price_per_pgu,
+                self.max_price_per_gas,
             )
             .await
     }
