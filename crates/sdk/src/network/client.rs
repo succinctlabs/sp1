@@ -37,7 +37,10 @@ use crate::network::proto::{
 };
 
 #[cfg(feature = "sepolia")]
-use crate::network::proto::types::{GetProofRequestParamsRequest, GetProofRequestParamsResponse};
+use crate::network::proto::types::{
+    GetProofRequestParamsRequest, GetProofRequestParamsResponse, GetProversByUptimeRequest,
+    TransactionVariant,
+};
 
 /// A client for interacting with the network.
 pub struct NetworkClient {
@@ -398,7 +401,7 @@ impl NetworkClient {
         cycle_limit: u64,
         gas_limit: u64,
         min_auction_period: u64,
-        whitelist: Vec<Address>,
+        whitelist: Option<Vec<Address>>,
         auctioneer: Address,
         executor: Address,
         verifier: Address,
@@ -425,6 +428,14 @@ impl NetworkClient {
 
                 cfg_if::cfg_if! {
                     if #[cfg(feature = "sepolia")] {
+                        let whitelist = if let Some(whitelist) = &whitelist {
+                            whitelist.iter().map(|addr| addr.to_vec()).collect()
+                        } else {
+                            let result = rpc.get_provers_by_uptime(GetProversByUptimeRequest {
+                                high_availability_only: false,
+                            }).await?;
+                            result.into_inner().provers
+                        };
                         let request_body = RequestProofRequestBody {
                             nonce,
                             version: format!("sp1-{version}"),
@@ -436,7 +447,7 @@ impl NetworkClient {
                             cycle_limit,
                             gas_limit,
                             min_auction_period,
-                            whitelist: whitelist.clone().into_iter().map(|addr| addr.to_vec()).collect(),
+                            whitelist,
                             domain: domain.clone(),
                             auctioneer: auctioneer.to_vec(),
                             executor: executor.to_vec(),
@@ -444,6 +455,7 @@ impl NetworkClient {
                             public_values_hash: public_values_hash.clone(),
                             base_fee: base_fee.to_string(),
                             max_price_per_pgu: max_price_per_pgu.to_string(),
+                            variant: TransactionVariant::RequestVariant.into(),
                         };
                 } else {
                     let request_body = RequestProofRequestBody {
@@ -457,7 +469,7 @@ impl NetworkClient {
                         cycle_limit,
                         gas_limit,
                         min_auction_period,
-                        whitelist: whitelist.clone().into_iter().map(|addr| addr.to_vec()).collect(),
+                        whitelist: whitelist.clone().map(|list| list.into_iter().map(|addr| addr.to_vec()).collect()).unwrap_or_default(),
                     };
                 }}
 
