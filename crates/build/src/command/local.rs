@@ -3,6 +3,7 @@ use std::{env, path::PathBuf, process::Command};
 use crate::{BuildArgs, WarningLevel, HELPER_TARGET_SUBDIR};
 use cargo_metadata::camino::Utf8PathBuf;
 use dirs::home_dir;
+use anyhow::Result;
 
 use super::utils::{get_program_build_args, get_rust_compiler_flags};
 
@@ -11,7 +12,7 @@ pub(crate) fn create_local_command(
     args: &BuildArgs,
     program_dir: &Utf8PathBuf,
     program_metadata: &cargo_metadata::Metadata,
-) -> Command {
+) -> Result<Command> {
     let mut command = Command::new("cargo");
     let canonicalized_program_dir =
         program_dir.canonicalize().expect("Failed to canonicalize program directory");
@@ -54,6 +55,7 @@ pub(crate) fn create_local_command(
         }
 
         super::utils::parse_rustc_version(&stdout_string)
+            .map_err(|e| anyhow::anyhow!("Failed to parse rustc version: {}", e))?
     };
 
     let rustc_bin = {
@@ -94,5 +96,5 @@ pub(crate) fn create_local_command(
         .map(|v| v.0)
         .filter(|v| v.starts_with("CARGO_FEATURE_") || v.starts_with("CARGO_CFG_"))
         .fold(&mut command, Command::env_remove);
-    command
+    Ok(command)
 }
