@@ -339,6 +339,8 @@ impl<'a> Executor<'a> {
         let costs: HashMap<RiscvAirId, usize> =
             costs.into_iter().map(|(k, v)| (RiscvAirId::from_str(&k).unwrap(), v)).collect();
 
+        tracing::info!("max_cycles: {:?}, max_gas: {:?}", context.max_cycles, context.max_gas);
+
         Self {
             record: Box::new(record),
             records: vec![],
@@ -1851,6 +1853,12 @@ impl<'a> Executor<'a> {
                 if let Some(ref estimator) = self.record_estimator {
                     let shard_gas = gas_calculator(estimator);
                     self.gas_used += shard_gas;
+
+                    tracing::info!(
+                        "[bump_record] gas_used: {}, gas_limit: {}",
+                        self.gas_used,
+                        gas_limit
+                    );
 
                     // If the gas limit is exceeded, return an error.
                     if self.gas_used > gas_limit {
