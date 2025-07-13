@@ -37,7 +37,7 @@ const MAXIMAL_SHAPES: &[u8] = include_bytes!("maximal_shapes.json");
 const SMALL_SHAPES: &[u8] = include_bytes!("small_shapes.json");
 
 /// A configuration for what shapes are allowed to be used by the prover.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CoreShapeConfig<F: PrimeField32> {
     partial_preprocessed_shapes: ShapeCluster<RiscvAirId>,
     partial_core_shapes: BTreeMap<usize, Vec<ShapeCluster<RiscvAirId>>>,

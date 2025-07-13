@@ -294,6 +294,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         Ok(program)
     }
 
+    // Get gas calculator for post-execution report gas calculation.
     fn get_gas_calculator(
         &self,
         preprocessed_shape: Shape<RiscvAirId>,
@@ -316,6 +317,33 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         }
     }
 
+    // Get gas calculator for executor shard-based calculation.
+    fn get_gas_calculator_new(
+        &self,
+        preprocessed_shape: Shape<RiscvAirId>,
+        split_opts: SplitOpts,
+    ) -> Box<dyn FnMut(&RecordEstimator) -> u64 + Send> {
+        let core_shape_config = self.core_shape_config.clone().unwrap();
+        Box::new(move |estimator: &RecordEstimator| -> u64 {
+            let est_records = gas::estimated_records(&split_opts, estimator);
+            let raw_gas = gas::fit_records_to_shapes(&core_shape_config, est_records)
+                .enumerate()
+                .map(|(i, shape)| {
+                    let mut shape: Shape<RiscvAirId> = shape.unwrap_or_else(|e| {
+                        tracing::error!("Shape fitting failed for shard {}: {}", i, e);
+                        Shape::default()
+                    });
+                    shape.extend(preprocessed_shape.iter().map(|(k, v)| (*k, *v)));
+                    gas::predict(enum_map::EnumMap::from_iter(shape).as_array())
+                })
+                .sum::<f64>();
+            gas::final_transform(raw_gas).unwrap_or_else(|e| {
+                tracing::error!("Gas calculation failed: {}", e);
+                0
+            })
+        })
+    }
+
     /// Execute an SP1 program with the specified inputs.
     #[instrument(name = "execute", level = "info", skip_all)]
     pub fn execute<'a>(
@@ -326,7 +354,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     ) -> Result<(SP1PublicValues, [u8; 32], ExecutionReport), ExecutionError> {
         context.subproof_verifier = Some(self);
 
-        let calculate_gas = context.calculate_gas;
+        let calculate_gas = context.calculate_gas || context.max_gas.is_some();
 
         let (opts, program) = if calculate_gas {
             (gas::GAS_OPTS, self.get_program(elf).unwrap())
@@ -343,6 +371,11 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 config.maximal_core_shapes(opts.shard_size.ilog2() as usize).into_iter().collect()
             });
             runtime.record_estimator = Some(Box::default());
+
+            // Set up gas calculator for shard-based gas calculation.
+            runtime.gas_calculator = Some(
+                self.get_gas_calculator_new(preprocessed_shape.clone().unwrap(), opts.split_opts),
+            );
         }
 
         runtime.maybe_setup_profiler(elf);
@@ -354,13 +387,20 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         runtime.run_fast()?;
 
         if calculate_gas {
-            let gas = self.get_gas_calculator(preprocessed_shape.unwrap(), opts.split_opts)(
-                runtime.record_estimator.as_ref().unwrap(),
-            );
-            runtime.report.gas = gas
-                .inspect(|g| tracing::info!("gas: {}", g))
-                .inspect_err(|e| tracing::error!("Encountered error while calculating gas: {}", e))
-                .ok();
+            if runtime.gas_used > 0 {
+                runtime.report.gas = Some(runtime.gas_used);
+                tracing::info!("gas: {}", runtime.gas_used);
+            } else {
+                let gas = self.get_gas_calculator(preprocessed_shape.unwrap(), opts.split_opts)(
+                    runtime.record_estimator.as_ref().unwrap(),
+                );
+                runtime.report.gas = gas
+                    .inspect(|g| tracing::info!("gas: {}", g))
+                    .inspect_err(|e| {
+                        tracing::error!("Encountered error while calculating gas: {}", e)
+                    })
+                    .ok();
+            }
         }
 
         let mut committed_value_digest = [0u8; 32];
