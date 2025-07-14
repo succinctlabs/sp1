@@ -1847,23 +1847,17 @@ impl<'a> Executor<'a> {
 
     /// Bump the record.
     pub fn bump_record(&mut self) -> Result<(), ExecutionError> {
-        // Calculate gas for this shard if gas calculator and limit are set.
-        if let Some(gas_limit) = self.max_gas {
-            if let Some(ref mut gas_calculator) = self.gas_calculator {
-                if let Some(ref estimator) = self.record_estimator {
-                    let shard_gas = gas_calculator(estimator);
-                    self.gas_used += shard_gas;
+        if let (Some(ref mut gas_calculator), Some(ref estimator)) =
+            (&mut self.gas_calculator, &self.record_estimator)
+        {
+            let shard_gas = gas_calculator(estimator);
+            self.gas_used += shard_gas;
 
-                    tracing::info!(
-                        "[bump_record] gas_used: {}, gas_limit: {}",
-                        self.gas_used,
-                        gas_limit
-                    );
+            tracing::info!("[bump_record] gas_used: {}", self.gas_used);
 
-                    // If the gas limit is exceeded, return an error.
-                    if self.gas_used > gas_limit {
-                        return Err(ExecutionError::ExceededGasLimit(gas_limit));
-                    }
+            if let Some(gas_limit) = self.max_gas {
+                if self.gas_used > gas_limit {
+                    return Err(ExecutionError::ExceededGasLimit(gas_limit));
                 }
             }
         }
