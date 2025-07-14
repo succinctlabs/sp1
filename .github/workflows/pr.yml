@@ -174,6 +174,14 @@ jobs:
         with:
           pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
 
+      - name: Display NVIDIA SMI details
+        run: |
+          nvidia-smi
+          nvidia-smi -L
+          nvidia-smi -q -d Memory
+      - name: Ensure Docker is available with GPU support
+        run: docker run --rm --runtime=nvidia --gpus all ubuntu nvidia-smi
+
       - name: Install SP1 toolchain from repo
         run: |
           cargo run -p sp1-cli -- prove install-toolchain
