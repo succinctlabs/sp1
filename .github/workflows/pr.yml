@@ -152,6 +152,50 @@ jobs:
           RUSTFLAGS: -Copt-level=3 -Coverflow-checks=y -Cdebuginfo=0
           RUST_BACKTRACE: 1
 
+  test-verifier-gpu:
+    name: Test Verifier Crate on a GPU
+    runs-on:
+      [
+        runs-on,
+        runner=ubuntu24-gpu-x64,
+        spot=false,
+        disk=large,
+        "run-id=${{ github.run_id }}",
+      ]
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+
+      - name: Install SP1 toolchain from repo
+        run: |
+          cargo run -p sp1-cli -- prove install-toolchain
+          cd crates/cli
+          cargo install --locked --force --path .
+          cargo clean
+
+      - name: Run cargo check
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: --all-targets --all-features --tests
+
+      - name: Run cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --release --package sp1-verifier -F ark
+        env:
+          RUSTFLAGS: -Copt-level=3 -Coverflow-checks=y -Cdebuginfo=0
+          RUST_BACKTRACE: 1
+          SP1_PROVER: cuda
+
   lint:
     name: Formatting & Clippy
     runs-on: [runs-on, runner=16cpu-linux-x64, disk=large, "run-id=${{ github.run_id }}"]
