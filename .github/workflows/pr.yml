@@ -327,8 +327,6 @@ jobs:
     name: Check Verifier `no_std`
     runs-on: [runs-on, runner=16cpu-linux-x64, disk=large, "run-id=${{ github.run_id }}"]
     timeout-minutes: 10
-    strategy:
-      fail-fast: false
     steps:
       - name: Checkout Actions Repository
         uses: actions/checkout@v4
