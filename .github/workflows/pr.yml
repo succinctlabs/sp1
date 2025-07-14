@@ -158,7 +158,7 @@ jobs:
       [
         runs-on,
         family=g6,
-        runner=ubuntu24-gpu-x64,
+        image=ubuntu24-gpu-x64,
         spot=false,
         disk=large,
         "run-id=${{ github.run_id }}",
