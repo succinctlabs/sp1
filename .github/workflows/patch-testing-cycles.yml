@@ -24,6 +24,7 @@ jobs:
 
       - name: Install SP1 toolchain from repo
         run: |
+          cargo run -p sp1-cli -- prove --version
           cargo run -p sp1-cli -- prove install-toolchain
           cd crates/cli
           cargo install --force --locked --path .
@@ -38,6 +39,15 @@ jobs:
         run: |
           cd ./patch-testing
           git checkout origin/${{ github.event.pull_request.base.ref }} -- . ':(exclude)new_cycle_stats.json' ':(exclude)sp1-test/' ':(exclude)sp1-test-macro/'
+
+      - name: Install SP1 toolchain from base branch
+        run: |
+          cargo run -p sp1-cli -- prove --version
+          cargo run -p sp1-cli -- prove install-toolchain
+          cd crates/cli
+          cargo install --force --locked --path .
+          cargo clean
+
 
       - name: "Run patch testing on old branch"
         run: |
