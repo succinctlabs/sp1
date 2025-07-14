@@ -464,13 +464,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                 // This ensures that the gas number is consistent between `execute` and `prove_core`.
                 // This behavior is undocumented because it is confusing and not very useful.
                 //
-                // If `context.calculate_gas` is set, we use the logic from the `gas` module
-                // after checkpoint execution to print gas as part of the execution report.
+                // If `context.calculate_gas` or `context.max_gas` is set, we use the logic from the
+                // `gas` module after checkpoint execution to calculate gas.
                 #[allow(clippy::type_complexity)]
-                let gas_calculator = (context.calculate_gas
+                let gas_calculator = ((context.calculate_gas || context.max_gas.is_some())
                     && std::env::var("SP1_FORCE_GAS").is_ok())
                 .then(
-                    || -> Box<dyn FnOnce(&RecordEstimator) -> Result<u64, Box<dyn Error>> + '_> {
+                    || -> Box<dyn FnMut(&RecordEstimator) -> Result<u64, Box<dyn Error>> + Send> {
                         tracing::info!("Forcing calculation of gas while proving.");
                         if opts.core_opts == gas::GAS_OPTS {
                             tracing::info!(
@@ -483,9 +483,10 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
                             );
                         }
                         let preprocessed_shape = program.preprocessed_shape.clone().unwrap();
-                        Box::new(
-                            self.get_post_execution_gas_calculator(preprocessed_shape, opts.core_opts.split_opts),
-                        )
+                        let mut calculator = self.get_shard_gas_calculator(preprocessed_shape);
+                        Box::new(move |estimator: &RecordEstimator| -> Result<u64, Box<dyn Error>> {
+                            Ok(calculator(estimator))
+                        })
                     },
                 );
 
