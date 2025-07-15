@@ -156,12 +156,9 @@ jobs:
     name: Test Verifier Crate on a GPU
     runs-on:
       [
-        runs-on,
+        "runs-on=${{ github.run_id }}",
         family=g6.4xlarge,
         image=ubuntu24-gpu-x64,
-        spot=false,
-        disk=large,
-        "run-id=${{ github.run_id }}",
       ]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
