@@ -157,7 +157,7 @@ jobs:
     runs-on:
       [
         runs-on,
-        family=g6,
+        family=g6.4xlarge,
         image=ubuntu24-gpu-x64,
         spot=false,
         disk=large,
