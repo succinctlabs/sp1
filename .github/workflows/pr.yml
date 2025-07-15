@@ -157,8 +157,7 @@ jobs:
     runs-on:
       [
         "runs-on=${{ github.run_id }}",
-        family=g6.4xlarge,
-        image=ubuntu24-gpu-x64,
+        runner=gpu-nvidia,
       ]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
