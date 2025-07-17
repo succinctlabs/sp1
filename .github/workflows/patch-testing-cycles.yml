@@ -4,9 +4,6 @@ on:
   pull_request:
     branches: [main, dev]
     types: [opened, synchronize]
-    paths:
-      - "patch-testing/**/**.rs"
-      - "patch-testing/**/**.toml"
 
 jobs:
   patch-testing-cycles:
