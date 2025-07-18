@@ -49,6 +49,9 @@ pub const UNUSED_PC: u32 = 1;
 /// The maximum number of instructions in a program.
 pub const MAX_PROGRAM_SIZE: usize = 1 << 22;
 
+/// A thread-safe boxed closure that calculates gas consumption from `RecordEstimator`.
+pub type GasCalculator = Box<dyn FnMut(&RecordEstimator) -> u64 + Send>;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// Whether to verify deferred proofs during execution.
 pub enum DeferredProofVerification {
@@ -131,6 +134,15 @@ pub struct Executor<'a> {
 
     /// The maximum number of cpu cycles to use for execution.
     pub max_cycles: Option<u64>,
+
+    /// The maximum amount of gas to use for execution.
+    pub max_gas: Option<u64>,
+
+    /// The total gas consumed so far during execution.
+    pub gas_used: u64,
+
+    /// The gas calculator function used to calculate gas from execution records.
+    pub gas_calculator: Option<GasCalculator>,
 
     /// The current trace of the execution that is being collected.
     pub record: Box<ExecutionRecord>,
@@ -238,6 +250,10 @@ pub enum ExecutionError {
     #[error("exceeded cycle limit of {0}")]
     ExceededCycleLimit(u64),
 
+    /// The execution failed with an exceeded gas limit.
+    #[error("exceeded gas limit of {0}")]
+    ExceededGasLimit(u64),
+
     /// The execution failed because the syscall was called in unconstrained mode.
     #[error("syscall called in unconstrained mode")]
     InvalidSyscallUsage(u64),
@@ -323,6 +339,8 @@ impl<'a> Executor<'a> {
         let costs: HashMap<RiscvAirId, usize> =
             costs.into_iter().map(|(k, v)| (RiscvAirId::from_str(&k).unwrap(), v)).collect();
 
+        tracing::info!("max_cycles: {:?}, max_gas: {:?}", context.max_cycles, context.max_gas);
+
         Self {
             record: Box::new(record),
             records: vec![],
@@ -349,6 +367,9 @@ impl<'a> Executor<'a> {
             hook_registry,
             opts,
             max_cycles: context.max_cycles,
+            max_gas: context.max_gas,
+            gas_used: 0,
+            gas_calculator: None,
             deferred_proof_verification: context.deferred_proof_verification.into(),
             memory_checkpoint: Memory::default(),
             uninitialized_memory_checkpoint: Memory::default(),
@@ -1801,7 +1822,7 @@ impl<'a> Executor<'a> {
             }
 
             if cpu_exit || !shape_match_found {
-                self.bump_record();
+                self.bump_record()?;
                 self.state.current_shard += 1;
                 self.state.clk = 0;
             }
@@ -1825,7 +1846,22 @@ impl<'a> Executor<'a> {
     }
 
     /// Bump the record.
-    pub fn bump_record(&mut self) {
+    pub fn bump_record(&mut self) -> Result<(), ExecutionError> {
+        if let (Some(ref mut gas_calculator), Some(ref estimator)) =
+            (&mut self.gas_calculator, &self.record_estimator)
+        {
+            let shard_gas = gas_calculator(estimator);
+            self.gas_used += shard_gas;
+
+            tracing::info!("[bump_record] gas_used: {}", self.gas_used);
+
+            if let Some(gas_limit) = self.max_gas {
+                if self.gas_used > gas_limit {
+                    return Err(ExecutionError::ExceededGasLimit(gas_limit));
+                }
+            }
+        }
+
         if let Some(estimator) = &mut self.record_estimator {
             self.local_counts.local_mem = std::mem::take(&mut estimator.current_local_mem);
             Self::estimate_riscv_event_counts(
@@ -1852,6 +1888,7 @@ impl<'a> Executor<'a> {
         let public_values = removed_record.public_values;
         self.record.public_values = public_values;
         self.records.push(removed_record);
+        Ok(())
     }
 
     /// Execute up to `self.shard_batch_size` cycles, returning the events emitted and whether the
@@ -2062,7 +2099,7 @@ impl<'a> Executor<'a> {
             self.postprocess();
 
             // Push the remaining execution record with memory initialize & finalize events.
-            self.bump_record();
+            self.bump_record()?;
 
             // Flush stdout and stderr.
             if let Some(ref mut w) = self.io_options.stdout {
@@ -2080,7 +2117,7 @@ impl<'a> Executor<'a> {
 
         // Push the remaining execution record, if there are any CPU events.
         if !self.record.cpu_events.is_empty() {
-            self.bump_record();
+            self.bump_record()?;
         }
 
         // Set the global public values for all shards.

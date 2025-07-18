@@ -210,9 +210,33 @@ impl<'a> CpuProveBuilder<'a> {
     /// let (pk, vk) = client.setup(elf);
     /// let builder = client.prove(&pk, &stdin).cycle_limit(1000000).run();
     /// ```
+    #[deprecated(note = "`cycle_limit` is deprecated, use `gas_limit` instead")]
     #[must_use]
     pub fn cycle_limit(mut self, cycle_limit: u64) -> Self {
         self.context_builder.max_cycles(cycle_limit);
+        self
+    }
+
+    /// Set the maximum amount of gas to use for execution.
+    ///
+    /// # Details
+    /// If the gas limit is exceeded, execution will return
+    /// [`sp1_core_executor::ExecutionError::ExceededGasLimit`].
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{include_elf, Prover, ProverClient, SP1Stdin};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().cpu().build();
+    /// let (pk, vk) = client.setup(elf);
+    /// let builder = client.prove(&pk, &stdin).gas_limit(2000000).run();
+    /// ```
+    #[must_use]
+    pub fn gas_limit(mut self, gas_limit: u64) -> Self {
+        self.context_builder.max_gas(gas_limit);
         self
     }
 
