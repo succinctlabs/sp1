@@ -46,10 +46,10 @@ pub(crate) fn create_docker_command(
         .unwrap_or_else(|| program_metadata.workspace_root.clone());
 
     // Ensure the workspace directory is parent of the program
-    if !program_metadata.workspace_root.starts_with(workspace_root) {
+    if !canonicalized_program_dir.starts_with(workspace_root) {
         eprintln!(
             "Workspace root ({}) must be a parent of the program directory ({}).",
-            workspace_root, program_metadata.workspace_root
+            workspace_root, canonicalized_program_dir
         );
         exit(1);
     }
