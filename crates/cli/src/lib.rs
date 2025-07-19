@@ -63,28 +63,28 @@ pub fn get_target() -> String {
     target.to_string()
 }
 
-pub async fn get_toolchain_download_url(client: &Client, target: String) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+pub async fn get_toolchain_download_url(client: &Client, target: String) -> Result<String, anyhow::Error> {
     let response = client
         .get("https://api.github.com/repos/succinctlabs/rust/releases")
         .send()
         .await
-        .map_err(|e| format!("Failed to fetch releases from GitHub API: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to fetch releases from GitHub API: {}", e))?;
 
     if !response.status().is_success() {
-        return Err(format!(
+        return Err(anyhow::anyhow!(
             "GitHub API returned error status: {}",
             response.status()
-        ).into());
+        ));
     }
 
     let all_releases: serde_json::Value = response
         .json()
         .await
-        .map_err(|e| format!("Failed to parse GitHub API response: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to parse GitHub API response: {}", e))?;
 
     let releases_array = all_releases
         .as_array()
-        .ok_or("GitHub API response is not an array")?;
+        .ok_or_else(|| anyhow::anyhow!("GitHub API response is not an array"))?;
 
     // Check if the release exists.
     let release_exists = releases_array
@@ -98,10 +98,10 @@ pub async fn get_toolchain_download_url(client: &Client, target: String) -> Resu
         });
 
     if !release_exists {
-        return Err(format!(
+        return Err(anyhow::anyhow!(
             "No release found for the expected tag: {}",
             LATEST_SUPPORTED_TOOLCHAIN_VERSION_TAG
-        ).into());
+        ));
     }
 
     let url = format!(
