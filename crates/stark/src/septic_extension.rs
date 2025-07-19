@@ -248,13 +248,9 @@ impl<F: AbstractField> Add for SepticExtension<F> {
 
 impl<F: AbstractField> AddAssign for SepticExtension<F> {
     fn add_assign(&mut self, rhs: Self) {
-        self.0[0] += rhs.0[0].clone();
-        self.0[1] += rhs.0[1].clone();
-        self.0[2] += rhs.0[2].clone();
-        self.0[3] += rhs.0[3].clone();
-        self.0[4] += rhs.0[4].clone();
-        self.0[5] += rhs.0[5].clone();
-        self.0[6] += rhs.0[6].clone();
+        for (lhs_elem, rhs_elem) in self.0.iter_mut().zip(rhs.0) {
+            *lhs_elem += rhs_elem;
+        }
     }
 }
 
@@ -272,13 +268,9 @@ impl<F: AbstractField> Sub for SepticExtension<F> {
 
 impl<F: AbstractField> SubAssign for SepticExtension<F> {
     fn sub_assign(&mut self, rhs: Self) {
-        self.0[0] -= rhs.0[0].clone();
-        self.0[1] -= rhs.0[1].clone();
-        self.0[2] -= rhs.0[2].clone();
-        self.0[3] -= rhs.0[3].clone();
-        self.0[4] -= rhs.0[4].clone();
-        self.0[5] -= rhs.0[5].clone();
-        self.0[6] -= rhs.0[6].clone();
+        for (lhs_elem, rhs_elem) in self.0.iter_mut().zip(rhs.0) {
+            *lhs_elem -= rhs_elem;
+        }
     }
 }
 
@@ -344,15 +336,9 @@ impl<F: AbstractField> Add<F> for SepticExtension<F> {
     type Output = Self;
 
     fn add(self, rhs: F) -> Self::Output {
-        SepticExtension([
-            self.0[0].clone() + rhs,
-            self.0[1].clone(),
-            self.0[2].clone(),
-            self.0[3].clone(),
-            self.0[4].clone(),
-            self.0[5].clone(),
-            self.0[6].clone(),
-        ])
+        let mut result = self.0;
+        result[0] += rhs;
+        SepticExtension(result)
     }
 }
 
@@ -387,7 +373,7 @@ impl<F: AbstractField> Mul<F> for SepticExtension<F> {
             self.0[3].clone() * rhs.clone(),
             self.0[4].clone() * rhs.clone(),
             self.0[5].clone() * rhs.clone(),
-            self.0[6].clone() * rhs.clone(),
+            self.0[6].clone() * rhs,
         ])
     }
 }
