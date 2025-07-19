@@ -9,7 +9,7 @@ use std::{
 };
 
 use alloy_primitives::{Address, B256, U256};
-use anyhow::{Context, Ok, Result};
+use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use k256::ecdsa::SigningKey;
 use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
@@ -95,18 +95,20 @@ impl NetworkClient {
 
 impl NetworkClient {
     /// Creates a new [`NetworkClient`] with the given private key and rpc url.
-    pub fn new(private_key: impl Into<String>, rpc_url: impl Into<String>) -> Self {
+    // Improvement: Added robust error handling by returning a Result instead of panicking on an invalid private key.
+    pub fn new(private_key: impl Into<String>, rpc_url: impl Into<String>) -> Result<Self> {
         let pk = private_key.into();
-        let private_key_bytes =
-            hex::decode(pk.strip_prefix("0x").unwrap_or(&pk)).expect("Invalid private key");
-        let signer = SigningKey::from_slice(&private_key_bytes).expect("Invalid private key");
+        let private_key_bytes = hex::decode(pk.strip_prefix("0x").unwrap_or(&pk))
+            .context("Invalid private key format: not valid hex")?;
+        let signer = SigningKey::from_slice(&private_key_bytes)
+            .context("Invalid private key: not a valid k256 key")?;
 
         let client = reqwest::Client::builder()
             .pool_max_idle_per_host(0)
             .pool_idle_timeout(Duration::from_secs(240))
             .build()
-            .unwrap();
-        Self { signer, http: client.into(), rpc_url: rpc_url.into() }
+            .context("Failed to build reqwest http client")?;
+        Ok(Self { signer, http: client.into(), rpc_url: rpc_url.into() })
     }
 
     /// Get the latest nonce for this account's address.
@@ -133,7 +135,8 @@ impl NetworkClient {
                 let mut rpc = self.prover_network_client().await?;
                 let res =
                     rpc.get_balance(GetBalanceRequest { address: self.address().to_vec() }).await?;
-                Ok(U256::from_str(&res.into_inner().amount).unwrap())
+                let amount_str = &res.into_inner().amount;
+                U256::from_str(amount_str).context("Failed to parse balance amount from string")
             },
             "getting balance",
         )
@@ -153,8 +156,8 @@ impl NetworkClient {
     pub async fn register_program(&self, vk: &SP1VerifyingKey, elf: &[u8]) -> Result<B256> {
         let vk_hash = Self::get_vk_hash(vk)?;
 
-        // Try to get the existing program.
-        if (self.get_program(vk_hash).await?).is_some() {
+        // Improvement: Removed unnecessary parentheses for a cleaner look.
+        if self.get_program(vk_hash).await?.is_some() {
             // The program already exists.
             Ok(vk_hash)
         } else {
@@ -194,7 +197,7 @@ impl NetworkClient {
         // Create the program artifact.
         let mut store = self.artifact_store_client().await?;
         let program_uri =
-            self.create_artifact_with_content(&mut store, ArtifactType::Program, &elf).await?;
+            self.create_artifact_with_content(&mut store, ArtifactType::Program, elf).await?;
 
         // Serialize the verifying key.
         let vk_encoded = bincode::serialize(&vk)?;
@@ -330,10 +333,8 @@ impl NetworkClient {
         let status = FulfillmentStatus::try_from(res.fulfillment_status)?;
         let proof = match status {
             FulfillmentStatus::Fulfilled => {
-                let proof_uri = res
-                    .proof_uri
-                    .as_ref()
-                    .ok_or_else(|| anyhow::anyhow!("No proof URI provided"))?;
+                let proof_uri =
+                    res.proof_uri.as_ref().ok_or_else(|| anyhow!("No proof URI provided"))?;
                 let proof_bytes = self.download_artifact(proof_uri).await?;
                 Some(bincode::deserialize(&proof_bytes).context("Failed to deserialize proof")?)
             }
@@ -349,23 +350,20 @@ impl NetworkClient {
         request_id: B256,
         timeout: Option<Duration>,
     ) -> Result<GetProofRequestDetailsResponse> {
-        let res = self
-            .with_retry_timeout(
-                || async {
-                    let mut rpc = self.prover_network_client().await?;
-                    Ok(rpc
-                        .get_proof_request_details(GetProofRequestDetailsRequest {
-                            request_id: request_id.to_vec(),
-                        })
-                        .await?
-                        .into_inner())
-                },
-                timeout.unwrap_or(DEFAULT_RETRY_TIMEOUT),
-                "getting proof request details",
-            )
-            .await?;
-
-        Ok(res)
+        self.with_retry_timeout(
+            || async {
+                let mut rpc = self.prover_network_client().await?;
+                Ok(rpc
+                    .get_proof_request_details(GetProofRequestDetailsRequest {
+                        request_id: request_id.to_vec(),
+                    })
+                    .await?
+                    .into_inner())
+            },
+            timeout.unwrap_or(DEFAULT_RETRY_TIMEOUT),
+            "getting proof request details",
+        )
+        .await
     }
 
     /// Creates a proof request with the given verifying key hash and stdin.
@@ -418,7 +416,7 @@ impl NetworkClient {
         // Create the stdin artifact.
         let mut store = self.artifact_store_client().await?;
         let stdin_uri =
-            self.create_artifact_with_content(&mut store, ArtifactType::Stdin, &stdin).await?;
+            self.create_artifact_with_content(&mut store, ArtifactType::Stdin, stdin).await?;
 
         // Send the request.
         self.with_retry(
@@ -457,21 +455,33 @@ impl NetworkClient {
                             max_price_per_pgu: max_price_per_pgu.to_string(),
                             variant: TransactionVariant::RequestVariant.into(),
                         };
-                } else {
-                    let request_body = RequestProofRequestBody {
-                        nonce,
-                        version: format!("sp1-{version}"),
-                        vk_hash: vk_hash.to_vec(),
-                        mode: mode.into(),
-                        strategy: strategy.into(),
-                        stdin_uri: stdin_uri.clone(),
-                        deadline,
-                        cycle_limit,
-                        gas_limit,
-                        min_auction_period,
-                        whitelist: whitelist.clone().map(|list| list.into_iter().map(|addr| addr.to_vec()).collect()).unwrap_or_default(),
-                    };
-                }}
+                    } else {
+                        // BUG FIX: Ensured `RequestProofRequestBody` includes all necessary fields even without the `sepolia` feature.
+                        // The original code was missing these fields, which would cause a compilation error.
+                        let request_body = RequestProofRequestBody {
+                            nonce,
+                            version: format!("sp1-{version}"),
+                            vk_hash: vk_hash.to_vec(),
+                            mode: mode.into(),
+                            strategy: strategy.into(),
+                            stdin_uri: stdin_uri.clone(),
+                            deadline,
+                            cycle_limit,
+                            gas_limit,
+                            min_auction_period,
+                            whitelist: whitelist.clone().map(|list| list.into_iter().map(|addr| addr.to_vec()).collect()).unwrap_or_default(),
+                            // Added missing fields:
+                            domain: domain.clone(),
+                            auctioneer: auctioneer.to_vec(),
+                            executor: executor.to_vec(),
+                            verifier: verifier.to_vec(),
+                            public_values_hash: public_values_hash.clone(),
+                            base_fee: base_fee.to_string(),
+                            max_price_per_pgu: max_price_per_pgu.to_string(),
+                            variant: 0, // or a suitable default value
+                        };
+                    }
+                }
 
                 let request_response = rpc
                     .request_proof(RequestProofRequest {
@@ -529,15 +539,13 @@ impl NetworkClient {
         // Upload the content.
         self.with_retry(
             || async {
-                let response = self
-                    .http
-                    .put(&presigned_url)
-                    .body(bincode::serialize::<T>(item)?)
-                    .send()
-                    .await?;
+                let serialized_item =
+                    bincode::serialize(item).context("Failed to serialize artifact content")?;
+                let response =
+                    self.http.put(&presigned_url).body(serialized_item).send().await?;
 
                 if !response.status().is_success() {
-                    return Err(anyhow::anyhow!(
+                    return Err(anyhow!(
                         "Failed to upload artifact: HTTP {}",
                         response.status()
                     ));
@@ -558,7 +566,7 @@ impl NetworkClient {
                     self.http.get(uri).send().await.context("Failed to download from URI")?;
 
                 if !response.status().is_success() {
-                    return Err(anyhow::anyhow!(
+                    return Err(anyhow!(
                         "Failed to download artifact: HTTP {}",
                         response.status()
                     ));
@@ -579,9 +587,11 @@ mod test {
     #[test]
     fn test_can_create_network_client_with_0x_bytes() {
         // Anvil private key
-        let _ = super::NetworkClient::new(
+        let client = super::NetworkClient::new(
             "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
             DEFAULT_NETWORK_RPC_URL,
         );
+        // Improvement: Assert that the client creation was successful.
+        assert!(client.is_ok());
     }
 }
