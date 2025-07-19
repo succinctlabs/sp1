@@ -113,9 +113,13 @@ pub(crate) fn execute_command(mut command: Command, docker: bool) -> Result<()> 
     Ok(())
 }
 
-pub(crate) fn parse_rustc_version(version: &str) -> semver::Version {
-    let version_string =
-        version.split(" ").nth(1).expect("Can't parse rustc --version stdout").trim();
+pub(crate) fn parse_rustc_version(version: &str) -> Result<semver::Version, anyhow::Error> {
+    let version_string = version
+        .split(" ")
+        .nth(1)
+        .ok_or_else(|| anyhow::anyhow!("Failed to parse rustc version: missing version component"))?
+        .trim();
 
-    semver::Version::parse(version_string).expect("Can't parse rustc --version stdout")
+    semver::Version::parse(version_string)
+        .map_err(|e| anyhow::anyhow!("Failed to parse rustc version '{}': {}", version_string, e))
 }

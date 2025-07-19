@@ -106,6 +106,7 @@ pub(crate) fn create_docker_command(
         }
 
         super::utils::parse_rustc_version(&stdout_string)
+            .map_err(|e| anyhow::anyhow!("Failed to parse rustc version in docker: {}", e))?
     };
 
     std::thread::sleep(std::time::Duration::from_secs(2));
@@ -161,7 +162,8 @@ pub(crate) fn create_docker_command(
     docker_args.extend_from_slice(&get_program_build_args(args));
 
     let mut command = Command::new("docker");
-    command.current_dir(canonicalized_program_dir.clone()).args(&docker_args);
+    command
+        .current_dir(canonicalized_program_dir.clone()).args(&docker_args);
     Ok(command)
 }
 
