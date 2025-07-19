@@ -102,7 +102,7 @@ impl InstallToolchainCmd {
         let rt = tokio::runtime::Runtime::new()?;
 
         let toolchain_download_url =
-            rt.block_on(get_toolchain_download_url(&client, target.to_string()));
+            rt.block_on(get_toolchain_download_url(&client, target.to_string()))?;
 
         let artifact_exists = rt.block_on(url_exists(&client, toolchain_download_url.as_str()));
         if !artifact_exists {
