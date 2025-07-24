@@ -133,8 +133,8 @@ pub trait RecursionMemoryAirBuilder: RecursionInteractionAirBuilder {
         // Verify that value = limb_16 + limb_12 * 2^16.
         self.when(is_real.clone()).assert_eq(
             value,
-            limb_16.clone().into()
-                + limb_12.clone().into() * Self::Expr::from_canonical_u32(1 << 16),
+            limb_16.clone().into() +
+                limb_12.clone().into() * Self::Expr::from_canonical_u32(1 << 16),
         );
 
         // Send the range checks for the limbs.
