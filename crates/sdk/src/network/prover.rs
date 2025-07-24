@@ -356,13 +356,13 @@ impl NetworkProver {
             if #[cfg(not(feature = "reserved-capacity"))] {
                 if strategy != FulfillmentStrategy::Auction {
                     return Err(anyhow::anyhow!(
-                        "Strategy not supported with \"sepolia\" feature on sp1-sdk. Use FulfillmentStrategy::Auction or disable the feature. (default-features = false, features = [\"network\"])"
+                        "This fulfillment strategy requires the \"reserved-capacity\" feature on sp1-sdk. Use FulfillmentStrategy::Auction or enable the feature."
                     ));
                 }
             } else {
                 if strategy == FulfillmentStrategy::Auction {
                     return Err(anyhow::anyhow!(
-                        "FulfillmentStrategy::Auction requires the \"sepolia\" sp1-sdk feature. Use a different strategy or enable the sepolia feature."
+                        "FulfillmentStrategy::Auction is not available with the \"reserved-capacity\" feature on sp1-sdk. Use a different strategy or disable the feature."
                     ));
                 }
             }
@@ -624,11 +624,11 @@ impl NetworkProver {
                     if let Some(network_error) = e.downcast_ref::<Error>() {
                         if matches!(
                             network_error,
-                            Error::RequestUnfulfillable { .. } |
-                                Error::RequestTimedOut { .. } |
-                                Error::RequestAuctionTimedOut { .. }
-                        ) && strategy == FulfillmentStrategy::Auction &&
-                            whitelist.is_none()
+                            Error::RequestUnfulfillable { .. }
+                                | Error::RequestTimedOut { .. }
+                                | Error::RequestAuctionTimedOut { .. }
+                        ) && strategy == FulfillmentStrategy::Auction
+                            && whitelist.is_none()
                         {
                             tracing::warn!("Retrying auction request with fallback whitelist...");
 
