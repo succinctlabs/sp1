@@ -24,7 +24,7 @@ use crate::{
     SP1VerifyingKey,
 };
 
-#[cfg(feature = "sepolia")]
+#[cfg(not(feature = "reserved-capacity"))]
 use crate::network::proto::types::GetProofRequestParamsResponse;
 
 use alloy_primitives::{Address, B256, U256};
@@ -190,7 +190,7 @@ impl NetworkProver {
     ///     let params = client.get_proof_request_params(SP1ProofMode::Compressed).await.unwrap();
     /// })
     /// ```
-    #[cfg(feature = "sepolia")]
+    #[cfg(not(feature = "reserved-capacity"))]
     pub async fn get_proof_request_params(
         &self,
         mode: SP1ProofMode,
@@ -347,7 +347,7 @@ impl NetworkProver {
     ) -> Result<B256> {
         // Ensure the strategy is supported in the network.
         cfg_if::cfg_if! {
-            if #[cfg(feature = "sepolia")] {
+            if #[cfg(not(feature = "reserved-capacity"))] {
                 if strategy != FulfillmentStrategy::Auction {
                     return Err(anyhow::anyhow!(
                         "Strategy not supported with \"sepolia\" feature on sp1-sdk. Use FulfillmentStrategy::Auction or disable the feature. (default-features = false, features = [\"network\"])"
@@ -568,6 +568,7 @@ impl NetworkProver {
         let mut whitelist = whitelist.clone();
 
         // Attempt to get proof, with retry logic for failed auction requests.
+        #[allow(clippy::never_loop)]
         loop {
             let request_id = self
                 .request_proof_impl(
@@ -612,16 +613,16 @@ impl NetworkProver {
             let mut proof = match self.wait_proof(request_id, timeout, auction_timeout).await {
                 Ok(proof) => proof,
                 Err(e) => {
-                    #[cfg(feature = "sepolia")]
+                    #[cfg(not(feature = "reserved-capacity"))]
                     // Check if this is an auction request that we can retry.
                     if let Some(network_error) = e.downcast_ref::<Error>() {
                         if matches!(
                             network_error,
-                            Error::RequestUnfulfillable { .. } |
-                                Error::RequestTimedOut { .. } |
-                                Error::RequestAuctionTimedOut { .. }
-                        ) && strategy == FulfillmentStrategy::Auction &&
-                            whitelist.is_none()
+                            Error::RequestUnfulfillable { .. }
+                                | Error::RequestTimedOut { .. }
+                                | Error::RequestAuctionTimedOut { .. }
+                        ) && strategy == FulfillmentStrategy::Auction
+                            && whitelist.is_none()
                         {
                             tracing::warn!("Retrying auction request with fallback whitelist...");
 
@@ -747,7 +748,7 @@ impl NetworkProver {
         max_price_per_pgu: Option<u64>,
     ) -> Result<(Address, Address, Address, u64, u64, Vec<u8>)> {
         cfg_if::cfg_if! {
-            if #[cfg(feature = "sepolia")] {
+            if #[cfg(not(feature = "reserved-capacity"))] {
                 let params = self.get_proof_request_params(mode).await?;
                 let auctioneer_value = if let Some(auctioneer) = auctioneer {
                     auctioneer
