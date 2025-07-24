@@ -8,6 +8,11 @@ edition = "2021"
 name = "rsa_test_verify_pkcs"
 path = "bin/verify_pkcs.rs"
 
+[[bin]]
+name = "rsa_test_email"
+path = "bin/email.rs"
+
+
 [dependencies]
 sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
 num-bigint = "0.4.0"
