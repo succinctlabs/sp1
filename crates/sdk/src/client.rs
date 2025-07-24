@@ -2,12 +2,13 @@
 //!
 //! A client for interacting with the prover for the SP1 RISC-V zkVM.
 
-use crate::{cpu::builder::CpuProverBuilder, env::EnvProver};
+use crate::{cpu::builder::CpuProverBuilder, cuda::builder::CudaProverBuilder, env::EnvProver};
 
 #[cfg(feature = "network")]
 use crate::network::builder::NetworkProverBuilder;
 
-use crate::cuda::builder::CudaProverBuilder;
+#[cfg(feature = "private")]
+use crate::private::builder::PrivateProverBuilder;
 
 /// An entrypoint for interacting with the prover for the SP1 RISC-V zkVM.
 ///
@@ -138,5 +139,11 @@ impl ProverClientBuilder {
     #[must_use]
     pub fn network(&self) -> NetworkProverBuilder {
         NetworkProverBuilder { private_key: None, signer: None, rpc_url: None, tee_signers: None }
+    }
+
+    #[cfg(feature = "private")]
+    #[must_use]
+    pub fn private(&self) -> PrivateProverBuilder {
+        PrivateProverBuilder::default()
     }
 }

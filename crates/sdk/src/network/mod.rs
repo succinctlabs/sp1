@@ -11,7 +11,7 @@ pub mod prover;
 pub mod proto;
 pub mod builder;
 mod error;
-mod grpc;
+pub(crate) mod grpc;
 pub mod prove;
 mod retry;
 pub mod signer;
