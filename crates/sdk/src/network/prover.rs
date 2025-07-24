@@ -43,6 +43,12 @@ pub struct NetworkProver {
     pub(crate) tee_signers: Vec<Address>,
 }
 
+#[cfg(feature = "reserved-capacity")]
+const DEFAULT_FULFILLMENT_STRATEGY: FulfillmentStrategy = FulfillmentStrategy::Reserved;
+
+#[cfg(not(feature = "reserved-capacity"))]
+const DEFAULT_FULFILLMENT_STRATEGY: FulfillmentStrategy = FulfillmentStrategy::Auction;
+
 impl NetworkProver {
     /// Creates a new [`NetworkProver`] with the given private key.
     ///
@@ -139,7 +145,7 @@ impl NetworkProver {
             pk,
             stdin: stdin.clone(),
             timeout: None,
-            strategy: FulfillmentStrategy::Auction,
+            strategy: DEFAULT_FULFILLMENT_STRATEGY,
             skip_simulation: false,
             cycle_limit: None,
             gas_limit: None,
@@ -618,11 +624,11 @@ impl NetworkProver {
                     if let Some(network_error) = e.downcast_ref::<Error>() {
                         if matches!(
                             network_error,
-                            Error::RequestUnfulfillable { .. } |
-                                Error::RequestTimedOut { .. } |
-                                Error::RequestAuctionTimedOut { .. }
-                        ) && strategy == FulfillmentStrategy::Auction &&
-                            whitelist.is_none()
+                            Error::RequestUnfulfillable { .. }
+                                | Error::RequestTimedOut { .. }
+                                | Error::RequestAuctionTimedOut { .. }
+                        ) && strategy == FulfillmentStrategy::Auction
+                            && whitelist.is_none()
                         {
                             tracing::warn!("Retrying auction request with fallback whitelist...");
 
@@ -812,7 +818,7 @@ impl Prover<CpuProverComponents> for NetworkProver {
             pk,
             stdin,
             mode,
-            FulfillmentStrategy::Auction,
+            DEFAULT_FULFILLMENT_STRATEGY,
             None,
             false,
             None,
