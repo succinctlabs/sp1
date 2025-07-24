@@ -54,16 +54,16 @@ backoff = { version = "0.4", features = ["tokio"], optional = true }
 
 # TEE Dependencies
 k256 = { version = "0.13.3", features = ["serde"] } # Signing
-eventsource-stream = { version = "0.2.0" } # SSE Extenstion for reqwest
+eventsource-stream = { version = "0.2.0" }          # SSE Extenstion for reqwest
 
 [dev-dependencies]
 test-artifacts = { path = "../test-artifacts" }
 tokio-test = { version = "0.4" }
 
 [features]
-default = ["network"]
+default = ["network", "private"]
 native-gnark = ["sp1-prover/native-gnark"]
-# TODO: Once alloy has a 1.* release, we can likely remove this feature flag, as there will be less 
+# TODO: Once alloy has a 1.* release, we can likely remove this feature flag, as there will be less
 # dependency resolution issues.
 network = [
   "dep:prost",
@@ -75,11 +75,14 @@ network = [
   "dep:tonic",
   "dep:backoff",
 ]
-tee-2fa = []
-sepolia = [
+private = [
   "network",
-  "dep:alloy-sol-types",
+  "dep:prost",
+  "dep:tonic",
+  "dep:backoff",
 ]
+tee-2fa = []
+sepolia = ["network", "dep:alloy-sol-types"]
 cuda = []
 bigint-rug = ["sp1-core-machine/bigint-rug"]
 
