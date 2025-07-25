@@ -107,14 +107,12 @@ pub fn estimated_records<'a>(
             ])
         }
 
-        std::iter::repeat(Cow::Owned(memory_air(threshold, threshold)))
-            .take(full_airs as usize)
-            .chain(
-                remainders
-                    .iter()
-                    .any(|x| *x > 0)
-                    .then(|| Cow::Owned(memory_air(remainders[0], remainders[1]))),
-            )
+        std::iter::repeat_n(Cow::Owned(memory_air(threshold, threshold)), full_airs as usize).chain(
+            remainders
+                .iter()
+                .any(|x| *x > 0)
+                .then(|| Cow::Owned(memory_air(remainders[0], remainders[1]))),
+        )
     };
 
     core_records.chain(global_memory_records).chain(precompile_records)
@@ -137,8 +135,8 @@ struct CoreShard<'a> {
 impl Shapeable for CoreShard<'_> {
     fn kind(&self) -> ShardKind {
         let contains_cpu = self.record[RiscvAirId::Cpu] > 0;
-        let contains_global_memory = self.record[RiscvAirId::MemoryGlobalInit] > 0 ||
-            self.record[RiscvAirId::MemoryGlobalFinalize] > 0;
+        let contains_global_memory = self.record[RiscvAirId::MemoryGlobalInit] > 0
+            || self.record[RiscvAirId::MemoryGlobalFinalize] > 0;
         match (contains_cpu, contains_global_memory) {
             (true, true) => ShardKind::PackedCore,
             (true, false) => ShardKind::Core,
