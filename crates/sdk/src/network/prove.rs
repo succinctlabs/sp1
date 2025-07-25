@@ -34,11 +34,12 @@ pub struct NetworkProveBuilder<'a> {
     pub(crate) gas_limit: Option<u64>,
     pub(crate) tee_2fa: bool,
     pub(crate) min_auction_period: u64,
-    pub(crate) whitelist: Vec<Address>,
+    pub(crate) whitelist: Option<Vec<Address>>,
     pub(crate) auctioneer: Option<Address>,
     pub(crate) executor: Option<Address>,
     pub(crate) verifier: Option<Address>,
     pub(crate) max_price_per_pgu: Option<u64>,
+    pub(crate) auction_timeout: Option<Duration>,
 }
 
 impl NetworkProveBuilder<'_> {
@@ -351,6 +352,9 @@ impl NetworkProveBuilder<'_> {
     /// Only provers specified in the whitelist will be able to bid and prove on the request. Only
     /// relevant if the strategy is set to [`FulfillmentStrategy::Auction`].
     ///
+    /// If whitelist is `None` when requesting a proof, a set of recently reliable provers will be
+    /// used.
+    ///
     /// # Example
     /// ```rust,no_run
     /// use alloy_primitives::Address;
@@ -363,10 +367,10 @@ impl NetworkProveBuilder<'_> {
     /// let client = ProverClient::builder().network().build();
     /// let (pk, vk) = client.setup(elf);
     /// let whitelist = vec![Address::from_str("0x123").unwrap(), Address::from_str("0x456").unwrap()];
-    /// let builder = client.prove(&pk, &stdin).whitelist(whitelist).run();
+    /// let builder = client.prove(&pk, &stdin).whitelist(Some(whitelist)).run();
     /// ```
     #[must_use]
-    pub fn whitelist(mut self, whitelist: Vec<Address>) -> Self {
+    pub fn whitelist(mut self, whitelist: Option<Vec<Address>>) -> Self {
         self.whitelist = whitelist;
         self
     }
@@ -466,6 +470,35 @@ impl NetworkProveBuilder<'_> {
     #[must_use]
     pub fn max_price_per_pgu(mut self, max_price_per_pgu: u64) -> Self {
         self.max_price_per_pgu = Some(max_price_per_pgu);
+        self
+    }
+
+    /// Sets the auction timeout for the proof request.
+    ///
+    /// # Details
+    /// The auction timeout determines how long to wait for a prover to pick up the request when
+    /// it's in "requested" status. If no prover picks up the request within this timeout, the
+    /// request will be considered failed. Default is 30 seconds.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{Prover, ProverClient, SP1Stdin};
+    /// use std::time::Duration;
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().network().build();
+    /// let (pk, vk) = client.setup(elf);
+    /// let proof = client
+    ///     .prove(&pk, &stdin)
+    ///     .auction_timeout(Duration::from_secs(60)) // Wait 60 seconds for a prover to pick up the request.
+    ///     .run()
+    ///     .unwrap();
+    /// ```
+    #[must_use]
+    pub fn auction_timeout(mut self, auction_timeout: Duration) -> Self {
+        self.auction_timeout = Some(auction_timeout);
         self
     }
 
@@ -596,6 +629,7 @@ impl NetworkProveBuilder<'_> {
                 self.executor,
                 self.verifier,
                 self.max_price_per_pgu,
+                self.auction_timeout,
             )
             .await
     }

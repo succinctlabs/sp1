@@ -4,9 +4,6 @@ on:
   pull_request:
     branches: [main, dev]
     types: [opened, synchronize]
-    paths:
-      - "patch-testing/**/**.rs"
-      - "patch-testing/**/**.toml"
 
 jobs:
   patch-testing-cycles:
@@ -25,9 +22,6 @@ jobs:
       - name: Install SP1 toolchain from repo
         run: |
           cargo run -p sp1-cli -- prove install-toolchain
-          cd crates/cli
-          cargo install --force --locked --path .
-          cargo clean
 
       - name: "Run patch testing on new branch"
         run: |
@@ -41,6 +35,8 @@ jobs:
 
       - name: "Run patch testing on old branch"
         run: |
+          # Install the toolchain from the old head.
+          cargo run -p sp1-cli -- prove install-toolchain
           cd ./patch-testing
           SP1_PATCH_BENCH=../old_cycle_stats.json cargo test --release
 

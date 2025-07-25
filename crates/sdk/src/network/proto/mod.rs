@@ -6,7 +6,7 @@
 pub mod artifact;
 
 cfg_if::cfg_if! {
-    if #[cfg(feature = "sepolia")] {
+    if #[cfg(not(feature = "reserved-capacity"))] {
         mod sepolia {
             #[rustfmt::skip]
             pub mod network;

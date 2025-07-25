@@ -15,15 +15,16 @@ use crate::{
             ProofMode, ProofRequest,
         },
         tee::client::Client as TeeClient,
-        Error, DEFAULT_CYCLE_LIMIT, DEFAULT_GAS_LIMIT, DEFAULT_NETWORK_RPC_URL,
-        DEFAULT_TIMEOUT_SECS, PRIVATE_EXPLORER_URL, PRIVATE_NETWORK_RPC_URL, PUBLIC_EXPLORER_URL,
+        Error, DEFAULT_AUCTION_TIMEOUT_DURATION, DEFAULT_CYCLE_LIMIT, DEFAULT_GAS_LIMIT,
+        DEFAULT_NETWORK_RPC_URL, PRIVATE_EXPLORER_URL, PRIVATE_NETWORK_RPC_URL,
+        PUBLIC_EXPLORER_URL,
     },
     prover::verify_proof,
     ProofFromNetwork, Prover, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey,
     SP1VerifyingKey,
 };
 
-#[cfg(feature = "sepolia")]
+#[cfg(not(feature = "reserved-capacity"))]
 use crate::network::proto::types::GetProofRequestParamsResponse;
 
 use alloy_primitives::{Address, B256, U256};
@@ -41,6 +42,12 @@ pub struct NetworkProver {
     pub(crate) prover: CpuProver,
     pub(crate) tee_signers: Vec<Address>,
 }
+
+#[cfg(feature = "reserved-capacity")]
+const DEFAULT_FULFILLMENT_STRATEGY: FulfillmentStrategy = FulfillmentStrategy::Reserved;
+
+#[cfg(not(feature = "reserved-capacity"))]
+const DEFAULT_FULFILLMENT_STRATEGY: FulfillmentStrategy = FulfillmentStrategy::Auction;
 
 impl NetworkProver {
     /// Creates a new [`NetworkProver`] with the given private key.
@@ -138,17 +145,18 @@ impl NetworkProver {
             pk,
             stdin: stdin.clone(),
             timeout: None,
-            strategy: FulfillmentStrategy::Hosted,
+            strategy: DEFAULT_FULFILLMENT_STRATEGY,
             skip_simulation: false,
             cycle_limit: None,
             gas_limit: None,
             tee_2fa: false,
             min_auction_period: 0,
-            whitelist: vec![],
+            whitelist: None,
             auctioneer: None,
             executor: None,
             verifier: None,
             max_price_per_pgu: None,
+            auction_timeout: None,
         }
     }
 
@@ -188,7 +196,7 @@ impl NetworkProver {
     ///     let params = client.get_proof_request_params(SP1ProofMode::Compressed).await.unwrap();
     /// })
     /// ```
-    #[cfg(feature = "sepolia")]
+    #[cfg(not(feature = "reserved-capacity"))]
     pub async fn get_proof_request_params(
         &self,
         mode: SP1ProofMode,
@@ -334,7 +342,7 @@ impl NetworkProver {
         gas_limit: u64,
         timeout: Option<Duration>,
         min_auction_period: u64,
-        whitelist: Vec<Address>,
+        whitelist: Option<Vec<Address>>,
         auctioneer: Address,
         executor: Address,
         verifier: Address,
@@ -345,23 +353,28 @@ impl NetworkProver {
     ) -> Result<B256> {
         // Ensure the strategy is supported in the network.
         cfg_if::cfg_if! {
-            if #[cfg(feature = "sepolia")] {
+            if #[cfg(not(feature = "reserved-capacity"))] {
                 if strategy != FulfillmentStrategy::Auction {
                     return Err(anyhow::anyhow!(
-                        "Strategy not supported with \"sepolia\" feature. Use FulfillmentStrategy::Auction."
+                        "This fulfillment strategy requires the \"reserved-capacity\" feature on sp1-sdk. Use FulfillmentStrategy::Auction or enable the feature."
                     ));
                 }
             } else {
                 if strategy == FulfillmentStrategy::Auction {
                     return Err(anyhow::anyhow!(
-                        "FulfillmentStrategy::Auction requires the \"sepolia\" feature."
+                        "FulfillmentStrategy::Auction is not available with the \"reserved-capacity\" feature on sp1-sdk. Use a different strategy or disable the feature."
                     ));
                 }
             }
         }
 
-        // Get the timeout.
-        let timeout_secs = timeout.map_or(DEFAULT_TIMEOUT_SECS, |dur| dur.as_secs());
+        // Get the timeout. If no timeout is specified, auto-calculate based on gas limit.
+        let timeout_secs = timeout.map_or_else(
+            || super::utils::calculate_timeout_from_gas_limit(gas_limit),
+            |dur| dur.as_secs(),
+        );
+
+        let max_price_per_bpgu = max_price_per_pgu * 1_000_000_000;
 
         // Log the request.
         tracing::info!("Requesting proof:");
@@ -379,9 +392,9 @@ impl NetworkProver {
                 Self::format_prove_amount(base_fee)
             );
             tracing::info!(
-                "├─ Max price per PGU: {} ({} $PROVE)",
-                max_price_per_pgu,
-                Self::format_prove_amount(max_price_per_pgu)
+                "├─ Max price per bPGU: {} ({} $PROVE)",
+                max_price_per_bpgu,
+                Self::format_prove_amount(max_price_per_bpgu)
             );
             tracing::info!("├─ Minimum auction period: {:?} seconds", min_auction_period);
             tracing::info!("├─ Prover Whitelist: {:?}", whitelist);
@@ -433,13 +446,18 @@ impl NetworkProver {
 
     /// Waits for a proof to be generated and returns the proof. If a timeout is supplied, the
     /// function will return an error if the proof is not generated within the timeout.
+    /// If `auction_timeout` is supplied, the function will return an error if the proof request
+    /// remains in "requested" status for longer than the auction timeout.
     pub async fn wait_proof(
         &self,
         request_id: B256,
         timeout: Option<Duration>,
+        auction_timeout: Option<Duration>,
     ) -> Result<SP1ProofWithPublicValues> {
         let mut is_assigned = false;
         let start_time = Instant::now();
+        let mut requested_start_time: Option<Instant> = None;
+        let auction_timeout_duration = auction_timeout.unwrap_or(DEFAULT_AUCTION_TIMEOUT_DURATION);
 
         loop {
             // Calculate the remaining timeout.
@@ -465,6 +483,21 @@ impl NetworkProver {
             } else if fulfillment_status == FulfillmentStatus::Assigned && !is_assigned {
                 tracing::info!("Proof request assigned, proving...");
                 is_assigned = true;
+            } else if fulfillment_status == FulfillmentStatus::Requested {
+                // Track when we first entered requested status
+                if requested_start_time.is_none() {
+                    requested_start_time = Some(Instant::now());
+                }
+
+                // Check if we've exceeded the auction timeout
+                if let Some(req_start) = requested_start_time {
+                    if req_start.elapsed() > auction_timeout_duration {
+                        return Err(Error::RequestAuctionTimedOut {
+                            request_id: request_id.to_vec(),
+                        }
+                        .into());
+                    }
+                }
             }
 
             sleep(Duration::from_secs(2)).await;
@@ -483,7 +516,7 @@ impl NetworkProver {
         cycle_limit: Option<u64>,
         gas_limit: Option<u64>,
         min_auction_period: u64,
-        whitelist: Vec<Address>,
+        whitelist: Option<Vec<Address>>,
         auctioneer: Option<Address>,
         executor: Option<Address>,
         verifier: Option<Address>,
@@ -530,69 +563,115 @@ impl NetworkProver {
         gas_limit: Option<u64>,
         tee_2fa: bool,
         min_auction_period: u64,
-        whitelist: Vec<Address>,
+        whitelist: Option<Vec<Address>>,
         auctioneer: Option<Address>,
         executor: Option<Address>,
         verifier: Option<Address>,
         max_price_per_pgu: Option<u64>,
+        auction_timeout: Option<Duration>,
     ) -> Result<SP1ProofWithPublicValues> {
-        let request_id = self
-            .request_proof_impl(
-                pk,
-                stdin,
-                mode,
-                strategy,
-                timeout,
-                skip_simulation,
-                cycle_limit,
-                gas_limit,
-                min_auction_period,
-                whitelist,
-                auctioneer,
-                executor,
-                verifier,
-                max_price_per_pgu,
-            )
-            .await?;
-
-        // If 2FA is enabled, spawn a task to get the tee proof.
-        // Note: We only support one type of TEE proof for now.
-
-        let handle = if tee_2fa {
-            let request = super::tee::api::TEERequest::new(
-                &self.client.signer,
-                *request_id,
-                pk.elf.clone(),
-                stdin.clone(),
-                cycle_limit.unwrap_or(DEFAULT_CYCLE_LIMIT),
-            );
-
-            Some(tokio::spawn(async move {
-                let tee_client = TeeClient::default();
-
-                tee_client.execute(request).await
-            }))
-        } else {
-            None
-        };
-
-        // Wait for the proof to be generated.
         #[allow(unused_mut)]
-        let mut proof = self.wait_proof(request_id, timeout).await?;
+        let mut whitelist = whitelist.clone();
 
-        // If 2FA is enabled, wait for the tee proof to be generated and add it to the proof.
-        if let Some(handle) = handle {
-            let tee_proof = handle
-                .await
-                .context("Spawning a new task to get the tee proof failed")?
-                .context("Error response from TEE server")?;
+        // Attempt to get proof, with retry logic for failed auction requests.
+        #[allow(clippy::never_loop)]
+        loop {
+            let request_id = self
+                .request_proof_impl(
+                    pk,
+                    stdin,
+                    mode,
+                    strategy,
+                    timeout,
+                    skip_simulation,
+                    cycle_limit,
+                    gas_limit,
+                    min_auction_period,
+                    whitelist.clone(),
+                    auctioneer,
+                    executor,
+                    verifier,
+                    max_price_per_pgu,
+                )
+                .await?;
 
-            proof.tee_proof = Some(tee_proof.as_prefix_bytes());
+            // If 2FA is enabled, spawn a task to get the tee proof.
+            // Note: We only support one type of TEE proof for now.
+            let handle = if tee_2fa {
+                let request = super::tee::api::TEERequest::new(
+                    &self.client.signer,
+                    *request_id,
+                    pk.elf.clone(),
+                    stdin.clone(),
+                    cycle_limit.unwrap_or(DEFAULT_CYCLE_LIMIT),
+                );
+
+                Some(tokio::spawn(async move {
+                    let tee_client = TeeClient::default();
+
+                    tee_client.execute(request).await
+                }))
+            } else {
+                None
+            };
+
+            // Wait for the proof to be generated.
+            let mut proof = match self.wait_proof(request_id, timeout, auction_timeout).await {
+                Ok(proof) => proof,
+                Err(e) => {
+                    #[cfg(not(feature = "reserved-capacity"))]
+                    // Check if this is an auction request that we can retry.
+                    if let Some(network_error) = e.downcast_ref::<Error>() {
+                        if matches!(
+                            network_error,
+                            Error::RequestUnfulfillable { .. } |
+                                Error::RequestTimedOut { .. } |
+                                Error::RequestAuctionTimedOut { .. }
+                        ) && strategy == FulfillmentStrategy::Auction &&
+                            whitelist.is_none()
+                        {
+                            tracing::warn!("Retrying auction request with fallback whitelist...");
+
+                            // Get fallback high availability provers and retry.
+                            let mut rpc = self.client.prover_network_client().await?;
+                            let fallback_whitelist = rpc
+                                .get_provers_by_uptime(
+                                    crate::network::proto::types::GetProversByUptimeRequest {
+                                        high_availability_only: true,
+                                    },
+                                )
+                                .await?
+                                .into_inner()
+                                .provers
+                                .into_iter()
+                                .map(|p| Address::from_slice(&p))
+                                .collect::<Vec<_>>();
+                            if fallback_whitelist.is_empty() {
+                                tracing::warn!("No fallback high availability provers found.");
+                                return Err(e);
+                            }
+                            whitelist = Some(fallback_whitelist);
+                            continue;
+                        }
+                    }
+
+                    // If we can't retry, return the error.
+                    return Err(e);
+                }
+            };
+
+            // If 2FA is enabled, wait for the tee proof to be generated and add it to the proof.
+            if let Some(handle) = handle {
+                let tee_proof = handle
+                    .await
+                    .context("Spawning a new task to get the tee proof failed")?
+                    .context("Error response from TEE server")?;
+
+                proof.tee_proof = Some(tee_proof.as_prefix_bytes());
+            }
 
             return Ok(proof);
         }
-
-        Ok(proof)
     }
 
     /// The cycle limit and gas limit are determined according to the following priority:
@@ -675,7 +754,7 @@ impl NetworkProver {
         max_price_per_pgu: Option<u64>,
     ) -> Result<(Address, Address, Address, u64, u64, Vec<u8>)> {
         cfg_if::cfg_if! {
-            if #[cfg(feature = "sepolia")] {
+            if #[cfg(not(feature = "reserved-capacity"))] {
                 let params = self.get_proof_request_params(mode).await?;
                 let auctioneer_value = if let Some(auctioneer) = auctioneer {
                     auctioneer
@@ -739,14 +818,15 @@ impl Prover<CpuProverComponents> for NetworkProver {
             pk,
             stdin,
             mode,
-            FulfillmentStrategy::Hosted,
+            DEFAULT_FULFILLMENT_STRATEGY,
             None,
             false,
             None,
             None,
             false,
             0,
-            vec![],
+            None,
+            None,
             None,
             None,
             None,

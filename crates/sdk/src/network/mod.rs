@@ -18,12 +18,14 @@ pub mod tee;
 
 pub mod utils;
 
+use std::time::Duration;
+
 pub use crate::network::{client::NetworkClient, proto::types::FulfillmentStrategy};
 pub use alloy_primitives::{Address, B256};
 pub use error::*;
 
 cfg_if::cfg_if! {
-    if #[cfg(feature = "sepolia")] {
+    if #[cfg(not(feature = "reserved-capacity"))] {
         pub(crate) const PUBLIC_EXPLORER_URL: &str = "https://explorer.sepolia.succinct.xyz";
         pub(crate) const DEFAULT_NETWORK_RPC_URL: &str = "https://rpc.sepolia.succinct.xyz";
     } else {
@@ -36,6 +38,6 @@ pub(crate) const PRIVATE_NETWORK_RPC_URL: &str = "https://rpc.private.succinct.x
 pub(crate) const PRIVATE_EXPLORER_URL: &str = "https://explorer-private.succinct.xyz";
 pub(crate) const DEFAULT_TEE_SERVER_URL: &str = "https://tee.production.succinct.xyz";
 
-pub(crate) const DEFAULT_TIMEOUT_SECS: u64 = 14400;
+pub(crate) const DEFAULT_AUCTION_TIMEOUT_DURATION: Duration = Duration::from_secs(30);
 pub(crate) const DEFAULT_CYCLE_LIMIT: u64 = 100_000_000;
 pub(crate) const DEFAULT_GAS_LIMIT: u64 = 1_000_000_000;

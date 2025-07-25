@@ -162,6 +162,7 @@ impl Profiler {
         pb.set_style(
             ProgressStyle::default_bar()
                 .template(
+                    #[allow(clippy::literal_string_with_formatting_args)]
                     "{msg} \n {spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta})",
                 )
                 .unwrap()
