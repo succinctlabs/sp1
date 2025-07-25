@@ -25,7 +25,7 @@ pub use alloy_primitives::{Address, B256};
 pub use error::*;
 
 cfg_if::cfg_if! {
-    if #[cfg(feature = "sepolia")] {
+    if #[cfg(not(feature = "reserved-capacity"))] {
         pub(crate) const PUBLIC_EXPLORER_URL: &str = "https://explorer.sepolia.succinct.xyz";
         pub(crate) const DEFAULT_NETWORK_RPC_URL: &str = "https://rpc.sepolia.succinct.xyz";
     } else {

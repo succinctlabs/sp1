@@ -36,7 +36,7 @@ use crate::network::proto::{
     },
 };
 
-#[cfg(feature = "sepolia")]
+#[cfg(not(feature = "reserved-capacity"))]
 use crate::network::proto::types::{
     GetProofRequestParamsRequest, GetProofRequestParamsResponse, GetProversByUptimeRequest,
     TransactionVariant,
@@ -226,7 +226,7 @@ impl NetworkClient {
     }
 
     /// Gets the proof request parameters from the network.
-    #[cfg(feature = "sepolia")]
+    #[cfg(not(feature = "reserved-capacity"))]
     pub async fn get_proof_request_params(
         &self,
         mode: ProofMode,
@@ -427,7 +427,7 @@ impl NetworkClient {
                 let nonce = self.get_nonce().await?;
 
                 cfg_if::cfg_if! {
-                    if #[cfg(feature = "sepolia")] {
+                    if #[cfg(not(feature = "reserved-capacity"))] {
                         let whitelist = if let Some(whitelist) = &whitelist {
                             whitelist.iter().map(|addr| addr.to_vec()).collect()
                         } else {

@@ -53,7 +53,6 @@ pub fn final_transform(raw_gas: f64) -> Result<u64, GasError> {
 }
 
 /// Calculates core, precompile, mem records. Does not implement packed or last shard logic.
-#[allow(clippy::manual_repeat_n)]
 pub fn estimated_records<'a>(
     split_opts: &SplitOpts,
     estimator: &'a RecordEstimator,
@@ -108,14 +107,12 @@ pub fn estimated_records<'a>(
             ])
         }
 
-        std::iter::repeat(Cow::Owned(memory_air(threshold, threshold)))
-            .take(full_airs as usize)
-            .chain(
-                remainders
-                    .iter()
-                    .any(|x| *x > 0)
-                    .then(|| Cow::Owned(memory_air(remainders[0], remainders[1]))),
-            )
+        std::iter::repeat_n(Cow::Owned(memory_air(threshold, threshold)), full_airs as usize).chain(
+            remainders
+                .iter()
+                .any(|x| *x > 0)
+                .then(|| Cow::Owned(memory_air(remainders[0], remainders[1]))),
+        )
     };
 
     core_records.chain(global_memory_records).chain(precompile_records)
