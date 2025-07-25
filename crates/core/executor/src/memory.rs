@@ -407,7 +407,7 @@ impl<'a, V: Copy> VacantEntry<'a, V> {
     pub fn insert(self, value: V) -> &'a mut V {
         // By construction, the slot in the page is `None`.
         *self.entry = Some(value);
-        self.entry.as_mut().unwrap()
+        self.entry.as_mut().expect("entry should be Some(value) after insertion")
     }
 }
 

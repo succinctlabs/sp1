@@ -167,3 +167,14 @@ pub mod programs {
         }
     }
 }
+#[cfg(test)]
+mod memory_tests {
+    use super::*;
+
+    #[test]
+    fn test_simple_memory_program_instruction_count() {
+        let program = simple_memory_program();
+        assert_eq!(program.instructions.len(), 34);
+    }
+}
+test: add basic check for instruction count in simple_memory_program
