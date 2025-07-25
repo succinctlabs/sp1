@@ -135,8 +135,8 @@ struct CoreShard<'a> {
 impl Shapeable for CoreShard<'_> {
     fn kind(&self) -> ShardKind {
         let contains_cpu = self.record[RiscvAirId::Cpu] > 0;
-        let contains_global_memory = self.record[RiscvAirId::MemoryGlobalInit] > 0
-            || self.record[RiscvAirId::MemoryGlobalFinalize] > 0;
+        let contains_global_memory = self.record[RiscvAirId::MemoryGlobalInit] > 0 ||
+            self.record[RiscvAirId::MemoryGlobalFinalize] > 0;
         match (contains_cpu, contains_global_memory) {
             (true, true) => ShardKind::PackedCore,
             (true, false) => ShardKind::Core,
