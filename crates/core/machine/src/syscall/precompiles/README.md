@@ -181,8 +181,8 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Arc<dyn Syscall>> {
     // Other syscall maps...
     syscall_map.insert(
         SyscallCode::CUSTOM_OP,
-        Arch::new(CustomOpChip::new())
-    )
+        Arc::new(CustomOpChip::new())
+    );
 }
 ```
 
