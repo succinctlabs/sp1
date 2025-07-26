@@ -127,9 +127,9 @@ pub fn fit_records_to_shapes<'a, F: PrimeField32>(
     })
 }
 
-struct CoreShard<'a> {
-    shard_index: u32,
-    record: &'a EnumMap<RiscvAirId, u64>,
+pub struct CoreShard<'a> {
+    pub shard_index: u32,
+    pub record: &'a EnumMap<RiscvAirId, u64>,
 }
 
 impl Shapeable for CoreShard<'_> {

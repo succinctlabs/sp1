@@ -99,6 +99,7 @@ mod tests {
         let elf = test_artifacts::PANIC_ELF;
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
+        #[allow(deprecated)]
         client.execute(elf, &stdin).cycle_limit(1).run().unwrap();
     }
 
