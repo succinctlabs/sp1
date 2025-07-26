@@ -86,7 +86,11 @@ pub(crate) fn create_local_command(
         .env("CARGO_ENCODED_RUSTFLAGS", get_rust_compiler_flags(args, &parsed_version))
         .env_remove("RUSTC")
         .env("RUSTC", rustc_bin.display().to_string())
-        .env("CARGO_TARGET_DIR", program_metadata.target_directory.join(HELPER_TARGET_SUBDIR))
+        let base_target_dir = std::env::var("CARGO_TARGET_DIR")
+    .map(PathBuf::from)
+    .unwrap_or_else(|_| program_metadata.target_directory.clone());
+
+.env("CARGO_TARGET_DIR", base_target_dir.join(HELPER_TARGET_SUBDIR))
         // TODO: remove once trim-paths is supported - https://github.com/rust-lang/rust/issues/111540
         .env("RUSTC_BOOTSTRAP", "1") // allows trim-paths.
         .args(get_program_build_args(args));
