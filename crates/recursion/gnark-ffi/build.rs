@@ -1,7 +1,7 @@
 #![allow(unused)]
 
 use cfg_if::cfg_if;
-use std::{env, path::PathBuf, process::Command};
+use std::{env, path::PathBuf, process::Command, collections::HashMap};
 
 #[allow(deprecated)]
 use bindgen::CargoCallbacks;
@@ -17,12 +17,20 @@ fn main() {
             let lib_name = "sp1gnark";
             let dest = dest_path.join(format!("lib{lib_name}.a"));
 
+            // Parse custom environment for `go build` command, e.g. to support cross-compilation.
+            // SP1_FFI_ENV_FOR_GO may contain a semi-colon-separated list of name=value pairs.
+            let go_env: HashMap<String, String> = match env::var("SP1_FFI_ENV_FOR_GO") {
+                Ok(env_str) => env_str.split(';').map(|s| (String::from(s.split('=').collect::<Vec<_>>()[0]), String::from(s.split('=').collect::<Vec<_>>()[1]))).collect(),
+                Err(_) => HashMap::new(),
+            };
+
             println!("Building Go library at {}", dest.display());
 
             // Run the go build command
             let status = Command::new("go")
                 .current_dir("go")
                 .env("CGO_ENABLED", "1")
+                .envs(go_env)
                 .args([
                     "build",
                     "-tags=debug",
