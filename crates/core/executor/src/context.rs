@@ -23,6 +23,9 @@ pub struct SP1Context<'a> {
     /// The maximum number of cpu cycles to use for execution.
     pub max_cycles: Option<u64>,
 
+    /// The maximum amount of prover gas to use for execution.
+    pub max_gas: Option<u64>,
+
     /// Deferred proof verification.
     pub deferred_proof_verification: bool,
 
@@ -48,6 +51,7 @@ pub struct SP1ContextBuilder<'a> {
     hook_registry_entries: Vec<(u32, BoxedHook<'a>)>,
     subproof_verifier: Option<&'a dyn SubproofVerifier>,
     max_cycles: Option<u64>,
+    max_gas: Option<u64>,
     deferred_proof_verification: bool,
     calculate_gas: bool,
     io_options: IoOptions<'a>,
@@ -60,6 +64,7 @@ impl Default for SP1ContextBuilder<'_> {
             hook_registry_entries: Vec::new(),
             subproof_verifier: None,
             max_cycles: None,
+            max_gas: None,
             // Always verify deferred proofs by default.
             deferred_proof_verification: true,
             calculate_gas: true,
@@ -117,12 +122,14 @@ impl<'a> SP1ContextBuilder<'a> {
 
         let subproof_verifier = take(&mut self.subproof_verifier);
         let cycle_limit = take(&mut self.max_cycles);
+        let gas_limit = take(&mut self.max_gas);
         let deferred_proof_verification = take(&mut self.deferred_proof_verification);
         let calculate_gas = take(&mut self.calculate_gas);
         SP1Context {
             hook_registry,
             subproof_verifier,
             max_cycles: cycle_limit,
+            max_gas: gas_limit,
             deferred_proof_verification,
             calculate_gas,
             io_options: take(&mut self.io_options),
@@ -183,6 +190,13 @@ impl<'a> SP1ContextBuilder<'a> {
         self
     }
 
+    /// Set the maximum amount of gas to use for execution.
+    /// `report.gas` will be less than or equal to `max_gas`.
+    pub fn max_gas(&mut self, max_gas: u64) -> &mut Self {
+        self.max_gas = Some(max_gas);
+        self
+    }
+
     /// Set the deferred proof verification flag.
     pub fn set_deferred_proof_verification(&mut self, value: bool) -> &mut Self {
         self.deferred_proof_verification = value;
@@ -232,11 +246,17 @@ mod tests {
 
     #[test]
     fn defaults() {
-        let SP1Context { hook_registry, subproof_verifier, max_cycles: cycle_limit, .. } =
-            SP1Context::builder().build();
+        let SP1Context {
+            hook_registry,
+            subproof_verifier,
+            max_cycles: cycle_limit,
+            max_gas: gas_limit,
+            ..
+        } = SP1Context::builder().build();
         assert!(hook_registry.is_none());
         assert!(subproof_verifier.is_none());
         assert!(cycle_limit.is_none());
+        assert!(gas_limit.is_none());
     }
 
     #[test]

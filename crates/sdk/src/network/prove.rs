@@ -258,6 +258,7 @@ impl NetworkProveBuilder<'_> {
     ///     .run()
     ///     .unwrap();
     /// ```
+    #[deprecated(note = "`cycle_limit` is deprecated, use `gas_limit` instead")]
     #[must_use]
     pub fn cycle_limit(mut self, cycle_limit: u64) -> Self {
         self.cycle_limit = Some(cycle_limit);
