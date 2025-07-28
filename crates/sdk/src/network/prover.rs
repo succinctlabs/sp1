@@ -150,7 +150,7 @@ impl NetworkProver {
             cycle_limit: None,
             gas_limit: None,
             tee_2fa: false,
-            min_auction_period: 0,
+            min_auction_period: 1,
             whitelist: None,
             auctioneer: None,
             executor: None,
