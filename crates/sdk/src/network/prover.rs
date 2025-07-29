@@ -852,6 +852,7 @@ impl Prover<CpuProverComponents> for NetworkProver {
             None,
             None,
             None,
+            None,
         ))
     }
 
