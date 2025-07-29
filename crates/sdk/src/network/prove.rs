@@ -38,6 +38,7 @@ pub struct NetworkProveBuilder<'a> {
     pub(crate) auctioneer: Option<Address>,
     pub(crate) executor: Option<Address>,
     pub(crate) verifier: Option<Address>,
+    pub(crate) treasury: Option<Address>,
     pub(crate) max_price_per_pgu: Option<u64>,
     pub(crate) auction_timeout: Option<Duration>,
 }
@@ -438,10 +439,44 @@ impl NetworkProveBuilder<'_> {
     /// use alloy_primitives::Address;
     /// use sp1_sdk::{Prover, ProverClient, SP1Stdin};
     /// use std::str::FromStr;
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().network().build();
+    /// let (pk, vk) = client.setup(elf);
+    /// let verifier = Address::from_str("0x0000000000000000000000000000000000000000").unwrap();
+    /// let builder = client.prove(&pk, &stdin).verifier(verifier).run();
     /// ```
     #[must_use]
     pub fn verifier(mut self, verifier: Address) -> Self {
         self.verifier = Some(verifier);
+        self
+    }
+
+    /// Set the treasury for the proof request.
+    ///
+    /// # Details
+    /// The treasury is the address that will receive the protocol fee portion of the proof request
+    /// reward when it is fulfilled.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use alloy_primitives::Address;
+    /// use sp1_sdk::{Prover, ProverClient, SP1Stdin};
+    /// use std::str::FromStr;
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().network().build();
+    /// let (pk, vk) = client.setup(elf);
+    /// let treasury = Address::from_str("0x0000000000000000000000000000000000000000").unwrap();
+    /// let builder = client.prove(&pk, &stdin).treasury(treasury).run();
+    /// ```
+    #[must_use]
+    pub fn treasury(mut self, treasury: Address) -> Self {
+        self.treasury = Some(treasury);
         self
     }
 
@@ -559,6 +594,7 @@ impl NetworkProveBuilder<'_> {
                 self.auctioneer,
                 self.executor,
                 self.verifier,
+                self.treasury,
                 self.max_price_per_pgu,
             )
             .await
@@ -628,6 +664,7 @@ impl NetworkProveBuilder<'_> {
                 self.auctioneer,
                 self.executor,
                 self.verifier,
+                self.treasury,
                 self.max_price_per_pgu,
                 self.auction_timeout,
             )

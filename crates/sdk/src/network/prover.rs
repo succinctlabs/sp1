@@ -155,6 +155,7 @@ impl NetworkProver {
             auctioneer: None,
             executor: None,
             verifier: None,
+            treasury: None,
             max_price_per_pgu: None,
             auction_timeout: None,
         }
@@ -327,6 +328,7 @@ impl NetworkProver {
     /// * `auctioneer`: The auctioneer address for the proof request.
     /// * `executor`: The executor address for the proof request.
     /// * `verifier`: The verifier address for the proof request.
+    /// * `treasury`: The treasury address for the proof request.
     /// * `public_values_hash`: The hash of the public values to use for the proof.
     /// * `base_fee`: The base fee to use for the proof request.
     /// * `max_price_per_pgu`: The maximum price per PGU to use for the proof request.
@@ -346,6 +348,7 @@ impl NetworkProver {
         auctioneer: Address,
         executor: Address,
         verifier: Address,
+        treasury: Address,
         public_values_hash: Option<Vec<u8>>,
         base_fee: u64,
         max_price_per_pgu: u64,
@@ -520,13 +523,21 @@ impl NetworkProver {
         auctioneer: Option<Address>,
         executor: Option<Address>,
         verifier: Option<Address>,
+        treasury: Option<Address>,
         max_price_per_pgu: Option<u64>,
     ) -> Result<B256> {
         let vk_hash = self.register_program(&pk.vk, &pk.elf).await?;
         let (cycle_limit, gas_limit, public_values_hash) =
             self.get_execution_limits(cycle_limit, gas_limit, &pk.elf, stdin, skip_simulation)?;
-        let (auctioneer, executor, verifier, max_price_per_pgu, base_fee, domain) = self
-            .get_auction_request_params(mode, auctioneer, executor, verifier, max_price_per_pgu)
+        let (auctioneer, executor, verifier, treasury, max_price_per_pgu, base_fee, domain) = self
+            .get_auction_request_params(
+                mode,
+                auctioneer,
+                executor,
+                verifier,
+                treasury,
+                max_price_per_pgu,
+            )
             .await?;
 
         self.request_proof(
@@ -542,6 +553,7 @@ impl NetworkProver {
             auctioneer,
             executor,
             verifier,
+            treasury,
             public_values_hash,
             base_fee,
             max_price_per_pgu,
@@ -567,6 +579,7 @@ impl NetworkProver {
         auctioneer: Option<Address>,
         executor: Option<Address>,
         verifier: Option<Address>,
+        treasury: Option<Address>,
         max_price_per_pgu: Option<u64>,
         auction_timeout: Option<Duration>,
     ) -> Result<SP1ProofWithPublicValues> {
@@ -591,6 +604,7 @@ impl NetworkProver {
                     auctioneer,
                     executor,
                     verifier,
+                    treasury,
                     max_price_per_pgu,
                 )
                 .await?;
@@ -624,11 +638,11 @@ impl NetworkProver {
                     if let Some(network_error) = e.downcast_ref::<Error>() {
                         if matches!(
                             network_error,
-                            Error::RequestUnfulfillable { .. } |
-                                Error::RequestTimedOut { .. } |
-                                Error::RequestAuctionTimedOut { .. }
-                        ) && strategy == FulfillmentStrategy::Auction &&
-                            whitelist.is_none()
+                            Error::RequestUnfulfillable { .. }
+                                | Error::RequestTimedOut { .. }
+                                | Error::RequestAuctionTimedOut { .. }
+                        ) && strategy == FulfillmentStrategy::Auction
+                            && whitelist.is_none()
                         {
                             tracing::warn!("Retrying auction request with fallback whitelist...");
 
@@ -771,6 +785,11 @@ impl NetworkProver {
                 } else {
                     Address::from_slice(&params.verifier)
                 };
+                let treasury_value = if let Some(treasury) = treasury {
+                    treasury
+                } else {
+                    Address::from_slice(&params.treasury)
+                };
                 let max_price_per_pgu_value = if let Some(max_price_per_pgu) = max_price_per_pgu {
                     max_price_per_pgu
                 } else {
@@ -783,9 +802,9 @@ impl NetworkProver {
                     .base_fee
                     .parse::<u64>()
                     .expect("invalid base_fee");
-                Ok((auctioneer_value, executor_value, verifier_value, max_price_per_pgu_value, base_fee, params.domain))
+                Ok((auctioneer_value, executor_value, verifier_value, treasury_value, max_price_per_pgu_value, base_fee, params.domain))
             } else {
-                Ok((Address::ZERO, Address::ZERO, Address::ZERO, 0, 0, vec![]))
+                Ok((Address::ZERO, Address::ZERO, Address::ZERO, Address::ZERO, 0, 0, vec![]))
             }
         }
     }
