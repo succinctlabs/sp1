@@ -22,10 +22,11 @@ fn main() {
             // Example: SP1_GNARK_FFI_GO_ENVS="CC=clang-cl;CCC_OVERRIDE_OPTIONS=x-dM"
             let go_envs: HashMap<String, String> = match env::var("SP1_GNARK_FFI_GO_ENVS") {
                 Ok(env_str) => env_str.split(';')
-                    .map(|s| (
-                        String::from(s.split_once('=').collect::<Vec<_>>()[0]),
-                        String::from(s.split_once('=').collect::<Vec<_>>()[1])
-                    ))
+                    .map(|s| match s.split_once('=') {
+                        Some((k, v)) => (k.to_string(), v.to_string()),
+                        // A degenerate edge-case of a variable name w/o a value:
+                        None => (s.to_string(), "".to_string()),
+                    })
                     .collect(),
                 Err(_) => HashMap::new(),
             };
