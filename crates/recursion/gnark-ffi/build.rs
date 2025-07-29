@@ -23,8 +23,8 @@ fn main() {
             let go_envs: HashMap<String, String> = match env::var("SP1_GNARK_FFI_GO_ENVS") {
                 Ok(env_str) => env_str.split(';')
                     .map(|s| (
-                        String::from(s.split('=').collect::<Vec<_>>()[0]),
-                        String::from(s.split('=').collect::<Vec<_>>()[1])
+                        String::from(s.split_once('=').collect::<Vec<_>>()[0]),
+                        String::from(s.split_once('=').collect::<Vec<_>>()[1])
                     ))
                     .collect(),
                 Err(_) => HashMap::new(),
