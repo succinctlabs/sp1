@@ -422,6 +422,7 @@ impl NetworkProver {
                 auctioneer,
                 executor,
                 verifier,
+                treasury,
                 public_values_hash,
                 base_fee,
                 max_price_per_pgu,
@@ -765,8 +766,9 @@ impl NetworkProver {
         auctioneer: Option<Address>,
         executor: Option<Address>,
         verifier: Option<Address>,
+        treasury: Option<Address>,
         max_price_per_pgu: Option<u64>,
-    ) -> Result<(Address, Address, Address, u64, u64, Vec<u8>)> {
+    ) -> Result<(Address, Address, Address, Address, u64, u64, Vec<u8>)> {
         cfg_if::cfg_if! {
             if #[cfg(not(feature = "reserved-capacity"))] {
                 let params = self.get_proof_request_params(mode).await?;
