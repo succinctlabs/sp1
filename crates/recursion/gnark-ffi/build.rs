@@ -17,10 +17,16 @@ fn main() {
             let lib_name = "sp1gnark";
             let dest = dest_path.join(format!("lib{lib_name}.a"));
 
-            // Parse custom environment for `go build` command, e.g. to support cross-compilation.
-            // SP1_FFI_ENV_FOR_GO may contain a semi-colon-separated list of name=value pairs.
-            let go_env: HashMap<String, String> = match env::var("SP1_FFI_ENV_FOR_GO") {
-                Ok(env_str) => env_str.split(';').map(|s| (String::from(s.split('=').collect::<Vec<_>>()[0]), String::from(s.split('=').collect::<Vec<_>>()[1]))).collect(),
+            // Parse custom environment for the `go build` command, e.g. to support cross-compilation.
+            // The variable may contain a semi-colon-separated list of name=value pairs.
+            // Example: SP1_GNARK_FFI_GO_ENVS="CC=clang-cl;CCC_OVERRIDE_OPTIONS=x-dM"
+            let go_envs: HashMap<String, String> = match env::var("SP1_GNARK_FFI_GO_ENVS") {
+                Ok(env_str) => env_str.split(';')
+                    .map(|s| (
+                        String::from(s.split('=').collect::<Vec<_>>()[0]),
+                        String::from(s.split('=').collect::<Vec<_>>()[1])
+                    ))
+                    .collect(),
                 Err(_) => HashMap::new(),
             };
 
@@ -30,7 +36,7 @@ fn main() {
             let status = Command::new("go")
                 .current_dir("go")
                 .env("CGO_ENABLED", "1")
-                .envs(go_env)
+                .envs(go_envs)
                 .args([
                     "build",
                     "-tags=debug",
