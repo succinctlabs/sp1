@@ -638,11 +638,11 @@ impl NetworkProver {
                     if let Some(network_error) = e.downcast_ref::<Error>() {
                         if matches!(
                             network_error,
-                            Error::RequestUnfulfillable { .. }
-                                | Error::RequestTimedOut { .. }
-                                | Error::RequestAuctionTimedOut { .. }
-                        ) && strategy == FulfillmentStrategy::Auction
-                            && whitelist.is_none()
+                            Error::RequestUnfulfillable { .. } |
+                                Error::RequestTimedOut { .. } |
+                                Error::RequestAuctionTimedOut { .. }
+                        ) && strategy == FulfillmentStrategy::Auction &&
+                            whitelist.is_none()
                         {
                             tracing::warn!("Retrying auction request with fallback whitelist...");
 
