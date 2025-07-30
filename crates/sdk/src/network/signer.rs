@@ -46,7 +46,7 @@ impl NetworkSigner {
     }
 
     /// Create an AWS KMS signer with automatic region detection from KMS ARN.
-    pub async fn aws_kms(key_id: &str, chain_id: Option<u64>) -> Result<Self, SignerError> {
+    pub async fn aws_kms(key_id: &str) -> Result<Self, SignerError> {
         // Extract the region.
         let region = extract_region_from_kms_arn(key_id)?;
 
@@ -58,7 +58,7 @@ impl NetworkSigner {
         let kms_client = aws_sdk_kms::Client::new(&config);
 
         let signer =
-            AwsSigner::new(kms_client, key_id.to_string(), chain_id).await.map_err(Box::new)?;
+            AwsSigner::new(kms_client, key_id.to_string(), None).await.map_err(Box::new)?;
         Ok(NetworkSigner::Aws(signer))
     }
 

@@ -4,6 +4,7 @@
 
 use alloy_primitives::Address;
 
+use super::signer::NetworkSigner;
 use crate::{network::DEFAULT_NETWORK_RPC_URL, NetworkProver};
 
 #[cfg(feature = "tee-2fa")]
@@ -17,6 +18,7 @@ pub struct NetworkProverBuilder {
     pub(crate) private_key: Option<String>,
     pub(crate) rpc_url: Option<String>,
     pub(crate) tee_signers: Option<Vec<Address>>,
+    pub(crate) signer: Option<NetworkSigner>,
 }
 
 impl NetworkProverBuilder {
@@ -60,6 +62,39 @@ impl NetworkProverBuilder {
     #[must_use]
     pub fn tee_signers(mut self, tee_signers: &[Address]) -> Self {
         self.tee_signers = Some(tee_signers.to_vec());
+        self
+    }
+
+    /// Sets the network signer to use for signing requests.
+    ///
+    /// # Details
+    /// This method allows you to provide a custom signer implementation, such as AWS KMS or
+    /// a local private key signer. If both `signer` and `private_key` are provided, the signer
+    /// takes precedence.
+    ///
+    /// # Examples
+    ///
+    /// Using a local private key:
+    /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, NetworkSigner};
+    ///
+    /// let signer = NetworkSigner::local("0x...").unwrap();
+    /// let prover = ProverClient::builder().network().signer(signer).build();
+    /// ```
+    ///
+    /// Using AWS KMS:
+    /// ```rust,no_run
+    /// use sp1_sdk::{ProverClient, NetworkSigner};
+    ///
+    /// # async fn example() {
+    /// let kms_key_arn = "arn:aws:kms:us-east-1:123456789:key/key-id";
+    /// let signer = NetworkSigner::aws_kms(kms_key_arn).await.unwrap();
+    /// let prover = ProverClient::builder().network().signer(signer).build();
+    /// # }
+    /// ```
+    #[must_use]
+    pub fn signer(mut self, signer: NetworkSigner) -> Self {
+        self.signer = Some(signer);
         self
     }
 
