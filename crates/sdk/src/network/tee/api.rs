@@ -1,4 +1,7 @@
-use crate::{network::utils::sign_raw, SP1Stdin};
+use crate::{
+    network::{signer::NetworkSigner, utils::sign_raw},
+    SP1Stdin,
+};
 use alloy_primitives::{Address, Signature as AlloySignature};
 use serde::{Deserialize, Serialize};
 
@@ -21,16 +24,16 @@ pub struct TEERequest {
 
 impl TEERequest {
     /// The selector for the TEE verifier.
-    pub(crate) fn new(
-        signer: &k256::ecdsa::SigningKey,
+    pub(crate) async fn new(
+        signer: &NetworkSigner,
         id: [u8; 32],
         program: Vec<u8>,
         stdin: SP1Stdin,
         cycle_limit: u64,
-    ) -> Self {
-        let k256_signature = sign_raw(&id, signer);
+    ) -> Result<Self, anyhow::Error> {
+        let signature = sign_raw(&id, signer).await?;
 
-        Self { id, program, cycle_limit, stdin, signature: AlloySignature::from(k256_signature) }
+        Ok(Self { id, program, cycle_limit, stdin, signature })
     }
 }
 
