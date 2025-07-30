@@ -263,7 +263,7 @@ impl NetworkClient {
         not_bid_by: Option<Vec<u8>>,
         execute_fail_cause: Option<i32>,
         settlement_status: Option<i32>,
-        #[cfg(not(feature = "reserved-capacity"))] error: Option<i32>,
+        error: Option<i32>,
     ) -> Result<GetFilteredProofRequestsResponse> {
         self.with_retry(
             || {
@@ -292,7 +292,6 @@ impl NetworkClient {
                             not_bid_by,
                             execute_fail_cause,
                             settlement_status,
-                            #[cfg(not(feature = "reserved-capacity"))]
                             error,
                         })
                         .await?
