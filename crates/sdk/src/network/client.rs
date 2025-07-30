@@ -384,6 +384,7 @@ impl NetworkClient {
     /// * `auctioneer`: The auctioneer for the proof request.
     /// * `executor`: The executor for the proof request.
     /// * `verifier`: The verifier for the proof request.
+    /// * `treasury`: The treasury for the proof request.
     /// * `public_values_hash`: The hash of the public values to use for the proof.
     /// * `base_fee`: The base fee to use for the proof request.
     /// * `max_price_per_pgu`: The maximum price per PGU to use for the proof request.
@@ -405,6 +406,7 @@ impl NetworkClient {
         auctioneer: Address,
         executor: Address,
         verifier: Address,
+        treasury: Address,
         public_values_hash: Option<Vec<u8>>,
         base_fee: u64,
         max_price_per_pgu: u64,
@@ -452,6 +454,7 @@ impl NetworkClient {
                             auctioneer: auctioneer.to_vec(),
                             executor: executor.to_vec(),
                             verifier: verifier.to_vec(),
+                            treasury: treasury.to_vec(),
                             public_values_hash: public_values_hash.clone(),
                             base_fee: base_fee.to_string(),
                             max_price_per_pgu: max_price_per_pgu.to_string(),
