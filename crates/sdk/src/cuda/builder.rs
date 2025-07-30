@@ -5,6 +5,8 @@
 use sp1_cuda::MoongateServer;
 use sp1_prover::SP1Prover;
 
+use crate::utils::setup_memory_usage_monitoring;
+
 use super::CudaProver;
 
 /// A builder for the [`CudaProver`].
@@ -137,6 +139,7 @@ impl LocalMoongateServerCudaProverBuilder {
     /// ```
     #[must_use]
     pub fn build(self) -> CudaProver {
+        setup_memory_usage_monitoring();
         CudaProver::new(
             SP1Prover::new(),
             MoongateServer::Local {
