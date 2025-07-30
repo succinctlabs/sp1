@@ -63,7 +63,7 @@ impl NetworkSigner {
     }
 
     /// Get the address of the signer.
-    #[allow(clippy::must_use_candidate)]
+    #[must_use]
     pub fn address(&self) -> Address {
         match self {
             NetworkSigner::Local(signer) => Signer::address(signer),

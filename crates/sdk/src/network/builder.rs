@@ -4,8 +4,10 @@
 
 use alloy_primitives::Address;
 
-use super::signer::NetworkSigner;
-use crate::{network::DEFAULT_NETWORK_RPC_URL, NetworkProver};
+use crate::{
+    network::{signer::NetworkSigner, DEFAULT_NETWORK_RPC_URL},
+    NetworkProver,
+};
 
 #[cfg(feature = "tee-2fa")]
 use crate::network::retry::{self, DEFAULT_RETRY_TIMEOUT};
