@@ -14,6 +14,7 @@ mod error;
 mod grpc;
 pub mod prove;
 mod retry;
+pub mod signer;
 pub mod tee;
 
 pub mod utils;
