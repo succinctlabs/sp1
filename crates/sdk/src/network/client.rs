@@ -245,25 +245,6 @@ impl NetworkClient {
     }
 
     /// Get all the proof requests that meet the filter criteria.
-    ///
-    /// # Parameters
-    /// * `version` - The optional version of the requests to filter for.
-    /// * `fulfillment_status` - The optional fulfillment status to filter for.
-    /// * `execution_status` - The optional execution status to filter for.
-    /// * `minimum_deadline` - Only returns requests with deadlines after this timestamp.
-    /// * `vk_hash` - The optional verification key hash of the program to filter for.
-    /// * `requester` - The optional requester address to filter for.
-    /// * `fulfiller` - The optional fulfiller address to filter for.
-    /// * `from` - The optional minimum creation unix timestamp to filter for.
-    /// * `to` - The optional maximum creation unix timestamp to filter for.
-    /// * `limit` - The optional maximum number of requests to return (default 10, max 100).
-    /// * `page` - The optional page number to return (default 1).
-    /// * `mode` - The optional proof mode to filter for.
-    /// * `not_bid_by` - Only returns requests that have not been bid by this address.
-    /// * `execute_fail_cause` - The optional cause of execution failure to filter for.
-    /// * `settlement_status` - The optional settlement status to filter for.
-    /// * `error` - (Only available without `reserved-capacity` feature) The optional proof request
-    ///   error to filter for (e.g., ExecutionFailure, VerificationKeyMismatch).
     #[allow(clippy::too_many_arguments)]
     pub async fn get_filtered_proof_requests(
         &self,
