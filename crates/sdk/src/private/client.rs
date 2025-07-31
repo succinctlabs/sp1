@@ -6,7 +6,6 @@ use std::{
 
 use alloy_primitives::B256;
 use anyhow::Result;
-use futures::StreamExt;
 use k256::ecdsa::SigningKey;
 use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
 use sp1_core_machine::io::SP1Stdin;
@@ -205,6 +204,8 @@ impl PrivateClient {
         stdin: &SP1Stdin,
         mode: SP1ProofMode,
         timeout_secs: u64,
+        cycle_limit: u64,
+        gas_limit: u64,
     ) -> Result<RequestProofResponse> {
         // Calculate the deadline.
         let start = SystemTime::now();
@@ -219,6 +220,8 @@ impl PrivateClient {
                     vk_hash,
                     mode: mode.into(),
                     stdin: Cow::Borrowed(stdin),
+                    cycle_limit,
+                    gas_limit,
                     deadline,
                 };
 
