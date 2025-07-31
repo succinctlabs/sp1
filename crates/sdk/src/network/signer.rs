@@ -6,13 +6,44 @@ use alloy_primitives::Address;
 use alloy_signer::{Signature, Signer, SignerSync};
 use alloy_signer_aws::{AwsSigner, AwsSignerError};
 use alloy_signer_local::{LocalSignerError, PrivateKeySigner};
+use aws_sdk_kms::error::DisplayErrorContext;
+
+/// Wrapper for AWS KMS errors with detailed formatting.
+#[derive(Debug)]
+pub struct AwsKmsError(pub Box<AwsSignerError>);
+
+impl std::fmt::Display for AwsKmsError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.0.as_ref() {
+            AwsSignerError::Sign(sdk_error) => {
+                write!(f, "AWS KMS signing failed: {}", DisplayErrorContext(sdk_error))
+            }
+            AwsSignerError::GetPublicKey(sdk_error) => {
+                write!(f, "AWS KMS GetPublicKey failed: {}", DisplayErrorContext(sdk_error))
+            }
+            other => write!(f, "AWS KMS error: {other}"),
+        }
+    }
+}
+
+impl std::error::Error for AwsKmsError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(self.0.as_ref())
+    }
+}
+
+impl From<Box<AwsSignerError>> for AwsKmsError {
+    fn from(err: Box<AwsSignerError>) -> Self {
+        AwsKmsError(err)
+    }
+}
 
 /// Errors that can occur when using the network signer.
 #[derive(Debug, thiserror::Error)]
 pub enum NetworkSignerError {
     /// An error occurred while using the AWS KMS signer.
-    #[error("AWS KMS error: {0}")]
-    AwsKms(#[from] Box<AwsSignerError>),
+    #[error(transparent)]
+    AwsKms(#[from] AwsKmsError),
 
     /// An error occurred while using the local signer.
     #[error("Local signer error: {0}")]
@@ -61,8 +92,9 @@ impl NetworkSigner {
             .await;
         let kms_client = aws_sdk_kms::Client::new(&config);
 
-        let signer =
-            AwsSigner::new(kms_client, key_id.to_string(), None).await.map_err(Box::new)?;
+        let signer = AwsSigner::new(kms_client, key_id.to_string(), None)
+            .await
+            .map_err(|e| AwsKmsError(Box::new(e)))?;
         Ok(NetworkSigner::Aws(signer))
     }
 
