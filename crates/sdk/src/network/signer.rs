@@ -1,3 +1,7 @@
+//! # Network Signer
+//!
+//! This module provides a unified signer that supports both local private keys and AWS KMS.
+
 use alloy_primitives::Address;
 use alloy_signer::{Signature, Signer, SignerSync};
 use alloy_signer_aws::{AwsSigner, AwsSignerError};
@@ -5,7 +9,7 @@ use alloy_signer_local::{LocalSignerError, PrivateKeySigner};
 
 /// Errors that can occur when using the network signer.
 #[derive(Debug, thiserror::Error)]
-pub enum SignerError {
+pub enum NetworkSignerError {
     /// An error occurred while using the AWS KMS signer.
     #[error("AWS KMS error: {0}")]
     AwsKms(#[from] Box<AwsSignerError>),
@@ -38,15 +42,15 @@ pub enum NetworkSigner {
 
 impl NetworkSigner {
     /// Create a local signer from a private key string.
-    pub fn local(private_key: &str) -> Result<Self, SignerError> {
+    pub fn local(private_key: &str) -> Result<Self, NetworkSignerError> {
         let signer = private_key
             .parse::<PrivateKeySigner>()
-            .map_err(|e| SignerError::Parse(e.to_string()))?;
+            .map_err(|e| NetworkSignerError::Parse(e.to_string()))?;
         Ok(NetworkSigner::Local(signer))
     }
 
     /// Create an AWS KMS signer with automatic region detection from KMS ARN.
-    pub async fn aws_kms(key_id: &str) -> Result<Self, SignerError> {
+    pub async fn aws_kms(key_id: &str) -> Result<Self, NetworkSignerError> {
         // Extract the region.
         let region = extract_region_from_kms_arn(key_id)?;
 
@@ -72,23 +76,23 @@ impl NetworkSigner {
     }
 
     /// Sign an arbitrary message per EIP-191.
-    pub async fn sign_message(&self, message: &[u8]) -> Result<Signature, SignerError> {
+    pub async fn sign_message(&self, message: &[u8]) -> Result<Signature, NetworkSignerError> {
         match self {
             NetworkSigner::Local(signer) => {
-                signer.sign_message_sync(message).map_err(SignerError::Signing)
+                signer.sign_message_sync(message).map_err(NetworkSignerError::Signing)
             }
             NetworkSigner::Aws(signer) => {
-                signer.sign_message(message).await.map_err(SignerError::Signing)
+                signer.sign_message(message).await.map_err(NetworkSignerError::Signing)
             }
         }
     }
 }
 
 /// Extract AWS region from a KMS ARN-formatted string.
-fn extract_region_from_kms_arn(arn: &str) -> Result<String, SignerError> {
+fn extract_region_from_kms_arn(arn: &str) -> Result<String, NetworkSignerError> {
     let parts: Vec<&str> = arn.split(':').collect();
     if parts.len() < 6 || parts[0] != "arn" || parts[1] != "aws" || parts[2] != "kms" {
-        return Err(SignerError::InvalidKmsArn(format!(
+        return Err(NetworkSignerError::InvalidKmsArn(format!(
             "Expected format: arn:aws:kms:REGION:account:key/key-id, got: {arn}"
         )));
     }

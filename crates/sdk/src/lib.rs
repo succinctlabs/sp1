@@ -41,7 +41,10 @@ pub use crate::client::ProverClient;
 pub use crate::{cpu::CpuProver, cuda::CudaProver, env::EnvProver};
 
 #[cfg(feature = "network")]
-pub use crate::network::prover::NetworkProver;
+pub use crate::network::{
+    prover::NetworkProver,
+    signer::{NetworkSigner, NetworkSignerError},
+};
 
 // Re-export the proof and prover traits.
 pub mod proof;
