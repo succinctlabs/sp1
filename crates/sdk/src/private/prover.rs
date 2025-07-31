@@ -184,7 +184,10 @@ impl PrivateProver {
         tracing::info!("└─ Gas limit: {} PGUs", gas_limit);
 
         // Request the proof.
-        let response = self.client.request_proof(vk_hash, stdin, mode, timeout_secs).await?;
+        let response = self
+            .client
+            .request_proof(vk_hash, stdin, mode, timeout_secs, cycle_limit, gas_limit)
+            .await?;
 
         // Log the request ID.
         let request_id = B256::from_slice(&response.body.unwrap().request_id);

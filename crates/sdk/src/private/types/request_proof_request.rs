@@ -10,5 +10,7 @@ pub struct RequestProofRequestBody<'a> {
     pub vk_hash: B256,
     pub mode: ProofMode,
     pub stdin: Cow<'a, SP1Stdin>,
+    pub cycle_limit: u64,
+    pub gas_limit: u64,
     pub deadline: u64,
 }
