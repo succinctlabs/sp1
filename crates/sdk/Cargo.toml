@@ -59,6 +59,7 @@ alloy-primitives = { version = "1.0", default-features = false, optional = true,
   "serde",
 ] }
 backoff = { version = "0.4", features = ["tokio"], optional = true }
+sysinfo = "0.30.13"
 
 # TEE Dependencies
 k256 = { version = "0.13.3", features = ["serde"] } # Signing

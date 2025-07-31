@@ -20,7 +20,7 @@ use crate::network::builder::NetworkProverBuilder;
 use crate::{
     cpu::{execute::CpuExecuteBuilder, CpuProver},
     cuda::CudaProver,
-    utils::check_release_build,
+    utils::{check_release_build, setup_memory_usage_monitoring},
     SP1ProofMode, SP1ProofWithPublicValues,
 };
 
@@ -53,10 +53,12 @@ impl EnvProver {
             "mock" => Box::new(CpuProver::mock()),
             "cpu" => {
                 check_release_build();
+                setup_memory_usage_monitoring();
                 Box::new(CpuProver::new())
             },
             "cuda" => {
                 check_release_build();
+                setup_memory_usage_monitoring();
                 Box::new(CudaProver::new(SP1Prover::new(), MoongateServer::default()))
             }
             "network" => {
