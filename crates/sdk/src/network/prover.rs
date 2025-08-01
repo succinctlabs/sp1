@@ -54,10 +54,19 @@ impl NetworkProver {
     /// Creates a new [`NetworkProver`] with the given signer.
     ///
     /// # Details
-    /// * `signer`: The network signer to use for signing requests.
+    /// * `signer`: The network signer to use for signing requests. Can be a `NetworkSigner`,
+    ///   private key string, or anything that implements `Into<NetworkSigner>`.
     /// * `rpc_url`: The rpc url to use for the prover network.
     ///
-    /// # Example
+    /// # Examples
+    /// Using a private key string:
+    /// ```rust,no_run
+    /// use sp1_sdk::NetworkProver;
+    ///
+    /// let prover = NetworkProver::new("0x...", "...");
+    /// ```
+    ///
+    /// Using a `NetworkSigner`:
     /// ```rust,no_run
     /// use sp1_sdk::{NetworkProver, NetworkSigner};
     ///
@@ -65,7 +74,8 @@ impl NetworkProver {
     /// let prover = NetworkProver::new(signer, "...");
     /// ```
     #[must_use]
-    pub fn new(signer: NetworkSigner, rpc_url: &str) -> Self {
+    pub fn new(signer: impl Into<NetworkSigner>, rpc_url: &str) -> Self {
+        let signer = signer.into();
         let prover = CpuProver::new();
         let client = NetworkClient::new(signer, rpc_url);
         Self { client, prover, tee_signers: vec![] }

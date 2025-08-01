@@ -120,6 +120,18 @@ impl NetworkSigner {
     }
 }
 
+impl From<String> for NetworkSigner {
+    fn from(private_key: String) -> Self {
+        NetworkSigner::local(&private_key).expect("Failed to parse private key")
+    }
+}
+
+impl From<&str> for NetworkSigner {
+    fn from(private_key: &str) -> Self {
+        NetworkSigner::local(private_key).expect("Failed to parse private key")
+    }
+}
+
 /// Extract AWS region from a KMS ARN-formatted string.
 fn extract_region_from_kms_arn(arn: &str) -> Result<String, NetworkSignerError> {
     let parts: Vec<&str> = arn.split(':').collect();
