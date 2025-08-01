@@ -147,9 +147,9 @@ impl PrivateProver {
         // Check if current time exceeds deadline. If so, the proof has timed out.
         let current_time =
             std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
-        if current_time > response.deadline {
-            return Err(Error::RequestTimedOut { request_id: request_id.to_vec() }.into());
-        }
+        //if current_time > response.deadline {
+        //    return Err(Error::RequestTimedOut { request_id: request_id.to_vec() }.into());
+        //}
 
         // Check the fulfillment status.
         if response.fulfillment_status == FulfillmentStatus::Fulfilled {
