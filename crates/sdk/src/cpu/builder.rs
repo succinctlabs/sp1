@@ -2,6 +2,8 @@
 //!
 //! This module provides a builder for the [`CpuProver`].
 
+use crate::utils::setup_memory_usage_monitoring;
+
 use super::CpuProver;
 
 /// A builder for the [`CpuProver`].
@@ -29,6 +31,7 @@ impl CpuProverBuilder {
         if self.mock {
             CpuProver::mock()
         } else {
+            setup_memory_usage_monitoring();
             CpuProver::new()
         }
     }

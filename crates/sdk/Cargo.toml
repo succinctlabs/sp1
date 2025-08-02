@@ -42,19 +42,28 @@ cfg-if = "1.0"
 strum = "0.26.3"
 strum_macros = "0.26.4"
 thiserror = "1.0.63"
+aws-sdk-kms = "1.77.0"
+aws-config = "1.5.3"
 hashbrown = { workspace = true }
 sp1-core-executor = { workspace = true }
 sp1-stark = { workspace = true }
 sp1-primitives = { workspace = true }
 itertools = { workspace = true }
 tonic = { version = "0.12", features = ["tls", "tls-roots"], optional = true }
+alloy-signer = { version = "1.0", default-features = false, optional = true }
+alloy-signer-aws = { version = "1.0", default-features = false, optional = true }
+alloy-signer-local = { version = "1.0", default-features = false, optional = true }
 alloy-sol-types = { version = "1.0", default-features = false }
-alloy-primitives = { version = "1.0", default-features = false, optional = true, features = ["k256", "serde"] }
+alloy-primitives = { version = "1.0", default-features = false, optional = true, features = [
+  "k256",
+  "serde",
+] }
 backoff = { version = "0.4", features = ["tokio"], optional = true }
+sysinfo = "0.30.13"
 
 # TEE Dependencies
 k256 = { version = "0.13.3", features = ["serde"] } # Signing
-eventsource-stream = { version = "0.2.0" } # SSE Extenstion for reqwest
+eventsource-stream = { version = "0.2.0" }          # SSE Extenstion for reqwest
 
 [dev-dependencies]
 test-artifacts = { path = "../test-artifacts" }
@@ -67,6 +76,9 @@ native-gnark = ["sp1-prover/native-gnark"]
 # dependency resolution issues.
 network = [
   "dep:prost",
+  "dep:alloy-signer",
+  "dep:alloy-signer-aws",
+  "dep:alloy-signer-local",
   "dep:alloy-primitives",
   "dep:tokio",
   "dep:reqwest",
@@ -76,9 +88,7 @@ network = [
   "dep:backoff",
 ]
 tee-2fa = []
-reserved-capacity = [
-  "network",
-]
+reserved-capacity = ["network"]
 cuda = []
 bigint-rug = ["sp1-core-machine/bigint-rug"]
 

@@ -151,6 +151,9 @@ pub struct RequestProofRequestBody {
     /// The variant of the transaction.
     #[prost(enumeration = "TransactionVariant", tag = "19")]
     pub variant: i32,
+    /// The treasury address.
+    #[prost(bytes = "vec", tag = "20")]
+    pub treasury: ::prost::alloc::vec::Vec<u8>,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -309,6 +312,9 @@ pub struct FailFulfillmentRequestBody {
     /// The identifier for the request.
     #[prost(bytes = "vec", tag = "2")]
     pub request_id: ::prost::alloc::vec::Vec<u8>,
+    /// The optional proof request error.
+    #[prost(enumeration = "ProofRequestError", optional, tag = "3")]
+    pub error: ::core::option::Option<i32>,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -438,6 +444,9 @@ pub struct ProofRequest {
     /// The max price per prover gas unit for the request.
     #[prost(string, optional, tag = "35")]
     pub max_price_per_pgu: ::core::option::Option<::prost::alloc::string::String>,
+    /// The proof request error, if any.
+    #[prost(enumeration = "ProofRequestError", tag = "36")]
+    pub error: i32,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -544,6 +553,9 @@ pub struct GetFilteredProofRequestsRequest {
     /// The optional settlement status of the requests to filter for.
     #[prost(enumeration = "SettlementStatus", optional, tag = "15")]
     pub settlement_status: ::core::option::Option<i32>,
+    /// The optional proof request error.
+    #[prost(enumeration = "ProofRequestError", optional, tag = "16")]
+    pub error: ::core::option::Option<i32>,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -593,12 +605,12 @@ pub struct GetProofRequestMetricsResponse {
     /// The total number of proofs.
     #[prost(uint64, tag = "1")]
     pub total_proofs: u64,
-    /// The total number of cycles.
-    #[prost(uint64, tag = "2")]
-    pub total_cycles: u64,
     /// The total number of programs.
     #[prost(uint64, tag = "4")]
     pub total_programs: u64,
+    /// The total number of PGUs.
+    #[prost(uint64, tag = "5")]
+    pub total_gas: u64,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -663,12 +675,12 @@ pub struct GetOverviewGraphsResponse {
     /// The daily time series data points for proof count.
     #[prost(message, repeated, tag = "1")]
     pub proofs: ::prost::alloc::vec::Vec<GraphData>,
-    /// The daily time series data points for cycle count.
-    #[prost(message, repeated, tag = "2")]
-    pub cycles: ::prost::alloc::vec::Vec<GraphData>,
     /// The daily time series data points for program count.
     #[prost(message, repeated, tag = "3")]
     pub programs: ::prost::alloc::vec::Vec<GraphData>,
+    /// The daily time series data points for PGU count.
+    #[prost(message, repeated, tag = "4")]
+    pub gas: ::prost::alloc::vec::Vec<GraphData>,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
@@ -698,6 +710,9 @@ pub struct GetProofRequestParamsResponse {
     /// The base fee for the specified proof mode.
     #[prost(string, tag = "6")]
     pub base_fee: ::prost::alloc::string::String,
+    /// The default treasury address.
+    #[prost(bytes = "vec", tag = "7")]
+    pub treasury: ::prost::alloc::vec::Vec<u8>,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -4621,6 +4636,12 @@ pub struct WithdrawalReceipt {
     /// The account address that made the withdrawal.
     #[prost(bytes = "vec", tag = "5")]
     pub account: ::prost::alloc::vec::Vec<u8>,
+    /// The balance operation type (2 for withdraw, 6 for withdraw_request).
+    #[prost(enumeration = "BalanceOperation", tag = "6")]
+    pub operation: i32,
+    /// The sender address that initiated the withdrawal.
+    #[prost(bytes = "vec", optional, tag = "7")]
+    pub sender: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -5192,6 +5213,8 @@ pub enum ExecuteFailureCause {
     Unimplemented = 7,
     /// The program ended in unconstrained mode.
     EndInUnconstrained = 8,
+    /// The execution failed with an exceeded gas limit.
+    ExceededGasLimit = 9,
 }
 impl ExecuteFailureCause {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -5211,6 +5234,7 @@ impl ExecuteFailureCause {
             Self::InvalidSyscallUsage => "INVALID_SYSCALL_USAGE",
             Self::Unimplemented => "UNIMPLEMENTED",
             Self::EndInUnconstrained => "END_IN_UNCONSTRAINED",
+            Self::ExceededGasLimit => "EXCEEDED_GAS_LIMIT",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -5227,6 +5251,7 @@ impl ExecuteFailureCause {
             "INVALID_SYSCALL_USAGE" => Some(Self::InvalidSyscallUsage),
             "UNIMPLEMENTED" => Some(Self::Unimplemented),
             "END_IN_UNCONSTRAINED" => Some(Self::EndInUnconstrained),
+            "EXCEEDED_GAS_LIMIT" => Some(Self::ExceededGasLimit),
             _ => None,
         }
     }
@@ -5305,6 +5330,51 @@ impl WithdrawalType {
             "UNSPECIFIED_WITHDRAWAL_TYPE" => Some(Self::UnspecifiedWithdrawalType),
             "OWNER" => Some(Self::Owner),
             "PROVER" => Some(Self::Prover),
+            _ => None,
+        }
+    }
+}
+/// The different proof request errors. Only one error corresponds to unexecutable/unfulfillable
+/// requests. The rest correspond to executable/unfulfillable requests.
+#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum ProofRequestError {
+    UnspecifiedProofRequestFailure = 0,
+    /// The proof request failed due to an execution error (unexecutable).
+    ExecutionFailure = 1,
+    /// The verification key used by the prover does not match the one expected for the program.
+    VerificationKeyMismatch = 2,
+    /// The proof request failed due to an unknown error (potentially a bug).
+    UnknownFailure = 3,
+    /// The public values hash provided in the request does not match the hash from the execution
+    /// oracle.
+    PublicValuesMismatch = 4,
+}
+impl ProofRequestError {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::UnspecifiedProofRequestFailure => "UNSPECIFIED_PROOF_REQUEST_FAILURE",
+            Self::ExecutionFailure => "EXECUTION_FAILURE",
+            Self::VerificationKeyMismatch => "VERIFICATION_KEY_MISMATCH",
+            Self::UnknownFailure => "UNKNOWN_FAILURE",
+            Self::PublicValuesMismatch => "PUBLIC_VALUES_MISMATCH",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "UNSPECIFIED_PROOF_REQUEST_FAILURE" => {
+                Some(Self::UnspecifiedProofRequestFailure)
+            }
+            "EXECUTION_FAILURE" => Some(Self::ExecutionFailure),
+            "VERIFICATION_KEY_MISMATCH" => Some(Self::VerificationKeyMismatch),
+            "UNKNOWN_FAILURE" => Some(Self::UnknownFailure),
+            "PUBLIC_VALUES_MISMATCH" => Some(Self::PublicValuesMismatch),
             _ => None,
         }
     }
