@@ -2,8 +2,46 @@
 //!
 //! A collection of utilities for the SP1 SDK.
 
+use std::{
+    sync::Once,
+    thread::{sleep, spawn},
+    time::Duration,
+};
+
 use sp1_core_machine::io::SP1Stdin;
 pub use sp1_core_machine::utils::setup_logger;
+use sysinfo::{MemoryRefreshKind, RefreshKind, System};
+
+static MEMORY_USAGE_MONITORING: Once = Once::new();
+
+/// Spawns a thread that emits warnings when the used memory is high.
+pub fn setup_memory_usage_monitoring() {
+    MEMORY_USAGE_MONITORING.call_once(|| {
+        spawn(|| {
+            let mut sys = System::new_with_specifics(
+                RefreshKind::new().with_memory(MemoryRefreshKind::new().with_ram()),
+            );
+
+            let total_memory = sys.total_memory();
+
+            loop {
+                sleep(Duration::from_secs(10));
+                sys.refresh_memory();
+
+                let used_memory = sys.used_memory();
+                #[allow(clippy::cast_precision_loss)]
+                let ratio = used_memory as f64 / total_memory as f64;
+
+                if ratio > 0.8 {
+                    tracing::warn!(
+                        "Memory usage is high: {:.2}%, we recommend using the prover network",
+                        ratio * 100.0
+                    );
+                }
+            }
+        });
+    });
+}
 
 /// Dump the program and stdin to files for debugging if `SP1_DUMP` is set.
 pub(crate) fn sp1_dump(elf: &[u8], stdin: &SP1Stdin) {
