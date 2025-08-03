@@ -44,6 +44,7 @@ strum_macros = "0.26.4"
 thiserror = "1.0.63"
 aws-sdk-kms = "1.77.0"
 aws-config = "1.5.3"
+rustls = { version = "0.23.27", features = ["ring"] }
 hashbrown = { workspace = true }
 sp1-core-executor = { workspace = true }
 sp1-stark = { workspace = true }

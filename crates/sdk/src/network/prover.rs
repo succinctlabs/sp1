@@ -75,6 +75,9 @@ impl NetworkProver {
     /// ```
     #[must_use]
     pub fn new(signer: impl Into<NetworkSigner>, rpc_url: &str) -> Self {
+        // Install default CryptoProvider if not already installed.
+        let _ = rustls::crypto::ring::default_provider().install_default();
+
         let signer = signer.into();
         let prover = CpuProver::new();
         let client = NetworkClient::new(signer, rpc_url);
