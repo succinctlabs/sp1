@@ -30,7 +30,7 @@ cfg_if::cfg_if! {
         pub(crate) const PUBLIC_EXPLORER_URL: &str = "https://explorer.mainnet.succinct.xyz";
         pub(crate) const DEFAULT_NETWORK_RPC_URL: &str = "https://rpc.mainnet.succinct.xyz";
     } else {
-        pub(crate) const PUBLIC_EXPLORER_URL: &str = "https://explorer.succinct.xyz";
+        pub(crate) const PUBLIC_EXPLORER_URL: &str = "https://explorer.reserved.succinct.xyz";
         pub(crate) const DEFAULT_NETWORK_RPC_URL: &str = "https://rpc.production.succinct.xyz";
     }
 }
