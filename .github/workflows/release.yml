@@ -130,9 +130,15 @@ jobs:
           if [ "$target" == 'x86_64-unknown-linux-musl' ]; then
             sudo apt-get update -y
             sudo apt-get install -y clang musl-tools musl-dev
+            
+            # g++ supports musl
+            sudo ln -s /usr/bin/g++ /usr/bin/musl-g++
           else
             sudo apt-get update -y
             sudo apt-get install -y clang musl-tools musl-dev gcc-aarch64-linux-gnu
+
+            # g++ supports musl
+            sudo ln -s /usr/bin/g++ /usr/bin/musl-g++
           fi
 
           cargo install cross          
