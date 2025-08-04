@@ -116,3 +116,9 @@ default.extend-ignore-words-re = ["(?i)groth", "TRE"]
 
 [workspace.lints.clippy]
 print_stdout = "deny"
+
+# Workaround for cross-compilation to ARM musl targets.
+[workspace.metadata.cross.target.aarch64-unknown-linux-musl]
+pre-build = [
+  "sudo ln -s /usr/bin/g++ /usr/bin/musl-g++"
+]
