@@ -197,10 +197,23 @@ impl<T: AbstractField> Mul for Polynomial<T> {
     type Output = Self;
 
     fn mul(self, other: Self) -> Self {
-        let mut result = vec![T::zero(); self.coefficients.len() + other.coefficients.len() - 1];
+        let len_a = self.coefficients.len();
+        let len_b = other.coefficients.len();
+        let mut result = vec![T::zero(); len_a + len_b - 1];
+        
+        // Optimized multiplication with reduced cloning
         for (i, a) in self.coefficients.into_iter().enumerate() {
-            for (j, b) in other.coefficients.iter().enumerate() {
-                result[i + j] = result[i + j].clone() + a.clone() * b.clone();
+            if !a.is_zero() {  // Skip zero coefficients for better performance
+                for (j, b) in other.coefficients.iter().enumerate() {
+                    if !b.is_zero() {  // Skip zero coefficients
+                        let idx = i + j;
+                        // Use unsafe indexing for better performance in hot path
+                        unsafe {
+                            let current = result.get_unchecked_mut(idx);
+                            *current += a.clone() * b.clone();
+                        }
+                    }
+                }
             }
         }
         Self::new(result)
@@ -211,10 +224,23 @@ impl<T: AbstractField> Mul for &Polynomial<T> {
     type Output = Polynomial<T>;
 
     fn mul(self, other: Self) -> Polynomial<T> {
-        let mut result = vec![T::zero(); self.coefficients.len() + other.coefficients.len() - 1];
+        let len_a = self.coefficients.len();
+        let len_b = other.coefficients.len();
+        let mut result = vec![T::zero(); len_a + len_b - 1];
+        
+        // Optimized multiplication with reduced cloning
         for (i, a) in self.coefficients.iter().enumerate() {
-            for (j, b) in other.coefficients.iter().enumerate() {
-                result[i + j] = result[i + j].clone() + a.clone() * b.clone();
+            if !a.is_zero() {  // Skip zero coefficients for better performance
+                for (j, b) in other.coefficients.iter().enumerate() {
+                    if !b.is_zero() {  // Skip zero coefficients
+                        let idx = i + j;
+                        // Use unsafe indexing for better performance in hot path
+                        unsafe {
+                            let current = result.get_unchecked_mut(idx);
+                            *current += a.clone() * b.clone();
+                        }
+                    }
+                }
             }
         }
         Polynomial::new(result)
