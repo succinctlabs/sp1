@@ -75,7 +75,7 @@ jobs:
             svm_target_platform: linux-amd64
             platform: linux
             arch: amd64
-          - runner: ubuntu-24.04-arm
+          - runner: ubuntu-24.04
             target: aarch64-unknown-linux-musl
             svm_target_platform: linux-aarch64
             platform: linux
