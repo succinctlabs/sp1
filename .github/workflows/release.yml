@@ -137,6 +137,12 @@ jobs:
             sudo apt-get install -y clang musl-tools musl-dev gcc-aarch64-linux-gnu
             # g++ supports musl
             sudo ln -s /usr/bin/g++ /usr/bin/musl-g++
+            
+            echo "CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=x86_64-linux-musl-gcc"  >>"$GITHUB_ENV"
+            echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-musl-gcc" >>"$GITHUB_ENV"
+            echo "CC_aarch64_unknown_linux_musl=aarch64-linux-musl-gcc"                 >>"$GITHUB_ENV"
+            echo "AR_aarch64_unknown_linux_musl=aarch64-linux-musl-ar"                  >>"$GITHUB_ENV"
+            echo "CXX_aarch64_unknown_linux_musl=aarch64-linux-musl-g++"                >>"$GITHUB_ENV"
           fi
 
           cargo install cross          
