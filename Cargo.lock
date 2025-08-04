@@ -7420,6 +7420,7 @@ dependencies = [
  "prost",
  "reqwest",
  "reqwest-middleware",
+ "rustls 0.23.27",
  "serde",
  "serde_json",
  "sp1-build",
