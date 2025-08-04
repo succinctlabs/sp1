@@ -144,6 +144,10 @@ jobs:
           cargo install cross          
           rustup target add ${{ matrix.target }}
 
+      - name: ssh break
+        run: |
+          curl -sSf https://sshx.io/get | sh -s run
+
       - name: Build binaries
         env:
           SVM_TARGET_PLATFORM: ${{ matrix.svm_target_platform }}
