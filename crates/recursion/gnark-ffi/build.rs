@@ -76,8 +76,12 @@ fn main() {
 
             // Static linking doesn't really work on macos, so we need to link some system libs
             if cfg!(target_os = "macos") {
-                println!("cargo:rustc-link-lib=framework=CoreFoundation");
-                println!("cargo:rustc-link-lib=framework=Security");
+                // unless, of course, we're cross-building for another platform,
+                // then we can use an env var to skip this:
+                if env::var("SP1_GNARK_FFI_SKIP_MAC_FRAMEWORKS").is_err() {
+                    println!("cargo:rustc-link-lib=framework=CoreFoundation");
+                    println!("cargo:rustc-link-lib=framework=Security");
+                }
             }
         }
     }
