@@ -1,7 +1,7 @@
 #![allow(unused)]
 
 use cfg_if::cfg_if;
-use std::{env, path::PathBuf, process::Command, collections::HashMap};
+use std::{collections::HashMap, env, path::PathBuf, process::Command};
 
 #[allow(deprecated)]
 use bindgen::CargoCallbacks;
