@@ -607,11 +607,11 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "5.2.0"
+version = "5.2.1"
 dependencies = [
  "bincode",
  "serde",
- "sp1-primitives 5.2.0",
+ "sp1-primitives 5.2.1",
 ]
 
 [[package]]
@@ -636,7 +636,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "5.2.0"
+version = "5.2.1"
 dependencies = [
  "bincode",
  "blake3",
@@ -654,7 +654,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-verifier"
-version = "5.2.0"
+version = "5.2.1"
 dependencies = [
  "blake3",
  "cfg-if",
@@ -667,7 +667,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "5.2.0"
+version = "5.2.1"
 dependencies = [
  "blake3",
  "cfg-if",
@@ -677,8 +677,8 @@ dependencies = [
  "libm",
  "rand",
  "sha2",
- "sp1-lib 5.2.0",
- "sp1-primitives 5.2.0",
+ "sp1-lib 5.2.1",
+ "sp1-primitives 5.2.1",
 ]
 
 [[package]]

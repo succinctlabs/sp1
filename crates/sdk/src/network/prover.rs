@@ -45,7 +45,7 @@ pub struct NetworkProver {
 }
 
 #[cfg(feature = "reserved-capacity")]
-const DEFAULT_FULFILLMENT_STRATEGY: FulfillmentStrategy = FulfillmentStrategy::Reserved;
+const DEFAULT_FULFILLMENT_STRATEGY: FulfillmentStrategy = FulfillmentStrategy::Hosted;
 
 #[cfg(not(feature = "reserved-capacity"))]
 const DEFAULT_FULFILLMENT_STRATEGY: FulfillmentStrategy = FulfillmentStrategy::Auction;
