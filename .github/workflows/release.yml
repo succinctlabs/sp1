@@ -75,7 +75,7 @@ jobs:
             svm_target_platform: linux-amd64
             platform: linux
             arch: amd64
-          - runner: ubuntu-24.04-arm
+          - runner: ubuntu-24.04
             target: aarch64-unknown-linux-musl
             svm_target_platform: linux-aarch64
             platform: linux
@@ -127,20 +127,6 @@ jobs:
       - name: Musl setup
         if: matrix.target == 'x86_64-unknown-linux-musl' || matrix.target == 'aarch64-unknown-linux-musl'
         run: |
-          if [ "$target" == 'x86_64-unknown-linux-musl' ]; then
-            sudo apt-get update -y
-            sudo apt-get install -y clang musl-tools musl-dev
-            
-            # g++ supports musl
-            sudo ln -s /usr/bin/g++ /usr/bin/musl-g++
-          else
-            sudo apt-get update -y
-            sudo apt-get install -y clang musl-tools musl-dev gcc-aarch64-linux-gnu
-
-            # g++ supports musl
-            sudo ln -s /usr/bin/g++ /usr/bin/musl-g++
-          fi
-
           cargo install cross          
           rustup target add ${{ matrix.target }}
 
@@ -155,9 +141,11 @@ jobs:
 
           [[ "$target" == *windows* ]] && exe=".exe"
 
-          if [ "$target" == *-musl ]; then
+          if [[ "$target" == *-musl ]]; then
+            echo "Building for $target with cross"
             cross build --release -p sp1-cli --target "$target" "${flags[@]}"
           else
+            echo "Building for $target with native toolchain"
             cargo build --release -p sp1-cli --target "$target" "${flags[@]}"
           fi
 
