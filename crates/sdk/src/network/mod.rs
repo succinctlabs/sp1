@@ -14,6 +14,7 @@ mod error;
 mod grpc;
 pub mod prove;
 mod retry;
+pub mod signer;
 pub mod tee;
 
 pub mod utils;
@@ -25,11 +26,11 @@ pub use alloy_primitives::{Address, B256};
 pub use error::*;
 
 cfg_if::cfg_if! {
-    if #[cfg(feature = "sepolia")] {
-        pub(crate) const PUBLIC_EXPLORER_URL: &str = "https://explorer.sepolia.succinct.xyz";
-        pub(crate) const DEFAULT_NETWORK_RPC_URL: &str = "https://rpc.sepolia.succinct.xyz";
+    if #[cfg(not(feature = "reserved-capacity"))] {
+        pub(crate) const PUBLIC_EXPLORER_URL: &str = "https://explorer.mainnet.succinct.xyz";
+        pub(crate) const DEFAULT_NETWORK_RPC_URL: &str = "https://rpc.mainnet.succinct.xyz";
     } else {
-        pub(crate) const PUBLIC_EXPLORER_URL: &str = "https://explorer.succinct.xyz";
+        pub(crate) const PUBLIC_EXPLORER_URL: &str = "https://explorer.reserved.succinct.xyz";
         pub(crate) const DEFAULT_NETWORK_RPC_URL: &str = "https://rpc.production.succinct.xyz";
     }
 }

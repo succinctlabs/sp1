@@ -4,36 +4,53 @@
 
 #![allow(deprecated)]
 
-use std::cmp::max;
-
+use anyhow::Result;
 use prost::Message;
+use std::cmp::{max, min};
 
-use k256::ecdsa::{RecoveryId, Signature, SigningKey};
+use super::signer::NetworkSigner;
 
+/// Trait for signing network protobuf messages.
 pub(crate) trait Signable: Message {
-    fn sign(&self, signer: &SigningKey) -> Vec<u8>;
+    async fn sign(&self, signer: &NetworkSigner) -> Result<Vec<u8>>;
 }
 
 impl<T: Message> Signable for T {
-    fn sign(&self, signer: &SigningKey) -> Vec<u8> {
-        let (sig, v) = sign_raw(self.encode_to_vec().as_slice(), signer);
-        let mut signature_bytes = sig.to_vec();
-        signature_bytes.push(v.to_byte());
-
-        signature_bytes
+    async fn sign(&self, signer: &NetworkSigner) -> Result<Vec<u8>> {
+        let signature = signer.sign_message(self.encode_to_vec().as_slice()).await?;
+        Ok(signature.as_bytes().to_vec())
     }
 }
 
-pub(crate) fn sign_raw(message: &[u8], signer: &SigningKey) -> (Signature, RecoveryId) {
-    let message = alloy_primitives::utils::eip191_hash_message(message);
-    signer.sign_prehash_recoverable(message.as_slice()).unwrap()
+/// Sign a message and return the raw signature object.
+pub(crate) async fn sign_raw(
+    message: &[u8],
+    signer: &NetworkSigner,
+) -> Result<alloy_primitives::Signature> {
+    Ok(signer.sign_message(message).await?)
+}
+
+/// Sign a message and return signature bytes with Ethereum-style recovery ID.
+pub(crate) async fn sign_message(message: &[u8], signer: &NetworkSigner) -> Result<Vec<u8>> {
+    let signature = signer.sign_message(message).await?;
+    let bytes = signature.as_bytes();
+
+    // Extract r,s (first 64 bytes) and v (last byte)
+    let mut signature_bytes = bytes[..64].to_vec();
+    let v = bytes[64];
+
+    // Ethereum uses 27 + v for the recovery id
+    signature_bytes.push(v + 27);
+
+    Ok(signature_bytes)
 }
 
 /// Calculate the timeout for a proof request based on gas limit.
 ///
-/// Uses a base timeout of 5 minutes plus 1 second per 2000000 prover gas.
+/// Uses a base timeout of 5 minutes plus 1 second per 2000000 prover gas. The timeout is capped at
+/// 4 hours.
 pub(crate) fn calculate_timeout_from_gas_limit(gas_limit: u64) -> u64 {
     let base_timeout = 300; // 5 minutes
     let gas_based_timeout = gas_limit / 2_000_000;
-    max(base_timeout, gas_based_timeout)
+    min(max(base_timeout, gas_based_timeout), 14400)
 }
