@@ -132,7 +132,11 @@ pub enum MoongateServer {
 
 impl Default for MoongateServer {
     fn default() -> Self {
-        Self::Local { visible_device_index: None, port: None }
+        let port = std::env::var("SP1_MOONGATE_SERVER_PORT")
+            .ok()
+            .and_then(|port_str| port_str.parse().ok());
+
+        Self::Local { visible_device_index: None, port }
     }
 }
 
