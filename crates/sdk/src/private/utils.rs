@@ -32,13 +32,16 @@ pub fn into_chunk_stream<T: Serialize>(
 pub async fn consume_chunk_stream(mut stream: Streaming<Chunk>) -> Result<(Vec<u8>, u32)> {
     let mut encoded_message = vec![];
     let mut version = 0;
+    let mut i = 0;
 
     while let Some(mut chunk) = stream.message().await? {
+        tracing::debug!("CHUNK {i}");
         encoded_message.append(&mut chunk.data);
         if chunk.is_last {
             version = chunk.version;
             break;
         }
+        i += 1;
     }
 
     Ok((encoded_message, version))
