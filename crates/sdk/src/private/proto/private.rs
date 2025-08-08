@@ -93,9 +93,7 @@ pub mod private_prover_client {
         /// Creates a proof request.
         pub async fn request_proof(
             &mut self,
-            request: impl tonic::IntoStreamingRequest<
-                Message = super::super::types::Chunk,
-            >,
+            request: impl tonic::IntoRequest<super::super::types::RequestProofRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::RequestProofResponse>,
             tonic::Status,
@@ -112,10 +110,10 @@ pub mod private_prover_client {
             let path = http::uri::PathAndQuery::from_static(
                 "/private.PrivateProver/RequestProof",
             );
-            let mut req = request.into_streaming_request();
+            let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("private.PrivateProver", "RequestProof"));
-            self.inner.client_streaming(req, path, codec).await
+            self.inner.unary(req, path, codec).await
         }
         /// Get the status of a proof request.
         pub async fn get_proof_request_status(
@@ -124,7 +122,7 @@ pub mod private_prover_client {
                 super::super::types::GetProofRequestStatusRequest,
             >,
         ) -> std::result::Result<
-            tonic::Response<tonic::codec::Streaming<super::super::types::Chunk>>,
+            tonic::Response<super::super::types::GetProofRequestStatusResponse>,
             tonic::Status,
         > {
             self.inner
@@ -144,7 +142,7 @@ pub mod private_prover_client {
                 .insert(
                     GrpcMethod::new("private.PrivateProver", "GetProofRequestStatus"),
                 );
-            self.inner.server_streaming(req, path, codec).await
+            self.inner.unary(req, path, codec).await
         }
         /// Get metadata about a program.
         pub async fn program_exists(
@@ -174,9 +172,7 @@ pub mod private_prover_client {
         /// Create a new program. Must be called before requesting proofs.
         pub async fn create_program(
             &mut self,
-            request: impl tonic::IntoStreamingRequest<
-                Message = super::super::types::Chunk,
-            >,
+            request: impl tonic::IntoRequest<super::super::types::CreateProgramRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::CreateProgramResponse>,
             tonic::Status,
@@ -193,10 +189,10 @@ pub mod private_prover_client {
             let path = http::uri::PathAndQuery::from_static(
                 "/private.PrivateProver/CreateProgram",
             );
-            let mut req = request.into_streaming_request();
+            let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("private.PrivateProver", "CreateProgram"));
-            self.inner.client_streaming(req, path, codec).await
+            self.inner.unary(req, path, codec).await
         }
     }
 }
@@ -216,23 +212,17 @@ pub mod private_prover_server {
         /// Creates a proof request.
         async fn request_proof(
             &self,
-            request: tonic::Request<tonic::Streaming<super::super::types::Chunk>>,
+            request: tonic::Request<super::super::types::RequestProofRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::RequestProofResponse>,
             tonic::Status,
         >;
-        /// Server streaming response type for the GetProofRequestStatus method.
-        type GetProofRequestStatusStream: tonic::codegen::tokio_stream::Stream<
-                Item = std::result::Result<super::super::types::Chunk, tonic::Status>,
-            >
-            + std::marker::Send
-            + 'static;
         /// Get the status of a proof request.
         async fn get_proof_request_status(
             &self,
             request: tonic::Request<super::super::types::GetProofRequestStatusRequest>,
         ) -> std::result::Result<
-            tonic::Response<Self::GetProofRequestStatusStream>,
+            tonic::Response<super::super::types::GetProofRequestStatusResponse>,
             tonic::Status,
         >;
         /// Get metadata about a program.
@@ -246,7 +236,7 @@ pub mod private_prover_server {
         /// Create a new program. Must be called before requesting proofs.
         async fn create_program(
             &self,
-            request: tonic::Request<tonic::Streaming<super::super::types::Chunk>>,
+            request: tonic::Request<super::super::types::CreateProgramRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::CreateProgramResponse>,
             tonic::Status,
@@ -333,8 +323,9 @@ pub mod private_prover_server {
                     struct RequestProofSvc<T: PrivateProver>(pub Arc<T>);
                     impl<
                         T: PrivateProver,
-                    > tonic::server::ClientStreamingService<super::super::types::Chunk>
-                    for RequestProofSvc<T> {
+                    > tonic::server::UnaryService<
+                        super::super::types::RequestProofRequest,
+                    > for RequestProofSvc<T> {
                         type Response = super::super::types::RequestProofResponse;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
@@ -343,7 +334,7 @@ pub mod private_prover_server {
                         fn call(
                             &mut self,
                             request: tonic::Request<
-                                tonic::Streaming<super::super::types::Chunk>,
+                                super::super::types::RequestProofRequest,
                             >,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
@@ -370,7 +361,7 @@ pub mod private_prover_server {
                                 max_decoding_message_size,
                                 max_encoding_message_size,
                             );
-                        let res = grpc.client_streaming(method, req).await;
+                        let res = grpc.unary(method, req).await;
                         Ok(res)
                     };
                     Box::pin(fut)
@@ -380,13 +371,12 @@ pub mod private_prover_server {
                     struct GetProofRequestStatusSvc<T: PrivateProver>(pub Arc<T>);
                     impl<
                         T: PrivateProver,
-                    > tonic::server::ServerStreamingService<
+                    > tonic::server::UnaryService<
                         super::super::types::GetProofRequestStatusRequest,
                     > for GetProofRequestStatusSvc<T> {
-                        type Response = super::super::types::Chunk;
-                        type ResponseStream = T::GetProofRequestStatusStream;
+                        type Response = super::super::types::GetProofRequestStatusResponse;
                         type Future = BoxFuture<
-                            tonic::Response<Self::ResponseStream>,
+                            tonic::Response<Self::Response>,
                             tonic::Status,
                         >;
                         fn call(
@@ -423,7 +413,7 @@ pub mod private_prover_server {
                                 max_decoding_message_size,
                                 max_encoding_message_size,
                             );
-                        let res = grpc.server_streaming(method, req).await;
+                        let res = grpc.unary(method, req).await;
                         Ok(res)
                     };
                     Box::pin(fut)
@@ -481,8 +471,9 @@ pub mod private_prover_server {
                     struct CreateProgramSvc<T: PrivateProver>(pub Arc<T>);
                     impl<
                         T: PrivateProver,
-                    > tonic::server::ClientStreamingService<super::super::types::Chunk>
-                    for CreateProgramSvc<T> {
+                    > tonic::server::UnaryService<
+                        super::super::types::CreateProgramRequest,
+                    > for CreateProgramSvc<T> {
                         type Response = super::super::types::CreateProgramResponse;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
@@ -491,7 +482,7 @@ pub mod private_prover_server {
                         fn call(
                             &mut self,
                             request: tonic::Request<
-                                tonic::Streaming<super::super::types::Chunk>,
+                                super::super::types::CreateProgramRequest,
                             >,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
@@ -518,7 +509,7 @@ pub mod private_prover_server {
                                 max_decoding_message_size,
                                 max_encoding_message_size,
                             );
-                        let res = grpc.client_streaming(method, req).await;
+                        let res = grpc.unary(method, req).await;
                         Ok(res)
                     };
                     Box::pin(fut)

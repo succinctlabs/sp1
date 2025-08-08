@@ -18,7 +18,7 @@ use crate::{
         proto::types::FulfillmentStatus, utils::calculate_timeout_from_gas_limit, Error,
         PRIVATE_EXPLORER_URL, PUBLIC_EXPLORER_URL,
     },
-    private::{client::PrivateClient, prove::PrivateProveBuilder},
+    private::{client::PrivateClient, proto::ExecutionStatus, prove::PrivateProveBuilder},
     utils::block_on,
     CpuProver, ProofFromNetwork, Prover, SP1ProofMode, SP1ProofWithPublicValues,
 };
@@ -142,7 +142,12 @@ impl PrivateProver {
         remaining_timeout: Option<Duration>,
     ) -> Result<(Option<SP1ProofWithPublicValues>, FulfillmentStatus)> {
         // Get the status.
-        let response = self.client.get_proof_request_status(request_id, remaining_timeout).await?;
+        let (status, maybe_proof) = self
+            .client
+            .get_proof_request_status::<ProofFromNetwork>(request_id, remaining_timeout)
+            .await?;
+
+        let maybe_proof = maybe_proof.map(Into::into);
 
         // Check if current time exceeds deadline. If so, the proof has timed out.
         let current_time =
@@ -151,15 +156,19 @@ impl PrivateProver {
         //    return Err(Error::RequestTimedOut { request_id: request_id.to_vec() }.into());
         //}
 
+        // Get the execution and fulfillment statuses.
+        let execution_status = ExecutionStatus::try_from(status.execution_status).unwrap();
+        let fulfillment_status = FulfillmentStatus::try_from(status.fulfillment_status).unwrap();
+
         // Check the fulfillment status.
-        if response.fulfillment_status == FulfillmentStatus::Fulfilled {
-            return Ok((response.proof.and_then(Arc::into_inner), response.fulfillment_status));
+        if fulfillment_status == FulfillmentStatus::Fulfilled {
+            return Ok((maybe_proof, fulfillment_status));
         }
-        if response.fulfillment_status == FulfillmentStatus::Unfulfillable {
+        if fulfillment_status == FulfillmentStatus::Unfulfillable {
             return Err(Error::RequestUnfulfillable { request_id: request_id.to_vec() }.into());
         }
 
-        Ok((None, response.fulfillment_status))
+        Ok((None, fulfillment_status))
     }
 
     pub(crate) async fn request_proof(

@@ -1,13 +1,13 @@
 use std::{
-    borrow::Cow,
     time::{Duration, SystemTime, UNIX_EPOCH},
     usize,
 };
 
 use alloy_primitives::B256;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use k256::ecdsa::SigningKey;
 use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
+use serde::de::DeserializeOwned;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{HashableKey, SP1ProvingKey, SP1VerifyingKey};
 use tonic::{async_trait, transport::Channel, Code};
@@ -16,19 +16,16 @@ use tracing::instrument;
 use crate::{
     network::{
         grpc,
+        proto::artifact::ArtifactType,
         retry::{self, RetryableRpc, DEFAULT_RETRY_TIMEOUT},
-        utils::sign_raw,
+        utils::{sign_raw, Signable},
+        NetworkClient,
     },
-    private::{
-        proto::{
-            private_prover_client::PrivateProverClient, CreateProgramResponse,
-            GetProofRequestStatusRequest, ProgramExistsRequest, RequestProofResponse,
-        },
-        types::{
-            CreateProgramRequestBody, GetProofRequestStatusResponse, RequestProofRequestBody,
-            SignedMessage,
-        },
-        utils::{consume_chunk_stream, into_chunk_stream},
+    private::proto::{
+        private_prover_client::PrivateProverClient, CreateProgramRequest, CreateProgramRequestBody,
+        CreateProgramResponse, FulfillmentStatus, GetProofRequestStatusRequest,
+        GetProofRequestStatusResponse, ProgramExistsRequest, ProofMode, RequestProofRequest,
+        RequestProofRequestBody, RequestProofResponse,
     },
     SP1ProofMode,
 };
@@ -37,6 +34,7 @@ use crate::{
 pub struct PrivateClient {
     pub(crate) signer: SigningKey,
     pub(crate) http: HttpClientWithMiddleware,
+    pub(crate) network_client: NetworkClient,
     pub(crate) rpc_url: String,
 }
 
@@ -80,7 +78,9 @@ impl PrivateClient {
             .pool_idle_timeout(Duration::from_secs(240))
             .build()
             .unwrap();
-        Self { signer, http: client.into(), rpc_url: rpc_url.to_string() }
+        let network_client = NetworkClient::new(pk, rpc_url.to_string());
+
+        Self { signer, http: client.into(), network_client, rpc_url: rpc_url.to_string() }
     }
 
     /// Get the verifying key hash from a verifying key.
@@ -136,25 +136,33 @@ impl PrivateClient {
         pk: &SP1ProvingKey,
     ) -> Result<CreateProgramResponse> {
         // Create the program artifact.
+        let mut store = self.network_client.artifact_store_client().await?;
+        let program_uri = self
+            .network_client
+            .create_artifact_with_content(&mut store, ArtifactType::Program, pk)
+            .await?;
 
         // Send the request.
         self.with_retry(
             || async {
                 tracing::debug!("Start create program");
                 let mut rpc = self.private_prover_client().await?;
-                let request_body = CreateProgramRequestBody { vk_hash, pk: Cow::Borrowed(pk) };
 
-                // Serialize the body.
-                let body_encoded = bincode::serialize(&request_body)?;
-                let request = SignedMessage {
-                    signature: sign(&body_encoded, &self.signer),
-                    message: body_encoded,
+                let nonce = 1; // TODO: Update
+
+                let request_body = CreateProgramRequestBody {
+                    nonce,
+                    vk_hash: vk_hash.to_vec(),
+                    program_uri: program_uri.clone(),
                 };
-                tracing::debug!("Build stream");
-                let stream = into_chunk_stream(&request)?;
+
+                let request = CreateProgramRequest {
+                    signature: request_body.sign(&self.signer),
+                    body: Some(request_body),
+                };
 
                 tracing::debug!("Send request");
-                Ok(rpc.create_program(stream).await?.into_inner())
+                Ok(rpc.create_program(request).await?.into_inner())
             },
             "creating program",
         )
@@ -165,13 +173,13 @@ impl PrivateClient {
     ///
     /// # Details
     /// If the status is Fulfilled, the proof is also returned.
-    pub async fn get_proof_request_status(
+    pub async fn get_proof_request_status<P: DeserializeOwned>(
         &self,
         request_id: B256,
         timeout: Option<Duration>,
-    ) -> Result<GetProofRequestStatusResponse> {
+    ) -> Result<(GetProofRequestStatusResponse, Option<P>)> {
         // Get the status.
-        let stream = self
+        let res = self
             .with_retry_timeout(
                 || async {
                     let mut rpc = self.private_prover_client().await?;
@@ -186,14 +194,20 @@ impl PrivateClient {
                 "getting proof request status",
             )
             .await?;
-        tracing::debug!("Consume status stream");
-        let (encoded_response, _) = consume_chunk_stream(stream).await?;
 
-        tracing::debug!("Deserialize proof request status response");
-        let res = bincode::deserialize::<GetProofRequestStatusResponse>(&encoded_response)?;
-
-        tracing::debug!("End get proof request status");
-        Ok(res)
+        let status = FulfillmentStatus::try_from(res.fulfillment_status)?;
+        let proof = match status {
+            FulfillmentStatus::Fulfilled => {
+                let proof_uri = res
+                    .proof_presigned_url
+                    .as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("No proof URI provided"))?;
+                let proof_bytes = self.network_client.download_artifact(proof_uri).await?;
+                Some(bincode::deserialize(&proof_bytes).context("Failed to deserialize proof")?)
+            }
+            _ => None,
+        };
+        Ok((res, proof))
     }
 
     /// Creates a proof request with the given verifying key hash and stdin.
@@ -212,28 +226,36 @@ impl PrivateClient {
         let since_the_epoch = start.duration_since(UNIX_EPOCH).expect("Invalid start time");
         let deadline = since_the_epoch.as_secs() + timeout_secs;
 
+        // Create the stdin artifact.
+        let mut store = self.network_client.artifact_store_client().await?;
+        let stdin_uri = self
+            .network_client
+            .create_artifact_with_content(&mut store, ArtifactType::Stdin, stdin)
+            .await?;
+
         // Send the request.
         self.with_retry(
             || async {
                 let mut rpc = self.private_prover_client().await?;
                 let request_body = RequestProofRequestBody {
-                    vk_hash,
-                    mode: mode.into(),
-                    stdin: Cow::Borrowed(stdin),
+                    nonce: 1, // TODO: handle
+                    vk_hash: vk_hash.to_vec(),
+                    mode: ProofMode::from(mode) as i32,
+                    version: "1".to_string(), // TODO: handle
+                    stdin_uri: stdin_uri.clone(),
                     cycle_limit,
                     gas_limit,
                     deadline,
                 };
 
                 // Serialize the body.
-                let body_encoded = bincode::serialize(&request_body)?;
-                let request = SignedMessage {
-                    signature: sign(&body_encoded, &self.signer),
-                    message: body_encoded,
+                let request = RequestProofRequest {
+                    signature: request_body.sign(&self.signer),
+                    body: Some(request_body),
                 };
-                let stream = into_chunk_stream(&request)?;
+
                 tracing::debug!("Sending request_proof");
-                let request_response = rpc.request_proof(stream).await?.into_inner();
+                let request_response = rpc.request_proof(request).await?.into_inner();
 
                 Ok(request_response)
             },
@@ -245,8 +267,15 @@ impl PrivateClient {
     pub(crate) async fn private_prover_client(&self) -> Result<PrivateProverClient<Channel>> {
         self.with_retry(
             || async {
-                let channel = grpc::configure_endpoint(&self.rpc_url)?.connect().await?;
-                Ok(PrivateProverClient::new(channel).max_decoding_message_size(usize::MAX))
+                match grpc::configure_endpoint(&self.rpc_url)?.connect().await {
+                    Ok(channel) => {
+                        Ok(PrivateProverClient::new(channel).max_decoding_message_size(usize::MAX))
+                    }
+                    Err(err) => {
+                        tracing::error!("{err:#?}");
+                        Err(err.into())
+                    }
+                }
             },
             "creating private client",
         )
@@ -254,10 +283,13 @@ impl PrivateClient {
     }
 }
 
-fn sign(message: &[u8], signer: &SigningKey) -> Vec<u8> {
-    let (sig, v) = sign_raw(message, signer);
-    let mut signature_bytes = sig.to_vec();
-    signature_bytes.push(v.to_byte());
-
-    signature_bytes
+impl From<SP1ProofMode> for ProofMode {
+    fn from(value: SP1ProofMode) -> Self {
+        match value {
+            SP1ProofMode::Core => ProofMode::Core,
+            SP1ProofMode::Compressed => ProofMode::Compressed,
+            SP1ProofMode::Plonk => ProofMode::Plonk,
+            SP1ProofMode::Groth16 => ProofMode::Groth16,
+        }
+    }
 }
