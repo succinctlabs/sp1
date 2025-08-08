@@ -7,5 +7,3 @@ pub mod client;
 pub mod proto;
 pub mod prove;
 pub mod prover;
-pub mod types;
-pub mod utils;

@@ -152,14 +152,16 @@ impl PrivateProver {
         //}
 
         // Check the fulfillment status.
-        if response.fulfillment_status == FulfillmentStatus::Fulfilled {
-            return Ok((response.proof.and_then(Arc::into_inner), response.fulfillment_status));
-        }
-        if response.fulfillment_status == FulfillmentStatus::Unfulfillable {
-            return Err(Error::RequestUnfulfillable { request_id: request_id.to_vec() }.into());
-        }
+        //if response.fulfillment_status == FulfillmentStatus::Fulfilled {
+        //    return Ok((response.proof.and_then(Arc::into_inner), response.fulfillment_status));
+        //}
+        //if response.fulfillment_status == FulfillmentStatus::Unfulfillable {
+        //    return Err(Error::RequestUnfulfillable { request_id: request_id.to_vec() }.into());
+        //}
 
-        Ok((None, response.fulfillment_status))
+        //Ok((None, response.fulfillment_status))
+
+        todo!()
     }
 
     pub(crate) async fn request_proof(
