@@ -324,6 +324,6 @@ impl Prover<CpuProverComponents> for PrivateProver {
         bundle: &SP1ProofWithPublicValues,
         vkey: &SP1VerifyingKey,
     ) -> Result<(), crate::SP1VerificationError> {
-        todo!()
+        self.prover.verify(bundle, vkey)
     }
 }
