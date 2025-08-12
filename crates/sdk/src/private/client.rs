@@ -1,13 +1,13 @@
 use std::{
-    borrow::Cow,
     time::{Duration, SystemTime, UNIX_EPOCH},
     usize,
 };
 
 use alloy_primitives::B256;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use k256::ecdsa::SigningKey;
 use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
+use serde::de::DeserializeOwned;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{HashableKey, SP1ProvingKey, SP1VerifyingKey};
 use tonic::{async_trait, transport::Channel, Code};
@@ -23,8 +23,9 @@ use crate::{
     },
     private::proto::{
         private_prover_client::PrivateProverClient, CreateProgramRequest, CreateProgramRequestBody,
-        CreateProgramResponse, GetProofRequestStatusRequest, GetProofRequestStatusResponse,
-        ProgramExistsRequest, RequestProofRequest, RequestProofRequestBody, RequestProofResponse,
+        CreateProgramResponse, FulfillmentStatus, GetProofRequestStatusRequest,
+        GetProofRequestStatusResponse, ProgramExistsRequest, ProofMode, RequestProofRequest,
+        RequestProofRequestBody, RequestProofResponse,
     },
     SP1ProofMode,
 };
@@ -135,7 +136,6 @@ impl PrivateClient {
         pk: &SP1ProvingKey,
     ) -> Result<CreateProgramResponse> {
         // Create the program artifact.
-        // Create the program artifact.
         let mut store = self.network_client.artifact_store_client().await?;
         let program_uri = self
             .network_client
@@ -173,13 +173,13 @@ impl PrivateClient {
     ///
     /// # Details
     /// If the status is Fulfilled, the proof is also returned.
-    pub async fn get_proof_request_status(
+    pub async fn get_proof_request_status<P: DeserializeOwned>(
         &self,
         request_id: B256,
         timeout: Option<Duration>,
-    ) -> Result<GetProofRequestStatusResponse> {
+    ) -> Result<(GetProofRequestStatusResponse, Option<P>)> {
         // Get the status.
-        let response = self
+        let res = self
             .with_retry_timeout(
                 || async {
                     let mut rpc = self.private_prover_client().await?;
@@ -195,8 +195,19 @@ impl PrivateClient {
             )
             .await?;
 
-        tracing::debug!("End get proof request status");
-        Ok(response)
+        let status = FulfillmentStatus::try_from(res.fulfillment_status)?;
+        let proof = match status {
+            FulfillmentStatus::Fulfilled => {
+                let proof_uri = res
+                    .proof_presigned_url
+                    .as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("No proof URI provided"))?;
+                let proof_bytes = self.network_client.download_artifact(proof_uri).await?;
+                Some(bincode::deserialize(&proof_bytes).context("Failed to deserialize proof")?)
+            }
+            _ => None,
+        };
+        Ok((res, proof))
     }
 
     /// Creates a proof request with the given verifying key hash and stdin.
@@ -215,16 +226,23 @@ impl PrivateClient {
         let since_the_epoch = start.duration_since(UNIX_EPOCH).expect("Invalid start time");
         let deadline = since_the_epoch.as_secs() + timeout_secs;
 
+        // Create the stdin artifact.
+        let mut store = self.network_client.artifact_store_client().await?;
+        let stdin_uri = self
+            .network_client
+            .create_artifact_with_content(&mut store, ArtifactType::Stdin, stdin)
+            .await?;
+
         // Send the request.
         self.with_retry(
             || async {
                 let mut rpc = self.private_prover_client().await?;
                 let request_body = RequestProofRequestBody {
-                    nonce: todo!(),
+                    nonce: 1, // TODO: handle
                     vk_hash: vk_hash.to_vec(),
-                    mode: todo!(), // mode.into(),
-                    version: todo!(),
-                    stdin_uri: todo!(),
+                    mode: ProofMode::from(mode) as i32,
+                    version: "1".to_string(), // TODO: handle
+                    stdin_uri: stdin_uri.clone(),
                     cycle_limit,
                     gas_limit,
                     deadline,
@@ -232,7 +250,7 @@ impl PrivateClient {
 
                 // Serialize the body.
                 let request = RequestProofRequest {
-                    signature: sign(todo!(), &self.signer),
+                    signature: request_body.sign(&self.signer),
                     body: Some(request_body),
                 };
 
@@ -265,10 +283,13 @@ impl PrivateClient {
     }
 }
 
-fn sign(message: &[u8], signer: &SigningKey) -> Vec<u8> {
-    let (sig, v) = sign_raw(message, signer);
-    let mut signature_bytes = sig.to_vec();
-    signature_bytes.push(v.to_byte());
-
-    signature_bytes
+impl From<SP1ProofMode> for ProofMode {
+    fn from(value: SP1ProofMode) -> Self {
+        match value {
+            SP1ProofMode::Core => ProofMode::Core,
+            SP1ProofMode::Compressed => ProofMode::Compressed,
+            SP1ProofMode::Plonk => ProofMode::Plonk,
+            SP1ProofMode::Groth16 => ProofMode::Groth16,
+        }
+    }
 }

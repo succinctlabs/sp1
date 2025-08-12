@@ -84,15 +84,7 @@ pub struct GetProofRequestStatusResponse {
     /// The optional proof URI, where you can download the result of the request.
     /// Only included if the request has a fulfillment status of FULFILLED.
     #[prost(string, optional, tag = "6")]
-    pub proof_uri: ::core::option::Option<::prost::alloc::string::String>,
-    /// The optional public values hash from the execution of the request. Only
-    /// included if the request has an execution status of EXECUTED.
-    #[prost(bytes = "vec", optional, tag = "7")]
-    pub public_values_hash: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
-    /// The optional public proof URI, where you can download the result of the
-    /// request. Only included if the request has a fulfillment status of FULFILLED.
-    #[prost(string, optional, tag = "8")]
-    pub proof_public_uri: ::core::option::Option<::prost::alloc::string::String>,
+    pub proof_presigned_url: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, PartialEq, ::prost::Message)]
