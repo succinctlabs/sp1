@@ -140,8 +140,6 @@ where
             // The `next_pc` is constrained in both branching and not branching cases, so it is
             // fully constrained.
             builder.when(is_real.clone()).assert_one(local.is_branching + local.not_branching);
-            builder.when(is_real.clone()).assert_bool(local.is_branching);
-            builder.when(is_real.clone()).assert_bool(local.not_branching);
         }
 
         // Evaluate branching value constraints.
