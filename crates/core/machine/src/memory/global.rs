@@ -380,11 +380,8 @@ where
         // initialization event of the zero address. This is done by assuring that when the previous
         // address is zero, then the first row address is also zero, and that the second row is also
         // real, and the less than comparison is being made.
-        builder.when_first_row().when(local.is_prev_addr_zero.result).assert_zero(local.addr);
-        builder.when_first_row().when(local.is_prev_addr_zero.result).assert_one(next.is_real);
-        // Ensure that in the address zero case the comparison is being made so that there is an
-        // address bigger than zero being committed to.
-        builder.when_first_row().when(local.is_prev_addr_zero.result).assert_one(next.is_next_comp);
+        builder.when_first_row().when(local.is_prev_addr_zero.result)
+            .assert_zero(local.addr + (AB::Expr::one() - next.is_real) + (AB::Expr::one() - next.is_next_comp));
 
         // Constraints related to register %x0.
 
