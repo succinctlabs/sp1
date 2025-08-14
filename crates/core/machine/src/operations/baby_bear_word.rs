@@ -70,8 +70,6 @@ impl<F: Field> BabyBearWordRangeChecker<F> {
 
         // Moreover, if the most significant byte =120, then the 3 other bytes must all be zero.s
         let mut assert_zero_builder = is_real_builder.when_not(cols.most_sig_byte_lt_120);
-        assert_zero_builder.assert_zero(value[0]);
-        assert_zero_builder.assert_zero(value[1]);
-        assert_zero_builder.assert_zero(value[2]);
+        assert_zero_builder.assert_zero(value[0] + value[1] + value[2]);
     }
 }
