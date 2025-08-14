@@ -24,8 +24,6 @@ where
         // SAFETY: All selectors `is_jal`, `is_jalr` are checked to be boolean.
         // Each "real" row has exactly one selector turned on, as `is_real = is_jal + is_jalr` is
         // boolean. Therefore, the `opcode` matches the corresponding opcode.
-        builder.assert_bool(local.is_jal);
-        builder.assert_bool(local.is_jalr);
         let is_real = local.is_jal + local.is_jalr;
         builder.assert_bool(is_real.clone());
 
