@@ -209,12 +209,9 @@ impl CpuChip {
     ) {
         // Check the is_real flag.  It should be 1 for the first row.  Once its 0, it should never
         // change value.
-        builder.assert_bool(local.is_real);
-        builder.when_first_row().assert_one(local.is_real);
-        builder.when_transition().when_not(local.is_real).assert_zero(next.is_real);
-
-        // If we're halting and it's a transition, then the next.is_real should be 0.
-        builder.when_transition().when(local.is_halt).assert_zero(next.is_real);
+        builder.when_transition()
+            .when(local.is_halt + (AB::Expr::one() - local.is_real))
+            .assert_zero(next.is_real);
     }
 }
 
