@@ -34,6 +34,7 @@ pub struct NetworkProveBuilder<'a> {
     pub(crate) gas_limit: Option<u64>,
     pub(crate) tee_2fa: bool,
     pub(crate) min_auction_period: u64,
+    pub(crate) max_auction_period: Option<u64>,
     pub(crate) whitelist: Option<Vec<Address>>,
     pub(crate) auctioneer: Option<Address>,
     pub(crate) executor: Option<Address>,
@@ -344,6 +345,32 @@ impl NetworkProveBuilder<'_> {
     #[must_use]
     pub fn min_auction_period(mut self, min_auction_period: u64) -> Self {
         self.min_auction_period = min_auction_period;
+        self
+    }
+
+    /// Set the maximum auction period for the proof request in seconds.
+    ///
+    /// # Details
+    /// This method sets the maximum auction period for the proof request. If the auction
+    /// is not settled within this period, the request will be cancelled. Only relevant if the
+    /// strategy is set to [`FulfillmentStrategy::Auction`]. If not set, the proof will wait
+    /// until the full request deadline.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{Prover, ProverClient, SP1Stdin};
+    /// use std::time::Duration;
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().network().build();
+    /// let (pk, vk) = client.setup(elf);
+    /// let builder = client.prove(&pk, &stdin).max_auction_period(300).run();
+    /// ```
+    #[must_use]
+    pub fn max_auction_period(mut self, max_auction_period: u64) -> Self {
+        self.max_auction_period = Some(max_auction_period);
         self
     }
 
@@ -660,6 +687,7 @@ impl NetworkProveBuilder<'_> {
                 self.gas_limit,
                 self.tee_2fa,
                 self.min_auction_period,
+                self.max_auction_period,
                 self.whitelist,
                 self.auctioneer,
                 self.executor,

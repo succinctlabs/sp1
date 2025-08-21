@@ -38,6 +38,11 @@ use crate::network::proto::{
 
 #[cfg(not(feature = "reserved-capacity"))]
 use crate::network::proto::types::{
+    CancelRequestRequest, CancelRequestRequestBody,
+};
+
+#[cfg(not(feature = "reserved-capacity"))]
+use crate::network::proto::types::{
     GetProofRequestParamsRequest, GetProofRequestParamsResponse, GetProversByUptimeRequest,
     TransactionVariant,
 };
@@ -553,6 +558,39 @@ impl NetworkClient {
                 Ok(response.bytes().await.context("Failed to read response body")?.to_vec())
             },
             "downloading artifact",
+        )
+        .await
+    }
+
+    /// Cancels a proof request by setting its deadline to now.
+    ///
+    /// # Details
+    /// This method can only be called by the requester when the request is in REQUESTED state.
+    /// Only available when using auction mode (not reserved-capacity).
+    #[cfg(not(feature = "reserved-capacity"))]
+    pub async fn cancel_request(&self, request_id: B256) -> Result<()> {
+        self.with_retry(
+            || async {
+                let mut rpc = self.prover_network_client().await?;
+                let nonce = self.get_nonce().await?;
+                
+                let request_body = CancelRequestRequestBody {
+                    nonce,
+                    request_id: request_id.to_vec(),
+                };
+                
+                let _response = rpc
+                    .cancel_request(CancelRequestRequest {
+                        format: MessageFormat::Binary.into(),
+                        signature: request_body.sign(&self.signer).await?,
+                        body: Some(request_body),
+                    })
+                    .await?
+                    .into_inner();
+                
+                Ok(())
+            },
+            "cancelling request",
         )
         .await
     }

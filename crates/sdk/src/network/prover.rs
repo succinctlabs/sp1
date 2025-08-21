@@ -166,6 +166,7 @@ impl NetworkProver {
             gas_limit: None,
             tee_2fa: false,
             min_auction_period: 1,
+            max_auction_period: None,
             whitelist: None,
             auctioneer: None,
             executor: None,
@@ -467,16 +468,25 @@ impl NetworkProver {
     /// function will return an error if the proof is not generated within the timeout.
     /// If `auction_timeout` is supplied, the function will return an error if the proof request
     /// remains in "requested" status for longer than the auction timeout.
+    /// If `max_auction_period` is supplied, the function will cancel the request if it hasn't been
+    /// settled (remains in REQUESTED state) for longer than the max_auction_period seconds.
     pub async fn wait_proof(
         &self,
         request_id: B256,
         timeout: Option<Duration>,
         auction_timeout: Option<Duration>,
+        max_auction_period: Option<u64>,
     ) -> Result<SP1ProofWithPublicValues> {
         let mut is_assigned = false;
         let start_time = Instant::now();
         let mut requested_start_time: Option<Instant> = None;
         let auction_timeout_duration = auction_timeout.unwrap_or(DEFAULT_AUCTION_TIMEOUT_DURATION);
+        
+        // Warn if max_auction_period is set with reserved-capacity feature
+        #[cfg(feature = "reserved-capacity")]
+        if max_auction_period.is_some() {
+            tracing::warn!("max_auction_period is set but will have no effect with reserved-capacity feature");
+        }
 
         loop {
             // Calculate the remaining timeout.
@@ -506,6 +516,21 @@ impl NetworkProver {
                 // Track when we first entered requested status
                 if requested_start_time.is_none() {
                     requested_start_time = Some(Instant::now());
+                }
+
+                // Check if we've exceeded the max auction period (only in auction mode)
+                #[cfg(not(feature = "reserved-capacity"))]
+                if let Some(max_period) = max_auction_period {
+                    if let Some(req_start) = requested_start_time {
+                        if req_start.elapsed() > Duration::from_secs(max_period) {
+                            tracing::info!("Max auction period exceeded, cancelling request...");
+                            self.client.cancel_request(request_id).await?;
+                            return Err(Error::RequestAuctionTimedOut {
+                                request_id: request_id.to_vec(),
+                            }
+                            .into());
+                        }
+                    }
                 }
 
                 // Check if we've exceeded the auction timeout
@@ -591,6 +616,7 @@ impl NetworkProver {
         gas_limit: Option<u64>,
         tee_2fa: bool,
         min_auction_period: u64,
+        max_auction_period: Option<u64>,
         whitelist: Option<Vec<Address>>,
         auctioneer: Option<Address>,
         executor: Option<Address>,
@@ -647,7 +673,10 @@ impl NetworkProver {
             };
 
             // Wait for the proof to be generated.
-            let mut proof = match self.wait_proof(request_id, timeout, auction_timeout).await {
+            let mut proof = match self
+                .wait_proof(request_id, timeout, auction_timeout, max_auction_period)
+                .await
+            {
                 Ok(proof) => proof,
                 Err(e) => {
                     #[cfg(not(feature = "reserved-capacity"))]
@@ -862,6 +891,7 @@ impl Prover<CpuProverComponents> for NetworkProver {
             None,
             false,
             0,
+            None,
             None,
             None,
             None,
