@@ -190,8 +190,7 @@ pub mod prover_network_client {
                 .insert(GrpcMethod::new("network.ProverNetwork", "FailFulfillment"));
             self.inner.unary(req, path, codec).await
         }
-        /// Cancels a proof request by setting its deadline to the current time.
-        /// Only callable by the original requester when the request is in REQUESTED state.
+        /// Cancels a proof request that is in a REQUESTED state. Only callable by the original requester.
         pub async fn cancel_request(
             &mut self,
             request: impl tonic::IntoRequest<super::super::types::CancelRequestRequest>,
@@ -1752,8 +1751,7 @@ pub mod prover_network_server {
             tonic::Response<super::super::types::FailFulfillmentResponse>,
             tonic::Status,
         >;
-        /// Cancels a proof request by setting its deadline to the current time.
-        /// Only callable by the original requester when the request is in REQUESTED state.
+        /// Cancels a proof request that is in a REQUESTED state. Only callable by the original requester.
         async fn cancel_request(
             &self,
             request: tonic::Request<super::super::types::CancelRequestRequest>,

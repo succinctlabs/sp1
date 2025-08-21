@@ -38,13 +38,8 @@ use crate::network::proto::{
 
 #[cfg(not(feature = "reserved-capacity"))]
 use crate::network::proto::types::{
-    CancelRequestRequest, CancelRequestRequestBody,
-};
-
-#[cfg(not(feature = "reserved-capacity"))]
-use crate::network::proto::types::{
-    GetProofRequestParamsRequest, GetProofRequestParamsResponse, GetProversByUptimeRequest,
-    TransactionVariant,
+    CancelRequestRequest, CancelRequestRequestBody, GetProofRequestParamsRequest,
+    GetProofRequestParamsResponse, GetProversByUptimeRequest, TransactionVariant,
 };
 
 /// A client for interacting with the network.
@@ -562,7 +557,7 @@ impl NetworkClient {
         .await
     }
 
-    /// Cancels a proof request by setting its deadline to now.
+    /// Cancels a proof request.
     ///
     /// # Details
     /// This method can only be called by the requester when the request is in REQUESTED state.
@@ -573,12 +568,10 @@ impl NetworkClient {
             || async {
                 let mut rpc = self.prover_network_client().await?;
                 let nonce = self.get_nonce().await?;
-                
-                let request_body = CancelRequestRequestBody {
-                    nonce,
-                    request_id: request_id.to_vec(),
-                };
-                
+
+                let request_body =
+                    CancelRequestRequestBody { nonce, request_id: request_id.to_vec() };
+
                 let _response = rpc
                     .cancel_request(CancelRequestRequest {
                         format: MessageFormat::Binary.into(),
@@ -587,7 +580,7 @@ impl NetworkClient {
                     })
                     .await?
                     .into_inner();
-                
+
                 Ok(())
             },
             "cancelling request",

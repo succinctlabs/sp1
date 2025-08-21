@@ -2104,7 +2104,6 @@ pub enum TransactionVariant {
     DelegateVariant = 5,
     TransferVariant = 6,
     WithdrawVariant = 7,
-    CancelRequestVariant = 8,
 }
 impl TransactionVariant {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2121,7 +2120,6 @@ impl TransactionVariant {
             Self::DelegateVariant => "DELEGATE_VARIANT",
             Self::TransferVariant => "TRANSFER_VARIANT",
             Self::WithdrawVariant => "WITHDRAW_VARIANT",
-            Self::CancelRequestVariant => "CANCEL_REQUEST_VARIANT",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -2135,7 +2133,6 @@ impl TransactionVariant {
             "DELEGATE_VARIANT" => Some(Self::DelegateVariant),
             "TRANSFER_VARIANT" => Some(Self::TransferVariant),
             "WITHDRAW_VARIANT" => Some(Self::WithdrawVariant),
-            "CANCEL_REQUEST_VARIANT" => Some(Self::CancelRequestVariant),
             _ => None,
         }
     }

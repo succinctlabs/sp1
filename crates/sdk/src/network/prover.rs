@@ -481,12 +481,6 @@ impl NetworkProver {
         let start_time = Instant::now();
         let mut requested_start_time: Option<Instant> = None;
         let auction_timeout_duration = auction_timeout.unwrap_or(DEFAULT_AUCTION_TIMEOUT_DURATION);
-        
-        // Warn if max_auction_period is set with reserved-capacity feature
-        #[cfg(feature = "reserved-capacity")]
-        if max_auction_period.is_some() {
-            tracing::warn!("max_auction_period is set but will have no effect with reserved-capacity feature");
-        }
 
         loop {
             // Calculate the remaining timeout.
