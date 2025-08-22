@@ -511,6 +511,8 @@ impl NetworkProver {
                 // Check if we've exceeded the auction timeout
                 if let Some(req_start) = requested_start_time {
                     if req_start.elapsed() > auction_timeout_duration {
+                        tracing::info!("Auction period exceeded, cancelling request...");
+                        self.client.cancel_request(request_id).await?;
                         return Err(Error::RequestAuctionTimedOut {
                             request_id: request_id.to_vec(),
                         }
