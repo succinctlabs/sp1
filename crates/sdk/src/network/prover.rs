@@ -463,6 +463,12 @@ impl NetworkProver {
         Ok(request_id)
     }
 
+    /// Cancels a proof request by updating the deadline to the current time.
+    #[cfg(not(feature = "reserved-capacity"))]
+    pub async fn cancel_request(&self, request_id: B256) -> Result<()> {
+        self.client.cancel_request(request_id).await?;
+    }
+
     /// Waits for a proof to be generated and returns the proof. If a timeout is supplied, the
     /// function will return an error if the proof is not generated within the timeout.
     /// If `auction_timeout` is supplied, the function will return an error if the proof request
