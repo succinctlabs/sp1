@@ -466,7 +466,7 @@ impl NetworkProver {
     /// Cancels a proof request by updating the deadline to the current time.
     #[cfg(not(feature = "reserved-capacity"))]
     pub async fn cancel_request(&self, request_id: B256) -> Result<()> {
-        self.client.cancel_request(request_id).await?;
+        self.client.cancel_request(request_id).await
     }
 
     /// Waits for a proof to be generated and returns the proof. If a timeout is supplied, the
@@ -482,6 +482,7 @@ impl NetworkProver {
         let mut is_assigned = false;
         let start_time = Instant::now();
         let mut requested_start_time: Option<Instant> = None;
+        #[allow(unused)]
         let auction_timeout_duration = auction_timeout.unwrap_or(DEFAULT_AUCTION_TIMEOUT_DURATION);
 
         loop {
