@@ -190,6 +190,31 @@ pub mod prover_network_client {
                 .insert(GrpcMethod::new("network.ProverNetwork", "FailFulfillment"));
             self.inner.unary(req, path, codec).await
         }
+        /// Cancels a proof request that is in a REQUESTED state. Only callable by the original requester.
+        pub async fn cancel_request(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::CancelRequestRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::CancelRequestResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/network.ProverNetwork/CancelRequest",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "CancelRequest"));
+            self.inner.unary(req, path, codec).await
+        }
         /// Get the status of a proof request.
         pub async fn get_proof_request_status(
             &mut self,
@@ -1543,6 +1568,33 @@ pub mod prover_network_client {
                 );
             self.inner.unary(req, path, codec).await
         }
+        /// Get staking points for all partners for the authenticated user.
+        pub async fn get_staking_points(
+            &mut self,
+            request: impl tonic::IntoRequest<
+                super::super::types::GetStakingPointsRequest,
+            >,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetStakingPointsResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/network.ProverNetwork/GetStakingPoints",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetStakingPoints"));
+            self.inner.unary(req, path, codec).await
+        }
         /// Get the delegation parameters.
         pub async fn get_delegation_params(
             &mut self,
@@ -1697,6 +1749,14 @@ pub mod prover_network_server {
             request: tonic::Request<super::super::types::FailFulfillmentRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::FailFulfillmentResponse>,
+            tonic::Status,
+        >;
+        /// Cancels a proof request that is in a REQUESTED state. Only callable by the original requester.
+        async fn cancel_request(
+            &self,
+            request: tonic::Request<super::super::types::CancelRequestRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::CancelRequestResponse>,
             tonic::Status,
         >;
         /// Get the status of a proof request.
@@ -2116,6 +2176,14 @@ pub mod prover_network_server {
             >,
             tonic::Status,
         >;
+        /// Get staking points for all partners for the authenticated user.
+        async fn get_staking_points(
+            &self,
+            request: tonic::Request<super::super::types::GetStakingPointsRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetStakingPointsResponse>,
+            tonic::Status,
+        >;
         /// Get the delegation parameters.
         async fn get_delegation_params(
             &self,
@@ -2405,6 +2473,54 @@ pub mod prover_network_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let method = FailFulfillmentSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/CancelRequest" => {
+                    #[allow(non_camel_case_types)]
+                    struct CancelRequestSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<
+                        T: ProverNetwork,
+                    > tonic::server::UnaryService<
+                        super::super::types::CancelRequestRequest,
+                    > for CancelRequestSvc<T> {
+                        type Response = super::super::types::CancelRequestResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::CancelRequestRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::cancel_request(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = CancelRequestSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
@@ -4847,6 +4963,55 @@ pub mod prover_network_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let method = GetFilteredProverStakeBalanceLogsSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/GetStakingPoints" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetStakingPointsSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<
+                        T: ProverNetwork,
+                    > tonic::server::UnaryService<
+                        super::super::types::GetStakingPointsRequest,
+                    > for GetStakingPointsSvc<T> {
+                        type Response = super::super::types::GetStakingPointsResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::GetStakingPointsRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_staking_points(&inner, request)
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetStakingPointsSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
