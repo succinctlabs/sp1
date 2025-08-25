@@ -1,8 +1,30 @@
+// Copyright 2023 RISC Zero, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 use gecko_profile::{Frame, ProfileBuilder, StringIndex, ThreadBuilder};
+use gimli::{
+    AttributeValue, DW_AT_high_pc, DW_AT_ranges, DW_TAG_inlined_subroutine,
+    DebuggingInformationEntry, DwAt, Dwarf, EndianArcSlice, Range, Reader, RunTimeEndian,
+    SectionId, Unit, UnitOffset,
+};
 use goblin::elf::{sym::STT_FUNC, Elf};
 use indicatif::{ProgressBar, ProgressStyle};
+use object::{File, Object, ObjectSection};
 use rustc_demangle::demangle;
-use std::collections::HashMap;
+use std::{borrow::Cow, collections::HashMap, sync::Arc};
+
+use crate::StackEvent;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ProfilerError {
@@ -12,6 +34,20 @@ pub enum ProfilerError {
     Elf(#[from] goblin::error::Error),
     #[error("Failed to serialize samples {}", .0)]
     Serde(#[from] serde_json::Error),
+    #[error("Failed retrieve inline functions {}", .0)]
+    InlineRetrieval(#[from] gimli::Error),
+    #[error("No unit for offset {}", .0)]
+    NoUnitForOffset(usize),
+    #[error("Invalid abstract origin")]
+    InvalidAbstractOrigin,
+    #[error("DwAt {} missing", .0)]
+    DwAtMissing(DwAt),
+    #[error("Onvalid attribute abstract origin")]
+    InvalidAttributeAbstractOrigin,
+    #[error("Unexpected abstract origin")]
+    UnexpectedAbstractOrigin,
+    #[error("Unexpected low pc")]
+    UnexpectedLowPc,
 }
 
 /// During execution, the profiler always keeps track of the callstack
@@ -20,17 +56,14 @@ pub struct Profiler {
     sample_rate: u64,
     /// `start_address`-> index in `function_ranges`
     start_lookup: HashMap<u64, usize>,
+    /// `start_address`-> index in `function_ranges` for inlined functions
+    inline_functions_start_lookup: HashMap<u64, Vec<usize>>,
     /// the start and end of the function
     function_ranges: Vec<(u64, u64, Frame)>,
 
     /// the current known call stack
-    function_stack: Vec<Frame>,
-    /// useful for quick search as to not count recursive calls
-    function_stack_indices: Vec<usize>,
-    /// The call stacks code ranges, useful for keeping track of unwinds
-    function_stack_ranges: Vec<(u64, u64)>,
-    /// The deepest function code range
-    current_function_range: (u64, u64),
+    function_stack: Vec<Function>,
+    pop_stack: Vec<u64>,
 
     main_idx: Option<StringIndex>,
     builder: ThreadBuilder,
@@ -41,14 +74,42 @@ struct Sample {
     stack: Vec<Frame>,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+struct Function {
+    pub frame: Frame,
+    pub kind: FunctionKind,
+}
+
+impl Function {
+    pub fn regular(frame: Frame) -> Self {
+        Self { frame, kind: FunctionKind::Regular }
+    }
+
+    pub fn inline(frame: Frame, start: u64, end: u64) -> Self {
+        Self { frame, kind: FunctionKind::inline(start, end) }
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+enum FunctionKind {
+    Regular,
+    Inline { start: u64, end: u64 },
+}
+
+impl FunctionKind {
+    pub fn inline(start: u64, end: u64) -> Self {
+        Self::Inline { start, end }
+    }
+}
+
 impl Profiler {
     pub(super) fn new(elf_bytes: &[u8], sample_rate: u64) -> Result<Self, ProfilerError> {
         let elf = Elf::parse(elf_bytes)?;
-
         let mut start_lookup = HashMap::new();
+        let mut inline_functions_start_lookup = HashMap::new();
         let mut function_ranges = Vec::new();
         let mut builder = ThreadBuilder::new(1, 0, std::time::Instant::now(), false, false);
-
+        let mut frames_to_names = HashMap::new();
         // We need to extract all the functions from the ELF file
         // and their corresponding PC ranges.
         let mut main_idx = None;
@@ -71,7 +132,34 @@ impl Profiler {
 
                 let start_idx = function_ranges.len();
                 function_ranges.push((start_address, end_address, Frame::Label(string_idx)));
+                frames_to_names.insert(start_address, demangled_name.clone());
                 start_lookup.insert(start_address, start_idx);
+            }
+        }
+
+        if trace_inline_functions() {
+            eprintln!("Inline functions profiling enabled");
+
+            let file = File::parse(elf_bytes).unwrap();
+            let dwarf = load_dwarf(&file)?;
+            let inline_fn_builder = InlineFunctionFrameBuilder::new(&dwarf);
+            let mut iter = dwarf.units();
+
+            while let Some(header) = iter.next()? {
+                let unit = dwarf.unit(header)?;
+
+                let mut entries = unit.entries();
+                while let Some((_, entry)) = entries.next_dfs()? {
+                    if entry.tag() == DW_TAG_inlined_subroutine {
+                        inline_fn_builder.build(
+                            &unit,
+                            entry,
+                            &mut builder,
+                            &mut function_ranges,
+                            &mut inline_functions_start_lookup,
+                        )?;
+                    }
+                }
             }
         }
 
@@ -81,66 +169,79 @@ impl Profiler {
             sample_rate,
             samples: Vec::new(),
             start_lookup,
+            inline_functions_start_lookup,
             function_ranges,
             function_stack: Vec::new(),
-            function_stack_indices: Vec::new(),
-            function_stack_ranges: Vec::new(),
-            current_function_range: (0, 0),
+            pop_stack: Vec::new(),
         })
     }
 
-    pub(super) fn record(&mut self, clk: u64, pc: u64) {
-        // We are still in the current function.
-        if pc > self.current_function_range.0 && pc <= self.current_function_range.1 {
-            if clk % self.sample_rate == 0 {
-                self.samples.push(Sample { stack: self.function_stack.clone() });
-            }
+    pub(super) fn record(
+        &mut self,
+        clk: u64,
+        pc: u64,
+        previous_pc: u64,
+        stack_event: Option<&StackEvent>,
+    ) {
+        if let Some(stack_event) = stack_event {
+            if stack_event.is_pop() {
+                loop {
+                    // Pop all inline functions
+                    while matches!(
+                        self.function_stack.last().map(|f| f.kind),
+                        Some(FunctionKind::Inline { .. })
+                    ) {
+                        self.function_stack.pop();
+                    }
 
-            return;
-        }
+                    self.function_stack.pop();
+                    let popped = self.pop_stack.pop().unwrap();
 
-        // Jump to a new function (or the same one).
-        if let Some(f) = self.start_lookup.get(&pc) {
-            // Jump to a new function (not recursive).
-            if !self.function_stack_indices.contains(f) {
-                self.function_stack_indices.push(*f);
-                let (start, end, name) = self.function_ranges.get(*f).unwrap();
-                self.current_function_range = (*start, *end);
-                self.function_stack_ranges.push((*start, *end));
-                self.function_stack.push(name.clone());
-            }
-        } else {
-            // This means pc now points to an instruction that is
-            //
-            // 1. not in the current function's range
-            // 2. not a new function call
-            //
-            // We now account for a new possibility where we're returning to a function in the
-            // stack this need not be the immediate parent and can be any of the existing
-            // functions in the stack due to some optimizations that the compiler can make.
-            let mut unwind_point = 0;
-            let mut unwind_found = false;
-            for (c, (s, e)) in self.function_stack_ranges.iter().enumerate() {
-                if pc > *s && pc <= *e {
-                    unwind_point = c;
-                    unwind_found = true;
-                    break;
+                    if popped == pc - 4 {
+                        break;
+                    }
                 }
             }
 
-            // Unwinding until the parent.
-            if unwind_found {
-                self.function_stack.truncate(unwind_point + 1);
-                self.function_stack_ranges.truncate(unwind_point + 1);
-                self.function_stack_indices.truncate(unwind_point + 1);
+            if stack_event.is_push() {
+                if let Some(f) = self.start_lookup.get(&pc) {
+                    // Jump to a new function.
+                    let (_, _, name) = self.function_ranges.get(*f).unwrap();
+                    self.function_stack.push(Function::regular(name.clone()));
+                    self.pop_stack.push(previous_pc);
+                }
             }
+        }
 
-            // If no unwind point has been found, that means we jumped to some random location
-            // so we'll just increment the counts for everything in the stack.
+        // Pop inline functions when the current PC is not in the range of the function stack.
+        loop {
+            let Some(FunctionKind::Inline { start, end }) =
+                self.function_stack.last().map(|f| f.kind)
+            else {
+                break;
+            };
+
+            if start <= pc && pc < end {
+                break;
+            }
+            self.function_stack.pop();
+        }
+
+        // Push all inline functions that starts at the current PC
+        if let Some(inline_functions) = self.inline_functions_start_lookup.get(&pc) {
+            for f in inline_functions {
+                let (start, end, name) = self.function_ranges.get(*f).unwrap();
+                let f = Function::inline(name.clone(), *start, *end);
+                if self.function_stack.last() != Some(&f) {
+                    self.function_stack.push(f);
+                }
+            }
         }
 
         if clk % self.sample_rate == 0 {
-            self.samples.push(Sample { stack: self.function_stack.clone() });
+            self.samples.push(Sample {
+                stack: self.function_stack.iter().map(|f| f.frame.clone()).collect(),
+            });
         }
     }
 
@@ -226,4 +327,212 @@ impl Profiler {
             );
         }
     }
+}
+
+struct InlineFunctionFrameBuilder<'a> {
+    dwarf: &'a Dwarf<EndianArcSlice<RunTimeEndian>>,
+    units: Vec<Unit<EndianArcSlice<RunTimeEndian>>>,
+}
+
+impl<'a> InlineFunctionFrameBuilder<'a> {
+    pub fn new(dwarf: &'a Dwarf<EndianArcSlice<RunTimeEndian>>) -> Self {
+        let mut units = vec![];
+        let mut iter = dwarf.units();
+
+        while let Some(header) = iter.next().unwrap() {
+            units.push(dwarf.unit(header).unwrap());
+        }
+        Self { dwarf, units }
+    }
+
+    pub fn build(
+        &self,
+        unit: &Unit<EndianArcSlice<RunTimeEndian>>,
+        entry: &DebuggingInformationEntry<'_, '_, EndianArcSlice<RunTimeEndian>>,
+        thread_builder: &mut ThreadBuilder,
+        function_ranges: &mut Vec<(u64, u64, Frame)>,
+        start_lookup: &mut HashMap<u64, Vec<usize>>,
+    ) -> Result<(), ProfilerError> {
+        let name = self.abstract_origin_name(unit, entry)?;
+
+        let demangled_name = demangle(&name).to_string();
+
+        if demangled_name.starts_with("core::") ||
+            demangled_name.starts_with("<core::") ||
+            demangled_name.contains(" as core::")
+        {
+            return Ok(());
+        }
+
+        let mut ranges = vec![];
+
+        if let Some(range) = self.pc_range(unit, entry)? {
+            ranges.push(range);
+        } else {
+            ranges.extend(self.pc_ranges(unit, entry)?);
+        }
+
+        for (low_pc, high_pc) in ranges {
+            let string_idx = thread_builder.intern_string(&demangled_name);
+            let start_idx = function_ranges.len();
+            let start_lookup_entry = start_lookup.entry(low_pc).or_default();
+
+            start_lookup_entry.push(start_idx);
+            function_ranges.push((low_pc, high_pc, Frame::Label(string_idx)));
+
+            eprintln!("{demangled_name} {low_pc} -> {high_pc}, {string_idx:?}");
+        }
+
+        Ok(())
+    }
+
+    fn pc_ranges(
+        &self,
+        unit: &Unit<EndianArcSlice<RunTimeEndian>>,
+        entry: &DebuggingInformationEntry<'_, '_, EndianArcSlice<RunTimeEndian>>,
+    ) -> Result<Vec<(u64, u64)>, gimli::Error> {
+        let Ok(value) = entry_attr(entry, DW_AT_ranges) else {
+            return Ok(vec![]);
+        };
+
+        let Some(ranges_offset) = self.dwarf.attr_ranges_offset(unit, value)? else {
+            return Ok(vec![]);
+        };
+
+        let mut ranges = vec![];
+        let mut range_iter = self.dwarf.ranges(unit, ranges_offset)?;
+        while let Some(Range { begin, end }) = range_iter.next()? {
+            if begin < end && begin != 0 {
+                ranges.push((begin, end));
+            }
+        }
+
+        Ok(ranges)
+    }
+
+    fn pc_range(
+        &self,
+        unit: &Unit<EndianArcSlice<RunTimeEndian>>,
+        entry: &DebuggingInformationEntry<'_, '_, EndianArcSlice<RunTimeEndian>>,
+    ) -> Result<Option<(u64, u64)>, ProfilerError> {
+        let Some(low_pc) = self.low_pc(unit, entry)? else {
+            return Ok(None);
+        };
+        let high_pc = self.high_pc(unit, entry, low_pc)?;
+
+        Ok(Some((low_pc, high_pc)))
+    }
+
+    fn low_pc(
+        &self,
+        unit: &Unit<EndianArcSlice<RunTimeEndian>>,
+        entry: &DebuggingInformationEntry<'_, '_, EndianArcSlice<RunTimeEndian>>,
+    ) -> Result<Option<u64>, ProfilerError> {
+        let Ok(value) = entry_attr(entry, gimli::DW_AT_low_pc) else {
+            return Ok(None);
+        };
+        let low_pc = match value {
+            AttributeValue::Addr(val) => Ok(val),
+            AttributeValue::DebugAddrIndex(index) => Ok(self.dwarf.address(unit, index)?),
+            _ => Err(ProfilerError::UnexpectedLowPc),
+        }?;
+        Ok((low_pc != 0).then_some(low_pc))
+    }
+
+    fn high_pc(
+        &self,
+        unit: &Unit<EndianArcSlice<RunTimeEndian>>,
+        entry: &DebuggingInformationEntry<'_, '_, EndianArcSlice<RunTimeEndian>>,
+        low_pc: u64,
+    ) -> Result<u64, ProfilerError> {
+        match entry_attr(entry, DW_AT_high_pc)? {
+            AttributeValue::Addr(val) => Ok(val),
+            AttributeValue::DebugAddrIndex(index) => Ok(self.dwarf.address(unit, index)?),
+            AttributeValue::Udata(val) => Ok(low_pc + val),
+            _ => Err(ProfilerError::UnexpectedAbstractOrigin),
+        }
+    }
+
+    fn abstract_origin_name(
+        &self,
+        unit: &Unit<EndianArcSlice<RunTimeEndian>>,
+        entry: &DebuggingInformationEntry<'_, '_, EndianArcSlice<RunTimeEndian>>,
+    ) -> Result<String, ProfilerError> {
+        match entry_attr(entry, gimli::DW_AT_abstract_origin)? {
+            gimli::AttributeValue::UnitRef(unit_offset) => {
+                Ok(abstract_origin_name(self.dwarf, unit, unit_offset)?)
+            }
+            gimli::AttributeValue::DebugInfoRef(debug_info_offset) => {
+                let unit = match self.units.binary_search_by_key(&debug_info_offset.0, |unit| {
+                    unit.header.offset().as_debug_info_offset().unwrap().0
+                }) {
+                    Ok(_) | Err(0) => Err(ProfilerError::NoUnitForOffset(debug_info_offset.0)),
+                    Err(i) => Ok(&self.units[i - 1]),
+                }?;
+                let unit_offset = debug_info_offset
+                    .to_unit_offset(&unit.header)
+                    .ok_or(ProfilerError::InvalidAttributeAbstractOrigin)?;
+                Ok(abstract_origin_name(self.dwarf, unit, unit_offset)?)
+            }
+            _ => Err(ProfilerError::UnexpectedAbstractOrigin),
+        }
+    }
+}
+
+fn load_dwarf(file: &File) -> Result<Dwarf<EndianArcSlice<RunTimeEndian>>, ProfilerError> {
+    let endian = if file.is_little_endian() {
+        gimli::RunTimeEndian::Little
+    } else {
+        gimli::RunTimeEndian::Big
+    };
+
+    let dwarf = Dwarf::load(&|id| Ok::<_, gimli::Error>(load_section(id, file, endian)))?;
+
+    Ok(dwarf)
+}
+
+fn load_section(
+    id: SectionId,
+    file: &File,
+    endian: RunTimeEndian,
+) -> EndianArcSlice<RunTimeEndian> {
+    let data = file
+        .section_by_name(id.name())
+        .and_then(|section| section.uncompressed_data().ok())
+        .unwrap_or(Cow::Borrowed(&[]));
+
+    EndianArcSlice::new(Arc::from(&*data), endian)
+}
+
+fn entry_attr<ReaderT: Reader>(
+    entry: &DebuggingInformationEntry<'_, '_, ReaderT>,
+    dw_at: DwAt,
+) -> Result<AttributeValue<ReaderT>, ProfilerError> {
+    Ok(entry.attr(dw_at)?.ok_or(ProfilerError::DwAtMissing(dw_at))?.value())
+}
+
+fn abstract_origin_name(
+    dwarf: &Dwarf<EndianArcSlice<RunTimeEndian>>,
+    unit: &Unit<EndianArcSlice<RunTimeEndian>>,
+    abstract_origin: UnitOffset<usize>,
+) -> Result<String, ProfilerError> {
+    let mut entries = unit.entries_raw(Some(abstract_origin))?;
+    let abbrev = entries.read_abbreviation()?.ok_or(ProfilerError::InvalidAbstractOrigin)?;
+
+    for spec in abbrev.attributes() {
+        let attr = entries.read_attribute(*spec)?;
+        match attr.name() {
+            gimli::DW_AT_linkage_name | gimli::DW_AT_MIPS_linkage_name | gimli::DW_AT_name => {
+                return Ok(dwarf.attr_string(unit, attr.value())?.to_string_lossy()?.into());
+            }
+            _ => {}
+        }
+    }
+
+    Err(ProfilerError::InvalidAbstractOrigin)
+}
+
+fn trace_inline_functions() -> bool {
+    let value = std::env::var("TRACE_INLINE_FUNCTIONS").unwrap_or_else(|_| "false".to_string());
+    value == "1" || value.to_lowercase() == "true"
 }
