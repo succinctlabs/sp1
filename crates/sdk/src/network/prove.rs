@@ -488,9 +488,9 @@ impl NetworkProveBuilder<'_> {
     /// Sets the max price per PGU for the proof request.
     ///
     /// # Details
-    /// The max price per PGU (prover gas unit) creates a hard ceiling on variable costs, protecting
-    /// requesters from unexpected price escalation due to complex execution paths or resource
-    /// consumption. If a value is not provided, a default value will be used.
+    /// The max price per PGU (prover gas unit) lets you specify the maximum amount of PROVE
+    /// you are willing to pay per PGU, protecting you from unexpected price escalation. If a value
+    /// is not specified, a default value will be used.
     ///
     /// Only relevant if the strategy is set to [`FulfillmentStrategy::Auction`].
     ///
