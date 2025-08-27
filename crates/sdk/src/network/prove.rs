@@ -326,8 +326,8 @@ impl NetworkProveBuilder<'_> {
     /// Set the minimum auction period for the proof request in seconds.
     ///
     /// # Details
-    /// This method sets the minimum auction period for the proof request. Only relevant if the
-    /// strategy is set to [`FulfillmentStrategy::Auction`].
+    /// The minimum auction period determines how long to wait before settling the auction for the
+    /// proof request. Only relevant if the strategy is set to [`FulfillmentStrategy::Auction`].
     ///
     /// # Example
     /// ```rust,no_run
@@ -485,7 +485,7 @@ impl NetworkProveBuilder<'_> {
     /// # Details
     /// The max price per PGU (prover gas unit) creates a hard ceiling on variable costs, protecting
     /// requesters from unexpected price escalation due to complex execution paths or resource
-    /// consumption. If the base fee is not provided, a default value will be used.
+    /// consumption. If a value is not provided, a default value will be used.
     ///
     /// # Example
     /// ```rust,no_run
@@ -513,7 +513,7 @@ impl NetworkProveBuilder<'_> {
     /// # Details
     /// The auction timeout determines how long to wait for a prover to pick up the request when
     /// it's in "requested" status. If no prover picks up the request within this timeout, the
-    /// request will be considered failed. Default is 30 seconds.
+    /// proof request will be canceled. Default is 30 seconds.
     ///
     /// # Example
     /// ```rust,no_run
