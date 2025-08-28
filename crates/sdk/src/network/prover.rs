@@ -10,23 +10,23 @@ use crate::{
     cpu::{execute::CpuExecuteBuilder, CpuProver},
     network::{
         client::NetworkClient,
-        proto::types::{
-            ExecutionStatus, FulfillmentStatus, FulfillmentStrategy, GetProofRequestStatusResponse,
-            ProofMode, ProofRequest,
+        proto::{
+            types::{
+                ExecutionStatus, FulfillmentStatus, FulfillmentStrategy, ProofMode, ProofRequest,
+            },
+            GetProofRequestStatusResponse,
         },
         signer::NetworkSigner,
         tee::client::Client as TeeClient,
-        Error, DEFAULT_AUCTION_TIMEOUT_DURATION, DEFAULT_CYCLE_LIMIT, DEFAULT_GAS_LIMIT,
-        DEFAULT_NETWORK_RPC_URL, DEFAULT_TIMEOUT_SECS, PRIVATE_EXPLORER_URL,
-        PRIVATE_NETWORK_RPC_URL, PUBLIC_EXPLORER_URL, TEE_NETWORK_RPC_URL,
+        Error, NetworkMode, DEFAULT_AUCTION_TIMEOUT_DURATION, DEFAULT_CYCLE_LIMIT,
+        DEFAULT_GAS_LIMIT, PRIVATE_EXPLORER_URL, PRIVATE_NETWORK_RPC_URL, MAINNET_EXPLORER_URL, RESERVED_EXPLORER_URL, MAINNET_RPC_URL, RESERVED_RPC_URL,TEE_NETWORK_RPC_URL
     },
     prover::verify_proof,
     ProofFromNetwork, Prover, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey,
     SP1VerifyingKey,
 };
 
-#[cfg(not(feature = "reserved-capacity"))]
-use crate::network::proto::types::GetProofRequestParamsResponse;
+use crate::network::proto::GetProofRequestParamsResponse;
 
 use alloy_primitives::{Address, B256, U256};
 use anyhow::{Context, Result};
@@ -42,46 +42,42 @@ pub struct NetworkProver {
     pub(crate) client: NetworkClient,
     pub(crate) prover: CpuProver,
     pub(crate) tee_signers: Vec<Address>,
+    pub(crate) network_mode: NetworkMode,
 }
 
-#[cfg(feature = "reserved-capacity")]
-const DEFAULT_FULFILLMENT_STRATEGY: FulfillmentStrategy = FulfillmentStrategy::Hosted;
-
-#[cfg(not(feature = "reserved-capacity"))]
-const DEFAULT_FULFILLMENT_STRATEGY: FulfillmentStrategy = FulfillmentStrategy::Auction;
-
 impl NetworkProver {
-    /// Creates a new [`NetworkProver`] with the given signer.
+    /// Creates a new [`NetworkProver`] with the given signer and network mode.
     ///
     /// # Details
     /// * `signer`: The network signer to use for signing requests. Can be a `NetworkSigner`,
     ///   private key string, or anything that implements `Into<NetworkSigner>`.
     /// * `rpc_url`: The rpc url to use for the prover network.
+    /// * `network_mode`: The network mode determining which proving strategy to use.
     ///
     /// # Examples
     /// Using a private key string:
     /// ```rust,no_run
-    /// use sp1_sdk::NetworkProver;
+    /// use sp1_sdk::{network::NetworkMode, NetworkProver};
     ///
-    /// let prover = NetworkProver::new("0x...", "...");
+    /// let prover = NetworkProver::new("0x...", "...", NetworkMode::Mainnet);
     /// ```
     ///
     /// Using a `NetworkSigner`:
     /// ```rust,no_run
-    /// use sp1_sdk::{NetworkProver, NetworkSigner};
+    /// use sp1_sdk::{network::NetworkMode, NetworkProver, NetworkSigner};
     ///
     /// let signer = NetworkSigner::local("0x...").unwrap();
-    /// let prover = NetworkProver::new(signer, "...");
+    /// let prover = NetworkProver::new(signer, "...", NetworkMode::Reserved);
     /// ```
     #[must_use]
-    pub fn new(signer: impl Into<NetworkSigner>, rpc_url: &str) -> Self {
+    pub fn new(signer: impl Into<NetworkSigner>, rpc_url: &str, network_mode: NetworkMode) -> Self {
         // Install default CryptoProvider if not already installed.
         let _ = rustls::crypto::ring::default_provider().install_default();
 
         let signer = signer.into();
         let prover = CpuProver::new();
-        let client = NetworkClient::new(signer, rpc_url);
-        Self { client, prover, tee_signers: vec![] }
+        let client = NetworkClient::new(signer, rpc_url, network_mode);
+        Self { client, prover, tee_signers: vec![], network_mode }
     }
 
     /// Sets the list of TEE signers, used for verifying TEE proofs.
@@ -90,6 +86,19 @@ impl NetworkProver {
         self.tee_signers = tee_signers;
 
         self
+    }
+
+    /// Gets the network mode of this prover.
+    pub fn network_mode(&self) -> NetworkMode {
+        self.network_mode
+    }
+
+    /// Gets the default fulfillment strategy for this prover's network mode.
+    pub fn default_fulfillment_strategy(&self) -> FulfillmentStrategy {
+        match self.network_mode {
+            NetworkMode::Mainnet => FulfillmentStrategy::Auction,
+            NetworkMode::Reserved => FulfillmentStrategy::Hosted,
+        }
     }
 
     /// Get the credit balance of your account on the prover network.
@@ -160,7 +169,7 @@ impl NetworkProver {
             pk,
             stdin: stdin.clone(),
             timeout: None,
-            strategy: DEFAULT_FULFILLMENT_STRATEGY,
+            strategy: self.default_fulfillment_strategy(),
             skip_simulation: false,
             cycle_limit: None,
             gas_limit: None,
@@ -212,13 +221,21 @@ impl NetworkProver {
     ///     let params = client.get_proof_request_params(SP1ProofMode::Compressed).await.unwrap();
     /// })
     /// ```
-    #[cfg(not(feature = "reserved-capacity"))]
     pub async fn get_proof_request_params(
         &self,
         mode: SP1ProofMode,
     ) -> Result<GetProofRequestParamsResponse> {
-        let response = self.client.get_proof_request_params(mode.into()).await?;
-        Ok(response)
+        match self.network_mode {
+            NetworkMode::Mainnet => {
+                let response = self.client.get_proof_request_params(mode.into()).await?;
+                Ok(response)
+            }
+            NetworkMode::Reserved => {
+                Err(anyhow::anyhow!(
+                    "get_proof_request_params is only available in Mainnet mode (auction-based proving). This feature is not supported in Reserved mode."
+                ))
+            }
+        }
     }
 
     /// Gets the status of a proof request. Re-exposes the status response from the client.
@@ -304,13 +321,13 @@ impl NetworkProver {
         // Check if current time exceeds deadline. If so, the proof has timed out.
         let current_time =
             std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
-        if current_time > status.deadline {
+        if current_time > status.deadline() {
             return Err(Error::RequestTimedOut { request_id: request_id.to_vec() }.into());
         }
 
         // Get the execution and fulfillment statuses.
-        let execution_status = ExecutionStatus::try_from(status.execution_status).unwrap();
-        let fulfillment_status = FulfillmentStatus::try_from(status.fulfillment_status).unwrap();
+        let execution_status = ExecutionStatus::try_from(status.execution_status()).unwrap();
+        let fulfillment_status = FulfillmentStatus::try_from(status.fulfillment_status()).unwrap();
 
         // Check the execution status.
         if execution_status == ExecutionStatus::Unexecutable {
@@ -369,40 +386,17 @@ impl NetworkProver {
         max_price_per_pgu: u64,
         domain: Vec<u8>,
     ) -> Result<B256> {
-        // Ensure the strategy is supported in the network.
-        cfg_if::cfg_if! {
-            if #[cfg(not(feature = "reserved-capacity"))] {
-                if strategy != FulfillmentStrategy::Auction {
-                    return Err(anyhow::anyhow!(
-                        "This fulfillment strategy requires the \"reserved-capacity\" feature on sp1-sdk. Use FulfillmentStrategy::Auction or enable the feature."
-                    ));
-                }
-            } else {
-                if strategy == FulfillmentStrategy::Auction {
-                    return Err(anyhow::anyhow!(
-                        "FulfillmentStrategy::Auction is not available with the \"reserved-capacity\" feature on sp1-sdk. Use a different strategy or disable the feature."
-                    ));
-                }
-            }
-        }
-
         if self.client.rpc_url == TEE_NETWORK_RPC_URL && strategy != FulfillmentStrategy::Reserved {
             return Err(anyhow::anyhow!(
                 "Private proving is available with reserved fulfillment strategy only. Use FulfillmentStrategy::Reserved."
             ));
         }
 
-        // Parse the timeout if it's provided, otherwise use the default.
-        cfg_if::cfg_if! {
-            if #[cfg(not(feature = "reserved-capacity"))] {
-                let timeout_secs = timeout.map_or_else(
-                    || super::utils::calculate_timeout_from_gas_limit(gas_limit),
-                    |dur| dur.as_secs(),
-                );
-            } else {
-                let timeout_secs = timeout.map_or(DEFAULT_TIMEOUT_SECS, |dur| dur.as_secs());
-            }
-        }
+        // Get the timeout. If no timeout is specified, auto-calculate based on gas limit.
+        let timeout_secs = timeout.map_or_else(
+            || super::utils::calculate_timeout_from_gas_limit(gas_limit),
+            |dur| dur.as_secs(),
+        );
 
         let max_price_per_bpgu = max_price_per_pgu * 1_000_000_000;
 
@@ -458,12 +452,13 @@ impl NetworkProver {
             .await?;
 
         // Log the request ID and transaction hash.
-        let tx_hash = B256::from_slice(&response.tx_hash);
-        let request_id = B256::from_slice(&response.body.unwrap().request_id);
+        let tx_hash = B256::from_slice(response.tx_hash());
+        let request_id = B256::from_slice(response.request_id());
         tracing::info!("Created request {} in transaction {:?}", request_id, tx_hash);
 
         let explorer = match self.client.rpc_url.trim_end_matches('/') {
-            DEFAULT_NETWORK_RPC_URL => Some(PUBLIC_EXPLORER_URL),
+            MAINNET_RPC_URL => Some(MAINNET_EXPLORER_URL),
+            RESERVED_RPC_URL => Some(RESERVED_EXPLORER_URL),
             PRIVATE_NETWORK_RPC_URL => Some(PRIVATE_EXPLORER_URL),
             _ => None,
         };
@@ -476,9 +471,19 @@ impl NetworkProver {
     }
 
     /// Cancels a proof request by updating the deadline to the current time.
-    #[cfg(not(feature = "reserved-capacity"))]
+    /// Only available in Mainnet mode (auction-based proving).
     pub async fn cancel_request(&self, request_id: B256) -> Result<()> {
-        self.client.cancel_request(request_id).await
+        match self.network_mode {
+            NetworkMode::Mainnet => {
+                self.client.cancel_request(request_id).await?;
+                Ok(())
+            }
+            NetworkMode::Reserved => {
+                Err(anyhow::anyhow!(
+                    "cancel_request is only available in Mainnet mode (auction-based proving). This feature is not supported in Reserved mode."
+                ))
+            }
+        }
     }
 
     /// Waits for a proof to be generated and returns the proof. If a timeout is supplied, the
@@ -522,21 +527,22 @@ impl NetworkProver {
                 tracing::info!("Proof request assigned, proving...");
                 is_assigned = true;
             } else if fulfillment_status == FulfillmentStatus::Requested {
-                // Track when we first entered requested status
+                // Track when we first entered requested status.
                 if requested_start_time.is_none() {
                     requested_start_time = Some(Instant::now());
                 }
 
-                // Check if we've exceeded the auction timeout
-                #[cfg(not(feature = "reserved-capacity"))]
-                if let Some(req_start) = requested_start_time {
-                    if req_start.elapsed() > auction_timeout_duration {
-                        tracing::info!("Auction period exceeded, cancelling request...");
-                        self.client.cancel_request(request_id).await?;
-                        return Err(Error::RequestAuctionTimedOut {
-                            request_id: request_id.to_vec(),
+                // Check if we've exceeded the auction timeout (only for Mainnet mode).
+                if self.network_mode == NetworkMode::Mainnet {
+                    if let Some(req_start) = requested_start_time {
+                        if req_start.elapsed() > auction_timeout_duration {
+                            tracing::info!("Auction period exceeded, cancelling request...");
+                            self.client.cancel_request(request_id).await?;
+                            return Err(Error::RequestAuctionTimedOut {
+                                request_id: request_id.to_vec(),
+                            }
+                            .into());
                         }
-                        .into());
                     }
                 }
             }
@@ -672,39 +678,42 @@ impl NetworkProver {
             let mut proof = match self.wait_proof(request_id, timeout, auction_timeout).await {
                 Ok(proof) => proof,
                 Err(e) => {
-                    #[cfg(not(feature = "reserved-capacity"))]
-                    // Check if this is an auction request that we can retry.
-                    if let Some(network_error) = e.downcast_ref::<Error>() {
-                        if matches!(
-                            network_error,
-                            Error::RequestUnfulfillable { .. } |
-                                Error::RequestTimedOut { .. } |
-                                Error::RequestAuctionTimedOut { .. }
-                        ) && strategy == FulfillmentStrategy::Auction &&
-                            whitelist.is_none()
-                        {
-                            tracing::warn!("Retrying auction request with fallback whitelist...");
+                    // Check if this is a Mainnet auction request that we can retry.
+                    if self.network_mode == NetworkMode::Mainnet {
+                        if let Some(network_error) = e.downcast_ref::<Error>() {
+                            if matches!(
+                                network_error,
+                                Error::RequestUnfulfillable { .. } |
+                                    Error::RequestTimedOut { .. } |
+                                    Error::RequestAuctionTimedOut { .. }
+                            ) && strategy == FulfillmentStrategy::Auction &&
+                                whitelist.is_none()
+                            {
+                                tracing::warn!(
+                                    "Retrying auction request with fallback whitelist..."
+                                );
 
-                            // Get fallback high availability provers and retry.
-                            let mut rpc = self.client.prover_network_client().await?;
-                            let fallback_whitelist = rpc
-                                .get_provers_by_uptime(
-                                    crate::network::proto::types::GetProversByUptimeRequest {
-                                        high_availability_only: true,
-                                    },
-                                )
-                                .await?
-                                .into_inner()
-                                .provers
-                                .into_iter()
-                                .map(|p| Address::from_slice(&p))
-                                .collect::<Vec<_>>();
-                            if fallback_whitelist.is_empty() {
-                                tracing::warn!("No fallback high availability provers found.");
-                                return Err(e);
+                                // Get fallback high availability provers and retry.
+                                let mut rpc = self.client.auction_prover_network_client().await?;
+                                let fallback_whitelist = rpc
+                                    .get_provers_by_uptime(
+                                        crate::network::proto::auction_types::GetProversByUptimeRequest {
+                                            high_availability_only: true,
+                                        },
+                                    )
+                                    .await?
+                                    .into_inner()
+                                    .provers
+                                    .into_iter()
+                                    .map(|p| Address::from_slice(&p))
+                                    .collect::<Vec<_>>();
+                                if fallback_whitelist.is_empty() {
+                                    tracing::warn!("No fallback high availability provers found.");
+                                    return Err(e);
+                                }
+                                whitelist = Some(fallback_whitelist);
+                                continue;
                             }
-                            whitelist = Some(fallback_whitelist);
-                            continue;
                         }
                     }
 
@@ -764,8 +773,8 @@ impl NetworkProver {
             return Ok((cycle_limit_value, gas_limit_value, None));
         }
 
-        // One of the limits were not provided and simulation is not skipped, so simulate to get one
-        // or both limits
+        // One of the limits were not provided and simulation is not skipped, so simulate to get one.
+        // or both limits.
         let execute_result = self
             .prover
             .inner()
@@ -807,43 +816,55 @@ impl NetworkProver {
         treasury: Option<Address>,
         max_price_per_pgu: Option<u64>,
     ) -> Result<(Address, Address, Address, Address, u64, u64, Vec<u8>)> {
-        cfg_if::cfg_if! {
-            if #[cfg(not(feature = "reserved-capacity"))] {
+        match self.network_mode {
+            NetworkMode::Mainnet => {
                 let params = self.get_proof_request_params(mode).await?;
-                let auctioneer_value = if let Some(auctioneer) = auctioneer {
-                    auctioneer
-                } else {
-                    Address::from_slice(&params.auctioneer)
-                };
-                let executor_value = if let Some(executor) = executor {
-                    executor
-                } else {
-                    Address::from_slice(&params.executor)
-                };
-                let verifier_value = if let Some(verifier) = verifier {
-                    verifier
-                } else {
-                    Address::from_slice(&params.verifier)
-                };
-                let treasury_value = if let Some(treasury) = treasury {
-                    treasury
-                } else {
-                    Address::from_slice(&params.treasury)
-                };
-                let max_price_per_pgu_value = if let Some(max_price_per_pgu) = max_price_per_pgu {
-                    max_price_per_pgu
-                } else {
-                    params
-                        .max_price_per_pgu
-                        .parse::<u64>()
-                        .expect("invalid max_price_per_pgu")
-                };
-                let base_fee = params
-                    .base_fee
-                    .parse::<u64>()
-                    .expect("invalid base_fee");
-                Ok((auctioneer_value, executor_value, verifier_value, treasury_value, max_price_per_pgu_value, base_fee, params.domain))
-            } else {
+                match params {
+                    GetProofRequestParamsResponse::Auction(auction_params) => {
+                        let auctioneer_value = if let Some(auctioneer) = auctioneer {
+                            auctioneer
+                        } else {
+                            Address::from_slice(&auction_params.auctioneer)
+                        };
+                        let executor_value = if let Some(executor) = executor {
+                            executor
+                        } else {
+                            Address::from_slice(&auction_params.executor)
+                        };
+                        let verifier_value = if let Some(verifier) = verifier {
+                            verifier
+                        } else {
+                            Address::from_slice(&auction_params.verifier)
+                        };
+                        let treasury_value = if let Some(treasury) = treasury {
+                            treasury
+                        } else {
+                            Address::from_slice(&auction_params.treasury)
+                        };
+                        let max_price_per_pgu_value = if let Some(max_price_per_pgu) = max_price_per_pgu {
+                            max_price_per_pgu
+                        } else {
+                            auction_params
+                                .max_price_per_pgu
+                                .parse::<u64>()
+                                .expect("invalid max_price_per_pgu")
+                        };
+                        let base_fee = auction_params
+                            .base_fee
+                            .parse::<u64>()
+                            .expect("invalid base_fee");
+                        Ok((auctioneer_value, executor_value, verifier_value, treasury_value, max_price_per_pgu_value, base_fee, auction_params.domain))
+                    }
+                    GetProofRequestParamsResponse::Unsupported => {
+                        Err(anyhow::anyhow!(
+                            "get_proof_request_params is not supported in {:?} mode. This operation is only available for Mainnet (auction-based proving).",
+                            self.network_mode
+                        ))
+                    }
+                }
+            }
+            NetworkMode::Reserved => {
+                // Reserved mode doesn't use auction parameters.
                 Ok((Address::ZERO, Address::ZERO, Address::ZERO, Address::ZERO, 0, 0, vec![]))
             }
         }
@@ -877,7 +898,7 @@ impl Prover<CpuProverComponents> for NetworkProver {
             pk,
             stdin,
             mode,
-            DEFAULT_FULFILLMENT_STRATEGY,
+            self.default_fulfillment_strategy(),
             None,
             false,
             None,

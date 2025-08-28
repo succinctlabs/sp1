@@ -37,11 +37,11 @@ pub(crate) async fn sign_message(message: &[u8], signer: &NetworkSigner) -> Resu
     let signature = signer.sign_message(message).await?;
     let bytes = signature.as_bytes();
 
-    // Extract r,s (first 64 bytes) and v (last byte)
+    // Extract r,s (first 64 bytes) and v (last byte).
     let mut signature_bytes = bytes[..64].to_vec();
     let v = bytes[64];
 
-    // Ethereum uses 27 + v for the recovery id
+    // Ethereum uses 27 + v for the recovery id.
     signature_bytes.push(v + 27);
 
     Ok(signature_bytes)
@@ -56,4 +56,20 @@ pub(crate) fn calculate_timeout_from_gas_limit(gas_limit: u64) -> u64 {
     let base_timeout = 300; // 5 minutes
     let gas_based_timeout = gas_limit / 2_000_000;
     min(max(base_timeout, gas_based_timeout), 14400)
+}
+
+/// Get the default RPC URL for the given network mode.
+pub fn get_default_rpc_url_for_mode(network_mode: super::NetworkMode) -> String {
+    match network_mode {
+        super::NetworkMode::Mainnet => super::MAINNET_RPC_URL.to_string(),
+        super::NetworkMode::Reserved => super::RESERVED_RPC_URL.to_string(),
+    }
+}
+
+/// Get the explorer URL for the given network mode.
+pub fn get_explorer_url_for_mode(network_mode: super::NetworkMode) -> &'static str {
+    match network_mode {
+        super::NetworkMode::Mainnet => super::MAINNET_EXPLORER_URL,
+        super::NetworkMode::Reserved => super::RESERVED_EXPLORER_URL,
+    }
 }
