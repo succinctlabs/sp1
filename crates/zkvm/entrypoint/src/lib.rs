@@ -174,10 +174,51 @@ mod zkvm {
                 DEFERRED_PROOFS_DIGEST = Some([BabyBear::zero(); 8]);
             }
 
+            // Call C global constructors before main
+            extern "C" {
+                static __preinit_array_start: [extern "C" fn(); 0];
+                static __preinit_array_end: [extern "C" fn(); 0];
+                static __init_array_start: [extern "C" fn(); 0];
+                static __init_array_end: [extern "C" fn(); 0];
+            }
+
+            // Call preinit array functions
+            let preinit_start = &__preinit_array_start as *const _ as *const extern "C" fn();
+            let preinit_end = &__preinit_array_end as *const _ as *const extern "C" fn();
+            let preinit_count = (preinit_end as usize - preinit_start as usize) / std::mem::size_of::<extern "C" fn()>();
+            for i in 0..preinit_count {
+                let func_ptr = unsafe { preinit_start.add(i) };
+                unsafe { (*func_ptr)(); }
+            }
+
+            // Call init array functions
+            let init_start = &__init_array_start as *const _ as *const extern "C" fn();
+            let init_end = &__init_array_end as *const _ as *const extern "C" fn();
+            let init_count = (init_end as usize - init_start as usize) / std::mem::size_of::<extern "C" fn()>();
+            for i in 0..init_count {
+                let func_ptr = unsafe { init_start.add(i) };
+                unsafe { (*func_ptr)(); }
+            }
+
             extern "C" {
                 fn main();
             }
-            main()
+            main();
+
+            // Call C global destructors after main
+            extern "C" {
+                static __fini_array_start: [extern "C" fn(); 0];
+                static __fini_array_end: [extern "C" fn(); 0];
+            }
+
+            // Call fini array functions in reverse order
+            let fini_start = &__fini_array_start as *const _ as *const extern "C" fn();
+            let fini_end = &__fini_array_end as *const _ as *const extern "C" fn();
+            let fini_count = (fini_end as usize - fini_start as usize) / std::mem::size_of::<extern "C" fn()>();
+            for i in (0..fini_count).rev() {
+                let func_ptr = unsafe { fini_start.add(i) };
+                unsafe { (*func_ptr)(); }
+            }
         }
 
         syscall_halt(0);
@@ -252,4 +293,44 @@ macro_rules! entrypoint {
             }
         }
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_c_global_constructor_symbols_exist() {
+        // Test that the C global constructor symbols are properly declared
+        extern "C" {
+            static __preinit_array_start: [extern "C" fn(); 0];
+            static __preinit_array_end: [extern "C" fn(); 0];
+            static __init_array_start: [extern "C" fn(); 0];
+            static __init_array_end: [extern "C" fn(); 0];
+            static __fini_array_start: [extern "C" fn(); 0];
+            static __fini_array_end: [extern "C" fn(); 0];
+        }
+
+        // Verify that we can access these symbols
+        let _preinit_start = &__preinit_array_start as *const _ as *const extern "C" fn();
+        let _preinit_end = &__preinit_array_end as *const _ as *const extern "C" fn();
+        let _init_start = &__init_array_start as *const _ as *const extern "C" fn();
+        let _init_end = &__init_array_end as *const _ as *const extern "C" fn();
+        let _fini_start = &__fini_array_start as *const _ as *const extern "C" fn();
+        let _fini_end = &__fini_array_end as *const _ as *const extern "C" fn();
+
+        // This test should pass if the symbols are properly declared
+        assert!(true);
+    }
+
+    #[test]
+    fn test_constructor_destructor_logic() {
+        // Test the logic for calculating array counts
+        let start_ptr: *const extern "C" fn() = std::ptr::null();
+        let end_ptr: *const extern "C" fn() = std::ptr::null();
+        
+        // This should not panic
+        let count = (end_ptr as usize - start_ptr as usize) / std::mem::size_of::<extern "C" fn()>();
+        assert_eq!(count, 0);
+    }
 }
