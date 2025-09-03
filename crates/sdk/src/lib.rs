@@ -32,8 +32,6 @@ pub mod env;
 pub mod install;
 #[cfg(feature = "network")]
 pub mod network;
-#[cfg(feature = "private")]
-pub mod private;
 pub mod utils;
 
 // Re-export the client.

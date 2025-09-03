@@ -7,9 +7,6 @@ use crate::{cpu::builder::CpuProverBuilder, cuda::builder::CudaProverBuilder, en
 #[cfg(feature = "network")]
 use crate::network::builder::NetworkProverBuilder;
 
-#[cfg(feature = "private")]
-use crate::private::builder::PrivateProverBuilder;
-
 /// An entrypoint for interacting with the prover for the SP1 RISC-V zkVM.
 ///
 /// IMPORTANT: `ProverClient` only needs to be initialized ONCE and can be reused for subsequent
@@ -139,11 +136,5 @@ impl ProverClientBuilder {
     #[must_use]
     pub fn network(&self) -> NetworkProverBuilder {
         NetworkProverBuilder { private_key: None, signer: None, rpc_url: None, tee_signers: None }
-    }
-
-    #[cfg(feature = "private")]
-    #[must_use]
-    pub fn private(&self) -> PrivateProverBuilder {
-        PrivateProverBuilder::default()
     }
 }
