@@ -46,3 +46,4 @@ pub(crate) const DEFAULT_TEE_SERVER_URL: &str = "https://tee.production.succinct
 
 pub(crate) const DEFAULT_AUCTION_TIMEOUT_DURATION: Duration = Duration::from_secs(30);
 pub(crate) const DEFAULT_GAS_LIMIT: u64 = 1_000_000_000;
+pub(crate) const DEFAULT_TIMEOUT_SECS: u64 = 14400;
