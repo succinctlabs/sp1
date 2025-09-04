@@ -6,6 +6,8 @@
 
 use anyhow::Result;
 use prost::Message;
+
+#[cfg(not(feature = "reserved-capacity"))]
 use std::cmp::{max, min};
 
 use super::signer::NetworkSigner;
@@ -49,6 +51,7 @@ pub(crate) async fn sign_message(message: &[u8], signer: &NetworkSigner) -> Resu
 ///
 /// Uses a base timeout of 5 minutes plus 1 second per 2000000 prover gas. The timeout is capped at
 /// 4 hours.
+#[cfg(not(feature = "reserved-capacity"))]
 pub(crate) fn calculate_timeout_from_gas_limit(gas_limit: u64) -> u64 {
     let base_timeout = 300; // 5 minutes
     let gas_based_timeout = gas_limit / 2_000_000;
