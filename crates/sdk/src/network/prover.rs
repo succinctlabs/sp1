@@ -17,8 +17,8 @@ use crate::{
         signer::NetworkSigner,
         tee::client::Client as TeeClient,
         Error, DEFAULT_AUCTION_TIMEOUT_DURATION, DEFAULT_CYCLE_LIMIT, DEFAULT_GAS_LIMIT,
-        DEFAULT_NETWORK_RPC_URL, PRIVATE_EXPLORER_URL, PRIVATE_NETWORK_RPC_URL,
-        PUBLIC_EXPLORER_URL,
+        DEFAULT_NETWORK_RPC_URL, DEFAULT_TIMEOUT_SECS, PRIVATE_EXPLORER_URL,
+        PRIVATE_NETWORK_RPC_URL, PUBLIC_EXPLORER_URL,
     },
     prover::verify_proof,
     ProofFromNetwork, Prover, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey,
@@ -386,11 +386,17 @@ impl NetworkProver {
             }
         }
 
-        // Get the timeout. If no timeout is specified, auto-calculate based on gas limit.
-        let timeout_secs = timeout.map_or_else(
-            || super::utils::calculate_timeout_from_gas_limit(gas_limit),
-            |dur| dur.as_secs(),
-        );
+        // Parse the timeout if it's provided, otherwise use the default.
+        cfg_if::cfg_if! {
+            if #[cfg(not(feature = "reserved-capacity"))] {
+                let timeout_secs = timeout.map_or_else(
+                    || super::utils::calculate_timeout_from_gas_limit(gas_limit),
+                    |dur| dur.as_secs(),
+                );
+            } else {
+                let timeout_secs = timeout.map_or(DEFAULT_TIMEOUT_SECS, |dur| dur.as_secs());
+            }
+        }
 
         let max_price_per_bpgu = max_price_per_pgu * 1_000_000_000;
 
