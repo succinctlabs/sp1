@@ -383,7 +383,7 @@ where
             }
             SignChoiceRule::Lexicographic => {
                 // When the sign rule is Lexicographic, the sign_bit corresponds to whether
-                // the result is greater than or less its negative with respect to the lexicographic
+                // the result is greater than or less than its negative with respect to the lexicographic
                 // ordering, embedding prime field values as integers.
                 //
                 // In order to endorce these constraints, we will use the auxiliary choice columns.

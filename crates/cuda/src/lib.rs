@@ -396,7 +396,7 @@ fn cleanup_container(container_name: &str) {
 /// If we're already in a tokio runtime, we'll block in place. Otherwise, we'll create a new
 /// runtime.
 pub fn block_on<T>(fut: impl Future<Output = T>) -> T {
-    // Handle case if we're already in an tokio runtime.
+    // Handle case if we're already in a tokio runtime.
     if let Ok(handle) = tokio::runtime::Handle::try_current() {
         block_in_place(|| handle.block_on(fut))
     } else {

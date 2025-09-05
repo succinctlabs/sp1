@@ -20,7 +20,7 @@ pub struct CpuExecuteBuilder<'a> {
 }
 
 impl<'a> CpuExecuteBuilder<'a> {
-    /// Add a executor [`sp1_core_executor::Hook`] into the context.
+    /// Add an executor [`sp1_core_executor::Hook`] into the context.
     ///
     /// # Arguments
     /// * `fd` - The file descriptor that triggers this execution hook.
