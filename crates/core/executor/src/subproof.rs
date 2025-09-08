@@ -1,10 +1,9 @@
 //! Types and methods for subproof verification inside the [`crate::Executor`].
 
 use sp1_stark::{
-    baby_bear_poseidon2::BabyBearPoseidon2, MachineVerificationError, StarkVerifyingKey,
+    baby_bear_poseidon2::BabyBearPoseidon2, MachineVerificationError, SP1ReduceProof,
+    StarkVerifyingKey,
 };
-
-use crate::SP1ReduceProof;
 
 /// Verifier used in runtime when `sp1_zkvm::precompiles::verify::verify_sp1_proof` is called. This
 /// is then used to sanity check that the user passed in the correct proof; the actual constraints

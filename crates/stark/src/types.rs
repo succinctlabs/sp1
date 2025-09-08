@@ -5,10 +5,10 @@ use std::fmt::Debug;
 use hashbrown::HashMap;
 use itertools::Itertools;
 use p3_matrix::{dense::RowMajorMatrixView, stack::VerticalPair};
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use super::{Challenge, Com, OpeningProof, StarkGenericConfig, Val};
-use crate::{septic_digest::SepticDigest, shape::OrderedShape};
+use crate::{septic_digest::SepticDigest, shape::OrderedShape, Dom, StarkVerifyingKey};
 
 pub type QuotientOpenedValues<T> = Vec<T>;
 
@@ -131,6 +131,26 @@ pub struct MachineProof<SC: StarkGenericConfig> {
 impl<SC: StarkGenericConfig> Debug for MachineProof<SC> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Proof").field("shard_proofs", &self.shard_proofs.len()).finish()
+    }
+}
+
+/// An intermediate proof which proves the execution.
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(bound(serialize = "ShardProof<SC>: Serialize, Dom<SC>: Serialize"))]
+#[serde(bound(deserialize = "ShardProof<SC>: Deserialize<'de>, Dom<SC>: DeserializeOwned"))]
+pub struct SP1ReduceProof<SC: StarkGenericConfig> {
+    /// The compress verifying key associated with the proof.
+    pub vk: StarkVerifyingKey<SC>,
+    /// The shard proof representing the compressed proof.
+    pub proof: ShardProof<SC>,
+}
+
+impl<SC: StarkGenericConfig> std::fmt::Debug for SP1ReduceProof<SC> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut debug_struct = f.debug_struct("SP1ReduceProof");
+        debug_struct.field("vk", &self.vk);
+        debug_struct.field("proof", &self.proof);
+        debug_struct.finish()
     }
 }
 

@@ -15,11 +15,11 @@ use p3_baby_bear::BabyBear;
 use p3_field::{extension::BinomialExtensionField, AbstractField, PrimeField};
 use p3_fri::{FriProof, TwoAdicFriPcsProof};
 use serde::{Deserialize, Serialize};
-use sp1_core_executor::SP1ReduceProof;
 use sp1_primitives::io::SP1PublicValues;
 use sp1_prover::{CoreSC, Groth16Bn254Proof, HashableKey, InnerSC, PlonkBn254Proof, SP1ProvingKey};
 use sp1_stark::{
-    septic_digest::SepticDigest, ShardCommitment, ShardOpenedValues, ShardProof, StarkVerifyingKey,
+    septic_digest::SepticDigest, SP1ReduceProof, ShardCommitment, ShardOpenedValues, ShardProof,
+    StarkVerifyingKey,
 };
 use strum_macros::{EnumDiscriminants, EnumTryAs};
 
