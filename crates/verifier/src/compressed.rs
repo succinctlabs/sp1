@@ -1,36 +1,15 @@
+use alloc::vec;
+
 use p3_baby_bear::BabyBear;
+use sp1_recursion_core::machine::RecursionAir;
 use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, *};
 
-/// Errors that can occur during machine verification.
-pub enum MachineVerificationError<SC: StarkGenericConfig> {
-    /// An error occurred during the verification of a shard proof.
-    InvalidShardProof(VerificationError<SC>),
-    /// An error occurred during the verification of a global proof.
-    InvalidGlobalProof(VerificationError<SC>),
-    // /// The cumulative sum is non-zero.
-    // NonZeroCumulativeSum(InteractionScope, usize),
-    /// The public values digest is invalid.
-    InvalidPublicValuesDigest,
-    /// The debug interactions failed.
-    DebugInteractionsFailed,
-    /// The proof is empty.
-    EmptyProof,
-    /// The public values are invalid.
-    InvalidPublicValues(&'static str),
-    /// The number of shards is too large.
-    TooManyShards,
-    /// The chip occurrence is invalid.
-    InvalidChipOccurrence(String),
-    /// The CPU is missing in the first shard.
-    MissingCpuInFirstShard,
-    /// The CPU log degree is too large.
-    CpuLogDegreeTooLarge(usize),
-    /// The verification key is not allowed.
-    InvalidVerificationKey,
-}
-
 /// The configuration for the core prover.
+pub type F = BabyBear;
 pub type CoreSC = BabyBearPoseidon2;
+pub type InnerSC = BabyBearPoseidon2;
+
+const COMPRESS_DEGREE: usize = 3;
 
 /// TODO(tqn) determine if we want to keep some state/cached data between calls.
 /// Verify a compressed proof.
@@ -39,9 +18,13 @@ pub fn verify_compressed(
     vkey_hash: &[BabyBear; 8],
 ) -> Result<(), MachineVerificationError<CoreSC>> {
     let SP1ReduceProof { vk: compress_vk, proof } = proof;
-    // let mut challenger = self.compress_prover.config().challenger();
-    // let machine_proof = MachineProof { shard_proofs: vec![proof.clone()] };
-    // self.compress_prover.machine().verify(compress_vk, &machine_proof, &mut challenger)?;
+
+    let compress_machine: StarkMachine<InnerSC, _> =
+        RecursionAir::<F, COMPRESS_DEGREE>::compress_machine(InnerSC::default());
+
+    let mut challenger = compress_machine.config().challenger();
+    let machine_proof = MachineProof { shard_proofs: vec![proof.clone()] };
+    compress_machine.verify(compress_vk, &machine_proof, &mut challenger)?;
 
     // // Validate public values
     // let public_values: &RecursionPublicValues<_> = proof.public_values.as_slice().borrow();

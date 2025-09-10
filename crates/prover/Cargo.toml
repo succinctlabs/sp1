@@ -13,7 +13,7 @@ exclude = ["src/vk_map.bin"]
 [dependencies]
 p3-matrix = { workspace = true }
 sp1-recursion-compiler = { workspace = true }
-sp1-recursion-core = { workspace = true }
+sp1-recursion-core = { workspace = true, default-features = true }
 sp1-recursion-circuit = { workspace = true }
 sp1-recursion-gnark-ffi = { workspace = true }
 sp1-core-machine = { workspace = true }

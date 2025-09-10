@@ -20,7 +20,7 @@ cfg-if = "1.0.0"
 
 # sp1
 sp1-stark = { workspace = true, optional = true }
-# sp1-recursion-core = { workspace = true, optional = true }
+sp1-recursion-core = { workspace = true, optional = true, default-features = false }
 p3-field = { workspace = true, optional = true }
 p3-baby-bear = { workspace = true, optional = true }
 
@@ -42,10 +42,13 @@ rstest = "0.25.0"
 
 [features]
 # TODO remove compressed feature by default
-default = ["std", "compressed"]
+default = [
+    "std",
+    # "compressed"
+]
 compressed = [
     "dep:sp1-stark",
-    # "dep:sp1-recursion-core",
+    "dep:sp1-recursion-core",
     "dep:p3-field",
     "dep:p3-baby-bear",
 ]
