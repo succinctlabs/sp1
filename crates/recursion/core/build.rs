@@ -5,6 +5,19 @@ fn main() {
 
     #[cfg(feature = "sys")]
     sys::build_ffi();
+
+    // TODO(tqn) clean up.
+    #[cfg(not(feature = "sys"))]
+    {
+        // Build an empty library.
+        use std::{env, path::PathBuf};
+        let source = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("empty.cpp");
+        println!("cargo::rustc-link-lib=static=sp1-core-machine-sys");
+        const LIB_NAME: &str = "sp1-recursion-core-sys";
+        let mut cc_builder = cc::Build::new();
+        cc_builder.files(&[source]);
+        cc_builder.compile(LIB_NAME);
+    }
 }
 
 #[cfg(feature = "sys")]

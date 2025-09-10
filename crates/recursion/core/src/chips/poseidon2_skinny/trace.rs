@@ -1,19 +1,26 @@
 use crate::{
-    chips::poseidon2_skinny::{
-        columns::{Poseidon2 as Poseidon2Cols, NUM_POSEIDON2_COLS},
-        Poseidon2SkinnyChip, NUM_EXTERNAL_ROUNDS,
-    },
-    instruction::Instruction::Poseidon2,
-    ExecutionRecord, Poseidon2Io, Poseidon2SkinnyInstr,
+    chips::poseidon2_skinny::{Poseidon2SkinnyChip, NUM_EXTERNAL_ROUNDS},
+    ExecutionRecord,
 };
-use itertools::Itertools;
-use p3_baby_bear::BabyBear;
-use p3_field::{AbstractField, PrimeField32};
+use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use sp1_core_machine::utils::next_power_of_two;
 use sp1_stark::air::MachineAir;
-use std::{borrow::BorrowMut, mem::size_of};
-use tracing::instrument;
+use std::mem::size_of;
+
+#[cfg(feature = "sys")]
+use {
+    crate::{
+        chips::poseidon2_skinny::columns::{Poseidon2 as Poseidon2Cols, NUM_POSEIDON2_COLS},
+        instruction::Instruction::Poseidon2,
+        Poseidon2Io, Poseidon2SkinnyInstr,
+    },
+    itertools::Itertools,
+    p3_baby_bear::BabyBear,
+    p3_field::AbstractField,
+    std::borrow::BorrowMut,
+    tracing::instrument,
+};
 
 use super::columns::preprocessed::Poseidon2PreprocessedCols;
 
@@ -38,6 +45,12 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2SkinnyChip
         Some(next_power_of_two(events.len() * (OUTPUT_ROUND_IDX + 1), input.fixed_log2_rows(self)))
     }
 
+    #[cfg(not(feature = "sys"))]
+    fn generate_trace(&self, _input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
+        unimplemented!("To generate traces, enable feature `sp1-recursion-core/sys`");
+    }
+
+    #[cfg(feature = "sys")]
     #[instrument(name = "generate poseidon2 skinny trace", level = "debug", skip_all, fields(rows = input.poseidon2_events.len()))]
     fn generate_trace(
         &self,
@@ -92,6 +105,12 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2SkinnyChip
         Some(next_power_of_two(instrs_len, program.fixed_log2_rows(self)))
     }
 
+    #[cfg(not(feature = "sys"))]
+    fn generate_preprocessed_trace(&self, _program: &Self::Program) -> Option<RowMajorMatrix<F>> {
+        unimplemented!("To generate traces, enable feature `sp1-recursion-core/sys`");
+    }
+
+    #[cfg(feature = "sys")]
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         assert_eq!(
             std::any::TypeId::of::<F>(),
@@ -143,7 +162,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2SkinnyChip
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "sys"))]
 mod tests {
     use crate::{
         chips::{

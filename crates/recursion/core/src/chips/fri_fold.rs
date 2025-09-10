@@ -1,23 +1,24 @@
 #![allow(clippy::needless_range_loop)]
 
 use core::borrow::Borrow;
-use itertools::Itertools;
-use p3_baby_bear::BabyBear;
-use sp1_core_machine::utils::{next_power_of_two, pad_rows_fixed};
-use sp1_stark::air::{BinomialExtension, MachineAir};
-use std::borrow::BorrowMut;
-use tracing::instrument;
-
 use p3_air::{Air, AirBuilder, BaseAir, PairBuilder};
-use p3_field::{AbstractField, PrimeField32};
+use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use sp1_stark::air::{BaseAirBuilder, ExtensionAirBuilder};
-
+use sp1_core_machine::utils::next_power_of_two;
 use sp1_derive::AlignedBorrow;
+use sp1_stark::air::{BaseAirBuilder, BinomialExtension, ExtensionAirBuilder, MachineAir};
 
-use crate::{
-    air::Block, builder::SP1RecursionAirBuilder, runtime::Instruction, ExecutionRecord,
-    FriFoldEvent, FriFoldInstr,
+use crate::{air::Block, builder::SP1RecursionAirBuilder, ExecutionRecord};
+
+#[cfg(feature = "sys")]
+use {
+    crate::{runtime::Instruction, FriFoldEvent, FriFoldInstr},
+    itertools::Itertools,
+    p3_baby_bear::BabyBear,
+    p3_field::AbstractField,
+    sp1_core_machine::utils::pad_rows_fixed,
+    std::borrow::BorrowMut,
+    tracing::instrument,
 };
 
 use super::mem::MemoryAccessColsChips;
@@ -100,6 +101,12 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
         NUM_FRI_FOLD_PREPROCESSED_COLS
     }
 
+    #[cfg(not(feature = "sys"))]
+    fn generate_preprocessed_trace(&self, _program: &Self::Program) -> Option<RowMajorMatrix<F>> {
+        unimplemented!("To generate traces, enable feature `sp1-recursion-core/sys`");
+    }
+
+    #[cfg(feature = "sys")]
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         assert_eq!(
             std::any::TypeId::of::<F>(),
@@ -165,6 +172,12 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for FriFoldChip<DEGREE>
         Some(next_power_of_two(events.len(), input.fixed_log2_rows(self)))
     }
 
+    #[cfg(not(feature = "sys"))]
+    fn generate_trace(&self, _input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
+        unimplemented!("To generate traces, enable feature `sp1-recursion-core/sys`");
+    }
+
+    #[cfg(feature = "sys")]
     #[instrument(name = "generate fri fold trace", level = "debug", skip_all, fields(rows = input.fri_fold_events.len()))]
     fn generate_trace(
         &self,
@@ -347,7 +360,7 @@ where
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "sys"))]
 mod tests {
     #![allow(clippy::print_stdout)]
 
@@ -429,10 +442,10 @@ mod tests {
                 let ro_output = (0..i)
                     .map(|i| {
                         let i = i as usize;
-                        ro_input[i].ext::<EF>() +
-                            alpha_pow_input[i].ext::<EF>() *
-                                (-ps_at_z[i].ext::<EF>() + mat_opening[i].ext::<EF>()) /
-                                (-z.ext::<EF>() + x)
+                        ro_input[i].ext::<EF>()
+                            + alpha_pow_input[i].ext::<EF>()
+                                * (-ps_at_z[i].ext::<EF>() + mat_opening[i].ext::<EF>())
+                                / (-z.ext::<EF>() + x)
                     })
                     .collect::<Vec<EF>>();
 

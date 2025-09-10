@@ -1,17 +1,23 @@
 use core::borrow::Borrow;
-use instruction::{HintAddCurveInstr, HintBitsInstr, HintExt2FeltsInstr, HintInstr};
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use p3_maybe_rayon::prelude::*;
-use sp1_core_machine::utils::{next_power_of_two, pad_rows_fixed};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::MachineAir;
-use std::{borrow::BorrowMut, iter::zip, marker::PhantomData};
+use std::{iter::zip, marker::PhantomData};
 
 use crate::{builder::SP1RecursionAirBuilder, *};
 
-use super::{MemoryAccessCols, NUM_MEM_ACCESS_COLS};
+use super::MemoryAccessCols;
+
+#[cfg(feature = "sys")]
+use {
+    super::NUM_MEM_ACCESS_COLS,
+    instruction::{HintAddCurveInstr, HintBitsInstr, HintExt2FeltsInstr, HintInstr},
+    p3_maybe_rayon::prelude::*,
+    sp1_core_machine::utils::{next_power_of_two, pad_rows_fixed},
+    std::borrow::BorrowMut,
+};
 
 pub const NUM_VAR_MEM_ENTRIES_PER_ROW: usize = 2;
 
@@ -55,6 +61,12 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
         NUM_MEM_PREPROCESSED_INIT_COLS
     }
 
+    #[cfg(not(feature = "sys"))]
+    fn generate_preprocessed_trace(&self, _program: &Self::Program) -> Option<RowMajorMatrix<F>> {
+        unimplemented!("To generate traces, enable feature `sp1-recursion-core/sys`");
+    }
+
+    #[cfg(feature = "sys")]
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         // Allocating an intermediate `Vec` is faster.
         let accesses = program
@@ -62,8 +74,8 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
             .iter()
             // .par_bridge() // Using `rayon` here provides a big speedup. TODO put rayon back
             .flat_map(|instruction| match instruction {
-                Instruction::Hint(HintInstr { output_addrs_mults }) |
-                Instruction::HintBits(HintBitsInstr {
+                Instruction::Hint(HintInstr { output_addrs_mults })
+                | Instruction::HintBits(HintBitsInstr {
                     output_addrs_mults,
                     input_addr: _, // No receive interaction for the hint operation
                 }) => output_addrs_mults.iter().collect(),
@@ -103,6 +115,12 @@ impl<F: PrimeField32> MachineAir<F> for MemoryChip<F> {
         // This is a no-op.
     }
 
+    #[cfg(not(feature = "sys"))]
+    fn generate_trace(&self, _input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
+        unimplemented!("To generate traces, enable feature `sp1-recursion-core/sys`");
+    }
+
+    #[cfg(feature = "sys")]
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
         let mut rows = input
@@ -152,7 +170,7 @@ where
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "sys"))]
 mod tests {
     #![allow(clippy::print_stdout)]
 

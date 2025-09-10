@@ -1,21 +1,24 @@
 #![allow(clippy::needless_range_loop)]
 
-use crate::{
-    air::Block, builder::SP1RecursionAirBuilder, Address, BatchFRIEvent, BatchFRIInstr,
-    ExecutionRecord, Instruction,
-};
+use crate::{air::Block, builder::SP1RecursionAirBuilder, Address, ExecutionRecord};
 use core::borrow::Borrow;
-use itertools::Itertools;
 use p3_air::{Air, AirBuilder, BaseAir, PairBuilder};
-use p3_baby_bear::BabyBear;
-use p3_field::{AbstractField, PrimeField32};
+use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use sp1_core_machine::utils::{next_power_of_two, pad_rows_fixed};
+use sp1_core_machine::utils::next_power_of_two;
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::{BaseAirBuilder, BinomialExtension, ExtensionAirBuilder, MachineAir};
 
-use std::borrow::BorrowMut;
-use tracing::instrument;
+#[cfg(feature = "sys")]
+use {
+    crate::{BatchFRIEvent, BatchFRIInstr, Instruction},
+    itertools::Itertools,
+    p3_baby_bear::BabyBear,
+    p3_field::AbstractField,
+    sp1_core_machine::utils::pad_rows_fixed,
+    std::borrow::BorrowMut,
+    tracing::instrument,
+};
 
 pub const NUM_BATCH_FRI_COLS: usize = core::mem::size_of::<BatchFRICols<u8>>();
 pub const NUM_BATCH_FRI_PREPROCESSED_COLS: usize =
@@ -69,6 +72,12 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for BatchFRIChip<DEGREE
         NUM_BATCH_FRI_PREPROCESSED_COLS
     }
 
+    #[cfg(not(feature = "sys"))]
+    fn generate_preprocessed_trace(&self, _program: &Self::Program) -> Option<RowMajorMatrix<F>> {
+        unimplemented!("To generate traces, enable feature `sp1-recursion-core/sys`");
+    }
+
+    #[cfg(feature = "sys")]
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         assert_eq!(
             std::any::TypeId::of::<F>(),
@@ -128,6 +137,12 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for BatchFRIChip<DEGREE
         Some(next_power_of_two(events.len(), input.fixed_log2_rows(self)))
     }
 
+    #[cfg(not(feature = "sys"))]
+    fn generate_trace(&self, _input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
+        unimplemented!("To generate traces, enable feature `sp1-recursion-core/sys`");
+    }
+
+    #[cfg(feature = "sys")]
     #[instrument(name = "generate batch fri trace", level = "debug", skip_all, fields(rows = input.batch_fri_events.len()))]
     fn generate_trace(
         &self,
@@ -206,26 +221,26 @@ impl<const DEGREE: usize> BatchFRIChip<DEGREE> {
         // Constrain the accumulator value of the first row.
         builder.when_first_row().assert_ext_eq(
             local.acc.as_extension::<AB>(),
-            local.alpha_pow.as_extension::<AB>() *
-                (local.p_at_z.as_extension::<AB>() -
-                    BinomialExtension::from_base(local.p_at_x.into())),
+            local.alpha_pow.as_extension::<AB>()
+                * (local.p_at_z.as_extension::<AB>()
+                    - BinomialExtension::from_base(local.p_at_x.into())),
         );
 
         // Constrain the accumulator of the next row when the current row is the end of loop.
         builder.when_transition().when(local_prepr.is_end).assert_ext_eq(
             next.acc.as_extension::<AB>(),
-            next.alpha_pow.as_extension::<AB>() *
-                (next.p_at_z.as_extension::<AB>() -
-                    BinomialExtension::from_base(next.p_at_x.into())),
+            next.alpha_pow.as_extension::<AB>()
+                * (next.p_at_z.as_extension::<AB>()
+                    - BinomialExtension::from_base(next.p_at_x.into())),
         );
 
         // Constrain the accumulator of the next row when the current row is not the end of loop.
         builder.when_transition().when_not(local_prepr.is_end).assert_ext_eq(
             next.acc.as_extension::<AB>(),
-            local.acc.as_extension::<AB>() +
-                next.alpha_pow.as_extension::<AB>() *
-                    (next.p_at_z.as_extension::<AB>() -
-                        BinomialExtension::from_base(next.p_at_x.into())),
+            local.acc.as_extension::<AB>()
+                + next.alpha_pow.as_extension::<AB>()
+                    * (next.p_at_z.as_extension::<AB>()
+                        - BinomialExtension::from_base(next.p_at_x.into())),
         );
     }
 
@@ -257,7 +272,7 @@ where
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "sys"))]
 mod tests {
     use crate::{chips::test_fixtures, Instruction, RecursionProgram};
     use p3_baby_bear::BabyBear;
