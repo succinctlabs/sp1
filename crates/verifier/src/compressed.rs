@@ -1,4 +1,4 @@
-use alloc::vec;
+use alloc::{boxed::Box, vec};
 
 use p3_baby_bear::BabyBear;
 use sp1_recursion_core::machine::RecursionAir;
@@ -6,21 +6,20 @@ use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, *};
 
 /// The configuration for the core prover.
 pub type F = BabyBear;
-pub type CoreSC = BabyBearPoseidon2;
-pub type InnerSC = BabyBearPoseidon2;
+pub type SC = BabyBearPoseidon2;
 
 const COMPRESS_DEGREE: usize = 3;
 
 /// TODO(tqn) determine if we want to keep some state/cached data between calls.
 /// Verify a compressed proof.
 pub fn verify_compressed(
-    proof: &SP1ReduceProof<BabyBearPoseidon2>,
-    vkey_hash: &[BabyBear; 8],
-) -> Result<(), MachineVerificationError<CoreSC>> {
+    proof: &SP1ReduceProof<SC>,
+    // vkey_hash: &[BabyBear; 8],
+) -> Result<(), MachineVerificationError<SC>> {
     let SP1ReduceProof { vk: compress_vk, proof } = proof;
 
-    let compress_machine: StarkMachine<InnerSC, _> =
-        RecursionAir::<F, COMPRESS_DEGREE>::compress_machine(InnerSC::default());
+    let compress_machine: StarkMachine<SC, _> =
+        RecursionAir::<F, COMPRESS_DEGREE>::compress_machine(SC::default());
 
     let mut challenger = compress_machine.config().challenger();
     let machine_proof = MachineProof { shard_proofs: vec![proof.clone()] };
@@ -56,6 +55,43 @@ pub fn verify_compressed(
     // }
 
     Ok(())
+}
+
+/// A verifier for Groth16 zero-knowledge proofs.
+#[derive(Debug)]
+pub struct CompressedVerifier;
+impl CompressedVerifier {
+    pub fn verify(
+        proof: &[u8],
+        sp1_public_inputs: &[u8],
+        sp1_vkey_hash: &str,
+    ) -> Result<(), CompressedError> {
+        let reduce_proof: SP1ReduceProof<SC> =
+            bincode::deserialize(proof).map_err(CompressedError::Deserialization)?;
+
+        verify_compressed(&reduce_proof).map_err(CompressedError::Verification)?;
+
+        Ok(())
+    }
+}
+
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum CompressedError {
+    // TODO(tqn) better errosr
+    // #[error("Proof verification failed")]
+    // ProofVerificationFailed,
+    // #[error("Process verifying key failed")]
+    // ProcessVerifyingKeyFailed,
+    // #[error("Prepare inputs failed")]
+    // PrepareInputsFailed,
+    #[error("General error")]
+    GeneralError(#[from] crate::error::Error),
+    #[error("Deserialization error")]
+    Deserialization(#[from] Box<bincode::ErrorKind>),
+    #[error("Verification error")]
+    Verification(#[from] MachineVerificationError<SC>),
 }
 
 pub fn square(x: u32) -> u32 {

@@ -18,6 +18,8 @@ lazy_static! {
 
 #[cfg(feature = "compressed")]
 pub mod compressed;
+#[cfg(feature = "compressed")]
+pub use compressed::CompressedVerifier;
 
 mod constants;
 mod converter;

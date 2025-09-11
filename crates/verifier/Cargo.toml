@@ -18,6 +18,8 @@ lazy_static = { version = "1.5.0", default-features = false }
 blake3 = { workspace = true }
 cfg-if = "1.0.0"
 
+bincode = { version = "1.3.3", optional = true }
+
 # sp1
 sp1-stark = { workspace = true, optional = true }
 sp1-recursion-core = { workspace = true, optional = true, default-features = false }
@@ -45,12 +47,14 @@ rstest = "0.25.0"
 default = [
     "std",
     # "compressed"
+    #
 ]
 compressed = [
     "dep:sp1-stark",
     "dep:sp1-recursion-core",
     "dep:p3-field",
     "dep:p3-baby-bear",
+    "dep:bincode",
 ]
 std = ["thiserror/std"]
 ark = ["ark-bn254", "ark-serialize", "ark-ff", "ark-groth16", "ark-ec"]

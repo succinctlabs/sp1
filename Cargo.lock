@@ -7486,6 +7486,7 @@ dependencies = [
  "ark-ff 0.5.0",
  "ark-groth16",
  "ark-serialize 0.5.0",
+ "bincode",
  "blake3",
  "cfg-if",
  "hex",
