@@ -76,16 +76,18 @@ impl Groth16Verifier {
             &proof[VK_HASH_PREFIX_LENGTH..],
             &[sp1_vkey_hash, hash_public_inputs(sp1_public_inputs)],
             groth16_vk,
+            false,
         )
         .is_ok()
         {
-            return Ok(())
+            return Ok(());
         }
 
         Self::verify_gnark_proof(
             &proof[VK_HASH_PREFIX_LENGTH..],
             &[sp1_vkey_hash, hash_public_inputs_with_fn(sp1_public_inputs, blake3_hash)],
             groth16_vk,
+            false,
         )
     }
 
@@ -114,8 +116,9 @@ impl Groth16Verifier {
         proof: &[u8],
         public_inputs: &[[u8; 32]],
         groth16_vk: &[u8],
+        proof_compressed: bool,
     ) -> Result<(), Groth16Error> {
-        let proof = load_groth16_proof_from_bytes(proof)?;
+        let proof = load_groth16_proof_from_bytes(proof, proof_compressed)?;
         let groth16_vk = load_groth16_verifying_key_from_bytes(groth16_vk)?;
 
         let public_inputs =
