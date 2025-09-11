@@ -15,7 +15,7 @@ p3-baby-bear = { workspace = true }
 p3-field = { workspace = true }
 p3-symmetric = { workspace = true }
 
-sp1-core-machine = { workspace = true }
+sp1-core-machine = { workspace = true, default-features = true }
 sp1-primitives = { workspace = true }
 sp1-recursion-core = { workspace = true, default-features = true }
 sp1-recursion-derive = { workspace = true }

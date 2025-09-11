@@ -51,7 +51,7 @@ debug-assertions = true
 # sp1
 sp1-build = { path = "crates/build", version = "5.2.1" }
 sp1-cli = { path = "crates/cli", version = "5.2.1", default-features = false }
-sp1-core-machine = { path = "crates/core/machine", version = "5.2.1" }
+sp1-core-machine = { path = "crates/core/machine", version = "5.2.1", default-features = false }
 sp1-core-executor = { path = "crates/core/executor", version = "5.2.1" }
 sp1-curves = { path = "crates/curves", version = "5.2.1" }
 sp1-derive = { path = "crates/derive", version = "5.2.1" }

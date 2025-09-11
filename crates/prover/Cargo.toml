@@ -16,7 +16,7 @@ sp1-recursion-compiler = { workspace = true }
 sp1-recursion-core = { workspace = true, default-features = true }
 sp1-recursion-circuit = { workspace = true }
 sp1-recursion-gnark-ffi = { workspace = true }
-sp1-core-machine = { workspace = true }
+sp1-core-machine = { workspace = true, default-features = true }
 sp1-stark = { workspace = true }
 p3-symmetric = { workspace = true }
 sp1-core-executor = { workspace = true }
