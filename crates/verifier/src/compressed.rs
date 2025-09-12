@@ -1,12 +1,14 @@
 use alloc::{boxed::Box, vec};
+use core::borrow::Borrow;
 
 use p3_baby_bear::BabyBear;
-use sp1_recursion_core::machine::RecursionAir;
+use p3_field::AbstractField;
+use sp1_recursion_core::{air::RecursionPublicValues, machine::RecursionAir};
 use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, *};
 
 /// The configuration for the core prover.
-pub type F = BabyBear;
-pub type SC = BabyBearPoseidon2;
+type F = BabyBear;
+type SC = BabyBearPoseidon2;
 
 const COMPRESS_DEGREE: usize = 3;
 
@@ -14,7 +16,7 @@ const COMPRESS_DEGREE: usize = 3;
 /// Verify a compressed proof.
 pub fn verify_compressed(
     proof: &SP1ReduceProof<SC>,
-    // vkey_hash: &[BabyBear; 8],
+    vkey_hash: &[BabyBear; 8],
 ) -> Result<(), MachineVerificationError<SC>> {
     let SP1ReduceProof { vk: compress_vk, proof } = proof;
 
@@ -25,8 +27,8 @@ pub fn verify_compressed(
     let machine_proof = MachineProof { shard_proofs: vec![proof.clone()] };
     compress_machine.verify(compress_vk, &machine_proof, &mut challenger)?;
 
-    // // Validate public values
-    // let public_values: &RecursionPublicValues<_> = proof.public_values.as_slice().borrow();
+    // Validate public values
+    let public_values: &RecursionPublicValues<_> = proof.public_values.as_slice().borrow();
 
     // if !is_recursion_public_values_valid(self.compress_prover.machine().config(), public_values) {
     //     return Err(MachineVerificationError::InvalidPublicValues(
@@ -42,17 +44,17 @@ pub fn verify_compressed(
     //     return Err(MachineVerificationError::InvalidVerificationKey);
     // }
 
-    // // `is_complete` should be 1. In the reduce program, this ensures that the proof is fully
-    // // reduced.
-    // if public_values.is_complete != BabyBear::one() {
-    //     return Err(MachineVerificationError::InvalidPublicValues("is_complete is not 1"));
-    // }
+    // `is_complete` should be 1. In the reduce program, this ensures that the proof is fully
+    // reduced.
+    if public_values.is_complete != BabyBear::one() {
+        return Err(MachineVerificationError::InvalidPublicValues("is_complete is not 1"));
+    }
 
-    // // Verify that the proof is for the sp1 vkey we are expecting.
+    // Verify that the proof is for the sp1 vkey we are expecting.
     // let vkey_hash = vk.hash_babybear();
-    // if public_values.sp1_vk_digest != vkey_hash {
-    //     return Err(MachineVerificationError::InvalidPublicValues("sp1 vk hash mismatch"));
-    // }
+    if public_values.sp1_vk_digest != *vkey_hash {
+        return Err(MachineVerificationError::InvalidPublicValues("sp1 vk hash mismatch"));
+    }
 
     Ok(())
 }
@@ -64,12 +66,15 @@ impl CompressedVerifier {
     pub fn verify(
         proof: &[u8],
         sp1_public_inputs: &[u8],
-        sp1_vkey_hash: &str,
+        sp1_vkey_hash: &[u8],
     ) -> Result<(), CompressedError> {
         let reduce_proof: SP1ReduceProof<SC> =
             bincode::deserialize(proof).map_err(CompressedError::Deserialization)?;
 
-        verify_compressed(&reduce_proof).map_err(CompressedError::Verification)?;
+        let vkey_hash: [F; 8] =
+            bincode::deserialize(sp1_vkey_hash).map_err(CompressedError::Deserialization)?;
+
+        verify_compressed(&reduce_proof, &vkey_hash).map_err(CompressedError::Verification)?;
 
         Ok(())
     }
