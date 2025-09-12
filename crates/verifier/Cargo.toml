@@ -25,6 +25,7 @@ sp1-stark = { workspace = true, optional = true }
 sp1-recursion-core = { workspace = true, optional = true, default-features = false }
 p3-field = { workspace = true, optional = true }
 p3-baby-bear = { workspace = true, optional = true }
+p3-symmetric = { workspace = true, optional = true }
 
 # arkworks
 ark-bn254 = { version = "0.5.0", optional = true }
@@ -54,6 +55,7 @@ compressed = [
     "dep:sp1-recursion-core",
     "dep:p3-field",
     "dep:p3-baby-bear",
+    "dep:p3-symmetric",
     "dep:bincode",
 ]
 std = ["thiserror/std"]

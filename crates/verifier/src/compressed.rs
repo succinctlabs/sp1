@@ -3,7 +3,11 @@ use core::borrow::Borrow;
 
 use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
-use sp1_recursion_core::{air::RecursionPublicValues, machine::RecursionAir};
+use p3_symmetric::CryptographicHasher;
+use sp1_recursion_core::{
+    air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH},
+    machine::RecursionAir,
+};
 use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, *};
 
 /// The configuration for the core prover.
@@ -30,11 +34,11 @@ pub fn verify_compressed(
     // Validate public values
     let public_values: &RecursionPublicValues<_> = proof.public_values.as_slice().borrow();
 
-    // if !is_recursion_public_values_valid(self.compress_prover.machine().config(), public_values) {
-    //     return Err(MachineVerificationError::InvalidPublicValues(
-    //         "recursion public values are invalid",
-    //     ));
-    // }
+    if !is_recursion_public_values_valid(compress_machine.config(), public_values) {
+        return Err(MachineVerificationError::InvalidPublicValues(
+            "recursion public values are invalid",
+        ));
+    }
 
     // if public_values.vk_root != self.recursion_vk_root {
     //     return Err(MachineVerificationError::InvalidPublicValues("vk_root mismatch"));
@@ -57,6 +61,25 @@ pub fn verify_compressed(
     }
 
     Ok(())
+}
+
+/// Compute the digest of the public values.
+fn recursion_public_values_digest(
+    config: &SC,
+    public_values: &RecursionPublicValues<BabyBear>,
+) -> [BabyBear; 8] {
+    let hash = InnerHash::new(config.perm.clone());
+    let pv_array = public_values.as_array();
+    hash.hash_slice(&pv_array[0..NUM_PV_ELMS_TO_HASH])
+}
+
+/// Check if the digest of the public values is correct.
+fn is_recursion_public_values_valid(
+    config: &SC,
+    public_values: &RecursionPublicValues<BabyBear>,
+) -> bool {
+    let expected_digest = recursion_public_values_digest(config, public_values);
+    public_values.digest.iter().copied().eq(expected_digest)
 }
 
 /// A verifier for Groth16 zero-knowledge proofs.
