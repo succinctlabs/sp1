@@ -1767,4 +1767,12 @@ pub mod tests {
         setup_logger();
         test_e2e_with_deferred_proofs_prover::<CpuProverComponents>(SP1ProverOpts::auto())
     }
+
+    #[test]
+    #[ignore]
+    fn print_stuff() {
+        // TODO(tqn) change this to check the constants in sp1-verifier/compressed
+        let prover = SP1Prover::<CpuProverComponents>::new();
+        println!("{:?}", prover.recursion_vk_root);
+    }
 }

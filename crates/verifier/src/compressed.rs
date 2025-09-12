@@ -16,6 +16,11 @@ type SC = BabyBearPoseidon2;
 
 const COMPRESS_DEGREE: usize = 3;
 
+// TODO(tqn) static/const assertions for all these constants?
+
+const RECURSION_VK_ROOT_U32: [u32; 8] =
+    [779620665, 657361014, 1275916220, 1016544356, 761269804, 102002516, 650304731, 1117171342];
+
 /// TODO(tqn) determine if we want to keep some state/cached data between calls.
 /// Verify a compressed proof.
 pub fn verify_compressed(
@@ -40,9 +45,9 @@ pub fn verify_compressed(
         ));
     }
 
-    // if public_values.vk_root != self.recursion_vk_root {
-    //     return Err(MachineVerificationError::InvalidPublicValues("vk_root mismatch"));
-    // }
+    if public_values.vk_root != RECURSION_VK_ROOT_U32.map(BabyBear::from_canonical_u32) {
+        return Err(MachineVerificationError::InvalidPublicValues("vk_root mismatch"));
+    }
 
     // if self.vk_verification && !self.recursion_vk_map.contains_key(&compress_vk.hash_babybear()) {
     //     return Err(MachineVerificationError::InvalidVerificationKey);
