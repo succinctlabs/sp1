@@ -13,18 +13,18 @@ use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, *};
 use thiserror::Error;
 
 /// The configuration for the core prover.
-type F = BabyBear;
-type SC = BabyBearPoseidon2;
+pub type F = BabyBear;
+pub type SC = BabyBearPoseidon2;
 
-const COMPRESS_DEGREE: usize = 3;
+pub const COMPRESS_DEGREE: usize = 3;
 
 // TODO(tqn) static/const assertions for all these constants?
 
-pub const RECURSION_VK_ROOT_U32: [u32; 8] =
+pub const RECURSION_VK_ROOT: [u32; 8] =
     [779620665, 657361014, 1275916220, 1016544356, 761269804, 102002516, 650304731, 1117171342];
 
 // TODO(tqn) assert these are ordered and (elsewhere) a subset of the allowed vkeys
-pub const RECURSION_VK_SET_U32: &[[u32; 8]] = &[
+pub const RECURSION_VK_SET: &[[u32; 8]] = &[
     [34634639, 1077419460, 522716272, 128546022, 1650539826, 972283970, 1473949484, 380704775],
     [85706223, 1525684246, 1199856741, 1391101846, 1792912762, 295614271, 314490649, 1502018005],
     [356142876, 1489851626, 1124548079, 831410721, 766841921, 873142415, 1391251580, 877773505],
@@ -95,12 +95,12 @@ fn verify_compressed(
         .into());
     }
 
-    if public_values.vk_root != RECURSION_VK_ROOT_U32.map(BabyBear::from_canonical_u32) {
+    if public_values.vk_root != RECURSION_VK_ROOT.map(BabyBear::from_canonical_u32) {
         return Err(MachineVerificationError::InvalidPublicValues("vk_root mismatch").into());
     }
 
     let compress_vk_hash = hash_babybear(compress_vk).map(|x| x.as_canonical_u32());
-    if RECURSION_VK_SET_U32.binary_search(&compress_vk_hash).is_err() {
+    if RECURSION_VK_SET.binary_search(&compress_vk_hash).is_err() {
         return Err(MachineVerificationError::InvalidVerificationKey.into());
     }
 

@@ -69,6 +69,7 @@ sp1-cuda = { path = "crates/cuda", version = "5.2.1" }
 sp1-stark = { path = "crates/stark", version = "5.2.1" }
 sp1-lib = { path = "crates/zkvm/lib", version = "5.2.1", default-features = false }
 sp1-zkvm = { path = "crates/zkvm/entrypoint", version = "5.2.1", default-features = false }
+sp1-verifier = { path = "crates/verifier", version = "5.2.1", default-features = false }
 
 # For testing.
 test-artifacts = { path = "crates/test-artifacts" }

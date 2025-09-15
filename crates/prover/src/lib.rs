@@ -1769,10 +1769,33 @@ pub mod tests {
     }
 
     #[test]
-    #[ignore]
-    fn print_stuff() {
-        // TODO(tqn) change this to check the constants in sp1-verifier/compressed
+    fn sp1_verifier_valid() {
+        use sp1_verifier::compressed::{
+            self, COMPRESS_DEGREE, RECURSION_VK_ROOT, RECURSION_VK_SET,
+        };
+
+        // The fielda and stark config types are the same.
+        type F = BabyBear;
+        type SC = BabyBearPoseidon2;
+        let _: Option<compressed::F> = Option::<F>::None;
+        let _: Option<compressed::SC> = Option::<SC>::None;
+
+        // We check that the constants, types, etc. in sp1-verifier are valid.
+
+        // The compress degree is correct.
+        assert_eq!(COMPRESS_DEGREE, super::COMPRESS_DEGREE);
+
         let prover = SP1Prover::<CpuProverComponents>::new();
-        println!("{:?}", prover.recursion_vk_root);
+
+        // The vk root matches.
+        assert_eq!(RECURSION_VK_ROOT.map(F::from_canonical_u32), prover.recursion_vk_root);
+        // The verifier's set of vkeys is a subset of the (true) set of vkeys.
+        assert_eq!(
+            RECURSION_VK_SET.iter().find(|digest| !prover
+                .recursion_vk_map
+                .contains_key(&digest.map(F::from_canonical_u32))),
+            None
+        );
+        assert!(RECURSION_VK_SET.is_sorted());
     }
 }

@@ -7236,6 +7236,7 @@ dependencies = [
  "sp1-recursion-core",
  "sp1-recursion-gnark-ffi",
  "sp1-stark",
+ "sp1-verifier",
  "test-artifacts",
  "thiserror 1.0.69",
  "tracing",

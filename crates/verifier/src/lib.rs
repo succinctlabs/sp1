@@ -17,9 +17,9 @@ lazy_static! {
 }
 
 #[cfg(feature = "compressed")]
-mod compressed;
+pub mod compressed;
 #[cfg(feature = "compressed")]
-pub use compressed::CompressedVerifier;
+pub use compressed::{CompressedError, CompressedVerifier};
 
 mod constants;
 mod converter;
