@@ -45,12 +45,7 @@ serial_test = "3.2.0"
 rstest = "0.25.0"
 
 [features]
-# TODO remove compressed feature by default
-default = [
-    "std",
-    # "compressed"
-    #
-]
+default = ["std"]
 compressed = [
     "dep:sp1-stark",
     "dep:sp1-primitives",
