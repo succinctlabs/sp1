@@ -1775,13 +1775,13 @@ pub mod tests {
     ///
     /// To obtain `RECURSION_VK_ROOT`, just print the value of `prover.recursion_vk_root`.
     /// To obtain `RECURSION_VK_SET`:
-    /// -  Prepare to use `cargo run --release -p sp1-prover --bin build_recursion_vks [...]` to
-    ///    run the shape-generation code. Be aware that it writes to the specified directory, so
-    ///    either prevent writing to the filesystem or avoid committing the generated artifacts.
+    /// - Prepare to use `cargo run --release -p sp1-prover --bin build_recursion_vks [...]` to run
+    ///   the shape-generation code. Be aware that it writes to the specified directory, so either
+    ///   prevent writing to the filesystem or avoid committing the generated artifacts.
     /// - Locate `sp1_prover::shapes::build_vk_map`.
     ///   - In the `false` branch of `if dummy [...]`, locate the `let height = [...];` statement.
-    ///   - Hardcode the value of `height`. (For example, obtain it with `panic!("{height}")`.)
-    ///     The value is 19 as of the time of writing this.
+    ///   - Hardcode the value of `height`. (For example, obtain it with `panic!("{height}")`.) The
+    ///     value is 19 as of the time of writing this.
     /// - Locate `sp1_prover::shapes::SP1ProofShape::generate`.
     ///   - Find the iterator consisting of data piped through `Self::Compress`. Comment out
     ///   - the other iterators so the function just returns the `Self::Compress` iterator.

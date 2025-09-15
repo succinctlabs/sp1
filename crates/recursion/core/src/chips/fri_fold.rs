@@ -442,10 +442,10 @@ mod tests {
                 let ro_output = (0..i)
                     .map(|i| {
                         let i = i as usize;
-                        ro_input[i].ext::<EF>()
-                            + alpha_pow_input[i].ext::<EF>()
-                                * (-ps_at_z[i].ext::<EF>() + mat_opening[i].ext::<EF>())
-                                / (-z.ext::<EF>() + x)
+                        ro_input[i].ext::<EF>() +
+                            alpha_pow_input[i].ext::<EF>() *
+                                (-ps_at_z[i].ext::<EF>() + mat_opening[i].ext::<EF>()) /
+                                (-z.ext::<EF>() + x)
                     })
                     .collect::<Vec<EF>>();
 
