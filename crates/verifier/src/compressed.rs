@@ -12,18 +12,25 @@ use sp1_recursion_core::{
 use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, *};
 use thiserror::Error;
 
+// NOTE: that all these constants and types are checked by sp1_prover::tests::sp1_verifier_valid.
+// If you add a new proof, you MUST add to the test in that crate.
+//
+// Instructions to obtain `RECURSION_VK_SET` (and `RECURSION_VK_ROOT`) can be found in the test.
+
 /// The configuration for the core prover.
 pub type F = BabyBear;
 pub type SC = BabyBearPoseidon2;
 
+/// Degree of Poseidon2 et al. in the compress machine.
 pub const COMPRESS_DEGREE: usize = 3;
 
-// TODO(tqn) static/const assertions for all these constants?
-
+/// The vkey merkle tree root's digest. Fixed between SP1 major versions.
 pub const RECURSION_VK_ROOT: [u32; 8] =
     [779620665, 657361014, 1275916220, 1016544356, 761269804, 102002516, 650304731, 1117171342];
 
-// TODO(tqn) assert these are ordered and (elsewhere) a subset of the allowed vkeys
+/// A sorted list of digests for allowed vkeys in the vkey set/merkle tree. This is a subset of
+/// the true collection of vkey digests, which is megabytes in size. These keys are precisely
+/// the ones necessary to verify multi-shard proofs.
 pub const RECURSION_VK_SET: &[[u32; 8]] = &[
     [34634639, 1077419460, 522716272, 128546022, 1650539826, 972283970, 1473949484, 380704775],
     [85706223, 1525684246, 1199856741, 1391101846, 1792912762, 295614271, 314490649, 1502018005],
