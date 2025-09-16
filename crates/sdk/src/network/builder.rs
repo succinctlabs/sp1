@@ -63,8 +63,8 @@ impl NetworkProverBuilder {
     /// Process proofs inside a TEE.
     ///
     /// # Details
-    /// In order to keep the inputs private, it is possible to route the proofs
-    /// request to a TEE enclave.
+    /// In order to keep the inputs private, it is possible to route the proof
+    /// requests to a TEE enclave.
     ///
     /// # Example
     /// ```rust,no_run
