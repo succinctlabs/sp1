@@ -1066,8 +1066,8 @@ impl<'a> Executor<'a> {
 
         if instruction.is_alu_instruction() {
             self.emit_alu_event(instruction.opcode, a, b, c, op_a_0);
-        } else if instruction.is_memory_load_instruction()
-            || instruction.is_memory_store_instruction()
+        } else if instruction.is_memory_load_instruction() ||
+            instruction.is_memory_store_instruction()
         {
             self.emit_mem_instr_event(instruction.opcode, a, b, c, op_a_0);
         } else if instruction.is_branch_instruction() {
@@ -1596,8 +1596,8 @@ impl<'a> Executor<'a> {
         // which is not permitted in unconstrained mode. This will result in
         // non-zero memory interactions when generating a proof.
 
-        if self.unconstrained
-            && (syscall != SyscallCode::EXIT_UNCONSTRAINED && syscall != SyscallCode::WRITE)
+        if self.unconstrained &&
+            (syscall != SyscallCode::EXIT_UNCONSTRAINED && syscall != SyscallCode::WRITE)
         {
             return Err(ExecutionError::InvalidSyscallUsage(syscall_id as u64));
         }
@@ -1814,9 +1814,9 @@ impl<'a> Executor<'a> {
             }
         }
 
-        let done = self.state.pc == 0
-            || self.state.pc.wrapping_sub(self.program.pc_base)
-                >= (self.program.instructions.len() * 4) as u32;
+        let done = self.state.pc == 0 ||
+            self.state.pc.wrapping_sub(self.program.pc_base) >=
+                (self.program.instructions.len() * 4) as u32;
         if done && self.unconstrained {
             tracing::error!("program ended in unconstrained mode at clk {}", self.state.global_clk);
             return Err(ExecutionError::EndInUnconstrained());
@@ -2153,9 +2153,9 @@ impl<'a> Executor<'a> {
             estimator.memory_global_finalize_events = total_mem as u64;
         }
 
-        if self.emit_global_memory_events
-            && (self.executor_mode == ExecutorMode::Trace
-                || self.executor_mode == ExecutorMode::Checkpoint)
+        if self.emit_global_memory_events &&
+            (self.executor_mode == ExecutorMode::Trace ||
+                self.executor_mode == ExecutorMode::Checkpoint)
         {
             // SECTION: Set up all MemoryInitializeFinalizeEvents needed for memory argument.
             let memory_finalize_events = &mut self.record.global_memory_finalize_events;
@@ -2244,10 +2244,10 @@ impl<'a> Executor<'a> {
         event_counts[RiscvAirId::AddSub] = opcode_counts[Opcode::ADD] + opcode_counts[Opcode::SUB];
 
         // Compute the number of events in the mul chip.
-        event_counts[RiscvAirId::Mul] = opcode_counts[Opcode::MUL]
-            + opcode_counts[Opcode::MULH]
-            + opcode_counts[Opcode::MULHU]
-            + opcode_counts[Opcode::MULHSU];
+        event_counts[RiscvAirId::Mul] = opcode_counts[Opcode::MUL] +
+            opcode_counts[Opcode::MULH] +
+            opcode_counts[Opcode::MULHU] +
+            opcode_counts[Opcode::MULHSU];
 
         // Compute the number of events in the bitwise chip.
         event_counts[RiscvAirId::Bitwise] =
@@ -2261,10 +2261,10 @@ impl<'a> Executor<'a> {
             opcode_counts[Opcode::SRL] + opcode_counts[Opcode::SRA];
 
         // Compute the number of events in the divrem chip.
-        event_counts[RiscvAirId::DivRem] = opcode_counts[Opcode::DIV]
-            + opcode_counts[Opcode::DIVU]
-            + opcode_counts[Opcode::REM]
-            + opcode_counts[Opcode::REMU];
+        event_counts[RiscvAirId::DivRem] = opcode_counts[Opcode::DIV] +
+            opcode_counts[Opcode::DIVU] +
+            opcode_counts[Opcode::REM] +
+            opcode_counts[Opcode::REMU];
 
         // Compute the number of events in the lt chip.
         event_counts[RiscvAirId::Lt] = opcode_counts[Opcode::SLT] + opcode_counts[Opcode::SLTU];
@@ -2274,30 +2274,30 @@ impl<'a> Executor<'a> {
             touched_addresses.div_ceil(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW_EXEC as u64);
 
         // Compute the number of events in the branch chip.
-        event_counts[RiscvAirId::Branch] = opcode_counts[Opcode::BEQ]
-            + opcode_counts[Opcode::BNE]
-            + opcode_counts[Opcode::BLT]
-            + opcode_counts[Opcode::BGE]
-            + opcode_counts[Opcode::BLTU]
-            + opcode_counts[Opcode::BGEU];
+        event_counts[RiscvAirId::Branch] = opcode_counts[Opcode::BEQ] +
+            opcode_counts[Opcode::BNE] +
+            opcode_counts[Opcode::BLT] +
+            opcode_counts[Opcode::BGE] +
+            opcode_counts[Opcode::BLTU] +
+            opcode_counts[Opcode::BGEU];
 
         // Compute the number of events in the jump chip.
         event_counts[RiscvAirId::Jump] = opcode_counts[Opcode::JAL] + opcode_counts[Opcode::JALR];
 
         // Compute the number of events in the auipc chip.
-        event_counts[RiscvAirId::Auipc] = opcode_counts[Opcode::AUIPC]
-            + opcode_counts[Opcode::UNIMP]
-            + opcode_counts[Opcode::EBREAK];
+        event_counts[RiscvAirId::Auipc] = opcode_counts[Opcode::AUIPC] +
+            opcode_counts[Opcode::UNIMP] +
+            opcode_counts[Opcode::EBREAK];
 
         // Compute the number of events in the memory instruction chip.
-        event_counts[RiscvAirId::MemoryInstrs] = opcode_counts[Opcode::LB]
-            + opcode_counts[Opcode::LH]
-            + opcode_counts[Opcode::LW]
-            + opcode_counts[Opcode::LBU]
-            + opcode_counts[Opcode::LHU]
-            + opcode_counts[Opcode::SB]
-            + opcode_counts[Opcode::SH]
-            + opcode_counts[Opcode::SW];
+        event_counts[RiscvAirId::MemoryInstrs] = opcode_counts[Opcode::LB] +
+            opcode_counts[Opcode::LH] +
+            opcode_counts[Opcode::LW] +
+            opcode_counts[Opcode::LBU] +
+            opcode_counts[Opcode::LHU] +
+            opcode_counts[Opcode::SB] +
+            opcode_counts[Opcode::SH] +
+            opcode_counts[Opcode::SW];
 
         // Compute the number of events in the syscall instruction chip.b
         event_counts[RiscvAirId::SyscallInstrs] = opcode_counts[Opcode::ECALL];
