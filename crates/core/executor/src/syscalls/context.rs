@@ -157,7 +157,7 @@ impl<'a, 'b> SyscallContext<'a, 'b> {
                         &estimator.current_precompile_touched_compressed_addresses;
                 // Add the number of addresses that were removed from the main set.
                 estimator.current_local_mem +=
-                    (original_len - estimator.current_touched_compressed_addresses.len()) as usize;
+                    original_len - estimator.current_touched_compressed_addresses.len();
             }
         }
 
