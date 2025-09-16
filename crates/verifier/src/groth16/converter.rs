@@ -1,10 +1,12 @@
 use alloc::vec::Vec;
 
 use crate::{
+    constants::COMPRESSED_GROTH16_PROOF_LENGTH,
     constants::GROTH16_PROOF_LENGTH,
     converter::{
-        unchecked_compressed_x_to_g1_point, unchecked_compressed_x_to_g2_point,
-        uncompressed_bytes_to_g1_point, uncompressed_bytes_to_g2_point,
+        compress_g1_point_to_x, compress_g2_point_to_x, unchecked_compressed_x_to_g1_point,
+        unchecked_compressed_x_to_g2_point, uncompressed_bytes_to_g1_point,
+        uncompressed_bytes_to_g2_point,
     },
     error::Error,
     groth16::{Groth16G1, Groth16G2, Groth16Proof, Groth16VerifyingKey},
@@ -12,11 +14,24 @@ use crate::{
 
 use super::error::Groth16Error;
 
+/// Compress the Groth16 proof to a byte slice.
+///
+/// G1 point is compressed to `[u8; 32]`, and G2 point is compressed to `[u8; 64]`.
+pub fn compress_groth16_proof_to_bytes(
+    proof: Groth16Proof,
+) -> Result<[u8; COMPRESSED_GROTH16_PROOF_LENGTH], Groth16Error> {
+    let mut buffer = [0u8; COMPRESSED_GROTH16_PROOF_LENGTH];
+    buffer[..32].copy_from_slice(&compress_g1_point_to_x(&proof.ar)?);
+    buffer[32..96].copy_from_slice(&compress_g2_point_to_x(&proof.bs)?);
+    buffer[96..128].copy_from_slice(&compress_g1_point_to_x(&proof.krs)?);
+    Ok(buffer)
+}
+
 /// Load the Groth16 proof from the given byte slice.
 ///
 /// The byte slice is represented as 2 uncompressed g1 points, and one uncompressed g2 point,
 /// as outputted from Gnark.
-pub(crate) fn load_groth16_proof_from_bytes(buffer: &[u8]) -> Result<Groth16Proof, Groth16Error> {
+pub fn load_groth16_proof_from_bytes(buffer: &[u8]) -> Result<Groth16Proof, Groth16Error> {
     if buffer.len() < GROTH16_PROOF_LENGTH {
         return Err(Groth16Error::GeneralError(Error::InvalidData));
     }
@@ -33,7 +48,7 @@ pub(crate) fn load_groth16_proof_from_bytes(buffer: &[u8]) -> Result<Groth16Proo
 ///
 /// The byte slice is represented as 2 compressed g1 points, and one compressed g2 point,
 /// as outputted from Gnark.
-pub(crate) fn load_compressed_groth16_proof_from_bytes(
+pub fn load_compressed_groth16_proof_from_bytes(
     buffer: &[u8],
 ) -> Result<Groth16Proof, Groth16Error> {
     if buffer.len() < GROTH16_PROOF_LENGTH / 2 {
@@ -52,7 +67,7 @@ pub(crate) fn load_compressed_groth16_proof_from_bytes(
 ///
 /// The gnark verification key includes a lot of extraneous information. We only extract the
 /// necessary elements to verify a proof.
-pub(crate) fn load_groth16_verifying_key_from_bytes(
+pub fn load_groth16_verifying_key_from_bytes(
     buffer: &[u8],
 ) -> Result<Groth16VerifyingKey, Groth16Error> {
     // We don't need to check each compressed point because the Groth16 vkey is a public constant

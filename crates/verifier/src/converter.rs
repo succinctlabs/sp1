@@ -7,6 +7,43 @@ use crate::{
     error::Error,
 };
 
+/// Compresse an G1 point to a buffer.
+///
+/// This is a reveresed function against `unchecked_compressed_x_to_g1_point`, return the compressed G1 point
+/// which hardcoded the sign flag of y coordinate.
+pub(crate) fn compress_g1_point_to_x(g1: &AffineG1) -> Result<[u8; 32], Error> {
+    let mut x_bytes = [0u8; 32];
+    g1.x().to_big_endian(&mut x_bytes).map_err(Error::Field)?;
+
+    if g1.y() > -g1.y() {
+        x_bytes[0] |= CompressedPointFlag::Negative as u8;
+    } else {
+        x_bytes[0] = (x_bytes[0] & 0x3f) | (0x80);
+    }
+
+    Ok(x_bytes)
+}
+
+/// Compresse an G2 point to a buffer.
+///
+/// This is a reveresed function against `unchecked_compressed_x_to_g1_point`, return the compressed G2 point
+/// which hardcoded the sign flag of y coordinate.
+pub(crate) fn compress_g2_point_to_x(g2: &AffineG2) -> Result<[u8; 64], Error> {
+    let mut x_bytes = [0u8; 64];
+    let x1 = Fq::from_u256(g2.x().0.imaginary().0).map_err(Error::Field)?;
+    let x0 = Fq::from_u256(g2.x().0.real().0).map_err(Error::Field)?;
+    x0.to_big_endian(&mut x_bytes[..32]).map_err(Error::Field)?;
+    x1.to_big_endian(&mut x_bytes[32..64]).map_err(Error::Field)?;
+
+    if g2.y().0 > -g2.y().0 {
+        x_bytes[0] |= CompressedPointFlag::Negative as u8;
+    } else {
+        x_bytes[0] = (x_bytes[0] & 0x3f) | (0x80);
+    }
+
+    Ok(x_bytes)
+}
+
 /// Deserializes an Fq element from a buffer.
 ///
 /// If this Fq element is part of a compressed point, the flag that indicates the sign of the
