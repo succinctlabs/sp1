@@ -259,7 +259,7 @@ impl From<RecursionShape> for OrderedShape {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "sys"))]
 pub mod tests {
 
     use std::{iter::once, sync::Arc};

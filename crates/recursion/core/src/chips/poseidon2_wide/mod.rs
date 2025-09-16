@@ -32,8 +32,8 @@ impl<'a, const DEGREE: usize> Poseidon2WideChip<DEGREE> {
     }
 }
 
-#[cfg(test)]
-pub(crate) mod tests {
+#[cfg(all(test, feature = "sys"))]
+mod tests {
 
     use std::{iter::once, sync::Arc};
 

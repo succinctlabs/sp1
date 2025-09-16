@@ -24,7 +24,7 @@ reqwest = { version = "0.12.12", default-features = false, features = [
 ], optional = true }
 anyhow = "1.0.83"
 sp1-prover = { workspace = true }
-sp1-core-machine = { workspace = true }
+sp1-core-machine = { workspace = true, default-features = true }
 sp1-cuda = { workspace = true }
 sp1-build = { workspace = true }
 futures = "0.3.30"

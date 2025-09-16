@@ -1,6 +1,5 @@
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use sp1_core_executor::SP1ReduceProof;
-use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, StarkVerifyingKey};
+use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, SP1ReduceProof, StarkVerifyingKey};
 
 /// Standard input for the prover.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

@@ -1,15 +1,21 @@
-use crate::{
-    instruction::Instruction::Poseidon2, ExecutionRecord, Poseidon2Io, Poseidon2SkinnyInstr,
-};
-use p3_air::BaseAir;
-use p3_baby_bear::BabyBear;
-use p3_field::{AbstractField, PrimeField32};
+use crate::ExecutionRecord;
+use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
-use p3_maybe_rayon::prelude::*;
-use sp1_core_machine::{operations::poseidon2::WIDTH, utils::next_power_of_two};
+use sp1_core_machine::utils::next_power_of_two;
 use sp1_stark::air::MachineAir;
-use std::{borrow::BorrowMut, mem::size_of};
-use tracing::instrument;
+use std::mem::size_of;
+
+#[cfg(feature = "sys")]
+use {
+    crate::{instruction::Instruction::Poseidon2, Poseidon2Io, Poseidon2SkinnyInstr},
+    p3_air::BaseAir,
+    p3_baby_bear::BabyBear,
+    p3_field::AbstractField,
+    p3_maybe_rayon::prelude::*,
+    sp1_core_machine::operations::poseidon2::WIDTH,
+    std::borrow::BorrowMut,
+    tracing::instrument,
+};
 
 use super::{columns::preprocessed::Poseidon2PreprocessedColsWide, Poseidon2WideChip};
 
@@ -36,6 +42,12 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         }
     }
 
+    #[cfg(not(feature = "sys"))]
+    fn generate_trace(&self, _input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
+        unimplemented!("To generate traces, enable feature `sp1-recursion-core/sys`");
+    }
+
+    #[cfg(feature = "sys")]
     #[instrument(name = "generate poseidon2 wide trace", level = "debug", skip_all, fields(rows = input.poseidon2_events.len()))]
     fn generate_trace(
         &self,
@@ -109,6 +121,12 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         })
     }
 
+    #[cfg(not(feature = "sys"))]
+    fn generate_preprocessed_trace(&self, _program: &Self::Program) -> Option<RowMajorMatrix<F>> {
+        unimplemented!("To generate traces, enable feature `sp1-recursion-core/sys`");
+    }
+
+    #[cfg(feature = "sys")]
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         assert_eq!(
             std::any::TypeId::of::<F>(),
@@ -152,7 +170,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "sys"))]
 mod tests {
     use crate::{
         chips::{mem::MemoryAccessCols, poseidon2_wide::Poseidon2WideChip, test_fixtures},
