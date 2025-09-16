@@ -149,7 +149,7 @@ impl Groth16Verifier {
     /// [`verify`] checks. If you have a complete proof with the prefix, use [`verify`] instead.
     pub fn verify_compressed_gnark_proof(
         proof: &[u8],
-        public_inputs: &[u8; 32],
+        public_inputs: &[[u8; 32]],
         groth16_vk: &[u8],
     ) -> Result<(), Groth16Error> {
         let proof = load_compressed_groth16_proof_from_bytes(proof)?;
