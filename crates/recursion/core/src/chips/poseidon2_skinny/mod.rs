@@ -69,8 +69,8 @@ pub(crate) fn internal_linear_layer<F: AbstractField>(state: &mut [F; WIDTH]) {
     state.iter_mut().for_each(|i| *i = i.clone() * monty_inverse.clone());
 }
 
-#[cfg(test)]
-pub(crate) mod tests {
+#[cfg(all(test, feature = "sys"))]
+mod tests {
 
     use std::{iter::once, sync::Arc};
 

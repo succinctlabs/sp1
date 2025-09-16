@@ -178,6 +178,14 @@ pub type SP1Proof = SP1ProofWithMetadata<SP1Bn254ProofData>;
 #[derive(Serialize, Deserialize, Clone)]
 pub struct SP1CoreProofData(pub Vec<ShardProof<CoreSC>>);
 
+impl SP1CoreProofData {
+    pub fn save(&self, path: &str) -> Result<(), std::io::Error> {
+        let data = serde_json::to_string(self).unwrap();
+        std::fs::write(path, data).unwrap();
+        Ok(())
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct SP1ReducedProofData(pub ShardProof<InnerSC>);
 

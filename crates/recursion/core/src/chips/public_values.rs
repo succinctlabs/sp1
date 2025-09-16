@@ -1,17 +1,23 @@
 use crate::{
     air::{RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS},
     builder::SP1RecursionAirBuilder,
-    runtime::Instruction,
-    CommitPublicValuesEvent, CommitPublicValuesInstr, ExecutionRecord, DIGEST_SIZE,
+    ExecutionRecord, DIGEST_SIZE,
 };
 use p3_air::{Air, AirBuilder, BaseAir, PairBuilder};
-use p3_baby_bear::BabyBear;
-use p3_field::{AbstractField, PrimeField32};
+use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use sp1_core_machine::utils::pad_rows_fixed;
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::MachineAir;
-use std::borrow::{Borrow, BorrowMut};
+use std::borrow::Borrow;
+
+#[cfg(feature = "sys")]
+use {
+    crate::{runtime::Instruction, CommitPublicValuesEvent, CommitPublicValuesInstr},
+    p3_baby_bear::BabyBear,
+    p3_field::AbstractField,
+    sp1_core_machine::utils::pad_rows_fixed,
+    std::borrow::BorrowMut,
+};
 
 use super::mem::MemoryAccessColsChips;
 
@@ -62,6 +68,12 @@ impl<F: PrimeField32> MachineAir<F> for PublicValuesChip {
         NUM_PUBLIC_VALUES_PREPROCESSED_COLS
     }
 
+    #[cfg(not(feature = "sys"))]
+    fn generate_preprocessed_trace(&self, _program: &Self::Program) -> Option<RowMajorMatrix<F>> {
+        unimplemented!("To generate traces, enable feature `sp1-recursion-core/sys`");
+    }
+
+    #[cfg(feature = "sys")]
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         assert_eq!(
             std::any::TypeId::of::<F>(),
@@ -124,6 +136,12 @@ impl<F: PrimeField32> MachineAir<F> for PublicValuesChip {
         Some(trace)
     }
 
+    #[cfg(not(feature = "sys"))]
+    fn generate_trace(&self, _input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
+        unimplemented!("To generate traces, enable feature `sp1-recursion-core/sys`");
+    }
+
+    #[cfg(feature = "sys")]
     fn generate_trace(
         &self,
         input: &ExecutionRecord<F>,
@@ -209,7 +227,7 @@ where
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "sys"))]
 mod tests {
     #![allow(clippy::print_stdout)]
 
