@@ -1,6 +1,6 @@
 use std::{
     borrow::Borrow,
-    fs::{self, File},
+    fs::File,
     io::Read,
     iter::{Skip, Take},
 };
@@ -19,7 +19,7 @@ use sp1_recursion_core::{
 };
 use sp1_stark::{baby_bear_poseidon2::MyHash as InnerHash, SP1CoreOpts, Word};
 
-use crate::{InnerSC, SP1CoreProofData};
+use crate::InnerSC;
 
 /// Get the SP1 vkey BabyBear Poseidon2 digest this reduce proof is representing.
 pub fn sp1_vkey_digest_babybear(proof: &SP1ReduceProof<BabyBearPoseidon2Outer>) -> [BabyBear; 8] {
@@ -95,14 +95,6 @@ pub fn sp1_committed_values_digest_bn254(
     let committed_values_digest_bytes: [BabyBear; 32] =
         words_to_bytes(&pv.committed_value_digest).try_into().unwrap();
     babybear_bytes_to_bn254(&committed_values_digest_bytes)
-}
-
-impl SP1CoreProofData {
-    pub fn save(&self, path: &str) -> Result<(), std::io::Error> {
-        let data = serde_json::to_string(self).unwrap();
-        fs::write(path, data).unwrap();
-        Ok(())
-    }
 }
 
 /// Get the number of cycles for a given program.

@@ -20,10 +20,30 @@ pub(crate) fn load_groth16_proof_from_bytes(buffer: &[u8]) -> Result<Groth16Proo
     if buffer.len() < GROTH16_PROOF_LENGTH {
         return Err(Groth16Error::GeneralError(Error::InvalidData));
     }
+    let (ar, bs, krs) = (
+        uncompressed_bytes_to_g1_point(&buffer[..64])?,
+        uncompressed_bytes_to_g2_point(&buffer[64..192])?,
+        uncompressed_bytes_to_g1_point(&buffer[192..256])?,
+    );
 
-    let ar = uncompressed_bytes_to_g1_point(&buffer[..64])?;
-    let bs = uncompressed_bytes_to_g2_point(&buffer[64..192])?;
-    let krs = uncompressed_bytes_to_g1_point(&buffer[192..256])?;
+    Ok(Groth16Proof { ar, bs, krs })
+}
+
+/// Load the compressed Groth16 proof from the given byte slice.
+///
+/// The byte slice is represented as 2 compressed g1 points, and one compressed g2 point,
+/// as outputted from Gnark.
+pub(crate) fn load_compressed_groth16_proof_from_bytes(
+    buffer: &[u8],
+) -> Result<Groth16Proof, Groth16Error> {
+    if buffer.len() < GROTH16_PROOF_LENGTH / 2 {
+        return Err(Groth16Error::GeneralError(Error::InvalidData));
+    }
+    let (ar, bs, krs) = (
+        unchecked_compressed_x_to_g1_point(&buffer[..32])?,
+        unchecked_compressed_x_to_g2_point(&buffer[32..96])?,
+        unchecked_compressed_x_to_g1_point(&buffer[96..128])?,
+    );
 
     Ok(Groth16Proof { ar, bs, krs })
 }

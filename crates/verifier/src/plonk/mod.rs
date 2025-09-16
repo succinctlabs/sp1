@@ -87,7 +87,7 @@ impl PlonkVerifier {
         )
         .is_ok()
         {
-            return Ok(())
+            return Ok(());
         }
 
         Self::verify_gnark_proof(

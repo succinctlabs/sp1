@@ -247,7 +247,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                     debug_interactions_with_all_chips::<SC, A>(
                         self,
                         pk,
-                        &[shard.clone()],
+                        std::slice::from_ref(shard),
                         InteractionKind::all_kinds(),
                         InteractionScope::Local,
                     )
