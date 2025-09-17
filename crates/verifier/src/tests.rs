@@ -115,13 +115,14 @@ fn test_compressed_groth16_proof(#[case] elf: &[u8], #[case] groth16_elf: &[u8])
     let compressed_proof = crate::compress_groth16_proof_from_bytes(&proof[4..]).unwrap();
     let decompressed_proof = crate::decompress_groth16_proof_from_bytes(&compressed_proof).unwrap();
     assert_eq!(decompressed_proof, proof[4..], "Decompressed proof does not match original proof");
+    let mut proof = [0u8; 4 + crate::constants::COMPRESSED_GROTH16_PROOF_LENGTH];
+    proof[..4].copy_from_slice(&proof[..4]);
+    proof[4..].copy_from_slice(&compressed_proof);
 
-    crate::Groth16Verifier::verify_compressed_gnark_proof(
-        &compressed_proof,
-        &[
-            crate::decode_sp1_vkey_hash(&vkey_hash).unwrap(),
-            crate::hash_public_inputs(&public_inputs),
-        ],
+    crate::Groth16Verifier::verify_compressed(
+        &proof,
+        &public_inputs,
+        &vkey_hash,
         &crate::GROTH16_VK_BYTES,
     )
     .expect("Groth16 proof is invalid");
