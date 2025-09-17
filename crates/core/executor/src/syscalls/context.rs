@@ -156,8 +156,15 @@ impl<'a, 'b> SyscallContext<'a, 'b> {
                     core::mem::take(&mut estimator.current_touched_compressed_addresses) -
                         &estimator.current_precompile_touched_compressed_addresses;
                 // Add the number of addresses that were removed from the main set.
-                estimator.current_local_mem +=
-                    (original_len - estimator.current_touched_compressed_addresses.len()) as usize;
+                // Since the type of `RangeSetBlaze::len(...)` depends on the target pointer width,
+                // we need to cast to a `usize` and suppress the clippy lint for when this is a
+                // no-op.
+                #[allow(clippy::unnecessary_cast)]
+                {
+                    estimator.current_local_mem += (original_len -
+                        estimator.current_touched_compressed_addresses.len())
+                        as usize;
+                }
             }
         }
 
