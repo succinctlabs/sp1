@@ -253,6 +253,15 @@ pub enum ExecutionError {
     /// The unconstrained cycle limit was exceeded.
     #[error("unconstrained cycle limit exceeded")]
     UnconstrainedCycleLimitExceeded(u64),
+
+    /// Not all deferred proofs were verified during execution.
+    #[error("unread deferred proofs: {actual}/{expected}")]
+    UnreadDeferredProofs {
+        /// The total number of deferred proofs that were provided.
+        expected: usize,
+        /// The actual number of deferred proofs that were verified.
+        actual: usize,
+    },
 }
 
 impl<'a> Executor<'a> {
@@ -2059,7 +2068,7 @@ impl<'a> Executor<'a> {
         let public_values = self.record.public_values;
 
         if done {
-            self.postprocess();
+            self.postprocess()?;
 
             // Push the remaining execution record with memory initialize & finalize events.
             self.bump_record();
@@ -2108,7 +2117,7 @@ impl<'a> Executor<'a> {
         Ok(done)
     }
 
-    fn postprocess(&mut self) {
+    fn postprocess(&mut self) -> Result<(), ExecutionError> {
         // Flush remaining stdout/stderr
         for (fd, buf) in &self.io_buf {
             if !buf.is_empty() {
@@ -2124,12 +2133,16 @@ impl<'a> Executor<'a> {
             }
         }
 
-        // Ensure that all proofs and input bytes were read, otherwise warn the user.
+        // Ensure that all proofs were read, otherwise return an error.
         if self.state.proof_stream_ptr != self.state.proof_stream.len() {
-            tracing::warn!(
-                "Not all proofs were read. Proving will fail during recursion. Did you pass too
+            tracing::error!(
+                "Not all proofs were read. Proving would fail during recursion. Did you pass too
         many proofs in or forget to call verify_sp1_proof?"
             );
+            return Err(ExecutionError::UnreadDeferredProofs {
+                expected: self.state.proof_stream.len(),
+                actual: self.state.proof_stream_ptr,
+            });
         }
 
         if !self.state.input_stream.is_empty() {
@@ -2221,6 +2234,8 @@ impl<'a> Executor<'a> {
                     .push(MemoryInitializeFinalizeEvent::finalize_from_record(addr, &record));
             }
         }
+
+        Ok(())
     }
 
     fn get_syscall(&mut self, code: SyscallCode) -> Option<&Arc<dyn Syscall>> {
