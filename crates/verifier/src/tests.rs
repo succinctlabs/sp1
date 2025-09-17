@@ -2,8 +2,8 @@ use rstest::rstest;
 use serial_test::serial;
 use sp1_sdk::{install::try_install_circuit_artifacts, HashableKey, ProverClient, SP1Stdin};
 use test_artifacts::{
-    FIBONACCI_BLAKE3_ELF, FIBONACCI_ELF, GROTH16_BLAKE3_ELF, GROTH16_ELF, PLONK_BLAKE3_ELF,
-    PLONK_ELF,
+    FIBONACCI_BLAKE3_ELF, FIBONACCI_ELF, GROTH16_BLAKE3_ELF, GROTH16_COMPRESSED_BLAKE3_ELF,
+    GROTH16_COMPRESSED_ELF, GROTH16_ELF, PLONK_BLAKE3_ELF, PLONK_ELF,
 };
 
 use crate::{error::Error, Groth16Error, PlonkError};
@@ -74,10 +74,10 @@ fn test_verify_plonk(#[case] elf: &[u8]) {
 }
 
 #[rstest]
-#[case(FIBONACCI_ELF, GROTH16_ELF)]
-#[case(FIBONACCI_BLAKE3_ELF, GROTH16_BLAKE3_ELF)]
+#[case(FIBONACCI_ELF, GROTH16_COMPRESSED_ELF)]
+#[case(FIBONACCI_BLAKE3_ELF, GROTH16_COMPRESSED_BLAKE3_ELF)]
 #[serial]
-fn test_compressed_groth16_proof(#[case] elf: &[u8], #[case] groth16_elf: &[u8]) {
+fn test_groth16_verifier_compressed(#[case] elf: &[u8], #[case] groth16_compressed_elf: &[u8]) {
     // Set up the pk and vk.
     let client = ProverClient::from_env();
     let (pk, vk) = client.setup(elf);
@@ -111,7 +111,7 @@ fn test_compressed_groth16_proof(#[case] elf: &[u8], #[case] groth16_elf: &[u8])
         }
     }
 
-    // Compress the Groth16 proof.
+    // Verify compressed Groth16 proof outside of VM.
     let compressed_proof = crate::compress_groth16_proof_from_bytes(&proof[4..]).unwrap();
     let decompressed_proof = crate::decompress_groth16_proof_from_bytes(&compressed_proof).unwrap();
     assert_eq!(decompressed_proof, proof[4..], "Decompressed proof does not match original proof");
@@ -125,15 +125,15 @@ fn test_compressed_groth16_proof(#[case] elf: &[u8], #[case] groth16_elf: &[u8])
         &vkey_hash,
         &crate::GROTH16_VK_BYTES,
     )
-    .expect("Groth16 proof is invalid");
+    .expect("Compressed Groth16 proof is invalid");
 
     // Now we should do the verifaction in the VM.
     let mut stdin = SP1Stdin::new();
-    stdin.write_slice(&proof);
+    stdin.write_slice(&new_proof);
     stdin.write_slice(&public_inputs);
     stdin.write(&vkey_hash);
 
-    let _ = client.execute(groth16_elf, &stdin).run().unwrap();
+    let _ = client.execute(groth16_compressed_elf, &stdin).run().unwrap();
 }
 
 #[rstest]
@@ -174,6 +174,23 @@ fn test_groth16_verifier(#[case] elf: &[u8], #[case] groth16_elf: &[u8]) {
         }
     }
 
+    // Verify the compressed groth16 proof as well.
+    let compressed_proof = crate::compress_groth16_proof_from_bytes(&proof[4..]).unwrap();
+    let decompressed_proof = crate::decompress_groth16_proof_from_bytes(&compressed_proof).unwrap();
+    assert_eq!(decompressed_proof, proof[4..], "Decompressed proof does not match original proof");
+    let mut new_proof = [0u8; 4 + crate::constants::COMPRESSED_GROTH16_PROOF_LENGTH];
+    new_proof[..4].copy_from_slice(&proof[..4]);
+    new_proof[4..].copy_from_slice(&compressed_proof);
+
+    crate::Groth16Verifier::verify_compressed(
+        &new_proof,
+        &public_inputs,
+        &vkey_hash,
+        &crate::GROTH16_VK_BYTES,
+    )
+    .expect("Compressed Groth16 proof is invalid");
+
+    // Verify the original groth16 proof outside of the VM.
     crate::Groth16Verifier::verify(&proof, &public_inputs, &vkey_hash, &crate::GROTH16_VK_BYTES)
         .expect("Groth16 proof is invalid");
 
