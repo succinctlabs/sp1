@@ -22,6 +22,10 @@ use super::error::Groth16Error;
 pub fn compress_groth16_proof_from_bytes(
     buf: &[u8],
 ) -> Result<[u8; COMPRESSED_GROTH16_PROOF_LENGTH], Groth16Error> {
+    if buf.len() < GROTH16_PROOF_LENGTH {
+        return Err(Groth16Error::GeneralError(Error::InvalidData));
+    }
+
     let proof = load_groth16_proof_from_bytes(buf)?;
     let mut buffer = [0u8; COMPRESSED_GROTH16_PROOF_LENGTH];
     buffer[..32].copy_from_slice(&compress_g1_point_to_x(&proof.ar)?);
@@ -38,6 +42,10 @@ pub fn compress_groth16_proof_from_bytes(
 pub fn decompress_groth16_proof_from_bytes(
     buf: &[u8],
 ) -> Result<[u8; GROTH16_PROOF_LENGTH], Groth16Error> {
+    if buf.len() < COMPRESSED_GROTH16_PROOF_LENGTH {
+        return Err(Groth16Error::GeneralError(Error::InvalidData));
+    }
+
     let proof = load_compressed_groth16_proof_from_bytes(buf)?;
     let mut buffer = [0u8; GROTH16_PROOF_LENGTH];
     buffer[..64].copy_from_slice(&g1_point_to_uncompressed_bytes(&proof.ar)?);
