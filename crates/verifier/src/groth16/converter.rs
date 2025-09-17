@@ -22,14 +22,14 @@ pub fn compress_groth16_proof_from_bytes(
     buf: &[u8],
 ) -> Result<[u8; COMPRESSED_GROTH16_PROOF_LENGTH], Groth16Error> {
     let proof = load_groth16_proof_from_bytes(buf)?;
-    compress_groth16_proof_to_bytes(proof)
+    compress_groth16_proof(proof)
 }
 
 /// Compress the Groth16 proof from `Groth16Proof` to a compressed byte slice.
 ///
 /// The compressed byte slice is represented as 2 compressed g1 points, and one compressed g2 point,
 /// as outputted from Gnark.
-pub fn compress_groth16_proof_to_bytes(
+pub fn compress_groth16_proof(
     proof: Groth16Proof,
 ) -> Result<[u8; COMPRESSED_GROTH16_PROOF_LENGTH], Groth16Error> {
     let mut buffer = [0u8; COMPRESSED_GROTH16_PROOF_LENGTH];
