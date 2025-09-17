@@ -1,8 +1,7 @@
 use alloc::vec::Vec;
 
 use crate::{
-    constants::COMPRESSED_GROTH16_PROOF_LENGTH,
-    constants::GROTH16_PROOF_LENGTH,
+    constants::{COMPRESSED_GROTH16_PROOF_LENGTH, GROTH16_PROOF_LENGTH},
     converter::{
         compress_g1_point_to_x, compress_g2_point_to_x, g1_point_to_uncompressed_bytes,
         g2_point_to_uncompressed_bytes, unchecked_compressed_x_to_g1_point,

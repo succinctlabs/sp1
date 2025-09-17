@@ -9,8 +9,8 @@ use crate::{
 
 /// Compresse an G1 point to a buffer.
 ///
-/// This is a reveresed function against `unchecked_compressed_x_to_g1_point`, return the compressed G1 point
-/// which hardcoded the sign flag of y coordinate.
+/// This is a reveresed function against `unchecked_compressed_x_to_g1_point`, return the compressed
+/// G1 point which hardcoded the sign flag of y coordinate.
 pub(crate) fn compress_g1_point_to_x(g1: &AffineG1) -> Result<[u8; 32], Error> {
     let mut x_bytes = [0u8; 32];
     g1.x().to_big_endian(&mut x_bytes).map_err(Error::Field)?;
@@ -26,8 +26,8 @@ pub(crate) fn compress_g1_point_to_x(g1: &AffineG1) -> Result<[u8; 32], Error> {
 
 /// Compresse an G2 point to a buffer.
 ///
-/// This is a reveresed function against `unchecked_compressed_x_to_g1_point`, return the compressed G2 point
-/// which hardcoded the sign flag of y coordinate.
+/// This is a reveresed function against `unchecked_compressed_x_to_g1_point`, return the compressed
+/// G2 point which hardcoded the sign flag of y coordinate.
 pub(crate) fn compress_g2_point_to_x(g2: &AffineG2) -> Result<[u8; 64], Error> {
     let mut x_bytes = [0u8; 64];
     let x1 = Fq::from_u256(g2.x().0.imaginary().0).map_err(Error::Field)?;
