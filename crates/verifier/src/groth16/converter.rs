@@ -14,9 +14,21 @@ use crate::{
 
 use super::error::Groth16Error;
 
-/// Compress the Groth16 proof to a byte slice.
+/// Compress the Groth16 proof from a byte slice to a compressed byte slice.
 ///
-/// G1 point is compressed to `[u8; 32]`, and G2 point is compressed to `[u8; 64]`.
+/// The compressed byte slice is represented as 2 compressed g1 points, and one compressed g2 point,
+/// as outputted from Gnark.
+pub fn compress_groth16_proof_from_bytes(
+    buf: &[u8],
+) -> Result<[u8; COMPRESSED_GROTH16_PROOF_LENGTH], Groth16Error> {
+    let proof = load_groth16_proof_from_bytes(buf)?;
+    compress_groth16_proof_to_bytes(proof)
+}
+
+/// Compress the Groth16 proof from `Groth16Proof` to a compressed byte slice.
+///
+/// The compressed byte slice is represented as 2 compressed g1 points, and one compressed g2 point,
+/// as outputted from Gnark.
 pub fn compress_groth16_proof_to_bytes(
     proof: Groth16Proof,
 ) -> Result<[u8; COMPRESSED_GROTH16_PROOF_LENGTH], Groth16Error> {
