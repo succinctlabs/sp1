@@ -1,13 +1,12 @@
-mod converter;
+pub mod converter;
 pub mod error;
 mod verify;
 
 use bn::Fr;
-// pub(crate) use converter::{
-//     load_compressed_groth16_proof_from_bytes, load_groth16_proof_from_bytes,
-//     load_groth16_verifying_key_from_bytes,
-// };
-pub use converter::*;
+pub(crate) use converter::{
+    load_compressed_groth16_proof_from_bytes, load_groth16_proof_from_bytes,
+    load_groth16_verifying_key_from_bytes,
+};
 pub(crate) use verify::*;
 
 use error::Groth16Error;
