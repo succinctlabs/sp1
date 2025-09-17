@@ -115,12 +115,12 @@ fn test_compressed_groth16_proof(#[case] elf: &[u8], #[case] groth16_elf: &[u8])
     let compressed_proof = crate::compress_groth16_proof_from_bytes(&proof[4..]).unwrap();
     let decompressed_proof = crate::decompress_groth16_proof_from_bytes(&compressed_proof).unwrap();
     assert_eq!(decompressed_proof, proof[4..], "Decompressed proof does not match original proof");
-    let mut proof = [0u8; 4 + crate::constants::COMPRESSED_GROTH16_PROOF_LENGTH];
-    proof[..4].copy_from_slice(&proof[..4]);
-    proof[4..].copy_from_slice(&compressed_proof);
+    let mut new_proof = [0u8; 4 + crate::constants::COMPRESSED_GROTH16_PROOF_LENGTH];
+    new_proof[..4].copy_from_slice(&proof[..4]);
+    new_proof[4..].copy_from_slice(&compressed_proof);
 
     crate::Groth16Verifier::verify_compressed(
-        &proof,
+        &new_proof,
         &public_inputs,
         &vkey_hash,
         &crate::GROTH16_VK_BYTES,
@@ -129,7 +129,7 @@ fn test_compressed_groth16_proof(#[case] elf: &[u8], #[case] groth16_elf: &[u8])
 
     // Now we should do the verifaction in the VM.
     let mut stdin = SP1Stdin::new();
-    stdin.write_slice(&proof);
+    stdin.write_slice(&new_proof);
     stdin.write_slice(&public_inputs);
     stdin.write(&vkey_hash);
 
