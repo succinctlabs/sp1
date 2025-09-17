@@ -38,7 +38,7 @@ pub(crate) fn compress_g2_point_to_x(g2: &AffineG2) -> Result<[u8; 64], Error> {
     if g2.y().0 > -g2.y().0 {
         x_bytes[0] |= CompressedPointFlag::Negative as u8;
     } else {
-        x_bytes[0] = (x_bytes[0] & 0x3f) | (0x80);
+        x_bytes[0] = (x_bytes[0] & !MASK) | (CompressedPointFlag::Positive as u8);
     }
 
     Ok(x_bytes)
