@@ -51,7 +51,7 @@ pub fn decompress_groth16_proof_from_bytes(
 ///
 /// The byte slice is represented as 2 uncompressed g1 points, and one uncompressed g2 point,
 /// as outputted from Gnark.
-pub fn load_groth16_proof_from_bytes(buffer: &[u8]) -> Result<Groth16Proof, Groth16Error> {
+pub(crate) fn load_groth16_proof_from_bytes(buffer: &[u8]) -> Result<Groth16Proof, Groth16Error> {
     if buffer.len() < GROTH16_PROOF_LENGTH {
         return Err(Groth16Error::GeneralError(Error::InvalidData));
     }
@@ -68,7 +68,7 @@ pub fn load_groth16_proof_from_bytes(buffer: &[u8]) -> Result<Groth16Proof, Grot
 ///
 /// The byte slice is represented as 2 compressed g1 points, and one compressed g2 point,
 /// as outputted from Gnark.
-pub fn load_compressed_groth16_proof_from_bytes(
+pub(crate) fn load_compressed_groth16_proof_from_bytes(
     buffer: &[u8],
 ) -> Result<Groth16Proof, Groth16Error> {
     if buffer.len() < COMPRESSED_GROTH16_PROOF_LENGTH {
@@ -87,7 +87,7 @@ pub fn load_compressed_groth16_proof_from_bytes(
 ///
 /// The gnark verification key includes a lot of extraneous information. We only extract the
 /// necessary elements to verify a proof.
-pub fn load_groth16_verifying_key_from_bytes(
+pub(crate) fn load_groth16_verifying_key_from_bytes(
     buffer: &[u8],
 ) -> Result<Groth16VerifyingKey, Groth16Error> {
     // We don't need to check each compressed point because the Groth16 vkey is a public constant
