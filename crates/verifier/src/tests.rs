@@ -129,7 +129,7 @@ fn test_compressed_groth16_proof(#[case] elf: &[u8], #[case] groth16_elf: &[u8])
 
     // Now we should do the verifaction in the VM.
     let mut stdin = SP1Stdin::new();
-    stdin.write_slice(&new_proof);
+    stdin.write_slice(&proof);
     stdin.write_slice(&public_inputs);
     stdin.write(&vkey_hash);
 
