@@ -262,6 +262,20 @@ pub enum ExecutionError {
         /// The actual number of deferred proofs that were verified.
         actual: usize,
     },
+
+    /// Insufficient deferred proofs were provided.
+    #[error("insufficient deferred proofs: unable to verify proof at index {index}")]
+    InsufficientDeferredProofs {
+        /// The index of the proof that was requested.
+        index: usize,
+    },
+
+    /// Deferred proof verification failed.
+    #[error("deferred proof verification failed: {reason}")]
+    DeferredProofVerificationFailed {
+        /// The reason for the verification failure.
+        reason: String,
+    },
 }
 
 impl<'a> Executor<'a> {
@@ -1623,7 +1637,51 @@ impl<'a> Executor<'a> {
                 // Executing a syscall optionally returns a value to write to the t0
                 // register. If it returns None, we just keep the
                 // syscall_id in t0.
-                let res = syscall_impl.execute(&mut precompile_rt, syscall, b, c);
+                let res = if syscall == SyscallCode::VERIFY_SP1_PROOF {
+                    // Catch panics for VERIFY_SP1_PROOF to provide better error messages.
+                    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        syscall_impl.execute(&mut precompile_rt, syscall, b, c)
+                    })) {
+                        Ok(result) => result,
+                        Err(panic_payload) => {
+                            // Extract the panic message.
+                            let msg = panic_payload
+                                .downcast_ref::<String>()
+                                .map(String::as_str)
+                                .or_else(|| panic_payload.downcast_ref::<&str>().copied());
+
+                            if let Some(msg) = msg {
+                                let index = precompile_rt.rt.state.proof_stream_ptr;
+                                let available = precompile_rt.rt.state.proof_stream.len();
+
+                                if msg.contains("Not enough proofs") {
+                                    tracing::error!(
+                                        "Insufficient deferred proofs: unable to verify proof \
+                                        at index {index} because only {available} proofs were \
+                                        provided. \
+                                        Make sure you're passing the correct number of proofs \
+                                        and that you're calling verify_sp1_proof for all proofs."
+                                    );
+                                    return Err(ExecutionError::InsufficientDeferredProofs {
+                                        index,
+                                    });
+                                } else if msg.contains("Failed to verify proof") {
+                                    tracing::error!(
+                                        "Failed to verify deferred proof at index {index}."
+                                    );
+                                    return Err(ExecutionError::DeferredProofVerificationFailed {
+                                        reason: msg.to_string(),
+                                    });
+                                }
+                            }
+
+                            // Resume default behavior for unknown panics.
+                            std::panic::resume_unwind(panic_payload);
+                        }
+                    }
+                } else {
+                    syscall_impl.execute(&mut precompile_rt, syscall, b, c)
+                };
                 let a = if let Some(val) = res { val } else { syscall_id };
 
                 // If the syscall is `HALT` and the exit code is non-zero, return an error.
@@ -2137,8 +2195,9 @@ impl<'a> Executor<'a> {
         if self.state.proof_stream_ptr != self.state.proof_stream.len() {
             tracing::error!(
                 "Not all proofs were verified. \
-                 Make sure you are passing the correct number of proofs \
-                 and that you are calling verify_sp1_proof for all proofs."
+                 Expected to verify {expected} proofs, but only {actual} were verified. \
+                 Make sure you're passing the correct number of proofs \
+                 and that you're calling verify_sp1_proof for all proofs."
             );
             return Err(ExecutionError::UnverifiedDeferredProofs {
                 expected: self.state.proof_stream.len(),
