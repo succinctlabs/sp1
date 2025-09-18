@@ -255,8 +255,8 @@ pub enum ExecutionError {
     UnconstrainedCycleLimitExceeded(u64),
 
     /// Not all deferred proofs were verified during execution.
-    #[error("unread deferred proofs: {actual}/{expected}")]
-    UnreadDeferredProofs {
+    #[error("unverified deferred proofs: verified={actual}, expected={expected}")]
+    UnverifiedDeferredProofs {
         /// The total number of deferred proofs that were provided.
         expected: usize,
         /// The actual number of deferred proofs that were verified.
@@ -2136,10 +2136,11 @@ impl<'a> Executor<'a> {
         // Ensure that all proofs were read, otherwise return an error.
         if self.state.proof_stream_ptr != self.state.proof_stream.len() {
             tracing::error!(
-                "Not all proofs were read. Proving would fail during recursion. Did you pass too
-        many proofs in or forget to call verify_sp1_proof?"
+                "Not all proofs were verified. \
+                 Make sure you are passing the correct number of proofs \
+                 and that you are calling verify_sp1_proof for all proofs."
             );
-            return Err(ExecutionError::UnreadDeferredProofs {
+            return Err(ExecutionError::UnverifiedDeferredProofs {
                 expected: self.state.proof_stream.len(),
                 actual: self.state.proof_stream_ptr,
             });
