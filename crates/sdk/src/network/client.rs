@@ -15,8 +15,8 @@ use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
 use serde::{de::DeserializeOwned, Serialize};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{HashableKey, SP1VerifyingKey};
-use tonic::{transport::Channel, Code};
 use tokio::sync::OnceCell;
+use tonic::{transport::Channel, Code};
 
 use super::{
     grpc,
@@ -478,11 +478,20 @@ impl NetworkClient {
     }
 
     pub(crate) async fn get_channel(&self) -> Result<Channel> {
-        Ok(self.channel.get_or_try_init(|| async {
-            let channel = grpc::configure_endpoint(&self.rpc_url)?.connect().await?;
-            Ok(channel)
-        })
-        .await.map_err(|e| anyhow::anyhow!("Failed to connect: {:?}", e))?.clone())
+        Ok(self
+            .channel
+            .get_or_try_init(|| {
+                self.with_retry(
+                    || async {
+                        let channel = grpc::configure_endpoint(&self.rpc_url)?.connect().await?;
+                        Ok(channel)
+                    },
+                    "connecting to network rpc",
+                )
+            })
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to connect: {:?}", e))?
+            .clone())
     }
 
     pub(crate) async fn prover_network_client(&self) -> Result<ProverNetworkClient<Channel>> {
