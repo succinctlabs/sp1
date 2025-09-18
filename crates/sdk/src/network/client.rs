@@ -16,6 +16,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::{HashableKey, SP1VerifyingKey};
 use tonic::{transport::Channel, Code};
+use tokio::sync::OnceCell;
 
 use super::{
     grpc,
@@ -47,6 +48,7 @@ pub struct NetworkClient {
     pub(crate) signer: NetworkSigner,
     pub(crate) http: HttpClientWithMiddleware,
     pub(crate) rpc_url: String,
+    pub(crate) channel: OnceCell<Channel>,
 }
 
 #[async_trait]
@@ -85,7 +87,7 @@ impl NetworkClient {
             .pool_idle_timeout(Duration::from_secs(240))
             .build()
             .unwrap();
-        Self { signer, http: client.into(), rpc_url: rpc_url.into() }
+        Self { signer, http: client.into(), rpc_url: rpc_url.into(), channel: OnceCell::new() }
     }
 
     /// Get the latest nonce for this account's address.
@@ -475,26 +477,20 @@ impl NetworkClient {
         .await
     }
 
+    pub(crate) async fn get_channel(&self) -> Result<Channel> {
+        Ok(self.channel.get_or_try_init(|| async {
+            let channel = grpc::configure_endpoint(&self.rpc_url)?.connect().await?;
+            Ok(channel)
+        })
+        .await.map_err(|e| anyhow::anyhow!("Failed to connect: {:?}", e))?.clone())
+    }
+
     pub(crate) async fn prover_network_client(&self) -> Result<ProverNetworkClient<Channel>> {
-        self.with_retry(
-            || async {
-                let channel = grpc::configure_endpoint(&self.rpc_url)?.connect().await?;
-                Ok(ProverNetworkClient::new(channel))
-            },
-            "creating network client",
-        )
-        .await
+        Ok(ProverNetworkClient::new(self.get_channel().await?))
     }
 
     pub(crate) async fn artifact_store_client(&self) -> Result<ArtifactStoreClient<Channel>> {
-        self.with_retry(
-            || async {
-                let channel = grpc::configure_endpoint(&self.rpc_url)?.connect().await?;
-                Ok(ArtifactStoreClient::new(channel))
-            },
-            "creating artifact client",
-        )
-        .await
+        Ok(ArtifactStoreClient::new(self.get_channel().await?))
     }
 
     pub(crate) async fn create_artifact_with_content<T: Serialize + Send + Sync>(
