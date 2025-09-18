@@ -2193,16 +2193,15 @@ impl<'a> Executor<'a> {
 
         // Ensure that all proofs were read, otherwise return an error.
         if self.state.proof_stream_ptr != self.state.proof_stream.len() {
+            let expected = self.state.proof_stream.len();
+            let actual = self.state.proof_stream_ptr;
             tracing::error!(
                 "Not all proofs were verified. \
                  Expected to verify {expected} proofs, but only {actual} were verified. \
                  Make sure you're passing the correct number of proofs \
                  and that you're calling verify_sp1_proof for all proofs."
             );
-            return Err(ExecutionError::UnverifiedDeferredProofs {
-                expected: self.state.proof_stream.len(),
-                actual: self.state.proof_stream_ptr,
-            });
+            return Err(ExecutionError::UnverifiedDeferredProofs { expected, actual });
         }
 
         if !self.state.input_stream.is_empty() {
