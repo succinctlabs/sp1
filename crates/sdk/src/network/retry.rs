@@ -53,10 +53,10 @@ where
                 // Check for tonic status errors.
                 if let Some(status) = e.downcast_ref::<tonic::Status>() {
                     match status.code() {
-                        Code::Unavailable |
-                        Code::DeadlineExceeded |
-                        Code::Internal |
-                        Code::Aborted => {
+                        Code::Unavailable
+                        | Code::DeadlineExceeded
+                        | Code::Internal
+                        | Code::Aborted => {
                             tracing::warn!(
                                 "Network temporarily unavailable when {} due to {}, retrying...",
                                 operation_name,
@@ -94,15 +94,15 @@ where
                         );
                         Err(BackoffError::permanent(e))
                     } else {
-                        let is_transient = error_msg.contains("tls handshake") ||
-                            error_msg.contains("dns error") ||
-                            error_msg.contains("connection reset") ||
-                            error_msg.contains("broken pipe") ||
-                            error_msg.contains("transport error") ||
-                            error_msg.contains("failed to lookup") ||
-                            error_msg.contains("timeout") ||
-                            error_msg.contains("deadline exceeded") ||
-                            error_msg.contains("error sending request for url");
+                        let is_transient = error_msg.contains("tls handshake")
+                            || error_msg.contains("dns error")
+                            || error_msg.contains("connection reset")
+                            || error_msg.contains("broken pipe")
+                            || error_msg.contains("transport error")
+                            || error_msg.contains("failed to lookup")
+                            || error_msg.contains("timeout")
+                            || error_msg.contains("deadline exceeded")
+                            || error_msg.contains("error sending request for url");
 
                         if is_transient {
                             tracing::warn!(

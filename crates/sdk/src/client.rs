@@ -130,7 +130,6 @@ impl ProverClientBuilder {
     /// let elf = &[1, 2, 3];
     /// let stdin = SP1Stdin::new();
     ///
-    /// // Use feature flag default
     /// let prover = ProverClient::builder().network().build();
     ///
     /// let (pk, vk) = prover.setup(elf);

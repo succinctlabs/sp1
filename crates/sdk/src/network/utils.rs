@@ -7,7 +7,6 @@
 use anyhow::Result;
 use prost::Message;
 
-#[cfg(not(feature = "reserved-capacity"))]
 use std::cmp::{max, min};
 
 use super::signer::NetworkSigner;
@@ -51,7 +50,6 @@ pub(crate) async fn sign_message(message: &[u8], signer: &NetworkSigner) -> Resu
 ///
 /// Uses a base timeout of 5 minutes plus 1 second per 2000000 prover gas. The timeout is capped at
 /// 4 hours.
-#[cfg(not(feature = "reserved-capacity"))]
 pub(crate) fn calculate_timeout_from_gas_limit(gas_limit: u64) -> u64 {
     let base_timeout = 300; // 5 minutes
     let gas_based_timeout = gas_limit / 2_000_000;
@@ -71,5 +69,13 @@ pub fn get_explorer_url_for_mode(network_mode: super::NetworkMode) -> &'static s
     match network_mode {
         super::NetworkMode::Mainnet => super::MAINNET_EXPLORER_URL,
         super::NetworkMode::Reserved => super::RESERVED_EXPLORER_URL,
+    }
+}
+
+/// Get the default cycle limit for the given network mode.
+pub fn get_default_cycle_limit_for_mode(network_mode: super::NetworkMode) -> u64 {
+    match network_mode {
+        super::NetworkMode::Mainnet => super::MAINNET_DEFAULT_CYCLE_LIMIT,
+        super::NetworkMode::Reserved => super::RESERVED_DEFAULT_CYCLE_LIMIT,
     }
 }

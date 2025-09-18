@@ -18,8 +18,9 @@ use crate::{
         },
         signer::NetworkSigner,
         tee::client::Client as TeeClient,
-        Error, NetworkMode, DEFAULT_AUCTION_TIMEOUT_DURATION, DEFAULT_CYCLE_LIMIT,
-        DEFAULT_GAS_LIMIT, PRIVATE_EXPLORER_URL, PRIVATE_NETWORK_RPC_URL, MAINNET_EXPLORER_URL, RESERVED_EXPLORER_URL, MAINNET_RPC_URL, RESERVED_RPC_URL,TEE_NETWORK_RPC_URL
+        Error, NetworkMode, DEFAULT_AUCTION_TIMEOUT_DURATION, DEFAULT_GAS_LIMIT,
+        MAINNET_EXPLORER_URL, MAINNET_RPC_URL, PRIVATE_EXPLORER_URL, PRIVATE_NETWORK_RPC_URL,
+        RESERVED_EXPLORER_URL, RESERVED_RPC_URL, TEE_NETWORK_RPC_URL
     },
     prover::verify_proof,
     ProofFromNetwork, Prover, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey,
@@ -661,7 +662,9 @@ impl NetworkProver {
                     *request_id,
                     pk.elf.clone(),
                     stdin.clone(),
-                    cycle_limit.unwrap_or(DEFAULT_CYCLE_LIMIT),
+                    cycle_limit.unwrap_or_else(|| {
+                        super::utils::get_default_cycle_limit_for_mode(self.network_mode)
+                    }),
                 )
                 .await?;
 
@@ -683,11 +686,11 @@ impl NetworkProver {
                         if let Some(network_error) = e.downcast_ref::<Error>() {
                             if matches!(
                                 network_error,
-                                Error::RequestUnfulfillable { .. } |
-                                    Error::RequestTimedOut { .. } |
-                                    Error::RequestAuctionTimedOut { .. }
-                            ) && strategy == FulfillmentStrategy::Auction &&
-                                whitelist.is_none()
+                                Error::RequestUnfulfillable { .. }
+                                    | Error::RequestTimedOut { .. }
+                                    | Error::RequestAuctionTimedOut { .. }
+                            ) && strategy == FulfillmentStrategy::Auction
+                                && whitelist.is_none()
                             {
                                 tracing::warn!(
                                     "Retrying auction request with fallback whitelist..."
@@ -741,7 +744,7 @@ impl NetworkProver {
     /// 1. If either of the limits are explicitly set by the requester, use the specified value.
     /// 2. If simulation is enabled, calculate the limits by simulating the execution of the
     ///    program. This is the default behavior.
-    /// 3. Otherwise, use the default limits ([`DEFAULT_CYCLE_LIMIT`] and [`DEFAULT_GAS_LIMIT`]).
+    /// 3. Otherwise, use the default limits ([`MAINNET_DEFAULT_CYCLE_LIMIT`] or [`RESERVED_DEFAULT_CYCLE_LIMIT`] and [`DEFAULT_GAS_LIMIT`]).
     fn get_execution_limits(
         &self,
         cycle_limit: Option<u64>,
@@ -753,7 +756,7 @@ impl NetworkProver {
         let cycle_limit_value = if let Some(cycles) = cycle_limit {
             cycles
         } else if skip_simulation {
-            DEFAULT_CYCLE_LIMIT
+            super::utils::get_default_cycle_limit_for_mode(self.network_mode)
         } else {
             // Will be calculated through simulation.
             0

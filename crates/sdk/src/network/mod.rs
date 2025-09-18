@@ -25,7 +25,9 @@ use std::time::Duration;
 pub use crate::network::{client::NetworkClient, proto::types::FulfillmentStrategy};
 pub use alloy_primitives::{Address, B256};
 pub use error::*;
-pub use utils::{get_default_rpc_url_for_mode, get_explorer_url_for_mode};
+pub use utils::{
+    get_default_cycle_limit_for_mode, get_default_rpc_url_for_mode, get_explorer_url_for_mode,
+};
 
 /// The network mode to use for the prover client.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -71,5 +73,7 @@ pub(crate) const DEFAULT_TEE_SERVER_URL: &str = "https://tee.production.succinct
 pub(crate) const TEE_NETWORK_RPC_URL: &str = "https://sp1-lumiere.xyz";
 
 pub(crate) const DEFAULT_AUCTION_TIMEOUT_DURATION: Duration = Duration::from_secs(30);
+pub(crate) const MAINNET_DEFAULT_CYCLE_LIMIT: u64 = 1_000_000_000_000;
+pub(crate) const RESERVED_DEFAULT_CYCLE_LIMIT: u64 = 100_000_000;
 pub(crate) const DEFAULT_GAS_LIMIT: u64 = 1_000_000_000;
 pub(crate) const DEFAULT_TIMEOUT_SECS: u64 = 14400;
