@@ -36,7 +36,7 @@ pub mod utils;
 // This is done to avoid a circular dependency between sp1_core_machine and sp1_core_executor, and
 // enable crates that depend on sp1_core_machine to import the `SP1ReduceProof` type directly.
 pub mod reduce {
-    pub use sp1_core_executor::SP1ReduceProof;
+    pub use sp1_stark::SP1ReduceProof;
 }
 
 #[cfg(test)]

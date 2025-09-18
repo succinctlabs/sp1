@@ -176,24 +176,39 @@ fn run_evaluation<C: SP1ProverComponents>(
 
     let context = SP1Context::default();
 
-    let (_, exec_duration) = time_operation(|| prover.execute(elf, stdin, context.clone()));
+    let (exec_result, exec_duration) =
+        time_operation(|| prover.execute(elf, stdin, context.clone()));
+    let exec_ok = exec_result.is_ok();
 
-    let (core_proof, core_duration) =
-        time_operation(|| prover.prove_core(&pk_d, program, stdin, opts, context).unwrap());
+    let (core_result, core_duration) =
+        time_operation(|| prover.prove_core(&pk_d, program, stdin, opts, context));
+    let (core_ok, core_proof_opt) = match core_result {
+        Ok(proof) => (true, Some(proof)),
+        Err(_) => (false, None),
+    };
 
-    let (_, compress_duration) =
-        time_operation(|| prover.compress(&vk, core_proof, vec![], opts).unwrap());
+    let (compress_ok, compress_duration) = if let Some(core_proof) = core_proof_opt {
+        let (compress_result, dur) =
+            time_operation(|| prover.compress(&vk, core_proof, vec![], opts));
+        (compress_result.is_ok(), dur)
+    } else {
+        (false, Duration::from_secs(0))
+    };
 
     let total_duration = exec_duration + core_duration + compress_duration;
 
     PerformanceReport {
         program: program_name.to_string(),
         cycles,
-        exec_khz: calculate_khz(cycles, exec_duration),
-        core_khz: calculate_khz(cycles, core_duration),
-        compressed_khz: calculate_khz(cycles, compress_duration + core_duration),
+        exec_khz: if exec_ok { calculate_khz(cycles, exec_duration) } else { 0.0 },
+        core_khz: if core_ok { calculate_khz(cycles, core_duration) } else { 0.0 },
+        compressed_khz: if core_ok && compress_ok {
+            calculate_khz(cycles, compress_duration + core_duration)
+        } else {
+            0.0
+        },
         time: total_duration.as_secs_f64(),
-        success: true,
+        success: exec_ok && core_ok && compress_ok,
     }
 }
 

@@ -1,21 +1,24 @@
 #![allow(clippy::needless_range_loop)]
 
-use crate::{
-    builder::SP1RecursionAirBuilder, runtime::ExecutionRecord, ExpReverseBitsEvent,
-    ExpReverseBitsInstr, Instruction,
-};
+use crate::{builder::SP1RecursionAirBuilder, runtime::ExecutionRecord};
 use core::borrow::Borrow;
 use p3_air::{Air, AirBuilder, BaseAir, PairBuilder};
-use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use sp1_core_machine::utils::pad_rows_fixed;
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::{BaseAirBuilder, ExtensionAirBuilder, MachineAir, SP1AirBuilder};
-use std::borrow::BorrowMut;
-use tracing::instrument;
 
-use super::mem::{MemoryAccessCols, MemoryAccessColsChips};
+use super::mem::MemoryAccessColsChips;
+
+#[cfg(feature = "sys")]
+use {
+    super::mem::MemoryAccessCols,
+    crate::{ExpReverseBitsEvent, ExpReverseBitsInstr, Instruction},
+    p3_baby_bear::BabyBear,
+    sp1_core_machine::utils::pad_rows_fixed,
+    std::borrow::BorrowMut,
+    tracing::instrument,
+};
 
 pub const NUM_EXP_REVERSE_BITS_LEN_COLS: usize = core::mem::size_of::<ExpReverseBitsLenCols<u8>>();
 pub const NUM_EXP_REVERSE_BITS_LEN_PREPROCESSED_COLS: usize =
@@ -84,6 +87,12 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
         NUM_EXP_REVERSE_BITS_LEN_PREPROCESSED_COLS
     }
 
+    #[cfg(not(feature = "sys"))]
+    fn generate_preprocessed_trace(&self, _program: &Self::Program) -> Option<RowMajorMatrix<F>> {
+        unimplemented!("To generate traces, enable feature `sp1-recursion-core/sys`");
+    }
+
+    #[cfg(feature = "sys")]
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         assert!(
             std::any::TypeId::of::<F>() == std::any::TypeId::of::<BabyBear>(),
@@ -146,6 +155,12 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for ExpReverseBitsLenCh
         Some(trace)
     }
 
+    #[cfg(not(feature = "sys"))]
+    fn generate_trace(&self, _input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
+        unimplemented!("To generate traces, enable feature `sp1-recursion-core/sys`");
+    }
+
+    #[cfg(feature = "sys")]
     #[instrument(name = "generate exp reverse bits len trace", level = "debug", skip_all, fields(rows = input.exp_reverse_bits_len_events.len()))]
     fn generate_trace(
         &self,
@@ -317,7 +332,7 @@ where
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "sys"))]
 mod tests {
     #![allow(clippy::print_stdout)]
 

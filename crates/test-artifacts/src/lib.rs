@@ -88,6 +88,10 @@ pub const GROTH16_ELF: &[u8] = include_elf!("groth16_verify");
 
 pub const GROTH16_BLAKE3_ELF: &[u8] = include_elf!("groth16_verify_blake3");
 
+pub const GROTH16_COMPRESSED_ELF: &[u8] = include_elf!("groth16_verify_compressed");
+
+pub const GROTH16_COMPRESSED_BLAKE3_ELF: &[u8] = include_elf!("groth16_verify_compressed_blake3");
+
 pub const PLONK_ELF: &[u8] = include_elf!("plonk_verify");
 
 pub const PLONK_BLAKE3_ELF: &[u8] = include_elf!("plonk_verify_blake3");

@@ -1,13 +1,17 @@
 use core::borrow::Borrow;
 use p3_air::{Air, BaseAir, PairBuilder};
-use p3_baby_bear::BabyBear;
-use p3_field::{extension::BinomiallyExtendable, AbstractField, Field, PrimeField32};
+use p3_field::{extension::BinomiallyExtendable, Field, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
-use p3_maybe_rayon::prelude::*;
 use sp1_core_machine::utils::next_power_of_two;
 use sp1_derive::AlignedBorrow;
 use sp1_stark::air::{ExtensionAirBuilder, MachineAir};
-use std::{borrow::BorrowMut, iter::zip};
+use std::iter::zip;
+
+#[cfg(feature = "sys")]
+use {
+    p3_baby_bear::BabyBear, p3_field::AbstractField, p3_maybe_rayon::prelude::*,
+    std::borrow::BorrowMut,
+};
 
 use crate::{builder::SP1RecursionAirBuilder, *};
 
@@ -23,7 +27,7 @@ pub const NUM_EXT_ALU_COLS: usize = core::mem::size_of::<ExtAluCols<u8>>();
 pub struct ExtAluCols<F: Copy> {
     pub values: [ExtAluValueCols<F>; NUM_EXT_ALU_ENTRIES_PER_ROW],
 }
-const NUM_EXT_ALU_VALUE_COLS: usize = core::mem::size_of::<ExtAluValueCols<u8>>();
+pub const NUM_EXT_ALU_VALUE_COLS: usize = core::mem::size_of::<ExtAluValueCols<u8>>();
 
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
@@ -80,6 +84,12 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
         })
     }
 
+    #[cfg(not(feature = "sys"))]
+    fn generate_preprocessed_trace(&self, _program: &Self::Program) -> Option<RowMajorMatrix<F>> {
+        unimplemented!("To generate traces, enable feature `sp1-recursion-core/sys`");
+    }
+
+    #[cfg(feature = "sys")]
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         assert_eq!(
             std::any::TypeId::of::<F>(),
@@ -134,6 +144,12 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for ExtAluChip {
         })
     }
 
+    #[cfg(not(feature = "sys"))]
+    fn generate_trace(&self, _input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
+        unimplemented!("To generate traces, enable feature `sp1-recursion-core/sys`");
+    }
+
+    #[cfg(feature = "sys")]
     fn generate_trace(&self, input: &Self::Record, _: &mut Self::Record) -> RowMajorMatrix<F> {
         assert_eq!(
             std::any::TypeId::of::<F>(),
@@ -217,7 +233,7 @@ where
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "sys"))]
 mod tests {
     use crate::{chips::test_fixtures, runtime::instruction as instr};
     use machine::tests::test_recursion_linear_program;
