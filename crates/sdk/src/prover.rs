@@ -121,8 +121,8 @@ pub(crate) fn verify_proof<C: SP1ProverComponents>(
             // Make sure the committed value digest matches the public values hash.
             // It is computationally infeasible to find two distinct inputs, one processed with
             // SHA256 and the other with Blake3, that yield the same hash value.
-            if committed_value_digest_bytes != bundle.public_values.hash()
-                && committed_value_digest_bytes != bundle.public_values.blake3_hash()
+            if committed_value_digest_bytes != bundle.public_values.hash() &&
+                committed_value_digest_bytes != bundle.public_values.blake3_hash()
             {
                 return Err(SP1VerificationError::InvalidPublicValues);
             }
@@ -146,8 +146,8 @@ pub(crate) fn verify_proof<C: SP1ProverComponents>(
             // Make sure the committed value digest matches the public values hash.
             // It is computationally infeasible to find two distinct inputs, one processed with
             // SHA256 and the other with Blake3, that yield the same hash value.
-            if committed_value_digest_bytes != bundle.public_values.hash()
-                && committed_value_digest_bytes != bundle.public_values.blake3_hash()
+            if committed_value_digest_bytes != bundle.public_values.hash() &&
+                committed_value_digest_bytes != bundle.public_values.blake3_hash()
             {
                 return Err(SP1VerificationError::InvalidPublicValues);
             }

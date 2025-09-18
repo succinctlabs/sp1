@@ -393,9 +393,13 @@ impl NetworkProver {
             ));
         }
 
-        // Get the timeout. If no timeout is specified, auto-calculate based on gas limit.
+        // Get the timeout. If no timeout is specified, auto-calculate based on gas limit for
+        // Mainnet, use default timeout for Reserved.
         let timeout_secs = timeout.map_or_else(
-            || super::utils::calculate_timeout_from_gas_limit(gas_limit),
+            || match self.network_mode {
+                NetworkMode::Mainnet => super::utils::calculate_timeout_from_gas_limit(gas_limit),
+                NetworkMode::Reserved => super::DEFAULT_TIMEOUT_SECS,
+            },
             |dur| dur.as_secs(),
         );
 
@@ -686,11 +690,11 @@ impl NetworkProver {
                         if let Some(network_error) = e.downcast_ref::<Error>() {
                             if matches!(
                                 network_error,
-                                Error::RequestUnfulfillable { .. }
-                                    | Error::RequestTimedOut { .. }
-                                    | Error::RequestAuctionTimedOut { .. }
-                            ) && strategy == FulfillmentStrategy::Auction
-                                && whitelist.is_none()
+                                Error::RequestUnfulfillable { .. } |
+                                    Error::RequestTimedOut { .. } |
+                                    Error::RequestAuctionTimedOut { .. }
+                            ) && strategy == FulfillmentStrategy::Auction &&
+                                whitelist.is_none()
                             {
                                 tracing::warn!(
                                     "Retrying auction request with fallback whitelist..."
@@ -744,7 +748,8 @@ impl NetworkProver {
     /// 1. If either of the limits are explicitly set by the requester, use the specified value.
     /// 2. If simulation is enabled, calculate the limits by simulating the execution of the
     ///    program. This is the default behavior.
-    /// 3. Otherwise, use the default limits ([`MAINNET_DEFAULT_CYCLE_LIMIT`] or [`RESERVED_DEFAULT_CYCLE_LIMIT`] and [`DEFAULT_GAS_LIMIT`]).
+    /// 3. Otherwise, use the default limits ([`MAINNET_DEFAULT_CYCLE_LIMIT`] or
+    ///    [`RESERVED_DEFAULT_CYCLE_LIMIT`] and [`DEFAULT_GAS_LIMIT`]).
     fn get_execution_limits(
         &self,
         cycle_limit: Option<u64>,
@@ -776,8 +781,8 @@ impl NetworkProver {
             return Ok((cycle_limit_value, gas_limit_value, None));
         }
 
-        // One of the limits were not provided and simulation is not skipped, so simulate to get one.
-        // or both limits.
+        // One of the limits were not provided and simulation is not skipped, so simulate to get
+        // one. or both limits.
         let execute_result = self
             .prover
             .inner()
