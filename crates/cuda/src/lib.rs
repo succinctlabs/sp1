@@ -280,8 +280,10 @@ impl SP1CudaProver {
         let payload = SetupRequestPayload { elf: elf.to_vec() };
         let request =
             crate::proto::api::SetupRequest { data: bincode::serialize(&payload).unwrap() };
-        let response = block_on(async { self.client.setup(request).await }).unwrap();
-        let payload: SetupResponsePayload = bincode::deserialize(&response.result).unwrap();
+        let response = block_on(async { self.client.setup(request).await })
+            .map_err(|e| -> Box<dyn StdError> { Box::new(e) })?;
+        let payload: SetupResponsePayload = bincode::deserialize(&response.result)
+            .map_err(|e| -> Box<dyn StdError> { Box::new(e) })?;
         Ok((payload.pk, payload.vk))
     }
 
@@ -292,8 +294,14 @@ impl SP1CudaProver {
         let payload = ProveCoreRequestPayload { stdin: stdin.clone() };
         let request =
             crate::proto::api::ProveCoreRequest { data: bincode::serialize(&payload).unwrap() };
-        let response = block_on(async { self.client.prove_core(request).await }).unwrap();
-        let proof: SP1CoreProof = bincode::deserialize(&response.result).unwrap();
+        let response = block_on(async { self.client.prove_core(request).await }).map_err(|e| {
+            SP1CoreProverError::IoError(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                e.to_string(),
+            ))
+        })?;
+        let proof: SP1CoreProof = bincode::deserialize(&response.result)
+            .map_err(SP1CoreProverError::SerializationError)?;
         Ok(proof)
     }
 
@@ -308,8 +316,15 @@ impl SP1CudaProver {
         let payload = StatelessProveCoreRequestPayload { pk: pk.clone(), stdin: stdin.clone() };
         let request =
             crate::proto::api::ProveCoreRequest { data: bincode::serialize(&payload).unwrap() };
-        let response = block_on(async { self.client.prove_core_stateless(request).await }).unwrap();
-        let proof: SP1CoreProof = bincode::deserialize(&response.result).unwrap();
+        let response = block_on(async { self.client.prove_core_stateless(request).await })
+            .map_err(|e| {
+                SP1CoreProverError::IoError(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    e.to_string(),
+                ))
+            })?;
+        let proof: SP1CoreProof = bincode::deserialize(&response.result)
+            .map_err(SP1CoreProverError::SerializationError)?;
         Ok(proof)
     }
 
@@ -326,8 +341,10 @@ impl SP1CudaProver {
         let request =
             crate::proto::api::CompressRequest { data: bincode::serialize(&payload).unwrap() };
 
-        let response = block_on(async { self.client.compress(request).await }).unwrap();
-        let proof: SP1ReduceProof<InnerSC> = bincode::deserialize(&response.result).unwrap();
+        let response = block_on(async { self.client.compress(request).await })
+            .map_err(|e| SP1RecursionProverError::RuntimeError(e.to_string()))?;
+        let proof: SP1ReduceProof<InnerSC> = bincode::deserialize(&response.result)
+            .map_err(|e| SP1RecursionProverError::RuntimeError(e.to_string()))?;
         Ok(proof)
     }
 
@@ -342,8 +359,10 @@ impl SP1CudaProver {
         let request =
             crate::proto::api::ShrinkRequest { data: bincode::serialize(&payload).unwrap() };
 
-        let response = block_on(async { self.client.shrink(request).await }).unwrap();
-        let proof: SP1ReduceProof<InnerSC> = bincode::deserialize(&response.result).unwrap();
+        let response = block_on(async { self.client.shrink(request).await })
+            .map_err(|e| SP1RecursionProverError::RuntimeError(e.to_string()))?;
+        let proof: SP1ReduceProof<InnerSC> = bincode::deserialize(&response.result)
+            .map_err(|e| SP1RecursionProverError::RuntimeError(e.to_string()))?;
         Ok(proof)
     }
 
@@ -358,8 +377,10 @@ impl SP1CudaProver {
         let request =
             crate::proto::api::WrapRequest { data: bincode::serialize(&payload).unwrap() };
 
-        let response = block_on(async { self.client.wrap(request).await }).unwrap();
-        let proof: SP1ReduceProof<OuterSC> = bincode::deserialize(&response.result).unwrap();
+        let response = block_on(async { self.client.wrap(request).await })
+            .map_err(|e| SP1RecursionProverError::RuntimeError(e.to_string()))?;
+        let proof: SP1ReduceProof<OuterSC> = bincode::deserialize(&response.result)
+            .map_err(|e| SP1RecursionProverError::RuntimeError(e.to_string()))?;
         Ok(proof)
     }
 }
@@ -374,7 +395,7 @@ impl Drop for SP1CudaProver {
     fn drop(&mut self) {
         if let Some(container) = &self.managed_container {
             if !container.cleaned_up.load(Ordering::SeqCst) {
-                tracing::debug!("dropping SP1ProverClient, cleaning up...");
+                tracing::debug!("dropping SP1CudaProver, cleaning up...");
                 cleanup_container(&container.name);
                 container.cleaned_up.store(true, Ordering::SeqCst);
             }
