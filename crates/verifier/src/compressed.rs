@@ -12,6 +12,8 @@ use sp1_recursion_core::{
 use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, *};
 use thiserror::Error;
 
+use crate::{blake3_hash, hash_public_inputs, hash_public_inputs_with_fn};
+
 // NOTE: that all these constants and types are checked by sp1_prover::tests::sp1_verifier_valid.
 // If you add a new proof, you MUST add to the test in that crate.
 //
@@ -47,6 +49,7 @@ pub const RECURSION_VK_SET: &[[u32; 8]] = &[
 
 /// A reason why the verifier rejects a given proof.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum CompressedError {
     #[error("failed to deserialize proof")]
     DeserializeProof(Box<bincode::ErrorKind>),
@@ -56,6 +59,8 @@ pub enum CompressedError {
     ProofRejected(#[from] MachineVerificationError<SC>),
     #[error("single-shard proofs are currently unsupported by this verifier")]
     SingleShard,
+    #[error("given public values do not match the commitment in the proof")]
+    PublicValuesMismatch,
 }
 
 /// A verifier for SP1 "compressed" proofs.
@@ -86,13 +91,17 @@ impl CompressedVerifier {
     ///     _ => unreachable!("expected compressed proof"),
     /// };
     /// ```
-    pub fn verify(proof: &[u8], sp1_vkey_hash: &[u8]) -> Result<(), CompressedError> {
+    pub fn verify(
+        proof: &[u8],
+        sp1_public_inputs: &[u8],
+        sp1_vkey_hash: &[u8],
+    ) -> Result<(), CompressedError> {
         let reduce_proof: Box<SP1ReduceProof<SC>> =
             bincode::deserialize(proof).map_err(CompressedError::DeserializeProof)?;
         let vkey_hash: [F; 8] =
             bincode::deserialize(sp1_vkey_hash).map_err(CompressedError::DeserializeVkeyHash)?;
 
-        verify_compressed(&reduce_proof, &vkey_hash)?;
+        verify_compressed(&reduce_proof, sp1_public_inputs, &vkey_hash)?;
 
         Ok(())
     }
@@ -103,6 +112,7 @@ impl CompressedVerifier {
 /// Verify a compressed proof.
 fn verify_compressed(
     proof: &SP1ReduceProof<SC>,
+    sp1_public_inputs: &[u8],
     vkey_hash: &[BabyBear; 8],
 ) -> Result<(), CompressedError> {
     let SP1ReduceProof { vk: compress_vk, proof } = proof;
@@ -120,7 +130,21 @@ fn verify_compressed(
     let machine_proof = MachineProof { shard_proofs: vec![proof.clone()] };
     compress_machine.verify(compress_vk, &machine_proof, &mut challenger)?;
 
-    // Validate public values
+    // Validate the SP1 public values against the committed digest.
+    let committed_value_digest_bytes = public_values
+        .committed_value_digest
+        .iter()
+        .flat_map(|w| w.0.iter().map(|x| x.as_canonical_u32() as u8))
+        .collect::<Vec<_>>();
+
+    if committed_value_digest_bytes.as_slice() != hash_public_inputs(sp1_public_inputs).as_slice()
+        && committed_value_digest_bytes.as_slice()
+            != hash_public_inputs_with_fn(sp1_public_inputs, blake3_hash)
+    {
+        return Err(CompressedError::PublicValuesMismatch);
+    }
+
+    // Validate recursion's public values.
     if !is_recursion_public_values_valid(compress_machine.config(), public_values) {
         return Err(MachineVerificationError::InvalidPublicValues(
             "recursion public values are invalid",
