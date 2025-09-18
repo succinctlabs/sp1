@@ -18,11 +18,11 @@ pub enum Error {
     FailedToGetFrFromRandomBytes,
 
     // External Library Errors
-    #[error("BN254 Field Error")]
+    #[error("BN254 Field Error: {0}")]
     Field(FieldError),
-    #[error("BN254 Group Error")]
+    #[error("BN254 Group Error: {0}")]
     Group(GroupError),
-    #[error("BN254 Curve Error")]
+    #[error("BN254 Curve Error: {0}")]
     Curve(CurveError),
 
     // SP1 Errors

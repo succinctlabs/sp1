@@ -51,11 +51,11 @@ pub const RECURSION_VK_SET: &[[u32; 8]] = &[
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum CompressedError {
-    #[error("failed to deserialize proof")]
+    #[error("failed to deserialize proof: {0}")]
     DeserializeProof(Box<bincode::ErrorKind>),
-    #[error("failed to deserialize vkey hash")]
+    #[error("failed to deserialize vkey hash: {0}")]
     DeserializeVkeyHash(Box<bincode::ErrorKind>),
-    #[error("failed to verify proof")]
+    #[error("failed to verify proof: {0}")]
     ProofRejected(#[from] MachineVerificationError<SC>),
     #[error("single-shard proofs are currently unsupported by this verifier")]
     SingleShard,
