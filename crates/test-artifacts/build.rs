@@ -31,7 +31,11 @@ fn main() -> Result<()> {
     build_program_with_args(
         "../verifier/guest-verify-programs",
         BuildArgs {
-            binaries: vec!["groth16_verify".to_string(), "plonk_verify".to_string()],
+            binaries: vec![
+                "groth16_verify".to_string(),
+                "groth16_verify_compressed".to_string(),
+                "plonk_verify".to_string(),
+            ],
             ..Default::default()
         },
     );
@@ -39,7 +43,11 @@ fn main() -> Result<()> {
     build_program_with_args(
         "../verifier/guest-verify-programs",
         BuildArgs {
-            binaries: vec!["groth16_verify_blake3".to_string(), "plonk_verify_blake3".to_string()],
+            binaries: vec![
+                "groth16_verify_blake3".to_string(),
+                "groth16_verify_compressed_blake3".to_string(),
+                "plonk_verify_blake3".to_string(),
+            ],
             features: vec!["blake3".to_string()],
             ..Default::default()
         },

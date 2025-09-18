@@ -14,6 +14,15 @@ path = "src/groth16_verify.rs"
 required-features = ["blake3"]
 
 [[bin]]
+name = "groth16_verify_compressed"
+path = "src/groth16_verify_compressed.rs"
+
+[[bin]]
+name = "groth16_verify_compressed_blake3"
+path = "src/groth16_verify_compressed.rs"
+required-features = ["blake3"]
+
+[[bin]]
 name = "plonk_verify"
 path = "src/plonk_verify.rs"
 
