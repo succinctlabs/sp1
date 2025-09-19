@@ -14,7 +14,7 @@ use crate::{
     NetworkProver, SP1ProofMode, SP1ProofWithPublicValues,
 };
 
-use super::proto::types::FulfillmentStrategy;
+use super::{proto::types::FulfillmentStrategy, validation};
 
 use std::{
     future::{Future, IntoFuture},
@@ -647,7 +647,11 @@ impl NetworkProveBuilder<'_> {
     /// let proof = client.prove(&pk, &stdin).run_async();
     /// ```
     pub async fn run_async(mut self) -> Result<SP1ProofWithPublicValues> {
-        // Check for deprecated environment variable
+        // Validate strategy compatibility with network mode before proceeding.
+        validation::validate_strategy_compatibility(self.prover.network_mode(), self.strategy)
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+        // Check for deprecated environment variable.
         if let Ok(val) = std::env::var("SKIP_SIMULATION") {
             eprintln!(
                 "Warning: SKIP_SIMULATION environment variable is deprecated. Please use .skip_simulation() instead."
