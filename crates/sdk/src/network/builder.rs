@@ -5,7 +5,7 @@
 use alloy_primitives::Address;
 
 use crate::{
-    network::{signer::NetworkSigner, DEFAULT_NETWORK_RPC_URL},
+    network::{signer::NetworkSigner, DEFAULT_NETWORK_RPC_URL, TEE_NETWORK_RPC_URL},
     NetworkProver,
 };
 
@@ -57,6 +57,24 @@ impl NetworkProverBuilder {
     #[must_use]
     pub fn rpc_url(mut self, rpc_url: &str) -> Self {
         self.rpc_url = Some(rpc_url.to_string());
+        self
+    }
+
+    /// Process proofs inside a TEE.
+    ///
+    /// # Details
+    /// In order to keep the inputs private, it is possible to route the proof
+    /// requests to a TEE enclave.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::ProverClient;
+    ///
+    /// let prover = ProverClient::builder().network().private().build();
+    /// ```
+    #[must_use]
+    pub fn private(mut self) -> Self {
+        self.rpc_url = Some(TEE_NETWORK_RPC_URL.to_string());
         self
     }
 

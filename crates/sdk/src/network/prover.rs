@@ -18,7 +18,7 @@ use crate::{
         tee::client::Client as TeeClient,
         Error, DEFAULT_AUCTION_TIMEOUT_DURATION, DEFAULT_CYCLE_LIMIT, DEFAULT_GAS_LIMIT,
         DEFAULT_NETWORK_RPC_URL, DEFAULT_TIMEOUT_SECS, PRIVATE_EXPLORER_URL,
-        PRIVATE_NETWORK_RPC_URL, PUBLIC_EXPLORER_URL,
+        PRIVATE_NETWORK_RPC_URL, PUBLIC_EXPLORER_URL, TEE_NETWORK_RPC_URL,
     },
     prover::verify_proof,
     ProofFromNetwork, Prover, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey,
@@ -384,6 +384,12 @@ impl NetworkProver {
                     ));
                 }
             }
+        }
+
+        if self.client.rpc_url == TEE_NETWORK_RPC_URL && strategy != FulfillmentStrategy::Reserved {
+            return Err(anyhow::anyhow!(
+                "Private proving is available with reserved fulfillment strategy only. Use FulfillmentStrategy::Reserved."
+            ));
         }
 
         // Parse the timeout if it's provided, otherwise use the default.
