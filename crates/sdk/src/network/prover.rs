@@ -20,7 +20,7 @@ use crate::{
         tee::client::Client as TeeClient,
         Error, NetworkMode, DEFAULT_AUCTION_TIMEOUT_DURATION, DEFAULT_GAS_LIMIT,
         MAINNET_EXPLORER_URL, MAINNET_RPC_URL, PRIVATE_EXPLORER_URL, PRIVATE_NETWORK_RPC_URL,
-        RESERVED_EXPLORER_URL, RESERVED_RPC_URL, TEE_NETWORK_RPC_URL
+        RESERVED_EXPLORER_URL, RESERVED_RPC_URL, TEE_NETWORK_RPC_URL,
     },
     prover::verify_proof,
     ProofFromNetwork, Prover, SP1ProofMode, SP1ProofWithPublicValues, SP1ProvingKey,
