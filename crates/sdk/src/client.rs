@@ -138,15 +138,7 @@ impl ProverClientBuilder {
     #[cfg(feature = "network")]
     #[must_use]
     pub fn network(&self) -> NetworkProverBuilder {
-        let network_mode = {
-            cfg_if::cfg_if! {
-                if #[cfg(feature = "reserved-capacity")] {
-                    NetworkMode::Reserved
-                } else {
-                    NetworkMode::Mainnet
-                }
-            }
-        };
+        let network_mode = NetworkMode::default();
 
         NetworkProverBuilder {
             private_key: None,
@@ -166,9 +158,7 @@ impl ProverClientBuilder {
     /// let elf = &[1, 2, 3];
     /// let stdin = SP1Stdin::new();
     ///
-    /// // Explicitly specify network mode
     /// let prover = ProverClient::builder().network_for(NetworkMode::Mainnet).build();
-    /// let prover = ProverClient::builder().network_for(NetworkMode::Reserved).build();
     ///
     /// let (pk, vk) = prover.setup(elf);
     /// let proof = prover.prove(&pk, &stdin).compressed().run().unwrap();
