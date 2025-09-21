@@ -327,8 +327,14 @@ impl NetworkProver {
         }
 
         // Get the execution and fulfillment statuses.
-        let execution_status = ExecutionStatus::try_from(status.execution_status()).unwrap();
-        let fulfillment_status = FulfillmentStatus::try_from(status.fulfillment_status()).unwrap();
+        let execution_status =
+            ExecutionStatus::try_from(status.execution_status()).map_err(|_| {
+                anyhow::anyhow!("Unknown execution status: {}", status.execution_status())
+            })?;
+        let fulfillment_status =
+            FulfillmentStatus::try_from(status.fulfillment_status()).map_err(|_| {
+                anyhow::anyhow!("Unknown fulfillment status: {}", status.fulfillment_status())
+            })?;
 
         // Check the execution status.
         if execution_status == ExecutionStatus::Unexecutable {
@@ -912,7 +918,7 @@ impl Prover<CpuProverComponents> for NetworkProver {
             None,
             None,
             false,
-            0,
+            1,
             None,
             None,
             None,
@@ -952,12 +958,27 @@ impl Prover<CpuProverComponents> for NetworkProver {
             // Compute the message digest.
             let message_digest = alloy_primitives::keccak256(&bytes);
 
+            // Verify buffer length before indexing: selector(4) + v(1) + sig(64)
+            if tee_proof.len() < 69 {
+                return Err(crate::SP1VerificationError::Other(anyhow::anyhow!(
+                    "Invalid TEE proof prefix: too short"
+                )));
+            }
+
             // Parse the signature.
-            let signature = k256::ecdsa::Signature::from_bytes(tee_proof[5..69].into())
-                .expect("Invalid signature");
+            let signature =
+                k256::ecdsa::Signature::from_bytes(tee_proof[5..69].into()).map_err(|_| {
+                    crate::SP1VerificationError::Other(anyhow::anyhow!(
+                        "Invalid signature bytes in TEE proof"
+                    ))
+                })?;
             // The recovery id is the last byte of the signature minus 27.
-            let recovery_id =
-                k256::ecdsa::RecoveryId::from_byte(tee_proof[4] - 27).expect("Invalid recovery id");
+            let recovery_id = k256::ecdsa::RecoveryId::from_byte(tee_proof[4].saturating_sub(27))
+                .map_err(|_| {
+                crate::SP1VerificationError::Other(anyhow::anyhow!(
+                    "Invalid recovery id in TEE proof"
+                ))
+            })?;
 
             // Recover the signer.
             let signer = k256::ecdsa::VerifyingKey::recover_from_prehash(
@@ -965,7 +986,11 @@ impl Prover<CpuProverComponents> for NetworkProver {
                 &signature,
                 recovery_id,
             )
-            .unwrap();
+            .map_err(|e| {
+                crate::SP1VerificationError::Other(anyhow::anyhow!(
+                    "Failed to recover TEE signer: {e}"
+                ))
+            })?;
             let address = alloy_primitives::Address::from_public_key(&signer);
 
             // Verify the proof.
