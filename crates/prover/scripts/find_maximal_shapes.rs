@@ -50,7 +50,7 @@ fn collect_maximal_shapes(
                 let _ = record.defer();
                 let core_shape: Shape<RiscvAirId> = RiscvAir::<BabyBear>::core_heights(&record)
                     .into_iter()
-                    .filter(|&(_, height)| (height != 0))
+                    .filter(|&(_, height)| height != 0)
                     .map(|(air, height)| (air, height.next_power_of_two().ilog2() as usize))
                     .collect();
 

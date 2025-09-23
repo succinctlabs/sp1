@@ -92,7 +92,7 @@ impl Profiler {
     pub(super) fn record(&mut self, clk: u64, pc: u64) {
         // We are still in the current function.
         if pc > self.current_function_range.0 && pc <= self.current_function_range.1 {
-            if clk % self.sample_rate == 0 {
+            if clk.is_multiple_of(self.sample_rate) {
                 self.samples.push(Sample { stack: self.function_stack.clone() });
             }
 
@@ -139,7 +139,7 @@ impl Profiler {
             // so we'll just increment the counts for everything in the stack.
         }
 
-        if clk % self.sample_rate == 0 {
+        if clk.is_multiple_of(self.sample_rate) {
             self.samples.push(Sample { stack: self.function_stack.clone() });
         }
     }
