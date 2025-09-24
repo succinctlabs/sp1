@@ -38,6 +38,7 @@ pub enum NetworkMode {
     Reserved,
 }
 
+#[allow(clippy::derivable_impls)]
 impl Default for NetworkMode {
     fn default() -> Self {
         cfg_if::cfg_if! {

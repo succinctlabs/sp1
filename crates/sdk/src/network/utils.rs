@@ -57,6 +57,7 @@ pub(crate) fn calculate_timeout_from_gas_limit(gas_limit: u64) -> u64 {
 }
 
 /// Get the default RPC URL for the given network mode.
+#[must_use]
 pub fn get_default_rpc_url_for_mode(network_mode: super::NetworkMode) -> String {
     match network_mode {
         super::NetworkMode::Mainnet => super::MAINNET_RPC_URL.to_string(),
@@ -65,6 +66,7 @@ pub fn get_default_rpc_url_for_mode(network_mode: super::NetworkMode) -> String 
 }
 
 /// Get the explorer URL for the given network mode.
+#[must_use]
 pub fn get_explorer_url_for_mode(network_mode: super::NetworkMode) -> &'static str {
     match network_mode {
         super::NetworkMode::Mainnet => super::MAINNET_EXPLORER_URL,
@@ -73,6 +75,7 @@ pub fn get_explorer_url_for_mode(network_mode: super::NetworkMode) -> &'static s
 }
 
 /// Get the default cycle limit for the given network mode.
+#[must_use]
 pub fn get_default_cycle_limit_for_mode(network_mode: super::NetworkMode) -> u64 {
     match network_mode {
         super::NetworkMode::Mainnet => super::MAINNET_DEFAULT_CYCLE_LIMIT,
