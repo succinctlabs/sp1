@@ -52,9 +52,10 @@ pub fn validate_strategy_compatibility(
 ) -> Result<(), ValidationError> {
     match (mode, strategy) {
         // Valid combinations.
-        (NetworkMode::Mainnet, FulfillmentStrategy::Auction) => Ok(()),
-        (NetworkMode::Reserved, FulfillmentStrategy::Hosted) => Ok(()),
-        (NetworkMode::Reserved, FulfillmentStrategy::Reserved) => Ok(()),
+        (NetworkMode::Mainnet, FulfillmentStrategy::Auction) |
+        (NetworkMode::Reserved, FulfillmentStrategy::Hosted | FulfillmentStrategy::Reserved) => {
+            Ok(())
+        }
 
         // Invalid combinations.
         (mode, strategy) => Err(ValidationError::IncompatibleStrategy { strategy, mode }),

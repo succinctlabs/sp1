@@ -188,6 +188,7 @@ impl<V: Copy + 'static> IntoIterator for Registers<V> {
 }
 
 /// A page of memory.
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Page<V>(VecMap<V>);
 

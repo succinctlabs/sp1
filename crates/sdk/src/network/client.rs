@@ -52,7 +52,11 @@ use crate::network::proto::{
         RequestProofRequestBody as BaseRequestProofRequestBody,
     },
     // Import standard types (auction by default for backwards compatibility).
-    types::*,
+    types::{
+        CreateProgramRequest, CreateProgramRequestBody, CreateProgramResponse, FulfillmentStatus,
+        FulfillmentStrategy, GetProofRequestDetailsRequest, GetProofRequestDetailsResponse,
+        MessageFormat, ProofMode,
+    },
     CancelRequestResponse,
     GetBalanceResponse,
     GetFilteredProofRequestsResponse,
@@ -116,6 +120,7 @@ impl NetworkClient {
     }
 
     /// Get the explorer URL for the current network mode.
+    #[must_use]
     pub fn get_explorer_url(&self) -> &'static str {
         match self.network_mode {
             NetworkMode::Mainnet => MAINNET_EXPLORER_URL,

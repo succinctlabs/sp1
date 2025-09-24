@@ -38,6 +38,7 @@ pub enum NetworkMode {
     Reserved,
 }
 
+#[allow(clippy::derivable_impls)]
 impl Default for NetworkMode {
     fn default() -> Self {
         cfg_if::cfg_if! {
@@ -70,7 +71,7 @@ pub(crate) const RESERVED_RPC_URL: &str = "https://rpc.production.succinct.xyz";
 pub(crate) const PRIVATE_NETWORK_RPC_URL: &str = "https://rpc.private.succinct.xyz";
 pub(crate) const PRIVATE_EXPLORER_URL: &str = "https://explorer-private.succinct.xyz";
 pub(crate) const DEFAULT_TEE_SERVER_URL: &str = "https://tee.production.succinct.xyz";
-pub(crate) const TEE_NETWORK_RPC_URL: &str = "https://sp1-lumiere.xyz";
+pub(crate) const TEE_NETWORK_RPC_URL: &str = "https://tee.sp1-lumiere.xyz";
 
 pub(crate) const DEFAULT_AUCTION_TIMEOUT_DURATION: Duration = Duration::from_secs(30);
 pub(crate) const MAINNET_DEFAULT_CYCLE_LIMIT: u64 = 1_000_000_000_000;
