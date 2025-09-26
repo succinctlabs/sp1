@@ -58,6 +58,8 @@ pub use report::*;
 pub use state::*;
 pub use utils::*;
 
+pub use sp1_stark::SP1ReduceProof;
+
 /// Used for testing.
 #[cfg(test)]
 pub mod programs {
