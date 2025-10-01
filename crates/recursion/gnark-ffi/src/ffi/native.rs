@@ -219,7 +219,13 @@ unsafe fn ptr_to_string_freed(input: *mut c_char) -> String {
     string
 }
 
-impl PlonkBn254Proof {
+trait FromRaw {
+    type Raw;
+    unsafe fn from_raw(c_proof: *mut Self::Raw) -> Self;
+}
+
+impl FromRaw for PlonkBn254Proof {
+    type Raw = C_PlonkBn254Proof;
     unsafe fn from_raw(c_proof: *mut C_PlonkBn254Proof) -> Self {
         let proof = PlonkBn254Proof {
             public_inputs: [
@@ -235,7 +241,8 @@ impl PlonkBn254Proof {
     }
 }
 
-impl Groth16Bn254Proof {
+impl FromRaw for Groth16Bn254Proof {
+    type Raw = C_Groth16Bn254Proof;
     unsafe fn from_raw(c_proof: *mut C_Groth16Bn254Proof) -> Self {
         let proof = Groth16Bn254Proof {
             public_inputs: [

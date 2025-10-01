@@ -7,7 +7,7 @@ use p3_uni_stark::{
     ProverConstraintFolder, StarkGenericConfig, SymbolicAirBuilder, VerifierConstraintFolder,
 };
 use serde::{Deserialize, Serialize};
-use strum_macros::{Display, EnumIter};
+use strum::{Display, EnumIter};
 
 use super::{interaction::AirInteraction, BinomialExtension};
 use crate::{

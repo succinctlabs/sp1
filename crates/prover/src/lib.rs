@@ -94,18 +94,14 @@ use utils::{sp1_committed_values_digest_bn254, sp1_vkey_digest_bn254, words_to_b
 
 use components::{CpuProverComponents, SP1ProverComponents};
 
+pub use sp1_stark::{CoreSC, InnerSC};
+
 /// The global version for all components of SP1.
 ///
 /// This string should be updated whenever any step in verifying an SP1 proof changes, including
 /// core, recursion, and plonk-bn254. This string is used to download SP1 artifacts and the gnark
 /// docker image.
 pub const SP1_CIRCUIT_VERSION: &str = include_str!("../SP1_VERSION");
-
-/// The configuration for the core prover.
-pub type CoreSC = BabyBearPoseidon2;
-
-/// The configuration for the inner prover.
-pub type InnerSC = BabyBearPoseidon2;
 
 /// The configuration for the outer prover.
 pub type OuterSC = BabyBearPoseidon2Outer;

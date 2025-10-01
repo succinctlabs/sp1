@@ -39,8 +39,7 @@ rayon-scan = "0.1.1"
 arrayref = "0.3.8"
 num-bigint = { version = "0.4.3", default-features = false }
 
-strum = "0.26.3"
-strum_macros = "0.26.4"
+strum = { version = "0.26.3", features = ["derive"] }
 sysinfo = "0.30.13"
 num-traits = "0.2.19"
 
