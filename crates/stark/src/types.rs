@@ -164,6 +164,17 @@ pub enum SP1Proof {
     Groth16(Groth16Bn254Proof),
 }
 
+impl core::fmt::Display for SP1Proof {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            SP1Proof::Core(_) => write!(f, "Core"),
+            SP1Proof::Compressed(_) => write!(f, "Compressed"),
+            SP1Proof::Plonk(_) => write!(f, "Plonk"),
+            SP1Proof::Groth16(_) => write!(f, "Groth16"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PlonkBn254Proof {
     pub public_inputs: [String; 2],

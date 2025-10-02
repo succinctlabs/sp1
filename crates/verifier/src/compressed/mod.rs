@@ -1,15 +1,7 @@
-use alloc::{boxed::Box, vec, vec::Vec};
-use core::borrow::Borrow;
+use alloc::boxed::Box;
 
 use p3_baby_bear::BabyBear;
-use p3_field::{AbstractField, PrimeField32, TwoAdicField};
-use p3_symmetric::CryptographicHasher;
-use sp1_primitives::poseidon2_hash;
-use sp1_recursion_core::{
-    air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH},
-    machine::RecursionAir,
-};
-use sp1_stark::{baby_bear_poseidon2::BabyBearPoseidon2, *};
+use sp1_stark::*;
 use thiserror::Error;
 
 pub mod internal;
@@ -60,20 +52,33 @@ impl CompressedVerifier {
     /// let proof: SP1Proof = match client.prove(&pk, &stdin).compressed().run().unwrap().proof;
     /// ```
     pub fn verify_sp1_proof(
-        proof: &[u8],
+        sp1_proof: &[u8],
         sp1_public_inputs: &[u8],
         sp1_vkey_hash: &[u8],
     ) -> Result<(), CompressedError> {
         let sp1_proof: SP1Proof =
-            bincode::deserialize(proof).map_err(CompressedError::DeserializeProof)?;
-        let SP1Proof::Compressed(reduce_proof) = sp1_proof else {
-            return Err(CompressedError::Mode(sp1_proof.into()));
-        };
-        let vkey_hash: [F; 8] =
-            bincode::deserialize(sp1_vkey_hash).map_err(CompressedError::DeserializeVkeyHash)?;
+            bincode::deserialize(sp1_proof).map_err(CompressedError::DeserializeProof)?;
+        let vkey_hash: [F; 8] = deserialize_vkey(sp1_vkey_hash)?;
 
-        verify_sp1_reduce_proof(&reduce_proof, sp1_public_inputs, &vkey_hash)?;
+        verify_sp1_proof(&sp1_proof, sp1_public_inputs, &vkey_hash)?;
 
         Ok(())
     }
+    pub fn verify_sp1_reduce_proof(
+        sp1_reduce_proof: &[u8],
+        sp1_public_inputs: &[u8],
+        sp1_vkey_hash: &[u8],
+    ) -> Result<(), CompressedError> {
+        let reduce_proof: Box<SP1ReduceProof<SC>> =
+            bincode::deserialize(sp1_reduce_proof).map_err(CompressedError::DeserializeProof)?;
+        let vkey_hash: [F; 8] = deserialize_vkey(sp1_vkey_hash)?;
+
+        verify_sp1_reduce_proof(reduce_proof.as_ref(), sp1_public_inputs, &vkey_hash)?;
+
+        Ok(())
+    }
+}
+
+fn deserialize_vkey(sp1_vkey_hash: &[u8]) -> Result<[BabyBear; 8], CompressedError> {
+    bincode::deserialize(sp1_vkey_hash).map_err(CompressedError::DeserializeVkeyHash)
 }

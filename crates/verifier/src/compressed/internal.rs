@@ -52,19 +52,29 @@ pub const RECURSION_VK_SET: &[[u32; 8]] = &[
     [1838947180, 300263103, 1583019599, 569344441, 1628950152, 1571784765, 194872493, 1215388499],
 ];
 
-pub fn verify_sp1_proof() {
-    //
+/// Unwraps `sp1_proof: &SP1Proof` into a `&SP1ReduceProof<SC>`, returning
+/// `Err(CompressedError::Mode(...))` if the variant is not [`SP1Proof::Compressed`].
+/// Then, calls [`verify_sp1_reduce_proof`] and returns the result.
+pub fn verify_sp1_proof(
+    sp1_proof: &SP1Proof,
+    sp1_public_inputs: &[u8],
+    vkey_hash: &[BabyBear; 8],
+) -> Result<(), CompressedError> {
+    let SP1Proof::Compressed(reduce_proof) = sp1_proof else {
+        return Err(CompressedError::Mode(sp1_proof.into()));
+    };
+    verify_sp1_reduce_proof(reduce_proof.as_ref(), sp1_public_inputs, vkey_hash)
 }
 
 // The rest of the functions in this file have been copied from elsewhere with slight modifications.
 
 /// Verify a compressed proof.
 pub fn verify_sp1_reduce_proof(
-    proof: &SP1ReduceProof<SC>,
+    reduce_proof: &SP1ReduceProof<SC>,
     sp1_public_inputs: &[u8],
     vkey_hash: &[BabyBear; 8],
 ) -> Result<(), CompressedError> {
-    let SP1ReduceProof { vk: compress_vk, proof } = proof;
+    let SP1ReduceProof { vk: compress_vk, proof } = reduce_proof;
 
     let public_values: &RecursionPublicValues<_> = proof.public_values.as_slice().borrow();
     // This verifier does not support single-shard proofs because of the hard-coded vkey set.
