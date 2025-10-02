@@ -96,9 +96,9 @@ pub fn verify_sp1_reduce_proof(
         .flat_map(|w| w.0.iter().map(|x| x.as_canonical_u32() as u8))
         .collect::<Vec<_>>();
 
-    if committed_value_digest_bytes.as_slice() != hash_public_inputs(sp1_public_inputs).as_slice()
-        && committed_value_digest_bytes.as_slice()
-            != hash_public_inputs_with_fn(sp1_public_inputs, blake3_hash)
+    if committed_value_digest_bytes.as_slice() != hash_public_inputs(sp1_public_inputs).as_slice() &&
+        committed_value_digest_bytes.as_slice() !=
+            hash_public_inputs_with_fn(sp1_public_inputs, blake3_hash)
     {
         return Err(CompressedError::PublicValuesMismatch);
     }
