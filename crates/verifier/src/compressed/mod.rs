@@ -6,7 +6,7 @@ use thiserror::Error;
 
 pub mod internal;
 
-pub use internal::*;
+use internal::{verify_sp1_proof, verify_sp1_reduce_proof, F, SC};
 
 /// A reason why the verifier rejects a given proof.
 #[derive(Debug, Error)]
