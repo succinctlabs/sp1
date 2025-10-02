@@ -1784,15 +1784,15 @@ pub mod tests {
     ///   - Print out the returned `vk_set: BTreeSet<[_; 8]>`. Q.E.D.
     #[test]
     fn sp1_verifier_valid() {
-        use sp1_verifier::compressed::{
+        use sp1_verifier::compressed::internal::{
             self, COMPRESS_DEGREE, RECURSION_VK_ROOT, RECURSION_VK_SET,
         };
 
         // The field and stark config types are the same.
         type F = BabyBear;
         type SC = BabyBearPoseidon2;
-        let _: Option<compressed::F> = Option::<F>::None;
-        let _: Option<compressed::SC> = Option::<SC>::None;
+        let _: Option<internal::F> = Option::<F>::None;
+        let _: Option<internal::SC> = Option::<SC>::None;
 
         // The compress degree is correct.
         assert_eq!(COMPRESS_DEGREE, super::COMPRESS_DEGREE);
