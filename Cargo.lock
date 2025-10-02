@@ -7451,7 +7451,6 @@ dependencies = [
  "sp1-primitives 5.2.1",
  "sp1-zkvm",
  "strum",
- "strum_macros",
  "sysinfo",
  "tracing",
 ]

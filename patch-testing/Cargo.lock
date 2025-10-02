@@ -5261,7 +5261,6 @@ dependencies = [
  "sp1-derive",
  "sp1-primitives",
  "strum",
- "strum_macros",
  "sysinfo",
  "tracing",
 ]
