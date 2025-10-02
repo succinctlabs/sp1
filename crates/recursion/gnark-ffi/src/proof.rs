@@ -1,4 +1,4 @@
-pub use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
 pub use sp1_stark::{Groth16Bn254Proof, PlonkBn254Proof};
 
