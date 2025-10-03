@@ -54,7 +54,24 @@ pub fn execute_build_program(
 
     if let Some(output_directory) = &args.output_directory {
         // The path to the output directory, maybe relative or absolute.
-        let output_directory = PathBuf::from(output_directory);
+        let mut output_directory = PathBuf::from(output_directory);
+
+        // Normalize the path to prevent path traversal attacks (e.g., ../../../etc/)
+        // This resolves symbolic links and removes .. components
+        output_directory = output_directory.canonicalize().or_else(|_| {
+            // If canonicalize fails (path doesn't exist), create parent directories first
+            if let Some(parent) = output_directory.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            output_directory.canonicalize()
+        })?;
+
+        // Ensure the output directory is within the current working directory to prevent
+        // writing to arbitrary system locations
+        let current_dir = std::env::current_dir()?.canonicalize()?;
+        if !output_directory.starts_with(&current_dir) {
+            anyhow::bail!("--output-directory must be within the current working directory to prevent path traversal attacks");
+        }
 
         // Ensure the output directory is a directory. If it doesnt exist, this is false.
         if output_directory.is_file() {
