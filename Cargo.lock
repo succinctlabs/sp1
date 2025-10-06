@@ -6884,7 +6884,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-build"
-version = "5.2.1"
+version = "5.2.2"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -6896,7 +6896,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-cli"
-version = "5.2.1"
+version = "5.2.2"
 dependencies = [
  "anstyle",
  "anyhow",
@@ -6925,7 +6925,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-executor"
-version = "5.2.1"
+version = "5.2.2"
 dependencies = [
  "bincode",
  "bytemuck",
@@ -6952,7 +6952,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sp1-curves",
- "sp1-primitives 5.2.1",
+ "sp1-primitives 5.2.2",
  "sp1-stark",
  "sp1-zkvm",
  "strum",
@@ -6968,7 +6968,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-machine"
-version = "5.2.1"
+version = "5.2.2"
 dependencies = [
  "bincode",
  "cbindgen",
@@ -7007,7 +7007,7 @@ dependencies = [
  "sp1-core-executor",
  "sp1-curves",
  "sp1-derive",
- "sp1-primitives 5.2.1",
+ "sp1-primitives 5.2.2",
  "sp1-stark",
  "sp1-zkvm",
  "static_assertions",
@@ -7026,7 +7026,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-cuda"
-version = "5.2.1"
+version = "5.2.2"
 dependencies = [
  "bincode",
  "ctrlc",
@@ -7044,7 +7044,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
-version = "5.2.1"
+version = "5.2.2"
 dependencies = [
  "cfg-if",
  "dashu",
@@ -7059,14 +7059,14 @@ dependencies = [
  "rug",
  "serde",
  "snowbridge-amcl",
- "sp1-primitives 5.2.1",
+ "sp1-primitives 5.2.2",
  "sp1-stark",
  "typenum",
 ]
 
 [[package]]
 name = "sp1-derive"
-version = "5.2.1"
+version = "5.2.2"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -7074,7 +7074,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-eval"
-version = "5.2.1"
+version = "5.2.2"
 dependencies = [
  "anyhow",
  "bincode",
@@ -7092,7 +7092,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-helper"
-version = "5.2.1"
+version = "5.2.2"
 dependencies = [
  "sp1-build",
 ]
@@ -7111,17 +7111,17 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "5.2.1"
+version = "5.2.2"
 dependencies = [
  "bincode",
  "elliptic-curve",
  "serde",
- "sp1-primitives 5.2.1",
+ "sp1-primitives 5.2.2",
 ]
 
 [[package]]
 name = "sp1-perf"
-version = "5.2.1"
+version = "5.2.2"
 dependencies = [
  "bincode",
  "clap",
@@ -7161,7 +7161,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "5.2.1"
+version = "5.2.2"
 dependencies = [
  "bincode",
  "blake3",
@@ -7179,7 +7179,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-prover"
-version = "5.2.1"
+version = "5.2.2"
 dependencies = [
  "anyhow",
  "bincode",
@@ -7208,7 +7208,7 @@ dependencies = [
  "sha2 0.10.9",
  "sp1-core-executor",
  "sp1-core-machine",
- "sp1-primitives 5.2.1",
+ "sp1-primitives 5.2.2",
  "sp1-recursion-circuit",
  "sp1-recursion-compiler",
  "sp1-recursion-core",
@@ -7224,7 +7224,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-circuit"
-version = "5.2.1"
+version = "5.2.2"
 dependencies = [
  "ff 0.13.1",
  "hashbrown 0.14.5",
@@ -7250,7 +7250,7 @@ dependencies = [
  "sp1-core-executor",
  "sp1-core-machine",
  "sp1-derive",
- "sp1-primitives 5.2.1",
+ "sp1-primitives 5.2.2",
  "sp1-recursion-compiler",
  "sp1-recursion-core",
  "sp1-recursion-gnark-ffi",
@@ -7262,7 +7262,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-compiler"
-version = "5.2.1"
+version = "5.2.2"
 dependencies = [
  "backtrace",
  "criterion",
@@ -7277,7 +7277,7 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "sp1-core-machine",
- "sp1-primitives 5.2.1",
+ "sp1-primitives 5.2.2",
  "sp1-recursion-core",
  "sp1-recursion-derive",
  "sp1-stark",
@@ -7287,7 +7287,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-core"
-version = "5.2.1"
+version = "5.2.2"
 dependencies = [
  "backtrace",
  "cbindgen",
@@ -7319,7 +7319,7 @@ dependencies = [
  "smallvec",
  "sp1-core-machine",
  "sp1-derive",
- "sp1-primitives 5.2.1",
+ "sp1-primitives 5.2.2",
  "sp1-stark",
  "static_assertions",
  "thiserror 1.0.69",
@@ -7330,7 +7330,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-derive"
-version = "5.2.1"
+version = "5.2.2"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -7338,7 +7338,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-cli"
-version = "5.2.1"
+version = "5.2.2"
 dependencies = [
  "bincode",
  "clap",
@@ -7347,7 +7347,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-ffi"
-version = "5.2.1"
+version = "5.2.2"
 dependencies = [
  "anyhow",
  "bincode",
@@ -7371,7 +7371,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-sdk"
-version = "5.2.1"
+version = "5.2.2"
 dependencies = [
  "alloy-primitives",
  "alloy-signer",
@@ -7406,7 +7406,7 @@ dependencies = [
  "sp1-core-executor",
  "sp1-core-machine",
  "sp1-cuda",
- "sp1-primitives 5.2.1",
+ "sp1-primitives 5.2.2",
  "sp1-prover",
  "sp1-stark",
  "strum",
@@ -7424,7 +7424,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-stark"
-version = "5.2.1"
+version = "5.2.2"
 dependencies = [
  "arrayref",
  "hashbrown 0.14.5",
@@ -7448,7 +7448,7 @@ dependencies = [
  "rayon-scan",
  "serde",
  "sp1-derive",
- "sp1-primitives 5.2.1",
+ "sp1-primitives 5.2.2",
  "sp1-zkvm",
  "strum",
  "sysinfo",
@@ -7457,7 +7457,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-verifier"
-version = "5.2.1"
+version = "5.2.2"
 dependencies = [
  "ark-bn254",
  "ark-ec",
@@ -7477,7 +7477,7 @@ dependencies = [
  "rstest",
  "serial_test",
  "sha2 0.10.9",
- "sp1-primitives 5.2.1",
+ "sp1-primitives 5.2.2",
  "sp1-recursion-core",
  "sp1-sdk",
  "sp1-stark",
@@ -7488,7 +7488,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "5.2.1"
+version = "5.2.2"
 dependencies = [
  "blake3",
  "cfg-if",
@@ -7502,8 +7502,8 @@ dependencies = [
  "p3-field",
  "rand 0.8.5",
  "sha2 0.10.9",
- "sp1-lib 5.2.1",
- "sp1-primitives 5.2.1",
+ "sp1-lib 5.2.2",
+ "sp1-primitives 5.2.2",
 ]
 
 [[package]]
@@ -7840,7 +7840,7 @@ dependencies = [
 
 [[package]]
 name = "test-artifacts"
-version = "5.2.1"
+version = "5.2.2"
 dependencies = [
  "sp1-build",
 ]
