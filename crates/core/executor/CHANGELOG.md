@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.2.0-rc1](https://github.com/succinctlabs/sp1/releases/tag/sp1-core-executor-v1.2.0-rc1) - 2024-08-23
+## [1.2.0-rc1](https://github.com/succinctlabs/sp1/releases/tag/v1.2.0-rc1) - 2024-08-23
 
 ### Added
 
