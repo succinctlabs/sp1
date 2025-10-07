@@ -10,7 +10,7 @@ keywords = { workspace = true }
 categories = { workspace = true }
 
 [dependencies]
-sp1-core-machine = { workspace = true }
+sp1-core-machine = { workspace = true, default-features = true }
 sp1-prover = { workspace = true }
 prost = "0.13"
 bincode = "1.3.3"

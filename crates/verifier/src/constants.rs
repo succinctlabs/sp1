@@ -10,13 +10,14 @@ pub(crate) const COMPRESSED_INFINITY: u8 = 0b01 << 6;
 
 pub(crate) const VK_HASH_PREFIX_LENGTH: usize = 4;
 pub(crate) const GROTH16_PROOF_LENGTH: usize = 256;
+pub(crate) const COMPRESSED_GROTH16_PROOF_LENGTH: usize = 128;
 pub(crate) const PLONK_CLAIMED_VALUES_COUNT: usize = 5;
 pub(crate) const PLONK_CLAIMED_VALUES_OFFSET: usize = 384;
 pub(crate) const PLONK_Z_SHIFTED_OPENING_VALUE_OFFSET: usize = 96;
 pub(crate) const PLONK_Z_SHIFTED_OPENING_H_OFFSET: usize = 128;
 
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) enum CompressedPointFlag {
+pub enum CompressedPointFlag {
     Positive = COMPRESSED_POSITIVE as isize,
     Negative = COMPRESSED_NEGATIVE as isize,
     Infinity = COMPRESSED_INFINITY as isize,

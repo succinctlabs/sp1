@@ -503,7 +503,7 @@ impl<'a> Executor<'a> {
     ) -> MemoryReadRecord {
         // Check that the memory address is within the babybear field and not within the registers'
         // address space.  Also check that the address is aligned.
-        if addr % 4 != 0 || addr <= Register::X31 as u32 || addr >= BABYBEAR_PRIME {
+        if !addr.is_multiple_of(4) || addr <= Register::X31 as u32 || addr >= BABYBEAR_PRIME {
             panic!("Invalid memory access: addr={addr}");
         }
 
@@ -736,7 +736,7 @@ impl<'a> Executor<'a> {
     ) -> MemoryWriteRecord {
         // Check that the memory address is within the babybear field and not within the registers'
         // address space.  Also check that the address is aligned.
-        if addr % 4 != 0 || addr <= Register::X31 as u32 || addr >= BABYBEAR_PRIME {
+        if !addr.is_multiple_of(4) || addr <= Register::X31 as u32 || addr >= BABYBEAR_PRIME {
             panic!("Invalid memory access: addr={addr}");
         }
 
@@ -1718,7 +1718,7 @@ impl<'a> Executor<'a> {
             //
             // If we're close to not fitting, early stop the shard to ensure we don't OOM.
             let mut shape_match_found = true;
-            if self.state.global_clk % self.shape_check_frequency == 0 {
+            if self.state.global_clk.is_multiple_of(self.shape_check_frequency) {
                 // Estimate the number of events in the trace.
                 Self::estimate_riscv_event_counts(
                     &mut self.event_counts,
@@ -2185,7 +2185,7 @@ impl<'a> Executor<'a> {
             }
             for addr in 1..32 {
                 let record = self.state.memory.registers.get(addr);
-                if record.is_some() {
+                if let Some(record) = record {
                     if self.print_report {
                         self.report.touched_memory_addresses += 1;
                     }
@@ -2199,9 +2199,8 @@ impl<'a> Executor<'a> {
                             .push(MemoryInitializeFinalizeEvent::initialize(addr, *initial_value));
                     }
 
-                    let record = *record.unwrap();
                     memory_finalize_events
-                        .push(MemoryInitializeFinalizeEvent::finalize_from_record(addr, &record));
+                        .push(MemoryInitializeFinalizeEvent::finalize_from_record(addr, record));
                 }
             }
             for addr in self.state.memory.page_table.keys() {
@@ -2327,7 +2326,7 @@ impl<'a> Executor<'a> {
             }
         }
 
-        if !self.unconstrained && self.state.global_clk % 10_000_000 == 0 {
+        if !self.unconstrained && self.state.global_clk.is_multiple_of(10_000_000) {
             tracing::info!("clk = {} pc = 0x{:x?}", self.state.global_clk, self.state.pc);
         }
     }

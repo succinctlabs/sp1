@@ -341,6 +341,42 @@ pub struct FailFulfillmentResponse {
 pub struct FailFulfillmentResponseBody {}
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CancelRequestRequest {
+    /// The message format of the body.
+    #[prost(enumeration = "MessageFormat", tag = "1")]
+    pub format: i32,
+    /// The signature of the sender.
+    #[prost(bytes = "vec", tag = "2")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the request.
+    #[prost(message, optional, tag = "3")]
+    pub body: ::core::option::Option<CancelRequestRequestBody>,
+}
+#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CancelRequestRequestBody {
+    /// The account nonce of the sender.
+    #[prost(uint64, tag = "1")]
+    pub nonce: u64,
+    /// The identifier for the request to cancel.
+    #[prost(bytes = "vec", tag = "2")]
+    pub request_id: ::prost::alloc::vec::Vec<u8>,
+}
+#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CancelRequestResponse {
+    /// The transaction hash.
+    #[prost(bytes = "vec", tag = "1")]
+    pub tx_hash: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the response.
+    #[prost(message, optional, tag = "2")]
+    pub body: ::core::option::Option<CancelRequestResponseBody>,
+}
+#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct CancelRequestResponseBody {}
+#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ProofRequest {
     /// The request identifier.
     #[prost(bytes = "vec", tag = "1")]
@@ -1550,6 +1586,8 @@ pub struct ProverStats {
     pub ip_address: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(string, optional, tag = "17")]
     pub staker_fee_bips: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, tag = "18")]
+    pub staker_rewards_24_hr: ::prost::alloc::string::String,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
@@ -1611,6 +1649,9 @@ pub struct StakingProverSearchResult {
     /// The staker fee in bips.
     #[prost(string, optional, tag = "5")]
     pub staker_fee_bips: ::core::option::Option<::prost::alloc::string::String>,
+    /// The staker rewards in the last 24 hours.
+    #[prost(string, tag = "6")]
+    pub staker_rewards_24_hr: ::prost::alloc::string::String,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -1979,6 +2020,43 @@ pub struct GetFilteredWithdrawalReceiptsResponse {
     /// The withdrawal receipts.
     #[prost(message, repeated, tag = "1")]
     pub receipts: ::prost::alloc::vec::Vec<WithdrawalReceipt>,
+}
+#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct GetStakingPointsRequest {}
+#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct PointsPartner {
+    /// The partner ID from the points_partners table.
+    #[prost(int64, tag = "1")]
+    pub id: i64,
+    /// The partner title.
+    #[prost(string, tag = "2")]
+    pub title: ::prost::alloc::string::String,
+    /// The partner description.
+    #[prost(string, tag = "3")]
+    pub description: ::prost::alloc::string::String,
+    /// The partner image URL.
+    #[prost(string, optional, tag = "4")]
+    pub image_url: ::core::option::Option<::prost::alloc::string::String>,
+    /// The partner website URL.
+    #[prost(string, optional, tag = "5")]
+    pub website_url: ::core::option::Option<::prost::alloc::string::String>,
+    /// The aggregated points for the authenticated user for this partner.
+    /// If null/empty, the partner has no associated point rules or the user has no points.
+    #[prost(double, optional, tag = "6")]
+    pub points: ::core::option::Option<f64>,
+    /// The prover ID from the point_rules table, if this partner is specific to a prover.
+    /// If null, this partner represents general rewards not specific to any prover.
+    #[prost(bytes = "vec", optional, tag = "7")]
+    pub prover_id: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
+}
+#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetStakingPointsResponse {
+    /// List of all points partners with their aggregated points for the authenticated user.
+    #[prost(message, repeated, tag = "1")]
+    pub partners: ::prost::alloc::vec::Vec<PointsPartner>,
 }
 /// Format to help decode signature in backend.
 #[derive(serde::Serialize, serde::Deserialize)]

@@ -34,7 +34,7 @@ pub const fn indices_arr<const N: usize>() -> [usize; N] {
 }
 
 pub fn pad_to_power_of_two<const N: usize, T: Clone + Default>(values: &mut Vec<T>) {
-    debug_assert!(values.len() % N == 0);
+    debug_assert!(values.len().is_multiple_of(N));
     let mut n_real_rows = values.len() / N;
     if n_real_rows < 16 {
         n_real_rows = 16;
@@ -125,7 +125,7 @@ where
     P: Fn(usize, &mut [F]) + Send + Sync,
 {
     // Split the vector into `num_cpus` chunks, but at least `num_cpus` rows per chunk.
-    assert!(vec.len() % num_elements_per_event == 0);
+    assert!(vec.len().is_multiple_of(num_elements_per_event));
     let len = vec.len() / num_elements_per_event;
     let cpus = num_cpus::get();
     let ceil_div = len.div_ceil(cpus);

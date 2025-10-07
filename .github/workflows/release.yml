@@ -21,7 +21,7 @@ jobs:
       release_name: ${{ steps.release_info.outputs.release_name }}
       changelog: ${{ steps.build_changelog.outputs.changelog }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -96,7 +96,7 @@ jobs:
           #   platform: win32
           #   arch: amd64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Install rust and go
       - name: Install rust
@@ -105,7 +105,7 @@ jobs:
           rustup install stable
 
       - name: Install go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: "^1.22.1"
           
@@ -197,7 +197,7 @@ jobs:
     needs: [release, prepare]
     if: success()
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set latest release
         env:
@@ -227,7 +227,7 @@ jobs:
     runs-on: "${{ matrix.runner }}"
     steps:
       - name: "Checkout source code"
-        uses: "actions/checkout@v4"
+        uses: "actions/checkout@v5"
 
       - name: "Install SP1"
         run: |
@@ -280,7 +280,7 @@ jobs:
     needs: [prepare, release]
     if: failure()
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # todo remove this and use GH cli to create the issue
       - uses: JasonEtco/create-an-issue@v2
@@ -299,7 +299,7 @@ jobs:
     needs: [prepare, release]
     if: failure()
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Delete failed release
         env:

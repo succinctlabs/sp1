@@ -13,7 +13,7 @@ contracts in the `build/groth16` directory.
 
 ## Powers of Tau
 
-Download the powers of tau file for the given number of constraints. You will need to choose the 
+Download the powers of tau file for the given number of constraints. You will need to choose the
 number based on the number of constraints in the circuit (nearest power of 2 above the number of constraints).
 
 ```
@@ -26,7 +26,6 @@ wget https://storage.googleapis.com/zkevm/ptau/powersOfTau28_hez_final_${NB_CONS
 
 ```
 git clone https://github.com/jtguibas/semaphore-gnark-11.git
-git checkout ee57a61abfc3924c61ffc0a3d033bb92dfe7bbe8
 go build
 mv semaphore-mtb-setup semaphore-gnark-11
 cp semaphore-gnark-11 ../sp1/crates/prover/

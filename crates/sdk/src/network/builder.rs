@@ -5,7 +5,7 @@
 use alloy_primitives::Address;
 
 use crate::{
-    network::{signer::NetworkSigner, DEFAULT_NETWORK_RPC_URL},
+    network::{signer::NetworkSigner, NetworkMode, TEE_NETWORK_RPC_URL},
     NetworkProver,
 };
 
@@ -21,6 +21,7 @@ pub struct NetworkProverBuilder {
     pub(crate) rpc_url: Option<String>,
     pub(crate) tee_signers: Option<Vec<Address>>,
     pub(crate) signer: Option<NetworkSigner>,
+    pub(crate) network_mode: Option<NetworkMode>,
 }
 
 impl NetworkProverBuilder {
@@ -57,6 +58,24 @@ impl NetworkProverBuilder {
     #[must_use]
     pub fn rpc_url(mut self, rpc_url: &str) -> Self {
         self.rpc_url = Some(rpc_url.to_string());
+        self
+    }
+
+    /// Process proofs inside a TEE.
+    ///
+    /// # Details
+    /// In order to keep the inputs private, it is possible to route the proof
+    /// requests to a TEE enclave.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::ProverClient;
+    ///
+    /// let prover = ProverClient::builder().network().private().build();
+    /// ```
+    #[must_use]
+    pub fn private(mut self) -> Self {
+        self.rpc_url = Some(TEE_NETWORK_RPC_URL.to_string());
         self
     }
 
@@ -152,9 +171,12 @@ impl NetworkProverBuilder {
             NetworkSigner::local(&private_key).expect("Failed to create local signer")
         };
 
+        let network_mode = self.network_mode.unwrap_or_default();
+
         let rpc_url = match self.rpc_url {
             Some(rpc_url) => rpc_url,
-            None => std::env::var("NETWORK_RPC_URL").unwrap_or(DEFAULT_NETWORK_RPC_URL.to_string()),
+            None => std::env::var("NETWORK_RPC_URL")
+                .unwrap_or_else(|_| super::utils::get_default_rpc_url_for_mode(network_mode)),
         };
 
         let tee_signers = self.tee_signers.unwrap_or_else(|| {
@@ -177,6 +199,6 @@ impl NetworkProverBuilder {
             }
         });
 
-        NetworkProver::new(signer, &rpc_url).with_tee_signers(tee_signers)
+        NetworkProver::new(signer, &rpc_url, network_mode).with_tee_signers(tee_signers)
     }
 }

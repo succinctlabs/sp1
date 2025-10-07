@@ -63,7 +63,7 @@ impl TEEResponse {
         // The length of the version bytes, panics if the length is greater than 255.
         let version_bytes_len: u8 = version_bytes.len().try_into().unwrap();
 
-        // Push the selector
+        // Push the selector.
         bytes.extend_from_slice(&Self::selector());
         // Push v.
         bytes.extend_from_slice(&self.recovery_id.to_be_bytes());

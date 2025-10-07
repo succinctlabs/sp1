@@ -14,7 +14,7 @@ p3-field = { workspace = true }
 p3-symmetric = { workspace = true }
 p3-baby-bear = { workspace = true }
 sp1-recursion-compiler = { workspace = true }
-sp1-core-machine = { workspace = true }
+sp1-core-machine = { workspace = true, default-features = true }
 sp1-stark = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

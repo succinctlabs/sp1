@@ -92,7 +92,7 @@ impl<F: Field, HV: FieldHasher<F>> MerkleTree<F, HV> {
         // Variable to keep track index of the first element in the current layer.
         let mut offset = 0;
         for i in 0..self.height {
-            let sibling = if bit_rev_index % 2 == 0 {
+            let sibling = if bit_rev_index.is_multiple_of(2) {
                 self.digest_layers[offset + bit_rev_index + 1]
             } else {
                 self.digest_layers[offset + bit_rev_index - 1]
@@ -120,7 +120,8 @@ impl<F: Field, HV: FieldHasher<F>> MerkleTree<F, HV> {
 
         for sibling in path {
             // If the index is odd, swap the order of [value, sibling].
-            let new_pair = if index % 2 == 0 { [value, sibling] } else { [sibling, value] };
+            let new_pair =
+                if index.is_multiple_of(2) { [value, sibling] } else { [sibling, value] };
             value = HV::constant_compress(new_pair);
             index >>= 1;
         }

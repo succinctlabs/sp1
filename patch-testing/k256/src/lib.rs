@@ -1,5 +1,3 @@
-use ecdsa_core::signature::SignerMut;
-
 #[sp1_test::sp1_test("k256_verify", gpu, prove)]
 pub fn test_verify_rand_lte_100(
     stdin: &mut sp1_sdk::SP1Stdin,
@@ -71,7 +69,7 @@ pub fn test_recover_high_hash_high_recid(
     stdin: &mut sp1_sdk::SP1Stdin,
 ) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     use ecdsa_core::RecoveryId;
-    use k256::{ecdsa::Signature, ecdsa::VerifyingKey};
+    use k256::ecdsa::{Signature, VerifyingKey};
 
     let times = 100_u8;
     stdin.write(&times);
@@ -125,7 +123,7 @@ pub fn test_recover_pubkey_infinity(
     stdin: &mut sp1_sdk::SP1Stdin,
 ) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
     use ecdsa_core::RecoveryId;
-    use k256::{ecdsa::Signature, ecdsa::VerifyingKey};
+    use k256::ecdsa::{Signature, VerifyingKey};
 
     let times = 3_u8;
     stdin.write(&times);

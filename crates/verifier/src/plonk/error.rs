@@ -28,6 +28,6 @@ pub enum PlonkError {
     TranscriptError,
     #[error("Plonk vkey hash mismatch")]
     PlonkVkeyHashMismatch,
-    #[error("General error")]
+    #[error("General error: {0}")]
     GeneralError(#[from] crate::error::Error),
 }

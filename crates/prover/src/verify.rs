@@ -4,7 +4,7 @@ use anyhow::Result;
 use num_bigint::BigUint;
 use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, PrimeField};
-use sp1_core_executor::{subproof::SubproofVerifier, SP1ReduceProof};
+use sp1_core_executor::subproof::SubproofVerifier;
 use sp1_core_machine::cpu::MAX_CPU_LOG_DEGREE;
 use sp1_primitives::{
     consts::WORD_SIZE,
@@ -19,7 +19,8 @@ use sp1_recursion_gnark_ffi::{
 use sp1_stark::{
     air::{PublicValues, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
     baby_bear_poseidon2::BabyBearPoseidon2,
-    MachineProof, MachineProver, MachineVerificationError, StarkGenericConfig, Word,
+    MachineProof, MachineProver, MachineVerificationError, SP1ReduceProof, StarkGenericConfig,
+    Word,
 };
 use thiserror::Error;
 

@@ -64,7 +64,7 @@ impl<'a> HookRegistry<'a> {
     /// Note: This function should not be called in async contexts, unless you know what you are
     /// doing.
     #[must_use]
-    pub fn get(&self, fd: u32) -> Option<RwLockWriteGuard<dyn Hook + Send + Sync + 'a>> {
+    pub fn get(&self, fd: u32) -> Option<RwLockWriteGuard<'_, dyn Hook + Send + Sync + 'a>> {
         // Calling `.unwrap()` panics on a poisoned lock. Should never happen normally.
         self.table.get(&fd).map(|x| x.write().unwrap())
     }
