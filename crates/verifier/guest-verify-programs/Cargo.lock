@@ -596,43 +596,12 @@ checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
 name = "sp1-lib"
-version = "5.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e1fe81b6f87134f9170cb642f948ae41e0ee1cd3785e0cb665add5b67106d1a"
+version = "5.2.2"
 dependencies = [
  "bincode",
  "elliptic-curve",
  "serde",
- "sp1-primitives 5.2.1",
-]
-
-[[package]]
-name = "sp1-lib"
-version = "5.2.2"
-dependencies = [
- "bincode",
- "serde",
- "sp1-primitives 5.2.2",
-]
-
-[[package]]
-name = "sp1-primitives"
-version = "5.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dddd8d022840c1c500e0d7f82e9b9cf080b7dabd469f06b394010e6a594f692b"
-dependencies = [
- "bincode",
- "blake3",
- "cfg-if",
- "hex",
- "lazy_static",
- "num-bigint",
- "p3-baby-bear",
- "p3-field",
- "p3-poseidon2",
- "p3-symmetric",
- "serde",
- "sha2",
+ "sp1-primitives",
 ]
 
 [[package]]
@@ -678,8 +647,8 @@ dependencies = [
  "libm",
  "rand",
  "sha2",
- "sp1-lib 5.2.2",
- "sp1-primitives 5.2.2",
+ "sp1-lib",
+ "sp1-primitives",
 ]
 
 [[package]]
@@ -702,7 +671,7 @@ dependencies = [
  "num-bigint",
  "rand",
  "rustc-hex",
- "sp1-lib 5.2.1",
+ "sp1-lib",
 ]
 
 [[package]]
