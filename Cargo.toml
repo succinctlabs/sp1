@@ -117,3 +117,6 @@ default.extend-ignore-words-re = ["(?i)groth", "TRE"]
 
 [workspace.lints.clippy]
 print_stdout = "deny"
+
+[patch.crates-io]
+sp1-lib = { path = "crates/zkvm/lib" }
