@@ -8,8 +8,6 @@ pub use sp1_derive::MachineAir;
 
 use super::InteractionScope;
 
-// TODO: add Id type and also fn id()
-
 #[macro_export]
 /// Macro to get the name of a chip.
 macro_rules! chip_name {
@@ -25,6 +23,14 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
 
     /// The program that defines the control flow of the machine.
     type Program: MachineProgram<F>;
+
+    /// The identifier type for this AIR.
+    type Id = String;
+
+    /// A stable identifier for this AIR as part of a machine.
+    fn id(&self) -> Self::Id {
+        self.name()
+    }
 
     /// A unique identifier for this AIR as part of a machine.
     fn name(&self) -> String;
