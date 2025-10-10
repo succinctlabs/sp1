@@ -25,6 +25,8 @@ jobs:
     name: List releases
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v5
+
       - name: List releases
         env:
           GH_TOKEN: ${{ secrets.SP1_RELEASE_TOKEN }}
