@@ -21,6 +21,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  test-list-release:
+    name: List releases
+    runs-on: ubuntu-latest
+    steps:
+      - name: List releases
+        env:
+          GH_TOKEN: ${{ secrets.SP1_RELEASE_TOKEN }}
+        run: |
+          gh release list
+
   test-x86:
     name: Test (x86-64)
     runs-on:
@@ -154,7 +164,13 @@ jobs:
 
   lint:
     name: Formatting & Clippy
-    runs-on: [runs-on, runner=16cpu-linux-x64, disk=large, "run-id=${{ github.run_id }}"]
+    runs-on:
+      [
+        runs-on,
+        runner=16cpu-linux-x64,
+        disk=large,
+        "run-id=${{ github.run_id }}",
+      ]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -200,7 +216,13 @@ jobs:
 
   check:
     name: Cargo Check
-    runs-on: [runs-on, runner=16cpu-linux-x64, disk=large, "run-id=${{ github.run_id }}"]
+    runs-on:
+      [
+        runs-on,
+        runner=16cpu-linux-x64,
+        disk=large,
+        "run-id=${{ github.run_id }}",
+      ]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -239,7 +261,13 @@ jobs:
 
   check-nightly:
     name: Cargo Check (Nightly)
-    runs-on: [runs-on, runner=16cpu-linux-x64, disk=large, "run-id=${{ github.run_id }}"]
+    runs-on:
+      [
+        runs-on,
+        runner=16cpu-linux-x64,
+        disk=large,
+        "run-id=${{ github.run_id }}",
+      ]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -276,7 +304,7 @@ jobs:
         with:
           command: check
           args: --workspace --all-targets --all-features
-        
+
   examples:
     name: Examples
     runs-on:
@@ -325,22 +353,28 @@ jobs:
 
   check-verifier-no-std:
     name: Check Verifier `no_std`
-    runs-on: [runs-on, runner=16cpu-linux-x64, disk=large, "run-id=${{ github.run_id }}"]
+    runs-on:
+      [
+        runs-on,
+        runner=16cpu-linux-x64,
+        disk=large,
+        "run-id=${{ github.run_id }}",
+      ]
     timeout-minutes: 10
     strategy:
       fail-fast: false
     steps:
       - name: Checkout Actions Repository
         uses: actions/checkout@v5
-  
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: riscv32imac-unknown-none-elf
-          
+
       - name: Install target support
         run: rustup target add riscv32imac-unknown-none-elf
-        
+
       - name: Check build
         run: cargo check --target riscv32imac-unknown-none-elf --no-default-features -p sp1-verifier
 
@@ -356,7 +390,7 @@ jobs:
         image=ubuntu22-full-x64,
         spot=false,
         "run-id=${{ github.run_id }}",
-      ]    
+      ]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -380,7 +414,7 @@ jobs:
       - name: "Build SP1 without lock files"
         run: |
           cargo build --all --all-targets
-          
+
       - name: "Build examples without lock files"
         run: |
           cd examples
@@ -388,7 +422,13 @@ jobs:
 
   build-in-host:
     name: "Build patches and zkvm in host"
-    runs-on: [runs-on, runner=16cpu-linux-x64, disk=large, "run-id=${{ github.run_id }}"]
+    runs-on:
+      [
+        runs-on,
+        runner=16cpu-linux-x64,
+        disk=large,
+        "run-id=${{ github.run_id }}",
+      ]
     steps:
       - name: "Checkout sources"
         uses: "actions/checkout@v5"
