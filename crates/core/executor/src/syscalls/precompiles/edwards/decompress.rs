@@ -33,7 +33,7 @@ impl<E: EdwardsParameters> Syscall for EdwardsDecompressSyscall<E> {
     ) -> Option<u32> {
         let start_clk = rt.clk;
         let slice_ptr = arg1;
-        assert!(slice_ptr % 4 == 0, "Pointer must be 4-byte aligned.");
+        assert!(slice_ptr.is_multiple_of(4), "Pointer must be 4-byte aligned.");
         assert!(sign <= 1, "Sign bit must be 0 or 1.");
 
         let (y_memory_records_vec, y_vec) =

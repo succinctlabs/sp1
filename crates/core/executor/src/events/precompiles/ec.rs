@@ -100,11 +100,11 @@ pub fn create_ec_add_event<E: EllipticCurve>(
 ) -> EllipticCurveAddEvent {
     let start_clk = rt.clk;
     let p_ptr = arg1;
-    if p_ptr % 4 != 0 {
+    if !p_ptr.is_multiple_of(4) {
         panic!();
     }
     let q_ptr = arg2;
-    if q_ptr % 4 != 0 {
+    if !q_ptr.is_multiple_of(4) {
         panic!();
     }
 
@@ -149,7 +149,7 @@ pub fn create_ec_double_event<E: EllipticCurve>(
 ) -> EllipticCurveDoubleEvent {
     let start_clk = rt.clk;
     let p_ptr = arg1;
-    if p_ptr % 4 != 0 {
+    if !p_ptr.is_multiple_of(4) {
         panic!();
     }
 
@@ -185,7 +185,7 @@ pub fn create_ec_decompress_event<E: EllipticCurve>(
     sign_bit: u32,
 ) -> EllipticCurveDecompressEvent {
     let start_clk = rt.clk;
-    assert!(slice_ptr % 4 == 0, "slice_ptr must be 4-byte aligned");
+    assert!(slice_ptr.is_multiple_of(4), "slice_ptr must be 4-byte aligned");
     assert!(sign_bit <= 1, "is_odd must be 0 or 1");
 
     let num_limbs = <E::BaseField as NumLimbs>::Limbs::USIZE;

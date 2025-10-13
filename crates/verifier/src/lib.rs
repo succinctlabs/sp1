@@ -22,7 +22,7 @@ pub mod compressed;
 pub use compressed::{CompressedError, CompressedVerifier};
 
 mod constants;
-mod converter;
+pub mod converter;
 mod error;
 
 mod utils;

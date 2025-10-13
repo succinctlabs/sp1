@@ -17,7 +17,7 @@ pub(crate) const PLONK_Z_SHIFTED_OPENING_VALUE_OFFSET: usize = 96;
 pub(crate) const PLONK_Z_SHIFTED_OPENING_H_OFFSET: usize = 128;
 
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) enum CompressedPointFlag {
+pub enum CompressedPointFlag {
     Positive = COMPRESSED_POSITIVE as isize,
     Negative = COMPRESSED_NEGATIVE as isize,
     Infinity = COMPRESSED_INFINITY as isize,

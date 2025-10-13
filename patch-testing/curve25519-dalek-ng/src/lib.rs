@@ -53,8 +53,7 @@ fn test_decompressed_noncanonical(
 
 #[sp1_test::sp1_test("curve25519_ng_add_then_multiply", syscalls = [ED_ADD, ED_DECOMPRESS], prove)]
 fn test_add_then_multiply(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
-    use curve25519_dalek_ng::edwards::CompressedEdwardsY;
-    use curve25519_dalek_ng::scalar::Scalar;
+    use curve25519_dalek_ng::{edwards::CompressedEdwardsY, scalar::Scalar};
 
     let times = 100u16;
     stdin.write(&{ times });
@@ -74,8 +73,8 @@ fn test_add_then_multiply(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk:
         let compressed2 = CompressedEdwardsY(bytes2);
         let point2 = compressed2.decompress();
 
-        if point1.is_some() && point2.is_some() {
-            let point = point1.unwrap() + point2.unwrap();
+        if let (Some(point1), Some(point2)) = (point1, point2) {
+            let point = point1 + point2;
             let scalar = Scalar::from_bytes_mod_order(scalar);
             let result = point * scalar;
             result_vec.push(result.compress().to_bytes());
@@ -95,8 +94,7 @@ fn test_add_then_multiply(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk:
 
 #[sp1_test::sp1_test("curve25519_ng_zero_msm", syscalls = [ED_ADD, ED_DECOMPRESS], prove)]
 fn test_zero_msm(_stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
-    use curve25519_dalek_ng::edwards::CompressedEdwardsY;
-    use curve25519_dalek_ng::edwards::EdwardsPoint;
+    use curve25519_dalek_ng::edwards::{CompressedEdwardsY, EdwardsPoint};
 
     let bytes1: [u8; 32] = [3; 32];
 
