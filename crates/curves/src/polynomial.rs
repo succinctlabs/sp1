@@ -201,7 +201,7 @@ impl<T: AbstractField> Mul for Polynomial<T> {
         let mut result = vec![T::zero(); self.coefficients.len() + other.coefficients.len() - 1];
         for (i, a) in self.coefficients.into_iter().enumerate() {
             for (j, b) in other.coefficients.iter().enumerate() {
-                result[i + j] = result[i + j].clone() + a.clone() * b.clone();
+                result[i + j] += a.clone() * b.clone();
             }
         }
         Self::new(result)
@@ -215,7 +215,7 @@ impl<T: AbstractField> Mul for &Polynomial<T> {
         let mut result = vec![T::zero(); self.coefficients.len() + other.coefficients.len() - 1];
         for (i, a) in self.coefficients.iter().enumerate() {
             for (j, b) in other.coefficients.iter().enumerate() {
-                result[i + j] = result[i + j].clone() + a.clone() * b.clone();
+                result[i + j] += a.clone() * b.clone();
             }
         }
         Polynomial::new(result)
