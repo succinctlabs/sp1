@@ -249,6 +249,7 @@ pub mod baby_bear_poseidon2 {
     enum BabyBearPoseidon2Type {
         Default,
         Compressed,
+        UltraCompressed,
     }
 
     #[derive(Deserialize)]
@@ -293,7 +294,7 @@ pub mod baby_bear_poseidon2 {
             let dft = Dft {};
             let fri_config = ultra_compressed_fri_config();
             let pcs = Pcs::new(27, dft, val_mmcs, fri_config);
-            Self { pcs, perm, config_type: BabyBearPoseidon2Type::Compressed }
+            Self { pcs, perm, config_type: BabyBearPoseidon2Type::UltraCompressed }
         }
     }
 
@@ -302,6 +303,7 @@ pub mod baby_bear_poseidon2 {
             match self.config_type {
                 BabyBearPoseidon2Type::Default => Self::new(),
                 BabyBearPoseidon2Type::Compressed => Self::compressed(),
+                BabyBearPoseidon2Type::UltraCompressed => Self::ultra_compressed(),
             }
         }
     }
@@ -347,6 +349,22 @@ pub mod baby_bear_poseidon2 {
     impl ZeroCommitment<BabyBearPoseidon2> for Pcs {
         fn zero_commitment(&self) -> Com<BabyBearPoseidon2> {
             DigestHash::from([Val::zero(); DIGEST_SIZE])
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn clone_preserves_ultra_compressed() {
+            let ultra = BabyBearPoseidon2::ultra_compressed();
+            // Sanity: original has ultra FRI config properties
+            assert_eq!(ultra.pcs.fri_config().log_blowup, 3);
+
+            let cloned = ultra.clone();
+            // Expect clone to preserve ultra settings
+            assert_eq!(cloned.pcs.fri_config().log_blowup, 3);
         }
     }
 }
