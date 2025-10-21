@@ -95,7 +95,7 @@ pub fn aligned_borrow_derive(input: TokenStream) -> TokenStream {
     attributes(sp1_core_path, execution_record_path, program_path, builder_path, eval_trait_bound)
 )]
 pub fn machine_air_derive(input: TokenStream) -> TokenStream {
-    let ast: syn::DeriveInput = syn::parse(input).unwrap();
+    let ast = parse_macro_input!(input as DeriveInput);
 
     let name = &ast.ident;
     let generics = &ast.generics;
@@ -108,15 +108,26 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
     match &ast.data {
         Data::Struct(_) => unimplemented!("Structs are not supported yet"),
         Data::Enum(e) => {
+            // Validate that all variants have exactly one field
+            for variant in &e.variants {
+                let field_count = variant.fields.iter().count();
+                if field_count != 1 {
+                    return syn::Error::new_spanned(
+                        variant,
+                        "Enum variant must have exactly one field",
+                    )
+                    .to_compile_error()
+                    .into();
+                }
+            }
+
             let variants = e
                 .variants
                 .iter()
                 .map(|variant| {
                     let variant_name = &variant.ident;
-
                     let mut fields = variant.fields.iter();
-                    let field = fields.next().unwrap();
-                    assert!(fields.next().is_none(), "Only one field is supported");
+                    let field = fields.next().unwrap(); // Safe because we validated above
                     (variant_name, field)
                 })
                 .collect::<Vec<_>>();
@@ -282,8 +293,12 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
             let mut new_generics = generics.clone();
             let where_clause = new_generics.make_where_clause();
             if let Some(eval_trait_bound) = &eval_trait_bound {
-                let predicate: WherePredicate = syn::parse_str(eval_trait_bound).unwrap();
-                where_clause.predicates.push(predicate);
+                match syn::parse_str::<WherePredicate>(eval_trait_bound) {
+                    Ok(predicate) => where_clause.predicates.push(predicate),
+                    Err(e) => {
+                        return e.to_compile_error().into();
+                    }
+                }
             }
 
             let air = quote! {
