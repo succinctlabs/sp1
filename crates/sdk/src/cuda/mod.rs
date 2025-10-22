@@ -5,7 +5,7 @@
 pub mod builder;
 pub mod prove;
 
-use anyhow::Result;
+use anyhow::{Error, Result};
 use prove::CudaProveBuilder;
 use sp1_core_executor::SP1ContextBuilder;
 use sp1_core_machine::io::SP1Stdin;
@@ -160,9 +160,14 @@ impl CudaProver {
 }
 
 impl Prover<CpuProverComponents> for CudaProver {
-    fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
-        let (pk, vk) = self.cuda_prover.setup(elf).unwrap();
-        (pk, vk)
+    fn setup(&self, elf: &[u8]) -> Result<(SP1ProvingKey, SP1VerifyingKey), Error> {
+        let (pk, vk) = match self.cuda_prover.setup(elf) {
+            Ok(res) => res,
+            Err(e) => {
+                return Err(Error::msg(format!("Failed to setup prover: {}", e)));
+            }
+        };
+        Ok((pk, vk))
     }
 
     fn inner(&self) -> &SP1Prover<CpuProverComponents> {
