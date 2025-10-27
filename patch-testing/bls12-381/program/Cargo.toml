@@ -28,7 +28,21 @@ path = "bin/test_bls_add.rs"
 name = "bls12_381_ec_double_test"
 path = "bin/test_bls_double.rs"
 
-# todo explicit mul and add tests
+[[bin]]
+name = "bls12_381_fp_test_mul"
+path = "bin/test_mul.rs"
+
+[[bin]]
+name = "bls12_381_fp_test_add"
+path = "bin/test_add.rs"
+
+[[bin]]
+name = "bls12_381_fp2_test_mul"
+path = "bin/test_mul_fp2.rs"
+
+[[bin]]
+name = "bls12_381_fp2_test_add"
+path = "bin/test_add_fp2.rs"
 
 [dependencies]
 sp1-lib = { path = "../../../crates/zkvm/lib" }

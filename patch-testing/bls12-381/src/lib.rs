@@ -114,8 +114,7 @@ pub fn test_inverse_fp2_100(
 
 #[sp1_test::sp1_test("bls12_381_ec_add_test", syscalls = [BLS12381_DOUBLE, BLS12381_ADD, BLS12381_FP_MUL, BLS12381_FP_SUB], gpu, prove)]
 pub fn test_bls_add_100(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
-    use bls12_381::g1::G1Affine;
-    use bls12_381::g1::G1Projective;
+    use bls12_381::g1::{G1Affine, G1Projective};
     use group::Group;
 
     let times: u8 = 100;
@@ -150,8 +149,7 @@ pub fn test_bls_add_100(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::S
 
 #[sp1_test::sp1_test("bls12_381_ec_double_test", syscalls = [BLS12381_DOUBLE, BLS12381_ADD, BLS12381_FP_ADD, BLS12381_FP_MUL, BLS12381_FP_SUB], gpu, prove)]
 pub fn test_bls_double_100(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
-    use bls12_381::g1::G1Affine;
-    use bls12_381::g1::G1Projective;
+    use bls12_381::g1::{G1Affine, G1Projective};
     use group::Group;
 
     let times: u8 = 100;
@@ -176,6 +174,118 @@ pub fn test_bls_double_100(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk
         for res in unpatched_results {
             let zk_res = public.read::<Vec<u8>>();
 
+            assert_eq!(res, zk_res);
+        }
+    }
+}
+
+#[sp1_test::sp1_test("bls12_381_fp_test_add", syscalls = [BLS12381_FP_ADD], gpu, prove)]
+pub fn test_add_fp_100(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
+    use bls12_381::fp::Fp;
+
+    let times: u8 = 100;
+    stdin.write(&times);
+
+    let mut unpatched_results: Vec<Vec<u8>> = Vec::new();
+
+    while unpatched_results.len() < times as usize {
+        let val1 = Fp::random(&mut rand::thread_rng());
+        let val2 = Fp::random(&mut rand::thread_rng());
+
+        stdin.write(&val1.to_bytes().to_vec());
+        stdin.write(&val2.to_bytes().to_vec());
+
+        let sum = val1 + val2;
+        unpatched_results.push(sum.to_bytes().to_vec());
+    }
+
+    |mut public| {
+        for res in unpatched_results {
+            let zk_res = public.read::<Vec<u8>>();
+            assert_eq!(res, zk_res);
+        }
+    }
+}
+
+#[sp1_test::sp1_test("bls12_381_fp_test_mul", syscalls = [BLS12381_FP_MUL], gpu, prove)]
+pub fn test_mul_fp_100(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
+    use bls12_381::fp::Fp;
+
+    let times: u8 = 100;
+    stdin.write(&times);
+
+    let mut unpatched_results: Vec<Vec<u8>> = Vec::new();
+
+    while unpatched_results.len() < times as usize {
+        let val1 = Fp::random(&mut rand::thread_rng());
+        let val2 = Fp::random(&mut rand::thread_rng());
+
+        stdin.write(&val1.to_bytes().to_vec());
+        stdin.write(&val2.to_bytes().to_vec());
+
+        let product = val1 * val2;
+        unpatched_results.push(product.to_bytes().to_vec());
+    }
+
+    |mut public| {
+        for res in unpatched_results {
+            let zk_res = public.read::<Vec<u8>>();
+            assert_eq!(res, zk_res);
+        }
+    }
+}
+
+#[sp1_test::sp1_test("bls12_381_fp2_test_add", syscalls = [BLS12381_FP2_ADD], gpu, prove)]
+pub fn test_add_fp2_100(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
+    use bls12_381::fp2::Fp2;
+
+    let times: u8 = 100;
+    stdin.write(&times);
+
+    let mut unpatched_results: Vec<Vec<u8>> = Vec::new();
+
+    while unpatched_results.len() < times as usize {
+        let val1 = Fp2::random(&mut rand::thread_rng());
+        let val2 = Fp2::random(&mut rand::thread_rng());
+
+        stdin.write(&val1.to_bytes().to_vec());
+        stdin.write(&val2.to_bytes().to_vec());
+
+        let sum = val1 + val2;
+        unpatched_results.push(sum.to_bytes().to_vec());
+    }
+
+    |mut public| {
+        for res in unpatched_results {
+            let zk_res = public.read::<Vec<u8>>();
+            assert_eq!(res, zk_res);
+        }
+    }
+}
+
+#[sp1_test::sp1_test("bls12_381_fp2_test_mul", syscalls = [BLS12381_FP_MUL, BLS12381_FP2_MUL], gpu, prove)]
+pub fn test_mul_fp2_100(stdin: &mut sp1_sdk::SP1Stdin) -> impl FnOnce(sp1_sdk::SP1PublicValues) {
+    use bls12_381::fp2::Fp2;
+
+    let times: u8 = 100;
+    stdin.write(&times);
+
+    let mut unpatched_results: Vec<Vec<u8>> = Vec::new();
+
+    while unpatched_results.len() < times as usize {
+        let val1 = Fp2::random(&mut rand::thread_rng());
+        let val2 = Fp2::random(&mut rand::thread_rng());
+
+        stdin.write(&val1.to_bytes().to_vec());
+        stdin.write(&val2.to_bytes().to_vec());
+
+        let product = val1 * val2;
+        unpatched_results.push(product.to_bytes().to_vec());
+    }
+
+    |mut public| {
+        for res in unpatched_results {
+            let zk_res = public.read::<Vec<u8>>();
             assert_eq!(res, zk_res);
         }
     }
