@@ -76,7 +76,13 @@ pub(crate) fn create_docker_command(
 
     // Get the target directory for the ELF in the context of the Docker container.
     let relative_target_dir =
-        (program_metadata.target_directory).strip_prefix(workspace_root).unwrap();
+        program_metadata.target_directory.strip_prefix(workspace_root).with_context(|| {
+            format!(
+                "Cargo target directory ({}) must be a child of the workspace directory ({}).\n\
+                 This can happen if CARGO_TARGET_DIR is set to a location outside the workspace.",
+                program_metadata.target_directory, workspace_root
+            )
+        })?;
     let target_dir = format!(
         "/root/program/{}/{}/{}",
         relative_target_dir,
