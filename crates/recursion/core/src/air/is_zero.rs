@@ -65,8 +65,6 @@ impl<F: Field> IsZeroOperation<F> {
 
         builder.when(is_real.clone()).assert_eq(is_zero, cols.result);
 
-        builder.when(is_real.clone()).assert_bool(cols.result);
-
         // If the result is 1, then the input is 0.
         builder.when(is_real.clone()).when(cols.result).assert_zero(a.clone());
     }
