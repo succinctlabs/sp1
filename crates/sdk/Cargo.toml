@@ -42,8 +42,8 @@ cfg-if = "1.0"
 strum = "0.26.3"
 strum_macros = "0.26.4"
 thiserror = "1.0.63"
-aws-sdk-kms = "1.77.0"
-aws-config = "1.5.3"
+aws-sdk-kms = { version = "1.77.0", optional = true }
+aws-config = { version = "1.5.3", optional = true }
 rustls = { version = "0.23.27", features = ["ring"] }
 hashbrown = { workspace = true }
 sp1-core-executor = { workspace = true }
@@ -87,6 +87,8 @@ network = [
   "dep:reqwest-middleware",
   "dep:tonic",
   "dep:backoff",
+  "dep:aws-sdk-kms",
+  "dep:aws-config",
 ]
 tee-2fa = []
 reserved-capacity = ["network"]
