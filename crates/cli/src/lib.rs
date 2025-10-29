@@ -87,9 +87,7 @@ pub async fn get_toolchain_download_url(client: &Client, target: String) -> Stri
             );
         });
 
-    let url = format!(
+    format!(
         "https://github.com/succinctlabs/rust/releases/download/{LATEST_SUPPORTED_TOOLCHAIN_VERSION_TAG}/rust-toolchain-{target}.tar.gz"
-    );
-
-    url
+    )
 }

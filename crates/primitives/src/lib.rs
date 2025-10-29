@@ -1163,5 +1163,5 @@ pub fn hash_deferred_proof(
     inputs.extend_from_slice(prev_digest);
     inputs.extend_from_slice(vk_digest);
     inputs.extend_from_slice(pv_digest);
-    poseidon2_hash(inputs.to_vec())
+    poseidon2_hash(inputs)
 }
