@@ -70,7 +70,7 @@ impl From<bool> for DeferredProofVerification {
 
 /// An executor for the SP1 RISC-V zkVM.
 ///
-/// The exeuctor is responsible for executing a user program and tracing important events which
+/// The executor is responsible for executing a user program and tracing important events which
 /// occur during execution (i.e., memory reads, alu operations, etc).
 pub struct Executor<'a> {
     /// The program.
