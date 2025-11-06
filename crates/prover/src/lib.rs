@@ -1242,7 +1242,7 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
 
             core_inputs.push(SP1RecursionWitnessValues {
                 vk: vk.clone(),
-                shard_proofs: proofs.clone(),
+                shard_proofs: proofs,
                 is_complete,
                 is_first_shard: batch_idx == 0,
                 vk_root: self.recursion_vk_root,
