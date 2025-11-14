@@ -117,7 +117,7 @@ runs:
       run: docker buildx version
 
     - name: Set up Docker
-      uses: crazy-max/ghaction-setup-docker@v3
+      uses: crazy-max/ghaction-setup-docker@v4.5
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
