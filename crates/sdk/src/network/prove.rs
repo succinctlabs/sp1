@@ -653,8 +653,8 @@ impl NetworkProveBuilder<'_> {
 
         // Check for deprecated environment variable.
         if let Ok(val) = std::env::var("SKIP_SIMULATION") {
-            eprintln!(
-                "Warning: SKIP_SIMULATION environment variable is deprecated. Please use .skip_simulation() instead."
+            tracing::warn!(
+                "SKIP_SIMULATION environment variable is deprecated. Please use .skip_simulation() instead."
             );
             self.skip_simulation = matches!(val.to_lowercase().as_str(), "true" | "1");
         }

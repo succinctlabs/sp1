@@ -4,6 +4,7 @@
 
 use cfg_if::cfg_if;
 use std::path::PathBuf;
+use tracing::info;
 
 #[cfg(any(feature = "network", feature = "network"))]
 use {
@@ -53,7 +54,7 @@ pub fn try_install_circuit_artifacts(artifacts_type: &str) -> PathBuf {
     };
 
     if build_dir.exists() {
-        eprintln!(
+        info!(
             "[sp1] {} circuit artifacts already seem to exist at {}. if you want to re-download them, delete the directory",
             artifacts_type,
             build_dir.display()
@@ -61,7 +62,7 @@ pub fn try_install_circuit_artifacts(artifacts_type: &str) -> PathBuf {
     } else {
         cfg_if! {
             if #[cfg(any(feature = "network", feature = "network"))] {
-                eprintln!(
+                info!(
                     "[sp1] {} circuit artifacts for version {} do not exist at {}. downloading...",
                     artifacts_type,
                     SP1_CIRCUIT_VERSION,
@@ -105,7 +106,7 @@ pub fn install_circuit_artifacts(build_dir: PathBuf, artifacts_type: &str) {
         .expect("failed to extract tarball");
     res.wait().unwrap();
 
-    eprintln!("[sp1] downloaded {} to {:?}", download_url, build_dir.to_str().unwrap(),);
+    info!("[sp1] downloaded {} to {:?}", download_url, build_dir.to_str().unwrap(),);
 }
 
 /// Download the file with a progress bar that indicates the progress.
