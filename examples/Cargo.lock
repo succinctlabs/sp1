@@ -5833,7 +5833,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-build"
-version = "5.2.2"
+version = "5.2.3"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -5845,7 +5845,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-executor"
-version = "5.2.2"
+version = "5.2.3"
 dependencies = [
  "bincode",
  "bytemuck",
@@ -5882,7 +5882,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-machine"
-version = "5.2.2"
+version = "5.2.3"
 dependencies = [
  "bincode",
  "cbindgen",
@@ -5936,7 +5936,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-cuda"
-version = "5.2.2"
+version = "5.2.3"
 dependencies = [
  "bincode",
  "ctrlc",
@@ -5951,7 +5951,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
-version = "5.2.2"
+version = "5.2.3"
 dependencies = [
  "cfg-if",
  "dashu",
@@ -5971,7 +5971,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "5.2.2"
+version = "5.2.3"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -5979,7 +5979,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "5.2.2"
+version = "5.2.3"
 dependencies = [
  "bincode",
  "elliptic-curve",
@@ -5989,7 +5989,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "5.2.2"
+version = "5.2.3"
 dependencies = [
  "bincode",
  "blake3",
@@ -6007,7 +6007,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-prover"
-version = "5.2.2"
+version = "5.2.3"
 dependencies = [
  "anyhow",
  "bincode",
@@ -6050,7 +6050,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-circuit"
-version = "5.2.2"
+version = "5.2.3"
 dependencies = [
  "hashbrown 0.14.5",
  "itertools 0.13.0",
@@ -6083,7 +6083,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-compiler"
-version = "5.2.2"
+version = "5.2.3"
 dependencies = [
  "backtrace",
  "itertools 0.13.0",
@@ -6103,7 +6103,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-core"
-version = "5.2.2"
+version = "5.2.3"
 dependencies = [
  "backtrace",
  "cbindgen",
@@ -6144,7 +6144,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-derive"
-version = "5.2.2"
+version = "5.2.3"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -6152,7 +6152,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-ffi"
-version = "5.2.2"
+version = "5.2.3"
 dependencies = [
  "anyhow",
  "bincode",
@@ -6176,7 +6176,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-sdk"
-version = "5.2.2"
+version = "5.2.3"
 dependencies = [
  "alloy-primitives 1.1.2",
  "alloy-signer",
@@ -6227,7 +6227,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-stark"
-version = "5.2.2"
+version = "5.2.3"
 dependencies = [
  "arrayref",
  "hashbrown 0.14.5",
@@ -6259,7 +6259,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-verifier"
-version = "5.2.2"
+version = "5.2.3"
 dependencies = [
  "blake3",
  "cfg-if",
@@ -6272,7 +6272,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "5.2.2"
+version = "5.2.3"
 dependencies = [
  "cfg-if",
  "critical-section",
