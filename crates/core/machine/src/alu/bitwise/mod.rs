@@ -77,8 +77,7 @@ impl<F: PrimeField32> MachineAir<F> for BitwiseChip {
             .map(|event| {
                 let mut row = [F::zero(); NUM_BITWISE_COLS];
                 let cols: &mut BitwiseCols<F> = row.as_mut_slice().borrow_mut();
-                let mut blu = Vec::new();
-                self.event_to_row(event, cols, &mut blu);
+                self.event_to_row_no_blu(event, cols);
                 row
             })
             .collect::<Vec<_>>();
@@ -128,6 +127,20 @@ impl<F: PrimeField32> MachineAir<F> for BitwiseChip {
 }
 
 impl BitwiseChip {
+    /// Create a row from an event without emitting byte lookup events.
+    fn event_to_row_no_blu<F: PrimeField>(&self, event: &AluEvent, cols: &mut BitwiseCols<F>) {
+        cols.pc = F::from_canonical_u32(event.pc);
+
+        cols.a = Word::from(event.a);
+        cols.b = Word::from(event.b);
+        cols.c = Word::from(event.c);
+        cols.op_a_not_0 = F::from_bool(!event.op_a_0);
+
+        cols.is_xor = F::from_bool(event.opcode == Opcode::XOR);
+        cols.is_or = F::from_bool(event.opcode == Opcode::OR);
+        cols.is_and = F::from_bool(event.opcode == Opcode::AND);
+    }
+
     /// Create a row from an event.
     fn event_to_row<F: PrimeField>(
         &self,
