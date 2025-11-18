@@ -6,7 +6,7 @@ pub mod builder;
 pub mod execute;
 pub mod prove;
 
-use anyhow::Result;
+use anyhow::{Error, Result};
 use execute::CpuExecuteBuilder;
 use prove::CpuProveBuilder;
 use sp1_core_executor::{SP1Context, SP1ContextBuilder};
@@ -210,9 +210,14 @@ impl CpuProver {
 }
 
 impl Prover<CpuProverComponents> for CpuProver {
-    fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
-        let (pk, _, _, vk) = self.prover.setup(elf);
-        (pk, vk)
+    fn setup(&self, elf: &[u8]) -> Result<(SP1ProvingKey, SP1VerifyingKey), Error> {
+        let (pk, _, _, vk) = match self.prover.setup(elf) {
+            Ok(res) => res,
+            Err(e) => {
+                return Err(Error::msg(format!("Failed to setup prover: {}", e)));
+            }
+        };
+        Ok((pk, vk))
     }
 
     fn inner(&self) -> &SP1Prover<CpuProverComponents> {

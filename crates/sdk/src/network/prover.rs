@@ -690,11 +690,11 @@ impl NetworkProver {
                         if let Some(network_error) = e.downcast_ref::<Error>() {
                             if matches!(
                                 network_error,
-                                Error::RequestUnfulfillable { .. } |
-                                    Error::RequestTimedOut { .. } |
-                                    Error::RequestAuctionTimedOut { .. }
-                            ) && strategy == FulfillmentStrategy::Auction &&
-                                whitelist.is_none()
+                                Error::RequestUnfulfillable { .. }
+                                    | Error::RequestTimedOut { .. }
+                                    | Error::RequestAuctionTimedOut { .. }
+                            ) && strategy == FulfillmentStrategy::Auction
+                                && whitelist.is_none()
                             {
                                 tracing::warn!(
                                     "Retrying auction request with fallback whitelist..."
@@ -888,8 +888,11 @@ impl NetworkProver {
 }
 
 impl Prover<CpuProverComponents> for NetworkProver {
-    fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
-        self.prover.setup(elf)
+    fn setup(&self, elf: &[u8]) -> Result<(SP1ProvingKey, SP1VerifyingKey), anyhow::Error> {
+        match self.prover.setup(elf) {
+            Ok((pk, vk)) => Ok((pk, vk)),
+            Err(e) => Err(anyhow::anyhow!(e)),
+        }
     }
 
     fn inner(&self) -> &SP1Prover {

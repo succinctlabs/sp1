@@ -3,6 +3,7 @@ mod command;
 mod utils;
 use std::{collections::HashMap, fs::File, io::Read};
 
+use anyhow::Error;
 use build::build_program_internal;
 pub use build::{execute_build_program, generate_elf_paths};
 pub use command::TOOLCHAIN_NAME;
@@ -156,7 +157,7 @@ pub fn build_program_with_args(path: &str, args: BuildArgs) {
 ///
 /// Note: If used in a script `build.rs`, this function should be called *after* [`build_program`]
 /// to returns the vkey corresponding to the latest program version which has just been compiled.
-pub fn vkey(path: &str, target_name: &str) -> String {
+pub fn vkey(path: &str, target_name: &str) -> Result<String, Error> {
     let program_dir = std::path::Path::new(path);
     let metadata_file = program_dir.join("Cargo.toml");
     let mut metadata_cmd = cargo_metadata::MetadataCommand::new();
@@ -170,8 +171,13 @@ pub fn vkey(path: &str, target_name: &str) -> String {
     let mut elf = Vec::new();
 
     file.read_to_end(&mut elf).unwrap();
-    let (_, _, _, vk) = prover.setup(&elf);
-    vk.bytes32()
+    let (_, _, _, vk) = match prover.setup(&elf) {
+        Ok(res) => res,
+        Err(e) => {
+            return Err(Error::msg(format!("Failed to setup prover: {}", e)));
+        }
+    };
+    Ok(vk.bytes32())
 }
 
 /// Returns the verification keys for the provided programs in a [`HashMap`] with the target names
@@ -184,7 +190,7 @@ pub fn vkey(path: &str, target_name: &str) -> String {
 ///
 /// Note: If used in a script `build.rs`, this function should be called *after* [`build_program`]
 /// to returns the vkey corresponding to the latest program version which has just been compiled.
-pub fn vkeys(path: &str, args: BuildArgs) -> HashMap<String, String> {
+pub fn vkeys(path: &str, args: BuildArgs) -> Result<HashMap<String, String>, Error> {
     let program_dir = std::path::Path::new(path);
     let metadata_file = program_dir.join("Cargo.toml");
     let mut metadata_cmd = cargo_metadata::MetadataCommand::new();
@@ -200,10 +206,15 @@ pub fn vkeys(path: &str, args: BuildArgs) -> HashMap<String, String> {
             let mut elf = Vec::new();
             file.read_to_end(&mut elf).unwrap();
 
-            let (_, _, _, vk) = prover.setup(&elf);
+            let (_, _, _, vk) = match prover.setup(&elf) {
+                Ok(res) => res,
+                Err(e) => {
+                    return Err(Error::msg(format!("Failed to setup prover: {}", e)));
+                }
+            };
             let vk = vk.bytes32();
 
-            (target_name, vk)
+            Ok((target_name, vk))
         })
         .collect()
 }
