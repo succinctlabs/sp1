@@ -427,6 +427,14 @@ impl<C: Config> Builder<C> {
     }
 }
 
+impl_typed_assert!(
+    Builder<C>,
+    (assert_var_eq, assert_var_ne, Var<C::N>, SymbolicVar<C::N>, "vars"),
+    (assert_felt_eq, assert_felt_ne, Felt<C::F>, SymbolicFelt<C::F>, "felts"),
+    (assert_usize_eq, assert_usize_ne, Usize<C::N>, SymbolicUsize<C::N>, "usizes"),
+    (assert_ext_eq, assert_ext_ne, Ext<C::F, C::EF>, SymbolicExt<C::F, C::EF>, "exts"),
+);
+
 /// A builder for the DSL that handles if statements.
 #[allow(dead_code)]
 pub struct IfBuilder<'a, C: Config> {
