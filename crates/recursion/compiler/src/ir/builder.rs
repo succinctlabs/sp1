@@ -9,6 +9,36 @@ use super::{
     Var, VarHandle, VarOperations, Variable,
 };
 
+macro_rules! impl_typed_assert {
+    (
+        $builder:ty,
+        $(($method_eq:ident, $method_ne:ident, $type:ty, $symbolic:ty, $doc_type:literal)),* $(,)?
+    ) => {
+        impl<C: Config> $builder {
+            $(
+                #[doc = concat!("Assert that two ", $doc_type, " are equal.")]
+                pub fn $method_eq<LhsExpr: Into<$symbolic>, RhsExpr: Into<$symbolic>>(
+                    &mut self,
+                    lhs: LhsExpr,
+                    rhs: RhsExpr,
+                ) {
+                    self.assert_eq::<$type>(lhs, rhs);
+                }
+
+                #[doc = concat!("Assert that two ", $doc_type, " are not equal.")]
+                pub fn $method_ne<LhsExpr: Into<$symbolic>, RhsExpr: Into<$symbolic>>(
+                    &mut self,
+                    lhs: LhsExpr,
+                    rhs: RhsExpr,
+                ) {
+                    self.assert_ne::<$type>(lhs, rhs);
+                }
+            )*
+        }
+    };
+}
+
+
 #[derive(Debug, Clone)]
 pub struct InnerBuilder<C: Config> {
     pub(crate) variable_count: u32,
