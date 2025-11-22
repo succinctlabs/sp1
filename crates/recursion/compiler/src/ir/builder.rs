@@ -9,6 +9,36 @@ use super::{
     Var, VarHandle, VarOperations, Variable,
 };
 
+macro_rules! impl_typed_assert {
+    (
+        $builder:ty,
+        $(($method_eq:ident, $method_ne:ident, $type:ty, $symbolic:ty, $doc_type:literal)),* $(,)?
+    ) => {
+        impl<C: Config> $builder {
+            $(
+                #[doc = concat!("Assert that two ", $doc_type, " are equal.")]
+                pub fn $method_eq<LhsExpr: Into<$symbolic>, RhsExpr: Into<$symbolic>>(
+                    &mut self,
+                    lhs: LhsExpr,
+                    rhs: RhsExpr,
+                ) {
+                    self.assert_eq::<$type>(lhs, rhs);
+                }
+
+                #[doc = concat!("Assert that two ", $doc_type, " are not equal.")]
+                pub fn $method_ne<LhsExpr: Into<$symbolic>, RhsExpr: Into<$symbolic>>(
+                    &mut self,
+                    lhs: LhsExpr,
+                    rhs: RhsExpr,
+                ) {
+                    self.assert_ne::<$type>(lhs, rhs);
+                }
+            )*
+        }
+    };
+}
+
+
 #[derive(Debug, Clone)]
 pub struct InnerBuilder<C: Config> {
     pub(crate) variable_count: u32,
@@ -191,87 +221,6 @@ impl<C: Config> Builder<C> {
         rhs: impl Into<V::Expression>,
     ) {
         V::assert_ne(lhs, rhs, self);
-    }
-
-    /// Assert that two vars are equal.
-    pub fn assert_var_eq<LhsExpr: Into<SymbolicVar<C::N>>, RhsExpr: Into<SymbolicVar<C::N>>>(
-        &mut self,
-        lhs: LhsExpr,
-        rhs: RhsExpr,
-    ) {
-        self.assert_eq::<Var<C::N>>(lhs, rhs);
-    }
-
-    /// Assert that two vars are not equal.
-    pub fn assert_var_ne<LhsExpr: Into<SymbolicVar<C::N>>, RhsExpr: Into<SymbolicVar<C::N>>>(
-        &mut self,
-        lhs: LhsExpr,
-        rhs: RhsExpr,
-    ) {
-        self.assert_ne::<Var<C::N>>(lhs, rhs);
-    }
-
-    /// Assert that two felts are equal.
-    pub fn assert_felt_eq<LhsExpr: Into<SymbolicFelt<C::F>>, RhsExpr: Into<SymbolicFelt<C::F>>>(
-        &mut self,
-        lhs: LhsExpr,
-        rhs: RhsExpr,
-    ) {
-        self.assert_eq::<Felt<C::F>>(lhs, rhs);
-    }
-
-    /// Assert that two felts are not equal.
-    pub fn assert_felt_ne<LhsExpr: Into<SymbolicFelt<C::F>>, RhsExpr: Into<SymbolicFelt<C::F>>>(
-        &mut self,
-        lhs: LhsExpr,
-        rhs: RhsExpr,
-    ) {
-        self.assert_ne::<Felt<C::F>>(lhs, rhs);
-    }
-
-    /// Assert that two usizes are equal.
-    pub fn assert_usize_eq<
-        LhsExpr: Into<SymbolicUsize<C::N>>,
-        RhsExpr: Into<SymbolicUsize<C::N>>,
-    >(
-        &mut self,
-        lhs: LhsExpr,
-        rhs: RhsExpr,
-    ) {
-        self.assert_eq::<Usize<C::N>>(lhs, rhs);
-    }
-
-    /// Assert that two usizes are not equal.
-    pub fn assert_usize_ne(
-        &mut self,
-        lhs: impl Into<SymbolicUsize<C::N>>,
-        rhs: impl Into<SymbolicUsize<C::N>>,
-    ) {
-        self.assert_ne::<Usize<C::N>>(lhs, rhs);
-    }
-
-    /// Assert that two exts are equal.
-    pub fn assert_ext_eq<
-        LhsExpr: Into<SymbolicExt<C::F, C::EF>>,
-        RhsExpr: Into<SymbolicExt<C::F, C::EF>>,
-    >(
-        &mut self,
-        lhs: LhsExpr,
-        rhs: RhsExpr,
-    ) {
-        self.assert_eq::<Ext<C::F, C::EF>>(lhs, rhs);
-    }
-
-    /// Assert that two exts are not equal.
-    pub fn assert_ext_ne<
-        LhsExpr: Into<SymbolicExt<C::F, C::EF>>,
-        RhsExpr: Into<SymbolicExt<C::F, C::EF>>,
-    >(
-        &mut self,
-        lhs: LhsExpr,
-        rhs: RhsExpr,
-    ) {
-        self.assert_ne::<Ext<C::F, C::EF>>(lhs, rhs);
     }
 
     pub fn lt(&mut self, lhs: Var<C::N>, rhs: Var<C::N>) -> Var<C::N> {
@@ -477,6 +426,14 @@ impl<C: Config> Builder<C> {
         self.push_op(DslIr::Halt);
     }
 }
+
+impl_typed_assert!(
+    Builder<C>,
+    (assert_var_eq, assert_var_ne, Var<C::N>, SymbolicVar<C::N>, "vars"),
+    (assert_felt_eq, assert_felt_ne, Felt<C::F>, SymbolicFelt<C::F>, "felts"),
+    (assert_usize_eq, assert_usize_ne, Usize<C::N>, SymbolicUsize<C::N>, "usizes"),
+    (assert_ext_eq, assert_ext_ne, Ext<C::F, C::EF>, SymbolicExt<C::F, C::EF>, "exts"),
+);
 
 /// A builder for the DSL that handles if statements.
 #[allow(dead_code)]
