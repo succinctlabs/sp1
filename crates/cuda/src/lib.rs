@@ -204,7 +204,7 @@ impl SP1CudaProver {
         // If the moongate endpoint url hasn't been provided, we start the Docker container
         let container_name = port.map(|p| format!("sp1-gpu-{p}")).unwrap_or("sp1-gpu".to_string());
         let image_name = std::env::var("SP1_GPU_IMAGE")
-            .unwrap_or_else(|_| "public.ecr.aws/succinct-labs/moongate:v5.0.8".to_string());
+            .unwrap_or_else(|_| "public.ecr.aws/succinct-labs/sp1-gpu:8fd1ef7".to_string());
 
         let cleaned_up = Arc::new(AtomicBool::new(false));
         let port = port.unwrap_or(3000);
