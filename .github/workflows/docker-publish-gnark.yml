@@ -27,7 +27,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Set up Docker BuildX
         uses: docker/setup-buildx-action@v3
       - name: Log into registry ${{ env.REGISTRY }}
@@ -55,7 +55,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Set up Docker BuildX
         uses: docker/setup-buildx-action@v3
       - name: Log into registry ${{ env.REGISTRY }}
