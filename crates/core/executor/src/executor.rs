@@ -254,6 +254,29 @@ pub enum ExecutionError {
     /// The unconstrained cycle limit was exceeded.
     #[error("unconstrained cycle limit exceeded")]
     UnconstrainedCycleLimitExceeded(u64),
+
+    /// Not all deferred proofs were verified during execution.
+    #[error("unverified deferred proofs: verified={actual}, expected={expected}")]
+    UnverifiedDeferredProofs {
+        /// The total number of deferred proofs that were provided.
+        expected: usize,
+        /// The actual number of deferred proofs that were verified.
+        actual: usize,
+    },
+
+    /// Insufficient deferred proofs were provided.
+    #[error("insufficient deferred proofs: unable to verify proof at index {index}")]
+    InsufficientDeferredProofs {
+        /// The index of the proof that was requested.
+        index: usize,
+    },
+
+    /// Deferred proof verification failed.
+    #[error("deferred proof verification failed: {reason}")]
+    DeferredProofVerificationFailed {
+        /// The reason for the verification failure.
+        reason: String,
+    },
 }
 
 impl<'a> Executor<'a> {
@@ -1615,7 +1638,51 @@ impl<'a> Executor<'a> {
                 // Executing a syscall optionally returns a value to write to the t0
                 // register. If it returns None, we just keep the
                 // syscall_id in t0.
-                let res = syscall_impl.execute(&mut precompile_rt, syscall, b, c);
+                let res = if syscall == SyscallCode::VERIFY_SP1_PROOF {
+                    // Catch panics for VERIFY_SP1_PROOF to provide better error messages.
+                    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        syscall_impl.execute(&mut precompile_rt, syscall, b, c)
+                    })) {
+                        Ok(result) => result,
+                        Err(panic_payload) => {
+                            // Extract the panic message.
+                            let msg = panic_payload
+                                .downcast_ref::<String>()
+                                .map(String::as_str)
+                                .or_else(|| panic_payload.downcast_ref::<&str>().copied());
+
+                            if let Some(msg) = msg {
+                                let index = precompile_rt.rt.state.proof_stream_ptr;
+                                let available = precompile_rt.rt.state.proof_stream.len();
+
+                                if msg.contains("Not enough proofs") {
+                                    tracing::error!(
+                                        "Insufficient deferred proofs: unable to verify proof \
+                                        at index {index} because only {available} proofs were \
+                                        provided. \
+                                        Make sure you're passing the correct number of proofs \
+                                        and that you're calling verify_sp1_proof for all proofs."
+                                    );
+                                    return Err(ExecutionError::InsufficientDeferredProofs {
+                                        index,
+                                    });
+                                } else if msg.contains("Failed to verify proof") {
+                                    tracing::error!(
+                                        "Failed to verify deferred proof at index {index}."
+                                    );
+                                    return Err(ExecutionError::DeferredProofVerificationFailed {
+                                        reason: msg.to_string(),
+                                    });
+                                }
+                            }
+
+                            // Resume default behavior for unknown panics.
+                            std::panic::resume_unwind(panic_payload);
+                        }
+                    }
+                } else {
+                    syscall_impl.execute(&mut precompile_rt, syscall, b, c)
+                };
                 let a = if let Some(val) = res { val } else { syscall_id };
 
                 // If the syscall is `HALT` and the exit code is non-zero, return an error.
@@ -2060,7 +2127,7 @@ impl<'a> Executor<'a> {
         let public_values = self.record.public_values;
 
         if done {
-            self.postprocess();
+            self.postprocess()?;
 
             // Push the remaining execution record with memory initialize & finalize events.
             self.bump_record();
@@ -2109,7 +2176,7 @@ impl<'a> Executor<'a> {
         Ok(done)
     }
 
-    fn postprocess(&mut self) {
+    fn postprocess(&mut self) -> Result<(), ExecutionError> {
         // Flush remaining stdout/stderr
         for (fd, buf) in &self.io_buf {
             if !buf.is_empty() {
@@ -2125,12 +2192,17 @@ impl<'a> Executor<'a> {
             }
         }
 
-        // Ensure that all proofs and input bytes were read, otherwise warn the user.
+        // Ensure that all proofs were read, otherwise return an error.
         if self.state.proof_stream_ptr != self.state.proof_stream.len() {
-            tracing::warn!(
-                "Not all proofs were read. Proving will fail during recursion. Did you pass too
-        many proofs in or forget to call verify_sp1_proof?"
+            let expected = self.state.proof_stream.len();
+            let actual = self.state.proof_stream_ptr;
+            tracing::error!(
+                "Not all proofs were verified. \
+                 Expected to verify {expected} proofs, but only {actual} were verified. \
+                 Make sure you're passing the correct number of proofs \
+                 and that you're calling verify_sp1_proof for all proofs."
             );
+            return Err(ExecutionError::UnverifiedDeferredProofs { expected, actual });
         }
 
         if !self.state.input_stream.is_empty() {
@@ -2222,6 +2294,8 @@ impl<'a> Executor<'a> {
                     .push(MemoryInitializeFinalizeEvent::finalize_from_record(addr, &record));
             }
         }
+
+        Ok(())
     }
 
     fn get_syscall(&mut self, code: SyscallCode) -> Option<&Arc<dyn Syscall>> {
