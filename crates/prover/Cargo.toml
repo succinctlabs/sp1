@@ -47,9 +47,9 @@ hashbrown = { workspace = true, features = ["inline-more"] }
 enum-map = { version = "2.7.3" }
 
 [build-dependencies]
-downloader = { version = "0.2", default-features = false, features = [
+reqwest = { version = "0.12", default-features = false, features = [
   "rustls-tls",
-  "verify",
+  "blocking",
 ] }
 sha2 = { version = "0.10" }
 hex = "0.4"
