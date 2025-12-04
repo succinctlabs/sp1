@@ -67,7 +67,8 @@ pub trait HashableKey {
         let vkey_digest_bn254 = self.hash_bn254();
         let vkey_bytes = vkey_digest_bn254.as_canonical_biguint().to_bytes_be();
         let mut result = [0u8; 32];
-        result[1..].copy_from_slice(&vkey_bytes);
+        let start = result.len() - vkey_bytes.len();
+        result[start..].copy_from_slice(&vkey_bytes);
         result
     }
 
