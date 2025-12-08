@@ -214,6 +214,10 @@ where
             let out = vals.out.as_extension::<AB>();
 
             // Check exactly one flag is enabled.
+            builder.assert_bool(is_add.clone());
+            builder.assert_bool(is_sub.clone());
+            builder.assert_bool(is_mul.clone());
+            builder.assert_bool(is_div.clone());
             let is_real = is_add + is_sub + is_mul + is_div;
             builder.assert_bool(is_real.clone());
 
