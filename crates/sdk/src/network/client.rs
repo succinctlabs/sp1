@@ -529,21 +529,44 @@ impl NetworkClient {
         request_id: B256,
         timeout: Option<Duration>,
     ) -> Result<GetProofRequestDetailsResponse> {
-        let res = self
-            .with_retry_timeout(
-                || async {
-                    let mut rpc = self.prover_network_client().await?;
-                    Ok(rpc
-                        .get_proof_request_details(GetProofRequestDetailsRequest {
-                            request_id: request_id.to_vec(),
-                        })
-                        .await?
-                        .into_inner())
-                },
-                timeout.unwrap_or(DEFAULT_RETRY_TIMEOUT),
-                "getting proof request details",
-            )
-            .await?;
+        let res = match self.network_mode {
+            NetworkMode::Mainnet => {
+                self.with_retry_timeout(
+                    || async {
+                        let mut rpc = self.auction_prover_network_client().await?;
+                        Ok(rpc
+                            .get_proof_request_details(GetProofRequestDetailsRequest {
+                                request_id: request_id.to_vec(),
+                            })
+                            .await?
+                            .into_inner())
+                    },
+                    timeout.unwrap_or(DEFAULT_RETRY_TIMEOUT),
+                    "getting proof request details",
+                )
+                .await?
+            }
+            NetworkMode::Reserved => {
+                let base_response = self
+                    .with_retry_timeout(
+                        || async {
+                            let mut rpc = self.base_prover_network_client().await?;
+                            Ok(rpc
+                                .get_proof_request_details(
+                                    crate::network::proto::base_types::GetProofRequestDetailsRequest {
+                                        request_id: request_id.to_vec(),
+                                    },
+                                )
+                                .await?
+                                .into_inner())
+                        },
+                        timeout.unwrap_or(DEFAULT_RETRY_TIMEOUT),
+                        "getting proof request details",
+                    )
+                    .await?;
+                Self::convert_base_to_auction_response(base_response)
+            }
+        };
 
         Ok(res)
     }
@@ -839,6 +862,58 @@ impl NetworkClient {
                 .await
             }
             NetworkMode::Reserved => Ok(CancelRequestResponse::Unsupported),
+        }
+    }
+
+    /// Convert a base (reserved) `GetProofRequestDetailsResponse` to auction format.
+    ///
+    /// This is necessary because the public API returns the auction type by default,
+    /// but the reserved network uses a different `ProofRequest` schema.
+    fn convert_base_to_auction_response(
+        base_response: crate::network::proto::base_types::GetProofRequestDetailsResponse,
+    ) -> GetProofRequestDetailsResponse {
+        GetProofRequestDetailsResponse {
+            request: base_response.request.map(|base_req| {
+                crate::network::proto::auction_types::ProofRequest {
+                    request_id: base_req.request_id,
+                    vk_hash: base_req.vk_hash,
+                    version: base_req.version,
+                    mode: base_req.mode,
+                    strategy: base_req.strategy,
+                    program_uri: base_req.program_uri,
+                    stdin_uri: base_req.stdin_uri,
+                    deadline: base_req.deadline,
+                    cycle_limit: base_req.cycle_limit,
+                    gas_price: base_req.gas_price,
+                    fulfillment_status: base_req.fulfillment_status,
+                    execution_status: base_req.execution_status,
+                    requester: base_req.requester,
+                    fulfiller: base_req.fulfiller,
+                    program_name: base_req.program_name,
+                    requester_name: base_req.requester_name,
+                    fulfiller_name: base_req.fulfiller_name,
+                    created_at: base_req.created_at,
+                    updated_at: base_req.updated_at,
+                    fulfilled_at: base_req.fulfilled_at,
+                    tx_hash: base_req.tx_hash,
+                    cycles: base_req.cycles,
+                    public_values_hash: base_req.public_values_hash,
+                    deduction_amount: base_req.deduction_amount,
+                    refund_amount: base_req.refund_amount,
+                    gas_limit: base_req.gas_limit,
+                    gas_used: base_req.gas_used,
+                    execute_fail_cause: base_req.execute_fail_cause,
+                    settlement_status: base_req.settlement_status,
+                    program_public_uri: base_req.program_public_uri,
+                    stdin_public_uri: base_req.stdin_public_uri,
+                    min_auction_period: base_req.min_auction_period,
+                    whitelist: base_req.whitelist,
+                    // Auction-only fields not present in base - set to None/default
+                    base_fee: None,
+                    max_price_per_pgu: None,
+                    error: base_req.error,
+                }
+            }),
         }
     }
 }
