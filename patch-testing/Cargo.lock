@@ -1245,20 +1245,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "75b325c5dbd37f80359721ad39aca5a29fb04c89279657cffdda8736d0c0b9d2"
 
 [[package]]
-name = "downloader"
-version = "0.2.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9ac1e888d6830712d565b2f3a974be3200be9296bc1b03db8251a4cbf18a4a34"
-dependencies = [
- "digest 0.10.7",
- "futures",
- "rand 0.8.5",
- "reqwest",
- "thiserror 1.0.69",
- "tokio",
-]
-
-[[package]]
 name = "dunce"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3548,7 +3534,9 @@ dependencies = [
  "base64",
  "bytes",
  "encoding_rs",
+ "futures-channel",
  "futures-core",
+ "futures-util",
  "h2",
  "http",
  "http-body",
@@ -4194,7 +4182,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-build"
-version = "5.2.3"
+version = "5.2.4"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -4206,7 +4194,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-executor"
-version = "5.2.3"
+version = "5.2.4"
 dependencies = [
  "bincode",
  "bytemuck",
@@ -4243,7 +4231,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-core-machine"
-version = "5.2.3"
+version = "5.2.4"
 dependencies = [
  "bincode",
  "cbindgen",
@@ -4297,7 +4285,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-cuda"
-version = "5.2.3"
+version = "5.2.4"
 dependencies = [
  "bincode",
  "ctrlc",
@@ -4312,7 +4300,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
-version = "5.2.3"
+version = "5.2.4"
 dependencies = [
  "cfg-if",
  "dashu",
@@ -4332,7 +4320,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "5.2.3"
+version = "5.2.4"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -4340,7 +4328,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "5.2.3"
+version = "5.2.4"
 dependencies = [
  "bincode",
  "elliptic-curve",
@@ -4350,7 +4338,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "5.2.3"
+version = "5.2.4"
 dependencies = [
  "bincode",
  "blake3",
@@ -4368,13 +4356,12 @@ dependencies = [
 
 [[package]]
 name = "sp1-prover"
-version = "5.2.3"
+version = "5.2.4"
 dependencies = [
  "anyhow",
  "bincode",
  "clap",
  "dirs",
- "downloader",
  "enum-map",
  "eyre",
  "hashbrown 0.14.5",
@@ -4391,6 +4378,7 @@ dependencies = [
  "p3-symmetric",
  "p3-util",
  "rayon",
+ "reqwest",
  "serde",
  "serde_json",
  "serial_test",
@@ -4403,6 +4391,7 @@ dependencies = [
  "sp1-recursion-core",
  "sp1-recursion-gnark-ffi",
  "sp1-stark",
+ "sp1-verifier",
  "thiserror 1.0.69",
  "tracing",
  "tracing-appender",
@@ -4411,7 +4400,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-circuit"
-version = "5.2.3"
+version = "5.2.4"
 dependencies = [
  "hashbrown 0.14.5",
  "itertools 0.13.0",
@@ -4444,7 +4433,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-compiler"
-version = "5.2.3"
+version = "5.2.4"
 dependencies = [
  "backtrace",
  "itertools 0.13.0",
@@ -4464,7 +4453,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-core"
-version = "5.2.3"
+version = "5.2.4"
 dependencies = [
  "backtrace",
  "cbindgen",
@@ -4505,7 +4494,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-derive"
-version = "5.2.3"
+version = "5.2.4"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -4513,7 +4502,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-gnark-ffi"
-version = "5.2.3"
+version = "5.2.4"
 dependencies = [
  "anyhow",
  "bincode",
@@ -4537,7 +4526,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-sdk"
-version = "5.2.3"
+version = "5.2.4"
 dependencies = [
  "alloy-sol-types",
  "anyhow",
@@ -4571,7 +4560,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-stark"
-version = "5.2.3"
+version = "5.2.4"
 dependencies = [
  "arrayref",
  "hashbrown 0.14.5",
@@ -4627,8 +4616,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp1-verifier"
+version = "5.2.4"
+dependencies = [
+ "blake3",
+ "cfg-if",
+ "hex",
+ "lazy_static",
+ "sha2 0.10.9",
+ "substrate-bn-succinct",
+ "thiserror 2.0.16",
+]
+
+[[package]]
 name = "sp1-zkvm"
-version = "5.2.3"
+version = "5.2.4"
 dependencies = [
  "cfg-if",
  "getrandom 0.2.16",
@@ -4726,6 +4728,23 @@ dependencies = [
 name = "substrate-bn"
 version = "0.6.0"
 source = "git+https://github.com/sp1-patches/bn?tag=patch-0.6.0-sp1-5.0.0#e0d67f219b2ad6a1887e3275b7ba09ada4b1afb6"
+dependencies = [
+ "bytemuck",
+ "byteorder",
+ "cfg-if",
+ "crunchy",
+ "lazy_static",
+ "num-bigint 0.4.6",
+ "rand 0.8.5",
+ "rustc-hex",
+ "sp1-lib",
+]
+
+[[package]]
+name = "substrate-bn-succinct"
+version = "0.6.0-v5.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0ba32f1b74728f92887c3ad17c42bf82998eb52c9091018f35294e9cd388b0c8"
 dependencies = [
  "bytemuck",
  "byteorder",

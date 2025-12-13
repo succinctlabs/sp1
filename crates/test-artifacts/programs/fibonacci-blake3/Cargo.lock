@@ -446,7 +446,7 @@ checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
 name = "sp1-lib"
-version = "5.2.3"
+version = "5.2.4"
 dependencies = [
  "bincode",
  "serde",
@@ -455,7 +455,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "5.2.3"
+version = "5.2.4"
 dependencies = [
  "bincode",
  "blake3",
@@ -473,7 +473,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "5.2.3"
+version = "5.2.4"
 dependencies = [
  "blake3",
  "cfg-if",
