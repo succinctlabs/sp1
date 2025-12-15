@@ -82,7 +82,7 @@ impl Elf {
         }
 
         let mut instructions: Vec<u32> = Vec::new();
-        let mut base_address = None;
+        let mut base_address: Option<u32> = None;
 
         // Data about the last segment.
         let mut prev_segment_end_addr = None;
@@ -136,23 +136,22 @@ impl Elf {
                 Some(vaddr.checked_add(mem_size).ok_or_eyre("last addr overflow")?);
 
             if (segment.p_flags & PF_X) != 0 {
-                if base_address.is_none() {
+                if let Some(base_address) = base_address {
+                    let instr_len: u32 = WORD_SIZE
+                        .checked_mul(instructions.len())
+                        .ok_or_eyre("instructions length overflow")?
+                        .try_into()?;
+                    let last_instruction_addr = base_address
+                        .checked_add(instr_len)
+                        .ok_or_eyre("instruction addr overflow")?;
+                    eyre::ensure!(vaddr == last_instruction_addr, "unsupported elf structure");
+                } else {
                     base_address = Some(vaddr);
                     eyre::ensure!(
                         base_address.unwrap() > 0x20,
                         "base address {} should be greater than 0x20",
                         base_address.unwrap()
                     );
-                } else {
-                    let instr_len: u32 = WORD_SIZE
-                        .checked_mul(instructions.len())
-                        .ok_or_eyre("instructions length overflow")?
-                        .try_into()?;
-                    let last_instruction_addr = base_address
-                        .unwrap()
-                        .checked_add(instr_len)
-                        .ok_or_eyre("instruction addr overflow")?;
-                    eyre::ensure!(vaddr == last_instruction_addr, "unsupported elf structure");
                 }
             }
 

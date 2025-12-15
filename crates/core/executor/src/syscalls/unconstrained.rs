@@ -12,7 +12,7 @@ impl Syscall for EnterUnconstrainedSyscall {
             panic!("Unconstrained block is already active.");
         }
         ctx.rt.unconstrained = true;
-        ctx.rt.unconstrained_state = Box::new(ForkState {
+        *ctx.rt.unconstrained_state = ForkState {
             global_clk: ctx.rt.state.global_clk,
             clk: ctx.rt.state.clk,
             pc: ctx.rt.state.pc,
@@ -21,7 +21,7 @@ impl Syscall for EnterUnconstrainedSyscall {
             op_record: std::mem::take(&mut ctx.rt.memory_accesses),
             executor_mode: ctx.rt.executor_mode,
             total_unconstrained_cycles: ctx.rt.unconstrained_state.total_unconstrained_cycles,
-        });
+        };
         ctx.rt.executor_mode = ExecutorMode::Simple;
         Some(1)
     }
@@ -55,7 +55,7 @@ impl Syscall for ExitUnconstrainedSyscall {
             ctx.rt.unconstrained = false;
         }
 
-        ctx.rt.unconstrained_state = Box::new(ForkState::default());
+        *ctx.rt.unconstrained_state = ForkState::default();
         // Persist the total number of unconstrained cycles.
         ctx.rt.unconstrained_state.total_unconstrained_cycles = total_unconstrained_cycles;
 
