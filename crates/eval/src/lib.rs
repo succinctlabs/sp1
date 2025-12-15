@@ -1,5 +1,5 @@
 use anyhow::Result;
-use clap::{command, Parser};
+use clap::Parser;
 use reqwest::Client;
 use serde::Serialize;
 use serde_json::json;

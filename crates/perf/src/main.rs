@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use clap::{command, Parser};
+use clap::Parser;
 use rand::Rng;
 use sp1_cuda::{MoongateServer, SP1CudaProver};
 use sp1_prover::{components::CpuProverComponents, HashableKey, ProverMode};

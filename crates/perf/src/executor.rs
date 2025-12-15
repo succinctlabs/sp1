@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use clap::{command, Parser};
+use clap::Parser;
 use p3_baby_bear::BabyBear;
 use sp1_core_executor::{Executor, ExecutorMode, Program};
 use sp1_core_machine::shape::CoreShapeConfig;
