@@ -1,0 +1,26 @@
+[package]
+name = "p3-bls12-377-fr"
+version = "0.2.3-succinct-pvugc.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Plonky3 field wrapper for the BLS12-377 scalar field (PVUGC local crate)."
+
+[lib]
+name = "p3_bls12_377_fr"
+path = "src/lib.rs"
+
+[dependencies]
+ff = { version = "0.13", features = ["derive", "derive_bits"] }
+num-bigint = { version = "0.4.3", default-features = false }
+p3-field = { version = "=0.2.3-succinct" }
+p3-poseidon2 = { version = "=0.2.3-succinct" }
+p3-symmetric = { version = "=0.2.3-succinct" }
+rand = "0.8.5"
+serde = { version = "1.0", features = ["derive"], default-features = false }
+
+[dev-dependencies]
+p3-field-testing = { version = "=0.2.3-succinct" }
+num-traits = "0.2.16"
+serde_json = "1.0.113"
+
+

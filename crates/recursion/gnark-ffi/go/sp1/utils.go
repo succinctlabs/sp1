@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 
 	groth16 "github.com/consensys/gnark/backend/groth16"
-	groth16_bn254 "github.com/consensys/gnark/backend/groth16/bn254"
 	plonk "github.com/consensys/gnark/backend/plonk"
 	plonk_bn254 "github.com/consensys/gnark/backend/plonk/bn254"
 	"github.com/consensys/gnark/frontend"
@@ -42,14 +41,10 @@ func NewSP1Groth16Proof(proof *groth16.Proof, witnessInput WitnessInput) Proof {
 	publicInputs[0] = witnessInput.VkeyHash
 	publicInputs[1] = witnessInput.CommittedValuesDigest
 
-	// Cast groth16 proof into groth16_bn254 proof so we can call MarshalSolidity.
-	p := (*proof).(*groth16_bn254.Proof)
-
-	encodedProof := p.MarshalSolidity()
-
 	return Proof{
 		PublicInputs: publicInputs,
-		EncodedProof: hex.EncodeToString(encodedProof),
+		// We standardize on gnark's WriteRawTo/ReadFrom encoding (not Solidity layout).
+		EncodedProof: "",
 		RawProof:     hex.EncodeToString(proofBytes),
 	}
 }
@@ -68,10 +63,10 @@ func NewCircuit(witnessInput WitnessInput) Circuit {
 		exts[i] = babybear.NewE(witnessInput.Exts[i])
 	}
 	return Circuit{
-		VkeyHash:             witnessInput.VkeyHash,
+		VkeyHash:              witnessInput.VkeyHash,
 		CommittedValuesDigest: witnessInput.CommittedValuesDigest,
-		Vars:                 vars,
-		Felts:                felts,
-		Exts:                 exts,
+		Vars:                  vars,
+		Felts:                 felts,
+		Exts:                  exts,
 	}
 }

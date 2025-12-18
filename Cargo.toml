@@ -79,6 +79,7 @@ p3-field = { version = "=0.2.3-succinct" }
 p3-air = { version = "=0.2.3-succinct" }
 p3-baby-bear = { version = "=0.2.3-succinct" }
 p3-bn254-fr = { version = "=0.2.3-succinct" }
+p3-bls12-377-fr = { path = "crates/p3-bls12-377-fr", version = "0.2.3-succinct-pvugc.0" }
 p3-poseidon2 = { version = "=0.2.3-succinct" }
 p3-symmetric = { version = "=0.2.3-succinct" }
 p3-dft = { version = "=0.2.3-succinct" }

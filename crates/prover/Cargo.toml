@@ -23,7 +23,7 @@ sp1-verifier = { workspace = true }
 p3-field = { workspace = true }
 p3-challenger = { workspace = true }
 p3-baby-bear = { workspace = true }
-p3-bn254-fr = { workspace = true }
+p3-bls12-377-fr = { workspace = true }
 p3-commit = { workspace = true }
 p3-matrix = { workspace = true }
 p3-symmetric = { workspace = true }
@@ -56,7 +56,6 @@ sha2 = { version = "0.10" }
 hex = "0.4"
 
 [dev-dependencies]
-test-artifacts = { path = "../test-artifacts" }
 sp1-verifier = { workspace = true, features = ["compressed"] }
 
 [[bin]]

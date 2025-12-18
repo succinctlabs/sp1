@@ -7,7 +7,7 @@ use std::{
 
 use itertools::Itertools;
 use p3_baby_bear::BabyBear;
-use p3_bn254_fr::Bn254Fr;
+use p3_bls12_377_fr::Bls12377Fr;
 use p3_field::{AbstractField, PrimeField32};
 use p3_symmetric::CryptographicHasher;
 use sp1_core_executor::{Executor, Program};
@@ -29,7 +29,7 @@ pub fn sp1_vkey_digest_babybear(proof: &SP1ReduceProof<BabyBearPoseidon2Outer>) 
 }
 
 /// Get the SP1 vkey Bn Poseidon2 digest this reduce proof is representing.
-pub fn sp1_vkey_digest_bn254(proof: &SP1ReduceProof<BabyBearPoseidon2Outer>) -> Bn254Fr {
+pub fn sp1_vkey_digest_bn254(proof: &SP1ReduceProof<BabyBearPoseidon2Outer>) -> Bls12377Fr {
     babybears_to_bn254(&sp1_vkey_digest_babybear(proof))
 }
 
@@ -89,7 +89,7 @@ pub fn is_recursion_public_values_valid(
 /// Get the committed values Bn Poseidon2 digest this reduce proof is representing.
 pub fn sp1_committed_values_digest_bn254(
     proof: &SP1ReduceProof<BabyBearPoseidon2Outer>,
-) -> Bn254Fr {
+) -> Bls12377Fr {
     let proof = &proof.proof;
     let pv: &RecursionPublicValues<BabyBear> = proof.public_values.as_slice().borrow();
     let committed_values_digest_bytes: [BabyBear; 32] =
@@ -119,29 +119,29 @@ pub fn words_to_bytes<T: Copy>(words: &[Word<T>]) -> Vec<T> {
 
 /// Convert 8 BabyBear words into a Bn254Fr field element by shifting by 31 bits each time. The last
 /// word becomes the least significant bits.
-pub fn babybears_to_bn254(digest: &[BabyBear; 8]) -> Bn254Fr {
-    let mut result = Bn254Fr::zero();
+pub fn babybears_to_bn254(digest: &[BabyBear; 8]) -> Bls12377Fr {
+    let mut result = Bls12377Fr::zero();
     for word in digest.iter() {
         // Since BabyBear prime is less than 2^31, we can shift by 31 bits each time and still be
         // within the Bn254Fr field, so we don't have to truncate the top 3 bits.
-        result *= Bn254Fr::from_canonical_u64(1 << 31);
-        result += Bn254Fr::from_canonical_u32(word.as_canonical_u32());
+        result *= Bls12377Fr::from_canonical_u64(1 << 31);
+        result += Bls12377Fr::from_canonical_u32(word.as_canonical_u32());
     }
     result
 }
 
 /// Convert 32 BabyBear bytes into a Bn254Fr field element. The first byte's most significant 3 bits
 /// (which would become the 3 most significant bits) are truncated.
-pub fn babybear_bytes_to_bn254(bytes: &[BabyBear; 32]) -> Bn254Fr {
-    let mut result = Bn254Fr::zero();
+pub fn babybear_bytes_to_bn254(bytes: &[BabyBear; 32]) -> Bls12377Fr {
+    let mut result = Bls12377Fr::zero();
     for (i, byte) in bytes.iter().enumerate() {
         debug_assert!(byte < &BabyBear::from_canonical_u32(256));
         if i == 0 {
             // 32 bytes is more than Bn254 prime, so we need to truncate the top 3 bits.
-            result = Bn254Fr::from_canonical_u32(byte.as_canonical_u32() & 0x1f);
+            result = Bls12377Fr::from_canonical_u32(byte.as_canonical_u32() & 0x1f);
         } else {
-            result *= Bn254Fr::from_canonical_u32(256);
-            result += Bn254Fr::from_canonical_u32(byte.as_canonical_u32());
+            result *= Bls12377Fr::from_canonical_u32(256);
+            result += Bls12377Fr::from_canonical_u32(byte.as_canonical_u32());
         }
     }
     result

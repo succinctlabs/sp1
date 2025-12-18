@@ -26,6 +26,16 @@ use crate::{
     OuterSC, SP1Prover, WrapAir,
 };
 
+fn artifacts_present_nonempty(build_dir: &PathBuf, required_files: &[&str]) -> bool {
+    required_files.iter().all(|name| {
+        let p = build_dir.join(name);
+        match std::fs::metadata(&p) {
+            Ok(m) => m.is_file() && m.len() > 0,
+            Err(_) => false,
+        }
+    })
+}
+
 /// Tries to build the PLONK artifacts inside the development directory.
 pub fn try_build_plonk_bn254_artifacts_dev(
     template_vk: &StarkVerifyingKey<OuterSC>,
@@ -43,6 +53,26 @@ pub fn try_build_groth16_bn254_artifacts_dev(
     template_proof: &ShardProof<OuterSC>,
 ) -> PathBuf {
     let build_dir = groth16_bn254_artifacts_dev_dir();
+    // Dev-mode used to rebuild these artifacts every time, which is extremely slow.
+    // Cache guard: if the expected artifacts already exist (and are non-empty), reuse them.
+    //
+    // To force a rebuild, delete the directory or its contents:
+    //   rm -rf ~/.sp1/circuits/dev
+    const REQUIRED: &[&str] = &[
+        "groth16_circuit.bin",
+        "groth16_pk.bin",
+        "groth16_vk.bin",
+        "constraints.json",
+        "groth16_witness.json",
+    ];
+    if artifacts_present_nonempty(&build_dir, REQUIRED) {
+        println!(
+            "[sp1] groth16 bn254 artifacts already exist at {}. skipping rebuild (dev mode)",
+            build_dir.display()
+        );
+        return build_dir;
+    }
+
     println!("[sp1] building groth16 bn254 artifacts in development mode");
     build_groth16_bn254_artifacts(template_vk, template_proof, &build_dir);
     build_dir
@@ -106,15 +136,41 @@ pub fn build_plonk_bn254_artifacts_with_dummy(build_dir: impl Into<PathBuf>) {
 /// This may take a while as it needs to first generate a dummy proof and then it needs to compile
 /// the circuit.
 pub fn build_groth16_bn254_artifacts_with_dummy(build_dir: impl Into<PathBuf>) {
-    let (wrap_vk, wrapped_proof) = dummy_proof();
-    let wrap_vk_bytes = bincode::serialize(&wrap_vk).unwrap();
-    let wrapped_proof_bytes = bincode::serialize(&wrapped_proof).unwrap();
-    std::fs::write("wrap_vk.bin", wrap_vk_bytes).unwrap();
-    std::fs::write("wrapped_proof.bin", wrapped_proof_bytes).unwrap();
-    let wrap_vk_bytes = std::fs::read("wrap_vk.bin").unwrap();
-    let wrapped_proof_bytes = std::fs::read("wrapped_proof.bin").unwrap();
-    let wrap_vk = bincode::deserialize(&wrap_vk_bytes).unwrap();
-    let wrapped_proof = bincode::deserialize(&wrapped_proof_bytes).unwrap();
+    // Prefer pre-generated template artifacts shipped with the repo to avoid
+    // running an end-to-end zkVM proof during build-time setup (which can be
+    // brittle across guest toolchain versions).
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let wrap_vk_path = manifest_dir.join("wrap_vk.bin");
+    let wrapped_proof_path = manifest_dir.join("wrapped_proof.bin");
+
+    let (wrap_vk, wrapped_proof) = if wrap_vk_path.exists() && wrapped_proof_path.exists() {
+        let maybe = (|| {
+            let wrap_vk_bytes = std::fs::read(&wrap_vk_path).ok()?;
+            let wrapped_proof_bytes = std::fs::read(&wrapped_proof_path).ok()?;
+            let wrap_vk = bincode::deserialize(&wrap_vk_bytes).ok()?;
+            let wrapped_proof = bincode::deserialize(&wrapped_proof_bytes).ok()?;
+            Some((wrap_vk, wrapped_proof))
+        })();
+        if let Some(pair) = maybe {
+            pair
+        } else {
+            // Fall back if shipped templates are stale/incompatible with current field/config.
+            let (wrap_vk, wrapped_proof) = dummy_proof();
+            let wrap_vk_bytes = bincode::serialize(&wrap_vk).unwrap();
+            let wrapped_proof_bytes = bincode::serialize(&wrapped_proof).unwrap();
+            std::fs::write(&wrap_vk_path, wrap_vk_bytes).unwrap();
+            std::fs::write(&wrapped_proof_path, wrapped_proof_bytes).unwrap();
+            (wrap_vk, wrapped_proof)
+        }
+    } else {
+        let (wrap_vk, wrapped_proof) = dummy_proof();
+        let wrap_vk_bytes = bincode::serialize(&wrap_vk).unwrap();
+        let wrapped_proof_bytes = bincode::serialize(&wrapped_proof).unwrap();
+        std::fs::write(&wrap_vk_path, wrap_vk_bytes).unwrap();
+        std::fs::write(&wrapped_proof_path, wrapped_proof_bytes).unwrap();
+        (wrap_vk, wrapped_proof)
+    };
+
     crate::build::build_groth16_bn254_artifacts(&wrap_vk, &wrapped_proof, build_dir.into());
 }
 

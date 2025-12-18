@@ -1,5 +1,5 @@
 use p3_baby_bear::BabyBear;
-use p3_bn254_fr::Bn254Fr;
+use p3_bls12_377_fr::Bls12377Fr;
 use p3_field::extension::BinomialExtensionField;
 use sp1_stark::{InnerChallenge, InnerVal};
 
@@ -11,7 +11,7 @@ pub type InnerConfig = AsmConfig<InnerVal, InnerChallenge>;
 pub struct OuterConfig;
 
 impl Config for OuterConfig {
-    type N = Bn254Fr;
+    type N = Bls12377Fr;
     type F = BabyBear;
     type EF = BinomialExtensionField<BabyBear, 4>;
 }

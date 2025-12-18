@@ -16,9 +16,9 @@ import (
 )
 
 var globalMutex sync.RWMutex
-var globalR1cs constraint.ConstraintSystem = groth16.NewCS(ecc.BN254)
+var globalR1cs constraint.ConstraintSystem = groth16.NewCS(ecc.BLS12_377)
 var globalR1csInitialized = false
-var globalPk groth16.ProvingKey = groth16.NewProvingKey(ecc.BN254)
+var globalPk groth16.ProvingKey = groth16.NewProvingKey(ecc.BLS12_377)
 var globalPkInitialized = false
 
 func ProvePlonk(dataDir string, witnessPath string) Proof {
@@ -158,7 +158,7 @@ func ProveGroth16(dataDir string, witnessPath string) Proof {
 	start = time.Now()
 	// Generate the witness.
 	assignment := NewCircuit(witnessInput)
-	witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
+	witness, err := frontend.NewWitness(&assignment, ecc.BLS12_377.ScalarField())
 	if err != nil {
 		panic(err)
 	}

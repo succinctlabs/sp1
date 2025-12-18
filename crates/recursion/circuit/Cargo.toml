@@ -19,7 +19,7 @@ p3-util = { workspace = true }
 p3-symmetric = { workspace = true }
 p3-challenger = { workspace = true }
 p3-dft = { workspace = true }
-p3-bn254-fr = { workspace = true }
+p3-bls12-377-fr = { workspace = true }
 p3-baby-bear = { workspace = true }
 p3-uni-stark = { workspace = true }
 

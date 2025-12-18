@@ -41,12 +41,12 @@ func TestPoseidon2(t *testing.T) {
 	}
 
 	expected_output := [width]frontend.Variable{
-		frontend.Variable("0x2ED1DA00B14D635BD35B88AB49390D5C13C90DA7E9E3A5F1EA69CD87A0AA3E82"),
-		frontend.Variable("0x1E21E979CC3FD844B88C2016FD18F4DB07A698AA27DECA67CA509F5B0A4480D0"),
-		frontend.Variable("0x2C40D0115DA2C9B55553B231BE55295F411E628ED0CD0E187917066515F0A060"),
+		frontend.Variable("0x073A16E09D72EB3CE2BE32D26298E581FE6D6F5C50DF62B35C7ED36BED69B06A"),
+		frontend.Variable("0x0646CF2FA3846E5B849972B65A44D33CBC30112153515071103EB6D8B162A187"),
+		frontend.Variable("0x11781011359B52E0D8AE583C071D5F487A1B06D5F64E755A7BD893C27A827C25"),
 	}
 
 	circuit = TestPoseidon2Circuit{Input: input, ExpectedOutput: expected_output}
 	witness = TestPoseidon2Circuit{Input: input, ExpectedOutput: expected_output}
-	assert.ProverSucceeded(&circuit, &witness, test.WithCurves(ecc.BN254), test.WithBackends(backend.PLONK))
+	assert.ProverSucceeded(&circuit, &witness, test.WithCurves(ecc.BLS12_377), test.WithBackends(backend.PLONK))
 }

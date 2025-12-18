@@ -268,7 +268,7 @@ func BuildGroth16(dataDir string) {
 	circuit := NewCircuit(witnessInput)
 
 	// Compile the circuit.
-	r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
+	r1cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), r1cs.NewBuilder, &circuit)
 	if err != nil {
 		panic(err)
 	}
@@ -281,7 +281,7 @@ func BuildGroth16(dataDir string) {
 
 	// Generate proof.
 	assignment := NewCircuit(witnessInput)
-	witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
+	witness, err := frontend.NewWitness(&assignment, ecc.BLS12_377.ScalarField())
 	if err != nil {
 		panic(err)
 	}
@@ -331,7 +331,8 @@ func BuildGroth16(dataDir string) {
 		panic(err)
 	}
 	defer vkFile.Close()
-	_, err = vk.WriteTo(vkFile)
+	// Use raw (uncompressed) gnark encoding so downstream parsers can avoid point decompression.
+	_, err = vk.WriteRawTo(vkFile)
 	if err != nil {
 		panic(err)
 	}

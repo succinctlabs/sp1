@@ -7,7 +7,7 @@ import (
 const width = 3
 const numExternalRounds = 8
 const numInternalRounds = 56
-const degree = 5
+const degree = 11
 
 type Poseidon2Chip struct {
 	api                   frontend.API
@@ -63,12 +63,15 @@ func (p *Poseidon2Chip) addRc(state *[width]frontend.Variable, rc [width]fronten
 }
 
 func (p *Poseidon2Chip) sboxP(input frontend.Variable) frontend.Variable {
-	if degree != 5 {
-		panic("DEGREE is assumed to be 5")
+	if degree != 11 {
+		panic("DEGREE is assumed to be 11")
 	}
-	squared := p.api.Mul(input, input)
-	input_4 := p.api.Mul(squared, squared)
-	return p.api.Mul(input_4, input)
+	// input^11 = input^8 * input^2 * input
+	squared := p.api.Mul(input, input)      // x^2
+	input_4 := p.api.Mul(squared, squared)  // x^4
+	input_8 := p.api.Mul(input_4, input_4)  // x^8
+	input_10 := p.api.Mul(input_8, squared) // x^10
+	return p.api.Mul(input_10, input)       // x^11
 }
 
 func (p *Poseidon2Chip) sbox(state *[width]frontend.Variable) {

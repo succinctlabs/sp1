@@ -435,7 +435,6 @@ pub(crate) mod tests {
         utils::tests::run_test_recursion,
     };
     use p3_baby_bear::BabyBear;
-    use p3_bn254_fr::Bn254Fr;
     use p3_challenger::{CanObserve, CanSample, CanSampleBits, FieldChallenger};
     use p3_field::AbstractField;
     use p3_symmetric::{CryptographicHasher, Hash, PseudoCompressionFunction};
@@ -624,8 +623,9 @@ pub(crate) mod tests {
         let perm = outer_perm();
         let compressor = OuterCompress::new(perm.clone());
 
-        let a: [Bn254Fr; 1] = [Bn254Fr::two()];
-        let b: [Bn254Fr; 1] = [Bn254Fr::two()];
+        type N = <C as Config>::N;
+        let a: [N; 1] = [N::two()];
+        let b: [N; 1] = [N::two()];
         let gt = compressor.compress([a, b]);
 
         let mut builder = Builder::<C>::default();

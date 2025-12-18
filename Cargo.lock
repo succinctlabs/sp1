@@ -4849,10 +4849,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "p3-bn254-fr"
-version = "0.2.3-succinct"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c0dd4d095d254783098bd09fc5fdf33fd781a1be54608ab93cb3ed4bd723da54"
+name = "p3-bls12-377-fr"
+version = "0.2.3-succinct-pvugc.0"
 dependencies = [
  "ff 0.13.1",
  "num-bigint 0.4.6",
@@ -7148,7 +7146,7 @@ dependencies = [
  "lru",
  "num-bigint 0.4.6",
  "p3-baby-bear",
- "p3-bn254-fr",
+ "p3-bls12-377-fr",
  "p3-challenger",
  "p3-commit",
  "p3-field",
@@ -7170,7 +7168,6 @@ dependencies = [
  "sp1-recursion-gnark-ffi",
  "sp1-stark",
  "sp1-verifier",
- "test-artifacts",
  "thiserror 1.0.69",
  "tracing",
  "tracing-appender",
@@ -7187,7 +7184,7 @@ dependencies = [
  "num-traits",
  "p3-air",
  "p3-baby-bear",
- "p3-bn254-fr",
+ "p3-bls12-377-fr",
  "p3-challenger",
  "p3-commit",
  "p3-dft",
@@ -7223,7 +7220,7 @@ dependencies = [
  "criterion",
  "itertools 0.13.0",
  "p3-baby-bear",
- "p3-bn254-fr",
+ "p3-bls12-377-fr",
  "p3-challenger",
  "p3-dft",
  "p3-field",
@@ -7255,7 +7252,7 @@ dependencies = [
  "num_cpus",
  "p3-air",
  "p3-baby-bear",
- "p3-bn254-fr",
+ "p3-bls12-377-fr",
  "p3-challenger",
  "p3-commit",
  "p3-dft",
