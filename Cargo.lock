@@ -1665,7 +1665,7 @@ dependencies = [
  "bitflags",
  "cexpr",
  "clang-sys",
- "itertools 0.10.5",
+ "itertools 0.12.1",
  "lazy_static",
  "lazycell",
  "log",
@@ -4854,11 +4854,14 @@ version = "0.2.3-succinct-pvugc.0"
 dependencies = [
  "ff 0.13.1",
  "num-bigint 0.4.6",
+ "num-traits",
  "p3-field",
+ "p3-field-testing",
  "p3-poseidon2",
  "p3-symmetric",
  "rand 0.8.5",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -4914,6 +4917,17 @@ dependencies = [
  "p3-util",
  "rand 0.8.5",
  "serde",
+]
+
+[[package]]
+name = "p3-field-testing"
+version = "0.2.3-succinct"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4bb80c3a5f65481a39aa7ce9190e02f03ce49236d2dc9e630159edd2c54bf9f6"
+dependencies = [
+ "criterion",
+ "p3-field",
+ "rand 0.8.5",
 ]
 
 [[package]]
@@ -7168,6 +7182,7 @@ dependencies = [
  "sp1-recursion-gnark-ffi",
  "sp1-stark",
  "sp1-verifier",
+ "test-artifacts",
  "thiserror 1.0.69",
  "tracing",
  "tracing-appender",

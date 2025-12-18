@@ -57,6 +57,7 @@ hex = "0.4"
 
 [dev-dependencies]
 sp1-verifier = { workspace = true, features = ["compressed"] }
+test-artifacts = { workspace = true }
 
 [[bin]]
 name = "build_plonk_bn254"
