@@ -33,12 +33,9 @@ fn main() {
 
     let rc3 = generate_poseidon2_rc3_prime_field(field, sbox, n_bits, t, r_f, r_p, &p);
 
-    let out_rust = Path::new(
-        "vendor/sp1-bls12-377/crates/recursion/core/src/stark/poseidon2_bls12377_rc3.rs",
-    );
-    let out_go = Path::new(
-        "vendor/sp1-bls12-377/crates/recursion/gnark-ffi/go/sp1/poseidon2/rc3_bls12377_generated.go",
-    );
+    let out_rust = Path::new("crates/recursion/core/src/stark/poseidon2_bls12377_rc3.rs");
+    let out_go =
+        Path::new("crates/recursion/gnark-ffi/go/sp1/poseidon2/rc3_bls12377_generated.go");
 
     write_rust_rc3_module(out_rust, &rc3);
     write_go_rc3_vals(out_go, &rc3);
