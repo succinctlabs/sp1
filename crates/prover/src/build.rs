@@ -157,7 +157,12 @@ pub fn dummy_proof() -> (StarkVerifyingKey<OuterSC>, ShardProof<OuterSC>) {
     let context = SP1Context::default();
 
     tracing::info!("setup elf");
-    let (_, pk_d, program, vk) = prover.setup(elf);
+    let (_, pk_d, program, vk) = match prover.setup(elf) {
+        Ok(res) => res,
+        Err(e) => {
+            panic!("Failed to setup prover: {}", e);
+        }
+    };
 
     tracing::info!("prove core");
     let mut stdin = SP1Stdin::new();

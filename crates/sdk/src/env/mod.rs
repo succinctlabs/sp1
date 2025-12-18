@@ -7,7 +7,7 @@ pub mod prove;
 
 use std::env;
 
-use anyhow::Result;
+use anyhow::{Error, Result};
 use prove::EnvProveBuilder;
 use sp1_core_executor::SP1ContextBuilder;
 use sp1_core_machine::io::SP1Stdin;
@@ -160,8 +160,11 @@ impl EnvProver {
     /// Setup a program to be proven and verified by the SP1 RISC-V zkVM by computing the proving
     /// and verifying keys.
     #[must_use]
-    pub fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
-        self.prover.setup(elf)
+    pub fn setup(&self, elf: &[u8]) -> Result<(SP1ProvingKey, SP1VerifyingKey), Error> {
+        match self.prover.setup(elf) {
+            Ok(res) => Ok(res),
+            Err(e) => Err(Error::msg(format!("Failed to setup prover: {}", e))),
+        }
     }
 }
 
@@ -176,8 +179,11 @@ impl Prover<CpuProverComponents> for EnvProver {
         self.prover.inner()
     }
 
-    fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
-        self.prover.setup(elf)
+    fn setup(&self, elf: &[u8]) -> Result<(SP1ProvingKey, SP1VerifyingKey), Error> {
+        match self.prover.setup(elf) {
+            Ok(res) => Ok(res),
+            Err(e) => Err(Error::msg(format!("Failed to setup prover: {}", e))),
+        }
     }
 
     fn prove(

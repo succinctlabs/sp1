@@ -4,7 +4,7 @@
 
 use std::borrow::Borrow;
 
-use anyhow::Result;
+use anyhow::{Error, Result};
 use itertools::Itertools;
 use p3_field::PrimeField32;
 use sp1_core_executor::{ExecutionReport, SP1Context};
@@ -32,7 +32,7 @@ pub trait Prover<C: SP1ProverComponents>: Send + Sync {
     }
 
     /// Generate the proving and verifying keys for the given program.
-    fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey);
+    fn setup(&self, elf: &[u8]) -> Result<(SP1ProvingKey, SP1VerifyingKey), Error>;
 
     /// Executes the program on the given input.
     fn execute(&self, elf: &[u8], stdin: &SP1Stdin) -> Result<(SP1PublicValues, ExecutionReport)> {
@@ -121,8 +121,8 @@ pub(crate) fn verify_proof<C: SP1ProverComponents>(
             // Make sure the committed value digest matches the public values hash.
             // It is computationally infeasible to find two distinct inputs, one processed with
             // SHA256 and the other with Blake3, that yield the same hash value.
-            if committed_value_digest_bytes != bundle.public_values.hash() &&
-                committed_value_digest_bytes != bundle.public_values.blake3_hash()
+            if committed_value_digest_bytes != bundle.public_values.hash()
+                && committed_value_digest_bytes != bundle.public_values.blake3_hash()
             {
                 return Err(SP1VerificationError::InvalidPublicValues);
             }
@@ -146,8 +146,8 @@ pub(crate) fn verify_proof<C: SP1ProverComponents>(
             // Make sure the committed value digest matches the public values hash.
             // It is computationally infeasible to find two distinct inputs, one processed with
             // SHA256 and the other with Blake3, that yield the same hash value.
-            if committed_value_digest_bytes != bundle.public_values.hash() &&
-                committed_value_digest_bytes != bundle.public_values.blake3_hash()
+            if committed_value_digest_bytes != bundle.public_values.hash()
+                && committed_value_digest_bytes != bundle.public_values.blake3_hash()
             {
                 return Err(SP1VerificationError::InvalidPublicValues);
             }

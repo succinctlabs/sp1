@@ -268,8 +268,13 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
     pub fn setup(
         &self,
         elf: &[u8],
-    ) -> (SP1ProvingKey, DeviceProvingKey<C>, Program, SP1VerifyingKey) {
-        let program = self.get_program(elf).unwrap();
+    ) -> eyre::Result<(SP1ProvingKey, DeviceProvingKey<C>, Program, SP1VerifyingKey)> {
+        let program = match self.get_program(elf) {
+            Ok(prog) => prog,
+            Err(e) => {
+                return Err(eyre::eyre!("Failed to parse ELF into program: {}", e));
+            }
+        };
         let (pk, vk) = self.core_prover.setup(&program);
         let vk = SP1VerifyingKey { vk };
         let pk = SP1ProvingKey {
@@ -278,12 +283,17 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
             vk: vk.clone(),
         };
         let pk_d = self.core_prover.pk_to_device(&pk.pk);
-        (pk, pk_d, program, vk)
+        Ok((pk, pk_d, program, vk))
     }
 
     /// Get a program with an allowed preprocessed shape.
     pub fn get_program(&self, elf: &[u8]) -> eyre::Result<Program> {
-        let mut program = Program::from(elf)?;
+        let mut program = match Program::from(elf) {
+            Ok(prog) => prog,
+            Err(e) => {
+                return Err(eyre::eyre!("Failed to parse ELF into program: {}", e));
+            }
+        };
         if let Some(core_shape_config) = &self.core_shape_config {
             core_shape_config.fix_preprocessed_shape(&mut program)?;
         }
