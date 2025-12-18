@@ -1,3 +1,7 @@
+// When building with the `native` feature, we link a Go `c-archive` that already
+// provides `babybearinv` / `babybearextinv` symbols. Keeping the Rust `#[no_mangle]`
+// exports enabled would cause duplicate-symbol link failures (notably on Linux+lld).
+#[cfg(not(feature = "native"))]
 mod babybear;
 
 pub mod ffi;
