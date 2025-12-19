@@ -121,3 +121,4 @@ print_stdout = "deny"
 
 [patch.crates-io]
 sp1-lib = { path = "crates/zkvm/lib" }
+p3-field = { path = "crates/p3-field" }

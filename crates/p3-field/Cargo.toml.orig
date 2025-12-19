@@ -1,0 +1,15 @@
+[package]
+name = "p3-field"
+description = "Plonky3 is a toolkit for implementing polynomial IOPs (PIOPs), such as PLONK and STARKs."
+version = "0.2.3-succinct"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+p3-util = { path = "../util", version = "0.2.3-succinct" }
+num-bigint = { version = "0.4.3", default-features = false }
+num-traits = { version = "0.2.18", default_features = false }
+
+itertools = "0.12.0"
+rand = "0.8.5"
+serde = { version = "1.0", default-features = false, features = ["derive"] }
