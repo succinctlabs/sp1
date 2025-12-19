@@ -408,10 +408,12 @@ pub fn reduce_32<C: Config>(builder: &mut Builder<C>, vals: &[Felt<C::F>]) -> Va
 }
 
 pub fn split_32<C: Config>(builder: &mut Builder<C>, val: Var<C::N>, n: usize) -> Vec<Felt<C::F>> {
-    // Only decompose up to the native field's bit-size, then pad with zeros to 256 bits for
-    // splitting into 4x64-bit chunks. This avoids backend/modulus-dependent behavior when the
-    // constraint field is smaller than 256 bits (e.g. BN254 / BLS12-377).
-    let mut bits = builder.num2bits_v_circuit(val, C::N::bits());
+    // Decompose into 254 bits (enough to represent BN254 Fr elements canonically) and pad with
+    // zeros to 256 bits for splitting into 4x64-bit chunks.
+    //
+    // Important: the gnark PLONK backend for the outer circuit operates over BN254. Using a smaller
+    // bit length (e.g. 253) can make `ToBinary` unsatisfiable for field elements ≥ 2^253.
+    let mut bits = builder.num2bits_v_circuit(val, 254);
     while bits.len() < 256 {
         bits.push(builder.eval(C::N::zero()));
     }
