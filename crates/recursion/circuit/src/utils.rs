@@ -21,20 +21,18 @@ pub fn babybears_to_bn254(digest: &[BabyBear; 8]) -> Bls12377Fr {
     result
 }
 
-/// Convert 32 BabyBear bytes into a Bn254Fr field element. The first byte's most significant bits
-/// are truncated.
+/// Convert 32 BabyBear bytes into the outer circuit's native field element.
 ///
-/// We intentionally truncate **4** most significant bits (not 3) so the resulting packed 32-byte
-/// integer is comfortably below the modulus across supported ~253-bit native fields. This avoids
-/// modulus-dependent reduction differences between backends.
+/// This matches SP1's verifier-format convention of masking to **253 bits** (i.e. clearing the top
+/// 3 bits of the first byte) so the resulting integer is safely below BN254's scalar field modulus.
 #[allow(dead_code)]
 pub fn babybear_bytes_to_bn254(bytes: &[BabyBear; 32]) -> Bls12377Fr {
     let mut result = Bls12377Fr::zero();
     for (i, byte) in bytes.iter().enumerate() {
         debug_assert!(byte < &BabyBear::from_canonical_u32(256));
         if i == 0 {
-            // Truncate the top 4 bits of the first byte (keeps the packed integer <= 252 bits).
-            result = Bls12377Fr::from_canonical_u32(byte.as_canonical_u32() & 0x0f);
+            // Clear the top 3 bits of the first byte (keeps the packed integer <= 253 bits).
+            result = Bls12377Fr::from_canonical_u32(byte.as_canonical_u32() & 0x1f);
         } else {
             result *= Bls12377Fr::from_canonical_u32(256);
             result += Bls12377Fr::from_canonical_u32(byte.as_canonical_u32());
@@ -72,9 +70,9 @@ pub fn felt_bytes_to_bn254_var<C: Config>(
     for (i, byte) in bytes.iter().enumerate() {
         let byte_bits = builder.num2bits_f_circuit(*byte);
         if i == 0 {
-            // Truncate the top 4 bits of the first byte (keeps the packed integer <= 252 bits).
-            // For first byte, zero out 4 most significant bits.
-            for i in 0..4 {
+            // Clear the top 3 bits of the first byte (keeps the packed integer <= 253 bits).
+            // For first byte, zero out 3 most significant bits.
+            for i in 0..3 {
                 builder.assign(byte_bits[8 - i - 1], zero_var);
             }
             let byte_var = builder.bits2num_v_circuit(&byte_bits);
