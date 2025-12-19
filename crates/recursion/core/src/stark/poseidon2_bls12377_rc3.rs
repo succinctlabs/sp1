@@ -18,6 +18,7 @@
 use std::sync::OnceLock;
 
 use ff::PrimeField as FFPrimeField;
+use p3_field::AbstractField;
 use p3_bls12_377_fr::{Bls12377Fr, FFBls12377Fr};
 
 const WIDTH: usize = 3;
