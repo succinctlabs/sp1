@@ -130,9 +130,13 @@ pub fn halve_u64<const P: u64>(input: u64) -> u64 {
     }
 }
 
-/// Given a slice of SF elements, reduce them to a TF element using a 2^32-base decomposition.
+/// Given a slice of SF elements, reduce them to a TF element using a fixed power-of-two base.
+///
+/// NOTE (Succinct/SP1): we intentionally use base 2^31 (not 2^32) so packing 8 BabyBear limbs
+/// (each < 2^31) stays strictly below ~253-bit scalar fields like BLS12-377 Fr. This prevents
+/// modulo wraparound and makes the packing injective under SP1’s limb bounds.
 pub fn reduce_32<SF: PrimeField32, TF: PrimeField>(vals: &[SF]) -> TF {
-    let po2 = TF::from_canonical_u64(1u64 << 32);
+    let po2 = TF::from_canonical_u64(1u64 << 31);
     let mut result = TF::zero();
     for val in vals.iter().rev() {
         result = result * po2 + TF::from_canonical_u32(val.as_canonical_u32());
