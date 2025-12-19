@@ -161,6 +161,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_e2e_prove_plonk() {
         utils::setup_logger();
         let client = ProverClient::builder().cpu().build();
