@@ -4963,6 +4963,7 @@ dependencies = [
 [[package]]
 name = "p3-field"
 version = "0.2.3-succinct"
+source = "git+https://github.com/syscoin/p3-field?branch=main#0bde458a3cffed9e6b404401b343d5deb261d7a9"
 dependencies = [
  "itertools 0.12.1",
  "num-bigint 0.4.6",

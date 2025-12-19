@@ -75,7 +75,7 @@ sp1-verifier = { path = "crates/verifier", version = "5.2.4", default-features =
 test-artifacts = { path = "crates/test-artifacts" }
 
 # p3
-p3-field = { path = "crates/p3-field", version = "=0.2.3-succinct" }
+p3-field = { version = "=0.2.3-succinct" }
 p3-air = { version = "=0.2.3-succinct" }
 p3-baby-bear = { version = "=0.2.3-succinct" }
 p3-bn254-fr = { version = "=0.2.3-succinct" }
@@ -121,4 +121,4 @@ print_stdout = "deny"
 
 [patch.crates-io]
 sp1-lib = { path = "crates/zkvm/lib" }
-p3-field = { path = "crates/p3-field" }
+p3-field = { git = "https://github.com/syscoin/p3-field", branch = "main" }
