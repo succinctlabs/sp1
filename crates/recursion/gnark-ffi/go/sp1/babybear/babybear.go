@@ -2,6 +2,98 @@ package babybear
 
 /*
 #include "../../babybear.h"
+#include <stdint.h>
+
+// BabyBear prime field modulus.
+static const uint64_t BB_P = 2013265921ULL;
+
+static inline uint32_t bb_add(uint32_t a, uint32_t b) {
+    uint64_t s = (uint64_t)a + (uint64_t)b;
+    s %= BB_P;
+    return (uint32_t)s;
+}
+
+static inline uint32_t bb_sub(uint32_t a, uint32_t b) {
+    uint64_t aa = (uint64_t)a;
+    uint64_t bb = (uint64_t)b;
+    uint64_t r = (aa + BB_P - bb) % BB_P;
+    return (uint32_t)r;
+}
+
+static inline uint32_t bb_mul(uint32_t a, uint32_t b) {
+    uint64_t p = ((uint64_t)a * (uint64_t)b) % BB_P;
+    return (uint32_t)p;
+}
+
+static uint32_t bb_pow(uint32_t a, uint64_t e) {
+    uint32_t res = 1U;
+    uint32_t base = a;
+    while (e) {
+        if (e & 1ULL) res = bb_mul(res, base);
+        base = bb_mul(base, base);
+        e >>= 1ULL;
+    }
+    return res;
+}
+
+// Inverse in F_p. Returns 0 for a=0 (undefined inverse, but avoids crashes in hints).
+uint32_t babybearinv(uint32_t a) {
+    if (a == 0) return 0;
+    // a^(p-2) mod p
+    return bb_pow(a, (uint64_t)(BB_P - 2ULL));
+}
+
+typedef struct { uint32_t c[4]; } bb_ext4;
+
+static inline bb_ext4 bb_ext4_mul(bb_ext4 x, bb_ext4 y) {
+    // Field: F_p[u]/(u^4 - 11), i.e. u^4 = 11.
+    static const uint32_t NR = 11U;
+    uint32_t acc[4] = {0,0,0,0};
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            uint32_t prod = bb_mul(x.c[i], y.c[j]);
+            int k = i + j;
+            if (k >= 4) {
+                // u^k = u^(k-4) * u^4 = u^(k-4) * 11
+                prod = bb_mul(prod, NR);
+                k -= 4;
+            }
+            acc[k] = bb_add(acc[k], prod);
+        }
+    }
+    bb_ext4 out = {{acc[0], acc[1], acc[2], acc[3]}};
+    return out;
+}
+
+static inline bb_ext4 bb_ext4_sq(bb_ext4 x) { return bb_ext4_mul(x, x); }
+
+static bb_ext4 bb_ext4_pow(bb_ext4 a, unsigned __int128 e) {
+    bb_ext4 res = {{1U, 0U, 0U, 0U}};
+    bb_ext4 base = a;
+    while (e) {
+        if (e & 1) res = bb_ext4_mul(res, base);
+        base = bb_ext4_sq(base);
+        e >>= 1;
+    }
+    return res;
+}
+
+// Inverse in F_p[u]/(u^4-11), returned as a single coordinate (i=0..3).
+// Returns 0 for the zero element.
+uint32_t babybearextinv(uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t i) {
+    if ((a | b | c | d) == 0U) return 0;
+    bb_ext4 x = {{a % BB_P, b % BB_P, c % BB_P, d % BB_P}};
+
+    // x^(p^4 - 2)
+    unsigned __int128 p = (unsigned __int128)BB_P;
+    unsigned __int128 p2 = p * p;
+    unsigned __int128 p4 = p2 * p2;
+    unsigned __int128 e = p4 - 2;
+
+    bb_ext4 inv = bb_ext4_pow(x, e);
+    if (i > 3) return 0;
+    return inv.c[i];
+}
 */
 import "C"
 
