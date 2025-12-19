@@ -7196,7 +7196,6 @@ dependencies = [
  "ff 0.13.1",
  "hashbrown 0.14.5",
  "itertools 0.13.0",
- "num-bigint 0.4.6",
  "num-traits",
  "p3-air",
  "p3-baby-bear",

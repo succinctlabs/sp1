@@ -46,7 +46,6 @@ sp1-recursion-core = { path = "../core", default-features = true, features = [
     "program_validation",
 ] }
 ff = { version = "0.13", features = ["derive", "derive_bits"] }
-num-bigint = "0.4"
 p3-challenger = { workspace = true }
 p3-symmetric = { workspace = true }
 p3-dft = { workspace = true }
