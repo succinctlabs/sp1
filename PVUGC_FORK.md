@@ -6,7 +6,7 @@ This is a minimal fork of [SP1](https://github.com/succinctlabs/sp1) that change
 
 ### 1. `crates/recursion/gnark-ffi/go/sp1/build.go`
 
-Added `BuildGroth16Bls12_377()` function that compiles and sets up the Groth16 circuit for BLS12-377:
+Modified the existing `BuildGroth16(...)` path to compile and set up the Groth16 circuit over **BLS12-377** (instead of BN254):
 
 ```go
 // Key change: ecc.BN254 → ecc.BLS12_377
@@ -15,19 +15,19 @@ r1cs, err := frontend.Compile(ecc.BLS12_377.ScalarField(), r1cs.NewBuilder, &cir
 
 ### 2. `crates/recursion/gnark-ffi/go/sp1/prove.go`
 
-Added `ProveGroth16Bls12_377()` function with BLS12-377 global caches:
+Modified the existing `ProveGroth16(...)` path to use **BLS12-377** (including its in-process caches):
 
 ```go
-var globalR1cs377 constraint.ConstraintSystem = groth16.NewCS(ecc.BLS12_377)
-var globalPk377 groth16.ProvingKey = groth16.NewProvingKey(ecc.BLS12_377)
+var globalR1cs constraint.ConstraintSystem = groth16.NewCS(ecc.BLS12_377)
+var globalPk groth16.ProvingKey = groth16.NewProvingKey(ecc.BLS12_377)
 ```
 
 ### 3. `crates/recursion/gnark-ffi/go/main.go`
 
-Added CGO exports:
-- `ProveGroth16Bls12_377`
-- `BuildGroth16Bls12_377`
-- `FreeGroth16Bls12_377Proof`
+The CGO exports remain (historically) named `*Bn254` for compatibility, but they invoke the Groth16 path which is now **BLS12-377**:
+- `ProveGroth16Bn254`
+- `BuildGroth16Bn254`
+- `FreeGroth16Bn254Proof`
 
 ## What's Unchanged
 
@@ -36,20 +36,30 @@ Added CGO exports:
 - **Circuit logic**: The wrapper circuit verifies the same SP1 recursive proof
 - **Constraint IR**: The opcodes and simulation logic are identical
 
+## Poseidon2 (outer recursion) parameters
+
+- **Field**: BLS12-377 scalar field (Fr)
+- **Width**: \(t = 3\)
+- **S-box exponent**: \(\alpha = 11\)
+- **Rounds**: \(R_F = 8\), \(R_P = 37\) (ICICLE instance)
+- **Round constants (RC3)**:
+  - Rust: `crates/recursion/core/src/stark/poseidon2_bls12377_rc3.rs`
+  - Go: `crates/recursion/gnark-ffi/go/sp1/poseidon2/constants.go` (inlined in `init_rc3()`)
+
 ## Usage
 
 ### Build the Circuit (One-time setup)
 
 ```bash
-# Generate pk_377, vk_377 for BLS12-377
-BuildGroth16Bls12_377("/path/to/data")
+# Generate Groth16 artifacts for BLS12-377
+BuildGroth16("/path/to/data")
 ```
 
 ### Prove
 
 ```bash
 # Generate BLS12-377 Groth16 proof
-proof := ProveGroth16Bls12_377("/path/to/data", "/path/to/witness.json")
+proof := ProveGroth16("/path/to/data", "/path/to/witness.json")
 ```
 
 ### In Rust (PVUGC)
@@ -75,7 +85,7 @@ let proof = parse_gnark_proof_bls12_377(&proof_bytes)?;
 
 ## Upstream Tracking
 
-- **Base commit**: Shallow clone from `main` branch
+- **Base**: Forked from upstream SP1
 - **SP1 repo**: https://github.com/succinctlabs/sp1
 
 ## Security Notes

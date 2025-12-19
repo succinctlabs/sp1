@@ -6,7 +6,7 @@ import (
 
 const width = 3
 const numExternalRounds = 8
-const numInternalRounds = 56
+const numInternalRounds = 37
 const degree = 11
 
 type Poseidon2Chip struct {

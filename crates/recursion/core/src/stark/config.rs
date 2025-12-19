@@ -55,7 +55,7 @@ pub type OuterPcsProof =
 /// The permutation for outer recursion.
 pub fn outer_perm() -> OuterPerm {
     const ROUNDS_F: usize = 8;
-    const ROUNDS_P: usize = 56;
+    const ROUNDS_P: usize = 37;
     let mut round_constants = bls12377_poseidon2_rc3().clone();
     let internal_start = ROUNDS_F / 2;
     let internal_end = (ROUNDS_F / 2) + ROUNDS_P;
@@ -138,15 +138,15 @@ mod bls12377_poseidon2_kat_tests {
 
     #[test]
     fn test_outer_perm_kat_zero_state() {
-        // KAT computed from the generated rc3Vals for BLS12-377 (t=3, alpha=11, RF=8, RP=56),
-        // matching gnark's `poseidon2` implementation in this repo.
+        // KAT for BLS12-377 Poseidon2 (t=3, alpha=11, RF=8, RP=37) using ICICLE's published
+        // `rounds_constants_3` (see `poseidon2_bls12377_rc3.rs`).
         let mut state = [Bls12377Fr::zero(), Bls12377Fr::zero(), Bls12377Fr::zero()];
         outer_perm().permute_mut(&mut state);
 
         let expected = [
-            fr_from_hex_be("0x073A16E09D72EB3CE2BE32D26298E581FE6D6F5C50DF62B35C7ED36BED69B06A"),
-            fr_from_hex_be("0x0646CF2FA3846E5B849972B65A44D33CBC30112153515071103EB6D8B162A187"),
-            fr_from_hex_be("0x11781011359B52E0D8AE583C071D5F487A1B06D5F64E755A7BD893C27A827C25"),
+            fr_from_hex_be("0x02A874754DC3A41A8991C7BF3D0655233870DD9328FC83FA792C56D70FA65A88"),
+            fr_from_hex_be("0x0C1B4CCAA98CD30A990D116A0DEE44E246CBFE259D35B41A4723843BFF468ED6"),
+            fr_from_hex_be("0x11D9CC66E6F5DC031F61F4B05233BB5F9E948FE0514F43F6EAFD9609CF2C1C67"),
         ];
 
         assert_eq!(state, expected);
