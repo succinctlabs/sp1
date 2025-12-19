@@ -267,9 +267,9 @@ mod tests {
             .to_i64()
             .expect("unexpectedly large max_k; assumption violated");
 
-        // Base B = 2^32 for limb extraction and centered reduction.
-        let base = BigInt::one() << 32;
-        let half = BigInt::one() << 31;
+        // Base B = 2^31 for limb extraction and centered reduction (matches `reduce_32`).
+        let base = BigInt::one() << 31;
+        let half = BigInt::one() << 30;
 
         // Helper: Euclidean mod in [0, base).
         let mod_euclid = |x: &BigInt| -> BigInt {
