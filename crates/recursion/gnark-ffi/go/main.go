@@ -197,20 +197,46 @@ func TestMain() error {
 
 	// Compile the circuit.
 	circuit := sp1.NewCircuit(inputs)
+
+	// When GROTH16=1, test the Groth16/BLS12-377 backend (this is the supported path in
+	// Fr377-only environments). Otherwise, test the historical PLONK/BN254 backend.
+	if os.Getenv("GROTH16") == "1" {
+		builder := r1cs.NewBuilder
+		r1csCS, err := frontend.Compile(ecc.BLS12_377.ScalarField(), builder, &circuit)
+		if err != nil {
+			return err
+		}
+
+		// Dummy setup is sufficient for a satisfiability check in tests.
+		pk, err := groth16.DummySetup(r1csCS)
+		if err != nil {
+			return err
+		}
+
+		assignment := sp1.NewCircuit(inputs)
+		witness, err := frontend.NewWitness(&assignment, ecc.BLS12_377.ScalarField())
+		if err != nil {
+			return err
+		}
+
+		_, err = groth16.Prove(r1csCS, pk, witness)
+		return err
+	}
+
 	builder := scs.NewBuilder
-	scs, err := frontend.Compile(ecc.BN254.ScalarField(), builder, &circuit)
+	scsCS, err := frontend.Compile(ecc.BN254.ScalarField(), builder, &circuit)
 	if err != nil {
 		return err
 	}
-	fmt.Println("[sp1] gnark verifier constraints:", scs.GetNbConstraints())
+	fmt.Println("[sp1] gnark verifier constraints:", scsCS.GetNbConstraints())
 
 	// Run the dummy setup.
-	srs, srsLagrange, err := unsafekzg.NewSRS(scs)
+	srs, srsLagrange, err := unsafekzg.NewSRS(scsCS)
 	if err != nil {
 		return err
 	}
 	var pk plonk.ProvingKey
-	pk, _, err = plonk.Setup(scs, srs, srsLagrange)
+	pk, _, err = plonk.Setup(scsCS, srs, srsLagrange)
 	if err != nil {
 		return err
 	}
@@ -223,12 +249,8 @@ func TestMain() error {
 	}
 
 	// Generate the proof.
-	_, err = plonk.Prove(scs, pk, witness)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	_, err = plonk.Prove(scsCS, pk, witness)
+	return err
 }
 
 //export TestPoseidonBabyBear2
