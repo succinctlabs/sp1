@@ -4,6 +4,19 @@ This is a minimal fork of [SP1](https://github.com/succinctlabs/sp1) that change
 
 ## Changes Made
 
+### 0. `p3-field` `reduce_32` packing base (Fr377 soundness / consistency)
+
+SP1’s outer recursion uses the Plonky3 “multi-field” sponge/challenger (`p3-symmetric` /
+`p3-challenger`) which packs BabyBear limbs into the native field via `p3_field::reduce_32`.
+After migrating the Groth16 wrapper to **BLS12-377 Fr (~253 bits)**, the historical base \(2^{32}\)
+packing is **not injective** under our limb bounds (BabyBear limbs are < \(2^{31}\)), and it can also cause native-vs-circuit transcript mismatches.
+
+We therefore vendor `p3-field` and patch `reduce_32` to use **base \(2^{31}\)** so:
+- the packing is injective under SP1’s limb bounds for Fr377, and
+- the **native** prover transcript matches the **circuit** transcript.
+
+This is related to the general “multi-field challenger packing/bias” audit themes (see `audits/rkm0959.md`).
+
 ### 1. `crates/recursion/gnark-ffi/go/sp1/build.go`
 
 Modified the existing `BuildGroth16(...)` path to compile and set up the Groth16 circuit over **BLS12-377** (instead of BN254):
