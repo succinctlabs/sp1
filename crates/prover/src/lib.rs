@@ -1452,9 +1452,8 @@ pub mod tests {
 
     use super::*;
 
-    use crate::build::try_build_plonk_bn254_artifacts_dev;
     use anyhow::Result;
-    use build::{build_constraints_and_witness, try_build_groth16_bn254_artifacts_dev};
+    use build::{try_build_groth16_bn254_artifacts_dev};
     use itertools::Itertools;
     use p3_field::PrimeField32;
 
