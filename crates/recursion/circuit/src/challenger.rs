@@ -408,14 +408,7 @@ pub fn reduce_32<C: Config>(builder: &mut Builder<C>, vals: &[Felt<C::F>]) -> Va
 }
 
 pub fn split_32<C: Config>(builder: &mut Builder<C>, val: Var<C::N>, n: usize) -> Vec<Felt<C::F>> {
-    // Decompose into 256 bits for splitting into 4x64-bit chunks.
-    //
-    // Note: in our gnark backend, `ToBinary` clamps to the field bit-length and pads the excess
-    // bits with zeros, while also enforcing reducedness (< modulus) for full-width decompositions.
-    let mut bits = builder.num2bits_v_circuit(val, 256);
-    while bits.len() < 256 {
-        bits.push(builder.eval(C::N::zero()));
-    }
+    let bits = builder.num2bits_v_circuit(val, 256);
     let mut results = Vec::new();
     for i in 0..n {
         let result: Felt<C::F> = builder.eval(C::F::zero());
