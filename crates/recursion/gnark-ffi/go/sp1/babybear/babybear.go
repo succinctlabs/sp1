@@ -2,7 +2,6 @@ package babybear
 
 /*
 #include "../../babybear.h"
-}
 */
 import "C"
 
