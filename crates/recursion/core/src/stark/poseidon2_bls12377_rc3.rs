@@ -176,4 +176,108 @@ pub fn bls12377_poseidon2_rc3() -> &'static Vec<[Bls12377Fr; WIDTH]> {
     })
 }
 
+#[cfg(test)]
+mod tests {
+    use super::{ICICLE_ROUNDS_CONSTANTS_3, ROUNDS_F, ROUNDS_P};
+
+    fn norm_hex_32bytes_be(s: &str) -> String {
+        let h = s.trim().strip_prefix("0x").unwrap_or(s.trim());
+        let mut out = h.to_ascii_lowercase();
+        if out.len() % 2 == 1 {
+            out = format!("0{out}");
+        }
+        assert!(
+            out.len() <= 64,
+            "expected <= 32 bytes of hex, got {} chars: {s}",
+            out.len()
+        );
+        format!("{out:0>64}")
+    }
+
+    fn parse_go_rc3_hex_literals() -> Vec<String> {
+        // Keep this relative include stable: recursion/core -> recursion/gnark-ffi.
+        const GO_CONSTANTS: &str = include_str!(
+            "../../../gnark-ffi/go/sp1/poseidon2/constants.go"
+        );
+
+        let needle = r#"frontend.Variable("0x"#;
+        let mut out = Vec::<String>::new();
+        let mut i = 0usize;
+        while let Some(pos) = GO_CONSTANTS[i..].find(needle) {
+            let start = i + pos + r#"frontend.Variable(""#.len();
+            let end = GO_CONSTANTS[start..]
+                .find(r#"")"#)
+                .expect("unterminated frontend.Variable(\"...\")")
+                + start;
+            out.push(GO_CONSTANTS[start..end].to_string());
+            i = end;
+        }
+        out
+    }
+
+    #[test]
+    fn icicle_rc3_matches_go_constants_1_for_1() {
+        // Go encodes rc3 as TOTAL_ROUNDS x WIDTH array (includes explicit zeros for partial rounds).
+        let go_hex = parse_go_rc3_hex_literals();
+
+        let total_rounds = ROUNDS_F + ROUNDS_P;
+        assert_eq!(
+            go_hex.len(),
+            total_rounds * 3,
+            "unexpected number of frontend.Variable(\"0x...\") literals in Go rc3"
+        );
+
+        let go_rounds: Vec<[String; 3]> = go_hex
+            .chunks_exact(3)
+            .map(|c| [c[0].clone(), c[1].clone(), c[2].clone()])
+            .collect();
+        assert_eq!(go_rounds.len(), total_rounds);
+
+        // Build the compact (ICICLE) list we expect, using the same round structure:
+        // - First ROUNDS_F/2 rounds are full (3 nonzero lanes)
+        // - Next ROUNDS_P rounds are partial (lane 0 only; lanes 1/2 must be 0)
+        // - Last ROUNDS_F/2 rounds are full again
+        let mut expected_compact = Vec::<String>::with_capacity(ICICLE_ROUNDS_CONSTANTS_3.len());
+        for r in 0..total_rounds {
+            let [c0, c1, c2] = &go_rounds[r];
+            if r < (ROUNDS_F / 2) || r >= (ROUNDS_F / 2) + ROUNDS_P {
+                expected_compact.push(c0.clone());
+                expected_compact.push(c1.clone());
+                expected_compact.push(c2.clone());
+            } else {
+                expected_compact.push(c0.clone());
+                // Ensure Go has explicit zeros for partial-round lanes 1 and 2.
+                let z = "0x0000000000000000000000000000000000000000000000000000000000000000";
+                assert_eq!(
+                    norm_hex_32bytes_be(c1),
+                    norm_hex_32bytes_be(z),
+                    "Go rc3 round {r} lane 1 expected zero"
+                );
+                assert_eq!(
+                    norm_hex_32bytes_be(c2),
+                    norm_hex_32bytes_be(z),
+                    "Go rc3 round {r} lane 2 expected zero"
+                );
+            }
+        }
+        assert_eq!(
+            expected_compact.len(),
+            ICICLE_ROUNDS_CONSTANTS_3.len(),
+            "compact constant count mismatch"
+        );
+
+        for (idx, (rust_c, go_c)) in ICICLE_ROUNDS_CONSTANTS_3
+            .iter()
+            .zip(expected_compact.iter())
+            .enumerate()
+        {
+            assert_eq!(
+                norm_hex_32bytes_be(rust_c),
+                norm_hex_32bytes_be(go_c),
+                "RC3 mismatch at compact index {idx}"
+            );
+        }
+    }
+}
+
 
