@@ -20,6 +20,7 @@ var globalR1cs constraint.ConstraintSystem = groth16.NewCS(ecc.BLS12_377)
 var globalR1csInitialized = false
 var globalPk groth16.ProvingKey = groth16.NewProvingKey(ecc.BLS12_377)
 var globalPkInitialized = false
+var globalGroth16DataDir string
 
 func ProvePlonk(dataDir string, witnessPath string) Proof {
 	// Sanity check the required arguments have been provided.
@@ -108,31 +109,41 @@ func ProveGroth16(dataDir string, witnessPath string) Proof {
 
 	// Read the R1CS.
 	globalMutex.Lock()
+	// IMPORTANT: the Groth16 circuit/PK are keyed by the artifacts directory. Tests may run multiple
+	// different shapes/versions in the same process, so we must not reuse a cached CS/PK from a
+	// previous dataDir.
+	if globalGroth16DataDir != dataDir {
+		globalR1cs = groth16.NewCS(ecc.BLS12_377)
+		globalPk = groth16.NewProvingKey(ecc.BLS12_377)
+		globalR1csInitialized = false
+		globalPkInitialized = false
+		globalGroth16DataDir = dataDir
+	}
+
 	if !globalR1csInitialized {
 		start = time.Now()
 		r1csFile, err := os.Open(dataDir + "/" + groth16CircuitPath)
 		if err != nil {
+			globalMutex.Unlock()
 			panic(err)
 		}
 		r1csReader := bufio.NewReaderSize(r1csFile, 1024*1024)
 		globalR1cs.ReadFrom(r1csReader)
-		defer r1csFile.Close()
+		r1csFile.Close()
 		globalR1csInitialized = true
 		fmt.Printf("Reading R1CS took %s\n", time.Since(start))
 	}
-	globalMutex.Unlock()
 
-	// Read the proving key.
-	globalMutex.Lock()
 	if !globalPkInitialized {
 		start = time.Now()
 		pkFile, err := os.Open(dataDir + "/" + groth16PkPath)
 		if err != nil {
+			globalMutex.Unlock()
 			panic(err)
 		}
 		pkReader := bufio.NewReaderSize(pkFile, 1024*1024)
 		globalPk.ReadDump(pkReader)
-		defer pkFile.Close()
+		pkFile.Close()
 		globalPkInitialized = true
 		fmt.Printf("Reading proving key took %s\n", time.Since(start))
 	}
