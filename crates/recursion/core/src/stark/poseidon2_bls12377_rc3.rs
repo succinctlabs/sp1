@@ -96,15 +96,25 @@ const ICICLE_ROUNDS_CONSTANTS_3: [&str; 61] = [
 #[inline]
 fn fr_from_hex_be_loose(hex: &str) -> Bls12377Fr {
     let h = hex.strip_prefix("0x").expect("0x-prefixed hex");
-    assert!(h.len() <= 64, "expected <= 32 bytes of hex, got {} chars", h.len());
-    assert!(h.len() % 2 == 0, "expected even number of hex chars");
+    assert!(
+        h.len() <= 64,
+        "expected <= 32 bytes of hex, got {} chars",
+        h.len()
+    );
+
+    // ICICLE strings may omit leading zero nybbles, so allow odd-length hex and pad to full bytes.
+    let mut h_norm = String::with_capacity(65);
+    if h.len() % 2 == 1 {
+        h_norm.push('0');
+    }
+    h_norm.push_str(h);
 
     // Left-pad with zeros to 32 bytes.
     let mut padded = String::with_capacity(64);
-    for _ in 0..(64 - h.len()) {
+    for _ in 0..(64 - h_norm.len()) {
         padded.push('0');
     }
-    padded.push_str(h);
+    padded.push_str(&h_norm);
 
     let mut be = [0u8; 32];
     for i in 0..32 {
