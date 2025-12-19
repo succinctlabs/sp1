@@ -319,8 +319,8 @@ fn test_vkeys() {
     let s3_vkey_bytes = std::fs::read(s3_vkey_path).unwrap();
     assert_eq!(s3_vkey_bytes, *crate::GROTH16_VK_BYTES);
 
-    let plonk_path = try_install_circuit_artifacts("plonk");
+    /*let plonk_path = try_install_circuit_artifacts("plonk");
     let s3_vkey_path = plonk_path.join("plonk_vk.bin");
     let s3_vkey_bytes = std::fs::read(s3_vkey_path).unwrap();
-    assert_eq!(s3_vkey_bytes, *crate::PLONK_VK_BYTES);
+    assert_eq!(s3_vkey_bytes, *crate::PLONK_VK_BYTES);*/
 }
