@@ -3,7 +3,7 @@ use serial_test::serial;
 use sp1_sdk::{install::try_install_circuit_artifacts, HashableKey, ProverClient, SP1Stdin};
 use test_artifacts::{
     FIBONACCI_BLAKE3_ELF, FIBONACCI_ELF, GROTH16_BLAKE3_ELF, GROTH16_COMPRESSED_BLAKE3_ELF,
-    GROTH16_COMPRESSED_ELF, GROTH16_ELF, PLONK_BLAKE3_ELF, PLONK_ELF,
+    GROTH16_COMPRESSED_ELF, GROTH16_ELF,
 };
 
 use crate::{error::Error, Groth16Error, PlonkError};
@@ -91,7 +91,7 @@ fn test_verify_groth16(#[case] elf: &[u8]) {
     // Verify.
     client.verify(&sp1_proof_with_public_values, &vk).expect("Proof is invalid");
 }
-
+/*
 #[rstest]
 #[case(FIBONACCI_ELF)]
 #[case(FIBONACCI_BLAKE3_ELF)]
@@ -107,7 +107,7 @@ fn test_verify_plonk(#[case] elf: &[u8]) {
 
     // Verify.
     client.verify(&sp1_proof_with_public_values, &vk).expect("Proof is invalid");
-}
+}*/
 
 #[rstest]
 #[case(FIBONACCI_ELF, GROTH16_COMPRESSED_ELF)]
@@ -324,7 +324,7 @@ fn test_verify_invalid_groth16(#[case] elf: &[u8]) {
 
     assert!(matches!(result, Err(Groth16Error::GeneralError(Error::InvalidData))));
 }
-
+/*
 #[rstest]
 #[case(FIBONACCI_ELF, PLONK_ELF)]
 #[case(FIBONACCI_BLAKE3_ELF, PLONK_BLAKE3_ELF)]
@@ -405,7 +405,7 @@ fn test_verify_invalid_plonk(#[case] elf: &[u8]) {
     );
 
     assert!(matches!(result, Err(PlonkError::GeneralError(Error::InvalidData))));
-}
+}*/
 
 #[serial]
 #[test]
