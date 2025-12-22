@@ -17,9 +17,9 @@ where
 {
     let mut result = hasher(public_inputs);
 
-    // The Plonk and Groth16 verifiers operate over a 254 bit field, so we need to zero
-    // out the first 3 bits. The same logic happens in the SP1 Ethereum verifier contract.
-    result[0] &= 0x1F;
+    // The Groth16 verifier operates over a 252 bit field (BLS12-377), so we need to zero
+    // out the first 4 bits.
+    result[0] &= 0x0F;
 
     result
 }

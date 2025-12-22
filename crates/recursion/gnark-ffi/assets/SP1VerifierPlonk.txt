@@ -31,7 +31,7 @@ contract SP1Verifier is PlonkVerifier, ISP1VerifierWithHash {
     function hashPublicValues(
         bytes calldata publicValues
     ) public pure returns (bytes32) {
-        return sha256(publicValues) & bytes32(uint256((1 << 253) - 1));
+        return sha256(publicValues) & bytes32(uint256((1 << 252) - 1));
     }
 
     /// @notice Verifies a proof with given public values and vkey.

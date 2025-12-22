@@ -8,7 +8,7 @@ use sp1_core_executor::subproof::SubproofVerifier;
 use sp1_core_machine::cpu::MAX_CPU_LOG_DEGREE;
 use sp1_primitives::{
     consts::WORD_SIZE,
-    io::{blake3_hash, sha256_hash, SP1PublicValues},
+    io::{blake3_hash, SP1PublicValues},
 };
 
 use sp1_recursion_circuit::machine::RootPublicValues;
@@ -26,41 +26,9 @@ use thiserror::Error;
 
 use crate::{
     components::SP1ProverComponents,
-    utils::{babybear_bytes_to_bn254, is_recursion_public_values_valid, is_root_public_values_valid},
+    utils::{is_recursion_public_values_valid, is_root_public_values_valid},
     CoreSC, HashableKey, OuterSC, SP1CoreProofData, SP1Prover, SP1VerifyingKey,
 };
-
-/// In SP1's verifier-format, public values are hashed (SHA256 or Blake3) and then masked to 253
-/// bits. For Groth16 (which is currently implemented over BLS12-377 in the gnark backend), the
-/// circuit public input is a **field element** in Fr(BLS12-377), so the masked digest bytes are
-/// interpreted as a big-endian integer and then reduced modulo Fr(BLS12-377).
-fn public_values_hash_outer_field_with_fn<F>(public_values: &SP1PublicValues, hasher: F) -> BigUint
-where
-    F: Fn(&[u8]) -> Vec<u8>,
-{
-    let mut hash = hasher(public_values.as_slice());
-    debug_assert!(hash.len() == 32);
-    // Match Solidity/verifier-format convention: keep 253 bits.
-    hash[0] &= 0x1f;
-    let bytes: [u8; 32] = hash.as_slice().try_into().expect("hash length must be 32");
-    let bb_bytes: [BabyBear; 32] = bytes.map(|b| BabyBear::from_canonical_u32(b as u32));
-    babybear_bytes_to_bn254(&bb_bytes).as_canonical_biguint()
-}
-
-fn verify_public_values_outer_field(
-    public_values: &SP1PublicValues,
-    expected_public_values_hash: BigUint,
-) -> Result<()> {
-    // First, check SHA256; if it fails, try Blake3.
-    let sha256_hash = public_values_hash_outer_field_with_fn(public_values, sha256_hash);
-    if sha256_hash != expected_public_values_hash {
-        let blake3_hash = public_values_hash_outer_field_with_fn(public_values, blake3_hash);
-        if blake3_hash != expected_public_values_hash {
-            return Err(Groth16VerificationError::InvalidPublicValues.into());
-        }
-    }
-    Ok(())
-}
 
 #[derive(Error, Debug)]
 pub enum PlonkVerificationError {
@@ -526,9 +494,7 @@ pub fn verify_groth16_bn254_public_inputs(
         return Err(Groth16VerificationError::InvalidVerificationKey.into());
     }
 
-    // Groth16 gnark backend uses BLS12-377 scalar field; compare against the same field-element
-    // mapping used in the circuit public input.
-    verify_public_values_outer_field(public_values, expected_public_values_hash)?;
+    verify_public_values(public_values, expected_public_values_hash)?;
 
     Ok(())
 }

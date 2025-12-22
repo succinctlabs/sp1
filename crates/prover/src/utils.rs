@@ -123,7 +123,7 @@ pub fn babybears_to_bn254(digest: &[BabyBear; 8]) -> Bls12377Fr {
     let mut result = Bls12377Fr::zero();
     for word in digest.iter() {
         // Since BabyBear prime is less than 2^31, we can shift by 31 bits each time and still be
-        // within the Bn254Fr field, so we don't have to truncate the top 3 bits.
+        // within the Bn254Fr field, so we don't have to truncate the top 4 bits.
         result *= Bls12377Fr::from_canonical_u64(1 << 31);
         result += Bls12377Fr::from_canonical_u32(word.as_canonical_u32());
     }
@@ -132,15 +132,15 @@ pub fn babybears_to_bn254(digest: &[BabyBear; 8]) -> Bls12377Fr {
 
 /// Convert 32 BabyBear bytes into the outer circuit's native field element.
 ///
-/// This matches SP1's verifier-format convention of masking to **253 bits** (i.e. clearing the top
-/// 3 bits of the first byte) so the resulting integer is safely below BN254's scalar field modulus.
+/// This matches SP1's verifier-format convention of masking to **252 bits** (i.e. clearing the top
+/// 4 bits of the first byte) so the resulting integer is safely below BLS12-377's scalar field modulus.
 pub fn babybear_bytes_to_bn254(bytes: &[BabyBear; 32]) -> Bls12377Fr {
     let mut result = Bls12377Fr::zero();
     for (i, byte) in bytes.iter().enumerate() {
         debug_assert!(byte < &BabyBear::from_canonical_u32(256));
         if i == 0 {
-            // Clear the top 3 bits of the first byte (keeps the packed integer <= 253 bits).
-            result = Bls12377Fr::from_canonical_u32(byte.as_canonical_u32() & 0x1f);
+            // Clear the top 4 bits of the first byte (keeps the packed integer <= 252 bits).
+            result = Bls12377Fr::from_canonical_u32(byte.as_canonical_u32() & 0x0f);
         } else {
             result *= Bls12377Fr::from_canonical_u32(256);
             result += Bls12377Fr::from_canonical_u32(byte.as_canonical_u32());

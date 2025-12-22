@@ -8,7 +8,7 @@ This is a minimal fork of [SP1](https://github.com/succinctlabs/sp1) that change
 
 SP1’s outer recursion uses the Plonky3 “multi-field” sponge/challenger (`p3-symmetric` /
 `p3-challenger`) which packs BabyBear limbs into the native field via `p3_field::reduce_32`.
-After migrating the Groth16 wrapper to **BLS12-377 Fr (~253 bits)**, the historical base \(2^{32}\)
+After migrating the Groth16 wrapper to **BLS12-377 Fr (~252 bits)**, the historical base \(2^{32}\)
 packing is **not injective** under our limb bounds (BabyBear limbs are < \(2^{31}\)), and it can also cause native-vs-circuit transcript mismatches.
 
 We therefore vendor `p3-field` and patch `reduce_32` to use **base \(2^{31}\)** so:

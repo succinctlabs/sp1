@@ -62,17 +62,17 @@ impl SP1PublicValues {
         blake3_hash(self.buffer.data.as_slice())
     }
 
-    /// Hash the public values using SHA256, mask the top 3 bits and return a BigUint.
+    /// Hash the public values using SHA256, mask the top 4 bits and return a BigUint.
     /// Matches the implementation of `hashPublicValues` in the Solidity verifier.
     ///
     /// ```solidity
-    /// sha256(publicValues) & bytes32(uint256((1 << 253) - 1));
+    /// sha256(publicValues) & bytes32(uint256((1 << 252) - 1));
     /// ```
     pub fn hash_bn254(&self) -> BigUint {
         self.hash_bn254_with_fn(sha256_hash)
     }
 
-    /// Hash the public values using the provided `hasher` function, mask the top 3 bits and
+    /// Hash the public values using the provided `hasher` function, mask the top 4 bits and
     /// return a BigUint.
     pub fn hash_bn254_with_fn<F>(&self, hasher: F) -> BigUint
     where
@@ -81,8 +81,8 @@ impl SP1PublicValues {
         // Hash the public values.
         let mut hash = hasher(self.buffer.data.as_slice());
 
-        // Mask the top 3 bits.
-        hash[0] &= 0b00011111;
+        // Mask the top 4 bits.
+        hash[0] &= 0b00001111;
 
         // Return the masked hash as a BigUint.
         BigUint::from_bytes_be(hash.as_slice())
@@ -120,7 +120,7 @@ mod tests {
         public_values.write_slice(&test_bytes);
         let hash = public_values.hash_bn254();
 
-        let expected_hash = "1ce987d0a7fcc2636fe87e69295ba12b1cc46c256b369ae7401c51b805ee91bd";
+        let expected_hash = "0ce987d0a7fcc2636fe87e69295ba12b1cc46c256b369ae7401c51b805ee91bd";
         let expected_hash_biguint = BigUint::from_bytes_be(&hex::decode(expected_hash).unwrap());
 
         assert_eq!(hash, expected_hash_biguint);
@@ -135,7 +135,7 @@ mod tests {
         public_values.write_slice(&test_bytes);
         let hash = public_values.hash_bn254_with_fn(blake3_hash);
 
-        let expected_hash = "1639647ab9e42519f0cbdcf343033482b018c0c1ed48f8367f32381c60913447";
+        let expected_hash = "0639647ab9e42519f0cbdcf343033482b018c0c1ed48f8367f32381c60913447";
         let expected_hash_biguint = BigUint::from_bytes_be(&hex::decode(expected_hash).unwrap());
 
         assert_eq!(hash, expected_hash_biguint);
