@@ -7,6 +7,7 @@ pub mod circuit;
 pub mod config;
 pub mod constraints;
 pub mod ir;
+pub mod r1cs;
 
 pub mod prelude {
     pub use crate::ir::*;
