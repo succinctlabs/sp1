@@ -203,12 +203,12 @@ impl NetworkProver {
     /// use sp1_sdk::{Prover, ProverClient, SP1Stdin};
     ///
     /// let elf = &[1, 2, 3];
-    /// let vk_bytes = include_bytes!("./vk.bin");
+    /// let vk_bytes = &[4, 5, 6];
     /// let stdin = SP1Stdin::new();
     ///
     /// let client = ProverClient::builder().network().build();
     /// let vk = bincode::deserialize(vk_bytes).unwrap();
-    /// let proof = client.prove_from_vk(&vk, elf).run();
+    /// let proof = client.prove_from_vk(&vk, elf, &stdin).run();
     /// ```
     pub fn prove_from_vk<'a>(
         &'a self,
