@@ -7,7 +7,7 @@ use std::time::Duration;
 use alloy_primitives::{Address, B256};
 use anyhow::Result;
 use sp1_core_machine::io::SP1Stdin;
-use sp1_prover::SP1ProvingKey;
+use sp1_prover::SP1VerifyingKey;
 
 use crate::{
     utils::{block_on, sp1_dump},
@@ -25,7 +25,8 @@ use std::{
 pub struct NetworkProveBuilder<'a> {
     pub(crate) prover: &'a NetworkProver,
     pub(crate) mode: SP1ProofMode,
-    pub(crate) pk: &'a SP1ProvingKey,
+    pub(crate) vk: &'a SP1VerifyingKey,
+    pub(crate) elf: &'a [u8],
     pub(crate) stdin: SP1Stdin,
     pub(crate) timeout: Option<Duration>,
     pub(crate) strategy: FulfillmentStrategy,
@@ -590,7 +591,8 @@ impl NetworkProveBuilder<'_> {
     pub async fn request_async(self) -> Result<B256> {
         self.prover
             .request_proof_impl(
-                self.pk,
+                self.vk,
+                self.elf,
                 &self.stdin,
                 self.mode,
                 self.strategy,
@@ -659,11 +661,12 @@ impl NetworkProveBuilder<'_> {
             self.skip_simulation = matches!(val.to_lowercase().as_str(), "true" | "1");
         }
 
-        sp1_dump(&self.pk.elf, &self.stdin);
+        sp1_dump(self.elf, &self.stdin);
 
         self.prover
             .prove_impl(
-                self.pk,
+                self.vk,
+                self.elf,
                 &self.stdin,
                 self.mode,
                 self.strategy,
