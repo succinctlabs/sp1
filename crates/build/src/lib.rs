@@ -8,7 +8,7 @@ pub use build::{execute_build_program, generate_elf_paths};
 pub use command::TOOLCHAIN_NAME;
 
 use clap::{Parser, ValueEnum};
-use sp1_prover::{components::CpuProverComponents, HashableKey, SP1Prover};
+use sp1_prover::{components::CpuProverComponents, HashableKey, SP1Prover, SP1VerifyingKey};
 
 const DEFAULT_DOCKER_TAG: &str = concat!("v", env!("CARGO_PKG_VERSION"));
 const BUILD_TARGET: &str = "riscv32im-succinct-zkvm-elf";
@@ -156,7 +156,7 @@ pub fn build_program_with_args(path: &str, args: BuildArgs) {
 ///
 /// Note: If used in a script `build.rs`, this function should be called *after* [`build_program`]
 /// to returns the vkey corresponding to the latest program version which has just been compiled.
-pub fn vkey(path: &str, target_name: &str) -> String {
+pub fn verifying_key(path: &str, target_name: &str) -> SP1VerifyingKey {
     let program_dir = std::path::Path::new(path);
     let metadata_file = program_dir.join("Cargo.toml");
     let mut metadata_cmd = cargo_metadata::MetadataCommand::new();
@@ -171,6 +171,20 @@ pub fn vkey(path: &str, target_name: &str) -> String {
 
     file.read_to_end(&mut elf).unwrap();
     let (_, _, _, vk) = prover.setup(&elf);
+    vk
+}
+
+/// Returns the verification key hash for the provided program.
+///
+/// # Arguments
+///
+/// * `path` - A string slice that holds the path to the program directory.
+/// * `target_name` - A string slice that holds the binary target.
+///
+/// Note: If used in a script `build.rs`, this function should be called *after* [`build_program`]
+/// to returns the vkey corresponding to the latest program version which has just been compiled.
+pub fn vkey(path: &str, target_name: &str) -> String {
+    let vk = verifying_key(path, target_name);
     vk.bytes32()
 }
 
