@@ -190,7 +190,8 @@ impl NetworkProver {
     /// A request to generate a proof for a given verifying key, ELF and input.
     ///
     /// This allow to send proof requests to the network without having to run
-    /// setup(). You just need the verifying key that is cheap to deserialize.
+    /// `setup()`. You just need the verifying key that is cheap to
+    /// deserialize.
     ///
     /// # Details
     /// * `vk`: The verifying key to use for the proof.
