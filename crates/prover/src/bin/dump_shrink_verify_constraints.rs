@@ -809,20 +809,10 @@ fn fill_r1cs_witness_from_hint_ops(
                     pos += 1;
                 }
             }
-            DslIr::CircuitV2HintBitsF(bits, _value) => {
-                for b in bits.iter() {
-                    let id = format!("felt{}", b.idx);
-                    let &dst = var_map
-                        .get(&id)
-                        .ok_or_else(|| format!("hint fill: missing var_map entry for {id}"))?;
-                    let blk = witness_blocks
-                        .get(pos)
-                        .ok_or_else(|| format!("hint fill: witness stream underrun at pos={pos} for {id}"))?;
-                    w_opt[dst] = Some(blk.0[0].as_canonical_u64());
-                    origin[dst] = 1; // fixed witness input
-                    pos += 1;
-                }
-            }
+            // NOTE: `CircuitV2HintBitsF` compiles to `Instruction::HintBits`, which derives bits
+            // from `input_addr` at runtime and DOES NOT consume `witness_stream`. Therefore, we
+            // must NOT advance `pos` here.
+            DslIr::CircuitV2HintBitsF(_bits, _value) => {}
             DslIr::Parallel(sub) => {
                 // Witness hints are forbidden in parallel blocks (runtime enforces this).
                 // We still walk them to detect accidental hints (would imply nondeterminism).
