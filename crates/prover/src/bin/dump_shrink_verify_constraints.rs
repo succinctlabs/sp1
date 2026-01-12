@@ -13,6 +13,7 @@
 
 use std::collections::BTreeMap;
 
+use p3_field::AbstractField;
 use p3_baby_bear::BabyBear;
 use sp1_recursion_circuit::machine::SP1CompressWithVKeyWitnessValues;
 use sp1_recursion_circuit::witness::Witnessable;
