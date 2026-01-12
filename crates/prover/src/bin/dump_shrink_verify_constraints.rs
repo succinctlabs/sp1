@@ -33,7 +33,7 @@ use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
 use sp1_stark::BabyBearPoseidon2Inner;
 use sp1_stark::StarkGenericConfig;
 
-use sp1_prover::{CompressAir, InnerSC, ShrinkAir};
+use sp1_prover::{InnerSC, ShrinkAir};
 use sp1_core_executor::SP1Context;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::SP1Prover;
@@ -85,7 +85,9 @@ fn visit_ops<C: sp1_recursion_compiler::ir::Config + core::fmt::Debug>(
 
 /// Build the shrink verifier DslIr operations.
 fn build_shrink_verifier_ops() -> Vec<DslIr<InnerConfig>> {
-    let machine = ShrinkAir::shrink_machine(InnerSC::compressed());
+    // We want the *shrink-proof verifier* circuit: i.e. verify a proof produced by `prover.shrink(..)`.
+    // Therefore the machine passed into the verifier is the *shrink machine config*.
+    let machine_verified = ShrinkAir::shrink_machine(InnerSC::compressed());
     let shrink_shape = ShrinkAir::<BabyBear>::shrink_shape().into();
     let input_shape = sp1_recursion_circuit::machine::SP1CompressShape::from(vec![shrink_shape]);
     let shape = sp1_recursion_circuit::machine::SP1CompressWithVkeyShape {
@@ -93,13 +95,13 @@ fn build_shrink_verifier_ops() -> Vec<DslIr<InnerConfig>> {
         merkle_tree_height: 1,
     };
     let dummy_input: SP1CompressWithVKeyWitnessValues<BabyBearPoseidon2> =
-        SP1CompressWithVKeyWitnessValues::dummy(&machine, &shape);
+        SP1CompressWithVKeyWitnessValues::dummy(&machine_verified, &shape);
 
     let mut builder = Builder::<InnerConfig>::default();
     let input = dummy_input.read(&mut builder);
     sp1_recursion_circuit::machine::SP1CompressRootVerifierWithVKey::verify(
         &mut builder,
-        &machine,
+        &machine_verified,
         input,
         false, // value_assertions disabled - we want algebraic shape only
         sp1_recursion_circuit::machine::PublicValuesOutputDigest::Root,
@@ -177,8 +179,8 @@ fn load_default_fibonacci_elf_bytes() -> Vec<u8> {
 }
 
 fn build_real_input_with_merkle() -> (SP1Prover, SP1CompressWithVKeyWitnessValues<BabyBearPoseidon2>) {
-    // Build a concrete compress proof (from a small dummy program) and produce the shrink-verifier
-    // circuit input (vk+proof+merkle) so we can materialize a full witness.
+    // Build a concrete *shrink proof* (from a small example program) and produce the
+    // shrink-proof-verifier circuit input (vk+proof+merkle) so we can materialize a full witness.
     //
     // This is statement-time; shape-only exports should NOT depend on this.
     let elf_bytes: Vec<u8> = if let Ok(path) = std::env::var("ELF_PATH") {
@@ -201,10 +203,11 @@ fn build_real_input_with_merkle() -> (SP1Prover, SP1CompressWithVKeyWitnessValue
     stdin.write(&stdin_u32);
     let core_proof = prover.prove_core(&pk_d, program, &stdin, opts, context).unwrap();
     let compressed = prover.compress(&vk, core_proof, vec![], opts).unwrap();
+    let shrink = prover.shrink(compressed, opts).unwrap();
 
-    // The shrink verifier circuit verifies the *compressed* proof (vk+proof) with merkle proofs.
+    // The shrink-proof verifier circuit verifies the *shrink* proof (vk+proof) with merkle proofs.
     let input = sp1_recursion_circuit::machine::SP1CompressWitnessValues {
-        vks_and_proofs: vec![(compressed.vk.clone(), compressed.proof.clone())],
+        vks_and_proofs: vec![(shrink.vk.clone(), shrink.proof.clone())],
         is_complete: true,
     };
     let input_with_merkle = prover.make_merkle_proofs(input);
@@ -216,10 +219,10 @@ fn main() {
     println!("SP1 Shrink Verifier → R1CS Compilation");
     println!("=========================================================\n");
 
-    // Print FRI config for reference
-    let machine = ShrinkAir::shrink_machine(InnerSC::compressed());
-    let fri = machine.config().fri_config();
-    println!("FRI config:");
+    // Print FRI config for reference: this is the config of the *shrink proof* being verified.
+    let machine_verified = ShrinkAir::shrink_machine(InnerSC::compressed());
+    let fri = machine_verified.config().fri_config();
+    println!("FRI config (verified shrink-proof machine):");
     println!("  log_blowup: {}", fri.log_blowup);
     println!("  num_queries: {}", fri.num_queries);
     println!("  proof_of_work_bits: {}", fri.proof_of_work_bits);
@@ -242,12 +245,12 @@ fn main() {
     // If OUT_WITNESS is set, compile the circuit with a real input so we can also run the
     // recursion runtime and dump a full witness (including lift aux vars).
     let ops = if let Some(input_with_merkle) = maybe_input_with_merkle.as_ref() {
-        let machine = ShrinkAir::shrink_machine(InnerSC::compressed());
+        let machine_verified = ShrinkAir::shrink_machine(InnerSC::compressed());
         let mut builder = Builder::<InnerConfig>::default();
         let input = input_with_merkle.read(&mut builder);
         sp1_recursion_circuit::machine::SP1CompressRootVerifierWithVKey::verify(
             &mut builder,
-            &machine,
+            &machine_verified,
             input,
             true, // enable value assertions for a concrete witness run
             sp1_recursion_circuit::machine::PublicValuesOutputDigest::Reduce,
@@ -299,12 +302,12 @@ fn main() {
             let input_with_merkle = maybe_input_with_merkle.as_ref().expect("input must exist");
 
             // Build the same block and execute it in recursion runtime to fill memory.
-            let machine = ShrinkAir::shrink_machine(InnerSC::compressed());
+            let machine_verified = ShrinkAir::shrink_machine(InnerSC::compressed());
             let mut builder = Builder::<InnerConfig>::default();
             let input = input_with_merkle.read(&mut builder);
             sp1_recursion_circuit::machine::SP1CompressRootVerifierWithVKey::verify(
                 &mut builder,
-                &machine,
+                &machine_verified,
                 input,
                 true,
                 sp1_recursion_circuit::machine::PublicValuesOutputDigest::Reduce,
