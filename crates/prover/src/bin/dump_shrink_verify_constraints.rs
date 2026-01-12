@@ -21,7 +21,7 @@ use sp1_recursion_circuit::BabyBearFriConfig;
 use sp1_recursion_compiler::{
     config::InnerConfig,
     ir::{Builder, DslIr},
-    r1cs::{lf::lift_r1cs_to_lf, R1CSCompiler},
+    r1cs::{lf::{lift_r1cs_to_lf, lift_r1cs_to_lf_true_mul_only}, R1CSCompiler},
 };
 use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
 
@@ -170,19 +170,27 @@ fn main() {
 
     // Optionally write LF-targeted lifted R1CS (integer coefficients + selective lifting).
     if let Ok(path) = std::env::var("OUT_R1CS_LF") {
+        let true_mul_only = std::env::var("LIFT_TRUE_MUL_ONLY").ok().as_deref() == Some("1");
         println!("\nLifting R1CS for LF+ (selective lift + integer coeffs)...");
         let t_lift = std::time::Instant::now();
-        let (r1lf, stats) = lift_r1cs_to_lf(&r1cs);
+        let (r1lf, stats) = if true_mul_only {
+            println!("  mode: true-mul-only (A!=1 && B!=1)");
+            lift_r1cs_to_lf_true_mul_only(&r1cs)
+        } else {
+            println!("  mode: default selective lift");
+            lift_r1cs_to_lf(&r1cs)
+        };
         let elapsed_lift = t_lift.elapsed();
         r1lf.save_to_file(&path).expect("Failed to save R1LF");
         let file_size = std::fs::metadata(&path).unwrap().len();
         println!(
-            "  lift done: {:?}  lifted={} skipped_bool={} skipped_eq={} skipped_select={} added_vars={}",
+            "  lift done: {:?}  lifted={} skipped_bool={} skipped_eq={} skipped_select={} skipped_linear={} added_vars={}",
             elapsed_lift,
             stats.lifted_constraints,
             stats.skipped_bool,
             stats.skipped_eq,
             stats.skipped_select,
+            stats.skipped_linear,
             stats.added_vars
         );
         println!(

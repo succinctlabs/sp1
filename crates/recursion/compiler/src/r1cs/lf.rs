@@ -246,6 +246,7 @@ pub struct LiftStats {
     pub skipped_bool: usize,
     pub skipped_eq: usize,
     pub skipped_select: usize,
+    pub skipped_linear: usize,
     pub added_vars: usize,
 }
 
@@ -393,6 +394,154 @@ pub fn lift_r1cs_to_lf<F: PrimeField64>(
         stats.lifted_constraints += 1;
         stats.added_vars += 1;
 
+        c_i64[i].add_term(q, p);
+    }
+
+    let out = R1CSLf {
+        num_vars: next_var,
+        num_constraints: r1cs_bb.num_constraints,
+        num_public: r1cs_bb.num_public,
+        p_bb: BABYBEAR_P_U64,
+        a: a_i64,
+        b: b_i64,
+        c: c_i64,
+    };
+    (out, stats)
+}
+
+/// Cheaper lift mode: only lift **true multiplication** constraints (A!=1 and B!=1).
+///
+/// Rationale:
+/// - In large SP1 shrink R1CS, the vast majority of constraints are "linear" (A==1 or B==1),
+///   which would otherwise each get a full-width `q_i`.
+/// - This mode targets the big win first: reduce the count of large-range quotients to the set
+///   of true-mul constraints.
+///
+/// IMPORTANT: This does **not** by itself prove BabyBear-in-Frog semantics for linear constraints
+/// that may wrap mod p; it is intended as an experimental step toward an IR-level lift.
+pub fn lift_r1cs_to_lf_true_mul_only<F: PrimeField64>(
+    r1cs_bb: &crate::r1cs::types::R1CS<F>,
+) -> (R1CSLf, LiftStats) {
+    let p = BABYBEAR_P_U64 as i64;
+
+    // Convert matrices to i64 coeffs.
+    let mut a_i64 = Vec::with_capacity(r1cs_bb.num_constraints);
+    let mut b_i64 = Vec::with_capacity(r1cs_bb.num_constraints);
+    let mut c_i64 = Vec::with_capacity(r1cs_bb.num_constraints);
+    for i in 0..r1cs_bb.num_constraints {
+        a_i64.push(row_bb_to_i64(&r1cs_bb.a[i]));
+        b_i64.push(row_bb_to_i64(&r1cs_bb.b[i]));
+        c_i64.push(row_bb_to_i64(&r1cs_bb.c[i]));
+    }
+
+    // Identify boolean variables (same as the main lift).
+    let mut is_bool = vec![false; r1cs_bb.num_vars.max(1)];
+    for i in 0..r1cs_bb.num_constraints {
+        let a = &a_i64[i];
+        let b = &b_i64[i];
+        let c = &c_i64[i];
+        if c.terms.is_empty()
+            && a.terms.len() == 1
+            && a.terms[0].1 == 1
+            && b.terms.len() == 2
+        {
+            let bvar = a.terms[0].0;
+            let mut has_const = false;
+            let mut has_minus_b = false;
+            for (idx, coeff) in &b.terms {
+                if *idx == 0 && *coeff == 1 {
+                    has_const = true;
+                }
+                if *idx == bvar && *coeff == -1 {
+                    has_minus_b = true;
+                }
+            }
+            if has_const && has_minus_b && bvar < is_bool.len() {
+                is_bool[bvar] = true;
+            }
+        }
+    }
+
+    let mut stats = LiftStats { num_constraints: r1cs_bb.num_constraints, ..Default::default() };
+
+    let row_is_one = |row: &SparseRowI64| -> bool {
+        row.terms.len() == 1 && row.terms[0].0 == 0 && row.terms[0].1 == 1
+    };
+
+    let mut next_var = r1cs_bb.num_vars;
+    for i in 0..r1cs_bb.num_constraints {
+        let a = &a_i64[i];
+        let b = &b_i64[i];
+        let c = &c_i64[i];
+
+        // Skip boolean constraint pattern.
+        if c.terms.is_empty()
+            && a.terms.len() == 1
+            && a.terms[0].1 == 1
+            && {
+                let bvar = a.terms[0].0;
+                b.terms.len() == 2
+                    && b.terms.iter().any(|(j, cj)| *j == 0 && *cj == 1)
+                    && b.terms.iter().any(|(j, cj)| *j == bvar && *cj == -1)
+            }
+        {
+            stats.skipped_bool += 1;
+            continue;
+        }
+
+        // Skip equality constraint: (x - y) * 1 = 0
+        if row_is_single_term(b, 0, 1) && row_is_zero(c) && a.terms.len() == 2 {
+            let &(x, cx) = a.terms.get(0).expect("len=2");
+            let &(y, cy) = a.terms.get(1).expect("len=2");
+            if (cx, cy) == (1, -1) || (cx, cy) == (-1, 1) {
+                stats.skipped_eq += 1;
+                continue;
+            }
+        }
+
+        // Skip select constraint: (cond) * (a - b) = (out - b), with cond boolean.
+        if a.terms.len() == 1 && a.terms[0].1 == 1 {
+            let cond = a.terms[0].0;
+            if cond < is_bool.len() && is_bool[cond] && b.terms.len() == 2 && c.terms.len() == 2 {
+                let mut b_has_plus = None;
+                let mut b_has_minus = None;
+                for (j, cj) in b.terms.iter().copied() {
+                    if cj == 1 {
+                        b_has_plus = Some(j);
+                    } else if cj == -1 {
+                        b_has_minus = Some(j);
+                    }
+                }
+                let mut c_has_plus = None;
+                let mut c_has_minus = None;
+                for (j, cj) in c.terms.iter().copied() {
+                    if cj == 1 {
+                        c_has_plus = Some(j);
+                    } else if cj == -1 {
+                        c_has_minus = Some(j);
+                    }
+                }
+                if let (Some(_a_var), Some(b_var), Some(_out_var), Some(b_var2)) =
+                    (b_has_plus, b_has_minus, c_has_plus, c_has_minus)
+                {
+                    if b_var == b_var2 {
+                        stats.skipped_select += 1;
+                        continue;
+                    }
+                }
+            }
+        }
+
+        // Only lift true-mul constraints.
+        if row_is_one(a) || row_is_one(b) {
+            stats.skipped_linear += 1;
+            continue;
+        }
+
+        let q = next_var;
+        next_var += 1;
+        stats.lifted_constraints += 1;
+        stats.added_vars += 1;
         c_i64[i].add_term(q, p);
     }
 
