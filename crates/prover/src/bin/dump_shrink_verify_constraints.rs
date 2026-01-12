@@ -383,8 +383,8 @@ fn complete_witness_from_constraints(
                 continue;
             }
 
-            // Repair rule -1 (dominant): if C is a single variable term, treat this constraint as
-            // a defining assignment for that variable and overwrite it.
+            // Repair rule -1 (restricted): if C is a single variable term and that variable is
+            // still *unset* (origin==0), treat this constraint as a defining assignment and fill it.
             //
             // This matches how the compiler allocates fresh temporaries for results of:
             // - mul:      (x) * (y) = out
@@ -396,17 +396,16 @@ fn complete_witness_from_constraints(
                 let (dst, coeff_dst_f) = c.terms[0];
                 if dst != 0 {
                     let src = origin.get(dst).copied().unwrap_or(0);
-                    let is_mut = src == 0 || src == 3;
-                    if is_mut {
+                    // Only fill truly-unset temps; do NOT overwrite already-derived vars (origin==3),
+                    // because those can be constrained elsewhere (e.g. equalities tying them to fixed inputs).
+                    if src == 0 {
                         let coeff_dst = coeff_dst_f.as_canonical_u64();
                         if let Some(inv_coeff) = mod_inv(coeff_dst) {
                             // coeff_dst*dst = prod  => dst = prod/coeff_dst
                             let new_dst = mod_mul(prod, inv_coeff);
                             if w[dst] != Some(new_dst) {
                                 w[dst] = Some(new_dst);
-                                if origin[dst] == 0 {
-                                    origin[dst] = 3;
-                                }
+                                origin[dst] = 3;
                                 progress += 1;
                                 continue;
                             }
