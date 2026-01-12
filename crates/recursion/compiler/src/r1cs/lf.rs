@@ -282,7 +282,62 @@ fn row_bb_to_i64<F: PrimeField64>(row: &SparseRow<F>) -> SparseRowI64 {
 pub fn lift_r1cs_to_lf_with_linear_carries<F: PrimeField64>(
     r1cs_bb: &crate::r1cs::types::R1CS<F>,
 ) -> (R1CSLf, LiftStats) {
+    let (r1lf, stats, _w) = lift_r1cs_to_lf_core::<F>(r1cs_bb, None).expect("core lift cannot fail without witness");
+    (r1lf, stats)
+}
+
+/// Lift the R1CS to `R1LF` and simultaneously extend a satisfying BabyBear witness with the
+/// lift-introduced auxiliary vars (quotients/carries).
+///
+/// Returns:
+/// - `r1lf`: the lifted relation (same as `lift_r1cs_to_lf_with_linear_carries`)
+/// - `stats`: lift stats
+/// - `w_lf_u64`: witness of length `r1lf.num_vars` with canonical u64 representatives in `[0,p)`,
+///   where the tail are the computed aux vars.
+///
+/// IMPORTANT: this computes aux vars using the *integer* semantics implied by the lift:
+/// it interprets all BabyBear values via centered representatives and requires exact divisibility by `p`.
+pub fn lift_r1cs_to_lf_with_linear_carries_and_witness<F: PrimeField64>(
+    r1cs_bb: &crate::r1cs::types::R1CS<F>,
+    witness_bb: &[F],
+) -> Result<(R1CSLf, LiftStats, Vec<u64>), String> {
+    let (r1lf, stats, w) = lift_r1cs_to_lf_core::<F>(r1cs_bb, Some(witness_bb))?;
+    let w = w.expect("core should return witness when witness_bb is provided");
+    Ok((r1lf, stats, w))
+}
+
+// ============================================================================
+// Refactored core lift (single source of truth for rewrite logic)
+// ============================================================================
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum LiftDecision {
+    SkipBool,
+    SkipEq,
+    SkipSelect,
+    LiftCarry,
+    LiftQuotient,
+}
+
+fn lift_r1cs_to_lf_core<F: PrimeField64>(
+    r1cs_bb: &crate::r1cs::types::R1CS<F>,
+    witness_bb: Option<&[F]>,
+) -> Result<(R1CSLf, LiftStats, Option<Vec<u64>>), String> {
+    if let Some(w) = witness_bb {
+        if w.len() != r1cs_bb.num_vars {
+            return Err(format!(
+                "witness length mismatch: expected {} got {}",
+                r1cs_bb.num_vars,
+                w.len()
+            ));
+        }
+        if w.is_empty() || w[0].as_canonical_u64() != 1 {
+            return Err("witness_bb[0] must be 1".to_string());
+        }
+    }
+
     let p = BABYBEAR_P_U64 as i64;
+    let p_i128 = BABYBEAR_P_U64 as i128;
 
     // Convert matrices to i64 coeffs.
     let mut a_i64 = Vec::with_capacity(r1cs_bb.num_constraints);
@@ -294,7 +349,7 @@ pub fn lift_r1cs_to_lf_with_linear_carries<F: PrimeField64>(
         c_i64.push(row_bb_to_i64(&r1cs_bb.c[i]));
     }
 
-    // Identify boolean variables (same as the other lift modes).
+    // Identify boolean variables (same as before).
     let mut is_bool = vec![false; r1cs_bb.num_vars.max(1)];
     for i in 0..r1cs_bb.num_constraints {
         let a = &a_i64[i];
@@ -322,17 +377,13 @@ pub fn lift_r1cs_to_lf_with_linear_carries<F: PrimeField64>(
         }
     }
 
-    let mut stats = LiftStats { num_constraints: r1cs_bb.num_constraints, ..Default::default() };
-    let row_is_one = |row: &SparseRowI64| -> bool {
+    #[inline]
+    fn row_is_one(row: &SparseRowI64) -> bool {
         row.terms.len() == 1 && row.terms[0].0 == 0 && row.terms[0].1 == 1
-    };
+    }
 
-    let mut next_var = r1cs_bb.num_vars;
-    for i in 0..r1cs_bb.num_constraints {
-        let a = &a_i64[i];
-        let b = &b_i64[i];
-        let c = &c_i64[i];
-
+    #[inline]
+    fn decide_row(a: &SparseRowI64, b: &SparseRowI64, c: &SparseRowI64, is_bool: &[bool]) -> LiftDecision {
         // Skip boolean constraint pattern.
         if c.terms.is_empty()
             && a.terms.len() == 1
@@ -344,8 +395,7 @@ pub fn lift_r1cs_to_lf_with_linear_carries<F: PrimeField64>(
                     && b.terms.iter().any(|(j, cj)| *j == bvar && *cj == -1)
             }
         {
-            stats.skipped_bool += 1;
-            continue;
+            return LiftDecision::SkipBool;
         }
 
         // Skip equality constraint: (x - y) * 1 = 0
@@ -353,8 +403,7 @@ pub fn lift_r1cs_to_lf_with_linear_carries<F: PrimeField64>(
             let &(_x, cx) = a.terms.get(0).expect("len=2");
             let &(_y, cy) = a.terms.get(1).expect("len=2");
             if (cx, cy) == (1, -1) || (cx, cy) == (-1, 1) {
-                stats.skipped_eq += 1;
-                continue;
+                return LiftDecision::SkipEq;
             }
         }
 
@@ -384,27 +433,87 @@ pub fn lift_r1cs_to_lf_with_linear_carries<F: PrimeField64>(
                     (b_has_plus, b_has_minus, c_has_plus, c_has_minus)
                 {
                     if b_var == b_var2 {
-                        stats.skipped_select += 1;
-                        continue;
+                        return LiftDecision::SkipSelect;
                     }
                 }
             }
         }
 
-        // Lift everything else:
-        // - linear: carry var
-        // - true-mul: quotient var
+        // Lift everything else.
         let is_linear = row_is_one(a) || row_is_one(b);
-        let v = next_var;
-        next_var += 1;
-        stats.lifted_constraints += 1;
-        stats.added_vars += 1;
         if is_linear {
-            stats.added_carry_vars += 1;
+            LiftDecision::LiftCarry
         } else {
-            stats.added_q_vars += 1;
+            LiftDecision::LiftQuotient
         }
-        c_i64[i].add_term(v, p);
+    }
+
+    #[inline]
+    fn eval_row_i128<F: PrimeField64>(row: &SparseRowI64, w: &[F]) -> i128 {
+        row.terms
+            .iter()
+            .map(|(idx, coeff)| {
+                let v = bb_coeff_to_centered_i64(w[*idx].as_canonical_u64()) as i128;
+                (*coeff as i128) * v
+            })
+            .sum()
+    }
+
+    let mut stats = LiftStats { num_constraints: r1cs_bb.num_constraints, ..Default::default() };
+    let mut w_out: Option<Vec<u64>> = witness_bb.map(|w| w.iter().map(|x| x.as_canonical_u64()).collect());
+
+    let mut next_var = r1cs_bb.num_vars;
+    for i in 0..r1cs_bb.num_constraints {
+        let a = &a_i64[i];
+        let b = &b_i64[i];
+        let c = &c_i64[i];
+        let decision = decide_row(a, b, c, &is_bool);
+        match decision {
+            LiftDecision::SkipBool => stats.skipped_bool += 1,
+            LiftDecision::SkipEq => stats.skipped_eq += 1,
+            LiftDecision::SkipSelect => stats.skipped_select += 1,
+            LiftDecision::LiftCarry | LiftDecision::LiftQuotient => {
+                let v_idx = next_var;
+                next_var += 1;
+                stats.lifted_constraints += 1;
+                stats.added_vars += 1;
+                match decision {
+                    LiftDecision::LiftCarry => stats.added_carry_vars += 1,
+                    LiftDecision::LiftQuotient => stats.added_q_vars += 1,
+                    _ => {}
+                }
+
+                if let (Some(witness_bb), Some(w_out_vec)) = (witness_bb, w_out.as_mut()) {
+                    // Compute aux value as integer quotient:
+                    //   a_int * b_int = c_int + p * v_int
+                    let a_int = eval_row_i128(a, witness_bb);
+                    let b_int = eval_row_i128(b, witness_bb);
+                    let c_int = eval_row_i128(c, witness_bb);
+                    let num = a_int * b_int - c_int;
+                    if num % p_i128 != 0 {
+                        return Err(format!(
+                            "lift witness: non-divisible row {i}: (a*b-c) not multiple of p"
+                        ));
+                    }
+                    let mut v_int = num / p_i128;
+                    v_int %= p_i128;
+                    if v_int < 0 {
+                        v_int += p_i128;
+                    }
+                    let v_u64 = v_int as u64;
+                    if v_u64 >= BABYBEAR_P_U64 {
+                        return Err("lift witness: v out of range after mod p".to_string());
+                    }
+                    if v_idx != w_out_vec.len() {
+                        return Err("lift witness: internal witness length mismatch".to_string());
+                    }
+                    w_out_vec.push(v_u64);
+                }
+
+                // Modify C row.
+                c_i64[i].add_term(v_idx, p);
+            }
+        }
     }
 
     let out = R1CSLf {
@@ -416,5 +525,10 @@ pub fn lift_r1cs_to_lf_with_linear_carries<F: PrimeField64>(
         b: b_i64,
         c: c_i64,
     };
-    (out, stats)
+    if let Some(w) = w_out.as_ref() {
+        if out.num_vars != w.len() {
+            return Err("lift witness: final witness length mismatch".to_string());
+        }
+    }
+    Ok((out, stats, w_out))
 }

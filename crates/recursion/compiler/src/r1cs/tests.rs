@@ -9,8 +9,37 @@ mod tests {
 
     use crate::r1cs::types::{R1CS, SparseRow};
     use crate::r1cs::poseidon2::{Poseidon2R1CS, WIDTH};
+    use crate::r1cs::lf::{
+        lift_r1cs_to_lf_with_linear_carries, lift_r1cs_to_lf_with_linear_carries_and_witness,
+    };
 
     type F = BabyBear;
+
+    #[test]
+    fn test_lift_refactor_digest_matches() {
+        // Toy satisfied R1CS: (x) * (y) = z, with x=3,y=5,z=15.
+        // This constraint is not a skip pattern, so it will be lifted and will introduce 1 aux var.
+        let mut r1cs = R1CS::<F>::new();
+        r1cs.num_vars = 4; // [1, x, y, z]
+        r1cs.add_constraint(
+            SparseRow::single(1),
+            SparseRow::single(2),
+            SparseRow::single(3),
+        );
+
+        let mut witness = vec![F::one(); r1cs.num_vars];
+        witness[1] = F::from_canonical_u64(3);
+        witness[2] = F::from_canonical_u64(5);
+        witness[3] = F::from_canonical_u64(15);
+        assert!(r1cs.is_satisfied(&witness));
+
+        let (r1lf_a, _stats_a) = lift_r1cs_to_lf_with_linear_carries(&r1cs);
+        let (r1lf_b, _stats_b, w_lf_u64) =
+            lift_r1cs_to_lf_with_linear_carries_and_witness(&r1cs, &witness).unwrap();
+
+        assert_eq!(r1lf_a.digest(), r1lf_b.digest(), "R1LF digest must match between lift entrypoints");
+        assert_eq!(w_lf_u64.len(), r1lf_b.num_vars, "lifted witness must match R1LF.num_vars");
+    }
 
     #[test]
     fn test_poseidon2_sbox_constraint_count() {
