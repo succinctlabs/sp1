@@ -20,6 +20,7 @@ use p3_field::PrimeField64;
 use sp1_primitives::io::sha256_hash;
 use std::io::{Read, Write};
 use p3_maybe_rayon::prelude::*;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// BabyBear prime modulus (p = 2^31 - 2^27 + 1).
 pub const BABYBEAR_P_U64: u64 = 2013265921;
@@ -474,61 +475,103 @@ fn lift_r1cs_to_lf_core<F: PrimeField64>(
     }
 
     let mut stats = LiftStats { num_constraints: r1cs_bb.num_constraints, ..Default::default() };
-    let mut w_out: Option<Vec<u64>> = witness_bb.map(|w| w.iter().map(|x| x.as_canonical_u64()).collect());
+    // Decide lift/skip per row (parallel) then assign deterministic aux indices (sequential prefix sum).
+    let decisions: Vec<LiftDecision> = (0..r1cs_bb.num_constraints)
+        .into_par_iter()
+        .map(|i| decide_row(&a_i64[i], &b_i64[i], &c_i64[i], &is_bool))
+        .collect();
 
-    let mut next_var = r1cs_bb.num_vars;
-    for i in 0..r1cs_bb.num_constraints {
-        let a = &a_i64[i];
-        let b = &b_i64[i];
-        let c = &c_i64[i];
-        let decision = decide_row(a, b, c, &is_bool);
-        match decision {
+    // Map each constraint i -> aux position (0..lifted-1) or u32::MAX if not lifted.
+    let mut lift_pos: Vec<u32> = vec![u32::MAX; r1cs_bb.num_constraints];
+    let mut next_aux: u32 = 0;
+    for (i, d) in decisions.iter().enumerate() {
+        match d {
             LiftDecision::SkipBool => stats.skipped_bool += 1,
             LiftDecision::SkipEq => stats.skipped_eq += 1,
             LiftDecision::SkipSelect => stats.skipped_select += 1,
-            LiftDecision::LiftCarry | LiftDecision::LiftQuotient => {
-                let v_idx = next_var;
-                next_var += 1;
+            LiftDecision::LiftCarry => {
                 stats.lifted_constraints += 1;
                 stats.added_vars += 1;
-                match decision {
-                    LiftDecision::LiftCarry => stats.added_carry_vars += 1,
-                    LiftDecision::LiftQuotient => stats.added_q_vars += 1,
-                    _ => {}
-                }
-
-                if let (Some(witness_bb), Some(w_out_vec)) = (witness_bb, w_out.as_mut()) {
-                    // Compute aux value as integer quotient:
-                    //   a_int * b_int = c_int + p * v_int
-                    let a_int = eval_row_i128(a, witness_bb);
-                    let b_int = eval_row_i128(b, witness_bb);
-                    let c_int = eval_row_i128(c, witness_bb);
-                    let num = a_int * b_int - c_int;
-                    if num % p_i128 != 0 {
-                        return Err(format!(
-                            "lift witness: non-divisible row {i}: (a*b-c) not multiple of p"
-                        ));
-                    }
-                    let mut v_int = num / p_i128;
-                    v_int %= p_i128;
-                    if v_int < 0 {
-                        v_int += p_i128;
-                    }
-                    let v_u64 = v_int as u64;
-                    if v_u64 >= BABYBEAR_P_U64 {
-                        return Err("lift witness: v out of range after mod p".to_string());
-                    }
-                    if v_idx != w_out_vec.len() {
-                        return Err("lift witness: internal witness length mismatch".to_string());
-                    }
-                    w_out_vec.push(v_u64);
-                }
-
-                // Modify C row.
-                c_i64[i].add_term(v_idx, p);
+                stats.added_carry_vars += 1;
+                lift_pos[i] = next_aux;
+                next_aux += 1;
+            }
+            LiftDecision::LiftQuotient => {
+                stats.lifted_constraints += 1;
+                stats.added_vars += 1;
+                stats.added_q_vars += 1;
+                lift_pos[i] = next_aux;
+                next_aux += 1;
             }
         }
     }
+    let lifted_total = next_aux as usize;
+
+    // Extend witness (compute aux vars) in parallel if witness provided.
+    let mut w_out: Option<Vec<u64>> = witness_bb.map(|w| w.iter().map(|x| x.as_canonical_u64()).collect());
+    if let (Some(witness_bb), Some(w_out_vec)) = (witness_bb, w_out.as_mut()) {
+        // Use atomics to safely fill aux slots in parallel.
+        let aux: Vec<AtomicU64> = (0..lifted_total).map(|_| AtomicU64::new(u64::MAX)).collect();
+
+        (0..r1cs_bb.num_constraints)
+            .into_par_iter()
+            .try_for_each(|i| -> Result<(), String> {
+                let pos = lift_pos[i];
+                if pos == u32::MAX {
+                    return Ok(());
+                }
+                let a = &a_i64[i];
+                let b = &b_i64[i];
+                let c = &c_i64[i];
+                let a_int = eval_row_i128(a, witness_bb);
+                let b_int = eval_row_i128(b, witness_bb);
+                let c_int = eval_row_i128(c, witness_bb);
+                let num = a_int * b_int - c_int;
+                if num % p_i128 != 0 {
+                    return Err(format!(
+                        "lift witness: non-divisible row {i}: (a*b-c) not multiple of p"
+                    ));
+                }
+                let mut v_int = num / p_i128;
+                v_int %= p_i128;
+                if v_int < 0 {
+                    v_int += p_i128;
+                }
+                let v_u64 = v_int as u64;
+                if v_u64 >= BABYBEAR_P_U64 {
+                    return Err("lift witness: v out of range after mod p".to_string());
+                }
+                aux[pos as usize].store(v_u64, Ordering::Relaxed);
+                Ok(())
+            })?;
+
+        // Append aux in deterministic order.
+        if w_out_vec.len() != r1cs_bb.num_vars {
+            return Err("lift witness: base witness length mismatch".to_string());
+        }
+        for (j, a) in aux.iter().enumerate() {
+            let v = a.load(Ordering::Relaxed);
+            if v == u64::MAX {
+                return Err(format!("lift witness: aux slot {j} was not filled"));
+            }
+            w_out_vec.push(v);
+        }
+    }
+
+    // Modify C rows in parallel: add (+p)*v_idx where v_idx = num_vars + lift_pos[i]
+    let base_vars = r1cs_bb.num_vars;
+    c_i64
+        .par_iter_mut()
+        .enumerate()
+        .for_each(|(i, crow)| {
+            let pos = lift_pos[i];
+            if pos != u32::MAX {
+                let v_idx = base_vars + pos as usize;
+                crow.add_term(v_idx, p);
+            }
+        });
+
+    let next_var = r1cs_bb.num_vars + lifted_total;
 
     let out = R1CSLf {
         num_vars: next_var,
