@@ -104,9 +104,32 @@ fn build_shrink_verifier_ops() -> Vec<DslIr<InnerConfig>> {
         &machine_verified,
         input,
         false, // value_assertions disabled - we want algebraic shape only
-        sp1_recursion_circuit::machine::PublicValuesOutputDigest::Root,
+        // IMPORTANT: keep this consistent with witness-mode export so the compiled R1CS shape
+        // (num_vars/digest) matches between shape-only and witness-only runs.
+        sp1_recursion_circuit::machine::PublicValuesOutputDigest::Reduce,
     );
     builder.into_operations()
+}
+
+fn read_r1lf_header(path: &str) -> Option<([u8; 32], u64, usize, usize, usize)> {
+    use std::io::Read;
+    let mut f = std::fs::File::open(path).ok()?;
+    let mut hdr = [0u8; 80];
+    f.read_exact(&mut hdr).ok()?;
+    if &hdr[0..4] != b"R1LF" {
+        return None;
+    }
+    let version = u32::from_le_bytes(hdr[4..8].try_into().ok()?);
+    if version != 1 {
+        return None;
+    }
+    let mut digest = [0u8; 32];
+    digest.copy_from_slice(&hdr[8..40]);
+    let p_bb = u64::from_le_bytes(hdr[40..48].try_into().ok()?);
+    let num_vars = u64::from_le_bytes(hdr[48..56].try_into().ok()?) as usize;
+    let num_constraints = u64::from_le_bytes(hdr[56..64].try_into().ok()?) as usize;
+    let num_public = u64::from_le_bytes(hdr[64..72].try_into().ok()?) as usize;
+    Some((digest, p_bb, num_vars, num_constraints, num_public))
 }
 
 fn write_u64le(path: &str, xs: &[u64]) {
@@ -426,7 +449,8 @@ fn main() {
             &mut builder,
             &machine_verified,
             input,
-            true, // enable value assertions for a concrete witness run
+            // IMPORTANT: keep algebraic shape identical to `build_shrink_verifier_ops()`.
+            false,
             sp1_recursion_circuit::machine::PublicValuesOutputDigest::Reduce,
         );
         builder.into_operations()
@@ -448,7 +472,7 @@ fn main() {
     println!("  Total ops: {}", ops.len());
 
     // Export modes:
-    // - If OUT_WITNESS is set: dump witness ONLY (do not rewrite/write the R1LF shape every time).
+    // - If OUT_WITNESS is set: dump witness, and (optionally) also write OUT_R1CS_LF if requested.
     // - Else if OUT_R1CS_LF is set: dump the (shape) R1LF ONLY.
     let out_r1lf = std::env::var("OUT_R1CS_LF").ok();
     let out_witness = std::env::var("OUT_WITNESS").ok();
@@ -458,21 +482,21 @@ fn main() {
     // - In witness mode, we compile a var-map retaining R1CS later (r1cs2), so skip the early compile.
     // - In shape-only mode, compile once here from `ops`.
     let r1cs_shape_only = if out_witness.is_none() {
-        println!("\nCompiling to R1CS...");
-        let start = std::time::Instant::now();
-        let r1cs = R1CSCompiler::<InnerConfig>::compile(ops);
-        let elapsed = start.elapsed();
+    println!("\nCompiling to R1CS...");
+    let start = std::time::Instant::now();
+    let r1cs = R1CSCompiler::<InnerConfig>::compile(ops);
+    let elapsed = start.elapsed();
 
-        println!("\n=========================================================");
-        println!("R1CS Compilation Complete");
-        println!("=========================================================");
-        println!("  Variables:    {:>12}", r1cs.num_vars);
-        println!("  Constraints:  {:>12}", r1cs.num_constraints);
-        println!("  Public inputs:{:>12}", r1cs.num_public);
-        println!("  Compile time: {:>12.2?}", elapsed);
-
-        // Compute and print digest
-        let digest = r1cs.digest();
+    println!("\n=========================================================");
+    println!("R1CS Compilation Complete");
+    println!("=========================================================");
+    println!("  Variables:    {:>12}", r1cs.num_vars);
+    println!("  Constraints:  {:>12}", r1cs.num_constraints);
+    println!("  Public inputs:{:>12}", r1cs.num_public);
+    println!("  Compile time: {:>12.2?}", elapsed);
+    
+    // Compute and print digest
+    let digest = r1cs.digest();
         r1cs_stats = Some((r1cs.num_vars, r1cs.num_constraints, r1cs.num_public, digest));
         println!("\n  R1CS Digest (SHA256):");
         println!("    {:02x?}", &digest[..16]);
@@ -483,9 +507,6 @@ fn main() {
     };
 
     if let Some(wit_path) = out_witness.as_deref() {
-        if out_r1lf.is_some() {
-            println!("NOTE: OUT_WITNESS is set, so we will NOT write OUT_R1CS_LF (shape export).");
-        }
         println!("\nLifting R1CS for LF+ (witness mode: compute+dump witness only)...");
         let t_lift_total = std::time::Instant::now();
 
@@ -501,7 +522,8 @@ fn main() {
                 &mut builder,
                 &machine_verified,
                 input,
-                true,
+                // Keep algebraic shape identical to `build_shrink_verifier_ops()`.
+                false,
                 sp1_recursion_circuit::machine::PublicValuesOutputDigest::Reduce,
             );
             let block = builder.into_root_block();
@@ -539,9 +561,9 @@ fn main() {
             println!("  Public inputs:{:>12}", r1cs2.num_public);
             let digest = r1cs2.digest();
             r1cs_stats = Some((r1cs2.num_vars, r1cs2.num_constraints, r1cs2.num_public, digest));
-            println!("\n  R1CS Digest (SHA256):");
-            println!("    {:02x?}", &digest[..16]);
-            println!("    {:02x?}", &digest[16..]);
+    println!("\n  R1CS Digest (SHA256):");
+    println!("    {:02x?}", &digest[..16]);
+    println!("    {:02x?}", &digest[16..]);
 
             // Build full R1CS witness vector.
             let mut w_opt: Vec<Option<u64>> = vec![None; r1cs2.num_vars];
@@ -630,17 +652,85 @@ fn main() {
             r1lf.num_public,
             &r1lf.digest()[..8]
         );
+
+        // If OUT_R1CS_LF is also set, reuse existing file if it matches; otherwise rewrite.
+        if let Some(out_path) = out_r1lf.as_deref() {
+            let want_digest = r1lf.digest();
+            let want_p = r1lf.p_bb;
+            let want_nv = r1lf.num_vars;
+            let want_nc = r1lf.num_constraints;
+            let want_np = r1lf.num_public;
+            let mut should_write = true;
+            if let Some((d, p, nv, nc, npub)) = read_r1lf_header(out_path) {
+                if d == want_digest && p == want_p && nv == want_nv && nc == want_nc && npub == want_np {
+                    should_write = false;
+                    println!("OUT_R1CS_LF exists and matches witness-mode shape; skipping write: {out_path}");
+                } else {
+                    println!(
+                        "OUT_R1CS_LF exists but does NOT match witness-mode shape; rewriting: {out_path}\n  have: num_vars={} num_constraints={} num_public={} p_bb={} digest={:02x?}...\n  want: num_vars={} num_constraints={} num_public={} p_bb={} digest={:02x?}...",
+                        nv,
+                        nc,
+                        npub,
+                        p,
+                        &d[..8],
+                        want_nv,
+                        want_nc,
+                        want_np,
+                        want_p,
+                        &want_digest[..8],
+                    );
+                }
+            }
+            if should_write {
+                let t_save = std::time::Instant::now();
+                r1lf.save_to_file(out_path).expect("Failed to save OUT_R1CS_LF");
+                println!("Wrote R1LF to {out_path} in {:?}", t_save.elapsed());
+            }
+        }
     } else if let Some(path) = out_r1lf.as_deref() {
         println!("\nLifting R1CS for LF+ (shape mode: write R1LF only)...");
         let t_lift_total = std::time::Instant::now();
         let r1cs = r1cs_shape_only.expect("shape-only R1CS must have been compiled");
         let (r1lf, stats) = lift_r1cs_to_lf_with_linear_carries(&r1cs);
-        let t_save = std::time::Instant::now();
-        r1lf.save_to_file(path).expect("Failed to save R1LF");
-        let dt_save = t_save.elapsed();
-        let file_size = std::fs::metadata(path).unwrap().len();
-        let mb = file_size as f64 / 1_000_000.0;
-        let mbps = mb / dt_save.as_secs_f64().max(1e-9);
+        let want_digest = r1lf.digest();
+        let want_p = r1lf.p_bb;
+        let want_nv = r1lf.num_vars;
+        let want_nc = r1lf.num_constraints;
+        let want_np = r1lf.num_public;
+        let mut should_write = true;
+        if let Some((d, p, nv, nc, npub)) = read_r1lf_header(path) {
+            if d == want_digest && p == want_p && nv == want_nv && nc == want_nc && npub == want_np {
+                should_write = false;
+                println!("OUT_R1CS_LF exists and matches shape; skipping write: {path}");
+            } else {
+                println!(
+                    "OUT_R1CS_LF exists but differs; rewriting: {path}\n  have: num_vars={} num_constraints={} num_public={} p_bb={} digest={:02x?}...\n  want: num_vars={} num_constraints={} num_public={} p_bb={} digest={:02x?}...",
+                    nv,
+                    nc,
+                    npub,
+                    p,
+                    &d[..8],
+                    want_nv,
+                    want_nc,
+                    want_np,
+                    want_p,
+                    &want_digest[..8],
+                );
+            }
+        }
+        let (dt_save, mbps, mb) = if should_write {
+            let t_save = std::time::Instant::now();
+            r1lf.save_to_file(path).expect("Failed to save R1LF");
+            let dt_save = t_save.elapsed();
+            let file_size = std::fs::metadata(path).unwrap().len();
+            let mb = file_size as f64 / 1_000_000.0;
+            let mbps = mb / dt_save.as_secs_f64().max(1e-9);
+            (dt_save, mbps, mb)
+        } else {
+            let file_size = std::fs::metadata(path).unwrap().len();
+            let mb = file_size as f64 / 1_000_000.0;
+            (std::time::Duration::from_secs(0), 0.0, mb)
+        };
         println!(
             "  lift done (total): {:?}  lifted={} skipped_bool={} skipped_eq={} skipped_select={} added_vars={} (q={} carry={})",
             t_lift_total.elapsed(),
@@ -652,7 +742,9 @@ fn main() {
             stats.added_q_vars,
             stats.added_carry_vars
         );
-        println!("  R1LF save time: {:?} ({:.2} MB/s)", dt_save, mbps);
+        if should_write {
+            println!("  R1LF save time: {:?} ({:.2} MB/s)", dt_save, mbps);
+        }
         println!(
             "  R1LF: num_vars={} num_constraints={} num_public={} digest={:02x?}...",
             r1lf.num_vars,
@@ -660,7 +752,9 @@ fn main() {
             r1lf.num_public,
             &r1lf.digest()[..8]
         );
-        println!("Wrote R1LF to {path} ({:.2} MB)", mb);
+        if should_write {
+            println!("Wrote R1LF to {path} ({:.2} MB)", mb);
+        }
     }
     
     // Optionally write JSON stats (for quick inspection without loading full R1CS)
