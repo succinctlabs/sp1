@@ -22,6 +22,7 @@ use sp1_recursion_compiler::{
     config::InnerConfig,
     ir::{Builder, DslIr},
     r1cs::{lf::{lift_r1cs_to_lf, lift_r1cs_to_lf_true_mul_only}, R1CSCompiler},
+    r1cs::poseidon2::{reset_poseidon2_r1cs_constraint_stats, take_poseidon2_r1cs_constraint_stats},
 };
 use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
 
@@ -129,6 +130,8 @@ fn main() {
 
     // Compile to R1CS
     println!("\nCompiling to R1CS...");
+    // Reset Poseidon2 constraint counters before compilation.
+    reset_poseidon2_r1cs_constraint_stats();
     let start = std::time::Instant::now();
     let r1cs = R1CSCompiler::<InnerConfig>::compile(ops);
     let elapsed = start.elapsed();
@@ -140,6 +143,13 @@ fn main() {
     println!("  Constraints:  {:>12}", r1cs.num_constraints);
     println!("  Public inputs:{:>12}", r1cs.num_public);
     println!("  Compile time: {:>12.2?}", elapsed);
+
+    // Poseidon2 expansion stats (constraints emitted inside Poseidon2R1CS expansion).
+    let (p2_total, p2_linear, p2_mul) = take_poseidon2_r1cs_constraint_stats();
+    println!("\nPoseidon2 expansion constraint stats:");
+    println!("  total:  {p2_total}");
+    println!("  linear: {p2_linear}");
+    println!("  mul:    {p2_mul}");
     
     // Compute and print digest
     let digest = r1cs.digest();
