@@ -136,19 +136,69 @@ fn parse_mem_id(id: &str) -> Option<(u64, usize)> {
     None
 }
 
+fn load_default_fibonacci_elf_bytes() -> Vec<u8> {
+    // Prefer the (already-built) fibonacci example ELF if present.
+    //
+    // This is the simplest "known-good public input" program to prove, rather than proving the zkVM itself.
+    // Path is relative to `sp1/crates/prover` (this crate).
+    let prover_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let examples_dir = prover_dir.join("../../examples");
+    let elf_path = examples_dir.join(
+        "target/elf-compilation/riscv32im-succinct-zkvm-elf/release/fibonacci-program",
+    );
+
+    if elf_path.exists() {
+        return std::fs::read(&elf_path)
+            .unwrap_or_else(|e| panic!("failed to read default fibonacci ELF at {}: {e}", elf_path.display()));
+    }
+
+    // If it doesn't exist (fresh checkout), build it once using the canonical examples build flow.
+    // This triggers `examples/fibonacci/script/build.rs`, which runs `sp1_build::build_program("../program")`.
+    let status = std::process::Command::new("cargo")
+        .arg("build")
+        .arg("-p")
+        .arg("fibonacci-script")
+        .arg("--release")
+        .current_dir(&examples_dir)
+        .status()
+        .expect("failed to spawn `cargo build -p fibonacci-script --release` in sp1/examples");
+
+    if !status.success() {
+        panic!(
+            "failed to build default fibonacci ELF (exit={status}).\n\
+             Try running manually:\n\
+               (cd sp1/examples && cargo build -p fibonacci-script --release)\n\
+             Or set ELF_PATH=/path/to/your/program.elf"
+        );
+    }
+
+    std::fs::read(&elf_path)
+        .unwrap_or_else(|e| panic!("built fibonacci-script, but ELF still missing at {}: {e}", elf_path.display()))
+}
+
 fn build_real_input_with_merkle() -> (SP1Prover, SP1CompressWithVKeyWitnessValues<BabyBearPoseidon2>) {
     // Build a concrete compress proof (from a small dummy program) and produce the shrink-verifier
     // circuit input (vk+proof+merkle) so we can materialize a full witness.
     //
     // This is statement-time; shape-only exports should NOT depend on this.
-    let elf = include_bytes!("../../elf/riscv32im-succinct-zkvm-elf");
+    let elf_bytes: Vec<u8> = if let Ok(path) = std::env::var("ELF_PATH") {
+        std::fs::read(&path).unwrap_or_else(|e| panic!("failed to read ELF_PATH={path}: {e}"))
+    } else {
+        load_default_fibonacci_elf_bytes()
+    };
     let prover: SP1Prover = SP1Prover::new();
     let opts = SP1ProverOpts::auto();
     let context = SP1Context::default();
 
-    let (_, pk_d, program, vk) = prover.setup(elf);
+    let (_, pk_d, program, vk) = prover.setup(&elf_bytes);
     let mut stdin = SP1Stdin::new();
-    stdin.write(&500u32);
+    // The fibonacci example expects a `u32` input; default to something small and deterministic.
+    let stdin_u32: u32 = std::env::var("ELF_STDIN_U32")
+        .ok()
+        .as_deref()
+        .map(|s| s.parse().expect("failed to parse ELF_STDIN_U32 as u32"))
+        .unwrap_or(10);
+    stdin.write(&stdin_u32);
     let core_proof = prover.prove_core(&pk_d, program, &stdin, opts, context).unwrap();
     let compressed = prover.compress(&vk, core_proof, vec![], opts).unwrap();
 
