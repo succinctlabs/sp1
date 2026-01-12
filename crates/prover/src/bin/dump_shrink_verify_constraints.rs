@@ -419,22 +419,52 @@ fn complete_witness_from_constraints(
                     && row.terms[0].1.as_canonical_u64() == 1
             };
             if is_one_row(a) || is_one_row(b) {
+                // Linear constraint: (LIN·w) = (C·w)
                 let lin = if is_one_row(a) { b } else { a };
                 let lin_val = if is_one_row(a) { b_val } else { a_val };
+                let rhs_val = c_val;
 
-                // If C has exactly one mutable var term (dst), overwrite it to satisfy the linear equation.
-                let (c_fixed, c_mut, c_mut_cnt) =
-                    row_fixed_sum_and_single_mutable_coeff(c, w, origin)?;
-                if c_mut_cnt == 1 {
-                    let (dst, coeff_dst) = c_mut.expect("c_mut");
-                    if dst != 0 {
-                        if let Some(inv_coeff) = mod_inv(coeff_dst) {
-                            // lin_val = c_fixed + coeff_dst*dst  => dst = (lin_val - c_fixed)/coeff_dst
-                            let rhs = (lin_val + BABYBEAR_P - c_fixed) % BABYBEAR_P;
-                            let new_dst = mod_mul(rhs, inv_coeff);
-                            w[dst] = Some(new_dst);
-                            if origin[dst] == 0 {
-                                origin[dst] = 3;
+                // Deterministic projection step:
+                // - Prefer solving for a mutable variable in LIN (so we don't fight other defining constraints on C temps).
+                // - Otherwise solve for a mutable variable in C.
+                //
+                // Choose the max index mutable variable for determinism.
+                let pick_mut = |row: &sp1_recursion_compiler::r1cs::types::SparseRow<BabyBear>| {
+                    row.terms
+                        .iter()
+                        .filter_map(|(idx, coeff)| {
+                            if *idx == 0 {
+                                return None;
+                            }
+                            let src = origin.get(*idx).copied().unwrap_or(0);
+                            let is_mut = src == 0 || src == 3;
+                            if is_mut {
+                                Some((*idx, coeff.as_canonical_u64()))
+                            } else {
+                                None
+                            }
+                        })
+                        .max_by_key(|(idx, _)| *idx)
+                };
+
+                // Solve var in LIN: coeff*v + sum_other = rhs_val
+                if let Some((v_idx, v_coeff)) = pick_mut(lin) {
+                    let mut sum_other = 0u64;
+                    for (idx, coeff) in lin.terms.iter() {
+                        let ci = coeff.as_canonical_u64();
+                        if *idx == v_idx {
+                            continue;
+                        }
+                        let wi = w[*idx].expect("witness slot missing during eval");
+                        sum_other = mod_add(sum_other, mod_mul(ci, wi));
+                    }
+                    if let Some(inv_coeff) = mod_inv(v_coeff) {
+                        let rhs = (rhs_val + BABYBEAR_P - sum_other) % BABYBEAR_P;
+                        let new_v = mod_mul(rhs, inv_coeff);
+                        if w[v_idx] != Some(new_v) {
+                            w[v_idx] = Some(new_v);
+                            if origin[v_idx] == 0 {
+                                origin[v_idx] = 3;
                             }
                             progress += 1;
                             continue;
@@ -442,22 +472,24 @@ fn complete_witness_from_constraints(
                     }
                 }
 
-                // Symmetric case: if lin side is a single mutable destination, and C is fully fixed,
-                // we can overwrite that destination too.
-                let (lin_fixed, lin_mut, lin_mut_cnt) =
-                    row_fixed_sum_and_single_mutable_coeff(lin, w, origin)?;
-                let (c_fixed2, _c_mut2, c_mut_cnt2) =
-                    row_fixed_sum_and_single_mutable_coeff(c, w, origin)?;
-                if lin_mut_cnt == 1 && c_mut_cnt2 == 0 {
-                    let (dst, coeff_dst) = lin_mut.expect("lin_mut");
-                    if dst != 0 {
-                        if let Some(inv_coeff) = mod_inv(coeff_dst) {
-                            // (lin_fixed + coeff*dst) = c_fixed2  => dst = (c_fixed2 - lin_fixed)/coeff
-                            let rhs = (c_fixed2 + BABYBEAR_P - lin_fixed) % BABYBEAR_P;
-                            let new_dst = mod_mul(rhs, inv_coeff);
-                            w[dst] = Some(new_dst);
-                            if origin[dst] == 0 {
-                                origin[dst] = 3;
+                // Solve var in C: coeff*v + sum_other = lin_val
+                if let Some((v_idx, v_coeff)) = pick_mut(c) {
+                    let mut sum_other = 0u64;
+                    for (idx, coeff) in c.terms.iter() {
+                        let ci = coeff.as_canonical_u64();
+                        if *idx == v_idx {
+                            continue;
+                        }
+                        let wi = w[*idx].expect("witness slot missing during eval");
+                        sum_other = mod_add(sum_other, mod_mul(ci, wi));
+                    }
+                    if let Some(inv_coeff) = mod_inv(v_coeff) {
+                        let rhs = (lin_val + BABYBEAR_P - sum_other) % BABYBEAR_P;
+                        let new_v = mod_mul(rhs, inv_coeff);
+                        if w[v_idx] != Some(new_v) {
+                            w[v_idx] = Some(new_v);
+                            if origin[v_idx] == 0 {
+                                origin[v_idx] = 3;
                             }
                             progress += 1;
                             continue;
