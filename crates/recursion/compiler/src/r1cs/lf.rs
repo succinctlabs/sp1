@@ -19,6 +19,7 @@ use crate::r1cs::types::SparseRow;
 use p3_field::PrimeField64;
 use sp1_primitives::io::sha256_hash;
 use std::io::{Read, Write};
+use p3_maybe_rayon::prelude::*;
 
 /// BabyBear prime modulus (p = 2^31 - 2^27 + 1).
 pub const BABYBEAR_P_U64: u64 = 2013265921;
@@ -339,41 +340,54 @@ fn lift_r1cs_to_lf_core<F: PrimeField64>(
     let p = BABYBEAR_P_U64 as i64;
     let p_i128 = BABYBEAR_P_U64 as i128;
 
-    // Convert matrices to i64 coeffs.
-    let mut a_i64 = Vec::with_capacity(r1cs_bb.num_constraints);
-    let mut b_i64 = Vec::with_capacity(r1cs_bb.num_constraints);
-    let mut c_i64 = Vec::with_capacity(r1cs_bb.num_constraints);
-    for i in 0..r1cs_bb.num_constraints {
-        a_i64.push(row_bb_to_i64(&r1cs_bb.a[i]));
-        b_i64.push(row_bb_to_i64(&r1cs_bb.b[i]));
-        c_i64.push(row_bb_to_i64(&r1cs_bb.c[i]));
-    }
+    // Convert matrices to i64 coeffs (parallel when `p3-maybe-rayon` enables it).
+    let a_i64: Vec<SparseRowI64> = (0..r1cs_bb.num_constraints)
+        .into_par_iter()
+        .map(|i| row_bb_to_i64(&r1cs_bb.a[i]))
+        .collect();
+    let b_i64: Vec<SparseRowI64> = (0..r1cs_bb.num_constraints)
+        .into_par_iter()
+        .map(|i| row_bb_to_i64(&r1cs_bb.b[i]))
+        .collect();
+    let mut c_i64: Vec<SparseRowI64> = (0..r1cs_bb.num_constraints)
+        .into_par_iter()
+        .map(|i| row_bb_to_i64(&r1cs_bb.c[i]))
+        .collect();
 
-    // Identify boolean variables (same as before).
+    // Identify boolean variables (same as before), but parallelize the scan.
     let mut is_bool = vec![false; r1cs_bb.num_vars.max(1)];
-    for i in 0..r1cs_bb.num_constraints {
-        let a = &a_i64[i];
-        let b = &b_i64[i];
-        let c = &c_i64[i];
-        if c.terms.is_empty()
-            && a.terms.len() == 1
-            && a.terms[0].1 == 1
-            && b.terms.len() == 2
-        {
-            let bvar = a.terms[0].0;
-            let mut has_const = false;
-            let mut has_minus_b = false;
-            for (idx, coeff) in &b.terms {
-                if *idx == 0 && *coeff == 1 {
-                    has_const = true;
+    let bool_hits: Vec<usize> = (0..r1cs_bb.num_constraints)
+        .into_par_iter()
+        .filter_map(|i| {
+            let a = &a_i64[i];
+            let b = &b_i64[i];
+            let c = &c_i64[i];
+            if c.terms.is_empty()
+                && a.terms.len() == 1
+                && a.terms[0].1 == 1
+                && b.terms.len() == 2
+            {
+                let bvar = a.terms[0].0;
+                let mut has_const = false;
+                let mut has_minus_b = false;
+                for (idx, coeff) in &b.terms {
+                    if *idx == 0 && *coeff == 1 {
+                        has_const = true;
+                    }
+                    if *idx == bvar && *coeff == -1 {
+                        has_minus_b = true;
+                    }
                 }
-                if *idx == bvar && *coeff == -1 {
-                    has_minus_b = true;
+                if has_const && has_minus_b {
+                    return Some(bvar);
                 }
             }
-            if has_const && has_minus_b && bvar < is_bool.len() {
-                is_bool[bvar] = true;
-            }
+            None
+        })
+        .collect();
+    for bvar in bool_hits {
+        if bvar < is_bool.len() {
+            is_bool[bvar] = true;
         }
     }
 

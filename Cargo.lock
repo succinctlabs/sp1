@@ -7283,6 +7283,7 @@ dependencies = [
  "p3-challenger",
  "p3-dft",
  "p3-field",
+ "p3-maybe-rayon",
  "p3-merkle-tree",
  "p3-symmetric",
  "rand 0.8.5",

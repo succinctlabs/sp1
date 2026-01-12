@@ -14,6 +14,7 @@ p3-bls12-377-fr = { workspace = true }
 p3-baby-bear = { workspace = true }
 p3-field = { workspace = true }
 p3-symmetric = { workspace = true }
+p3-maybe-rayon = { workspace = true }
 
 sp1-core-machine = { workspace = true, default-features = true }
 sp1-primitives = { workspace = true }
