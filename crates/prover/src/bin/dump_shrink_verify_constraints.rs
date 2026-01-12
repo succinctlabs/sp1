@@ -38,7 +38,7 @@ use sp1_core_executor::SP1Context;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_prover::SP1Prover;
 use sp1_stark::SP1ProverOpts;
-use sp1_recursion_core::{Address, Runtime};
+use sp1_recursion_core::Runtime;
 use sp1_recursion_compiler::circuit::AsmCompiler;
 use sp1_recursion_compiler::ir::DslIrProgram;
 
@@ -520,8 +520,16 @@ fn main() {
             // Fill DSL vars from runtime memory.
             for (id, idx) in c.var_map.iter() {
                 let Some((addr_u64, limb)) = parse_mem_id(id.as_str()) else { continue };
-                let addr = Address(BabyBear::from_canonical_u64(addr_u64));
-                let entry = runtime.memory.mr(addr);
+                let vaddr: usize = addr_u64
+                    .try_into()
+                    .map_err(|_| format!("vaddr too large in id={id}"))
+                    .expect("parse vaddr");
+                let Some(&paddr) = asm.virtual_to_physical.get(vaddr) else {
+                    // Some compiler-introduced IDs may not correspond to runtime memory.
+                    // Those will be filled by constraint propagation below.
+                    continue;
+                };
+                let entry = runtime.memory.mr(paddr);
                 let val = entry.val.0
                     .get(limb)
                     .copied()
