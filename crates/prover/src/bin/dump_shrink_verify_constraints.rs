@@ -362,6 +362,58 @@ fn complete_witness_from_constraints(
     // forward Gauss-Seidel sweep can "fix" an early constraint and then later overwrite one of
     // its dependencies, causing the early constraint to fail again. To reduce this oscillation,
     // we alternate sweep direction (forward, then reverse).
+    //
+    // Also, some compiler temps are *anchored* to real statement inputs via equalities like:
+    //   (felt1 - tmp) * 1 = 0
+    // Those temps must NOT be overwritten as "outputs" of other defining constraints.
+    let mut protected = vec![false; r1cs.num_vars.max(1)];
+    let is_one_row = |row: &sp1_recursion_compiler::r1cs::types::SparseRow<BabyBear>| {
+        row.terms.len() == 1
+            && row.terms[0].0 == 0
+            && row.terms[0].1.as_canonical_u64() == 1
+    };
+    // Mark tmp as protected if it is equated to a fixed (origin 1/2) variable.
+    for i in 0..r1cs.num_constraints {
+        let a = &r1cs.a[i];
+        let b = &r1cs.b[i];
+        let c = &r1cs.c[i];
+        // Equality pattern emitted by the compiler: (x - y) * 1 = 0 (C empty).
+        let (eq_row, one_row) = if is_one_row(b) && c.terms.is_empty() {
+            (a, true)
+        } else if is_one_row(a) && c.terms.is_empty() {
+            (b, true)
+        } else {
+            (&r1cs.a[0], false) // dummy
+        };
+        if !one_row {
+            continue;
+        }
+        if eq_row.terms.len() != 2 {
+            continue;
+        }
+        let (i0, c0f) = eq_row.terms[0];
+        let (i1, c1f) = eq_row.terms[1];
+        if i0 == 0 || i1 == 0 {
+            continue;
+        }
+        let c0 = c0f.as_canonical_u64();
+        let c1 = c1f.as_canonical_u64();
+        // Require coefficients be +1 and -1 (mod p).
+        let plus_minus = (c0 == 1 && c1 == BABYBEAR_P - 1) || (c1 == 1 && c0 == BABYBEAR_P - 1);
+        if !plus_minus {
+            continue;
+        }
+        let o0 = origin.get(i0).copied().unwrap_or(0);
+        let o1 = origin.get(i1).copied().unwrap_or(0);
+        let fixed0 = o0 == 1 || o0 == 2;
+        let fixed1 = o1 == 1 || o1 == 2;
+        if fixed0 && !fixed1 {
+            protected[i1] = true;
+        } else if fixed1 && !fixed0 {
+            protected[i0] = true;
+        }
+    }
+
     for pass in 0..12 {
         let mut progress = 0usize;
         let forward = pass % 2 == 0;
@@ -383,8 +435,8 @@ fn complete_witness_from_constraints(
                 continue;
             }
 
-            // Repair rule -1 (restricted): if C is a single variable term and that variable is
-            // still *unset* (origin==0), treat this constraint as a defining assignment and fill it.
+            // Repair rule -1 (restricted): if C is a single variable term, treat this constraint as
+            // a defining assignment and fill/overwrite it unless it is protected by a fixed equality.
             //
             // This matches how the compiler allocates fresh temporaries for results of:
             // - mul:      (x) * (y) = out
@@ -396,16 +448,18 @@ fn complete_witness_from_constraints(
                 let (dst, coeff_dst_f) = c.terms[0];
                 if dst != 0 {
                     let src = origin.get(dst).copied().unwrap_or(0);
-                    // Only fill truly-unset temps; do NOT overwrite already-derived vars (origin==3),
-                    // because those can be constrained elsewhere (e.g. equalities tying them to fixed inputs).
-                    if src == 0 {
+                    // Allow overwriting derived temps only if they are NOT protected.
+                    let allow = src == 0 || (src == 3 && !protected.get(dst).copied().unwrap_or(false));
+                    if allow {
                         let coeff_dst = coeff_dst_f.as_canonical_u64();
                         if let Some(inv_coeff) = mod_inv(coeff_dst) {
                             // coeff_dst*dst = prod  => dst = prod/coeff_dst
                             let new_dst = mod_mul(prod, inv_coeff);
                             if w[dst] != Some(new_dst) {
                                 w[dst] = Some(new_dst);
-                                origin[dst] = 3;
+                                if origin[dst] == 0 {
+                                    origin[dst] = 3;
+                                }
                                 progress += 1;
                                 continue;
                             }
@@ -423,11 +477,6 @@ fn complete_witness_from_constraints(
             //   1 * (x + y + const) = out
             // where `out` is a fresh temp var. Even if x/y are also temps, treating `out` as the
             // destination and overwriting it is consistent with how such constraints define temps.
-            let is_one_row = |row: &sp1_recursion_compiler::r1cs::types::SparseRow<BabyBear>| {
-                row.terms.len() == 1
-                    && row.terms[0].0 == 0
-                    && row.terms[0].1.as_canonical_u64() == 1
-            };
             if is_one_row(a) || is_one_row(b) {
                 // Linear constraint: (LIN·w) = (C·w)
                 let lin = if is_one_row(a) { b } else { a };
