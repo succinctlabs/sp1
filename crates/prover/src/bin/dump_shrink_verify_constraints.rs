@@ -146,6 +146,27 @@ fn main() {
     println!("    {:02x?}", &digest[..16]);
     println!("    {:02x?}", &digest[16..]);
 
+    // Quick structural stats: how many constraints are "linear" (one side is constant 1)
+    // vs "true multiply" (both sides non-constant). This approximates how much an IR-level lift
+    // (only adding quotients for actual multiplies) could reduce auxiliary variables.
+    let is_one_row = |row: &sp1_recursion_compiler::r1cs::types::SparseRow<BabyBear>| {
+        row.terms.len() == 1 && row.terms[0].0 == 0 && row.terms[0].1 == BabyBear::one()
+    };
+    let mut n_linear = 0usize;
+    let mut n_mul = 0usize;
+    for i in 0..r1cs.num_constraints {
+        let a1 = is_one_row(&r1cs.a[i]);
+        let b1 = is_one_row(&r1cs.b[i]);
+        if a1 || b1 {
+            n_linear += 1;
+        } else {
+            n_mul += 1;
+        }
+    }
+    println!("\nConstraint shape stats:");
+    println!("  linear (A==1 or B==1): {n_linear}");
+    println!("  true multiply (A!=1 and B!=1): {n_mul}");
+
     // Optionally write LF-targeted lifted R1CS (integer coefficients + selective lifting).
     if let Ok(path) = std::env::var("OUT_R1CS_LF") {
         println!("\nLifting R1CS for LF+ (selective lift + integer coeffs)...");
