@@ -470,7 +470,7 @@ fn main() {
     // Optionally write LF-targeted lifted R1CS (integer coefficients + selective lifting).
     if let Ok(path) = std::env::var("OUT_R1CS_LF") {
         println!("\nLifting R1CS for LF+ (full lift: mul quotients + linear carries)...");
-        let t_lift = std::time::Instant::now();
+        let t_lift_total = std::time::Instant::now();
         let (r1lf, stats) = if let Ok(wit_path) = std::env::var("OUT_WITNESS") {
             // Build a full R1CS witness from recursion runtime memory, then lift+extend it.
             let input_with_merkle = maybe_input_with_merkle.as_ref().expect("input must exist");
@@ -556,26 +556,43 @@ fn main() {
                 .into_iter()
                 .map(|x| BabyBear::from_canonical_u64(x.expect("witness slot missing")))
                 .collect();
+            let t_aux = std::time::Instant::now();
             let (r1lf, stats, w_lf_u64) =
                 lift_r1cs_to_lf_with_linear_carries_and_witness(&r1cs2, &w_bb)
                     .map_err(|e| format!("lift witness: {e}"))
                     .expect("lift_r1cs_to_lf_with_linear_carries_and_witness");
+            let dt_aux = t_aux.elapsed();
 
             // Write witness (single-file full witness for import).
+            let t_wit = std::time::Instant::now();
             write_u64le(&wit_path, &w_lf_u64);
-            println!("Wrote lifted witness to {wit_path} (len={})", w_lf_u64.len());
+            let dt_wit = t_wit.elapsed();
+            let bytes = (w_lf_u64.len() as u64) * 8;
+            let mb = bytes as f64 / 1_000_000.0;
+            let mbps = mb / dt_wit.as_secs_f64().max(1e-9);
+            println!(
+                "Wrote lifted witness to {wit_path} (len={}, {:.2} MB) in {:?} ({:.2} MB/s)",
+                w_lf_u64.len(),
+                mb,
+                dt_wit,
+                mbps
+            );
+            println!("  lift+aux compute time (excluding write): {:?}", dt_aux);
 
             (r1lf, stats)
         } else {
             // Shape-only lift (no witness).
             lift_r1cs_to_lf_with_linear_carries(&r1cs)
         };
-        let elapsed_lift = t_lift.elapsed();
+        let t_save = std::time::Instant::now();
         r1lf.save_to_file(&path).expect("Failed to save R1LF");
+        let dt_save = t_save.elapsed();
         let file_size = std::fs::metadata(&path).unwrap().len();
+        let mb = file_size as f64 / 1_000_000.0;
+        let mbps = mb / dt_save.as_secs_f64().max(1e-9);
         println!(
-            "  lift done: {:?}  lifted={} skipped_bool={} skipped_eq={} skipped_select={} added_vars={} (q={} carry={})",
-            elapsed_lift,
+            "  lift done (total): {:?}  lifted={} skipped_bool={} skipped_eq={} skipped_select={} added_vars={} (q={} carry={})",
+            t_lift_total.elapsed(),
             stats.lifted_constraints,
             stats.skipped_bool,
             stats.skipped_eq,
@@ -584,6 +601,7 @@ fn main() {
             stats.added_q_vars,
             stats.added_carry_vars
         );
+        println!("  R1LF save time: {:?} ({:.2} MB/s)", dt_save, mbps);
         println!(
             "  R1LF: num_vars={} num_constraints={} num_public={} digest={:02x?}...",
             r1lf.num_vars,
