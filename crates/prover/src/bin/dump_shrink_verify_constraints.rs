@@ -357,9 +357,20 @@ fn complete_witness_from_constraints(
     }
 
     // ----- Phase 2: repair inconsistent mutable temps -----
-    for _pass in 0..6 {
+    //
+    // Important: constraints are not guaranteed to be in a strict topological order. A pure
+    // forward Gauss-Seidel sweep can "fix" an early constraint and then later overwrite one of
+    // its dependencies, causing the early constraint to fail again. To reduce this oscillation,
+    // we alternate sweep direction (forward, then reverse).
+    for pass in 0..12 {
         let mut progress = 0usize;
-        for i in 0..r1cs.num_constraints {
+        let forward = pass % 2 == 0;
+        let iter: Box<dyn Iterator<Item = usize>> = if forward {
+            Box::new(0..r1cs.num_constraints)
+        } else {
+            Box::new((0..r1cs.num_constraints).rev())
+        };
+        for i in iter {
             let a = &r1cs.a[i];
             let b = &r1cs.b[i];
             let c = &r1cs.c[i];
