@@ -205,37 +205,31 @@ fn mod_inv(a: u64) -> Option<u64> {
 }
 
 /// Compute:
-/// - sum of all **fixed** terms in the row (mod p),
-/// - the single **mutable** term (if exactly one), and
-/// - the count of mutable terms.
-///
-/// Here "fixed" means origin==1 (runtime) or origin==2 (const). "mutable" means origin==0/3.
-fn row_known_sum_and_single_mutable(
+/// - sum of all **known** terms in the row (mod p),
+/// - the single **unknown** term (if exactly one), and
+/// - the count of unknown terms.
+fn row_known_sum_and_single_unknown(
     row: &sp1_recursion_compiler::r1cs::types::SparseRow<BabyBear>,
     w: &[Option<u64>],
-    origin: &[u8],
-) -> Result<(u64, Option<(usize, u64)>, usize), String> {
+)-> (u64, Option<(usize, u64)>, usize) {
     let mut known_sum = 0u64;
-    let mut mutable: Option<(usize, u64)> = None;
-    let mut mutable_count = 0usize;
+    let mut unknown: Option<(usize, u64)> = None;
+    let mut unknown_count = 0usize;
     for (idx, coeff) in row.terms.iter() {
         let ci = coeff.as_canonical_u64();
-        let src = *origin.get(*idx).unwrap_or(&0);
-        let is_fixed = src == 1 || src == 2;
-        if is_fixed {
-            let wi = w
-                .get(*idx)
-                .and_then(|x| *x)
-                .ok_or_else(|| format!("fixed witness slot missing at idx={idx}"))?;
-            known_sum = mod_add(known_sum, mod_mul(ci, wi));
-        } else {
-            mutable_count += 1;
-            if mutable_count == 1 {
-                mutable = Some((*idx, ci));
+        match w.get(*idx).and_then(|x| *x) {
+            Some(wi) => {
+                known_sum = mod_add(known_sum, mod_mul(ci, wi));
+            }
+            None => {
+                unknown_count += 1;
+                if unknown_count == 1 {
+                    unknown = Some((*idx, ci));
+                }
             }
         }
     }
-    Ok((known_sum, mutable, mutable_count))
+    (known_sum, unknown, unknown_count)
 }
 
 fn complete_witness_from_constraints(
@@ -243,12 +237,18 @@ fn complete_witness_from_constraints(
     w: &mut [Option<u64>],
     origin: &mut [u8],
 ) -> Result<(), String> {
-    // Do a few repair passes. We treat values sourced from runtime/const as immutable, and we
-    // solve for compiler-temporary variables (origin==0/3) when a constraint has exactly one
-    // mutable variable total.
+    // Phase 1 (completion): fill unset witness slots by repeatedly solving constraints that have
+    // exactly one unknown slot total. This is a standard witness-generation strategy for circuits
+    // emitted in (mostly) topological order.
+    //
+    // Phase 2 (repair): if any constraints are violated due to earlier heuristic filling, allow
+    // overwriting *only* non-runtime/non-const variables (origin==0/3) when exactly one such
+    // mutable variable appears in the constraint.
     //
     // Constraint: (A·w) * (B·w) = (C·w)  over BabyBear mod p.
-    for _pass in 0..10 {
+
+    // ----- Phase 1: fill None entries -----
+    for _pass in 0..12 {
         let mut progress = 0usize;
         for i in 0..r1cs.num_constraints {
             let a = &r1cs.a[i];
@@ -256,22 +256,22 @@ fn complete_witness_from_constraints(
             let c = &r1cs.c[i];
 
             // Fast path: compute row metadata.
-            let (a_known, a_mut, a_mut_cnt) = row_known_sum_and_single_mutable(a, w, origin)?;
-            let (b_known, b_mut, b_mut_cnt) = row_known_sum_and_single_mutable(b, w, origin)?;
-            let (c_known, c_mut, c_mut_cnt) = row_known_sum_and_single_mutable(c, w, origin)?;
+            let (a_known, a_unk, a_unk_cnt) = row_known_sum_and_single_unknown(a, w);
+            let (b_known, b_unk, b_unk_cnt) = row_known_sum_and_single_unknown(b, w);
+            let (c_known, c_unk, c_unk_cnt) = row_known_sum_and_single_unknown(c, w);
 
-            // If exactly one mutable overall, solve it.
-            let total_mut = a_mut_cnt + b_mut_cnt + c_mut_cnt;
-            if total_mut != 1 {
+            // If exactly one unknown overall, solve it.
+            let total_unk = a_unk_cnt + b_unk_cnt + c_unk_cnt;
+            if total_unk != 1 {
                 continue;
             }
 
-            // Solve mutable in C row:
-            if c_mut_cnt == 1 {
-                let (dst, coeff) = c_mut.expect("c_mut");
+            // Solve unknown in C row:
+            if c_unk_cnt == 1 {
+                let (dst, coeff) = c_unk.expect("c_unk");
                 if dst != 0 {
-                    // Need A and B fully fixed.
-                    if a_mut_cnt == 0 && b_mut_cnt == 0 {
+                    // Need A and B fully known.
+                    if a_unk_cnt == 0 && b_unk_cnt == 0 {
                         let target = mod_mul(a_known, b_known);
                         if let Some(inv_coeff) = mod_inv(coeff) {
                             // coeff*dst + c_known = target  => dst = (target - c_known)/coeff
@@ -287,11 +287,11 @@ fn complete_witness_from_constraints(
                 }
             }
 
-            // Solve mutable in A row:
-            if a_mut_cnt == 1 {
-                let (dst, coeff) = a_mut.expect("a_mut");
+            // Solve unknown in A row:
+            if a_unk_cnt == 1 {
+                let (dst, coeff) = a_unk.expect("a_unk");
                 if dst != 0 {
-                    if b_mut_cnt == 0 && c_mut_cnt == 0 {
+                    if b_unk_cnt == 0 && c_unk_cnt == 0 {
                         // (a_known + coeff*dst) * b_known = c_known
                         // => a_known + coeff*dst = c_known / b_known
                         if let Some(inv_b) = mod_inv(b_known) {
@@ -310,11 +310,11 @@ fn complete_witness_from_constraints(
                 }
             }
 
-            // Solve mutable in B row:
-            if b_mut_cnt == 1 {
-                let (dst, coeff) = b_mut.expect("b_mut");
+            // Solve unknown in B row:
+            if b_unk_cnt == 1 {
+                let (dst, coeff) = b_unk.expect("b_unk");
                 if dst != 0 {
-                    if a_mut_cnt == 0 && c_mut_cnt == 0 {
+                    if a_unk_cnt == 0 && c_unk_cnt == 0 {
                         if let Some(inv_a) = mod_inv(a_known) {
                             let target_b = mod_mul(c_known, inv_a);
                             if let Some(inv_coeff) = mod_inv(coeff) {
@@ -336,7 +336,7 @@ fn complete_witness_from_constraints(
         }
     }
 
-    // Require all slots filled.
+    // Require all slots filled after completion passes.
     let missing = w.iter().skip(1).filter(|x| x.is_none()).count();
     if missing != 0 {
         let mut examples = Vec::new();
@@ -354,13 +354,74 @@ fn complete_witness_from_constraints(
         ));
     }
 
+    // ----- Phase 2: repair inconsistent mutable temps (optional, but catches earlier issues like row 2505) -----
+    for _pass in 0..6 {
+        let mut progress = 0usize;
+        for i in 0..r1cs.num_constraints {
+            let a = &r1cs.a[i];
+            let b = &r1cs.b[i];
+            let c = &r1cs.c[i];
+
+            let a_val = eval_row_mod(a, w);
+            let b_val = eval_row_mod(b, w);
+            let c_val = eval_row_mod(c, w);
+            if mod_mul(a_val, b_val) == c_val {
+                continue;
+            }
+
+            // Find the single mutable variable in the *whole constraint* (origin==0/3), if any.
+            let mut mut_idx: Option<usize> = None;
+            let mut mut_count = 0usize;
+            let mut visit = |row: &sp1_recursion_compiler::r1cs::types::SparseRow<BabyBear>| {
+                for (idx, _coeff) in row.terms.iter() {
+                    let src = origin.get(*idx).copied().unwrap_or(0);
+                    let is_mut = src == 0 || src == 3;
+                    if is_mut && *idx != 0 {
+                        mut_count += 1;
+                        if mut_count == 1 {
+                            mut_idx = Some(*idx);
+                        }
+                    }
+                }
+            };
+            visit(a);
+            visit(b);
+            visit(c);
+            if mut_count != 1 {
+                continue;
+            }
+            let x = mut_idx.expect("mut_idx");
+
+            // Try to repair in a structured way by looking for the common patterns emitted by the compiler:
+            // - (1) * (lin) = x   or (1)*(lin)= (x + lin2)
+            // - (lin) * (lin) = x
+            //
+            // For now, we only handle the simplest common case: C is exactly x with coeff 1,
+            // and A,B are fully determined.
+            if c.terms.len() == 1 && c.terms[0].0 == x && c.terms[0].1.as_canonical_u64() == 1 {
+                // Need a*b = x
+                let new_x = mod_mul(a_val, b_val);
+                w[x] = Some(new_x);
+                if origin[x] == 0 {
+                    origin[x] = 3;
+                }
+                progress += 1;
+            }
+        }
+        if progress == 0 {
+            break;
+        }
+    }
+
     // Final check: ensure the witness satisfies the full BabyBear R1CS.
     for i in 0..r1cs.num_constraints {
         let a = eval_row_mod(&r1cs.a[i], w);
         let b = eval_row_mod(&r1cs.b[i], w);
         let c = eval_row_mod(&r1cs.c[i], w);
         if mod_mul(a, b) != c {
-            return Err(format!("witness does not satisfy R1CS after completion; first failing row {i}"));
+            return Err(format!(
+                "witness does not satisfy R1CS after completion; first failing row {i}"
+            ));
         }
     }
     Ok(())
