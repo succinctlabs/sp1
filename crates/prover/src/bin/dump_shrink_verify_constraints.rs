@@ -138,6 +138,135 @@ fn parse_mem_id(id: &str) -> Option<(u64, usize)> {
     None
 }
 
+const BABYBEAR_P: u64 = 2013265921;
+
+#[inline]
+fn mod_add(a: u64, b: u64) -> u64 {
+    let s = a + b;
+    if s >= BABYBEAR_P { s - BABYBEAR_P } else { s }
+}
+
+#[inline]
+fn mod_mul(a: u64, b: u64) -> u64 {
+    ((a as u128 * b as u128) % (BABYBEAR_P as u128)) as u64
+}
+
+#[inline]
+fn mod_inv(a: u64) -> Option<u64> {
+    if a == 0 {
+        return None;
+    }
+    // Fermat inverse: a^(p-2) mod p, p fits u64.
+    let mut base = a;
+    let mut exp = BABYBEAR_P - 2;
+    let mut acc = 1u64;
+    while exp > 0 {
+        if exp & 1 == 1 {
+            acc = mod_mul(acc, base);
+        }
+        base = mod_mul(base, base);
+        exp >>= 1;
+    }
+    Some(acc)
+}
+
+fn eval_row_if_known(row: &sp1_recursion_compiler::r1cs::types::SparseRow<BabyBear>, w: &[Option<u64>]) -> Option<u64> {
+    let mut acc = 0u64;
+    for (idx, coeff) in row.terms.iter() {
+        let wi = *w.get(*idx)?.as_ref()?;
+        let ci = coeff.as_canonical_u64();
+        acc = mod_add(acc, mod_mul(ci, wi));
+    }
+    Some(acc)
+}
+
+fn complete_witness_from_constraints(
+    r1cs: &sp1_recursion_compiler::r1cs::types::R1CS<BabyBear>,
+    w: &mut [Option<u64>],
+) -> Result<(), String> {
+    // One or two forward passes are typically enough because the compiler introduces fresh vars
+    // in a topological order (defs before use).
+    for _pass in 0..2 {
+        let mut progress = 0usize;
+        for i in 0..r1cs.num_constraints {
+            let a = &r1cs.a[i];
+            let b = &r1cs.b[i];
+            let c = &r1cs.c[i];
+
+            // Helper: detect SparseRow::single(k) i.e. terms=[(k,1)]
+            let single = |row: &sp1_recursion_compiler::r1cs::types::SparseRow<BabyBear>| -> Option<usize> {
+                if row.terms.len() == 1 && row.terms[0].1 == BabyBear::one() {
+                    Some(row.terms[0].0)
+                } else {
+                    None
+                }
+            };
+
+            // Case 1: (1) * (linear) = dst  OR  (linear) * (1) = dst
+            if let Some(dst) = single(c) {
+                if dst != 0 && w[dst].is_none() {
+                    let a_is_one = a.terms.len() == 1 && a.terms[0].0 == 0 && a.terms[0].1 == BabyBear::one();
+                    let b_is_one = b.terms.len() == 1 && b.terms[0].0 == 0 && b.terms[0].1 == BabyBear::one();
+
+                    if a_is_one {
+                        if let Some(bv) = eval_row_if_known(b, w) {
+                            w[dst] = Some(bv);
+                            progress += 1;
+                            continue;
+                        }
+                    }
+                    if b_is_one {
+                        if let Some(av) = eval_row_if_known(a, w) {
+                            w[dst] = Some(av);
+                            progress += 1;
+                            continue;
+                        }
+                    }
+
+                    // Case 2: (x) * (y) = dst with x,y single vars.
+                    if let (Some(xi), Some(yi)) = (single(a), single(b)) {
+                        if let (Some(xv), Some(yv)) = (w[xi], w[yi]) {
+                            w[dst] = Some(mod_mul(xv, yv));
+                            progress += 1;
+                            continue;
+                        }
+                    }
+                }
+            }
+
+            // Case 3: (x) * (y) = 1, where C is the constant "1" (index 0).
+            if single(c) == Some(0) {
+                if let (Some(xi), Some(yi)) = (single(a), single(b)) {
+                    match (w[xi], w[yi]) {
+                        (Some(xv), None) => {
+                            if let Some(inv) = mod_inv(xv) {
+                                w[yi] = Some(inv);
+                                progress += 1;
+                            }
+                        }
+                        (None, Some(yv)) => {
+                            if let Some(inv) = mod_inv(yv) {
+                                w[xi] = Some(inv);
+                                progress += 1;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+        if progress == 0 {
+            break;
+        }
+    }
+
+    let missing = w.iter().skip(1).filter(|x| x.is_none()).count();
+    if missing != 0 {
+        return Err(format!("could not complete witness: {missing} variables remain unset"));
+    }
+    Ok(())
+}
+
 fn load_default_fibonacci_elf_bytes() -> Vec<u8> {
     // Prefer the (already-built) fibonacci example ELF if present.
     //
@@ -339,8 +468,8 @@ fn main() {
             let r1cs2 = c.r1cs.clone();
 
             // Build full R1CS witness vector.
-            let mut w_u64 = vec![0u64; r1cs2.num_vars];
-            w_u64[0] = 1;
+            let mut w_opt: Vec<Option<u64>> = vec![None; r1cs2.num_vars];
+            w_opt[0] = Some(1);
             // Fill constant vars: constraints of form 1 * const = var.
             for i in 0..r1cs2.num_constraints {
                 let a = &r1cs2.a[i].terms;
@@ -351,7 +480,7 @@ fn main() {
                     && cc.len() == 1 && cc[0].1 == BabyBear::one()
                     && cc[0].0 != 0
                 {
-                    w_u64[cc[0].0] = b[0].1.as_canonical_u64();
+                    w_opt[cc[0].0] = Some(b[0].1.as_canonical_u64());
                 }
             }
             // Fill DSL vars from runtime memory.
@@ -363,11 +492,17 @@ fn main() {
                     .get(limb)
                     .copied()
                     .unwrap_or_else(|| BabyBear::zero());
-                w_u64[*idx] = val.as_canonical_u64();
+                w_opt[*idx] = Some(val.as_canonical_u64());
             }
 
             // Lift + compute aux witness.
-            let w_bb: Vec<BabyBear> = w_u64.iter().map(|&x| BabyBear::from_canonical_u64(x)).collect();
+            complete_witness_from_constraints(&r1cs2, &mut w_opt)
+                .map_err(|e| format!("complete witness: {e}"))
+                .expect("complete witness");
+            let w_bb: Vec<BabyBear> = w_opt
+                .into_iter()
+                .map(|x| BabyBear::from_canonical_u64(x.expect("witness slot missing")))
+                .collect();
             let (r1lf, stats, w_lf_u64) =
                 lift_r1cs_to_lf_with_linear_carries_and_witness(&r1cs2, &w_bb)
                     .map_err(|e| format!("lift witness: {e}"))
