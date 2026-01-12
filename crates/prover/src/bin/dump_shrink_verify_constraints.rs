@@ -237,6 +237,8 @@ fn complete_witness_from_constraints(
     w: &mut [Option<u64>],
     origin: &mut [u8],
 ) -> Result<(), String> {
+    let debug_witness = std::env::var("DEBUG_WITNESS").ok().as_deref() == Some("1");
+
     // Phase 1 (completion): fill unset witness slots by repeatedly solving constraints that have
     // exactly one unknown slot total. This is a standard witness-generation strategy for circuits
     // emitted in (mostly) topological order.
@@ -446,6 +448,36 @@ fn complete_witness_from_constraints(
         let b = eval_row_mod(&r1cs.b[i], w);
         let c = eval_row_mod(&r1cs.c[i], w);
         if mod_mul(a, b) != c {
+            if debug_witness {
+                // Single debug mode: dump the first failing row in a compact form.
+                let max_terms: usize = 24;
+                let a0 = a;
+                let b0 = b;
+                let c0 = c;
+                eprintln!("\n[exporter debug] first failing row i={i}");
+                eprintln!(
+                    "  a={a0} b={b0} c={c0} a*b-c mod p={}",
+                    (mod_mul(a0, b0) + BABYBEAR_P - c0) % BABYBEAR_P
+                );
+                let dump_row = |name: &str,
+                                row: &sp1_recursion_compiler::r1cs::types::SparseRow<BabyBear>| {
+                    eprintln!("  {name}: terms={}", row.terms.len());
+                    for (idx, coeff) in row.terms.iter().take(max_terms) {
+                        let wi = w.get(*idx).and_then(|x| *x).unwrap_or(u64::MAX);
+                        let src = origin.get(*idx).copied().unwrap_or(0);
+                        eprintln!(
+                            "    idx={idx:<8} coeff={} wi={wi:<10} origin={src}",
+                            coeff.as_canonical_u64()
+                        );
+                    }
+                    if row.terms.len() > max_terms {
+                        eprintln!("    ... (truncated)");
+                    }
+                };
+                dump_row("A", &r1cs.a[i]);
+                dump_row("B", &r1cs.b[i]);
+                dump_row("C", &r1cs.c[i]);
+            }
             return Err(format!(
                 "witness does not satisfy R1CS after completion; first failing row {i}"
             ));
@@ -806,19 +838,16 @@ fn main() {
                 .map_err(|e| format!("complete witness: {e}"))
                 .expect("complete witness");
 
-            // Optional early debug: find first failing row (often very early if mapping is wrong).
-            // Enable with `DEBUG_FIRST_BAD_ROW=1` and optionally `DEBUG_MAX_ROWS=...`.
-            if std::env::var("DEBUG_FIRST_BAD_ROW").ok().as_deref() == Some("1") {
+            // Optional debug: dump the first failing row (compact) after completion.
+            // Enable with `DEBUG_WITNESS=1`.
+            if std::env::var("DEBUG_WITNESS").ok().as_deref() == Some("1") {
                 let mut idx_to_id: Vec<Option<String>> = vec![None; r1cs2.num_vars];
                 for (id, idx) in c.var_map.iter() {
                     if *idx < idx_to_id.len() {
                         idx_to_id[*idx] = Some(id.clone());
                     }
                 }
-                let max_rows: usize = std::env::var("DEBUG_MAX_ROWS")
-                    .ok()
-                    .and_then(|s| s.parse().ok())
-                    .unwrap_or(100_000);
+                let max_rows: usize = 100_000;
                 let _ = debug_first_unsatisfied_row(&r1cs2, &w_opt, &origin, &idx_to_id, max_rows);
             }
 
