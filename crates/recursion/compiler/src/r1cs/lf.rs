@@ -579,6 +579,31 @@ fn lift_r1cs_to_lf_core<F: PrimeField64>(
     // Extend witness (compute aux vars) in parallel if witness provided.
     let mut w_out: Option<Vec<u64>> = witness_bb.map(|w| w.iter().map(|x| x.as_canonical_u64()).collect());
     if let (Some(witness_bb), Some(w_out_vec)) = (witness_bb, w_out.as_mut()) {
+        // IMPORTANT: if we "skip" a constraint (bool/eq/select), we must still ensure the provided
+        // witness satisfies it. Otherwise the exporter can emit an invalid witness without noticing,
+        // because we only compute aux values for lifted rows.
+        let bad_skip = (0..r1cs_bb.num_constraints)
+            .into_par_iter()
+            .filter_map(|i| {
+                if lift_pos[i] != u32::MAX {
+                    return None;
+                }
+                let a_int = eval_row_i128(&a_i64[i], witness_bb);
+                let b_int = eval_row_i128(&b_i64[i], witness_bb);
+                let c_int = eval_row_i128(&c_i64[i], witness_bb);
+                if a_int * b_int != c_int {
+                    Some(i)
+                } else {
+                    None
+                }
+            })
+            .reduce_with(|x, y| x.min(y));
+        if let Some(i) = bad_skip {
+            return Err(format!(
+                "lift witness: provided witness does not satisfy skipped row {i} (bool/eq/select)"
+            ));
+        }
+
         // Use atomics to safely fill aux slots in parallel.
         let aux: Vec<AtomicU64> = (0..lifted_total).map(|_| AtomicU64::new(u64::MAX)).collect();
 
