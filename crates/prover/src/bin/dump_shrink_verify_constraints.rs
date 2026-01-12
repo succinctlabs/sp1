@@ -467,11 +467,20 @@ fn main() {
     println!("    {:02x?}", &digest[..16]);
     println!("    {:02x?}", &digest[16..]);
 
-    // Optionally write LF-targeted lifted R1CS (integer coefficients + selective lifting).
-    if let Ok(path) = std::env::var("OUT_R1CS_LF") {
-        println!("\nLifting R1CS for LF+ (full lift: mul quotients + linear carries)...");
+    // Export modes:
+    // - If OUT_WITNESS is set: dump witness ONLY (do not rewrite/write the R1LF shape every time).
+    // - Else if OUT_R1CS_LF is set: dump the (shape) R1LF ONLY.
+    let out_r1lf = std::env::var("OUT_R1CS_LF").ok();
+    let out_witness = std::env::var("OUT_WITNESS").ok();
+
+    if let Some(wit_path) = out_witness.as_deref() {
+        if out_r1lf.is_some() {
+            println!("NOTE: OUT_WITNESS is set, so we will NOT write OUT_R1CS_LF (shape export).");
+        }
+        println!("\nLifting R1CS for LF+ (witness mode: compute+dump witness only)...");
         let t_lift_total = std::time::Instant::now();
-        let (r1lf, stats) = if let Ok(wit_path) = std::env::var("OUT_WITNESS") {
+
+        let (r1lf, stats) = {
             // Build a full R1CS witness from recursion runtime memory, then lift+extend it.
             let input_with_merkle = maybe_input_with_merkle.as_ref().expect("input must exist");
 
@@ -580,14 +589,33 @@ fn main() {
             println!("  lift+aux compute time (excluding write): {:?}", dt_aux);
 
             (r1lf, stats)
-        } else {
-            // Shape-only lift (no witness).
-            lift_r1cs_to_lf_with_linear_carries(&r1cs)
         };
+        println!(
+            "  lift done (total): {:?}  lifted={} skipped_bool={} skipped_eq={} skipped_select={} added_vars={} (q={} carry={})",
+            t_lift_total.elapsed(),
+            stats.lifted_constraints,
+            stats.skipped_bool,
+            stats.skipped_eq,
+            stats.skipped_select,
+            stats.added_vars,
+            stats.added_q_vars,
+            stats.added_carry_vars
+        );
+        println!(
+            "  R1LF (in-memory): num_vars={} num_constraints={} num_public={} digest={:02x?}...",
+            r1lf.num_vars,
+            r1lf.num_constraints,
+            r1lf.num_public,
+            &r1lf.digest()[..8]
+        );
+    } else if let Some(path) = out_r1lf.as_deref() {
+        println!("\nLifting R1CS for LF+ (shape mode: write R1LF only)...");
+        let t_lift_total = std::time::Instant::now();
+        let (r1lf, stats) = lift_r1cs_to_lf_with_linear_carries(&r1cs);
         let t_save = std::time::Instant::now();
-        r1lf.save_to_file(&path).expect("Failed to save R1LF");
+        r1lf.save_to_file(path).expect("Failed to save R1LF");
         let dt_save = t_save.elapsed();
-        let file_size = std::fs::metadata(&path).unwrap().len();
+        let file_size = std::fs::metadata(path).unwrap().len();
         let mb = file_size as f64 / 1_000_000.0;
         let mbps = mb / dt_save.as_secs_f64().max(1e-9);
         println!(
@@ -609,7 +637,7 @@ fn main() {
             r1lf.num_public,
             &r1lf.digest()[..8]
         );
-        println!("Wrote R1LF to {path} ({:.2} MB)", file_size as f64 / 1_000_000.0);
+        println!("Wrote R1LF to {path} ({:.2} MB)", mb);
     }
     
     // Optionally write JSON stats (for quick inspection without loading full R1CS)
@@ -626,7 +654,7 @@ fn main() {
         println!("Wrote R1CS stats to {path}");
     }
 
-    if std::env::var("OUT_R1CS_LF").is_err() {
+    if out_witness.is_none() && out_r1lf.is_none() {
         println!("\nSet OUT_R1CS_LF=/path/to/shrink_verifier.r1lf to write the LF-targeted format.");
     }
 }
