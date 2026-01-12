@@ -170,68 +170,109 @@ fn mod_inv(a: u64) -> Option<u64> {
     Some(acc)
 }
 
-fn eval_row_if_known(row: &sp1_recursion_compiler::r1cs::types::SparseRow<BabyBear>, w: &[Option<u64>]) -> Option<u64> {
-    let mut acc = 0u64;
+fn row_known_sum_and_single_unknown(
+    row: &sp1_recursion_compiler::r1cs::types::SparseRow<BabyBear>,
+    w: &[Option<u64>],
+) -> (u64, Option<(usize, u64)>, usize) {
+    let mut known_sum = 0u64;
+    let mut unknown: Option<(usize, u64)> = None;
+    let mut unknown_count = 0usize;
     for (idx, coeff) in row.terms.iter() {
-        let wi = *w.get(*idx)?.as_ref()?;
         let ci = coeff.as_canonical_u64();
-        acc = mod_add(acc, mod_mul(ci, wi));
+        match w.get(*idx).and_then(|x| *x) {
+            Some(wi) => {
+                known_sum = mod_add(known_sum, mod_mul(ci, wi));
+            }
+            None => {
+                unknown_count += 1;
+                if unknown_count == 1 {
+                    unknown = Some((*idx, ci));
+                }
+            }
+        }
     }
-    Some(acc)
+    (known_sum, unknown, unknown_count)
 }
 
 fn complete_witness_from_constraints(
     r1cs: &sp1_recursion_compiler::r1cs::types::R1CS<BabyBear>,
     w: &mut [Option<u64>],
 ) -> Result<(), String> {
-    // One or two forward passes are typically enough because the compiler introduces fresh vars
-    // in a topological order (defs before use).
-    for _pass in 0..4 {
+    // Do a few propagation passes. We solve any constraint where exactly one witness slot is
+    // unknown and all other terms in the constraint are known.
+    //
+    // Constraint: (A·w) * (B·w) = (C·w)  over BabyBear mod p.
+    // If exactly one variable is unknown in one of the rows, we can solve it (when needed inverses exist).
+    for _pass in 0..6 {
         let mut progress = 0usize;
         for i in 0..r1cs.num_constraints {
             let a = &r1cs.a[i];
             let b = &r1cs.b[i];
             let c = &r1cs.c[i];
 
-            // Helper: detect SparseRow::single(k) i.e. terms=[(k,1)]
-            let single = |row: &sp1_recursion_compiler::r1cs::types::SparseRow<BabyBear>| -> Option<usize> {
-                if row.terms.len() == 1 && row.terms[0].1 == BabyBear::one() {
-                    Some(row.terms[0].0)
-                } else {
-                    None
-                }
-            };
+            // Fast path: compute row metadata.
+            let (a_known, a_unk, a_unk_cnt) = row_known_sum_and_single_unknown(a, w);
+            let (b_known, b_unk, b_unk_cnt) = row_known_sum_and_single_unknown(b, w);
+            let (c_known, c_unk, c_unk_cnt) = row_known_sum_and_single_unknown(c, w);
 
-            // Case 1: c is a single dst variable: (a · w) * (b · w) = w[dst]
-            // If we can evaluate both sides, set dst. This covers both linear assignments
-            // (when one side is 1) and general mul outputs.
-            if let Some(dst) = single(c) {
+            // If exactly one unknown overall, solve it.
+            let total_unknown = a_unk_cnt + b_unk_cnt + c_unk_cnt;
+            if total_unknown != 1 {
+                continue;
+            }
+
+            // Solve unknown in C row:
+            if c_unk_cnt == 1 {
+                let (dst, coeff) = c_unk.expect("c_unk");
                 if dst != 0 && w[dst].is_none() {
-                    if let (Some(av), Some(bv)) = (eval_row_if_known(a, w), eval_row_if_known(b, w)) {
-                        w[dst] = Some(mod_mul(av, bv));
-                        progress += 1;
-                        continue;
+                    // Need A and B fully known.
+                    if a_unk_cnt == 0 && b_unk_cnt == 0 {
+                        let target = mod_mul(a_known, b_known);
+                        if let Some(inv_coeff) = mod_inv(coeff) {
+                            // coeff*dst + c_known = target  => dst = (target - c_known)/coeff
+                            let rhs = (target + BABYBEAR_P - c_known) % BABYBEAR_P;
+                            w[dst] = Some(mod_mul(rhs, inv_coeff));
+                            progress += 1;
+                            continue;
+                        }
                     }
                 }
             }
 
-            // Case 3: (x) * (y) = 1, where C is the constant "1" (index 0).
-            if single(c) == Some(0) {
-                if let (Some(xi), Some(yi)) = (single(a), single(b)) {
-                    match (w[xi], w[yi]) {
-                        (Some(xv), None) => {
-                            if let Some(inv) = mod_inv(xv) {
-                                w[yi] = Some(inv);
+            // Solve unknown in A row:
+            if a_unk_cnt == 1 {
+                let (dst, coeff) = a_unk.expect("a_unk");
+                if dst != 0 && w[dst].is_none() {
+                    if b_unk_cnt == 0 && c_unk_cnt == 0 {
+                        // (a_known + coeff*dst) * b_known = c_known
+                        // => a_known + coeff*dst = c_known / b_known
+                        if let Some(inv_b) = mod_inv(b_known) {
+                            let target_a = mod_mul(c_known, inv_b);
+                            if let Some(inv_coeff) = mod_inv(coeff) {
+                                let rhs = (target_a + BABYBEAR_P - a_known) % BABYBEAR_P;
+                                w[dst] = Some(mod_mul(rhs, inv_coeff));
                                 progress += 1;
+                                continue;
                             }
                         }
-                        (None, Some(yv)) => {
-                            if let Some(inv) = mod_inv(yv) {
-                                w[xi] = Some(inv);
+                    }
+                }
+            }
+
+            // Solve unknown in B row:
+            if b_unk_cnt == 1 {
+                let (dst, coeff) = b_unk.expect("b_unk");
+                if dst != 0 && w[dst].is_none() {
+                    if a_unk_cnt == 0 && c_unk_cnt == 0 {
+                        if let Some(inv_a) = mod_inv(a_known) {
+                            let target_b = mod_mul(c_known, inv_a);
+                            if let Some(inv_coeff) = mod_inv(coeff) {
+                                let rhs = (target_b + BABYBEAR_P - b_known) % BABYBEAR_P;
+                                w[dst] = Some(mod_mul(rhs, inv_coeff));
                                 progress += 1;
+                                continue;
                             }
                         }
-                        _ => {}
                     }
                 }
             }
@@ -252,7 +293,10 @@ fn complete_witness_from_constraints(
                 }
             }
         }
-        return Err(format!("could not complete witness: {missing} variables remain unset"));
+        return Err(format!(
+            "could not complete witness: {missing} variables remain unset (examples: {:?})",
+            examples
+        ));
     }
     Ok(())
 }
