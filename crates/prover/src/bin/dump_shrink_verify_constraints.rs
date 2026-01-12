@@ -354,7 +354,7 @@ fn complete_witness_from_constraints(
         ));
     }
 
-    // ----- Phase 2: repair inconsistent mutable temps (optional, but catches earlier issues like row 2505) -----
+    // ----- Phase 2: repair inconsistent mutable temps -----
     for _pass in 0..6 {
         let mut progress = 0usize;
         for i in 0..r1cs.num_constraints {
@@ -369,43 +369,70 @@ fn complete_witness_from_constraints(
                 continue;
             }
 
-            // Find the single mutable variable in the *whole constraint* (origin==0/3), if any.
-            let mut mut_idx: Option<usize> = None;
-            let mut mut_count = 0usize;
-            let mut visit = |row: &sp1_recursion_compiler::r1cs::types::SparseRow<BabyBear>| {
-                for (idx, _coeff) in row.terms.iter() {
-                    let src = origin.get(*idx).copied().unwrap_or(0);
-                    let is_mut = src == 0 || src == 3;
-                    if is_mut && *idx != 0 {
-                        mut_count += 1;
-                        if mut_count == 1 {
-                            mut_idx = Some(*idx);
+            // If there is exactly one mutable variable total (origin 0/3), solve for it
+            // assuming it appears in exactly one of {A,B,C}. This covers common compiler patterns
+            // like skipped equalities: (x - y) * 1 = 0.
+            let (a_fixed, a_mut, a_mut_cnt) = row_fixed_sum_and_single_mutable_coeff(a, w, origin)?;
+            let (b_fixed, b_mut, b_mut_cnt) = row_fixed_sum_and_single_mutable_coeff(b, w, origin)?;
+            let (c_fixed, c_mut, c_mut_cnt) = row_fixed_sum_and_single_mutable_coeff(c, w, origin)?;
+            if a_mut_cnt + b_mut_cnt + c_mut_cnt != 1 {
+                continue;
+            }
+
+            // Determine which row the mutable var appears in.
+            let (where_mut, (x, coeff_x)) = if let Some(t) = a_mut {
+                ("A", t)
+            } else if let Some(t) = b_mut {
+                ("B", t)
+            } else {
+                ("C", c_mut.expect("c_mut"))
+            };
+
+            match where_mut {
+                // (a_fixed + coeff_x * x) * b_fixed = c_fixed
+                "A" => {
+                    if let Some(inv_b) = mod_inv(b_fixed) {
+                        let target_a = mod_mul(c_fixed, inv_b);
+                        if let Some(inv_coeff) = mod_inv(coeff_x) {
+                            let rhs = (target_a + BABYBEAR_P - a_fixed) % BABYBEAR_P;
+                            let new_x = mod_mul(rhs, inv_coeff);
+                            w[x] = Some(new_x);
+                            if origin[x] == 0 {
+                                origin[x] = 3;
+                            }
+                            progress += 1;
                         }
                     }
                 }
-            };
-            visit(a);
-            visit(b);
-            visit(c);
-            if mut_count != 1 {
-                continue;
-            }
-            let x = mut_idx.expect("mut_idx");
-
-            // Try to repair in a structured way by looking for the common patterns emitted by the compiler:
-            // - (1) * (lin) = x   or (1)*(lin)= (x + lin2)
-            // - (lin) * (lin) = x
-            //
-            // For now, we only handle the simplest common case: C is exactly x with coeff 1,
-            // and A,B are fully determined.
-            if c.terms.len() == 1 && c.terms[0].0 == x && c.terms[0].1.as_canonical_u64() == 1 {
-                // Need a*b = x
-                let new_x = mod_mul(a_val, b_val);
-                w[x] = Some(new_x);
-                if origin[x] == 0 {
-                    origin[x] = 3;
+                // a_fixed * (b_fixed + coeff_x * x) = c_fixed
+                "B" => {
+                    if let Some(inv_a) = mod_inv(a_fixed) {
+                        let target_b = mod_mul(c_fixed, inv_a);
+                        if let Some(inv_coeff) = mod_inv(coeff_x) {
+                            let rhs = (target_b + BABYBEAR_P - b_fixed) % BABYBEAR_P;
+                            let new_x = mod_mul(rhs, inv_coeff);
+                            w[x] = Some(new_x);
+                            if origin[x] == 0 {
+                                origin[x] = 3;
+                            }
+                            progress += 1;
+                        }
+                    }
                 }
-                progress += 1;
+                // a_fixed * b_fixed = c_fixed + coeff_x * x
+                "C" => {
+                    let target = mod_mul(a_fixed, b_fixed);
+                    if let Some(inv_coeff) = mod_inv(coeff_x) {
+                        let rhs = (target + BABYBEAR_P - c_fixed) % BABYBEAR_P;
+                        let new_x = mod_mul(rhs, inv_coeff);
+                        w[x] = Some(new_x);
+                        if origin[x] == 0 {
+                            origin[x] = 3;
+                        }
+                        progress += 1;
+                    }
+                }
+                _ => {}
             }
         }
         if progress == 0 {
@@ -438,6 +465,34 @@ fn eval_row_mod(
         acc = mod_add(acc, mod_mul(ci, wi));
     }
     acc
+}
+
+fn row_fixed_sum_and_single_mutable_coeff(
+    row: &sp1_recursion_compiler::r1cs::types::SparseRow<BabyBear>,
+    w: &[Option<u64>],
+    origin: &[u8],
+) -> Result<(u64, Option<(usize, u64)>, usize), String> {
+    let mut fixed_sum = 0u64;
+    let mut mutable: Option<(usize, u64)> = None;
+    let mut mutable_count = 0usize;
+    for (idx, coeff) in row.terms.iter() {
+        let ci = coeff.as_canonical_u64();
+        let src = origin.get(*idx).copied().unwrap_or(0);
+        let is_mut = (src == 0 || src == 3) && *idx != 0;
+        if is_mut {
+            mutable_count += 1;
+            if mutable_count == 1 {
+                mutable = Some((*idx, ci));
+            }
+        } else {
+            let wi = w
+                .get(*idx)
+                .and_then(|x| *x)
+                .ok_or_else(|| format!("witness slot missing at idx={idx}"))?;
+            fixed_sum = mod_add(fixed_sum, mod_mul(ci, wi));
+        }
+    }
+    Ok((fixed_sum, mutable, mutable_count))
 }
 
 fn debug_first_unsatisfied_row(
