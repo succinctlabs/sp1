@@ -414,6 +414,20 @@ fn complete_witness_from_constraints(
         }
     }
 
+    // Count how often each variable appears as a single-term C "output" (a likely defining constraint).
+    // We'll use this to pick better variables to adjust for linear constraints: prefer vars that are
+    // *not* outputs elsewhere (def_count==0), to avoid fighting other defining constraints.
+    let mut def_count: Vec<u32> = vec![0; r1cs.num_vars.max(1)];
+    for i in 0..r1cs.num_constraints {
+        let c = &r1cs.c[i];
+        if c.terms.len() == 1 {
+            let (dst, _coeff) = c.terms[0];
+            if dst < def_count.len() {
+                def_count[dst] = def_count[dst].saturating_add(1);
+            }
+        }
+    }
+
     for pass in 0..12 {
         let mut progress = 0usize;
         let forward = pass % 2 == 0;
@@ -487,7 +501,8 @@ fn complete_witness_from_constraints(
                 // - Prefer solving for a mutable variable in LIN (so we don't fight other defining constraints on C temps).
                 // - Otherwise solve for a mutable variable in C.
                 //
-                // Choose the max index mutable variable for determinism.
+                // Prefer a mutable var that is not an output elsewhere (def_count==0), and not protected.
+                // Tie-break deterministically by higher index.
                 let pick_mut = |row: &sp1_recursion_compiler::r1cs::types::SparseRow<BabyBear>| {
                     row.terms
                         .iter()
@@ -497,13 +512,17 @@ fn complete_witness_from_constraints(
                             }
                             let src = origin.get(*idx).copied().unwrap_or(0);
                             let is_mut = src == 0 || src == 3;
-                            if is_mut {
+                            let is_prot = protected.get(*idx).copied().unwrap_or(false);
+                            if is_mut && !is_prot {
                                 Some((*idx, coeff.as_canonical_u64()))
                             } else {
                                 None
                             }
                         })
-                        .max_by_key(|(idx, _)| *idx)
+                        .min_by_key(|(idx, _)| {
+                            let dc = def_count.get(*idx).copied().unwrap_or(u32::MAX);
+                            (dc, std::cmp::Reverse(*idx))
+                        })
                 };
 
                 // Solve var in LIN: coeff*v + sum_other = rhs_val
