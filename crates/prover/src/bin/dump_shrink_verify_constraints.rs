@@ -447,31 +447,40 @@ fn main() {
     println!("  ... ({} total opcode types)", counts_sorted.len());
     println!("  Total ops: {}", ops.len());
 
-    // Compile to R1CS
-    println!("\nCompiling to R1CS...");
-    let start = std::time::Instant::now();
-    let r1cs = R1CSCompiler::<InnerConfig>::compile(ops);
-    let elapsed = start.elapsed();
-
-    println!("\n=========================================================");
-    println!("R1CS Compilation Complete");
-    println!("=========================================================");
-    println!("  Variables:    {:>12}", r1cs.num_vars);
-    println!("  Constraints:  {:>12}", r1cs.num_constraints);
-    println!("  Public inputs:{:>12}", r1cs.num_public);
-    println!("  Compile time: {:>12.2?}", elapsed);
-    
-    // Compute and print digest
-    let digest = r1cs.digest();
-    println!("\n  R1CS Digest (SHA256):");
-    println!("    {:02x?}", &digest[..16]);
-    println!("    {:02x?}", &digest[16..]);
-
     // Export modes:
     // - If OUT_WITNESS is set: dump witness ONLY (do not rewrite/write the R1LF shape every time).
     // - Else if OUT_R1CS_LF is set: dump the (shape) R1LF ONLY.
     let out_r1lf = std::env::var("OUT_R1CS_LF").ok();
     let out_witness = std::env::var("OUT_WITNESS").ok();
+    let mut r1cs_stats: Option<(usize, usize, usize, [u8; 32])> = None; // (num_vars, num_constraints, num_public, digest)
+
+    // Compile to R1CS:
+    // - In witness mode, we compile a var-map retaining R1CS later (r1cs2), so skip the early compile.
+    // - In shape-only mode, compile once here from `ops`.
+    let r1cs_shape_only = if out_witness.is_none() {
+        println!("\nCompiling to R1CS...");
+        let start = std::time::Instant::now();
+        let r1cs = R1CSCompiler::<InnerConfig>::compile(ops);
+        let elapsed = start.elapsed();
+
+        println!("\n=========================================================");
+        println!("R1CS Compilation Complete");
+        println!("=========================================================");
+        println!("  Variables:    {:>12}", r1cs.num_vars);
+        println!("  Constraints:  {:>12}", r1cs.num_constraints);
+        println!("  Public inputs:{:>12}", r1cs.num_public);
+        println!("  Compile time: {:>12.2?}", elapsed);
+
+        // Compute and print digest
+        let digest = r1cs.digest();
+        r1cs_stats = Some((r1cs.num_vars, r1cs.num_constraints, r1cs.num_public, digest));
+        println!("\n  R1CS Digest (SHA256):");
+        println!("    {:02x?}", &digest[..16]);
+        println!("    {:02x?}", &digest[16..]);
+        Some(r1cs)
+    } else {
+        None
+    };
 
     if let Some(wit_path) = out_witness.as_deref() {
         if out_r1lf.is_some() {
@@ -513,13 +522,26 @@ fn main() {
             runtime.witness_stream = witness_stream.into();
             runtime.run().unwrap();
 
-            // Compile to R1CS while retaining var_map.
+            // Compile to R1CS while retaining var_map (this is the *only* R1CS compile in witness mode).
             let mut c = R1CSCompiler::<InnerConfig>::new();
             for op in block.ops.clone() {
                 c.compile_one(op);
             }
             c.r1cs.num_public = c.public_inputs.len();
             let r1cs2 = c.r1cs.clone();
+
+            // Print R1CS stats/digest from this compilation (so witness mode still reports them).
+            println!("\n=========================================================");
+            println!("R1CS Compilation Complete (witness-mode, var_map-retaining)");
+            println!("=========================================================");
+            println!("  Variables:    {:>12}", r1cs2.num_vars);
+            println!("  Constraints:  {:>12}", r1cs2.num_constraints);
+            println!("  Public inputs:{:>12}", r1cs2.num_public);
+            let digest = r1cs2.digest();
+            r1cs_stats = Some((r1cs2.num_vars, r1cs2.num_constraints, r1cs2.num_public, digest));
+            println!("\n  R1CS Digest (SHA256):");
+            println!("    {:02x?}", &digest[..16]);
+            println!("    {:02x?}", &digest[16..]);
 
             // Build full R1CS witness vector.
             let mut w_opt: Vec<Option<u64>> = vec![None; r1cs2.num_vars];
@@ -611,6 +633,7 @@ fn main() {
     } else if let Some(path) = out_r1lf.as_deref() {
         println!("\nLifting R1CS for LF+ (shape mode: write R1LF only)...");
         let t_lift_total = std::time::Instant::now();
+        let r1cs = r1cs_shape_only.expect("shape-only R1CS must have been compiled");
         let (r1lf, stats) = lift_r1cs_to_lf_with_linear_carries(&r1cs);
         let t_save = std::time::Instant::now();
         r1lf.save_to_file(path).expect("Failed to save R1LF");
@@ -642,12 +665,14 @@ fn main() {
     
     // Optionally write JSON stats (for quick inspection without loading full R1CS)
     if let Ok(path) = std::env::var("OUT_R1CS_JSON") {
+        let (num_vars, num_constraints, num_public, digest) =
+            r1cs_stats.expect("R1CS stats should be available before OUT_R1CS_JSON");
         let digest_hex: String = digest.iter().map(|b| format!("{:02x}", b)).collect();
         let stats = format!(
             "{{\"num_vars\":{},\"num_constraints\":{},\"num_public\":{},\"digest\":\"{}\"}}", 
-            r1cs.num_vars, 
-            r1cs.num_constraints, 
-            r1cs.num_public,
+            num_vars, 
+            num_constraints, 
+            num_public,
             digest_hex
         );
         std::fs::write(&path, stats).unwrap();
