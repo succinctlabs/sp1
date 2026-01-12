@@ -8,7 +8,7 @@
 //!
 //! Output:
 //! - Prints R1CS statistics (variables, constraints, digest)
-//! - Optionally writes R1CS binary via `OUT_R1CS=path`
+//! - Optionally writes LF-targeted lifted R1CS via `OUT_R1CS_LF=path`
 #![allow(clippy::print_stdout)]
 
 use std::collections::BTreeMap;
@@ -20,7 +20,7 @@ use sp1_recursion_circuit::BabyBearFriConfig;
 use sp1_recursion_compiler::{
     config::InnerConfig,
     ir::{Builder, DslIr},
-    r1cs::R1CSCompiler,
+    r1cs::{lf::lift_r1cs_to_lf, R1CSCompiler},
 };
 use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
 
@@ -146,11 +146,31 @@ fn main() {
     println!("    {:02x?}", &digest[..16]);
     println!("    {:02x?}", &digest[16..]);
 
-    // Optionally write R1CS binary to file
-    if let Ok(path) = std::env::var("OUT_R1CS") {
-        r1cs.save_to_file(&path).expect("Failed to save R1CS");
+    // Optionally write LF-targeted lifted R1CS (integer coefficients + selective lifting).
+    if let Ok(path) = std::env::var("OUT_R1CS_LF") {
+        println!("\nLifting R1CS for LF+ (selective lift + integer coeffs)...");
+        let t_lift = std::time::Instant::now();
+        let (r1lf, stats) = lift_r1cs_to_lf(&r1cs);
+        let elapsed_lift = t_lift.elapsed();
+        r1lf.save_to_file(&path).expect("Failed to save R1LF");
         let file_size = std::fs::metadata(&path).unwrap().len();
-        println!("\nWrote R1CS to {path} ({:.2} MB)", file_size as f64 / 1_000_000.0);
+        println!(
+            "  lift done: {:?}  lifted={} skipped_bool={} skipped_eq={} skipped_select={} added_vars={}",
+            elapsed_lift,
+            stats.lifted_constraints,
+            stats.skipped_bool,
+            stats.skipped_eq,
+            stats.skipped_select,
+            stats.added_vars
+        );
+        println!(
+            "  R1LF: num_vars={} num_constraints={} num_public={} digest={:02x?}...",
+            r1lf.num_vars,
+            r1lf.num_constraints,
+            r1lf.num_public,
+            &r1lf.digest()[..8]
+        );
+        println!("Wrote R1LF to {path} ({:.2} MB)", file_size as f64 / 1_000_000.0);
     }
     
     // Optionally write JSON stats (for quick inspection without loading full R1CS)
@@ -165,6 +185,10 @@ fn main() {
         );
         std::fs::write(&path, stats).unwrap();
         println!("Wrote R1CS stats to {path}");
+    }
+
+    if std::env::var("OUT_R1CS_LF").is_err() {
+        println!("\nSet OUT_R1CS_LF=/path/to/shrink_verifier.r1lf to write the LF-targeted format.");
     }
 }
 

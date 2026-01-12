@@ -11,6 +11,7 @@ pub mod types;
 pub mod compiler;
 pub mod babybear;
 pub mod poseidon2;
+pub mod lf;
 
 #[cfg(test)]
 mod tests;
