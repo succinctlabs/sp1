@@ -7288,6 +7288,7 @@ dependencies = [
  "p3-symmetric",
  "rand 0.8.5",
  "serde",
+ "sha2 0.10.9",
  "sp1-core-machine",
  "sp1-primitives",
  "sp1-recursion-core",

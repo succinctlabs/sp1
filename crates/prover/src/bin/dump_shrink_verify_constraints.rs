@@ -110,10 +110,21 @@ fn build_shrink_verifier_ops() -> Vec<DslIr<InnerConfig>> {
 }
 
 fn write_u64le(path: &str, xs: &[u64]) {
-    let mut f = std::fs::File::create(path).expect("create OUT_WITNESS");
-    for &x in xs {
-        f.write_all(&x.to_le_bytes()).expect("write witness");
+    let file = std::fs::File::create(path).expect("create OUT_WITNESS");
+    let mut w = std::io::BufWriter::with_capacity(256 * 1024 * 1024, file);
+    // Write in moderately large chunks to avoid per-u64 syscall overhead.
+    let mut buf = vec![0u8; 8 * 1024 * 1024]; // 8MB
+    let mut i = 0usize;
+    while i < xs.len() {
+        let take = ((buf.len() / 8).min(xs.len() - i)) as usize;
+        for j in 0..take {
+            let off = j * 8;
+            buf[off..off + 8].copy_from_slice(&xs[i + j].to_le_bytes());
+        }
+        w.write_all(&buf[..take * 8]).expect("write witness chunk");
+        i += take;
     }
+    w.flush().expect("flush witness");
 }
 
 fn parse_mem_id(id: &str) -> Option<(u64, usize)> {

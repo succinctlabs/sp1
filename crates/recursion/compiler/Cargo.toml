@@ -15,6 +15,7 @@ p3-baby-bear = { workspace = true }
 p3-field = { workspace = true }
 p3-symmetric = { workspace = true }
 p3-maybe-rayon = { workspace = true }
+sha2 = "0.10.8"
 
 sp1-core-machine = { workspace = true, default-features = true }
 sp1-primitives = { workspace = true }

@@ -18,9 +18,10 @@
 use crate::r1cs::types::SparseRow;
 use p3_field::PrimeField64;
 use sp1_primitives::io::sha256_hash;
-use std::io::{Read, Write};
+use std::io::{Read, Seek, SeekFrom, Write};
 use p3_maybe_rayon::prelude::*;
 use std::sync::atomic::{AtomicU64, Ordering};
+use sha2::Digest;
 
 /// BabyBear prime modulus (p = 2^31 - 2^27 + 1).
 pub const BABYBEAR_P_U64: u64 = 2013265921;
@@ -159,9 +160,77 @@ impl R1CSLf {
     }
 
     pub fn save_to_file(&self, path: &str) -> std::io::Result<()> {
-        let bytes = self.to_bytes();
-        let mut file = std::fs::File::create(path)?;
-        file.write_all(&bytes)?;
+        // Streaming writer: avoids allocating a multi-GB buffer in memory.
+        //
+        // IMPORTANT: This preserves the *exact* digest definition of `digest()` by updating the
+        // SHA256 state incrementally with the same byte stream `digest()` would hash.
+        let file = std::fs::File::create(path)?;
+        let mut w = std::io::BufWriter::with_capacity(256 * 1024 * 1024, file);
+
+        // Reserve header with placeholder digest and nnz.
+        w.write_all(b"R1LF")?;
+        w.write_all(&1u32.to_le_bytes())?;
+        let digest_pos = w.stream_position()?; // start of 32-byte digest
+        w.write_all(&[0u8; 32])?;
+        w.write_all(&self.p_bb.to_le_bytes())?;
+        w.write_all(&(self.num_vars as u64).to_le_bytes())?;
+        w.write_all(&(self.num_constraints as u64).to_le_bytes())?;
+        w.write_all(&(self.num_public as u64).to_le_bytes())?;
+        let nnz_pos = w.stream_position()?;
+        w.write_all(&0u64.to_le_bytes())?;
+
+        // Digest hasher in the exact format of `digest()`.
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(b"R1CS_LF_DIGEST_v1");
+        hasher.update(&self.p_bb.to_le_bytes());
+        hasher.update(&(self.num_vars as u64).to_le_bytes());
+        hasher.update(&(self.num_constraints as u64).to_le_bytes());
+        hasher.update(&(self.num_public as u64).to_le_bytes());
+
+        let mut total_nonzeros: u64 = 0;
+
+        fn write_matrix(
+            w: &mut std::io::BufWriter<std::fs::File>,
+            hasher: &mut sha2::Sha256,
+            tag: &[u8],
+            m: &[SparseRowI64],
+            total_nonzeros: &mut u64,
+        ) -> std::io::Result<()> {
+            hasher.update(tag);
+            for row in m {
+                *total_nonzeros += row.terms.len() as u64;
+                hasher.update(&(row.terms.len() as u64).to_le_bytes());
+
+                // File encoding uses u32 term count.
+                w.write_all(&(row.terms.len() as u32).to_le_bytes())?;
+                for (idx, coeff) in &row.terms {
+                    hasher.update(&(*idx as u64).to_le_bytes());
+                    hasher.update(&coeff.to_le_bytes());
+
+                    w.write_all(&(*idx as u32).to_le_bytes())?;
+                    w.write_all(&coeff.to_le_bytes())?;
+                }
+            }
+            Ok(())
+        }
+
+        write_matrix(&mut w, &mut hasher, b"A_MATRIX", &self.a, &mut total_nonzeros)?;
+        write_matrix(&mut w, &mut hasher, b"B_MATRIX", &self.b, &mut total_nonzeros)?;
+        write_matrix(&mut w, &mut hasher, b"C_MATRIX", &self.c, &mut total_nonzeros)?;
+
+        // Finalize digest.
+        let digest_vec = hasher.finalize().to_vec();
+        let mut digest = [0u8; 32];
+        digest.copy_from_slice(&digest_vec);
+
+        // Patch header.
+        w.flush()?;
+        let file = w.get_mut();
+        file.seek(SeekFrom::Start(digest_pos))?;
+        file.write_all(&digest)?;
+        file.seek(SeekFrom::Start(nnz_pos))?;
+        file.write_all(&total_nonzeros.to_le_bytes())?;
+        file.flush()?;
         Ok(())
     }
 
