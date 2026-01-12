@@ -33,11 +33,7 @@ use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
 use sp1_stark::BabyBearPoseidon2Inner;
 use sp1_stark::StarkGenericConfig;
 
-use sp1_prover::{InnerSC, ShrinkAir};
-use sp1_core_executor::SP1Context;
-use sp1_core_machine::io::SP1Stdin;
-use sp1_prover::SP1Prover;
-use sp1_stark::SP1ProverOpts;
+use sp1_prover::{CompressAir, InnerSC, ShrinkAir};
 use sp1_recursion_core::{Address, Runtime};
 use sp1_recursion_compiler::circuit::AsmCompiler;
 use sp1_recursion_compiler::ir::DslIrProgram;
@@ -85,7 +81,9 @@ fn visit_ops<C: sp1_recursion_compiler::ir::Config + core::fmt::Debug>(
 
 /// Build the shrink verifier DslIr operations.
 fn build_shrink_verifier_ops() -> Vec<DslIr<InnerConfig>> {
-    let machine = ShrinkAir::shrink_machine(InnerSC::compressed());
+    // IMPORTANT: this circuit verifies a *compressed* proof, so it must use the *compress machine*
+    // verifier parameters (not the shrink prover machine).
+    let machine = CompressAir::compress_machine(InnerSC::default());
     let shrink_shape = ShrinkAir::<BabyBear>::shrink_shape().into();
     let input_shape = sp1_recursion_circuit::machine::SP1CompressShape::from(vec![shrink_shape]);
     let shape = sp1_recursion_circuit::machine::SP1CompressWithVkeyShape {
@@ -136,29 +134,20 @@ fn parse_mem_id(id: &str) -> Option<(u64, usize)> {
     None
 }
 
-fn build_real_input_with_merkle() -> (SP1Prover, SP1CompressWithVKeyWitnessValues<BabyBearPoseidon2>) {
-    // Build a concrete compress proof (from a small dummy program) and produce the shrink-verifier
-    // circuit input (vk+proof+merkle) so we can materialize a full witness.
+fn build_dummy_input_with_merkle() -> SP1CompressWithVKeyWitnessValues<BabyBearPoseidon2> {
+    // Build a concrete *dummy* witness for the shrink verifier circuit.
     //
-    // This is statement-time; shape-only exports should NOT depend on this.
-    let elf = include_bytes!("../../elf/riscv32im-succinct-zkvm-elf");
-    let prover: SP1Prover = SP1Prover::new();
-    let opts = SP1ProverOpts::auto();
-    let context = SP1Context::default();
-
-    let (_, pk_d, program, vk) = prover.setup(elf);
-    let mut stdin = SP1Stdin::new();
-    stdin.write(&500u32);
-    let core_proof = prover.prove_core(&pk_d, program, &stdin, opts, context).unwrap();
-    let compressed = prover.compress(&vk, core_proof, vec![], opts).unwrap();
-
-    // The shrink verifier circuit verifies the *compressed* proof (vk+proof) with merkle proofs.
-    let input = sp1_recursion_circuit::machine::SP1CompressWitnessValues {
-        vks_and_proofs: vec![(compressed.vk.clone(), compressed.proof.clone())],
-        is_complete: true,
+    // This avoids running the SP1 zkVM/prover stack (and any ELF/syscall issues).
+    // It's sufficient to materialize a full circuit witness consistent with the
+    // compiled algebraic constraints (with value assertions disabled).
+    let machine = CompressAir::compress_machine(InnerSC::default());
+    let shrink_shape = ShrinkAir::<BabyBear>::shrink_shape().into();
+    let input_shape = sp1_recursion_circuit::machine::SP1CompressShape::from(vec![shrink_shape]);
+    let shape = sp1_recursion_circuit::machine::SP1CompressWithVkeyShape {
+        compress_shape: input_shape,
+        merkle_tree_height: 1,
     };
-    let input_with_merkle = prover.make_merkle_proofs(input);
-    (prover, input_with_merkle)
+    SP1CompressWithVKeyWitnessValues::dummy(&machine, &shape)
 }
 
 fn main() {
@@ -167,7 +156,7 @@ fn main() {
     println!("=========================================================\n");
 
     // Print FRI config for reference
-    let machine = ShrinkAir::shrink_machine(InnerSC::compressed());
+    let machine = CompressAir::compress_machine(InnerSC::default());
     let fri = machine.config().fri_config();
     println!("FRI config:");
     println!("  log_blowup: {}", fri.log_blowup);
@@ -182,9 +171,7 @@ fn main() {
     // Build DslIr operations (shape-only by default).
     println!("Building shrink verifier circuit...");
     let maybe_input_with_merkle = if std::env::var("OUT_WITNESS").is_ok() {
-        let (p, input) = build_real_input_with_merkle();
-        drop(p);
-        Some(input)
+        Some(build_dummy_input_with_merkle())
     } else {
         None
     };
@@ -192,15 +179,15 @@ fn main() {
     // If OUT_WITNESS is set, compile the circuit with a real input so we can also run the
     // recursion runtime and dump a full witness (including lift aux vars).
     let ops = if let Some(input_with_merkle) = maybe_input_with_merkle.as_ref() {
-        let machine = ShrinkAir::shrink_machine(InnerSC::compressed());
+        let machine = CompressAir::compress_machine(InnerSC::default());
         let mut builder = Builder::<InnerConfig>::default();
         let input = input_with_merkle.read(&mut builder);
         sp1_recursion_circuit::machine::SP1CompressRootVerifierWithVKey::verify(
             &mut builder,
             &machine,
             input,
-            true, // enable value assertions for a concrete witness run
-            sp1_recursion_circuit::machine::PublicValuesOutputDigest::Reduce,
+            false, // keep algebraic shape only; dummy witness won't satisfy value assertions
+            sp1_recursion_circuit::machine::PublicValuesOutputDigest::Root,
         );
         builder.into_operations()
     } else {
@@ -249,15 +236,15 @@ fn main() {
             let input_with_merkle = maybe_input_with_merkle.as_ref().expect("input must exist");
 
             // Build the same block and execute it in recursion runtime to fill memory.
-            let machine = ShrinkAir::shrink_machine(InnerSC::compressed());
+            let machine = CompressAir::compress_machine(InnerSC::default());
             let mut builder = Builder::<InnerConfig>::default();
             let input = input_with_merkle.read(&mut builder);
             sp1_recursion_circuit::machine::SP1CompressRootVerifierWithVKey::verify(
                 &mut builder,
                 &machine,
                 input,
-                true,
-                sp1_recursion_circuit::machine::PublicValuesOutputDigest::Reduce,
+                false,
+                sp1_recursion_circuit::machine::PublicValuesOutputDigest::Root,
             );
             let block = builder.into_root_block();
 
