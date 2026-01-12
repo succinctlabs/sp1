@@ -231,6 +231,7 @@ fn row_known_sum_and_single_unknown(
 fn complete_witness_from_constraints(
     r1cs: &sp1_recursion_compiler::r1cs::types::R1CS<BabyBear>,
     w: &mut [Option<u64>],
+    origin: &mut [u8],
 ) -> Result<(), String> {
     // Do a few propagation passes. We solve any constraint where exactly one witness slot is
     // unknown and all other terms in the constraint are known.
@@ -266,6 +267,7 @@ fn complete_witness_from_constraints(
                             // coeff*dst + c_known = target  => dst = (target - c_known)/coeff
                             let rhs = (target + BABYBEAR_P - c_known) % BABYBEAR_P;
                             w[dst] = Some(mod_mul(rhs, inv_coeff));
+                            origin[dst] = 3;
                             progress += 1;
                             continue;
                         }
@@ -285,6 +287,7 @@ fn complete_witness_from_constraints(
                             if let Some(inv_coeff) = mod_inv(coeff) {
                                 let rhs = (target_a + BABYBEAR_P - a_known) % BABYBEAR_P;
                                 w[dst] = Some(mod_mul(rhs, inv_coeff));
+                                origin[dst] = 3;
                                 progress += 1;
                                 continue;
                             }
@@ -303,6 +306,7 @@ fn complete_witness_from_constraints(
                             if let Some(inv_coeff) = mod_inv(coeff) {
                                 let rhs = (target_b + BABYBEAR_P - b_known) % BABYBEAR_P;
                                 w[dst] = Some(mod_mul(rhs, inv_coeff));
+                                origin[dst] = 3;
                                 progress += 1;
                                 continue;
                             }
@@ -333,6 +337,54 @@ fn complete_witness_from_constraints(
         ));
     }
     Ok(())
+}
+
+fn eval_row_mod(
+    row: &sp1_recursion_compiler::r1cs::types::SparseRow<BabyBear>,
+    w: &[Option<u64>],
+) -> u64 {
+    let mut acc = 0u64;
+    for (idx, coeff) in row.terms.iter() {
+        let ci = coeff.as_canonical_u64();
+        let wi = w[*idx].expect("witness slot missing during eval");
+        acc = mod_add(acc, mod_mul(ci, wi));
+    }
+    acc
+}
+
+fn debug_first_unsatisfied_row(
+    r1cs: &sp1_recursion_compiler::r1cs::types::R1CS<BabyBear>,
+    w: &[Option<u64>],
+    origin: &[u8],
+    idx_to_id: &[Option<String>],
+    max_rows: usize,
+) -> Option<usize> {
+    for i in 0..r1cs.num_constraints.min(max_rows) {
+        let a = eval_row_mod(&r1cs.a[i], w);
+        let b = eval_row_mod(&r1cs.b[i], w);
+        let c = eval_row_mod(&r1cs.c[i], w);
+        if mod_mul(a, b) != c {
+            eprintln!("\n[exporter debug] first unsatisfied row i={i} (within first {max_rows})");
+            eprintln!("  a={a} b={b} c={c} a*b-c mod p={}", (mod_mul(a, b) + BABYBEAR_P - c) % BABYBEAR_P);
+            let dump_row = |name: &str, row: &sp1_recursion_compiler::r1cs::types::SparseRow<BabyBear>| {
+                eprintln!("  {name}: terms={}", row.terms.len());
+                for (idx, coeff) in row.terms.iter().take(16) {
+                    let wi = w[*idx].unwrap_or(u64::MAX);
+                    let src = origin[*idx];
+                    let id = idx_to_id.get(*idx).and_then(|x| x.as_ref()).map(|s| s.as_str()).unwrap_or("-");
+                    eprintln!("    idx={idx:<8} coeff={} wi={wi:<10} origin={src} id={id}", coeff.as_canonical_u64());
+                }
+                if row.terms.len() > 16 {
+                    eprintln!("    ... (truncated)");
+                }
+            };
+            dump_row("A", &r1cs.a[i]);
+            dump_row("B", &r1cs.b[i]);
+            dump_row("C", &r1cs.c[i]);
+            return Some(i);
+        }
+    }
+    None
 }
 
 fn load_default_fibonacci_elf_bytes() -> Vec<u8> {
@@ -567,7 +619,10 @@ fn main() {
 
             // Build full R1CS witness vector.
             let mut w_opt: Vec<Option<u64>> = vec![None; r1cs2.num_vars];
+            // 0 = unset, 1 = runtime memory, 2 = const, 3 = propagation/solve
+            let mut origin: Vec<u8> = vec![0u8; r1cs2.num_vars];
             w_opt[0] = Some(1);
+            origin[0] = 2;
             // Fill constant vars: constraints of form 1 * const = var.
             for i in 0..r1cs2.num_constraints {
                 let a = &r1cs2.a[i].terms;
@@ -579,6 +634,7 @@ fn main() {
                     && cc[0].0 != 0
                 {
                     w_opt[cc[0].0] = Some(b[0].1.as_canonical_u64());
+                    origin[cc[0].0] = 2;
                 }
             }
             // Fill DSL vars from runtime memory.
@@ -599,12 +655,30 @@ fn main() {
                     .copied()
                     .unwrap_or_else(|| BabyBear::zero());
                 w_opt[*idx] = Some(val.as_canonical_u64());
+                origin[*idx] = 1;
             }
 
             // Lift + compute aux witness.
-            complete_witness_from_constraints(&r1cs2, &mut w_opt)
+            complete_witness_from_constraints(&r1cs2, &mut w_opt, &mut origin)
                 .map_err(|e| format!("complete witness: {e}"))
                 .expect("complete witness");
+
+            // Optional early debug: find first failing row (often very early if mapping is wrong).
+            // Enable with `DEBUG_FIRST_BAD_ROW=1` and optionally `DEBUG_MAX_ROWS=...`.
+            if std::env::var("DEBUG_FIRST_BAD_ROW").ok().as_deref() == Some("1") {
+                let mut idx_to_id: Vec<Option<String>> = vec![None; r1cs2.num_vars];
+                for (id, idx) in c.var_map.iter() {
+                    if *idx < idx_to_id.len() {
+                        idx_to_id[*idx] = Some(id.clone());
+                    }
+                }
+                let max_rows: usize = std::env::var("DEBUG_MAX_ROWS")
+                    .ok()
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(100_000);
+                let _ = debug_first_unsatisfied_row(&r1cs2, &w_opt, &origin, &idx_to_id, max_rows);
+            }
+
             let w_bb: Vec<BabyBear> = w_opt
                 .into_iter()
                 .map(|x| BabyBear::from_canonical_u64(x.expect("witness slot missing")))
