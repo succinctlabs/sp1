@@ -767,6 +767,77 @@ fn debug_first_unsatisfied_row(
     None
 }
 
+fn fill_r1cs_witness_from_hint_ops(
+    ops: &[sp1_recursion_compiler::ir::DslIr<InnerConfig>],
+    var_map: &std::collections::HashMap<String, usize>,
+    witness_blocks: &[sp1_recursion_core::air::Block<BabyBear>],
+    w_opt: &mut [Option<u64>],
+    origin: &mut [u8],
+) -> Result<(), String> {
+    use sp1_recursion_compiler::ir::DslIr;
+    let mut pos: usize = 0;
+    for op in ops {
+        match op {
+            DslIr::CircuitV2HintFelts(start, len) => {
+                for i in 0..*len {
+                    let id = format!("felt{}", start.idx + i as u32);
+                    let &dst = var_map
+                        .get(&id)
+                        .ok_or_else(|| format!("hint fill: missing var_map entry for {id}"))?;
+                    let blk = witness_blocks
+                        .get(pos)
+                        .ok_or_else(|| format!("hint fill: witness stream underrun at pos={pos} for {id}"))?;
+                    w_opt[dst] = Some(blk.0[0].as_canonical_u64());
+                    origin[dst] = 1; // fixed witness input
+                    pos += 1;
+                }
+            }
+            DslIr::CircuitV2HintExts(start, len) => {
+                for j in 0..*len {
+                    let ext_n = start.idx + j as u32;
+                    let blk = witness_blocks
+                        .get(pos)
+                        .ok_or_else(|| format!("hint fill: witness stream underrun at pos={pos} for ext{ext_n}"))?;
+                    for limb in 0..4usize {
+                        let id = format!("ext{}__{}", ext_n, limb);
+                        let &dst = var_map
+                            .get(&id)
+                            .ok_or_else(|| format!("hint fill: missing var_map entry for {id}"))?;
+                        w_opt[dst] = Some(blk.0[limb].as_canonical_u64());
+                        origin[dst] = 1; // fixed witness input
+                    }
+                    pos += 1;
+                }
+            }
+            DslIr::CircuitV2HintBitsF(bits, _value) => {
+                for b in bits.iter() {
+                    let id = format!("felt{}", b.idx);
+                    let &dst = var_map
+                        .get(&id)
+                        .ok_or_else(|| format!("hint fill: missing var_map entry for {id}"))?;
+                    let blk = witness_blocks
+                        .get(pos)
+                        .ok_or_else(|| format!("hint fill: witness stream underrun at pos={pos} for {id}"))?;
+                    w_opt[dst] = Some(blk.0[0].as_canonical_u64());
+                    origin[dst] = 1; // fixed witness input
+                    pos += 1;
+                }
+            }
+            DslIr::Parallel(sub) => {
+                // Witness hints are forbidden in parallel blocks (runtime enforces this).
+                // We still walk them to detect accidental hints (would imply nondeterminism).
+                for b in sub.iter() {
+                    fill_r1cs_witness_from_hint_ops(&b.ops, var_map, witness_blocks, w_opt, origin)?;
+                }
+            }
+            _ => {}
+        }
+    }
+    // It's okay if we didn't consume all witness blocks (some witness data may be used by other
+    // hint instruction families that we don't map yet), but underruns are fatal.
+    Ok(())
+}
+
 fn load_default_fibonacci_elf_bytes() -> Vec<u8> {
     // Prefer the (already-built) fibonacci example ELF if present.
     //
@@ -971,9 +1042,10 @@ fn main() {
                 program.clone(),
                 BabyBearPoseidon2Inner::new().perm,
             );
-            let mut witness_stream = Vec::new();
-            Witnessable::<InnerConfig>::write(input_with_merkle, &mut witness_stream);
-            runtime.witness_stream = witness_stream.into();
+            let mut witness_blocks = Vec::new();
+            Witnessable::<InnerConfig>::write(input_with_merkle, &mut witness_blocks);
+            let witness_blocks_for_fill = witness_blocks.clone();
+            runtime.witness_stream = witness_blocks.into();
             runtime.run().unwrap();
 
             // Compile to R1CS while retaining var_map (this is the *only* R1CS compile in witness mode).
@@ -1037,6 +1109,13 @@ fn main() {
                 w_opt[*idx] = Some(val.as_canonical_u64());
                 origin[*idx] = 1;
             }
+
+            // Fill R1CS witness inputs directly from the witness stream (the same one consumed by runtime Hint).
+            // This is crucial for hint-based values (e.g. CircuitV2HintBitsF), which do not necessarily map
+            // cleanly to runtime memory IDs but are still fixed statement inputs.
+            fill_r1cs_witness_from_hint_ops(&block.ops, &c.var_map, &witness_blocks_for_fill, &mut w_opt, &mut origin)
+                .map_err(|e| format!("hint fill: {e}"))
+                .expect("hint fill");
 
             // Lift + compute aux witness.
             complete_witness_from_constraints(&r1cs2, &mut w_opt, &mut origin)
