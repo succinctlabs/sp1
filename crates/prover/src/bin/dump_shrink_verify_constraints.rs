@@ -367,8 +367,41 @@ fn complete_witness_from_constraints(
             let a_val = eval_row_mod(a, w);
             let b_val = eval_row_mod(b, w);
             let c_val = eval_row_mod(c, w);
-            if mod_mul(a_val, b_val) == c_val {
+            let prod = mod_mul(a_val, b_val);
+            if prod == c_val {
                 continue;
+            }
+
+            // Repair rule -1 (dominant): if C is a single variable term, treat this constraint as
+            // a defining assignment for that variable and overwrite it.
+            //
+            // This matches how the compiler allocates fresh temporaries for results of:
+            // - mul:      (x) * (y) = out
+            // - linear:   (1) * (x + y + const) = out
+            //
+            // Even when inputs are also temps, iterating this forward a few passes behaves like
+            // executing the circuit and converges to a consistent witness on DAG-shaped deps.
+            if c.terms.len() == 1 {
+                let (dst, coeff_dst_f) = c.terms[0];
+                if dst != 0 {
+                    let src = origin.get(dst).copied().unwrap_or(0);
+                    let is_mut = src == 0 || src == 3;
+                    if is_mut {
+                        let coeff_dst = coeff_dst_f.as_canonical_u64();
+                        if let Some(inv_coeff) = mod_inv(coeff_dst) {
+                            // coeff_dst*dst = prod  => dst = prod/coeff_dst
+                            let new_dst = mod_mul(prod, inv_coeff);
+                            if w[dst] != Some(new_dst) {
+                                w[dst] = Some(new_dst);
+                                if origin[dst] == 0 {
+                                    origin[dst] = 3;
+                                }
+                                progress += 1;
+                                continue;
+                            }
+                        }
+                    }
+                }
             }
 
             // Repair rule 0 (very common): linear assignment in R1CS form.
