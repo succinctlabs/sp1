@@ -186,7 +186,7 @@ fn complete_witness_from_constraints(
 ) -> Result<(), String> {
     // One or two forward passes are typically enough because the compiler introduces fresh vars
     // in a topological order (defs before use).
-    for _pass in 0..2 {
+    for _pass in 0..4 {
         let mut progress = 0usize;
         for i in 0..r1cs.num_constraints {
             let a = &r1cs.a[i];
@@ -202,34 +202,15 @@ fn complete_witness_from_constraints(
                 }
             };
 
-            // Case 1: (1) * (linear) = dst  OR  (linear) * (1) = dst
+            // Case 1: c is a single dst variable: (a · w) * (b · w) = w[dst]
+            // If we can evaluate both sides, set dst. This covers both linear assignments
+            // (when one side is 1) and general mul outputs.
             if let Some(dst) = single(c) {
                 if dst != 0 && w[dst].is_none() {
-                    let a_is_one = a.terms.len() == 1 && a.terms[0].0 == 0 && a.terms[0].1 == BabyBear::one();
-                    let b_is_one = b.terms.len() == 1 && b.terms[0].0 == 0 && b.terms[0].1 == BabyBear::one();
-
-                    if a_is_one {
-                        if let Some(bv) = eval_row_if_known(b, w) {
-                            w[dst] = Some(bv);
-                            progress += 1;
-                            continue;
-                        }
-                    }
-                    if b_is_one {
-                        if let Some(av) = eval_row_if_known(a, w) {
-                            w[dst] = Some(av);
-                            progress += 1;
-                            continue;
-                        }
-                    }
-
-                    // Case 2: (x) * (y) = dst with x,y single vars.
-                    if let (Some(xi), Some(yi)) = (single(a), single(b)) {
-                        if let (Some(xv), Some(yv)) = (w[xi], w[yi]) {
-                            w[dst] = Some(mod_mul(xv, yv));
-                            progress += 1;
-                            continue;
-                        }
+                    if let (Some(av), Some(bv)) = (eval_row_if_known(a, w), eval_row_if_known(b, w)) {
+                        w[dst] = Some(mod_mul(av, bv));
+                        progress += 1;
+                        continue;
                     }
                 }
             }
@@ -262,6 +243,15 @@ fn complete_witness_from_constraints(
 
     let missing = w.iter().skip(1).filter(|x| x.is_none()).count();
     if missing != 0 {
+        let mut examples = Vec::new();
+        for (i, v) in w.iter().enumerate().skip(1) {
+            if v.is_none() {
+                examples.push(i);
+                if examples.len() >= 8 {
+                    break;
+                }
+            }
+        }
         return Err(format!("could not complete witness: {missing} variables remain unset"));
     }
     Ok(())
