@@ -13,7 +13,6 @@
 
 use std::collections::BTreeMap;
 
-use p3_field::AbstractField;
 use p3_baby_bear::BabyBear;
 use sp1_recursion_circuit::machine::SP1CompressWithVKeyWitnessValues;
 use sp1_recursion_circuit::witness::Witnessable;
@@ -21,8 +20,7 @@ use sp1_recursion_circuit::BabyBearFriConfig;
 use sp1_recursion_compiler::{
     config::InnerConfig,
     ir::{Builder, DslIr},
-    r1cs::{lf::{lift_r1cs_to_lf, lift_r1cs_to_lf_true_mul_only}, R1CSCompiler},
-    r1cs::poseidon2::{reset_poseidon2_r1cs_constraint_stats, take_poseidon2_r1cs_constraint_stats},
+    r1cs::{lf::lift_r1cs_to_lf_with_linear_carries, R1CSCompiler},
 };
 use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
 
@@ -130,8 +128,6 @@ fn main() {
 
     // Compile to R1CS
     println!("\nCompiling to R1CS...");
-    // Reset Poseidon2 constraint counters before compilation.
-    reset_poseidon2_r1cs_constraint_stats();
     let start = std::time::Instant::now();
     let r1cs = R1CSCompiler::<InnerConfig>::compile(ops);
     let elapsed = start.elapsed();
@@ -143,13 +139,6 @@ fn main() {
     println!("  Constraints:  {:>12}", r1cs.num_constraints);
     println!("  Public inputs:{:>12}", r1cs.num_public);
     println!("  Compile time: {:>12.2?}", elapsed);
-
-    // Poseidon2 expansion stats (constraints emitted inside Poseidon2R1CS expansion).
-    let (p2_total, p2_linear, p2_mul) = take_poseidon2_r1cs_constraint_stats();
-    println!("\nPoseidon2 expansion constraint stats:");
-    println!("  total:  {p2_total}");
-    println!("  linear: {p2_linear}");
-    println!("  mul:    {p2_mul}");
     
     // Compute and print digest
     let digest = r1cs.digest();
@@ -157,51 +146,24 @@ fn main() {
     println!("    {:02x?}", &digest[..16]);
     println!("    {:02x?}", &digest[16..]);
 
-    // Quick structural stats: how many constraints are "linear" (one side is constant 1)
-    // vs "true multiply" (both sides non-constant). This approximates how much an IR-level lift
-    // (only adding quotients for actual multiplies) could reduce auxiliary variables.
-    let is_one_row = |row: &sp1_recursion_compiler::r1cs::types::SparseRow<BabyBear>| {
-        row.terms.len() == 1 && row.terms[0].0 == 0 && row.terms[0].1 == BabyBear::one()
-    };
-    let mut n_linear = 0usize;
-    let mut n_mul = 0usize;
-    for i in 0..r1cs.num_constraints {
-        let a1 = is_one_row(&r1cs.a[i]);
-        let b1 = is_one_row(&r1cs.b[i]);
-        if a1 || b1 {
-            n_linear += 1;
-        } else {
-            n_mul += 1;
-        }
-    }
-    println!("\nConstraint shape stats:");
-    println!("  linear (A==1 or B==1): {n_linear}");
-    println!("  true multiply (A!=1 and B!=1): {n_mul}");
-
     // Optionally write LF-targeted lifted R1CS (integer coefficients + selective lifting).
     if let Ok(path) = std::env::var("OUT_R1CS_LF") {
-        let true_mul_only = std::env::var("LIFT_TRUE_MUL_ONLY").ok().as_deref() == Some("1");
-        println!("\nLifting R1CS for LF+ (selective lift + integer coeffs)...");
+        println!("\nLifting R1CS for LF+ (full lift: mul quotients + linear carries)...");
         let t_lift = std::time::Instant::now();
-        let (r1lf, stats) = if true_mul_only {
-            println!("  mode: true-mul-only (A!=1 && B!=1)");
-            lift_r1cs_to_lf_true_mul_only(&r1cs)
-        } else {
-            println!("  mode: default selective lift");
-            lift_r1cs_to_lf(&r1cs)
-        };
+        let (r1lf, stats) = lift_r1cs_to_lf_with_linear_carries(&r1cs);
         let elapsed_lift = t_lift.elapsed();
         r1lf.save_to_file(&path).expect("Failed to save R1LF");
         let file_size = std::fs::metadata(&path).unwrap().len();
         println!(
-            "  lift done: {:?}  lifted={} skipped_bool={} skipped_eq={} skipped_select={} skipped_linear={} added_vars={}",
+            "  lift done: {:?}  lifted={} skipped_bool={} skipped_eq={} skipped_select={} added_vars={} (q={} carry={})",
             elapsed_lift,
             stats.lifted_constraints,
             stats.skipped_bool,
             stats.skipped_eq,
             stats.skipped_select,
-            stats.skipped_linear,
-            stats.added_vars
+            stats.added_vars,
+            stats.added_q_vars,
+            stats.added_carry_vars
         );
         println!(
             "  R1LF: num_vars={} num_constraints={} num_public={} digest={:02x?}...",

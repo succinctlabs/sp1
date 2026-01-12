@@ -7,44 +7,7 @@
 //! Round constants sourced from: sp1/crates/recursion/gnark-ffi/go/sp1/poseidon2/constants.go
 
 use p3_field::PrimeField64;
-use std::sync::atomic::{AtomicU64, Ordering};
-
 use super::types::{R1CS, SparseRow};
-
-// -----------------------------------------------------------------------------
-// Lightweight instrumentation: count how many R1CS constraints Poseidon2 expansion emits.
-//
-// This is used by the SP1→LF+ integration work to estimate how much an IR-level lift can
-// reduce auxiliary quotient/carry variables, compared to per-constraint lifting.
-// -----------------------------------------------------------------------------
-static POSEIDON2_CONSTRAINTS_TOTAL: AtomicU64 = AtomicU64::new(0);
-static POSEIDON2_CONSTRAINTS_LINEAR: AtomicU64 = AtomicU64::new(0);
-static POSEIDON2_CONSTRAINTS_MUL: AtomicU64 = AtomicU64::new(0);
-
-#[inline]
-fn poseidon2_count_constraint(is_linear: bool) {
-    POSEIDON2_CONSTRAINTS_TOTAL.fetch_add(1, Ordering::Relaxed);
-    if is_linear {
-        POSEIDON2_CONSTRAINTS_LINEAR.fetch_add(1, Ordering::Relaxed);
-    } else {
-        POSEIDON2_CONSTRAINTS_MUL.fetch_add(1, Ordering::Relaxed);
-    }
-}
-
-/// Reset Poseidon2 constraint counters.
-pub fn reset_poseidon2_r1cs_constraint_stats() {
-    POSEIDON2_CONSTRAINTS_TOTAL.store(0, Ordering::Relaxed);
-    POSEIDON2_CONSTRAINTS_LINEAR.store(0, Ordering::Relaxed);
-    POSEIDON2_CONSTRAINTS_MUL.store(0, Ordering::Relaxed);
-}
-
-/// Read and reset Poseidon2 constraint counters.
-pub fn take_poseidon2_r1cs_constraint_stats() -> (u64, u64, u64) {
-    let total = POSEIDON2_CONSTRAINTS_TOTAL.swap(0, Ordering::Relaxed);
-    let linear = POSEIDON2_CONSTRAINTS_LINEAR.swap(0, Ordering::Relaxed);
-    let mul = POSEIDON2_CONSTRAINTS_MUL.swap(0, Ordering::Relaxed);
-    (total, linear, mul)
-}
 
 /// Poseidon2 parameters for BabyBear
 pub const WIDTH: usize = 16;
@@ -279,8 +242,6 @@ impl<F: PrimeField64> Poseidon2R1CS<F> {
         let mut sum = SparseRow::new();
         sum.add_term(var, F::one());
         sum.add_term(0, constant); // constant uses index 0 (which holds 1)
-        // A==1 => linear constraint
-        poseidon2_count_constraint(true);
         r1cs.add_constraint(
             SparseRow::single(0),
             sum,
@@ -294,8 +255,6 @@ impl<F: PrimeField64> Poseidon2R1CS<F> {
         let result = Self::alloc(next_var);
         r1cs.num_vars = *next_var;
         
-        // A!=1 and B!=1 => true multiplication constraint
-        poseidon2_count_constraint(false);
         r1cs.add_constraint(
             SparseRow::single(a),
             SparseRow::single(b),
@@ -314,8 +273,6 @@ impl<F: PrimeField64> Poseidon2R1CS<F> {
         
         // result = var * constant
         // (1) * (var * constant) = result
-        // A==1 => linear constraint
-        poseidon2_count_constraint(true);
         r1cs.add_constraint(
             SparseRow::single(0),
             SparseRow::single_with_coeff(var, constant),
@@ -332,8 +289,6 @@ impl<F: PrimeField64> Poseidon2R1CS<F> {
         let mut sum = SparseRow::new();
         sum.add_term(a, F::one());
         sum.add_term(b, F::one());
-        // A==1 => linear constraint
-        poseidon2_count_constraint(true);
         r1cs.add_constraint(
             SparseRow::single(0),
             sum,
