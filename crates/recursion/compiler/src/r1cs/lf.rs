@@ -429,26 +429,26 @@ fn lift_r1cs_to_lf_core<F: PrimeField64>(
     let bool_hits: Vec<usize> = (0..r1cs_bb.num_constraints)
         .into_par_iter()
         .filter_map(|i| {
-            let a = &a_i64[i];
-            let b = &b_i64[i];
-            let c = &c_i64[i];
-            if c.terms.is_empty()
-                && a.terms.len() == 1
-                && a.terms[0].1 == 1
-                && b.terms.len() == 2
-            {
-                let bvar = a.terms[0].0;
-                let mut has_const = false;
-                let mut has_minus_b = false;
-                for (idx, coeff) in &b.terms {
-                    if *idx == 0 && *coeff == 1 {
-                        has_const = true;
-                    }
-                    if *idx == bvar && *coeff == -1 {
-                        has_minus_b = true;
-                    }
+        let a = &a_i64[i];
+        let b = &b_i64[i];
+        let c = &c_i64[i];
+        if c.terms.is_empty()
+            && a.terms.len() == 1
+            && a.terms[0].1 == 1
+            && b.terms.len() == 2
+        {
+            let bvar = a.terms[0].0;
+            let mut has_const = false;
+            let mut has_minus_b = false;
+            for (idx, coeff) in &b.terms {
+                if *idx == 0 && *coeff == 1 {
+                    has_const = true;
                 }
-                if has_const && has_minus_b {
+                if *idx == bvar && *coeff == -1 {
+                    has_minus_b = true;
+                }
+            }
+            if has_const && has_minus_b {
                     return Some(bvar);
                 }
             }
@@ -566,8 +566,8 @@ fn lift_r1cs_to_lf_core<F: PrimeField64>(
                 next_aux += 1;
             }
             LiftDecision::LiftQuotient => {
-                stats.lifted_constraints += 1;
-                stats.added_vars += 1;
+        stats.lifted_constraints += 1;
+        stats.added_vars += 1;
                 stats.added_q_vars += 1;
                 lift_pos[i] = next_aux;
                 next_aux += 1;
