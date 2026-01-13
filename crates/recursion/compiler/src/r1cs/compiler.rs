@@ -125,6 +125,15 @@ where
     /// while non-hint variables (e.g., from runtime memory writes) still work correctly.
     fn read_id(&mut self, id: &str, mut ctx: Option<&mut WitnessCtx<'_, C::F>>) -> usize {
         if let Some(&idx) = self.var_map.get(id) {
+            // DEBUG: Track when we reuse an existing index
+            if id == "felt152568" || id == "felt152569" {
+                if let Some(c) = ctx.as_deref_mut() {
+                    eprintln!(
+                        "[R1CS read_id] {} REUSED existing idx={}, witness={}",
+                        id, idx, c.witness.get(idx).map(|v| v.as_canonical_u64()).unwrap_or(0)
+                    );
+                }
+            }
             idx
         } else {
             let idx = self.alloc_var(ctx.as_deref_mut());
@@ -141,6 +150,13 @@ where
                     if let Some(&v) = c.hint_felt_values.get(id) {
                         c.set(idx, v);
                         found = true;
+                        // DEBUG: Track when we set from hint map
+                        if id == "felt152568" || id == "felt152569" {
+                            eprintln!(
+                                "[R1CS read_id] {} NEW idx={}, set from hint_map={}",
+                                id, idx, v.as_canonical_u64()
+                            );
+                        }
                     }
                     
                     // For ext components (IDs like "ext123__0"), check hint_ext_values
@@ -167,6 +183,18 @@ where
                     // Non-hint variable: get value from runtime memory
                     if let Some(v) = (c.get_value)(id) {
                         c.set(idx, v);
+                        // DEBUG: Track when we use get_value
+                        if id == "felt152568" || id == "felt152569" {
+                            eprintln!(
+                                "[R1CS read_id] {} NEW idx={}, set from get_value={} (NOT in hinted_ids!)",
+                                id, idx, v.as_canonical_u64()
+                            );
+                        }
+                    } else if id == "felt152568" || id == "felt152569" {
+                        eprintln!(
+                            "[R1CS read_id] {} NEW idx={}, get_value returned None, witness stays 0 (NOT in hinted_ids!)",
+                            id, idx
+                        );
                     }
                 }
             }
@@ -2484,6 +2512,30 @@ where
             &mut hint_felt_values,
             &mut hint_ext_values,
             &mut hinted_ids,
+        );
+        
+        // DEBUG: Print Phase 1 statistics
+        eprintln!(
+            "[R1CS Phase 1] Pre-consumed {} felt hints, {} ext hints, {} total hinted IDs",
+            hint_felt_values.len(),
+            hint_ext_values.len(),
+            hinted_ids.len()
+        );
+        // DEBUG: Check specific IDs
+        if let Some(&v) = hint_felt_values.get("felt152568") {
+            eprintln!("[R1CS Phase 1] felt152568 = {}", v.as_canonical_u64());
+        } else {
+            eprintln!("[R1CS Phase 1] felt152568 NOT in hint_felt_values!");
+        }
+        if let Some(&v) = hint_felt_values.get("felt152569") {
+            eprintln!("[R1CS Phase 1] felt152569 = {}", v.as_canonical_u64());
+        } else {
+            eprintln!("[R1CS Phase 1] felt152569 NOT in hint_felt_values!");
+        }
+        eprintln!(
+            "[R1CS Phase 1] felt152568 in hinted_ids: {}, felt152569 in hinted_ids: {}",
+            hinted_ids.contains("felt152568"),
+            hinted_ids.contains("felt152569")
         );
 
         // =====================================================================
