@@ -345,13 +345,20 @@ where
                     //   R1CS_PREFILL_RUNTIME=0
                     let prefill = std::env::var("R1CS_PREFILL_RUNTIME").ok().as_deref() != Some("0");
                     if prefill {
-                        if let Some(v) = (c.get_value)(id) {
-                            c.set(idx, v);
-                            if watching {
-                                println!(
-                                    "[R1CS_WATCH_ID]   forward-runtime prefill value={}",
-                                    v.as_canonical_u64()
-                                );
+                        match (c.get_value)(id) {
+                            Some(v) => {
+                                c.set(idx, v);
+                                if watching {
+                                    println!(
+                                        "[R1CS_WATCH_ID]   forward-runtime prefill value={}",
+                                        v.as_canonical_u64()
+                                    );
+                                }
+                            }
+                            None => {
+                                if watching {
+                                    println!("[R1CS_WATCH_ID]   forward-runtime prefill MISSING (get_value returned None)");
+                                }
                             }
                         }
                     }
