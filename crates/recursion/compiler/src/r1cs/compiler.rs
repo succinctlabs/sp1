@@ -251,6 +251,23 @@ where
                     loc.line(),
                     loc.column()
                 );
+                if let Some(c) = ctx.as_deref_mut() {
+                    let hinted = c.hinted_ids.contains(id);
+                    let qlen_felt = c.hint_felt_values.get(id).map(|q| q.len()).unwrap_or(0);
+                    let qlen_ext = if id.contains("__") {
+                        id.rfind("__")
+                            .map(|pos| &id[..pos])
+                            .and_then(|base| c.hint_ext_values.get(base))
+                            .map(|q| q.len())
+                            .unwrap_or(0)
+                    } else {
+                        0
+                    };
+                    println!(
+                        "[R1CS_WATCH_ID]   hinted={} hint_queue_lens: felt={} ext={}",
+                        hinted, qlen_felt, qlen_ext
+                    );
+                }
             }
             idx
         } else {
@@ -278,6 +295,13 @@ where
                     if let Some(v) = c.hint_felt_values.get(id).and_then(|q| q.front()).copied() {
                         c.set(idx, v);
                         found = true;
+                        if watching {
+                            println!(
+                                "[R1CS_WATCH_ID]   forward-hint peek felt value={} qlen={}",
+                                v.as_canonical_u64(),
+                                c.hint_felt_values.get(id).map(|q| q.len()).unwrap_or(0)
+                            );
+                        }
                     }
                     
                     // For ext components (IDs like "ext123__0"), check hint_ext_values
@@ -293,6 +317,14 @@ where
                             {
                                 c.set(idx, ext_val[limb]);
                                 found = true;
+                                if watching {
+                                    println!(
+                                        "[R1CS_WATCH_ID]   forward-hint peek ext limb={} value={} qlen={}",
+                                        limb,
+                                        ext_val[limb].as_canonical_u64(),
+                                        c.hint_ext_values.get(base_id).map(|q| q.len()).unwrap_or(0)
+                                    );
+                                }
                             }
                         }
                     }
@@ -316,6 +348,12 @@ where
                     if std::env::var("R1CS_PREFILL_RUNTIME").ok().as_deref() == Some("1") {
                         if let Some(v) = (c.get_value)(id) {
                             c.set(idx, v);
+                            if watching {
+                                println!(
+                                    "[R1CS_WATCH_ID]   forward-runtime prefill value={}",
+                                    v.as_canonical_u64()
+                                );
+                            }
                         }
                     }
                 }
@@ -1358,6 +1396,16 @@ where
                                 .unwrap_or_else(|| panic!("R1CSCompiler witness: witness stream underrun for {id}"))
                         });
                         c.set(felt_idx, v);
+                        if r1cs_watch_id(id.as_str()) {
+                            let qlen = c.hint_felt_values.get(&id).map(|q| q.len()).unwrap_or(0);
+                            println!(
+                                "[R1CS_WATCH_ID] HintFelts consume {} -> idx={} value={} qlen_after={}",
+                                id,
+                                felt_idx,
+                                v.as_canonical_u64(),
+                                qlen
+                            );
+                        }
                     }
                 }
             }
@@ -1385,6 +1433,18 @@ where
                                 panic!("R1CSCompiler witness: witness stream underrun for {ext_id}")
                             })
                         });
+                        if r1cs_watch_id(ext_id.as_str()) {
+                            let qlen = c.hint_ext_values.get(&ext_id).map(|q| q.len()).unwrap_or(0);
+                            println!(
+                                "[R1CS_WATCH_ID] HintExts consume {} value=[{}, {}, {}, {}] qlen_after={}",
+                                ext_id,
+                                val[0].as_canonical_u64(),
+                                val[1].as_canonical_u64(),
+                                val[2].as_canonical_u64(),
+                                val[3].as_canonical_u64(),
+                                qlen
+                            );
+                        }
                         Some(val)
                     } else {
                         None
