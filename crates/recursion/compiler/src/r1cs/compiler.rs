@@ -2566,6 +2566,7 @@ where
 
     /// Phase 1 helper: Recursively scan ops and pre-consume hints into maps.
     /// This does NOT allocate variables or touch var_map - it only consumes hints.
+    /// IMPORTANT: Must traverse ALL nested block types (Parallel, For, If*, etc.)
     fn phase1_preconsume_hints(
         ops: &[DslIr<C>],
         next_hint_felt: &mut dyn FnMut() -> Option<C::F>,
@@ -2616,8 +2617,8 @@ where
                         }
                     }
                 }
+                // === Nested block types - must traverse recursively ===
                 DslIr::Parallel(blocks) => {
-                    // Recursively scan into Parallel blocks
                     for block in blocks {
                         Self::phase1_preconsume_hints(
                             &block.ops,
@@ -2629,8 +2630,97 @@ where
                         );
                     }
                 }
+                DslIr::For(boxed) => {
+                    // For loop: (start, end, step, var, body)
+                    let (_, _, _, _, body) = boxed.as_ref();
+                    Self::phase1_preconsume_hints(
+                        body,
+                        next_hint_felt,
+                        next_hint_ext,
+                        hint_felt_values,
+                        hint_ext_values,
+                        hinted_ids,
+                    );
+                }
+                DslIr::IfEq(boxed) => {
+                    // If-then-else: (lhs, rhs, then_body, else_body)
+                    let (_, _, then_body, else_body) = boxed.as_ref();
+                    Self::phase1_preconsume_hints(
+                        then_body,
+                        next_hint_felt,
+                        next_hint_ext,
+                        hint_felt_values,
+                        hint_ext_values,
+                        hinted_ids,
+                    );
+                    Self::phase1_preconsume_hints(
+                        else_body,
+                        next_hint_felt,
+                        next_hint_ext,
+                        hint_felt_values,
+                        hint_ext_values,
+                        hinted_ids,
+                    );
+                }
+                DslIr::IfNe(boxed) => {
+                    let (_, _, then_body, else_body) = boxed.as_ref();
+                    Self::phase1_preconsume_hints(
+                        then_body,
+                        next_hint_felt,
+                        next_hint_ext,
+                        hint_felt_values,
+                        hint_ext_values,
+                        hinted_ids,
+                    );
+                    Self::phase1_preconsume_hints(
+                        else_body,
+                        next_hint_felt,
+                        next_hint_ext,
+                        hint_felt_values,
+                        hint_ext_values,
+                        hinted_ids,
+                    );
+                }
+                DslIr::IfEqI(boxed) => {
+                    let (_, _, then_body, else_body) = boxed.as_ref();
+                    Self::phase1_preconsume_hints(
+                        then_body,
+                        next_hint_felt,
+                        next_hint_ext,
+                        hint_felt_values,
+                        hint_ext_values,
+                        hinted_ids,
+                    );
+                    Self::phase1_preconsume_hints(
+                        else_body,
+                        next_hint_felt,
+                        next_hint_ext,
+                        hint_felt_values,
+                        hint_ext_values,
+                        hinted_ids,
+                    );
+                }
+                DslIr::IfNeI(boxed) => {
+                    let (_, _, then_body, else_body) = boxed.as_ref();
+                    Self::phase1_preconsume_hints(
+                        then_body,
+                        next_hint_felt,
+                        next_hint_ext,
+                        hint_felt_values,
+                        hint_ext_values,
+                        hinted_ids,
+                    );
+                    Self::phase1_preconsume_hints(
+                        else_body,
+                        next_hint_felt,
+                        next_hint_ext,
+                        hint_felt_values,
+                        hint_ext_values,
+                        hinted_ids,
+                    );
+                }
                 _ => {
-                    // Skip non-hint ops in phase 1
+                    // Skip non-hint, non-block ops in phase 1
                 }
             }
         }
