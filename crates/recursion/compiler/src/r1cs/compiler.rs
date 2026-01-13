@@ -135,20 +135,33 @@ where
             if let Some(c) = ctx.as_deref_mut() {
                 if c.hinted_ids.contains(id) {
                     // Hint-sourced variable: get value from pre-consumed hint map
+                    let mut found = false;
+                    
+                    // Check hint_felt_values first
                     if let Some(&v) = c.hint_felt_values.get(id) {
                         c.set(idx, v);
+                        found = true;
                     }
-                    // For ext components, check hint_ext_values
-                    // (ext IDs are like "ext123__0", "ext123__1", etc.)
-                    // The ext values are stored under the base ID "ext123"
-                    if id.contains("__") {
+                    
+                    // For ext components (IDs like "ext123__0"), check hint_ext_values
+                    if !found && id.contains("__") {
                         if let Some(pos) = id.rfind("__") {
                             let base_id = &id[..pos];
                             let limb: usize = id[pos+2..].parse().unwrap_or(0);
                             if let Some(ext_val) = c.hint_ext_values.get(base_id) {
                                 c.set(idx, ext_val[limb]);
+                                found = true;
                             }
                         }
+                    }
+                    
+                    // If ID is in hinted_ids but not in maps, that's a Phase 1 bug
+                    if !found {
+                        panic!(
+                            "R1CS read_id: forward-referenced hint ID '{}' is in hinted_ids but not in hint maps. \
+                             This indicates Phase 1 didn't process the defining CircuitV2HintFelts/Exts op.",
+                            id
+                        );
                     }
                 } else {
                     // Non-hint variable: get value from runtime memory
@@ -951,16 +964,22 @@ where
                     let felt_idx = self.get_or_alloc(&id, ctx.as_deref_mut());
                     self.witness_felts.push(felt_idx);
                     
-                    // Set witness from pre-consumed map (Phase 1) or live stream (no Phase 1)
+                    // Set witness from pre-consumed map (Phase 1 must have populated this)
                     if let Some(c) = ctx.as_deref_mut() {
-                        let v = if let Some(&val) = c.hint_felt_values.get(&id) {
-                            // Phase 1 pre-consumed this hint
-                            val
-                        } else {
-                            // No Phase 1 (e.g., compile without witness) - use live stream
+                        let v = c.hint_felt_values.get(&id).copied().unwrap_or_else(|| {
+                            // If hinted_ids is populated but map is empty, Phase 1 missed this ID
+                            // This indicates a bug in Phase 1's traversal (e.g., nested structure not handled)
+                            if !c.hinted_ids.is_empty() {
+                                panic!(
+                                    "R1CS Phase 2: hint felt '{}' not in pre-consumed map but hinted_ids is populated. \
+                                     Phase 1 may have missed a CircuitV2HintFelts op (nested structure?).",
+                                    id
+                                );
+                            }
+                            // Fallback for non-witness-mode compilation (no Phase 1)
                             (c.next_hint_felt)()
                                 .unwrap_or_else(|| panic!("R1CSCompiler witness: witness stream underrun for {id}"))
-                        };
+                        });
                         c.set(felt_idx, v);
                     }
                 }
@@ -970,17 +989,22 @@ where
                 for j in 0..len {
                     let ext_id = format!("ext{}", start.idx + j as u32);
                     
-                    // Get ext values from pre-consumed map (Phase 1) or live stream (no Phase 1)
+                    // Get ext values from pre-consumed map (Phase 1 must have populated this)
                     let ext_vals: Option<[C::F; 4]> = if let Some(c) = ctx.as_deref_mut() {
-                        if let Some(&val) = c.hint_ext_values.get(&ext_id) {
-                            // Phase 1 pre-consumed this hint
-                            Some(val)
-                        } else {
-                            // No Phase 1 - use live stream
-                            Some((c.next_hint_ext)().unwrap_or_else(|| {
+                        let val = c.hint_ext_values.get(&ext_id).copied().unwrap_or_else(|| {
+                            if !c.hinted_ids.is_empty() {
+                                panic!(
+                                    "R1CS Phase 2: hint ext '{}' not in pre-consumed map but hinted_ids is populated. \
+                                     Phase 1 may have missed a CircuitV2HintExts op (nested structure?).",
+                                    ext_id
+                                );
+                            }
+                            // Fallback for non-witness-mode compilation
+                            (c.next_hint_ext)().unwrap_or_else(|| {
                                 panic!("R1CSCompiler witness: witness stream underrun for {ext_id}")
-                            }))
-                        }
+                            })
+                        });
+                        Some(val)
                     } else {
                         None
                     };
@@ -2506,6 +2530,14 @@ where
                         let id = format!("felt{}", start.idx + i as u32);
                         let v = (next_hint_felt)()
                             .expect("next_hint_felt returned None in Phase 1 CircuitV2HintFelts");
+                        // SAFETY: Panic if same ID is hinted multiple times (would corrupt witness)
+                        if hint_felt_values.contains_key(&id) {
+                            panic!(
+                                "R1CS Phase 1: duplicate hint for felt ID '{}'. \
+                                 SSA violation or IR bug - same ID cannot be hinted twice.",
+                                id
+                            );
+                        }
                         hint_felt_values.insert(id.clone(), v);
                         hinted_ids.insert(id);
                     }
@@ -2516,6 +2548,14 @@ where
                         let base_id = format!("ext{}", start.idx + i as u32);
                         let ext_val = (next_hint_ext)()
                             .expect("next_hint_ext returned None in Phase 1 CircuitV2HintExts");
+                        // SAFETY: Panic if same ID is hinted multiple times
+                        if hint_ext_values.contains_key(&base_id) {
+                            panic!(
+                                "R1CS Phase 1: duplicate hint for ext ID '{}'. \
+                                 SSA violation or IR bug - same ID cannot be hinted twice.",
+                                base_id
+                            );
+                        }
                         hint_ext_values.insert(base_id.clone(), ext_val);
                         // Mark all 4 components as hinted
                         for k in 0..4 {
