@@ -181,10 +181,14 @@ where
                         );
                     }
                 } else {
-                    // Non-hint variable: get value from runtime memory
-                           if let Some(v) = (c.get_value)(id) {
-                           c.set(idx, v);
-                       }
+                    // Non-hint variables in the recursion IR are SSA-like virtual registers:
+                    // they are written exactly once before any reads (otherwise the asm compiler
+                    // would panic on read-before-write). So for forward-allocations we must NOT
+                    // pre-populate from runtime memory (which would correspond to some unrelated
+                    // physical address snapshot).
+                    //
+                    // The value will be assigned deterministically when the defining opcode is
+                    // compiled in witness-mode.
                 }
             }
             idx
