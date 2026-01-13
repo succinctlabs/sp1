@@ -685,6 +685,29 @@ where
                 let dst_idx = self.write_id(&dst.id(), ctx.as_deref_mut());
                 let lhs_idx = self.get_var(&lhs.id(), ctx.as_deref_mut());
                 let rhs_idx = self.get_var(&rhs.id(), ctx.as_deref_mut());
+
+                // Targeted debugging for "why isn't this zero?" style assertions.
+                static WATCH_ID: OnceLock<Option<String>> = OnceLock::new();
+                let watch_id = WATCH_ID.get_or_init(|| std::env::var("R1CS_WATCH_ID").ok());
+                if watch_id.as_deref().is_some_and(|w| w == dst.id().as_str()) {
+                    println!(
+                        "[R1CS_WATCH_ID] SubF {} = {} - {} (dst_idx={}, lhs_idx={}, rhs_idx={})",
+                        dst.id(),
+                        lhs.id(),
+                        rhs.id(),
+                        dst_idx,
+                        lhs_idx,
+                        rhs_idx
+                    );
+                    if let Some(c) = ctx.as_deref_mut() {
+                        println!(
+                            "[R1CS_WATCH_ID]   values: lhs={} rhs={} dst(before)={}",
+                            c.get(lhs_idx).as_canonical_u64(),
+                            c.get(rhs_idx).as_canonical_u64(),
+                            c.get(dst_idx).as_canonical_u64()
+                        );
+                    }
+                }
                 
                 let mut diff = SparseRow::new();
                 diff.add_term(lhs_idx, C::F::one());
@@ -696,6 +719,15 @@ where
                 );
                 if let Some(c) = ctx.as_deref_mut() {
                     c.set(dst_idx, c.get(lhs_idx) - c.get(rhs_idx));
+                }
+
+                if watch_id.as_deref().is_some_and(|w| w == dst.id().as_str()) {
+                    if let Some(c) = ctx.as_deref_mut() {
+                        println!(
+                            "[R1CS_WATCH_ID]   dst(after)={}",
+                            c.get(dst_idx).as_canonical_u64()
+                        );
+                    }
                 }
             }
             
@@ -923,6 +955,25 @@ where
                 let lhs_idx = self.get_var(&lhs.id(), ctx.as_deref_mut());
                 let const_idx = self.alloc_const(rhs, ctx.as_deref_mut());
                 self.add_eq(lhs_idx, const_idx);
+
+                static WATCH_ID: OnceLock<Option<String>> = OnceLock::new();
+                let watch_id = WATCH_ID.get_or_init(|| std::env::var("R1CS_WATCH_ID").ok());
+                if watch_id.as_deref().is_some_and(|w| w == lhs.id().as_str()) {
+                    println!(
+                        "[R1CS_WATCH_ID] AssertEqFI {} == {} (lhs_idx={}, const_idx={})",
+                        lhs.id(),
+                        rhs.as_canonical_u64(),
+                        lhs_idx,
+                        const_idx
+                    );
+                    if let Some(c) = ctx.as_deref_mut() {
+                        println!(
+                            "[R1CS_WATCH_ID]   lhs_val={} const_val={}",
+                            c.get(lhs_idx).as_canonical_u64(),
+                            rhs.as_canonical_u64()
+                        );
+                    }
+                }
             }
             
             DslIr::AssertNeV(lhs, rhs) => {
