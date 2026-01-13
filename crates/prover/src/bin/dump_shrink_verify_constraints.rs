@@ -36,6 +36,7 @@ use sp1_stark::StarkGenericConfig;
 use sp1_prover::{InnerSC, ShrinkAir};
 use sp1_core_executor::SP1Context;
 use sp1_core_machine::io::SP1Stdin;
+use sp1_core_machine::reduce::SP1ReduceProof;
 use sp1_prover::SP1Prover;
 use sp1_stark::SP1ProverOpts;
 use sp1_recursion_core::Runtime;
@@ -309,6 +310,54 @@ fn build_real_input_with_merkle() -> (SP1Prover, SP1CompressWithVKeyWitnessValue
     (prover, input_with_merkle)
 }
 
+fn load_or_build_input_with_merkle(
+) -> (SP1Prover, SP1CompressWithVKeyWitnessValues<BabyBearPoseidon2>) {
+    // Cache the shrink proof (vk + proof) to avoid regenerating it between runs.
+    //
+    // - Set `SHRINK_PROOF_CACHE=/path/to/shrink_proof.bin` to enable caching.
+    // - Set `REBUILD_SHRINK_PROOF=1` to force re-proving even if cache exists.
+    //
+    // This keeps the dumper fast while iterating on R1CS witness generation: we can reuse the same
+    // proof and only redo the R1CS compile + satisfiability check.
+    let cache_path = std::env::var("SHRINK_PROOF_CACHE").ok();
+    let force_rebuild = std::env::var("REBUILD_SHRINK_PROOF").ok().as_deref() == Some("1");
+
+    if let (Some(path), false) = (cache_path.as_deref(), force_rebuild) {
+        if std::path::Path::new(path).exists() {
+            let prover: SP1Prover = SP1Prover::new();
+            let file = std::fs::File::open(path).expect("open SHRINK_PROOF_CACHE");
+            let shrink: SP1ReduceProof<InnerSC> =
+                bincode::deserialize_from(file).expect("deserialize SHRINK_PROOF_CACHE");
+
+            let input = sp1_recursion_circuit::machine::SP1CompressWitnessValues {
+                vks_and_proofs: vec![(shrink.vk.clone(), shrink.proof.clone())],
+                is_complete: true,
+            };
+            let input_with_merkle = prover.make_merkle_proofs(input);
+            println!("Loaded shrink proof from SHRINK_PROOF_CACHE={path}");
+            return (prover, input_with_merkle);
+        }
+    }
+
+    let (prover, input_with_merkle) = build_real_input_with_merkle();
+
+    if let Some(path) = cache_path.as_deref() {
+        // Persist vk+proof only (merkle proofs can be recomputed cheaply).
+        let (vk, proof) = input_with_merkle
+            .compress_val
+            .vks_and_proofs
+            .first()
+            .expect("expected one shrink proof")
+            .clone();
+        let shrink = SP1ReduceProof::<InnerSC> { vk, proof };
+        let file = std::fs::File::create(path).expect("create SHRINK_PROOF_CACHE");
+        bincode::serialize_into(file, &shrink).expect("serialize SHRINK_PROOF_CACHE");
+        println!("Cached shrink proof to SHRINK_PROOF_CACHE={path}");
+    }
+
+    (prover, input_with_merkle)
+}
+
 fn main() {
     println!("=========================================================");
     println!("SP1 Shrink Verifier → R1CS Compilation");
@@ -330,7 +379,7 @@ fn main() {
     // Build DslIr operations (shape-only by default).
     println!("Building shrink verifier circuit...");
     let maybe_input_with_merkle = if std::env::var("OUT_WITNESS").is_ok() {
-        let (p, input) = build_real_input_with_merkle();
+        let (p, input) = load_or_build_input_with_merkle();
         drop(p);
         Some(input)
     } else {
