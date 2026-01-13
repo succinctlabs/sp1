@@ -468,7 +468,18 @@ where
 
     /// Backwards-compatible helper: in this backend, "get_or_alloc" is used for destinations
     /// (writes), so it is equivalent to `write_id`.
+    #[track_caller]
     fn get_or_alloc(&mut self, id: &str, ctx: Option<&mut WitnessCtx<'_, C::F>>) -> usize {
+        if r1cs_watch_id(id) {
+            let loc = std::panic::Location::caller();
+            println!(
+                "[R1CS_WATCH_ID] get_or_alloc caller for {}: {}:{}:{}",
+                id,
+                loc.file(),
+                loc.line(),
+                loc.column()
+            );
+        }
         self.write_id(id, ctx)
     }
 
