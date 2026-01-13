@@ -108,6 +108,11 @@ where
     }
 
     /// Read a variable id (may forward-allocate).
+    ///
+    /// NOTE: Forward-referenced variables get witness=0 initially. Their proper witness values
+    /// must be set later by the defining operation (e.g., CircuitV2HintFelts). We do NOT use
+    /// `get_value` here because that reads from runtime memory, which can differ from the hint
+    /// stream values that should be authoritative for hint-sourced variables.
     fn read_id(&mut self, id: &str, mut ctx: Option<&mut WitnessCtx<'_, C::F>>) -> usize {
         if let Some(&idx) = self.var_map.get(id) {
             idx
@@ -115,11 +120,6 @@ where
             let idx = self.alloc_var(ctx.as_deref_mut());
             self.var_map.insert(id.to_string(), idx);
             self.defined.insert(id.to_string(), false);
-            if let Some(c) = ctx.as_deref_mut() {
-                if let Some(v) = (c.get_value)(id) {
-                    c.set(idx, v);
-                }
-            }
             idx
         }
     }
