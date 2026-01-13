@@ -213,6 +213,7 @@ where
     ///
     /// This ensures hint-sourced variables get their authoritative values from the hint stream,
     /// while non-hint variables (e.g., from runtime memory writes) still work correctly.
+    #[track_caller]
     fn read_id(&mut self, id: &str, mut ctx: Option<&mut WitnessCtx<'_, C::F>>) -> usize {
         static WATCH_ID: OnceLock<Option<String>> = OnceLock::new();
         let watch_id = WATCH_ID.get_or_init(|| std::env::var("R1CS_WATCH_ID").ok());
@@ -221,6 +222,13 @@ where
         if let Some(&idx) = self.var_map.get(id) {
             if watching {
                 println!("[R1CS_WATCH_ID] read existing {id} -> idx={idx}");
+                let loc = std::panic::Location::caller();
+                println!(
+                    "[R1CS_WATCH_ID] read caller: {}:{}:{}",
+                    loc.file(),
+                    loc.line(),
+                    loc.column()
+                );
             }
             idx
         } else {
@@ -229,6 +237,13 @@ where
             self.defined.insert(id.to_string(), false);
             if watching {
                 println!("[R1CS_WATCH_ID] read new {id} -> idx={idx}");
+                let loc = std::panic::Location::caller();
+                println!(
+                    "[R1CS_WATCH_ID] read caller: {}:{}:{}",
+                    loc.file(),
+                    loc.line(),
+                    loc.column()
+                );
             }
             
             // Populate witness value for forward-referenced variable
@@ -291,6 +306,7 @@ where
     /// This preserves forward-reference semantics: when a variable is used before defined,
     /// the read allocates a placeholder. The defining write reuses that placeholder so both
     /// the read and write refer to the same R1CS variable.
+    #[track_caller]
     fn write_id(&mut self, id: &str, mut ctx: Option<&mut WitnessCtx<'_, C::F>>) -> usize {
         static WATCH_ID: OnceLock<Option<String>> = OnceLock::new();
         let watch_id = WATCH_ID.get_or_init(|| std::env::var("R1CS_WATCH_ID").ok());
@@ -304,6 +320,13 @@ where
                 self.defined.insert(id.to_string(), true);
                 if watching {
                     println!("[R1CS_WATCH_ID] write new {id} -> idx={idx}");
+                    let loc = std::panic::Location::caller();
+                    println!(
+                        "[R1CS_WATCH_ID] write caller: {}:{}:{}",
+                        loc.file(),
+                        loc.line(),
+                        loc.column()
+                    );
                 }
                 idx
             }
@@ -316,6 +339,13 @@ where
                     self.defined.insert(id.to_string(), true);
                     if watching {
                         println!("[R1CS_WATCH_ID] write redef {id} old_idx={idx} -> new_idx={new_idx}");
+                        let loc = std::panic::Location::caller();
+                        println!(
+                            "[R1CS_WATCH_ID] write caller: {}:{}:{}",
+                            loc.file(),
+                            loc.line(),
+                            loc.column()
+                        );
                     }
                     new_idx
                 } else {
@@ -323,6 +353,13 @@ where
                     self.defined.insert(id.to_string(), true);
                     if watching {
                         println!("[R1CS_WATCH_ID] write define {id} reuse_idx={idx}");
+                        let loc = std::panic::Location::caller();
+                        println!(
+                            "[R1CS_WATCH_ID] write caller: {}:{}:{}",
+                            loc.file(),
+                            loc.line(),
+                            loc.column()
+                        );
                     }
                     idx
                 }
