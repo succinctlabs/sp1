@@ -181,14 +181,15 @@ where
                         );
                     }
                 } else {
-                    // Non-hint variables in the recursion IR are SSA-like virtual registers:
-                    // they are written exactly once before any reads (otherwise the asm compiler
-                    // would panic on read-before-write). So for forward-allocations we must NOT
-                    // pre-populate from runtime memory (which would correspond to some unrelated
-                    // physical address snapshot).
+                    // Non-hint variable: populate from runtime memory snapshot.
                     //
-                    // The value will be assigned deterministically when the defining opcode is
-                    // compiled in witness-mode.
+                    // NOTE: The recursion IR can contain forward references in the op stream from
+                    // the perspective of this R1CS backend (e.g., because of nested blocks / v2
+                    // constructs). Using the runtime memory snapshot provides the authoritative
+                    // value and avoids using implicit zeros for use-before-def.
+                    if let Some(v) = (c.get_value)(id) {
+                        c.set(idx, v);
+                    }
                 }
             }
             idx
