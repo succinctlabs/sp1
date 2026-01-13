@@ -251,23 +251,6 @@ where
                     loc.line(),
                     loc.column()
                 );
-                if let Some(c) = ctx.as_deref_mut() {
-                    let hinted = c.hinted_ids.contains(id);
-                    let qlen_felt = c.hint_felt_values.get(id).map(|q| q.len()).unwrap_or(0);
-                    let qlen_ext = if id.contains("__") {
-                        id.rfind("__")
-                            .map(|pos| &id[..pos])
-                            .and_then(|base| c.hint_ext_values.get(base))
-                            .map(|q| q.len())
-                            .unwrap_or(0)
-                    } else {
-                        0
-                    };
-                    println!(
-                        "[R1CS_WATCH_ID]   hinted={} hint_queue_lens: felt={} ext={}",
-                        hinted, qlen_felt, qlen_ext
-                    );
-                }
             }
             idx
         } else {
@@ -295,13 +278,6 @@ where
                     if let Some(v) = c.hint_felt_values.get(id).and_then(|q| q.front()).copied() {
                         c.set(idx, v);
                         found = true;
-                        if watching {
-                            println!(
-                                "[R1CS_WATCH_ID]   forward-hint peek felt value={} qlen={}",
-                                v.as_canonical_u64(),
-                                c.hint_felt_values.get(id).map(|q| q.len()).unwrap_or(0)
-                            );
-                        }
                     }
                     
                     // For ext components (IDs like "ext123__0"), check hint_ext_values
@@ -317,14 +293,6 @@ where
                             {
                                 c.set(idx, ext_val[limb]);
                                 found = true;
-                                if watching {
-                                    println!(
-                                        "[R1CS_WATCH_ID]   forward-hint peek ext limb={} value={} qlen={}",
-                                        limb,
-                                        ext_val[limb].as_canonical_u64(),
-                                        c.hint_ext_values.get(base_id).map(|q| q.len()).unwrap_or(0)
-                                    );
-                                }
                             }
                         }
                     }
@@ -338,29 +306,10 @@ where
                         );
                     }
                 } else {
-                    // Non-hint variable: prefill from runtime memory snapshot by default.
-                    //
+                    // Non-hint variable: prefill from runtime memory snapshot.
                     // This provides initial values for read-before-write IDs that are not hint-sourced.
-                    // If you need to disable this for debugging, set:
-                    //   R1CS_PREFILL_RUNTIME=0
-                    let prefill = std::env::var("R1CS_PREFILL_RUNTIME").ok().as_deref() != Some("0");
-                    if prefill {
-                        match (c.get_value)(id) {
-                            Some(v) => {
-                                c.set(idx, v);
-                                if watching {
-                                    println!(
-                                        "[R1CS_WATCH_ID]   forward-runtime prefill value={}",
-                                        v.as_canonical_u64()
-                                    );
-                                }
-                            }
-                            None => {
-                                if watching {
-                                    println!("[R1CS_WATCH_ID]   forward-runtime prefill MISSING (get_value returned None)");
-                                }
-                            }
-                        }
+                    if let Some(v) = (c.get_value)(id) {
+                        c.set(idx, v);
                     }
                 }
             }
@@ -468,18 +417,7 @@ where
 
     /// Backwards-compatible helper: in this backend, "get_or_alloc" is used for destinations
     /// (writes), so it is equivalent to `write_id`.
-    #[track_caller]
     fn get_or_alloc(&mut self, id: &str, ctx: Option<&mut WitnessCtx<'_, C::F>>) -> usize {
-        if r1cs_watch_id(id) {
-            let loc = std::panic::Location::caller();
-            println!(
-                "[R1CS_WATCH_ID] get_or_alloc caller for {}: {}:{}:{}",
-                id,
-                loc.file(),
-                loc.line(),
-                loc.column()
-            );
-        }
         self.write_id(id, ctx)
     }
 
@@ -691,15 +629,6 @@ where
                 let dst_idx = self.write_id(&dst.id(), ctx.as_deref_mut());
                 let const_idx = self.alloc_const(val, ctx.as_deref_mut());
                 self.add_eq(dst_idx, const_idx);
-                if r1cs_watch_id(dst.id().as_str()) {
-                    println!(
-                        "[R1CS_WATCH_ID] ImmF {} = {} (dst_idx={}, const_idx={})",
-                        dst.id(),
-                        val.as_canonical_u64(),
-                        dst_idx,
-                        const_idx
-                    );
-                }
                 if let Some(c) = ctx.as_deref_mut() {
                     c.set(dst_idx, val);
                 }
@@ -742,26 +671,6 @@ where
                 let dst_idx = self.write_id(&dst.id(), ctx.as_deref_mut());
                 let lhs_idx = self.get_var(&lhs.id(), ctx.as_deref_mut());
                 let rhs_idx = self.get_var(&rhs.id(), ctx.as_deref_mut());
-
-                if r1cs_watch_id(dst.id().as_str()) {
-                    println!(
-                        "[R1CS_WATCH_ID] AddF {} = {} + {} (dst_idx={}, lhs_idx={}, rhs_idx={})",
-                        dst.id(),
-                        lhs.id(),
-                        rhs.id(),
-                        dst_idx,
-                        lhs_idx,
-                        rhs_idx
-                    );
-                    if let Some(c) = ctx.as_deref_mut() {
-                        println!(
-                            "[R1CS_WATCH_ID]   values: lhs={} rhs={} dst(before)={}",
-                            c.get(lhs_idx).as_canonical_u64(),
-                            c.get(rhs_idx).as_canonical_u64(),
-                            c.get(dst_idx).as_canonical_u64()
-                        );
-                    }
-                }
                 
                 let mut sum = SparseRow::new();
                 sum.add_term(lhs_idx, C::F::one());
@@ -773,15 +682,6 @@ where
                 );
                 if let Some(c) = ctx.as_deref_mut() {
                     c.set(dst_idx, c.get(lhs_idx) + c.get(rhs_idx));
-                }
-
-                if r1cs_watch_id(dst.id().as_str()) {
-                    if let Some(c) = ctx.as_deref_mut() {
-                        println!(
-                            "[R1CS_WATCH_ID]   dst(after)={}",
-                            c.get(dst_idx).as_canonical_u64()
-                        );
-                    }
                 }
             }
             
@@ -796,25 +696,6 @@ where
                 let dst_idx = self.write_id(&dst.id(), ctx.as_deref_mut());
                 let lhs_idx = self.get_var(&lhs.id(), ctx.as_deref_mut());
                 let const_idx = self.alloc_const(rhs, ctx.as_deref_mut());
-
-                if r1cs_watch_id(dst.id().as_str()) {
-                    println!(
-                        "[R1CS_WATCH_ID] AddFI {} = {} + {} (dst_idx={}, lhs_idx={}, const_idx={})",
-                        dst.id(),
-                        lhs.id(),
-                        rhs.as_canonical_u64(),
-                        dst_idx,
-                        lhs_idx,
-                        const_idx
-                    );
-                    if let Some(c) = ctx.as_deref_mut() {
-                        println!(
-                            "[R1CS_WATCH_ID]   values: lhs={} dst(before)={}",
-                            c.get(lhs_idx).as_canonical_u64(),
-                            c.get(dst_idx).as_canonical_u64()
-                        );
-                    }
-                }
                 
                 let mut sum = SparseRow::new();
                 sum.add_term(lhs_idx, C::F::one());
@@ -826,15 +707,6 @@ where
                 );
                 if let Some(c) = ctx.as_deref_mut() {
                     c.set(dst_idx, c.get(lhs_idx) + rhs);
-                }
-
-                if r1cs_watch_id(dst.id().as_str()) {
-                    if let Some(c) = ctx.as_deref_mut() {
-                        println!(
-                            "[R1CS_WATCH_ID]   dst(after)={}",
-                            c.get(dst_idx).as_canonical_u64()
-                        );
-                    }
                 }
             }
 
@@ -861,27 +733,6 @@ where
                 let dst_idx = self.write_id(&dst.id(), ctx.as_deref_mut());
                 let lhs_idx = self.get_var(&lhs.id(), ctx.as_deref_mut());
                 let rhs_idx = self.get_var(&rhs.id(), ctx.as_deref_mut());
-
-                // Targeted debugging for "why isn't this zero?" style assertions.
-                if r1cs_watch_id(dst.id().as_str()) {
-                    println!(
-                        "[R1CS_WATCH_ID] SubF {} = {} - {} (dst_idx={}, lhs_idx={}, rhs_idx={})",
-                        dst.id(),
-                        lhs.id(),
-                        rhs.id(),
-                        dst_idx,
-                        lhs_idx,
-                        rhs_idx
-                    );
-                    if let Some(c) = ctx.as_deref_mut() {
-                        println!(
-                            "[R1CS_WATCH_ID]   values: lhs={} rhs={} dst(before)={}",
-                            c.get(lhs_idx).as_canonical_u64(),
-                            c.get(rhs_idx).as_canonical_u64(),
-                            c.get(dst_idx).as_canonical_u64()
-                        );
-                    }
-                }
                 
                 let mut diff = SparseRow::new();
                 diff.add_term(lhs_idx, C::F::one());
@@ -893,15 +744,6 @@ where
                 );
                 if let Some(c) = ctx.as_deref_mut() {
                     c.set(dst_idx, c.get(lhs_idx) - c.get(rhs_idx));
-                }
-
-                if r1cs_watch_id(dst.id().as_str()) {
-                    if let Some(c) = ctx.as_deref_mut() {
-                        println!(
-                            "[R1CS_WATCH_ID]   dst(after)={}",
-                            c.get(dst_idx).as_canonical_u64()
-                        );
-                    }
                 }
             }
             
@@ -958,35 +800,8 @@ where
                 let lhs_idx = self.get_var(&lhs.id(), ctx.as_deref_mut());
                 let rhs_idx = self.get_var(&rhs.id(), ctx.as_deref_mut());
                 self.add_mul(dst_idx, lhs_idx, rhs_idx);
-                if r1cs_watch_id(dst.id().as_str()) {
-                    println!(
-                        "[R1CS_WATCH_ID] MulF {} = {} * {} (dst_idx={}, lhs_idx={}, rhs_idx={})",
-                        dst.id(),
-                        lhs.id(),
-                        rhs.id(),
-                        dst_idx,
-                        lhs_idx,
-                        rhs_idx
-                    );
-                    if let Some(c) = ctx.as_deref_mut() {
-                        println!(
-                            "[R1CS_WATCH_ID]   values: lhs={} rhs={} dst(before)={}",
-                            c.get(lhs_idx).as_canonical_u64(),
-                            c.get(rhs_idx).as_canonical_u64(),
-                            c.get(dst_idx).as_canonical_u64()
-                        );
-                    }
-                }
                 if let Some(c) = ctx.as_deref_mut() {
                     c.set(dst_idx, c.get(lhs_idx) * c.get(rhs_idx));
-                }
-                if r1cs_watch_id(dst.id().as_str()) {
-                    if let Some(c) = ctx.as_deref_mut() {
-                        println!(
-                            "[R1CS_WATCH_ID]   dst(after)={}",
-                            c.get(dst_idx).as_canonical_u64()
-                        );
-                    }
                 }
             }
             
@@ -999,35 +814,8 @@ where
                 let lhs_idx = self.get_var(&lhs.id(), ctx.as_deref_mut());
                 let const_idx = self.alloc_const(rhs, ctx.as_deref_mut());
                 self.add_mul(dst_idx, lhs_idx, const_idx);
-
-                if r1cs_watch_id(dst.id().as_str()) {
-                    println!(
-                        "[R1CS_WATCH_ID] MulFI {} = {} * {} (dst_idx={}, lhs_idx={}, const_idx={})",
-                        dst.id(),
-                        lhs.id(),
-                        rhs.as_canonical_u64(),
-                        dst_idx,
-                        lhs_idx,
-                        const_idx
-                    );
-                    if let Some(c) = ctx.as_deref_mut() {
-                        println!(
-                            "[R1CS_WATCH_ID]   values: lhs={} dst(before)={}",
-                            c.get(lhs_idx).as_canonical_u64(),
-                            c.get(dst_idx).as_canonical_u64()
-                        );
-                    }
-                }
                 if let Some(c) = ctx.as_deref_mut() {
                     c.set(dst_idx, c.get(lhs_idx) * rhs);
-                }
-                if r1cs_watch_id(dst.id().as_str()) {
-                    if let Some(c) = ctx.as_deref_mut() {
-                        println!(
-                            "[R1CS_WATCH_ID]   dst(after)={}",
-                            c.get(dst_idx).as_canonical_u64()
-                        );
-                    }
                 }
             }
 
@@ -1183,23 +971,6 @@ where
                 let lhs_idx = self.get_var(&lhs.id(), ctx.as_deref_mut());
                 let const_idx = self.alloc_const(rhs, ctx.as_deref_mut());
                 self.add_eq(lhs_idx, const_idx);
-
-                if r1cs_watch_id(lhs.id().as_str()) {
-                    println!(
-                        "[R1CS_WATCH_ID] AssertEqFI {} == {} (lhs_idx={}, const_idx={})",
-                        lhs.id(),
-                        rhs.as_canonical_u64(),
-                        lhs_idx,
-                        const_idx
-                    );
-                    if let Some(c) = ctx.as_deref_mut() {
-                        println!(
-                            "[R1CS_WATCH_ID]   lhs_val={} const_val={}",
-                            c.get(lhs_idx).as_canonical_u64(),
-                            rhs.as_canonical_u64()
-                        );
-                    }
-                }
             }
             
             DslIr::AssertNeV(lhs, rhs) => {
@@ -1452,16 +1223,6 @@ where
                                 .unwrap_or_else(|| panic!("R1CSCompiler witness: witness stream underrun for {id}"))
                         });
                         c.set(felt_idx, v);
-                        if r1cs_watch_id(id.as_str()) {
-                            let qlen = c.hint_felt_values.get(&id).map(|q| q.len()).unwrap_or(0);
-                            println!(
-                                "[R1CS_WATCH_ID] HintFelts consume {} -> idx={} value={} qlen_after={}",
-                                id,
-                                felt_idx,
-                                v.as_canonical_u64(),
-                                qlen
-                            );
-                        }
                     }
                 }
             }
@@ -1489,18 +1250,6 @@ where
                                 panic!("R1CSCompiler witness: witness stream underrun for {ext_id}")
                             })
                         });
-                        if r1cs_watch_id(ext_id.as_str()) {
-                            let qlen = c.hint_ext_values.get(&ext_id).map(|q| q.len()).unwrap_or(0);
-                            println!(
-                                "[R1CS_WATCH_ID] HintExts consume {} value=[{}, {}, {}, {}] qlen_after={}",
-                                ext_id,
-                                val[0].as_canonical_u64(),
-                                val[1].as_canonical_u64(),
-                                val[2].as_canonical_u64(),
-                                val[3].as_canonical_u64(),
-                                qlen
-                            );
-                        }
                         Some(val)
                     } else {
                         None
@@ -2652,14 +2401,6 @@ where
                             )
                         });
                         c.set(idx, v);
-                        if r1cs_watch_id(id.as_str()) {
-                            println!(
-                                "[R1CS_WATCH_ID] HintAddCurve get_value {} -> idx={} value={}",
-                                id,
-                                idx,
-                                v.as_canonical_u64(),
-                            );
-                        }
                     }
                 }
             }
