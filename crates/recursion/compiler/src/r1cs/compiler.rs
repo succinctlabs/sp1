@@ -2402,8 +2402,9 @@ where
     /// intermediate values.
     ///
     /// We solve this with a two-phase approach:
-    /// 1. **Phase 1**: Process ONLY CircuitV2HintFelts/Exts (in original order) to define all
-    ///    hint variables with correct values from the hint stream.
+    /// 1. **Phase 1**: Recursively scan ALL ops (including nested Parallel blocks) and process
+    ///    ONLY CircuitV2HintFelts/Exts to define all hint variables with correct values from
+    ///    the hint stream.
     /// 2. **Phase 2**: Process ALL ops normally. Hint ops become no-ops (vars already defined),
     ///    and other ops now have correct input values to compute derived witnesses.
     ///
@@ -2425,42 +2426,11 @@ where
         };
 
         // =====================================================================
-        // PHASE 1: Process only hint-defining ops to populate hint variable
-        // witness values BEFORE any operations use them.
+        // PHASE 1: Recursively scan all ops (including nested Parallel blocks)
+        // and process only hint-defining ops to populate hint variable witness
+        // values BEFORE any operations use them.
         // =====================================================================
-        for op in &operations {
-            match op {
-                DslIr::CircuitV2HintFelts(start, len) => {
-                    // Define hint felts with values from hint stream
-                    for i in 0..*len {
-                        let id = format!("felt{}", start.idx + i as u32);
-                        // Use write_id to allocate/get the variable
-                        let felt_idx = compiler.write_id(&id, Some(&mut ctx));
-                        // Consume from hint stream and set witness
-                        let v = (ctx.next_hint_felt)()
-                            .expect("next_hint_felt returned None in Phase 1 CircuitV2HintFelts");
-                        ctx.set(felt_idx, v);
-                    }
-                }
-                DslIr::CircuitV2HintExts(start, len) => {
-                    // Define hint exts with values from hint stream
-                    for i in 0..*len {
-                        let base_id = format!("ext{}", start.idx + i as u32);
-                        let ext_val = (ctx.next_hint_ext)()
-                            .expect("next_hint_ext returned None in Phase 1 CircuitV2HintExts");
-                        // Allocate/get all 4 components
-                        for (k, &comp_val) in ext_val.iter().enumerate() {
-                            let comp_id = format!("{}__{}", base_id, k);
-                            let comp_idx = compiler.write_id(&comp_id, Some(&mut ctx));
-                            ctx.set(comp_idx, comp_val);
-                        }
-                    }
-                }
-                _ => {
-                    // Skip non-hint ops in phase 1
-                }
-            }
-        }
+        Self::phase1_define_hints(&operations, &mut compiler, &mut ctx);
 
         // =====================================================================
         // PHASE 2: Process ALL ops. Hint ops will be no-ops (vars already
@@ -2476,6 +2446,55 @@ where
         // Keep witness length in sync with declared num_vars.
         ctx.ensure_len(compiler.r1cs.num_vars);
         (compiler, witness)
+    }
+
+    /// Phase 1 helper: Recursively scan ops and process only hint-defining ops.
+    /// This traverses into Parallel blocks to find ALL hint ops in program order.
+    fn phase1_define_hints(
+        ops: &[DslIr<C>],
+        compiler: &mut Self,
+        ctx: &mut WitnessCtx<'_, C::F>,
+    ) {
+        for op in ops {
+            match op {
+                DslIr::CircuitV2HintFelts(start, len) => {
+                    // Define hint felts with values from hint stream
+                    for i in 0..*len {
+                        let id = format!("felt{}", start.idx + i as u32);
+                        // Use write_id to allocate/get the variable
+                        let felt_idx = compiler.write_id(&id, Some(ctx));
+                        // Consume from hint stream and set witness
+                        let v = (ctx.next_hint_felt)()
+                            .expect("next_hint_felt returned None in Phase 1 CircuitV2HintFelts");
+                        ctx.set(felt_idx, v);
+                    }
+                }
+                DslIr::CircuitV2HintExts(start, len) => {
+                    // Define hint exts with values from hint stream
+                    for i in 0..*len {
+                        let base_id = format!("ext{}", start.idx + i as u32);
+                        let ext_val = (ctx.next_hint_ext)()
+                            .expect("next_hint_ext returned None in Phase 1 CircuitV2HintExts");
+                        // Allocate/get all 4 components
+                        for (k, &comp_val) in ext_val.iter().enumerate() {
+                            let comp_id = format!("{}__{}", base_id, k);
+                            let comp_idx = compiler.write_id(&comp_id, Some(ctx));
+                            ctx.set(comp_idx, comp_val);
+                        }
+                    }
+                }
+                DslIr::Parallel(blocks) => {
+                    // IMPORTANT: Recursively scan into Parallel blocks!
+                    // Hint ops inside Parallel blocks must also be processed in Phase 1.
+                    for block in blocks {
+                        Self::phase1_define_hints(&block.ops, compiler, ctx);
+                    }
+                }
+                _ => {
+                    // Skip non-hint ops in phase 1
+                }
+            }
+        }
     }
 
     /// Compile all operations and return the R1CS
