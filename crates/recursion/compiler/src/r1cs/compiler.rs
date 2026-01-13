@@ -53,6 +53,12 @@ pub struct R1CSCompiler<C: Config> {
     pub r1cs: R1CS<C::F>,
     /// Mapping from DSL variable IDs to R1CS indices
     pub var_map: HashMap<String, usize>,
+    /// Whether the current `var_map[id]` has been *defined* by a write-like opcode.
+    ///
+    /// We allow forward references (reads before the defining op). Those create an entry with
+    /// `defined=false`. The first subsequent write to the same id will *reuse* that index and
+    /// flip it to `defined=true`. Any later writes allocate a fresh variable and update the map.
+    pub defined: HashMap<String, bool>,
     /// Next available variable index
     pub next_var: usize,
     /// Public input indices
@@ -75,6 +81,7 @@ where
         let mut compiler = Self {
             r1cs: R1CS::new(),
             var_map: HashMap::new(),
+            defined: HashMap::new(),
             next_var: 1, // Index 0 is reserved for constant 1
             public_inputs: Vec::new(),
             witness_felts: Vec::new(),
@@ -100,13 +107,14 @@ where
         idx
     }
 
-    /// Get or allocate variable for a DSL variable ID
-    fn get_or_alloc(&mut self, id: &str, mut ctx: Option<&mut WitnessCtx<'_, C::F>>) -> usize {
+    /// Read a variable id (may forward-allocate).
+    fn read_id(&mut self, id: &str, mut ctx: Option<&mut WitnessCtx<'_, C::F>>) -> usize {
         if let Some(&idx) = self.var_map.get(id) {
             idx
         } else {
             let idx = self.alloc_var(ctx.as_deref_mut());
             self.var_map.insert(id.to_string(), idx);
+            self.defined.insert(id.to_string(), false);
             if let Some(c) = ctx.as_deref_mut() {
                 if let Some(v) = (c.get_value)(id) {
                     c.set(idx, v);
@@ -116,25 +124,47 @@ where
         }
     }
 
+    /// Write/define a variable id.
+    ///
+    /// - If `id` is unseen: allocate fresh and mark defined.
+    /// - If `id` exists but was forward-allocated (`defined=false`): reuse same idx and flip.
+    /// - If `id` exists and was already defined: allocate fresh, update mapping.
+    fn write_id(&mut self, id: &str, mut ctx: Option<&mut WitnessCtx<'_, C::F>>) -> usize {
+        match self.var_map.get(id).copied() {
+            None => {
+                let idx = self.alloc_var(ctx.as_deref_mut());
+                self.var_map.insert(id.to_string(), idx);
+                self.defined.insert(id.to_string(), true);
+                idx
+            }
+            Some(idx) => {
+                let was_defined = self.defined.get(id).copied().unwrap_or(true);
+                if was_defined {
+                    let new_idx = self.alloc_var(ctx.as_deref_mut());
+                    self.var_map.insert(id.to_string(), new_idx);
+                    self.defined.insert(id.to_string(), true);
+                    new_idx
+                } else {
+                    self.defined.insert(id.to_string(), true);
+                    idx
+                }
+            }
+        }
+    }
+
+    /// Backwards-compatible helper: in this backend, "get_or_alloc" is used for destinations
+    /// (writes), so it is equivalent to `write_id`.
+    fn get_or_alloc(&mut self, id: &str, ctx: Option<&mut WitnessCtx<'_, C::F>>) -> usize {
+        self.write_id(id, ctx)
+    }
+
     /// Get existing variable index, or allocate if not found.
     /// 
     /// NOTE: We allow forward references (using a variable before it's "declared") because
     /// the SP1 verifier IR can reference variables that are declared later via hint ops.
     /// This matches the behavior of the circuit compiler's `Entry::Vacant` pattern.
-    fn get_var(&mut self, id: &str, mut ctx: Option<&mut WitnessCtx<'_, C::F>>) -> usize {
-        if let Some(&idx) = self.var_map.get(id) {
-            idx
-        } else {
-            // Forward reference - allocate the variable
-            let idx = self.alloc_var(ctx.as_deref_mut());
-            self.var_map.insert(id.to_string(), idx);
-            if let Some(c) = ctx.as_deref_mut() {
-                if let Some(v) = (c.get_value)(id) {
-                    c.set(idx, v);
-                }
-            }
-            idx
-        }
+    fn get_var(&mut self, id: &str, ctx: Option<&mut WitnessCtx<'_, C::F>>) -> usize {
+        self.read_id(id, ctx)
     }
 
     /// Allocate a constant and return its index
@@ -294,7 +324,7 @@ where
             }
             
             DslIr::ImmF(dst, val) => {
-                let dst_idx = self.get_or_alloc(&dst.id(), ctx.as_deref_mut());
+                let dst_idx = self.write_id(&dst.id(), ctx.as_deref_mut());
                 let const_idx = self.alloc_const(val, ctx.as_deref_mut());
                 self.add_eq(dst_idx, const_idx);
                 if let Some(c) = ctx.as_deref_mut() {
@@ -306,7 +336,8 @@ where
                 // Extension element: 4 base field elements
                 let base = val.as_base_slice();
                 for (i, &coeff) in base.iter().enumerate() {
-                    let dst_idx = self.get_or_alloc(&format!("{}__{}", dst.id(), i), ctx.as_deref_mut());
+                    let dst_idx =
+                        self.write_id(&format!("{}__{}", dst.id(), i), ctx.as_deref_mut());
                     let const_idx = self.alloc_const(coeff, ctx.as_deref_mut());
                     self.add_eq(dst_idx, const_idx);
                     if let Some(c) = ctx.as_deref_mut() {
@@ -317,7 +348,7 @@ where
 
             // === Addition (linear, no constraint needed - just track wiring) ===
             DslIr::AddV(dst, lhs, rhs) => {
-                let dst_idx = self.get_or_alloc(&dst.id(), ctx.as_deref_mut());
+                let dst_idx = self.write_id(&dst.id(), ctx.as_deref_mut());
                 let lhs_idx = self.get_var(&lhs.id(), ctx.as_deref_mut());
                 let rhs_idx = self.get_var(&rhs.id(), ctx.as_deref_mut());
                 
@@ -335,7 +366,7 @@ where
             }
             
             DslIr::AddF(dst, lhs, rhs) => {
-                let dst_idx = self.get_or_alloc(&dst.id(), ctx.as_deref_mut());
+                let dst_idx = self.write_id(&dst.id(), ctx.as_deref_mut());
                 let lhs_idx = self.get_var(&lhs.id(), ctx.as_deref_mut());
                 let rhs_idx = self.get_var(&rhs.id(), ctx.as_deref_mut());
                 
@@ -360,7 +391,7 @@ where
             }
             
             DslIr::AddFI(dst, lhs, rhs) => {
-                let dst_idx = self.get_or_alloc(&dst.id(), ctx.as_deref_mut());
+                let dst_idx = self.write_id(&dst.id(), ctx.as_deref_mut());
                 let lhs_idx = self.get_var(&lhs.id(), ctx.as_deref_mut());
                 let const_idx = self.alloc_const(rhs, ctx.as_deref_mut());
                 
@@ -379,7 +410,7 @@ where
 
             // === Subtraction ===
             DslIr::SubV(dst, lhs, rhs) => {
-                let dst_idx = self.get_or_alloc(&dst.id(), ctx.as_deref_mut());
+                let dst_idx = self.write_id(&dst.id(), ctx.as_deref_mut());
                 let lhs_idx = self.get_var(&lhs.id(), ctx.as_deref_mut());
                 let rhs_idx = self.get_var(&rhs.id(), ctx.as_deref_mut());
                 
@@ -397,7 +428,7 @@ where
             }
             
             DslIr::SubF(dst, lhs, rhs) => {
-                let dst_idx = self.get_or_alloc(&dst.id(), ctx.as_deref_mut());
+                let dst_idx = self.write_id(&dst.id(), ctx.as_deref_mut());
                 let lhs_idx = self.get_var(&lhs.id(), ctx.as_deref_mut());
                 let rhs_idx = self.get_var(&rhs.id(), ctx.as_deref_mut());
                 
@@ -415,7 +446,7 @@ where
             }
             
             DslIr::SubFI(dst, lhs, rhs) => {
-                let dst_idx = self.get_or_alloc(&dst.id(), ctx.as_deref_mut());
+                let dst_idx = self.write_id(&dst.id(), ctx.as_deref_mut());
                 let lhs_idx = self.get_var(&lhs.id(), ctx.as_deref_mut());
                 let const_idx = self.alloc_const(rhs, ctx.as_deref_mut());
                 
@@ -434,7 +465,7 @@ where
             
             DslIr::SubFIN(dst, lhs, rhs) => {
                 // dst = lhs (constant) - rhs (variable)
-                let dst_idx = self.get_or_alloc(&dst.id(), ctx.as_deref_mut());
+                let dst_idx = self.write_id(&dst.id(), ctx.as_deref_mut());
                 let rhs_idx = self.get_var(&rhs.id(), ctx.as_deref_mut());
                 let const_idx = self.alloc_const(lhs, ctx.as_deref_mut());
                 
@@ -453,7 +484,7 @@ where
 
             // === Multiplication ===
             DslIr::MulV(dst, lhs, rhs) => {
-                let dst_idx = self.get_or_alloc(&dst.id(), ctx.as_deref_mut());
+                let dst_idx = self.write_id(&dst.id(), ctx.as_deref_mut());
                 let lhs_idx = self.get_var(&lhs.id(), ctx.as_deref_mut());
                 let rhs_idx = self.get_var(&rhs.id(), ctx.as_deref_mut());
                 self.add_mul(dst_idx, lhs_idx, rhs_idx);
@@ -463,7 +494,7 @@ where
             }
             
             DslIr::MulF(dst, lhs, rhs) => {
-                let dst_idx = self.get_or_alloc(&dst.id(), ctx.as_deref_mut());
+                let dst_idx = self.write_id(&dst.id(), ctx.as_deref_mut());
                 let lhs_idx = self.get_var(&lhs.id(), ctx.as_deref_mut());
                 let rhs_idx = self.get_var(&rhs.id(), ctx.as_deref_mut());
                 self.add_mul(dst_idx, lhs_idx, rhs_idx);
@@ -477,7 +508,7 @@ where
             }
             
             DslIr::MulFI(dst, lhs, rhs) => {
-                let dst_idx = self.get_or_alloc(&dst.id(), ctx.as_deref_mut());
+                let dst_idx = self.write_id(&dst.id(), ctx.as_deref_mut());
                 let lhs_idx = self.get_var(&lhs.id(), ctx.as_deref_mut());
                 let const_idx = self.alloc_const(rhs, ctx.as_deref_mut());
                 self.add_mul(dst_idx, lhs_idx, const_idx);
@@ -488,7 +519,7 @@ where
 
             // === Division (via inverse hint) ===
             DslIr::DivF(dst, lhs, rhs) => {
-                let dst_idx = self.get_or_alloc(&dst.id(), ctx.as_deref_mut());
+                let dst_idx = self.write_id(&dst.id(), ctx.as_deref_mut());
                 let lhs_idx = self.get_var(&lhs.id(), ctx.as_deref_mut());
                 let rhs_idx = self.get_var(&rhs.id(), ctx.as_deref_mut());
                 
@@ -509,7 +540,7 @@ where
             }
             
             DslIr::DivFI(dst, lhs, rhs) => {
-                let dst_idx = self.get_or_alloc(&dst.id(), ctx.as_deref_mut());
+                let dst_idx = self.write_id(&dst.id(), ctx.as_deref_mut());
                 let lhs_idx = self.get_var(&lhs.id(), ctx.as_deref_mut());
                 let const_idx = self.alloc_const(rhs, ctx.as_deref_mut());
                 
@@ -527,7 +558,7 @@ where
             }
             
             DslIr::DivFIN(dst, lhs, rhs) => {
-                let dst_idx = self.get_or_alloc(&dst.id(), ctx.as_deref_mut());
+                let dst_idx = self.write_id(&dst.id(), ctx.as_deref_mut());
                 let const_idx = self.alloc_const(lhs, ctx.as_deref_mut());
                 let rhs_idx = self.get_var(&rhs.id(), ctx.as_deref_mut());
                 
@@ -547,7 +578,7 @@ where
 
             // === Negation ===
             DslIr::NegV(dst, src) => {
-                let dst_idx = self.get_or_alloc(&dst.id(), ctx.as_deref_mut());
+                let dst_idx = self.write_id(&dst.id(), ctx.as_deref_mut());
                 let src_idx = self.get_var(&src.id(), ctx.as_deref_mut());
                 
                 let mut neg_src = SparseRow::new();
@@ -563,7 +594,7 @@ where
             }
             
             DslIr::NegF(dst, src) => {
-                let dst_idx = self.get_or_alloc(&dst.id(), ctx.as_deref_mut());
+                let dst_idx = self.write_id(&dst.id(), ctx.as_deref_mut());
                 let src_idx = self.get_var(&src.id(), ctx.as_deref_mut());
                 
                 let mut neg_src = SparseRow::new();
@@ -580,7 +611,7 @@ where
 
             // === Inversion ===
             DslIr::InvV(dst, src) => {
-                let dst_idx = self.get_or_alloc(&dst.id(), ctx.as_deref_mut());
+                let dst_idx = self.write_id(&dst.id(), ctx.as_deref_mut());
                 let src_idx = self.get_var(&src.id(), ctx.as_deref_mut());
                 
                 // dst = 1 / src
@@ -600,7 +631,7 @@ where
             }
             
             DslIr::InvF(dst, src) => {
-                let dst_idx = self.get_or_alloc(&dst.id(), ctx.as_deref_mut());
+                let dst_idx = self.write_id(&dst.id(), ctx.as_deref_mut());
                 let src_idx = self.get_var(&src.id(), ctx.as_deref_mut());
                 
                 self.r1cs.add_constraint(
