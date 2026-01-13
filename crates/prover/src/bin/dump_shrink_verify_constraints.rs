@@ -419,6 +419,32 @@ fn main() {
     println!("  ... ({} total opcode types)", counts_sorted.len());
     println!("  Total ops: {}", ops.len());
 
+    // Also print rare opcodes (useful when a bug only triggers on a one-off op near the end).
+    println!("\nOpcode histogram (bottom 15):");
+    for (op, n) in counts_sorted.iter().rev().take(15) {
+        println!("  {op:35} {n:>8}");
+    }
+
+    // Optional: list all opcodes with count <= threshold.
+    let rare_max: usize = std::env::var("RARE_OPCODE_MAX")
+        .ok()
+        .as_deref()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(1);
+    if rare_max > 0 {
+        let rares: Vec<_> = counts_sorted
+            .iter()
+            .filter(|(_, n)| **n <= rare_max)
+            .collect();
+        println!("\nOpcodes with count <= {rare_max}: {}", rares.len());
+        for (op, n) in rares.iter().take(200) {
+            println!("  {op:35} {n:>8}");
+        }
+        if rares.len() > 200 {
+            println!("  ... (truncated; increase printing if needed)");
+        }
+    }
+
     // Export modes:
     // - If OUT_WITNESS is set: dump witness, and (optionally) also write OUT_R1CS_LF if requested.
     // - Else if OUT_R1CS_LF is set: dump the (shape) R1LF ONLY.
