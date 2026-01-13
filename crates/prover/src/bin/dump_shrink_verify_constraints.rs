@@ -17,7 +17,6 @@ use std::io::Write;
 
 use p3_baby_bear::BabyBear;
 use p3_baby_bear::DiffusionMatrixBabyBear;
-use p3_field::AbstractField;
 use p3_field::PrimeField64;
 use sp1_recursion_circuit::machine::SP1CompressWithVKeyWitnessValues;
 use sp1_recursion_circuit::witness::Witnessable;
@@ -197,89 +196,6 @@ fn eval_row_mod(
         acc = mod_add(acc, mod_mul(ci, wi));
     }
     acc
-}
-
-fn eval_row_bb(
-    row: &sp1_recursion_compiler::r1cs::types::SparseRow<BabyBear>,
-    w: &[BabyBear],
-) -> BabyBear {
-    let mut acc = BabyBear::zero();
-    for (idx, coeff) in row.terms.iter() {
-        acc += *coeff * w[*idx];
-    }
-    acc
-}
-
-fn propagate_internal_defs(
-    r1cs: &sp1_recursion_compiler::r1cs::types::R1CS<BabyBear>,
-    w: &mut [BabyBear],
-    idx_to_id: &[Option<String>],
-    max_passes: usize,
-) -> usize {
-    use p3_field::Field;
-
-    let is_one_row = |row: &sp1_recursion_compiler::r1cs::types::SparseRow<BabyBear>| {
-        row.terms.len() == 1 && row.terms[0].0 == 0 && row.terms[0].1 == BabyBear::one()
-    };
-
-    let mut total_updates = 0usize;
-    for _ in 0..max_passes {
-        let mut updates = 0usize;
-        for i in 0..r1cs.num_constraints {
-            let a = &r1cs.a[i];
-            let b = &r1cs.b[i];
-            let c = &r1cs.c[i];
-
-            // Linear defining constraint: 1 * (row) = (coeff*out)
-            if is_one_row(a) || is_one_row(b) {
-                let lin = if is_one_row(a) { b } else { a };
-                if c.terms.len() == 1 {
-                    let (out_idx, out_coeff) = c.terms[0];
-                    if out_idx != 0
-                        && out_idx >= r1cs.num_public
-                        && idx_to_id.get(out_idx).and_then(|x| x.as_ref()).is_none()
-                    {
-                        let lin_val = eval_row_bb(lin, w);
-                        let inv = out_coeff
-                            .try_inverse()
-                            .expect("non-invertible coefficient in defining constraint");
-                        let new_out = lin_val * inv;
-                        if w[out_idx] != new_out {
-                            w[out_idx] = new_out;
-                            updates += 1;
-                        }
-                    }
-                }
-                continue;
-            }
-
-            // Mul defining constraint: (a0) * (b0) = (coeff*out)
-            if a.terms.len() == 1 && b.terms.len() == 1 && c.terms.len() == 1 {
-                let (ai, ac) = a.terms[0];
-                let (bi, bc) = b.terms[0];
-                let (out_idx, out_coeff) = c.terms[0];
-                if out_idx != 0
-                    && out_idx >= r1cs.num_public
-                    && idx_to_id.get(out_idx).and_then(|x| x.as_ref()).is_none()
-                {
-                    let prod = (ac * w[ai]) * (bc * w[bi]);
-                    let inv = out_coeff
-                        .try_inverse()
-                        .expect("non-invertible coefficient in defining constraint");
-                    let new_out = prod * inv;
-                    if w[out_idx] != new_out {
-                        w[out_idx] = new_out;
-                        updates += 1;
-                    }
-                }
-            }
-        }
-        total_updates += updates;
-        if updates == 0 {
-            break;
-        }
-    }
-    total_updates
 }
 fn debug_first_unsatisfied_row(
     r1cs: &sp1_recursion_compiler::r1cs::types::R1CS<BabyBear>,
@@ -553,7 +469,7 @@ fn main() {
                 entry.val.0.get(limb).copied()
             };
 
-            let (c, mut w_bb) = R1CSCompiler::<InnerConfig>::compile_with_witness(
+            let (c, w_bb) = R1CSCompiler::<InnerConfig>::compile_with_witness(
                 block.ops.clone(),
                 &mut get_value,
                 &mut next_hint_felt,
@@ -582,20 +498,11 @@ fn main() {
                         idx_to_id[*idx] = Some(id.clone());
                     }
                 }
-                // Deterministic "define temps" pass: overwrite only internal (unmapped) vars from
-                // defining constraints to fix out-of-order semantic evaluation.
-                let updated = propagate_internal_defs(&r1cs2, &mut w_bb, &idx_to_id, 16);
-                eprintln!("[exporter debug] propagate_internal_defs updates={updated}");
-
-                if r1cs2.is_satisfied(&w_bb) {
-                    eprintln!("[exporter debug] witness satisfied after internal propagation");
-                } else {
                 // Reuse existing debug helper (expects Option<u64>); adapt minimally here.
                 let w_opt: Vec<Option<u64>> = w_bb.iter().map(|x| Some(x.as_canonical_u64())).collect();
                 let origin: Vec<u8> = vec![3u8; r1cs2.num_vars];
                 let _ = debug_first_unsatisfied_row(&r1cs2, &w_opt, &origin, &idx_to_id, 200_000);
                 panic!("compiler-produced witness does not satisfy R1CS");
-                }
             }
 
             let t_aux = std::time::Instant::now();
