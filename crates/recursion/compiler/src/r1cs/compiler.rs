@@ -214,12 +214,22 @@ where
     /// This ensures hint-sourced variables get their authoritative values from the hint stream,
     /// while non-hint variables (e.g., from runtime memory writes) still work correctly.
     fn read_id(&mut self, id: &str, mut ctx: Option<&mut WitnessCtx<'_, C::F>>) -> usize {
+        static WATCH_ID: OnceLock<Option<String>> = OnceLock::new();
+        let watch_id = WATCH_ID.get_or_init(|| std::env::var("R1CS_WATCH_ID").ok());
+        let watching = watch_id.as_deref().is_some_and(|w| w == id);
+
         if let Some(&idx) = self.var_map.get(id) {
+            if watching {
+                println!("[R1CS_WATCH_ID] read existing {id} -> idx={idx}");
+            }
             idx
         } else {
             let idx = self.alloc_var(ctx.as_deref_mut());
             self.var_map.insert(id.to_string(), idx);
             self.defined.insert(id.to_string(), false);
+            if watching {
+                println!("[R1CS_WATCH_ID] read new {id} -> idx={idx}");
+            }
             
             // Populate witness value for forward-referenced variable
             if let Some(c) = ctx.as_deref_mut() {
@@ -282,12 +292,19 @@ where
     /// the read allocates a placeholder. The defining write reuses that placeholder so both
     /// the read and write refer to the same R1CS variable.
     fn write_id(&mut self, id: &str, mut ctx: Option<&mut WitnessCtx<'_, C::F>>) -> usize {
+        static WATCH_ID: OnceLock<Option<String>> = OnceLock::new();
+        let watch_id = WATCH_ID.get_or_init(|| std::env::var("R1CS_WATCH_ID").ok());
+        let watching = watch_id.as_deref().is_some_and(|w| w == id);
+
         match self.var_map.get(id).copied() {
             None => {
                 // First time seeing this ID - allocate fresh
                 let idx = self.alloc_var(ctx.as_deref_mut());
                 self.var_map.insert(id.to_string(), idx);
                 self.defined.insert(id.to_string(), true);
+                if watching {
+                    println!("[R1CS_WATCH_ID] write new {id} -> idx={idx}");
+                }
                 idx
             }
             Some(idx) => {
@@ -297,10 +314,16 @@ where
                     let new_idx = self.alloc_var(ctx.as_deref_mut());
                     self.var_map.insert(id.to_string(), new_idx);
                     self.defined.insert(id.to_string(), true);
+                    if watching {
+                        println!("[R1CS_WATCH_ID] write redef {id} old_idx={idx} -> new_idx={new_idx}");
+                    }
                     new_idx
                 } else {
                     // Forward-allocated - reuse the placeholder index
                     self.defined.insert(id.to_string(), true);
+                    if watching {
+                        println!("[R1CS_WATCH_ID] write define {id} reuse_idx={idx}");
+                    }
                     idx
                 }
             }
@@ -342,6 +365,20 @@ where
     /// Allocate a constant and return its index
     fn alloc_const(&mut self, value: C::F, mut ctx: Option<&mut WitnessCtx<'_, C::F>>) -> usize {
         let idx = self.alloc_var(ctx.as_deref_mut());
+        // Optional targeted debug: show the constant being allocated for a watched index.
+        static WATCH_IDX: OnceLock<Option<usize>> = OnceLock::new();
+        let watch = WATCH_IDX.get_or_init(|| {
+            std::env::var("R1CS_WATCH_IDX").ok().and_then(|s| s.parse::<usize>().ok())
+        });
+        if watch.as_ref().copied() == Some(idx) {
+            println!(
+                "[R1CS_WATCH_IDX] alloc_const idx={} value={} (canonical_u64={}) ctx_is_some={}",
+                idx,
+                value,
+                value.as_canonical_u64(),
+                ctx.is_some()
+            );
+        }
         if let Some(c) = ctx.as_deref_mut() {
             c.set(idx, value);
         }
