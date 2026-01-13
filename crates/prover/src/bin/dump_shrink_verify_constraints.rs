@@ -210,18 +210,19 @@ fn debug_first_unsatisfied_row(
         let b = eval_row_mod(&r1cs.b[i], w);
         let c = eval_row_mod(&r1cs.c[i], w);
         if mod_mul(a, b) != c {
-            eprintln!("\n[exporter debug] first unsatisfied row i={i} (within first {max_rows})");
-            eprintln!("  a={a} b={b} c={c} a*b-c mod p={}", (mod_mul(a, b) + BABYBEAR_P - c) % BABYBEAR_P);
+            // Use stdout (not stderr) so logs capture it reliably.
+            println!("\n[exporter debug] first unsatisfied row i={i} (within first {max_rows})");
+            println!("  a={a} b={b} c={c} a*b-c mod p={}", (mod_mul(a, b) + BABYBEAR_P - c) % BABYBEAR_P);
             let dump_row = |name: &str, row: &sp1_recursion_compiler::r1cs::types::SparseRow<BabyBear>| {
-                eprintln!("  {name}: terms={}", row.terms.len());
+                println!("  {name}: terms={}", row.terms.len());
                 for (idx, coeff) in row.terms.iter().take(16) {
                     let wi = w[*idx].unwrap_or(u64::MAX);
                     let src = origin[*idx];
                     let id = idx_to_id.get(*idx).and_then(|x| x.as_ref()).map(|s| s.as_str()).unwrap_or("-");
-                    eprintln!("    idx={idx:<8} coeff={} wi={wi:<10} origin={src} id={id}", coeff.as_canonical_u64());
+                    println!("    idx={idx:<8} coeff={} wi={wi:<10} origin={src} id={id}", coeff.as_canonical_u64());
                 }
                 if row.terms.len() > 16 {
-                    eprintln!("    ... (truncated)");
+                    println!("    ... (truncated)");
                 }
             };
             dump_row("A", &r1cs.a[i]);
@@ -550,7 +551,18 @@ fn main() {
                 // Reuse existing debug helper (expects Option<u64>); adapt minimally here.
                 let w_opt: Vec<Option<u64>> = w_bb.iter().map(|x| Some(x.as_canonical_u64())).collect();
                 let origin: Vec<u8> = vec![3u8; r1cs2.num_vars];
-                let _ = debug_first_unsatisfied_row(&r1cs2, &w_opt, &origin, &idx_to_id, 200_000);
+                let max_rows: usize = std::env::var("DEBUG_MAX_ROWS")
+                    .ok()
+                    .as_deref()
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(200_000);
+                let found = debug_first_unsatisfied_row(&r1cs2, &w_opt, &origin, &idx_to_id, max_rows);
+                if found.is_none() {
+                    println!(
+                        "[exporter debug] witness failed, but no unsatisfied row found within DEBUG_MAX_ROWS={} (total constraints={})",
+                        max_rows, r1cs2.num_constraints
+                    );
+                }
                 panic!("compiler-produced witness does not satisfy R1CS");
             }
 
