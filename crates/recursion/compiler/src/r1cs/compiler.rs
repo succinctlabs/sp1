@@ -641,6 +641,26 @@ where
                 let dst_idx = self.write_id(&dst.id(), ctx.as_deref_mut());
                 let lhs_idx = self.get_var(&lhs.id(), ctx.as_deref_mut());
                 let rhs_idx = self.get_var(&rhs.id(), ctx.as_deref_mut());
+
+                if r1cs_watch_id(dst.id().as_str()) {
+                    println!(
+                        "[R1CS_WATCH_ID] AddF {} = {} + {} (dst_idx={}, lhs_idx={}, rhs_idx={})",
+                        dst.id(),
+                        lhs.id(),
+                        rhs.id(),
+                        dst_idx,
+                        lhs_idx,
+                        rhs_idx
+                    );
+                    if let Some(c) = ctx.as_deref_mut() {
+                        println!(
+                            "[R1CS_WATCH_ID]   values: lhs={} rhs={} dst(before)={}",
+                            c.get(lhs_idx).as_canonical_u64(),
+                            c.get(rhs_idx).as_canonical_u64(),
+                            c.get(dst_idx).as_canonical_u64()
+                        );
+                    }
+                }
                 
                 let mut sum = SparseRow::new();
                 sum.add_term(lhs_idx, C::F::one());
@@ -652,6 +672,15 @@ where
                 );
                 if let Some(c) = ctx.as_deref_mut() {
                     c.set(dst_idx, c.get(lhs_idx) + c.get(rhs_idx));
+                }
+
+                if r1cs_watch_id(dst.id().as_str()) {
+                    if let Some(c) = ctx.as_deref_mut() {
+                        println!(
+                            "[R1CS_WATCH_ID]   dst(after)={}",
+                            c.get(dst_idx).as_canonical_u64()
+                        );
+                    }
                 }
             }
             
