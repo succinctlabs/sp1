@@ -6,6 +6,7 @@
 
 use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField64};
 use std::collections::{HashMap, HashSet};
+use std::sync::OnceLock;
 
 use crate::ir::{Config, DslIr, Ext};
 use super::types::{R1CS, SparseRow};
@@ -181,6 +182,19 @@ where
         let idx = self.next_var;
         self.next_var += 1;
         self.r1cs.num_vars = self.next_var;
+
+        // Optional targeted debug: print a backtrace when a specific R1CS index is allocated.
+        // This is useful to identify which lowering path created an internal temp that later
+        // appears in an unsatisfied constraint.
+        static WATCH_IDX: OnceLock<Option<usize>> = OnceLock::new();
+        let watch = WATCH_IDX.get_or_init(|| {
+            std::env::var("R1CS_WATCH_IDX").ok().and_then(|s| s.parse::<usize>().ok())
+        });
+        if watch.as_ref().copied() == Some(idx) {
+            println!("[R1CS_WATCH_IDX] allocated idx={idx}");
+            println!("{:?}", std::backtrace::Backtrace::capture());
+        }
+
         if let Some(c) = ctx.as_deref_mut() {
             c.ensure_len(self.next_var);
             // Default to 0; callers should assign the semantic value immediately.
