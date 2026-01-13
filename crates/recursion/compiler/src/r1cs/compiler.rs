@@ -5,7 +5,7 @@
 //! SP1's native execution.
 
 use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField64};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::ir::{Config, DslIr, Ext};
 use super::types::{R1CS, SparseRow};
@@ -20,14 +20,17 @@ const BABYBEAR_P: u64 = 2013265921;
 /// This is intentionally trait-object based so `compile_one` can remain non-generic.
 struct WitnessCtx<'a, F: PrimeField64> {
     witness: &'a mut Vec<F>,
-    /// NOTE: `get_value` is intentionally unused. It was previously used in `read_id` to populate
-    /// witness values for forward-referenced variables from runtime memory, but this caused bugs
-    /// when hint-sourced variables were forward-referenced (the runtime memory values could differ
-    /// from the hint stream values). The field is retained for API compatibility but not called.
-    #[allow(dead_code)]
+    /// For non-hint variables, get their value from runtime memory.
     get_value: &'a mut dyn FnMut(&str) -> Option<F>,
+    /// Live hint stream consumers (used when hint_felt_values is empty)
     next_hint_felt: &'a mut dyn FnMut() -> Option<F>,
     next_hint_ext: &'a mut dyn FnMut() -> Option<[F; 4]>,
+    /// Pre-consumed hint values (populated in Phase 1, consumed in Phase 2).
+    /// Key is the felt/ext ID string.
+    hint_felt_values: HashMap<String, F>,
+    hint_ext_values: HashMap<String, [F; 4]>,
+    /// Set of IDs that are hint-sourced (should NOT use get_value for these)
+    hinted_ids: HashSet<String>,
 }
 
 impl<'a, F: PrimeField64> WitnessCtx<'a, F> {
@@ -114,10 +117,12 @@ where
 
     /// Read a variable id (may forward-allocate).
     ///
-    /// NOTE: Forward-referenced variables get witness=0 initially. Their proper witness values
-    /// must be set later by the defining operation (e.g., CircuitV2HintFelts). We do NOT use
-    /// `get_value` here because that reads from runtime memory, which can differ from the hint
-    /// stream values that should be authoritative for hint-sourced variables.
+    /// For forward-referenced variables:
+    /// - If the ID is hint-sourced (in `hinted_ids`), populate witness from pre-consumed `hint_felt_values`
+    /// - Otherwise, populate from `get_value` (runtime memory)
+    ///
+    /// This ensures hint-sourced variables get their authoritative values from the hint stream,
+    /// while non-hint variables (e.g., from runtime memory writes) still work correctly.
     fn read_id(&mut self, id: &str, mut ctx: Option<&mut WitnessCtx<'_, C::F>>) -> usize {
         if let Some(&idx) = self.var_map.get(id) {
             idx
@@ -125,6 +130,33 @@ where
             let idx = self.alloc_var(ctx.as_deref_mut());
             self.var_map.insert(id.to_string(), idx);
             self.defined.insert(id.to_string(), false);
+            
+            // Populate witness value for forward-referenced variable
+            if let Some(c) = ctx.as_deref_mut() {
+                if c.hinted_ids.contains(id) {
+                    // Hint-sourced variable: get value from pre-consumed hint map
+                    if let Some(&v) = c.hint_felt_values.get(id) {
+                        c.set(idx, v);
+                    }
+                    // For ext components, check hint_ext_values
+                    // (ext IDs are like "ext123__0", "ext123__1", etc.)
+                    // The ext values are stored under the base ID "ext123"
+                    if id.contains("__") {
+                        if let Some(pos) = id.rfind("__") {
+                            let base_id = &id[..pos];
+                            let limb: usize = id[pos+2..].parse().unwrap_or(0);
+                            if let Some(ext_val) = c.hint_ext_values.get(base_id) {
+                                c.set(idx, ext_val[limb]);
+                            }
+                        }
+                    }
+                } else {
+                    // Non-hint variable: get value from runtime memory
+                    if let Some(v) = (c.get_value)(id) {
+                        c.set(idx, v);
+                    }
+                }
+            }
             idx
         }
     }
@@ -164,14 +196,14 @@ where
     }
 
     /// Check if a variable is already defined (has a mapping AND was marked as defined).
-    /// This is used in Phase 2 of compile_with_witness to detect variables that were
-    /// already defined in Phase 1.
+    #[allow(dead_code)]
     fn is_defined(&self, id: &str) -> bool {
         self.var_map.contains_key(id)
             && self.defined.get(id).copied().unwrap_or(false)
     }
 
     /// Get the index of an already-defined variable. Returns None if not defined.
+    #[allow(dead_code)]
     fn get_defined(&self, id: &str) -> Option<usize> {
         if self.is_defined(id) {
             self.var_map.get(id).copied()
@@ -909,45 +941,45 @@ where
             // *contiguous ranges* of memory locations. The witness stream is consumed in *program
             // order*, so we record these as an ordered list (append), not by indexing into an array.
             //
-            // IMPORTANT: In compile_with_witness's two-phase approach, Phase 1 pre-defines all
-            // hint variables. In Phase 2, these handlers detect already-defined variables and
-            // skip hint consumption (since hints were already consumed in Phase 1).
+            // IMPORTANT: In compile_with_witness's two-phase approach, Phase 1 pre-consumes ALL
+            // hints into maps. Phase 2's handlers allocate variables normally (preserving SSA)
+            // and get witness values from the pre-consumed maps instead of live stream.
             DslIr::CircuitV2HintFelts(start, len) => {
                 for i in 0..len {
                     let id = format!("felt{}", start.idx + i as u32);
-                    // Check if already defined (from Phase 1 of compile_with_witness)
-                    let felt_idx = if let Some(idx) = self.get_defined(&id) {
-                        // Already defined with correct witness value, just reuse
-                        idx
-                    } else {
-                        // Not defined yet - allocate and consume hint (normal compilation)
-                        let idx = self.get_or_alloc(&id, ctx.as_deref_mut());
-                        if let Some(c) = ctx.as_deref_mut() {
-                            let v = (c.next_hint_felt)()
-                                .unwrap_or_else(|| panic!("R1CSCompiler witness: witness stream underrun for {id}"));
-                            c.set(idx, v);
-                        }
-                        idx
-                    };
+                    // Allocate variable (normal SSA semantics)
+                    let felt_idx = self.get_or_alloc(&id, ctx.as_deref_mut());
                     self.witness_felts.push(felt_idx);
+                    
+                    // Set witness from pre-consumed map (Phase 1) or live stream (no Phase 1)
+                    if let Some(c) = ctx.as_deref_mut() {
+                        let v = if let Some(&val) = c.hint_felt_values.get(&id) {
+                            // Phase 1 pre-consumed this hint
+                            val
+                        } else {
+                            // No Phase 1 (e.g., compile without witness) - use live stream
+                            (c.next_hint_felt)()
+                                .unwrap_or_else(|| panic!("R1CSCompiler witness: witness stream underrun for {id}"))
+                        };
+                        c.set(felt_idx, v);
+                    }
                 }
             }
 
             DslIr::CircuitV2HintExts(start, len) => {
                 for j in 0..len {
                     let ext_id = format!("ext{}", start.idx + j as u32);
-                    let first_component_id = format!("{}__{}", ext_id, 0);
-                    // Check if already defined (from Phase 1 of compile_with_witness)
-                    let already_defined = self.is_defined(&first_component_id);
                     
-                    // Only consume hint if not already defined
-                    let ext_vals = if !already_defined {
-                        if let Some(c) = ctx.as_deref_mut() {
+                    // Get ext values from pre-consumed map (Phase 1) or live stream (no Phase 1)
+                    let ext_vals: Option<[C::F; 4]> = if let Some(c) = ctx.as_deref_mut() {
+                        if let Some(&val) = c.hint_ext_values.get(&ext_id) {
+                            // Phase 1 pre-consumed this hint
+                            Some(val)
+                        } else {
+                            // No Phase 1 - use live stream
                             Some((c.next_hint_ext)().unwrap_or_else(|| {
                                 panic!("R1CSCompiler witness: witness stream underrun for {ext_id}")
                             }))
-                        } else {
-                            None
                         }
                     } else {
                         None
@@ -955,18 +987,14 @@ where
                     
                     for limb in 0..4 {
                         let component_id = format!("{}__{}", ext_id, limb);
-                        let ext_idx = if let Some(idx) = self.get_defined(&component_id) {
-                            // Already defined with correct witness value, just reuse
-                            idx
-                        } else {
-                            // Not defined yet - allocate and set witness
-                            let idx = self.get_or_alloc(&component_id, ctx.as_deref_mut());
-                            if let (Some(c), Some(vals)) = (ctx.as_deref_mut(), ext_vals) {
-                                c.set(idx, vals[limb]);
-                            }
-                            idx
-                        };
+                        // Allocate variable (normal SSA semantics)
+                        let ext_idx = self.get_or_alloc(&component_id, ctx.as_deref_mut());
                         self.witness_exts.push(ext_idx);
+                        
+                        // Set witness value
+                        if let (Some(c), Some(vals)) = (ctx.as_deref_mut(), ext_vals) {
+                            c.set(ext_idx, vals[limb]);
+                        }
                     }
                 }
             }
@@ -2402,20 +2430,41 @@ where
     /// intermediate values.
     ///
     /// We solve this with a two-phase approach:
-    /// 1. **Phase 1**: Recursively scan ALL ops (including nested Parallel blocks) and process
-    ///    ONLY CircuitV2HintFelts/Exts to define all hint variables with correct values from
-    ///    the hint stream.
-    /// 2. **Phase 2**: Process ALL ops normally. Hint ops become no-ops (vars already defined),
-    ///    and other ops now have correct input values to compute derived witnesses.
+    /// 1. **Phase 1**: Pre-consume ALL hints into maps (no allocations, preserves SSA semantics).
+    ///    Also build a set of hint-sourced IDs so `read_id` knows which variables should get
+    ///    their values from hint maps vs runtime memory.
+    /// 2. **Phase 2**: Compile normally. When `read_id` encounters a forward-referenced variable:
+    ///    - If hint-sourced: populate witness from pre-consumed hint maps
+    ///    - Otherwise: populate from `get_value` (runtime memory)
+    ///    Hint ops pull values from the maps (already consumed) instead of live stream.
     ///
-    /// This preserves hint consumption order while ensuring all hint variables are defined
-    /// before any operations use them.
+    /// This ensures hint-sourced variables have correct values when operations use them,
+    /// while preserving allocation order (SSA semantics) and supporting non-hint variables.
     pub fn compile_with_witness(
         operations: Vec<DslIr<C>>,
         get_value: &mut dyn FnMut(&str) -> Option<C::F>,
         next_hint_felt: &mut dyn FnMut() -> Option<C::F>,
         next_hint_ext: &mut dyn FnMut() -> Option<[C::F; 4]>,
     ) -> (Self, Vec<C::F>) {
+        // =====================================================================
+        // PHASE 1: Pre-consume hints into maps (no allocations)
+        // =====================================================================
+        let mut hint_felt_values: HashMap<String, C::F> = HashMap::new();
+        let mut hint_ext_values: HashMap<String, [C::F; 4]> = HashMap::new();
+        let mut hinted_ids: HashSet<String> = HashSet::new();
+        
+        Self::phase1_preconsume_hints(
+            &operations,
+            next_hint_felt,
+            next_hint_ext,
+            &mut hint_felt_values,
+            &mut hint_ext_values,
+            &mut hinted_ids,
+        );
+
+        // =====================================================================
+        // PHASE 2: Compile normally with hint maps populated
+        // =====================================================================
         let mut compiler = Self::new();
         let mut witness: Vec<C::F> = vec![C::F::one()]; // index 0 = constant 1
         let mut ctx = WitnessCtx {
@@ -2423,20 +2472,11 @@ where
             get_value,
             next_hint_felt,
             next_hint_ext,
+            hint_felt_values,
+            hint_ext_values,
+            hinted_ids,
         };
 
-        // =====================================================================
-        // PHASE 1: Recursively scan all ops (including nested Parallel blocks)
-        // and process only hint-defining ops to populate hint variable witness
-        // values BEFORE any operations use them.
-        // =====================================================================
-        Self::phase1_define_hints(&operations, &mut compiler, &mut ctx);
-
-        // =====================================================================
-        // PHASE 2: Process ALL ops. Hint ops will be no-ops (vars already
-        // defined with witness values). Other ops will compute derived
-        // witnesses using the now-correct input values.
-        // =====================================================================
         for op in operations {
             compiler.compile_one_inner(op, Some(&mut ctx));
         }
@@ -2448,46 +2488,53 @@ where
         (compiler, witness)
     }
 
-    /// Phase 1 helper: Recursively scan ops and process only hint-defining ops.
-    /// This traverses into Parallel blocks to find ALL hint ops in program order.
-    fn phase1_define_hints(
+    /// Phase 1 helper: Recursively scan ops and pre-consume hints into maps.
+    /// This does NOT allocate variables or touch var_map - it only consumes hints.
+    fn phase1_preconsume_hints(
         ops: &[DslIr<C>],
-        compiler: &mut Self,
-        ctx: &mut WitnessCtx<'_, C::F>,
+        next_hint_felt: &mut dyn FnMut() -> Option<C::F>,
+        next_hint_ext: &mut dyn FnMut() -> Option<[C::F; 4]>,
+        hint_felt_values: &mut HashMap<String, C::F>,
+        hint_ext_values: &mut HashMap<String, [C::F; 4]>,
+        hinted_ids: &mut HashSet<String>,
     ) {
         for op in ops {
             match op {
                 DslIr::CircuitV2HintFelts(start, len) => {
-                    // Define hint felts with values from hint stream
+                    // Pre-consume hint felts into map
                     for i in 0..*len {
                         let id = format!("felt{}", start.idx + i as u32);
-                        // Use write_id to allocate/get the variable
-                        let felt_idx = compiler.write_id(&id, Some(ctx));
-                        // Consume from hint stream and set witness
-                        let v = (ctx.next_hint_felt)()
+                        let v = (next_hint_felt)()
                             .expect("next_hint_felt returned None in Phase 1 CircuitV2HintFelts");
-                        ctx.set(felt_idx, v);
+                        hint_felt_values.insert(id.clone(), v);
+                        hinted_ids.insert(id);
                     }
                 }
                 DslIr::CircuitV2HintExts(start, len) => {
-                    // Define hint exts with values from hint stream
+                    // Pre-consume hint exts into map
                     for i in 0..*len {
                         let base_id = format!("ext{}", start.idx + i as u32);
-                        let ext_val = (ctx.next_hint_ext)()
+                        let ext_val = (next_hint_ext)()
                             .expect("next_hint_ext returned None in Phase 1 CircuitV2HintExts");
-                        // Allocate/get all 4 components
-                        for (k, &comp_val) in ext_val.iter().enumerate() {
+                        hint_ext_values.insert(base_id.clone(), ext_val);
+                        // Mark all 4 components as hinted
+                        for k in 0..4 {
                             let comp_id = format!("{}__{}", base_id, k);
-                            let comp_idx = compiler.write_id(&comp_id, Some(ctx));
-                            ctx.set(comp_idx, comp_val);
+                            hinted_ids.insert(comp_id);
                         }
                     }
                 }
                 DslIr::Parallel(blocks) => {
-                    // IMPORTANT: Recursively scan into Parallel blocks!
-                    // Hint ops inside Parallel blocks must also be processed in Phase 1.
+                    // Recursively scan into Parallel blocks
                     for block in blocks {
-                        Self::phase1_define_hints(&block.ops, compiler, ctx);
+                        Self::phase1_preconsume_hints(
+                            &block.ops,
+                            next_hint_felt,
+                            next_hint_ext,
+                            hint_felt_values,
+                            hint_ext_values,
+                            hinted_ids,
+                        );
                     }
                 }
                 _ => {
