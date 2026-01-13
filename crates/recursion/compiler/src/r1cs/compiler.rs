@@ -126,7 +126,7 @@ where
     fn read_id(&mut self, id: &str, mut ctx: Option<&mut WitnessCtx<'_, C::F>>) -> usize {
         if let Some(&idx) = self.var_map.get(id) {
             // DEBUG: Track when we reuse an existing index
-            if id == "felt152568" || id == "felt152569" {
+            if id == "felt152568" || id == "felt152569" || id == "felt154206" || id == "felt154207" {
                 if let Some(c) = ctx.as_deref_mut() {
                     eprintln!(
                         "[R1CS read_id] {} REUSED existing idx={}, witness={}",
@@ -151,7 +151,7 @@ where
                         c.set(idx, v);
                         found = true;
                         // DEBUG: Track when we set from hint map
-                        if id == "felt152568" || id == "felt152569" {
+                        if id == "felt152568" || id == "felt152569" || id == "felt154206" || id == "felt154207" {
                             eprintln!(
                                 "[R1CS read_id] {} NEW idx={}, set from hint_map={}",
                                 id, idx, v.as_canonical_u64()
@@ -181,21 +181,21 @@ where
                     }
                 } else {
                     // Non-hint variable: get value from runtime memory
-                    if let Some(v) = (c.get_value)(id) {
-                        c.set(idx, v);
-                        // DEBUG: Track when we use get_value
-                        if id == "felt152568" || id == "felt152569" {
-                            eprintln!(
-                                "[R1CS read_id] {} NEW idx={}, set from get_value={} (NOT in hinted_ids!)",
-                                id, idx, v.as_canonical_u64()
-                            );
-                        }
-                    } else if id == "felt152568" || id == "felt152569" {
-                        eprintln!(
-                            "[R1CS read_id] {} NEW idx={}, get_value returned None, witness stays 0 (NOT in hinted_ids!)",
-                            id, idx
-                        );
-                    }
+                           if let Some(v) = (c.get_value)(id) {
+                           c.set(idx, v);
+                           // DEBUG: Track when we use get_value
+                           if id == "felt152568" || id == "felt152569" || id == "felt154206" || id == "felt154207" {
+                               eprintln!(
+                                   "[R1CS read_id] {} NEW idx={}, set from get_value={} (NOT in hinted_ids!)",
+                                   id, idx, v.as_canonical_u64()
+                               );
+                           }
+                       } else if id == "felt152568" || id == "felt152569" || id == "felt154206" || id == "felt154207" {
+                           eprintln!(
+                               "[R1CS read_id] {} NEW idx={}, get_value returned None, witness stays 0 (NOT in hinted_ids!)",
+                               id, idx
+                           );
+                       }
                 }
             }
             idx
@@ -231,14 +231,22 @@ where
                 let idx = self.alloc_var(ctx.as_deref_mut());
                 self.var_map.insert(id.to_string(), idx);
                 self.defined.insert(id.to_string(), true);
+                // DEBUG
+                if id == "felt154206" || id == "felt154207" {
+                    eprintln!("[R1CS write_id] {} FIRST WRITE idx={}", id, idx);
+                }
                 idx
             }
-            Some(_old_idx) => {
+            Some(old_idx) => {
                 // ID already exists - ALWAYS allocate new index (SSA semantics)
                 // This prevents overwriting witness values needed by earlier constraints
                 let new_idx = self.alloc_var(ctx.as_deref_mut());
                 self.var_map.insert(id.to_string(), new_idx);
                 self.defined.insert(id.to_string(), true);
+                // DEBUG
+                if id == "felt154206" || id == "felt154207" {
+                    eprintln!("[R1CS write_id] {} REWRITE old_idx={} -> new_idx={}", id, old_idx, new_idx);
+                }
                 new_idx
             }
         }
@@ -312,6 +320,22 @@ where
             SparseRow::single(0), // B: 1
             SparseRow::zero(), // C: 0
         );
+    }
+    
+    /// Add equality constraint with witness debugging
+    fn add_eq_with_witness(&mut self, a: usize, b: usize, ctx: &mut WitnessCtx<'_, C::F>) {
+        let va = ctx.get(a);
+        let vb = ctx.get(b);
+        if va != vb {
+            eprintln!(
+                "[R1CS add_eq] MISMATCH at constraint ~{}: idx {} = {} vs idx {} = {} (diff={})",
+                self.r1cs.a.len(),
+                a, va.as_canonical_u64(),
+                b, vb.as_canonical_u64(),
+                (va - vb).as_canonical_u64()
+            );
+        }
+        self.add_eq(a, b);
     }
 
     /// Add constraint: a != b (via inverse hint)
@@ -767,7 +791,11 @@ where
             DslIr::AssertEqF(lhs, rhs) => {
                 let lhs_idx = self.get_var(&lhs.id(), ctx.as_deref_mut());
                 let rhs_idx = self.get_var(&rhs.id(), ctx.as_deref_mut());
-                self.add_eq(lhs_idx, rhs_idx);
+                if let Some(c) = ctx.as_deref_mut() {
+                    self.add_eq_with_witness(lhs_idx, rhs_idx, c);
+                } else {
+                    self.add_eq(lhs_idx, rhs_idx);
+                }
             }
             
             DslIr::AssertEqVI(_lhs, _rhs) => {
