@@ -20,11 +20,6 @@ const BABYBEAR_P: u64 = 2013265921;
 /// This is intentionally trait-object based so `compile_one` can remain non-generic.
 struct WitnessCtx<'a, F: PrimeField64> {
     witness: &'a mut Vec<F>,
-    /// Tracks which witness slots have been assigned a semantic value.
-    ///
-    /// We intentionally treat witness assignment as single-assignment per R1CS variable index.
-    /// Internal allocations default to 0 but are *not* considered "assigned" until `set()` is called.
-    assigned: Vec<bool>,
     /// For non-hint variables, get their value from runtime memory.
     get_value: &'a mut dyn FnMut(&str) -> Option<F>,
     /// Live hint stream consumers (used when hint_felt_values is empty)
@@ -44,9 +39,6 @@ impl<'a, F: PrimeField64> WitnessCtx<'a, F> {
         if self.witness.len() < len {
             self.witness.resize(len, F::zero());
         }
-        if self.assigned.len() < len {
-            self.assigned.resize(len, false);
-        }
     }
 
     #[inline]
@@ -59,16 +51,7 @@ impl<'a, F: PrimeField64> WitnessCtx<'a, F> {
         if self.witness.len() <= idx {
             self.ensure_len(idx + 1);
         }
-        // Single-assignment semantics per R1CS variable index.
-        //
-        // This prevents later op handlers (or forward-ref "definitions") from overwriting a value
-        // that was already sourced authoritatively (e.g., from runtime memory or pre-consumed hints).
-        if self.assigned.get(idx).copied().unwrap_or(false) {
-            return;
-        }
         self.witness[idx] = val;
-        // ensure_len ensures this exists
-        self.assigned[idx] = true;
     }
 }
 
@@ -181,14 +164,17 @@ where
                         );
                     }
                 } else {
-                    // Non-hint variable: populate from runtime memory snapshot.
+                    // Non-hint variable: by default, DO NOT prefill from runtime memory.
                     //
-                    // NOTE: The recursion IR can contain forward references in the op stream from
-                    // the perspective of this R1CS backend (e.g., because of nested blocks / v2
-                    // constructs). Using the runtime memory snapshot provides the authoritative
-                    // value and avoids using implicit zeros for use-before-def.
-                    if let Some(v) = (c.get_value)(id) {
-                        c.set(idx, v);
+                    // Using runtime.memory here is a *final-state snapshot* and can be incorrect
+                    // for mutable virtual registers (values may differ earlier in the IR stream).
+                    //
+                    // If you want the old behavior for debugging, set:
+                    //   R1CS_PREFILL_RUNTIME=1
+                    if std::env::var("R1CS_PREFILL_RUNTIME").ok().as_deref() == Some("1") {
+                        if let Some(v) = (c.get_value)(id) {
+                            c.set(idx, v);
+                        }
                     }
                 }
             }
@@ -2525,7 +2511,6 @@ where
         let mut witness: Vec<C::F> = vec![C::F::one()]; // index 0 = constant 1
         let mut ctx = WitnessCtx {
             witness: &mut witness,
-            assigned: vec![true], // index 0 is semantically assigned to constant 1
             get_value,
             next_hint_felt,
             next_hint_ext,
