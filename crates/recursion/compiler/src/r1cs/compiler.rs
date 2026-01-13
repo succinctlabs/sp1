@@ -643,6 +643,15 @@ where
                 let dst_idx = self.write_id(&dst.id(), ctx.as_deref_mut());
                 let const_idx = self.alloc_const(val, ctx.as_deref_mut());
                 self.add_eq(dst_idx, const_idx);
+                if r1cs_watch_id(dst.id().as_str()) {
+                    println!(
+                        "[R1CS_WATCH_ID] ImmF {} = {} (dst_idx={}, const_idx={})",
+                        dst.id(),
+                        val.as_canonical_u64(),
+                        dst_idx,
+                        const_idx
+                    );
+                }
                 if let Some(c) = ctx.as_deref_mut() {
                     c.set(dst_idx, val);
                 }
