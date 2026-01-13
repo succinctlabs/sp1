@@ -540,6 +540,32 @@ fn main() {
             println!("    {:02x?}", &digest[..16]);
             println!("    {:02x?}", &digest[16..]);
 
+            // Optional audit: detect unconstrained variables.
+            if std::env::var("R1CS_AUDIT_UNCONSTRAINED").ok().as_deref() == Some("1") {
+                let unconstrained_all = r1cs2.unconstrained_vars();
+                let unconstrained_internal = c.unconstrained_internal_vars();
+                println!("\n=========================================================");
+                println!("R1CS Unconstrained Variable Audit");
+                println!("=========================================================");
+                println!(
+                    "  unconstrained_total (excl idx0): {}",
+                    unconstrained_all.len()
+                );
+                println!(
+                    "  unconstrained_internal (excl explicit inputs): {}",
+                    unconstrained_internal.len()
+                );
+                if !unconstrained_internal.is_empty() {
+                    let k = unconstrained_internal.len().min(50);
+                    println!(
+                        "  first {} unconstrained_internal indices: {:?}",
+                        k,
+                        &unconstrained_internal[..k]
+                    );
+                    panic!("R1CS audit failed: found unconstrained internal variables");
+                }
+            }
+
             // Sanity check: the compiler-produced witness must satisfy the R1CS exactly.
             if !r1cs2.is_satisfied(&w_bb) {
                 let mut idx_to_id: Vec<Option<String>> = vec![None; r1cs2.num_vars];

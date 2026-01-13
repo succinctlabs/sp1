@@ -2850,6 +2850,30 @@ where
         (compiler, witness)
     }
 
+    /// Indices of variables that do not appear in any R1CS constraint row, excluding explicit
+    /// witness inputs tracked by the compiler (hint felts/exts, etc.) and the constant 1.
+    ///
+    /// This is useful as a post-compilation audit to catch accidental "allocated but never
+    /// constrained" internal temporaries.
+    pub fn unconstrained_internal_vars(&self) -> Vec<usize> {
+        let mut allowed: HashSet<usize> = HashSet::new();
+        allowed.insert(0);
+        // Public inputs (if any) are explicit I/O.
+        for i in 1..=self.r1cs.num_public {
+            allowed.insert(i);
+        }
+        allowed.extend(self.witness_felts.iter().copied());
+        allowed.extend(self.witness_exts.iter().copied());
+        allowed.extend(self.witness_vars.iter().copied());
+        if let Some(i) = self.vkey_hash_idx {
+            allowed.insert(i);
+        }
+        if let Some(i) = self.committed_values_digest_idx {
+            allowed.insert(i);
+        }
+        self.r1cs.unconstrained_vars_except(&allowed)
+    }
+
     /// Phase 1 helper: Recursively scan ops and pre-consume hints into maps.
     /// This does NOT allocate variables or touch var_map - it only consumes hints.
     /// IMPORTANT: Must traverse ALL nested block types (Parallel, For, If*, etc.)

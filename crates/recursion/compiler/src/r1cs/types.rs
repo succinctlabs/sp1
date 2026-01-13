@@ -2,7 +2,7 @@
 
 use p3_field::PrimeField64;
 use sp1_primitives::io::sha256_hash;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::{Read, Write};
 
 /// A sparse row in an R1CS matrix.
@@ -109,6 +109,45 @@ impl<F: PrimeField64> R1CS<F> {
             }
         }
         true
+    }
+
+    /// Returns a boolean mask indicating which variable indices appear in at least one constraint.
+    ///
+    /// Note: index 0 (the constant "1") is always marked as used.
+    pub fn used_vars_mask(&self) -> Vec<bool> {
+        let mut used = vec![false; self.num_vars];
+        if !used.is_empty() {
+            used[0] = true;
+        }
+        for row in self
+            .a
+            .iter()
+            .chain(self.b.iter())
+            .chain(self.c.iter())
+        {
+            for (idx, _coeff) in &row.terms {
+                if *idx < used.len() {
+                    used[*idx] = true;
+                }
+            }
+        }
+        used
+    }
+
+    /// Variable indices that never appear in any constraint row (A, B, or C).
+    ///
+    /// This excludes index 0. Use `unconstrained_vars_except` to allow-list explicit witness inputs.
+    pub fn unconstrained_vars(&self) -> Vec<usize> {
+        let used = self.used_vars_mask();
+        (1..self.num_vars).filter(|&i| !used[i]).collect()
+    }
+
+    /// Like `unconstrained_vars`, but ignores any indices in `allowed`.
+    pub fn unconstrained_vars_except(&self, allowed: &HashSet<usize>) -> Vec<usize> {
+        let used = self.used_vars_mask();
+        (1..self.num_vars)
+            .filter(|&i| !used[i] && !allowed.contains(&i))
+            .collect()
     }
 
     /// Compute a cryptographic digest of the R1CS for commitment.
