@@ -85,6 +85,80 @@ impl<C: Config> R1CSCompiler<C>
 where
     C::F: PrimeField64,
 {
+    /// Multiply two degree-4 binomial extension elements over `C::F` with modulus `u^4 = 11`.
+    #[inline]
+    fn ext4_mul_vals(a: [C::F; 4], b: [C::F; 4]) -> [C::F; 4] {
+        let nr = C::F::from_canonical_u64(11);
+        // (a0 + a1 u + a2 u^2 + a3 u^3) * (b0 + b1 u + b2 u^2 + b3 u^3) reduced with u^4 = nr.
+        let (a0, a1, a2, a3) = (a[0], a[1], a[2], a[3]);
+        let (b0, b1, b2, b3) = (b[0], b[1], b[2], b[3]);
+        [
+            a0 * b0 + nr * (a1 * b3 + a2 * b2 + a3 * b1),
+            a0 * b1 + a1 * b0 + nr * (a2 * b3 + a3 * b2),
+            a0 * b2 + a1 * b1 + a2 * b0 + nr * (a3 * b3),
+            a0 * b3 + a1 * b2 + a2 * b1 + a3 * b0,
+        ]
+    }
+
+    /// Invert a degree-4 binomial extension element over `C::F` with modulus `u^4 = 11`.
+    ///
+    /// Uses the tower representation:
+    /// - Let v = u^2, so K = F[v]/(v^2 - 11) is quadratic.
+    /// - Then L = K[u]/(u^2 - v) is quadratic over K.
+    ///
+    /// This reduces inversion in L to:
+    /// 1) one inversion in K, and
+    /// 2) one inversion in F.
+    #[inline]
+    fn ext4_inv_vals(x: [C::F; 4]) -> Option<[C::F; 4]> {
+        let nr = C::F::from_canonical_u64(11);
+        // K element is (x0 + x1 v) with v^2 = nr.
+        let k_mul = |a0: C::F, a1: C::F, b0: C::F, b1: C::F| -> (C::F, C::F) {
+            // (a0 + a1 v)(b0 + b1 v) = (a0 b0 + nr a1 b1) + (a0 b1 + a1 b0) v
+            (a0 * b0 + nr * (a1 * b1), a0 * b1 + a1 * b0)
+        };
+        let k_inv = |a0: C::F, a1: C::F| -> Option<(C::F, C::F)> {
+            // (a0 + a1 v)^{-1} = (a0 - a1 v) / (a0^2 - nr a1^2)
+            let denom = a0 * a0 - nr * (a1 * a1);
+            let inv = denom.try_inverse()?;
+            Some((a0 * inv, (-a1) * inv))
+        };
+        let k_mul_by_v = |a0: C::F, a1: C::F| -> (C::F, C::F) {
+            // v*(a0 + a1 v) = (nr*a1) + (a0) v
+            (nr * a1, a0)
+        };
+
+        // x = A + u B, with A,B in K and u^2 = v.
+        // A = a0 + a2 v, B = a1 + a3 v.
+        let (a0, a1, a2, a3) = (x[0], x[1], x[2], x[3]);
+        let (a0_k, a1_k) = (a0, a2);
+        let (b0_k, b1_k) = (a1, a3);
+
+        // N = A^2 - v*B^2 in K.
+        let (a2_0, a2_1) = k_mul(a0_k, a1_k, a0_k, a1_k);
+        let (b2_0, b2_1) = k_mul(b0_k, b1_k, b0_k, b1_k);
+        let (vb2_0, vb2_1) = k_mul_by_v(b2_0, b2_1);
+        let (n0, n1) = (a2_0 - vb2_0, a2_1 - vb2_1);
+
+        // N^{-1} in K.
+        let (ninv0, ninv1) = k_inv(n0, n1)?;
+
+        // x^{-1} = (A - u B) * N^{-1}.
+        let (ainv0, ainv1) = k_mul(a0_k, a1_k, ninv0, ninv1);
+        let (neg_b0, neg_b1) = (-b0_k, -b1_k);
+        let (binv0, binv1) = k_mul(neg_b0, neg_b1, ninv0, ninv1);
+
+        // Recompose: (Ainv0 + Ainv1 v) + u (Binv0 + Binv1 v)
+        // = Ainv0 + Binv0 u + Ainv1 u^2 + Binv1 u^3.
+        Some([ainv0, binv0, ainv1, binv1])
+    }
+
+    #[inline]
+    fn ext4_div_vals(lhs: [C::F; 4], rhs: [C::F; 4]) -> Option<[C::F; 4]> {
+        let inv = Self::ext4_inv_vals(rhs)?;
+        Some(Self::ext4_mul_vals(lhs, inv))
+    }
+
     pub fn new() -> Self {
         let mut compiler = Self {
             r1cs: R1CS::new(),
@@ -1828,6 +1902,17 @@ where
                 let l: Vec<usize> = (0..4)
                     .map(|i| self.get_var(&format!("{}__{}", lhs.id(), i), ctx.as_deref_mut()))
                     .collect();
+
+                // Compute witness for dst = lhs / rhs_const (deterministically).
+                if let Some(w) = ctx.as_deref_mut() {
+                    let lhs_vals = [w.get(l[0]), w.get(l[1]), w.get(l[2]), w.get(l[3])];
+                    let rhs_vals = [rhs_base[0], rhs_base[1], rhs_base[2], rhs_base[3]];
+                    let out = Self::ext4_div_vals(lhs_vals, rhs_vals)
+                        .unwrap_or_else(|| panic!("DivEI: non-invertible rhs immediate for {}", dst.id()));
+                    for i in 0..4 {
+                        w.set(d[i], out[i]);
+                    }
+                }
                 
                 // Verify dst * rhs_const = lhs using extension multiplication
                 // product[k] = sum_{i+j=k} d[i]*rhs[j] + 11 * sum_{i+j=k+4} d[i]*rhs[j]
@@ -1867,12 +1952,36 @@ where
                 // We need to allocate constant extension and check dst * rhs = const
                 let lhs_slice = lhs.as_base_slice();
                 let lhs_base: [C::F; 4] = [lhs_slice[0], lhs_slice[1], lhs_slice[2], lhs_slice[3]];
+                // Compute witness for dst = lhs_imm / rhs.
+                if let Some(w) = ctx.as_deref_mut() {
+                    let r: Vec<usize> = (0..4)
+                        .map(|i| self.get_var(&format!("{}__{}", rhs.id(), i), Some(w)))
+                        .collect();
+                    let rhs_vals = [w.get(r[0]), w.get(r[1]), w.get(r[2]), w.get(r[3])];
+                    let out = Self::ext4_div_vals(lhs_base, rhs_vals)
+                        .unwrap_or_else(|| panic!("DivEIN: non-invertible rhs for {}", dst.id()));
+                    for i in 0..4 {
+                        let di = self.get_var(&format!("{}__{}", dst.id(), i), Some(w));
+                        w.set(di, out[i]);
+                    }
+                }
                 self.compile_ext_mul_check_const(&dst, &rhs, &lhs_base, ctx.as_deref_mut());
             }
             
             DslIr::DivEF(dst, lhs, rhs) => {
                 // Divide extension / felt: dst = lhs / rhs
                 // dst * rhs = lhs (component-wise since rhs is base field)
+                if let Some(w) = ctx.as_deref_mut() {
+                    let rhs_idx = self.get_var(&rhs.id(), Some(w));
+                    let inv = w.get(rhs_idx)
+                        .try_inverse()
+                        .unwrap_or_else(|| panic!("DivEF: non-invertible rhs for {}", dst.id()));
+                    for i in 0..4 {
+                        let dst_idx = self.get_or_alloc(&format!("{}__{}", dst.id(), i), Some(w));
+                        let lhs_idx = self.get_var(&format!("{}__{}", lhs.id(), i), Some(w));
+                        w.set(dst_idx, w.get(lhs_idx) * inv);
+                    }
+                }
                 for i in 0..4 {
                     let dst_idx =
                         self.get_or_alloc(&format!("{}__{}", dst.id(), i), ctx.as_deref_mut());
@@ -1893,6 +2002,16 @@ where
                 // Divide extension / field immediate
                 // dst[i] = lhs[i] / rhs = lhs[i] * rhs^(-1)
                 // Verify: dst[i] * rhs = lhs[i]
+                if let Some(w) = ctx.as_deref_mut() {
+                    let inv = rhs.try_inverse().unwrap_or_else(|| {
+                        panic!("DivEFI: non-invertible rhs immediate for {}", dst.id())
+                    });
+                    for i in 0..4 {
+                        let dst_idx = self.get_or_alloc(&format!("{}__{}", dst.id(), i), Some(w));
+                        let lhs_idx = self.get_var(&format!("{}__{}", lhs.id(), i), Some(w));
+                        w.set(dst_idx, w.get(lhs_idx) * inv);
+                    }
+                }
                 for i in 0..4 {
                     let dst_idx =
                         self.get_or_alloc(&format!("{}__{}", dst.id(), i), ctx.as_deref_mut());
@@ -1944,6 +2063,18 @@ where
                 for i in 0..4 {
                     self.get_or_alloc(&format!("{}__{}", dst.id(), i), ctx.as_deref_mut());
                 }
+                if let Some(w) = ctx.as_deref_mut() {
+                    let s: Vec<usize> = (0..4)
+                        .map(|i| self.get_var(&format!("{}__{}", src.id(), i), Some(w)))
+                        .collect();
+                    let src_vals = [w.get(s[0]), w.get(s[1]), w.get(s[2]), w.get(s[3])];
+                    let inv = Self::ext4_inv_vals(src_vals)
+                        .unwrap_or_else(|| panic!("InvE: non-invertible src for {}", dst.id()));
+                    for i in 0..4 {
+                        let di = self.get_var(&format!("{}__{}", dst.id(), i), Some(w));
+                        w.set(di, inv[i]);
+                    }
+                }
                 
                 // dst * src should equal (1, 0, 0, 0)
                 self.compile_ext_mul_and_check_one(&dst, &src, ctx.as_deref_mut());
@@ -1954,6 +2085,22 @@ where
                 // Hint dst, verify dst * rhs = lhs
                 for i in 0..4 {
                     self.get_or_alloc(&format!("{}__{}", dst.id(), i), ctx.as_deref_mut());
+                }
+                if let Some(w) = ctx.as_deref_mut() {
+                    let l: Vec<usize> = (0..4)
+                        .map(|i| self.get_var(&format!("{}__{}", lhs.id(), i), Some(w)))
+                        .collect();
+                    let r: Vec<usize> = (0..4)
+                        .map(|i| self.get_var(&format!("{}__{}", rhs.id(), i), Some(w)))
+                        .collect();
+                    let lhs_vals = [w.get(l[0]), w.get(l[1]), w.get(l[2]), w.get(l[3])];
+                    let rhs_vals = [w.get(r[0]), w.get(r[1]), w.get(r[2]), w.get(r[3])];
+                    let out = Self::ext4_div_vals(lhs_vals, rhs_vals)
+                        .unwrap_or_else(|| panic!("DivE: non-invertible rhs for {}", dst.id()));
+                    for i in 0..4 {
+                        let di = self.get_var(&format!("{}__{}", dst.id(), i), Some(w));
+                        w.set(di, out[i]);
+                    }
                 }
                 self.compile_ext_mul_check(&dst, &rhs, &lhs, ctx.as_deref_mut());
             }
