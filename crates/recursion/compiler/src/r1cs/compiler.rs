@@ -411,19 +411,49 @@ where
                     }
                     new_idx
                 } else {
-                    // Forward-allocated - reuse the placeholder index
-                    self.defined.insert(id.to_string(), true);
-                    if watching {
-                        println!("[R1CS_WATCH_ID] write define {id} reuse_idx={idx}");
-                        let loc = std::panic::Location::caller();
-                        println!(
-                            "[R1CS_WATCH_ID] write caller: {}:{}:{}",
-                            loc.file(),
-                            loc.line(),
-                            loc.column()
-                        );
+                    // Forward-allocated.
+                    //
+                    // Important distinction:
+                    // - Hint-sourced IDs are legitimately used before their hint op defines them.
+                    //   In that case, the "define" must reuse the placeholder so earlier uses and
+                    //   the defining hint op refer to the same R1CS variable.
+                    // - Non-hint IDs can be read before written because they represent mutable
+                    //   memory locations with an existing value. In that case, the later write is
+                    //   a *new version* and must allocate a fresh index (do NOT reuse).
+                    let is_hinted = ctx
+                        .as_deref()
+                        .is_some_and(|c| c.hinted_ids.contains(id));
+                    if is_hinted {
+                        self.defined.insert(id.to_string(), true);
+                        if watching {
+                            println!("[R1CS_WATCH_ID] write define {id} reuse_idx={idx} (hinted)");
+                            let loc = std::panic::Location::caller();
+                            println!(
+                                "[R1CS_WATCH_ID] write caller: {}:{}:{}",
+                                loc.file(),
+                                loc.line(),
+                                loc.column()
+                            );
+                        }
+                        idx
+                    } else {
+                        let new_idx = self.alloc_var(ctx.as_deref_mut());
+                        self.var_map.insert(id.to_string(), new_idx);
+                        self.defined.insert(id.to_string(), true);
+                        if watching {
+                            println!(
+                                "[R1CS_WATCH_ID] write define {id} old_placeholder_idx={idx} -> new_idx={new_idx} (non-hint)",
+                            );
+                            let loc = std::panic::Location::caller();
+                            println!(
+                                "[R1CS_WATCH_ID] write caller: {}:{}:{}",
+                                loc.file(),
+                                loc.line(),
+                                loc.column()
+                            );
+                        }
+                        new_idx
                     }
-                    idx
                 }
             }
         }
