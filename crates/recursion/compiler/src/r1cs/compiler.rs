@@ -12,6 +12,28 @@ use crate::ir::{Config, DslIr, Ext};
 use super::types::{R1CS, SparseRow};
 use super::poseidon2::Poseidon2R1CS;
 
+/// Returns true if `id` is being watched via `R1CS_WATCH_ID`.
+///
+/// Supports either a single id (`felt123`) or a comma-separated list
+/// (`felt1,felt2,ext9__0`).
+#[inline]
+fn r1cs_watch_id(id: &str) -> bool {
+    static WATCH_IDS: OnceLock<Option<Vec<String>>> = OnceLock::new();
+    let watch = WATCH_IDS.get_or_init(|| {
+        std::env::var("R1CS_WATCH_ID").ok().map(|s| {
+            s.split(',')
+                .map(|t| t.trim())
+                .filter(|t| !t.is_empty())
+                .map(|t| t.to_string())
+                .collect::<Vec<_>>()
+        })
+    });
+    match watch.as_deref() {
+        None => false,
+        Some(ids) => ids.iter().any(|w| w == id),
+    }
+}
+
 /// The BabyBear prime modulus
 #[allow(dead_code)]
 const BABYBEAR_P: u64 = 2013265921;
@@ -215,9 +237,7 @@ where
     /// while non-hint variables (e.g., from runtime memory writes) still work correctly.
     #[track_caller]
     fn read_id(&mut self, id: &str, mut ctx: Option<&mut WitnessCtx<'_, C::F>>) -> usize {
-        static WATCH_ID: OnceLock<Option<String>> = OnceLock::new();
-        let watch_id = WATCH_ID.get_or_init(|| std::env::var("R1CS_WATCH_ID").ok());
-        let watching = watch_id.as_deref().is_some_and(|w| w == id);
+        let watching = r1cs_watch_id(id);
 
         if let Some(&idx) = self.var_map.get(id) {
             if watching {
@@ -308,9 +328,7 @@ where
     /// the read and write refer to the same R1CS variable.
     #[track_caller]
     fn write_id(&mut self, id: &str, mut ctx: Option<&mut WitnessCtx<'_, C::F>>) -> usize {
-        static WATCH_ID: OnceLock<Option<String>> = OnceLock::new();
-        let watch_id = WATCH_ID.get_or_init(|| std::env::var("R1CS_WATCH_ID").ok());
-        let watching = watch_id.as_deref().is_some_and(|w| w == id);
+        let watching = r1cs_watch_id(id);
 
         match self.var_map.get(id).copied() {
             None => {
@@ -687,9 +705,7 @@ where
                 let rhs_idx = self.get_var(&rhs.id(), ctx.as_deref_mut());
 
                 // Targeted debugging for "why isn't this zero?" style assertions.
-                static WATCH_ID: OnceLock<Option<String>> = OnceLock::new();
-                let watch_id = WATCH_ID.get_or_init(|| std::env::var("R1CS_WATCH_ID").ok());
-                if watch_id.as_deref().is_some_and(|w| w == dst.id().as_str()) {
+                if r1cs_watch_id(dst.id().as_str()) {
                     println!(
                         "[R1CS_WATCH_ID] SubF {} = {} - {} (dst_idx={}, lhs_idx={}, rhs_idx={})",
                         dst.id(),
@@ -721,7 +737,7 @@ where
                     c.set(dst_idx, c.get(lhs_idx) - c.get(rhs_idx));
                 }
 
-                if watch_id.as_deref().is_some_and(|w| w == dst.id().as_str()) {
+                if r1cs_watch_id(dst.id().as_str()) {
                     if let Some(c) = ctx.as_deref_mut() {
                         println!(
                             "[R1CS_WATCH_ID]   dst(after)={}",
@@ -956,9 +972,7 @@ where
                 let const_idx = self.alloc_const(rhs, ctx.as_deref_mut());
                 self.add_eq(lhs_idx, const_idx);
 
-                static WATCH_ID: OnceLock<Option<String>> = OnceLock::new();
-                let watch_id = WATCH_ID.get_or_init(|| std::env::var("R1CS_WATCH_ID").ok());
-                if watch_id.as_deref().is_some_and(|w| w == lhs.id().as_str()) {
+                if r1cs_watch_id(lhs.id().as_str()) {
                     println!(
                         "[R1CS_WATCH_ID] AssertEqFI {} == {} (lhs_idx={}, const_idx={})",
                         lhs.id(),
