@@ -620,6 +620,9 @@ mod tests {
     use super::*;
     use p3_baby_bear::BabyBear;
     use p3_field::AbstractField;
+    use p3_symmetric::Permutation;
+    use rand::{rngs::StdRng, Rng, SeedableRng};
+    use sp1_stark::BabyBearPoseidon2Inner;
 
     #[test]
     fn test_round_constants_loaded() {
@@ -671,5 +674,55 @@ mod tests {
         
         assert!(r1cs.is_satisfied(&witness));
         assert_eq!(witness[x7], expected);
+    }
+
+    #[test]
+    fn test_poseidon2_matches_runtime_perm() {
+        // This must match exactly what the recursion runtime uses:
+        // `BabyBearPoseidon2Inner::new().perm`.
+        let perm = BabyBearPoseidon2Inner::new().perm;
+
+        let mut rng = StdRng::seed_from_u64(0xC0FFEE);
+        for _ in 0..10 {
+            // Random BabyBear state as canonical u32 -> BabyBear.
+            let input: [BabyBear; WIDTH] = core::array::from_fn(|_| {
+                // Use wrapped to allow any u32.
+                BabyBear::from_wrapped_u32(rng.gen::<u32>())
+            });
+            let expected = perm.permute(input);
+
+            // Build a standalone R1CS + witness for our expansion.
+            let mut r1cs = R1CS::<BabyBear>::new();
+            let mut next_var: usize = 1;
+
+            // Allocate 16 input variables: indices 1..=16.
+            let input_state: Vec<usize> = (0..WIDTH).map(|_| {
+                let idx = next_var;
+                next_var += 1;
+                r1cs.num_vars = next_var;
+                idx
+            }).collect();
+
+            let mut witness: Vec<BabyBear> = vec![BabyBear::one()];
+            witness.resize(next_var, BabyBear::zero());
+            for i in 0..WIDTH {
+                witness[input_state[i]] = input[i];
+            }
+
+            let out_state = Poseidon2R1CS::<BabyBear>::expand_permute_babybear_with_witness(
+                &mut r1cs,
+                &mut next_var,
+                &input_state,
+                &mut witness,
+            );
+            r1cs.num_vars = next_var;
+            witness.resize(next_var, BabyBear::zero());
+
+            // Check R1CS satisfiable and outputs match expected permutation.
+            assert!(r1cs.is_satisfied(&witness));
+            for i in 0..WIDTH {
+                assert_eq!(witness[out_state[i]], expected[i]);
+            }
+        }
     }
 }
