@@ -5,7 +5,7 @@
 //! SP1's native execution.
 
 use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField64};
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::OnceLock;
 
 use crate::ir::{Config, DslIr, Ext};
@@ -49,9 +49,11 @@ struct WitnessCtx<'a, F: PrimeField64> {
     next_hint_felt: &'a mut dyn FnMut() -> Option<F>,
     next_hint_ext: &'a mut dyn FnMut() -> Option<[F; 4]>,
     /// Pre-consumed hint values (populated in Phase 1, consumed in Phase 2).
-    /// Key is the felt/ext ID string.
-    hint_felt_values: HashMap<String, F>,
-    hint_ext_values: HashMap<String, [F; 4]>,
+    ///
+    /// Important: hint IDs are memory locations, and the same location may be hinted
+    /// multiple times throughout the program. We therefore store a FIFO queue per ID.
+    hint_felt_values: HashMap<String, VecDeque<F>>,
+    hint_ext_values: HashMap<String, VecDeque<[F; 4]>>,
     /// Set of IDs that are hint-sourced (should NOT use get_value for these)
     hinted_ids: HashSet<String>,
 }
@@ -273,7 +275,7 @@ where
                     let mut found = false;
                     
                     // Check hint_felt_values first
-                    if let Some(&v) = c.hint_felt_values.get(id) {
+                    if let Some(v) = c.hint_felt_values.get(id).and_then(|q| q.front()).copied() {
                         c.set(idx, v);
                         found = true;
                     }
@@ -283,7 +285,12 @@ where
                         if let Some(pos) = id.rfind("__") {
                             let base_id = &id[..pos];
                             let limb: usize = id[pos+2..].parse().unwrap_or(0);
-                            if let Some(ext_val) = c.hint_ext_values.get(base_id) {
+                            if let Some(ext_val) = c
+                                .hint_ext_values
+                                .get(base_id)
+                                .and_then(|q| q.front())
+                                .copied()
+                            {
                                 c.set(idx, ext_val[limb]);
                                 found = true;
                             }
@@ -1330,9 +1337,13 @@ where
                     let felt_idx = self.get_or_alloc(&id, ctx.as_deref_mut());
                     self.witness_felts.push(felt_idx);
                     
-                    // Set witness from pre-consumed map (Phase 1 must have populated this)
+                    // Set witness from pre-consumed queue (Phase 1 must have populated this)
                     if let Some(c) = ctx.as_deref_mut() {
-                        let v = c.hint_felt_values.get(&id).copied().unwrap_or_else(|| {
+                        let v = c
+                            .hint_felt_values
+                            .get_mut(&id)
+                            .and_then(|q| q.pop_front())
+                            .unwrap_or_else(|| {
                             // If hinted_ids is populated but map is empty, Phase 1 missed this ID
                             // This indicates a bug in Phase 1's traversal (e.g., nested structure not handled)
                             if !c.hinted_ids.is_empty() {
@@ -1355,9 +1366,13 @@ where
                 for j in 0..len {
                     let ext_id = format!("ext{}", start.idx + j as u32);
                     
-                    // Get ext values from pre-consumed map (Phase 1 must have populated this)
+                    // Get ext values from pre-consumed queue (Phase 1 must have populated this)
                     let ext_vals: Option<[C::F; 4]> = if let Some(c) = ctx.as_deref_mut() {
-                        let val = c.hint_ext_values.get(&ext_id).copied().unwrap_or_else(|| {
+                        let val = c
+                            .hint_ext_values
+                            .get_mut(&ext_id)
+                            .and_then(|q| q.pop_front())
+                            .unwrap_or_else(|| {
                             if !c.hinted_ids.is_empty() {
                                 panic!(
                                     "R1CS Phase 2: hint ext '{}' not in pre-consumed map but hinted_ids is populated. \
@@ -2916,10 +2931,10 @@ where
         next_hint_ext: &mut dyn FnMut() -> Option<[C::F; 4]>,
     ) -> (Self, Vec<C::F>) {
         // =====================================================================
-        // PHASE 1: Pre-consume hints into maps (no allocations)
+        // PHASE 1: Pre-consume hints into per-ID FIFO queues (no allocations)
         // =====================================================================
-        let mut hint_felt_values: HashMap<String, C::F> = HashMap::new();
-        let mut hint_ext_values: HashMap<String, [C::F; 4]> = HashMap::new();
+        let mut hint_felt_values: HashMap<String, VecDeque<C::F>> = HashMap::new();
+        let mut hint_ext_values: HashMap<String, VecDeque<[C::F; 4]>> = HashMap::new();
         let mut hinted_ids: HashSet<String> = HashSet::new();
         
         Self::phase1_preconsume_hints(
@@ -2932,7 +2947,7 @@ where
         );
 
         // =====================================================================
-        // PHASE 2: Compile normally with hint maps populated
+        // PHASE 2: Compile normally with hint queues populated
         // =====================================================================
         let mut compiler = Self::new();
         let mut witness: Vec<C::F> = vec![C::F::one()]; // index 0 = constant 1
@@ -2964,45 +2979,32 @@ where
         ops: &[DslIr<C>],
         next_hint_felt: &mut dyn FnMut() -> Option<C::F>,
         next_hint_ext: &mut dyn FnMut() -> Option<[C::F; 4]>,
-        hint_felt_values: &mut HashMap<String, C::F>,
-        hint_ext_values: &mut HashMap<String, [C::F; 4]>,
+        hint_felt_values: &mut HashMap<String, VecDeque<C::F>>,
+        hint_ext_values: &mut HashMap<String, VecDeque<[C::F; 4]>>,
         hinted_ids: &mut HashSet<String>,
     ) {
         for op in ops {
             match op {
                 DslIr::CircuitV2HintFelts(start, len) => {
-                    // Pre-consume hint felts into map
+                    // Pre-consume hint felts into per-ID queues (FIFO)
                     for i in 0..*len {
                         let id = format!("felt{}", start.idx + i as u32);
                         let v = (next_hint_felt)()
                             .expect("next_hint_felt returned None in Phase 1 CircuitV2HintFelts");
-                        // SAFETY: Panic if same ID is hinted multiple times (would corrupt witness)
-                        if hint_felt_values.contains_key(&id) {
-                            panic!(
-                                "R1CS Phase 1: duplicate hint for felt ID '{}'. \
-                                 SSA violation or IR bug - same ID cannot be hinted twice.",
-                                id
-                            );
-                        }
-                        hint_felt_values.insert(id.clone(), v);
+                        hint_felt_values.entry(id.clone()).or_default().push_back(v);
                         hinted_ids.insert(id);
                     }
                 }
                 DslIr::CircuitV2HintExts(start, len) => {
-                    // Pre-consume hint exts into map
+                    // Pre-consume hint exts into per-ID queues (FIFO)
                     for i in 0..*len {
                         let base_id = format!("ext{}", start.idx + i as u32);
                         let ext_val = (next_hint_ext)()
                             .expect("next_hint_ext returned None in Phase 1 CircuitV2HintExts");
-                        // SAFETY: Panic if same ID is hinted multiple times
-                        if hint_ext_values.contains_key(&base_id) {
-                            panic!(
-                                "R1CS Phase 1: duplicate hint for ext ID '{}'. \
-                                 SSA violation or IR bug - same ID cannot be hinted twice.",
-                                base_id
-                            );
-                        }
-                        hint_ext_values.insert(base_id.clone(), ext_val);
+                        hint_ext_values
+                            .entry(base_id.clone())
+                            .or_default()
+                            .push_back(ext_val);
                         // Mark all 4 components as hinted
                         for k in 0..4 {
                             let comp_id = format!("{}__{}", base_id, k);
