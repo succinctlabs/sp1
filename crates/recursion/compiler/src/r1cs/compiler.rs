@@ -204,28 +204,42 @@ where
 
     /// Write/define a variable id.
     ///
+    /// IMPORTANT: This implements SSA semantics where each write creates a NEW version.
+    ///
     /// - If `id` is unseen: allocate fresh and mark defined.
-    /// - If `id` exists but was forward-allocated (`defined=false`): reuse same idx and flip.
-    /// - If `id` exists and was already defined: allocate fresh, update mapping.
+    /// - If `id` exists (whether forward-allocated or already defined): allocate fresh, update mapping.
+    ///
+    /// WHY: Forward-referenced variables may have witness values set from `get_value` and used
+    /// in constraints BEFORE the defining operation runs. If we reuse the same index, the write
+    /// would OVERWRITE the value needed by those earlier constraints.
+    ///
+    /// Example sequence without this fix:
+    /// 1. Poseidon2 reads felt152568 → forward-alloc idx=160241, witness[160241] = get_value() = X
+    /// 2. Poseidon2 generates constraint using X
+    /// 3. AddF writes felt152568 → reuses idx=160241, witness[160241] = Y (OVERWRITES!)
+    /// 4. Constraint fails: expected X, got Y
+    ///
+    /// With this fix:
+    /// 1. Poseidon2 reads felt152568 → forward-alloc idx=160241, witness[160241] = X
+    /// 2. Poseidon2 generates constraint using X  
+    /// 3. AddF writes felt152568 → allocates NEW idx=160500, witness[160500] = Y
+    /// 4. Constraint passes: idx=160241 still holds X
     fn write_id(&mut self, id: &str, mut ctx: Option<&mut WitnessCtx<'_, C::F>>) -> usize {
         match self.var_map.get(id).copied() {
             None => {
+                // First time seeing this ID - allocate fresh
                 let idx = self.alloc_var(ctx.as_deref_mut());
                 self.var_map.insert(id.to_string(), idx);
                 self.defined.insert(id.to_string(), true);
                 idx
             }
-            Some(idx) => {
-                let was_defined = self.defined.get(id).copied().unwrap_or(true);
-                if was_defined {
-                    let new_idx = self.alloc_var(ctx.as_deref_mut());
-                    self.var_map.insert(id.to_string(), new_idx);
-                    self.defined.insert(id.to_string(), true);
-                    new_idx
-                } else {
-                    self.defined.insert(id.to_string(), true);
-                    idx
-                }
+            Some(_old_idx) => {
+                // ID already exists - ALWAYS allocate new index (SSA semantics)
+                // This prevents overwriting witness values needed by earlier constraints
+                let new_idx = self.alloc_var(ctx.as_deref_mut());
+                self.var_map.insert(id.to_string(), new_idx);
+                self.defined.insert(id.to_string(), true);
+                new_idx
             }
         }
     }
