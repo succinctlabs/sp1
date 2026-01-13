@@ -2637,9 +2637,44 @@ where
             // SepticCurve has x, y fields each with 7 Felt components (SepticExtension).
             DslIr::CircuitV2HintAddCurve(boxed) => {
                 let (sum, _p1, _p2) = boxed.as_ref();
-                // Allocate all 14 felts for sum (7 for x, 7 for y)
+                // Allocate and assign all 14 felts for sum (7 for x, 7 for y).
+                //
+                // Values come from Phase 1 pre-consumed hint queues (preferred), with a fallback
+                // to the live hint stream for non-witness-mode compilation.
                 for felt in sum.x.0.iter().chain(sum.y.0.iter()) {
-                    let _ = self.get_or_alloc(&felt.id(), ctx.as_deref_mut());
+                    let id = felt.id();
+                    let idx = self.get_or_alloc(&id, ctx.as_deref_mut());
+                    if let Some(c) = ctx.as_deref_mut() {
+                        let v = c
+                            .hint_felt_values
+                            .get_mut(&id)
+                            .and_then(|q| q.pop_front())
+                            .unwrap_or_else(|| {
+                                if !c.hinted_ids.is_empty() {
+                                    panic!(
+                                        "R1CS Phase 2: hint curve-add felt '{}' not in pre-consumed queue but hinted_ids is populated. \
+                                         Phase 1 may have missed a CircuitV2HintAddCurve op.",
+                                        id
+                                    );
+                                }
+                                (c.next_hint_felt)().unwrap_or_else(|| {
+                                    panic!(
+                                        "R1CSCompiler witness: witness stream underrun for curve-add {id}"
+                                    )
+                                })
+                            });
+                        c.set(idx, v);
+                        if r1cs_watch_id(id.as_str()) {
+                            let qlen = c.hint_felt_values.get(&id).map(|q| q.len()).unwrap_or(0);
+                            println!(
+                                "[R1CS_WATCH_ID] HintAddCurve consume {} -> idx={} value={} qlen_after={}",
+                                id,
+                                idx,
+                                v.as_canonical_u64(),
+                                qlen
+                            );
+                        }
+                    }
                 }
             }
             
@@ -3126,6 +3161,25 @@ where
                             let comp_id = format!("{}__{}", base_id, k);
                             hinted_ids.insert(comp_id);
                         }
+                    }
+                }
+                DslIr::CircuitV2HintAddCurve(boxed) => {
+                    // The curve sum is computed outside the circuit and witnessed as 14 felts:
+                    // 7 for x and 7 for y (SepticExtension coefficients).
+                    //
+                    // These IDs are *not* contiguous ranges, so we must consume from the hint stream
+                    // in this opcode's structural order and queue per ID.
+                    let (sum, _p1, _p2) = boxed.as_ref();
+                    for felt in sum.x.0.iter().chain(sum.y.0.iter()) {
+                        let id = felt.id();
+                        let v = (next_hint_felt)().expect(
+                            "next_hint_felt returned None in Phase 1 CircuitV2HintAddCurve",
+                        );
+                        hint_felt_values
+                            .entry(id.clone())
+                            .or_default()
+                            .push_back(v);
+                        hinted_ids.insert(id);
                     }
                 }
                 // === Nested block types - must traverse recursively ===
