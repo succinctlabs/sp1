@@ -221,11 +221,91 @@ impl<F: PrimeField64> Poseidon2R1CS<F> {
         // Return the computed output state indices
         current_state
     }
+
+    /// Expand a BabyBear Poseidon2 permutation into R1CS constraints **and** compute witness
+    /// values for all intermediate variables allocated during the expansion.
+    ///
+    /// The caller must provide a witness vector where:
+    /// - `witness[0] == 1` (constant one),
+    /// - `witness[input_state[i]]` is already populated for all inputs.
+    ///
+    /// This function will `resize` the witness vector as needed and will assign values to every
+    /// newly allocated variable index, exactly matching the allocation order used by
+    /// `expand_permute_babybear`.
+    pub fn expand_permute_babybear_with_witness(
+        r1cs: &mut R1CS<F>,
+        next_var: &mut usize,
+        input_state: &[usize],
+        witness: &mut Vec<F>,
+    ) -> [usize; WIDTH] {
+        assert_eq!(input_state.len(), WIDTH);
+
+        // Ensure witness is large enough for current indices.
+        let need = (*next_var).max(input_state.iter().copied().max().unwrap_or(0) + 1);
+        if witness.len() < need {
+            witness.resize(need, F::zero());
+        }
+
+        // Working state (we'll track current indices for each position)
+        let mut current_state: [usize; WIDTH] = input_state.try_into().unwrap();
+
+        let rc = get_round_constants::<F>();
+        let internal_diag = get_internal_diag::<F>();
+        let monty_inv = get_monty_inverse::<F>();
+
+        // Initial linear layer
+        Self::external_linear_layer_w(r1cs, next_var, &mut current_state, witness);
+
+        // First half of external rounds (4 rounds)
+        let rounds_f_beginning = NUM_EXTERNAL_ROUNDS / 2;
+        for r in 0..rounds_f_beginning {
+            Self::add_round_constants_w(r1cs, next_var, &mut current_state, &rc[r], witness);
+            Self::sbox_layer_w(r1cs, next_var, &mut current_state, witness);
+            Self::external_linear_layer_w(r1cs, next_var, &mut current_state, witness);
+        }
+
+        // Internal rounds (13 rounds)
+        let p_end = rounds_f_beginning + NUM_INTERNAL_ROUNDS;
+        for r in rounds_f_beginning..p_end {
+            // Only add RC to first element
+            current_state[0] = Self::add_const_w(r1cs, next_var, current_state[0], rc[r][0], witness);
+            // S-box only on first element
+            current_state[0] = Self::sbox_single_w(r1cs, next_var, current_state[0], witness);
+            // Diffusion permutation
+            Self::diffusion_permute_w(
+                r1cs,
+                next_var,
+                &mut current_state,
+                &internal_diag,
+                monty_inv,
+                witness,
+            );
+        }
+
+        // Second half of external rounds (4 rounds)
+        let total_rounds = NUM_EXTERNAL_ROUNDS + NUM_INTERNAL_ROUNDS;
+        for r in p_end..total_rounds {
+            Self::add_round_constants_w(r1cs, next_var, &mut current_state, &rc[r], witness);
+            Self::sbox_layer_w(r1cs, next_var, &mut current_state, witness);
+            Self::external_linear_layer_w(r1cs, next_var, &mut current_state, witness);
+        }
+
+        current_state
+    }
     
     /// Allocate a new variable
     fn alloc(next_var: &mut usize) -> usize {
         let idx = *next_var;
         *next_var += 1;
+        idx
+    }
+
+    fn alloc_w(next_var: &mut usize, r1cs: &mut R1CS<F>, witness: &mut Vec<F>) -> usize {
+        let idx = Self::alloc(next_var);
+        r1cs.num_vars = *next_var;
+        if witness.len() < *next_var {
+            witness.resize(*next_var, F::zero());
+        }
         idx
     }
     
@@ -237,6 +317,32 @@ impl<F: PrimeField64> Poseidon2R1CS<F> {
         let result = Self::alloc(next_var);
         r1cs.num_vars = *next_var;
         
+        // result = var + constant
+        // (1) * (var + constant) = result
+        let mut sum = SparseRow::new();
+        sum.add_term(var, F::one());
+        sum.add_term(0, constant); // constant uses index 0 (which holds 1)
+        r1cs.add_constraint(
+            SparseRow::single(0),
+            sum,
+            SparseRow::single(result),
+        );
+        result
+    }
+
+    fn add_const_w(
+        r1cs: &mut R1CS<F>,
+        next_var: &mut usize,
+        var: usize,
+        constant: F,
+        witness: &mut Vec<F>,
+    ) -> usize {
+        if constant.is_zero() {
+            return var;
+        }
+        let result = Self::alloc_w(next_var, r1cs, witness);
+        witness[result] = witness[var] + constant;
+
         // result = var + constant
         // (1) * (var + constant) = result
         let mut sum = SparseRow::new();
@@ -262,6 +368,23 @@ impl<F: PrimeField64> Poseidon2R1CS<F> {
         );
         result
     }
+
+    fn mul_w(
+        r1cs: &mut R1CS<F>,
+        next_var: &mut usize,
+        a: usize,
+        b: usize,
+        witness: &mut Vec<F>,
+    ) -> usize {
+        let result = Self::alloc_w(next_var, r1cs, witness);
+        witness[result] = witness[a] * witness[b];
+        r1cs.add_constraint(
+            SparseRow::single(a),
+            SparseRow::single(b),
+            SparseRow::single(result),
+        );
+        result
+    }
     
     /// Multiply variable by constant: result = var * const
     fn mul_const(r1cs: &mut R1CS<F>, next_var: &mut usize, var: usize, constant: F) -> usize {
@@ -273,6 +396,26 @@ impl<F: PrimeField64> Poseidon2R1CS<F> {
         
         // result = var * constant
         // (1) * (var * constant) = result
+        r1cs.add_constraint(
+            SparseRow::single(0),
+            SparseRow::single_with_coeff(var, constant),
+            SparseRow::single(result),
+        );
+        result
+    }
+
+    fn mul_const_w(
+        r1cs: &mut R1CS<F>,
+        next_var: &mut usize,
+        var: usize,
+        constant: F,
+        witness: &mut Vec<F>,
+    ) -> usize {
+        if constant == F::one() {
+            return var;
+        }
+        let result = Self::alloc_w(next_var, r1cs, witness);
+        witness[result] = witness[var] * constant;
         r1cs.add_constraint(
             SparseRow::single(0),
             SparseRow::single_with_coeff(var, constant),
@@ -296,6 +439,26 @@ impl<F: PrimeField64> Poseidon2R1CS<F> {
         );
         result
     }
+
+    fn add_w(
+        r1cs: &mut R1CS<F>,
+        next_var: &mut usize,
+        a: usize,
+        b: usize,
+        witness: &mut Vec<F>,
+    ) -> usize {
+        let result = Self::alloc_w(next_var, r1cs, witness);
+        witness[result] = witness[a] + witness[b];
+        let mut sum = SparseRow::new();
+        sum.add_term(a, F::one());
+        sum.add_term(b, F::one());
+        r1cs.add_constraint(
+            SparseRow::single(0),
+            sum,
+            SparseRow::single(result),
+        );
+        result
+    }
     
     /// S-box: x^7 using 4 multiplications
     /// x² = x * x
@@ -309,11 +472,35 @@ impl<F: PrimeField64> Poseidon2R1CS<F> {
         let x7 = Self::mul(r1cs, next_var, x6, x);
         x7
     }
+
+    fn sbox_single_w(
+        r1cs: &mut R1CS<F>,
+        next_var: &mut usize,
+        x: usize,
+        witness: &mut Vec<F>,
+    ) -> usize {
+        let x2 = Self::mul_w(r1cs, next_var, x, x, witness);
+        let x4 = Self::mul_w(r1cs, next_var, x2, x2, witness);
+        let x6 = Self::mul_w(r1cs, next_var, x4, x2, witness);
+        let x7 = Self::mul_w(r1cs, next_var, x6, x, witness);
+        x7
+    }
     
     /// Apply S-box to all state elements
     fn sbox_layer(r1cs: &mut R1CS<F>, next_var: &mut usize, state: &mut [usize; WIDTH]) {
         for i in 0..WIDTH {
             state[i] = Self::sbox_single(r1cs, next_var, state[i]);
+        }
+    }
+
+    fn sbox_layer_w(
+        r1cs: &mut R1CS<F>,
+        next_var: &mut usize,
+        state: &mut [usize; WIDTH],
+        witness: &mut Vec<F>,
+    ) {
+        for i in 0..WIDTH {
+            state[i] = Self::sbox_single_w(r1cs, next_var, state[i], witness);
         }
     }
     
@@ -326,6 +513,18 @@ impl<F: PrimeField64> Poseidon2R1CS<F> {
     ) {
         for i in 0..WIDTH {
             state[i] = Self::add_const(r1cs, next_var, state[i], rc[i]);
+        }
+    }
+
+    fn add_round_constants_w(
+        r1cs: &mut R1CS<F>,
+        next_var: &mut usize,
+        state: &mut [usize; WIDTH],
+        rc: &[F; WIDTH],
+        witness: &mut Vec<F>,
+    ) {
+        for i in 0..WIDTH {
+            state[i] = Self::add_const_w(r1cs, next_var, state[i], rc[i], witness);
         }
     }
     
@@ -367,6 +566,35 @@ impl<F: PrimeField64> Poseidon2R1CS<F> {
         state[2] = new_s2;
         state[3] = new_s3;
     }
+
+    fn mds_light_4x4_w(
+        r1cs: &mut R1CS<F>,
+        next_var: &mut usize,
+        state: &mut [usize],
+        witness: &mut Vec<F>,
+    ) {
+        assert_eq!(state.len(), 4);
+
+        let t01 = Self::add_w(r1cs, next_var, state[0], state[1], witness);
+        let t23 = Self::add_w(r1cs, next_var, state[2], state[3], witness);
+        let t0123 = Self::add_w(r1cs, next_var, t01, t23, witness);
+        let t01123 = Self::add_w(r1cs, next_var, t0123, state[1], witness);
+        let t01233 = Self::add_w(r1cs, next_var, t0123, state[3], witness);
+
+        let two_s0 = Self::mul_const_w(r1cs, next_var, state[0], F::from_canonical_u64(2), witness);
+        let new_s3 = Self::add_w(r1cs, next_var, t01233, two_s0, witness);
+
+        let two_s2 = Self::mul_const_w(r1cs, next_var, state[2], F::from_canonical_u64(2), witness);
+        let new_s1 = Self::add_w(r1cs, next_var, t01123, two_s2, witness);
+
+        let new_s0 = Self::add_w(r1cs, next_var, t01123, t01, witness);
+        let new_s2 = Self::add_w(r1cs, next_var, t01233, t23, witness);
+
+        state[0] = new_s0;
+        state[1] = new_s1;
+        state[2] = new_s2;
+        state[3] = new_s3;
+    }
     
     /// External linear layer
     fn external_linear_layer(
@@ -398,6 +626,34 @@ impl<F: PrimeField64> Poseidon2R1CS<F> {
             state[i] = Self::add(r1cs, next_var, state[i], sums[i % 4]);
         }
     }
+
+    fn external_linear_layer_w(
+        r1cs: &mut R1CS<F>,
+        next_var: &mut usize,
+        state: &mut [usize; WIDTH],
+        witness: &mut Vec<F>,
+    ) {
+        for i in (0..WIDTH).step_by(4) {
+            let mut block = [state[i], state[i + 1], state[i + 2], state[i + 3]];
+            Self::mds_light_4x4_w(r1cs, next_var, &mut block, witness);
+            state[i] = block[0];
+            state[i + 1] = block[1];
+            state[i + 2] = block[2];
+            state[i + 3] = block[3];
+        }
+
+        let mut sums = [state[0], state[1], state[2], state[3]];
+        for i in (4..WIDTH).step_by(4) {
+            sums[0] = Self::add_w(r1cs, next_var, sums[0], state[i], witness);
+            sums[1] = Self::add_w(r1cs, next_var, sums[1], state[i + 1], witness);
+            sums[2] = Self::add_w(r1cs, next_var, sums[2], state[i + 2], witness);
+            sums[3] = Self::add_w(r1cs, next_var, sums[3], state[i + 3], witness);
+        }
+
+        for i in 0..WIDTH {
+            state[i] = Self::add_w(r1cs, next_var, state[i], sums[i % 4], witness);
+        }
+    }
     
     /// Internal matrix multiplication
     fn matmul_internal(
@@ -418,6 +674,23 @@ impl<F: PrimeField64> Poseidon2R1CS<F> {
             state[i] = Self::add(r1cs, next_var, scaled, sum);
         }
     }
+
+    fn matmul_internal_w(
+        r1cs: &mut R1CS<F>,
+        next_var: &mut usize,
+        state: &mut [usize; WIDTH],
+        diag: &[F; WIDTH],
+        witness: &mut Vec<F>,
+    ) {
+        let mut sum = state[0];
+        for i in 1..WIDTH {
+            sum = Self::add_w(r1cs, next_var, sum, state[i], witness);
+        }
+        for i in 0..WIDTH {
+            let scaled = Self::mul_const_w(r1cs, next_var, state[i], diag[i], witness);
+            state[i] = Self::add_w(r1cs, next_var, scaled, sum, witness);
+        }
+    }
     
     /// Diffusion permutation (internal rounds)
     fn diffusion_permute(
@@ -432,6 +705,20 @@ impl<F: PrimeField64> Poseidon2R1CS<F> {
         // Multiply each element by monty_inv
         for i in 0..WIDTH {
             state[i] = Self::mul_const(r1cs, next_var, state[i], monty_inv);
+        }
+    }
+
+    fn diffusion_permute_w(
+        r1cs: &mut R1CS<F>,
+        next_var: &mut usize,
+        state: &mut [usize; WIDTH],
+        internal_diag: &[F; WIDTH],
+        monty_inv: F,
+        witness: &mut Vec<F>,
+    ) {
+        Self::matmul_internal_w(r1cs, next_var, state, internal_diag, witness);
+        for i in 0..WIDTH {
+            state[i] = Self::mul_const_w(r1cs, next_var, state[i], monty_inv, witness);
         }
     }
 }

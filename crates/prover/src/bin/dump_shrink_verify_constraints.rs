@@ -17,7 +17,7 @@ use std::io::Write;
 
 use p3_baby_bear::BabyBear;
 use p3_baby_bear::DiffusionMatrixBabyBear;
-use p3_field::{AbstractField, PrimeField64};
+use p3_field::PrimeField64;
 use sp1_recursion_circuit::machine::SP1CompressWithVKeyWitnessValues;
 use sp1_recursion_circuit::witness::Witnessable;
 use sp1_recursion_circuit::BabyBearFriConfig;
@@ -185,518 +185,6 @@ fn mod_mul(a: u64, b: u64) -> u64 {
     ((a as u128 * b as u128) % (BABYBEAR_P as u128)) as u64
 }
 
-#[inline]
-fn mod_inv(a: u64) -> Option<u64> {
-    if a == 0 {
-        return None;
-    }
-    // Fermat inverse: a^(p-2) mod p, p fits u64.
-    let mut base = a;
-    let mut exp = BABYBEAR_P - 2;
-    let mut acc = 1u64;
-    while exp > 0 {
-        if exp & 1 == 1 {
-            acc = mod_mul(acc, base);
-        }
-        base = mod_mul(base, base);
-        exp >>= 1;
-    }
-    Some(acc)
-}
-
-/// Compute:
-/// - sum of all **known** terms in the row (mod p),
-/// - the single **unknown** term (if exactly one), and
-/// - the count of unknown terms.
-fn row_known_sum_and_single_unknown(
-    row: &sp1_recursion_compiler::r1cs::types::SparseRow<BabyBear>,
-    w: &[Option<u64>],
-)-> (u64, Option<(usize, u64)>, usize) {
-    let mut known_sum = 0u64;
-    let mut unknown: Option<(usize, u64)> = None;
-    let mut unknown_count = 0usize;
-    for (idx, coeff) in row.terms.iter() {
-        let ci = coeff.as_canonical_u64();
-        match w.get(*idx).and_then(|x| *x) {
-            Some(wi) => {
-                known_sum = mod_add(known_sum, mod_mul(ci, wi));
-            }
-            None => {
-                unknown_count += 1;
-                if unknown_count == 1 {
-                    unknown = Some((*idx, ci));
-                }
-            }
-        }
-    }
-    (known_sum, unknown, unknown_count)
-}
-
-fn complete_witness_from_constraints(
-    r1cs: &sp1_recursion_compiler::r1cs::types::R1CS<BabyBear>,
-    w: &mut [Option<u64>],
-    origin: &mut [u8],
-    idx_to_id: Option<&[Option<String>]>,
-) -> Result<(), String> {
-    let debug_witness = std::env::var("DEBUG_WITNESS").ok().as_deref() == Some("1");
-
-    // Phase 1 (completion): fill unset witness slots by repeatedly solving constraints that have
-    // exactly one unknown slot total. This is a standard witness-generation strategy for circuits
-    // emitted in (mostly) topological order.
-    //
-    // Phase 2 (repair): if any constraints are violated due to earlier heuristic filling, allow
-    // overwriting *only* non-runtime/non-const variables (origin==0/3) when exactly one such
-    // mutable variable appears in the constraint.
-    //
-    // Constraint: (A·w) * (B·w) = (C·w)  over BabyBear mod p.
-
-    // ----- Phase 1: fill None entries -----
-    for _pass in 0..12 {
-        let mut progress = 0usize;
-        for i in 0..r1cs.num_constraints {
-            let a = &r1cs.a[i];
-            let b = &r1cs.b[i];
-            let c = &r1cs.c[i];
-
-            // Fast path: compute row metadata.
-            let (a_known, a_unk, a_unk_cnt) = row_known_sum_and_single_unknown(a, w);
-            let (b_known, b_unk, b_unk_cnt) = row_known_sum_and_single_unknown(b, w);
-            let (c_known, c_unk, c_unk_cnt) = row_known_sum_and_single_unknown(c, w);
-
-            // If exactly one unknown overall, solve it.
-            let total_unk = a_unk_cnt + b_unk_cnt + c_unk_cnt;
-            if total_unk != 1 {
-                continue;
-            }
-
-            // Solve unknown in C row:
-            if c_unk_cnt == 1 {
-                let (dst, coeff) = c_unk.expect("c_unk");
-                if dst != 0 {
-                    // Need A and B fully known.
-                    if a_unk_cnt == 0 && b_unk_cnt == 0 {
-                        let target = mod_mul(a_known, b_known);
-                        if let Some(inv_coeff) = mod_inv(coeff) {
-                            // coeff*dst + c_known = target  => dst = (target - c_known)/coeff
-                            let rhs = (target + BABYBEAR_P - c_known) % BABYBEAR_P;
-                            w[dst] = Some(mod_mul(rhs, inv_coeff));
-                            if origin[dst] == 0 {
-                                origin[dst] = 3;
-                            }
-                            progress += 1;
-                            continue;
-                        }
-                    }
-                }
-            }
-
-            // Solve unknown in A row:
-            if a_unk_cnt == 1 {
-                let (dst, coeff) = a_unk.expect("a_unk");
-                if dst != 0 {
-                    if b_unk_cnt == 0 && c_unk_cnt == 0 {
-                        // (a_known + coeff*dst) * b_known = c_known
-                        // => a_known + coeff*dst = c_known / b_known
-                        if let Some(inv_b) = mod_inv(b_known) {
-                            let target_a = mod_mul(c_known, inv_b);
-                            if let Some(inv_coeff) = mod_inv(coeff) {
-                                let rhs = (target_a + BABYBEAR_P - a_known) % BABYBEAR_P;
-                                w[dst] = Some(mod_mul(rhs, inv_coeff));
-                                if origin[dst] == 0 {
-                                    origin[dst] = 3;
-                                }
-                                progress += 1;
-                                continue;
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Solve unknown in B row:
-            if b_unk_cnt == 1 {
-                let (dst, coeff) = b_unk.expect("b_unk");
-                if dst != 0 {
-                    if a_unk_cnt == 0 && c_unk_cnt == 0 {
-                        if let Some(inv_a) = mod_inv(a_known) {
-                            let target_b = mod_mul(c_known, inv_a);
-                            if let Some(inv_coeff) = mod_inv(coeff) {
-                                let rhs = (target_b + BABYBEAR_P - b_known) % BABYBEAR_P;
-                                w[dst] = Some(mod_mul(rhs, inv_coeff));
-                                if origin[dst] == 0 {
-                                    origin[dst] = 3;
-                                }
-                                progress += 1;
-                                continue;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        if progress == 0 {
-            break;
-        }
-    }
-
-    // Require all slots filled after completion passes.
-    let missing = w.iter().skip(1).filter(|x| x.is_none()).count();
-    if missing != 0 {
-        let mut examples = Vec::new();
-        for (i, v) in w.iter().enumerate().skip(1) {
-            if v.is_none() {
-                examples.push(i);
-                if examples.len() >= 8 {
-                    break;
-                }
-            }
-        }
-        return Err(format!(
-            "could not complete witness: {missing} variables remain unset (examples: {:?})",
-            examples
-        ));
-    }
-
-    // ----- Phase 2: repair inconsistent mutable temps -----
-    //
-    // Important: constraints are not guaranteed to be in a strict topological order. A pure
-    // forward Gauss-Seidel sweep can "fix" an early constraint and then later overwrite one of
-    // its dependencies, causing the early constraint to fail again. To reduce this oscillation,
-    // we alternate sweep direction (forward, then reverse).
-    //
-    // Also, some compiler temps are *anchored* to real statement inputs via equalities like:
-    //   (felt1 - tmp) * 1 = 0
-    // Those temps must NOT be overwritten as "outputs" of other defining constraints.
-    let mut protected = vec![false; r1cs.num_vars.max(1)];
-    let is_one_row = |row: &sp1_recursion_compiler::r1cs::types::SparseRow<BabyBear>| {
-        row.terms.len() == 1
-            && row.terms[0].0 == 0
-            && row.terms[0].1.as_canonical_u64() == 1
-    };
-    // Mark tmp as protected if it is equated to a fixed (origin 1/2) variable.
-    for i in 0..r1cs.num_constraints {
-        let a = &r1cs.a[i];
-        let b = &r1cs.b[i];
-        let c = &r1cs.c[i];
-        // Equality pattern emitted by the compiler: (x - y) * 1 = 0 (C empty).
-        let (eq_row, one_row) = if is_one_row(b) && c.terms.is_empty() {
-            (a, true)
-        } else if is_one_row(a) && c.terms.is_empty() {
-            (b, true)
-        } else {
-            (&r1cs.a[0], false) // dummy
-        };
-        if !one_row {
-            continue;
-        }
-        if eq_row.terms.len() != 2 {
-            continue;
-        }
-        let (i0, c0f) = eq_row.terms[0];
-        let (i1, c1f) = eq_row.terms[1];
-        if i0 == 0 || i1 == 0 {
-            continue;
-        }
-        let c0 = c0f.as_canonical_u64();
-        let c1 = c1f.as_canonical_u64();
-        // Require coefficients be +1 and -1 (mod p).
-        let plus_minus = (c0 == 1 && c1 == BABYBEAR_P - 1) || (c1 == 1 && c0 == BABYBEAR_P - 1);
-        if !plus_minus {
-            continue;
-        }
-        let o0 = origin.get(i0).copied().unwrap_or(0);
-        let o1 = origin.get(i1).copied().unwrap_or(0);
-        let fixed0 = o0 == 1 || o0 == 2;
-        let fixed1 = o1 == 1 || o1 == 2;
-        if fixed0 && !fixed1 {
-            protected[i1] = true;
-        } else if fixed1 && !fixed0 {
-            protected[i0] = true;
-        }
-    }
-
-    // Count how often each variable appears as a single-term C "output" (a likely defining constraint).
-    // We'll use this to pick better variables to adjust for linear constraints: prefer vars that are
-    // *not* outputs elsewhere (def_count==0), to avoid fighting other defining constraints.
-    let mut def_count: Vec<u32> = vec![0; r1cs.num_vars.max(1)];
-    for i in 0..r1cs.num_constraints {
-        let c = &r1cs.c[i];
-        if c.terms.len() == 1 {
-            let (dst, _coeff) = c.terms[0];
-            if dst < def_count.len() {
-                def_count[dst] = def_count[dst].saturating_add(1);
-            }
-        }
-    }
-
-    for pass in 0..12 {
-        let mut progress = 0usize;
-        let forward = pass % 2 == 0;
-        let iter: Box<dyn Iterator<Item = usize>> = if forward {
-            Box::new(0..r1cs.num_constraints)
-        } else {
-            Box::new((0..r1cs.num_constraints).rev())
-        };
-        for i in iter {
-            let a = &r1cs.a[i];
-            let b = &r1cs.b[i];
-            let c = &r1cs.c[i];
-
-            let a_val = eval_row_mod(a, w);
-            let b_val = eval_row_mod(b, w);
-            let c_val = eval_row_mod(c, w);
-            let prod = mod_mul(a_val, b_val);
-            if prod == c_val {
-                continue;
-            }
-
-            // Repair rule -1 (restricted): if C is a single variable term, treat this constraint as
-            // a defining assignment and fill/overwrite it unless it is protected by a fixed equality.
-            //
-            // This matches how the compiler allocates fresh temporaries for results of:
-            // - mul:      (x) * (y) = out
-            // - linear:   (1) * (x + y + const) = out
-            //
-            // Even when inputs are also temps, iterating this forward a few passes behaves like
-            // executing the circuit and converges to a consistent witness on DAG-shaped deps.
-            if c.terms.len() == 1 {
-                let (dst, coeff_dst_f) = c.terms[0];
-                if dst != 0 {
-                    let src = origin.get(dst).copied().unwrap_or(0);
-                    // Allow overwriting derived temps only if they are NOT protected.
-                    let allow = src == 0 || (src == 3 && !protected.get(dst).copied().unwrap_or(false));
-                    if allow {
-                        let coeff_dst = coeff_dst_f.as_canonical_u64();
-                        if let Some(inv_coeff) = mod_inv(coeff_dst) {
-                            // coeff_dst*dst = prod  => dst = prod/coeff_dst
-                            let new_dst = mod_mul(prod, inv_coeff);
-                            if w[dst] != Some(new_dst) {
-                                w[dst] = Some(new_dst);
-                                if origin[dst] == 0 {
-                                    origin[dst] = 3;
-                                }
-                                progress += 1;
-                                continue;
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Repair rule 0 (very common): linear assignment in R1CS form.
-            //
-            // If one side is the constant 1 row, the constraint is linear:
-            //   1 * (B·w) = (C·w)   or   (A·w) * 1 = (C·w)
-            //
-            // In practice, the compiler emits lots of constraints like:
-            //   1 * (x + y + const) = out
-            // where `out` is a fresh temp var. Even if x/y are also temps, treating `out` as the
-            // destination and overwriting it is consistent with how such constraints define temps.
-            if is_one_row(a) || is_one_row(b) {
-                // Linear constraint: (LIN·w) = (C·w)
-                let lin = if is_one_row(a) { b } else { a };
-                let lin_val = if is_one_row(a) { b_val } else { a_val };
-                let rhs_val = c_val;
-
-                // Deterministic projection step:
-                // - Prefer solving for a mutable variable in LIN (so we don't fight other defining constraints on C temps).
-                // - Otherwise solve for a mutable variable in C.
-                //
-                // Prefer a mutable var that is not an output elsewhere (def_count==0), and not protected.
-                // Tie-break deterministically by higher index.
-                let pick_mut = |row: &sp1_recursion_compiler::r1cs::types::SparseRow<BabyBear>| {
-                    row.terms
-                        .iter()
-                        .filter_map(|(idx, coeff)| {
-                            if *idx == 0 {
-                                return None;
-                            }
-                            let src = origin.get(*idx).copied().unwrap_or(0);
-                            let is_mut = src == 0 || src == 3;
-                            let is_prot = protected.get(*idx).copied().unwrap_or(false);
-                            if is_mut && !is_prot {
-                                Some((*idx, coeff.as_canonical_u64()))
-                            } else {
-                                None
-                            }
-                        })
-                        .min_by_key(|(idx, _)| {
-                            let dc = def_count.get(*idx).copied().unwrap_or(u32::MAX);
-                            (dc, std::cmp::Reverse(*idx))
-                        })
-                };
-
-                // Solve var in LIN: coeff*v + sum_other = rhs_val
-                if let Some((v_idx, v_coeff)) = pick_mut(lin) {
-                    let mut sum_other = 0u64;
-                    for (idx, coeff) in lin.terms.iter() {
-                        let ci = coeff.as_canonical_u64();
-                        if *idx == v_idx {
-                            continue;
-                        }
-                        let wi = w[*idx].expect("witness slot missing during eval");
-                        sum_other = mod_add(sum_other, mod_mul(ci, wi));
-                    }
-                    if let Some(inv_coeff) = mod_inv(v_coeff) {
-                        let rhs = (rhs_val + BABYBEAR_P - sum_other) % BABYBEAR_P;
-                        let new_v = mod_mul(rhs, inv_coeff);
-                        if w[v_idx] != Some(new_v) {
-                            w[v_idx] = Some(new_v);
-                            if origin[v_idx] == 0 {
-                                origin[v_idx] = 3;
-                            }
-                            progress += 1;
-                            continue;
-                        }
-                    }
-                }
-
-                // Solve var in C: coeff*v + sum_other = lin_val
-                if let Some((v_idx, v_coeff)) = pick_mut(c) {
-                    let mut sum_other = 0u64;
-                    for (idx, coeff) in c.terms.iter() {
-                        let ci = coeff.as_canonical_u64();
-                        if *idx == v_idx {
-                            continue;
-                        }
-                        let wi = w[*idx].expect("witness slot missing during eval");
-                        sum_other = mod_add(sum_other, mod_mul(ci, wi));
-                    }
-                    if let Some(inv_coeff) = mod_inv(v_coeff) {
-                        let rhs = (lin_val + BABYBEAR_P - sum_other) % BABYBEAR_P;
-                        let new_v = mod_mul(rhs, inv_coeff);
-                        if w[v_idx] != Some(new_v) {
-                            w[v_idx] = Some(new_v);
-                            if origin[v_idx] == 0 {
-                                origin[v_idx] = 3;
-                            }
-                            progress += 1;
-                            continue;
-                        }
-                    }
-                }
-            }
-
-            // If there is exactly one mutable variable total (origin 0/3), solve for it
-            // assuming it appears in exactly one of {A,B,C}. This covers common compiler patterns
-            // like skipped equalities: (x - y) * 1 = 0.
-            let (a_fixed, a_mut, a_mut_cnt) = row_fixed_sum_and_single_mutable_coeff(a, w, origin)?;
-            let (b_fixed, b_mut, b_mut_cnt) = row_fixed_sum_and_single_mutable_coeff(b, w, origin)?;
-            let (c_fixed, c_mut, c_mut_cnt) = row_fixed_sum_and_single_mutable_coeff(c, w, origin)?;
-            if a_mut_cnt + b_mut_cnt + c_mut_cnt != 1 {
-                continue;
-            }
-
-            // Determine which row the mutable var appears in.
-            let (where_mut, (x, coeff_x)) = if let Some(t) = a_mut {
-                ("A", t)
-            } else if let Some(t) = b_mut {
-                ("B", t)
-            } else {
-                ("C", c_mut.expect("c_mut"))
-            };
-
-            match where_mut {
-                // (a_fixed + coeff_x * x) * b_fixed = c_fixed
-                "A" => {
-                    if let Some(inv_b) = mod_inv(b_fixed) {
-                        let target_a = mod_mul(c_fixed, inv_b);
-                        if let Some(inv_coeff) = mod_inv(coeff_x) {
-                            let rhs = (target_a + BABYBEAR_P - a_fixed) % BABYBEAR_P;
-                            let new_x = mod_mul(rhs, inv_coeff);
-                            w[x] = Some(new_x);
-                            if origin[x] == 0 {
-                                origin[x] = 3;
-                            }
-                            progress += 1;
-                        }
-                    }
-                }
-                // a_fixed * (b_fixed + coeff_x * x) = c_fixed
-                "B" => {
-                    if let Some(inv_a) = mod_inv(a_fixed) {
-                        let target_b = mod_mul(c_fixed, inv_a);
-                        if let Some(inv_coeff) = mod_inv(coeff_x) {
-                            let rhs = (target_b + BABYBEAR_P - b_fixed) % BABYBEAR_P;
-                            let new_x = mod_mul(rhs, inv_coeff);
-                            w[x] = Some(new_x);
-                            if origin[x] == 0 {
-                                origin[x] = 3;
-                            }
-                            progress += 1;
-                        }
-                    }
-                }
-                // a_fixed * b_fixed = c_fixed + coeff_x * x
-                "C" => {
-                    let target = mod_mul(a_fixed, b_fixed);
-                    if let Some(inv_coeff) = mod_inv(coeff_x) {
-                        let rhs = (target + BABYBEAR_P - c_fixed) % BABYBEAR_P;
-                        let new_x = mod_mul(rhs, inv_coeff);
-                        w[x] = Some(new_x);
-                        if origin[x] == 0 {
-                            origin[x] = 3;
-                        }
-                        progress += 1;
-                    }
-                }
-                _ => {}
-            }
-        }
-        if progress == 0 {
-            break;
-        }
-    }
-
-    // Final check: ensure the witness satisfies the full BabyBear R1CS.
-    for i in 0..r1cs.num_constraints {
-        let a = eval_row_mod(&r1cs.a[i], w);
-        let b = eval_row_mod(&r1cs.b[i], w);
-        let c = eval_row_mod(&r1cs.c[i], w);
-        if mod_mul(a, b) != c {
-            if debug_witness {
-                // Single debug mode: dump the first failing row in a compact form.
-                let max_terms: usize = 24;
-                let a0 = a;
-                let b0 = b;
-                let c0 = c;
-                eprintln!("\n[exporter debug] first failing row i={i}");
-                eprintln!(
-                    "  a={a0} b={b0} c={c0} a*b-c mod p={}",
-                    (mod_mul(a0, b0) + BABYBEAR_P - c0) % BABYBEAR_P
-                );
-                let dump_row = |name: &str,
-                                row: &sp1_recursion_compiler::r1cs::types::SparseRow<BabyBear>| {
-                    eprintln!("  {name}: terms={}", row.terms.len());
-                    for (idx, coeff) in row.terms.iter().take(max_terms) {
-                        let wi = w.get(*idx).and_then(|x| *x).unwrap_or(u64::MAX);
-                        let src = origin.get(*idx).copied().unwrap_or(0);
-                        let id = idx_to_id
-                            .and_then(|m| m.get(*idx))
-                            .and_then(|x| x.as_ref())
-                            .map(|s| s.as_str())
-                            .unwrap_or("-");
-                        eprintln!(
-                            "    idx={idx:<8} coeff={} wi={wi:<10} origin={src} id={id}",
-                            coeff.as_canonical_u64()
-                        );
-                    }
-                    if row.terms.len() > max_terms {
-                        eprintln!("    ... (truncated)");
-                    }
-                };
-                dump_row("A", &r1cs.a[i]);
-                dump_row("B", &r1cs.b[i]);
-                dump_row("C", &r1cs.c[i]);
-            }
-            return Err(format!(
-                "witness does not satisfy R1CS after completion; first failing row {i}"
-            ));
-        }
-    }
-    Ok(())
-}
-
 fn eval_row_mod(
     row: &sp1_recursion_compiler::r1cs::types::SparseRow<BabyBear>,
     w: &[Option<u64>],
@@ -709,35 +197,6 @@ fn eval_row_mod(
     }
     acc
 }
-
-fn row_fixed_sum_and_single_mutable_coeff(
-    row: &sp1_recursion_compiler::r1cs::types::SparseRow<BabyBear>,
-    w: &[Option<u64>],
-    origin: &[u8],
-) -> Result<(u64, Option<(usize, u64)>, usize), String> {
-    let mut fixed_sum = 0u64;
-    let mut mutable: Option<(usize, u64)> = None;
-    let mut mutable_count = 0usize;
-    for (idx, coeff) in row.terms.iter() {
-        let ci = coeff.as_canonical_u64();
-        let src = origin.get(*idx).copied().unwrap_or(0);
-        let is_mut = (src == 0 || src == 3) && *idx != 0;
-        if is_mut {
-            mutable_count += 1;
-            if mutable_count == 1 {
-                mutable = Some((*idx, ci));
-            }
-        } else {
-            let wi = w
-                .get(*idx)
-                .and_then(|x| *x)
-                .ok_or_else(|| format!("witness slot missing at idx={idx}"))?;
-            fixed_sum = mod_add(fixed_sum, mod_mul(ci, wi));
-        }
-    }
-    Ok((fixed_sum, mutable, mutable_count))
-}
-
 fn debug_first_unsatisfied_row(
     r1cs: &sp1_recursion_compiler::r1cs::types::R1CS<BabyBear>,
     w: &[Option<u64>],
@@ -773,66 +232,6 @@ fn debug_first_unsatisfied_row(
     None
 }
 
-fn fill_r1cs_witness_from_hint_ops(
-    ops: &[sp1_recursion_compiler::ir::DslIr<InnerConfig>],
-    var_map: &std::collections::HashMap<String, usize>,
-    witness_blocks: &[sp1_recursion_core::air::Block<BabyBear>],
-    w_opt: &mut [Option<u64>],
-    origin: &mut [u8],
-) -> Result<(), String> {
-    use sp1_recursion_compiler::ir::DslIr;
-    let mut pos: usize = 0;
-    for op in ops {
-        match op {
-            DslIr::CircuitV2HintFelts(start, len) => {
-                for i in 0..*len {
-                    let id = format!("felt{}", start.idx + i as u32);
-                    let &dst = var_map
-                        .get(&id)
-                        .ok_or_else(|| format!("hint fill: missing var_map entry for {id}"))?;
-                    let blk = witness_blocks
-                        .get(pos)
-                        .ok_or_else(|| format!("hint fill: witness stream underrun at pos={pos} for {id}"))?;
-                    w_opt[dst] = Some(blk.0[0].as_canonical_u64());
-                    origin[dst] = 1; // fixed witness input
-                    pos += 1;
-                }
-            }
-            DslIr::CircuitV2HintExts(start, len) => {
-                for j in 0..*len {
-                    let ext_n = start.idx + j as u32;
-                    let blk = witness_blocks
-                        .get(pos)
-                        .ok_or_else(|| format!("hint fill: witness stream underrun at pos={pos} for ext{ext_n}"))?;
-                    for limb in 0..4usize {
-                        let id = format!("ext{}__{}", ext_n, limb);
-                        let &dst = var_map
-                            .get(&id)
-                            .ok_or_else(|| format!("hint fill: missing var_map entry for {id}"))?;
-                        w_opt[dst] = Some(blk.0[limb].as_canonical_u64());
-                        origin[dst] = 1; // fixed witness input
-                    }
-                    pos += 1;
-                }
-            }
-            // NOTE: `CircuitV2HintBitsF` compiles to `Instruction::HintBits`, which derives bits
-            // from `input_addr` at runtime and DOES NOT consume `witness_stream`. Therefore, we
-            // must NOT advance `pos` here.
-            DslIr::CircuitV2HintBitsF(_bits, _value) => {}
-            DslIr::Parallel(sub) => {
-                // Witness hints are forbidden in parallel blocks (runtime enforces this).
-                // We still walk them to detect accidental hints (would imply nondeterminism).
-                for b in sub.iter() {
-                    fill_r1cs_witness_from_hint_ops(&b.ops, var_map, witness_blocks, w_opt, origin)?;
-                }
-            }
-            _ => {}
-        }
-    }
-    // It's okay if we didn't consume all witness blocks (some witness data may be used by other
-    // hint instruction families that we don't map yet), but underruns are fatal.
-    Ok(())
-}
 
 fn load_default_fibonacci_elf_bytes() -> Vec<u8> {
     // Prefer the (already-built) fibonacci example ELF if present.
@@ -1044,12 +443,38 @@ fn main() {
             runtime.witness_stream = witness_blocks.into();
             runtime.run().unwrap();
 
-            // Compile to R1CS while retaining var_map (this is the *only* R1CS compile in witness mode).
-            let mut c = R1CSCompiler::<InnerConfig>::new();
-            for op in block.ops.clone() {
-                c.compile_one(op);
-            }
-            c.r1cs.num_public = c.public_inputs.len();
+            // Compile to R1CS **and** generate the full witness in one pass.
+            //
+            // This is statement-bound and deterministic: values for internal temporaries allocated
+            // during lowering (Poseidon2 expansion, ext-mul products, etc.) are computed from the
+            // same semantics that emitted the constraints, rather than "solving" the finished R1CS.
+            let hint_pos = std::cell::Cell::new(0usize);
+            let mut next_hint_felt = || -> Option<BabyBear> {
+                let pos = hint_pos.get();
+                let blk = witness_blocks_for_fill.get(pos)?;
+                hint_pos.set(pos + 1);
+                Some(blk.0[0])
+            };
+            let mut next_hint_ext = || -> Option<[BabyBear; 4]> {
+                let pos = hint_pos.get();
+                let blk = witness_blocks_for_fill.get(pos)?;
+                hint_pos.set(pos + 1);
+                Some([blk.0[0], blk.0[1], blk.0[2], blk.0[3]])
+            };
+            let mut get_value = |id: &str| -> Option<BabyBear> {
+                let (addr_u64, limb) = parse_mem_id(id)?;
+                let vaddr: usize = addr_u64.try_into().ok()?;
+                let &paddr = asm.virtual_to_physical.get(vaddr)?;
+                let entry = runtime.memory.mr(paddr);
+                entry.val.0.get(limb).copied()
+            };
+
+            let (c, w_bb) = R1CSCompiler::<InnerConfig>::compile_with_witness(
+                block.ops.clone(),
+                &mut get_value,
+                &mut next_hint_felt,
+                &mut next_hint_ext,
+            );
             let r1cs2 = c.r1cs.clone();
 
             // Print R1CS stats/digest from this compilation (so witness mode still reports them).
@@ -1065,77 +490,21 @@ fn main() {
     println!("    {:02x?}", &digest[..16]);
     println!("    {:02x?}", &digest[16..]);
 
-            // Build full R1CS witness vector.
-            let mut w_opt: Vec<Option<u64>> = vec![None; r1cs2.num_vars];
-            // 0 = unset, 1 = runtime memory, 2 = const, 3 = propagation/solve
-            let mut origin: Vec<u8> = vec![0u8; r1cs2.num_vars];
-            w_opt[0] = Some(1);
-            origin[0] = 2;
-            // Fill constant vars: constraints of form 1 * const = var.
-            for i in 0..r1cs2.num_constraints {
-                let a = &r1cs2.a[i].terms;
-                let b = &r1cs2.b[i].terms;
-                let cc = &r1cs2.c[i].terms;
-                if a.len() == 1 && a[0].0 == 0 && a[0].1 == BabyBear::one()
-                    && b.len() == 1 && b[0].0 == 0
-                    && cc.len() == 1 && cc[0].1 == BabyBear::one()
-                    && cc[0].0 != 0
-                {
-                    w_opt[cc[0].0] = Some(b[0].1.as_canonical_u64());
-                    origin[cc[0].0] = 2;
+            // Sanity check: the compiler-produced witness must satisfy the R1CS exactly.
+            if !r1cs2.is_satisfied(&w_bb) {
+                let mut idx_to_id: Vec<Option<String>> = vec![None; r1cs2.num_vars];
+                for (id, idx) in c.var_map.iter() {
+                    if *idx < idx_to_id.len() {
+                        idx_to_id[*idx] = Some(id.clone());
+                    }
                 }
-            }
-            // Fill DSL vars from runtime memory.
-            for (id, idx) in c.var_map.iter() {
-                let Some((addr_u64, limb)) = parse_mem_id(id.as_str()) else { continue };
-                let vaddr: usize = addr_u64
-                    .try_into()
-                    .map_err(|_| format!("vaddr too large in id={id}"))
-                    .expect("parse vaddr");
-                let Some(&paddr) = asm.virtual_to_physical.get(vaddr) else {
-                    // Some compiler-introduced IDs may not correspond to runtime memory.
-                    // Those will be filled by constraint propagation below.
-                    continue;
-                };
-                let entry = runtime.memory.mr(paddr);
-                let val = entry.val.0
-                    .get(limb)
-                    .copied()
-                    .unwrap_or_else(|| BabyBear::zero());
-                w_opt[*idx] = Some(val.as_canonical_u64());
-                origin[*idx] = 1;
+                // Reuse existing debug helper (expects Option<u64>); adapt minimally here.
+                let w_opt: Vec<Option<u64>> = w_bb.iter().map(|x| Some(x.as_canonical_u64())).collect();
+                let origin: Vec<u8> = vec![3u8; r1cs2.num_vars];
+                let _ = debug_first_unsatisfied_row(&r1cs2, &w_opt, &origin, &idx_to_id, 200_000);
+                panic!("compiler-produced witness does not satisfy R1CS");
             }
 
-            // Fill R1CS witness inputs directly from the witness stream (the same one consumed by runtime Hint).
-            // This is crucial for hint-based values (e.g. CircuitV2HintBitsF), which do not necessarily map
-            // cleanly to runtime memory IDs but are still fixed statement inputs.
-            fill_r1cs_witness_from_hint_ops(&block.ops, &c.var_map, &witness_blocks_for_fill, &mut w_opt, &mut origin)
-                .map_err(|e| format!("hint fill: {e}"))
-                .expect("hint fill");
-
-            // Lift + compute aux witness.
-            let mut idx_to_id: Vec<Option<String>> = vec![None; r1cs2.num_vars];
-            for (id, idx) in c.var_map.iter() {
-                if *idx < idx_to_id.len() {
-                    idx_to_id[*idx] = Some(id.clone());
-                }
-            }
-
-            complete_witness_from_constraints(&r1cs2, &mut w_opt, &mut origin, Some(&idx_to_id))
-                .map_err(|e| format!("complete witness: {e}"))
-                .expect("complete witness");
-
-            // Optional debug: dump the first failing row (compact) after completion.
-            // Enable with `DEBUG_WITNESS=1`.
-            if std::env::var("DEBUG_WITNESS").ok().as_deref() == Some("1") {
-                let max_rows: usize = 100_000;
-                let _ = debug_first_unsatisfied_row(&r1cs2, &w_opt, &origin, &idx_to_id, max_rows);
-            }
-
-            let w_bb: Vec<BabyBear> = w_opt
-                .into_iter()
-                .map(|x| BabyBear::from_canonical_u64(x.expect("witness slot missing")))
-                .collect();
             let t_aux = std::time::Instant::now();
             let (r1lf, stats, w_lf_u64) =
                 lift_r1cs_to_lf_with_linear_carries_and_witness(&r1cs2, &w_bb)
