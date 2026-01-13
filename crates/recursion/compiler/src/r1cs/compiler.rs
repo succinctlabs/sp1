@@ -1971,30 +1971,34 @@ where
             DslIr::DivEF(dst, lhs, rhs) => {
                 // Divide extension / felt: dst = lhs / rhs
                 // dst * rhs = lhs (component-wise since rhs is base field)
-                if let Some(w) = ctx.as_deref_mut() {
-                    let rhs_idx = self.get_var(&rhs.id(), Some(w));
-                    let inv = w.get(rhs_idx)
-                        .try_inverse()
-                        .unwrap_or_else(|| panic!("DivEF: non-invertible rhs for {}", dst.id()));
-                    for i in 0..4 {
-                        let dst_idx = self.get_or_alloc(&format!("{}__{}", dst.id(), i), Some(w));
-                        let lhs_idx = self.get_var(&format!("{}__{}", lhs.id(), i), Some(w));
-                        w.set(dst_idx, w.get(lhs_idx) * inv);
-                    }
-                }
+                let rhs_idx = self.get_var(&rhs.id(), ctx.as_deref_mut());
+                let inv_rhs = if let Some(w) = ctx.as_deref_mut() {
+                    Some(
+                        w.get(rhs_idx)
+                            .try_inverse()
+                            .unwrap_or_else(|| panic!("DivEF: non-invertible rhs for {}", dst.id())),
+                    )
+                } else {
+                    None
+                };
+
                 for i in 0..4 {
+                    // IMPORTANT: allocate dst index exactly once and reuse for witness + constraints.
                     let dst_idx =
                         self.get_or_alloc(&format!("{}__{}", dst.id(), i), ctx.as_deref_mut());
                     let lhs_idx =
                         self.get_var(&format!("{}__{}", lhs.id(), i), ctx.as_deref_mut());
-                    let rhs_idx = self.get_var(&rhs.id(), ctx.as_deref_mut());
-                    
+
                     // dst[i] * rhs = lhs[i]
                     self.r1cs.add_constraint(
                         SparseRow::single(dst_idx),
                         SparseRow::single(rhs_idx),
                         SparseRow::single(lhs_idx),
                     );
+
+                    if let (Some(w), Some(inv)) = (ctx.as_deref_mut(), inv_rhs) {
+                        w.set(dst_idx, w.get(lhs_idx) * inv);
+                    }
                 }
             }
             
@@ -2002,16 +2006,14 @@ where
                 // Divide extension / field immediate
                 // dst[i] = lhs[i] / rhs = lhs[i] * rhs^(-1)
                 // Verify: dst[i] * rhs = lhs[i]
-                if let Some(w) = ctx.as_deref_mut() {
-                    let inv = rhs.try_inverse().unwrap_or_else(|| {
-                        panic!("DivEFI: non-invertible rhs immediate for {}", dst.id())
-                    });
-                    for i in 0..4 {
-                        let dst_idx = self.get_or_alloc(&format!("{}__{}", dst.id(), i), Some(w));
-                        let lhs_idx = self.get_var(&format!("{}__{}", lhs.id(), i), Some(w));
-                        w.set(dst_idx, w.get(lhs_idx) * inv);
-                    }
-                }
+                let inv_rhs = if let Some(_w) = ctx.as_deref_mut() {
+                    Some(
+                        rhs.try_inverse()
+                            .unwrap_or_else(|| panic!("DivEFI: non-invertible rhs immediate for {}", dst.id())),
+                    )
+                } else {
+                    None
+                };
                 for i in 0..4 {
                     let dst_idx =
                         self.get_or_alloc(&format!("{}__{}", dst.id(), i), ctx.as_deref_mut());
@@ -2024,6 +2026,10 @@ where
                         SparseRow::single_with_coeff(dst_idx, rhs),
                         SparseRow::single(lhs_idx),
                     );
+
+                    if let (Some(w), Some(inv)) = (ctx.as_deref_mut(), inv_rhs) {
+                        w.set(dst_idx, w.get(lhs_idx) * inv);
+                    }
                 }
             }
             
