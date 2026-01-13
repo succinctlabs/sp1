@@ -363,6 +363,7 @@ where
     }
 
     /// Allocate a constant and return its index
+    #[track_caller]
     fn alloc_const(&mut self, value: C::F, mut ctx: Option<&mut WitnessCtx<'_, C::F>>) -> usize {
         let idx = self.alloc_var(ctx.as_deref_mut());
         // Optional targeted debug: show the constant being allocated for a watched index.
@@ -371,12 +372,19 @@ where
             std::env::var("R1CS_WATCH_IDX").ok().and_then(|s| s.parse::<usize>().ok())
         });
         if watch.as_ref().copied() == Some(idx) {
+            let loc = std::panic::Location::caller();
             println!(
                 "[R1CS_WATCH_IDX] alloc_const idx={} value={} (canonical_u64={}) ctx_is_some={}",
                 idx,
                 value,
                 value.as_canonical_u64(),
                 ctx.is_some()
+            );
+            println!(
+                "[R1CS_WATCH_IDX] alloc_const caller: {}:{}:{}",
+                loc.file(),
+                loc.line(),
+                loc.column()
             );
         }
         if let Some(c) = ctx.as_deref_mut() {
