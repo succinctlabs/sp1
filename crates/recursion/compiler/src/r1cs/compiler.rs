@@ -125,15 +125,6 @@ where
     /// while non-hint variables (e.g., from runtime memory writes) still work correctly.
     fn read_id(&mut self, id: &str, mut ctx: Option<&mut WitnessCtx<'_, C::F>>) -> usize {
         if let Some(&idx) = self.var_map.get(id) {
-            // DEBUG: Track when we reuse an existing index
-            if id == "felt152568" || id == "felt152569" || id == "felt154206" || id == "felt154207" {
-                if let Some(c) = ctx.as_deref_mut() {
-                    eprintln!(
-                        "[R1CS read_id] {} REUSED existing idx={}, witness={}",
-                        id, idx, c.witness.get(idx).map(|v| v.as_canonical_u64()).unwrap_or(0)
-                    );
-                }
-            }
             idx
         } else {
             let idx = self.alloc_var(ctx.as_deref_mut());
@@ -150,13 +141,6 @@ where
                     if let Some(&v) = c.hint_felt_values.get(id) {
                         c.set(idx, v);
                         found = true;
-                        // DEBUG: Track when we set from hint map
-                        if id == "felt152568" || id == "felt152569" || id == "felt154206" || id == "felt154207" {
-                            eprintln!(
-                                "[R1CS read_id] {} NEW idx={}, set from hint_map={}",
-                                id, idx, v.as_canonical_u64()
-                            );
-                        }
                     }
                     
                     // For ext components (IDs like "ext123__0"), check hint_ext_values
@@ -183,18 +167,6 @@ where
                     // Non-hint variable: get value from runtime memory
                            if let Some(v) = (c.get_value)(id) {
                            c.set(idx, v);
-                           // DEBUG: Track when we use get_value
-                           if id == "felt152568" || id == "felt152569" || id == "felt154206" || id == "felt154207" {
-                               eprintln!(
-                                   "[R1CS read_id] {} NEW idx={}, set from get_value={} (NOT in hinted_ids!)",
-                                   id, idx, v.as_canonical_u64()
-                               );
-                           }
-                       } else if id == "felt152568" || id == "felt152569" || id == "felt154206" || id == "felt154207" {
-                           eprintln!(
-                               "[R1CS read_id] {} NEW idx={}, get_value returned None, witness stays 0 (NOT in hinted_ids!)",
-                               id, idx
-                           );
                        }
                 }
             }
@@ -204,26 +176,13 @@ where
 
     /// Write/define a variable id.
     ///
-    /// IMPORTANT: This implements SSA semantics where each write creates a NEW version.
-    ///
     /// - If `id` is unseen: allocate fresh and mark defined.
-    /// - If `id` exists (whether forward-allocated or already defined): allocate fresh, update mapping.
+    /// - If `id` exists but was forward-allocated (`defined=false`): reuse same idx and flip to defined.
+    /// - If `id` exists and was already defined: allocate fresh, update mapping.
     ///
-    /// WHY: Forward-referenced variables may have witness values set from `get_value` and used
-    /// in constraints BEFORE the defining operation runs. If we reuse the same index, the write
-    /// would OVERWRITE the value needed by those earlier constraints.
-    ///
-    /// Example sequence without this fix:
-    /// 1. Poseidon2 reads felt152568 → forward-alloc idx=160241, witness[160241] = get_value() = X
-    /// 2. Poseidon2 generates constraint using X
-    /// 3. AddF writes felt152568 → reuses idx=160241, witness[160241] = Y (OVERWRITES!)
-    /// 4. Constraint fails: expected X, got Y
-    ///
-    /// With this fix:
-    /// 1. Poseidon2 reads felt152568 → forward-alloc idx=160241, witness[160241] = X
-    /// 2. Poseidon2 generates constraint using X  
-    /// 3. AddF writes felt152568 → allocates NEW idx=160500, witness[160500] = Y
-    /// 4. Constraint passes: idx=160241 still holds X
+    /// This preserves forward-reference semantics: when a variable is used before defined,
+    /// the read allocates a placeholder. The defining write reuses that placeholder so both
+    /// the read and write refer to the same R1CS variable.
     fn write_id(&mut self, id: &str, mut ctx: Option<&mut WitnessCtx<'_, C::F>>) -> usize {
         match self.var_map.get(id).copied() {
             None => {
@@ -231,23 +190,21 @@ where
                 let idx = self.alloc_var(ctx.as_deref_mut());
                 self.var_map.insert(id.to_string(), idx);
                 self.defined.insert(id.to_string(), true);
-                // DEBUG
-                if id == "felt154206" || id == "felt154207" {
-                    eprintln!("[R1CS write_id] {} FIRST WRITE idx={}", id, idx);
-                }
                 idx
             }
-            Some(old_idx) => {
-                // ID already exists - ALWAYS allocate new index (SSA semantics)
-                // This prevents overwriting witness values needed by earlier constraints
-                let new_idx = self.alloc_var(ctx.as_deref_mut());
-                self.var_map.insert(id.to_string(), new_idx);
-                self.defined.insert(id.to_string(), true);
-                // DEBUG
-                if id == "felt154206" || id == "felt154207" {
-                    eprintln!("[R1CS write_id] {} REWRITE old_idx={} -> new_idx={}", id, old_idx, new_idx);
+            Some(idx) => {
+                let was_defined = self.defined.get(id).copied().unwrap_or(true);
+                if was_defined {
+                    // Already defined - allocate fresh for new version
+                    let new_idx = self.alloc_var(ctx.as_deref_mut());
+                    self.var_map.insert(id.to_string(), new_idx);
+                    self.defined.insert(id.to_string(), true);
+                    new_idx
+                } else {
+                    // Forward-allocated - reuse the placeholder index
+                    self.defined.insert(id.to_string(), true);
+                    idx
                 }
-                new_idx
             }
         }
     }
@@ -320,22 +277,6 @@ where
             SparseRow::single(0), // B: 1
             SparseRow::zero(), // C: 0
         );
-    }
-    
-    /// Add equality constraint with witness debugging
-    fn add_eq_with_witness(&mut self, a: usize, b: usize, ctx: &mut WitnessCtx<'_, C::F>) {
-        let va = ctx.get(a);
-        let vb = ctx.get(b);
-        if va != vb {
-            eprintln!(
-                "[R1CS add_eq] MISMATCH at constraint ~{}: idx {} = {} vs idx {} = {} (diff={})",
-                self.r1cs.a.len(),
-                a, va.as_canonical_u64(),
-                b, vb.as_canonical_u64(),
-                (va - vb).as_canonical_u64()
-            );
-        }
-        self.add_eq(a, b);
     }
 
     /// Add constraint: a != b (via inverse hint)
@@ -791,11 +732,7 @@ where
             DslIr::AssertEqF(lhs, rhs) => {
                 let lhs_idx = self.get_var(&lhs.id(), ctx.as_deref_mut());
                 let rhs_idx = self.get_var(&rhs.id(), ctx.as_deref_mut());
-                if let Some(c) = ctx.as_deref_mut() {
-                    self.add_eq_with_witness(lhs_idx, rhs_idx, c);
-                } else {
-                    self.add_eq(lhs_idx, rhs_idx);
-                }
+                self.add_eq(lhs_idx, rhs_idx);
             }
             
             DslIr::AssertEqVI(_lhs, _rhs) => {
@@ -2562,22 +2499,6 @@ where
             hint_felt_values.len(),
             hint_ext_values.len(),
             hinted_ids.len()
-        );
-        // DEBUG: Check specific IDs
-        if let Some(&v) = hint_felt_values.get("felt152568") {
-            eprintln!("[R1CS Phase 1] felt152568 = {}", v.as_canonical_u64());
-        } else {
-            eprintln!("[R1CS Phase 1] felt152568 NOT in hint_felt_values!");
-        }
-        if let Some(&v) = hint_felt_values.get("felt152569") {
-            eprintln!("[R1CS Phase 1] felt152569 = {}", v.as_canonical_u64());
-        } else {
-            eprintln!("[R1CS Phase 1] felt152569 NOT in hint_felt_values!");
-        }
-        eprintln!(
-            "[R1CS Phase 1] felt152568 in hinted_ids: {}, felt152569 in hinted_ids: {}",
-            hinted_ids.contains("felt152568"),
-            hinted_ids.contains("felt152569")
         );
 
         // =====================================================================
