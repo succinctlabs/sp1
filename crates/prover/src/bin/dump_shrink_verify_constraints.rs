@@ -236,6 +236,7 @@ fn complete_witness_from_constraints(
     r1cs: &sp1_recursion_compiler::r1cs::types::R1CS<BabyBear>,
     w: &mut [Option<u64>],
     origin: &mut [u8],
+    idx_to_id: Option<&[Option<String>]>,
 ) -> Result<(), String> {
     let debug_witness = std::env::var("DEBUG_WITNESS").ok().as_deref() == Some("1");
 
@@ -670,8 +671,13 @@ fn complete_witness_from_constraints(
                     for (idx, coeff) in row.terms.iter().take(max_terms) {
                         let wi = w.get(*idx).and_then(|x| *x).unwrap_or(u64::MAX);
                         let src = origin.get(*idx).copied().unwrap_or(0);
+                        let id = idx_to_id
+                            .and_then(|m| m.get(*idx))
+                            .and_then(|x| x.as_ref())
+                            .map(|s| s.as_str())
+                            .unwrap_or("-");
                         eprintln!(
-                            "    idx={idx:<8} coeff={} wi={wi:<10} origin={src}",
+                            "    idx={idx:<8} coeff={} wi={wi:<10} origin={src} id={id}",
                             coeff.as_canonical_u64()
                         );
                     }
@@ -1108,19 +1114,20 @@ fn main() {
                 .expect("hint fill");
 
             // Lift + compute aux witness.
-            complete_witness_from_constraints(&r1cs2, &mut w_opt, &mut origin)
+            let mut idx_to_id: Vec<Option<String>> = vec![None; r1cs2.num_vars];
+            for (id, idx) in c.var_map.iter() {
+                if *idx < idx_to_id.len() {
+                    idx_to_id[*idx] = Some(id.clone());
+                }
+            }
+
+            complete_witness_from_constraints(&r1cs2, &mut w_opt, &mut origin, Some(&idx_to_id))
                 .map_err(|e| format!("complete witness: {e}"))
                 .expect("complete witness");
 
             // Optional debug: dump the first failing row (compact) after completion.
             // Enable with `DEBUG_WITNESS=1`.
             if std::env::var("DEBUG_WITNESS").ok().as_deref() == Some("1") {
-                let mut idx_to_id: Vec<Option<String>> = vec![None; r1cs2.num_vars];
-                for (id, idx) in c.var_map.iter() {
-                    if *idx < idx_to_id.len() {
-                        idx_to_id[*idx] = Some(id.clone());
-                    }
-                }
                 let max_rows: usize = 100_000;
                 let _ = debug_first_unsatisfied_row(&r1cs2, &w_opt, &origin, &idx_to_id, max_rows);
             }
