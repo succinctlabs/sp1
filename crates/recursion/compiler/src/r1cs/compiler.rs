@@ -178,6 +178,7 @@ where
     }
 
     /// Allocate a new variable and return its index
+    #[track_caller]
     fn alloc_var(&mut self, mut ctx: Option<&mut WitnessCtx<'_, C::F>>) -> usize {
         let idx = self.next_var;
         self.next_var += 1;
@@ -192,7 +193,8 @@ where
         });
         if watch.as_ref().copied() == Some(idx) {
             println!("[R1CS_WATCH_IDX] allocated idx={idx}");
-            println!("{:?}", std::backtrace::Backtrace::capture());
+            let loc = std::panic::Location::caller();
+            println!("[R1CS_WATCH_IDX] caller: {}:{}:{}", loc.file(), loc.line(), loc.column());
         }
 
         if let Some(c) = ctx.as_deref_mut() {
