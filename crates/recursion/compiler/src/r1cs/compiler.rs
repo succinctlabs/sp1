@@ -338,14 +338,13 @@ where
                         );
                     }
                 } else {
-                    // Non-hint variable: by default, DO NOT prefill from runtime memory.
+                    // Non-hint variable: prefill from runtime memory snapshot by default.
                     //
-                    // Using runtime.memory here is a *final-state snapshot* and can be incorrect
-                    // for mutable virtual registers (values may differ earlier in the IR stream).
-                    //
-                    // If you want the old behavior for debugging, set:
-                    //   R1CS_PREFILL_RUNTIME=1
-                    if std::env::var("R1CS_PREFILL_RUNTIME").ok().as_deref() == Some("1") {
+                    // This provides initial values for read-before-write IDs that are not hint-sourced.
+                    // If you need to disable this for debugging, set:
+                    //   R1CS_PREFILL_RUNTIME=0
+                    let prefill = std::env::var("R1CS_PREFILL_RUNTIME").ok().as_deref() != Some("0");
+                    if prefill {
                         if let Some(v) = (c.get_value)(id) {
                             c.set(idx, v);
                             if watching {
