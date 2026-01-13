@@ -544,6 +544,11 @@ fn main() {
             if std::env::var("R1CS_AUDIT_UNCONSTRAINED").ok().as_deref() == Some("1") {
                 let unconstrained_all = r1cs2.unconstrained_vars();
                 let unconstrained_internal = c.unconstrained_internal_vars();
+                let unconstrained_public: Vec<usize> = unconstrained_all
+                    .iter()
+                    .copied()
+                    .filter(|&i| i >= 1 && i <= r1cs2.num_public)
+                    .collect();
                 println!("\n=========================================================");
                 println!("R1CS Unconstrained Variable Audit");
                 println!("=========================================================");
@@ -552,9 +557,22 @@ fn main() {
                     unconstrained_all.len()
                 );
                 println!(
+                    "  unconstrained_public (subset of 1..=num_public): {}",
+                    unconstrained_public.len()
+                );
+                println!(
                     "  unconstrained_internal (excl explicit inputs): {}",
                     unconstrained_internal.len()
                 );
+                if !unconstrained_public.is_empty() {
+                    let k = unconstrained_public.len().min(50);
+                    println!(
+                        "  first {} unconstrained_public indices: {:?}",
+                        k,
+                        &unconstrained_public[..k]
+                    );
+                    panic!("R1CS audit failed: found unconstrained public inputs");
+                }
                 if !unconstrained_internal.is_empty() {
                     let k = unconstrained_internal.len().min(50);
                     println!(
