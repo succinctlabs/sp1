@@ -849,7 +849,10 @@ where
 
             // === Poseidon2 permutation (BabyBear) - V2 with separate input/output ===
             DslIr::CircuitV2Poseidon2PermuteBabyBear(boxed) => {
-                let (input, output) = boxed.as_ref();
+                // IMPORTANT: This matches the circuit compiler / runtime semantics:
+                // `AsmCompiler::poseidon2_permute(dst, src)` is called as
+                // `poseidon2_permute(data.0, data.1)`, so tuple order is (output, input).
+                let (output, input) = boxed.as_ref();
                 
                 // Get input variable indices
                 let input_indices: Vec<usize> = (0..16)
