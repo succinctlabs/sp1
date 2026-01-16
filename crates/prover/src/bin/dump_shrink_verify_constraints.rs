@@ -84,6 +84,46 @@ fn visit_ops<C: sp1_recursion_compiler::ir::Config + core::fmt::Debug>(
     }
 }
 
+/// Recursively collect parameter histograms for security-relevant opcodes.
+fn visit_ops_param_hists<C: sp1_recursion_compiler::ir::Config + core::fmt::Debug>(
+    ops: &[DslIr<C>],
+    hintbitsf_nbits: &mut BTreeMap<usize, usize>,
+    num2bitsf_nbits: &mut BTreeMap<usize, usize>,
+) {
+    for op in ops {
+        match op {
+            // V2: bits are explicitly materialized and the length matters (31-bit canonicality case).
+            DslIr::CircuitV2HintBitsF(bits, _value) => {
+                *hintbitsf_nbits.entry(bits.len()).or_default() += 1;
+            }
+            // Non-V2: still useful to know if it ever appears and with what bit-length.
+            DslIr::CircuitNum2BitsF(_value, output) => {
+                *num2bitsf_nbits.entry(output.len()).or_default() += 1;
+            }
+            DslIr::Parallel(blocks) => {
+                for b in blocks {
+                    visit_ops_param_hists(&b.ops, hintbitsf_nbits, num2bitsf_nbits);
+                }
+            }
+            DslIr::For(b) => {
+                let (_, _, _, _, body) = &**b;
+                visit_ops_param_hists(body, hintbitsf_nbits, num2bitsf_nbits);
+            }
+            DslIr::IfEq(b) | DslIr::IfNe(b) => {
+                let (_, _, then_body, else_body) = &**b;
+                visit_ops_param_hists(then_body, hintbitsf_nbits, num2bitsf_nbits);
+                visit_ops_param_hists(else_body, hintbitsf_nbits, num2bitsf_nbits);
+            }
+            DslIr::IfEqI(b) | DslIr::IfNeI(b) => {
+                let (_, _, then_body, else_body) = &**b;
+                visit_ops_param_hists(then_body, hintbitsf_nbits, num2bitsf_nbits);
+                visit_ops_param_hists(else_body, hintbitsf_nbits, num2bitsf_nbits);
+            }
+            _ => {}
+        }
+    }
+}
+
 /// Build the shrink verifier DslIr operations.
 fn build_shrink_verifier_ops() -> Vec<DslIr<InnerConfig>> {
     // We want the *shrink-proof verifier* circuit: i.e. verify a proof produced by `prover.shrink(..)`.
@@ -667,14 +707,35 @@ fn main() {
     }
     println!("  ... ({} total opcode types)", counts_sorted.len());
     println!("  Total ops: {}", ops.len());
-    // Targeted presence checks for security-relevant opcodes (may not appear in top-15).
+
+    // Deep-confidence checks: explicit counts for opcodes that may not appear in top-15.
+    // This is intended to answer “did the hardened paths actually get exercised?”
     let get = |k: &str| -> usize { *counts.get(k).unwrap_or(&0) };
+    println!("\nOpcode presence (security-relevant):");
     println!(
-        "  [opcode check] CircuitNum2BitsF={} CircuitV2HintBitsF={} CircuitV2HintAddCurve={}",
+        "  CircuitNum2BitsF={}  CircuitV2HintBitsF={}  CircuitV2HintAddCurve={}",
         get("CircuitNum2BitsF"),
         get("CircuitV2HintBitsF"),
         get("CircuitV2HintAddCurve"),
     );
+    println!(
+        "  CircuitSelectV={}  CircuitSelectF={}  CircuitSelectE={}  Select={}",
+        get("CircuitSelectV"),
+        get("CircuitSelectF"),
+        get("CircuitSelectE"),
+        get("Select"),
+    );
+
+    // Parameter histograms (so we can see if any V2 bits are 31-bit and thus trigger canonicality checks).
+    let mut hintbitsf_nbits: BTreeMap<usize, usize> = BTreeMap::new();
+    let mut num2bitsf_nbits: BTreeMap<usize, usize> = BTreeMap::new();
+    visit_ops_param_hists(&ops, &mut hintbitsf_nbits, &mut num2bitsf_nbits);
+    if !hintbitsf_nbits.is_empty() {
+        println!("  CircuitV2HintBitsF nbits histogram: {hintbitsf_nbits:?}");
+    }
+    if !num2bitsf_nbits.is_empty() {
+        println!("  CircuitNum2BitsF nbits histogram: {num2bitsf_nbits:?}");
+    }
 
     // Export modes:
     // - If OUT_WITNESS is set: dump witness, and (optionally) also write OUT_R1CS_LF if requested.
