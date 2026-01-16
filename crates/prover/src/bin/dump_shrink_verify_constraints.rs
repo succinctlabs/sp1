@@ -400,6 +400,44 @@ fn audit_no_wrap_frog64_lifted(r1lf: &sp1_recursion_compiler::r1cs::lf::R1CSLf) 
         acc
     }
 
+    #[derive(Clone, Copy)]
+    struct RowStats {
+        n_terms: usize,
+        l1: u128,
+        max_abs: u128,
+        has_const: bool,
+    }
+
+    fn row_stats(row: &sp1_recursion_compiler::r1cs::lf::SparseRowI64) -> RowStats {
+        let mut l1: u128 = 0;
+        let mut max_abs: u128 = 0;
+        let mut has_const = false;
+        for (idx, coeff) in &row.terms {
+            if *idx == 0 {
+                has_const = true;
+            }
+            let abs = (*coeff).unsigned_abs() as u128;
+            l1 = l1.saturating_add(abs);
+            max_abs = max_abs.max(abs);
+        }
+        RowStats {
+            n_terms: row.terms.len(),
+            l1,
+            max_abs,
+            has_const,
+        }
+    }
+
+    fn top_terms(
+        row: &sp1_recursion_compiler::r1cs::lf::SparseRowI64,
+        k: usize,
+    ) -> Vec<(usize, i64)> {
+        let mut v: Vec<(usize, i64)> = row.terms.iter().copied().collect();
+        v.sort_by_key(|(_idx, coeff)| (-(coeff.unsigned_abs() as i128)) as i128);
+        v.truncate(k);
+        v
+    }
+
     let mut worst_row: usize = 0;
     let mut worst_bound: u128 = 0;
     let mut worst_a: u128 = 0;
@@ -435,6 +473,30 @@ fn audit_no_wrap_frog64_lifted(r1lf: &sp1_recursion_compiler::r1cs::lf::R1CSLf) 
     println!("  worst |A·w||B·w|+|C·w|: {worst_bound}");
 
     if worst_bound >= Q_HALF {
+        let arow = &r1lf.a[worst_row];
+        let brow = &r1lf.b[worst_row];
+        let crow = &r1lf.c[worst_row];
+        let sa = row_stats(arow);
+        let sb = row_stats(brow);
+        let sc = row_stats(crow);
+        println!("\n  ---- worst row diagnostics ----");
+        println!(
+            "  A: n_terms={} has_const={} l1={} max_abs_coeff={}",
+            sa.n_terms, sa.has_const, sa.l1, sa.max_abs
+        );
+        println!(
+            "  B: n_terms={} has_const={} l1={} max_abs_coeff={}",
+            sb.n_terms, sb.has_const, sb.l1, sb.max_abs
+        );
+        println!(
+            "  C: n_terms={} has_const={} l1={} max_abs_coeff={}",
+            sc.n_terms, sc.has_const, sc.l1, sc.max_abs
+        );
+        let k = 10usize;
+        println!("  top {k} |coeff| terms in A: {:?}", top_terms(arow, k));
+        println!("  top {k} |coeff| terms in B: {:?}", top_terms(brow, k));
+        println!("  top {k} |coeff| terms in C: {:?}", top_terms(crow, k));
+
         panic!(
             "R1LF no-wrap audit failed: worst_bound={} >= q_frog/2={} (row={})",
             worst_bound, Q_HALF, worst_row
