@@ -367,7 +367,7 @@ fn load_or_build_input_with_merkle(
 }
 
 /// Audit that the lifted LF-targeted R1CS cannot exploit modulus wraparound when proven in Frog64
-/// under the SP1/Frog64 boundedness regime (`decomp_b=16, k=8`).
+/// under the current SP1/Frog64 boundedness regime (currently `decomp_b=12, k=8` in LF+).
 ///
 /// This is a *sufficient* condition: it uses worst-case magnitude bounds derived from per-row
 /// coefficient \(\ell_1\) norms and the per-coordinate witness bound.
@@ -376,8 +376,10 @@ fn audit_no_wrap_frog64_lifted(r1lf: &sp1_recursion_compiler::r1cs::lf::R1CSLf) 
     const Q_FROG: u128 = 15912092521325583641u128;
     const Q_HALF: u128 = Q_FROG / 2;
     // SP1/Frog64 boundedness envelope for each scalar witness coordinate:
-    // balanced base B=16, k=8 => max = (B/2) * (B^k - 1)/(B - 1) = 2,290,649,224
-    const M: u128 = 2_290_649_224u128;
+    // Conservative verifier-semantics envelope used in the LF+ security rationale:
+    // - unit-monomial exponent implies per-digit bound D = d/2 - 1 = 31 for Frog64
+    // - base b = 12, k = 8 digits => M = D * (b^k - 1)/(b - 1) = 1,211,766,595
+    const M: u128 = 1_211_766_595u128;
     const SP1_P_BB: u64 = 2013265921u64;
 
     if r1lf.p_bb != SP1_P_BB {

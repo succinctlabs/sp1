@@ -7,6 +7,9 @@ mod tests {
     use p3_baby_bear::BabyBear;
     use p3_field::{AbstractField, PrimeField32};
 
+    use crate::config::OuterConfig;
+    use crate::ir::Var;
+    use crate::r1cs::compiler::R1CSCompiler;
     use crate::r1cs::types::{R1CS, SparseRow};
     use crate::r1cs::poseidon2::{Poseidon2R1CS, WIDTH};
     use crate::r1cs::lf::{
@@ -14,6 +17,121 @@ mod tests {
     };
 
     type F = BabyBear;
+
+    #[test]
+    fn test_public_inputs_are_prefix_indices() {
+        // Regression test for the R1CS format contract:
+        // public inputs occupy indices 1..=num_public.
+        //
+        // We model a minimal program that:
+        // - defines a variable `var7` (using Var ops supported by this backend)
+        // - then marks `var7` as a committed "public input" via CircuitCommitVkeyHash.
+        //
+        // The compiler must allocate `var7` into index 1 (public prefix) and reuse that slot
+        // when the value is defined, so the committed value truly lives in the public input
+        // region of the exported R1CS.
+        let v1 = Var::<p3_bls12_377_fr::Bls12377Fr>::new(1, core::ptr::null_mut());
+        let v2 = Var::<p3_bls12_377_fr::Bls12377Fr>::new(2, core::ptr::null_mut());
+        let v7 = Var::<p3_bls12_377_fr::Bls12377Fr>::new(7, core::ptr::null_mut());
+
+        let ops = vec![
+            // Define var7 := var1 + var2 (values provided by get_value).
+            crate::ir::DslIr::<OuterConfig>::AddV(v7, v1, v2),
+            // Mark var7 as a public/committed input.
+            crate::ir::DslIr::<OuterConfig>::CircuitCommitVkeyHash(v7),
+        ];
+
+        let mut get_value = |id: &str| -> Option<BabyBear> {
+            match id {
+                "var1" => Some(BabyBear::from_canonical_u64(3)),
+                "var2" => Some(BabyBear::from_canonical_u64(5)),
+                _ => Some(BabyBear::zero()),
+            }
+        };
+        let mut next_hint_felt = || -> Option<BabyBear> { None };
+        let mut next_hint_ext = || -> Option<[BabyBear; 4]> { None };
+
+        let (compiler, witness) = R1CSCompiler::<OuterConfig>::compile_with_witness(
+            ops,
+            &mut get_value,
+            &mut next_hint_felt,
+            &mut next_hint_ext,
+        );
+
+        assert_eq!(compiler.r1cs.num_public, 1, "expected exactly one public input");
+        assert_eq!(compiler.vkey_hash_idx, Some(1), "committed var must be at index 1");
+        assert_eq!(compiler.public_inputs, vec![1], "public input indices must be prefix");
+        assert_eq!(
+            compiler.var_map.get("var7").copied(),
+            Some(1),
+            "var7 must map to public prefix index 1"
+        );
+        assert_eq!(witness[0], BabyBear::one());
+        assert_eq!(witness[1], BabyBear::from_canonical_u64(8), "var7 := 3 + 5");
+        assert_eq!(witness.len(), compiler.r1cs.num_vars, "witness length must match num_vars");
+    }
+
+    #[test]
+    fn test_num2bits_v2_f_rejects_noncanonical_modulus_representation() {
+        // Regression test: `CircuitV2HintBitsF` must enforce canonicality for 31-bit
+        // decompositions (match `circuit/builder.rs::num2bits_v2_f`).
+        //
+        // Without the modulus check, the following would be satisfiable:
+        // - value = 0 (in BabyBear field)
+        // - bits represent the integer p (BabyBear modulus), which is congruent to 0 mod p
+        //
+        // The additional "top 4 bits" check must reject this non-canonical bitstring.
+        use crate::ir::{DslIr, Felt};
+        const P_BB: u64 = 2_013_265_921;
+
+        // One felt value and 31 output bits.
+        let value = Felt::<BabyBear>::new(1000, core::ptr::null_mut());
+        let bits: Vec<Felt<BabyBear>> = (0..31)
+            .map(|i| Felt::<BabyBear>::new(2000 + i as u32, core::ptr::null_mut()))
+            .collect();
+
+        let ops = vec![DslIr::<OuterConfig>::CircuitV2HintBitsF(bits.clone(), value)];
+
+        let mut get_value = |id: &str| -> Option<BabyBear> {
+            if id == "felt1000" {
+                Some(BabyBear::zero())
+            } else {
+                Some(BabyBear::zero())
+            }
+        };
+        let mut next_hint_felt = || -> Option<BabyBear> { None };
+        let mut next_hint_ext = || -> Option<[BabyBear; 4]> { None };
+
+        let (compiler, witness_ok) = R1CSCompiler::<OuterConfig>::compile_with_witness(
+            ops,
+            &mut get_value,
+            &mut next_hint_felt,
+            &mut next_hint_ext,
+        );
+        assert!(compiler.r1cs.is_satisfied(&witness_ok));
+
+        // Build a cheating witness: set bits to represent integer p, but keep value = 0.
+        let mut witness_bad = witness_ok.clone();
+        let value_idx = *compiler
+            .var_map
+            .get("felt1000")
+            .expect("value felt index should exist");
+        witness_bad[value_idx] = BabyBear::zero();
+
+        for (i, b) in bits.iter().enumerate() {
+            let idx = *compiler
+                .var_map
+                .get(&b.id())
+                .unwrap_or_else(|| panic!("bit id missing from var_map: {}", b.id()));
+            let bit = (P_BB >> i) & 1;
+            witness_bad[idx] = BabyBear::from_canonical_u64(bit);
+        }
+
+        assert!(
+            !compiler.r1cs.is_satisfied(&witness_bad),
+            "non-canonical bits encoding p should be rejected"
+        );
+    }
 
     #[test]
     fn test_lift_refactor_digest_matches() {

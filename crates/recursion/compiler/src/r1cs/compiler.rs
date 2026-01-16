@@ -110,6 +110,75 @@ impl<C: Config> R1CSCompiler<C>
 where
     C::F: PrimeField64,
 {
+    /// Phase 0 helper: collect committed "public input" variable IDs in first-occurrence order.
+    ///
+    /// IMPORTANT: Our R1CS format encodes public inputs positionally: indices `1..=num_public`
+    /// are public. We therefore must allocate these variables first so they occupy that prefix.
+    fn phase0_collect_public_ids(ops: &[DslIr<C>], out: &mut Vec<String>, seen: &mut HashSet<String>) {
+        for op in ops {
+            match op {
+                DslIr::CircuitCommitVkeyHash(var) => {
+                    let id = var.id();
+                    if seen.insert(id.clone()) {
+                        out.push(id);
+                    }
+                }
+                DslIr::CircuitCommitCommittedValuesDigest(var) => {
+                    let id = var.id();
+                    if seen.insert(id.clone()) {
+                        out.push(id);
+                    }
+                }
+                DslIr::Parallel(blocks) => {
+                    for b in blocks {
+                        Self::phase0_collect_public_ids(&b.ops, out, seen);
+                    }
+                }
+                DslIr::For(boxed) => {
+                    let (_, _, _, _, body) = boxed.as_ref();
+                    Self::phase0_collect_public_ids(body, out, seen);
+                }
+                DslIr::IfEq(boxed) | DslIr::IfNe(boxed) => {
+                    let (_, _, then_body, else_body) = boxed.as_ref();
+                    Self::phase0_collect_public_ids(then_body, out, seen);
+                    Self::phase0_collect_public_ids(else_body, out, seen);
+                }
+                DslIr::IfEqI(boxed) | DslIr::IfNeI(boxed) => {
+                    let (_, _, then_body, else_body) = boxed.as_ref();
+                    Self::phase0_collect_public_ids(then_body, out, seen);
+                    Self::phase0_collect_public_ids(else_body, out, seen);
+                }
+                _ => {}
+            }
+        }
+    }
+
+    /// Allocate the public-input variables first so they occupy indices `1..=num_public`.
+    ///
+    /// We allocate them via `read_id` (forward placeholders) and rely on `write_id` to reuse the
+    /// placeholder on the first defining write.
+    fn phase0_preallocate_public_inputs(
+        &mut self,
+        public_ids: &[String],
+        mut ctx: Option<&mut WitnessCtx<'_, C::F>>,
+    ) {
+        if public_ids.is_empty() {
+            self.r1cs.num_public = 0;
+            return;
+        }
+        self.public_inputs.clear();
+        for (j, id) in public_ids.iter().enumerate() {
+            let idx = self.read_id(id, ctx.as_deref_mut());
+            debug_assert_eq!(
+                idx,
+                j + 1,
+                "public inputs must occupy prefix indices 1..=num_public"
+            );
+            self.public_inputs.push(idx);
+        }
+        self.r1cs.num_public = public_ids.len();
+    }
+
     /// Multiply two degree-4 binomial extension elements over `C::F` with modulus `u^4 = 11`.
     #[inline]
     fn ext4_mul_vals(a: [C::F; 4], b: [C::F; 4]) -> [C::F; 4] {
@@ -379,10 +448,14 @@ where
                     let is_hinted = ctx
                         .as_deref()
                         .is_some_and(|c| c.hinted_ids.contains(id));
-                    if is_hinted {
+                    // Public inputs are encoded positionally in the R1CS format: indices 1..=num_public.
+                    // We preallocate those IDs into the prefix, and MUST reuse the placeholder on the
+                    // first defining write so the committed value lives in the public slot.
+                    let is_public_placeholder = idx >= 1 && idx <= self.r1cs.num_public;
+                    if is_hinted || is_public_placeholder {
                         self.defined.insert(id.to_string(), true);
                         if watching {
-                            println!("[R1CS_WATCH_ID] write define {id} reuse_idx={idx} (hinted)");
+                            println!("[R1CS_WATCH_ID] write define {id} reuse_idx={idx} (hinted/public)");
                             let loc = std::panic::Location::caller();
                             println!(
                                 "[R1CS_WATCH_ID] write caller: {}:{}:{}",
@@ -1287,6 +1360,60 @@ where
                     "CircuitV2HintBitsF: requested {nbits} bits for a BabyBear Felt; this would be non-canonical/unsound. Expected <= 31."
                 );
                 self.add_num2bits(value_idx, &bit_indices, nbits);
+
+                // Canonicality / modulus-range check (matches `circuit/builder.rs::num2bits_v2_f`):
+                //
+                // BabyBear modulus is p = 2^31 - 2^27 + 1 = (15 * 2^27) + 1.
+                //
+                // For a 31-bit decomposition, we must rule out non-canonical integers in [p, 2^31)
+                // that are congruent mod p (otherwise the circuit could accept wrong bitstrings).
+                //
+                // The following logic is exactly what the CircuitV2 builder enforces:
+                // - Let `are_all_top_bits_one = b30 * b29 * b28 * b27` (bitwise AND of top 4 bits).
+                // - Enforce: if are_all_top_bits_one == 1 then all bottom 27 bits are 0.
+                //
+                // This allows values < 15*2^27 (top4 != 1111) or exactly 15*2^27 (top4==1111, bottom==0),
+                // which are precisely the canonical representatives < p.
+                if nbits > 30 {
+                    // Bits are ordered least-significant first: bit_indices[i] corresponds to 2^i.
+                    let b30 = bit_indices[30];
+                    let b29 = bit_indices[29];
+                    let b28 = bit_indices[28];
+                    let b27 = bit_indices[27];
+
+                    let t01 = self.alloc_var(ctx.as_deref_mut());
+                    self.add_mul(t01, b30, b29);
+                    let t012 = self.alloc_var(ctx.as_deref_mut());
+                    self.add_mul(t012, t01, b28);
+                    let are_all_top_bits_one = self.alloc_var(ctx.as_deref_mut());
+                    self.add_mul(are_all_top_bits_one, t012, b27);
+
+                    if let Some(c) = ctx.as_deref_mut() {
+                        // Since bits are boolean, product is also boolean (AND).
+                        c.set(
+                            t01,
+                            c.get(b30) * c.get(b29),
+                        );
+                        c.set(
+                            t012,
+                            c.get(t01) * c.get(b28),
+                        );
+                        c.set(
+                            are_all_top_bits_one,
+                            c.get(t012) * c.get(b27),
+                        );
+                    }
+
+                    let zero = self.alloc_const(C::F::zero(), ctx.as_deref_mut());
+                    for &bit in bit_indices.iter().take(27) {
+                        // Enforce bit * are_all_top_bits_one = 0.
+                        self.r1cs.add_constraint(
+                            SparseRow::single(bit),
+                            SparseRow::single(are_all_top_bits_one),
+                            SparseRow::single(zero),
+                        );
+                    }
+                }
                 if let Some(c) = ctx.as_deref_mut() {
                     let mut x = c.get(value_idx).as_canonical_u64();
                     for &b in bit_indices.iter() {
@@ -1686,13 +1813,23 @@ where
             DslIr::CircuitCommitVkeyHash(var) => {
                 let var_idx = self.get_var(&var.id(), ctx.as_deref_mut());
                 self.vkey_hash_idx = Some(var_idx);
-                self.public_inputs.push(var_idx);
+                debug_assert!(
+                    var_idx >= 1 && var_idx <= self.r1cs.num_public,
+                    "CircuitCommitVkeyHash must refer to a public-input slot (idx={}, num_public={})",
+                    var_idx,
+                    self.r1cs.num_public
+                );
             }
             
             DslIr::CircuitCommitCommittedValuesDigest(var) => {
                 let var_idx = self.get_var(&var.id(), ctx.as_deref_mut());
                 self.committed_values_digest_idx = Some(var_idx);
-                self.public_inputs.push(var_idx);
+                debug_assert!(
+                    var_idx >= 1 && var_idx <= self.r1cs.num_public,
+                    "CircuitCommitCommittedValuesDigest must refer to a public-input slot (idx={}, num_public={})",
+                    var_idx,
+                    self.r1cs.num_public
+                );
             }
 
             // === Extension field operations ===
@@ -2809,6 +2946,13 @@ where
         next_hint_ext: &mut dyn FnMut() -> Option<[C::F; 4]>,
     ) -> (Self, Vec<C::F>) {
         // =====================================================================
+        // PHASE 0: Pre-scan for public inputs (commitments) and preallocate them
+        // =====================================================================
+        let mut public_ids: Vec<String> = Vec::new();
+        let mut public_seen: HashSet<String> = HashSet::new();
+        Self::phase0_collect_public_ids(&operations, &mut public_ids, &mut public_seen);
+
+        // =====================================================================
         // PHASE 1: Pre-consume hints into per-ID FIFO queues (no allocations)
         // =====================================================================
         let mut hint_felt_values: HashMap<String, VecDeque<C::F>> = HashMap::new();
@@ -2839,11 +2983,12 @@ where
             hinted_ids,
         };
 
+        // Allocate public inputs first so they occupy indices 1..=num_public in the exported R1CS.
+        compiler.phase0_preallocate_public_inputs(&public_ids, Some(&mut ctx));
+
         for op in operations {
             compiler.compile_one_inner(op, Some(&mut ctx));
         }
-
-        compiler.r1cs.num_public = compiler.public_inputs.len();
 
         // Keep witness length in sync with declared num_vars.
         ctx.ensure_len(compiler.r1cs.num_vars);
@@ -3032,11 +3177,14 @@ where
 
     /// Compile all operations and return the R1CS
     pub fn compile(operations: Vec<DslIr<C>>) -> R1CS<C::F> {
+        let mut public_ids: Vec<String> = Vec::new();
+        let mut public_seen: HashSet<String> = HashSet::new();
+        Self::phase0_collect_public_ids(&operations, &mut public_ids, &mut public_seen);
         let mut compiler = Self::new();
+        compiler.phase0_preallocate_public_inputs(&public_ids, None);
         for op in operations {
             compiler.compile_one(op);
         }
-        compiler.r1cs.num_public = compiler.public_inputs.len();
         compiler.r1cs
     }
 }
