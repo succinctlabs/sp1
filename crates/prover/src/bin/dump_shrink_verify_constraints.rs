@@ -91,9 +91,15 @@ fn build_shrink_verifier_ops() -> Vec<DslIr<InnerConfig>> {
     let machine_verified = ShrinkAir::shrink_machine(InnerSC::compressed());
     let shrink_shape = ShrinkAir::<BabyBear>::shrink_shape().into();
     let input_shape = sp1_recursion_circuit::machine::SP1CompressShape::from(vec![shrink_shape]);
+    // this must match the Merkle tree height used by `SP1Prover::make_merkle_proofs`,
+    // otherwise the shape-only R1CS (and its digest) will not match any real shrink-proof input
+    // in configurations where the allowed VK set yields a height > 1.
+    //
+    // This is not "statement-time": the allowed VK set is embedded into the prover binary.
+    let merkle_tree_height = SP1Prover::new().recursion_vk_tree.height;
     let shape = sp1_recursion_circuit::machine::SP1CompressWithVkeyShape {
         compress_shape: input_shape,
-        merkle_tree_height: 1,
+        merkle_tree_height,
     };
     let dummy_input: SP1CompressWithVKeyWitnessValues<BabyBearPoseidon2> =
         SP1CompressWithVKeyWitnessValues::dummy(&machine_verified, &shape);
@@ -105,7 +111,7 @@ fn build_shrink_verifier_ops() -> Vec<DslIr<InnerConfig>> {
         &machine_verified,
         input,
         false, // value_assertions disabled - we want algebraic shape only
-        // IMPORTANT: keep this consistent with witness-mode export so the compiled R1CS shape
+        // keep this consistent with witness-mode export so the compiled R1CS shape
         // (num_vars/digest) matches between shape-only and witness-only runs.
         sp1_recursion_circuit::machine::PublicValuesOutputDigest::Reduce,
     );
@@ -397,7 +403,7 @@ fn main() {
             &mut builder,
             &machine_verified,
             input,
-            // IMPORTANT: keep algebraic shape identical to `build_shrink_verifier_ops()`.
+            // keep algebraic shape identical to `build_shrink_verifier_ops()`.
             false,
             sp1_recursion_circuit::machine::PublicValuesOutputDigest::Reduce,
         );
