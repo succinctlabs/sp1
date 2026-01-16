@@ -385,17 +385,109 @@ fn audit_no_wrap_frog64_lifted(r1lf: &sp1_recursion_compiler::r1cs::lf::R1CSLf) 
         return;
     }
 
-    // Helper: bound |row · w| given |w_i|<=M for i>0 and w_0=1.
+    // Boolean vars are heavily used in SP1. If we treat them as "can be as large as M", the
+    // bound is far too pessimistic and trips on rows that multiply by a selector bit.
+    //
+    // We conservatively infer a variable is boolean if the LF-targeted constraints include either:
+    //   (1) x * x = x
+    //   (2) x * (x - 1) = 0   (or symmetric variants)
+    //
+    // This does not require any extra flags and runs inside the existing audit gate.
+    let mut is_bool: Vec<bool> = vec![false; r1lf.num_vars];
+
     #[inline]
-    fn bound_lin(row: &sp1_recursion_compiler::r1cs::lf::SparseRowI64, m: u128) -> u128 {
+    fn is_single_var_one(row: &sp1_recursion_compiler::r1cs::lf::SparseRowI64) -> Option<usize> {
+        if row.terms.len() != 1 {
+            return None;
+        }
+        let (idx, coeff) = row.terms[0];
+        if idx != 0 && coeff == 1 {
+            Some(idx)
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    fn is_x_minus_one(
+        row: &sp1_recursion_compiler::r1cs::lf::SparseRowI64,
+        x: usize,
+    ) -> bool {
+        if row.terms.len() != 2 {
+            return false;
+        }
+        // Allow either order.
+        let (i0, c0) = row.terms[0];
+        let (i1, c1) = row.terms[1];
+        (i0 == x && c0 == 1 && i1 == 0 && c1 == -1) || (i1 == x && c1 == 1 && i0 == 0 && c0 == -1)
+    }
+
+    #[inline]
+    fn is_one_minus_x(
+        row: &sp1_recursion_compiler::r1cs::lf::SparseRowI64,
+        x: usize,
+    ) -> bool {
+        if row.terms.len() != 2 {
+            return false;
+        }
+        let (i0, c0) = row.terms[0];
+        let (i1, c1) = row.terms[1];
+        (i0 == 0 && c0 == 1 && i1 == x && c1 == -1) || (i1 == 0 && c1 == 1 && i0 == x && c0 == -1)
+    }
+
+    #[inline]
+    fn is_zero_row(row: &sp1_recursion_compiler::r1cs::lf::SparseRowI64) -> bool {
+        row.terms.is_empty()
+    }
+
+    for i in 0..r1lf.num_constraints {
+        // Pattern (1): x * x = x
+        if let (Some(xa), Some(xb), Some(xc)) = (
+            is_single_var_one(&r1lf.a[i]),
+            is_single_var_one(&r1lf.b[i]),
+            is_single_var_one(&r1lf.c[i]),
+        ) {
+            if xa == xb && xb == xc {
+                is_bool[xa] = true;
+                continue;
+            }
+        }
+        // Pattern (2): x * (x-1) = 0 or x*(1-x)=0 (and swapped A/B)
+        if let Some(x) = is_single_var_one(&r1lf.a[i]) {
+            if (is_x_minus_one(&r1lf.b[i], x) || is_one_minus_x(&r1lf.b[i], x)) && is_zero_row(&r1lf.c[i]) {
+                is_bool[x] = true;
+                continue;
+            }
+        }
+        if let Some(x) = is_single_var_one(&r1lf.b[i]) {
+            if (is_x_minus_one(&r1lf.a[i], x) || is_one_minus_x(&r1lf.a[i], x)) && is_zero_row(&r1lf.c[i]) {
+                is_bool[x] = true;
+                continue;
+            }
+        }
+    }
+
+    // Helper: bound |row · w| given:
+    // - w_0 = 1
+    // - boolean vars satisfy w_i ∈ {0,1}
+    // - all other vars satisfy |w_i| <= M (the LF+ boundedness envelope)
+    #[inline]
+    fn bound_lin(
+        row: &sp1_recursion_compiler::r1cs::lf::SparseRowI64,
+        is_bool: &[bool],
+        m: u128,
+    ) -> u128 {
         let mut acc: u128 = 0;
         for (idx, coeff) in &row.terms {
             let abs = (*coeff).unsigned_abs() as u128;
-            if *idx == 0 {
-                acc = acc.saturating_add(abs);
+            let bnd: u128 = if *idx == 0 {
+                1
+            } else if *idx < is_bool.len() && is_bool[*idx] {
+                1
             } else {
-                acc = acc.saturating_add(abs.saturating_mul(m));
-            }
+                m
+            };
+            acc = acc.saturating_add(abs.saturating_mul(bnd));
         }
         acc
     }
@@ -444,10 +536,11 @@ fn audit_no_wrap_frog64_lifted(r1lf: &sp1_recursion_compiler::r1cs::lf::R1CSLf) 
     let mut worst_b: u128 = 0;
     let mut worst_c: u128 = 0;
 
+    let bool_count = is_bool.iter().filter(|&&b| b).count();
     for i in 0..r1lf.num_constraints {
-        let ba = bound_lin(&r1lf.a[i], M);
-        let bb = bound_lin(&r1lf.b[i], M);
-        let bc = bound_lin(&r1lf.c[i], M);
+        let ba = bound_lin(&r1lf.a[i], &is_bool, M);
+        let bb = bound_lin(&r1lf.b[i], &is_bool, M);
+        let bc = bound_lin(&r1lf.c[i], &is_bool, M);
         // Sufficient wrap-prevention check:
         // |(A·w)(B·w) - (C·w)| <= |A·w||B·w| + |C·w| < q/2
         let row_bound = ba.saturating_mul(bb).saturating_add(bc);
@@ -466,6 +559,7 @@ fn audit_no_wrap_frog64_lifted(r1lf: &sp1_recursion_compiler::r1cs::lf::R1CSLf) 
     println!("  q_frog:                 {Q_FROG}");
     println!("  q_frog/2:               {Q_HALF}");
     println!("  per-coordinate bound M: {M}");
+    println!("  inferred boolean vars:  {bool_count}");
     println!("  worst row index:        {worst_row}");
     println!("  worst |A·w| bound:      {worst_a}");
     println!("  worst |B·w| bound:      {worst_b}");
