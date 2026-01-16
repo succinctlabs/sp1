@@ -34,6 +34,7 @@ use sp1_stark::BabyBearPoseidon2Inner;
 use sp1_stark::StarkGenericConfig;
 
 use sp1_prover::{InnerSC, ShrinkAir};
+use sp1_prover::CpuProverComponents;
 use sp1_core_executor::SP1Context;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_core_machine::reduce::SP1ReduceProof;
@@ -96,7 +97,7 @@ fn build_shrink_verifier_ops() -> Vec<DslIr<InnerConfig>> {
     // in configurations where the allowed VK set yields a height > 1.
     //
     // This is not "statement-time": the allowed VK set is embedded into the prover binary.
-    let merkle_tree_height = SP1Prover::new().recursion_vk_tree.height;
+    let merkle_tree_height = SP1Prover::<CpuProverComponents>::new().recursion_vk_tree.height;
     let shape = sp1_recursion_circuit::machine::SP1CompressWithVkeyShape {
         compress_shape: input_shape,
         merkle_tree_height,
