@@ -23,28 +23,20 @@ mod tests {
         // Regression test for the R1CS format contract:
         // public inputs occupy indices 1..=num_public.
         //
-        // We model a minimal program that:
-        // - defines a variable `var7` (using Var ops supported by this backend)
-        // - then marks `var7` as a committed "public input" via CircuitCommitVkeyHash.
+        // We model a minimal program that marks `var7` as a committed "public input" via
+        // CircuitCommitVkeyHash, and rely on `get_value` to provide its value.
         //
-        // The compiler must allocate `var7` into index 1 (public prefix) and reuse that slot
-        // when the value is defined, so the committed value truly lives in the public input
-        // region of the exported R1CS.
-        let v1 = Var::<p3_bls12_377_fr::Bls12377Fr>::new(1, core::ptr::null_mut());
-        let v2 = Var::<p3_bls12_377_fr::Bls12377Fr>::new(2, core::ptr::null_mut());
+        // The compiler must allocate `var7` into index 1 (public prefix).
         let v7 = Var::<p3_bls12_377_fr::Bls12377Fr>::new(7, core::ptr::null_mut());
 
         let ops = vec![
-            // Define var7 := var1 + var2 (values provided by get_value).
-            crate::ir::DslIr::<OuterConfig>::AddV(v7, v1, v2),
             // Mark var7 as a public/committed input.
             crate::ir::DslIr::<OuterConfig>::CircuitCommitVkeyHash(v7),
         ];
 
         let mut get_value = |id: &str| -> Option<BabyBear> {
             match id {
-                "var1" => Some(BabyBear::from_canonical_u64(3)),
-                "var2" => Some(BabyBear::from_canonical_u64(5)),
+                "var7" => Some(BabyBear::from_canonical_u64(8)),
                 _ => Some(BabyBear::zero()),
             }
         };
@@ -67,7 +59,7 @@ mod tests {
             "var7 must map to public prefix index 1"
         );
         assert_eq!(witness[0], BabyBear::one());
-        assert_eq!(witness[1], BabyBear::from_canonical_u64(8), "var7 := 3 + 5");
+        assert_eq!(witness[1], BabyBear::from_canonical_u64(8), "public var7 value");
         assert_eq!(witness.len(), compiler.r1cs.num_vars, "witness length must match num_vars");
     }
 

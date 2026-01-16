@@ -7,6 +7,7 @@
 use p3_field::{AbstractExtensionField, AbstractField, Field, PrimeField64};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::OnceLock;
+use std::any::TypeId;
 
 use crate::ir::{Config, DslIr, Ext};
 use super::types::{R1CS, SparseRow};
@@ -110,6 +111,134 @@ impl<C: Config> R1CSCompiler<C>
 where
     C::F: PrimeField64,
 {
+    #[inline]
+    fn require_var_field_is_base_field()
+    where
+        C::N: 'static,
+        C::F: 'static,
+    {
+        // SECURITY HARDENING:
+        // This backend encodes `Var<C::N>` arithmetic as constraints over `C::F`.
+        // That is only sound if `C::N` and `C::F` are the same field.
+        //
+        // For the recursion circuit `AsmConfig`, this holds (N=F). For other Configs (e.g. OuterConfig),
+        // treating Var arithmetic as BabyBear constraints would be a semantic mismatch.
+        if TypeId::of::<C::N>() != TypeId::of::<C::F>() {
+            panic!(
+                "R1CSCompiler: encountered Var<C::N> arithmetic but C::N != C::F. \
+                 This backend only supports Var ops when N==F (AsmConfig)."
+            );
+        }
+    }
+
+    // --- Septic extension gadgets (for CircuitV2HintAddCurve constraints) ---
+    //
+    // We represent a septic extension element as 7 base-field variable indices, least-significant
+    // coefficient first (matching `SepticExtension([c0..c6])`).
+    fn septic_add(
+        &mut self,
+        a: &[usize; 7],
+        b: &[usize; 7],
+        mut ctx: Option<&mut WitnessCtx<'_, C::F>>,
+    ) -> [usize; 7] {
+        let mut out = [0usize; 7];
+        for i in 0..7 {
+            let o = self.alloc_var(ctx.as_deref_mut());
+            let mut sum = SparseRow::new();
+            sum.add_term(a[i], C::F::one());
+            sum.add_term(b[i], C::F::one());
+            self.r1cs.add_constraint(SparseRow::single(0), sum, SparseRow::single(o));
+            if let Some(c) = ctx.as_deref_mut() {
+                c.set(o, c.get(a[i]) + c.get(b[i]));
+            }
+            out[i] = o;
+        }
+        out
+    }
+
+    fn septic_sub(
+        &mut self,
+        a: &[usize; 7],
+        b: &[usize; 7],
+        mut ctx: Option<&mut WitnessCtx<'_, C::F>>,
+    ) -> [usize; 7] {
+        let mut out = [0usize; 7];
+        for i in 0..7 {
+            let o = self.alloc_var(ctx.as_deref_mut());
+            let mut diff = SparseRow::new();
+            diff.add_term(a[i], C::F::one());
+            diff.add_term(b[i], -C::F::one());
+            self.r1cs.add_constraint(SparseRow::single(0), diff, SparseRow::single(o));
+            if let Some(c) = ctx.as_deref_mut() {
+                c.set(o, c.get(a[i]) - c.get(b[i]));
+            }
+            out[i] = o;
+        }
+        out
+    }
+
+    fn septic_mul(
+        &mut self,
+        a: &[usize; 7],
+        b: &[usize; 7],
+        mut ctx: Option<&mut WitnessCtx<'_, C::F>>,
+    ) -> [usize; 7] {
+        // Compute all 49 products a[i]*b[j].
+        let mut prod = [[0usize; 7]; 7];
+        for i in 0..7 {
+            for j in 0..7 {
+                let p = self.alloc_var(ctx.as_deref_mut());
+                self.add_mul(p, a[i], b[j]);
+                if let Some(c) = ctx.as_deref_mut() {
+                    c.set(p, c.get(a[i]) * c.get(b[j]));
+                }
+                prod[i][j] = p;
+            }
+        }
+
+        // Reduce modulo z^7 - 2z - 5, matching `sp1_stark::septic_extension`:
+        // ret[t] = sum_{i+j=t} prod[i][j]
+        //        + 5 * sum_{i+j=t+7} prod[i][j]
+        //        + 2 * sum_{i+j=t+6, i+j>=7} prod[i][j]
+        let five = C::F::from_canonical_u64(5);
+        let two = C::F::from_canonical_u64(2);
+        let mut out = [0usize; 7];
+        for t in 0..7 {
+            let o = self.alloc_var(ctx.as_deref_mut());
+            let mut lin = SparseRow::new();
+            // For witness generation, compute the same linear combo over prod vars.
+            let mut acc = C::F::zero();
+            for i in 0..7 {
+                for j in 0..7 {
+                    let s = i + j;
+                    let mut coeff = C::F::zero();
+                    if s == t {
+                        coeff += C::F::one();
+                    }
+                    if t <= 5 && s == t + 7 {
+                        coeff += five;
+                    }
+                    if t >= 1 && s == t + 6 {
+                        // This corresponds to i+j = 7..12.
+                        coeff += two;
+                    }
+                    if !coeff.is_zero() {
+                        lin.add_term(prod[i][j], coeff);
+                        if let Some(c) = ctx.as_deref() {
+                            acc += coeff * c.get(prod[i][j]);
+                        }
+                    }
+                }
+            }
+            self.r1cs.add_constraint(SparseRow::single(0), lin, SparseRow::single(o));
+            if let Some(c) = ctx.as_deref_mut() {
+                c.set(o, acc);
+            }
+            out[t] = o;
+        }
+        out
+    }
+
     /// Phase 0 helper: collect committed "public input" variable IDs in first-occurrence order.
     ///
     /// IMPORTANT: Our R1CS format encodes public inputs positionally: indices `1..=num_public`
@@ -723,6 +852,7 @@ where
 
             // === Addition (linear, no constraint needed - just track wiring) ===
             DslIr::AddV(dst, lhs, rhs) => {
+                Self::require_var_field_is_base_field();
                 let dst_idx = self.write_id(&dst.id(), ctx.as_deref_mut());
                 let lhs_idx = self.get_var(&lhs.id(), ctx.as_deref_mut());
                 let rhs_idx = self.get_var(&rhs.id(), ctx.as_deref_mut());
@@ -785,6 +915,7 @@ where
 
             // === Subtraction ===
             DslIr::SubV(dst, lhs, rhs) => {
+                Self::require_var_field_is_base_field();
                 let dst_idx = self.write_id(&dst.id(), ctx.as_deref_mut());
                 let lhs_idx = self.get_var(&lhs.id(), ctx.as_deref_mut());
                 let rhs_idx = self.get_var(&rhs.id(), ctx.as_deref_mut());
@@ -859,6 +990,7 @@ where
 
             // === Multiplication ===
             DslIr::MulV(dst, lhs, rhs) => {
+                Self::require_var_field_is_base_field();
                 let dst_idx = self.write_id(&dst.id(), ctx.as_deref_mut());
                 let lhs_idx = self.get_var(&lhs.id(), ctx.as_deref_mut());
                 let rhs_idx = self.get_var(&rhs.id(), ctx.as_deref_mut());
@@ -1047,6 +1179,7 @@ where
             }
             
             DslIr::AssertNeV(lhs, rhs) => {
+                Self::require_var_field_is_base_field();
                 let lhs_idx = self.get_var(&lhs.id(), ctx.as_deref_mut());
                 let rhs_idx = self.get_var(&rhs.id(), ctx.as_deref_mut());
                 self.add_neq(lhs_idx, rhs_idx, ctx.as_deref_mut());
@@ -1070,6 +1203,7 @@ where
 
             // === Select operations ===
             DslIr::CircuitSelectV(cond, a, b, out) => {
+                Self::require_var_field_is_base_field();
                 let out_idx = self.get_or_alloc(&out.id(), ctx.as_deref_mut());
                 let cond_idx = self.get_var(&cond.id(), ctx.as_deref_mut());
                 let a_idx = self.get_var(&a.id(), ctx.as_deref_mut());
@@ -1094,6 +1228,7 @@ where
 
             // === Bit decomposition ===
             DslIr::CircuitNum2BitsV(value, num_bits, output) => {
+                Self::require_var_field_is_base_field();
                 let value_idx = self.get_var(&value.id(), ctx.as_deref_mut());
                 let bit_indices: Vec<usize> = output
                     .iter()
@@ -2521,15 +2656,18 @@ where
             // === CircuitV2HintAddCurve: Elliptic curve point addition hint ===
             // SepticCurve has x, y fields each with 7 Felt components (SepticExtension).
             DslIr::CircuitV2HintAddCurve(boxed) => {
-                let (sum, _p1, _p2) = boxed.as_ref();
-                // Allocate and assign all 14 felts for sum (7 for x, 7 for y).
-                //
-                // IMPORTANT: in this shrink-verifier backend, these values are produced by the
-                // recursion runtime and are available via `get_value` (runtime memory), not via
-                // the witness hint stream.
-                for felt in sum.x.0.iter().chain(sum.y.0.iter()) {
+                // `CircuitV2Builder::add_curve_v2` constrains the hinted sum via sum-checker identities.
+                // The IR only carries the hint op; therefore the R1CS backend must implement these
+                // constraints here (otherwise the hint is an unconstrained degree of freedom).
+                let (sum, p1, p2) = boxed.as_ref();
+
+                // Allocate + assign all 14 felts for sum (7 for x, 7 for y) from runtime memory.
+                let mut sum_x = [0usize; 7];
+                let mut sum_y = [0usize; 7];
+                for (i, felt) in sum.x.0.iter().enumerate() {
                     let id = felt.id();
                     let idx = self.get_or_alloc(&id, ctx.as_deref_mut());
+                    sum_x[i] = idx;
                     if let Some(c) = ctx.as_deref_mut() {
                         let v = (c.get_value)(&id).unwrap_or_else(|| {
                             panic!(
@@ -2539,6 +2677,56 @@ where
                         });
                         c.set(idx, v);
                     }
+                }
+                for (i, felt) in sum.y.0.iter().enumerate() {
+                    let id = felt.id();
+                    let idx = self.get_or_alloc(&id, ctx.as_deref_mut());
+                    sum_y[i] = idx;
+                    if let Some(c) = ctx.as_deref_mut() {
+                        let v = (c.get_value)(&id).unwrap_or_else(|| {
+                            panic!(
+                                "R1CS witness: CircuitV2HintAddCurve needs runtime value for '{}', but get_value returned None",
+                                id
+                            )
+                        });
+                        c.set(idx, v);
+                    }
+                }
+
+                // Read p1/p2 coordinates (must already exist / be constrained elsewhere).
+                let mut p1_x = [0usize; 7];
+                let mut p1_y = [0usize; 7];
+                let mut p2_x = [0usize; 7];
+                let mut p2_y = [0usize; 7];
+                for i in 0..7 {
+                    p1_x[i] = self.get_var(&p1.x.0[i].id(), ctx.as_deref_mut());
+                    p1_y[i] = self.get_var(&p1.y.0[i].id(), ctx.as_deref_mut());
+                    p2_x[i] = self.get_var(&p2.x.0[i].id(), ctx.as_deref_mut());
+                    p2_y[i] = self.get_var(&p2.y.0[i].id(), ctx.as_deref_mut());
+                }
+
+                // Enforce sum-checkers to be zero:
+                // sum_checker_x = (x1+x2+x3)*(x2-x1)^2 - (y2-y1)^2
+                // sum_checker_y = (y1+y3)*(x2-x1) - (y2-y1)*(x1-x3)
+                let x1_plus_x2 = self.septic_add(&p1_x, &p2_x, ctx.as_deref_mut());
+                let x1_plus_x2_plus_x3 = self.septic_add(&x1_plus_x2, &sum_x, ctx.as_deref_mut());
+                let x2_minus_x1 = self.septic_sub(&p2_x, &p1_x, ctx.as_deref_mut());
+                let x2_minus_x1_sq = self.septic_mul(&x2_minus_x1, &x2_minus_x1, ctx.as_deref_mut());
+                let lhs_x = self.septic_mul(&x1_plus_x2_plus_x3, &x2_minus_x1_sq, ctx.as_deref_mut());
+                let y2_minus_y1 = self.septic_sub(&p2_y, &p1_y, ctx.as_deref_mut());
+                let y2_minus_y1_sq = self.septic_mul(&y2_minus_y1, &y2_minus_y1, ctx.as_deref_mut());
+                let scx = self.septic_sub(&lhs_x, &y2_minus_y1_sq, ctx.as_deref_mut());
+
+                let y1_plus_y3 = self.septic_add(&p1_y, &sum_y, ctx.as_deref_mut());
+                let lhs_y = self.septic_mul(&y1_plus_y3, &x2_minus_x1, ctx.as_deref_mut());
+                let x1_minus_x3 = self.septic_sub(&p1_x, &sum_x, ctx.as_deref_mut());
+                let rhs_y = self.septic_mul(&y2_minus_y1, &x1_minus_x3, ctx.as_deref_mut());
+                let scy = self.septic_sub(&lhs_y, &rhs_y, ctx.as_deref_mut());
+
+                // Constrain all coefficients to zero: (1) * coeff = 0.
+                for i in 0..7 {
+                    self.r1cs.add_constraint(SparseRow::single(0), SparseRow::single(scx[i]), SparseRow::zero());
+                    self.r1cs.add_constraint(SparseRow::single(0), SparseRow::single(scy[i]), SparseRow::zero());
                 }
             }
             
