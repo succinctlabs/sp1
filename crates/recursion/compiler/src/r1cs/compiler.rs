@@ -117,7 +117,6 @@ where
         C::N: 'static,
         C::F: 'static,
     {
-        // SECURITY HARDENING:
         // This backend encodes `Var<C::N>` arithmetic as constraints over `C::F`.
         // That is only sound if `C::N` and `C::F` are the same field.
         //
@@ -1208,6 +1207,7 @@ where
                 let cond_idx = self.get_var(&cond.id(), ctx.as_deref_mut());
                 let a_idx = self.get_var(&a.id(), ctx.as_deref_mut());
                 let b_idx = self.get_var(&b.id(), ctx.as_deref_mut());
+                self.add_boolean(cond_idx);
                 self.add_select(out_idx, cond_idx, a_idx, b_idx);
                 if let Some(c) = ctx.as_deref_mut() {
                     // Field-linear form: out = cond*(a-b) + b.
@@ -1216,13 +1216,33 @@ where
             }
             
             DslIr::CircuitSelectF(cond, a, b, out) => {
+                Self::require_var_field_is_base_field();
                 let out_idx = self.get_or_alloc(&out.id(), ctx.as_deref_mut());
                 let cond_idx = self.get_var(&cond.id(), ctx.as_deref_mut());
                 let a_idx = self.get_var(&a.id(), ctx.as_deref_mut());
                 let b_idx = self.get_var(&b.id(), ctx.as_deref_mut());
+                self.add_boolean(cond_idx);
                 self.add_select(out_idx, cond_idx, a_idx, b_idx);
                 if let Some(c) = ctx.as_deref_mut() {
                     c.set(out_idx, c.get(cond_idx) * (c.get(a_idx) - c.get(b_idx)) + c.get(b_idx));
+                }
+            }
+            
+            DslIr::CircuitSelectE(cond, a, b, out) => {
+                Self::require_var_field_is_base_field();
+                let cond_idx = self.get_var(&cond.id(), ctx.as_deref_mut());
+                self.add_boolean(cond_idx);
+
+                // Each extension element is 4 base field elements. Apply the same select gadget
+                // componentwise.
+                for i in 0..4 {
+                    let out_i = self.get_or_alloc(&format!("{}__{}", out.id(), i), ctx.as_deref_mut());
+                    let a_i = self.get_var(&format!("{}__{}", a.id(), i), ctx.as_deref_mut());
+                    let b_i = self.get_var(&format!("{}__{}", b.id(), i), ctx.as_deref_mut());
+                    self.add_select(out_i, cond_idx, a_i, b_i);
+                    if let Some(c) = ctx.as_deref_mut() {
+                        c.set(out_i, c.get(cond_idx) * (c.get(a_i) - c.get(b_i)) + c.get(b_i));
+                    }
                 }
             }
 
@@ -1245,18 +1265,57 @@ where
             }
             
             DslIr::CircuitNum2BitsF(value, output) => {
+                Self::require_var_field_is_base_field();
                 let value_idx = self.get_var(&value.id(), ctx.as_deref_mut());
                 let bit_indices: Vec<usize> = output
                     .iter()
                     .map(|v| self.get_or_alloc(&v.id(), ctx.as_deref_mut()))
                     .collect();
-                // BabyBear has 31-bit modulus
-                self.add_num2bits(value_idx, &bit_indices, 31);
+                // BabyBear has 31-bit modulus; this opcode is intended to produce a 31-bit
+                // canonical decomposition.
+                let nbits = bit_indices.len();
+                assert!(
+                    nbits <= 31,
+                    "CircuitNum2BitsF: requested {nbits} bits; expected <= 31 for BabyBear"
+                );
+                self.add_num2bits(value_idx, &bit_indices, nbits);
+
+                // Canonicality check for 31-bit decompositions (same idea as V2):
+                // if top 4 bits are all 1, then all bottom 27 bits must be 0.
+                let (b27, b28, b29, b30) = if nbits > 30 {
+                    (bit_indices[27], bit_indices[28], bit_indices[29], bit_indices[30])
+                } else {
+                    (0usize, 0usize, 0usize, 0usize)
+                };
+                let mut top_and_vars: Option<(usize, usize, usize)> = None;
+                if nbits > 30 {
+                    let t01 = self.alloc_var(ctx.as_deref_mut());
+                    self.add_mul(t01, b30, b29);
+                    let t012 = self.alloc_var(ctx.as_deref_mut());
+                    self.add_mul(t012, t01, b28);
+                    let are_all_top_bits_one = self.alloc_var(ctx.as_deref_mut());
+                    self.add_mul(are_all_top_bits_one, t012, b27);
+                    top_and_vars = Some((t01, t012, are_all_top_bits_one));
+
+                    let zero = self.alloc_const(C::F::zero(), ctx.as_deref_mut());
+                    for &bit in bit_indices.iter().take(27) {
+                        self.r1cs.add_constraint(
+                            SparseRow::single(bit),
+                            SparseRow::single(are_all_top_bits_one),
+                            SparseRow::single(zero),
+                        );
+                    }
+                }
                 if let Some(c) = ctx.as_deref_mut() {
                     let mut x = c.get(value_idx).as_canonical_u64();
-                    for &b in bit_indices.iter().take(31) {
+                    for &b in bit_indices.iter().take(nbits) {
                         c.set(b, C::F::from_canonical_u64(x & 1));
                         x >>= 1;
+                    }
+                    if let Some((t01, t012, are_all_top_bits_one)) = top_and_vars {
+                        c.set(t01, c.get(b30) * c.get(b29));
+                        c.set(t012, c.get(t01) * c.get(b28));
+                        c.set(are_all_top_bits_one, c.get(t012) * c.get(b27));
                     }
                 }
             }
@@ -2554,39 +2613,6 @@ where
                         self.get_var(&format!("{}__{}", lhs.id(), i), ctx.as_deref_mut());
                     let const_idx = self.alloc_const(rhs_base[i], ctx.as_deref_mut());
                     self.add_eq(lhs_idx, const_idx);
-                }
-            }
-            
-            DslIr::CircuitSelectE(cond, a, b, out) => {
-                let cond_idx = self.get_var(&cond.id(), ctx.as_deref_mut());
-                // Add boolean constraint on cond
-                self.add_boolean(cond_idx);
-                
-                for i in 0..4 {
-                    let out_idx =
-                        self.get_or_alloc(&format!("{}__{}", out.id(), i), ctx.as_deref_mut());
-                    let a_idx =
-                        self.get_var(&format!("{}__{}", a.id(), i), ctx.as_deref_mut());
-                    let b_idx =
-                        self.get_var(&format!("{}__{}", b.id(), i), ctx.as_deref_mut());
-                    
-                    // out = cond * (a - b) + b
-                    let mut a_minus_b = SparseRow::new();
-                    a_minus_b.add_term(a_idx, C::F::one());
-                    a_minus_b.add_term(b_idx, -C::F::one());
-                    
-                    let mut out_minus_b = SparseRow::new();
-                    out_minus_b.add_term(out_idx, C::F::one());
-                    out_minus_b.add_term(b_idx, -C::F::one());
-                    
-                    self.r1cs.add_constraint(
-                        SparseRow::single(cond_idx),
-                        a_minus_b,
-                        out_minus_b,
-                    );
-                    if let Some(c) = ctx.as_deref_mut() {
-                        c.set(out_idx, c.get(cond_idx) * (c.get(a_idx) - c.get(b_idx)) + c.get(b_idx));
-                    }
                 }
             }
             

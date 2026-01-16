@@ -667,6 +667,14 @@ fn main() {
     }
     println!("  ... ({} total opcode types)", counts_sorted.len());
     println!("  Total ops: {}", ops.len());
+    // Targeted presence checks for security-relevant opcodes (may not appear in top-15).
+    let get = |k: &str| -> usize { *counts.get(k).unwrap_or(&0) };
+    println!(
+        "  [opcode check] CircuitNum2BitsF={} CircuitV2HintBitsF={} CircuitV2HintAddCurve={}",
+        get("CircuitNum2BitsF"),
+        get("CircuitV2HintBitsF"),
+        get("CircuitV2HintAddCurve"),
+    );
 
     // Export modes:
     // - If OUT_WITNESS is set: dump witness, and (optionally) also write OUT_R1CS_LF if requested.

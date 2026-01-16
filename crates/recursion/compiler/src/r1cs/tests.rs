@@ -162,6 +162,91 @@ mod tests {
     }
 
     #[test]
+    fn test_add_curve_v2_hint_is_constrained_rejects_tampered_sum() {
+        // Regression test: `CircuitV2HintAddCurve` must be *constrained* (not just hinted),
+        // otherwise a prover could pick an arbitrary sum point.
+        //
+        // We build a small program:
+        // - p1, p2 are fixed constants (as felts) via ImmF
+        // - sum is provided via get_value (runtime memory), as the hint op does
+        // - constraints enforce the sum-checker identities, so tampering any sum limb breaks sat.
+        use crate::ir::{DslIr, Felt};
+        use sp1_stark::septic_curve::SepticCurve;
+        use sp1_stark::septic_extension::SepticExtension;
+
+        // Deterministic nontrivial points.
+        let p1: SepticCurve<BabyBear> = SepticCurve::dummy();
+        let mut p2: SepticCurve<BabyBear> = p1.double();
+        if p2.x == p1.x {
+            p2 = p2.double();
+        }
+        let sum: SepticCurve<BabyBear> = p1.add_incomplete(p2);
+
+        // Wire IDs:
+        // p1: felt5000..5013 (x then y)
+        // p2: felt6000..6013
+        // sum: felt7000..7013 (provided by get_value)
+        let p1_x: [Felt<BabyBear>; 7] = core::array::from_fn(|i| Felt::new(5000 + i as u32, core::ptr::null_mut()));
+        let p1_y: [Felt<BabyBear>; 7] = core::array::from_fn(|i| Felt::new(5007 + i as u32, core::ptr::null_mut()));
+        let p2_x: [Felt<BabyBear>; 7] = core::array::from_fn(|i| Felt::new(6000 + i as u32, core::ptr::null_mut()));
+        let p2_y: [Felt<BabyBear>; 7] = core::array::from_fn(|i| Felt::new(6007 + i as u32, core::ptr::null_mut()));
+        let sum_x: [Felt<BabyBear>; 7] = core::array::from_fn(|i| Felt::new(7000 + i as u32, core::ptr::null_mut()));
+        let sum_y: [Felt<BabyBear>; 7] = core::array::from_fn(|i| Felt::new(7007 + i as u32, core::ptr::null_mut()));
+
+        let p1_curve = SepticCurve { x: SepticExtension(p1_x), y: SepticExtension(p1_y) };
+        let p2_curve = SepticCurve { x: SepticExtension(p2_x), y: SepticExtension(p2_y) };
+        let sum_curve = SepticCurve { x: SepticExtension(sum_x), y: SepticExtension(sum_y) };
+
+        let mut ops: Vec<DslIr<OuterConfig>> = Vec::new();
+        // Set p1/p2 coordinates as constants via ImmF.
+        for i in 0..7 {
+            ops.push(DslIr::ImmF(p1_x[i], p1.x.0[i]));
+            ops.push(DslIr::ImmF(p1_y[i], p1.y.0[i]));
+            ops.push(DslIr::ImmF(p2_x[i], p2.x.0[i]));
+            ops.push(DslIr::ImmF(p2_y[i], p2.y.0[i]));
+        }
+        // Hint curve add (sum values sourced from get_value).
+        ops.push(DslIr::CircuitV2HintAddCurve(Box::new((sum_curve, p1_curve, p2_curve))));
+
+        let mut get_value = |id: &str| -> Option<BabyBear> {
+            // Provide sum coordinates as runtime memory values.
+            if let Some(rest) = id.strip_prefix("felt") {
+                if let Ok(n) = rest.parse::<u32>() {
+                    if (7000..7014).contains(&n) {
+                        let idx = (n - 7000) as usize;
+                        return if idx < 7 {
+                            Some(sum.x.0[idx])
+                        } else {
+                            Some(sum.y.0[idx - 7])
+                        };
+                    }
+                }
+            }
+            Some(BabyBear::zero())
+        };
+        let mut next_hint_felt = || -> Option<BabyBear> { None };
+        let mut next_hint_ext = || -> Option<[BabyBear; 4]> { None };
+
+        let (compiler, witness_ok) = R1CSCompiler::<OuterConfig>::compile_with_witness(
+            ops,
+            &mut get_value,
+            &mut next_hint_felt,
+            &mut next_hint_ext,
+        );
+        assert!(compiler.r1cs.is_satisfied(&witness_ok), "honest curve-add witness must satisfy");
+
+        // Tamper a single sum limb.
+        let mut witness_bad = witness_ok.clone();
+        let limb_id = "felt7000".to_string();
+        let limb_idx = *compiler.var_map.get(&limb_id).expect("sum limb must exist");
+        witness_bad[limb_idx] += BabyBear::one();
+        assert!(
+            !compiler.r1cs.is_satisfied(&witness_bad),
+            "tampering sum limb must break sat"
+        );
+    }
+
+    #[test]
     fn test_lift_refactor_digest_matches() {
         // Toy satisfied R1CS: (x) * (y) = z, with x=3,y=5,z=15.
         // This constraint is not a skip pattern, so it will be lifted and will introduce 1 aux var.
