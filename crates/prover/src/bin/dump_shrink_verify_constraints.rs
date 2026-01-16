@@ -542,7 +542,7 @@ fn audit_no_wrap_frog64_lifted(r1lf: &sp1_recursion_compiler::r1cs::lf::R1CSLf) 
         let bb = bound_lin(&r1lf.b[i], &is_bool, M);
         let bc = bound_lin(&r1lf.c[i], &is_bool, M);
         // Sufficient wrap-prevention check:
-        // |(A·w)(B·w) - (C·w)| <= |A·w||B·w| + |C·w| < q/2
+        // |(A·w)(B·w) - (C·w)| <= |A·w||B·w| + |C·w| < q_frog
         let row_bound = ba.saturating_mul(bb).saturating_add(bc);
         if row_bound > worst_bound {
             worst_bound = row_bound;
@@ -558,6 +558,7 @@ fn audit_no_wrap_frog64_lifted(r1lf: &sp1_recursion_compiler::r1cs::lf::R1CSLf) 
     println!("=========================================================");
     println!("  q_frog:                 {Q_FROG}");
     println!("  q_frog/2:               {Q_HALF}");
+    println!("  audit threshold:        q_frog (requires worst_bound < q_frog)");
     println!("  per-coordinate bound M: {M}");
     println!("  inferred boolean vars:  {bool_count}");
     println!("  worst row index:        {worst_row}");
