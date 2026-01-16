@@ -134,6 +134,42 @@ mod tests {
     }
 
     #[test]
+    fn test_num2bits_v2_f_accepts_canonical_p_minus_1() {
+        // Regression test: witness generation + canonicality constraints must be consistent
+        // for the corner value p-1 = 2^31 - 2^27 (top 4 bits are 1, bottom 27 bits are 0).
+        use crate::ir::{DslIr, Felt};
+        const P_MINUS_1: u64 = 2_013_265_920;
+
+        let value = Felt::<BabyBear>::new(3000, core::ptr::null_mut());
+        let bits: Vec<Felt<BabyBear>> = (0..31)
+            .map(|i| Felt::<BabyBear>::new(4000 + i as u32, core::ptr::null_mut()))
+            .collect();
+
+        let ops = vec![DslIr::<OuterConfig>::CircuitV2HintBitsF(bits, value)];
+
+        let mut get_value = |id: &str| -> Option<BabyBear> {
+            if id == "felt3000" {
+                Some(BabyBear::from_canonical_u64(P_MINUS_1))
+            } else {
+                Some(BabyBear::zero())
+            }
+        };
+        let mut next_hint_felt = || -> Option<BabyBear> { None };
+        let mut next_hint_ext = || -> Option<[BabyBear; 4]> { None };
+
+        let (compiler, witness) = R1CSCompiler::<OuterConfig>::compile_with_witness(
+            ops,
+            &mut get_value,
+            &mut next_hint_felt,
+            &mut next_hint_ext,
+        );
+        assert!(
+            compiler.r1cs.is_satisfied(&witness),
+            "canonical p-1 decomposition should satisfy constraints"
+        );
+    }
+
+    #[test]
     fn test_lift_refactor_digest_matches() {
         // Toy satisfied R1CS: (x) * (y) = z, with x=3,y=5,z=15.
         // This constraint is not a skip pattern, so it will be lifted and will introduce 1 aux var.

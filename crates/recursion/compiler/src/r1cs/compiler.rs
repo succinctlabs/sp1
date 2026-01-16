@@ -1361,6 +1361,8 @@ where
                 );
                 self.add_num2bits(value_idx, &bit_indices, nbits);
 
+                // In witness-mode, populate the hinted bits from the canonical representative
+                // BEFORE computing any derived intermediates that depend on them.
                 // Canonicality / modulus-range check (matches `circuit/builder.rs::num2bits_v2_f`):
                 //
                 // BabyBear modulus is p = 2^31 - 2^27 + 1 = (15 * 2^27) + 1.
@@ -1374,12 +1376,19 @@ where
                 //
                 // This allows values < 15*2^27 (top4 != 1111) or exactly 15*2^27 (top4==1111, bottom==0),
                 // which are precisely the canonical representatives < p.
-                if nbits > 30 {
+                let (b27, b28, b29, b30) = if nbits > 30 {
                     // Bits are ordered least-significant first: bit_indices[i] corresponds to 2^i.
-                    let b30 = bit_indices[30];
-                    let b29 = bit_indices[29];
-                    let b28 = bit_indices[28];
-                    let b27 = bit_indices[27];
+                    (bit_indices[27], bit_indices[28], bit_indices[29], bit_indices[30])
+                } else {
+                    (0usize, 0usize, 0usize, 0usize)
+                };
+
+                // We may allocate intermediates for the canonicality check; fill their witness values
+                // after bits are assigned.
+                let mut top_and_vars: Option<(usize, usize, usize)> = None;
+
+                if nbits > 30 {
+                    let (b27, b28, b29, b30) = (b27, b28, b29, b30);
 
                     let t01 = self.alloc_var(ctx.as_deref_mut());
                     self.add_mul(t01, b30, b29);
@@ -1387,22 +1396,7 @@ where
                     self.add_mul(t012, t01, b28);
                     let are_all_top_bits_one = self.alloc_var(ctx.as_deref_mut());
                     self.add_mul(are_all_top_bits_one, t012, b27);
-
-                    if let Some(c) = ctx.as_deref_mut() {
-                        // Since bits are boolean, product is also boolean (AND).
-                        c.set(
-                            t01,
-                            c.get(b30) * c.get(b29),
-                        );
-                        c.set(
-                            t012,
-                            c.get(t01) * c.get(b28),
-                        );
-                        c.set(
-                            are_all_top_bits_one,
-                            c.get(t012) * c.get(b27),
-                        );
-                    }
+                    top_and_vars = Some((t01, t012, are_all_top_bits_one));
 
                     let zero = self.alloc_const(C::F::zero(), ctx.as_deref_mut());
                     for &bit in bit_indices.iter().take(27) {
@@ -1419,6 +1413,12 @@ where
                     for &b in bit_indices.iter() {
                         c.set(b, C::F::from_canonical_u64(x & 1));
                         x >>= 1;
+                    }
+                    // Now that bits are assigned, fill the derived AND products witness values.
+                    if let Some((t01, t012, are_all_top_bits_one)) = top_and_vars {
+                        c.set(t01, c.get(b30) * c.get(b29));
+                        c.set(t012, c.get(t01) * c.get(b28));
+                        c.set(are_all_top_bits_one, c.get(t012) * c.get(b27));
                     }
                 }
             }
