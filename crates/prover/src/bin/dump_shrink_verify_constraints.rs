@@ -366,6 +366,82 @@ fn load_or_build_input_with_merkle(
     (prover, input_with_merkle)
 }
 
+/// Audit that the lifted LF-targeted R1CS cannot exploit modulus wraparound when proven in Frog64
+/// under the SP1/Frog64 boundedness regime (`decomp_b=16, k=8`).
+///
+/// This is a *sufficient* condition: it uses worst-case magnitude bounds derived from per-row
+/// coefficient \(\ell_1\) norms and the per-coordinate witness bound.
+fn audit_no_wrap_frog64_lifted(r1lf: &sp1_recursion_compiler::r1cs::lf::R1CSLf) {
+    // Frog base field prime (see latticefold `FrogRing64` docs).
+    const Q_FROG: u128 = 15912092521325583641u128;
+    const Q_HALF: u128 = Q_FROG / 2;
+    // SP1/Frog64 boundedness envelope for each scalar witness coordinate:
+    // balanced base B=16, k=8 => max = (B/2) * (B^k - 1)/(B - 1) = 2,290,649,224
+    const M: u128 = 2_290_649_224u128;
+    const SP1_P_BB: u64 = 2013265921u64;
+
+    if r1lf.p_bb != SP1_P_BB {
+        // Not the SP1 BabyBear modulus; this audit is currently specialized to SP1/Frog64.
+        return;
+    }
+
+    // Helper: bound |row · w| given |w_i|<=M for i>0 and w_0=1.
+    #[inline]
+    fn bound_lin(row: &sp1_recursion_compiler::r1cs::lf::SparseRowI64, m: u128) -> u128 {
+        let mut acc: u128 = 0;
+        for (idx, coeff) in &row.terms {
+            let abs = (*coeff).unsigned_abs() as u128;
+            if *idx == 0 {
+                acc = acc.saturating_add(abs);
+            } else {
+                acc = acc.saturating_add(abs.saturating_mul(m));
+            }
+        }
+        acc
+    }
+
+    let mut worst_row: usize = 0;
+    let mut worst_bound: u128 = 0;
+    let mut worst_a: u128 = 0;
+    let mut worst_b: u128 = 0;
+    let mut worst_c: u128 = 0;
+
+    for i in 0..r1lf.num_constraints {
+        let ba = bound_lin(&r1lf.a[i], M);
+        let bb = bound_lin(&r1lf.b[i], M);
+        let bc = bound_lin(&r1lf.c[i], M);
+        // Sufficient wrap-prevention check:
+        // |(A·w)(B·w) - (C·w)| <= |A·w||B·w| + |C·w| < q/2
+        let row_bound = ba.saturating_mul(bb).saturating_add(bc);
+        if row_bound > worst_bound {
+            worst_bound = row_bound;
+            worst_row = i;
+            worst_a = ba;
+            worst_b = bb;
+            worst_c = bc;
+        }
+    }
+
+    println!("\n=========================================================");
+    println!("R1LF No-Wrap Audit (SP1→Frog64, sufficient bound)");
+    println!("=========================================================");
+    println!("  q_frog:                 {Q_FROG}");
+    println!("  q_frog/2:               {Q_HALF}");
+    println!("  per-coordinate bound M: {M}");
+    println!("  worst row index:        {worst_row}");
+    println!("  worst |A·w| bound:      {worst_a}");
+    println!("  worst |B·w| bound:      {worst_b}");
+    println!("  worst |C·w| bound:      {worst_c}");
+    println!("  worst |A·w||B·w|+|C·w|: {worst_bound}");
+
+    if worst_bound >= Q_HALF {
+        panic!(
+            "R1LF no-wrap audit failed: worst_bound={} >= q_frog/2={} (row={})",
+            worst_bound, Q_HALF, worst_row
+        );
+    }
+}
+
 fn main() {
     println!("=========================================================");
     println!("SP1 Shrink Verifier → R1CS Compilation");
@@ -661,6 +737,11 @@ fn main() {
             &r1lf.digest()[..8]
         );
 
+        // Extend the existing audit gate with a wraparound safety check on the *lifted* instance.
+        if std::env::var("R1CS_AUDIT_UNCONSTRAINED").ok().as_deref() == Some("1") {
+            audit_no_wrap_frog64_lifted(&r1lf);
+        }
+
         // If OUT_R1CS_LF is also set, reuse existing file if it matches; otherwise rewrite.
         if let Some(out_path) = out_r1lf.as_deref() {
             let want_digest = r1lf.digest();
@@ -700,6 +781,12 @@ fn main() {
         let t_lift_total = std::time::Instant::now();
         let r1cs = r1cs_shape_only.expect("shape-only R1CS must have been compiled");
         let (r1lf, stats) = lift_r1cs_to_lf_with_linear_carries(&r1cs);
+
+        // Extend the existing audit gate with a wraparound safety check on the *lifted* instance.
+        if std::env::var("R1CS_AUDIT_UNCONSTRAINED").ok().as_deref() == Some("1") {
+            audit_no_wrap_frog64_lifted(&r1lf);
+        }
+
         let want_digest = r1lf.digest();
         let want_p = r1lf.p_bb;
         let want_nv = r1lf.num_vars;
