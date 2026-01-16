@@ -566,7 +566,14 @@ fn audit_no_wrap_frog64_lifted(r1lf: &sp1_recursion_compiler::r1cs::lf::R1CSLf) 
     println!("  worst |C·w| bound:      {worst_c}");
     println!("  worst |A·w||B·w|+|C·w|: {worst_bound}");
 
-    if worst_bound >= Q_HALF {
+    // Sufficient condition for "no modulus wrap attack" on this constraint family:
+    //
+    // If the witness boundedness implies |(A·w)(B·w) - (C·w)| < q_frog, then
+    // modular equality in the host field implies the corresponding *integer* equality.
+    //
+    // Using q/2 is a stronger (often too pessimistic) condition. q is enough here because
+    // the only multiple of q within (-q, q) is 0.
+    if worst_bound >= Q_FROG {
         let arow = &r1lf.a[worst_row];
         let brow = &r1lf.b[worst_row];
         let crow = &r1lf.c[worst_row];
@@ -592,8 +599,8 @@ fn audit_no_wrap_frog64_lifted(r1lf: &sp1_recursion_compiler::r1cs::lf::R1CSLf) 
         println!("  top {k} |coeff| terms in C: {:?}", top_terms(crow, k));
 
         panic!(
-            "R1LF no-wrap audit failed: worst_bound={} >= q_frog/2={} (row={})",
-            worst_bound, Q_HALF, worst_row
+            "R1LF no-wrap audit failed: worst_bound={} >= q_frog={} (row={})",
+            worst_bound, Q_FROG, worst_row
         );
     }
 }
