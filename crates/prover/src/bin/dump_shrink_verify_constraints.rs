@@ -186,6 +186,27 @@ fn extract_public_inputs_from_shrink(
     (vk_hash, committed_values_digest)
 }
 
+/// Best-effort extraction of (vk_hash, committed_values_digest) from `SHRINK_PROOF_CACHE`
+/// without re-proving. Useful for shape-only runs where we still want to log the program id.
+fn try_load_public_inputs_from_shrink_cache() -> Option<([u8; 32], [u8; 32])> {
+    let path = std::env::var("SHRINK_PROOF_CACHE").ok()?;
+    if !std::path::Path::new(&path).exists() {
+        return None;
+    }
+    let file = std::fs::File::open(&path).ok()?;
+    let shrink: SP1ReduceProof<InnerSC> = bincode::deserialize_from(file).ok()?;
+
+    let vk_hash = shrink.vk.bytes32_raw();
+    let pv: &sp1_recursion_core::air::RecursionPublicValues<BabyBear> =
+        shrink.proof.public_values.as_slice().borrow();
+    let bytes = words_to_bytes(&pv.committed_value_digest);
+    let mut committed_values_digest = [0u8; 32];
+    for (i, b) in bytes.iter().enumerate().take(32) {
+        committed_values_digest[i] = b.as_canonical_u32() as u8;
+    }
+    Some((vk_hash, committed_values_digest))
+}
+
 fn write_witness_bundle(
     path: &str,
     r1lf: &sp1_recursion_compiler::r1cs::lf::R1CSLf,
@@ -752,6 +773,16 @@ fn main() {
         r1cs_stats = Some((r1cs.num_vars, r1cs.num_constraints, r1cs.num_public, digest));
         println!("\n  R1CS Digest (SHA256):");
         println!("    0x{}", hex32(&digest));
+        if let Some((vk_hash, committed_values_digest)) = try_load_public_inputs_from_shrink_cache()
+        {
+            // `vk_hash` is program/verifier identity and typically treated as "shape-bound" for a
+            // fixed program. In shape-only mode we can only show it if the shrink-proof cache exists.
+            println!("  vk_hash=0x{} (from SHRINK_PROOF_CACHE)", hex32(&vk_hash));
+            println!(
+                "  committed_values_digest=0x{} (from SHRINK_PROOF_CACHE)",
+                hex32(&committed_values_digest)
+            );
+        }
         Some(r1cs)
     } else {
         None
@@ -841,6 +872,12 @@ fn main() {
             r1cs_stats = Some((r1cs2.num_vars, r1cs2.num_constraints, r1cs2.num_public, digest));
             println!("\n  R1CS Digest (SHA256):");
             println!("    0x{}", hex32(&digest));
+            let (vk_hash, committed_values_digest) = extract_public_inputs_from_shrink(input_with_merkle);
+            println!("  vk_hash=0x{}", hex32(&vk_hash));
+            println!(
+                "  committed_values_digest=0x{}",
+                hex32(&committed_values_digest)
+            );
 
             // Optional audit: detect unconstrained variables.
             if std::env::var("R1CS_AUDIT_UNCONSTRAINED").ok().as_deref() == Some("1") {
@@ -924,11 +961,6 @@ fn main() {
             if let Some(bundle_path) = out_witness_bundle.as_deref() {
                 let (vk_hash, committed_values_digest) =
                     extract_public_inputs_from_shrink(input_with_merkle);
-                println!("  vk_hash=0x{}", hex32(&vk_hash));
-                println!(
-                    "  committed_values_digest=0x{}",
-                    hex32(&committed_values_digest)
-                );
                 let t_bundle = std::time::Instant::now();
                 write_witness_bundle(
                     bundle_path,
