@@ -123,7 +123,7 @@ fn build_shrink_verifier_ops() -> Vec<DslIr<InnerConfig>> {
         &mut builder,
         &machine_verified,
         input,
-        false, // value_assertions disabled - we want algebraic shape only
+        true, // value_assertions enabled - required for WE/statement binding security
         // keep this consistent with witness-mode export so the compiled R1CS shape
         // (num_vars/digest) matches between shape-only and witness-only runs.
         sp1_recursion_circuit::machine::PublicValuesOutputDigest::Reduce,
@@ -721,8 +721,8 @@ fn main() {
             &mut builder,
             &machine_verified,
             input,
-            // keep algebraic shape identical to `build_shrink_verifier_ops()`.
-            false,
+            // Keep algebraic shape identical to `build_shrink_verifier_ops()`.
+            true,
             sp1_recursion_circuit::machine::PublicValuesOutputDigest::Reduce,
         );
         builder.into_operations()
