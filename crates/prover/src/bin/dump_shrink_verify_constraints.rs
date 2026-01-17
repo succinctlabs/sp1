@@ -393,7 +393,7 @@ fn build_real_input_with_merkle() -> (SP1Prover, SP1CompressWithVKeyWitnessValue
 }
 
 fn load_or_build_input_with_merkle(
-) -> (SP1Prover, SP1CompressWithVKeyWitnessValues<BabyBearPoseidon2>) {
+) -> (SP1Prover, SP1CompressWithVKeyWitnessValues<BabyBearPoseidon2>, bool) {
     // Cache the shrink proof (vk + proof) to avoid regenerating it between runs.
     //
     // - Set `SHRINK_PROOF_CACHE=/path/to/shrink_proof.bin` to enable caching.
@@ -417,7 +417,7 @@ fn load_or_build_input_with_merkle(
             };
             let input_with_merkle = prover.make_merkle_proofs(input);
             println!("Loaded shrink proof from SHRINK_PROOF_CACHE={path}");
-            return (prover, input_with_merkle);
+            return (prover, input_with_merkle, true);
         }
     }
 
@@ -437,7 +437,7 @@ fn load_or_build_input_with_merkle(
         println!("Cached shrink proof to SHRINK_PROOF_CACHE={path}");
     }
 
-    (prover, input_with_merkle)
+    (prover, input_with_merkle, false)
 }
 
 /// Audit that the lifted LF-targeted R1CS cannot exploit modulus wraparound when proven in Frog64
@@ -703,12 +703,12 @@ fn main() {
     // Build DslIr operations (shape-only by default).
     println!("Building shrink verifier circuit...");
     let want_witness = std::env::var("SP1_WITNESS").is_ok();
-    let maybe_input_with_merkle = if want_witness {
-        let (p, input) = load_or_build_input_with_merkle();
+    let (maybe_input_with_merkle, input_loaded_from_cache) = if want_witness {
+        let (p, input, loaded_from_cache) = load_or_build_input_with_merkle();
         drop(p);
-        Some(input)
+        (Some(input), loaded_from_cache)
     } else {
-        None
+        (None, false)
     };
 
     // If OUT_WITNESS is set, compile the circuit with a real input so we can also run the
@@ -872,12 +872,24 @@ fn main() {
             r1cs_stats = Some((r1cs2.num_vars, r1cs2.num_constraints, r1cs2.num_public, digest));
             println!("\n  R1CS Digest (SHA256):");
             println!("    0x{}", hex32(&digest));
-            let (vk_hash, committed_values_digest) = extract_public_inputs_from_shrink(input_with_merkle);
-            println!("  vk_hash=0x{}", hex32(&vk_hash));
-            println!(
-                "  committed_values_digest=0x{}",
-                hex32(&committed_values_digest)
-            );
+            let (vk_hash, committed_values_digest) =
+                extract_public_inputs_from_shrink(input_with_merkle);
+            if input_loaded_from_cache {
+                println!(
+                    "  vk_hash=0x{} (from SHRINK_PROOF_CACHE)",
+                    hex32(&vk_hash)
+                );
+                println!(
+                    "  committed_values_digest=0x{} (from SHRINK_PROOF_CACHE)",
+                    hex32(&committed_values_digest)
+                );
+            } else {
+                println!("  vk_hash=0x{}", hex32(&vk_hash));
+                println!(
+                    "  committed_values_digest=0x{}",
+                    hex32(&committed_values_digest)
+                );
+            }
 
             // Optional audit: detect unconstrained variables.
             if std::env::var("R1CS_AUDIT_UNCONSTRAINED").ok().as_deref() == Some("1") {
