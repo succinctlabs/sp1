@@ -1,0 +1,9 @@
+[package]
+name = "poseidon2-program"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+sp1-zkvm = { path = "../../../crates/zkvm/entrypoint" }
+p3-field = "=0.2.3-succinct"
+p3-goldilocks = "=0.2.3-succinct"
