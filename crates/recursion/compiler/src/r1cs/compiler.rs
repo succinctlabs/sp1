@@ -257,6 +257,30 @@ where
                         out.push(id);
                     }
                 }
+                DslIr::CircuitV2CommitPublicValues(public_values) => {
+                    // Deterministic statement binding for the SP1 recursion public values.
+                    //
+                    // We intentionally only export the minimal subset needed to bind the SP1 witness
+                    // to a statement in the BabyBear-native R1CS:
+                    // - `sp1_vk_digest` (DIGEST_SIZE felts)
+                    // - `committed_value_digest` (PV_DIGEST_NUM_WORDS * 4 felts = 32 "byte felts")
+                    //
+                    // Order matters: keep it stable across versions.
+                    for felt in public_values.sp1_vk_digest.iter() {
+                        let id = felt.id();
+                        if seen.insert(id.clone()) {
+                            out.push(id);
+                        }
+                    }
+                    for word in public_values.committed_value_digest.iter() {
+                        for felt in word.0.iter() {
+                            let id = felt.id();
+                            if seen.insert(id.clone()) {
+                                out.push(id);
+                            }
+                        }
+                    }
+                }
                 DslIr::Parallel(blocks) => {
                     for b in blocks {
                         Self::phase0_collect_public_ids(&b.ops, out, seen);
@@ -2641,6 +2665,38 @@ where
                     }
                 }
             }
+
+            // === CircuitV2 public values commitment ===
+            //
+            // This is how SP1 recursion circuits expose their public values in BabyBear-native mode.
+            // We treat a minimal subset of these public values as *R1CS public inputs* by
+            // preallocating them in Phase 0 (see `phase0_collect_public_ids`).
+            //
+            // Here we only sanity-check that the referenced variable IDs indeed occupy public-input
+            // slots (indices 1..=num_public). No extra constraints are needed: these variables are
+            // already constrained elsewhere by the recursion verifier logic.
+            DslIr::CircuitV2CommitPublicValues(public_values) => {
+                for felt in public_values.sp1_vk_digest.iter() {
+                    let idx = self.get_var(&felt.id(), ctx.as_deref_mut());
+                    debug_assert!(
+                        idx >= 1 && idx <= self.r1cs.num_public,
+                        "CircuitV2CommitPublicValues(sp1_vk_digest) must refer to a public-input slot (idx={}, num_public={})",
+                        idx,
+                        self.r1cs.num_public
+                    );
+                }
+                for word in public_values.committed_value_digest.iter() {
+                    for felt in word.0.iter() {
+                        let idx = self.get_var(&felt.id(), ctx.as_deref_mut());
+                        debug_assert!(
+                            idx >= 1 && idx <= self.r1cs.num_public,
+                            "CircuitV2CommitPublicValues(committed_value_digest) must refer to a public-input slot (idx={}, num_public={})",
+                            idx,
+                            self.r1cs.num_public
+                        );
+                    }
+                }
+            }
             
             DslIr::CircuitFelt2Var(felt, var) => {
                 let felt_idx = self.get_var(&felt.id(), ctx.as_deref_mut());
@@ -2670,7 +2726,6 @@ where
             | DslIr::CycleTrackerV2Enter(_) 
             | DslIr::CycleTrackerV2Exit
             | DslIr::DebugBacktrace(_)
-            | DslIr::CircuitV2CommitPublicValues(_)
             | DslIr::PrintV(_)
             | DslIr::PrintF(_)
             | DslIr::PrintE(_)
