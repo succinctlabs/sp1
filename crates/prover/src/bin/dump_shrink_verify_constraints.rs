@@ -805,7 +805,7 @@ fn main() {
                 &machine_verified,
                 input,
                 // Keep algebraic shape identical to `build_shrink_verifier_ops()`.
-                false,
+                true,
                 sp1_recursion_circuit::machine::PublicValuesOutputDigest::Reduce,
             );
             let block = builder.into_root_block();
