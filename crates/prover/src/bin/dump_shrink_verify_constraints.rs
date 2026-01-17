@@ -18,6 +18,7 @@ use std::io::Write;
 
 use p3_baby_bear::BabyBear;
 use p3_baby_bear::DiffusionMatrixBabyBear;
+use p3_field::PrimeField32;
 use p3_field::PrimeField64;
 use sp1_recursion_circuit::machine::SP1CompressWithVKeyWitnessValues;
 use sp1_recursion_circuit::witness::Witnessable;
@@ -729,7 +730,7 @@ fn main() {
     // Compile to R1CS:
     // - In witness mode, we compile a var-map retaining R1CS later (r1cs2), so skip the early compile.
     // - In shape-only mode, compile once here from `ops`.
-    let r1cs_shape_only = if out_witness.is_none() {
+    let r1cs_shape_only = if !want_witness {
     println!("\nCompiling to R1CS...");
     let start = std::time::Instant::now();
     let r1cs = R1CSCompiler::<InnerConfig>::compile(ops);
@@ -1093,7 +1094,7 @@ fn main() {
         println!("Wrote R1CS stats to {path}");
     }
 
-    if out_witness.is_none() && out_r1lf.is_none() {
+    if !want_witness && out_r1lf.is_none() {
         println!("\nSet SP1_R1LF=/path/to/shrink_verifier.r1lf to write the LF-targeted format.");
     }
 }
