@@ -8,10 +8,11 @@
 //!
 //! Output:
 //! - Prints R1CS statistics (variables, constraints, digest)
-//! - Optionally writes LF-targeted lifted R1CS via `OUT_R1CS_LF=path`
-//! - Optionally writes a full lifted witness via `OUT_WITNESS=path` (u64-le, length = R1LF.num_vars)
+//! - Optionally writes LF-targeted lifted R1CS via `SP1_R1LF=path`
+//! - Optionally writes a **bundle** via `SP1_WITNESS=path` (witness + public inputs)
 #![allow(clippy::print_stdout)]
 
+use std::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::io::Write;
 
@@ -33,7 +34,7 @@ use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
 use sp1_stark::BabyBearPoseidon2Inner;
 use sp1_stark::StarkGenericConfig;
 
-use sp1_prover::{InnerSC, ShrinkAir};
+use sp1_prover::{types::HashableKey, utils::words_to_bytes, InnerSC, ShrinkAir};
 use sp1_core_executor::SP1Context;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_core_machine::reduce::SP1ReduceProof;
@@ -140,9 +141,7 @@ fn read_r1lf_header(path: &str) -> Option<([u8; 32], u64, usize, usize, usize)> 
     Some((digest, p_bb, num_vars, num_constraints, num_public))
 }
 
-fn write_u64le(path: &str, xs: &[u64]) {
-    let file = std::fs::File::create(path).expect("create OUT_WITNESS");
-    let mut w = std::io::BufWriter::with_capacity(256 * 1024 * 1024, file);
+fn write_u64le_to(w: &mut impl std::io::Write, xs: &[u64]) {
     // Write in moderately large chunks to avoid per-u64 syscall overhead.
     let mut buf = vec![0u8; 8 * 1024 * 1024]; // 8MB
     let mut i = 0usize;
@@ -155,7 +154,50 @@ fn write_u64le(path: &str, xs: &[u64]) {
         w.write_all(&buf[..take * 8]).expect("write witness chunk");
         i += take;
     }
-    w.flush().expect("flush witness");
+}
+
+fn extract_public_inputs_from_shrink(
+    input: &SP1CompressWithVKeyWitnessValues<BabyBearPoseidon2>,
+) -> ([u8; 32], [u8; 32]) {
+    let (vk, proof) = input
+        .compress_val
+        .vks_and_proofs
+        .first()
+        .expect("expected one shrink proof");
+    let vk_hash = vk.bytes32_raw();
+    let pv: &sp1_recursion_core::air::RecursionPublicValues<BabyBear> =
+        proof.public_values.as_slice().borrow();
+    let bytes = words_to_bytes(&pv.committed_value_digest);
+    let mut committed_values_digest = [0u8; 32];
+    for (i, b) in bytes.iter().enumerate().take(32) {
+        committed_values_digest[i] = b.as_canonical_u32() as u8;
+    }
+    (vk_hash, committed_values_digest)
+}
+
+fn write_witness_bundle(
+    path: &str,
+    r1lf: &sp1_recursion_compiler::r1cs::lf::R1CSLf,
+    witness: &[u64],
+    vk_hash: &[u8; 32],
+    committed_values_digest: &[u8; 32],
+) {
+    const MAGIC: &[u8; 4] = b"SP1W";
+    const VERSION: u32 = 1;
+    let file = std::fs::File::create(path).expect("create SP1_WITNESS");
+    let mut w = std::io::BufWriter::with_capacity(256 * 1024 * 1024, file);
+    w.write_all(MAGIC).expect("write bundle magic");
+    w.write_all(&VERSION.to_le_bytes())
+        .expect("write bundle version");
+    w.write_all(&r1lf.digest()).expect("write r1lf digest");
+    let len = witness.len() as u64;
+    w.write_all(&len.to_le_bytes())
+        .expect("write bundle num_vars");
+    w.write_all(vk_hash).expect("write vk_hash");
+    w.write_all(committed_values_digest)
+        .expect("write committed_values_digest");
+    write_u64le_to(&mut w, witness);
+    w.flush().expect("flush bundle");
 }
 
 fn parse_mem_id(id: &str) -> Option<(u64, usize)> {
@@ -628,7 +670,8 @@ fn main() {
 
     // Build DslIr operations (shape-only by default).
     println!("Building shrink verifier circuit...");
-    let maybe_input_with_merkle = if std::env::var("OUT_WITNESS").is_ok() {
+    let want_witness = std::env::var("SP1_WITNESS").is_ok();
+    let maybe_input_with_merkle = if want_witness {
         let (p, input) = load_or_build_input_with_merkle();
         drop(p);
         Some(input)
@@ -677,10 +720,10 @@ fn main() {
     );
 
     // Export modes:
-    // - If OUT_WITNESS is set: dump witness, and (optionally) also write OUT_R1CS_LF if requested.
-    // - Else if OUT_R1CS_LF is set: dump the (shape) R1LF ONLY.
-    let out_r1lf = std::env::var("OUT_R1CS_LF").ok();
-    let out_witness = std::env::var("OUT_WITNESS").ok();
+    // - If OUT_WITNESS_BUNDLE is set: dump witness+public-input bundle.
+    // - Else if SP1_R1LF is set: dump the (shape) R1LF ONLY.
+    let out_r1lf = std::env::var("SP1_R1LF").ok();
+    let out_witness_bundle = std::env::var("SP1_WITNESS").ok();
     let mut r1cs_stats: Option<(usize, usize, usize, [u8; 32])> = None; // (num_vars, num_constraints, num_public, digest)
 
     // Compile to R1CS:
@@ -711,7 +754,7 @@ fn main() {
         None
     };
 
-    if let Some(wit_path) = out_witness.as_deref() {
+    if want_witness {
         println!("\nLifting R1CS for LF+ (witness mode: compute+dump witness only)...");
         let t_lift_total = std::time::Instant::now();
 
@@ -874,21 +917,29 @@ fn main() {
                     .expect("lift_r1cs_to_lf_with_linear_carries_and_witness");
             let dt_aux = t_aux.elapsed();
 
-            // Write witness (single-file full witness for import).
-            let t_wit = std::time::Instant::now();
-            write_u64le(&wit_path, &w_lf_u64);
-            let dt_wit = t_wit.elapsed();
-            let bytes = (w_lf_u64.len() as u64) * 8;
-            let mb = bytes as f64 / 1_000_000.0;
-            let mbps = mb / dt_wit.as_secs_f64().max(1e-9);
-            println!(
-                "Wrote lifted witness to {wit_path} (len={}, {:.2} MB) in {:?} ({:.2} MB/s)",
-                w_lf_u64.len(),
-                mb,
-                dt_wit,
-                mbps
-            );
             println!("  lift+aux compute time (excluding write): {:?}", dt_aux);
+
+            if let Some(bundle_path) = out_witness_bundle.as_deref() {
+                let (vk_hash, committed_values_digest) =
+                    extract_public_inputs_from_shrink(input_with_merkle);
+                let t_bundle = std::time::Instant::now();
+                write_witness_bundle(
+                    bundle_path,
+                    &r1lf,
+                    &w_lf_u64,
+                    &vk_hash,
+                    &committed_values_digest,
+                );
+                let dt_bundle = t_bundle.elapsed();
+                let bytes = (w_lf_u64.len() as u64) * 8 + 88;
+                let mb = bytes as f64 / 1_000_000.0;
+                println!(
+                    "Wrote witness bundle to {bundle_path} (len={}, {:.2} MB) in {:?}",
+                    w_lf_u64.len(),
+                    mb,
+                    dt_bundle
+                );
+            }
 
             (r1lf, stats)
         };
@@ -916,7 +967,7 @@ fn main() {
             audit_no_wrap_frog64_lifted(&r1lf);
         }
 
-        // If OUT_R1CS_LF is also set, reuse existing file if it matches; otherwise rewrite.
+        // If SP1_R1LF is also set, reuse existing file if it matches; otherwise rewrite.
         if let Some(out_path) = out_r1lf.as_deref() {
             let want_digest = r1lf.digest();
             let want_p = r1lf.p_bb;
@@ -927,10 +978,10 @@ fn main() {
             if let Some((d, p, nv, nc, npub)) = read_r1lf_header(out_path) {
                 if d == want_digest && p == want_p && nv == want_nv && nc == want_nc && npub == want_np {
                     should_write = false;
-                    println!("OUT_R1CS_LF exists and matches witness-mode shape; skipping write: {out_path}");
+                    println!("SP1_R1LF exists and matches witness-mode shape; skipping write: {out_path}");
                 } else {
                     println!(
-                        "OUT_R1CS_LF exists but does NOT match witness-mode shape; rewriting: {out_path}\n  have: num_vars={} num_constraints={} num_public={} p_bb={} digest={:02x?}...\n  want: num_vars={} num_constraints={} num_public={} p_bb={} digest={:02x?}...",
+                        "SP1_R1LF exists but does NOT match witness-mode shape; rewriting: {out_path}\n  have: num_vars={} num_constraints={} num_public={} p_bb={} digest={:02x?}...\n  want: num_vars={} num_constraints={} num_public={} p_bb={} digest={:02x?}...",
                         nv,
                         nc,
                         npub,
@@ -946,7 +997,7 @@ fn main() {
             }
             if should_write {
                 let t_save = std::time::Instant::now();
-                r1lf.save_to_file(out_path).expect("Failed to save OUT_R1CS_LF");
+                r1lf.save_to_file(out_path).expect("Failed to save SP1_R1LF");
                 println!("Wrote R1LF to {out_path} in {:?}", t_save.elapsed());
             }
         }
@@ -970,10 +1021,10 @@ fn main() {
         if let Some((d, p, nv, nc, npub)) = read_r1lf_header(path) {
             if d == want_digest && p == want_p && nv == want_nv && nc == want_nc && npub == want_np {
                 should_write = false;
-                println!("OUT_R1CS_LF exists and matches shape; skipping write: {path}");
+                println!("SP1_R1LF exists and matches shape; skipping write: {path}");
             } else {
                 println!(
-                    "OUT_R1CS_LF exists but differs; rewriting: {path}\n  have: num_vars={} num_constraints={} num_public={} p_bb={} digest={:02x?}...\n  want: num_vars={} num_constraints={} num_public={} p_bb={} digest={:02x?}...",
+                    "SP1_R1LF exists but differs; rewriting: {path}\n  have: num_vars={} num_constraints={} num_public={} p_bb={} digest={:02x?}...\n  want: num_vars={} num_constraints={} num_public={} p_bb={} digest={:02x?}...",
                     nv,
                     nc,
                     npub,
@@ -1043,7 +1094,7 @@ fn main() {
     }
 
     if out_witness.is_none() && out_r1lf.is_none() {
-        println!("\nSet OUT_R1CS_LF=/path/to/shrink_verifier.r1lf to write the LF-targeted format.");
+        println!("\nSet SP1_R1LF=/path/to/shrink_verifier.r1lf to write the LF-targeted format.");
     }
 }
 
