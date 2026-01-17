@@ -54,6 +54,16 @@ fn tag_of_instruction<C: sp1_recursion_compiler::ir::Config + core::fmt::Debug>(
     s[..end].to_string()
 }
 
+fn hex32(bytes: &[u8; 32]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(64);
+    for &b in bytes {
+        out.push(HEX[(b >> 4) as usize] as char);
+        out.push(HEX[(b & 0x0f) as usize] as char);
+    }
+    out
+}
+
 /// Recursively count opcodes including nested blocks.
 fn visit_ops<C: sp1_recursion_compiler::ir::Config + core::fmt::Debug>(
     ops: &[DslIr<C>],
@@ -741,8 +751,7 @@ fn main() {
     let digest = r1cs.digest();
         r1cs_stats = Some((r1cs.num_vars, r1cs.num_constraints, r1cs.num_public, digest));
         println!("\n  R1CS Digest (SHA256):");
-        println!("    {:02x?}", &digest[..16]);
-        println!("    {:02x?}", &digest[16..]);
+        println!("    0x{}", hex32(&digest));
         Some(r1cs)
     } else {
         None
@@ -831,8 +840,7 @@ fn main() {
             let digest = r1cs2.digest();
             r1cs_stats = Some((r1cs2.num_vars, r1cs2.num_constraints, r1cs2.num_public, digest));
             println!("\n  R1CS Digest (SHA256):");
-            println!("    {:02x?}", &digest[..16]);
-            println!("    {:02x?}", &digest[16..]);
+            println!("    0x{}", hex32(&digest));
 
             // Optional audit: detect unconstrained variables.
             if std::env::var("R1CS_AUDIT_UNCONSTRAINED").ok().as_deref() == Some("1") {
@@ -916,6 +924,11 @@ fn main() {
             if let Some(bundle_path) = out_witness_bundle.as_deref() {
                 let (vk_hash, committed_values_digest) =
                     extract_public_inputs_from_shrink(input_with_merkle);
+                println!("  vk_hash=0x{}", hex32(&vk_hash));
+                println!(
+                    "  committed_values_digest=0x{}",
+                    hex32(&committed_values_digest)
+                );
                 let t_bundle = std::time::Instant::now();
                 write_witness_bundle(
                     bundle_path,
@@ -949,11 +962,11 @@ fn main() {
             stats.added_carry_vars
         );
         println!(
-            "  R1LF (in-memory): num_vars={} num_constraints={} num_public={} digest={:02x?}...",
+            "  R1LF (in-memory): num_vars={} num_constraints={} num_public={} digest=0x{}",
             r1lf.num_vars,
             r1lf.num_constraints,
             r1lf.num_public,
-            &r1lf.digest()[..8]
+            hex32(&r1lf.digest())
         );
 
         // Extend the existing audit gate with a wraparound safety check on the *lifted* instance.
@@ -1060,11 +1073,11 @@ fn main() {
             println!("  R1LF save time: {:?} ({:.2} MB/s)", dt_save, mbps);
         }
         println!(
-            "  R1LF: num_vars={} num_constraints={} num_public={} digest={:02x?}...",
+            "  R1LF: num_vars={} num_constraints={} num_public={} r1lf_digest=0x{}",
             r1lf.num_vars,
             r1lf.num_constraints,
             r1lf.num_public,
-            &r1lf.digest()[..8]
+            hex32(&r1lf.digest())
         );
         if should_write {
             println!("Wrote R1LF to {path} ({:.2} MB)", mb);
