@@ -18,7 +18,6 @@ use std::io::Write;
 
 use p3_baby_bear::BabyBear;
 use p3_baby_bear::DiffusionMatrixBabyBear;
-use p3_field::PrimeField32;
 use p3_field::{PrimeField32, PrimeField64};
 use sp1_recursion_circuit::machine::SP1CompressWithVKeyWitnessValues;
 use sp1_recursion_circuit::witness::Witnessable;
@@ -910,28 +909,28 @@ fn main() {
                 }
                 // Expected: first 8 are sp1_vk_digest (BabyBear words), next 32 are digest bytes.
                 for i in 0..8 {
-                    let got = w_bb[1 + i];
-                    let exp = sp1_vk_digest_words[i] as u64;
-                    if got != exp {
+                    let got_u32 = w_bb[1 + i].as_canonical_u32();
+                    let exp_u32 = sp1_vk_digest_words[i];
+                    if got_u32 != exp_u32 {
                         panic!(
                             "public input mismatch at idx={} (sp1_vk_digest[{}]): got={} expected={}",
                             1 + i,
                             i,
-                            got,
-                            exp
+                            got_u32,
+                            exp_u32
                         );
                     }
                 }
                 for i in 0..32 {
-                    let got = w_bb[1 + 8 + i];
-                    let exp = committed_values_digest[i] as u64;
-                    if got != exp {
+                    let got_u32 = w_bb[1 + 8 + i].as_canonical_u32();
+                    let exp_u32 = committed_values_digest[i] as u32;
+                    if got_u32 != exp_u32 {
                         panic!(
                             "public input mismatch at idx={} (committed_value_digest[{}]): got={} expected={}",
                             1 + 8 + i,
                             i,
-                            got,
-                            exp
+                            got_u32,
+                            exp_u32
                         );
                     }
                 }
@@ -1023,7 +1022,7 @@ fn main() {
             println!("  lift+aux compute time (excluding write): {:?}", dt_aux);
 
             if let Some(bundle_path) = out_witness_bundle.as_deref() {
-                let (vk_hash, committed_values_digest) =
+                let (vk_hash, committed_values_digest, _sp1_vk_digest_words) =
                     extract_public_inputs_from_shrink(input_with_merkle);
                 let t_bundle = std::time::Instant::now();
                 write_witness_bundle(
