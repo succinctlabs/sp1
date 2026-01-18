@@ -1,6 +1,6 @@
 use sp1_sdk::{include_elf, utils, ProverClient, SP1Stdin};
 
-// Le nom doit correspondre exactement au package name dans program/Cargo.toml
+// The name must match exactly the package name in program/Cargo.toml
 const ELF: &[u8] = include_elf!("poseidon2-program");
 
 fn main() {
@@ -19,7 +19,8 @@ fn main() {
     // Setup verification keys
     let (pk, vk) = client.setup(ELF);
 
-    // CORRECTION ICI : Ajout de 'mut' car .read() modifie l'état interne
+    // Generate the proof
+    // Note: 'mut' is required because .read() advances the internal buffer state
     let mut proof = client.prove(&pk, &stdin).run().expect("failed to prove");
 
     // 3. Verify the proof
