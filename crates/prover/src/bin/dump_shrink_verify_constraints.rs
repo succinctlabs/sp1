@@ -482,6 +482,51 @@ fn fix_input_public_values_digest(
     }
 }
 
+fn report_runtime_error(
+    err: &sp1_recursion_core::RuntimeError<BabyBear, <InnerSC as StarkGenericConfig>::Challenge>,
+    runtime: &sp1_recursion_core::Runtime<
+        BabyBear,
+        <InnerSC as StarkGenericConfig>::Challenge,
+        DiffusionMatrixBabyBear,
+    >,
+    asm: &sp1_recursion_compiler::circuit::AsmCompiler<InnerConfig>,
+) {
+    use sp1_recursion_core::{Address, BaseAluInstr, BaseAluOpcode};
+
+    if let sp1_recursion_core::RuntimeError::DivFOutOfDomain { in1, in2, instr, .. } = err {
+        let BaseAluInstr { opcode, addrs, .. } = instr;
+        let BaseAluOpcode::DivF = opcode else { return };
+        let addr_in1 = addrs.in1.as_usize();
+        let addr_in2 = addrs.in2.as_usize();
+        let addr_out = addrs.out.as_usize();
+
+        let vaddr_in1 = find_vaddr_for_phys(asm, addrs.in1);
+        let vaddr_in2 = find_vaddr_for_phys(asm, addrs.in2);
+        let vaddr_out = find_vaddr_for_phys(asm, addrs.out);
+
+        eprintln!("DivFOutOfDomain at runtime:");
+        eprintln!("  in1={in1:?} (phys={addr_in1}, vaddr={vaddr_in1:?})");
+        eprintln!("  in2={in2:?} (phys={addr_in2}, vaddr={vaddr_in2:?})");
+        eprintln!("  out phys={addr_out}, vaddr={vaddr_out:?}");
+
+        let mem = &runtime.memory;
+        let read_val = |addr: Address<BabyBear>| mem.mr(addr).map(|entry| entry.val[0]);
+        eprintln!("  mem[in1]={:?}", read_val(addrs.in1));
+        eprintln!("  mem[in2]={:?}", read_val(addrs.in2));
+        eprintln!("  mem[out]={:?}", read_val(addrs.out));
+    }
+}
+
+fn find_vaddr_for_phys(
+    asm: &sp1_recursion_compiler::circuit::AsmCompiler<InnerConfig>,
+    addr: sp1_recursion_core::Address<BabyBear>,
+) -> Option<usize> {
+    let target = addr.as_usize();
+    asm.virtual_to_physical
+        .iter()
+        .find_map(|(vaddr, phys)| if phys.as_usize() == target { Some(vaddr) } else { None })
+}
+
 /// Audit that the lifted LF-targeted R1CS cannot exploit modulus wraparound when proven in Frog64
 /// under the current SP1/Frog64 boundedness regime (currently `decomp_b=12, k=8` in LF+).
 ///
@@ -868,7 +913,10 @@ fn main() {
             Witnessable::<InnerConfig>::write(input_with_merkle, &mut witness_blocks);
             let witness_blocks_for_fill = witness_blocks.clone();
             runtime.witness_stream = witness_blocks.into();
-            runtime.run().unwrap();
+            if let Err(err) = runtime.run() {
+                report_runtime_error(&err, &runtime, &asm);
+                panic!("runtime error during witness fill: {err:?}");
+            }
 
             // Compile to R1CS **and** generate the full witness in one pass.
             //
