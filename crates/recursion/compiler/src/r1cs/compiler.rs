@@ -260,24 +260,18 @@ where
                 DslIr::CircuitV2CommitPublicValues(public_values) => {
                     // Deterministic statement binding for the SP1 recursion public values.
                     //
-                    // We intentionally only export the minimal subset needed to bind the SP1 witness
-                    // to a statement in the BabyBear-native R1CS:
-                    // - `sp1_vk_digest` (DIGEST_SIZE felts)
-                    // - `committed_value_digest` (PV_DIGEST_NUM_WORDS * 4 felts = 32 "byte felts")
+                    // We intentionally only export a *single digest* of the full recursion public
+                    // values: `RecursionPublicValues.digest` (DIGEST_SIZE felts).
+                    //
+                    // This avoids exporting large, structured public-value layouts (e.g. 40+ felts),
+                    // while still binding the R1CS statement to the full public-values transcript,
+                    // because `digest` is computed *in-circuit* as a hash of all previous fields.
                     //
                     // Order matters: keep it stable across versions.
-                    for felt in public_values.sp1_vk_digest.iter() {
+                    for felt in public_values.digest.iter() {
                         let id = felt.id();
                         if seen.insert(id.clone()) {
                             out.push(id);
-                        }
-                    }
-                    for word in public_values.committed_value_digest.iter() {
-                        for felt in word.0.iter() {
-                            let id = felt.id();
-                            if seen.insert(id.clone()) {
-                                out.push(id);
-                            }
                         }
                     }
                 }

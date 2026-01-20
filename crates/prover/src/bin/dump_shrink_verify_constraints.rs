@@ -189,6 +189,23 @@ fn extract_public_inputs_from_shrink(
     (vk_hash, committed_values_digest, sp1_vk_digest_words)
 }
 
+fn extract_recursion_public_values_digest_words(
+    input: &SP1CompressWithVKeyWitnessValues<BabyBearPoseidon2>,
+) -> [u32; 8] {
+    let (_vk, proof) = input
+        .compress_val
+        .vks_and_proofs
+        .first()
+        .expect("expected one shrink proof");
+    let pv: &sp1_recursion_core::air::RecursionPublicValues<BabyBear> =
+        proof.public_values.as_slice().borrow();
+    let mut out = [0u32; 8];
+    for (i, x) in pv.digest.iter().copied().enumerate().take(8) {
+        out[i] = x.as_canonical_u32();
+    }
+    out
+}
+
 /// Best-effort extraction of (vk_hash, committed_values_digest) from `SHRINK_PROOF_CACHE`
 /// without re-proving. Useful for shape-only runs where we still want to log the program id.
 fn try_load_public_inputs_from_shrink_cache() -> Option<([u8; 32], [u8; 32])> {
@@ -895,11 +912,11 @@ fn main() {
             }
 
             // Security check: confirm the exported R1CS public inputs (1..=num_public) match
-            // the shrink proof's recursion public values (sp1_vk_digest || committed_value_digest).
+            // the shrink proof's recursion public values digest (`RecursionPublicValues.digest`).
             //
             // This ensures `num_public` is not "just a header": these coordinates are concrete,
             // statement-defining values and the compiler-produced witness assigns them correctly.
-            if r1cs2.num_public == 40 {
+            if r1cs2.num_public == 8 {
                 if w_bb.len() < 1 + r1cs2.num_public {
                     panic!(
                         "witness too short for declared public inputs: w_len={} need_at_least={}",
@@ -907,13 +924,14 @@ fn main() {
                         1 + r1cs2.num_public
                     );
                 }
-                // Expected: first 8 are sp1_vk_digest (BabyBear words), next 32 are digest bytes.
+                // Expected: the 8 BabyBear words of `RecursionPublicValues.digest`.
+                let expected_digest_words = extract_recursion_public_values_digest_words(input_with_merkle);
                 for i in 0..8 {
                     let got_u32 = w_bb[1 + i].as_canonical_u32();
-                    let exp_u32 = sp1_vk_digest_words[i];
+                    let exp_u32 = expected_digest_words[i];
                     if got_u32 != exp_u32 {
                         panic!(
-                            "public input mismatch at idx={} (sp1_vk_digest[{}]): got={} expected={}",
+                            "public input mismatch at idx={} (public_values.digest[{}]): got={} expected={}",
                             1 + i,
                             i,
                             got_u32,
@@ -921,23 +939,10 @@ fn main() {
                         );
                     }
                 }
-                for i in 0..32 {
-                    let got_u32 = w_bb[1 + 8 + i].as_canonical_u32();
-                    let exp_u32 = committed_values_digest[i] as u32;
-                    if got_u32 != exp_u32 {
-                        panic!(
-                            "public input mismatch at idx={} (committed_value_digest[{}]): got={} expected={}",
-                            1 + 8 + i,
-                            i,
-                            got_u32,
-                            exp_u32
-                        );
-                    }
-                }
-                println!("  public_inputs[1..=40] match (sp1_vk_digest || committed_value_digest)");
+                println!("  public_inputs[1..=8] match (public_values.digest)");
             } else if r1cs2.num_public != 0 {
                 println!(
-                    "  NOTE: num_public={} (expected 40 for SP1 public-values binding); skipping public-input value check",
+                    "  NOTE: num_public={} (expected 8 for SP1 public-values digest binding); skipping public-input value check",
                     r1cs2.num_public
                 );
             }
