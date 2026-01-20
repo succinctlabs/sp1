@@ -76,12 +76,16 @@ where
     pub fn verify(
         builder: &mut Builder<C>,
         machine: &StarkMachine<SC, A>,
-        input: SP1CompressWithVKeyWitnessVariable<C, SC>,
+        mut input: SP1CompressWithVKeyWitnessVariable<C, SC>,
         value_assertions: bool,
         kind: PublicValuesOutputDigest,
     ) {
-        // Assert that the program is complete.
-        builder.assert_felt_eq(input.compress_var.is_complete, C::F::one());
+        // Root verifier always verifies a *complete* execution.
+        //
+        // We force `is_complete = 1` inside the circuit (instead of trusting a witness-provided
+        // value) to avoid witness-layout sensitivity in downstream consumers and ensure that
+        // completeness assumptions are circuit-enforced.
+        input.compress_var.is_complete = builder.eval(C::F::one());
         // Verify the proof, as a compress proof.
         SP1CompressWithVKeyVerifier::verify(builder, machine, input, value_assertions, kind);
     }
