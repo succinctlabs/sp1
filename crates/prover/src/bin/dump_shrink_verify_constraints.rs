@@ -388,8 +388,7 @@ fn build_real_input_with_merkle() -> (SP1Prover, SP1CompressWithVKeyWitnessValue
     stdin.write(&stdin_u32);
     let core_proof = prover.prove_core(&pk_d, program, &stdin, opts, context).unwrap();
     let compressed = prover.compress(&vk, core_proof, vec![], opts).unwrap();
-    let mut shrink = prover.shrink(compressed, opts).unwrap();
-    fix_public_values_digest(&mut shrink.proof.public_values);
+    let shrink = prover.shrink(compressed, opts).unwrap();
 
     // The shrink-proof verifier circuit verifies the *shrink* proof (vk+proof) with merkle proofs.
     let input = sp1_recursion_circuit::machine::SP1CompressWitnessValues {
@@ -416,9 +415,8 @@ fn load_or_build_input_with_merkle(
         if std::path::Path::new(path).exists() {
             let prover: SP1Prover = SP1Prover::new();
             let file = std::fs::File::open(path).expect("open SHRINK_PROOF_CACHE");
-            let mut shrink: SP1ReduceProof<InnerSC> =
+            let shrink: SP1ReduceProof<InnerSC> =
                 bincode::deserialize_from(file).expect("deserialize SHRINK_PROOF_CACHE");
-            fix_public_values_digest(&mut shrink.proof.public_values);
 
             let input = sp1_recursion_circuit::machine::SP1CompressWitnessValues {
                 vks_and_proofs: vec![(shrink.vk.clone(), shrink.proof.clone())],
@@ -440,8 +438,7 @@ fn load_or_build_input_with_merkle(
             .first()
             .expect("expected one shrink proof")
             .clone();
-        let mut shrink = SP1ReduceProof::<InnerSC> { vk, proof };
-        fix_public_values_digest(&mut shrink.proof.public_values);
+        let shrink = SP1ReduceProof::<InnerSC> { vk, proof };
         let file = std::fs::File::create(path).expect("create SHRINK_PROOF_CACHE");
         bincode::serialize_into(file, &shrink).expect("serialize SHRINK_PROOF_CACHE");
         println!("Cached shrink proof to SHRINK_PROOF_CACHE={path}");
@@ -451,15 +448,15 @@ fn load_or_build_input_with_merkle(
 }
 
 /// Ensure `public_values.digest` matches the Poseidon2 hash of the prefix.
-fn fix_public_values_digest(public_values: &mut Vec<BabyBear>) {
+fn check_public_values_digest(public_values: &Vec<BabyBear>) -> Option<usize> {
     use sp1_recursion_core::air::{NUM_PV_ELMS_TO_HASH, RecursionPublicValues};
     use sp1_recursion_core::{DIGEST_SIZE, HASH_RATE, PERMUTATION_WIDTH};
     use p3_field::AbstractField;
     use p3_symmetric::Permutation;
     use sp1_stark::inner_perm;
-    use std::borrow::BorrowMut;
+    use std::borrow::Borrow;
 
-    let pv: &mut RecursionPublicValues<BabyBear> = public_values.as_mut_slice().borrow_mut();
+    let pv: &RecursionPublicValues<BabyBear> = public_values.as_slice().borrow();
     let mut state = [BabyBear::zero(); PERMUTATION_WIDTH];
     let perm = inner_perm();
     for chunk in pv.as_array()[..NUM_PV_ELMS_TO_HASH].chunks(HASH_RATE) {
@@ -469,16 +466,23 @@ fn fix_public_values_digest(public_values: &mut Vec<BabyBear>) {
         perm.permute_mut(&mut state);
     }
     let digest: [BabyBear; DIGEST_SIZE] = state[..DIGEST_SIZE].try_into().unwrap();
-    pv.digest.copy_from_slice(&digest);
+    pv.digest
+        .iter()
+        .zip(digest.iter())
+        .position(|(a, b)| a != b)
 }
 
-fn fix_input_public_values_digest(
-    input_with_merkle: &mut sp1_recursion_circuit::machine::SP1CompressWithVKeyWitnessValues<
+fn check_input_public_values_digest(
+    input_with_merkle: &sp1_recursion_circuit::machine::SP1CompressWithVKeyWitnessValues<
         BabyBearPoseidon2,
     >,
 ) {
-    for (_, proof) in &mut input_with_merkle.compress_val.vks_and_proofs {
-        fix_public_values_digest(&mut proof.public_values);
+    for (idx, (_vk, proof)) in input_with_merkle.compress_val.vks_and_proofs.iter().enumerate() {
+        if let Some(pos) = check_public_values_digest(&proof.public_values) {
+            eprintln!(
+                "public_values.digest mismatch in proof {idx} at digest index {pos}"
+            );
+        }
     }
 }
 
@@ -791,8 +795,8 @@ fn main() {
     println!("Building shrink verifier circuit...");
     let want_witness = std::env::var("SP1_WITNESS").is_ok();
     let (maybe_input_with_merkle, input_loaded_from_cache) = if want_witness {
-        let (p, mut input, loaded_from_cache) = load_or_build_input_with_merkle();
-        fix_input_public_values_digest(&mut input);
+        let (p, input, loaded_from_cache) = load_or_build_input_with_merkle();
+        check_input_public_values_digest(&input);
         drop(p);
         (Some(input), loaded_from_cache)
     } else {
