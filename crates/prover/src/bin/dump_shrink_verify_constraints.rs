@@ -510,7 +510,7 @@ fn report_runtime_error(
         eprintln!("  out phys={addr_out}, vaddr={vaddr_out:?}");
 
         let mem = &runtime.memory;
-        let read_val = |addr: Address<BabyBear>| mem.mr(addr).map(|entry| entry.val[0]);
+        let read_val = |addr: Address<BabyBear>| unsafe { mem.mr_unchecked(addr).val[0] };
         eprintln!("  mem[in1]={:?}", read_val(addrs.in1));
         eprintln!("  mem[in2]={:?}", read_val(addrs.in2));
         eprintln!("  mem[out]={:?}", read_val(addrs.out));
