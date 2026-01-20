@@ -513,14 +513,13 @@ where
                     use crate::air::NUM_PV_ELMS_TO_HASH;
                     use crate::{DIGEST_SIZE, HASH_RATE, PERMUTATION_WIDTH};
                     use p3_symmetric::CryptographicPermutation;
-                    use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
 
                     let mut state = [F::zero(); PERMUTATION_WIDTH];
                     for chunk in pv_values[..NUM_PV_ELMS_TO_HASH].chunks(HASH_RATE) {
                         for (i, v) in chunk.iter().enumerate() {
                             state[i] = *v;
                         }
-                        BabyBearPoseidon2::new().perm.permute_mut(&mut state);
+                        perm.permute_mut(&mut state);
                     }
                     let digest: [F; DIGEST_SIZE] = state[..DIGEST_SIZE].try_into().unwrap();
                     // Write digest back into pv_values.
