@@ -568,6 +568,15 @@ fn report_divf_sites(
         for (i, instr) in instrs[start..end].iter().enumerate() {
             let idx = start + i;
             eprintln!("    {idx}: {}", instr_kind(instr));
+            if let Instruction::BaseAlu(BaseAluInstr { opcode, addrs, .. }) = instr {
+                eprintln!(
+                    "      BaseAlu {:?}: out={}, in1={}, in2={}",
+                    opcode,
+                    addrs.out.as_usize(),
+                    addrs.in1.as_usize(),
+                    addrs.in2.as_usize()
+                );
+            }
         }
     }
 }
