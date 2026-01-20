@@ -500,7 +500,7 @@ where
             PublicValuesOutputDigest::Root => {
                 assert_root_public_values_valid::<C, SC>(
                     builder,
-                    &crate::machine::public_values::RootPublicValues::new(*compress_public_values),
+                    &RootPublicValues::new(*compress_public_values),
                 );
             }
         }
