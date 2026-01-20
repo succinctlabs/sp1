@@ -30,8 +30,8 @@ use crate::{
     challenger::CanObserveVariable,
     constraints::RecursiveVerifierConstraintFolder,
     machine::{
-        assert_complete, assert_recursion_public_values_valid, recursion_public_values_digest,
-        root_public_values_digest,
+        assert_complete, assert_recursion_public_values_valid, assert_root_public_values_valid,
+        public_values::RootPublicValues, recursion_public_values_digest, root_public_values_digest,
     },
     stark::{dummy_vk_and_shard_proof, ShardProofVariable, StarkVerifier},
     BabyBearFriConfig, BabyBearFriConfigVariable, CircuitConfig, VerifyingKeyVariable,
