@@ -512,7 +512,6 @@ where
                 {
                     use crate::air::NUM_PV_ELMS_TO_HASH;
                     use crate::{DIGEST_SIZE, HASH_RATE, PERMUTATION_WIDTH};
-                    use p3_symmetric::CryptographicPermutation;
 
                     let mut state = [F::zero(); PERMUTATION_WIDTH];
                     for chunk in pv_values[..NUM_PV_ELMS_TO_HASH].chunks(HASH_RATE) {

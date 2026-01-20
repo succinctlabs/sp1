@@ -454,7 +454,8 @@ fn load_or_build_input_with_merkle(
 fn fix_public_values_digest(public_values: &mut Vec<BabyBear>) {
     use sp1_recursion_core::air::{NUM_PV_ELMS_TO_HASH, RecursionPublicValues};
     use sp1_recursion_core::{DIGEST_SIZE, HASH_RATE, PERMUTATION_WIDTH};
-    use p3_symmetric::CryptographicPermutation;
+    use p3_field::AbstractField;
+    use p3_symmetric::Permutation;
     use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
     use std::borrow::BorrowMut;
 
