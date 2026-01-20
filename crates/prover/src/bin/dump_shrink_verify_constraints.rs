@@ -456,16 +456,17 @@ fn fix_public_values_digest(public_values: &mut Vec<BabyBear>) {
     use sp1_recursion_core::{DIGEST_SIZE, HASH_RATE, PERMUTATION_WIDTH};
     use p3_field::AbstractField;
     use p3_symmetric::Permutation;
-    use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
+    use sp1_stark::inner_perm;
     use std::borrow::BorrowMut;
 
     let pv: &mut RecursionPublicValues<BabyBear> = public_values.as_mut_slice().borrow_mut();
     let mut state = [BabyBear::zero(); PERMUTATION_WIDTH];
+    let perm = inner_perm();
     for chunk in pv.as_array()[..NUM_PV_ELMS_TO_HASH].chunks(HASH_RATE) {
         for (i, v) in chunk.iter().enumerate() {
             state[i] = *v;
         }
-        BabyBearPoseidon2::new().perm.permute_mut(&mut state);
+        perm.permute_mut(&mut state);
     }
     let digest: [BabyBear; DIGEST_SIZE] = state[..DIGEST_SIZE].try_into().unwrap();
     pv.digest.copy_from_slice(&digest);
