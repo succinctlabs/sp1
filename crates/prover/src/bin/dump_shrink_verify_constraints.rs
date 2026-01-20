@@ -498,7 +498,7 @@ fn report_runtime_error(
 ) {
     use sp1_recursion_core::{Address, BaseAluInstr, BaseAluOpcode};
 
-    if let sp1_recursion_core::RuntimeError::DivFOutOfDomain { in1, in2, instr, .. } = err {
+    if let sp1_recursion_core::RuntimeError::DivFOutOfDomain { in1, in2, instr, trace } = err {
         let BaseAluInstr { opcode, addrs, .. } = instr;
         let BaseAluOpcode::DivF = opcode else { return };
         let addr_in1 = addrs.in1.as_usize();
@@ -519,6 +519,9 @@ fn report_runtime_error(
         eprintln!("  mem[in1]={:?}", read_val(addrs.in1));
         eprintln!("  mem[in2]={:?}", read_val(addrs.in2));
         eprintln!("  mem[out]={:?}", read_val(addrs.out));
+        if let Some(trace) = trace {
+            eprintln!("  debug trace (from traced op): {trace:?}");
+        }
 
         report_divf_sites(program, runtime, asm, addrs.in1, addrs.in2, addrs.out);
     }
