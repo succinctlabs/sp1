@@ -589,7 +589,6 @@ fn instr_kind(instr: &sp1_recursion_core::Instruction<BabyBear>) -> &'static str
         Instruction::HintExt2Felts(_) => "HintExt2Felts",
         Instruction::CommitPublicValues(_) => "CommitPublicValues",
         Instruction::Hint(_) => "Hint",
-        #[cfg(feature = "debug")]
         Instruction::DebugBacktrace(_) => "DebugBacktrace",
     }
 }
@@ -981,7 +980,7 @@ fn main() {
             let witness_blocks_for_fill = witness_blocks.clone();
             runtime.witness_stream = witness_blocks.into();
             if let Err(err) = runtime.run() {
-                report_runtime_error(&err, &runtime, &asm);
+                report_runtime_error(&err, &runtime, &asm, &program.inner);
                 panic!("runtime error during witness fill: {err:?}");
             }
 
