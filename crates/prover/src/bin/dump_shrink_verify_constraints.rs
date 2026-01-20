@@ -471,6 +471,16 @@ fn fix_public_values_digest(public_values: &mut Vec<BabyBear>) {
     pv.digest.copy_from_slice(&digest);
 }
 
+fn fix_input_public_values_digest(
+    input_with_merkle: &mut sp1_recursion_circuit::machine::SP1CompressWithVKeyWitnessValues<
+        BabyBearPoseidon2,
+    >,
+) {
+    for (_, proof) in &mut input_with_merkle.compress_val.vks_and_proofs {
+        fix_public_values_digest(&mut proof.public_values);
+    }
+}
+
 /// Audit that the lifted LF-targeted R1CS cannot exploit modulus wraparound when proven in Frog64
 /// under the current SP1/Frog64 boundedness regime (currently `decomp_b=12, k=8` in LF+).
 ///
@@ -735,7 +745,8 @@ fn main() {
     println!("Building shrink verifier circuit...");
     let want_witness = std::env::var("SP1_WITNESS").is_ok();
     let (maybe_input_with_merkle, input_loaded_from_cache) = if want_witness {
-        let (p, input, loaded_from_cache) = load_or_build_input_with_merkle();
+        let (p, mut input, loaded_from_cache) = load_or_build_input_with_merkle();
+        fix_input_public_values_digest(&mut input);
         drop(p);
         (Some(input), loaded_from_cache)
     } else {
