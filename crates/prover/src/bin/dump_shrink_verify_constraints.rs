@@ -494,6 +494,7 @@ fn report_runtime_error(
         DiffusionMatrixBabyBear,
     >,
     asm: &sp1_recursion_compiler::circuit::AsmCompiler<InnerConfig>,
+    program: &sp1_recursion_core::RawProgram<sp1_recursion_core::Instruction<BabyBear>>,
 ) {
     use sp1_recursion_core::{Address, BaseAluInstr, BaseAluOpcode};
 
@@ -518,6 +519,8 @@ fn report_runtime_error(
         eprintln!("  mem[in1]={:?}", read_val(addrs.in1));
         eprintln!("  mem[in2]={:?}", read_val(addrs.in2));
         eprintln!("  mem[out]={:?}", read_val(addrs.out));
+
+        report_divf_sites(program, addrs.in1, addrs.in2, addrs.out);
     }
 }
 
@@ -529,6 +532,66 @@ fn find_vaddr_for_phys(
     asm.virtual_to_physical
         .iter()
         .find_map(|(vaddr, phys)| if phys.as_usize() == target { Some(vaddr) } else { None })
+}
+
+fn report_divf_sites(
+    program: &sp1_recursion_core::RawProgram<sp1_recursion_core::Instruction<BabyBear>>,
+    in1: sp1_recursion_core::Address<BabyBear>,
+    in2: sp1_recursion_core::Address<BabyBear>,
+    out: sp1_recursion_core::Address<BabyBear>,
+) {
+    use sp1_recursion_core::Instruction;
+    use sp1_recursion_core::{BaseAluInstr, BaseAluOpcode};
+
+    let instrs: Vec<&Instruction<BabyBear>> = program.iter().collect();
+    let mut matches = Vec::new();
+    for (idx, instr) in instrs.iter().enumerate() {
+        if let Instruction::BaseAlu(BaseAluInstr { opcode: BaseAluOpcode::DivF, addrs, .. }) =
+            instr
+        {
+            if addrs.in1 == in1 && addrs.in2 == in2 && addrs.out == out {
+                matches.push(idx);
+            }
+        }
+    }
+
+    if matches.is_empty() {
+        eprintln!("  no DivF instruction matches these addrs in program");
+        return;
+    }
+
+    eprintln!("  DivF instruction matches at indices: {:?}", matches);
+    if let Some(&idx) = matches.first() {
+        let start = idx.saturating_sub(2);
+        let end = (idx + 3).min(instrs.len());
+        eprintln!("  surrounding instructions [{start}..{end}):");
+        for (i, instr) in instrs[start..end].iter().enumerate() {
+            let idx = start + i;
+            eprintln!("    {idx}: {}", instr_kind(instr));
+        }
+    }
+}
+
+fn instr_kind(instr: &sp1_recursion_core::Instruction<BabyBear>) -> &'static str {
+    use sp1_recursion_core::Instruction;
+    match instr {
+        Instruction::BaseAlu(_) => "BaseAlu",
+        Instruction::ExtAlu(_) => "ExtAlu",
+        Instruction::Mem(_) => "Mem",
+        Instruction::Poseidon2(_) => "Poseidon2",
+        Instruction::Select(_) => "Select",
+        Instruction::ExpReverseBitsLen(_) => "ExpReverseBitsLen",
+        Instruction::HintBits(_) => "HintBits",
+        Instruction::HintAddCurve(_) => "HintAddCurve",
+        Instruction::FriFold(_) => "FriFold",
+        Instruction::BatchFRI(_) => "BatchFRI",
+        Instruction::Print(_) => "Print",
+        Instruction::HintExt2Felts(_) => "HintExt2Felts",
+        Instruction::CommitPublicValues(_) => "CommitPublicValues",
+        Instruction::Hint(_) => "Hint",
+        #[cfg(feature = "debug")]
+        Instruction::DebugBacktrace(_) => "DebugBacktrace",
+    }
 }
 
 /// Audit that the lifted LF-targeted R1CS cannot exploit modulus wraparound when proven in Frog64
