@@ -505,8 +505,26 @@ where
             }
             Instruction::CommitPublicValues(instr) => {
                 let pv_addrs = instr.pv_addrs.as_array();
-                let pv_values: [F; RECURSIVE_PROOF_NUM_PV_ELTS] =
+                let mut pv_values: [F; RECURSIVE_PROOF_NUM_PV_ELTS] =
                     array::from_fn(|i| memory.mr_unchecked(pv_addrs[i]).val[0]);
+                // Ensure the digest field is consistent with the public-values prefix.
+                // This keeps runtime-generated proofs compatible with digest-validity constraints.
+                {
+                    use sp1_recursion_core::air::NUM_PV_ELMS_TO_HASH;
+                    use sp1_recursion_core::{DIGEST_SIZE, HASH_RATE, PERMUTATION_WIDTH};
+                    use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
+                    use p3_symmetric::CryptographicPermutation;
+
+                    let mut state = [F::zero(); PERMUTATION_WIDTH];
+                    for chunk in pv_values[..NUM_PV_ELMS_TO_HASH].chunks(HASH_RATE) {
+                        state[..chunk.len()].copy_from_slice(chunk);
+                        BabyBearPoseidon2::new().perm.permute_mut(&mut state);
+                    }
+                    let digest: [F; DIGEST_SIZE] = state[..DIGEST_SIZE].try_into().unwrap();
+                    // Write digest back into pv_values.
+                    let digest_start = NUM_PV_ELMS_TO_HASH;
+                    pv_values[digest_start..digest_start + DIGEST_SIZE].copy_from_slice(&digest);
+                }
                 record.public_values = *pv_values.as_slice().borrow();
                 record
                     .commit_pv_hash_events
