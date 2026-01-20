@@ -30,8 +30,8 @@ use crate::{
     challenger::CanObserveVariable,
     constraints::RecursiveVerifierConstraintFolder,
     machine::{
-        assert_complete, assert_recursion_public_values_valid, assert_root_public_values_valid,
-        public_values::RootPublicValues, recursion_public_values_digest, root_public_values_digest,
+        assert_complete, assert_recursion_public_values_valid, recursion_public_values_digest,
+        root_public_values_digest,
     },
     stark::{dummy_vk_and_shard_proof, ShardProofVariable, StarkVerifier},
     BabyBearFriConfig, BabyBearFriConfigVariable, CircuitConfig, VerifyingKeyVariable,
@@ -492,18 +492,6 @@ where
                 root_public_values_digest::<C, SC>(builder, compress_public_values)
             }
         };
-        // Enforce that the digest matches the public values (so digest-only export is constrained).
-        match kind {
-            PublicValuesOutputDigest::Reduce => {
-                assert_recursion_public_values_valid::<C, SC>(builder, compress_public_values);
-            }
-            PublicValuesOutputDigest::Root => {
-                assert_root_public_values_valid::<C, SC>(
-                    builder,
-                    &RootPublicValues::new(*compress_public_values),
-                );
-            }
-        }
 
         // If the proof is complete, make completeness assertions.
         assert_complete(builder, compress_public_values, is_complete);

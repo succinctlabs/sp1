@@ -168,7 +168,7 @@ fn write_u64le_to(w: &mut impl std::io::Write, xs: &[u64]) {
 
 fn extract_public_inputs_from_shrink(
     input: &SP1CompressWithVKeyWitnessValues<BabyBearPoseidon2>,
-) -> ([u8; 32], [u8; 32], [u32; 8], [u32; 8]) {
+) -> ([u8; 32], [u8; 32], [u32; 8]) {
     let (vk, proof) = input
         .compress_val
         .vks_and_proofs
@@ -181,16 +181,12 @@ fn extract_public_inputs_from_shrink(
     for (i, x) in pv.sp1_vk_digest.iter().copied().enumerate().take(8) {
         sp1_vk_digest_words[i] = x.as_canonical_u32();
     }
-    let mut pv_digest_words = [0u32; 8];
-    for (i, x) in pv.digest.iter().copied().enumerate().take(8) {
-        pv_digest_words[i] = x.as_canonical_u32();
-    }
     let bytes = words_to_bytes(&pv.committed_value_digest);
     let mut committed_values_digest = [0u8; 32];
     for (i, b) in bytes.iter().enumerate().take(32) {
         committed_values_digest[i] = b.as_canonical_u32() as u8;
     }
-    (vk_hash, committed_values_digest, sp1_vk_digest_words, pv_digest_words)
+    (vk_hash, committed_values_digest, sp1_vk_digest_words)
 }
 
 /// Best-effort extraction of (vk_hash, committed_values_digest) from `SHRINK_PROOF_CACHE`
@@ -445,214 +441,6 @@ fn load_or_build_input_with_merkle(
     }
 
     (prover, input_with_merkle, false)
-}
-
-/// Ensure `public_values.digest` matches the Poseidon2 hash of the prefix.
-fn check_public_values_digest(public_values: &Vec<BabyBear>) -> Option<usize> {
-    use sp1_recursion_core::air::{NUM_PV_ELMS_TO_HASH, RecursionPublicValues};
-    use sp1_recursion_core::{DIGEST_SIZE, HASH_RATE, PERMUTATION_WIDTH};
-    use p3_field::AbstractField;
-    use p3_symmetric::Permutation;
-    use sp1_stark::inner_perm;
-    use std::borrow::Borrow;
-
-    let pv: &RecursionPublicValues<BabyBear> = public_values.as_slice().borrow();
-    let mut state = [BabyBear::zero(); PERMUTATION_WIDTH];
-    let perm = inner_perm();
-    for chunk in pv.as_array()[..NUM_PV_ELMS_TO_HASH].chunks(HASH_RATE) {
-        for (i, v) in chunk.iter().enumerate() {
-            state[i] = *v;
-        }
-        perm.permute_mut(&mut state);
-    }
-    let digest: [BabyBear; DIGEST_SIZE] = state[..DIGEST_SIZE].try_into().unwrap();
-    pv.digest
-        .iter()
-        .zip(digest.iter())
-        .position(|(a, b)| a != b)
-}
-
-fn check_input_public_values_digest(
-    input_with_merkle: &sp1_recursion_circuit::machine::SP1CompressWithVKeyWitnessValues<
-        BabyBearPoseidon2,
-    >,
-) {
-    for (idx, (_vk, proof)) in input_with_merkle.compress_val.vks_and_proofs.iter().enumerate() {
-        if let Some(pos) = check_public_values_digest(&proof.public_values) {
-            eprintln!(
-                "public_values.digest mismatch in proof {idx} at digest index {pos}"
-            );
-        }
-    }
-}
-
-fn report_runtime_error(
-    err: &sp1_recursion_core::RuntimeError<BabyBear, <InnerSC as StarkGenericConfig>::Challenge>,
-    runtime: &sp1_recursion_core::Runtime<
-        BabyBear,
-        <InnerSC as StarkGenericConfig>::Challenge,
-        DiffusionMatrixBabyBear,
-    >,
-    asm: &sp1_recursion_compiler::circuit::AsmCompiler<InnerConfig>,
-    program: &sp1_recursion_core::RawProgram<sp1_recursion_core::Instruction<BabyBear>>,
-) {
-    use sp1_recursion_core::{Address, BaseAluInstr, BaseAluOpcode};
-
-    if let sp1_recursion_core::RuntimeError::DivFOutOfDomain { in1, in2, instr, trace } = err {
-        let BaseAluInstr { opcode, addrs, .. } = instr;
-        let BaseAluOpcode::DivF = opcode else { return };
-        let addr_in1 = addrs.in1.as_usize();
-        let addr_in2 = addrs.in2.as_usize();
-        let addr_out = addrs.out.as_usize();
-
-        let vaddr_in1 = find_vaddr_for_phys(asm, addrs.in1);
-        let vaddr_in2 = find_vaddr_for_phys(asm, addrs.in2);
-        let vaddr_out = find_vaddr_for_phys(asm, addrs.out);
-
-        eprintln!("DivFOutOfDomain at runtime:");
-        eprintln!("  in1={in1:?} (phys={addr_in1}, vaddr={vaddr_in1:?})");
-        eprintln!("  in2={in2:?} (phys={addr_in2}, vaddr={vaddr_in2:?})");
-        eprintln!("  out phys={addr_out}, vaddr={vaddr_out:?}");
-
-        let mem = &runtime.memory;
-        let read_val = |addr: Address<BabyBear>| unsafe { mem.mr_unchecked(addr).val[0] };
-        eprintln!("  mem[in1]={:?}", read_val(addrs.in1));
-        eprintln!("  mem[in2]={:?}", read_val(addrs.in2));
-        eprintln!("  mem[out]={:?}", read_val(addrs.out));
-        if let Some(trace) = trace {
-            eprintln!("  debug trace (from traced op): {trace:?}");
-        }
-
-        report_divf_sites(program, runtime, asm, addrs.in1, addrs.in2, addrs.out);
-    }
-}
-
-fn find_vaddr_for_phys(
-    asm: &sp1_recursion_compiler::circuit::AsmCompiler<InnerConfig>,
-    addr: sp1_recursion_core::Address<BabyBear>,
-) -> Option<usize> {
-    let target = addr.as_usize();
-    asm.virtual_to_physical
-        .iter()
-        .find_map(|(vaddr, phys)| if phys.as_usize() == target { Some(vaddr) } else { None })
-}
-
-fn report_divf_sites(
-    program: &sp1_recursion_core::RawProgram<sp1_recursion_core::Instruction<BabyBear>>,
-    runtime: &sp1_recursion_core::Runtime<
-        BabyBear,
-        <InnerSC as StarkGenericConfig>::Challenge,
-        DiffusionMatrixBabyBear,
-    >,
-    asm: &sp1_recursion_compiler::circuit::AsmCompiler<InnerConfig>,
-    in1: sp1_recursion_core::Address<BabyBear>,
-    in2: sp1_recursion_core::Address<BabyBear>,
-    out: sp1_recursion_core::Address<BabyBear>,
-) {
-    use sp1_recursion_core::Instruction;
-    use sp1_recursion_core::{BaseAluInstr, BaseAluOpcode};
-
-    let instrs: Vec<&Instruction<BabyBear>> = program.iter().collect();
-    let mut matches = Vec::new();
-    for (idx, instr) in instrs.iter().enumerate() {
-        if let Instruction::BaseAlu(BaseAluInstr { opcode: BaseAluOpcode::DivF, addrs, .. }) =
-            instr
-        {
-            if addrs.in1 == in1 && addrs.in2 == in2 && addrs.out == out {
-                matches.push(idx);
-            }
-        }
-    }
-
-    if matches.is_empty() {
-        eprintln!("  no DivF instruction matches these addrs in program");
-        return;
-    }
-
-    eprintln!("  DivF instruction matches at indices: {:?}", matches);
-    if let Some(&idx) = matches.first() {
-        let start = idx.saturating_sub(2);
-        let end = (idx + 3).min(instrs.len());
-        eprintln!("  surrounding instructions [{start}..{end}):");
-        for (i, instr) in instrs[start..end].iter().enumerate() {
-            let idx = start + i;
-            eprintln!("    {idx}: {}", instr_kind(instr));
-            if let Instruction::BaseAlu(BaseAluInstr { opcode, addrs, .. }) = instr {
-                eprintln!(
-                    "      BaseAlu {:?}: out={}, in1={}, in2={}",
-                    opcode,
-                    addrs.out.as_usize(),
-                    addrs.in1.as_usize(),
-                    addrs.in2.as_usize()
-                );
-                eprintln!(
-                    "        out: {}",
-                    addr_info(addrs.out, runtime, asm)
-                );
-                eprintln!(
-                    "        in1: {}",
-                    addr_info(addrs.in1, runtime, asm)
-                );
-                eprintln!(
-                    "        in2: {}",
-                    addr_info(addrs.in2, runtime, asm)
-                );
-            }
-        }
-    }
-}
-
-fn instr_kind(instr: &sp1_recursion_core::Instruction<BabyBear>) -> &'static str {
-    use sp1_recursion_core::Instruction;
-    match instr {
-        Instruction::BaseAlu(_) => "BaseAlu",
-        Instruction::ExtAlu(_) => "ExtAlu",
-        Instruction::Mem(_) => "Mem",
-        Instruction::Poseidon2(_) => "Poseidon2",
-        Instruction::Select(_) => "Select",
-        Instruction::ExpReverseBitsLen(_) => "ExpReverseBitsLen",
-        Instruction::HintBits(_) => "HintBits",
-        Instruction::HintAddCurve(_) => "HintAddCurve",
-        Instruction::FriFold(_) => "FriFold",
-        Instruction::BatchFRI(_) => "BatchFRI",
-        Instruction::Print(_) => "Print",
-        Instruction::HintExt2Felts(_) => "HintExt2Felts",
-        Instruction::CommitPublicValues(_) => "CommitPublicValues",
-        Instruction::Hint(_) => "Hint",
-        Instruction::DebugBacktrace(_) => "DebugBacktrace",
-    }
-}
-
-fn addr_info(
-    addr: sp1_recursion_core::Address<BabyBear>,
-    runtime: &sp1_recursion_core::Runtime<
-        BabyBear,
-        <InnerSC as StarkGenericConfig>::Challenge,
-        DiffusionMatrixBabyBear,
-    >,
-    asm: &sp1_recursion_compiler::circuit::AsmCompiler<InnerConfig>,
-) -> String {
-    let phys = addr.as_usize();
-    let vaddr = find_vaddr_for_phys(asm, addr);
-    let const_val = find_const_for_phys(asm, addr);
-    let mem_val = unsafe { runtime.memory.mr_unchecked(addr).val[0] };
-    format!(
-        "phys={phys}, vaddr={vaddr:?}, const={const_val:?}, mem={mem_val:?}"
-    )
-}
-
-fn find_const_for_phys(
-    asm: &sp1_recursion_compiler::circuit::AsmCompiler<InnerConfig>,
-    addr: sp1_recursion_core::Address<BabyBear>,
-) -> Option<String> {
-    let target = addr.as_usize();
-    asm.consts.iter().find_map(|(imm, (phys, _mult))| {
-        if phys.as_usize() == target {
-            Some(format!("{imm:?}"))
-        } else {
-            None
-        }
-    })
 }
 
 /// Audit that the lifted LF-targeted R1CS cannot exploit modulus wraparound when proven in Frog64
@@ -920,7 +708,6 @@ fn main() {
     let want_witness = std::env::var("SP1_WITNESS").is_ok();
     let (maybe_input_with_merkle, input_loaded_from_cache) = if want_witness {
         let (p, input, loaded_from_cache) = load_or_build_input_with_merkle();
-        check_input_public_values_digest(&input);
         drop(p);
         (Some(input), loaded_from_cache)
     } else {
@@ -1041,10 +828,7 @@ fn main() {
             Witnessable::<InnerConfig>::write(input_with_merkle, &mut witness_blocks);
             let witness_blocks_for_fill = witness_blocks.clone();
             runtime.witness_stream = witness_blocks.into();
-            if let Err(err) = runtime.run() {
-                report_runtime_error(&err, &runtime, &asm, &program.inner);
-                panic!("runtime error during witness fill: {err:?}");
-            }
+            runtime.run().unwrap();
 
             // Compile to R1CS **and** generate the full witness in one pass.
             //
@@ -1091,7 +875,7 @@ fn main() {
             r1cs_stats = Some((r1cs2.num_vars, r1cs2.num_constraints, r1cs2.num_public, digest));
             println!("\n  R1CS Digest (SHA256):");
             println!("    0x{}", hex32(&digest));
-            let (vk_hash, committed_values_digest, sp1_vk_digest_words, pv_digest_words) =
+            let (vk_hash, committed_values_digest, sp1_vk_digest_words) =
                 extract_public_inputs_from_shrink(input_with_merkle);
             if input_loaded_from_cache {
                 println!(
@@ -1111,34 +895,11 @@ fn main() {
             }
 
             // Security check: confirm the exported R1CS public inputs (1..=num_public) match
-            // the shrink proof's recursion public values.
+            // the shrink proof's recursion public values (sp1_vk_digest || committed_value_digest).
             //
             // This ensures `num_public` is not "just a header": these coordinates are concrete,
             // statement-defining values and the compiler-produced witness assigns them correctly.
-            if r1cs2.num_public == 8 {
-                if w_bb.len() < 1 + r1cs2.num_public {
-                    panic!(
-                        "witness too short for declared public inputs: w_len={} need_at_least={}",
-                        w_bb.len(),
-                        1 + r1cs2.num_public
-                    );
-                }
-                // Digest-only binding: first 8 public inputs are `RecursionPublicValues.digest`.
-                for i in 0..8 {
-                    let got_u32 = w_bb[1 + i].as_canonical_u32();
-                    let exp_u32 = pv_digest_words[i];
-                    if got_u32 != exp_u32 {
-                        panic!(
-                            "public input mismatch at idx={} (pv.digest[{}]): got={} expected={}",
-                            1 + i,
-                            i,
-                            got_u32,
-                            exp_u32
-                        );
-                    }
-                }
-                println!("  public_inputs[1..=8] match (RecursionPublicValues.digest)");
-            } else if r1cs2.num_public == 40 {
+            if r1cs2.num_public == 40 {
                 if w_bb.len() < 1 + r1cs2.num_public {
                     panic!(
                         "witness too short for declared public inputs: w_len={} need_at_least={}",
@@ -1176,7 +937,7 @@ fn main() {
                 println!("  public_inputs[1..=40] match (sp1_vk_digest || committed_value_digest)");
             } else if r1cs2.num_public != 0 {
                 println!(
-                    "  NOTE: num_public={} (expected 8 for digest-only or legacy 40); skipping public-input value check",
+                    "  NOTE: num_public={} (expected 40 for SP1 public-values binding); skipping public-input value check",
                     r1cs2.num_public
                 );
             }
@@ -1261,7 +1022,7 @@ fn main() {
             println!("  lift+aux compute time (excluding write): {:?}", dt_aux);
 
             if let Some(bundle_path) = out_witness_bundle.as_deref() {
-                let (vk_hash, committed_values_digest, _sp1_vk_digest_words, _pv_digest_words) =
+                let (vk_hash, committed_values_digest, _sp1_vk_digest_words) =
                     extract_public_inputs_from_shrink(input_with_merkle);
                 let t_bundle = std::time::Instant::now();
                 write_witness_bundle(

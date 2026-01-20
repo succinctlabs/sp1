@@ -260,19 +260,24 @@ where
                 DslIr::CircuitV2CommitPublicValues(public_values) => {
                     // Deterministic statement binding for the SP1 recursion public values.
                     //
-                    // We intentionally only export the *Poseidon2 digest* of the full public-values
-                    // vector as the R1CS public input (digest-only binding).
-                    //
-                    // The recursion circuit itself enforces:
-                    //   `public_values.digest == Poseidon2(public_values[..NUM_PV_ELMS_TO_HASH])`
-                    // so exporting only `digest` preserves statement binding while keeping `l_pub`
-                    // minimal (DIGEST_SIZE felts).
+                    // We intentionally only export the minimal subset needed to bind the SP1 witness
+                    // to a statement in the BabyBear-native R1CS:
+                    // - `sp1_vk_digest` (DIGEST_SIZE felts)
+                    // - `committed_value_digest` (PV_DIGEST_NUM_WORDS * 4 felts = 32 "byte felts")
                     //
                     // Order matters: keep it stable across versions.
-                    for felt in public_values.digest.iter() {
+                    for felt in public_values.sp1_vk_digest.iter() {
                         let id = felt.id();
                         if seen.insert(id.clone()) {
                             out.push(id);
+                        }
+                    }
+                    for word in public_values.committed_value_digest.iter() {
+                        for felt in word.0.iter() {
+                            let id = felt.id();
+                            if seen.insert(id.clone()) {
+                                out.push(id);
+                            }
                         }
                     }
                 }
@@ -2671,14 +2676,25 @@ where
             // slots (indices 1..=num_public). No extra constraints are needed: these variables are
             // already constrained elsewhere by the recursion verifier logic.
             DslIr::CircuitV2CommitPublicValues(public_values) => {
-                for felt in public_values.digest.iter() {
+                for felt in public_values.sp1_vk_digest.iter() {
                     let idx = self.get_var(&felt.id(), ctx.as_deref_mut());
                     debug_assert!(
                         idx >= 1 && idx <= self.r1cs.num_public,
-                        "CircuitV2CommitPublicValues(digest) must refer to a public-input slot (idx={}, num_public={})",
+                        "CircuitV2CommitPublicValues(sp1_vk_digest) must refer to a public-input slot (idx={}, num_public={})",
                         idx,
                         self.r1cs.num_public
                     );
+                }
+                for word in public_values.committed_value_digest.iter() {
+                    for felt in word.0.iter() {
+                        let idx = self.get_var(&felt.id(), ctx.as_deref_mut());
+                        debug_assert!(
+                            idx >= 1 && idx <= self.r1cs.num_public,
+                            "CircuitV2CommitPublicValues(committed_value_digest) must refer to a public-input slot (idx={}, num_public={})",
+                            idx,
+                            self.r1cs.num_public
+                        );
+                    }
                 }
             }
             
