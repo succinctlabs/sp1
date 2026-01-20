@@ -510,14 +510,16 @@ where
                 // Ensure the digest field is consistent with the public-values prefix.
                 // This keeps runtime-generated proofs compatible with digest-validity constraints.
                 {
-                    use sp1_recursion_core::air::NUM_PV_ELMS_TO_HASH;
-                    use sp1_recursion_core::{DIGEST_SIZE, HASH_RATE, PERMUTATION_WIDTH};
-                    use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
+                    use crate::air::NUM_PV_ELMS_TO_HASH;
+                    use crate::{DIGEST_SIZE, HASH_RATE, PERMUTATION_WIDTH};
                     use p3_symmetric::CryptographicPermutation;
+                    use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
 
                     let mut state = [F::zero(); PERMUTATION_WIDTH];
                     for chunk in pv_values[..NUM_PV_ELMS_TO_HASH].chunks(HASH_RATE) {
-                        state[..chunk.len()].copy_from_slice(chunk);
+                        for (i, v) in chunk.iter().enumerate() {
+                            state[i] = *v;
+                        }
                         BabyBearPoseidon2::new().perm.permute_mut(&mut state);
                     }
                     let digest: [F; DIGEST_SIZE] = state[..DIGEST_SIZE].try_into().unwrap();
