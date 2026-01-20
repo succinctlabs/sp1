@@ -520,7 +520,7 @@ fn report_runtime_error(
         eprintln!("  mem[in2]={:?}", read_val(addrs.in2));
         eprintln!("  mem[out]={:?}", read_val(addrs.out));
 
-        report_divf_sites(program, addrs.in1, addrs.in2, addrs.out);
+        report_divf_sites(program, runtime, asm, addrs.in1, addrs.in2, addrs.out);
     }
 }
 
@@ -536,6 +536,12 @@ fn find_vaddr_for_phys(
 
 fn report_divf_sites(
     program: &sp1_recursion_core::RawProgram<sp1_recursion_core::Instruction<BabyBear>>,
+    runtime: &sp1_recursion_core::Runtime<
+        BabyBear,
+        <InnerSC as StarkGenericConfig>::Challenge,
+        DiffusionMatrixBabyBear,
+    >,
+    asm: &sp1_recursion_compiler::circuit::AsmCompiler<InnerConfig>,
     in1: sp1_recursion_core::Address<BabyBear>,
     in2: sp1_recursion_core::Address<BabyBear>,
     out: sp1_recursion_core::Address<BabyBear>,
@@ -576,6 +582,18 @@ fn report_divf_sites(
                     addrs.in1.as_usize(),
                     addrs.in2.as_usize()
                 );
+                eprintln!(
+                    "        out: {}",
+                    addr_info(addrs.out, runtime, asm)
+                );
+                eprintln!(
+                    "        in1: {}",
+                    addr_info(addrs.in1, runtime, asm)
+                );
+                eprintln!(
+                    "        in2: {}",
+                    addr_info(addrs.in2, runtime, asm)
+                );
             }
         }
     }
@@ -600,6 +618,38 @@ fn instr_kind(instr: &sp1_recursion_core::Instruction<BabyBear>) -> &'static str
         Instruction::Hint(_) => "Hint",
         Instruction::DebugBacktrace(_) => "DebugBacktrace",
     }
+}
+
+fn addr_info(
+    addr: sp1_recursion_core::Address<BabyBear>,
+    runtime: &sp1_recursion_core::Runtime<
+        BabyBear,
+        <InnerSC as StarkGenericConfig>::Challenge,
+        DiffusionMatrixBabyBear,
+    >,
+    asm: &sp1_recursion_compiler::circuit::AsmCompiler<InnerConfig>,
+) -> String {
+    let phys = addr.as_usize();
+    let vaddr = find_vaddr_for_phys(asm, addr);
+    let const_val = find_const_for_phys(asm, addr);
+    let mem_val = unsafe { runtime.memory.mr_unchecked(addr).val[0] };
+    format!(
+        "phys={phys}, vaddr={vaddr:?}, const={const_val:?}, mem={mem_val:?}"
+    )
+}
+
+fn find_const_for_phys(
+    asm: &sp1_recursion_compiler::circuit::AsmCompiler<InnerConfig>,
+    addr: sp1_recursion_core::Address<BabyBear>,
+) -> Option<String> {
+    let target = addr.as_usize();
+    asm.consts.iter().find_map(|(imm, (phys, _mult))| {
+        if phys.as_usize() == target {
+            Some(format!("{imm:?}"))
+        } else {
+            None
+        }
+    })
 }
 
 /// Audit that the lifted LF-targeted R1CS cannot exploit modulus wraparound when proven in Frog64
