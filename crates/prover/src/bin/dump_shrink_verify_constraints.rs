@@ -388,7 +388,8 @@ fn build_real_input_with_merkle() -> (SP1Prover, SP1CompressWithVKeyWitnessValue
     stdin.write(&stdin_u32);
     let core_proof = prover.prove_core(&pk_d, program, &stdin, opts, context).unwrap();
     let compressed = prover.compress(&vk, core_proof, vec![], opts).unwrap();
-    let shrink = prover.shrink(compressed, opts).unwrap();
+    let mut shrink = prover.shrink(compressed, opts).unwrap();
+    fix_public_values_digest(&mut shrink.proof.public_values);
 
     // The shrink-proof verifier circuit verifies the *shrink* proof (vk+proof) with merkle proofs.
     let input = sp1_recursion_circuit::machine::SP1CompressWitnessValues {
@@ -415,8 +416,9 @@ fn load_or_build_input_with_merkle(
         if std::path::Path::new(path).exists() {
             let prover: SP1Prover = SP1Prover::new();
             let file = std::fs::File::open(path).expect("open SHRINK_PROOF_CACHE");
-            let shrink: SP1ReduceProof<InnerSC> =
+            let mut shrink: SP1ReduceProof<InnerSC> =
                 bincode::deserialize_from(file).expect("deserialize SHRINK_PROOF_CACHE");
+            fix_public_values_digest(&mut shrink.proof.public_values);
 
             let input = sp1_recursion_circuit::machine::SP1CompressWitnessValues {
                 vks_and_proofs: vec![(shrink.vk.clone(), shrink.proof.clone())],
@@ -438,13 +440,34 @@ fn load_or_build_input_with_merkle(
             .first()
             .expect("expected one shrink proof")
             .clone();
-        let shrink = SP1ReduceProof::<InnerSC> { vk, proof };
+        let mut shrink = SP1ReduceProof::<InnerSC> { vk, proof };
+        fix_public_values_digest(&mut shrink.proof.public_values);
         let file = std::fs::File::create(path).expect("create SHRINK_PROOF_CACHE");
         bincode::serialize_into(file, &shrink).expect("serialize SHRINK_PROOF_CACHE");
         println!("Cached shrink proof to SHRINK_PROOF_CACHE={path}");
     }
 
     (prover, input_with_merkle, false)
+}
+
+/// Ensure `public_values.digest` matches the Poseidon2 hash of the prefix.
+fn fix_public_values_digest(public_values: &mut Vec<BabyBear>) {
+    use sp1_recursion_core::air::{NUM_PV_ELMS_TO_HASH, RecursionPublicValues};
+    use sp1_recursion_core::{DIGEST_SIZE, HASH_RATE, PERMUTATION_WIDTH};
+    use p3_symmetric::CryptographicPermutation;
+    use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
+    use std::borrow::BorrowMut;
+
+    let pv: &mut RecursionPublicValues<BabyBear> = public_values.as_mut_slice().borrow_mut();
+    let mut state = [BabyBear::zero(); PERMUTATION_WIDTH];
+    for chunk in pv.as_array()[..NUM_PV_ELMS_TO_HASH].chunks(HASH_RATE) {
+        for (i, v) in chunk.iter().enumerate() {
+            state[i] = *v;
+        }
+        BabyBearPoseidon2::new().perm.permute_mut(&mut state);
+    }
+    let digest: [BabyBear; DIGEST_SIZE] = state[..DIGEST_SIZE].try_into().unwrap();
+    pv.digest.copy_from_slice(&digest);
 }
 
 /// Audit that the lifted LF-targeted R1CS cannot exploit modulus wraparound when proven in Frog64
