@@ -168,7 +168,7 @@ fn write_u64le_to(w: &mut impl std::io::Write, xs: &[u64]) {
 
 fn extract_public_inputs_from_shrink(
     input: &SP1CompressWithVKeyWitnessValues<BabyBearPoseidon2>,
-) -> ([u8; 32], [u8; 32], [u32; 8]) {
+) -> ([u8; 32], [u8; 32], [u32; 8], [u32; 8]) {
     let (vk, proof) = input
         .compress_val
         .vks_and_proofs
@@ -181,12 +181,16 @@ fn extract_public_inputs_from_shrink(
     for (i, x) in pv.sp1_vk_digest.iter().copied().enumerate().take(8) {
         sp1_vk_digest_words[i] = x.as_canonical_u32();
     }
+    let mut pv_digest_words = [0u32; 8];
+    for (i, x) in pv.digest.iter().copied().enumerate().take(8) {
+        pv_digest_words[i] = x.as_canonical_u32();
+    }
     let bytes = words_to_bytes(&pv.committed_value_digest);
     let mut committed_values_digest = [0u8; 32];
     for (i, b) in bytes.iter().enumerate().take(32) {
         committed_values_digest[i] = b.as_canonical_u32() as u8;
     }
-    (vk_hash, committed_values_digest, sp1_vk_digest_words)
+    (vk_hash, committed_values_digest, sp1_vk_digest_words, pv_digest_words)
 }
 
 /// Best-effort extraction of (vk_hash, committed_values_digest) from `SHRINK_PROOF_CACHE`
@@ -875,7 +879,7 @@ fn main() {
             r1cs_stats = Some((r1cs2.num_vars, r1cs2.num_constraints, r1cs2.num_public, digest));
             println!("\n  R1CS Digest (SHA256):");
             println!("    0x{}", hex32(&digest));
-            let (vk_hash, committed_values_digest, sp1_vk_digest_words) =
+            let (vk_hash, committed_values_digest, sp1_vk_digest_words, pv_digest_words) =
                 extract_public_inputs_from_shrink(input_with_merkle);
             if input_loaded_from_cache {
                 println!(
@@ -895,11 +899,34 @@ fn main() {
             }
 
             // Security check: confirm the exported R1CS public inputs (1..=num_public) match
-            // the shrink proof's recursion public values (sp1_vk_digest || committed_value_digest).
+            // the shrink proof's recursion public values.
             //
             // This ensures `num_public` is not "just a header": these coordinates are concrete,
             // statement-defining values and the compiler-produced witness assigns them correctly.
-            if r1cs2.num_public == 40 {
+            if r1cs2.num_public == 8 {
+                if w_bb.len() < 1 + r1cs2.num_public {
+                    panic!(
+                        "witness too short for declared public inputs: w_len={} need_at_least={}",
+                        w_bb.len(),
+                        1 + r1cs2.num_public
+                    );
+                }
+                // Digest-only binding: first 8 public inputs are `RecursionPublicValues.digest`.
+                for i in 0..8 {
+                    let got_u32 = w_bb[1 + i].as_canonical_u32();
+                    let exp_u32 = pv_digest_words[i];
+                    if got_u32 != exp_u32 {
+                        panic!(
+                            "public input mismatch at idx={} (pv.digest[{}]): got={} expected={}",
+                            1 + i,
+                            i,
+                            got_u32,
+                            exp_u32
+                        );
+                    }
+                }
+                println!("  public_inputs[1..=8] match (RecursionPublicValues.digest)");
+            } else if r1cs2.num_public == 40 {
                 if w_bb.len() < 1 + r1cs2.num_public {
                     panic!(
                         "witness too short for declared public inputs: w_len={} need_at_least={}",
@@ -937,7 +964,7 @@ fn main() {
                 println!("  public_inputs[1..=40] match (sp1_vk_digest || committed_value_digest)");
             } else if r1cs2.num_public != 0 {
                 println!(
-                    "  NOTE: num_public={} (expected 40 for SP1 public-values binding); skipping public-input value check",
+                    "  NOTE: num_public={} (expected 8 for digest-only or legacy 40); skipping public-input value check",
                     r1cs2.num_public
                 );
             }
@@ -1022,7 +1049,7 @@ fn main() {
             println!("  lift+aux compute time (excluding write): {:?}", dt_aux);
 
             if let Some(bundle_path) = out_witness_bundle.as_deref() {
-                let (vk_hash, committed_values_digest, _sp1_vk_digest_words) =
+                let (vk_hash, committed_values_digest, _sp1_vk_digest_words, _pv_digest_words) =
                     extract_public_inputs_from_shrink(input_with_merkle);
                 let t_bundle = std::time::Instant::now();
                 write_witness_bundle(
