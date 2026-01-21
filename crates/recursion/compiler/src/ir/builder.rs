@@ -89,6 +89,7 @@ impl<C: Config> Builder<C> {
         builder.nb_public_values = nb_public_values;
         builder.p2_hash_num = p2_hash_num;
         builder.debug = debug;
+        builder.is_sub_builder = true;
 
         builder
     }
@@ -431,7 +432,6 @@ impl<C: Config> Builder<C> {
 
     /// Register and commits a felt as public value.  This value will be constrained when verified.
     pub fn commit_public_value(&mut self, val: Felt<C::F>) {
-        assert!(!self.is_sub_builder, "Cannot commit to a public value with a sub builder");
         if self.nb_public_values.is_none() {
             self.nb_public_values = Some(self.eval(C::N::zero()));
         }
