@@ -2670,25 +2670,14 @@ where
             // slots (indices 1..=num_public). No extra constraints are needed: these variables are
             // already constrained elsewhere by the recursion verifier logic.
             DslIr::CircuitV2CommitPublicValues(public_values) => {
-                for felt in public_values.sp1_vk_digest.iter() {
+                for felt in public_values.digest.iter() {
                     let idx = self.get_var(&felt.id(), ctx.as_deref_mut());
                     debug_assert!(
                         idx >= 1 && idx <= self.r1cs.num_public,
-                        "CircuitV2CommitPublicValues(sp1_vk_digest) must refer to a public-input slot (idx={}, num_public={})",
+                        "CircuitV2CommitPublicValues(digest) must refer to a public-input slot (idx={}, num_public={})",
                         idx,
                         self.r1cs.num_public
                     );
-                }
-                for word in public_values.committed_value_digest.iter() {
-                    for felt in word.0.iter() {
-                        let idx = self.get_var(&felt.id(), ctx.as_deref_mut());
-                        debug_assert!(
-                            idx >= 1 && idx <= self.r1cs.num_public,
-                            "CircuitV2CommitPublicValues(committed_value_digest) must refer to a public-input slot (idx={}, num_public={})",
-                            idx,
-                            self.r1cs.num_public
-                        );
-                    }
                 }
             }
             
