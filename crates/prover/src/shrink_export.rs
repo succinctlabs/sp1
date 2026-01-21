@@ -32,7 +32,7 @@ use sp1_recursion_core::Runtime;
 use sp1_stark::baby_bear_poseidon2::BabyBearPoseidon2;
 use sp1_stark::{StarkGenericConfig, SP1ProverOpts};
 
-use crate::{utils::words_to_bytes, InnerSC, ShrinkAir, SP1Prover};
+use crate::{types::HashableKey, utils::words_to_bytes, InnerSC, ShrinkAir, SP1Prover};
 
 /// Export the shrink-verifier R1LF and witness bundle to the given paths.
 pub fn export_shrink_verifier(r1lf_path: &Path, witness_bundle_path: &Path) -> anyhow::Result<()> {
@@ -101,8 +101,8 @@ pub fn export_shrink_verifier(r1lf_path: &Path, witness_bundle_path: &Path) -> a
     );
 
     // Lift to LF-targeted R1LF and compute witness (u64) for that lifted instance.
-    let (r1lf, _stats, w_lf_u64) =
-        lift_r1cs_to_lf_with_linear_carries_and_witness(&c.r1cs, &w_bb)?;
+    let (r1lf, _stats, w_lf_u64) = lift_r1cs_to_lf_with_linear_carries_and_witness(&c.r1cs, &w_bb)
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
 
     // Write R1LF.
     r1lf.save_to_file(
