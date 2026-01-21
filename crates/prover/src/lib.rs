@@ -18,6 +18,7 @@ pub mod shapes;
 pub mod types;
 pub mod utils;
 pub mod verify;
+pub mod shrink_export;
 
 use std::{
     borrow::Borrow,

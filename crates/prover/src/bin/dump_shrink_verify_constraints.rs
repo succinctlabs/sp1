@@ -703,6 +703,24 @@ fn audit_no_wrap_frog64_lifted(r1lf: &sp1_recursion_compiler::r1cs::lf::R1CSLf) 
 }
 
 fn main() {
+    // API-driven fast path: if the caller requested the witness bundle export, use the library API
+    // (so downstream crates can share the exact same code path as this binary).
+    //
+    // We intentionally keep the legacy code below for shape-only debugging, opcode histograms,
+    // and audit modes.
+    if let (Ok(r1lf_path), Ok(witness_path)) = (std::env::var("SP1_R1LF"), std::env::var("SP1_WITNESS"))
+    {
+        println!("[sp1-prover] exporting shrink verifier via API...");
+        sp1_prover::shrink_export::export_shrink_verifier(
+            std::path::Path::new(&r1lf_path),
+            std::path::Path::new(&witness_path),
+        )
+        .expect("export_shrink_verifier");
+        println!("[sp1-prover] wrote SP1_R1LF={r1lf_path}");
+        println!("[sp1-prover] wrote SP1_WITNESS={witness_path}");
+        return;
+    }
+
     println!("=========================================================");
     println!("SP1 Shrink Verifier → R1CS Compilation");
     println!("=========================================================\n");
