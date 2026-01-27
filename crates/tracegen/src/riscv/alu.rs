@@ -7,14 +7,17 @@ use slop_tensor::Tensor;
 use sp1_core_machine::alu::add::NUM_ADD_COLS;
 use sp1_core_machine::alu::add_sub::addi::NUM_ADDI_COLS;
 use sp1_core_machine::alu::add_sub::sub::NUM_SUB_COLS;
+use sp1_core_machine::alu::add_sub::subw::NUM_SUBW_COLS;
 use sp1_core_machine::alu::addw::NUM_ADDW_COLS;
 use sp1_core_machine::riscv::{
     AddChip, AddiChip, AddwChip, DivRemChip, LtChip, MulChip, SubChip, SubwChip,
 };
-use sp1_gpu_cudart::sys::{AddGpuEvent, AddiGpuEvent, AddwGpuEvent, GpuMemoryAccess, SubGpuEvent};
+use sp1_gpu_cudart::sys::{
+    AddGpuEvent, AddiGpuEvent, AddwGpuEvent, GpuMemoryAccess, SubGpuEvent, SubwGpuEvent,
+};
 use sp1_gpu_cudart::{
     args, DeviceMle, TaskScope, TracegenRiscvAddKernel, TracegenRiscvAddiKernel,
-    TracegenRiscvAddwKernel, TracegenRiscvSubKernel,
+    TracegenRiscvAddwKernel, TracegenRiscvSubKernel, TracegenRiscvSubwKernel,
 };
 use sp1_hypercube::air::MachineAir;
 
@@ -313,16 +316,69 @@ impl CudaTracegenAir<F> for SubChip {
 
 impl CudaTracegenAir<F> for SubwChip {
     fn supports_device_main_tracegen(&self) -> bool {
-        false // TODO: implement GPU tracegen
+        true
     }
 
     async fn generate_trace_device(
         &self,
-        _input: &Self::Record,
+        input: &Self::Record,
         _output: &mut Self::Record,
-        _scope: &TaskScope,
+        scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {
-        unimplemented!("SubwChip GPU tracegen not yet implemented")
+        let events = &input.subw_events;
+        let events_len = events.len();
+
+        // Convert Rust events to GPU-compatible format
+        // SubwGpuEvent is a type alias for AddGpuEvent since SubwChip uses RTypeRecord
+        let gpu_events: Vec<SubwGpuEvent> = events
+            .iter()
+            .map(|(alu_event, r_type_record)| SubwGpuEvent {
+                clk: alu_event.clk,
+                pc: alu_event.pc,
+                b: alu_event.b,
+                c: alu_event.c,
+                op_a: r_type_record.op_a,
+                op_b: r_type_record.op_b,
+                op_c: r_type_record.op_c,
+                mem_a: memory_record_to_gpu(&r_type_record.a),
+                mem_b: memory_record_to_gpu(&r_type_record.b),
+                mem_c: memory_record_to_gpu(&r_type_record.c),
+            })
+            .collect();
+
+        // Copy events to device
+        let events_device = {
+            let mut buf = Buffer::try_with_capacity_in(gpu_events.len(), scope.clone()).unwrap();
+            buf.extend_from_host_slice(&gpu_events)?;
+            buf
+        };
+
+        // Compute trace height
+        let height = <Self as MachineAir<F>>::num_rows(self, input)
+            .expect("num_rows(...) should be Some(_)");
+
+        // Allocate trace on device
+        let mut trace = Tensor::<F, TaskScope>::zeros_in([NUM_SUBW_COLS, height], scope.clone());
+
+        // Launch kernel
+        unsafe {
+            const BLOCK_DIM: usize = 256;
+            let grid_dim = height.div_ceil(BLOCK_DIM);
+
+            let kernel_args = args!(trace.as_mut_ptr(), height, events_device.as_ptr(), events_len);
+
+            scope
+                .launch_kernel(
+                    TaskScope::tracegen_riscv_subw_kernel(),
+                    grid_dim,
+                    BLOCK_DIM,
+                    &kernel_args,
+                    0,
+                )
+                .unwrap();
+        }
+
+        Ok(DeviceMle::new(Mle::new(trace)))
     }
 }
 
@@ -774,17 +830,91 @@ mod tests {
         crate::tests::test_traces_eq(&trace, &gpu_trace, &events);
     }
 
+    /// Generate random SUBW events for testing.
+    /// SUBW computes 32-bit subtraction and sign-extends the result.
+    fn generate_subw_events(count: usize) -> Vec<(AluEvent, RTypeRecord)> {
+        let mut rng = StdRng::seed_from_u64(0x50B0_BEEF);
+        let mut events = Vec::with_capacity(count);
+
+        // Start with a base timestamp offset to avoid underflow issues
+        let base_timestamp: u64 = 1000;
+
+        for i in 0..count {
+            // Clock increments by 8 per instruction
+            let clk = base_timestamp + (i as u64) * 8;
+            // PC increments by 4 per instruction
+            let pc = 0x1000 + (i as u64) * 4;
+
+            // Generate random operands (use lower 32 bits for SUBW semantics)
+            let b: u64 = rng.gen::<u32>() as u64;
+            let c: u64 = rng.gen::<u32>() as u64;
+            // SUBW: 32-bit sub, result is sign-extended
+            let result_32 = (b as u32).wrapping_sub(c as u32);
+            let a = result_32 as i32 as i64 as u64; // Sign-extend
+
+            // Random destination register (1-31, not x0)
+            let op_a: u8 = rng.gen_range(1..32);
+            let op_a_0 = false;
+
+            let event = AluEvent::new(clk, pc, Opcode::SUBW, a, b, c, op_a_0);
+
+            // Create RTypeRecord with memory access records
+            let record = RTypeRecord {
+                op_a,
+                a: random_write_record(&mut rng, a, clk + 4, base_timestamp), // Write to rd
+                op_b: rng.gen_range(0..32),
+                b: random_read_record(&mut rng, b, clk + 1, base_timestamp), // Read from rs1
+                op_c: rng.gen_range(0..32),
+                c: random_read_record(&mut rng, c, clk + 2, base_timestamp), // Read from rs2
+                is_untrusted: false,
+            };
+
+            events.push((event, record));
+        }
+
+        events
+    }
+
     #[tokio::test]
-    #[ignore = "GPU tracegen not yet implemented"]
     async fn test_subw_generate_trace() {
-        sp1_gpu_cudart::spawn(|scope: TaskScope| async move {
-            let chip = SubwChip;
-            let record = ExecutionRecord::default();
-            let mut output = ExecutionRecord::default();
-            let _ = chip.generate_trace_device(&record, &mut output, &scope).await;
-        })
-        .await
-        .unwrap();
+        sp1_gpu_cudart::spawn(inner_test_subw_generate_trace).await.unwrap();
+    }
+
+    async fn inner_test_subw_generate_trace(scope: TaskScope) {
+        // Generate realistic SUBW events
+        let events = generate_subw_events(1000);
+
+        // Create two identical records - one for CPU, one for GPU
+        let [shard, gpu_shard] = core::array::from_fn(|_| ExecutionRecord {
+            subw_events: events.clone(),
+            ..Default::default()
+        });
+
+        let chip = SubwChip;
+
+        // Time CPU trace generation
+        let cpu_start = Instant::now();
+        let trace = Tensor::<F>::from(chip.generate_trace(&shard, &mut ExecutionRecord::default()));
+        let cpu_duration = cpu_start.elapsed();
+
+        // Time GPU trace generation
+        let gpu_start = Instant::now();
+        let gpu_trace = chip
+            .generate_trace_device(&gpu_shard, &mut ExecutionRecord::default(), &scope)
+            .await
+            .expect("should copy events to device successfully")
+            .to_host()
+            .expect("should copy trace to host successfully")
+            .into_guts();
+        let gpu_duration = gpu_start.elapsed();
+
+        println!("SUBW Tracegen timing (1000 events):");
+        println!("  CPU: {:?}", cpu_duration);
+        println!("  GPU: {:?}", gpu_duration);
+        println!("  Speedup: {:.2}x", cpu_duration.as_secs_f64() / gpu_duration.as_secs_f64());
+
+        // Compare traces
+        crate::tests::test_traces_eq(&trace, &gpu_trace, &events);
     }
 
     #[tokio::test]

@@ -12,6 +12,8 @@ extern "C" {
     pub fn riscv_addw_generate_trace_kernel() -> KernelPtr;
     // RISC-V Sub chip
     pub fn riscv_sub_generate_trace_kernel() -> KernelPtr;
+    // RISC-V Subw chip
+    pub fn riscv_subw_generate_trace_kernel() -> KernelPtr;
     pub fn recursion_base_alu_generate_preprocessed_trace_koala_bear_kernel() -> KernelPtr;
     pub fn recursion_base_alu_generate_trace_koala_bear_kernel() -> KernelPtr;
     pub fn recursion_ext_alu_generate_preprocessed_trace_koala_bear_kernel() -> KernelPtr;

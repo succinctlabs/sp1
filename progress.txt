@@ -5,6 +5,7 @@
 - Test helper `test_traces_eq` compares CPU and GPU traces row by row and reports mismatches
 - ITypeRecord is simpler than R/ALUTypeRecord: op_c is always an immediate (no mem_c needed)
 - Chips using identical instruction formats can share GPU event structs via type aliases (e.g., SubGpuEvent = AddGpuEvent)
+- SubwChip uses RTypeReader (like SubChip), not ALUTypeReader (like AddwChip) - check column struct definitions carefully
 
 ---
 
@@ -62,5 +63,24 @@
   - **Type alias for GPU events:** Since SubChip and AddChip have identical event structures, we use a type alias (`SubGpuEvent = AddGpuEvent`) to avoid code duplication.
   - **SubOperation vs AddOperation:** SubOperation only contains `value: Word<T>` (result of b - c). It's structurally simpler than AddwOperation which has additional fields for sign extension.
   - **SUB semantics:** SUB performs 64-bit subtraction (b - c) with wrapping semantics. Result is written to the destination register.
+
+---
+
+## 2026-01-27 - SubwChip GPU Tracegen
+- **What was implemented:** GPU trace generation for SubwChip (32-bit subtraction with sign extension)
+- **Files changed:**
+  - `crates/sys/src/riscv_events.rs` - Added `SubwGpuEvent` as type alias to `AddGpuEvent`
+  - `crates/sys/build.rs` - Added cbindgen exports for SubwCols, SubwOperation
+  - `lib/tracegen/riscv/subw.cu` - New CUDA kernel for SubwChip
+  - `lib/tracegen/CMakeLists.txt` - Added subw.cu to build
+  - `crates/sys/src/tracegen.rs` - Declared extern fn for subw kernel
+  - `crates/cuda/src/tracegen.rs` - Added TracegenRiscvSubwKernel trait
+  - `crates/tracegen/src/riscv/alu.rs` - Implemented CudaTracegenAir for SubwChip, added tests with timing
+
+- **Learnings:**
+  - **SubwChip uses RTypeReader, not ALUTypeReader:** Despite being a "word" instruction like AddwChip, SubwChip uses `RTypeReader` and `RTypeRecord` (same as SubChip), not `ALUTypeReader`. This is a key difference - always check the column struct definition.
+  - **SubwOperation structure:** SubwOperation has `value: [T; 2]` (32-bit result as 2 x u16 limbs) and `msb: U16MSBOperation<T>` for sign extension. Same structure as AddwOperation.
+  - **Type alias reuse:** Since SubwChip uses RTypeRecord (same as SubChip and AddChip), we use `SubwGpuEvent = AddGpuEvent` type alias.
+  - **SUBW semantics:** SUBW performs 32-bit subtraction on the lower 32 bits of operands and sign-extends the result to 64 bits.
 
 ---

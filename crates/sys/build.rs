@@ -96,6 +96,9 @@ fn cbindgen_builder() -> cbindgen::Builder {
         // RISC-V SubChip types
         .include_item("SubCols")
         .include_item("SubOperation")
+        // RISC-V SubwChip types
+        .include_item("SubwCols")
+        .include_item("SubwOperation")
         .with_namespace("sp1_gpu_sys")
         .with_crate(env::var("CARGO_MANIFEST_DIR").unwrap())
 }

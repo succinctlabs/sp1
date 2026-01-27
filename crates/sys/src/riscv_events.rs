@@ -94,6 +94,12 @@ pub struct AddwGpuEvent {
 /// SubChip is structurally identical to AddChip - both use R-type instruction format.
 pub type SubGpuEvent = AddGpuEvent;
 
+/// GPU-compatible event for SubwChip.
+///
+/// This flattens `AluEvent` and `RTypeRecord` into a single struct without Options or enums.
+/// SubwChip uses R-type instruction format (same as SubChip and AddChip).
+pub type SubwGpuEvent = AddGpuEvent;
+
 /// GPU-compatible event for AddiChip.
 ///
 /// This flattens `AluEvent` and `ITypeRecord` into a single struct without Options or enums.

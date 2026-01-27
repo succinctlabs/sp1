@@ -13,5 +13,6 @@ add_library(tracegen_objs OBJECT
     riscv/addw.cu
     riscv/global.cu
     riscv/sub.cu
+    riscv/subw.cu
 )
 target_link_libraries(tracegen_objs PRIVATE sp1_gpu_common)
