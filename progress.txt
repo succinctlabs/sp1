@@ -1,0 +1,26 @@
+## Codebase Patterns
+- When cbindgen can't handle constant expressions like `[T; WORD_SIZE / 2]`, manually define the struct in the CUDA file
+- ALUTypeRecord uses optional mem_c (Option<MemoryRecordEnum>) for immediate vs register mode
+- For GPU event structs, flatten Option types to always include the field with a flag (is_imm) to indicate validity
+- Test helper `test_traces_eq` compares CPU and GPU traces row by row and reports mismatches
+
+---
+
+## 2026-01-27 - AddwChip GPU Tracegen
+- **What was implemented:** GPU trace generation for AddwChip (32-bit add with sign extension)
+- **Files changed:**
+  - `crates/sys/src/riscv_events.rs` - Added `AddwGpuEvent` struct
+  - `crates/sys/build.rs` - Added cbindgen exports for AddwCols, ALUTypeReader, AddwOperation, U16MSBOperation
+  - `lib/tracegen/riscv/addw.cu` - New CUDA kernel for AddwChip
+  - `lib/tracegen/CMakeLists.txt` - Added addw.cu to build
+  - `crates/sys/src/tracegen.rs` - Declared extern fn for addw kernel
+  - `crates/cuda/src/tracegen.rs` - Added TracegenRiscvAddwKernel trait
+  - `crates/tracegen/src/riscv/alu.rs` - Implemented CudaTracegenAir for AddwChip, added tests with timing
+
+- **Learnings:**
+  - **cbindgen constant expressions:** cbindgen cannot resolve Rust constant expressions like `WORD_SIZE / 2`. The `AddwOperation` struct uses `[T; WORD_SIZE / 2]` which cbindgen only generates as a forward declaration. Solution: manually define the struct in the CUDA file.
+  - **ALUTypeRecord vs RTypeRecord:** AddwChip uses ALUTypeRecord which differs from RTypeRecord in that `c` is an Option (None for immediate mode). The GPU event flattens this by always including `mem_c` field and using `is_imm` flag.
+  - **U16MSBOperation:** AddwOperation includes a U16MSBOperation field to track the MSB of the 32-bit result for sign extension.
+  - **ADDW semantics:** ADDW performs 32-bit addition on the lower 32 bits of operands and sign-extends the result to 64 bits.
+
+---

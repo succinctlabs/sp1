@@ -83,6 +83,12 @@ fn cbindgen_builder() -> cbindgen::Builder {
         .include_item("AddOperation")
         .include_item("RegisterAccessCols")
         .include_item("RegisterAccessTimestamp")
+        // RISC-V AddwChip types
+        .include_item("AddwGpuEvent")
+        .include_item("AddwCols")
+        .include_item("ALUTypeReader")
+        .include_item("AddwOperation")
+        .include_item("U16MSBOperation")
         .with_namespace("sp1_gpu_sys")
         .with_crate(env::var("CARGO_MANIFEST_DIR").unwrap())
 }

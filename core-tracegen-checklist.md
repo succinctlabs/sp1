@@ -7,7 +7,7 @@ This document tracks the GPU tracegen implementation status for core RISC-V chip
 | Chip | Variant | GPU Impl | Stub | Tests | File |
 |------|---------|----------|------|-------|------|
 | AddChip | `Add` | [x] | [x] | [x] | `alu.rs` |
-| AddwChip | `Addw` | [ ] | [x] | [ ] | `alu.rs` |
+| AddwChip | `Addw` | [x] | [x] | [x] | `alu.rs` |
 | AddiChip | `Addi` | [ ] | [x] | [ ] | `alu.rs` |
 | SubChip | `Sub` | [ ] | [x] | [ ] | `alu.rs` |
 | SubwChip | `Subw` | [ ] | [x] | [ ] | `alu.rs` |
@@ -96,9 +96,9 @@ This document tracks the GPU tracegen implementation status for core RISC-V chip
 ## Summary
 
 - **Total core chips**: 35
-- **GPU implemented**: 2 (Global, Add)
+- **GPU implemented**: 3 (Global, Add, Addw)
 - **Stubs created**: 35
-- **Tests passing**: 2
+- **Tests passing**: 3
 
 ## File Structure
 
