@@ -9,6 +9,7 @@ add_library(tracegen_objs OBJECT
     recursion/sbox.cu
     recursion/select.cu
     riscv/add.cu
+    riscv/addi.cu
     riscv/addw.cu
     riscv/global.cu
 )

@@ -87,3 +87,34 @@ pub struct AddwGpuEvent {
     /// Memory access record for source register 2 (read). Only valid if !is_imm.
     pub mem_c: GpuMemoryAccess,
 }
+
+/// GPU-compatible event for AddiChip.
+///
+/// This flattens `AluEvent` and `ITypeRecord` into a single struct without Options or enums.
+/// ITypeRecord uses I-type instruction format where op_c is always an immediate value.
+#[derive(Clone, Copy, Debug, Default)]
+#[repr(C)]
+pub struct AddiGpuEvent {
+    // From AluEvent
+    /// Clock cycle of this instruction.
+    pub clk: u64,
+    /// Program counter of this instruction.
+    pub pc: u64,
+    /// First operand value (from rs1).
+    pub b: u64,
+    /// Second operand value (immediate).
+    pub c: u64,
+
+    // From ITypeRecord
+    /// Destination register number (rd).
+    pub op_a: u8,
+    /// Source register 1 spec (rs1).
+    pub op_b: u64,
+    /// Immediate value (op_c).
+    pub op_c: u64,
+
+    /// Memory access record for destination register (write).
+    pub mem_a: GpuMemoryAccess,
+    /// Memory access record for source register 1 (read).
+    pub mem_b: GpuMemoryAccess,
+}

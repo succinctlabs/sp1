@@ -3,6 +3,7 @@
 - ALUTypeRecord uses optional mem_c (Option<MemoryRecordEnum>) for immediate vs register mode
 - For GPU event structs, flatten Option types to always include the field with a flag (is_imm) to indicate validity
 - Test helper `test_traces_eq` compares CPU and GPU traces row by row and reports mismatches
+- ITypeRecord is simpler than R/ALUTypeRecord: op_c is always an immediate (no mem_c needed)
 
 ---
 
@@ -22,5 +23,24 @@
   - **ALUTypeRecord vs RTypeRecord:** AddwChip uses ALUTypeRecord which differs from RTypeRecord in that `c` is an Option (None for immediate mode). The GPU event flattens this by always including `mem_c` field and using `is_imm` flag.
   - **U16MSBOperation:** AddwOperation includes a U16MSBOperation field to track the MSB of the 32-bit result for sign extension.
   - **ADDW semantics:** ADDW performs 32-bit addition on the lower 32 bits of operands and sign-extends the result to 64 bits.
+
+---
+
+## 2026-01-27 - AddiChip GPU Tracegen
+- **What was implemented:** GPU trace generation for AddiChip (add immediate)
+- **Files changed:**
+  - `crates/sys/src/riscv_events.rs` - Added `AddiGpuEvent` struct
+  - `crates/sys/build.rs` - Added cbindgen exports for AddiCols, ITypeReader
+  - `lib/tracegen/riscv/addi.cu` - New CUDA kernel for AddiChip
+  - `lib/tracegen/CMakeLists.txt` - Added addi.cu to build
+  - `crates/sys/src/tracegen.rs` - Declared extern fn for addi kernel
+  - `crates/cuda/src/tracegen.rs` - Added TracegenRiscvAddiKernel trait
+  - `crates/tracegen/src/riscv/alu.rs` - Implemented CudaTracegenAir for AddiChip, added tests with timing
+
+- **Learnings:**
+  - **ITypeRecord vs ALUTypeRecord:** ITypeRecord is used for I-type instructions like ADDI. Key difference: `op_c` is always an immediate value stored directly (no memory access). This makes the GPU event simpler - no `is_imm` flag or `mem_c` field needed.
+  - **ITypeReader adapter:** ITypeReader has `op_c_imm` (a Word<T>) for the immediate value instead of a memory access column. This simplifies the CUDA kernel since we just store the immediate as a Word.
+  - **ADDI semantics:** ADDI adds a 64-bit register value to a sign-extended 12-bit immediate. Result is written to the destination register.
+  - **Test pattern reuse:** The same test structure (generate_*_events, compare traces) works well across different instruction types.
 
 ---

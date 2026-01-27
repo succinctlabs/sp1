@@ -89,6 +89,10 @@ fn cbindgen_builder() -> cbindgen::Builder {
         .include_item("ALUTypeReader")
         .include_item("AddwOperation")
         .include_item("U16MSBOperation")
+        // RISC-V AddiChip types
+        .include_item("AddiGpuEvent")
+        .include_item("AddiCols")
+        .include_item("ITypeReader")
         .with_namespace("sp1_gpu_sys")
         .with_crate(env::var("CARGO_MANIFEST_DIR").unwrap())
 }

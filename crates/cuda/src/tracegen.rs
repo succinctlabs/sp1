@@ -15,6 +15,17 @@ unsafe impl TracegenRiscvAddKernel<KoalaBear> for TaskScope {
 }
 
 /// # Safety
+pub unsafe trait TracegenRiscvAddiKernel<F> {
+    fn tracegen_riscv_addi_kernel() -> KernelPtr;
+}
+
+unsafe impl TracegenRiscvAddiKernel<KoalaBear> for TaskScope {
+    fn tracegen_riscv_addi_kernel() -> KernelPtr {
+        unsafe { sp1_gpu_sys::tracegen::riscv_addi_generate_trace_kernel() }
+    }
+}
+
+/// # Safety
 pub unsafe trait TracegenRiscvAddwKernel<F> {
     fn tracegen_riscv_addw_kernel() -> KernelPtr;
 }
