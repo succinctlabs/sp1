@@ -82,7 +82,7 @@ mod tests {
     #[ignore = "GPU tracegen not yet implemented"]
     async fn test_sha_extend_generate_trace() {
         sp1_gpu_cudart::spawn(|scope: TaskScope| async move {
-            let chip = ShaExtendChip::default();
+            let chip = ShaExtendChip;
             let record = ExecutionRecord::default();
             let mut output = ExecutionRecord::default();
             let _ = chip.generate_trace_device(&record, &mut output, &scope).await;
@@ -95,7 +95,7 @@ mod tests {
     #[ignore = "GPU tracegen not yet implemented"]
     async fn test_sha_extend_control_generate_trace() {
         sp1_gpu_cudart::spawn(|scope: TaskScope| async move {
-            let chip = ShaExtendControlChip::default();
+            let chip = ShaExtendControlChip;
             let record = ExecutionRecord::default();
             let mut output = ExecutionRecord::default();
             let _ = chip.generate_trace_device(&record, &mut output, &scope).await;
@@ -108,7 +108,7 @@ mod tests {
     #[ignore = "GPU tracegen not yet implemented"]
     async fn test_sha_compress_generate_trace() {
         sp1_gpu_cudart::spawn(|scope: TaskScope| async move {
-            let chip = ShaCompressChip::default();
+            let chip = ShaCompressChip;
             let record = ExecutionRecord::default();
             let mut output = ExecutionRecord::default();
             let _ = chip.generate_trace_device(&record, &mut output, &scope).await;
@@ -121,7 +121,7 @@ mod tests {
     #[ignore = "GPU tracegen not yet implemented"]
     async fn test_sha_compress_control_generate_trace() {
         sp1_gpu_cudart::spawn(|scope: TaskScope| async move {
-            let chip = ShaCompressControlChip::default();
+            let chip = ShaCompressControlChip;
             let record = ExecutionRecord::default();
             let mut output = ExecutionRecord::default();
             let _ = chip.generate_trace_device(&record, &mut output, &scope).await;

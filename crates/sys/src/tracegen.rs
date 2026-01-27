@@ -1,8 +1,11 @@
 use crate::runtime::KernelPtr;
 
 extern "C" {
+    // RISC-V Global chip
     pub fn riscv_global_generate_trace_decompress_kernel() -> KernelPtr;
     pub fn riscv_global_generate_trace_finalize_kernel() -> KernelPtr;
+    // RISC-V Add chip
+    pub fn riscv_add_generate_trace_kernel() -> KernelPtr;
     pub fn recursion_base_alu_generate_preprocessed_trace_koala_bear_kernel() -> KernelPtr;
     pub fn recursion_base_alu_generate_trace_koala_bear_kernel() -> KernelPtr;
     pub fn recursion_ext_alu_generate_preprocessed_trace_koala_bear_kernel() -> KernelPtr;

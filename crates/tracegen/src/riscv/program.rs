@@ -45,7 +45,7 @@ mod tests {
     #[ignore = "GPU tracegen not yet implemented"]
     async fn test_program_generate_trace() {
         sp1_gpu_cudart::spawn(|scope: TaskScope| async move {
-            let chip = ProgramChip::default();
+            let chip = ProgramChip;
             let record = ExecutionRecord::default();
             let mut output = ExecutionRecord::default();
             let _ = chip.generate_trace_device(&record, &mut output, &scope).await;

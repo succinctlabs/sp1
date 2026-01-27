@@ -4,6 +4,17 @@ use sp1_gpu_sys::runtime::KernelPtr;
 use crate::TaskScope;
 
 /// # Safety
+pub unsafe trait TracegenRiscvAddKernel<F> {
+    fn tracegen_riscv_add_kernel() -> KernelPtr;
+}
+
+unsafe impl TracegenRiscvAddKernel<KoalaBear> for TaskScope {
+    fn tracegen_riscv_add_kernel() -> KernelPtr {
+        unsafe { sp1_gpu_sys::tracegen::riscv_add_generate_trace_kernel() }
+    }
+}
+
+/// # Safety
 pub unsafe trait TracegenRiscvGlobalKernel<F> {
     fn tracegen_riscv_global_decompress_kernel() -> KernelPtr;
     fn tracegen_riscv_global_finalize_kernel() -> KernelPtr;

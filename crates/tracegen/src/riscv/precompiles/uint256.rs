@@ -65,7 +65,7 @@ mod tests {
     #[ignore = "GPU tracegen not yet implemented"]
     async fn test_uint256_mul_generate_trace() {
         sp1_gpu_cudart::spawn(|scope: TaskScope| async move {
-            let chip = Uint256MulChip::default();
+            let chip = Uint256MulChip;
             let record = ExecutionRecord::default();
             let mut output = ExecutionRecord::default();
             let _ = chip.generate_trace_device(&record, &mut output, &scope).await;
@@ -78,7 +78,7 @@ mod tests {
     #[ignore = "GPU tracegen not yet implemented"]
     async fn test_uint256_ops_generate_trace() {
         sp1_gpu_cudart::spawn(|scope: TaskScope| async move {
-            let chip = Uint256OpsChip::default();
+            let chip = Uint256OpsChip;
             let record = ExecutionRecord::default();
             let mut output = ExecutionRecord::default();
             let _ = chip.generate_trace_device(&record, &mut output, &scope).await;
@@ -91,7 +91,7 @@ mod tests {
     #[ignore = "GPU tracegen not yet implemented"]
     async fn test_u256x2048_mul_generate_trace() {
         sp1_gpu_cudart::spawn(|scope: TaskScope| async move {
-            let chip = U256x2048MulChip::default();
+            let chip = U256x2048MulChip;
             let record = ExecutionRecord::default();
             let mut output = ExecutionRecord::default();
             let _ = chip.generate_trace_device(&record, &mut output, &scope).await;

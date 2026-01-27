@@ -1,25 +1,94 @@
 //! GPU tracegen stubs for ALU chips.
 
 use slop_alloc::mem::CopyError;
+use slop_alloc::Buffer;
+use slop_multilinear::Mle;
+use slop_tensor::Tensor;
+use sp1_core_machine::alu::add::NUM_ADD_COLS;
 use sp1_core_machine::riscv::{
     AddChip, AddiChip, AddwChip, DivRemChip, LtChip, MulChip, SubChip, SubwChip,
 };
-use sp1_gpu_cudart::{DeviceMle, TaskScope};
+use sp1_gpu_cudart::sys::{AddGpuEvent, GpuMemoryAccess};
+use sp1_gpu_cudart::{args, DeviceMle, TaskScope, TracegenRiscvAddKernel};
+use sp1_hypercube::air::MachineAir;
 
 use crate::{CudaTracegenAir, F};
 
+/// Convert a `MemoryRecordEnum` to a `GpuMemoryAccess`.
+fn memory_record_to_gpu(record: &sp1_core_executor::events::MemoryRecordEnum) -> GpuMemoryAccess {
+    let prev = record.previous_record();
+    let curr = record.current_record();
+    GpuMemoryAccess {
+        prev_value: prev.value,
+        prev_timestamp: prev.timestamp,
+        current_timestamp: curr.timestamp,
+    }
+}
+
 impl CudaTracegenAir<F> for AddChip {
     fn supports_device_main_tracegen(&self) -> bool {
-        false // TODO: implement GPU tracegen
+        true
     }
 
     async fn generate_trace_device(
         &self,
-        _input: &Self::Record,
+        input: &Self::Record,
         _output: &mut Self::Record,
-        _scope: &TaskScope,
+        scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {
-        unimplemented!("AddChip GPU tracegen not yet implemented")
+        let events = &input.add_events;
+        let events_len = events.len();
+
+        // Convert Rust events to GPU-compatible format
+        let gpu_events: Vec<AddGpuEvent> = events
+            .iter()
+            .map(|(alu_event, r_type_record)| AddGpuEvent {
+                clk: alu_event.clk,
+                pc: alu_event.pc,
+                b: alu_event.b,
+                c: alu_event.c,
+                op_a: r_type_record.op_a,
+                op_b: r_type_record.op_b,
+                op_c: r_type_record.op_c,
+                mem_a: memory_record_to_gpu(&r_type_record.a),
+                mem_b: memory_record_to_gpu(&r_type_record.b),
+                mem_c: memory_record_to_gpu(&r_type_record.c),
+            })
+            .collect();
+
+        // Copy events to device
+        let events_device = {
+            let mut buf = Buffer::try_with_capacity_in(gpu_events.len(), scope.clone()).unwrap();
+            buf.extend_from_host_slice(&gpu_events)?;
+            buf
+        };
+
+        // Compute trace height
+        let height = <Self as MachineAir<F>>::num_rows(self, input)
+            .expect("num_rows(...) should be Some(_)");
+
+        // Allocate trace on device
+        let mut trace = Tensor::<F, TaskScope>::zeros_in([NUM_ADD_COLS, height], scope.clone());
+
+        // Launch kernel
+        unsafe {
+            const BLOCK_DIM: usize = 256;
+            let grid_dim = height.div_ceil(BLOCK_DIM);
+
+            let kernel_args = args!(trace.as_mut_ptr(), height, events_device.as_ptr(), events_len);
+
+            scope
+                .launch_kernel(
+                    TaskScope::tracegen_riscv_add_kernel(),
+                    grid_dim,
+                    BLOCK_DIM,
+                    &kernel_args,
+                    0,
+                )
+                .unwrap();
+        }
+
+        Ok(DeviceMle::new(Mle::new(trace)))
     }
 }
 
@@ -130,25 +199,137 @@ impl CudaTracegenAir<F> for LtChip {
 
 #[cfg(test)]
 mod tests {
-    use sp1_core_executor::ExecutionRecord;
+    use rand::{rngs::StdRng, Rng, SeedableRng};
+    use slop_tensor::Tensor;
+    use sp1_core_executor::{
+        events::{AluEvent, MemoryReadRecord, MemoryRecordEnum, MemoryWriteRecord},
+        ExecutionRecord, Opcode, RTypeRecord,
+    };
     use sp1_core_machine::riscv::{
         AddChip, AddiChip, AddwChip, DivRemChip, LtChip, MulChip, SubChip, SubwChip,
     };
     use sp1_gpu_cudart::TaskScope;
+    use sp1_hypercube::air::MachineAir;
 
-    use crate::CudaTracegenAir;
+    use crate::{CudaTracegenAir, F};
+
+    /// Generate a random memory read record for testing.
+    /// Uses a base_timestamp to ensure prev_timestamp calculations don't underflow.
+    fn random_read_record(
+        rng: &mut StdRng,
+        value: u64,
+        timestamp: u64,
+        base_timestamp: u64,
+    ) -> MemoryRecordEnum {
+        // Ensure prev_timestamp is always valid (>= base_timestamp but < timestamp)
+        let prev_timestamp = if timestamp > base_timestamp {
+            base_timestamp + rng.gen_range(0..timestamp - base_timestamp)
+        } else {
+            base_timestamp
+        };
+        MemoryRecordEnum::Read(MemoryReadRecord {
+            value,
+            timestamp,
+            prev_timestamp,
+            prev_page_prot_record: None,
+        })
+    }
+
+    /// Generate a random memory write record for testing.
+    fn random_write_record(
+        rng: &mut StdRng,
+        value: u64,
+        timestamp: u64,
+        base_timestamp: u64,
+    ) -> MemoryRecordEnum {
+        let prev_timestamp = if timestamp > base_timestamp {
+            base_timestamp + rng.gen_range(0..timestamp - base_timestamp)
+        } else {
+            base_timestamp
+        };
+        MemoryRecordEnum::Write(MemoryWriteRecord {
+            prev_timestamp,
+            prev_page_prot_record: None,
+            prev_value: rng.gen(),
+            timestamp,
+            value,
+        })
+    }
+
+    /// Generate random ADD events for testing.
+    fn generate_add_events(count: usize) -> Vec<(AluEvent, RTypeRecord)> {
+        let mut rng = StdRng::seed_from_u64(0xADD_BEEF);
+        let mut events = Vec::with_capacity(count);
+
+        // Start with a base timestamp offset to avoid underflow issues
+        let base_timestamp: u64 = 1000;
+
+        for i in 0..count {
+            // Clock increments by 8 per instruction
+            let clk = base_timestamp + (i as u64) * 8;
+            // PC increments by 4 per instruction
+            let pc = 0x1000 + (i as u64) * 4;
+
+            // Generate random operands and compute result
+            let b: u64 = rng.gen();
+            let c: u64 = rng.gen();
+            let a = b.wrapping_add(c); // ADD result
+
+            // Random destination register (1-31, not x0)
+            let op_a: u8 = rng.gen_range(1..32);
+            let op_a_0 = false;
+
+            let event = AluEvent::new(clk, pc, Opcode::ADD, a, b, c, op_a_0);
+
+            // Create RTypeRecord with memory access records
+            // Timestamps for memory accesses are offset from the instruction clock
+            let record = RTypeRecord {
+                op_a,
+                a: random_write_record(&mut rng, a, clk + 4, base_timestamp), // Write to rd
+                op_b: rng.gen_range(0..32),
+                b: random_read_record(&mut rng, b, clk + 1, base_timestamp), // Read from rs1
+                op_c: rng.gen_range(0..32),
+                c: random_read_record(&mut rng, c, clk + 2, base_timestamp), // Read from rs2
+                is_untrusted: false,
+            };
+
+            events.push((event, record));
+        }
+
+        events
+    }
 
     #[tokio::test]
-    #[ignore = "GPU tracegen not yet implemented"]
     async fn test_add_generate_trace() {
-        sp1_gpu_cudart::spawn(|scope: TaskScope| async move {
-            let chip = AddChip;
-            let record = ExecutionRecord::default();
-            let mut output = ExecutionRecord::default();
-            let _ = chip.generate_trace_device(&record, &mut output, &scope).await;
-        })
-        .await
-        .unwrap();
+        sp1_gpu_cudart::spawn(inner_test_add_generate_trace).await.unwrap();
+    }
+
+    async fn inner_test_add_generate_trace(scope: TaskScope) {
+        // Generate realistic ADD events
+        let events = generate_add_events(1000);
+
+        // Create two identical records - one for CPU, one for GPU
+        let [shard, gpu_shard] = core::array::from_fn(|_| ExecutionRecord {
+            add_events: events.clone(),
+            ..Default::default()
+        });
+
+        let chip = AddChip;
+
+        // Generate CPU trace for comparison
+        let trace = Tensor::<F>::from(chip.generate_trace(&shard, &mut ExecutionRecord::default()));
+
+        // Generate GPU trace
+        let gpu_trace = chip
+            .generate_trace_device(&gpu_shard, &mut ExecutionRecord::default(), &scope)
+            .await
+            .expect("should copy events to device successfully")
+            .to_host()
+            .expect("should copy trace to host successfully")
+            .into_guts();
+
+        // Compare traces
+        crate::tests::test_traces_eq(&trace, &gpu_trace, &events);
     }
 
     #[tokio::test]

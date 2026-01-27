@@ -48,7 +48,7 @@ mod tests {
     #[ignore = "GPU tracegen not yet implemented"]
     async fn test_mprotect_generate_trace() {
         sp1_gpu_cudart::spawn(|scope: TaskScope| async move {
-            let chip = MProtectChip::default();
+            let chip = MProtectChip;
             let record = ExecutionRecord::default();
             let mut output = ExecutionRecord::default();
             let _ = chip.generate_trace_device(&record, &mut output, &scope).await;
@@ -61,7 +61,7 @@ mod tests {
     #[ignore = "GPU tracegen not yet implemented"]
     async fn test_poseidon2_generate_trace() {
         sp1_gpu_cudart::spawn(|scope: TaskScope| async move {
-            let chip = Poseidon2Chip::default();
+            let chip = Poseidon2Chip;
             let record = ExecutionRecord::default();
             let mut output = ExecutionRecord::default();
             let _ = chip.generate_trace_device(&record, &mut output, &scope).await;
