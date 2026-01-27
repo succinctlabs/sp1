@@ -1,4 +1,6 @@
 ## Codebase Patterns
+- When cbindgen can't handle constant expressions like `[T; WORD_SIZE / 2]` or `[T; LONG_WORD_BYTE_SIZE]`, manually define the entire struct hierarchy in the CUDA file
+- For complex operations with multiple array sizes (like MulOperation), may need to manually define MulCols, MulOperation, and U16toU8Operation together
 - When cbindgen can't handle constant expressions like `[T; WORD_SIZE / 2]`, manually define the struct in the CUDA file
 - ALUTypeRecord uses optional mem_c (Option<MemoryRecordEnum>) for immediate vs register mode
 - For GPU event structs, flatten Option types to always include the field with a flag (is_imm) to indicate validity
@@ -82,5 +84,25 @@
   - **SubwOperation structure:** SubwOperation has `value: [T; 2]` (32-bit result as 2 x u16 limbs) and `msb: U16MSBOperation<T>` for sign extension. Same structure as AddwOperation.
   - **Type alias reuse:** Since SubwChip uses RTypeRecord (same as SubChip and AddChip), we use `SubwGpuEvent = AddGpuEvent` type alias.
   - **SUBW semantics:** SUBW performs 32-bit subtraction on the lower 32 bits of operands and sign-extends the result to 64 bits.
+
+---
+
+## 2026-01-27 - MulChip GPU Tracegen
+- **What was implemented:** GPU trace generation for MulChip (multiplication operations: MUL, MULH, MULHU, MULHSU, MULW)
+- **Files changed:**
+  - `crates/sys/src/riscv_events.rs` - Added `MulGpuEvent` struct with opcode field to distinguish MUL variants
+  - `crates/sys/build.rs` - Added cbindgen export for MulGpuEvent (MulCols and MulOperation manually defined)
+  - `lib/tracegen/riscv/mul.cu` - New CUDA kernel for MulChip with manual struct definitions
+  - `lib/tracegen/CMakeLists.txt` - Added mul.cu to build
+  - `crates/sys/src/tracegen.rs` - Declared extern fn for mul kernel
+  - `crates/cuda/src/tracegen.rs` - Added TracegenRiscvMulKernel trait
+  - `crates/tracegen/src/riscv/alu.rs` - Implemented CudaTracegenAir for MulChip, added tests with timing
+
+- **Learnings:**
+  - **MulOperation complexity:** MulOperation has arrays sized by LONG_WORD_BYTE_SIZE (16) and WORD_SIZE (4), making cbindgen unable to resolve them. Had to manually define U16toU8Operation, MulOperation, and MulCols in the CUDA file.
+  - **Opcode field in GPU event:** MulChip handles 5 different opcodes (MUL, MULH, MULHU, MULHSU, MULW). Added an opcode field to MulGpuEvent and an enum in CUDA to map them (MUL=0, MULH=1, etc.).
+  - **Full 128-bit multiplication:** The multiplication kernel implements byte-by-byte multiplication with sign extension for signed variants, producing a 16-byte product array with carry propagation.
+  - **Sign extension logic:** MULH sign-extends both operands, MULHSU sign-extends only the first operand (signed x unsigned), MULHU doesn't sign-extend either.
+  - **MULW product MSB:** For MULW (32-bit multiply), need to compute the MSB of the 32-bit result (bit 31) for sign extension to 64-bits.
 
 ---

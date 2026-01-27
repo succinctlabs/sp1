@@ -130,3 +130,41 @@ pub struct AddiGpuEvent {
     /// Memory access record for source register 1 (read).
     pub mem_b: GpuMemoryAccess,
 }
+
+/// GPU-compatible event for MulChip.
+///
+/// This flattens `AluEvent` and `RTypeRecord` into a single struct without Options or enums.
+/// MulChip uses R-type instruction format (same as AddChip, SubChip).
+/// It also needs the opcode to distinguish between MUL, MULH, MULHU, MULHSU, MULW.
+#[derive(Clone, Copy, Debug, Default)]
+#[repr(C)]
+pub struct MulGpuEvent {
+    // From AluEvent
+    /// Clock cycle of this instruction.
+    pub clk: u64,
+    /// Program counter of this instruction.
+    pub pc: u64,
+    /// First operand value (from rs1).
+    pub b: u64,
+    /// Second operand value (from rs2).
+    pub c: u64,
+    /// Result value.
+    pub a: u64,
+    /// Opcode value to distinguish MUL variants (MUL=0, MULH=1, MULHU=2, MULHSU=3, MULW=4).
+    pub opcode: u8,
+
+    // From RTypeRecord
+    /// Destination register number (rd).
+    pub op_a: u8,
+    /// Source register 1 spec (rs1).
+    pub op_b: u64,
+    /// Source register 2 spec (rs2).
+    pub op_c: u64,
+
+    /// Memory access record for destination register (write).
+    pub mem_a: GpuMemoryAccess,
+    /// Memory access record for source register 1 (read).
+    pub mem_b: GpuMemoryAccess,
+    /// Memory access record for source register 2 (read).
+    pub mem_c: GpuMemoryAccess,
+}
