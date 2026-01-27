@@ -1,4 +1,15 @@
+mod alu;
+mod bitwise;
+mod control_flow;
 mod global;
+mod lookup;
+mod memory_load;
+mod memory_state;
+mod memory_store;
+mod precompiles;
+mod program;
+mod shift;
+mod syscall;
 
 use slop_alloc::mem::CopyError;
 use sp1_core_machine::riscv::RiscvAir;

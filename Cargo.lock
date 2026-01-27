@@ -5102,6 +5102,7 @@ dependencies = [
  "slop-tensor",
  "sp1-core-executor",
  "sp1-core-machine",
+ "sp1-curves",
  "sp1-gpu-cudart",
  "sp1-hypercube",
  "sp1-recursion-executor",

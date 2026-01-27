@@ -20,6 +20,7 @@ slop-symmetric = { workspace = true }
 slop-tensor = { workspace = true }
 
 sp1-core-machine = { workspace = true }
+sp1-curves = { workspace = true }
 sp1-recursion-executor = { workspace = true }
 sp1-recursion-machine = { workspace = true }
 sp1-hypercube = { workspace = true }
