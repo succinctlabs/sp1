@@ -88,6 +88,12 @@ pub struct AddwGpuEvent {
     pub mem_c: GpuMemoryAccess,
 }
 
+/// GPU-compatible event for SubChip.
+///
+/// This flattens `AluEvent` and `RTypeRecord` into a single struct without Options or enums.
+/// SubChip is structurally identical to AddChip - both use R-type instruction format.
+pub type SubGpuEvent = AddGpuEvent;
+
 /// GPU-compatible event for AddiChip.
 ///
 /// This flattens `AluEvent` and `ITypeRecord` into a single struct without Options or enums.

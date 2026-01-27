@@ -4,6 +4,7 @@
 - For GPU event structs, flatten Option types to always include the field with a flag (is_imm) to indicate validity
 - Test helper `test_traces_eq` compares CPU and GPU traces row by row and reports mismatches
 - ITypeRecord is simpler than R/ALUTypeRecord: op_c is always an immediate (no mem_c needed)
+- Chips using identical instruction formats can share GPU event structs via type aliases (e.g., SubGpuEvent = AddGpuEvent)
 
 ---
 
@@ -42,5 +43,24 @@
   - **ITypeReader adapter:** ITypeReader has `op_c_imm` (a Word<T>) for the immediate value instead of a memory access column. This simplifies the CUDA kernel since we just store the immediate as a Word.
   - **ADDI semantics:** ADDI adds a 64-bit register value to a sign-extended 12-bit immediate. Result is written to the destination register.
   - **Test pattern reuse:** The same test structure (generate_*_events, compare traces) works well across different instruction types.
+
+---
+
+## 2026-01-27 - SubChip GPU Tracegen
+- **What was implemented:** GPU trace generation for SubChip (64-bit subtraction)
+- **Files changed:**
+  - `crates/sys/src/riscv_events.rs` - Added `SubGpuEvent` as type alias to `AddGpuEvent`
+  - `crates/sys/build.rs` - Added cbindgen exports for SubCols, SubOperation
+  - `lib/tracegen/riscv/sub.cu` - New CUDA kernel for SubChip
+  - `lib/tracegen/CMakeLists.txt` - Added sub.cu to build
+  - `crates/sys/src/tracegen.rs` - Declared extern fn for sub kernel
+  - `crates/cuda/src/tracegen.rs` - Added TracegenRiscvSubKernel trait
+  - `crates/tracegen/src/riscv/alu.rs` - Implemented CudaTracegenAir for SubChip, added tests with timing
+
+- **Learnings:**
+  - **SubChip mirrors AddChip:** SubChip uses the same RTypeRecord as AddChip. The only difference is the operation: subtraction instead of addition.
+  - **Type alias for GPU events:** Since SubChip and AddChip have identical event structures, we use a type alias (`SubGpuEvent = AddGpuEvent`) to avoid code duplication.
+  - **SubOperation vs AddOperation:** SubOperation only contains `value: Word<T>` (result of b - c). It's structurally simpler than AddwOperation which has additional fields for sign extension.
+  - **SUB semantics:** SUB performs 64-bit subtraction (b - c) with wrapping semantics. Result is written to the destination register.
 
 ---
