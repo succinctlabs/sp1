@@ -130,6 +130,8 @@ impl CudaTracegenAir<F> for AddwChip {
         let events = &input.addw_events;
         let events_len = events.len();
 
+        tracing::warn!("generate trace w device");
+
         // Convert Rust events to GPU-compatible format
         let gpu_events: Vec<AddwGpuEvent> = events
             .iter()
@@ -195,6 +197,7 @@ impl CudaTracegenAir<F> for AddiChip {
         _output: &mut Self::Record,
         scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {
+        tracing::warn!("generate trace device");
         let events = &input.addi_events;
         let events_len = events.len();
 
@@ -559,18 +562,26 @@ mod tests {
     }
 
     /// Generate random ADD events for testing.
+    ///
+    /// Uses large PC and clock values that span multiple 16-bit limbs to catch
+    /// encoding bugs (e.g., using wrong limb sizes like 22-bit instead of 16-bit).
     fn generate_add_events(count: usize) -> Vec<(AluEvent, RTypeRecord)> {
         let mut rng = StdRng::seed_from_u64(0xADD_BEEF);
         let mut events = Vec::with_capacity(count);
 
-        // Start with a base timestamp offset to avoid underflow issues
-        let base_timestamp: u64 = 1000;
+        // Start with a large base timestamp that spans multiple 16-bit limbs
+        // This ensures we catch bugs in timestamp/clock encoding
+        let base_timestamp: u64 = 0x1_0000_1000; // Bits set in both high and low 16-bit regions
+
+        // Start PC at a large value that spans multiple 16-bit limbs
+        // This ensures we catch bugs like using 22-bit limbs instead of 16-bit limbs
+        let base_pc: u64 = 0x8000_4000_2000; // Bits set across all three 16-bit limbs
 
         for i in 0..count {
             // Clock increments by 8 per instruction
             let clk = base_timestamp + (i as u64) * 8;
             // PC increments by 4 per instruction
-            let pc = 0x1000 + (i as u64) * 4;
+            let pc = base_pc + (i as u64) * 4;
 
             // Generate random operands and compute result
             let b: u64 = rng.gen();
@@ -603,18 +614,23 @@ mod tests {
 
     /// Generate random ADDW events for testing.
     /// ADDW computes 32-bit addition and sign-extends the result.
+    ///
+    /// Uses large PC and clock values that span multiple 16-bit limbs to catch encoding bugs.
     fn generate_addw_events(count: usize) -> Vec<(AluEvent, ALUTypeRecord)> {
         let mut rng = StdRng::seed_from_u64(0xADD0_BEEF);
         let mut events = Vec::with_capacity(count);
 
-        // Start with a base timestamp offset to avoid underflow issues
-        let base_timestamp: u64 = 1000;
+        // Start with a large base timestamp that spans multiple 16-bit limbs
+        let base_timestamp: u64 = 0x1_0000_1000;
+
+        // Start PC at a large value that spans multiple 16-bit limbs
+        let base_pc: u64 = 0x8000_4000_2000;
 
         for i in 0..count {
             // Clock increments by 8 per instruction
             let clk = base_timestamp + (i as u64) * 8;
             // PC increments by 4 per instruction
-            let pc = 0x1000 + (i as u64) * 4;
+            let pc = base_pc + (i as u64) * 4;
 
             // Generate random operands (use lower 32 bits for ADDW semantics)
             let b: u64 = rng.gen::<u32>() as u64;
@@ -736,14 +752,17 @@ mod tests {
         let mut rng = StdRng::seed_from_u64(0xADD1_BEEF);
         let mut events = Vec::with_capacity(count);
 
-        // Start with a base timestamp offset to avoid underflow issues
-        let base_timestamp: u64 = 1000;
+        // Start with a large base timestamp that spans multiple 16-bit limbs
+        let base_timestamp: u64 = 0x1_0000_1000;
+
+        // Start PC at a large value that spans multiple 16-bit limbs
+        let base_pc: u64 = 0x8000_4000_2000;
 
         for i in 0..count {
             // Clock increments by 8 per instruction
             let clk = base_timestamp + (i as u64) * 8;
             // PC increments by 4 per instruction
-            let pc = 0x1000 + (i as u64) * 4;
+            let pc = base_pc + (i as u64) * 4;
 
             // Generate random operands
             let b: u64 = rng.gen();
@@ -821,14 +840,17 @@ mod tests {
         let mut rng = StdRng::seed_from_u64(0x50B_BEEF);
         let mut events = Vec::with_capacity(count);
 
-        // Start with a base timestamp offset to avoid underflow issues
-        let base_timestamp: u64 = 1000;
+        // Start with a large base timestamp that spans multiple 16-bit limbs
+        let base_timestamp: u64 = 0x1_0000_1000;
+
+        // Start PC at a large value that spans multiple 16-bit limbs
+        let base_pc: u64 = 0x8000_4000_2000;
 
         for i in 0..count {
             // Clock increments by 8 per instruction
             let clk = base_timestamp + (i as u64) * 8;
             // PC increments by 4 per instruction
-            let pc = 0x1000 + (i as u64) * 4;
+            let pc = base_pc + (i as u64) * 4;
 
             // Generate random operands and compute result
             let b: u64 = rng.gen();
@@ -907,14 +929,17 @@ mod tests {
         let mut rng = StdRng::seed_from_u64(0x50B0_BEEF);
         let mut events = Vec::with_capacity(count);
 
-        // Start with a base timestamp offset to avoid underflow issues
-        let base_timestamp: u64 = 1000;
+        // Start with a large base timestamp that spans multiple 16-bit limbs
+        let base_timestamp: u64 = 0x1_0000_1000;
+
+        // Start PC at a large value that spans multiple 16-bit limbs
+        let base_pc: u64 = 0x8000_4000_2000;
 
         for i in 0..count {
             // Clock increments by 8 per instruction
             let clk = base_timestamp + (i as u64) * 8;
             // PC increments by 4 per instruction
-            let pc = 0x1000 + (i as u64) * 4;
+            let pc = base_pc + (i as u64) * 4;
 
             // Generate random operands (use lower 32 bits for SUBW semantics)
             let b: u64 = rng.gen::<u32>() as u64;
@@ -994,8 +1019,11 @@ mod tests {
         let mut rng = StdRng::seed_from_u64(0xABC_0100);
         let mut events = Vec::with_capacity(count);
 
-        // Start with a base timestamp offset to avoid underflow issues
-        let base_timestamp: u64 = 1000;
+        // Start with a large base timestamp that spans multiple 16-bit limbs
+        let base_timestamp: u64 = 0x1_0000_1000;
+
+        // Start PC at a large value that spans multiple 16-bit limbs
+        let base_pc: u64 = 0x8000_4000_2000;
 
         // Opcodes to test
         let opcodes = [Opcode::MUL, Opcode::MULH, Opcode::MULHU, Opcode::MULHSU, Opcode::MULW];
@@ -1004,7 +1032,7 @@ mod tests {
             // Clock increments by 8 per instruction
             let clk = base_timestamp + (i as u64) * 8;
             // PC increments by 4 per instruction
-            let pc = 0x1000 + (i as u64) * 4;
+            let pc = base_pc + (i as u64) * 4;
 
             // Cycle through different opcodes
             let opcode = opcodes[i % opcodes.len()];

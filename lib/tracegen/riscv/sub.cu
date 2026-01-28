@@ -55,10 +55,10 @@ __device__ void populate_cpu_state(sp1_gpu_sys::CPUState<T>& state, uint64_t clk
     state.clk_16_24 = T::from_canonical_u32(clk_16_24);
     state.clk_0_16 = T::from_canonical_u32(clk_0_16);
 
-    // PC is stored as 3 x 22-bit limbs
-    state.pc[0] = T::from_canonical_u32(pc & 0x3FFFFF);
-    state.pc[1] = T::from_canonical_u32((pc >> 22) & 0x3FFFFF);
-    state.pc[2] = T::from_canonical_u32((pc >> 44) & 0x3FFFFF);
+    // PC is stored as 3 x 16-bit limbs
+    state.pc[0] = T::from_canonical_u32(pc & 0xFFFF);
+    state.pc[1] = T::from_canonical_u32((pc >> 16) & 0xFFFF);
+    state.pc[2] = T::from_canonical_u32((pc >> 32) & 0xFFFF);
 }
 
 /// Populate RTypeReader from the GPU event data.

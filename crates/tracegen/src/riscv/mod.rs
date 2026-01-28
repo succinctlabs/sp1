@@ -21,6 +21,12 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
     fn supports_device_main_tracegen(&self) -> bool {
         match self {
             Self::Global(chip) => chip.supports_device_main_tracegen(),
+            Self::Add(chip) => chip.supports_device_main_tracegen(),
+            Self::Addw(chip) => chip.supports_device_main_tracegen(),
+            Self::Addi(chip) => chip.supports_device_main_tracegen(),
+            Self::Sub(chip) => chip.supports_device_main_tracegen(),
+            Self::Subw(chip) => chip.supports_device_main_tracegen(),
+            Self::Mul(chip) => chip.supports_device_main_tracegen(),
             // Other chips don't have `CudaTracegenAir` implemented yet.
             _ => false,
         }
@@ -34,6 +40,12 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
     ) -> Result<DeviceMle<F>, CopyError> {
         match self {
             Self::Global(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::Add(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::Addw(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::Addi(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::Sub(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::Subw(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::Mul(chip) => chip.generate_trace_device(input, output, scope).await,
             // Other chips don't have `CudaTracegenAir` implemented yet.
             _ => unimplemented!(),
         }
