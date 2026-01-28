@@ -63,14 +63,14 @@ impl<F: DeviceCopy + Field> DevicePoint<F> {
     }
 
     /// Computes the partial Lagrange polynomial for this point.
-    pub fn partial_lagrange(&self) -> DeviceTensor<F>
+    pub fn partial_lagrange(&self) -> DeviceMle<F>
     where
         TaskScope: PartialLagrangeKernel<F>,
     {
         let dimension = self.dimension();
         let num_elements = 1 << dimension;
         // Shape [1, num_elements] to match MleBaseBackend convention for TaskScope: [num_polynomials, num_entries]
-        let mut eq = Tensor::with_sizes_in([1, num_elements], self.backend().clone());
+        let mut eq = DeviceTensor::with_sizes_in([1, num_elements], self.backend().clone());
         unsafe {
             eq.assume_init();
             let block_dim = 256;
@@ -86,7 +86,7 @@ impl<F: DeviceCopy + Field> DevicePoint<F> {
                 )
                 .unwrap();
         }
-        DeviceTensor::from_raw(eq)
+        DeviceMle::new(eq)
     }
 }
 
@@ -152,16 +152,15 @@ impl<F: DeviceCopy + Field> DeviceMle<F> {
     /// Evaluates the MLE given precomputed eq polynomial.
     pub fn eval_at_eq<EF: DeviceCopy + ExtensionField<F>>(
         &self,
-        eq: &DeviceTensor<EF>,
+        eq: &DeviceMle<EF>,
     ) -> DeviceMleEval<EF>
     where
         TaskScope: DotKernel<F, EF>,
     {
-        let guts = DeviceTensor::from_raw(self.guts().clone());
         // MLE guts shape is [num_polynomials, num_entries] (TaskScope convention)
         // eq shape is [1, num_entries] from partial_lagrange
         // Dot along dim 1 reduces the num_entries dimension, giving [num_polynomials]
-        let result = guts.dot_along_dim(eq, 1);
+        let result = self.guts.dot_along_dim(eq.guts(), 1);
         DeviceMleEval::new(MleEval::new(result.into_inner()))
     }
 
@@ -253,8 +252,7 @@ mod tests {
         })
         .unwrap();
 
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        let host_evals = rt.block_on(mle.eval_at(&point)).to_vec();
+        let host_evals = mle.eval_at(&point).to_vec();
         assert_eq!(evals, host_evals);
     }
 }

@@ -5,7 +5,6 @@ use futures::future::join_all;
 use slop_algebra::PrimeField32;
 use slop_alloc::mem::CopyError;
 use slop_alloc::Buffer;
-use slop_multilinear::Mle;
 use slop_tensor::Tensor;
 use sp1_core_machine::global::{GlobalChip, GlobalCols, GLOBAL_INITIAL_DIGEST_POS};
 use sp1_gpu_cudart::sys::runtime::Dim3;
@@ -252,7 +251,7 @@ impl CudaTracegenAir<F> for GlobalChip {
         let trace =
             Arc::into_inner(trace).expect("trace Arc should have exactly one strong reference");
 
-        Ok(DeviceMle::new(Mle::new(trace)))
+        Ok(DeviceMle::from(trace))
     }
 }
 

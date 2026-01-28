@@ -100,7 +100,7 @@ where
 
         // Stream that, when polled, copies the host traces to the device.
         let copied_host_traces = pin!(host_traces.then(|(name, trace)| async move {
-            (name, DeviceMle::from_host(&trace, &self.trace_allocator).unwrap().into_inner())
+            (name, DeviceMle::from_host(&trace, &self.trace_allocator).unwrap().into())
         }));
         // Stream that, when polled, copies events to the device and generates traces.
         let device_traces = device_airs
@@ -118,7 +118,7 @@ where
             })
             .collect::<FuturesUnordered<_>>()
             .filter_map(|(air, maybe_trace)| {
-                ready(maybe_trace.map(|trace| (air.name().to_string(), trace.into_inner())))
+                ready(maybe_trace.map(|trace| (air.name().to_string(), trace.into())))
             });
 
         let named_traces = futures::stream_select!(copied_host_traces, device_traces)
@@ -188,7 +188,7 @@ where
                     PaddedMle::zeros_in(
                         num_polynomials,
                         max_log_row_count as u32,
-                        &self.trace_allocator,
+                        self.trace_allocator.clone(),
                     ),
                 )
             })
@@ -216,7 +216,7 @@ where
 
         // Stream that, when polled, copies the host traces to the device.
         let copied_host_traces = pin!(host_traces.then(|(name, trace)| async move {
-            (name, DeviceMle::from_host(&trace, &self.trace_allocator).unwrap().into_inner())
+            (name, DeviceMle::from_host(&trace, &self.trace_allocator).unwrap().into())
         }));
         // Stream that, when polled, copies events to the device and generates traces.
         let device_traces = device_airs
@@ -233,7 +233,7 @@ where
                         )
                         .await
                         .unwrap();
-                    (air.name().to_string(), trace.into_inner())
+                    (air.name().to_string(), trace.into())
                 }
             })
             .collect::<FuturesUnordered<_>>();

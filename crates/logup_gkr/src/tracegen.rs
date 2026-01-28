@@ -6,16 +6,17 @@ use std::{
 
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use slop_alloc::{Buffer, HasBackend};
-use slop_multilinear::{Mle, Point};
+use slop_multilinear::Point;
 use slop_tensor::Tensor;
 use sp1_gpu_cudart::{
     args, sys::v2_kernels::logup_gkr_populate_last_circuit_layer, DeviceBuffer, DevicePoint,
     TaskScope,
 };
-use sp1_hypercube::{air::MachineAir, Chip, LogUpGkrOutput};
+use sp1_hypercube::{air::MachineAir, Chip};
 use tracing::instrument;
 
 use crate::{
+    execution::DeviceLogUpGkrOutput,
     extract_outputs, gkr_transition,
     interactions::Interactions,
     layer::JaggedFirstGkrLayer,
@@ -75,7 +76,7 @@ pub fn generate_first_layer<'a>(
 
     let beta = input_data.beta_seed.clone();
     let beta = DevicePoint::from_host(&beta, backend).unwrap().into_inner();
-    let betas = Mle::new(DevicePoint::new(beta).partial_lagrange().into_inner());
+    let betas = DevicePoint::new(beta).partial_lagrange();
 
     // Generate traces per chip, sorted by chip name.
     let mut interaction_offset = 0;
@@ -89,7 +90,6 @@ pub fn generate_first_layer<'a>(
         let mut interaction_data = unsafe { interaction_data.owned_unchecked() };
         let mut numerator = unsafe { numerator.owned_unchecked() };
         let mut denominator = unsafe { denominator.owned_unchecked() };
-        let betas = unsafe { betas.owned_unchecked() };
         let real_height = input_data.main_poly_height(name).unwrap();
 
         const BLOCK_SIZE: usize = 256;
@@ -195,7 +195,7 @@ pub fn generate_gkr_circuit<'a, A: MachineAir<Felt>>(
     beta_seed: Point<Ext>,
     options: CudaLogUpGkrOptions,
     backend: TaskScope,
-) -> (LogUpGkrOutput<Ext, TaskScope>, LogUpCudaCircuit<'a, TaskScope>) {
+) -> (DeviceLogUpGkrOutput<Ext>, LogUpCudaCircuit<'a, TaskScope>) {
     let CudaLogUpGkrOptions { recompute_first_layer, num_row_variables } = options;
     let input_data = GkrInputData {
         chip_set: chips.iter().map(|chip| chip.name().to_string()).collect(),

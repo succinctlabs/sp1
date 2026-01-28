@@ -8,7 +8,7 @@ use slop_jagged::{
     unzip_and_prefix_sums, JaggedLittlePolynomialProverParams, JaggedPcsProof, JaggedProverData,
     JaggedProverError, PrefixSumsMaxLogRowCount,
 };
-use slop_multilinear::{Evaluations, Mle, MleEval, MultilinearPcsVerifier, Point};
+use slop_multilinear::{Evaluations, MleEval, MultilinearPcsVerifier, Point};
 use slop_stacked::StackedBasefoldProof;
 use sp1_gpu_air::air_block::BlockAir;
 use sp1_gpu_air::SymbolicProverFolder;
@@ -358,7 +358,7 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
         multilinears: &JaggedTraceMle<Felt, TaskScope>,
         use_preprocessed_data: bool,
     ) -> Result<
-        (GC::Digest, JaggedProverData<GC, Option<CudaStackedPcsProverData<GC>>>),
+        (GC::Digest, JaggedProverData<GC, CudaStackedPcsProverData<GC>>),
         JaggedProverError<SingleLayerMerkleTreeProverError>,
     > {
         sp1_gpu_commit::commit_multilinears::<GC, PC::P>(
@@ -387,7 +387,7 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
 
         // todo: remove this assert, it's kinda useless
         assert!(total_preprocessed_size == jagged_trace_mle.dense().preprocessed_offset);
-        let lagrange = Mle::new(device_point.partial_lagrange().into_inner());
+        let lagrange = device_point.partial_lagrange();
 
         let main_virtual_tensor =
             jagged_trace_mle.dense().main_virtual_tensor(log_stacking_height as u32);
@@ -422,7 +422,7 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
         eval_point: Point<Ext>,
         evaluation_claims: Rounds<Evaluations<Ext, TaskScope>>,
         all_mles: &JaggedTraceMle<Felt, TaskScope>,
-        prover_data: Rounds<&JaggedProverData<GC, Option<CudaStackedPcsProverData<GC>>>>,
+        prover_data: Rounds<&JaggedProverData<GC, CudaStackedPcsProverData<GC>>>,
         challenger: &mut GC::Challenger,
     ) -> Result<
         JaggedPcsProof<GC, <PC::C as MultilinearPcsVerifier<GC>>::Proof>,
@@ -503,17 +503,16 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
 
         // The overall evaluation claim of the sparse polynomial is inferred from the individual
         // table claims.
-        let column_claims: Mle<Ext, TaskScope> = Mle::from_buffer(column_claims);
+        let device_column_claims = DeviceMle::from(column_claims);
 
         // Use the sync GPU evaluation
-        let device_column_claims = DeviceMle::new(column_claims.clone());
         let sumcheck_claims = device_column_claims.eval_at_point(&z_col_device);
         let sumcheck_claims_host = sumcheck_claims.to_host_vec().unwrap();
         let sumcheck_claim = sumcheck_claims_host[0];
 
         // Compute eq polynomials for the jagged sumcheck
-        let eq_z_row = Mle::new(z_row_device.partial_lagrange().into_inner());
-        let eq_z_col = Mle::new(z_col_device.partial_lagrange().into_inner());
+        let eq_z_row = z_row_device.partial_lagrange();
+        let eq_z_col = z_col_device.partial_lagrange();
 
         let sumcheck_poly = generate_jagged_sumcheck_poly(all_mles, eq_z_col, eq_z_row);
 
@@ -544,10 +543,8 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
         let original_commitments: Rounds<_> =
             prover_data.iter().map(|data| data.original_commitment).collect();
 
-        let stacked_prover_data = prover_data
-            .into_iter()
-            .map(|data| data.pcs_prover_data.as_ref())
-            .collect::<Rounds<_>>();
+        let stacked_prover_data =
+            prover_data.iter().map(|data| &data.pcs_prover_data).collect::<Rounds<_>>();
 
         let final_eval_point = sumcheck_proof.point_and_eval.0.clone();
 
@@ -627,7 +624,7 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
         &self,
         traces: &JaggedTraceMle<GC::F, TaskScope>,
         use_preprocessed: bool,
-    ) -> (GC::Digest, JaggedProverData<GC, Option<CudaStackedPcsProverData<GC>>>) {
+    ) -> (GC::Digest, JaggedProverData<GC, CudaStackedPcsProverData<GC>>) {
         self.commit_multilinears(traces, use_preprocessed).unwrap()
     }
 

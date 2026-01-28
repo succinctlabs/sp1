@@ -1,15 +1,13 @@
 use slop_alloc::{Buffer, HasBackend};
-use slop_multilinear::Mle;
 use sp1_gpu_cudart::{
     args,
     sys::v2_kernels::{
         logup_gkr_circuit_transition, logup_gkr_extract_output, logup_gkr_first_layer_transition,
     },
-    DeviceBuffer, TaskScope,
+    DeviceBuffer, DeviceMle,
 };
 
 use slop_tensor::Tensor;
-use sp1_hypercube::LogUpGkrOutput;
 
 use crate::layer::JaggedGkrLayer;
 use crate::utils::{FirstGkrLayer, GkrCircuitLayer, GkrLayer};
@@ -136,17 +134,22 @@ pub fn gkr_transition<'a>(layer: &GkrCircuitLayer<'a>) -> GkrCircuitLayer<'a> {
     }
 }
 
+pub struct DeviceLogUpGkrOutput<Ext> {
+    pub numerator: DeviceMle<Ext>,
+    pub denominator: DeviceMle<Ext>,
+}
+
 /// Takes as input the input layer p_0, p_1, q_0, q_1, after finishing the circuit section and
 /// doing all of the row variables.
 pub fn extract_outputs(
     layer: &GkrLayer,
     num_interaction_variables: u32,
-) -> LogUpGkrOutput<Ext, TaskScope> {
+) -> DeviceLogUpGkrOutput<Ext> {
     let output_height = 1 << (num_interaction_variables + 1);
     let backend = layer.jagged_mle.backend();
 
-    let mut numerator = Mle::uninit(1, output_height, backend);
-    let mut denominator = Mle::uninit(1, output_height, backend);
+    let mut numerator = DeviceMle::uninit(1, output_height, backend);
+    let mut denominator = DeviceMle::uninit(1, output_height, backend);
 
     const BLOCK_SIZE: usize = 256;
     const STRIDE: usize = 4;
@@ -167,5 +170,5 @@ pub fn extract_outputs(
         backend.launch_kernel(logup_gkr_extract_output(), grid_size, block_dim, &args, 0).unwrap();
     }
 
-    LogUpGkrOutput { numerator, denominator }
+    DeviceLogUpGkrOutput { numerator, denominator }
 }

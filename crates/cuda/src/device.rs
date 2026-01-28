@@ -1,7 +1,6 @@
 use crate::{CudaError, TaskScope};
 use slop_alloc::{mem::CopyError, CopyIntoBackend, CopyToBackend, CpuBackend};
 use sp1_gpu_sys::runtime::cuda_mem_get_info;
-use std::future::Future;
 
 pub trait DeviceCopy: Copy + 'static + Sized {}
 
@@ -16,10 +15,7 @@ pub fn cuda_memory_info() -> Result<(usize, usize), CudaError> {
 }
 
 pub trait IntoDevice: CopyIntoBackend<TaskScope, CpuBackend> + Sized {
-    fn into_device_in(
-        self,
-        backend: &TaskScope,
-    ) -> impl Future<Output = Result<Self::Output, CopyError>> + Send {
+    fn into_device_in(self, backend: &TaskScope) -> Result<Self::Output, CopyError> {
         self.copy_into_backend(backend)
     }
 }
@@ -27,10 +23,7 @@ pub trait IntoDevice: CopyIntoBackend<TaskScope, CpuBackend> + Sized {
 impl<T> IntoDevice for T where T: CopyIntoBackend<TaskScope, CpuBackend> + Sized {}
 
 pub trait ToDevice: CopyToBackend<TaskScope, CpuBackend> + Sized {
-    fn to_device_in(
-        &self,
-        backend: &TaskScope,
-    ) -> impl Future<Output = Result<Self::Output, CopyError>> + Send {
+    fn to_device_in(&self, backend: &TaskScope) -> Result<Self::Output, CopyError> {
         self.copy_to_backend(backend)
     }
 }

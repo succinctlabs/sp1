@@ -28,10 +28,7 @@ use sp1_gpu_sys::runtime::{
 use thiserror::Error;
 use tokio::{sync::oneshot, task::JoinHandle};
 
-use slop_alloc::{CanCopyFrom, CanCopyFromRef, CanCopyIntoRef};
-use slop_multilinear::Point;
-
-use crate::{DeviceBuffer, DeviceCopy, ToDevice};
+use crate::{DeviceCopy, ToDevice};
 
 use super::{
     stream::{StreamRef, INTERVAL_MS},
@@ -477,13 +474,13 @@ impl TaskScope {
 
     /// Copies data from the host to the device.
     #[inline]
-    pub async fn into_device<T: IntoDevice>(&self, data: T) -> Result<T::Output, CopyError> {
-        T::into_device_in(data, self).await
+    pub fn into_device<T: IntoDevice>(&self, data: T) -> Result<T::Output, CopyError> {
+        T::into_device_in(data, self)
     }
 
     #[inline]
-    pub async fn to_device<T: ToDevice>(&self, data: &T) -> Result<T::Output, CopyError> {
-        T::to_device_in(data, self).await
+    pub fn to_device<T: ToDevice>(&self, data: &T) -> Result<T::Output, CopyError> {
+        T::to_device_in(data, self)
     }
 
     /// Waits for all work enqueued so far in this task to finish.
@@ -627,47 +624,47 @@ impl DeviceMemory for TaskScope {
     }
 }
 
-// Implement CanCopyFrom for TaskScope to copy from CpuBackend
-impl<T: DeviceCopy> CanCopyFrom<Buffer<T>, slop_alloc::CpuBackend> for TaskScope {
-    type Output = Buffer<T, TaskScope>;
+// // Implement CanCopyFrom for TaskScope to copy from CpuBackend
+// impl<T: DeviceCopy> CanCopyFrom<Buffer<T>, slop_alloc::CpuBackend> for TaskScope {
+//     type Output = Buffer<T, TaskScope>;
 
-    fn copy_into(
-        &self,
-        value: Buffer<T>,
-    ) -> impl std::future::Future<Output = Result<Self::Output, CopyError>> + Send + Sync {
-        let result = DeviceBuffer::from_host(&value, self).map(|b| b.into_inner());
-        std::future::ready(result)
-    }
-}
+//     fn copy_into(
+//         &self,
+//         value: Buffer<T>,
+//     ) -> impl std::future::Future<Output = Result<Self::Output, CopyError>> + Send + Sync {
+//         let result = DeviceBuffer::from_host(&value, self).map(|b| b.into_inner());
+//         std::future::ready(result)
+//     }
+// }
 
-// Implement CanCopyFromRef for TaskScope to copy Point from CpuBackend
-impl<T: DeviceCopy> CanCopyFromRef<Point<T>, slop_alloc::CpuBackend> for TaskScope {
-    type Output = Point<T, TaskScope>;
+// // Implement CanCopyFromRef for TaskScope to copy Point from CpuBackend
+// impl<T: DeviceCopy> CanCopyFromRef<Point<T>, slop_alloc::CpuBackend> for TaskScope {
+//     type Output = Point<T, TaskScope>;
 
-    fn copy_to(
-        &self,
-        value: &Point<T>,
-    ) -> impl std::future::Future<Output = Result<Self::Output, CopyError>> + Send + Sync {
-        let result =
-            DeviceBuffer::from_host(value.values(), self).map(|b| Point::new(b.into_inner()));
-        std::future::ready(result)
-    }
-}
+//     fn copy_to(
+//         &self,
+//         value: &Point<T>,
+//     ) -> impl std::future::Future<Output = Result<Self::Output, CopyError>> + Send + Sync {
+//         let result =
+//             DeviceBuffer::from_host(value.values(), self).map(|b| Point::new(b.into_inner()));
+//         std::future::ready(result)
+//     }
+// }
 
-// Implement CanCopyIntoRef for TaskScope to copy Point to CpuBackend
-impl<T: DeviceCopy> CanCopyIntoRef<Point<T, TaskScope>, slop_alloc::CpuBackend> for TaskScope {
-    type Output = Point<T>;
+// // Implement CanCopyIntoRef for TaskScope to copy Point to CpuBackend
+// impl<T: DeviceCopy> CanCopyIntoRef<Point<T, TaskScope>, slop_alloc::CpuBackend> for TaskScope {
+//     type Output = Point<T>;
 
-    fn copy_to_dst(
-        dst: &slop_alloc::CpuBackend,
-        value: &Point<T, TaskScope>,
-    ) -> impl std::future::Future<Output = Result<Self::Output, CopyError>> + Send + Sync {
-        let _ = dst;
-        let result =
-            DeviceBuffer::from_raw(value.values().clone()).to_host().map(|v| Point::new(v.into()));
-        std::future::ready(result)
-    }
-}
+//     fn copy_to_dst(
+//         dst: &slop_alloc::CpuBackend,
+//         value: &Point<T, TaskScope>,
+//     ) -> impl std::future::Future<Output = Result<Self::Output, CopyError>> + Send + Sync {
+//         let _ = dst;
+//         let result =
+//             DeviceBuffer::from_raw(value.values().clone()).to_host().map(|v| Point::new(v.into()));
+//         std::future::ready(result)
+//     }
+// }
 
 impl OwnedTask {
     fn is_finished(&self) -> Result<bool, CudaError> {

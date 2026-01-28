@@ -1,6 +1,6 @@
 use slop_alloc::{Backend, CpuBackend, HasBackend};
 use slop_tensor::Tensor;
-use sp1_gpu_cudart::{DeviceBuffer, DeviceTensor, TaskScope};
+use sp1_gpu_cudart::{DeviceBuffer, DeviceMle, DeviceTensor, TaskScope};
 use std::collections::BTreeSet;
 use std::{collections::BTreeMap, iter::once};
 
@@ -133,8 +133,8 @@ pub enum PolynomialLayer<B: Backend = TaskScope> {
 /// The first layer polynomial of the GKR circuit.
 pub struct FirstLayerPolynomial {
     pub layer: FirstGkrLayer,
-    pub eq_row: Mle<Ext, TaskScope>,
-    pub eq_interaction: Mle<Ext, TaskScope>,
+    pub eq_row: DeviceMle<Ext>,
+    pub eq_interaction: DeviceMle<Ext>,
     pub lambda: Ext,
     pub point: Point<Ext>,
 }
@@ -173,9 +173,9 @@ pub struct LogupRoundPolynomial {
     /// The values of the numerator and denominator polynomials.
     pub layer: PolynomialLayer,
     /// The partial lagrange evaluation for the row variables.
-    pub eq_row: Mle<Ext, TaskScope>,
+    pub eq_row: DeviceMle<Ext>,
     /// The partial lagrange evaluation for the interaction variables.
-    pub eq_interaction: Mle<Ext, TaskScope>,
+    pub eq_interaction: DeviceMle<Ext>,
     /// The correction term for the eq polynomial.
     pub eq_adjustment: Ext,
     /// The correction term for padding.

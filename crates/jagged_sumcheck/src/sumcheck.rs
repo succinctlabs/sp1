@@ -4,7 +4,7 @@ use sp1_gpu_cudart::{
         jagged_fix_and_sum, jagged_sum_as_poly,
         mle_fix_last_variable_koala_bear_ext_ext_zero_padding, padded_hadamard_fix_and_sum,
     },
-    DeviceTensor, TaskScope,
+    DeviceMle, DeviceTensor, TaskScope,
 };
 
 use itertools::Itertools;
@@ -88,11 +88,11 @@ impl<'a, A: Backend> DenseData<A> for JaggedFirstRoundPoly<'a, A> {
 /// TODO: document
 pub fn generate_jagged_sumcheck_poly(
     traces: &'_ JaggedTraceMle<Felt, TaskScope>,
-    eq_z_col: Mle<Ext, TaskScope>,
-    eq_z_row: Mle<Ext, TaskScope>,
+    eq_z_col: DeviceMle<Ext>,
+    eq_z_row: DeviceMle<Ext>,
 ) -> JaggedFirstRoundPoly<'_> {
     let half_len = traces.dense().dense.len() >> 1;
-    JaggedFirstRoundPoly::new(traces, eq_z_col, eq_z_row, half_len)
+    JaggedFirstRoundPoly::new(traces, eq_z_col.into(), eq_z_row.into(), half_len)
 }
 
 fn sum_as_poly_first_round<'a>(

@@ -1,14 +1,12 @@
 use slop_algebra::{extension::BinomialExtensionField, Field};
 use slop_alloc::Backend;
 use slop_koala_bear::KoalaBear;
-use slop_multilinear::Mle;
-use slop_tensor::Tensor;
 use sp1_gpu_sys::{
     mle::{mle_fold_koala_bear_base_base, mle_fold_koala_bear_ext_ext},
     runtime::KernelPtr,
 };
 
-use crate::{args, DeviceCopy, TaskScope};
+use crate::{args, DeviceCopy, DeviceTensor, TaskScope};
 
 use super::DeviceMle;
 
@@ -30,7 +28,7 @@ where
         let num_non_zero_entries = self.num_non_zero_entries();
         let folded_num_non_zero_entries = num_non_zero_entries / 2;
         // MLE guts shape is [num_polynomials, num_entries] for TaskScope convention
-        let mut folded_guts = Tensor::with_sizes_in(
+        let mut folded_guts = DeviceTensor::with_sizes_in(
             [num_polynomials, folded_num_non_zero_entries],
             self.backend().clone(),
         );
@@ -54,7 +52,7 @@ where
                 .launch_kernel(TaskScope::fold_kernel(), grid_dim, block_dim, &args, 0)
                 .unwrap();
         }
-        DeviceMle::new(Mle::new(folded_guts))
+        DeviceMle::new(folded_guts)
     }
 }
 
@@ -89,8 +87,7 @@ mod tests {
         let mle = Mle::<EF>::rand(&mut rng, 1, num_variables);
         let beta = rng.gen::<EF>();
 
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        let folded_mle_host = rt.block_on(mle.fold(beta));
+        let folded_mle_host = mle.fold(beta);
 
         let folded_mle_cuda = crate::run_sync_in_place(|t| {
             let d_mle = DeviceMle::from_host(&mle, &t).unwrap();

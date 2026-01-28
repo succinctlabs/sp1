@@ -20,7 +20,7 @@ pub fn commit_multilinears<GC: IopCtx<F = Felt, EF = Ext>, P: CudaTcsProver<GC>>
     drop_main_traces: bool,
     basefold_prover: &FriCudaProver<GC, P, Felt>,
 ) -> Result<
-    (GC::Digest, JaggedProverData<GC, Option<CudaStackedPcsProverData<GC>>>),
+    (GC::Digest, JaggedProverData<GC, CudaStackedPcsProverData<GC>>),
     SingleLayerMerkleTreeProverError,
 > {
     let (index, padding, dst) = if use_preprocessed {
@@ -153,13 +153,13 @@ mod tests {
 
             let mut preprocessed_host_values = Vec::new();
             for mle in old_traces.preprocessed_traces.values() {
-                let mle_host = mle.to_host().await.unwrap();
+                let mle_host = mle.to_host().unwrap();
                 preprocessed_host_values.push(mle_host);
             }
 
             let mut main_host_values = Vec::new();
             for mle in old_traces.main_trace_data.traces.values() {
-                let mle_host = mle.to_host().await.unwrap();
+                let mle_host = mle.to_host().unwrap();
                 main_host_values.push(mle_host);
             }
 
@@ -167,9 +167,9 @@ mod tests {
             let main_message = main_host_values.into_iter().collect();
 
             let (old_preprocessed_commitment, old_preprocessed_data) =
-                jagged_prover.commit_multilinears(preprocessed_message).await.ok().unwrap();
+                jagged_prover.commit_multilinears(preprocessed_message).ok().unwrap();
             let (old_main_commitment, old_main_data) =
-                jagged_prover.commit_multilinears(main_message).await.ok().unwrap();
+                jagged_prover.commit_multilinears(main_message).ok().unwrap();
 
             // Commit to preprocessed and main using the new prover.
             // Do tracegen with the new setup.

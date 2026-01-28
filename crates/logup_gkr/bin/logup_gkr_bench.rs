@@ -6,7 +6,7 @@ use serde::Deserialize;
 use slop_challenger::{FieldChallenger, IopCtx};
 use slop_multilinear::{Mle, Point};
 use slop_sumcheck::partially_verify_sumcheck_proof;
-use sp1_gpu_cudart::{run_sync_in_place, DeviceMle, DevicePoint, DeviceTensor, TaskScope};
+use sp1_gpu_cudart::{run_sync_in_place, DevicePoint, TaskScope};
 use sp1_gpu_logup_gkr::{
     bench_materialized_sumcheck, extract_outputs, gkr_transition, jagged_first_gkr_layer_to_device,
     prove_round,
@@ -74,16 +74,11 @@ fn run_benchmark_in_scope(
 
     // assert_eq!(first_eval_point.dimension(), numerator.num_variables() as usize);
     let first_point_device = DevicePoint::from_host(&first_eval_point, t).unwrap().into_inner();
-    let first_point_eq =
-        Mle::new(DevicePoint::new(first_point_device.clone()).partial_lagrange().into_inner());
-    let first_numerator_eval = DeviceMle::new(output.numerator.clone())
-        .eval_at_eq(&DeviceTensor::from_raw(first_point_eq.guts().clone()))
-        .to_host_vec()
-        .unwrap()[0];
-    let first_denominator_eval = DeviceMle::new(output.denominator.clone())
-        .eval_at_eq(&DeviceTensor::from_raw(first_point_eq.guts().clone()))
-        .to_host_vec()
-        .unwrap()[0];
+    let first_point_eq = DevicePoint::new(first_point_device.clone()).partial_lagrange();
+    let first_numerator_eval =
+        output.numerator.eval_at_eq(&first_point_eq).to_host_vec().unwrap()[0];
+    let first_denominator_eval =
+        output.denominator.eval_at_eq(&first_point_eq).to_host_vec().unwrap()[0];
 
     let mut challenger = get_challenger();
     t.synchronize_blocking().unwrap();

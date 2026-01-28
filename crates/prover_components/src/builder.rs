@@ -30,7 +30,7 @@ pub fn local_gpu_opts() -> (SP1CoreOpts, bool) {
     }
 
     let shard_threshold = if gpu_memory_gb <= 30 {
-        ELEMENT_THRESHOLD - (1 << 26)
+        ELEMENT_THRESHOLD - (1 << 26) - (1 << 25)
     } else {
         ELEMENT_THRESHOLD - (1 << 21)
     };

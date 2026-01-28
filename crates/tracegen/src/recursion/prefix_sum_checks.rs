@@ -1,7 +1,6 @@
 use slop_air::BaseAir;
 use slop_alloc::mem::CopyError;
 use slop_alloc::Buffer;
-use slop_multilinear::Mle;
 use slop_tensor::Tensor;
 use sp1_gpu_cudart::TracegenRecursionPrefixSumChecksKernel;
 use sp1_gpu_cudart::{args, DeviceMle, TaskScope};
@@ -56,7 +55,7 @@ impl CudaTracegenAir<F> for PrefixSumChecksChip {
                 .unwrap();
         }
 
-        Ok(DeviceMle::new(Mle::new(trace)))
+        Ok(DeviceMle::from(trace))
     }
 }
 

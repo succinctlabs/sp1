@@ -10,8 +10,8 @@ use itertools::Itertools;
 use slop_algebra::AbstractField;
 use slop_alloc::HasBackend;
 use slop_challenger::{FieldChallenger, IopCtx, VariableLengthChallenger};
-use slop_multilinear::{Mle, MultilinearPcsChallenger, Point};
-use sp1_gpu_cudart::{DeviceMle, DevicePoint, DeviceTensor, TaskScope};
+use slop_multilinear::{MultilinearPcsChallenger, Point};
+use sp1_gpu_cudart::{DevicePoint, TaskScope};
 use tracing::instrument;
 
 use sp1_hypercube::{
@@ -19,7 +19,7 @@ use sp1_hypercube::{
     LogupGkrRoundProof,
 };
 
-use crate::tracegen::generate_gkr_circuit;
+use crate::{execution::DeviceLogUpGkrOutput, tracegen::generate_gkr_circuit};
 use sp1_gpu_utils::traces::JaggedTraceMle;
 use sp1_gpu_utils::{Ext, Felt};
 use sp1_gpu_zerocheck::primitives::round_batch_evaluations;
@@ -56,9 +56,8 @@ fn prove_materialized_round<C: FieldChallenger<Felt>>(
     let interaction_point =
         DevicePoint::from_host(&interaction_point, &backend).unwrap().into_inner();
     let row_point = DevicePoint::from_host(&row_point, &backend).unwrap().into_inner();
-    let eq_interaction =
-        Mle::new(DevicePoint::new(interaction_point).partial_lagrange().into_inner());
-    let eq_row = Mle::new(DevicePoint::new(row_point).partial_lagrange().into_inner());
+    let eq_interaction = DevicePoint::new(interaction_point).partial_lagrange();
+    let eq_row = DevicePoint::new(row_point).partial_lagrange();
     let sumcheck_poly = LogupRoundPolynomial {
         layer: PolynomialLayer::CircuitLayer(layer),
         eq_row,
@@ -93,9 +92,8 @@ fn prove_first_round<C: FieldChallenger<Felt>>(
     let interaction_point =
         DevicePoint::from_host(&interaction_point, backend).unwrap().into_inner();
     let row_point = DevicePoint::from_host(&row_point, backend).unwrap().into_inner();
-    let eq_interaction =
-        Mle::new(DevicePoint::new(interaction_point).partial_lagrange().into_inner());
-    let eq_row = Mle::new(DevicePoint::new(row_point).partial_lagrange().into_inner());
+    let eq_interaction = DevicePoint::new(interaction_point).partial_lagrange();
+    let eq_row = DevicePoint::new(row_point).partial_lagrange();
 
     let sumcheck_poly =
         FirstLayerPolynomial { layer, eq_row, eq_interaction, lambda, point: eval_point.clone() };
@@ -205,11 +203,11 @@ pub fn prove_logup_gkr<
         backend,
     );
 
-    let LogUpGkrOutput { numerator, denominator } = &output;
+    let DeviceLogUpGkrOutput { numerator, denominator } = &output;
 
     // Copy the output to host and observe the claims.
-    let host_numerator = DeviceMle::new(numerator.clone()).to_host().unwrap();
-    let host_denominator = DeviceMle::new(denominator.clone()).to_host().unwrap();
+    let host_numerator = numerator.to_host().unwrap();
+    let host_denominator = denominator.to_host().unwrap();
     challenger
         .observe_variable_length_extension_slice(host_numerator.guts().as_buffer().as_slice());
     challenger
@@ -225,17 +223,9 @@ pub fn prove_logup_gkr<
     // Follow the GKR protocol layer by layer.
     let first_point =
         DevicePoint::from_host(&first_eval_point, numerator.backend()).unwrap().into_inner();
-    let first_point_eq = Mle::new(DevicePoint::new(first_point).partial_lagrange().into_inner());
-    let device_numerator = DeviceMle::new(numerator.clone());
-    let device_denominator = DeviceMle::new(denominator.clone());
-    let first_numerator_eval = device_numerator
-        .eval_at_eq(&DeviceTensor::from_raw(first_point_eq.guts().clone()))
-        .to_host_vec()
-        .unwrap()[0];
-    let first_denominator_eval = device_denominator
-        .eval_at_eq(&DeviceTensor::from_raw(first_point_eq.guts().clone()))
-        .to_host_vec()
-        .unwrap()[0];
+    let first_point_eq = DevicePoint::new(first_point).partial_lagrange();
+    let first_numerator_eval = numerator.eval_at_eq(&first_point_eq).to_host_vec().unwrap()[0];
+    let first_denominator_eval = denominator.eval_at_eq(&first_point_eq).to_host_vec().unwrap()[0];
 
     let (eval_point, round_proofs) = prove_gkr_circuit(
         first_numerator_eval,
@@ -293,6 +283,7 @@ mod tests {
     use serial_test::serial;
     use slop_challenger::{FieldChallenger, IopCtx};
     use slop_futures::queue::WorkerQueue;
+    use slop_multilinear::Mle;
     use slop_sumcheck::partially_verify_sumcheck_proof;
     use sp1_core_executor::ExecutionRecord;
     use sp1_gpu_cudart::{run_sync_in_place, DevicePoint, PinnedBuffer};
@@ -440,18 +431,13 @@ mod tests {
 
             let first_point_device =
                 DevicePoint::from_host(&first_eval_point, &t).unwrap().into_inner();
-            let device_numerator = DeviceMle::new(output.numerator.clone());
-            let device_denominator = DeviceMle::new(output.denominator.clone());
-            let first_point_eq =
-                Mle::new(DevicePoint::new(first_point_device).partial_lagrange().into_inner());
-            let first_numerator_eval = device_numerator
-                .eval_at_eq(&DeviceTensor::from_raw(first_point_eq.guts().clone()))
-                .to_host_vec()
-                .unwrap()[0];
-            let first_denominator_eval = device_denominator
-                .eval_at_eq(&DeviceTensor::from_raw(first_point_eq.guts().clone()))
-                .to_host_vec()
-                .unwrap()[0];
+            let device_numerator = output.numerator;
+            let device_denominator = output.denominator;
+            let first_point_eq = DevicePoint::new(first_point_device).partial_lagrange();
+            let first_numerator_eval =
+                device_numerator.eval_at_eq(&first_point_eq).to_host_vec().unwrap()[0];
+            let first_denominator_eval =
+                device_denominator.eval_at_eq(&first_point_eq).to_host_vec().unwrap()[0];
 
             let mut challenger = get_challenger();
             t.synchronize_blocking().unwrap();

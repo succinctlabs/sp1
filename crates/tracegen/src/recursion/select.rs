@@ -1,7 +1,6 @@
 use slop_air::BaseAir;
 use slop_alloc::mem::CopyError;
 use slop_alloc::Buffer;
-use slop_multilinear::Mle;
 use slop_tensor::Tensor;
 use sp1_gpu_cudart::{args, DeviceMle, TaskScope};
 use sp1_gpu_cudart::{TracegenPreprocessedRecursionSelectKernel, TracegenRecursionSelectKernel};
@@ -64,7 +63,7 @@ impl CudaTracegenAir<F> for SelectChip {
                 .unwrap();
         }
 
-        Ok(Some(DeviceMle::new(Mle::new(trace))))
+        Ok(Some(DeviceMle::from(trace)))
     }
 
     fn supports_device_main_tracegen(&self) -> bool {
@@ -112,7 +111,7 @@ impl CudaTracegenAir<F> for SelectChip {
                 .unwrap();
         }
 
-        Ok(DeviceMle::new(Mle::new(trace)))
+        Ok(DeviceMle::from(trace))
     }
 }
 

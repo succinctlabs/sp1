@@ -5,13 +5,14 @@ pub mod transpose;
 
 pub use dot::dot_along_dim_view;
 use slop_alloc::{mem::CopyError, CpuBackend, HasBackend};
-use slop_tensor::Tensor;
+use slop_tensor::{Tensor, TensorView, TensorViewMut};
 pub use transpose::DeviceTransposeKernel;
 
 use crate::{DeviceBuffer, DeviceCopy};
 
 use super::TaskScope;
 
+#[derive(Debug, Clone)]
 pub struct DeviceTensor<T> {
     raw: Tensor<T, TaskScope>,
 }
@@ -28,7 +29,15 @@ impl<T: DeviceCopy> DeviceTensor<T> {
         Ok(Tensor { storage: host_storage, dimensions: tensor.dimensions.clone() })
     }
 
-    pub fn with_sizes_in(sizes: &[usize], scope: TaskScope) -> Self {
+    /// Marks the underlying tensor as initialized.
+    ///
+    /// # Safety
+    /// See [`Tensor::assume_init`].
+    pub unsafe fn assume_init(&mut self) {
+        self.raw.assume_init();
+    }
+
+    pub fn with_sizes_in(sizes: impl AsRef<[usize]>, scope: TaskScope) -> Self {
         let raw = Tensor::with_sizes_in(sizes, scope);
         Self { raw }
     }
@@ -36,10 +45,6 @@ impl<T: DeviceCopy> DeviceTensor<T> {
     /// Consumes self and returns the underlying Tensor.
     pub fn into_inner(self) -> Tensor<T, TaskScope> {
         self.raw
-    }
-
-    unsafe fn assume_init(&mut self) {
-        self.raw.assume_init();
     }
 
     /// Copies the tensor to host memory (blocking).
@@ -82,6 +87,14 @@ impl<T: DeviceCopy> DeviceTensor<T> {
 
     pub fn view(&self) -> &Tensor<T, TaskScope> {
         &self.raw
+    }
+
+    pub fn as_view(&self) -> TensorView<'_, T, TaskScope> {
+        self.raw.as_view()
+    }
+
+    pub fn as_mut_view(&mut self) -> TensorViewMut<'_, T, TaskScope> {
+        self.raw.as_view_mut()
     }
 }
 

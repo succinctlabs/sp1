@@ -1,4 +1,3 @@
-use std::future::Future;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
@@ -223,14 +222,14 @@ where
         merged_prefix_sums: Arc<Vec<Point<F>>>,
         z_col_eq_vals: Vec<EF>,
         backend: TaskScope,
-    ) -> impl Future<Output = Self> + Send + Sync {
-        std::future::ready(JaggedAssistSumAsPolyGPUImpl::new(
+    ) -> Self {
+        JaggedAssistSumAsPolyGPUImpl::new(
             z_row,
             z_index,
             &merged_prefix_sums,
             &z_col_eq_vals,
             &backend,
-        ))
+        )
     }
 
     fn sum_as_poly_and_sample_into_point(
@@ -242,8 +241,8 @@ where
         challenger: &mut DeviceChallenger,
         claim: EF,
         rhos: Point<EF, TaskScope>,
-    ) -> impl Future<Output = (EF, Point<EF, TaskScope>)> + Send + Sync {
-        let result = self.sum_as_poly_and_sample_into_point(
+    ) -> (EF, Point<EF, TaskScope>) {
+        self.sum_as_poly_and_sample_into_point(
             round_num,
             z_col_eq_vals,
             intermediate_eq_full_evals,
@@ -251,16 +250,12 @@ where
             challenger,
             claim,
             rhos,
-        );
-        std::future::ready(result)
+        )
     }
 
     fn fix_last_variable(
         mut poly: JaggedEvalSumcheckPoly<F, EF, HostChallenger, DeviceChallenger, Self, TaskScope>,
-    ) -> impl Future<
-        Output = JaggedEvalSumcheckPoly<F, EF, HostChallenger, DeviceChallenger, Self, TaskScope>,
-    > + Send
-           + Sync {
+    ) -> JaggedEvalSumcheckPoly<F, EF, HostChallenger, DeviceChallenger, Self, TaskScope> {
         Self::fix_last_variable_kernel::<DeviceChallenger>(
             &poly.merged_prefix_sums,
             &mut poly.intermediate_eq_full_evals,
@@ -270,7 +265,7 @@ where
         );
         // Increment round_num after fixing the last variable
         poly.round_num += 1;
-        std::future::ready(poly)
+        poly
     }
 }
 

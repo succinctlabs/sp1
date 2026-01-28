@@ -2,8 +2,7 @@ use std::sync::Arc;
 
 use slop_algebra::{extension::BinomialExtensionField, ExtensionField, Field};
 use slop_koala_bear::KoalaBear;
-use slop_multilinear::{Mle, MleEval};
-use slop_tensor::Tensor;
+use slop_multilinear::MleEval;
 use sp1_gpu_sys::{
     runtime::KernelPtr,
     v2_kernels::{
@@ -13,7 +12,7 @@ use sp1_gpu_sys::{
     },
 };
 
-use crate::{args, DeviceCopy, TaskScope};
+use crate::{args, DeviceCopy, DeviceTensor, TaskScope};
 
 use super::DeviceMle;
 
@@ -40,8 +39,8 @@ impl<F: DeviceCopy + Field> DeviceMle<F> {
         let input_height = mle.sizes()[1];
         assert!(input_height > 0);
         let output_height = input_height.div_ceil(2);
-        let mut output: Tensor<EF, TaskScope> =
-            Tensor::with_sizes_in([num_polynomials, output_height], self.backend().clone());
+        let mut output =
+            DeviceTensor::with_sizes_in([num_polynomials, output_height], self.backend().clone());
 
         const BLOCK_SIZE: usize = 256;
         const STRIDE: usize = 128;
@@ -71,7 +70,7 @@ impl<F: DeviceCopy + Field> DeviceMle<F> {
                 .unwrap();
         }
 
-        DeviceMle::new(Mle::new(output))
+        DeviceMle::new(output)
     }
 
     /// Fix the last variable of the MLE at the given alpha value with constant padding.
@@ -89,8 +88,8 @@ impl<F: DeviceCopy + Field> DeviceMle<F> {
         let input_height = mle.sizes()[1];
         assert!(input_height > 0);
         let output_height = input_height.div_ceil(2);
-        let mut output: Tensor<EF, TaskScope> =
-            Tensor::with_sizes_in([num_polynomials, output_height], self.backend().clone());
+        let mut output =
+            DeviceTensor::with_sizes_in([num_polynomials, output_height], self.backend().clone());
 
         const BLOCK_SIZE: usize = 256;
         const STRIDE: usize = 128;
@@ -120,7 +119,7 @@ impl<F: DeviceCopy + Field> DeviceMle<F> {
                 .unwrap();
         }
 
-        DeviceMle::new(Mle::new(output))
+        DeviceMle::new(output)
     }
 }
 
@@ -184,10 +183,9 @@ mod tests {
         })
         .unwrap();
 
-        let rt = tokio::runtime::Runtime::new().unwrap();
         // Host's fix_last_variable uses zero padding internally
-        let restriction = rt.block_on(mle.fix_last_variable(alpha));
-        let host_evals = rt.block_on(restriction.eval_at(&random_point)).to_vec();
+        let restriction = mle.fix_last_variable(alpha);
+        let host_evals = restriction.eval_at(&random_point).to_vec();
 
         assert_eq!(evals, host_evals);
     }

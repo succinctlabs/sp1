@@ -6,7 +6,7 @@ use slop_air::{Air, AirBuilder, PairBuilder};
 use slop_algebra::AbstractField;
 use slop_matrix::Matrix;
 use sp1_core_executor::events::FieldOperation;
-use sp1_core_executor::syscalls::SyscallCode;
+use sp1_core_executor::SyscallCode;
 use sp1_core_machine::air::{MemoryAirBuilder, SP1CoreAirBuilder};
 use sp1_core_machine::operations::{AddrAddOperation, SyscallAddrOperation};
 use sp1_core_machine::riscv::{WeierstrassAddAssignChip, WeierstrassDoubleAssignChip};

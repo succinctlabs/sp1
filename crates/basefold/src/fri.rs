@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use std::{borrow::Cow, marker::PhantomData, sync::Arc};
+use std::{marker::PhantomData, sync::Arc};
 
 use slop_algebra::{
     extension::BinomialExtensionField, AbstractExtensionField, AbstractField, ExtensionField,
@@ -25,7 +25,7 @@ use sp1_gpu_cudart::{
         },
         runtime::KernelPtr,
     },
-    DeviceBuffer, DeviceTensor, TaskScope,
+    DeviceBuffer, DeviceMle, DeviceTensor, TaskScope,
 };
 use sp1_gpu_merkle_tree::{CudaTcsProver, MerkleTreeProverData, SingleLayerMerkleTreeProverError};
 use sp1_gpu_utils::{Ext, Felt, JaggedTraceMle, TraceDenseData};
@@ -85,7 +85,7 @@ where
         jagged_trace_mle: &JaggedTraceMle<Felt, TaskScope>,
         mut dst: Tensor<Felt, TaskScope>,
     ) -> Result<
-        (<GC as IopCtx>::Digest, Option<CudaStackedPcsProverData<GC>>),
+        (<GC as IopCtx>::Digest, CudaStackedPcsProverData<GC>),
         SingleLayerMerkleTreeProverError,
     > {
         let encoder = SpparkDftKoalaBear::default();
@@ -106,14 +106,8 @@ where
 
         let (commitment, tcs_data) = self.tcs_prover.commit_tensors(&dst)?;
 
-        let prover_data = if drop_traces {
-            None
-        } else {
-            Some(CudaStackedPcsProverData {
-                merkle_tree_tcs_data: tcs_data,
-                codeword_mle: Arc::new(dst),
-            })
-        };
+        let codeword_mle = if drop_traces { None } else { Some(Arc::new(dst)) };
+        let prover_data = CudaStackedPcsProverData { merkle_tree_tcs_data: tcs_data, codeword_mle };
 
         Ok((commitment, prover_data))
     }
@@ -259,10 +253,9 @@ where
         let beta: GC::EF = challenger.sample_ext_element();
 
         // Fold the mle.
-        let folded_mle = {
-            use sp1_gpu_cudart::DeviceMle;
-            let device_mle = DeviceMle::new(current_mle);
-            device_mle.fold(beta).into_inner()
+        let folded_mle: Mle<_, TaskScope> = {
+            let device_mle = DeviceMle::from(current_mle);
+            device_mle.fold(beta).into()
         };
         let folded_num_variables = folded_mle.num_variables();
 
@@ -334,34 +327,44 @@ where
         mut eval_point: Point<GC::EF>,
         evaluation_claims: Rounds<Evaluations<GC::EF, TaskScope>>,
         mles: &JaggedTraceMle<GC::F, TaskScope>,
-        prover_data: Rounds<Option<&CudaStackedPcsProverData<GC>>>,
+        prover_data: Rounds<&CudaStackedPcsProverData<GC>>,
         challenger: &mut GC::Challenger,
     ) -> Result<BasefoldProof<GC>, BasefoldProverError<SingleLayerMerkleTreeProverError>>
     where
         GC::Challenger: DeviceGrindingChallenger<Witness = GC::F>,
     {
         let scope = mles.dense().dense.backend().clone();
-        let mut new_prover_data = Vec::new();
-        for data in prover_data {
-            if let Some(data) = data {
-                new_prover_data.push(Cow::Borrowed(data));
+        let mut codewords: Vec<Arc<Tensor<Felt, TaskScope>>> = Vec::new();
+        for data in prover_data.iter() {
+            if let Some(ref codeword) = data.codeword_mle {
+                codewords.push(codeword.clone());
             } else {
-                let dst = Tensor::<Felt, TaskScope>::with_sizes_in(
+                // Codeword was dropped - this is always a main trace.
+                let mut dst = Tensor::<Felt, TaskScope>::with_sizes_in(
                     [
                         mles.dense().main_size() >> self.log_height,
                         1 << (self.log_height as usize + self.config.log_blowup()),
                     ],
                     scope.clone(),
                 );
+                unsafe {
+                    dst.assume_init();
+                }
 
-                let result = self.encode_and_commit(false, false, mles, dst).unwrap().1.unwrap();
+                let encoder = SpparkDftKoalaBear::default();
+                encode_batch(
+                    encoder,
+                    self.config.log_blowup as u32,
+                    mles.main_virtual_tensor(self.log_height),
+                    &mut dst,
+                )
+                .unwrap();
 
-                new_prover_data.push(Cow::Owned(result));
+                codewords.push(Arc::new(dst));
             }
         }
 
-        let encoded_messages: Message<Tensor<Felt, TaskScope>> =
-            new_prover_data.iter().map(|data| data.codeword_mle.clone()).collect();
+        let encoded_messages: Message<_> = codewords.iter().cloned().collect();
 
         let evaluation_claims = evaluation_claims.into_iter().flatten().collect::<Vec<_>>();
 
@@ -395,7 +398,7 @@ where
             let last_coord = eval_point.remove_last_coordinate();
             let zero_values = {
                 use sp1_gpu_cudart::DeviceMle;
-                let device_mle = DeviceMle::new(current_mle.clone());
+                let device_mle = DeviceMle::from(current_mle.clone());
                 let evals = device_mle.fixed_at_zero(&eval_point);
                 evals.to_host_vec().unwrap()
             };
@@ -434,13 +437,11 @@ where
 
         // Open the original polynomials at the query indices.
         let mut component_polynomials_query_openings_and_proofs = vec![];
-        for prover_data in new_prover_data {
-            let CudaStackedPcsProverData { merkle_tree_tcs_data, codeword_mle } =
-                prover_data.as_ref();
-            let values = self.tcs_prover.compute_openings_at_indices(codeword_mle, &query_indices);
+        for (data, codeword) in prover_data.iter().zip(codewords.iter()) {
+            let values = self.tcs_prover.compute_openings_at_indices(codeword, &query_indices);
             let proof = self
                 .tcs_prover
-                .prove_openings_at_indices(merkle_tree_tcs_data, &query_indices)
+                .prove_openings_at_indices(&data.merkle_tree_tcs_data, &query_indices)
                 .map_err(BasefoldProverError::TcsCommitError)?;
             let opening = MerkleTreeOpeningAndProof::<GC> { values, proof };
             component_polynomials_query_openings_and_proofs.push(opening);
@@ -568,22 +569,21 @@ mod tests {
                 .clone()
                 .into_iter()
                 .map(|mle| {
-                    let device_mle = sp1_gpu_cudart::DeviceMle::new(Arc::unwrap_or_clone(mle));
+                    let mle = Arc::unwrap_or_clone(mle);
+                    let guts = mle.into_guts();
+                    let device_mle = sp1_gpu_cudart::DeviceMle::from(guts);
                     device_mle.to_host().unwrap()
                 })
                 .collect();
 
-            let interleaved_message = rt.block_on(interleave_multilinears_with_fixed_rate(
-                32,
-                host_message,
-                LOG_STACKING_HEIGHT,
-            ));
+            let interleaved_message =
+                interleave_multilinears_with_fixed_rate(32, host_message, LOG_STACKING_HEIGHT);
 
             let interleaved_message =
                 interleaved_message.into_iter().map(|x| x.as_ref().clone()).collect::<Message<_>>();
 
             let (old_preprocessed_commitment, old_preprocessed_prover_data) =
-                rt.block_on(old_prover.commit_mles(interleaved_message.clone())).unwrap();
+                old_prover.commit_mles(interleaved_message.clone()).unwrap();
 
             let new_semaphore = ProverSemaphore::new(1);
             let capacity = CORE_MAX_TRACE_SIZE as usize;
@@ -636,21 +636,20 @@ mod tests {
 
             let mut host_message = Vec::new();
             for mle in message.into_iter() {
-                let device_mle = sp1_gpu_cudart::DeviceMle::new(Arc::unwrap_or_clone(mle));
+                let mle = Arc::unwrap_or_clone(mle);
+                let guts = mle.into_guts();
+                let device_mle = sp1_gpu_cudart::DeviceMle::from(guts);
                 let mle_host = device_mle.to_host().unwrap();
                 host_message.push(mle_host);
             }
 
             let host_message = host_message.into_iter().collect::<Message<Mle<Felt, CpuBackend>>>();
 
-            let interleaved_message_2 = rt.block_on(interleave_multilinears_with_fixed_rate(
-                32,
-                host_message,
-                LOG_STACKING_HEIGHT,
-            ));
+            let interleaved_message_2 =
+                interleave_multilinears_with_fixed_rate(32, host_message, LOG_STACKING_HEIGHT);
 
             let (old_main_commitment, old_main_prover_data) =
-                rt.block_on(old_prover.commit_mles(interleaved_message_2.clone())).unwrap();
+                old_prover.commit_mles(interleaved_message_2.clone()).unwrap();
 
             assert_eq!(new_main_commit, old_main_commitment);
 
@@ -661,7 +660,7 @@ mod tests {
             let evaluation_claims_1: Vec<_> = interleaved_message
                 .clone()
                 .into_iter()
-                .map(|mle| rt.block_on(mle.eval_at(&eval_point_host)))
+                .map(|mle| mle.eval_at(&eval_point_host))
                 .collect();
 
             let evaluation_claims_1 = Evaluations { round_evaluations: evaluation_claims_1 };
@@ -669,17 +668,17 @@ mod tests {
             let evaluation_claims_2: Vec<_> = interleaved_message_2
                 .clone()
                 .into_iter()
-                .map(|mle| rt.block_on(mle.eval_at(&eval_point_host)))
+                .map(|mle| mle.eval_at(&eval_point_host))
                 .collect();
 
             let host_evaluation_claims_1: Vec<MleEval<Ext, CpuBackend>> = evaluation_claims_1
                 .round_evaluations
                 .iter()
-                .map(|mle| rt.block_on(mle.to_host()).unwrap())
+                .map(|mle| mle.to_host().unwrap())
                 .collect();
 
             let host_evaluation_claims_2: Vec<MleEval<Ext, CpuBackend>> =
-                evaluation_claims_2.iter().map(|mle| rt.block_on(mle.to_host()).unwrap()).collect();
+                evaluation_claims_2.iter().map(|mle| mle.to_host().unwrap()).collect();
 
             let flattened_evaluation_claims = vec![
                 MleEval::new(
@@ -703,19 +702,15 @@ mod tests {
             scope.synchronize_blocking().unwrap();
             let now = std::time::Instant::now();
 
-            let basefold_proof = rt
-                .block_on(
-                    old_prover.prove_trusted_mle_evaluations(
-                        eval_point_host.clone(),
-                        vec![interleaved_message, interleaved_message_2].into_iter().collect(),
-                        vec![evaluation_claims_1.clone(), evaluation_claims_2.clone()]
-                            .into_iter()
-                            .collect(),
-                        vec![old_preprocessed_prover_data, old_main_prover_data]
-                            .into_iter()
-                            .collect(),
-                        &mut challenger,
-                    ),
+            let basefold_proof = old_prover
+                .prove_trusted_mle_evaluations(
+                    eval_point_host.clone(),
+                    vec![interleaved_message, interleaved_message_2].into_iter().collect(),
+                    vec![evaluation_claims_1.clone(), evaluation_claims_2.clone()]
+                        .into_iter()
+                        .collect(),
+                    vec![old_preprocessed_prover_data, old_main_prover_data].into_iter().collect(),
+                    &mut challenger,
                 )
                 .unwrap();
 
@@ -752,9 +747,7 @@ mod tests {
                     eval_point_host.clone(),
                     [evaluation_claims_1_device, evaluation_claims_2].into_iter().collect(),
                     &new_traces,
-                    [new_preprocessed_prover_data.as_ref(), new_main_prover_data.as_ref()]
-                        .into_iter()
-                        .collect(),
+                    [&new_preprocessed_prover_data, &new_main_prover_data].into_iter().collect(),
                     &mut challenger,
                 )
                 .unwrap();

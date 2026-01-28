@@ -390,7 +390,7 @@ mod tests {
     use slop_koala_bear::KoalaBear;
     use slop_multilinear::Mle;
     use slop_multilinear::Point;
-    use sp1_gpu_cudart::run_in_place;
+    use sp1_gpu_cudart::run_sync_in_place;
     use sp1_gpu_cudart::sys::v2_kernels::jagged_eval_kernel_chunked_felt;
     use sp1_gpu_cudart::{DeviceBuffer, DevicePoint};
     use sp1_hypercube::log2_ceil_usize;
@@ -503,7 +503,7 @@ mod tests {
         (mles, data, cols, start_idx)
     }
 
-    async fn mle_evaluation_test(table_sizes: Vec<(u32, u32)>) {
+    fn mle_evaluation_test(table_sizes: Vec<(u32, u32)>) {
         let (mles, data, cols, start_idx) = get_input(&table_sizes);
 
         let mut input_heights = vec![];
@@ -519,19 +519,19 @@ mod tests {
         let z_col = Point::<Ext>::rand(&mut rng, col_variable as u32);
 
         // Compute expected value using async host-side evaluation
-        let z_row_lagrange = Mle::partial_lagrange(&z_row).await;
-        let z_col_lagrange = Mle::partial_lagrange(&z_col).await;
+        let z_row_lagrange = Mle::partial_lagrange(&z_row);
+        let z_col_lagrange = Mle::partial_lagrange(&z_col);
 
         let mut eval = BinomialExtensionField::<Felt, 4>::zero();
         for (i, mle) in mles.iter().enumerate() {
-            eval += mle.eval_at_eq(&z_row_lagrange).await.to_vec()[0]
-                * z_col_lagrange.guts().as_slice()[i];
+            eval +=
+                mle.eval_at_eq(&z_row_lagrange).to_vec()[0] * z_col_lagrange.guts().as_slice()[i];
         }
 
         let data = Buffer::from(data);
         let cols = Buffer::from(cols);
         let start_idx = Buffer::from(start_idx);
-        run_in_place(|t| async move {
+        run_sync_in_place(move |t| {
             // Warmup iteration.
             let z_row_device = DevicePoint::from_host(&z_row, &t).unwrap().into_inner();
             let z_col_device = DevicePoint::from_host(&z_col, &t).unwrap().into_inner();
@@ -550,7 +550,7 @@ mod tests {
                 input_heights.clone(),
             );
 
-            t.synchronize().await.unwrap();
+            t.synchronize_blocking().unwrap();
             let evaluation = evaluate_jagged_mle_chunked(
                 jagged_mle,
                 z_row_device,
@@ -559,7 +559,7 @@ mod tests {
                 data.len() / 2,
                 jagged_eval_kernel_chunked_felt,
             );
-            t.synchronize().await.unwrap();
+            t.synchronize_blocking().unwrap();
 
             let host_evals = unsafe { evaluation.into_buffer().copy_into_host_vec() };
             let evaluation = host_evals[0];
@@ -583,7 +583,7 @@ mod tests {
                 input_heights.clone(),
             );
 
-            t.synchronize().await.unwrap();
+            t.synchronize_blocking().unwrap();
             let now = std::time::Instant::now();
             let evaluation = evaluate_jagged_mle_chunked(
                 jagged_mle,
@@ -594,7 +594,7 @@ mod tests {
                 jagged_eval_kernel_chunked_felt,
             );
 
-            t.synchronize().await.unwrap();
+            t.synchronize_blocking().unwrap();
             let elapsed = now.elapsed();
 
             let host_evals = unsafe { evaluation.into_buffer().copy_into_host_vec() };
@@ -603,12 +603,12 @@ mod tests {
 
             println!("elapsed jagged chunked {elapsed:?}");
         })
-        .await;
+        .unwrap();
     }
 
     // Instead of encoding all of the column evaluations as an MLE, this test directly
     // compares all column evaluations to the expected value from host.
-    async fn mle_individual_evaluation_test(table_sizes: Vec<(u32, u32)>) {
+    fn mle_individual_evaluation_test(table_sizes: Vec<(u32, u32)>) {
         let mut rng = StdRng::seed_from_u64(6);
         // Make (# of tables) chip names.
         let chip_names =
@@ -650,17 +650,17 @@ mod tests {
         let z_row = Point::<Ext>::rand(&mut rng, row_variable as u32);
 
         // Compute expected values using async host-side evaluation
-        let z_row_lagrange = Mle::partial_lagrange(&z_row).await;
+        let z_row_lagrange = Mle::partial_lagrange(&z_row);
 
         let mut eval = vec![];
         for mle in mles.iter() {
-            eval.push(mle.eval_at_eq(&z_row_lagrange).await.to_vec()[0]);
+            eval.push(mle.eval_at_eq(&z_row_lagrange).to_vec()[0]);
         }
 
         let data = Buffer::from(data);
         let cols = Buffer::from(cols);
         let start_idx = Buffer::from(start_idx);
-        run_in_place(|t| async move {
+        run_sync_in_place(move |t| {
             let jagged_mle = JaggedTraceMle::new(
                 TraceDenseData {
                     dense: DeviceBuffer::from_host(&data, &t).unwrap().into_inner(),
@@ -676,58 +676,58 @@ mod tests {
                 input_heights.clone(),
             );
 
-            t.synchronize().await.unwrap();
+            t.synchronize_blocking().unwrap();
             let now = std::time::Instant::now();
 
             let result = evaluate_jagged_columns(&jagged_mle, z_row.clone());
             assert_eq!(eval, result);
-            t.synchronize().await.unwrap();
+            t.synchronize_blocking().unwrap();
 
             let elapsed = now.elapsed();
             println!("time: {elapsed:?}");
         })
-        .await;
+        .unwrap();
     }
 
-    #[tokio::test]
     #[serial]
-    async fn test_jagged_mle_eval_keccak() {
+    #[test]
+    fn test_jagged_mle_eval_keccak() {
         let table_sizes = get_keccak_size();
-        mle_evaluation_test(table_sizes).await;
+        mle_evaluation_test(table_sizes);
     }
 
-    #[tokio::test]
     #[serial]
-    async fn test_jagged_mle_eval_secp() {
+    #[test]
+    fn test_jagged_mle_eval_secp() {
         let table_sizes = get_secp256k1_double_size();
-        mle_evaluation_test(table_sizes).await;
+        mle_evaluation_test(table_sizes);
     }
 
-    #[tokio::test]
     #[serial]
-    async fn test_jagged_mle_eval_core() {
+    #[test]
+    fn test_jagged_mle_eval_core() {
         let table_sizes = get_core_size();
-        mle_evaluation_test(table_sizes).await;
+        mle_evaluation_test(table_sizes);
     }
 
-    #[tokio::test]
     #[serial]
-    async fn test_jagged_mle_eval_individual_keccak() {
+    #[test]
+    fn test_jagged_mle_eval_individual_keccak() {
         let table_sizes = get_keccak_size();
-        mle_individual_evaluation_test(table_sizes).await;
+        mle_individual_evaluation_test(table_sizes);
     }
 
-    #[tokio::test]
     #[serial]
-    async fn test_jagged_mle_eval_individual_secp() {
+    #[test]
+    fn test_jagged_mle_eval_individual_secp() {
         let table_sizes = get_secp256k1_double_size();
-        mle_individual_evaluation_test(table_sizes).await;
+        mle_individual_evaluation_test(table_sizes);
     }
 
-    #[tokio::test]
     #[serial]
-    async fn test_jagged_mle_eval_individual_core() {
+    #[test]
+    fn test_jagged_mle_eval_individual_core() {
         let table_sizes = get_core_size();
-        mle_individual_evaluation_test(table_sizes).await;
+        mle_individual_evaluation_test(table_sizes);
     }
 }

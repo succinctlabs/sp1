@@ -10,6 +10,7 @@ use slop_challenger::{FieldChallenger, IopCtx};
 use slop_multilinear::{Mle, Point};
 use slop_sumcheck::PartialSumcheckProof;
 use slop_tensor::Tensor;
+use sp1_gpu_cudart::DevicePoint;
 use sp1_gpu_cudart::{
     args,
     sys::v2_kernels::{
@@ -25,7 +26,6 @@ use sp1_gpu_cudart::{
     },
     DeviceBuffer, DeviceTensor, TaskScope,
 };
-use sp1_gpu_cudart::{DeviceMle, DevicePoint};
 
 use crate::{
     layer::JaggedGkrLayer,
@@ -202,9 +202,8 @@ fn fix_last_variable_materialized_round(
 
             let layer = PolynomialLayer::InteractionsLayer(output);
 
-            let eq_interaction = DeviceMle::new(poly.eq_interaction)
-                .fix_last_variable_constant_padding(alpha, Ext::zero())
-                .into_inner();
+            let eq_interaction =
+                poly.eq_interaction.fix_last_variable_constant_padding(alpha, Ext::zero());
 
             LogupRoundPolynomial {
                 layer,
@@ -244,9 +243,7 @@ fn fix_last_variable_materialized_round(
                         )
                         .unwrap();
                 }
-                let eq_row = DeviceMle::new(poly.eq_row)
-                    .fix_last_variable_constant_padding(alpha, Ext::zero())
-                    .into_inner();
+                let eq_row = poly.eq_row.fix_last_variable_constant_padding(alpha, Ext::zero());
 
                 return LogupRoundPolynomial {
                     layer: PolynomialLayer::InteractionsLayer(output),
@@ -297,9 +294,7 @@ fn fix_and_sum_first_layer(
     );
 
     // Fix the eq_row variables
-    let eq_row = DeviceMle::new(poly.eq_row)
-        .fix_last_variable_constant_padding(alpha, Ext::zero())
-        .into_inner();
+    let eq_row = poly.eq_row.fix_last_variable_constant_padding(alpha, Ext::zero());
 
     // populate the new layer
     const BLOCK_SIZE: usize = 256;
@@ -411,9 +406,8 @@ fn fix_and_sum_materialized_round(
     match &poly.layer {
         PolynomialLayer::InteractionsLayer(guts) => {
             // First, fix_last_variable on the eq_interaction
-            let eq_interaction = DeviceMle::new(poly.eq_interaction)
-                .fix_last_variable_constant_padding(alpha, Ext::zero())
-                .into_inner();
+            let eq_interaction =
+                poly.eq_interaction.fix_last_variable_constant_padding(alpha, Ext::zero());
             let height = guts.sizes()[1];
             let output_height = height.div_ceil(2);
             let backend = guts.backend();
@@ -477,9 +471,7 @@ fn fix_and_sum_materialized_round(
                 let mut output: Tensor<Ext, TaskScope> =
                     Tensor::with_sizes_in([4, height], backend.clone());
 
-                let eq_row = DeviceMle::new(poly.eq_row)
-                    .fix_last_variable_constant_padding(alpha, Ext::zero())
-                    .into_inner();
+                let eq_row = poly.eq_row.fix_last_variable_constant_padding(alpha, Ext::zero());
 
                 const BLOCK_SIZE: usize = 256;
                 const STRIDE: usize = 32;
@@ -523,10 +515,7 @@ fn fix_and_sum_materialized_round(
                 let univariate_evals = finalize_univariate(&poly, univariate_evals, claim);
                 (univariate_evals, poly)
             } else {
-                // Sequential call instead of tokio::spawn
-                let eq_row = DeviceMle::new(poly.eq_row)
-                    .fix_last_variable_constant_padding(alpha, Ext::zero())
-                    .into_inner();
+                let eq_row = poly.eq_row.fix_last_variable_constant_padding(alpha, Ext::zero());
 
                 let (output_interaction_start_indices, output_interaction_row_counts) =
                     circuit.jagged_mle.next_start_indices_and_column_heights();
@@ -790,11 +779,8 @@ pub fn bench_materialized_sumcheck<GC: IopCtx>(
         let interaction_point =
             DevicePoint::from_host(&interaction_point, &t).unwrap().into_inner();
 
-        let eq_row = Mle::new(DevicePoint::new(row_point).partial_lagrange().into_inner());
-        let eq_interaction: Mle<
-            slop_algebra::extension::BinomialExtensionField<slop_koala_bear::KoalaBear, 4>,
-            TaskScope,
-        > = Mle::new(DevicePoint::new(interaction_point).partial_lagrange().into_inner());
+        let eq_row = DevicePoint::new(row_point).partial_lagrange();
+        let eq_interaction = DevicePoint::new(interaction_point).partial_lagrange();
 
         println!("moving to device took {}s", now.elapsed().as_secs_f64());
 
@@ -834,17 +820,17 @@ pub fn bench_materialized_sumcheck<GC: IopCtx>(
             now.elapsed().as_secs_f64()
         );
 
+        let poly = polynomial.clone();
         let now = std::time::Instant::now();
-        let (mut proof, mut evals) =
-            materialized_round_sumcheck(polynomial.clone(), &mut challenger, claim);
+        let (mut proof, mut evals) = materialized_round_sumcheck(poly, &mut challenger, claim);
         println!("time for sumcheck: {}", now.elapsed().as_secs_f64());
 
         for _ in 0..2 {
+            let poly = polynomial.clone();
             let now = std::time::Instant::now();
             t.synchronize_blocking().unwrap();
             let mut challenger = get_challenger();
-            (proof, evals) =
-                materialized_round_sumcheck(polynomial.clone(), &mut challenger, claim);
+            (proof, evals) = materialized_round_sumcheck(poly, &mut challenger, claim);
             println!("time for sumcheck: {}", now.elapsed().as_secs_f64());
         }
 
@@ -880,7 +866,6 @@ pub fn bench_materialized_sumcheck<GC: IopCtx>(
 #[cfg(test)]
 mod tests {
     use crate::utils::{generate_test_data, GkrTestData};
-    use slop_multilinear::Mle;
     use slop_multilinear::Point;
     use sp1_gpu_cudart::DevicePoint;
     use sp1_gpu_utils::TestGC;
@@ -918,9 +903,8 @@ mod tests {
             let interaction_point =
                 DevicePoint::from_host(&interaction_point, &t).unwrap().into_inner();
 
-            let eq_row = Mle::new(DevicePoint::new(row_point).partial_lagrange().into_inner());
-            let eq_interaction =
-                Mle::new(DevicePoint::new(interaction_point).partial_lagrange().into_inner());
+            let eq_row = DevicePoint::new(row_point).partial_lagrange();
+            let eq_interaction = DevicePoint::new(interaction_point).partial_lagrange();
 
             let layer = GkrLayer { jagged_mle, num_interaction_variables, num_row_variables };
 
@@ -935,11 +919,10 @@ mod tests {
             };
 
             // Get the expected evaluations using host-side computation
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            let numerator_0_eval = rt.block_on(numerator_0.eval_at(&random_point))[0];
-            let numerator_1_eval = rt.block_on(numerator_1.eval_at(&random_point))[0];
-            let denominator_0_eval = rt.block_on(denominator_0.eval_at(&random_point))[0];
-            let denominator_1_eval = rt.block_on(denominator_1.eval_at(&random_point))[0];
+            let numerator_0_eval = numerator_0.eval_at(&random_point)[0];
+            let numerator_1_eval = numerator_1.eval_at(&random_point)[0];
+            let denominator_0_eval = denominator_0.eval_at(&random_point)[0];
+            let denominator_1_eval = denominator_1.eval_at(&random_point)[0];
 
             for alpha in random_point.iter().rev() {
                 let _uni_poly;

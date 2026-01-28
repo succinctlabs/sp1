@@ -80,14 +80,14 @@ pub struct CudaShardProverData<GC: IopCtx, Air: MachineAir<GC::F>> {
     /// The preprocessed traces.
     pub preprocessed_traces: JaggedTraceMle<Felt, TaskScope>,
     /// The pcs data for the preprocessed traces.
-    pub preprocessed_data: JaggedProverData<GC, Option<CudaStackedPcsProverData<GC>>>,
+    pub preprocessed_data: JaggedProverData<GC, CudaStackedPcsProverData<GC>>,
     phantom: PhantomData<Air>,
 }
 
 impl<GC: IopCtx, Air: MachineAir<GC::F>> CudaShardProverData<GC, Air> {
     pub fn new(
         preprocessed_traces: JaggedTraceMle<Felt, TaskScope>,
-        preprocessed_data: JaggedProverData<GC, Option<CudaStackedPcsProverData<GC>>>,
+        preprocessed_data: JaggedProverData<GC, CudaStackedPcsProverData<GC>>,
     ) -> Self {
         Self { preprocessed_traces, preprocessed_data, phantom: PhantomData }
     }
@@ -441,7 +441,7 @@ async fn device_preprocessed_tracegen<A: CudaTracegenAir<Felt>>(
         })
         .collect::<FuturesUnordered<_>>()
         .filter_map(|(air, maybe_trace)| {
-            ready(maybe_trace.map(|trace| (air.name().to_string(), trace.into_inner())))
+            ready(maybe_trace.map(|trace| (air.name().to_string(), trace.into())))
         });
 
     let named_traces = futures::stream_select!(copied_host_traces, device_traces)
@@ -794,7 +794,7 @@ async fn device_main_tracegen<A: CudaTracegenAir<Felt>>(
                     .instrument(tracing::trace_span!(parent: &outer_span, "device chip tracegen", chip = %air.name()))
                     .await
                     .unwrap();
-                (air.name().to_string(), trace.into_inner())
+                (air.name().to_string(), trace.into())
             }
         })
         .collect::<FuturesUnordered<_>>();

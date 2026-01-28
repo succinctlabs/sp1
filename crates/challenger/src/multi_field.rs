@@ -110,13 +110,13 @@ impl<
     > FromChallenger<slop_challenger::MultiField32Challenger<F, PF, P, WIDTH, RATE>, TaskScope>
     for MultiField32Challenger<F, PF, TaskScope>
 {
-    async fn from_challenger(
+    fn from_challenger(
         challenger: &slop_challenger::MultiField32Challenger<F, PF, P, WIDTH, RATE>,
-        backend: TaskScope,
+        backend: &TaskScope,
     ) -> Self {
         // Convert CPU challenger to our CPU representation, then copy to device synchronously
         let cpu_challenger: MultiField32Challenger<F, PF, CpuBackend> = challenger.clone().into();
-        cpu_challenger.to_device_sync(&backend).expect("failed to copy challenger to device")
+        cpu_challenger.to_device_sync(backend).expect("failed to copy challenger to device")
     }
 }
 

@@ -418,7 +418,7 @@ mod tests {
                 .collect::<Message<Mle<_, _>>>();
 
             let interleaved_message =
-                interleave_multilinears_with_fixed_rate(32, message, LOG_STACKING_HEIGHT).await;
+                interleave_multilinears_with_fixed_rate(32, message, LOG_STACKING_HEIGHT);
 
             let interleaved_message = interleaved_message
                 .into_iter()
@@ -426,7 +426,7 @@ mod tests {
                 .collect::<Message<_>>();
 
             let (old_preprocessed_commitment, old_prover_data) =
-                old_prover.commit_tensors(interleaved_message.clone()).await.unwrap();
+                old_prover.commit_tensors(interleaved_message.clone()).unwrap();
 
             let new_semaphore = ProverSemaphore::new(1);
             let capacity = CORE_MAX_TRACE_SIZE as usize;
@@ -459,13 +459,11 @@ mod tests {
 
             let indices = vec![42, 7];
 
-            let old_proof = old_prover
-                .prove_openings_at_indices(old_prover_data.clone(), &indices)
-                .await
-                .unwrap();
+            let old_proof =
+                old_prover.prove_openings_at_indices(old_prover_data.clone(), &indices).unwrap();
 
             let old_openings =
-                old_prover.compute_openings_at_indices(interleaved_message, &indices).await;
+                old_prover.compute_openings_at_indices(interleaved_message, &indices);
 
             let new_openings = tensor_prover.compute_openings_at_indices(
                 &new_traces.dense().preprocessed_tensor(LOG_STACKING_HEIGHT),
@@ -493,7 +491,7 @@ mod tests {
                 .collect::<Message<Mle<_, _>>>();
 
             let interleaved_message =
-                interleave_multilinears_with_fixed_rate(32, message, LOG_STACKING_HEIGHT).await;
+                interleave_multilinears_with_fixed_rate(32, message, LOG_STACKING_HEIGHT);
 
             let interleaved_message = interleaved_message
                 .into_iter()
@@ -501,17 +499,15 @@ mod tests {
                 .collect::<Message<_>>();
 
             let (old_main_commitment, old_prover_data) =
-                old_prover.commit_tensors(interleaved_message.clone()).await.unwrap();
+                old_prover.commit_tensors(interleaved_message.clone()).unwrap();
 
             assert_eq!(new_main_commit, old_main_commitment);
 
-            let old_proof = old_prover
-                .prove_openings_at_indices(old_prover_data.clone(), &indices)
-                .await
-                .unwrap();
+            let old_proof =
+                old_prover.prove_openings_at_indices(old_prover_data.clone(), &indices).unwrap();
 
             let old_openings =
-                old_prover.compute_openings_at_indices(interleaved_message, &indices).await;
+                old_prover.compute_openings_at_indices(interleaved_message, &indices);
 
             let new_openings = tensor_prover.compute_openings_at_indices(
                 &new_traces.dense().main_tensor(LOG_STACKING_HEIGHT),

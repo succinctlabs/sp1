@@ -57,8 +57,8 @@ pub struct SpparkDft<F, T>(pub F, std::marker::PhantomData<T>);
 pub struct CudaStackedPcsProverData<GC: IopCtx> {
     /// The usizes are the height of the Merkle tree and the number of elements in a leaf.
     pub merkle_tree_tcs_data: (MerkleTree<GC::Digest, TaskScope>, GC::Digest, usize, usize),
-    /// TODO: document
-    pub codeword_mle: Arc<Tensor<GC::F, TaskScope>>,
+    /// The codeword (encoded polynomial). This is `None` when `drop_traces` is true.
+    pub codeword_mle: Option<Arc<Tensor<GC::F, TaskScope>>>,
 }
 
 impl<T: Field, F: SpparkCudaDftSys<T>> SpparkDft<F, T> {

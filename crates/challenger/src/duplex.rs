@@ -109,13 +109,13 @@ impl<
     > FromChallenger<slop_challenger::DuplexChallenger<F, P, WIDTH, RATE>, TaskScope>
     for DuplexChallenger<F, TaskScope>
 {
-    async fn from_challenger(
+    fn from_challenger(
         challenger: &slop_challenger::DuplexChallenger<F, P, WIDTH, RATE>,
-        backend: TaskScope,
+        backend: &TaskScope,
     ) -> Self {
         // Convert CPU challenger to our CPU representation, then copy to device synchronously
         let cpu_challenger: DuplexChallenger<F, CpuBackend> = challenger.clone().into();
-        cpu_challenger.to_device_sync(&backend).expect("failed to copy challenger to device")
+        cpu_challenger.to_device_sync(backend).expect("failed to copy challenger to device")
     }
 }
 
