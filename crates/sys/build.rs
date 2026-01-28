@@ -103,6 +103,10 @@ fn cbindgen_builder() -> cbindgen::Builder {
         .include_item("MulGpuEvent")
         // Note: MulCols, MulOperation, U16toU8Operation are manually defined in mul.cu
         // because cbindgen can't resolve LONG_WORD_BYTE_SIZE and WORD_SIZE constant expressions
+        // RISC-V DivRemChip types
+        .include_item("DivRemGpuEvent")
+        // Note: DivRemCols and related operations are manually defined in divrem.cu
+        // because they contain complex nested types and constant expressions
         .with_namespace("sp1_gpu_sys")
         .with_crate(env::var("CARGO_MANIFEST_DIR").unwrap())
 }

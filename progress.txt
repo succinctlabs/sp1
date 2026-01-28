@@ -106,3 +106,25 @@
   - **MULW product MSB:** For MULW (32-bit multiply), need to compute the MSB of the 32-bit result (bit 31) for sign extension to 64-bits.
 
 ---
+
+## 2026-01-28 - DivRemChip GPU Tracegen
+- **What was implemented:** GPU trace generation for DivRemChip (division and remainder operations: DIV, DIVU, REM, REMU, DIVW, DIVUW, REMW, REMUW)
+- **Files changed:**
+  - `crates/sys/src/riscv_events.rs` - Added `DivRemGpuEvent` struct with opcode field to distinguish DivRem variants
+  - `crates/sys/build.rs` - Added cbindgen export for DivRemGpuEvent (DivRemCols manually defined in CUDA)
+  - `lib/tracegen/riscv/divrem.cu` - Comprehensive CUDA kernel with extensive manual struct definitions
+  - `lib/tracegen/CMakeLists.txt` - Added divrem.cu to build
+  - `crates/sys/src/tracegen.rs` - Declared extern fn for divrem kernel
+  - `crates/cuda/src/tracegen.rs` - Added TracegenRiscvDivRemKernel trait
+  - `crates/tracegen/src/riscv/alu.rs` - Implemented CudaTracegenAir for DivRemChip, added test with timing
+
+- **Learnings:**
+  - **Complex struct hierarchy:** DivRemCols requires many nested operation structs (IsZeroOperation, IsZeroWordOperation, IsEqualWordOperation, LtOperationUnsigned, MulOperation, AddOperation, U16MSBOperation). All must be manually defined in CUDA since cbindgen can't handle the constant expression array sizes.
+  - **Division by zero handling:** When c=0, quotient = -1 (or UINT64_MAX for unsigned), remainder = b. Special handling needed for all 8 opcode variants.
+  - **Overflow detection:** For signed division, check for MIN_VALUE / -1 overflow case (result would overflow). Implemented via IsEqualWordOperation comparisons.
+  - **Signed vs unsigned computation:** Need separate logic for signed 64-bit (DIV/REM), unsigned 64-bit (DIVU/REMU), signed 32-bit word (DIVW/REMW), and unsigned 32-bit word (DIVUW/REMUW).
+  - **Constraint verification:** c * quotient + remainder = b (in computational form). Need to compute carry propagation for the addition check across 8 u16 limbs.
+  - **Remainder bound check:** |remainder| < |c| (when c != 0). Uses LtOperationUnsigned to verify this constraint.
+  - **Network issues:** Build and test blocked by proxy restrictions on crates.io access. Code is syntactically verified via rustfmt --edition 2021.
+
+---

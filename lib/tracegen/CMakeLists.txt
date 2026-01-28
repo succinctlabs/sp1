@@ -11,6 +11,7 @@ add_library(tracegen_objs OBJECT
     riscv/add.cu
     riscv/addi.cu
     riscv/addw.cu
+    riscv/divrem.cu
     riscv/global.cu
     riscv/mul.cu
     riscv/sub.cu
