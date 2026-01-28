@@ -96,9 +96,9 @@ This document tracks the GPU tracegen implementation status for core RISC-V chip
 ## Summary
 
 - **Total core chips**: 35
-- **GPU implemented**: 8 (Global, Add, Addw, Addi, Sub, Subw, Mul, DivRem)
+- **GPU implemented**: 7 (Global, Add, Addw, Addi, Sub, Subw, Mul)
 - **Stubs created**: 35
-- **Tests passing**: 8
+- **Tests passing**: 7
 
 ## File Structure
 

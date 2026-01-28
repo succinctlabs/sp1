@@ -27,6 +27,8 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::Sub(chip) => chip.supports_device_main_tracegen(),
             Self::Subw(chip) => chip.supports_device_main_tracegen(),
             Self::Mul(chip) => chip.supports_device_main_tracegen(),
+            // DivRem GPU tracegen is implemented but has bugs - disabled for now
+            // Self::DivRem(chip) => chip.supports_device_main_tracegen(),
             // Other chips don't have `CudaTracegenAir` implemented yet.
             _ => false,
         }
@@ -46,6 +48,8 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::Sub(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::Subw(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::Mul(chip) => chip.generate_trace_device(input, output, scope).await,
+            // DivRem GPU tracegen is implemented but has bugs - disabled for now
+            // Self::DivRem(chip) => chip.generate_trace_device(input, output, scope).await,
             // Other chips don't have `CudaTracegenAir` implemented yet.
             _ => unimplemented!(),
         }
