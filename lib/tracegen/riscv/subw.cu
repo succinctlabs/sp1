@@ -1,13 +1,14 @@
 /// GPU trace generation for RISC-V SubwChip.
 
-#include "sp1-gpu-cbindgen.hpp"
+#include "tracegen/riscv/common.cuh"
 
-#include "fields/kb31_t.cuh"
+using namespace riscv_tracegen;
 
 // Manually define SubwOperation since cbindgen can't handle WORD_SIZE / 2 constant expression.
-// This matches the Rust struct: value: [T; WORD_SIZE / 2] (i.e., [T; 2]) and msb: U16MSBOperation<T>
+// This matches the Rust struct: value: [T; WORD_SIZE / 2] (i.e., [T; 2]) and msb:
+// U16MSBOperation<T>
 namespace sp1_gpu_sys {
-template<typename T>
+template <typename T>
 struct SubwOperation {
     /// The result of the SUBW operation (2 x u16 limbs).
     T value[2];
@@ -15,79 +16,6 @@ struct SubwOperation {
     U16MSBOperation<T> msb;
 };
 } // namespace sp1_gpu_sys
-
-/// Helper to convert a u64 value to a Word<T> (4 x u16 limbs stored as field elements).
-template <class T>
-__device__ void u64_to_word(const uint64_t value, sp1_gpu_sys::Word<T>& word) {
-    word._0[0] = T::from_canonical_u32(value & 0xFFFF);
-    word._0[1] = T::from_canonical_u32((value >> 16) & 0xFFFF);
-    word._0[2] = T::from_canonical_u32((value >> 32) & 0xFFFF);
-    word._0[3] = T::from_canonical_u32((value >> 48) & 0xFFFF);
-}
-
-/// Populate RegisterAccessTimestamp from prev_timestamp and current_timestamp.
-template <class T>
-__device__ void populate_register_access_timestamp(
-    sp1_gpu_sys::RegisterAccessTimestamp<T>& ts,
-    uint64_t prev_timestamp,
-    uint64_t current_timestamp) {
-    // Extract high and low parts of timestamps
-    uint32_t prev_high = prev_timestamp >> 24;
-    uint32_t prev_low_val = prev_timestamp & 0xFFFFFF;
-    uint32_t current_high = current_timestamp >> 24;
-    uint32_t current_low_val = current_timestamp & 0xFFFFFF;
-
-    // If in same high region, use actual prev_low; otherwise use 0
-    uint32_t old_timestamp = (prev_high == current_high) ? prev_low_val : 0;
-    ts.prev_low = T::from_canonical_u32(old_timestamp);
-
-    // Compute diff_low_limb
-    uint32_t diff_minus_one = current_low_val - old_timestamp - 1;
-    uint16_t diff_low_limb = diff_minus_one & 0xFFFF;
-    ts.diff_low_limb = T::from_canonical_u32(diff_low_limb);
-}
-
-/// Populate RegisterAccessCols from GpuMemoryAccess.
-template <class T>
-__device__ void populate_register_access_cols(
-    sp1_gpu_sys::RegisterAccessCols<T>& cols,
-    const sp1_gpu_sys::GpuMemoryAccess& mem) {
-    u64_to_word(mem.prev_value, cols.prev_value);
-    populate_register_access_timestamp(cols.access_timestamp, mem.prev_timestamp, mem.current_timestamp);
-}
-
-/// Populate CPUState from clock and program counter.
-template <class T>
-__device__ void populate_cpu_state(sp1_gpu_sys::CPUState<T>& state, uint64_t clk, uint64_t pc) {
-    uint32_t clk_high = clk >> 24;
-    uint8_t clk_16_24 = (clk >> 16) & 0xFF;
-    uint16_t clk_0_16 = clk & 0xFFFF;
-
-    state.clk_high = T::from_canonical_u32(clk_high);
-    state.clk_16_24 = T::from_canonical_u32(clk_16_24);
-    state.clk_0_16 = T::from_canonical_u32(clk_0_16);
-
-    // PC is stored as 3 x 16-bit limbs
-    state.pc[0] = T::from_canonical_u32(pc & 0xFFFF);
-    state.pc[1] = T::from_canonical_u32((pc >> 16) & 0xFFFF);
-    state.pc[2] = T::from_canonical_u32((pc >> 32) & 0xFFFF);
-}
-
-/// Populate RTypeReader from the GPU event data.
-/// Note: SubwChip uses the same AddGpuEvent structure since R-type format is identical.
-template <class T>
-__device__ void populate_r_type_reader(sp1_gpu_sys::RTypeReader<T>& adapter, const sp1_gpu_sys::AddGpuEvent& event) {
-    adapter.op_a = T::from_canonical_u32(event.op_a);
-    populate_register_access_cols(adapter.op_a_memory, event.mem_a);
-    adapter.op_a_0 = T::from_bool(event.op_a == 0);
-
-    // op_b and op_c are register specifiers, which are small values
-    adapter.op_b = T::from_canonical_u32(static_cast<uint32_t>(event.op_b));
-    populate_register_access_cols(adapter.op_b_memory, event.mem_b);
-
-    adapter.op_c = T::from_canonical_u32(static_cast<uint32_t>(event.op_c));
-    populate_register_access_cols(adapter.op_c_memory, event.mem_c);
-}
 
 /// Populate SubwOperation from operands b and c.
 /// SUBW computes a 32-bit subtraction of the lower 32 bits and sign-extends the result.
@@ -111,7 +39,7 @@ template <class T>
 __global__ void riscv_subw_generate_trace_kernel(
     T* trace,
     uintptr_t trace_height,
-    const sp1_gpu_sys::AddGpuEvent* events,  // SubwGpuEvent is alias to AddGpuEvent
+    const sp1_gpu_sys::AddGpuEvent* events, // SubwGpuEvent is alias to AddGpuEvent
     uintptr_t nb_events) {
     static const size_t COLUMNS = sizeof(sp1_gpu_sys::SubwCols<T>) / sizeof(T);
 

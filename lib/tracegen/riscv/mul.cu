@@ -1,28 +1,27 @@
 /// GPU trace generation for RISC-V MulChip.
 
-#include "sp1-gpu-cbindgen.hpp"
+#include "tracegen/riscv/common.cuh"
 
-#include "fields/kb31_t.cuh"
+using namespace riscv_tracegen;
 
 // Constants matching Rust definitions
-static constexpr size_t BYTE_SIZE = 8;  // bits in a byte
-static constexpr size_t WORD_SIZE_MUL = 4;  // u16 limbs in a Word (renamed to avoid conflict with header)
-static constexpr size_t WORD_BYTE_SIZE = 8;  // bytes in a 64-bit word
-static constexpr size_t LONG_WORD_BYTE_SIZE = 16;  // bytes in a 128-bit product
+static constexpr size_t BYTE_SIZE = 8;            // bits in a byte
+static constexpr size_t WORD_BYTE_SIZE = 8;       // bytes in a 64-bit word
+static constexpr size_t LONG_WORD_BYTE_SIZE = 16; // bytes in a 128-bit product
 static constexpr uint8_t BYTE_MASK = 0xFF;
 
-// Manually define types that cbindgen can't resolve due to constant expressions like LONG_WORD_BYTE_SIZE.
-// These must match the Rust struct layouts exactly.
+// Manually define types that cbindgen can't resolve due to constant expressions like
+// LONG_WORD_BYTE_SIZE. These must match the Rust struct layouts exactly.
 namespace sp1_gpu_sys {
 
 // U16toU8Operation: stores low bytes of each u16 limb
-template<typename T>
+template <typename T>
 struct U16toU8Operation {
-    T low_bytes[WORD_SIZE];  // WORD_SIZE = 4
+    T low_bytes[WORD_SIZE]; // WORD_SIZE = 4
 };
 
 // MulOperation: multiplication operation columns
-template<typename T>
+template <typename T>
 struct MulOperation {
     /// The carry values (16 elements).
     T carry[LONG_WORD_BYTE_SIZE];
@@ -45,7 +44,7 @@ struct MulOperation {
 };
 
 // MulCols: column layout for MulChip
-template<typename T>
+template <typename T>
 struct MulCols {
     /// The current shard, timestamp, program counter of the CPU.
     CPUState<T> state;
@@ -70,90 +69,10 @@ struct MulCols {
 } // namespace sp1_gpu_sys
 
 /// Opcode enum values for MUL variants.
-enum MulOpcode : uint8_t {
-    MUL = 0,
-    MULH = 1,
-    MULHU = 2,
-    MULHSU = 3,
-    MULW = 4
-};
-
-/// Helper to convert a u64 value to a Word<T> (4 x u16 limbs stored as field elements).
-template <class T>
-__device__ void u64_to_word(const uint64_t value, sp1_gpu_sys::Word<T>& word) {
-    word._0[0] = T::from_canonical_u32(value & 0xFFFF);
-    word._0[1] = T::from_canonical_u32((value >> 16) & 0xFFFF);
-    word._0[2] = T::from_canonical_u32((value >> 32) & 0xFFFF);
-    word._0[3] = T::from_canonical_u32((value >> 48) & 0xFFFF);
-}
-
-/// Populate RegisterAccessTimestamp from prev_timestamp and current_timestamp.
-template <class T>
-__device__ void populate_register_access_timestamp(
-    sp1_gpu_sys::RegisterAccessTimestamp<T>& ts,
-    uint64_t prev_timestamp,
-    uint64_t current_timestamp) {
-    // Extract high and low parts of timestamps
-    uint32_t prev_high = prev_timestamp >> 24;
-    uint32_t prev_low_val = prev_timestamp & 0xFFFFFF;
-    uint32_t current_high = current_timestamp >> 24;
-    uint32_t current_low_val = current_timestamp & 0xFFFFFF;
-
-    // If in same high region, use actual prev_low; otherwise use 0
-    uint32_t old_timestamp = (prev_high == current_high) ? prev_low_val : 0;
-    ts.prev_low = T::from_canonical_u32(old_timestamp);
-
-    // Compute diff_low_limb
-    uint32_t diff_minus_one = current_low_val - old_timestamp - 1;
-    uint16_t diff_low_limb = diff_minus_one & 0xFFFF;
-    ts.diff_low_limb = T::from_canonical_u32(diff_low_limb);
-}
-
-/// Populate RegisterAccessCols from GpuMemoryAccess.
-template <class T>
-__device__ void populate_register_access_cols(
-    sp1_gpu_sys::RegisterAccessCols<T>& cols,
-    const sp1_gpu_sys::GpuMemoryAccess& mem) {
-    u64_to_word(mem.prev_value, cols.prev_value);
-    populate_register_access_timestamp(cols.access_timestamp, mem.prev_timestamp, mem.current_timestamp);
-}
-
-/// Populate CPUState from clock and program counter.
-template <class T>
-__device__ void populate_cpu_state(sp1_gpu_sys::CPUState<T>& state, uint64_t clk, uint64_t pc) {
-    uint32_t clk_high = clk >> 24;
-    uint8_t clk_16_24 = (clk >> 16) & 0xFF;
-    uint16_t clk_0_16 = clk & 0xFFFF;
-
-    state.clk_high = T::from_canonical_u32(clk_high);
-    state.clk_16_24 = T::from_canonical_u32(clk_16_24);
-    state.clk_0_16 = T::from_canonical_u32(clk_0_16);
-
-    // PC is stored as 3 x 16-bit limbs
-    state.pc[0] = T::from_canonical_u32(pc & 0xFFFF);
-    state.pc[1] = T::from_canonical_u32((pc >> 16) & 0xFFFF);
-    state.pc[2] = T::from_canonical_u32((pc >> 32) & 0xFFFF);
-}
-
-/// Populate RTypeReader from the GPU event data.
-template <class T>
-__device__ void populate_r_type_reader(sp1_gpu_sys::RTypeReader<T>& adapter, const sp1_gpu_sys::MulGpuEvent& event) {
-    adapter.op_a = T::from_canonical_u32(event.op_a);
-    populate_register_access_cols(adapter.op_a_memory, event.mem_a);
-    adapter.op_a_0 = T::from_bool(event.op_a == 0);
-
-    // op_b and op_c are register specifiers, which are small values
-    adapter.op_b = T::from_canonical_u32(static_cast<uint32_t>(event.op_b));
-    populate_register_access_cols(adapter.op_b_memory, event.mem_b);
-
-    adapter.op_c = T::from_canonical_u32(static_cast<uint32_t>(event.op_c));
-    populate_register_access_cols(adapter.op_c_memory, event.mem_c);
-}
+enum MulOpcode : uint8_t { MUL = 0, MULH = 1, MULHU = 2, MULHSU = 3, MULW = 4 };
 
 /// Get MSB of a 64-bit value (the sign bit).
-__device__ uint8_t get_msb(uint64_t val) {
-    return (val >> 63) & 1;
-}
+__device__ uint8_t get_msb(uint64_t val) { return (val >> 63) & 1; }
 
 /// Populate U16toU8Operation - stores low bytes of each u16 limb.
 template <class T>
@@ -228,17 +147,14 @@ __device__ void populate_mul_operation(
 
     // Compute the uncarried product: b * c
     uint32_t product[LONG_WORD_BYTE_SIZE] = {0};
-    for (int i = 0; i < (b_sign_extend || c_sign_extend ? LONG_WORD_BYTE_SIZE : WORD_BYTE_SIZE); i++) {
-        for (int j = 0; j < (b_sign_extend || c_sign_extend ? LONG_WORD_BYTE_SIZE : WORD_BYTE_SIZE); j++) {
+    for (int i = 0; i < (b_sign_extend || c_sign_extend ? LONG_WORD_BYTE_SIZE : WORD_BYTE_SIZE);
+         i++) {
+        for (int j = 0; j < (b_sign_extend || c_sign_extend ? LONG_WORD_BYTE_SIZE : WORD_BYTE_SIZE);
+             j++) {
             if (i + j < LONG_WORD_BYTE_SIZE) {
                 product[i + j] += static_cast<uint32_t>(b[i]) * static_cast<uint32_t>(c[j]);
             }
         }
-    }
-
-    // For non-signed multiplication, only iterate over WORD_BYTE_SIZE
-    if (!b_sign_extend && !c_sign_extend) {
-        // Already done above with WORD_BYTE_SIZE
     }
 
     // Carry propagation

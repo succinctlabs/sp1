@@ -1,4 +1,4 @@
-/// GPU trace generation for RISC-V AddiChip.
+/// GPU trace generation for RISC-V AddChip.
 
 #include "tracegen/riscv/common.cuh"
 
@@ -12,18 +12,18 @@ __device__ void populate_add_operation(sp1_gpu_sys::AddOperation<T>& op, uint64_
     u64_to_word(result, op.value);
 }
 
-/// Main kernel for AddiChip trace generation.
+/// Main kernel for AddChip trace generation.
 template <class T>
-__global__ void riscv_addi_generate_trace_kernel(
+__global__ void riscv_add_generate_trace_kernel(
     T* trace,
     uintptr_t trace_height,
-    const sp1_gpu_sys::AddiGpuEvent* events,
+    const sp1_gpu_sys::AddGpuEvent* events,
     uintptr_t nb_events) {
-    static const size_t COLUMNS = sizeof(sp1_gpu_sys::AddiCols<T>) / sizeof(T);
+    static const size_t COLUMNS = sizeof(sp1_gpu_sys::AddCols<T>) / sizeof(T);
 
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     for (; i < trace_height; i += blockDim.x * gridDim.x) {
-        sp1_gpu_sys::AddiCols<T> cols;
+        sp1_gpu_sys::AddCols<T> cols;
         T* cols_arr = reinterpret_cast<T*>(&cols);
 
         // Zero initialize all columns
@@ -43,8 +43,8 @@ __global__ void riscv_addi_generate_trace_kernel(
             // Populate CPUState from clk and pc
             populate_cpu_state(cols.state, event.clk, event.pc);
 
-            // Populate ITypeReader from event
-            populate_i_type_reader(cols.adapter, event);
+            // Populate RTypeReader from event
+            populate_r_type_reader(cols.adapter, event);
         }
 
         // Write to trace in column-major format
@@ -56,7 +56,7 @@ __global__ void riscv_addi_generate_trace_kernel(
 }
 
 namespace sp1_gpu_sys {
-extern KernelPtr riscv_addi_generate_trace_kernel() {
-    return (KernelPtr)::riscv_addi_generate_trace_kernel<kb31_t>;
+extern KernelPtr riscv_add_generate_trace_kernel() {
+    return (KernelPtr)::riscv_add_generate_trace_kernel<kb31_t>;
 }
 } // namespace sp1_gpu_sys
