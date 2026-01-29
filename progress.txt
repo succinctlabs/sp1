@@ -1,4 +1,5 @@
 ## Codebase Patterns
+- JTypeRecord is the simplest record type: only op_a (register write) + op_b/op_c (immediates). No register reads for b or c.
 - For field inverse computation in CUDA, use `kb31_t::reciprocal()` method which computes `a^(p-2) mod p` for Koala Bear field
 - When cbindgen can't handle constant expressions like `[T; WORD_SIZE / 2]` or `[T; LONG_WORD_BYTE_SIZE]`, manually define the entire struct hierarchy in the CUDA file
 - For complex operations with multiple array sizes (like MulOperation), may need to manually define MulCols, MulOperation, and U16toU8Operation together
@@ -250,5 +251,25 @@
   - **MemoryAccessTimestamp populate logic:** When `prev_high == current_high` (same epoch), use actual low values for comparison. Otherwise compare the high values. `compare_low` flag indicates which mode. `diff_minus_one = current_value - prev_value - 1`, split into low 16 bits and high 8 bits.
   - **LoadX0 special case:** LoadX0 handles all 7 load opcodes (LB, LBU, LH, LHU, LW, LWU, LD) but with op_a = x0 (register 0). Has individual opcode flags instead of paired is_lb/is_lbu flags. Uses `op_a_0 = true` in events.
   - **Batch implementation efficiency:** Implementing all 5 chips at once was efficient since they share: LoadGpuEvent struct, address operation, memory access columns, ITypeReader adapter. Only the chip-specific columns (offset bits, data extraction, sign extension) differ.
+
+---
+
+## 2026-01-29 - UTypeChip GPU Tracegen
+- **What was implemented:** GPU trace generation for UTypeChip (LUI, AUIPC instructions)
+- **Files changed:**
+  - `crates/sys/src/riscv_events.rs` - Added `UTypeGpuEvent` struct
+  - `crates/sys/build.rs` - Added cbindgen export for UTypeGpuEvent
+  - `lib/tracegen/riscv/utype.cu` - New CUDA kernel with manually-defined JTypeReader and UTypeCols structs
+  - `lib/tracegen/CMakeLists.txt` - Added utype.cu to build
+  - `crates/sys/src/tracegen.rs` - Declared extern fn for utype kernel
+  - `crates/cuda/src/tracegen.rs` - Added TracegenRiscvUTypeKernel trait
+  - `crates/tracegen/src/riscv/control_flow.rs` - Full CudaTracegenAir implementation and test with timing
+
+- **Learnings:**
+  - **JTypeRecord is the simplest record type:** Only has `op_a` (register write via MemoryRecordEnum) + `op_b`/`op_c` (raw u64 immediates). No register reads for b or c operands, unlike RTypeRecord (3 registers) or ITypeRecord (1 register read + 1 immediate).
+  - **JTypeReader vs ITypeReader:** JTypeReader has `op_b_imm` and `op_c_imm` (both Word<T>) instead of ITypeReader's `op_b`/`op_b_memory` (register read) + `op_c_imm`. The UType adapter is simpler because both operands are program immediates.
+  - **UTypeCols addend field:** `addend: [T; WORD_SIZE - 1]` is 3 elements (lower 48 bits of PC for AUIPC, zeros for LUI). cbindgen can't resolve `WORD_SIZE - 1`, so UTypeCols and JTypeReader are manually defined in the CUDA file.
+  - **op_a_0 handling:** When `op_a == 0` (x0 register), addend is zero and add_operation.value is zero regardless of opcode. The is_auipc flag is still set correctly.
+  - **Performance:** 62x GPU speedup on 1000 events test.
 
 ---

@@ -337,6 +337,42 @@ pub struct StoreGpuEvent {
     pub mem_b: GpuMemoryAccess,
 }
 
+/// GPU-compatible event for UTypeChip (LUI, AUIPC).
+///
+/// This flattens `UTypeEvent` and `JTypeRecord` into a single struct without Options or enums.
+/// JTypeRecord uses J-type instruction format where op_b and op_c are always immediates,
+/// and only op_a is a register (write).
+#[derive(Clone, Copy, Debug, Default)]
+#[repr(C)]
+pub struct UTypeGpuEvent {
+    // From UTypeEvent
+    /// Clock cycle of this instruction.
+    pub clk: u64,
+    /// Program counter of this instruction.
+    pub pc: u64,
+    /// Result value (written to rd).
+    pub a: u64,
+    /// The b operand value (immediate).
+    pub b: u64,
+    /// The c operand value (immediate).
+    pub c: u64,
+    /// Whether the opcode is AUIPC (true) or LUI (false).
+    pub is_auipc: bool,
+    /// Whether the first operand is register 0.
+    pub op_a_0: bool,
+
+    // From JTypeRecord
+    /// Destination register number (rd).
+    pub op_a: u8,
+    /// Immediate operand b value.
+    pub op_b: u64,
+    /// Immediate operand c value.
+    pub op_c: u64,
+
+    /// Memory access record for destination register (write).
+    pub mem_a: GpuMemoryAccess,
+}
+
 /// GPU-compatible event for memory load instructions (LB, LBU, LH, LHU, LW, LWU, LD).
 ///
 /// This flattens `MemInstrEvent` and `ITypeRecord` into a single struct without Options or enums.

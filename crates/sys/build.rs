@@ -99,6 +99,10 @@ fn cbindgen_builder() -> cbindgen::Builder {
         // RISC-V SubwChip types
         .include_item("SubwCols")
         .include_item("SubwOperation")
+        // RISC-V UTypeChip types
+        .include_item("UTypeGpuEvent")
+        // Note: UTypeCols, JTypeReader are manually defined in utype.cu because
+        // cbindgen can't resolve `WORD_SIZE - 1` constant expression in addend field
         // RISC-V MulChip types
         .include_item("MulGpuEvent")
         // Note: MulCols, MulOperation, U16toU8Operation are manually defined in mul.cu
