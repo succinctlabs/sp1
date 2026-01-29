@@ -450,3 +450,24 @@
   - **Performance:** 1.21x GPU speedup on 1000 events test (modest due to chip simplicity - only 15 columns with minimal computation).
 
 ---
+
+## 2026-01-29 - StateBumpChip GPU Tracegen
+- **What was implemented:** GPU trace generation for StateBumpChip, which bumps CPU state (clock and program counter) for each instruction. Simple parallel chip with 14 columns.
+- **Files changed:**
+  - `crates/sys/src/riscv_events.rs` - Added `StateBumpGpuEvent` struct (clk, increment, bump2, pc)
+  - `crates/sys/build.rs` - Added cbindgen export for StateBumpGpuEvent
+  - `lib/tracegen/riscv/state_bump.cu` - New CUDA kernel with StateBumpCols struct (14 columns)
+  - `lib/tracegen/CMakeLists.txt` - Added state_bump.cu to build
+  - `crates/sys/src/tracegen.rs` - Declared extern fn for state_bump kernel
+  - `crates/cuda/src/tracegen.rs` - Added TracegenRiscvStateBumpKernel trait
+  - `crates/tracegen/src/riscv/memory_state.rs` - Full CudaTracegenAir implementation and test
+
+- **Learnings:**
+  - **StateBumpCols manually defined:** cbindgen can't handle array sizes like `[T; 3]` in the original Rust struct. Manually defined StateBumpCols in CUDA with explicit fields: next_clk_32_48, next_clk_24_32, next_clk_16_24, next_clk_0_16, clk_high, clk_low, next_pc[3], pc[3], is_clk, is_real.
+  - **Clock decomposition:** clk_low = (clk & 0xFFFFFF) + increment, clk_high = clk >> 24. next_clk = clk + increment, decomposed into 4 limbs (0-16, 16-24, 24-32, 32-48).
+  - **bump2 PC correction:** When bump2 is true, pc[0] = prev_pc_limb0 + PC_INC (where PC_INC=4), with prev_pc = pc - PC_INC. When bump2 is false, pc = next_pc (no correction needed).
+  - **is_clk carry detection:** is_clk = 1 when (next_clk >> 24) != (clk >> 24), indicating a carry from the low 24 bits into the high bits.
+  - **Events from input.bump_state_events:** Each event is a tuple (clk: u64, increment: u64, bump2: bool, pc: u64). Converted to StateBumpGpuEvent with bump2 as u32 flag.
+  - **Performance:** 0.75x GPU speedup on 1000 events (slightly slower than CPU due to minimal computation - only 14 columns with simple arithmetic). Integration test: 55 shards, 7400 kHz.
+
+---

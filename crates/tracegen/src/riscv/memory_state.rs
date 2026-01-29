@@ -6,10 +6,12 @@ use slop_tensor::Tensor;
 use sp1_core_machine::adapter::bump::StateBumpChip;
 use sp1_core_machine::memory::{MemoryBumpChip, MemoryChipType, MemoryLocalChip};
 use sp1_core_machine::riscv::MemoryGlobalChip;
-use sp1_gpu_cudart::sys::{MemoryBumpGpuEvent, MemoryGlobalGpuEvent, MemoryLocalGpuEvent};
+use sp1_gpu_cudart::sys::{
+    MemoryBumpGpuEvent, MemoryGlobalGpuEvent, MemoryLocalGpuEvent, StateBumpGpuEvent,
+};
 use sp1_gpu_cudart::{
     args, DeviceMle, TaskScope, TracegenRiscvMemoryBumpKernel, TracegenRiscvMemoryGlobalKernel,
-    TracegenRiscvMemoryLocalKernel,
+    TracegenRiscvMemoryLocalKernel, TracegenRiscvStateBumpKernel,
 };
 use sp1_hypercube::air::MachineAir;
 
@@ -26,6 +28,10 @@ const NUM_MEMORY_LOCAL_COLS: usize =
 /// Number of columns in MemoryBumpCols<u8>.
 const NUM_MEMORY_BUMP_COLS: usize =
     std::mem::size_of::<sp1_core_machine::memory::MemoryBumpCols<u8>>();
+
+/// Number of columns in StateBumpCols<u8>.
+const NUM_STATE_BUMP_COLS: usize =
+    std::mem::size_of::<sp1_core_machine::adapter::bump::StateBumpCols<u8>>();
 
 impl CudaTracegenAir<F> for MemoryGlobalChip {
     fn supports_device_main_tracegen(&self) -> bool {
@@ -243,16 +249,63 @@ impl CudaTracegenAir<F> for MemoryBumpChip {
 
 impl CudaTracegenAir<F> for StateBumpChip {
     fn supports_device_main_tracegen(&self) -> bool {
-        false // TODO: implement GPU tracegen
+        true
     }
 
     async fn generate_trace_device(
         &self,
-        _input: &Self::Record,
+        input: &Self::Record,
         _output: &mut Self::Record,
-        _scope: &TaskScope,
+        scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {
-        unimplemented!("StateBumpChip GPU tracegen not yet implemented")
+        let events_len = input.bump_state_events.len();
+
+        // Convert events to GPU-compatible format
+        let gpu_events: Vec<StateBumpGpuEvent> = input
+            .bump_state_events
+            .iter()
+            .map(|(clk, increment, bump2, pc)| StateBumpGpuEvent {
+                clk: *clk,
+                increment: *increment,
+                bump2: *bump2 as u32,
+                pc: *pc,
+            })
+            .collect();
+
+        // Copy events to device
+        let events_device = {
+            let mut buf = Buffer::try_with_capacity_in(gpu_events.len(), scope.clone()).unwrap();
+            buf.extend_from_host_slice(&gpu_events)?;
+            buf
+        };
+
+        // Compute trace height
+        let height = <Self as MachineAir<F>>::num_rows(self, input)
+            .expect("num_rows(...) should be Some(_)");
+
+        // Allocate trace on device
+        let mut trace =
+            Tensor::<F, TaskScope>::zeros_in([NUM_STATE_BUMP_COLS, height], scope.clone());
+
+        // Launch kernel
+        unsafe {
+            const BLOCK_DIM: usize = 256;
+            let grid_dim = height.div_ceil(BLOCK_DIM);
+
+            let kernel_args = args!(trace.as_mut_ptr(), height, events_device.as_ptr(), events_len);
+
+            scope
+                .launch_kernel(
+                    TaskScope::tracegen_riscv_state_bump_kernel(),
+                    grid_dim,
+                    BLOCK_DIM,
+                    &kernel_args,
+                    0,
+                )
+                .unwrap();
+        }
+
+        Ok(DeviceMle::from(trace))
     }
 }
 
@@ -577,16 +630,76 @@ mod tests {
         crate::tests::test_traces_eq(&trace, &gpu_trace, &events, false);
     }
 
+    /// Generate random state bump events for testing.
+    fn generate_state_bump_events(count: usize) -> Vec<(u64, u64, bool, u64)> {
+        let mut rng = StdRng::seed_from_u64(0xDE00_BEEF);
+        let mut events = Vec::with_capacity(count);
+
+        for _ in 0..count {
+            // clk must satisfy clk ≡ 1 (mod 8) for the constraint
+            let base_clk: u64 = rng.gen_range(0..0x1_0000_0000u64);
+            let clk = (base_clk & !0x7) | 1; // ensure clk ≡ 1 (mod 8)
+            let increment: u64 = 8; // typical increment
+            let bump2: bool = rng.gen_bool(0.3);
+            // PC must be valid: use aligned addresses
+            let pc: u64 = rng.gen_range(1..0x1_0000u64) * 4;
+            events.push((clk, increment, bump2, pc));
+        }
+
+        events
+    }
+
     #[tokio::test]
-    #[ignore = "GPU tracegen not yet implemented"]
     async fn test_state_bump_generate_trace() {
-        sp1_gpu_cudart::spawn(|scope: TaskScope| async move {
-            let chip = sp1_core_machine::adapter::bump::StateBumpChip::new();
-            let record = ExecutionRecord::default();
-            let mut output = ExecutionRecord::default();
-            let _ = chip.generate_trace_device(&record, &mut output, &scope).await;
-        })
-        .await
-        .unwrap();
+        sp1_gpu_cudart::spawn(inner_test_state_bump_generate_trace).await.unwrap();
+    }
+
+    async fn inner_test_state_bump_generate_trace(scope: TaskScope) {
+        let events = generate_state_bump_events(1000);
+
+        let make_record = |events: &[(u64, u64, bool, u64)]| {
+            let mut record = ExecutionRecord::default();
+            record.bump_state_events = events.to_vec();
+            record.cpu_event_count = 1; // needed for included()
+            record
+        };
+
+        let [shard, gpu_shard] = [make_record(&events), make_record(&events)];
+
+        let chip = sp1_core_machine::adapter::bump::StateBumpChip::new();
+
+        // GPU warmup
+        let _ = chip
+            .generate_trace_device(&gpu_shard, &mut ExecutionRecord::default(), &scope)
+            .await
+            .expect("warmup should succeed");
+        scope.synchronize().await.unwrap();
+
+        // CPU timing
+        scope.synchronize().await.unwrap();
+        let cpu_start = Instant::now();
+        let trace = Tensor::<F>::from(chip.generate_trace(&shard, &mut ExecutionRecord::default()));
+        let _cpu_device_trace = DeviceTensor::from_host(&trace, &scope).unwrap();
+        let cpu_duration = cpu_start.elapsed();
+
+        // GPU timing
+        scope.synchronize().await.unwrap();
+        let gpu_start = Instant::now();
+        let gpu_device_mle = chip
+            .generate_trace_device(&gpu_shard, &mut ExecutionRecord::default(), &scope)
+            .await
+            .expect("should copy events to device successfully");
+        scope.synchronize().await.unwrap();
+        let gpu_duration = gpu_start.elapsed();
+
+        let gpu_trace =
+            gpu_device_mle.to_host().expect("should copy trace to host successfully").into_guts();
+
+        println!("StateBump Tracegen timing (1000 events):");
+        println!("  CPU: {:?}", cpu_duration);
+        println!("  GPU: {:?}", gpu_duration);
+        println!("  Speedup: {:.2}x", cpu_duration.as_secs_f64() / gpu_duration.as_secs_f64());
+
+        crate::tests::test_traces_eq(&trace, &gpu_trace, &events, false);
     }
 }

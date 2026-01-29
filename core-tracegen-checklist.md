@@ -79,7 +79,7 @@ This document tracks the GPU tracegen implementation status for core RISC-V chip
 | MemoryGlobalChip | `MemoryGlobalFinal` | [x] | [x] | [x] | [x] | `memory_state.rs` |
 | MemoryLocalChip | `MemoryLocal` | [x] | [x] | [x] | [x] | `memory_state.rs` |
 | MemoryBumpChip | `MemoryBump` | [x] | [x] | [x] | [x] | `memory_state.rs` |
-| StateBumpChip | `StateBump` | [ ] | [x] | [ ] | [ ] | `memory_state.rs` |
+| StateBumpChip | `StateBump` | [x] | [x] | [x] | [x] | `memory_state.rs` |
 
 ## Program
 
@@ -96,10 +96,10 @@ This document tracks the GPU tracegen implementation status for core RISC-V chip
 ## Summary
 
 - **Total core chips**: 35
-- **GPU implemented**: 32 (Global, Add, Addw, Addi, Sub, Subw, Mul, DivRem, Lt, Bitwise, ShiftLeft, ShiftRight, LoadByte, LoadHalf, LoadWord, LoadDouble, LoadX0, StoreByte, StoreHalf, StoreWord, StoreDouble, UType, Branch, Jal, Jalr, SyscallInstrs, SyscallCore, SyscallPrecompile, ByteLookup, RangeLookup, MemoryLocal, MemoryBump)
+- **GPU implemented**: 33 (Global, Add, Addw, Addi, Sub, Subw, Mul, DivRem, Lt, Bitwise, ShiftLeft, ShiftRight, LoadByte, LoadHalf, LoadWord, LoadDouble, LoadX0, StoreByte, StoreHalf, StoreWord, StoreDouble, UType, Branch, Jal, Jalr, SyscallInstrs, SyscallCore, SyscallPrecompile, ByteLookup, RangeLookup, MemoryLocal, MemoryBump, StateBump)
 - **Stubs created**: 35
-- **Tests passing**: 32
-- **Perf checked**: 31 (all implemented except DivRem which is disabled)
+- **Tests passing**: 33
+- **Perf checked**: 32 (all implemented except DivRem which is disabled)
 
 ## File Structure
 

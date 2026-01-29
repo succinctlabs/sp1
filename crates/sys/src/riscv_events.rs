@@ -640,6 +640,22 @@ pub struct MemoryBumpGpuEvent {
     pub addr: u64,
 }
 
+/// GPU-compatible event for StateBumpChip.
+///
+/// This flattens the (u64 clk, u64 increment, bool bump2, u64 pc) tuple.
+#[derive(Clone, Copy, Debug, Default)]
+#[repr(C)]
+pub struct StateBumpGpuEvent {
+    /// Clock cycle.
+    pub clk: u64,
+    /// Clock increment.
+    pub increment: u64,
+    /// Whether to bump the PC (correct it to canonical form).
+    pub bump2: u32,
+    /// Program counter.
+    pub pc: u64,
+}
+
 /// GPU-compatible event for SyscallChip (Core and Precompile).
 ///
 /// This is a minimal struct containing only the fields needed for SyscallCols trace generation.
