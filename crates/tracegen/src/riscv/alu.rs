@@ -9,17 +9,20 @@ use sp1_core_machine::alu::add_sub::addi::NUM_ADDI_COLS;
 use sp1_core_machine::alu::add_sub::sub::NUM_SUB_COLS;
 use sp1_core_machine::alu::add_sub::subw::NUM_SUBW_COLS;
 use sp1_core_machine::alu::addw::NUM_ADDW_COLS;
+use sp1_core_machine::alu::divrem::NUM_DIVREM_COLS;
 use sp1_core_machine::alu::lt::NUM_LT_COLS;
 use sp1_core_machine::alu::mul::NUM_MUL_COLS;
-use sp1_core_machine::riscv::{AddChip, AddiChip, AddwChip, LtChip, MulChip, SubChip, SubwChip};
+use sp1_core_machine::riscv::{
+    AddChip, AddiChip, AddwChip, DivRemChip, LtChip, MulChip, SubChip, SubwChip,
+};
 use sp1_gpu_cudart::sys::{
-    AddGpuEvent, AddiGpuEvent, AddwGpuEvent, GpuMemoryAccess, LtGpuEvent, MulGpuEvent, SubGpuEvent,
-    SubwGpuEvent,
+    AddGpuEvent, AddiGpuEvent, AddwGpuEvent, DivRemGpuEvent, GpuMemoryAccess, LtGpuEvent,
+    MulGpuEvent, SubGpuEvent, SubwGpuEvent,
 };
 use sp1_gpu_cudart::{
     args, DeviceMle, TaskScope, TracegenRiscvAddKernel, TracegenRiscvAddiKernel,
-    TracegenRiscvAddwKernel, TracegenRiscvLtKernel, TracegenRiscvMulKernel, TracegenRiscvSubKernel,
-    TracegenRiscvSubwKernel,
+    TracegenRiscvAddwKernel, TracegenRiscvDivRemKernel, TracegenRiscvLtKernel,
+    TracegenRiscvMulKernel, TracegenRiscvSubKernel, TracegenRiscvSubwKernel,
 };
 use sp1_hypercube::air::MachineAir;
 
@@ -482,6 +485,91 @@ impl CudaTracegenAir<F> for MulChip {
     }
 }
 
+/// Convert Opcode to GPU opcode value for DivRem variants.
+/// GPU uses: DIV=0, DIVU=1, REM=2, REMU=3, DIVW=4, DIVUW=5, REMW=6, REMUW=7
+fn opcode_to_gpu_divrem_variant(opcode: Opcode) -> u8 {
+    match opcode {
+        Opcode::DIV => 0,
+        Opcode::DIVU => 1,
+        Opcode::REM => 2,
+        Opcode::REMU => 3,
+        Opcode::DIVW => 4,
+        Opcode::DIVUW => 5,
+        Opcode::REMW => 6,
+        Opcode::REMUW => 7,
+        _ => 0, // Should not happen for DivRemChip events
+    }
+}
+
+impl CudaTracegenAir<F> for DivRemChip {
+    fn supports_device_main_tracegen(&self) -> bool {
+        true
+    }
+
+    async fn generate_trace_device(
+        &self,
+        input: &Self::Record,
+        _output: &mut Self::Record,
+        scope: &TaskScope,
+    ) -> Result<DeviceMle<F>, CopyError> {
+        let events = &input.divrem_events;
+        let events_len = events.len();
+
+        // Convert Rust events to GPU-compatible format
+        let gpu_events: Vec<DivRemGpuEvent> = events
+            .iter()
+            .map(|(alu_event, r_type_record)| DivRemGpuEvent {
+                clk: alu_event.clk,
+                pc: alu_event.pc,
+                b: alu_event.b,
+                c: alu_event.c,
+                a: alu_event.a,
+                opcode: opcode_to_gpu_divrem_variant(alu_event.opcode),
+                op_a: r_type_record.op_a,
+                op_b: r_type_record.op_b,
+                op_c: r_type_record.op_c,
+                mem_a: memory_record_to_gpu(&r_type_record.a),
+                mem_b: memory_record_to_gpu(&r_type_record.b),
+                mem_c: memory_record_to_gpu(&r_type_record.c),
+            })
+            .collect();
+
+        // Copy events to device
+        let events_device = {
+            let mut buf = Buffer::try_with_capacity_in(gpu_events.len(), scope.clone()).unwrap();
+            buf.extend_from_host_slice(&gpu_events)?;
+            buf
+        };
+
+        // Compute trace height
+        let height = <Self as MachineAir<F>>::num_rows(self, input)
+            .expect("num_rows(...) should be Some(_)");
+
+        // Allocate trace on device
+        let mut trace = Tensor::<F, TaskScope>::zeros_in([NUM_DIVREM_COLS, height], scope.clone());
+
+        // Launch kernel
+        unsafe {
+            const BLOCK_DIM: usize = 256;
+            let grid_dim = height.div_ceil(BLOCK_DIM);
+
+            let kernel_args = args!(trace.as_mut_ptr(), height, events_device.as_ptr(), events_len);
+
+            scope
+                .launch_kernel(
+                    TaskScope::tracegen_riscv_divrem_kernel(),
+                    grid_dim,
+                    BLOCK_DIM,
+                    &kernel_args,
+                    0,
+                )
+                .unwrap();
+        }
+
+        Ok(DeviceMle::from(trace))
+    }
+}
+
 impl CudaTracegenAir<F> for LtChip {
     fn supports_device_main_tracegen(&self) -> bool {
         true
@@ -561,7 +649,7 @@ mod tests {
         ALUTypeRecord, ExecutionRecord, ITypeRecord, Opcode, RTypeRecord,
     };
     use sp1_core_machine::riscv::{
-        AddChip, AddiChip, AddwChip, LtChip, MulChip, SubChip, SubwChip,
+        AddChip, AddiChip, AddwChip, DivRemChip, LtChip, MulChip, SubChip, SubwChip,
     };
     use sp1_gpu_cudart::{DeviceTensor, TaskScope};
     use sp1_hypercube::air::MachineAir;
@@ -1392,6 +1480,138 @@ mod tests {
             gpu_device_mle.to_host().expect("should copy trace to host successfully").into_guts();
 
         println!("LT Tracegen timing (1000 events):");
+        println!("  CPU: {:?}", cpu_duration);
+        println!("  GPU: {:?}", gpu_duration);
+        println!("  Speedup: {:.2}x", cpu_duration.as_secs_f64() / gpu_duration.as_secs_f64());
+
+        // Compare traces
+        crate::tests::test_traces_eq(&trace, &gpu_trace, &events, false);
+    }
+
+    /// Generate random DivRem events for testing.
+    /// Tests all 8 DivRem variants: DIV, DIVU, REM, REMU, DIVW, DIVUW, REMW, REMUW.
+    /// Includes edge cases: division by zero and signed overflow.
+    fn generate_divrem_events(count: usize) -> Vec<(AluEvent, RTypeRecord)> {
+        use sp1_core_executor::{get_quotient_and_remainder, is_word_operation};
+
+        let mut rng = StdRng::seed_from_u64(0xD1F_BEEF);
+        let mut events = Vec::with_capacity(count);
+
+        let base_timestamp: u64 = 0x1_0000_1000;
+        let base_pc: u64 = 0x8000_4000_2000;
+
+        let opcodes = [
+            Opcode::DIV,
+            Opcode::DIVU,
+            Opcode::REM,
+            Opcode::REMU,
+            Opcode::DIVW,
+            Opcode::DIVUW,
+            Opcode::REMW,
+            Opcode::REMUW,
+        ];
+
+        for i in 0..count {
+            let clk = base_timestamp + (i as u64) * 8;
+            let pc = base_pc + (i as u64) * 4;
+
+            let opcode = opcodes[i % opcodes.len()];
+
+            // Generate b and c, with some edge cases injected
+            let (b, c) = match i % 40 {
+                // Division by zero
+                0..4 => (rng.gen::<u64>(), 0u64),
+                // Signed overflow: -2^63 / -1 (for DIV/REM)
+                4 => (i64::MIN as u64, u64::MAX), // -1 as u64
+                // Signed word overflow: -2^31 / -1 (for DIVW/REMW)
+                5 => (i32::MIN as u32 as u64, u32::MAX as u64), // -1 as u32 stored in u64
+                // Normal random cases
+                _ => (rng.gen::<u64>(), rng.gen_range(1..u64::MAX)),
+            };
+
+            let (quotient, remainder) = get_quotient_and_remainder(b, c, opcode);
+
+            // Result: a = quotient for DIV/DIVU/DIVW/DIVUW, a = remainder for REM/REMU/REMW/REMUW
+            let a = match opcode {
+                Opcode::DIV | Opcode::DIVU | Opcode::DIVW | Opcode::DIVUW => {
+                    if is_word_operation(opcode) {
+                        (quotient as i32) as i64 as u64
+                    } else {
+                        quotient
+                    }
+                }
+                _ => {
+                    if is_word_operation(opcode) {
+                        (remainder as i32) as i64 as u64
+                    } else {
+                        remainder
+                    }
+                }
+            };
+
+            let op_a: u8 = rng.gen_range(1..32);
+
+            let event = AluEvent::new(clk, pc, opcode, a, b, c, false);
+
+            let record = RTypeRecord {
+                op_a,
+                a: random_write_record(&mut rng, a, clk + 4, base_timestamp),
+                op_b: rng.gen_range(0..32),
+                b: random_read_record(&mut rng, b, clk + 1, base_timestamp),
+                op_c: rng.gen_range(0..32),
+                c: random_read_record(&mut rng, c, clk + 2, base_timestamp),
+                is_untrusted: false,
+            };
+
+            events.push((event, record));
+        }
+
+        events
+    }
+
+    #[tokio::test]
+    async fn test_divrem_generate_trace() {
+        sp1_gpu_cudart::spawn(inner_test_divrem_generate_trace).await.unwrap();
+    }
+
+    async fn inner_test_divrem_generate_trace(scope: TaskScope) {
+        let events = generate_divrem_events(1000);
+
+        let [shard, gpu_shard] = core::array::from_fn(|_| ExecutionRecord {
+            divrem_events: events.clone(),
+            ..Default::default()
+        });
+
+        let chip = DivRemChip;
+
+        // GPU warmup
+        let _ = chip
+            .generate_trace_device(&gpu_shard, &mut ExecutionRecord::default(), &scope)
+            .await
+            .expect("warmup should succeed");
+        scope.synchronize().await.unwrap();
+
+        // CPU timing
+        scope.synchronize().await.unwrap();
+        let cpu_start = Instant::now();
+        let trace = Tensor::<F>::from(chip.generate_trace(&shard, &mut ExecutionRecord::default()));
+        let _cpu_device_trace = DeviceTensor::from_host(&trace, &scope).unwrap();
+        let cpu_duration = cpu_start.elapsed();
+
+        // GPU timing
+        scope.synchronize().await.unwrap();
+        let gpu_start = Instant::now();
+        let gpu_device_mle = chip
+            .generate_trace_device(&gpu_shard, &mut ExecutionRecord::default(), &scope)
+            .await
+            .expect("should copy events to device successfully");
+        scope.synchronize().await.unwrap();
+        let gpu_duration = gpu_start.elapsed();
+
+        let gpu_trace =
+            gpu_device_mle.to_host().expect("should copy trace to host successfully").into_guts();
+
+        println!("DIVREM Tracegen timing (1000 events):");
         println!("  CPU: {:?}", cpu_duration);
         println!("  GPU: {:?}", gpu_duration);
         println!("  Speedup: {:.2}x", cpu_duration.as_secs_f64() / gpu_duration.as_secs_f64());

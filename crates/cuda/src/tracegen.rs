@@ -70,6 +70,17 @@ unsafe impl TracegenRiscvMulKernel<KoalaBear> for TaskScope {
 }
 
 /// # Safety
+pub unsafe trait TracegenRiscvDivRemKernel<F> {
+    fn tracegen_riscv_divrem_kernel() -> KernelPtr;
+}
+
+unsafe impl TracegenRiscvDivRemKernel<KoalaBear> for TaskScope {
+    fn tracegen_riscv_divrem_kernel() -> KernelPtr {
+        unsafe { sp1_gpu_sys::tracegen::riscv_divrem_generate_trace_kernel() }
+    }
+}
+
+/// # Safety
 pub unsafe trait TracegenRiscvLtKernel<F> {
     fn tracegen_riscv_lt_kernel() -> KernelPtr;
 }

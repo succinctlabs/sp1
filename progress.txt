@@ -122,7 +122,7 @@
 ## 2026-01-28 - DivRemChip GPU Tracegen
 - **What was implemented:** GPU trace generation for DivRemChip (division and remainder operations: DIV, DIVU, REM, REMU, DIVW, DIVUW, REMW, REMUW)
 - **Files changed:**
-  - `crates/sys/src/riscv_events.rs` - Added `DivRemGpuEvent` struct with opcode field to distinguish DivRem variants
+  - `crates/sys/src/riscv_events.rs` - Added `DivRemGpuEvent` type alias to `MulGpuEvent`
   - `crates/sys/build.rs` - Added cbindgen export for DivRemGpuEvent (DivRemCols manually defined in CUDA)
   - `lib/tracegen/riscv/divrem.cu` - Comprehensive CUDA kernel with extensive manual struct definitions
   - `lib/tracegen/CMakeLists.txt` - Added divrem.cu to build
@@ -137,7 +137,8 @@
   - **Signed vs unsigned computation:** Need separate logic for signed 64-bit (DIV/REM), unsigned 64-bit (DIVU/REMU), signed 32-bit word (DIVW/REMW), and unsigned 32-bit word (DIVUW/REMUW).
   - **Constraint verification:** c * quotient + remainder = b (in computational form). Need to compute carry propagation for the addition check across 8 u16 limbs.
   - **Remainder bound check:** |remainder| < |c| (when c != 0). Uses LtOperationUnsigned to verify this constraint.
-  - **Network issues:** Build and test blocked by proxy restrictions on crates.io access. Code is syntactically verified via rustfmt --edition 2021.
+  - **CRITICAL: IsEqualWordOperation per-limb field differences:** The CPU's `IsEqualWordOperation::populate()` computes per-limb field differences (`F::from_canonical_u16(a[i]) - F::from_canonical_u16(b[i])`) for each of 4 u16 limbs, then passes those field elements to `IsZeroWordOperation::populate_from_field_element()`. This is NOT the same as whole-u64 subtraction (`a - b`), which carries between limbs. The CUDA implementation must compute per-limb `T::from_canonical_u32(a_limb) - T::from_canonical_u32(b_limb)` and use `populate_is_zero_from_field()` which computes `field_val.reciprocal()` on the field element difference. Initial implementation used whole-u64 subtraction which caused trace mismatches in columns 212-230.
+  - **Performance:** 35.65x GPU speedup on 1000 events test. Integration test: 55 shards, 6827 kHz.
 
 ---
 

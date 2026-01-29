@@ -16,6 +16,8 @@ extern "C" {
     pub fn riscv_subw_generate_trace_kernel() -> KernelPtr;
     // RISC-V Mul chip
     pub fn riscv_mul_generate_trace_kernel() -> KernelPtr;
+    // RISC-V DivRem chip
+    pub fn riscv_divrem_generate_trace_kernel() -> KernelPtr;
     // RISC-V Lt chip
     pub fn riscv_lt_generate_trace_kernel() -> KernelPtr;
     // RISC-V Bitwise chip

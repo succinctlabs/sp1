@@ -673,6 +673,13 @@ pub struct SyscallGpuEvent {
     pub arg2: u64,
 }
 
+/// GPU-compatible event for DivRemChip (DIV, DIVU, REM, REMU, DIVW, DIVUW, REMW, REMUW).
+///
+/// DivRemChip uses RTypeRecord (same as MulChip), so we reuse MulGpuEvent.
+/// The opcode field distinguishes between 8 DivRem variants:
+/// DIV=0, DIVU=1, REM=2, REMU=3, DIVW=4, DIVUW=5, REMW=6, REMUW=7.
+pub type DivRemGpuEvent = MulGpuEvent;
+
 /// GPU-compatible instruction for ProgramChip preprocessed trace generation.
 ///
 /// This struct mirrors sp1_core_executor::Instruction but uses GPU-friendly types.

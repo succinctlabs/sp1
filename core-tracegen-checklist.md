@@ -12,7 +12,7 @@ This document tracks the GPU tracegen implementation status for core RISC-V chip
 | SubChip | `Sub` | [x] | [x] | [x] | [x] | `alu.rs` |
 | SubwChip | `Subw` | [x] | [x] | [x] | [x] | `alu.rs` |
 | MulChip | `Mul` | [x] | [x] | [x] | [x] | `alu.rs` |
-| DivRemChip | `DivRem` | [x] | [x] | [x] | [ ] | `alu.rs` |
+| DivRemChip | `DivRem` | [x] | [x] | [x] | [x] | `alu.rs` |
 | LtChip | `Lt` | [x] | [x] | [x] | [x] | `alu.rs` |
 
 ## Bitwise Instructions
@@ -96,10 +96,10 @@ This document tracks the GPU tracegen implementation status for core RISC-V chip
 ## Summary
 
 - **Total core chips**: 35
-- **GPU implemented**: 34 (Global, Add, Addw, Addi, Sub, Subw, Mul, DivRem, Lt, Bitwise, ShiftLeft, ShiftRight, LoadByte, LoadHalf, LoadWord, LoadDouble, LoadX0, StoreByte, StoreHalf, StoreWord, StoreDouble, UType, Branch, Jal, Jalr, SyscallInstrs, SyscallCore, SyscallPrecompile, ByteLookup, RangeLookup, MemoryLocal, MemoryBump, StateBump, Program)
+- **GPU implemented**: 35 (Global, Add, Addw, Addi, Sub, Subw, Mul, DivRem, Lt, Bitwise, ShiftLeft, ShiftRight, LoadByte, LoadHalf, LoadWord, LoadDouble, LoadX0, StoreByte, StoreHalf, StoreWord, StoreDouble, UType, Branch, Jal, Jalr, SyscallInstrs, SyscallCore, SyscallPrecompile, ByteLookup, RangeLookup, MemoryLocal, MemoryBump, StateBump, Program, MemoryGlobalInit+Finalize)
 - **Stubs created**: 35
-- **Tests passing**: 34
-- **Perf checked**: 33 (all implemented except DivRem which is disabled)
+- **Tests passing**: 35
+- **Perf checked**: 35 (all chips complete)
 
 ## File Structure
 
