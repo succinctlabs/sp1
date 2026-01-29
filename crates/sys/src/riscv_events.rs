@@ -247,13 +247,13 @@ pub struct BitwiseGpuEvent {
     pub mem_c: GpuMemoryAccess,
 }
 
-/// GPU-compatible event for ShiftLeftChip (SLL, SLLI, SLLW, SLLIW).
+/// GPU-compatible event for ShiftRightChip (SRL, SRLI, SRA, SRAI, SRLW, SRLIW, SRAW, SRAIW).
 ///
 /// This flattens `AluEvent` and `ALUTypeRecord` into a single struct without Options or enums.
-/// ShiftLeftChip uses ALUTypeReader since it supports both register and immediate modes.
+/// ShiftRightChip uses ALUTypeReader since it supports both register and immediate modes.
 #[derive(Clone, Copy, Debug, Default)]
 #[repr(C)]
-pub struct ShiftLeftGpuEvent {
+pub struct ShiftRightGpuEvent {
     // From AluEvent
     /// Clock cycle of this instruction.
     pub clk: u64,
@@ -265,7 +265,7 @@ pub struct ShiftLeftGpuEvent {
     pub c: u64,
     /// Result value.
     pub a: u64,
-    /// Opcode: SLL=0, SLLW=1.
+    /// Opcode value to distinguish shift variants.
     pub opcode: u8,
 
     // From ALUTypeRecord
@@ -285,3 +285,8 @@ pub struct ShiftLeftGpuEvent {
     /// Memory access record for source register 2 (read). Only valid if !is_imm.
     pub mem_c: GpuMemoryAccess,
 }
+
+/// GPU-compatible event for ShiftLeftChip (SLL, SLLI, SLLW, SLLIW).
+///
+/// Uses the same layout as ShiftRightGpuEvent since both use ALUTypeReader.
+pub type ShiftLeftGpuEvent = ShiftRightGpuEvent;

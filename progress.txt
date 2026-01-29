@@ -189,3 +189,23 @@
   - **SLLW sign extension:** For SLLW, compute the 32-bit result's MSB (bit 31) to determine sign extension to 64 bits. The upper 2 limbs are filled with 0xFFFF if MSB=1, else 0.
 
 ---
+
+## 2026-01-28 - ShiftRightChip GPU Tracegen
+- **What was implemented:** GPU trace generation for ShiftRightChip (shift right: SRL, SRLI, SRA, SRAI, SRLW, SRLIW, SRAW, SRAIW)
+- **Files changed:**
+  - `crates/sys/src/riscv_events.rs` - Added `ShiftRightGpuEvent` struct, refactored `ShiftLeftGpuEvent` as type alias to it
+  - `crates/sys/src/tracegen.rs` - Declared extern fn for shift_right kernel
+  - `crates/cuda/src/tracegen.rs` - Added TracegenRiscvShiftRightKernel trait
+  - `lib/tracegen/riscv/shift_right.cu` - New CUDA kernel for ShiftRightChip with manual struct definitions
+  - `lib/tracegen/CMakeLists.txt` - Added shift_right.cu to build
+  - `crates/tracegen/src/riscv/shift.rs` - Implemented CudaTracegenAir for ShiftRightChip, added test with timing
+
+- **Learnings:**
+  - **4 opcodes vs 2:** ShiftRightChip handles 4 opcodes (SRL, SRA, SRLW, SRAW) vs ShiftLeft's 2 (SLL, SLLW). The arithmetic variants (SRA, SRAW) add sign extension complexity.
+  - **Inverse shift decomposition:** ShiftRight uses inverse powers of 2 for v_01/v_012/v_0123: `1 << (4 - (c & 3))`, `1 << (8 - (c & 7))`, `1 << (16 - (c & 15))`. ShiftLeft uses `1 << (c & 3)`, etc. Padding values are correspondingly different: 16, 256, 65536 (vs 1, 1, 1 for ShiftLeft).
+  - **b_msb for sign extension:** SRA uses MSB of b[3] (bit 63), SRAW uses MSB of b[1] (bit 31). `sra_msb_v0123 = b_msb * v_0123` is needed for the arithmetic shift fill.
+  - **Word operations zero upper limbs:** For SRLW/SRAW, b_limbs[2] and b_limbs[3] are zeroed before processing. srw_msb is the MSB of the 32-bit result (a_limbs[1] bit 15).
+  - **Lower/higher limb reversed:** For right shift, `lower_limb = bits below bit_shift`, `higher_limb = bits at/above bit_shift`. `limb_result[i] = higher_limb[i] + lower_limb[i+1] * (1 << (16 - bit_shift))`.
+  - **Type alias reuse:** ShiftRightGpuEvent and ShiftLeftGpuEvent share identical field layouts (both use ALUTypeReader). ShiftLeftGpuEvent is made a type alias to ShiftRightGpuEvent.
+
+---

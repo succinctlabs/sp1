@@ -26,7 +26,7 @@ This document tracks the GPU tracegen implementation status for core RISC-V chip
 | Chip | Variant | GPU Impl | Stub | Tests | File |
 |------|---------|----------|------|-------|------|
 | ShiftLeft | `ShiftLeft` | [x] | [x] | [x] | `shift.rs` |
-| ShiftRightChip | `ShiftRight` | [ ] | [x] | [ ] | `shift.rs` |
+| ShiftRightChip | `ShiftRight` | [x] | [x] | [x] | `shift.rs` |
 
 ## Memory Load Instructions
 
@@ -96,9 +96,9 @@ This document tracks the GPU tracegen implementation status for core RISC-V chip
 ## Summary
 
 - **Total core chips**: 35
-- **GPU implemented**: 11 (Global, Add, Addw, Addi, Sub, Subw, Mul, DivRem, Lt, Bitwise, ShiftLeft)
+- **GPU implemented**: 12 (Global, Add, Addw, Addi, Sub, Subw, Mul, DivRem, Lt, Bitwise, ShiftLeft, ShiftRight)
 - **Stubs created**: 35
-- **Tests passing**: 11
+- **Tests passing**: 12
 
 ## File Structure
 
