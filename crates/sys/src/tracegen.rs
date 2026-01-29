@@ -66,6 +66,9 @@ extern "C" {
     pub fn riscv_memory_bump_generate_trace_kernel() -> KernelPtr;
     // RISC-V StateBumpChip
     pub fn riscv_state_bump_generate_trace_kernel() -> KernelPtr;
+    // RISC-V ProgramChip
+    pub fn riscv_program_generate_preprocessed_trace_kernel() -> KernelPtr;
+    pub fn riscv_program_generate_trace_kernel() -> KernelPtr;
     pub fn recursion_base_alu_generate_preprocessed_trace_koala_bear_kernel() -> KernelPtr;
     pub fn recursion_base_alu_generate_trace_koala_bear_kernel() -> KernelPtr;
     pub fn recursion_ext_alu_generate_preprocessed_trace_koala_bear_kernel() -> KernelPtr;

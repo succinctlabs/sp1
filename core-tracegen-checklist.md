@@ -85,7 +85,7 @@ This document tracks the GPU tracegen implementation status for core RISC-V chip
 
 | Chip | Variant | GPU Impl | Stub | Tests | Perf | File |
 |------|---------|----------|------|-------|------|------|
-| ProgramChip | `Program` | [ ] | [x] | [ ] | [ ] | `program.rs` |
+| ProgramChip | `Program` | [x] | [x] | [x] | [x] | `program.rs` |
 
 ## Global Interactions
 
@@ -96,10 +96,10 @@ This document tracks the GPU tracegen implementation status for core RISC-V chip
 ## Summary
 
 - **Total core chips**: 35
-- **GPU implemented**: 33 (Global, Add, Addw, Addi, Sub, Subw, Mul, DivRem, Lt, Bitwise, ShiftLeft, ShiftRight, LoadByte, LoadHalf, LoadWord, LoadDouble, LoadX0, StoreByte, StoreHalf, StoreWord, StoreDouble, UType, Branch, Jal, Jalr, SyscallInstrs, SyscallCore, SyscallPrecompile, ByteLookup, RangeLookup, MemoryLocal, MemoryBump, StateBump)
+- **GPU implemented**: 34 (Global, Add, Addw, Addi, Sub, Subw, Mul, DivRem, Lt, Bitwise, ShiftLeft, ShiftRight, LoadByte, LoadHalf, LoadWord, LoadDouble, LoadX0, StoreByte, StoreHalf, StoreWord, StoreDouble, UType, Branch, Jal, Jalr, SyscallInstrs, SyscallCore, SyscallPrecompile, ByteLookup, RangeLookup, MemoryLocal, MemoryBump, StateBump, Program)
 - **Stubs created**: 35
-- **Tests passing**: 33
-- **Perf checked**: 32 (all implemented except DivRem which is disabled)
+- **Tests passing**: 34
+- **Perf checked**: 33 (all implemented except DivRem which is disabled)
 
 ## File Structure
 

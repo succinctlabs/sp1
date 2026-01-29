@@ -672,3 +672,26 @@ pub struct SyscallGpuEvent {
     /// Second argument.
     pub arg2: u64,
 }
+
+/// GPU-compatible instruction for ProgramChip preprocessed trace generation.
+///
+/// This struct mirrors sp1_core_executor::Instruction but uses GPU-friendly types.
+/// Each instruction becomes one row in the preprocessed trace.
+#[derive(Clone, Copy, Debug, Default)]
+#[repr(C)]
+pub struct ProgramGpuInstruction {
+    /// The opcode as a u32 value.
+    pub opcode: u32,
+    /// The first operand (register index).
+    pub op_a: u32,
+    /// The second operand (64-bit value).
+    pub op_b: u64,
+    /// The third operand (64-bit value).
+    pub op_c: u64,
+    /// Whether op_a is register x0.
+    pub op_a_0: u32,
+    /// Whether op_b is an immediate value.
+    pub imm_b: u32,
+    /// Whether op_c is an immediate value.
+    pub imm_c: u32,
+}

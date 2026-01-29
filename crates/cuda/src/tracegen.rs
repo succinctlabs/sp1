@@ -345,6 +345,28 @@ unsafe impl TracegenRiscvStateBumpKernel<KoalaBear> for TaskScope {
 }
 
 /// # Safety
+pub unsafe trait TracegenRiscvProgramPreprocessedKernel<F> {
+    fn tracegen_riscv_program_preprocessed_kernel() -> KernelPtr;
+}
+
+unsafe impl TracegenRiscvProgramPreprocessedKernel<KoalaBear> for TaskScope {
+    fn tracegen_riscv_program_preprocessed_kernel() -> KernelPtr {
+        unsafe { sp1_gpu_sys::tracegen::riscv_program_generate_preprocessed_trace_kernel() }
+    }
+}
+
+/// # Safety
+pub unsafe trait TracegenRiscvProgramKernel<F> {
+    fn tracegen_riscv_program_kernel() -> KernelPtr;
+}
+
+unsafe impl TracegenRiscvProgramKernel<KoalaBear> for TaskScope {
+    fn tracegen_riscv_program_kernel() -> KernelPtr {
+        unsafe { sp1_gpu_sys::tracegen::riscv_program_generate_trace_kernel() }
+    }
+}
+
+/// # Safety
 pub unsafe trait TracegenRiscvGlobalKernel<F> {
     fn tracegen_riscv_global_decompress_kernel() -> KernelPtr;
     fn tracegen_riscv_global_finalize_kernel() -> KernelPtr;

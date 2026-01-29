@@ -14,13 +14,33 @@ mod syscall;
 use slop_alloc::mem::CopyError;
 use sp1_core_machine::riscv::RiscvAir;
 use sp1_gpu_cudart::{DeviceMle, TaskScope};
+use sp1_hypercube::air::MachineAir;
 
 use crate::{CudaTracegenAir, F};
 
 impl CudaTracegenAir<F> for RiscvAir<F> {
+    fn supports_device_preprocessed_tracegen(&self) -> bool {
+        match self {
+            Self::Program(chip) => chip.supports_device_preprocessed_tracegen(),
+            _ => false,
+        }
+    }
+
+    async fn generate_preprocessed_trace_device(
+        &self,
+        program: &<Self as MachineAir<F>>::Program,
+        scope: &TaskScope,
+    ) -> Result<Option<DeviceMle<F>>, CopyError> {
+        match self {
+            Self::Program(chip) => chip.generate_preprocessed_trace_device(program, scope).await,
+            _ => unimplemented!(),
+        }
+    }
+
     fn supports_device_main_tracegen(&self) -> bool {
         match self {
             Self::Global(chip) => chip.supports_device_main_tracegen(),
+            Self::Program(chip) => chip.supports_device_main_tracegen(),
             Self::Add(chip) => chip.supports_device_main_tracegen(),
             Self::Addw(chip) => chip.supports_device_main_tracegen(),
             Self::Addi(chip) => chip.supports_device_main_tracegen(),
@@ -42,6 +62,7 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
     ) -> Result<DeviceMle<F>, CopyError> {
         match self {
             Self::Global(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::Program(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::Add(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::Addw(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::Addi(chip) => chip.generate_trace_device(input, output, scope).await,

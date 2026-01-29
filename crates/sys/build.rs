@@ -138,6 +138,8 @@ fn cbindgen_builder() -> cbindgen::Builder {
         .include_item("MemoryBumpGpuEvent")
         // RISC-V StateBumpChip types
         .include_item("StateBumpGpuEvent")
+        // RISC-V ProgramChip types
+        .include_item("ProgramGpuInstruction")
         .with_namespace("sp1_gpu_sys")
         .with_crate(env::var("CARGO_MANIFEST_DIR").unwrap())
 }

@@ -471,3 +471,26 @@
   - **Performance:** 0.75x GPU speedup on 1000 events (slightly slower than CPU due to minimal computation - only 14 columns with simple arithmetic). Integration test: 55 shards, 7400 kHz.
 
 ---
+
+## 2026-01-29 - ProgramChip GPU Tracegen
+- **What was implemented:** GPU trace generation for ProgramChip, which has both preprocessed (16 columns) and main (1 column) traces. The preprocessed trace encodes the program's instructions (PC + opcode + operands), and the main trace stores instruction execution multiplicities.
+- **Files changed:**
+  - `crates/sys/src/riscv_events.rs` - Added `ProgramGpuInstruction` struct (opcode, op_a, op_b, op_c, op_a_0, imm_b, imm_c)
+  - `crates/sys/build.rs` - Added cbindgen export for ProgramGpuInstruction
+  - `lib/tracegen/riscv/program.cu` - New CUDA kernel with two kernels: preprocessed and main
+  - `lib/tracegen/CMakeLists.txt` - Added program.cu to build
+  - `crates/sys/src/tracegen.rs` - Declared extern fns for both kernels
+  - `crates/cuda/src/tracegen.rs` - Added TracegenRiscvProgramPreprocessedKernel and TracegenRiscvProgramKernel traits
+  - `crates/tracegen/src/riscv/program.rs` - Full CudaTracegenAir implementation with both preprocessed and main trace generation
+  - `crates/tracegen/src/riscv/mod.rs` - Added preprocessed trace dispatch for ProgramChip in RiscvAir
+
+- **Learnings:**
+  - **Two traces:** ProgramChip is unique among RISC-V chips because it has both a preprocessed trace (static, program-dependent) and a main trace (dynamic, execution-dependent). Other chips only have main traces.
+  - **Preprocessed trace (16 cols):** ProgramPreprocessedCols contains pc[3] + InstructionCols (opcode, op_a, op_b[4], op_c[4], op_a_0, imm_b, imm_c). InstructionCols has Word<T> fields for op_b and op_c (4 x u16 limbs each = 8 total), making 3 + 13 = 16 columns.
+  - **Main trace (1 col):** Just multiplicity counts. Built on CPU by iterating all event vectors to count PC occurrences, then passed as flat u32 array to GPU for simple conversion to field elements.
+  - **Padding row behavior:** For padding rows (i >= nb_instructions), the CPU uses index 0 (first instruction). The GPU kernel mirrors this: `uintptr_t idx = (i < nb_instructions) ? i : 0`.
+  - **pc_base as kernel parameter:** The program counter base is passed as a 5th kernel argument (u64). Each instruction's PC = pc_base + idx * 4.
+  - **Ambiguous Self::Program:** In RiscvAir dispatch, `Self::Program` is ambiguous (enum variant vs associated type). Use `<Self as MachineAir<F>>::Program` for the associated type.
+  - **Performance:** Preprocessed: 27.19x speedup, Main: 35.04x speedup on 1000 instructions. Integration test: 55 shards, 6865 kHz.
+
+---
