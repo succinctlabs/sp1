@@ -75,11 +75,11 @@ This document tracks the GPU tracegen implementation status for core RISC-V chip
 
 | Chip | Variant | GPU Impl | Stub | Tests | Perf | Integ | File |
 |------|---------|----------|------|-------|------|-------|------|
-| MemoryGlobalChip | `MemoryGlobalInit` | [x] | [x] | [x] | [x] | [ ] | `memory_state.rs` |
-| MemoryGlobalChip | `MemoryGlobalFinal` | [x] | [x] | [x] | [x] | [ ] | `memory_state.rs` |
-| MemoryLocalChip | `MemoryLocal` | [x] | [x] | [x] | [x] | [ ] | `memory_state.rs` |
-| MemoryBumpChip | `MemoryBump` | [x] | [x] | [x] | [x] | [ ] | `memory_state.rs` |
-| StateBumpChip | `StateBump` | [x] | [x] | [x] | [x] | [ ] | `memory_state.rs` |
+| MemoryGlobalChip | `MemoryGlobalInit` | [x] | [x] | [x] | [x] | [x] | `memory_state.rs` |
+| MemoryGlobalChip | `MemoryGlobalFinal` | [x] | [x] | [x] | [x] | [x] | `memory_state.rs` |
+| MemoryLocalChip | `MemoryLocal` | [x] | [x] | [x] | [x] | [x] | `memory_state.rs` |
+| MemoryBumpChip | `MemoryBump` | [x] | [x] | [x] | [x] | [x] | `memory_state.rs` |
+| StateBumpChip | `StateBump` | [x] | [x] | [x] | [x] | [x] | `memory_state.rs` |
 
 ## Program
 
@@ -100,7 +100,7 @@ This document tracks the GPU tracegen implementation status for core RISC-V chip
 - **Stubs created**: 35
 - **Tests passing**: 35
 - **Perf checked**: 35 (all chips complete)
-- **Integration enabled**: 9 (Global, Program, Add, Addw, Addi, Sub, Subw, Mul, DivRem)
+- **Integration enabled**: 35 (all chips complete)
 
 ## File Structure
 

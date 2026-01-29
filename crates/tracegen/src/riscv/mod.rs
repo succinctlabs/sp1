@@ -70,6 +70,11 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::SyscallPrecompile(chip) => chip.supports_device_main_tracegen(),
             Self::ByteLookup(chip) => chip.supports_device_main_tracegen(),
             Self::RangeLookup(chip) => chip.supports_device_main_tracegen(),
+            Self::MemoryGlobalInit(chip) => chip.supports_device_main_tracegen(),
+            Self::MemoryGlobalFinal(chip) => chip.supports_device_main_tracegen(),
+            Self::MemoryLocal(chip) => chip.supports_device_main_tracegen(),
+            Self::MemoryBump(chip) => chip.supports_device_main_tracegen(),
+            Self::StateBump(chip) => chip.supports_device_main_tracegen(),
             _ => false,
         }
     }
@@ -112,6 +117,11 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::SyscallPrecompile(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::ByteLookup(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::RangeLookup(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::MemoryGlobalInit(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::MemoryGlobalFinal(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::MemoryLocal(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::MemoryBump(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::StateBump(chip) => chip.generate_trace_device(input, output, scope).await,
             _ => unimplemented!(),
         }
     }
