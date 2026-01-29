@@ -26,7 +26,9 @@ use sp1_hypercube::air::MachineAir;
 use crate::{CudaTracegenAir, F};
 
 /// Convert a `MemoryRecordEnum` to a `GpuMemoryAccess`.
-fn memory_record_to_gpu(record: &sp1_core_executor::events::MemoryRecordEnum) -> GpuMemoryAccess {
+pub(crate) fn memory_record_to_gpu(
+    record: &sp1_core_executor::events::MemoryRecordEnum,
+) -> GpuMemoryAccess {
     let prev = record.previous_record();
     let curr = record.current_record();
     GpuMemoryAccess {
@@ -38,7 +40,7 @@ fn memory_record_to_gpu(record: &sp1_core_executor::events::MemoryRecordEnum) ->
 
 /// Convert an optional `MemoryRecordEnum` to a `GpuMemoryAccess`.
 /// When the record is None (immediate mode), returns a default/zeroed GpuMemoryAccess.
-fn optional_memory_record_to_gpu(
+pub(crate) fn optional_memory_record_to_gpu(
     record: Option<&sp1_core_executor::events::MemoryRecordEnum>,
 ) -> GpuMemoryAccess {
     match record {

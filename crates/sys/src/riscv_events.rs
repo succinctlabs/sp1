@@ -207,3 +207,42 @@ pub struct LtGpuEvent {
     /// Memory access record for source register 2 (read). Only valid if !is_imm.
     pub mem_c: GpuMemoryAccess,
 }
+
+/// GPU-compatible event for BitwiseChip (XOR, OR, AND, XORI, ORI, ANDI).
+///
+/// This flattens `AluEvent` and `ALUTypeRecord` into a single struct without Options or enums.
+/// BitwiseChip uses ALUTypeReader since it supports both register and immediate modes.
+#[derive(Clone, Copy, Debug, Default)]
+#[repr(C)]
+pub struct BitwiseGpuEvent {
+    // From AluEvent
+    /// Clock cycle of this instruction.
+    pub clk: u64,
+    /// Program counter of this instruction.
+    pub pc: u64,
+    /// First operand value (from rs1).
+    pub b: u64,
+    /// Second operand value (from rs2 or immediate).
+    pub c: u64,
+    /// Result value.
+    pub a: u64,
+    /// Opcode: XOR=0, OR=1, AND=2.
+    pub opcode: u8,
+
+    // From ALUTypeRecord
+    /// Destination register number (rd).
+    pub op_a: u8,
+    /// Source register 1 spec (rs1).
+    pub op_b: u64,
+    /// Source register 2 or immediate value.
+    pub op_c: u64,
+    /// Whether op_c is an immediate value.
+    pub is_imm: bool,
+
+    /// Memory access record for destination register (write).
+    pub mem_a: GpuMemoryAccess,
+    /// Memory access record for source register 1 (read).
+    pub mem_b: GpuMemoryAccess,
+    /// Memory access record for source register 2 (read). Only valid if !is_imm.
+    pub mem_c: GpuMemoryAccess,
+}

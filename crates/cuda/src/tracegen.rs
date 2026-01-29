@@ -81,6 +81,17 @@ unsafe impl TracegenRiscvLtKernel<KoalaBear> for TaskScope {
 }
 
 /// # Safety
+pub unsafe trait TracegenRiscvBitwiseKernel<F> {
+    fn tracegen_riscv_bitwise_kernel() -> KernelPtr;
+}
+
+unsafe impl TracegenRiscvBitwiseKernel<KoalaBear> for TaskScope {
+    fn tracegen_riscv_bitwise_kernel() -> KernelPtr {
+        unsafe { sp1_gpu_sys::tracegen::riscv_bitwise_generate_trace_kernel() }
+    }
+}
+
+/// # Safety
 pub unsafe trait TracegenRiscvGlobalKernel<F> {
     fn tracegen_riscv_global_decompress_kernel() -> KernelPtr;
     fn tracegen_riscv_global_finalize_kernel() -> KernelPtr;

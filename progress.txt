@@ -149,3 +149,23 @@
   - **LtOperationSigned structure:** Contains `LtOperationUnsigned` (comparison result, flags, inverse), `b_msb` and `c_msb` (U16MSBOperation for sign bit handling).
 
 ---
+
+## 2026-01-28 - BitwiseChip GPU Tracegen
+- **What was implemented:** GPU trace generation for BitwiseChip (bitwise operations: XOR, OR, AND, XORI, ORI, ANDI)
+- **Files changed:**
+  - `crates/sys/src/riscv_events.rs` - Added `BitwiseGpuEvent` struct with opcode field for XOR/OR/AND
+  - `crates/sys/src/tracegen.rs` - Declared extern fn for bitwise kernel
+  - `crates/cuda/src/tracegen.rs` - Added TracegenRiscvBitwiseKernel trait
+  - `lib/tracegen/riscv/bitwise.cu` - New CUDA kernel for BitwiseChip with manual struct definitions
+  - `lib/tracegen/CMakeLists.txt` - Added bitwise.cu to build
+  - `crates/tracegen/src/riscv/bitwise.rs` - Implemented CudaTracegenAir for BitwiseChip, added test with timing
+
+- **Learnings:**
+  - **BitwiseChip uses ALUTypeRecord:** Like LtChip and AddwChip, BitwiseChip uses ALUTypeReader since it supports both register (XOR/OR/AND) and immediate (XORI/ORI/ANDI) modes.
+  - **BitwiseU16Operation structure:** Contains U16toU8Operation for both operands (b_low_bytes, c_low_bytes) and BitwiseOperation for the result (8 bytes). The low bytes are extracted from each u16 limb.
+  - **Opcode mapping:** XOR=0, OR=1, AND=2. The immediate variants share the same opcode with `is_imm` flag distinguishing them.
+  - **U16toU8Operation:** Extracts the low byte from each of the 4 u16 limbs in a Word. For a u64 value, limbs are at bits 0-15, 16-31, 32-47, 48-63, so low bytes are at bit offsets 0, 16, 32, 48.
+  - **Module organization:** BitwiseChip has its own file (`bitwise.rs`) separate from `alu.rs` which contains AddChip, SubChip, etc. Helper functions (`memory_record_to_gpu`, `optional_memory_record_to_gpu`) in alu.rs made `pub(crate)` to share with bitwise.rs.
+  - **Test helper pattern:** For chips in separate modules, create local test helper functions rather than importing from private test submodules.
+
+---
