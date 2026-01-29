@@ -103,6 +103,9 @@ fn cbindgen_builder() -> cbindgen::Builder {
         .include_item("BranchGpuEvent")
         // Note: BranchCols and LtOperationSigned are manually defined in branch.cu because
         // cbindgen can't resolve the constant expression array sizes in LtOperationUnsigned
+        // RISC-V JalChip types
+        .include_item("JalGpuEvent")
+        // Note: JalCols uses JTypeReader (manually defined in jal.cu) and AddOperation (already in cbindgen)
         // RISC-V UTypeChip types
         .include_item("UTypeGpuEvent")
         // Note: UTypeCols, JTypeReader are manually defined in utype.cu because

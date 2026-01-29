@@ -12,6 +12,8 @@
 - SubwChip uses RTypeReader (like SubChip), not ALUTypeReader (like AddwChip) - check column struct definitions carefully
 - **CRITICAL:** When chaining field arithmetic like `a * b - c + d`, use in-place operators (`*=`, `-=`, `+=`) to stay in `kb31_t` domain. The expression `a * b` returns `accel_t` (lazy 64-bit), and subsequent `accel_t` arithmetic can produce wrong results. Always force full Montgomery reduction between operations.
 - BranchChip uses ITypeRecord where BOTH op_a and op_b are register reads (MemoryReadRecord), not writes. This differs from ALU chips where op_a is typically a write.
+- JalChip uses JumpEvent (not JalEvent!) with JTypeRecord. The event tuple is `(JumpEvent, JTypeRecord)` stored in `jal_events`.
+- JalChip is structurally very similar to UTypeChip: both use JTypeReader adapter with JTypeRecord. The key difference is JAL has two AddOperations (next_pc and return_addr) instead of UType's addend + add_operation + is_auipc.
 
 ---
 
@@ -293,5 +295,25 @@
   - **Branching logic:** `is_branching` flag is computed from comparison result and opcode. BEQ: a==b, BNE: a!=b, BLT/BLTU: a<b, BGE/BGEU: !(a<b).
   - **next_pc encoding:** 3 x u16 limbs, same as CPUState pc encoding.
   - **Performance:** 21.7x GPU speedup on 1000 events test.
+
+---
+
+## 2026-01-29 - JalChip GPU Tracegen
+- **What was implemented:** GPU trace generation for JalChip (JAL instruction: jump and link)
+- **Files changed:**
+  - `crates/sys/src/riscv_events.rs` - Added `JalGpuEvent` struct
+  - `crates/sys/build.rs` - Added cbindgen export for JalGpuEvent
+  - `lib/tracegen/riscv/jal.cu` - New CUDA kernel with manually-defined JTypeReader and JalCols structs
+  - `lib/tracegen/CMakeLists.txt` - Added jal.cu to build
+  - `crates/sys/src/tracegen.rs` - Declared extern fn for jal kernel
+  - `crates/cuda/src/tracegen.rs` - Added TracegenRiscvJalKernel trait
+  - `crates/tracegen/src/riscv/control_flow.rs` - Full CudaTracegenAir implementation and test with timing
+
+- **Learnings:**
+  - **JalChip is structurally very similar to UTypeChip:** Both use JTypeReader adapter and JTypeRecord. The CUDA kernel reuses the same JTypeReader struct and populate_j_type_reader helper (locally defined, same pattern as utype.cu).
+  - **Two AddOperations:** JalChip has `add_operation` (next_pc = pc + b, the jump offset) and `op_a_operation` (return_addr = pc + 4, saved to rd). UTypeChip instead has `addend[3]`, one `add_operation`, and `is_auipc`.
+  - **JumpEvent vs JalEvent:** The event type is `JumpEvent` (shared with JALR), not a JAL-specific event. It includes `next_pc` (which JAL doesn't use in trace columns but Branch does), `opcode` (always JAL for this chip), and `a`/`b`/`c` operand values.
+  - **op_a_0 handling:** When op_a == 0 (x0 register), op_a_operation stores zero instead of pc + 4. The CPU trace_into also uses `Word::from(0u64)` in this case.
+  - **Performance:** 24.67x GPU speedup on 1000 events test.
 
 ---
