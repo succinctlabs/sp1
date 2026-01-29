@@ -52,6 +52,11 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::Bitwise(chip) => chip.supports_device_main_tracegen(),
             Self::ShiftLeft(chip) => chip.supports_device_main_tracegen(),
             Self::ShiftRight(chip) => chip.supports_device_main_tracegen(),
+            Self::LoadByte(chip) => chip.supports_device_main_tracegen(),
+            Self::LoadHalf(chip) => chip.supports_device_main_tracegen(),
+            Self::LoadWord(chip) => chip.supports_device_main_tracegen(),
+            Self::LoadDouble(chip) => chip.supports_device_main_tracegen(),
+            Self::LoadX0(chip) => chip.supports_device_main_tracegen(),
             _ => false,
         }
     }
@@ -76,6 +81,11 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::Bitwise(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::ShiftLeft(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::ShiftRight(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::LoadByte(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::LoadHalf(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::LoadWord(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::LoadDouble(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::LoadX0(chip) => chip.generate_trace_device(input, output, scope).await,
             _ => unimplemented!(),
         }
     }

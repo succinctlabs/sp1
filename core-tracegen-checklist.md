@@ -32,11 +32,11 @@ This document tracks the GPU tracegen implementation status for core RISC-V chip
 
 | Chip | Variant | GPU Impl | Stub | Tests | Perf | Integ | File |
 |------|---------|----------|------|-------|------|-------|------|
-| LoadByteChip | `LoadByte` | [x] | [x] | [x] | [x] | [ ] | `memory_load.rs` |
-| LoadHalfChip | `LoadHalf` | [x] | [x] | [x] | [x] | [ ] | `memory_load.rs` |
-| LoadWordChip | `LoadWord` | [x] | [x] | [x] | [x] | [ ] | `memory_load.rs` |
-| LoadDoubleChip | `LoadDouble` | [x] | [x] | [x] | [x] | [ ] | `memory_load.rs` |
-| LoadX0Chip | `LoadX0` | [x] | [x] | [x] | [x] | [ ] | `memory_load.rs` |
+| LoadByteChip | `LoadByte` | [x] | [x] | [x] | [x] | [x] | `memory_load.rs` |
+| LoadHalfChip | `LoadHalf` | [x] | [x] | [x] | [x] | [x] | `memory_load.rs` |
+| LoadWordChip | `LoadWord` | [x] | [x] | [x] | [x] | [x] | `memory_load.rs` |
+| LoadDoubleChip | `LoadDouble` | [x] | [x] | [x] | [x] | [x] | `memory_load.rs` |
+| LoadX0Chip | `LoadX0` | [x] | [x] | [x] | [x] | [x] | `memory_load.rs` |
 
 ## Memory Store Instructions
 
