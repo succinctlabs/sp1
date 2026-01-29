@@ -192,7 +192,7 @@ mod tests {
     };
     use sp1_core_executor::{ALUTypeRecord, ExecutionRecord, Opcode};
     use sp1_core_machine::riscv::{ShiftLeft, ShiftRightChip};
-    use sp1_gpu_cudart::TaskScope;
+    use sp1_gpu_cudart::{DeviceTensor, TaskScope};
     use sp1_hypercube::air::MachineAir;
 
     use crate::CudaTracegenAir;
@@ -315,10 +315,8 @@ mod tests {
     }
 
     async fn inner_test_shift_left_generate_trace(scope: TaskScope) {
-        // Generate realistic ShiftLeft events
         let events = generate_shift_left_events(1000);
 
-        // Create two identical records - one for CPU, one for GPU
         let [shard, gpu_shard] = core::array::from_fn(|_| ExecutionRecord {
             shift_left_events: events.clone(),
             ..Default::default()
@@ -326,29 +324,39 @@ mod tests {
 
         let chip = ShiftLeft;
 
-        // Time CPU trace generation
-        let cpu_start = Instant::now();
-        let trace = Tensor::<F>::from(chip.generate_trace(&shard, &mut ExecutionRecord::default()));
-        let cpu_duration = cpu_start.elapsed();
-
-        // Time GPU trace generation
-        let gpu_start = Instant::now();
-        let gpu_trace = chip
+        // GPU warmup
+        let _ = chip
             .generate_trace_device(&gpu_shard, &mut ExecutionRecord::default(), &scope)
             .await
-            .expect("should copy events to device successfully")
-            .to_host()
-            .expect("should copy trace to host successfully")
-            .into_guts();
+            .expect("warmup should succeed");
+        scope.synchronize().await.unwrap();
+
+        // CPU timing: synchronize, generate host traces, allocate and copy to device
+        scope.synchronize().await.unwrap();
+        let cpu_start = Instant::now();
+        let trace = Tensor::<F>::from(chip.generate_trace(&shard, &mut ExecutionRecord::default()));
+        let _cpu_device_trace = DeviceTensor::from_host(&trace, &scope).unwrap();
+        let cpu_duration = cpu_start.elapsed();
+
+        // GPU timing: synchronize, copy events to device + launch kernels, synchronize
+        scope.synchronize().await.unwrap();
+        let gpu_start = Instant::now();
+        let gpu_device_mle = chip
+            .generate_trace_device(&gpu_shard, &mut ExecutionRecord::default(), &scope)
+            .await
+            .expect("should copy events to device successfully");
+        scope.synchronize().await.unwrap();
         let gpu_duration = gpu_start.elapsed();
+
+        let gpu_trace =
+            gpu_device_mle.to_host().expect("should copy trace to host successfully").into_guts();
 
         println!("ShiftLeft Tracegen timing (1000 events):");
         println!("  CPU: {:?}", cpu_duration);
         println!("  GPU: {:?}", gpu_duration);
         println!("  Speedup: {:.2}x", cpu_duration.as_secs_f64() / gpu_duration.as_secs_f64());
 
-        // Compare traces
-        crate::tests::test_traces_eq(&trace, &gpu_trace, &events);
+        crate::tests::test_traces_eq(&trace, &gpu_trace, &events, false);
     }
 
     /// Generate random ShiftRight events for testing.
@@ -436,28 +444,38 @@ mod tests {
 
         let chip = ShiftRightChip;
 
-        // Time CPU trace generation
-        let cpu_start = Instant::now();
-        let trace = Tensor::<F>::from(chip.generate_trace(&shard, &mut ExecutionRecord::default()));
-        let cpu_duration = cpu_start.elapsed();
-
-        // Time GPU trace generation
-        let gpu_start = Instant::now();
-        let gpu_trace = chip
+        // GPU warmup
+        let _ = chip
             .generate_trace_device(&gpu_shard, &mut ExecutionRecord::default(), &scope)
             .await
-            .expect("should copy events to device successfully")
-            .to_host()
-            .expect("should copy trace to host successfully")
-            .into_guts();
+            .expect("warmup should succeed");
+        scope.synchronize().await.unwrap();
+
+        // CPU timing: synchronize, generate host traces, allocate and copy to device
+        scope.synchronize().await.unwrap();
+        let cpu_start = Instant::now();
+        let trace = Tensor::<F>::from(chip.generate_trace(&shard, &mut ExecutionRecord::default()));
+        let _cpu_device_trace = DeviceTensor::from_host(&trace, &scope).unwrap();
+        let cpu_duration = cpu_start.elapsed();
+
+        // GPU timing: synchronize, copy events to device + launch kernels, synchronize
+        scope.synchronize().await.unwrap();
+        let gpu_start = Instant::now();
+        let gpu_device_mle = chip
+            .generate_trace_device(&gpu_shard, &mut ExecutionRecord::default(), &scope)
+            .await
+            .expect("should copy events to device successfully");
+        scope.synchronize().await.unwrap();
         let gpu_duration = gpu_start.elapsed();
+
+        let gpu_trace =
+            gpu_device_mle.to_host().expect("should copy trace to host successfully").into_guts();
 
         println!("ShiftRight Tracegen timing (1000 events):");
         println!("  CPU: {:?}", cpu_duration);
         println!("  GPU: {:?}", gpu_duration);
         println!("  Speedup: {:.2}x", cpu_duration.as_secs_f64() / gpu_duration.as_secs_f64());
 
-        // Compare traces
-        crate::tests::test_traces_eq(&trace, &gpu_trace, &events);
+        crate::tests::test_traces_eq(&trace, &gpu_trace, &events, false);
     }
 }

@@ -563,7 +563,7 @@ mod tests {
     use sp1_core_machine::riscv::{
         AddChip, AddiChip, AddwChip, LtChip, MulChip, SubChip, SubwChip,
     };
-    use sp1_gpu_cudart::TaskScope;
+    use sp1_gpu_cudart::{DeviceTensor, TaskScope};
     use sp1_hypercube::air::MachineAir;
     use std::time::Instant;
 
@@ -739,20 +739,40 @@ mod tests {
 
         let chip = AddChip;
 
-        // Generate CPU trace for comparison
-        let trace = Tensor::<F>::from(chip.generate_trace(&shard, &mut ExecutionRecord::default()));
-
-        // Generate GPU trace
-        let gpu_trace = chip
+        // GPU warmup: run once to avoid cold-start overhead in timing
+        let _ = chip
             .generate_trace_device(&gpu_shard, &mut ExecutionRecord::default(), &scope)
             .await
-            .expect("should copy events to device successfully")
-            .to_host()
-            .expect("should copy trace to host successfully")
-            .into_guts();
+            .expect("warmup should succeed");
+        scope.synchronize().await.unwrap();
+
+        // CPU timing: synchronize, generate host traces, allocate and copy to device
+        scope.synchronize().await.unwrap();
+        let cpu_start = Instant::now();
+        let trace = Tensor::<F>::from(chip.generate_trace(&shard, &mut ExecutionRecord::default()));
+        let _cpu_device_trace = DeviceTensor::from_host(&trace, &scope).unwrap();
+        let cpu_duration = cpu_start.elapsed();
+
+        // GPU timing: synchronize, copy events to device + launch kernels, synchronize
+        scope.synchronize().await.unwrap();
+        let gpu_start = Instant::now();
+        let gpu_device_mle = chip
+            .generate_trace_device(&gpu_shard, &mut ExecutionRecord::default(), &scope)
+            .await
+            .expect("should copy events to device successfully");
+        scope.synchronize().await.unwrap();
+        let gpu_duration = gpu_start.elapsed();
+
+        let gpu_trace =
+            gpu_device_mle.to_host().expect("should copy trace to host successfully").into_guts();
+
+        println!("ADD Tracegen timing (1000 events):");
+        println!("  CPU: {:?}", cpu_duration);
+        println!("  GPU: {:?}", gpu_duration);
+        println!("  Speedup: {:.2}x", cpu_duration.as_secs_f64() / gpu_duration.as_secs_f64());
 
         // Compare traces
-        crate::tests::test_traces_eq(&trace, &gpu_trace, &events);
+        crate::tests::test_traces_eq(&trace, &gpu_trace, &events, false);
     }
 
     #[tokio::test]
@@ -772,21 +792,32 @@ mod tests {
 
         let chip = AddwChip;
 
-        // Time CPU trace generation
-        let cpu_start = Instant::now();
-        let trace = Tensor::<F>::from(chip.generate_trace(&shard, &mut ExecutionRecord::default()));
-        let cpu_duration = cpu_start.elapsed();
-
-        // Time GPU trace generation
-        let gpu_start = Instant::now();
-        let gpu_trace = chip
+        // GPU warmup: run once to avoid cold-start overhead in timing
+        let _ = chip
             .generate_trace_device(&gpu_shard, &mut ExecutionRecord::default(), &scope)
             .await
-            .expect("should copy events to device successfully")
-            .to_host()
-            .expect("should copy trace to host successfully")
-            .into_guts();
+            .expect("warmup should succeed");
+        scope.synchronize().await.unwrap();
+
+        // CPU timing: synchronize, generate host traces, allocate and copy to device
+        scope.synchronize().await.unwrap();
+        let cpu_start = Instant::now();
+        let trace = Tensor::<F>::from(chip.generate_trace(&shard, &mut ExecutionRecord::default()));
+        let _cpu_device_trace = DeviceTensor::from_host(&trace, &scope).unwrap();
+        let cpu_duration = cpu_start.elapsed();
+
+        // GPU timing: synchronize, copy events to device + launch kernels, synchronize
+        scope.synchronize().await.unwrap();
+        let gpu_start = Instant::now();
+        let gpu_device_mle = chip
+            .generate_trace_device(&gpu_shard, &mut ExecutionRecord::default(), &scope)
+            .await
+            .expect("should copy events to device successfully");
+        scope.synchronize().await.unwrap();
         let gpu_duration = gpu_start.elapsed();
+
+        let gpu_trace =
+            gpu_device_mle.to_host().expect("should copy trace to host successfully").into_guts();
 
         println!("ADDW Tracegen timing (1000 events):");
         println!("  CPU: {:?}", cpu_duration);
@@ -794,7 +825,7 @@ mod tests {
         println!("  Speedup: {:.2}x", cpu_duration.as_secs_f64() / gpu_duration.as_secs_f64());
 
         // Compare traces
-        crate::tests::test_traces_eq(&trace, &gpu_trace, &events);
+        crate::tests::test_traces_eq(&trace, &gpu_trace, &events, false);
     }
 
     /// Generate random ADDI events for testing.
@@ -861,21 +892,32 @@ mod tests {
 
         let chip = AddiChip;
 
-        // Time CPU trace generation
-        let cpu_start = Instant::now();
-        let trace = Tensor::<F>::from(chip.generate_trace(&shard, &mut ExecutionRecord::default()));
-        let cpu_duration = cpu_start.elapsed();
-
-        // Time GPU trace generation
-        let gpu_start = Instant::now();
-        let gpu_trace = chip
+        // GPU warmup: run once to avoid cold-start overhead in timing
+        let _ = chip
             .generate_trace_device(&gpu_shard, &mut ExecutionRecord::default(), &scope)
             .await
-            .expect("should copy events to device successfully")
-            .to_host()
-            .expect("should copy trace to host successfully")
-            .into_guts();
+            .expect("warmup should succeed");
+        scope.synchronize().await.unwrap();
+
+        // CPU timing: synchronize, generate host traces, allocate and copy to device
+        scope.synchronize().await.unwrap();
+        let cpu_start = Instant::now();
+        let trace = Tensor::<F>::from(chip.generate_trace(&shard, &mut ExecutionRecord::default()));
+        let _cpu_device_trace = DeviceTensor::from_host(&trace, &scope).unwrap();
+        let cpu_duration = cpu_start.elapsed();
+
+        // GPU timing: synchronize, copy events to device + launch kernels, synchronize
+        scope.synchronize().await.unwrap();
+        let gpu_start = Instant::now();
+        let gpu_device_mle = chip
+            .generate_trace_device(&gpu_shard, &mut ExecutionRecord::default(), &scope)
+            .await
+            .expect("should copy events to device successfully");
+        scope.synchronize().await.unwrap();
         let gpu_duration = gpu_start.elapsed();
+
+        let gpu_trace =
+            gpu_device_mle.to_host().expect("should copy trace to host successfully").into_guts();
 
         println!("ADDI Tracegen timing (1000 events):");
         println!("  CPU: {:?}", cpu_duration);
@@ -883,7 +925,7 @@ mod tests {
         println!("  Speedup: {:.2}x", cpu_duration.as_secs_f64() / gpu_duration.as_secs_f64());
 
         // Compare traces
-        crate::tests::test_traces_eq(&trace, &gpu_trace, &events);
+        crate::tests::test_traces_eq(&trace, &gpu_trace, &events, false);
     }
 
     /// Generate random SUB events for testing.
@@ -949,21 +991,32 @@ mod tests {
 
         let chip = SubChip;
 
-        // Time CPU trace generation
-        let cpu_start = Instant::now();
-        let trace = Tensor::<F>::from(chip.generate_trace(&shard, &mut ExecutionRecord::default()));
-        let cpu_duration = cpu_start.elapsed();
-
-        // Time GPU trace generation
-        let gpu_start = Instant::now();
-        let gpu_trace = chip
+        // GPU warmup: run once to avoid cold-start overhead in timing
+        let _ = chip
             .generate_trace_device(&gpu_shard, &mut ExecutionRecord::default(), &scope)
             .await
-            .expect("should copy events to device successfully")
-            .to_host()
-            .expect("should copy trace to host successfully")
-            .into_guts();
+            .expect("warmup should succeed");
+        scope.synchronize().await.unwrap();
+
+        // CPU timing: synchronize, generate host traces, allocate and copy to device
+        scope.synchronize().await.unwrap();
+        let cpu_start = Instant::now();
+        let trace = Tensor::<F>::from(chip.generate_trace(&shard, &mut ExecutionRecord::default()));
+        let _cpu_device_trace = DeviceTensor::from_host(&trace, &scope).unwrap();
+        let cpu_duration = cpu_start.elapsed();
+
+        // GPU timing: synchronize, copy events to device + launch kernels, synchronize
+        scope.synchronize().await.unwrap();
+        let gpu_start = Instant::now();
+        let gpu_device_mle = chip
+            .generate_trace_device(&gpu_shard, &mut ExecutionRecord::default(), &scope)
+            .await
+            .expect("should copy events to device successfully");
+        scope.synchronize().await.unwrap();
         let gpu_duration = gpu_start.elapsed();
+
+        let gpu_trace =
+            gpu_device_mle.to_host().expect("should copy trace to host successfully").into_guts();
 
         println!("SUB Tracegen timing (1000 events):");
         println!("  CPU: {:?}", cpu_duration);
@@ -971,7 +1024,7 @@ mod tests {
         println!("  Speedup: {:.2}x", cpu_duration.as_secs_f64() / gpu_duration.as_secs_f64());
 
         // Compare traces
-        crate::tests::test_traces_eq(&trace, &gpu_trace, &events);
+        crate::tests::test_traces_eq(&trace, &gpu_trace, &events, false);
     }
 
     /// Generate random SUBW events for testing.
@@ -1039,21 +1092,32 @@ mod tests {
 
         let chip = SubwChip;
 
-        // Time CPU trace generation
-        let cpu_start = Instant::now();
-        let trace = Tensor::<F>::from(chip.generate_trace(&shard, &mut ExecutionRecord::default()));
-        let cpu_duration = cpu_start.elapsed();
-
-        // Time GPU trace generation
-        let gpu_start = Instant::now();
-        let gpu_trace = chip
+        // GPU warmup: run once to avoid cold-start overhead in timing
+        let _ = chip
             .generate_trace_device(&gpu_shard, &mut ExecutionRecord::default(), &scope)
             .await
-            .expect("should copy events to device successfully")
-            .to_host()
-            .expect("should copy trace to host successfully")
-            .into_guts();
+            .expect("warmup should succeed");
+        scope.synchronize().await.unwrap();
+
+        // CPU timing: synchronize, generate host traces, allocate and copy to device
+        scope.synchronize().await.unwrap();
+        let cpu_start = Instant::now();
+        let trace = Tensor::<F>::from(chip.generate_trace(&shard, &mut ExecutionRecord::default()));
+        let _cpu_device_trace = DeviceTensor::from_host(&trace, &scope).unwrap();
+        let cpu_duration = cpu_start.elapsed();
+
+        // GPU timing: synchronize, copy events to device + launch kernels, synchronize
+        scope.synchronize().await.unwrap();
+        let gpu_start = Instant::now();
+        let gpu_device_mle = chip
+            .generate_trace_device(&gpu_shard, &mut ExecutionRecord::default(), &scope)
+            .await
+            .expect("should copy events to device successfully");
+        scope.synchronize().await.unwrap();
         let gpu_duration = gpu_start.elapsed();
+
+        let gpu_trace =
+            gpu_device_mle.to_host().expect("should copy trace to host successfully").into_guts();
 
         println!("SUBW Tracegen timing (1000 events):");
         println!("  CPU: {:?}", cpu_duration);
@@ -1061,7 +1125,7 @@ mod tests {
         println!("  Speedup: {:.2}x", cpu_duration.as_secs_f64() / gpu_duration.as_secs_f64());
 
         // Compare traces
-        crate::tests::test_traces_eq(&trace, &gpu_trace, &events);
+        crate::tests::test_traces_eq(&trace, &gpu_trace, &events, false);
     }
 
     /// Generate random MUL events for testing.
@@ -1166,21 +1230,32 @@ mod tests {
 
         let chip = MulChip;
 
-        // Time CPU trace generation
-        let cpu_start = Instant::now();
-        let trace = Tensor::<F>::from(chip.generate_trace(&shard, &mut ExecutionRecord::default()));
-        let cpu_duration = cpu_start.elapsed();
-
-        // Time GPU trace generation
-        let gpu_start = Instant::now();
-        let gpu_trace = chip
+        // GPU warmup: run once to avoid cold-start overhead in timing
+        let _ = chip
             .generate_trace_device(&gpu_shard, &mut ExecutionRecord::default(), &scope)
             .await
-            .expect("should copy events to device successfully")
-            .to_host()
-            .expect("should copy trace to host successfully")
-            .into_guts();
+            .expect("warmup should succeed");
+        scope.synchronize().await.unwrap();
+
+        // CPU timing: synchronize, generate host traces, allocate and copy to device
+        scope.synchronize().await.unwrap();
+        let cpu_start = Instant::now();
+        let trace = Tensor::<F>::from(chip.generate_trace(&shard, &mut ExecutionRecord::default()));
+        let _cpu_device_trace = DeviceTensor::from_host(&trace, &scope).unwrap();
+        let cpu_duration = cpu_start.elapsed();
+
+        // GPU timing: synchronize, copy events to device + launch kernels, synchronize
+        scope.synchronize().await.unwrap();
+        let gpu_start = Instant::now();
+        let gpu_device_mle = chip
+            .generate_trace_device(&gpu_shard, &mut ExecutionRecord::default(), &scope)
+            .await
+            .expect("should copy events to device successfully");
+        scope.synchronize().await.unwrap();
         let gpu_duration = gpu_start.elapsed();
+
+        let gpu_trace =
+            gpu_device_mle.to_host().expect("should copy trace to host successfully").into_guts();
 
         println!("MUL Tracegen timing (1000 events):");
         println!("  CPU: {:?}", cpu_duration);
@@ -1188,7 +1263,7 @@ mod tests {
         println!("  Speedup: {:.2}x", cpu_duration.as_secs_f64() / gpu_duration.as_secs_f64());
 
         // Compare traces
-        crate::tests::test_traces_eq(&trace, &gpu_trace, &events);
+        crate::tests::test_traces_eq(&trace, &gpu_trace, &events, false);
     }
 
     /// Generate random Lt events for testing.
@@ -1289,21 +1364,32 @@ mod tests {
 
         let chip = LtChip;
 
-        // Time CPU trace generation
-        let cpu_start = Instant::now();
-        let trace = Tensor::<F>::from(chip.generate_trace(&shard, &mut ExecutionRecord::default()));
-        let cpu_duration = cpu_start.elapsed();
-
-        // Time GPU trace generation
-        let gpu_start = Instant::now();
-        let gpu_trace = chip
+        // GPU warmup: run once to avoid cold-start overhead in timing
+        let _ = chip
             .generate_trace_device(&gpu_shard, &mut ExecutionRecord::default(), &scope)
             .await
-            .expect("should copy events to device successfully")
-            .to_host()
-            .expect("should copy trace to host successfully")
-            .into_guts();
+            .expect("warmup should succeed");
+        scope.synchronize().await.unwrap();
+
+        // CPU timing: synchronize, generate host traces, allocate and copy to device
+        scope.synchronize().await.unwrap();
+        let cpu_start = Instant::now();
+        let trace = Tensor::<F>::from(chip.generate_trace(&shard, &mut ExecutionRecord::default()));
+        let _cpu_device_trace = DeviceTensor::from_host(&trace, &scope).unwrap();
+        let cpu_duration = cpu_start.elapsed();
+
+        // GPU timing: synchronize, copy events to device + launch kernels, synchronize
+        scope.synchronize().await.unwrap();
+        let gpu_start = Instant::now();
+        let gpu_device_mle = chip
+            .generate_trace_device(&gpu_shard, &mut ExecutionRecord::default(), &scope)
+            .await
+            .expect("should copy events to device successfully");
+        scope.synchronize().await.unwrap();
         let gpu_duration = gpu_start.elapsed();
+
+        let gpu_trace =
+            gpu_device_mle.to_host().expect("should copy trace to host successfully").into_guts();
 
         println!("LT Tracegen timing (1000 events):");
         println!("  CPU: {:?}", cpu_duration);
@@ -1311,6 +1397,6 @@ mod tests {
         println!("  Speedup: {:.2}x", cpu_duration.as_secs_f64() / gpu_duration.as_secs_f64());
 
         // Compare traces
-        crate::tests::test_traces_eq(&trace, &gpu_trace, &events);
+        crate::tests::test_traces_eq(&trace, &gpu_trace, &events, false);
     }
 }

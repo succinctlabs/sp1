@@ -171,17 +171,13 @@ mod tests {
         load_byte::LoadByteChip, load_double::LoadDoubleChip, load_half::LoadHalfChip,
         load_word::LoadWordChip, load_x0::LoadX0Chip,
     };
-    use sp1_gpu_cudart::TaskScope;
+    use sp1_gpu_cudart::{DeviceTensor, TaskScope};
     use sp1_hypercube::air::MachineAir;
 
     use crate::CudaTracegenAir;
     use crate::F;
 
-    fn random_read_record(
-        rng: &mut StdRng,
-        value: u64,
-        timestamp: u64,
-    ) -> MemoryRecordEnum {
+    fn random_read_record(rng: &mut StdRng, value: u64, timestamp: u64) -> MemoryRecordEnum {
         let prev_timestamp = rng.gen_range(0..timestamp);
         MemoryRecordEnum::Read(MemoryReadRecord {
             value,
@@ -191,11 +187,7 @@ mod tests {
         })
     }
 
-    fn random_write_record(
-        rng: &mut StdRng,
-        value: u64,
-        timestamp: u64,
-    ) -> MemoryRecordEnum {
+    fn random_write_record(rng: &mut StdRng, value: u64, timestamp: u64) -> MemoryRecordEnum {
         let prev_timestamp = rng.gen_range(0..timestamp);
         MemoryRecordEnum::Write(MemoryWriteRecord {
             prev_value: rng.gen(),
@@ -229,11 +221,7 @@ mod tests {
             let byte_offset = (memory_addr & 7) as usize;
             let byte = ((mem_value >> (byte_offset * 8)) & 0xFF) as u8;
 
-            let a = if is_signed {
-                (byte as i8) as i64 as u64
-            } else {
-                byte as u64
-            };
+            let a = if is_signed { (byte as i8) as i64 as u64 } else { byte as u64 };
 
             let op_a: u8 = rng.gen_range(1..32);
 
@@ -287,11 +275,7 @@ mod tests {
             let half_offset = ((memory_addr >> 1) & 3) as usize;
             let half = ((mem_value >> (half_offset * 16)) & 0xFFFF) as u16;
 
-            let a = if is_signed {
-                (half as i16) as i64 as u64
-            } else {
-                half as u64
-            };
+            let a = if is_signed { (half as i16) as i64 as u64 } else { half as u64 };
 
             let op_a: u8 = rng.gen_range(1..32);
             let mem_curr_ts = clk + 3;
@@ -344,11 +328,7 @@ mod tests {
             let word_offset = ((memory_addr >> 2) & 1) as usize;
             let word = ((mem_value >> (word_offset * 32)) & 0xFFFFFFFF) as u32;
 
-            let a = if is_signed {
-                (word as i32) as i64 as u64
-            } else {
-                word as u64
-            };
+            let a = if is_signed { (word as i32) as i64 as u64 } else { word as u64 };
 
             let op_a: u8 = rng.gen_range(1..32);
             let mem_curr_ts = clk + 3;
@@ -433,15 +413,8 @@ mod tests {
         let base_timestamp: u64 = 0x1_0000_1000;
         let base_pc: u64 = 0x8000_4000_2000;
 
-        let opcodes = [
-            Opcode::LB,
-            Opcode::LBU,
-            Opcode::LH,
-            Opcode::LHU,
-            Opcode::LW,
-            Opcode::LWU,
-            Opcode::LD,
-        ];
+        let opcodes =
+            [Opcode::LB, Opcode::LBU, Opcode::LH, Opcode::LHU, Opcode::LW, Opcode::LWU, Opcode::LD];
 
         for i in 0..count {
             let clk = base_timestamp + (i as u64) * 8;
@@ -510,20 +483,35 @@ mod tests {
 
                 let chip = $chip;
 
+                // GPU warmup
+                let _ = chip
+                    .generate_trace_device(&gpu_shard, &mut ExecutionRecord::default(), &scope)
+                    .await
+                    .expect("warmup should succeed");
+                scope.synchronize().await.unwrap();
+
+                // CPU timing: synchronize, generate host traces, allocate and copy to device
+                scope.synchronize().await.unwrap();
                 let cpu_start = Instant::now();
                 let trace =
                     Tensor::<F>::from(chip.generate_trace(&shard, &mut ExecutionRecord::default()));
+                let _cpu_device_trace = DeviceTensor::from_host(&trace, &scope).unwrap();
                 let cpu_duration = cpu_start.elapsed();
 
+                // GPU timing: synchronize, copy events to device + launch kernels, synchronize
+                scope.synchronize().await.unwrap();
                 let gpu_start = Instant::now();
-                let gpu_trace = chip
+                let gpu_device_mle = chip
                     .generate_trace_device(&gpu_shard, &mut ExecutionRecord::default(), &scope)
                     .await
-                    .expect("should copy events to device successfully")
+                    .expect("should copy events to device successfully");
+                scope.synchronize().await.unwrap();
+                let gpu_duration = gpu_start.elapsed();
+
+                let gpu_trace = gpu_device_mle
                     .to_host()
                     .expect("should copy trace to host successfully")
                     .into_guts();
-                let gpu_duration = gpu_start.elapsed();
 
                 println!("{} Tracegen timing (1000 events):", $label);
                 println!("  CPU: {:?}", cpu_duration);
@@ -533,7 +521,7 @@ mod tests {
                     cpu_duration.as_secs_f64() / gpu_duration.as_secs_f64()
                 );
 
-                crate::tests::test_traces_eq(&trace, &gpu_trace, &events);
+                crate::tests::test_traces_eq(&trace, &gpu_trace, &events, false);
             }
         };
     }

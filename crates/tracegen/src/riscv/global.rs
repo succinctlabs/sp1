@@ -257,12 +257,14 @@ impl CudaTracegenAir<F> for GlobalChip {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Instant;
+
     use rand::{rngs::StdRng, Rng, SeedableRng};
     use slop_algebra::PrimeField32;
     use slop_tensor::Tensor;
     use sp1_core_executor::{events::GlobalInteractionEvent, ExecutionRecord};
     use sp1_core_machine::global::GlobalChip;
-    use sp1_gpu_cudart::TaskScope;
+    use sp1_gpu_cudart::{DeviceTensor, TaskScope};
     use sp1_hypercube::air::MachineAir;
     use sp1_hypercube::MachineRecord;
 
@@ -276,7 +278,6 @@ mod tests {
     async fn inner_test_global_generate_trace(scope: TaskScope) {
         let mut rng = StdRng::seed_from_u64(0xDEADBEEF);
         let events = core::iter::repeat_with(|| GlobalInteractionEvent {
-            // These seem to be the numerical bounds that make a `GlobalInteractionEvent` valid.
             message: core::array::from_fn(|_| rng.gen::<F>().as_canonical_u32()),
             is_receive: rng.gen(),
             kind: rng.gen_range(0..(1 << 6)),
@@ -291,17 +292,39 @@ mod tests {
 
         let chip = GlobalChip;
 
-        let trace = Tensor::<F>::from(chip.generate_trace(&shard, &mut ExecutionRecord::default()));
-
-        let gpu_trace = chip
+        // GPU warmup
+        let _ = chip
             .generate_trace_device(&gpu_shard, &mut ExecutionRecord::default(), &scope)
             .await
-            .expect("should copy events to device successfully")
-            .to_host()
-            .expect("should copy trace to host successfully")
-            .into_guts();
+            .expect("warmup should succeed");
+        scope.synchronize().await.unwrap();
 
-        crate::tests::test_traces_eq(&trace, &gpu_trace, &events);
+        // CPU timing: synchronize, generate host traces, allocate and copy to device
+        scope.synchronize().await.unwrap();
+        let cpu_start = Instant::now();
+        let trace = Tensor::<F>::from(chip.generate_trace(&shard, &mut ExecutionRecord::default()));
+        let _cpu_device_trace = DeviceTensor::from_host(&trace, &scope).unwrap();
+        let cpu_duration = cpu_start.elapsed();
+
+        // GPU timing: synchronize, copy events to device + launch kernels, synchronize
+        scope.synchronize().await.unwrap();
+        let gpu_start = Instant::now();
+        let gpu_device_mle = chip
+            .generate_trace_device(&gpu_shard, &mut ExecutionRecord::default(), &scope)
+            .await
+            .expect("should copy events to device successfully");
+        scope.synchronize().await.unwrap();
+        let gpu_duration = gpu_start.elapsed();
+
+        let gpu_trace =
+            gpu_device_mle.to_host().expect("should copy trace to host successfully").into_guts();
+
+        println!("Global Tracegen timing (1000 events):");
+        println!("  CPU: {:?}", cpu_duration);
+        println!("  GPU: {:?}", gpu_duration);
+        println!("  Speedup: {:.2}x", cpu_duration.as_secs_f64() / gpu_duration.as_secs_f64());
+
+        crate::tests::test_traces_eq(&trace, &gpu_trace, &events, false);
 
         assert_eq!(
             *gpu_shard.global_cumulative_sum.lock().unwrap(),
