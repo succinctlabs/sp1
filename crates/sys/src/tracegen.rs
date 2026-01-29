@@ -62,6 +62,8 @@ extern "C" {
     pub fn riscv_memory_global_generate_trace_kernel() -> KernelPtr;
     // RISC-V MemoryLocalChip
     pub fn riscv_memory_local_generate_trace_kernel() -> KernelPtr;
+    // RISC-V MemoryBumpChip
+    pub fn riscv_memory_bump_generate_trace_kernel() -> KernelPtr;
     pub fn recursion_base_alu_generate_preprocessed_trace_koala_bear_kernel() -> KernelPtr;
     pub fn recursion_base_alu_generate_trace_koala_bear_kernel() -> KernelPtr;
     pub fn recursion_ext_alu_generate_preprocessed_trace_koala_bear_kernel() -> KernelPtr;

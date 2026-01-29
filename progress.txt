@@ -430,3 +430,23 @@
   - **Performance:** 26.21x GPU speedup on 1000 events test.
 
 ---
+
+## 2026-01-29 - MemoryBumpChip GPU Tracegen
+- **What was implemented:** GPU trace generation for MemoryBumpChip, which bumps register memory timestamps to ensure monotonicity. Simple parallel chip with 15 columns.
+- **Files changed:**
+  - `crates/sys/src/riscv_events.rs` - Added `MemoryBumpGpuEvent` struct (prev_value, prev_timestamp, current_timestamp, addr)
+  - `crates/sys/build.rs` - Added cbindgen export for MemoryBumpGpuEvent
+  - `lib/tracegen/riscv/memory_bump.cu` - New CUDA kernel with MemoryBumpCols, MemoryAccessColsBump, MemoryAccessTimestampBump structs
+  - `lib/tracegen/CMakeLists.txt` - Added memory_bump.cu to build
+  - `crates/sys/src/tracegen.rs` - Declared extern fn for memory_bump kernel
+  - `crates/cuda/src/tracegen.rs` - Added TracegenRiscvMemoryBumpKernel trait
+  - `crates/tracegen/src/riscv/memory_state.rs` - Full CudaTracegenAir implementation and test
+
+- **Learnings:**
+  - **Timestamp rounding for is_refresh=false:** When is_refresh is false, the timestamp is rounded to 24-bit boundary: `timestamp = (timestamp >> 24) << 24`. This rounding is done on the Rust side before passing to the GPU event struct.
+  - **MemoryAccessTimestamp (5 fields):** Different from RegisterAccessTimestamp (2 fields). Has prev_high, prev_low, compare_low, diff_low_limb, diff_high_limb. compare_low indicates whether high bits match for comparison mode selection.
+  - **Synthetic Read records:** CPU creates a MemoryRecordEnum::Read from the bump event data. GPU receives pre-computed fields (prev_value, prev_timestamp, current_timestamp) so no need to handle MemoryRecordEnum variants.
+  - **Test timestamp generation:** When is_refresh=false, must ensure prev_timestamp < (timestamp >> 24) << 24 to avoid assertion failure. Generate timestamps with explicit high/low parts.
+  - **Performance:** 1.21x GPU speedup on 1000 events test (modest due to chip simplicity - only 15 columns with minimal computation).
+
+---

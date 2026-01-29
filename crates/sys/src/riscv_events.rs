@@ -623,6 +623,23 @@ pub struct MemoryLocalGpuEvent {
     pub final_value: u64,
 }
 
+/// GPU-compatible event for MemoryBumpChip.
+///
+/// This flattens the (MemoryRecordEnum, u64 addr, bool is_refresh) tuple into a simple struct.
+/// The prev_value, prev_timestamp, and current_timestamp are extracted from the MemoryRecordEnum.
+#[derive(Clone, Copy, Debug, Default)]
+#[repr(C)]
+pub struct MemoryBumpGpuEvent {
+    /// Previous value at this memory location.
+    pub prev_value: u64,
+    /// Previous access timestamp.
+    pub prev_timestamp: u64,
+    /// Current access timestamp (may be rounded if is_refresh=false).
+    pub current_timestamp: u64,
+    /// Register address (should be < 32).
+    pub addr: u64,
+}
+
 /// GPU-compatible event for SyscallChip (Core and Precompile).
 ///
 /// This is a minimal struct containing only the fields needed for SyscallCols trace generation.
