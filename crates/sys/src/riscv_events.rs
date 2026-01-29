@@ -168,3 +168,42 @@ pub struct MulGpuEvent {
     /// Memory access record for source register 2 (read).
     pub mem_c: GpuMemoryAccess,
 }
+
+/// GPU-compatible event for LtChip (SLT, SLTU, SLTI, SLTIU).
+///
+/// This flattens `AluEvent` and `ALUTypeRecord` into a single struct without Options or enums.
+/// LtChip uses ALUTypeReader (same as AddwChip) since it supports both register and immediate modes.
+#[derive(Clone, Copy, Debug, Default)]
+#[repr(C)]
+pub struct LtGpuEvent {
+    // From AluEvent
+    /// Clock cycle of this instruction.
+    pub clk: u64,
+    /// Program counter of this instruction.
+    pub pc: u64,
+    /// First operand value (from rs1).
+    pub b: u64,
+    /// Second operand value (from rs2 or immediate).
+    pub c: u64,
+    /// Result value (0 or 1).
+    pub a: u64,
+    /// Opcode: SLT=0, SLTU=1 (signed vs unsigned comparison).
+    pub opcode: u8,
+
+    // From ALUTypeRecord
+    /// Destination register number (rd).
+    pub op_a: u8,
+    /// Source register 1 spec (rs1).
+    pub op_b: u64,
+    /// Source register 2 or immediate value.
+    pub op_c: u64,
+    /// Whether op_c is an immediate value.
+    pub is_imm: bool,
+
+    /// Memory access record for destination register (write).
+    pub mem_a: GpuMemoryAccess,
+    /// Memory access record for source register 1 (read).
+    pub mem_b: GpuMemoryAccess,
+    /// Memory access record for source register 2 (read). Only valid if !is_imm.
+    pub mem_c: GpuMemoryAccess,
+}

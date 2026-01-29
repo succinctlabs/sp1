@@ -1,4 +1,5 @@
 ## Codebase Patterns
+- For field inverse computation in CUDA, use `kb31_t::reciprocal()` method which computes `a^(p-2) mod p` for Koala Bear field
 - When cbindgen can't handle constant expressions like `[T; WORD_SIZE / 2]` or `[T; LONG_WORD_BYTE_SIZE]`, manually define the entire struct hierarchy in the CUDA file
 - For complex operations with multiple array sizes (like MulOperation), may need to manually define MulCols, MulOperation, and U16toU8Operation together
 - When cbindgen can't handle constant expressions like `[T; WORD_SIZE / 2]`, manually define the struct in the CUDA file
@@ -126,5 +127,25 @@
   - **Constraint verification:** c * quotient + remainder = b (in computational form). Need to compute carry propagation for the addition check across 8 u16 limbs.
   - **Remainder bound check:** |remainder| < |c| (when c != 0). Uses LtOperationUnsigned to verify this constraint.
   - **Network issues:** Build and test blocked by proxy restrictions on crates.io access. Code is syntactically verified via rustfmt --edition 2021.
+
+---
+
+## 2026-01-28 - LtChip GPU Tracegen
+- **What was implemented:** GPU trace generation for LtChip (set less than operations: SLT, SLTU, SLTI, SLTIU)
+- **Files changed:**
+  - `crates/sys/src/riscv_events.rs` - Added `LtGpuEvent` struct with opcode field for signed/unsigned
+  - `crates/sys/src/tracegen.rs` - Declared extern fn for lt kernel
+  - `crates/cuda/src/tracegen.rs` - Added TracegenRiscvLtKernel trait
+  - `lib/tracegen/riscv/lt.cu` - New CUDA kernel for LtChip with manual struct definitions
+  - `lib/tracegen/CMakeLists.txt` - Added lt.cu to build
+  - `crates/tracegen/src/riscv/alu.rs` - Implemented CudaTracegenAir for LtChip, added test with timing
+  - `include/tracegen/riscv/common.cuh` - Shared helper functions already present
+
+- **Learnings:**
+  - **LtChip uses ALUTypeRecord:** Like AddwChip, LtChip uses ALUTypeReader since it supports both register (SLT/SLTU) and immediate (SLTI/SLTIU) modes. The `is_imm` flag distinguishes between them.
+  - **SLTI/SLTIU share opcodes with SLT/SLTU:** The Opcode enum only has `SLT` and `SLTU`. The immediate variants are distinguished by the `is_imm` flag in ALUTypeRecord, not by a separate opcode.
+  - **Field inverse for not_eq_inv:** The `not_eq_inv` field requires computing the multiplicative inverse of `(b_limb - c_limb)` in the KoalaBear field. Initially tried integer-based extended Euclidean algorithm, but the CPU uses field arithmetic: `(F::from_canonical_u16(b) - F::from_canonical_u16(c)).inverse()`. The correct CUDA approach is to use `kb31_t::reciprocal()` method after field subtraction.
+  - **Signed comparison via XOR:** For signed comparison (SLT), the implementation XORs both operands with `1 << 63` to flip the sign bit, converting signed comparison to equivalent unsigned comparison.
+  - **LtOperationSigned structure:** Contains `LtOperationUnsigned` (comparison result, flags, inverse), `b_msb` and `c_msb` (U16MSBOperation for sign bit handling).
 
 ---
