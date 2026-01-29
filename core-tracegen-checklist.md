@@ -51,10 +51,10 @@ This document tracks the GPU tracegen implementation status for core RISC-V chip
 
 | Chip | Variant | GPU Impl | Stub | Tests | Perf | Integ | File |
 |------|---------|----------|------|-------|------|-------|------|
-| UTypeChip | `UType` | [x] | [x] | [x] | [x] | [ ] | `control_flow.rs` |
-| BranchChip | `Branch` | [x] | [x] | [x] | [x] | [ ] | `control_flow.rs` |
-| JalChip | `Jal` | [x] | [x] | [x] | [x] | [ ] | `control_flow.rs` |
-| JalrChip | `Jalr` | [x] | [x] | [x] | [x] | [ ] | `control_flow.rs` |
+| UTypeChip | `UType` | [x] | [x] | [x] | [x] | [x] | `control_flow.rs` |
+| BranchChip | `Branch` | [x] | [x] | [x] | [x] | [x] | `control_flow.rs` |
+| JalChip | `Jal` | [x] | [x] | [x] | [x] | [x] | `control_flow.rs` |
+| JalrChip | `Jalr` | [x] | [x] | [x] | [x] | [x] | `control_flow.rs` |
 
 ## Syscall Instructions
 

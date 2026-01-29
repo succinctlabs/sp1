@@ -61,6 +61,10 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::StoreHalf(chip) => chip.supports_device_main_tracegen(),
             Self::StoreWord(chip) => chip.supports_device_main_tracegen(),
             Self::StoreDouble(chip) => chip.supports_device_main_tracegen(),
+            Self::UType(chip) => chip.supports_device_main_tracegen(),
+            Self::Branch(chip) => chip.supports_device_main_tracegen(),
+            Self::Jal(chip) => chip.supports_device_main_tracegen(),
+            Self::Jalr(chip) => chip.supports_device_main_tracegen(),
             _ => false,
         }
     }
@@ -94,6 +98,10 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::StoreHalf(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::StoreWord(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::StoreDouble(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::UType(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::Branch(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::Jal(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::Jalr(chip) => chip.generate_trace_device(input, output, scope).await,
             _ => unimplemented!(),
         }
     }
