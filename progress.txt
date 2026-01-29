@@ -209,3 +209,26 @@
   - **Type alias reuse:** ShiftRightGpuEvent and ShiftLeftGpuEvent share identical field layouts (both use ALUTypeReader). ShiftLeftGpuEvent is made a type alias to ShiftRightGpuEvent.
 
 ---
+
+## 2026-01-28 - Memory Load Chips GPU Tracegen (LoadByte, LoadHalf, LoadWord, LoadDouble, LoadX0)
+- **What was implemented:** GPU trace generation for all 5 memory load chips in a single batch
+- **Files changed:**
+  - `crates/sys/src/riscv_events.rs` - Added `LoadGpuEvent` struct with memory access fields
+  - `crates/sys/src/tracegen.rs` - Declared 5 extern fns for load kernels
+  - `crates/cuda/src/tracegen.rs` - Added 5 kernel traits (LoadByte, LoadHalf, LoadWord, LoadDouble, LoadX0)
+  - `lib/tracegen/riscv/load.cu` - New CUDA file with all 5 load kernels, manual struct definitions for MemoryAccessTimestamp, MemoryAccessCols, AddrAddOperation, AddressOperation
+  - `lib/tracegen/CMakeLists.txt` - Added load.cu to build
+  - `crates/tracegen/src/riscv/memory_load.rs` - Full implementation with macro-based `impl_load_chip_tracegen!` and test suite
+  - `include/tracegen/riscv/common.cuh` - No changes needed (populate_i_type_reader_from_load kept in load.cu)
+
+- **Learnings:**
+  - **MemoryAccessCols vs RegisterAccessCols:** Load chips use `MemoryAccessCols` (prev_value + MemoryAccessTimestamp) NOT `RegisterAccessCols`. MemoryAccessTimestamp has 5 fields (prev_high, prev_low, compare_low, diff_low_limb, diff_high_limb) vs RegisterAccessTimestamp's 2 fields (prev_low, diff_low_limb). The extra fields handle cross-epoch timestamp comparison.
+  - **AddressOperation:** Computes memory address = base + offset. Result stored as 3 u16 limbs (48-bit address). `top_two_limb_inv` is the field inverse of (limb[1] + limb[2]) used for validation. Uses `T::reciprocal()` for field inverse.
+  - **LoadGpuEvent defined locally in load.cu:** Unlike simpler events that go through cbindgen, `LoadGpuEvent` is defined directly in load.cu (similar pattern to LtGpuEvent, BitwiseGpuEvent). The `populate_i_type_reader_from_load` helper is also local to load.cu rather than in common.cuh, to avoid polluting all other .cu files that include common.cuh.
+  - **Macro-based implementation:** Used `impl_load_chip_tracegen!` macro to implement CudaTracegenAir for all 5 chips DRY. Each chip maps to a different events field and kernel function but shares the same trace generation logic.
+  - **Timestamp generation in tests:** `prev_timestamp` must be strictly less than `current_timestamp`. Using `rng.gen_range(0..current_timestamp)` is safer than `base_timestamp + rng.gen_range(0..i*8)` which can exceed the current timestamp for early events.
+  - **MemoryAccessTimestamp populate logic:** When `prev_high == current_high` (same epoch), use actual low values for comparison. Otherwise compare the high values. `compare_low` flag indicates which mode. `diff_minus_one = current_value - prev_value - 1`, split into low 16 bits and high 8 bits.
+  - **LoadX0 special case:** LoadX0 handles all 7 load opcodes (LB, LBU, LH, LHU, LW, LWU, LD) but with op_a = x0 (register 0). Has individual opcode flags instead of paired is_lb/is_lbu flags. Uses `op_a_0 = true` in events.
+  - **Batch implementation efficiency:** Implementing all 5 chips at once was efficient since they share: LoadGpuEvent struct, address operation, memory access columns, ITypeReader adapter. Only the chip-specific columns (offset bits, data extraction, sign extension) differ.
+
+---

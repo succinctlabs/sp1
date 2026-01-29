@@ -13,6 +13,7 @@ add_library(tracegen_objs OBJECT
     riscv/addw.cu
     riscv/bitwise.cu
     riscv/global.cu
+    riscv/load.cu
     riscv/lt.cu
     riscv/mul.cu
     riscv/shift_left.cu

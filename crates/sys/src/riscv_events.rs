@@ -290,3 +290,48 @@ pub struct ShiftRightGpuEvent {
 ///
 /// Uses the same layout as ShiftRightGpuEvent since both use ALUTypeReader.
 pub type ShiftLeftGpuEvent = ShiftRightGpuEvent;
+
+/// GPU-compatible event for memory load instructions (LB, LBU, LH, LHU, LW, LWU, LD).
+///
+/// This flattens `MemInstrEvent` and `ITypeRecord` into a single struct without Options or enums.
+/// All load chips use ITypeReader format (op_c is always an immediate offset).
+#[derive(Clone, Copy, Debug, Default)]
+#[repr(C)]
+pub struct LoadGpuEvent {
+    // From MemInstrEvent
+    /// Clock cycle of this instruction.
+    pub clk: u64,
+    /// Program counter of this instruction.
+    pub pc: u64,
+    /// Base address value (from rs1).
+    pub b: u64,
+    /// Offset value (immediate).
+    pub c: u64,
+    /// Result value (loaded data, possibly sign-extended).
+    pub a: u64,
+    /// Opcode value to distinguish load variants.
+    pub opcode: u8,
+
+    // Memory access for the data load
+    /// The value loaded from memory (prev_value of the memory location).
+    pub mem_access_value: u64,
+    /// Previous timestamp of the memory location.
+    pub mem_access_prev_timestamp: u64,
+    /// Current timestamp of the memory access.
+    pub mem_access_current_timestamp: u64,
+
+    // From ITypeRecord
+    /// Destination register number (rd).
+    pub op_a: u8,
+    /// Source register 1 spec (rs1).
+    pub op_b: u64,
+    /// Immediate value (offset).
+    pub op_c: u64,
+    /// Whether the first operand is register 0.
+    pub op_a_0: bool,
+
+    /// Memory access record for destination register (write).
+    pub mem_a: GpuMemoryAccess,
+    /// Memory access record for source register 1 (read).
+    pub mem_b: GpuMemoryAccess,
+}

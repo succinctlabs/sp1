@@ -32,11 +32,11 @@ This document tracks the GPU tracegen implementation status for core RISC-V chip
 
 | Chip | Variant | GPU Impl | Stub | Tests | File |
 |------|---------|----------|------|-------|------|
-| LoadByteChip | `LoadByte` | [ ] | [x] | [ ] | `memory_load.rs` |
-| LoadHalfChip | `LoadHalf` | [ ] | [x] | [ ] | `memory_load.rs` |
-| LoadWordChip | `LoadWord` | [ ] | [x] | [ ] | `memory_load.rs` |
-| LoadDoubleChip | `LoadDouble` | [ ] | [x] | [ ] | `memory_load.rs` |
-| LoadX0Chip | `LoadX0` | [ ] | [x] | [ ] | `memory_load.rs` |
+| LoadByteChip | `LoadByte` | [x] | [x] | [x] | `memory_load.rs` |
+| LoadHalfChip | `LoadHalf` | [x] | [x] | [x] | `memory_load.rs` |
+| LoadWordChip | `LoadWord` | [x] | [x] | [x] | `memory_load.rs` |
+| LoadDoubleChip | `LoadDouble` | [x] | [x] | [x] | `memory_load.rs` |
+| LoadX0Chip | `LoadX0` | [x] | [x] | [x] | `memory_load.rs` |
 
 ## Memory Store Instructions
 
@@ -96,9 +96,9 @@ This document tracks the GPU tracegen implementation status for core RISC-V chip
 ## Summary
 
 - **Total core chips**: 35
-- **GPU implemented**: 12 (Global, Add, Addw, Addi, Sub, Subw, Mul, DivRem, Lt, Bitwise, ShiftLeft, ShiftRight)
+- **GPU implemented**: 17 (Global, Add, Addw, Addi, Sub, Subw, Mul, DivRem, Lt, Bitwise, ShiftLeft, ShiftRight, LoadByte, LoadHalf, LoadWord, LoadDouble, LoadX0)
 - **Stubs created**: 35
-- **Tests passing**: 12
+- **Tests passing**: 17
 
 ## File Structure
 

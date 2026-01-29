@@ -114,6 +114,61 @@ unsafe impl TracegenRiscvShiftRightKernel<KoalaBear> for TaskScope {
 }
 
 /// # Safety
+pub unsafe trait TracegenRiscvLoadByteKernel<F> {
+    fn tracegen_riscv_load_byte_kernel() -> KernelPtr;
+}
+
+unsafe impl TracegenRiscvLoadByteKernel<KoalaBear> for TaskScope {
+    fn tracegen_riscv_load_byte_kernel() -> KernelPtr {
+        unsafe { sp1_gpu_sys::tracegen::riscv_load_byte_generate_trace_kernel() }
+    }
+}
+
+/// # Safety
+pub unsafe trait TracegenRiscvLoadHalfKernel<F> {
+    fn tracegen_riscv_load_half_kernel() -> KernelPtr;
+}
+
+unsafe impl TracegenRiscvLoadHalfKernel<KoalaBear> for TaskScope {
+    fn tracegen_riscv_load_half_kernel() -> KernelPtr {
+        unsafe { sp1_gpu_sys::tracegen::riscv_load_half_generate_trace_kernel() }
+    }
+}
+
+/// # Safety
+pub unsafe trait TracegenRiscvLoadWordKernel<F> {
+    fn tracegen_riscv_load_word_kernel() -> KernelPtr;
+}
+
+unsafe impl TracegenRiscvLoadWordKernel<KoalaBear> for TaskScope {
+    fn tracegen_riscv_load_word_kernel() -> KernelPtr {
+        unsafe { sp1_gpu_sys::tracegen::riscv_load_word_generate_trace_kernel() }
+    }
+}
+
+/// # Safety
+pub unsafe trait TracegenRiscvLoadDoubleKernel<F> {
+    fn tracegen_riscv_load_double_kernel() -> KernelPtr;
+}
+
+unsafe impl TracegenRiscvLoadDoubleKernel<KoalaBear> for TaskScope {
+    fn tracegen_riscv_load_double_kernel() -> KernelPtr {
+        unsafe { sp1_gpu_sys::tracegen::riscv_load_double_generate_trace_kernel() }
+    }
+}
+
+/// # Safety
+pub unsafe trait TracegenRiscvLoadX0Kernel<F> {
+    fn tracegen_riscv_load_x0_kernel() -> KernelPtr;
+}
+
+unsafe impl TracegenRiscvLoadX0Kernel<KoalaBear> for TaskScope {
+    fn tracegen_riscv_load_x0_kernel() -> KernelPtr {
+        unsafe { sp1_gpu_sys::tracegen::riscv_load_x0_generate_trace_kernel() }
+    }
+}
+
+/// # Safety
 pub unsafe trait TracegenRiscvGlobalKernel<F> {
     fn tracegen_riscv_global_decompress_kernel() -> KernelPtr;
     fn tracegen_riscv_global_finalize_kernel() -> KernelPtr;

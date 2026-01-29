@@ -24,6 +24,16 @@ extern "C" {
     pub fn riscv_shift_left_generate_trace_kernel() -> KernelPtr;
     // RISC-V ShiftRight chip
     pub fn riscv_shift_right_generate_trace_kernel() -> KernelPtr;
+    // RISC-V LoadByte chip
+    pub fn riscv_load_byte_generate_trace_kernel() -> KernelPtr;
+    // RISC-V LoadHalf chip
+    pub fn riscv_load_half_generate_trace_kernel() -> KernelPtr;
+    // RISC-V LoadWord chip
+    pub fn riscv_load_word_generate_trace_kernel() -> KernelPtr;
+    // RISC-V LoadDouble chip
+    pub fn riscv_load_double_generate_trace_kernel() -> KernelPtr;
+    // RISC-V LoadX0 chip
+    pub fn riscv_load_x0_generate_trace_kernel() -> KernelPtr;
     pub fn recursion_base_alu_generate_preprocessed_trace_koala_bear_kernel() -> KernelPtr;
     pub fn recursion_base_alu_generate_trace_koala_bear_kernel() -> KernelPtr;
     pub fn recursion_ext_alu_generate_preprocessed_trace_koala_bear_kernel() -> KernelPtr;
