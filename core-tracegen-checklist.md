@@ -42,10 +42,10 @@ This document tracks the GPU tracegen implementation status for core RISC-V chip
 
 | Chip | Variant | GPU Impl | Stub | Tests | Perf | Integ | File |
 |------|---------|----------|------|-------|------|-------|------|
-| StoreByteChip | `StoreByte` | [x] | [x] | [x] | [x] | [ ] | `memory_store.rs` |
-| StoreHalfChip | `StoreHalf` | [x] | [x] | [x] | [x] | [ ] | `memory_store.rs` |
-| StoreWordChip | `StoreWord` | [x] | [x] | [x] | [x] | [ ] | `memory_store.rs` |
-| StoreDoubleChip | `StoreDouble` | [x] | [x] | [x] | [x] | [ ] | `memory_store.rs` |
+| StoreByteChip | `StoreByte` | [x] | [x] | [x] | [x] | [x] | `memory_store.rs` |
+| StoreHalfChip | `StoreHalf` | [x] | [x] | [x] | [x] | [x] | `memory_store.rs` |
+| StoreWordChip | `StoreWord` | [x] | [x] | [x] | [x] | [x] | `memory_store.rs` |
+| StoreDoubleChip | `StoreDouble` | [x] | [x] | [x] | [x] | [x] | `memory_store.rs` |
 
 ## Control Flow Instructions
 
