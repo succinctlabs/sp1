@@ -169,3 +169,23 @@
   - **Test helper pattern:** For chips in separate modules, create local test helper functions rather than importing from private test submodules.
 
 ---
+
+## 2026-01-28 - ShiftLeftChip GPU Tracegen
+- **What was implemented:** GPU trace generation for ShiftLeftChip (shift left logical: SLL, SLLI, SLLW, SLLIW)
+- **Files changed:**
+  - `crates/sys/src/riscv_events.rs` - Added `ShiftLeftGpuEvent` struct with opcode field for SLL/SLLW
+  - `crates/sys/src/tracegen.rs` - Declared extern fn for shift_left kernel
+  - `crates/cuda/src/tracegen.rs` - Added TracegenRiscvShiftLeftKernel trait
+  - `lib/tracegen/riscv/shift_left.cu` - New CUDA kernel for ShiftLeftChip with manual struct definitions
+  - `lib/tracegen/CMakeLists.txt` - Added shift_left.cu to build
+  - `crates/tracegen/src/riscv/shift.rs` - Implemented CudaTracegenAir for ShiftLeft, added test with timing
+
+- **Learnings:**
+  - **ShiftLeftChip uses ALUTypeRecord:** Like BitwiseChip and LtChip, ShiftLeft uses ALUTypeReader since it supports both register (SLL, SLLW) and immediate (SLLI, SLLIW) modes.
+  - **Shift bit decomposition:** The shift amount is decomposed into 6 bits (c_bits[0..6]). v_01, v_012, v_0123 are precomputed powers of 2 from the lower 4 bits. shift_u16[4] is a one-hot encoding of the u16 limb shift from bits 4-5.
+  - **SLLW vs SLL limb shift:** For SLL (64-bit), bits 4-5 select the u16 limb shift (0-3). For SLLW (32-bit), only bit 4 is used (0-1 limb shift), since 32-bit values only use 2 u16 limbs.
+  - **Lower/higher limb split:** Each u16 limb of b is split into lower_limb (lower 16-bit_shift bits) and higher_limb (upper bit_shift bits). limb_result[i] = lower_limb[i] * (1 << bit_shift) + higher_limb[i-1].
+  - **U16MSBOperation already in cbindgen:** Unlike some other operation structs, U16MSBOperation is already defined in the cbindgen header. Do NOT redefine it in the CUDA file or you'll get a duplicate definition error.
+  - **SLLW sign extension:** For SLLW, compute the 32-bit result's MSB (bit 31) to determine sign extension to 64 bits. The upper 2 limbs are filled with 0xFFFF if MSB=1, else 0.
+
+---

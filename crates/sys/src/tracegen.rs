@@ -20,6 +20,8 @@ extern "C" {
     pub fn riscv_lt_generate_trace_kernel() -> KernelPtr;
     // RISC-V Bitwise chip
     pub fn riscv_bitwise_generate_trace_kernel() -> KernelPtr;
+    // RISC-V ShiftLeft chip
+    pub fn riscv_shift_left_generate_trace_kernel() -> KernelPtr;
     pub fn recursion_base_alu_generate_preprocessed_trace_koala_bear_kernel() -> KernelPtr;
     pub fn recursion_base_alu_generate_trace_koala_bear_kernel() -> KernelPtr;
     pub fn recursion_ext_alu_generate_preprocessed_trace_koala_bear_kernel() -> KernelPtr;
