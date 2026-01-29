@@ -68,8 +68,8 @@ This document tracks the GPU tracegen implementation status for core RISC-V chip
 
 | Chip | Variant | GPU Impl | Stub | Tests | Perf | Integ | File |
 |------|---------|----------|------|-------|------|-------|------|
-| ByteChip | `ByteLookup` | [x] | [x] | [x] | [x] | [ ] | `lookup.rs` |
-| RangeChip | `RangeLookup` | [x] | [x] | [x] | [x] | [ ] | `lookup.rs` |
+| ByteChip | `ByteLookup` | [x] | [x] | [x] | [x] | [x] | `lookup.rs` |
+| RangeChip | `RangeLookup` | [x] | [x] | [x] | [x] | [x] | `lookup.rs` |
 
 ## Memory State
 

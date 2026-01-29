@@ -68,6 +68,8 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::SyscallInstrs(chip) => chip.supports_device_main_tracegen(),
             Self::SyscallCore(chip) => chip.supports_device_main_tracegen(),
             Self::SyscallPrecompile(chip) => chip.supports_device_main_tracegen(),
+            Self::ByteLookup(chip) => chip.supports_device_main_tracegen(),
+            Self::RangeLookup(chip) => chip.supports_device_main_tracegen(),
             _ => false,
         }
     }
@@ -108,6 +110,8 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::SyscallInstrs(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::SyscallCore(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::SyscallPrecompile(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::ByteLookup(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::RangeLookup(chip) => chip.generate_trace_device(input, output, scope).await,
             _ => unimplemented!(),
         }
     }
