@@ -362,3 +362,24 @@
   - **Performance:** 14.65x GPU speedup on 1000 Core events test.
 
 ---
+
+## 2026-01-29 - ByteChip & RangeChip GPU Tracegen
+- **What was implemented:** GPU trace generation for ByteChip (byte lookup table) and RangeChip (range lookup table). These are lookup table chips with a fundamentally different pattern from instruction chips - they populate multiplicities from a HashMap rather than processing sequential events.
+- **Files changed:**
+  - `crates/sys/src/riscv_events.rs` - Added `ByteLookupGpuEntry` and `RangeLookupGpuEntry` structs
+  - `crates/sys/build.rs` - Added cbindgen exports for both entry types
+  - `lib/tracegen/riscv/lookup.cu` - New CUDA kernels for scatter-write multiplicity population
+  - `lib/tracegen/CMakeLists.txt` - Added lookup.cu to build
+  - `crates/sys/src/tracegen.rs` - Declared extern fns for both kernels
+  - `crates/cuda/src/tracegen.rs` - Added TracegenRiscvByteLookupKernel and TracegenRiscvRangeLookupKernel traits
+  - `crates/tracegen/src/riscv/lookup.rs` - Full CudaTracegenAir implementations and tests
+
+- **Learnings:**
+  - **Lookup table chips use scatter-write pattern:** Unlike instruction chips that process dense event arrays, lookup chips convert a HashMap into a flat array of entries and scatter-write multiplicities to specific (row, column) positions. The trace is mostly zeros.
+  - **ByteChip structure:** 6 multiplicity columns (AND, OR, XOR, U8Range, LTU, MSB), 65536 rows (256x256 byte pairs). Row index = `(b << 8) + c`, column = opcode index.
+  - **RangeChip structure:** 1 multiplicity column, 131072 rows (2^17). Row index = `a + (1 << b)` where `a < 2^b` and `b` ranges 0-16.
+  - **byte_lookups uses hashbrown::HashMap:** The ExecutionRecord's `byte_lookups` field is `hashbrown::HashMap`, not `std::HashMap`. In tests, use `ByteRecord::add_byte_lookup_event()` to populate the record instead of constructing a HashMap directly.
+  - **u16 shift overflow:** When generating test data for RangeChip, `1u16 << 16` overflows. Use `1u32 << bits` instead.
+  - **Modest GPU speedup expected:** These chips are memory-bandwidth-limited scatter operations, not compute-intensive. ByteChip: 3.38x, RangeChip: 1.27x. The real benefit is keeping the data on GPU for subsequent proving operations.
+
+---

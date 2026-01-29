@@ -17,6 +17,7 @@ add_library(tracegen_objs OBJECT
     riscv/jal.cu
     riscv/jalr.cu
     riscv/load.cu
+    riscv/lookup.cu
     riscv/lt.cu
     riscv/mul.cu
     riscv/shift_left.cu

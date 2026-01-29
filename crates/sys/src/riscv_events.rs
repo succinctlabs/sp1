@@ -561,6 +561,34 @@ pub struct SyscallInstrsGpuEvent {
     pub mem_c: GpuMemoryAccess,
 }
 
+/// GPU-compatible entry for ByteChip multiplicity scatter.
+///
+/// Each entry represents one HashMap entry from `byte_lookups` (excluding Range opcode).
+/// The kernel writes `from_canonical_u32(mult)` to `trace[row + opcode * height]`.
+#[derive(Clone, Copy, Debug, Default)]
+#[repr(C)]
+pub struct ByteLookupGpuEntry {
+    /// Row index = (b << 8) + c.
+    pub row: u32,
+    /// Opcode index (0=AND, 1=OR, 2=XOR, 3=U8Range, 4=LTU, 5=MSB).
+    pub opcode: u32,
+    /// Multiplicity count.
+    pub mult: u32,
+}
+
+/// GPU-compatible entry for RangeChip multiplicity scatter.
+///
+/// Each entry represents one HashMap entry from `byte_lookups` (Range opcode only).
+/// The kernel writes `from_canonical_u32(mult)` to `trace[row]`.
+#[derive(Clone, Copy, Debug, Default)]
+#[repr(C)]
+pub struct RangeLookupGpuEntry {
+    /// Row index = a + (1 << b).
+    pub row: u32,
+    /// Multiplicity count.
+    pub mult: u32,
+}
+
 /// GPU-compatible event for SyscallChip (Core and Precompile).
 ///
 /// This is a minimal struct containing only the fields needed for SyscallCols trace generation.

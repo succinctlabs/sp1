@@ -68,8 +68,8 @@ This document tracks the GPU tracegen implementation status for core RISC-V chip
 
 | Chip | Variant | GPU Impl | Stub | Tests | Perf | File |
 |------|---------|----------|------|-------|------|------|
-| ByteChip | `ByteLookup` | [ ] | [x] | [ ] | [ ] | `lookup.rs` |
-| RangeChip | `RangeLookup` | [ ] | [x] | [ ] | [ ] | `lookup.rs` |
+| ByteChip | `ByteLookup` | [x] | [x] | [x] | [x] | `lookup.rs` |
+| RangeChip | `RangeLookup` | [x] | [x] | [x] | [x] | `lookup.rs` |
 
 ## Memory State
 
@@ -96,10 +96,10 @@ This document tracks the GPU tracegen implementation status for core RISC-V chip
 ## Summary
 
 - **Total core chips**: 35
-- **GPU implemented**: 28 (Global, Add, Addw, Addi, Sub, Subw, Mul, DivRem, Lt, Bitwise, ShiftLeft, ShiftRight, LoadByte, LoadHalf, LoadWord, LoadDouble, LoadX0, StoreByte, StoreHalf, StoreWord, StoreDouble, UType, Branch, Jal, Jalr, SyscallInstrs, SyscallCore, SyscallPrecompile)
+- **GPU implemented**: 30 (Global, Add, Addw, Addi, Sub, Subw, Mul, DivRem, Lt, Bitwise, ShiftLeft, ShiftRight, LoadByte, LoadHalf, LoadWord, LoadDouble, LoadX0, StoreByte, StoreHalf, StoreWord, StoreDouble, UType, Branch, Jal, Jalr, SyscallInstrs, SyscallCore, SyscallPrecompile, ByteLookup, RangeLookup)
 - **Stubs created**: 35
-- **Tests passing**: 28
-- **Perf checked**: 27 (all implemented except DivRem which is disabled)
+- **Tests passing**: 30
+- **Perf checked**: 29 (all implemented except DivRem which is disabled)
 
 ## File Structure
 
