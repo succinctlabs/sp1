@@ -46,6 +46,8 @@ extern "C" {
     pub fn riscv_utype_generate_trace_kernel() -> KernelPtr;
     // RISC-V Jal chip
     pub fn riscv_jal_generate_trace_kernel() -> KernelPtr;
+    // RISC-V Jalr chip
+    pub fn riscv_jalr_generate_trace_kernel() -> KernelPtr;
     // RISC-V Branch chip
     pub fn riscv_branch_generate_trace_kernel() -> KernelPtr;
     pub fn recursion_base_alu_generate_preprocessed_trace_koala_bear_kernel() -> KernelPtr;

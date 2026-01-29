@@ -443,6 +443,40 @@ pub struct JalGpuEvent {
     pub mem_a: GpuMemoryAccess,
 }
 
+/// GPU-compatible event for JalrChip (JALR instruction).
+///
+/// This flattens `JumpEvent` and `ITypeRecord` into a single struct without Options or enums.
+/// JalrChip uses ITypeReader (op_b is a register read, op_c is an immediate).
+/// JALR computes next_pc = rs1 + imm and saves return address (pc + 4) in rd.
+#[derive(Clone, Copy, Debug, Default)]
+#[repr(C)]
+pub struct JalrGpuEvent {
+    // From JumpEvent
+    /// Clock cycle of this instruction.
+    pub clk: u64,
+    /// Program counter of this instruction.
+    pub pc: u64,
+    /// The return address value (a = pc + 4 if rd != x0, else 0).
+    pub a: u64,
+    /// The base register value (rs1).
+    pub b: u64,
+    /// Whether the first operand is register 0.
+    pub op_a_0: bool,
+
+    // From ITypeRecord
+    /// Destination register number (rd).
+    pub op_a: u8,
+    /// Source register 1 spec (rs1).
+    pub op_b: u64,
+    /// Immediate value (offset).
+    pub op_c: u64,
+
+    /// Memory access record for destination register (write).
+    pub mem_a: GpuMemoryAccess,
+    /// Memory access record for source register 1 (read).
+    pub mem_b: GpuMemoryAccess,
+}
+
 /// GPU-compatible event for memory load instructions (LB, LBU, LH, LHU, LW, LWU, LD).
 ///
 /// This flattens `MemInstrEvent` and `ITypeRecord` into a single struct without Options or enums.

@@ -5,13 +5,13 @@ use slop_alloc::Buffer;
 use slop_tensor::Tensor;
 use sp1_core_executor::Opcode;
 use sp1_core_machine::control_flow::{
-    BranchChip, JalChip, JalrChip, NUM_BRANCH_COLS, NUM_JAL_COLS,
+    BranchChip, JalChip, JalrChip, NUM_BRANCH_COLS, NUM_JALR_COLS, NUM_JAL_COLS,
 };
 use sp1_core_machine::utype::{UTypeChip, NUM_UTYPE_COLS};
-use sp1_gpu_cudart::sys::{BranchGpuEvent, JalGpuEvent, UTypeGpuEvent};
+use sp1_gpu_cudart::sys::{BranchGpuEvent, JalGpuEvent, JalrGpuEvent, UTypeGpuEvent};
 use sp1_gpu_cudart::{
     args, DeviceMle, TaskScope, TracegenRiscvBranchKernel, TracegenRiscvJalKernel,
-    TracegenRiscvUTypeKernel,
+    TracegenRiscvJalrKernel, TracegenRiscvUTypeKernel,
 };
 use sp1_hypercube::air::MachineAir;
 
@@ -236,16 +236,68 @@ impl CudaTracegenAir<F> for JalChip {
 
 impl CudaTracegenAir<F> for JalrChip {
     fn supports_device_main_tracegen(&self) -> bool {
-        false // TODO: implement GPU tracegen
+        true
     }
 
     async fn generate_trace_device(
         &self,
-        _input: &Self::Record,
+        input: &Self::Record,
         _output: &mut Self::Record,
-        _scope: &TaskScope,
+        scope: &TaskScope,
     ) -> Result<DeviceMle<F>, CopyError> {
-        unimplemented!("JalrChip GPU tracegen not yet implemented")
+        let events = &input.jalr_events;
+        let events_len = events.len();
+
+        // Convert Rust events to GPU-compatible format
+        let gpu_events: Vec<JalrGpuEvent> = events
+            .iter()
+            .map(|(jump_event, i_type_record)| JalrGpuEvent {
+                clk: jump_event.clk,
+                pc: jump_event.pc,
+                a: jump_event.a,
+                b: jump_event.b,
+                op_a_0: jump_event.op_a_0,
+                op_a: i_type_record.op_a,
+                op_b: i_type_record.op_b,
+                op_c: i_type_record.op_c,
+                mem_a: memory_record_to_gpu(&i_type_record.a),
+                mem_b: memory_record_to_gpu(&i_type_record.b),
+            })
+            .collect();
+
+        // Copy events to device
+        let events_device = {
+            let mut buf = Buffer::try_with_capacity_in(gpu_events.len(), scope.clone()).unwrap();
+            buf.extend_from_host_slice(&gpu_events)?;
+            buf
+        };
+
+        // Compute trace height
+        let height = <Self as MachineAir<F>>::num_rows(self, input)
+            .expect("num_rows(...) should be Some(_)");
+
+        // Allocate trace on device
+        let mut trace = Tensor::<F, TaskScope>::zeros_in([NUM_JALR_COLS, height], scope.clone());
+
+        // Launch kernel
+        unsafe {
+            const BLOCK_DIM: usize = 256;
+            let grid_dim = height.div_ceil(BLOCK_DIM);
+
+            let kernel_args = args!(trace.as_mut_ptr(), height, events_device.as_ptr(), events_len);
+
+            scope
+                .launch_kernel(
+                    TaskScope::tracegen_riscv_jalr_kernel(),
+                    grid_dim,
+                    BLOCK_DIM,
+                    &kernel_args,
+                    0,
+                )
+                .unwrap();
+        }
+
+        Ok(DeviceMle::from(trace))
     }
 }
 
@@ -639,16 +691,100 @@ mod tests {
         crate::tests::test_traces_eq(&trace, &gpu_trace, &events, false);
     }
 
+    /// Generate random JALR events for testing.
+    fn generate_jalr_events(count: usize) -> Vec<(JumpEvent, ITypeRecord)> {
+        let mut rng = StdRng::seed_from_u64(0xDA14_BEEF);
+        let mut events = Vec::with_capacity(count);
+
+        let base_timestamp: u64 = 0x1_0000_1000;
+        let base_pc: u64 = 0x8000_4000_2000;
+
+        for i in 0..count {
+            let clk = base_timestamp + (i as u64) * 8;
+            let pc = base_pc + (i as u64) * 4;
+
+            let op_a_0 = i % 11 == 0; // Occasional op_a_0 cases
+
+            // Generate base register value and immediate offset
+            let b_val: u64 = rng.gen_range(0x1000u64..0xFFFF_FFFF);
+            let imm: i64 = rng.gen_range(-2048i64..2048);
+            let c_val: u64 = imm as u64;
+
+            // JALR: next_pc = (b + imm) & !1, return_addr = pc + 4
+            let next_pc = b_val.wrapping_add(c_val) & !1u64;
+            let a = if op_a_0 { 0 } else { pc + 4 }; // return address
+
+            let op_a_reg: u8 = if op_a_0 { 0 } else { rng.gen_range(1..32) };
+            let op_b_reg: u64 = rng.gen_range(1u64..32);
+
+            let event =
+                JumpEvent { clk, pc, next_pc, opcode: Opcode::JALR, a, b: b_val, c: c_val, op_a_0 };
+
+            let record = ITypeRecord {
+                op_a: op_a_reg,
+                a: random_write_record(&mut rng, a, clk + 4, base_timestamp),
+                op_b: op_b_reg,
+                b: random_read_record(&mut rng, b_val, clk + 2, base_timestamp),
+                op_c: c_val,
+                is_untrusted: false,
+            };
+
+            events.push((event, record));
+        }
+
+        events
+    }
+
     #[tokio::test]
-    #[ignore = "GPU tracegen not yet implemented"]
     async fn test_jalr_generate_trace() {
-        sp1_gpu_cudart::spawn(|scope: TaskScope| async move {
-            let chip = JalrChip;
-            let record = ExecutionRecord::default();
-            let mut output = ExecutionRecord::default();
-            let _ = chip.generate_trace_device(&record, &mut output, &scope).await;
-        })
-        .await
-        .unwrap();
+        sp1_gpu_cudart::spawn(inner_test_jalr_generate_trace).await.unwrap();
+    }
+
+    async fn inner_test_jalr_generate_trace(scope: TaskScope) {
+        // Generate realistic JALR events
+        let events = generate_jalr_events(1000);
+
+        // Create two identical records - one for CPU, one for GPU
+        let [shard, gpu_shard] = core::array::from_fn(|_| ExecutionRecord {
+            jalr_events: events.clone(),
+            ..Default::default()
+        });
+
+        let chip = JalrChip;
+
+        // GPU warmup: run once to avoid cold-start overhead in timing
+        let _ = chip
+            .generate_trace_device(&gpu_shard, &mut ExecutionRecord::default(), &scope)
+            .await
+            .expect("warmup should succeed");
+        scope.synchronize().await.unwrap();
+
+        // CPU timing: synchronize, generate host traces, allocate and copy to device
+        scope.synchronize().await.unwrap();
+        let cpu_start = Instant::now();
+        let trace = Tensor::<F>::from(chip.generate_trace(&shard, &mut ExecutionRecord::default()));
+        let _cpu_device_trace = DeviceTensor::from_host(&trace, &scope).unwrap();
+        let cpu_duration = cpu_start.elapsed();
+
+        // GPU timing: synchronize, copy events to device + launch kernels, synchronize
+        scope.synchronize().await.unwrap();
+        let gpu_start = Instant::now();
+        let gpu_device_mle = chip
+            .generate_trace_device(&gpu_shard, &mut ExecutionRecord::default(), &scope)
+            .await
+            .expect("should copy events to device successfully");
+        scope.synchronize().await.unwrap();
+        let gpu_duration = gpu_start.elapsed();
+
+        let gpu_trace =
+            gpu_device_mle.to_host().expect("should copy trace to host successfully").into_guts();
+
+        println!("JALR Tracegen timing (1000 events):");
+        println!("  CPU: {:?}", cpu_duration);
+        println!("  GPU: {:?}", gpu_duration);
+        println!("  Speedup: {:.2}x", cpu_duration.as_secs_f64() / gpu_duration.as_secs_f64());
+
+        // Compare traces
+        crate::tests::test_traces_eq(&trace, &gpu_trace, &events, false);
     }
 }

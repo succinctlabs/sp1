@@ -224,6 +224,17 @@ unsafe impl TracegenRiscvJalKernel<KoalaBear> for TaskScope {
 }
 
 /// # Safety
+pub unsafe trait TracegenRiscvJalrKernel<F> {
+    fn tracegen_riscv_jalr_kernel() -> KernelPtr;
+}
+
+unsafe impl TracegenRiscvJalrKernel<KoalaBear> for TaskScope {
+    fn tracegen_riscv_jalr_kernel() -> KernelPtr {
+        unsafe { sp1_gpu_sys::tracegen::riscv_jalr_generate_trace_kernel() }
+    }
+}
+
+/// # Safety
 pub unsafe trait TracegenRiscvUTypeKernel<F> {
     fn tracegen_riscv_utype_kernel() -> KernelPtr;
 }

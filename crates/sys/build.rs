@@ -106,6 +106,9 @@ fn cbindgen_builder() -> cbindgen::Builder {
         // RISC-V JalChip types
         .include_item("JalGpuEvent")
         // Note: JalCols uses JTypeReader (manually defined in jal.cu) and AddOperation (already in cbindgen)
+        // RISC-V JalrChip types
+        .include_item("JalrGpuEvent")
+        // Note: JalrCols uses ITypeReader (already in cbindgen) and AddOperation (already in cbindgen)
         // RISC-V UTypeChip types
         .include_item("UTypeGpuEvent")
         // Note: UTypeCols, JTypeReader are manually defined in utype.cu because

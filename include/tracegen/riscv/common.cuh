@@ -117,11 +117,9 @@ __device__ void populate_alu_type_reader(
 }
 
 /// Populate ITypeReader from I-type instruction event data.
-/// Used by AddiChip and similar I-type instructions.
-template <class T>
-__device__ void populate_i_type_reader(
-    sp1_gpu_sys::ITypeReader<T>& adapter,
-    const sp1_gpu_sys::AddiGpuEvent& event) {
+/// Used by AddiChip, JalrChip, and similar I-type instructions.
+template <class T, class Event>
+__device__ void populate_i_type_reader(sp1_gpu_sys::ITypeReader<T>& adapter, const Event& event) {
     adapter.op_a = T::from_canonical_u32(event.op_a);
     populate_register_access_cols(adapter.op_a_memory, event.mem_a);
     adapter.op_a_0 = T::from_bool(event.op_a == 0);
