@@ -19,7 +19,7 @@ This document tracks the GPU tracegen implementation status for core RISC-V chip
 
 | Chip | Variant | GPU Impl | Stub | Tests | Perf | Integ | File |
 |------|---------|----------|------|-------|------|-------|------|
-| BitwiseChip | `Bitwise` | [x] | [x] | [x] | [x] | [ ] | `bitwise.rs` |
+| BitwiseChip | `Bitwise` | [x] | [x] | [x] | [x] | [x] | `bitwise.rs` |
 
 ## Shift Instructions
 
