@@ -1,4 +1,8 @@
 ## Codebase Patterns
+- MemoryGlobalChip events must be sorted by address before GPU transfer. The kernel reads events[i-1].addr for prev_addr, making it fully parallelizable (no sequential dependency).
+- For chips with sequential dependencies (prev_addr from previous row), pass the initial value as a kernel parameter and have each thread look up the adjacent event from the sorted events array.
+- IsZeroOperation: if a == 0 then inverse=0, result=1; else inverse=a.reciprocal(), result=0. Use populate_is_zero_from_field for field element input.
+- LtOperationUnsigned (address comparison): iterate u16 limbs from MSB to LSB to find first differing pair. Set flag, compute field inverse of diff, store comparison limbs. bit = comparison result (always 1 for strictly increasing addresses).
 - JTypeRecord is the simplest record type: only op_a (register write) + op_b/op_c (immediates). No register reads for b or c.
 - For field inverse computation in CUDA, use `kb31_t::reciprocal()` method which computes `a^(p-2) mod p` for Koala Bear field
 - SyscallInstrsChip uses RTypeReader (all 3 operands are registers). The syscall type is determined from prev_value of op_a (register t0). Need both prev_value (syscall code) and value (result) from memory record, so add a_value to the GPU event struct since GpuMemoryAccess only stores prev_value.
@@ -381,5 +385,27 @@
   - **byte_lookups uses hashbrown::HashMap:** The ExecutionRecord's `byte_lookups` field is `hashbrown::HashMap`, not `std::HashMap`. In tests, use `ByteRecord::add_byte_lookup_event()` to populate the record instead of constructing a HashMap directly.
   - **u16 shift overflow:** When generating test data for RangeChip, `1u16 << 16` overflows. Use `1u32 << bits` instead.
   - **Modest GPU speedup expected:** These chips are memory-bandwidth-limited scatter operations, not compute-intensive. ByteChip: 3.38x, RangeChip: 1.27x. The real benefit is keeping the data on GPU for subsequent proving operations.
+
+---
+
+## 2026-01-29 - MemoryGlobalChip GPU Tracegen
+- **What was implemented:** GPU trace generation for MemoryGlobalChip (Init and Finalize variants). This chip proves that memory addresses are strictly increasing within each shard, using LtOperationUnsigned for address comparison and IsZeroOperation for zero-checking.
+- **Files changed:**
+  - `crates/sys/src/riscv_events.rs` - Added `MemoryGlobalGpuEvent` struct (addr, value, timestamp)
+  - `crates/sys/build.rs` - Added cbindgen export for MemoryGlobalGpuEvent
+  - `lib/tracegen/riscv/memory_global.cu` - New CUDA kernel with manually-defined MemoryInitCols, LtOperationUnsigned, IsZeroOperation, U16CompareOperation structs
+  - `lib/tracegen/CMakeLists.txt` - Added memory_global.cu to build
+  - `crates/sys/src/tracegen.rs` - Declared extern fn for memory_global kernel
+  - `crates/cuda/src/tracegen.rs` - Added TracegenRiscvMemoryGlobalKernel trait
+  - `crates/tracegen/src/riscv/memory_state.rs` - Full CudaTracegenAir implementation for MemoryGlobalChip with Init and Finalize tests
+
+- **Learnings:**
+  - **Sorting on CPU, parallel on GPU:** Events are sorted by address on CPU before GPU transfer. Each GPU thread reads events[i-1].addr for prev_addr, making the kernel fully parallelizable with no sequential dependency.
+  - **previous_addr as kernel parameter:** The previous shard's last address is passed as a u64 kernel parameter (5th argument) rather than as part of the events array. Thread 0 uses this for its prev_addr.
+  - **IsZeroOperation for field elements:** `is_prev_addr_zero` uses `populate_from_field_element` on the sum of the 3 prev_addr limbs. The GPU implementation uses `kb31_t::reciprocal()` for the field inverse when the sum is non-zero.
+  - **LtOperationUnsigned for address comparison:** Always called with a_u64=1 (since addresses are strictly increasing). The comparison result bit is always 1. Iterates u16 limbs from MSB to LSB to find the first differing pair.
+  - **prev_valid logic:** prev_valid = 0 only when prev_addr == 0 AND i != 0. This handles the edge case where the previous shard ended with address 0 (no memory initialized yet).
+  - **Shared kernel for Init and Finalize:** Both variants use the same CUDA kernel - they differ only in which events and which public_values field is used (Rust side).
+  - **Performance:** ~49x GPU speedup on 1000 events test (Init: 48.63x, Finalize: 49.19x).
 
 ---

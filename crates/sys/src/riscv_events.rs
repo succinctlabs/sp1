@@ -589,6 +589,21 @@ pub struct RangeLookupGpuEntry {
     pub mult: u32,
 }
 
+/// GPU-compatible event for MemoryGlobalChip (Init and Finalize).
+///
+/// This mirrors `MemoryInitializeFinalizeEvent` which is already #[repr(C)].
+/// Events must be sorted by address before sending to the GPU.
+#[derive(Clone, Copy, Debug, Default)]
+#[repr(C)]
+pub struct MemoryGlobalGpuEvent {
+    /// The memory address.
+    pub addr: u64,
+    /// The memory value.
+    pub value: u64,
+    /// The timestamp.
+    pub timestamp: u64,
+}
+
 /// GPU-compatible event for SyscallChip (Core and Precompile).
 ///
 /// This is a minimal struct containing only the fields needed for SyscallCols trace generation.

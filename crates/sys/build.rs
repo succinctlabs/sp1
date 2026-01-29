@@ -130,6 +130,8 @@ fn cbindgen_builder() -> cbindgen::Builder {
         // RISC-V Lookup table types (ByteChip, RangeChip)
         .include_item("ByteLookupGpuEntry")
         .include_item("RangeLookupGpuEntry")
+        // RISC-V MemoryGlobalChip types
+        .include_item("MemoryGlobalGpuEvent")
         .with_namespace("sp1_gpu_sys")
         .with_crate(env::var("CARGO_MANIFEST_DIR").unwrap())
 }

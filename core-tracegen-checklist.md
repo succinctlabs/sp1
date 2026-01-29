@@ -75,8 +75,8 @@ This document tracks the GPU tracegen implementation status for core RISC-V chip
 
 | Chip | Variant | GPU Impl | Stub | Tests | Perf | File |
 |------|---------|----------|------|-------|------|------|
-| MemoryGlobalChip | `MemoryGlobalInit` | [ ] | [x] | [ ] | [ ] | `memory_state.rs` |
-| MemoryGlobalChip | `MemoryGlobalFinal` | [ ] | [x] | [ ] | [ ] | `memory_state.rs` |
+| MemoryGlobalChip | `MemoryGlobalInit` | [x] | [x] | [x] | [x] | `memory_state.rs` |
+| MemoryGlobalChip | `MemoryGlobalFinal` | [x] | [x] | [x] | [x] | `memory_state.rs` |
 | MemoryLocalChip | `MemoryLocal` | [ ] | [x] | [ ] | [ ] | `memory_state.rs` |
 | MemoryBumpChip | `MemoryBump` | [ ] | [x] | [ ] | [ ] | `memory_state.rs` |
 | StateBumpChip | `StateBump` | [ ] | [x] | [ ] | [ ] | `memory_state.rs` |
