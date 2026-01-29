@@ -60,9 +60,9 @@ This document tracks the GPU tracegen implementation status for core RISC-V chip
 
 | Chip | Variant | GPU Impl | Stub | Tests | Perf | Integ | File |
 |------|---------|----------|------|-------|------|-------|------|
-| SyscallInstrsChip | `SyscallInstrs` | [x] | [x] | [x] | [x] | [ ] | `syscall.rs` |
-| SyscallChip | `SyscallCore` | [x] | [x] | [x] | [x] | [ ] | `syscall.rs` |
-| SyscallChip | `SyscallPrecompile` | [x] | [x] | [x] | [x] | [ ] | `syscall.rs` |
+| SyscallInstrsChip | `SyscallInstrs` | [x] | [x] | [x] | [x] | [x] | `syscall.rs` |
+| SyscallChip | `SyscallCore` | [x] | [x] | [x] | [x] | [x] | `syscall.rs` |
+| SyscallChip | `SyscallPrecompile` | [x] | [x] | [x] | [x] | [x] | `syscall.rs` |
 
 ## Lookup Tables
 
