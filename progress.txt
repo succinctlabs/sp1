@@ -11,6 +11,7 @@
 - Chips using identical instruction formats can share GPU event structs via type aliases (e.g., SubGpuEvent = AddGpuEvent)
 - SubwChip uses RTypeReader (like SubChip), not ALUTypeReader (like AddwChip) - check column struct definitions carefully
 - **CRITICAL:** When chaining field arithmetic like `a * b - c + d`, use in-place operators (`*=`, `-=`, `+=`) to stay in `kb31_t` domain. The expression `a * b` returns `accel_t` (lazy 64-bit), and subsequent `accel_t` arithmetic can produce wrong results. Always force full Montgomery reduction between operations.
+- BranchChip uses ITypeRecord where BOTH op_a and op_b are register reads (MemoryReadRecord), not writes. This differs from ALU chips where op_a is typically a write.
 
 ---
 
@@ -271,5 +272,26 @@
   - **UTypeCols addend field:** `addend: [T; WORD_SIZE - 1]` is 3 elements (lower 48 bits of PC for AUIPC, zeros for LUI). cbindgen can't resolve `WORD_SIZE - 1`, so UTypeCols and JTypeReader are manually defined in the CUDA file.
   - **op_a_0 handling:** When `op_a == 0` (x0 register), addend is zero and add_operation.value is zero regardless of opcode. The is_auipc flag is still set correctly.
   - **Performance:** 62x GPU speedup on 1000 events test.
+
+---
+
+## 2026-01-29 - BranchChip GPU Tracegen
+- **What was implemented:** GPU trace generation for BranchChip (BEQ, BNE, BLT, BGE, BLTU, BGEU instructions)
+- **Files changed:**
+  - `crates/sys/src/riscv_events.rs` - Added `BranchGpuEvent` struct with opcode, next_pc, and ITypeRecord fields
+  - `crates/sys/build.rs` - Added cbindgen export for BranchGpuEvent
+  - `lib/tracegen/riscv/branch.cu` - New CUDA kernel with manually-defined BranchCols and LtOperationSigned structs
+  - `lib/tracegen/CMakeLists.txt` - Added branch.cu to build
+  - `crates/sys/src/tracegen.rs` - Declared extern fn for branch kernel
+  - `crates/cuda/src/tracegen.rs` - Added TracegenRiscvBranchKernel trait
+  - `crates/tracegen/src/riscv/control_flow.rs` - Full CudaTracegenAir implementation and test with timing
+
+- **Learnings:**
+  - **BranchChip uses ITypeRecord with read records for BOTH operands:** Unlike ALU chips where op_a is a write record, BranchChip has `a: MemoryReadRecord` and `b: MemoryReadRecord`. Both operands are register reads since branches don't write to a destination register.
+  - **LtOperationSigned reuse:** BranchChip reuses the same LtOperationSigned comparison logic as LtChip (signed/unsigned comparison with XOR sign bit trick). The CUDA structs (LtOperationSigned, LtOperationUnsigned, U16CompareOperation) need to be manually redefined in branch.cu since they contain `[T; WORD_SIZE]` arrays.
+  - **6 branch opcodes mapped to u8:** BEQ=0, BNE=1, BLT=2, BGE=3, BLTU=4, BGEU=5. Signed comparison used for BLT/BGE, unsigned for BLTU/BGEU.
+  - **Branching logic:** `is_branching` flag is computed from comparison result and opcode. BEQ: a==b, BNE: a!=b, BLT/BLTU: a<b, BGE/BGEU: !(a<b).
+  - **next_pc encoding:** 3 x u16 limbs, same as CPUState pc encoding.
+  - **Performance:** 21.7x GPU speedup on 1000 events test.
 
 ---

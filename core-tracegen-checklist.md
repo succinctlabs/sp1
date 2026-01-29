@@ -52,7 +52,7 @@ This document tracks the GPU tracegen implementation status for core RISC-V chip
 | Chip | Variant | GPU Impl | Stub | Tests | Perf | File |
 |------|---------|----------|------|-------|------|------|
 | UTypeChip | `UType` | [x] | [x] | [x] | [x] | `control_flow.rs` |
-| BranchChip | `Branch` | [ ] | [x] | [ ] | [ ] | `control_flow.rs` |
+| BranchChip | `Branch` | [x] | [x] | [x] | [x] | `control_flow.rs` |
 | JalChip | `Jal` | [ ] | [x] | [ ] | [ ] | `control_flow.rs` |
 | JalrChip | `Jalr` | [ ] | [x] | [ ] | [ ] | `control_flow.rs` |
 
@@ -96,10 +96,10 @@ This document tracks the GPU tracegen implementation status for core RISC-V chip
 ## Summary
 
 - **Total core chips**: 35
-- **GPU implemented**: 22 (Global, Add, Addw, Addi, Sub, Subw, Mul, DivRem, Lt, Bitwise, ShiftLeft, ShiftRight, LoadByte, LoadHalf, LoadWord, LoadDouble, LoadX0, StoreByte, StoreHalf, StoreWord, StoreDouble, UType)
+- **GPU implemented**: 23 (Global, Add, Addw, Addi, Sub, Subw, Mul, DivRem, Lt, Bitwise, ShiftLeft, ShiftRight, LoadByte, LoadHalf, LoadWord, LoadDouble, LoadX0, StoreByte, StoreHalf, StoreWord, StoreDouble, UType, Branch)
 - **Stubs created**: 35
-- **Tests passing**: 22
-- **Perf checked**: 21 (all implemented except DivRem which is disabled)
+- **Tests passing**: 23
+- **Perf checked**: 22 (all implemented except DivRem which is disabled)
 
 ## File Structure
 

@@ -373,6 +373,46 @@ pub struct UTypeGpuEvent {
     pub mem_a: GpuMemoryAccess,
 }
 
+/// GPU-compatible event for BranchChip (BEQ, BNE, BLT, BGE, BLTU, BGEU).
+///
+/// This flattens `BranchEvent` and `ITypeRecord` into a single struct without Options or enums.
+/// BranchChip uses ITypeReader (op_a and op_b are registers, op_c is an immediate).
+/// Unlike most other chips, BranchEvent has `next_pc` and 6 opcode variants.
+#[derive(Clone, Copy, Debug, Default)]
+#[repr(C)]
+pub struct BranchGpuEvent {
+    // From BranchEvent
+    /// Clock cycle of this instruction.
+    pub clk: u64,
+    /// Program counter of this instruction.
+    pub pc: u64,
+    /// Next program counter (target if branching, pc+4 if not).
+    pub next_pc: u64,
+    /// The first operand value (from rs1).
+    pub a: u64,
+    /// The second operand value (from rs2).
+    pub b: u64,
+    /// The third operand value (immediate offset).
+    pub c: u64,
+    /// Opcode: BEQ=0, BNE=1, BLT=2, BGE=3, BLTU=4, BGEU=5.
+    pub opcode: u8,
+    /// Whether the first operand is register 0.
+    pub op_a_0: bool,
+
+    // From ITypeRecord
+    /// Destination register number (rd).
+    pub op_a: u8,
+    /// Source register 1 spec (rs1).
+    pub op_b: u64,
+    /// Immediate value (op_c).
+    pub op_c: u64,
+
+    /// Memory access record for destination register (write).
+    pub mem_a: GpuMemoryAccess,
+    /// Memory access record for source register 1 (read).
+    pub mem_b: GpuMemoryAccess,
+}
+
 /// GPU-compatible event for memory load instructions (LB, LBU, LH, LHU, LW, LWU, LD).
 ///
 /// This flattens `MemInstrEvent` and `ITypeRecord` into a single struct without Options or enums.

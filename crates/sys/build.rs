@@ -99,6 +99,10 @@ fn cbindgen_builder() -> cbindgen::Builder {
         // RISC-V SubwChip types
         .include_item("SubwCols")
         .include_item("SubwOperation")
+        // RISC-V BranchChip types
+        .include_item("BranchGpuEvent")
+        // Note: BranchCols and LtOperationSigned are manually defined in branch.cu because
+        // cbindgen can't resolve the constant expression array sizes in LtOperationUnsigned
         // RISC-V UTypeChip types
         .include_item("UTypeGpuEvent")
         // Note: UTypeCols, JTypeReader are manually defined in utype.cu because
