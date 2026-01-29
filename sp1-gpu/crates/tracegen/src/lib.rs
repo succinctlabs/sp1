@@ -418,10 +418,13 @@ pub(crate) mod tests {
         trace: &Tensor<F>,
         gpu_trace: &Tensor<F>,
         events: &[impl core::fmt::Debug],
+        verbose: bool,
     ) {
         assert_eq!(gpu_trace.dimensions, trace.dimensions);
 
-        tracing::info!("{:?}", trace.dimensions);
+        if verbose {
+            println!("{:?}", trace.dimensions);
+        }
 
         let mut eventful_mismatched_columns = BTreeSet::new();
         let mut padding_mismatched_columns = BTreeSet::new();
@@ -431,26 +434,30 @@ pub(crate) mod tests {
                 let actual = gpu_trace[[row_idx, col_idx]];
                 let expected = trace[[row_idx, col_idx]];
                 if actual != expected {
-                    tracing::error!(
-                        "mismatch on row {} col {}. actual: {:?} expected: {:?}",
-                        row_idx,
-                        col_idx,
-                        *actual,
-                        *expected
-                    );
+                    if verbose {
+                        println!(
+                            "mismatch on row {} col {}. actual: {:?} expected: {:?}",
+                            row_idx, col_idx, *actual, *expected
+                        );
+                    }
                     col_mismatches.insert(col_idx);
                 }
             }
             let event = events.get(row_idx);
-            if col_mismatches.is_empty() {
-                tracing::info!(
-                    "row {row_idx} matches   . event (assuming events/row = 1): {event:?}"
-                );
-            } else {
-                tracing::error!(
-                    "row {row_idx} MISMATCHES. event (assuming events/row = 1): {event:?}"
-                );
-                tracing::error!("mismatched columns: {col_mismatches:?}");
+            if verbose {
+                if col_mismatches.is_empty() {
+                    println!(
+                        "row {row_idx} matches   . event (assuming events/row = 1): {event:?}"
+                    );
+                } else {
+                    println!(
+                        "row {row_idx} MISMATCHES. event (assuming events/row = 1): {event:?}"
+                    );
+                    println!("mismatched columns: {col_mismatches:?}");
+                }
+            } else if !col_mismatches.is_empty() {
+                println!("row {row_idx} MISMATCHES. event (assuming events/row = 1): {event:?}");
+                println!("mismatched columns: {col_mismatches:?}");
             }
             if event.is_some() {
                 eventful_mismatched_columns.extend(col_mismatches);
@@ -458,8 +465,13 @@ pub(crate) mod tests {
                 padding_mismatched_columns.extend(col_mismatches);
             }
         }
-        tracing::info!("eventful mismatched columns: {eventful_mismatched_columns:?}");
-        tracing::info!("padding mismatched columns: {padding_mismatched_columns:?}");
+        if !eventful_mismatched_columns.is_empty()
+            || !padding_mismatched_columns.is_empty()
+            || verbose
+        {
+            println!("eventful mismatched columns: {eventful_mismatched_columns:?}");
+            println!("padding mismatched columns: {padding_mismatched_columns:?}");
+        }
 
         assert_eq!(gpu_trace, trace);
     }
@@ -491,6 +503,6 @@ pub(crate) mod tests {
             .expect("should copy trace to host successfully")
             .into_guts();
 
-        crate::tests::test_traces_eq(&trace, &gpu_trace, &events);
+        crate::tests::test_traces_eq(&trace, &gpu_trace, &events, false);
     }
 }

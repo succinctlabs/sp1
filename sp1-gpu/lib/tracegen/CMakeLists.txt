@@ -8,6 +8,31 @@ add_library(tracegen_objs OBJECT
     recursion/prefix_sum_checks.cu
     recursion/sbox.cu
     recursion/select.cu
+    riscv/add.cu
+    riscv/addi.cu
+    riscv/addw.cu
+    riscv/bitwise.cu
+    riscv/branch.cu
+    riscv/divrem.cu
     riscv/global.cu
+    riscv/jal.cu
+    riscv/jalr.cu
+    riscv/load.cu
+    riscv/lookup.cu
+    riscv/lt.cu
+    riscv/memory_bump.cu
+    riscv/memory_global.cu
+    riscv/memory_local.cu
+    riscv/mul.cu
+    riscv/program.cu
+    riscv/shift_left.cu
+    riscv/shift_right.cu
+    riscv/state_bump.cu
+    riscv/store.cu
+    riscv/sub.cu
+    riscv/subw.cu
+    riscv/syscall.cu
+    riscv/syscall_instrs.cu
+    riscv/utype.cu
 )
 target_link_libraries(tracegen_objs PRIVATE sp1_gpu_common)

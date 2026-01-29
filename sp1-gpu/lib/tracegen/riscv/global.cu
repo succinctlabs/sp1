@@ -219,7 +219,7 @@ __global__ void riscv_global_generate_trace_finalize_kernel(
         if (event_idx >= nb_events) {
             bb31_septic_curve_t dummy = bb31_septic_curve_t::dummy_point();
             bb31_septic_curve_t start = bb31_septic_curve_t::start_point();
-            
+
             for (int k = 0; k < 7; k++) {
                 cols.accumulation.initial_digest[0]._0[k] = start.x.value[k];
                 cols.accumulation.initial_digest[1]._0[k] = start.y.value[k];

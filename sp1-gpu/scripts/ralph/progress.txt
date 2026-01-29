@@ -1,0 +1,73 @@
+# Ralph Progress Log
+Started: 2026-01-07
+
+## Codebase Patterns
+
+### Critical Encodings
+- **PC encoding**: Uses 3 x 16-bit limbs, NOT 22-bit. Reference: sp1-wip/crates/core/machine/src/adapter/state.rs:58-61
+  ```cpp
+  state.pc[0] = T::from_canonical_u32(pc & 0xFFFF);
+  state.pc[1] = T::from_canonical_u32((pc >> 16) & 0xFFFF);
+  state.pc[2] = T::from_canonical_u32((pc >> 32) & 0xFFFF);
+  ```
+- **Clock encoding**: high 24 bits, mid 8 bits (16-24), low 16 bits (0-16)
+
+### Test Data Best Practices
+- Use large values that span multiple limbs to catch encoding bugs:
+  - `base_pc: 0x8000_4000_2000` (bits in all 3 16-bit limbs)
+  - `base_timestamp: 0x1_0000_1000` (spans clock limbs)
+- Small test values may mask encoding bugs (e.g., 0x1000 produces same result for 16-bit and 22-bit limb encodings)
+
+### CUDA Shared Code
+- Use `#include "tracegen/riscv/common.cuh"` for shared helper functions:
+  - `u64_to_word()` - Convert u64 to Word<T> (4 x 16-bit limbs)
+  - `populate_cpu_state()` - Populate CPUState from clock and PC
+  - `populate_register_access_cols()` - Populate register access columns
+  - `populate_r_type_reader()` - For R-type instructions (Add, Sub, Mul, etc.)
+  - `populate_alu_type_reader()` - For ALU-type instructions with immediate mode (Addw)
+  - `populate_i_type_reader()` - For I-type instructions (Addi, Jalr) - templated on Event type
+
+### cbindgen Limitations
+- cbindgen can't resolve constant expressions like `WORD_SIZE / 2` or `LONG_WORD_BYTE_SIZE`
+- Manually define these structs in CUDA files (AddwOperation, SubwOperation, MulCols, etc.)
+- WORD_SIZE is defined in cbindgen prologue in build.rs
+
+## Key Files
+- `include/tracegen/riscv/common.cuh` - Shared CUDA helpers for RISC-V tracegen
+- `crates/tracegen/src/riscv/alu.rs` - Rust GPU tracegen implementations
+- `sp1-wip/crates/core/machine/src/adapter/state.rs` - CPU reference for encodings
+
+---
+
+## 2026-01-29 - JalrChip GPU Tracegen
+- Implemented GPU trace generation for JALR instruction
+- **Key differences from JalChip:**
+  - Uses ITypeReader (not JTypeReader) - op_b is a register read with memory access
+  - Has extra `op_a_value: Word<T>` field for return address value
+  - `add_operation` = op_b + imm (not pc + b as in JAL)
+  - JalrGpuEvent has `a` (return addr value), `b` (base register), `mem_b` (register read)
+- **Template fix:** Made `populate_i_type_reader` in common.cuh generic over event type (was hardcoded to `AddiGpuEvent&`), matching the pattern already used by `populate_r_type_reader`
+- **Files modified:**
+  - `crates/sys/src/riscv_events.rs` - Added JalrGpuEvent struct
+  - `crates/sys/build.rs` - Added cbindgen include_item
+  - `crates/sys/src/tracegen.rs` - Added extern fn declaration
+  - `crates/cuda/src/tracegen.rs` - Added kernel trait
+  - `lib/tracegen/CMakeLists.txt` - Added jalr.cu
+  - `lib/tracegen/riscv/jalr.cu` - CUDA kernel implementation
+  - `include/tracegen/riscv/common.cuh` - Templated populate_i_type_reader on Event type
+  - `crates/tracegen/src/riscv/control_flow.rs` - CudaTracegenAir impl + test
+- **Test results:** 66x GPU speedup (1000 events)
+- **Integration test:** 241M cycles, 55 shards, 32.0s - PASSED
+
+---
+
+## 2026-01-28 - PC Encoding Bug Fix & CUDA Refactor
+- Fixed PC encoding bug: was using 22-bit limbs instead of 16-bit limbs
+- Created shared header `include/tracegen/riscv/common.cuh` to eliminate code duplication
+- Updated all ALU chip CUDA files (add, addw, addi, sub, subw, mul) to use shared header
+- Hardened unit tests with large PC/timestamp values to catch encoding bugs
+- **Learnings:**
+  - Small test values can mask encoding bugs - always use values that span multiple limbs
+  - Reference CPU implementation for exact encoding details
+  - Shared headers reduce duplication and prevent inconsistent implementations
+---

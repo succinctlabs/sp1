@@ -160,6 +160,6 @@ pub(crate) mod tests {
             unreachable!()
         };
 
-        crate::tests::test_traces_eq(&trace, &gpu_trace, &instrs);
+        crate::tests::test_traces_eq(&trace, &gpu_trace, &instrs, false);
     }
 }

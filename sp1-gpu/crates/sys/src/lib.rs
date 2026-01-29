@@ -7,6 +7,7 @@ pub mod logup_gkr;
 pub mod merkle_tree;
 pub mod mle;
 pub mod reduce;
+pub mod riscv_events;
 pub mod runtime;
 pub mod scan;
 pub mod sumcheck;
@@ -14,3 +15,5 @@ pub mod tracegen;
 pub mod transpose;
 pub mod v2_kernels;
 pub mod zerocheck;
+
+pub use riscv_events::*;
