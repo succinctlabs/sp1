@@ -50,6 +50,8 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::DivRem(chip) => chip.supports_device_main_tracegen(),
             Self::Lt(chip) => chip.supports_device_main_tracegen(),
             Self::Bitwise(chip) => chip.supports_device_main_tracegen(),
+            Self::ShiftLeft(chip) => chip.supports_device_main_tracegen(),
+            Self::ShiftRight(chip) => chip.supports_device_main_tracegen(),
             _ => false,
         }
     }
@@ -72,6 +74,8 @@ impl CudaTracegenAir<F> for RiscvAir<F> {
             Self::DivRem(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::Lt(chip) => chip.generate_trace_device(input, output, scope).await,
             Self::Bitwise(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::ShiftLeft(chip) => chip.generate_trace_device(input, output, scope).await,
+            Self::ShiftRight(chip) => chip.generate_trace_device(input, output, scope).await,
             _ => unimplemented!(),
         }
     }

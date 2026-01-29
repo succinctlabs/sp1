@@ -25,8 +25,8 @@ This document tracks the GPU tracegen implementation status for core RISC-V chip
 
 | Chip | Variant | GPU Impl | Stub | Tests | Perf | Integ | File |
 |------|---------|----------|------|-------|------|-------|------|
-| ShiftLeft | `ShiftLeft` | [x] | [x] | [x] | [x] | [ ] | `shift.rs` |
-| ShiftRightChip | `ShiftRight` | [x] | [x] | [x] | [x] | [ ] | `shift.rs` |
+| ShiftLeft | `ShiftLeft` | [x] | [x] | [x] | [x] | [x] | `shift.rs` |
+| ShiftRightChip | `ShiftRight` | [x] | [x] | [x] | [x] | [x] | `shift.rs` |
 
 ## Memory Load Instructions
 
