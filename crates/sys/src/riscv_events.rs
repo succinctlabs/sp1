@@ -521,3 +521,42 @@ pub struct LoadGpuEvent {
     /// Memory access record for source register 1 (read).
     pub mem_b: GpuMemoryAccess,
 }
+
+/// GPU-compatible event for SyscallInstrsChip.
+///
+/// This flattens `SyscallEvent` and `RTypeRecord` into a single struct without Options or enums.
+/// SyscallInstrsChip uses RTypeReader (all three operands are registers).
+/// The syscall type is determined from the prev_value of op_a (register t0).
+#[derive(Clone, Copy, Debug, Default)]
+#[repr(C)]
+pub struct SyscallInstrsGpuEvent {
+    // From SyscallEvent
+    /// Clock cycle of this instruction.
+    pub clk: u64,
+    /// Program counter of this instruction.
+    pub pc: u64,
+    /// The first argument (op_b value, i.e. register value of op_b).
+    pub arg1: u64,
+    /// The second argument (op_c value, i.e. register value of op_c).
+    pub arg2: u64,
+    /// The exit code (for HALT).
+    pub exit_code: u32,
+    /// The value written to op_a register (record.a.value()).
+    /// Needed separately because GpuMemoryAccess only stores prev_value.
+    pub a_value: u64,
+
+    // From RTypeRecord
+    /// Destination register number (op_a / t0).
+    pub op_a: u8,
+    /// Source register 1 spec (op_b).
+    pub op_b: u64,
+    /// Source register 2 spec (op_c).
+    pub op_c: u64,
+
+    /// Memory access record for op_a register.
+    pub mem_a: GpuMemoryAccess,
+    /// Memory access record for op_b register.
+    pub mem_b: GpuMemoryAccess,
+    /// Memory access record for op_c register.
+    pub mem_c: GpuMemoryAccess,
+}

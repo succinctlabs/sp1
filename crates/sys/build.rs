@@ -121,6 +121,10 @@ fn cbindgen_builder() -> cbindgen::Builder {
         .include_item("DivRemGpuEvent")
         // Note: DivRemCols and related operations are manually defined in divrem.cu
         // because they contain complex nested types and constant expressions
+        // RISC-V SyscallInstrsChip types
+        .include_item("SyscallInstrsGpuEvent")
+        // Note: SyscallInstrColumns and IsZeroOperation/SP1FieldWordRangeChecker/U16toU8Operation
+        // are manually defined in syscall_instrs.cu because they contain complex nested types
         .with_namespace("sp1_gpu_sys")
         .with_crate(env::var("CARGO_MANIFEST_DIR").unwrap())
 }

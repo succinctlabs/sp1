@@ -24,6 +24,7 @@ add_library(tracegen_objs OBJECT
     riscv/store.cu
     riscv/sub.cu
     riscv/subw.cu
+    riscv/syscall_instrs.cu
     riscv/utype.cu
 )
 target_link_libraries(tracegen_objs PRIVATE sp1_gpu_common)

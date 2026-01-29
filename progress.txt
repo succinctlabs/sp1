@@ -1,6 +1,8 @@
 ## Codebase Patterns
 - JTypeRecord is the simplest record type: only op_a (register write) + op_b/op_c (immediates). No register reads for b or c.
 - For field inverse computation in CUDA, use `kb31_t::reciprocal()` method which computes `a^(p-2) mod p` for Koala Bear field
+- SyscallInstrsChip uses RTypeReader (all 3 operands are registers). The syscall type is determined from prev_value of op_a (register t0). Need both prev_value (syscall code) and value (result) from memory record, so add a_value to the GPU event struct since GpuMemoryAccess only stores prev_value.
+- For syscall test events, clk must satisfy clk ≡ 1 (mod 8) because CPUState.populate computes (clk_0_16 - 1) / 8 which underflows if clk_0_16 == 0. Use base_timestamp ≡ 1 (mod 8) and increment by 8.
 - When cbindgen can't handle constant expressions like `[T; WORD_SIZE / 2]` or `[T; LONG_WORD_BYTE_SIZE]`, manually define the entire struct hierarchy in the CUDA file
 - For complex operations with multiple array sizes (like MulOperation), may need to manually define MulCols, MulOperation, and U16toU8Operation together
 - When cbindgen can't handle constant expressions like `[T; WORD_SIZE / 2]`, manually define the struct in the CUDA file
@@ -315,5 +317,28 @@
   - **JumpEvent vs JalEvent:** The event type is `JumpEvent` (shared with JALR), not a JAL-specific event. It includes `next_pc` (which JAL doesn't use in trace columns but Branch does), `opcode` (always JAL for this chip), and `a`/`b`/`c` operand values.
   - **op_a_0 handling:** When op_a == 0 (x0 register), op_a_operation stores zero instead of pc + 4. The CPU trace_into also uses `Word::from(0u64)` in this case.
   - **Performance:** 24.67x GPU speedup on 1000 events test.
+
+---
+
+## 2026-01-29 - SyscallInstrsChip GPU Tracegen
+- **What was implemented:** GPU trace generation for SyscallInstrsChip (ECALL instruction handling: HALT, ENTER_UNCONSTRAINED, HINT_LEN, COMMIT, COMMIT_DEFERRED_PROOFS, and other syscalls)
+- **Files changed:**
+  - `crates/sys/src/riscv_events.rs` - Added `SyscallInstrsGpuEvent` struct with a_value field for write record's current value
+  - `crates/sys/build.rs` - Added cbindgen export for SyscallInstrsGpuEvent
+  - `lib/tracegen/riscv/syscall_instrs.cu` - New CUDA kernel with manually-defined IsZeroOperation, SP1FieldWordRangeChecker, U16toU8Operation, and SyscallInstrColumns structs
+  - `lib/tracegen/CMakeLists.txt` - Added syscall_instrs.cu to build
+  - `crates/sys/src/tracegen.rs` - Declared extern fn for syscall_instrs kernel
+  - `crates/cuda/src/tracegen.rs` - Added TracegenRiscvSyscallInstrsKernel trait
+  - `crates/tracegen/src/riscv/syscall.rs` - Full CudaTracegenAir implementation with test and timing
+- **Learnings:**
+  - **Dual-value memory records:** SyscallInstrsChip needs BOTH prev_value (for syscall_id extraction) and value (for op_a_value column) from op_a's MemoryRecordEnum. Since GpuMemoryAccess only stores prev_value (from previous_record()), added `a_value` field to the GPU event for the Write record's current value.
+  - **IsZeroOperation for syscall type detection:** Each syscall type is detected via IsZeroOperation on `(syscall_id - target_id)`. If the difference is zero, result=1, inverse=0. Otherwise result=0, inverse=a^(-1). Uses `kb31_t::reciprocal()` for field inverse.
+  - **SP1FieldWordRangeChecker:** Contains a U16CompareOperation with just a `bit: T` field. Checks if ms_limb (limb[1]) < TOP_LIMB (32512 = 127*256). Used for HALT (op_b range check) and COMMIT_DEFERRED_PROOFS (op_c range check).
+  - **U16toU8Operation:** Extracts low byte from each u16 limb. Used for `a_low_bytes` which decomposes the prev_value to extract the syscall_id byte.
+  - **next_pc encoding for HALT:** When syscall is HALT, next_pc = [1, 0, 0] (HALT_PC = 1). Otherwise next_pc = [pc_low + 4, pc_mid, pc_high].
+  - **COMMIT index_bitmap:** digest_idx comes from `record.b.value()` which for a read record equals prev_value. Only lower 3 bits used (index 0-7 into PV_DIGEST_NUM_WORDS array).
+  - **COMMIT expected_public_values_digest:** 4 bytes from `record.c.value() as u32` in little-endian order.
+  - **clk constraint:** Test events must have clk ≡ 1 (mod 8) for CPUState.populate. Using base_timestamp = 0x1_0000_1001 and increment of 8 satisfies this.
+  - **Performance:** 65.47x GPU speedup on 1000 events test.
 
 ---

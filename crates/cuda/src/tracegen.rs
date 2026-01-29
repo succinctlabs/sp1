@@ -257,6 +257,17 @@ unsafe impl TracegenRiscvBranchKernel<KoalaBear> for TaskScope {
 }
 
 /// # Safety
+pub unsafe trait TracegenRiscvSyscallInstrsKernel<F> {
+    fn tracegen_riscv_syscall_instrs_kernel() -> KernelPtr;
+}
+
+unsafe impl TracegenRiscvSyscallInstrsKernel<KoalaBear> for TaskScope {
+    fn tracegen_riscv_syscall_instrs_kernel() -> KernelPtr {
+        unsafe { sp1_gpu_sys::tracegen::riscv_syscall_instrs_generate_trace_kernel() }
+    }
+}
+
+/// # Safety
 pub unsafe trait TracegenRiscvGlobalKernel<F> {
     fn tracegen_riscv_global_decompress_kernel() -> KernelPtr;
     fn tracegen_riscv_global_finalize_kernel() -> KernelPtr;
