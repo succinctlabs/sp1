@@ -13,11 +13,7 @@ publish = false
 
 [dependencies]
 sp1-core-executor = { workspace = true }
-sp1-sdk = { workspace = true, features = [
-    "native-gnark",
-    "native-cuda",
-    "network",
-] }
+sp1-sdk = { workspace = true, features = ["native-gnark", "network"] }
 sp1-prover = { workspace = true }
 sp1-prover-types = { workspace = true }
 sp1-core-machine = { workspace = true }
@@ -36,7 +32,7 @@ tracing = { workspace = true }
 
 [[bin]]
 name = "sp1-perf"
-path = "src/main.rs"
+path = "src/perf.rs"
 
 [[bin]]
 name = "sp1-perf-executor"

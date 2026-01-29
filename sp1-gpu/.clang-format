@@ -1,0 +1,30 @@
+Language: Cpp
+BasedOnStyle: LLVM
+
+# Force parameters on separate lines
+BinPackParameters: false
+BinPackArguments: false
+AllowAllParametersOfDeclarationOnNextLine: false
+AllowAllArgumentsOnNextLine: false
+
+# Break after opening parenthesis if parameters don't fit
+AlignAfterOpenBracket: AlwaysBreak
+
+# Column limit (adjust as needed)
+ColumnLimit: 100
+
+# Indentation
+IndentWidth: 4
+ContinuationIndentWidth: 4
+
+# Other useful settings for CUDA
+BreakBeforeBraces: Attach
+AlwaysBreakTemplateDeclarations: Yes
+PointerAlignment: Left
+ReferenceAlignment: Left
+
+# Keep empty lines
+MaxEmptyLinesToKeep: 2
+
+# Don't sort includes if you have specific order requirements
+SortIncludes: false

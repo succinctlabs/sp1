@@ -18,6 +18,10 @@ inputs:
     description: "Optional toolchain to override"
     required: false
     default: null
+  setup_gpu:
+    description: "Whether to setup GPU environment (CUDA, CMake, etc.)"
+    required: false
+    default: 'false'
 runs:
   using: "composite"
   steps:
@@ -84,6 +88,16 @@ runs:
           ~/.rustup/
         key: sp1-rust-${{ runner.arch }}-${{ runner.os }}
 
+    - name: Install rustup if not present
+      shell: bash
+      run: |
+        if ! command -v rustup &> /dev/null; then
+          echo "rustup not found. Installing..."
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          export PATH="$HOME/.cargo/bin:$PATH"
+        fi
+
     - name: Run sccache-cache only on non-release runs
       if: github.event_name != 'release' && github.event_name != 'workflow_dispatch'
       uses: mozilla-actions/sccache-action@v0.0.9
@@ -127,6 +141,40 @@ runs:
         else
           echo "pkg-config and libssl-dev are already installed."
         fi
+
+    - name: Install GPU dependencies
+      if: inputs.setup_gpu == 'true'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libclang-dev unzip
+
+    - name: Install CMake 3.31 (for CUDA C++20 support)
+      if: inputs.setup_gpu == 'true'
+      shell: bash
+      run: |
+        CMAKE_VERSION=3.31.4
+        if ! cmake --version 2>/dev/null | grep -q "$CMAKE_VERSION"; then
+          echo "Installing CMake $CMAKE_VERSION..."
+          wget -q https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-x86_64.sh
+          chmod +x cmake-${CMAKE_VERSION}-linux-x86_64.sh
+          sudo ./cmake-${CMAKE_VERSION}-linux-x86_64.sh --skip-license --prefix=/usr/local
+          rm cmake-${CMAKE_VERSION}-linux-x86_64.sh
+        fi
+        cmake --version
+
+    - name: Set up CUDA environment
+      if: inputs.setup_gpu == 'true'
+      shell: bash
+      run: |
+        echo "CUDA_HOME=/usr/local/cuda-12.6" >> $GITHUB_ENV
+        echo "LD_LIBRARY_PATH=/usr/local/cuda-12.6/lib64:${LD_LIBRARY_PATH}" >> $GITHUB_ENV
+        echo "/usr/local/cuda-12.6/bin" >> $GITHUB_PATH
+
+    - name: Confirm CUDA installation
+      if: inputs.setup_gpu == 'true'
+      shell: bash
+      run: which nvcc
 
     - name: Install Protoc
       uses: arduino/setup-protoc@v3

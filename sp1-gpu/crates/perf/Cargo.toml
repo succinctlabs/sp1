@@ -1,0 +1,71 @@
+[package]
+name = "sp1-gpu-perf"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+sp1-gpu-cudart = { workspace = true }
+sp1-gpu-prover = { workspace = true }
+sp1-gpu-tracing = { workspace = true }
+sp1-gpu-shard-prover = { workspace = true }
+sp1-core-machine = { workspace = true }
+sp1-core-executor = { workspace = true }
+sp1-prover = { workspace = true }
+sp1-recursion-gnark-ffi = { workspace = true }
+sp1-hypercube = { workspace = true }
+sp1-sdk = { workspace = true }
+
+sp1-prover-types = { workspace = true }
+sp1-primitives = { workspace = true }
+
+slop-algebra = { workspace = true }
+
+csv = "1.3.0"
+tracing = { workspace = true }
+tokio = { workspace = true }
+
+tokio-blocked = { workspace = true, optional = true }
+
+clap = { version = "4.5.7", features = ["derive", "env"] }
+bincode = "1.3.3"
+prettytable = "0.10.0"
+dotenv = { workspace = true }
+either = { version = "1.8.0", features = ["serde"] }
+
+# telemetry
+opentelemetry = "^0.23.0"
+opentelemetry_sdk = { version = "^0.23.0", features = [
+    "trace",
+    "rt-tokio",
+    "logs_level_enabled",
+] }
+opentelemetry-otlp = { version = "^0.16.0", features = ["default", "logs"] }
+tracing-opentelemetry = "^0.24"
+tracing-subscriber = "0.3.19"
+
+[features]
+bigint-rug = [
+    "sp1-core-executor/bigint-rug",
+    "sp1-core-machine/bigint-rug",
+    "sp1-gpu-prover/bigint-rug",
+]
+native-gnark = ["sp1-prover/native-gnark"]
+groth16-cuda = ["sp1-recursion-gnark-ffi/groth16-cuda"]
+experimental = ["sp1-prover/experimental"]
+tokio-blocked = ["dep:tokio-blocked", "tokio/tracing"]
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "node"
+path = "src/bin/node.rs"
+
+[[bin]]
+name = "vk-gen"
+path = "src/bin/vk_gen.rs"
+required-features = ["experimental"]

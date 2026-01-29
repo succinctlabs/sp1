@@ -1,0 +1,24 @@
+CompileFlags:
+  # Remove nvcc-specific flags that clangd doesn't understand
+  Remove:
+    - "-forward-unknown-to-host-compiler"
+    - "--expt-relaxed-constexpr"
+    - "--use_fast_math"
+    - "-Xcompiler*"
+    - "-rdc=true"
+    - "--generate-code=*"
+    - "-default-stream=*"
+    - "-lineinfo"
+
+Diagnostics:
+  Suppress:
+    - "*defaulted*"
+    - "*deleted*"
+    - "ovl_deleted_special_init"
+    - "module_odr_violation*"
+    - "*cuda*"
+  ClangTidy:
+    Remove:
+      - "modernize-use-equals-default"
+      - "cppcoreguidelines-pro-type-member-init"
+      - "hicpp-member-init"

@@ -12,9 +12,6 @@ on:
       network_workloads:
         description: "JSON list of network workloads to run"
         required: true
-      cuslop_checkout:
-        description: "git ref to checkout for cuslop"
-        required: false
       network_concurrent_repeat_count:
         description: "Number of times to repeat the network workload concurrently (using tokio tasks)"
         default: "1"
@@ -131,9 +128,9 @@ jobs:
           mkdir -p ~/.sp1/bin
           mv target/release/sp1-perf ~/.sp1/bin/sp1-perf
 
-  build-cuslop-server:
+  build-sp1-gpu-server:
     if: ${{ fromJSON(github.event.inputs.cuda_workloads)[0] != null }}
-    name: Build cuslop
+    name: Build sp1-gpu-server
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     runs-on:
@@ -145,22 +142,8 @@ jobs:
         "run-id=${{ github.run_id }}",
       ]
     outputs:
-      cache-key: ${{ steps.cuslop-server-cache-key.outputs.key }}
+      cache-key: ${{ steps.sp1-gpu-server-cache-key.outputs.key }}
     steps:
-      - name: Clone cuslop repo
-        id: cuslop-clone
-        run: |
-          cuslop_dir=$(mktemp -d /tmp/cuslop.XXXXXXXXXX)
-          git clone https://${{ secrets.CUSLOP_ACCESS }}@github.com/succinctlabs/cuslop $cuslop_dir
-          pushd $cuslop_dir
-          if [ -n "${{ github.event.inputs.cuslop_checkout }}" ]; then
-            git checkout "${{ github.event.inputs.cuslop_checkout }}"
-          fi
-          head=$(git rev-parse --short HEAD)
-          popd
-          echo "head=$head" >> $GITHUB_OUTPUT
-          echo "dir=$cuslop_dir" >> $GITHUB_OUTPUT
-
       - name: Install CUDA (driver + runtime)
         uses: Jimver/cuda-toolkit@v0.2.30
         id: cuda-toolkit
@@ -178,18 +161,18 @@ jobs:
           use-local-cache:  false
           log-file-suffix:  '${{ matrix.platform }}-${{ matrix.arch }}.txt'
 
-      - name: Get cache key for cuslop-server
-        id: cuslop-server-cache-key
+      - name: Get cache key for sp1-gpu-server
+        id: sp1-gpu-server-cache-key
         run: |
           nvcc_build=$(nvcc --version | grep "Build " | awk '{ print $2 }')
-          echo "key=cuslop-server-${{ runner.os }}-${{ runner.arch }}-${{ steps.cuslop-clone.outputs.head }}-$nvcc_build" >> $GITHUB_OUTPUT
+          echo "key=sp1-gpu-server-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}-$nvcc_build" >> $GITHUB_OUTPUT
 
-      - name: Restore cuslop-server cache
-        id: cuslop-server-cache
+      - name: Restore sp1-gpu-server cache
+        id: sp1-gpu-server-cache
         uses: actions/cache@v4
         with:
-          path: ~/.sp1/bin/cuslop-server
-          key: ${{ steps.cuslop-server-cache-key.outputs.key }}
+          path: ~/.sp1/bin/sp1-gpu-server
+          key: ${{ steps.sp1-gpu-server-cache-key.outputs.key }}
 
       - name: Install system dependencies
         if: steps.cuda-toolkit.outputs.cache-hit != 'true'
@@ -198,22 +181,19 @@ jobs:
           sudo apt-get install -y m4 pkg-config libssl-dev unzip libclang-dev
 
       - name: Checkout sources
-        if: steps.cuslop-server-cache.outputs.cache-hit != 'true'
+        if: steps.sp1-gpu-server-cache.outputs.cache-hit != 'true'
         uses: actions/checkout@v4
 
       - name: Setup CI
-        if: steps.cuslop-server-cache.outputs.cache-hit != 'true'
+        if: steps.sp1-gpu-server-cache.outputs.cache-hit != 'true'
         uses: ./.github/actions/setup
         with:
           pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
 
-      - name: Install the latest cuslop-server
-        if: steps.cuslop-server-cache.outputs.cache-hit != 'true'
+      - name: Install the latest sp1-gpu-server
+        if: steps.sp1-gpu-server-cache.outputs.cache-hit != 'true'
         run: |
-          pushd ${{ steps.cuslop-clone.outputs.dir }}
-          cargo install --locked --root "$HOME/.sp1" --path crates/cuslop
-          popd
-          rm -rf ${{ steps.cuslop-clone.outputs.dir }}
+          cargo install --locked --root "$HOME/.sp1" --path sp1-gpu/crates/server
 
   test-cpu:
     if: ${{ fromJSON(github.event.inputs.cpu_workloads)[0] != null }}
@@ -286,7 +266,7 @@ jobs:
       ]
     needs:
       - build-sp1-perf-cuda
-      - build-cuslop-server
+      - build-sp1-gpu-server
     steps:
       - name: Restore sp1-perf cache
         id: restore-sp1-perf-cache
@@ -296,13 +276,13 @@ jobs:
           path: ~/.sp1/bin/sp1-perf
           key: ${{ needs.build-sp1-perf-cuda.outputs.cache-key }}
 
-      - name: Restore cuslop-server cache
-        id: restore-cuslop-server-cache
+      - name: Restore sp1-gpu-server cache
+        id: restore-sp1-gpu-server-cache
         uses: actions/cache/restore@v4
         with:
           fail-on-cache-miss: true
-          path: ~/.sp1/bin/cuslop-server
-          key: ${{ needs.build-cuslop-server.outputs.cache-key }}
+          path: ~/.sp1/bin/sp1-gpu-server
+          key: ${{ needs.build-sp1-gpu-server.outputs.cache-key }}
 
       - name: Install CUDA (driver + runtime)
         uses: Jimver/cuda-toolkit@v0.2.30

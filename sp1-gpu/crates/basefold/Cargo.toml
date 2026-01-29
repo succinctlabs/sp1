@@ -1,0 +1,62 @@
+[package]
+name = "sp1-gpu-basefold"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+# sp1-gpu
+sp1-gpu-cudart = { workspace = true }
+sp1-gpu-tracegen = { workspace = true }
+sp1-gpu-challenger = { workspace = true }
+
+sp1-gpu-utils = { workspace = true }
+sp1-gpu-merkle-tree = { workspace = true }
+
+slop-algebra = { workspace = true }
+slop-alloc = { workspace = true }
+slop-basefold-prover = { workspace = true }
+slop-multilinear = { workspace = true }
+slop-commit = { workspace = true }
+slop-futures = { workspace = true }
+slop-basefold = { workspace = true }
+slop-merkle-tree = { workspace = true }
+slop-tensor = { workspace = true }
+slop-challenger = { workspace = true }
+slop-koala-bear = { workspace = true }
+slop-symmetric = { workspace = true }
+slop-dft = { workspace = true }
+slop-poseidon2 = { workspace = true }
+slop-bn254 = { workspace = true }
+
+# sp1
+sp1-hypercube = { workspace = true }
+sp1-primitives = { workspace = true }
+
+# misc
+itertools = { workspace = true }
+rand = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+
+[dev-dependencies]
+sp1-gpu-jagged-tracegen = { workspace = true }
+serial_test = "3.1"
+zstd = "0.13.3"
+sp1-sdk = { workspace = true }
+sp1-recursion-circuit = { workspace = true }
+sp1-gpu-prover = { workspace = true }
+sp1-gpu-commit = { workspace = true }
+sp1-recursion-compiler = { workspace = true }
+slop-stacked = { workspace = true }
+slop-poseidon2 = { workspace = true }
+sp1-primitives = { workspace = true }
+futures = { workspace = true }
+slop-futures = { workspace = true }
+tracing = { workspace = true }
+
+[lints]
+workspace = true

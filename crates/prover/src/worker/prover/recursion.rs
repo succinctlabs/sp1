@@ -8,6 +8,7 @@ use crate::{
         recursive_verifier, shrink_program_from_input, wrap_program_from_input, RecursionVks,
     },
     shapes::SP1RecursionProofShape,
+    verify::WRAP_VK_BYTES,
     worker::{
         CommonProverInput, ProverMetrics, RangeProofs, RawTaskRequest, TaskContext, TaskError,
         TaskMetadata,
@@ -48,7 +49,7 @@ use sp1_recursion_gnark_ffi::{Groth16Bn254Prover, PlonkBn254Prover};
 use std::{
     borrow::Borrow,
     collections::{BTreeMap, BTreeSet, VecDeque},
-    sync::Arc,
+    sync::{Arc, OnceLock},
 };
 use tokio::sync::oneshot;
 use tracing::Instrument;
@@ -404,9 +405,18 @@ pub type ReduceSubmitHandle<A, C> = SubmitHandle<ReducePipeline<A, C>>;
 pub struct SP1RecursionProver<A, C: SP1ProverComponents> {
     reduce_pipeline: Arc<ReducePipeline<A, C>>,
     pub shrink_prover: Arc<ShrinkProver<C>>,
-    pub wrap_prover: Arc<WrapProver<C>>,
+    wrap_prover: Arc<OnceLock<Arc<WrapProver<C>>>>,
+    wrap_prover_init: Arc<WrapProverInit<C>>,
     pub prover_data: Arc<RecursionProverData<C>>,
     artifact_client: A,
+}
+
+struct WrapProverInit<C: SP1ProverComponents> {
+    prover: Arc<C::WrapProver>,
+    permits: ProverSemaphore,
+    config: SP1RecursionProverConfig,
+    shrink_shape: BTreeMap<String, usize>,
+    expected_wrap_vk: MachineVerifyingKey<SP1OuterGlobalContext>,
 }
 
 impl<A: Clone, C: SP1ProverComponents> Clone for SP1RecursionProver<A, C> {
@@ -415,6 +425,7 @@ impl<A: Clone, C: SP1ProverComponents> Clone for SP1RecursionProver<A, C> {
             reduce_pipeline: self.reduce_pipeline.clone(),
             shrink_prover: self.shrink_prover.clone(),
             wrap_prover: self.wrap_prover.clone(),
+            wrap_prover_init: self.wrap_prover_init.clone(),
             prover_data: self.prover_data.clone(),
             artifact_client: self.artifact_client.clone(),
         }
@@ -442,7 +453,7 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
             let vk_map_path = config.vk_map_file.as_ref().map(std::path::PathBuf::from);
 
             let recursion_vks =
-RecursionVks::new(vk_map_path, config.max_compose_arity, config.vk_verification);
+                RecursionVks::new(vk_map_path, config.max_compose_arity, config.vk_verification);
 
             let recursion_vks_height = recursion_vks.height();
 
@@ -565,15 +576,23 @@ RecursionVks::new(vk_map_path, config.max_compose_arity, config.vk_verification)
                 config.clone(),
             ));
 
-            let wrap_prover = Arc::new(WrapProver::new(
-                wrap_prover,
-                wrap_prover_permits,
-                prover_data.clone(),
-                config.clone(),
-                shrink_prover.shrink_shape.clone(),
-            ));
+            let expected_wrap_vk = bincode::deserialize(WRAP_VK_BYTES).unwrap();
+            let wrap_prover_init = WrapProverInit {
+                prover: wrap_prover,
+                permits: wrap_prover_permits,
+                config: config.clone(),
+                shrink_shape: shrink_prover.shrink_shape.clone(),
+                expected_wrap_vk,
+            };
 
-            Self { reduce_pipeline, shrink_prover, wrap_prover, prover_data, artifact_client }
+            Self {
+                reduce_pipeline,
+                shrink_prover,
+                wrap_prover: Arc::new(OnceLock::new()),
+                wrap_prover_init: Arc::new(wrap_prover_init),
+                prover_data,
+                artifact_client,
+            }
         })
         .await
         .unwrap()
@@ -610,6 +629,50 @@ RecursionVks::new(vk_map_path, config.max_compose_arity, config.vk_verification)
         Ok(handle)
     }
 
+    async fn wrap_prover(&self) -> Result<Arc<WrapProver<C>>, TaskError> {
+        if let Some(wrap_prover) = self.wrap_prover.get() {
+            return Ok(wrap_prover.clone());
+        }
+
+        let wrap_prover_init = self.wrap_prover_init.clone();
+        let prover_data = self.prover_data.clone();
+
+        let wrap_prover = tokio::task::spawn_blocking(move || {
+            let expected_wrap_vk = wrap_prover_init.expected_wrap_vk.clone();
+            let wrap_prover = WrapProver::new(
+                wrap_prover_init.prover.clone(),
+                wrap_prover_init.permits.clone(),
+                prover_data,
+                wrap_prover_init.config.clone(),
+                wrap_prover_init.shrink_shape.clone(),
+            );
+
+            if wrap_prover.prover_data.recursion_vks.vk_verification()
+                && wrap_prover.verifying_key != expected_wrap_vk
+            {
+                return Err(TaskError::Fatal(anyhow::anyhow!(
+                    "Wrap vk mismatch, expected: {:?}, got: {:?}",
+                    expected_wrap_vk,
+                    wrap_prover.verifying_key
+                )));
+            }
+
+            Ok(Arc::new(wrap_prover))
+        })
+        .await
+        .map_err(|err| TaskError::Fatal(anyhow::anyhow!(err)))??;
+
+        if self.wrap_prover.set(wrap_prover.clone()).is_err() {
+            return Ok(self
+                .wrap_prover
+                .get()
+                .expect("wrap prover should be initialized")
+                .clone());
+        }
+
+        Ok(wrap_prover)
+    }
+
     pub async fn run_shrink_wrap(&self, request: RawTaskRequest) -> Result<(), TaskError> {
         let RawTaskRequest { inputs, outputs, .. } = request;
         let [compress_proof_artifact] = inputs.try_into().unwrap();
@@ -630,14 +693,14 @@ RecursionVks::new(vk_map_path, config.max_compose_arity, config.vk_verification)
         tracing::debug_span!("verify shrink proof")
             .in_scope(|| self.shrink_prover.verify(&shrink_proof))?;
 
-        let wrap_proof = self
-            .wrap_prover
+        let wrap_prover = self.wrap_prover().await?;
+        let wrap_proof = wrap_prover
             .prove(shrink_proof)
             .instrument(tracing::info_span!("prove wrap"))
             .await?;
 
         tracing::debug_span!("verify wrap proof")
-            .in_scope(|| self.wrap_prover.verify(&wrap_proof))?;
+            .in_scope(|| wrap_prover.verify(&wrap_proof))?;
 
         self.artifact_client
             .upload(&wrap_proof_artifact, wrap_proof)

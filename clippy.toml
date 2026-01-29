@@ -4,15 +4,15 @@ too-many-lines-threshold = 130
 
 
 disallowed-types = [
- { path = "slop_koala_bear::KoalaBear", reason = "use SP1Field instead", replacement = "sp1_hypercube::SP1Field" },   
- { path = "slop_basefold::Poseidon2KoalaBear16BasefoldConfig", reason = "use SP1BasefoldConfig instead", replacement = "sp1_hypercube::verifier::SP1BasefoldConfig" },
- { path = "slop_koala_bear::Poseidon2KoalaBearConfig", reason = "use SP1MerkleTreeConfig instead", replacement = "sp1_hypercube::verifier::SP1MerkleTreeConfig" },
- { path = "slop_koala_bear::DiffusionMatrixKoalaBear", reason = "use SP1DiffusionMatrix instead", replacement = "sp1_primitives::SP1DiffusionMatrix" },
- { path = "slop_koala_bear::KoalaPerm", reason = "use SP1Perm instead", replacement = "sp1_primitives::SP1Perm" },
- { path = "slop_stacked::StackedPcsVerifier", reason = "use SP1Pcs instead", replacement = "sp1_hypercube::SP1Pcs" },
- { path = "slop_stacked::StackedBasefoldProof", reason = "use SP1PcsProof instead", replacement = "sp1_hypercube::SP1PcsProof" },
+    { path = "slop_koala_bear::KoalaBear", reason = "use SP1Field instead", replacement = "sp1_primitives::SP1Field" },
+    { path = "slop_basefold::Poseidon2KoalaBear16BasefoldConfig", reason = "use SP1BasefoldConfig instead", replacement = "sp1_hypercube::verifier::SP1BasefoldConfig" },
+    { path = "slop_koala_bear::Poseidon2KoalaBearConfig", reason = "use SP1MerkleTreeConfig instead", replacement = "sp1_hypercube::verifier::SP1MerkleTreeConfig" },
+    { path = "slop_koala_bear::DiffusionMatrixKoalaBear", reason = "use SP1DiffusionMatrix instead", replacement = "sp1_primitives::SP1DiffusionMatrix" },
+    { path = "slop_koala_bear::KoalaPerm", reason = "use SP1Perm instead", replacement = "sp1_primitives::SP1Perm" },
+    { path = "slop_stacked::StackedPcsVerifier", reason = "use SP1Pcs instead", replacement = "sp1_hypercube::SP1Pcs" },
+    { path = "slop_stacked::StackedBasefoldProof", reason = "use SP1PcsProof instead", replacement = "sp1_hypercube::SP1PcsProof" },
 ]
 
 disallowed-methods = [
-    { path = "slop_koala_bear::my_kb_16_perm", reason = "use poseidon2_init() or inner_perm() instead", replacement = "sp1_primitives::poseidon2_init" }
+    { path = "slop_koala_bear::my_kb_16_perm", reason = "use poseidon2_init() or inner_perm() instead", replacement = "sp1_primitives::poseidon2_init" },
 ]

@@ -206,7 +206,7 @@ jobs:
         run: |
           gh release upload ${{ needs.prepare.outputs.tag_name }} ${{ steps.artifacts.outputs.file_name }}
 
-  cuslop-server-release:
+  sp1-gpu-server-release:
     name: (${{ matrix.platform }}-${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 240
@@ -255,11 +255,6 @@ jobs:
         run: |
           go version
 
-      - name: Set up git private repo access
-        run: |
-          git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com/".insteadOf ssh://git@github.com
-          git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com".insteadOf https://github.com
-
       - name: print nvcc version
         run: |
           nvcc --version
@@ -267,11 +262,8 @@ jobs:
       - name: Build binaries
         shell: bash
         run: |
-          git clone https://github.com/succinctlabs/cuslop.git
-          cd cuslop/crates/cuslop
           set -eo pipefail
-          cargo update
-          cargo build --release --bin cuslop-server
+          cargo build --release --bin sp1-gpu-server
 
       - name: Prepare artifacts
         id: artifacts
@@ -283,10 +275,9 @@ jobs:
           VERSION_NAME: ${{ needs.prepare.outputs.tag_name }}
         shell: bash
         run: |
-          cd cuslop
-          tar -czvf "cuslop_server_${VERSION_NAME}_${ARCH}.tar.gz" -C ./target/release cuslop-server
-          mv "cuslop_server_${VERSION_NAME}_${ARCH}.tar.gz" ../sp1/
-          echo "file_name=cuslop_server_${VERSION_NAME}_${ARCH}.tar.gz" >> $GITHUB_OUTPUT
+          tar -czvf "sp1_gpu_server_${VERSION_NAME}_${ARCH}.tar.gz" -C ./target/release sp1-gpu-server
+          mv "sp1_gpu_server_${VERSION_NAME}_${ARCH}.tar.gz" ../sp1/
+          echo "file_name=sp1_gpu_server_${VERSION_NAME}_${ARCH}.tar.gz" >> $GITHUB_OUTPUT
 
       # Upload the artifacts to the release.
       - name: Upload Release artifact
@@ -300,7 +291,7 @@ jobs:
   set-latest-release:
     name: Set latest release
     runs-on: ubuntu-latest
-    needs: [cuslop-server-release, cargo-prove-release, prepare]
+    needs: [sp1-gpu-server-release, cargo-prove-release, prepare]
     if: success()
     steps:
       - uses: actions/checkout@v4
@@ -314,7 +305,7 @@ jobs:
 
   toolchain-test:
     name: "Test toolchain installation (${{ matrix.name }})"
-    needs: [cuslop-server-release, cargo-prove-release, prepare]
+    needs: [sp1-gpu-server-release, cargo-prove-release, prepare]
     strategy:
       fail-fast: false
       matrix:
@@ -352,7 +343,7 @@ jobs:
 
   toolchain-test-ec2:
     name: "Test toolchain installation (${{ matrix.name }})"
-    needs: [cuslop-server-release, cargo-prove-release, prepare]
+    needs: [sp1-gpu-server-release, cargo-prove-release, prepare]
     strategy:
       fail-fast: false
       matrix:
@@ -383,7 +374,7 @@ jobs:
   issue:
     name: Open an issue
     runs-on: ubuntu-latest
-    needs: [cuslop-server-release, cargo-prove-release, prepare]
+    needs: [sp1-gpu-server-release, cargo-prove-release, prepare]
     if: failure()
     steps:
       - uses: actions/checkout@v4
@@ -402,7 +393,7 @@ jobs:
   delete-failed-release:
     name: Delete failed release
     runs-on: ubuntu-latest
-    needs: [cuslop-server-release, cargo-prove-release, prepare]
+    needs: [sp1-gpu-server-release, cargo-prove-release, prepare]
     if: failure()
     steps:
       - uses: actions/checkout@v4

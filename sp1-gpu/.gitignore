@@ -1,0 +1,45 @@
+# Cargo build
+**/target
+
+# Cargo config
+.cargo
+
+# Profile-guided optimization
+/tmp
+pgo-data.profdata
+
+# MacOS nuisances
+.DS_Store
+
+# Proofs
+**/proof-with-pis.bin
+**/proof-with-io.bin
+**/vk.bin
+**/proof.bin
+
+# Benchmark
+benchmark.csv
+
+# Environment
+.env
+
+# nvidia profiling files
+*.nsys-rep
+*.ncu-rep
+*.sqlite
+
+# files from perf script
+program.bin
+stdin.bin
+
+# proof file from test
+prover/proof-with-pis.bin
+perf/proof-with-pis.bin
+core_proof.bin
+
+# clangd
+.cache
+compile_commands.json
+
+# logging files
+*.log

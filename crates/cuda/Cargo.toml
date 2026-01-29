@@ -30,14 +30,10 @@ tracing = { workspace = true }
 thiserror = { workspace = true }
 reqwest = { workspace = true, features = ["rustls-tls", "json"] }
 serde_json = { workspace = true }
-semver = { workspace = true, features = ["serde"] }
 bytes = { workspace = true }
 
 [dev-dependencies]
 sp1-core-machine = { workspace = true }
-
-[features]
-native = []
 
 [lints]
 workspace = true

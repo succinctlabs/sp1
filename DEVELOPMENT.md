@@ -21,11 +21,12 @@ cargo +nightly fmt --all
 
 This is enforced by CI and your PR will fail if the code is not properly formatted.
 
-### Unreleased/experimental versions
+### Building SP1 GPU server from source
+This is useful for testing and development of unreleased or experimental versions.
 
-cuslop-server (for CUDA proving)
+sp1-gpu-server (for CUDA proving)
 ```sh
-cargo install --locked --root "$HOME/.sp1" --git https://github.com/succinctlabs/cuslop cuslop-server
+cargo install --locked --root "$HOME/.sp1" --path sp1-gpu/crates/server/
 ```
 
 sp1 toolchain

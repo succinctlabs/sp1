@@ -1,0 +1,39 @@
+[package]
+name = "sp1-gpu-jagged-assist"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+sp1-gpu-cudart = { workspace = true }
+sp1-gpu-challenger = { workspace = true }
+sp1-gpu-tracing = { workspace = true }
+slop-tensor = { workspace = true }
+slop-koala-bear = { workspace = true }
+slop-bn254 = { workspace = true }
+slop-algebra = { workspace = true }
+slop-jagged = { workspace = true }
+slop-multilinear = { workspace = true }
+slop-challenger = { workspace = true }
+slop-basefold = { workspace = true }
+slop-commit = { workspace = true }
+slop-alloc = { workspace = true }
+slop-sumcheck = { workspace = true }
+
+tokio = { workspace = true }
+futures = { workspace = true }
+serde = { workspace = true }
+itertools = { workspace = true }
+tracing = { workspace = true }
+[lints]
+workspace = true
+
+[dev-dependencies]
+futures = { workspace = true }
+sp1-prover = { workspace = true }
+sp1-primitives = { workspace = true }
+rand = "0.8"
+serial_test = { workspace = true }

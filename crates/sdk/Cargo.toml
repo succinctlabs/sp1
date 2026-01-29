@@ -110,7 +110,6 @@ network = [
   "dep:backoff",
   "dep:zstd",
 ]
-native-cuda = ["sp1-cuda/native"]
 tee-2fa = []
 reserved-capacity = ["network"]
 cuda = []

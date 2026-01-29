@@ -1,0 +1,41 @@
+[package]
+name = "sp1-gpu-jagged-sumcheck"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+# sp1-gpu
+sp1-gpu-cudart = { workspace = true }
+
+sp1-gpu-utils = { workspace = true }
+slop-algebra = { workspace = true }
+slop-alloc = { workspace = true }
+slop-tensor = { workspace = true }
+slop-multilinear = { workspace = true }
+slop-sumcheck = { workspace = true }
+slop-challenger = { workspace = true }
+slop-jagged = { workspace = true }
+
+# misc
+itertools = { workspace = true }
+rand = { workspace = true }
+tokio = { workspace = true }
+futures = "0.3"
+num-bigint = "0.4.6"
+rayon = "1.10.0"
+
+[dev-dependencies]
+serial_test = "3.1"
+zstd = "0.13.3"
+sp1-sdk = { workspace = true }
+sp1-recursion-circuit = { workspace = true }
+sp1-gpu-prover = { workspace = true }
+sp1-recursion-compiler = { workspace = true }
+slop-stacked = { workspace = true }
+
+[lints]
+workspace = true

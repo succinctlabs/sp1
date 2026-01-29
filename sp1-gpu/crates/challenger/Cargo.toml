@@ -1,0 +1,26 @@
+[package]
+name = "sp1-gpu-challenger"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+sp1-gpu-cudart = { workspace = true }
+
+slop-alloc = { workspace = true }
+slop-algebra = { workspace = true }
+slop-challenger = { workspace = true }
+slop-symmetric = { workspace = true }
+slop-koala-bear = { workspace = true }
+slop-poseidon2 = { workspace = true }
+sp1-primitives = { workspace = true }
+
+[dev-dependencies]
+slop-algebra = { workspace = true }
+tokio = { workspace = true }
+sp1-hypercube = { workspace = true }
+[lints]
+workspace = true

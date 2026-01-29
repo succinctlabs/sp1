@@ -1,20 +1,23 @@
 #![allow(unused)]
 
-#[cfg(all(feature = "native", target_arch = "x86_64"))]
+#[cfg(target_arch = "x86_64")]
 mod native {
-    use crate::{client::Child, CudaClientError};
+    use crate::CudaClientError;
     use std::{
         os::unix::process::CommandExt,
         path::{Path, PathBuf},
         process::Stdio,
     };
-    use tokio::{io::AsyncWriteExt, process::Command};
+    use tokio::{
+        io::AsyncWriteExt,
+        process::{Child, Command},
+    };
 
     /// Install a systemd unit for the given CUDA device id, and try to start it.
     ///
     /// Note: This method may cause race conditions, it should be called in a critical section.
     pub(crate) async fn start_server(cuda_id: u32) -> Result<Child, CudaClientError> {
-        const PATH: &str = ".sp1/bin/cuslop-server";
+        const PATH: &str = ".sp1/bin/sp1-gpu-server";
 
         // Get the path to where the server binary is located.
         let path = PathBuf::from(std::env::var("HOME").expect("$HOME is not set")).join(PATH);
@@ -34,14 +37,11 @@ mod native {
         let mut cmd = Command::new(path);
         cmd.env("CUDA_VISIBLE_DEVICES", cuda_id.to_string());
 
-        let child = cmd
-            .kill_on_drop(true)
+        cmd.kill_on_drop(true)
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
             .spawn()
-            .map_err(|e| CudaClientError::new_connect(e, "Could not start `cuslop-server`"))?;
-
-        Ok(Child::Native(child))
+            .map_err(|e| CudaClientError::new_connect(e, "Could not start `sp1-gpu-server`"))
     }
 
     // If the server binary is not found in the path, or if it the version is not compatible,
@@ -54,11 +54,11 @@ mod native {
             download = true;
         } else {
             let version = Command::new(path).arg("--version").output().await.map_err(|e| {
-                CudaClientError::new_download_io(e, "Could not check `cuslop-server` version")
+                CudaClientError::new_download_io(e, "Could not check `sp1-gpu-server` version")
             })?;
 
             let version = String::from_utf8_lossy(&version.stdout);
-            tracing::debug!("cuslop-server version: {}", version);
+            tracing::debug!("sp1-gpu-server version: {}", version);
 
             // If the version is not compatible, stop all instances of the server
             // and download the new version.
@@ -70,21 +70,21 @@ mod native {
                 // NOTE: If a user is running a CUDA prover, across different versions,
                 // on the same machine, this will cause other instances to crash!
                 let mut cmd = Command::new("systemctl");
-                cmd.arg("--user").arg("stop").arg(r#"cuslop-server-\*"#);
+                cmd.arg("--user").arg("stop").arg(r#"sp1-gpu-server-\*"#);
 
                 let _ = cmd.status().await.map_err(|e| {
-                    CudaClientError::new_download_io(e, "Could not stop `cuslop-server`")
+                    CudaClientError::new_download_io(e, "Could not stop `sp1-gpu-server`")
                 })?;
             }
         }
 
         if download {
-            tracing::debug!("Downloading `cuslop-server`");
+            tracing::debug!("Downloading `sp1-gpu-server`");
 
             let version = format!("v{}", sp1_primitives::SP1_VERSION);
             let repo = "succinctlabs/sp1";
             let static_url = format!("https://github.com/{repo}/releases/download");
-            let asset_name = format!("cuslop_server_{version}_x86_64.tar.gz");
+            let asset_name = format!("sp1_gpu_server_{version}_x86_64.tar.gz");
 
             // Create the tar file were going to extract from.
             let tar_file = path.with_extension("tar.gz");
@@ -95,7 +95,7 @@ mod native {
             )?;
 
             let mut file = tokio::fs::File::create(&tar_file).await.map_err(|e| {
-                CudaClientError::new_download_io(e, "Could not create `cuslop-server` tar file")
+                CudaClientError::new_download_io(e, "Could not create `sp1-gpu-server` tar file")
             })?;
 
             // Download the release, use a token if it exists for private releases.
@@ -122,7 +122,7 @@ mod native {
             }?;
 
             file.write_all(&bytes).await.map_err(|e| {
-                CudaClientError::new_download_io(e, "Could not write `cuslop-server` tar file")
+                CudaClientError::new_download_io(e, "Could not write `sp1-gpu-server` tar file")
             })?;
 
             // Extract the tar file.
@@ -133,12 +133,12 @@ mod native {
                 .arg(path.parent().expect("path has no parent"));
 
             cmd.status().await.map_err(|e| {
-                CudaClientError::new_download_io(e, "Could not extract `cuslop-server` tar file")
+                CudaClientError::new_download_io(e, "Could not extract `sp1-gpu-server` tar file")
             })?;
 
             // Remove the tar file.
             tokio::fs::remove_file(tar_file).await.map_err(|e| {
-                CudaClientError::new_download_io(e, "Could not remove `cuslop-server` tar file")
+                CudaClientError::new_download_io(e, "Could not remove `sp1-gpu-server` tar file")
             })?;
         }
 
@@ -212,91 +212,18 @@ mod native {
 
     /// The name of the systemd unit for the given CUDA device id.
     fn unit_name(cuda_id: u32) -> String {
-        format!("cuslop-server-{cuda_id}")
+        format!("sp1-gpu-server-{cuda_id}")
     }
 }
 
-#[cfg(all(feature = "native", target_arch = "x86_64"))]
-pub(crate) use native::start_server;
+#[cfg(not(target_arch = "x86_64"))]
+mod native {
+    use crate::CudaClientError;
+    use tokio::process::Child;
 
-#[cfg(any(not(feature = "native"), not(target_arch = "x86_64")))]
-mod docker {
-    use crate::{client::Child, CudaClientError};
-    use std::process::Stdio;
-    use tokio::process::Command;
-
-    /// Start the docker server.
-    ///
-    /// Note this method *will fail* if ran twice with the same `cuda_id`.
-    ///
-    /// This method should only be called in a critical section
-    #[allow(clippy::uninlined_format_args)]
     pub(crate) async fn start_server(cuda_id: u32) -> Result<Child, CudaClientError> {
-        let image =
-            format!("public.ecr.aws/succinct-labs/cuslop-server:v{}", sp1_primitives::SP1_VERSION);
-
-        if let Err(e) = Command::new("docker").args(["pull", &image]).output().await {
-            return Err(CudaClientError::Unexpected(format!(
-                "Failed to pull Docker image: {e}. Ensure docker is installed and running."
-            )));
-        }
-
-        // Just log any errors the result, if the container is already running, this will fail.
-        //
-        // If the container failed to start for whatver reason, the logs are piped to stdio,
-        // and we will see the error, we will explicitly throw during the connection phase next.
-        match Command::new("docker")
-            .args([
-                "run",
-                "-e",
-                &format!("RUST_LOG={}", "debug"),
-                "-e",
-                &format!("CUDA_VISIBLE_DEVICES={cuda_id}"),
-                // Remove the container on exit.
-                "--rm",
-                // Share the tmp directory with the container.
-                // This is where the socket will be created.
-                "-v",
-                "/tmp:/tmp",
-                // Use all GPUs.
-                "--gpus",
-                "all",
-                // The name of the container.
-                "--name",
-                format!("cuslop-server-{cuda_id}").as_str(),
-                // The image to run.
-                &image,
-            ])
-            // Redirect stdout and stderr to the parent process
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit())
-            .status()
-            .await
-        {
-            Ok(status) => {
-                if !status.success() {
-                    // Its possible the container is already running, so we ignore the error.
-                    tracing::debug!(
-                        "Failed to start new Docker container for CUDA device {}: {}",
-                        cuda_id,
-                        status
-                    );
-                }
-            }
-            Err(e) => {
-                return Err(CudaClientError::Unexpected(format!(
-                    "Failed to start new Docker container for CUDA device {cuda_id}: {e}"
-                )));
-            }
-        }
-
-        Ok(Child::Docker)
+        panic!("Unsupported architecture for CUDA server: {}", std::env::consts::ARCH);
     }
 }
 
-#[cfg(any(not(feature = "native"), not(target_arch = "x86_64")))]
-pub(crate) use docker::start_server;
-
-pub(crate) async fn kill_server(cuda_id: u32) -> Result<(), crate::CudaClientError> {
-    todo!()
-}
+pub(crate) use native::start_server;

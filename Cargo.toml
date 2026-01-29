@@ -64,6 +64,26 @@ members = [
   "slop/crates/utils",
   "slop/crates/primitives",
   "slop/crates/whir",
+  # sp1-gpu crates
+  "sp1-gpu/crates/air",
+  "sp1-gpu/crates/basefold",
+  "sp1-gpu/crates/challenger",
+  "sp1-gpu/crates/commit",
+  "sp1-gpu/crates/cuda",
+  "sp1-gpu/crates/server",
+  "sp1-gpu/crates/jagged_assist",
+  "sp1-gpu/crates/jagged_sumcheck",
+  "sp1-gpu/crates/jagged_tracegen",
+  "sp1-gpu/crates/logup_gkr",
+  "sp1-gpu/crates/merkle_tree",
+  "sp1-gpu/crates/perf",
+  "sp1-gpu/crates/prover_components",
+  "sp1-gpu/crates/shard_prover",
+  "sp1-gpu/crates/sys",
+  "sp1-gpu/crates/tracegen",
+  "sp1-gpu/crates/tracing",
+  "sp1-gpu/crates/utils",
+  "sp1-gpu/crates/zerocheck",
 ]
 exclude = ["examples/target", "crates/eval"]
 resolver = "2"
@@ -103,6 +123,27 @@ sp1-recursion-machine = { path = "crates/recursion/machine", default-features = 
 sp1-sdk = { path = "crates/sdk", default-features = false }
 sp1-verifier = { path = "crates/verifier", default-features = false }
 sp1-zkvm = { path = "crates/zkvm/entrypoint", default-features = false }
+
+# sp1-gpu crates
+sp1-gpu-air = { path = "sp1-gpu/crates/air" }
+sp1-gpu-basefold = { path = "sp1-gpu/crates/basefold" }
+sp1-gpu-challenger = { path = "sp1-gpu/crates/challenger" }
+sp1-gpu-commit = { path = "sp1-gpu/crates/commit" }
+sp1-gpu-cudart = { path = "sp1-gpu/crates/cuda" }
+sp1-gpu-jagged-assist = { path = "sp1-gpu/crates/jagged_assist" }
+sp1-gpu-jagged-sumcheck = { path = "sp1-gpu/crates/jagged_sumcheck" }
+sp1-gpu-jagged-tracegen = { path = "sp1-gpu/crates/jagged_tracegen" }
+sp1-gpu-logup-gkr = { path = "sp1-gpu/crates/logup_gkr" }
+sp1-gpu-merkle-tree = { path = "sp1-gpu/crates/merkle_tree" }
+sp1-gpu-perf = { path = "sp1-gpu/crates/perf" }
+sp1-gpu-prover = { path = "sp1-gpu/crates/prover_components" }
+sp1-gpu-server = { path = "sp1-gpu/crates/server" }
+sp1-gpu-shard-prover = { path = "sp1-gpu/crates/shard_prover" }
+sp1-gpu-sys = { path = "sp1-gpu/crates/sys" }
+sp1-gpu-tracegen = { path = "sp1-gpu/crates/tracegen" }
+sp1-gpu-tracing = { path = "sp1-gpu/crates/tracing" }
+sp1-gpu-utils = { path = "sp1-gpu/crates/utils" }
+sp1-gpu-zerocheck = { path = "sp1-gpu/crates/zerocheck" }
 
 p3-air = "0.2.4-succinct"
 p3-baby-bear = { version = "0.2.4-succinct", features = ["nightly-features"] }
@@ -192,7 +233,7 @@ derive-where = { version = "1.5.0", features = ["serde"] }
 dirs = "5.0.1"
 downloader = { version = "0.2", default-features = false }
 dynasmrt = "3.2.0"
-either = { version = "1.15.0", features = ["serde"]}
+either = { version = "1.15.0", features = ["serde"] }
 elf = "0.7.4"
 elliptic-curve = "0.13.8"
 embedded-alloc = "0.6.0"
@@ -209,7 +250,7 @@ getrandom_v3 = { package = "getrandom", version = "0.3.3", default-features = fa
 hashbrown = "0.14.5"
 hex = "0.4.3"
 indicatif = "0.17.8"
-itertools = "0.13.0"
+itertools = "0.14.0"
 k256 = "0.13.4"
 lazy_static = "1.5.0"
 libm = "0.2.8"
@@ -234,7 +275,6 @@ reqwest-middleware = "0.3.2"
 rrs-lib = { git = "https://github.com/succinctlabs/rrs-succinct.git", branch = "gautham/rv64executor-2" }
 rug = "1.26.1"
 rustc-demangle = "0.1.18"
-semver = "1.0.26"
 serde = { version = "1.0.204", features = ["derive"] }
 serde_arrays = "0.2"
 serde_json = "1.0.132"
@@ -271,6 +311,13 @@ yansi = "1.0.1"
 zkhash = "0.2.0"
 zstd = "0.13"
 
+# sp1-gpu additional deps
+tokio-blocked = "0.1.0"
+cbindgen = "0.27.0"
+pathdiff = "0.2.1"
+dotenv = "0.15.0"
+cc = { version = "1.0", features = ["parallel"] }
+which = "6.0"
 
 [workspace.metadata.typos]
 default.extend-ignore-re = [

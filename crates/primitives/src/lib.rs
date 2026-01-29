@@ -1,7 +1,7 @@
 //! sp1-primitives contains types and functions that are used in both sp1-core and sp1-zkvm.
 //! Because it is imported in the zkvm entrypoint, it should be kept minimal.
 use lazy_static::lazy_static;
-use slop_algebra::AbstractField;
+use slop_algebra::{extension::BinomialExtensionField, AbstractField};
 use slop_bn254::BNGC;
 use slop_challenger::IopCtx;
 #[allow(clippy::disallowed_types)]
@@ -23,7 +23,7 @@ pub const SP1_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub type SP1Field = KoalaBear;
 
 // The extension field in SP1: the degree-4 binomial extension of `SP1Field` with polynomial x^4-3.
-pub type SP1ExtensionField = <SP1GlobalContext as IopCtx>::EF;
+pub type SP1ExtensionField = BinomialExtensionField<SP1Field, 4>;
 
 /// The `IopCtx` used for the RISC-V stage and inner recursion (compress and shrink).
 pub type SP1GlobalContext = KoalaBearDegree4Duplex;

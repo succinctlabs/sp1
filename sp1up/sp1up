@@ -9,7 +9,7 @@ SP1_DIR=${SP1_DIR:-"$BASE_DIR/.sp1"}
 SP1_BIN_DIR="$SP1_DIR/bin"
 mkdir -p $SP1_BIN_DIR
 
-BINS=(cargo-prove) # todo add cuslop-server
+BINS=(cargo-prove) # todo add sp1-gpu-server
 
 export RUSTFLAGS="-C target-cpu=native"
 
@@ -151,7 +151,7 @@ main() {
     echo "BIN_ARCHIVE_URL: $BIN_ARCHIVE_URL"
 
     check_url "$BIN_ARCHIVE_URL" "binary"
-    # todo download cuslop-server
+    # todo download spq-gpu-server
 
     # Download and extract the binaries archive
     say "downloading latest cargo-prove"
@@ -162,7 +162,7 @@ main() {
       rm -f "$tmp"
     else
       ensure download "$BIN_ARCHIVE_URL" | ensure tar -xzC "$SP1_BIN_DIR"
-      # download cuslop-server
+      # download sp1-gpu-server
     fi
 
     for bin in "${BINS[@]}"; do
