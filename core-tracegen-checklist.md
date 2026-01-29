@@ -77,7 +77,7 @@ This document tracks the GPU tracegen implementation status for core RISC-V chip
 |------|---------|----------|------|-------|------|------|
 | MemoryGlobalChip | `MemoryGlobalInit` | [x] | [x] | [x] | [x] | `memory_state.rs` |
 | MemoryGlobalChip | `MemoryGlobalFinal` | [x] | [x] | [x] | [x] | `memory_state.rs` |
-| MemoryLocalChip | `MemoryLocal` | [ ] | [x] | [ ] | [ ] | `memory_state.rs` |
+| MemoryLocalChip | `MemoryLocal` | [x] | [x] | [x] | [x] | `memory_state.rs` |
 | MemoryBumpChip | `MemoryBump` | [ ] | [x] | [ ] | [ ] | `memory_state.rs` |
 | StateBumpChip | `StateBump` | [ ] | [x] | [ ] | [ ] | `memory_state.rs` |
 
@@ -96,10 +96,10 @@ This document tracks the GPU tracegen implementation status for core RISC-V chip
 ## Summary
 
 - **Total core chips**: 35
-- **GPU implemented**: 30 (Global, Add, Addw, Addi, Sub, Subw, Mul, DivRem, Lt, Bitwise, ShiftLeft, ShiftRight, LoadByte, LoadHalf, LoadWord, LoadDouble, LoadX0, StoreByte, StoreHalf, StoreWord, StoreDouble, UType, Branch, Jal, Jalr, SyscallInstrs, SyscallCore, SyscallPrecompile, ByteLookup, RangeLookup)
+- **GPU implemented**: 31 (Global, Add, Addw, Addi, Sub, Subw, Mul, DivRem, Lt, Bitwise, ShiftLeft, ShiftRight, LoadByte, LoadHalf, LoadWord, LoadDouble, LoadX0, StoreByte, StoreHalf, StoreWord, StoreDouble, UType, Branch, Jal, Jalr, SyscallInstrs, SyscallCore, SyscallPrecompile, ByteLookup, RangeLookup, MemoryLocal)
 - **Stubs created**: 35
-- **Tests passing**: 30
-- **Perf checked**: 29 (all implemented except DivRem which is disabled)
+- **Tests passing**: 31
+- **Perf checked**: 30 (all implemented except DivRem which is disabled)
 
 ## File Structure
 

@@ -20,6 +20,7 @@ add_library(tracegen_objs OBJECT
     riscv/lookup.cu
     riscv/lt.cu
     riscv/memory_global.cu
+    riscv/memory_local.cu
     riscv/mul.cu
     riscv/shift_left.cu
     riscv/shift_right.cu

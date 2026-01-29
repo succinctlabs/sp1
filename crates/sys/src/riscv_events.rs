@@ -604,6 +604,25 @@ pub struct MemoryGlobalGpuEvent {
     pub timestamp: u64,
 }
 
+/// GPU-compatible event for MemoryLocalChip.
+///
+/// This mirrors `MemoryLocalEvent` with flattened MemoryRecord fields.
+/// Each event tracks a single memory address with initial and final access info.
+#[derive(Clone, Copy, Debug, Default)]
+#[repr(C)]
+pub struct MemoryLocalGpuEvent {
+    /// The memory address.
+    pub addr: u64,
+    /// The initial access timestamp.
+    pub initial_timestamp: u64,
+    /// The initial access value.
+    pub initial_value: u64,
+    /// The final access timestamp.
+    pub final_timestamp: u64,
+    /// The final access value.
+    pub final_value: u64,
+}
+
 /// GPU-compatible event for SyscallChip (Core and Precompile).
 ///
 /// This is a minimal struct containing only the fields needed for SyscallCols trace generation.

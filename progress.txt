@@ -409,3 +409,24 @@
   - **Performance:** ~49x GPU speedup on 1000 events test (Init: 48.63x, Finalize: 49.19x).
 
 ---
+
+## 2026-01-29 - MemoryLocalChip GPU Tracegen
+- **What was implemented:** GPU trace generation for MemoryLocalChip, which tracks local memory accesses within a shard (initial + final state). This is a simple parallel chip with no sequential dependencies between rows.
+- **Files changed:**
+  - `crates/sys/src/riscv_events.rs` - Added `MemoryLocalGpuEvent` struct (addr, initial_timestamp, initial_value, final_timestamp, final_value)
+  - `crates/sys/build.rs` - Added cbindgen export for MemoryLocalGpuEvent
+  - `lib/tracegen/riscv/memory_local.cu` - New CUDA kernel with manually-defined SingleMemoryLocal struct (20 columns)
+  - `lib/tracegen/CMakeLists.txt` - Added memory_local.cu to build
+  - `crates/sys/src/tracegen.rs` - Declared extern fn for memory_local kernel
+  - `crates/cuda/src/tracegen.rs` - Added TracegenRiscvMemoryLocalKernel trait
+  - `crates/tracegen/src/riscv/memory_state.rs` - Full CudaTracegenAir implementation for MemoryLocalChip with test
+
+- **Learnings:**
+  - **Simplest chip so far:** MemoryLocalChip is fully parallel with no sequential dependencies. Each row is independent - no need for sorting, no prev_addr lookups, no complex operations.
+  - **20 columns per row:** SingleMemoryLocal has addr[3], initial_clk_high, final_clk_high, initial_clk_low, final_clk_low, initial_value (Word=4), final_value (Word=4), initial_value_lower, initial_value_upper, final_value_lower, final_value_upper, is_real.
+  - **Events from two sources:** `get_local_mem_events()` chains precompile_events and cpu_local_memory_access. For testing, only cpu_local_memory_access is populated.
+  - **value_lower/value_upper pattern:** Third limb of each value (bits 32-47) is split into lower byte (bits 32-39) and upper byte (bits 40-47). Same pattern as MemoryGlobalChip.
+  - **No previous_addr parameter needed:** Unlike MemoryGlobalChip which needs a previous_addr from the prior shard, MemoryLocalChip's kernel only takes 4 arguments (trace, height, events, nb_events).
+  - **Performance:** 26.21x GPU speedup on 1000 events test.
+
+---

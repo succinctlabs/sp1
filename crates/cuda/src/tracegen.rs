@@ -312,6 +312,17 @@ unsafe impl TracegenRiscvMemoryGlobalKernel<KoalaBear> for TaskScope {
 }
 
 /// # Safety
+pub unsafe trait TracegenRiscvMemoryLocalKernel<F> {
+    fn tracegen_riscv_memory_local_kernel() -> KernelPtr;
+}
+
+unsafe impl TracegenRiscvMemoryLocalKernel<KoalaBear> for TaskScope {
+    fn tracegen_riscv_memory_local_kernel() -> KernelPtr {
+        unsafe { sp1_gpu_sys::tracegen::riscv_memory_local_generate_trace_kernel() }
+    }
+}
+
+/// # Safety
 pub unsafe trait TracegenRiscvGlobalKernel<F> {
     fn tracegen_riscv_global_decompress_kernel() -> KernelPtr;
     fn tracegen_riscv_global_finalize_kernel() -> KernelPtr;
