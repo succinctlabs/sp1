@@ -9,6 +9,7 @@
 - ITypeRecord is simpler than R/ALUTypeRecord: op_c is always an immediate (no mem_c needed)
 - Chips using identical instruction formats can share GPU event structs via type aliases (e.g., SubGpuEvent = AddGpuEvent)
 - SubwChip uses RTypeReader (like SubChip), not ALUTypeReader (like AddwChip) - check column struct definitions carefully
+- **CRITICAL:** When chaining field arithmetic like `a * b - c + d`, use in-place operators (`*=`, `-=`, `+=`) to stay in `kb31_t` domain. The expression `a * b` returns `accel_t` (lazy 64-bit), and subsequent `accel_t` arithmetic can produce wrong results. Always force full Montgomery reduction between operations.
 
 ---
 
@@ -207,6 +208,25 @@
   - **Word operations zero upper limbs:** For SRLW/SRAW, b_limbs[2] and b_limbs[3] are zeroed before processing. srw_msb is the MSB of the 32-bit result (a_limbs[1] bit 15).
   - **Lower/higher limb reversed:** For right shift, `lower_limb = bits below bit_shift`, `higher_limb = bits at/above bit_shift`. `limb_result[i] = higher_limb[i] + lower_limb[i+1] * (1 << (16 - bit_shift))`.
   - **Type alias reuse:** ShiftRightGpuEvent and ShiftLeftGpuEvent share identical field layouts (both use ALUTypeReader). ShiftLeftGpuEvent is made a type alias to ShiftRightGpuEvent.
+
+---
+
+## 2026-01-29 - Memory Store Chips GPU Tracegen (StoreByte, StoreHalf, StoreWord, StoreDouble)
+- **What was implemented:** GPU trace generation for all 4 memory store chips
+- **Files changed:**
+  - `lib/tracegen/riscv/store.cu` - Fixed StoreByte increment computation bug, clang-formatted
+  - `crates/sys/src/riscv_events.rs` - StoreGpuEvent already existed
+  - `crates/sys/src/tracegen.rs` - FFI declarations already existed
+  - `crates/cuda/src/tracegen.rs` - Kernel traits already existed
+  - `crates/tracegen/src/riscv/memory_store.rs` - CudaTracegenAir implementations already existed
+  - `lib/tracegen/CMakeLists.txt` - Already included store.cu
+
+- **Learnings:**
+  - **accel_t lazy reduction pitfall:** The `kb31_t::operator*` returns `accel_t` (a 64-bit unreduced product) rather than a fully-reduced `kb31_t`. When chaining operations like `T::from_canonical_u32(256) * register_low_byte - mem_limb + mem_limb_low_byte`, the intermediate arithmetic goes through `accel_t` subtraction/addition operators which have different reduction semantics than `kb31_t` operators. This caused StoreByte's `increment` field (column 44) to produce incorrect values when `bit0=1`. **Fix:** Use `*=`, `-=`, `+=` in-place operators which force full Montgomery reduction at each step, avoiding the `accel_t` code path entirely.
+  - **Store chips share structure with load chips:** StoreGpuEvent, MemoryAccessCols, AddressOperation, and MemoryAccessTimestamp are structurally identical to load chip counterparts. The populate helper functions are shared.
+  - **StoreByte increment formula:** `increment = (register_low_byte - mem_limb_low_byte) * (1 - bit0) + (256 * register_low_byte - mem_limb + mem_limb_low_byte) * bit0`. The second term (bit0=1 case) handles storing to the high byte of a u16 limb.
+  - **Most wiring was pre-existing:** All FFI, cbindgen, CMakeLists, Rust traits, and test code were already implemented. The only code change needed was fixing the CUDA kernel's increment computation.
+  - **Debugging approach:** When Montgomery field arithmetic produces wrong results, suspect the `accel_t` lazy-reduction path. Restructure to use in-place operators (`*=`, `-=`, `+=`) which stay in `kb31_t` domain with full reduction.
 
 ---
 

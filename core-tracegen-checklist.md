@@ -42,10 +42,10 @@ This document tracks the GPU tracegen implementation status for core RISC-V chip
 
 | Chip | Variant | GPU Impl | Stub | Tests | File |
 |------|---------|----------|------|-------|------|
-| StoreByteChip | `StoreByte` | [ ] | [x] | [ ] | `memory_store.rs` |
-| StoreHalfChip | `StoreHalf` | [ ] | [x] | [ ] | `memory_store.rs` |
-| StoreWordChip | `StoreWord` | [ ] | [x] | [ ] | `memory_store.rs` |
-| StoreDoubleChip | `StoreDouble` | [ ] | [x] | [ ] | `memory_store.rs` |
+| StoreByteChip | `StoreByte` | [x] | [x] | [x] | `memory_store.rs` |
+| StoreHalfChip | `StoreHalf` | [x] | [x] | [x] | `memory_store.rs` |
+| StoreWordChip | `StoreWord` | [x] | [x] | [x] | `memory_store.rs` |
+| StoreDoubleChip | `StoreDouble` | [x] | [x] | [x] | `memory_store.rs` |
 
 ## Control Flow Instructions
 
@@ -96,9 +96,9 @@ This document tracks the GPU tracegen implementation status for core RISC-V chip
 ## Summary
 
 - **Total core chips**: 35
-- **GPU implemented**: 17 (Global, Add, Addw, Addi, Sub, Subw, Mul, DivRem, Lt, Bitwise, ShiftLeft, ShiftRight, LoadByte, LoadHalf, LoadWord, LoadDouble, LoadX0)
+- **GPU implemented**: 21 (Global, Add, Addw, Addi, Sub, Subw, Mul, DivRem, Lt, Bitwise, ShiftLeft, ShiftRight, LoadByte, LoadHalf, LoadWord, LoadDouble, LoadX0, StoreByte, StoreHalf, StoreWord, StoreDouble)
 - **Stubs created**: 35
-- **Tests passing**: 17
+- **Tests passing**: 21
 
 ## File Structure
 

@@ -34,6 +34,14 @@ extern "C" {
     pub fn riscv_load_double_generate_trace_kernel() -> KernelPtr;
     // RISC-V LoadX0 chip
     pub fn riscv_load_x0_generate_trace_kernel() -> KernelPtr;
+    // RISC-V StoreByte chip
+    pub fn riscv_store_byte_generate_trace_kernel() -> KernelPtr;
+    // RISC-V StoreHalf chip
+    pub fn riscv_store_half_generate_trace_kernel() -> KernelPtr;
+    // RISC-V StoreWord chip
+    pub fn riscv_store_word_generate_trace_kernel() -> KernelPtr;
+    // RISC-V StoreDouble chip
+    pub fn riscv_store_double_generate_trace_kernel() -> KernelPtr;
     pub fn recursion_base_alu_generate_preprocessed_trace_koala_bear_kernel() -> KernelPtr;
     pub fn recursion_base_alu_generate_trace_koala_bear_kernel() -> KernelPtr;
     pub fn recursion_ext_alu_generate_preprocessed_trace_koala_bear_kernel() -> KernelPtr;
