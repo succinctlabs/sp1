@@ -342,3 +342,23 @@
   - **Performance:** 65.47x GPU speedup on 1000 events test.
 
 ---
+
+## 2026-01-29 - SyscallChip (Core & Precompile) GPU Tracegen
+- **What was implemented:** GPU trace generation for SyscallChip handling both Core and Precompile variants. SyscallChip is a simple lookup table chip (11 columns) that records syscall_id, arg1, arg2 for global interactions.
+- **Files changed:**
+  - `crates/sys/src/riscv_events.rs` - Added `SyscallGpuEvent` struct (minimal: clk, syscall_id, arg1, arg2)
+  - `crates/sys/build.rs` - Added cbindgen export for SyscallGpuEvent
+  - `lib/tracegen/riscv/syscall.cu` - New CUDA kernel with SyscallCols struct (11 columns)
+  - `lib/tracegen/CMakeLists.txt` - Added syscall.cu to build
+  - `crates/sys/src/tracegen.rs` - Declared extern fn for syscall kernel
+  - `crates/cuda/src/tracegen.rs` - Added TracegenRiscvSyscallKernel trait
+  - `crates/tracegen/src/riscv/syscall.rs` - CudaTracegenAir implementation for both Core and Precompile variants, plus test
+
+- **Learnings:**
+  - **SyscallChip is vastly simpler than SyscallInstrsChip:** Only 11 columns (clk_high, clk_low, syscall_id, arg1[3], arg2[3], is_real) vs ~64 columns for SyscallInstrsChip. No memory access, no adapter, no complex operations.
+  - **Core vs Precompile event filtering:** Core mode filters `syscall_events` by `should_send == true`. Precompile mode reads from `precompile_events.all_events()` which provides `(SyscallEvent, SyscallCode)` pairs.
+  - **SyscallGpuEvent minimal struct:** Only needs clk, syscall_id, arg1, arg2. No memory access fields needed since SyscallChip doesn't use RegisterAccessCols or any adapter.
+  - **Shared kernel for both variants:** Both Core and Precompile use the same CUDA kernel - they only differ in which events are extracted from the ExecutionRecord.
+  - **Performance:** 14.65x GPU speedup on 1000 Core events test.
+
+---

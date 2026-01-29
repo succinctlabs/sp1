@@ -61,8 +61,8 @@ This document tracks the GPU tracegen implementation status for core RISC-V chip
 | Chip | Variant | GPU Impl | Stub | Tests | Perf | File |
 |------|---------|----------|------|-------|------|------|
 | SyscallInstrsChip | `SyscallInstrs` | [x] | [x] | [x] | [x] | `syscall.rs` |
-| SyscallChip | `SyscallCore` | [ ] | [x] | [ ] | [ ] | `syscall.rs` |
-| SyscallChip | `SyscallPrecompile` | [ ] | [x] | [ ] | [ ] | `syscall.rs` |
+| SyscallChip | `SyscallCore` | [x] | [x] | [x] | [x] | `syscall.rs` |
+| SyscallChip | `SyscallPrecompile` | [x] | [x] | [x] | [x] | `syscall.rs` |
 
 ## Lookup Tables
 
@@ -96,10 +96,10 @@ This document tracks the GPU tracegen implementation status for core RISC-V chip
 ## Summary
 
 - **Total core chips**: 35
-- **GPU implemented**: 26 (Global, Add, Addw, Addi, Sub, Subw, Mul, DivRem, Lt, Bitwise, ShiftLeft, ShiftRight, LoadByte, LoadHalf, LoadWord, LoadDouble, LoadX0, StoreByte, StoreHalf, StoreWord, StoreDouble, UType, Branch, Jal, Jalr, SyscallInstrs)
+- **GPU implemented**: 28 (Global, Add, Addw, Addi, Sub, Subw, Mul, DivRem, Lt, Bitwise, ShiftLeft, ShiftRight, LoadByte, LoadHalf, LoadWord, LoadDouble, LoadX0, StoreByte, StoreHalf, StoreWord, StoreDouble, UType, Branch, Jal, Jalr, SyscallInstrs, SyscallCore, SyscallPrecompile)
 - **Stubs created**: 35
-- **Tests passing**: 26
-- **Perf checked**: 25 (all implemented except DivRem which is disabled)
+- **Tests passing**: 28
+- **Perf checked**: 27 (all implemented except DivRem which is disabled)
 
 ## File Structure
 

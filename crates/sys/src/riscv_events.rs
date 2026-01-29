@@ -560,3 +560,20 @@ pub struct SyscallInstrsGpuEvent {
     /// Memory access record for op_c register.
     pub mem_c: GpuMemoryAccess,
 }
+
+/// GPU-compatible event for SyscallChip (Core and Precompile).
+///
+/// This is a minimal struct containing only the fields needed for SyscallCols trace generation.
+/// SyscallChip has only 11 columns and needs no memory access or adapter data.
+#[derive(Clone, Copy, Debug, Default)]
+#[repr(C)]
+pub struct SyscallGpuEvent {
+    /// Clock cycle.
+    pub clk: u64,
+    /// The syscall identifier (byte 0 of syscall code).
+    pub syscall_id: u32,
+    /// First argument.
+    pub arg1: u64,
+    /// Second argument.
+    pub arg2: u64,
+}

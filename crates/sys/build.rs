@@ -123,6 +123,8 @@ fn cbindgen_builder() -> cbindgen::Builder {
         // because they contain complex nested types and constant expressions
         // RISC-V SyscallInstrsChip types
         .include_item("SyscallInstrsGpuEvent")
+        // RISC-V SyscallChip types (Core and Precompile)
+        .include_item("SyscallGpuEvent")
         // Note: SyscallInstrColumns and IsZeroOperation/SP1FieldWordRangeChecker/U16toU8Operation
         // are manually defined in syscall_instrs.cu because they contain complex nested types
         .with_namespace("sp1_gpu_sys")

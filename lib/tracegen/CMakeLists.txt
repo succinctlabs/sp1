@@ -24,6 +24,7 @@ add_library(tracegen_objs OBJECT
     riscv/store.cu
     riscv/sub.cu
     riscv/subw.cu
+    riscv/syscall.cu
     riscv/syscall_instrs.cu
     riscv/utype.cu
 )
