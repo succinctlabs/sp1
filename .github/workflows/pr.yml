@@ -37,7 +37,7 @@ jobs:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup CI
         uses: ./.github/actions/setup
@@ -100,7 +100,7 @@ jobs:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup CI
         uses: ./.github/actions/setup
@@ -163,7 +163,7 @@ jobs:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup CI
         uses: ./.github/actions/setup
@@ -197,7 +197,7 @@ jobs:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup CI
         uses: ./.github/actions/setup
@@ -236,7 +236,7 @@ jobs:
       RUSTFLAGS: "--cfg sp1_debug_constraints"
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup CI
         uses: ./.github/actions/setup
@@ -276,7 +276,7 @@ jobs:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup CI
         uses: ./.github/actions/setup
@@ -324,7 +324,7 @@ jobs:
   #     CARGO_NET_GIT_FETCH_WITH_CLI: "true"
   #   steps:
   #     - name: Checkout sources
-  #       uses: actions/checkout@v4
+  #       uses: actions/checkout@v6
 
   #     - name: Setup CI
   #       uses: ./.github/actions/setup
@@ -364,7 +364,7 @@ jobs:
   #     fail-fast: false
   #   steps:
   #     - name: Checkout Actions Repository
-  #       uses: actions/checkout@v4
+  #       uses: actions/checkout@v6
   
   #     - name: Install Rust toolchain
   #       uses: dtolnay/rust-toolchain@stable
@@ -395,7 +395,7 @@ jobs:
   #     CARGO_NET_GIT_FETCH_WITH_CLI: "true"
   #   steps:
   #     - name: "Checkout sources"
-  #       uses: "actions/checkout@v4"
+  #       uses: "actions/checkout@v6"
 
   #     - name: Setup CI
   #       uses: ./.github/actions/setup
@@ -428,7 +428,7 @@ jobs:
   #   runs-on: [runs-on, runner=16cpu-linux-x64, disk=large, "run-id=${{ github.run_id }}"]
   #   steps:
   #     - name: "Checkout sources"
-  #       uses: "actions/checkout@v4"
+  #       uses: "actions/checkout@v6"
 
   #     - name: "Setup CI"
   #       uses: ./.github/actions/setup
@@ -455,7 +455,7 @@ jobs:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup CI
         uses: ./.github/actions/setup
@@ -512,7 +512,7 @@ jobs:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup CI
         uses: ./.github/actions/setup

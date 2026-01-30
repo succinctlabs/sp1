@@ -3,9 +3,6 @@
 name: Docker Publish CLI
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
   schedule:
     - cron: "0 0 * * *"
   # Trigger without any parameters a proactive rebuild
@@ -17,6 +14,11 @@ on:
       tag_override:
         description: "Override the tag"
   workflow_call:
+    inputs:
+      push:
+        description: 'Push the image to registry'
+        type: boolean
+        default: true
 
 env:
   REGISTRY: ghcr.io
@@ -36,7 +38,7 @@ jobs:
     steps:
       - name: Checkout repository
         id: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Docker BuildX
         uses: docker/setup-buildx-action@v3
@@ -98,7 +100,7 @@ jobs:
         with:
           context: ./
           file: ./Dockerfile.build
-          push: true
+          push: ${{ inputs.push != false }}
           tags: ${{ steps.docker_tagging.outputs.docker_tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
