@@ -340,14 +340,12 @@ jobs:
         include:
           - name: "Ubuntu 24.04 (x86_64)"
             runner: "ubuntu-24.04"
-          - name: "Ubuntu 22.04 (x86_64)"
-            runner: "ubuntu-22.04"
-          - name: "macOS Ventura (x86_64)"
-            runner: "macos-13"
+          - name: "Ubuntu 24.04 (ARM64)"
+            runner: "ubuntu-24.04-arm"
+          - name: "macOS Sequoia (x86_64)"
+            runner: "macos-15-intel"
           - name: "macOS Sonoma (ARM64)"
             runner: "macos-14"
-          - name: "macOS latest"
-            runner: "macos-latest"
 
     runs-on: "${{ matrix.runner }}"
     steps:
@@ -368,35 +366,6 @@ jobs:
         run: |
           cd ./hello/program
           $HOME/.sp1/bin/cargo-prove prove build
-
-  toolchain-test-ec2:
-    name: "Test toolchain installation (${{ matrix.name }})"
-    needs: [sp1-gpu-server-release, cargo-prove-release, prepare]
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # AMI from `us-east-1`
-          - name: "Debian 12 (x86_64)"
-            ec2-instance: "c5.2xlarge"
-            ami: "ami-064519b8c76274859"
-            volume: "/dev/xvda"
-          - name: "Debian 12 (ARM64)"
-            ec2-instance: "c6g.2xlarge"
-            ami: "ami-0789039e34e739d67"
-            volume: "/dev/xvda"
-    uses: "./.github/workflows/toolchain-ec2.yml"
-    with:
-      image-id: "${{ matrix.ami }}"
-      instance-type: "${{ matrix.ec2-instance }}"
-      root-volume: "${{ matrix.volume }}"
-    secrets:
-      AWS_REGION: "${{ secrets.AWS_REGION }}"
-      AWS_ACCESS_KEY_ID: "${{ secrets.AWS_ACCESS_KEY_ID }}"
-      AWS_SECRET_ACCESS_KEY: "${{ secrets.AWS_SECRET_ACCESS_KEY }}"
-      AWS_SUBNET_ID: "${{ secrets.AWS_SUBNET_ID }}"
-      AWS_SG_ID: "${{ secrets.AWS_SG_ID }}"
-      GH_PAT: ${{ secrets.GH_PAT }}
 
   # If any of the jobs fail, this will create a high-priority issue to signal so.
   issue:
@@ -436,7 +405,7 @@ jobs:
   dry-run-cleanup:
     name: Delete dry run release
     runs-on: ubuntu-latest
-    needs: [toolchain-test, toolchain-test-ec2, prepare]
+    needs: [toolchain-test, prepare]
     if: ${{ always() && inputs.dry_run == true }}
     steps:
       - uses: actions/checkout@v6
