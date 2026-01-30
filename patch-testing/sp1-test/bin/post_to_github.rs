@@ -16,6 +16,8 @@ pub fn main() {
 
     let pr_number = std::env::var("PR_NUMBER").unwrap();
     let token = std::env::var("GITHUB_TOKEN").unwrap();
+    let github_repo = std::env::var("GITHUB_REPOSITORY").unwrap();
+    let (owner, repo) = github_repo.split_once('/').unwrap();
 
-    post_to_github_pr_sync("succinctlabs", "sp1-wip", &pr_number, &token, &comparison).unwrap();
+    post_to_github_pr_sync(owner, repo, &pr_number, &token, &comparison).unwrap();
 }
