@@ -167,7 +167,60 @@ impl NetworkProver {
         NetworkProveBuilder {
             prover: self,
             mode: SP1ProofMode::Core,
-            pk,
+            vk: &pk.vk,
+            elf: &pk.elf,
+            stdin: stdin.clone(),
+            timeout: None,
+            strategy: self.default_fulfillment_strategy(),
+            skip_simulation: false,
+            cycle_limit: None,
+            gas_limit: None,
+            tee_2fa: false,
+            min_auction_period: 1,
+            whitelist: None,
+            auctioneer: None,
+            executor: None,
+            verifier: None,
+            treasury: None,
+            max_price_per_pgu: None,
+            auction_timeout: None,
+        }
+    }
+
+    /// A request to generate a proof for a given verifying key, ELF and input.
+    ///
+    /// This allow to send proof requests to the network without having to run
+    /// `setup()`. You just need the verifying key that is cheap to
+    /// deserialize.
+    ///
+    /// # Details
+    /// * `vk`: The verifying key to use for the proof.
+    /// * `elf`: The ELF to use for the proof.
+    /// * `stdin`: The input to use for the proof.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use sp1_sdk::{Prover, ProverClient, SP1Stdin};
+    ///
+    /// let elf = &[1, 2, 3];
+    /// let vk_bytes = &[4, 5, 6];
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let client = ProverClient::builder().network().build();
+    /// let vk = bincode::deserialize(vk_bytes).unwrap();
+    /// let proof = client.prove_from_vk(&vk, elf, &stdin).run();
+    /// ```
+    pub fn prove_from_vk<'a>(
+        &'a self,
+        vk: &'a SP1VerifyingKey,
+        elf: &'a [u8],
+        stdin: &'a SP1Stdin,
+    ) -> NetworkProveBuilder<'a> {
+        NetworkProveBuilder {
+            prover: self,
+            mode: SP1ProofMode::Core,
+            vk,
+            elf,
             stdin: stdin.clone(),
             timeout: None,
             strategy: self.default_fulfillment_strategy(),
@@ -555,7 +608,8 @@ impl NetworkProver {
     #[allow(clippy::too_many_arguments)]
     pub(crate) async fn request_proof_impl(
         &self,
-        pk: &SP1ProvingKey,
+        vk: &SP1VerifyingKey,
+        elf: &[u8],
         stdin: &SP1Stdin,
         mode: SP1ProofMode,
         strategy: FulfillmentStrategy,
@@ -571,9 +625,9 @@ impl NetworkProver {
         treasury: Option<Address>,
         max_price_per_pgu: Option<u64>,
     ) -> Result<B256> {
-        let vk_hash = self.register_program(&pk.vk, &pk.elf).await?;
+        let vk_hash = self.register_program(vk, elf).await?;
         let (cycle_limit, gas_limit, public_values_hash) =
-            self.get_execution_limits(cycle_limit, gas_limit, &pk.elf, stdin, skip_simulation)?;
+            self.get_execution_limits(cycle_limit, gas_limit, elf, stdin, skip_simulation)?;
         let (auctioneer, executor, verifier, treasury, max_price_per_pgu, base_fee, domain) = self
             .get_auction_request_params(
                 mode,
@@ -610,7 +664,8 @@ impl NetworkProver {
     #[allow(clippy::too_many_arguments)]
     pub(crate) async fn prove_impl(
         &self,
-        pk: &SP1ProvingKey,
+        vk: &SP1VerifyingKey,
+        elf: &[u8],
         stdin: &SP1Stdin,
         mode: SP1ProofMode,
         strategy: FulfillmentStrategy,
@@ -636,7 +691,8 @@ impl NetworkProver {
         loop {
             let request_id = self
                 .request_proof_impl(
-                    pk,
+                    vk,
+                    elf,
                     stdin,
                     mode,
                     strategy,
@@ -660,7 +716,7 @@ impl NetworkProver {
                 let request = super::tee::api::TEERequest::new(
                     &self.client.signer,
                     *request_id,
-                    pk.elf.clone(),
+                    elf.to_vec(),
                     stdin.clone(),
                     cycle_limit.unwrap_or_else(|| {
                         super::utils::get_default_cycle_limit_for_mode(self.network_mode)
@@ -899,7 +955,8 @@ impl Prover<CpuProverComponents> for NetworkProver {
         mode: SP1ProofMode,
     ) -> Result<SP1ProofWithPublicValues> {
         block_on(self.prove_impl(
-            pk,
+            &pk.vk,
+            &pk.elf,
             stdin,
             mode,
             self.default_fulfillment_strategy(),
