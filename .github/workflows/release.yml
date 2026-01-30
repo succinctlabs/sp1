@@ -331,6 +331,13 @@ jobs:
           # Wait until all the binaries have been built to set the latest release.
           gh release edit ${{ needs.prepare.outputs.tag_name }} --latest
 
+  docker-publish:
+    name: Docker build and publish
+    needs: [cargo-prove-release, prepare]
+    uses: ./.github/workflows/docker-publish.yml
+    with:
+      push: ${{ inputs.dry_run != true }}
+
   toolchain-test:
     name: "Test toolchain installation (${{ matrix.name }})"
     needs: [sp1-gpu-server-release, cargo-prove-release, prepare]
