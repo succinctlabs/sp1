@@ -48,8 +48,13 @@ jobs:
         run: |
           # Parse the version from the `Cargo.toml` file.
           VERSION=$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[] | select(.name == "sp1-primitives") | .version')
-          echo "tag_name=v${VERSION}" >> $GITHUB_OUTPUT 
-          echo "release_name=v${VERSION}" >> $GITHUB_OUTPUT
+          TAG_NAME="v${VERSION}"
+          # Append suffix for dry runs to avoid tag collisions with existing releases
+          if [ "${{ inputs.dry_run }}" == "true" ]; then
+            TAG_NAME="${TAG_NAME}-dry-run-${{ github.run_id }}"
+          fi
+          echo "tag_name=${TAG_NAME}" >> $GITHUB_OUTPUT
+          echo "release_name=${TAG_NAME}" >> $GITHUB_OUTPUT
 
       # - name: Build changelog
       #   uses: mikepenz/release-changelog-builder-action@v4
