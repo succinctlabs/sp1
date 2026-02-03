@@ -138,7 +138,7 @@ where
             let block_dim = 256;
             let grid_dim = (1usize << num_variables).div_ceil(block_dim);
             let batch_size = total_num_polynomials;
-            let powers_device = DeviceBuffer::from_host(&batching_coefficients.as_buffer(), &scope)
+            let powers_device = DeviceBuffer::from_host(batching_coefficients.as_buffer(), &scope)
                 .unwrap()
                 .into_inner();
             let mle_args = args!(
