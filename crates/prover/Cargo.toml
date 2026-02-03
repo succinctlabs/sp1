@@ -81,7 +81,7 @@ sha2 = { workspace = true }
 hex = { workspace = true }
 
 [dev-dependencies]
-test-artifacts = { workspace = true }
+test-artifacts = { path = "../test-artifacts" }
 anyhow = { workspace = true }
 
 [[bin]]

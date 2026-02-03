@@ -1,5 +1,6 @@
 [package]
 name = "slop-spartan"
+description = "TODO"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

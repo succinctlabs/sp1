@@ -1,12 +1,12 @@
 [package]
 name = "slop-primitives"
+description = "TODO"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 keywords.workspace = true
 categories.workspace = true
-include.workspace = true
 
 [dependencies]
 slop-algebra = { workspace = true }

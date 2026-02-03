@@ -55,7 +55,7 @@ sp1-jit = { workspace = true }
 
 [dev-dependencies]
 sp1-zkvm = { workspace = true, features = ["lib"] }
-test-artifacts = { workspace = true }
+test-artifacts = { path = "../../test-artifacts" }
 
 [features]
 bigint-rug = ["sp1-curves/bigint-rug"]

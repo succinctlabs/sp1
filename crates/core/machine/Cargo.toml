@@ -60,7 +60,7 @@ static_assertions = { workspace = true }
 rand = { workspace = true }
 num = { workspace = true, features = ["rand"] }
 sp1-core-executor = { workspace = true }
-test-artifacts = { workspace = true }
+test-artifacts = { path = "../../test-artifacts" }
 slop-air = { workspace = true }
 slop-algebra = { workspace = true }
 slop-matrix = { workspace = true }

@@ -53,7 +53,7 @@ slop-dft = { workspace = true }
 zkhash = { workspace = true }
 rand = { workspace = true }
 futures = { workspace = true }
-test-artifacts = { workspace = true }
+test-artifacts = { path = "../../test-artifacts" }
 bincode = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt"] }
 

@@ -1,5 +1,6 @@
 [package]
 name = "sp1-gpu-commit"
+description = "TODO"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

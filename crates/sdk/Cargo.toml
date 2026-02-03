@@ -84,7 +84,7 @@ k256 = { workspace = true, features = ["serde"] } # Signing
 eventsource-stream = { workspace = true }         # SSE Extenstion for reqwest
 
 [dev-dependencies]
-test-artifacts = { workspace = true }
+test-artifacts = { path = "../test-artifacts" }
 tokio = { workspace = true, features = ["macros", "rt"] }
 tokio-test = { workspace = true }
 rstest = { workspace = true }

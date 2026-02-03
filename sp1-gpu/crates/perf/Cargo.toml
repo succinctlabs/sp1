@@ -1,11 +1,13 @@
 [package]
 name = "sp1-gpu-perf"
+description = "TODO"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 keywords.workspace = true
 categories.workspace = true
+publish = false
 
 [dependencies]
 sp1-gpu-cudart = { workspace = true }

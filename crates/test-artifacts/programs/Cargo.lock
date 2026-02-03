@@ -365,7 +365,7 @@ version = "1.1.0"
 dependencies = [
  "common-test-utils",
  "sp1-curves",
- "sp1-lib 6.0.0",
+ "sp1-lib 6.0.0-beta.1",
  "sp1-zkvm",
 ]
 
@@ -408,7 +408,7 @@ name = "bls12381-mul-test"
 version = "1.1.0"
 dependencies = [
  "sp1-derive",
- "sp1-lib 6.0.0",
+ "sp1-lib 6.0.0-beta.1",
  "sp1-zkvm",
 ]
 
@@ -431,7 +431,7 @@ version = "1.1.0"
 dependencies = [
  "common-test-utils",
  "sp1-curves",
- "sp1-lib 6.0.0",
+ "sp1-lib 6.0.0-beta.1",
  "sp1-zkvm",
 ]
 
@@ -474,7 +474,7 @@ name = "bn254-mul-test"
 version = "1.1.0"
 dependencies = [
  "sp1-derive",
- "sp1-lib 6.0.0",
+ "sp1-lib 6.0.0-beta.1",
  "sp1-zkvm",
 ]
 
@@ -545,7 +545,7 @@ name = "common-test-utils"
 version = "1.1.0"
 dependencies = [
  "num-bigint 0.4.6",
- "sp1-lib 6.0.0",
+ "sp1-lib 6.0.0-beta.1",
 ]
 
 [[package]]
@@ -676,7 +676,7 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek"
 version = "4.1.3"
-source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.0.0#ade3f90a82efc7c58c4ae1ecb4d48bbe673c2a8f"
+source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.0.0-beta.1#65324e2fa2a26398893eaab02754457f2ceab5a7"
 dependencies = [
  "cfg-if",
  "cpufeatures",
@@ -684,7 +684,7 @@ dependencies = [
  "digest 0.10.7",
  "fiat-crypto",
  "rustc_version 0.4.1",
- "sp1-lib 6.0.0",
+ "sp1-lib 6.0.0-beta.1",
  "subtle",
  "zeroize",
 ]
@@ -692,7 +692,7 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek-derive"
 version = "0.1.1"
-source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.0.0#ade3f90a82efc7c58c4ae1ecb4d48bbe673c2a8f"
+source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.0.0-beta.1#65324e2fa2a26398893eaab02754457f2ceab5a7"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1001,7 +1001,7 @@ dependencies = [
 [[package]]
 name = "ed25519-dalek"
 version = "2.1.1"
-source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.0.0#ade3f90a82efc7c58c4ae1ecb4d48bbe673c2a8f"
+source = "git+https://github.com/sp1-patches/curve25519-dalek?tag=patch-4.1.3-sp1-6.0.0-beta.1#65324e2fa2a26398893eaab02754457f2ceab5a7"
 dependencies = [
  "curve25519-dalek",
  "ed25519",
@@ -2536,7 +2536,7 @@ version = "1.1.0"
 dependencies = [
  "common-test-utils",
  "sp1-curves",
- "sp1-lib 6.0.0",
+ "sp1-lib 6.0.0-beta.1",
  "sp1-zkvm",
 ]
 
@@ -2572,7 +2572,7 @@ dependencies = [
  "num",
  "p256",
  "sp1-curves",
- "sp1-lib 6.0.0",
+ "sp1-lib 6.0.0-beta.1",
  "sp1-zkvm",
 ]
 
@@ -2593,7 +2593,7 @@ dependencies = [
  "num",
  "p256",
  "sp1-curves",
- "sp1-lib 6.0.0",
+ "sp1-lib 6.0.0-beta.1",
  "sp1-zkvm",
 ]
 
@@ -2806,7 +2806,7 @@ checksum = "7a2ae44ef20feb57a68b23d846850f861394c2e02dc425a50098ae8c90267589"
 
 [[package]]
 name = "slop-algebra"
-version = "6.0.0"
+version = "6.0.0-beta.1"
 dependencies = [
  "itertools 0.14.0",
  "p3-field",
@@ -2815,7 +2815,7 @@ dependencies = [
 
 [[package]]
 name = "slop-bn254"
-version = "6.0.0"
+version = "6.0.0-beta.1"
 dependencies = [
  "ff 0.13.1",
  "p3-bn254-fr",
@@ -2829,7 +2829,7 @@ dependencies = [
 
 [[package]]
 name = "slop-challenger"
-version = "6.0.0"
+version = "6.0.0-beta.1"
 dependencies = [
  "futures",
  "p3-challenger",
@@ -2840,7 +2840,7 @@ dependencies = [
 
 [[package]]
 name = "slop-koala-bear"
-version = "6.0.0"
+version = "6.0.0-beta.1"
 dependencies = [
  "lazy_static",
  "p3-koala-bear",
@@ -2853,21 +2853,21 @@ dependencies = [
 
 [[package]]
 name = "slop-poseidon2"
-version = "6.0.0"
+version = "6.0.0-beta.1"
 dependencies = [
  "p3-poseidon2",
 ]
 
 [[package]]
 name = "slop-primitives"
-version = "6.0.0"
+version = "6.0.0-beta.1"
 dependencies = [
  "slop-algebra",
 ]
 
 [[package]]
 name = "slop-symmetric"
-version = "6.0.0"
+version = "6.0.0-beta.1"
 dependencies = [
  "p3-symmetric",
 ]
@@ -2884,7 +2884,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-curves"
-version = "6.0.0"
+version = "6.0.0-beta.1"
 dependencies = [
  "cfg-if",
  "dashu",
@@ -2903,7 +2903,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "6.0.0"
+version = "6.0.0-beta.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2922,7 +2922,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "6.0.0"
+version = "6.0.0-beta.1"
 dependencies = [
  "bincode",
  "elliptic-curve",
@@ -2932,7 +2932,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "6.0.0"
+version = "6.0.0-beta.1"
 dependencies = [
  "bincode",
  "blake3",
@@ -2954,7 +2954,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "6.0.0"
+version = "6.0.0-beta.1"
 dependencies = [
  "cfg-if",
  "critical-section",
@@ -2966,7 +2966,7 @@ dependencies = [
  "rand 0.8.5",
  "sha2 0.10.9",
  "slop-algebra",
- "sp1-lib 6.0.0",
+ "sp1-lib 6.0.0-beta.1",
  "sp1-primitives",
 ]
 
