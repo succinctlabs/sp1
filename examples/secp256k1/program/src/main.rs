@@ -1,4 +1,5 @@
 #![no_main]
+#![allow(unused)]
 use num_bigint::BigUint;
 use sp1_curves::params::FieldParameters;
 use sp1_lib::utils::{AffinePoint, WeierstrassAffinePoint};

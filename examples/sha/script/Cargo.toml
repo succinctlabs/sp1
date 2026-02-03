@@ -7,13 +7,8 @@ publish = false
 
 [dependencies]
 hex = "0.4.3"
-sp1-sdk = { workspace = true, default-features = true }
+sp1-sdk = { workspace = true }
 tokio = { workspace = true }
-sp1-prover = { workspace = true }
-sp1-core-executor = { workspace = true }
-sp1-build = { workspace = true }
-sp1-core-machine = { workspace = true }
-sp1-primitives = { workspace = true }
 tracing = "0.1"
 
 [build-dependencies]
