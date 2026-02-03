@@ -139,7 +139,7 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                         }
                     }
                 }
-            }
+            }.in_current_span()
         });
 
         // Spawn the setup handler
@@ -180,7 +180,7 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                         }
                     }
                 }
-            }
+            }.in_current_span()
         });
 
         // Spawn the recursion vk tree handler
@@ -221,7 +221,7 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                         }
                     }
                 }
-            }
+            }.in_current_span()
         });
 
         // Spawn the vk chunk worker handler.
@@ -266,7 +266,7 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                         }
                     }
                 }
-            }
+            }.in_current_span()
         });
 
         // Spawn the prove shard handler
@@ -308,7 +308,7 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                         }
                     }
                 }
-            }
+            }.in_current_span()
         });
 
         // Spawn the recursion reduce handler
@@ -347,7 +347,7 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                         }
                     }
                 }
-            }
+            }.in_current_span()
         });
 
         // Spawn the deferred handler
@@ -385,7 +385,7 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                         }
                     }
                 }
-            }
+            }.in_current_span()
         });
 
         // Spawn the deferred marker task handler.
@@ -427,7 +427,7 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                         }
                     }
                 }
-            }
+            }.in_current_span()
         });
 
         // Spawn the plonk wrap handler
@@ -461,7 +461,7 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                         }
                     }
                 }
-            }
+            }.in_current_span()
         });
 
         // Spawn the groth16 wrap handler
@@ -495,7 +495,7 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                         }
                     }
                 }
-            }
+            }.in_current_span() 
         });
 
         // Get the verifier, artifact client, and worker client from the worker

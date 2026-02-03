@@ -454,7 +454,7 @@ pub async fn download_file(
 #[cfg(test)]
 mod tests {
     use sp1_core_executor::SP1Context;
-    use sp1_core_machine::{io::SP1Stdin, utils::setup_logger};
+    use sp1_core_machine::utils::setup_logger;
     use sp1_prover_types::network_base_types::ProofMode;
 
     use crate::{
@@ -463,7 +463,6 @@ mod tests {
     };
 
     #[tokio::test]
-    #[cfg(feature = "experimental")]
     #[ignore = "should be invoked when changing the wrap circuit"]
     async fn set_wrap_vk_and_wrapped_proof() {
         setup_logger();
@@ -471,15 +470,13 @@ mod tests {
         let elf = test_artifacts::FIBONACCI_ELF;
 
         tracing::info!("initializing prover");
-        let client = SP1LocalNodeBuilder::from_worker_client_builder(
-            cpu_worker_builder().without_vk_verification(),
-        )
-        .build()
-        .await
-        .unwrap();
+        let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder())
+            .build()
+            .await
+            .unwrap();
 
         tracing::info!("prove compressed");
-        let stdin = SP1Stdin::new();
+        let stdin = sp1_core_machine::io::SP1Stdin::new();
         let compressed_proof = client
             .prove_with_mode(&elf, stdin, SP1Context::default(), ProofMode::Compressed)
             .await
@@ -506,16 +503,6 @@ mod tests {
             .await
             .unwrap();
 
-        // // Check consitency of wrap vk
-        // let wrap_vk = prover_engine.recursion_prover.wrap_prover.verifying_key.clone();
-        // let expected_wrap_vk = verifier.wrap_vk.clone();
-        // if recursion_vks.vk_verification() && wrap_vk != expected_wrap_vk {
-        //     return Err(anyhow::anyhow!(
-        //         "Wrap vk mismatch, expected: {:?}, got: {:?}",
-        //         expected_wrap_vk,
-        //         wrap_vk
-        //     ));
-        // }
         // Check that the wrap vk is the same as the one included in the binary.
         let client_wrap_vk = client.wrap_vk().clone();
         let expected_wrap_vk = bincode::deserialize(WRAP_VK_BYTES).unwrap();
