@@ -581,7 +581,7 @@ where
                         );
                     }
                     new_idx
-                } else {
+        } else {
                     // Forward-allocated.
                     //
                     // Important distinction:
@@ -1358,9 +1358,9 @@ where
                 // Expand Poseidon2 and get computed output indices
                 let computed_output = if let Some(c) = ctx.as_deref_mut() {
                     Poseidon2R1CS::<C::F>::expand_permute_babybear_with_witness(
-                        &mut self.r1cs,
-                        &mut self.next_var,
-                        &input_indices,
+                    &mut self.r1cs,
+                    &mut self.next_var,
+                    &input_indices,
                         c.witness,
                     )
                 } else {
@@ -1389,16 +1389,16 @@ where
                 // For in-place variant, computed output overwrites input
                 let computed_output = if let Some(c) = ctx.as_deref_mut() {
                     Poseidon2R1CS::<C::F>::expand_permute_babybear_with_witness(
-                        &mut self.r1cs,
-                        &mut self.next_var,
-                        &state_indices,
+                    &mut self.r1cs,
+                    &mut self.next_var,
+                    &state_indices,
                         c.witness,
                     )
                 } else {
-                    Poseidon2R1CS::<C::F>::expand_permute_babybear(
-                        &mut self.r1cs,
-                        &mut self.next_var,
-                        &state_indices,
+                Poseidon2R1CS::<C::F>::expand_permute_babybear(
+                    &mut self.r1cs,
+                    &mut self.next_var,
+                    &state_indices,
                     )
                 };
                 
@@ -2491,7 +2491,7 @@ where
                         self.get_or_alloc(&format!("{}__{}", dst.id(), i), ctx.as_deref_mut());
                     let lhs_idx =
                         self.get_var(&format!("{}__{}", lhs.id(), i), ctx.as_deref_mut());
-
+                    
                     // dst[i] * rhs = lhs[i]
                     self.r1cs.add_constraint(
                         SparseRow::single(dst_idx),

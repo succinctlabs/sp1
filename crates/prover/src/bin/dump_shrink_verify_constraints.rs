@@ -460,24 +460,24 @@ fn load_or_build_input_with_merkle(
     (prover, input_with_merkle, false)
 }
 
-/// Audit that the lifted LF-targeted R1CS cannot exploit modulus wraparound when proven in Frog64
-/// under the current SP1/Frog64 boundedness regime (currently `decomp_b=12, k=8` in LF+).
+/// Audit that the lifted LF-targeted R1CS cannot exploit modulus wraparound when proven in Goldilocks
+/// under the current SP1/Goldilocks boundedness regime (currently `decomp_b=12, k=8` in LF+).
 ///
 /// This is a *sufficient* condition: it uses worst-case magnitude bounds derived from per-row
 /// coefficient \(\ell_1\) norms and the per-coordinate witness bound.
-fn audit_no_wrap_frog64_lifted(r1lf: &sp1_recursion_compiler::r1cs::lf::R1CSLf) {
-    // Frog base field prime (see latticefold `FrogRing64` docs).
-    const Q_FROG: u128 = 15912092521325583641u128;
-    const Q_HALF: u128 = Q_FROG / 2;
-    // SP1/Frog64 boundedness envelope for each scalar witness coordinate:
+fn audit_no_wrap_goldilocks_lifted(r1lf: &sp1_recursion_compiler::r1cs::lf::R1CSLf) {
+    // Goldilocks base field prime: 2^64 - 2^32 + 1.
+    const Q_GOLDILOCKS: u128 = 0xFFFF_FFFF_0000_0001u128;
+    const Q_HALF: u128 = Q_GOLDILOCKS / 2;
+    // SP1/Goldilocks boundedness envelope for each scalar witness coordinate:
     // Conservative verifier-semantics envelope used in the LF+ security rationale:
-    // - unit-monomial exponent implies per-digit bound D = d/2 - 1 = 31 for Frog64
+    // - unit-monomial exponent implies per-digit bound D = d/2 - 1 = 31 for d=64
     // - base b = 12, k = 8 digits => M = D * (b^k - 1)/(b - 1) = 1,211,766,595
     const M: u128 = 1_211_766_595u128;
     const SP1_P_BB: u64 = 2013265921u64;
 
     if r1lf.p_bb != SP1_P_BB {
-        // Not the SP1 BabyBear modulus; this audit is currently specialized to SP1/Frog64.
+        // Not the SP1 BabyBear modulus; this audit is currently specialized to SP1/Goldilocks.
         return;
     }
 
@@ -638,7 +638,7 @@ fn audit_no_wrap_frog64_lifted(r1lf: &sp1_recursion_compiler::r1cs::lf::R1CSLf) 
         let bb = bound_lin(&r1lf.b[i], &is_bool, M);
         let bc = bound_lin(&r1lf.c[i], &is_bool, M);
         // Sufficient wrap-prevention check:
-        // |(A·w)(B·w) - (C·w)| <= |A·w||B·w| + |C·w| < q_frog
+        // |(A·w)(B·w) - (C·w)| <= |A·w||B·w| + |C·w| < q_goldilocks
         let row_bound = ba.saturating_mul(bb).saturating_add(bc);
         if row_bound > worst_bound {
             worst_bound = row_bound;
@@ -650,11 +650,11 @@ fn audit_no_wrap_frog64_lifted(r1lf: &sp1_recursion_compiler::r1cs::lf::R1CSLf) 
     }
 
     println!("\n=========================================================");
-    println!("R1LF No-Wrap Audit (SP1→Frog64, sufficient bound)");
+    println!("R1LF No-Wrap Audit (SP1→Goldilocks, sufficient bound)");
     println!("=========================================================");
-    println!("  q_frog:                 {Q_FROG}");
-    println!("  q_frog/2:               {Q_HALF}");
-    println!("  audit threshold:        q_frog (requires worst_bound < q_frog)");
+    println!("  q_goldilocks:           {Q_GOLDILOCKS}");
+    println!("  q_goldilocks/2:         {Q_HALF}");
+    println!("  audit threshold:        q_goldilocks (requires worst_bound < q_goldilocks)");
     println!("  per-coordinate bound M: {M}");
     println!("  inferred boolean vars:  {bool_count}");
     println!("  worst row index:        {worst_row}");
@@ -665,12 +665,12 @@ fn audit_no_wrap_frog64_lifted(r1lf: &sp1_recursion_compiler::r1cs::lf::R1CSLf) 
 
     // Sufficient condition for "no modulus wrap attack" on this constraint family:
     //
-    // If the witness boundedness implies |(A·w)(B·w) - (C·w)| < q_frog, then
+    // If the witness boundedness implies |(A·w)(B·w) - (C·w)| < q_goldilocks, then
     // modular equality in the host field implies the corresponding *integer* equality.
     //
     // Using q/2 is a stronger (often too pessimistic) condition. q is enough here because
     // the only multiple of q within (-q, q) is 0.
-    if worst_bound >= Q_FROG {
+    if worst_bound >= Q_GOLDILOCKS {
         let arow = &r1lf.a[worst_row];
         let brow = &r1lf.b[worst_row];
         let crow = &r1lf.c[worst_row];
@@ -696,8 +696,8 @@ fn audit_no_wrap_frog64_lifted(r1lf: &sp1_recursion_compiler::r1cs::lf::R1CSLf) 
         println!("  top {k} |coeff| terms in C: {:?}", top_terms(crow, k));
 
         panic!(
-            "R1LF no-wrap audit failed: worst_bound={} >= q_frog={} (row={})",
-            worst_bound, Q_FROG, worst_row
+            "R1LF no-wrap audit failed: worst_bound={} >= q_goldilocks={} (row={})",
+            worst_bound, Q_GOLDILOCKS, worst_row
         );
     }
 }
@@ -1089,7 +1089,7 @@ fn main() {
 
         // Extend the existing audit gate with a wraparound safety check on the *lifted* instance.
         if std::env::var("R1CS_AUDIT_UNCONSTRAINED").ok().as_deref() == Some("1") {
-            audit_no_wrap_frog64_lifted(&r1lf);
+            audit_no_wrap_goldilocks_lifted(&r1lf);
         }
 
         // If SP1_R1LF is also set, reuse existing file if it matches; otherwise rewrite.
@@ -1134,7 +1134,7 @@ fn main() {
 
         // Extend the existing audit gate with a wraparound safety check on the *lifted* instance.
         if std::env::var("R1CS_AUDIT_UNCONSTRAINED").ok().as_deref() == Some("1") {
-            audit_no_wrap_frog64_lifted(&r1lf);
+            audit_no_wrap_goldilocks_lifted(&r1lf);
         }
 
         let want_digest = r1lf.digest();

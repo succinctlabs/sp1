@@ -378,7 +378,7 @@ mod tests {
         // Different R1CS should produce different digest
         let mut r1cs1 = R1CS::<F>::new();
         let mut r1cs2 = R1CS::<F>::new();
-
+        
         r1cs1.add_constraint(
             SparseRow::single(0),
             SparseRow::single(1),
