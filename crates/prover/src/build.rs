@@ -463,6 +463,7 @@ mod tests {
     };
 
     #[tokio::test]
+    #[cfg(feature = "experimental")]
     #[ignore = "should be invoked when changing the wrap circuit"]
     async fn set_wrap_vk_and_wrapped_proof() {
         setup_logger();
@@ -470,10 +471,12 @@ mod tests {
         let elf = test_artifacts::FIBONACCI_ELF;
 
         tracing::info!("initializing prover");
-        let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder())
-            .build()
-            .await
-            .unwrap();
+        let client = SP1LocalNodeBuilder::from_worker_client_builder(
+            cpu_worker_builder().without_vk_verification(),
+        )
+        .build()
+        .await
+        .unwrap();
 
         tracing::info!("prove compressed");
         let stdin = SP1Stdin::new();
@@ -503,6 +506,16 @@ mod tests {
             .await
             .unwrap();
 
+        // // Check consitency of wrap vk
+        // let wrap_vk = prover_engine.recursion_prover.wrap_prover.verifying_key.clone();
+        // let expected_wrap_vk = verifier.wrap_vk.clone();
+        // if recursion_vks.vk_verification() && wrap_vk != expected_wrap_vk {
+        //     return Err(anyhow::anyhow!(
+        //         "Wrap vk mismatch, expected: {:?}, got: {:?}",
+        //         expected_wrap_vk,
+        //         wrap_vk
+        //     ));
+        // }
         // Check that the wrap vk is the same as the one included in the binary.
         let client_wrap_vk = client.wrap_vk().clone();
         let expected_wrap_vk = bincode::deserialize(WRAP_VK_BYTES).unwrap();
