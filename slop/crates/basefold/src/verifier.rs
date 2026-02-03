@@ -6,7 +6,7 @@ use slop_challenger::{
     VariableLengthChallenger,
 };
 use slop_merkle_tree::{MerkleTreeOpeningAndProof, MerkleTreeTcs, MerkleTreeTcsError};
-use slop_multilinear::{MleEval, Point};
+use slop_multilinear::{partial_lagrange_blocking, MleEval, MultilinearPcsChallenger, Point};
 use slop_utils::reverse_bits_len;
 use thiserror::Error;
 
@@ -118,13 +118,21 @@ where
         challenger: &mut GC::Challenger,
     ) -> Result<(), BaseFoldVerifierError<MerkleTreeTcsError>> {
         // Sample the challenge used to batch all the different polynomials.
-        let batching_challenge = challenger.sample_ext_element::<GC::EF>();
+        let total_len = evaluation_claims
+            .iter()
+            .map(|batch_claims| batch_claims.num_polynomials())
+            .sum::<usize>();
+
+        let num_batching_variables = total_len.next_power_of_two().ilog2();
+        let batching_point = challenger.sample_point::<GC::EF>(num_batching_variables);
+        let batching_coefficients = partial_lagrange_blocking(&batching_point);
+
         // Compute the batched evaluation claim.
         let eval_claim = evaluation_claims
             .iter()
             .flat_map(|batch_claims| batch_claims.iter())
-            .zip(batching_challenge.powers())
-            .map(|(eval, batch_power)| *eval * batch_power)
+            .zip(batching_coefficients.as_slice())
+            .map(|(eval, batch_power)| *eval * *batch_power)
             .sum::<GC::EF>();
 
         if evaluation_claims.len() != commitments.len()
@@ -215,7 +223,7 @@ where
 
         // Compute the batch evaluations from the openings of the component polynomials.
         let mut batch_evals = vec![GC::EF::zero(); query_indices.len()];
-        let mut batch_challenge_power = GC::EF::one();
+        let mut batch_idx = 0;
         for (round_idx, opening_and_proof) in
             proof.component_polynomials_query_openings_and_proofs.iter().enumerate()
         {
@@ -230,16 +238,16 @@ where
             if values.dimensions.sizes()[1] != total_columns {
                 return Err(BaseFoldVerifierError::IncorrectShape);
             }
+            let round_coefficients =
+                &batching_coefficients.as_slice()[batch_idx..batch_idx + total_columns];
             for (batch_eval, values) in batch_evals.iter_mut().zip_eq(values.split()) {
-                let beta_powers = batching_challenge.shifted_powers(batch_challenge_power);
-                for (value, beta_power) in values.as_slice().iter().zip(beta_powers) {
-                    *batch_eval += beta_power * *value;
+                for (value, batching_coefficient) in
+                    values.as_slice().iter().zip(round_coefficients)
+                {
+                    *batch_eval += *batching_coefficient * *value;
                 }
             }
-            let count =
-                values.get(0).ok_or(BaseFoldVerifierError::IncorrectShape)?.as_slice().len();
-            batch_challenge_power =
-                batching_challenge.shifted_powers(batch_challenge_power).nth(count).unwrap();
+            batch_idx += total_columns;
         }
 
         // Verify the proof of the claimed values of the original commitments at the query indices.
