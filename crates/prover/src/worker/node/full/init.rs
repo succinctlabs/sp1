@@ -221,7 +221,8 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                         }
                     }
                 }
-            }.in_current_span()
+            }
+            .in_current_span()
         });
 
         // Spawn the vk chunk worker handler.
@@ -495,7 +496,7 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                         }
                     }
                 }
-            }.in_current_span() 
+            }.in_current_span()
         });
 
         // Get the verifier, artifact client, and worker client from the worker
