@@ -6,6 +6,7 @@ use sp1_core_executor::{
 };
 use sp1_core_machine::io::SP1Stdin;
 use sp1_hypercube::air::PROOF_NONCE_NUM_WORDS;
+use sp1_hypercube::SP1VerifyingKey;
 use sp1_jit::TraceChunkRaw;
 use sp1_primitives::io::SP1PublicValues;
 use std::sync::Arc;
@@ -15,6 +16,7 @@ use crate::worker::{
     FinalVmState, FinalVmStateLock, DEFAULT_GAS_EXECUTOR_BUFFER_SIZE,
     DEFAULT_NUM_GAS_EXECUTOR_WORKERS,
 };
+use crate::verify::SP1Verifier;
 
 /// Configuration for the executor.
 #[derive(Debug, Clone)]
@@ -103,6 +105,22 @@ impl AsyncWorker<GasExecutingTask, Result<ExecutionReport, ExecutionError>> for 
     }
 }
 
+fn verify_deferred_proofs(
+    stdin: &SP1Stdin,
+) -> anyhow::Result<()> {
+    if stdin.proofs.is_empty() {
+        return Ok(());
+    }
+    let verifier = SP1Verifier::new(crate::verify::VerifierRecursionVks::default());
+    for (index, (proof, vk)) in stdin.proofs.iter().enumerate() {
+        let sp1_vk = SP1VerifyingKey { vk: vk.clone() };
+        verifier
+            .verify_compressed(proof, &sp1_vk)
+            .map_err(|e| anyhow::anyhow!("deferred proof {index} failed verification: {e}"))?;
+    }
+    Ok(())
+}
+
 pub async fn execute_with_options(
     program: Arc<Program>,
     stdin: SP1Stdin,
@@ -117,6 +135,10 @@ pub async fn execute_with_options(
         if context.calculate_gas { Some(opts.minimal_trace_chunk_threshold) } else { None };
     let gas_engine =
         initialize_gas_engine(&executor_config, program.clone(), nonce, opts, calculate_gas);
+
+    if context.deferred_proof_verification {
+        verify_deferred_proofs(&stdin)?;
+    }
 
     let mut minimal_executor =
         MinimalExecutor::new(program.clone(), false, minimal_trace_chunk_threshold);
