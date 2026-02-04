@@ -15,7 +15,9 @@ use slop_commit::{Message, Rounds};
 use slop_dft::p3::Radix2DitParallel;
 use slop_futures::OwnedBorrow;
 use slop_merkle_tree::{ComputeTcsOpenings, MerkleTreeOpeningAndProof, TensorCsProver};
-use slop_multilinear::{Evaluations, Mle, Point};
+use slop_multilinear::{
+    partial_lagrange_blocking, Evaluations, Mle, MultilinearPcsChallenger, Point,
+};
 use slop_tensor::Tensor;
 use thiserror::Error;
 
@@ -117,11 +119,16 @@ impl<GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>, P: ComputeTcsOpenings<GC, Cp
 
         let evaluation_claims = evaluation_claims.into_iter().flatten().collect::<Vec<_>>();
 
-        // Sample a batching challenge and batch the mles and codewords.
-        let batching_challenge: GC::EF = challenger.sample_ext_element();
+        // Sample batching coefficients via partial Lagrange basis.
+        let total_len = mles.iter().map(|mle| mle.num_polynomials()).sum::<usize>();
+        let num_batching_variables = total_len.next_power_of_two().ilog2();
+        let batching_point = challenger.sample_point::<GC::EF>(num_batching_variables);
+
+        let batching_coefficients = partial_lagrange_blocking(&batching_point);
+
         // Batch the mles and codewords.
         let (mle_batch, codeword_batch, batched_eval_claim) = fri_prover.batch(
-            batching_challenge,
+            &batching_coefficients,
             mles,
             encoded_messages,
             evaluation_claims,

@@ -1,7 +1,5 @@
-use sp1_sdk::{
-    include_elf, utils, Elf, ProveRequest, Prover, ProverClient, ProvingKey,
-    SP1ProofWithPublicValues, SP1Stdin,
-};
+use sp1_sdk::prelude::*;
+use sp1_sdk::ProverClient;
 
 /// The ELF we want to execute inside the zkVM.
 const ELF: Elf = include_elf!("fibonacci-program");
@@ -9,7 +7,7 @@ const ELF: Elf = include_elf!("fibonacci-program");
 #[tokio::main]
 async fn main() {
     // Setup logging.
-    utils::setup_logger();
+    sp1_sdk::utils::setup_logger();
 
     // Create an input stream and write '500' to it.
     let n = 700_000u32;
@@ -20,7 +18,7 @@ async fn main() {
     stdin.write(&n);
 
     // Create a `ProverClient` method.
-    let client = ProverClient::builder().cpu().build().await;
+    let client = ProverClient::from_env().await;
 
     // Execute the program using the `ProverClient.execute` method, without generating a proof.
     let (_, report) = client.execute(ELF, stdin.clone()).await.unwrap();

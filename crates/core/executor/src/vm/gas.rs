@@ -58,11 +58,23 @@ impl ReportGenerator {
 
     /// Generate an `ExecutionReport` from the current state of the `ReportGenerator`
     pub fn generate_report(&self) -> ExecutionReport {
-        // Combine syscall_counts and deferred_syscall_counts
-        let mut total_syscall_counts = self.syscall_counts;
+        // Combine syscall_counts and deferred_syscall_counts, converting from row counts
+        // back to invocation counts for the report. Internally these fields store
+        // rows_per_event * invocations for gas calculation; the report should show
+        // actual invocation counts.
+        let mut total_syscall_counts = EnumMap::default();
+        for (syscall_code, &count) in self.syscall_counts.iter() {
+            if count > 0 {
+                if let Some(air_id) = syscall_code.as_air_id() {
+                    total_syscall_counts[syscall_code] += count / air_id.rows_per_event() as u64;
+                }
+            }
+        }
         for (syscall_code, &count) in self.deferred_syscall_counts.iter() {
             if count > 0 {
-                total_syscall_counts[syscall_code] += count;
+                if let Some(air_id) = syscall_code.as_air_id() {
+                    total_syscall_counts[syscall_code] += count / air_id.rows_per_event() as u64;
+                }
             }
         }
 

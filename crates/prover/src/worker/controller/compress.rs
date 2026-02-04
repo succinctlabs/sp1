@@ -27,12 +27,22 @@ pub struct CompressTask {
     pub witness: SP1CompressWitness,
 }
 
+/// A proof in the recursion tree.
+///
+/// A recursion proof consists of a proof artifact along with its representative shard range. The
+/// range represents the portion of the execution trace that this proof attests to, and is used in
+/// the compression process to combine multiple proofs into a single proof.
 #[derive(Debug, Clone)]
 pub struct RecursionProof {
     pub shard_range: ShardRange,
     pub proof: Artifact,
 }
 
+/// A collection of recursion proofs covering a contiguous shard range.
+///
+/// The `RangeProofs` struct encapsulates a series of recursion proofs that together cover a
+/// specific shard range. It provides methods to manipulate and access these proofs, including
+/// downloading their witnesses and converting them to and from artifacts.
 #[derive(Clone, Debug)]
 pub struct RangeProofs {
     pub shard_range: ShardRange,
@@ -193,12 +203,40 @@ enum Sibling {
     Both(RangeProofs, RangeProofs),
 }
 
-pub struct CompressTree {
+/// A tree structure to manage compress proof reduction.
+///
+/// The [CompressTree] struct is designed to efficiently manage and reduce recursion proofs using
+/// the attested range.
+///
+/// # Reduction Process
+///
+///  The tree keeps track of [`RangeProofs`] indexed by their starting shard boundary. When a new
+/// [`RecursionProof`] is inserted, the tree checks for neighboring proofs (siblings) that can be
+/// combined with the new proof based on their shard ranges. If a sibling is found, the proofs are
+/// combined into a single [`RangeProofs`]. If the combined proofs reach the specified batch size,
+/// or we have reached the final batch representing the full range with no jobs left, they are
+/// prepared for reduction; otherwise, they are reinserted into the tree for future combination.
+///
+/// ## Shard Ordering
+///
+/// In the first level of the tree, we have three different types of shards:
+///     - Core shards: covering execution of the main `RISC-V` instructions over time ranges.
+///     - Memory shards: covering memory initialization and finalization over address ranges.
+///     - Precompile shards: covering proofs for precompile execution. They all have the same shard range.
+///     - Deferred shards: covering verification of deferred proofs.
+/// These shards are ordered in the tree as:
+///   precompile shards | deferred shards | core shards | memory shards
+/// This ordering allows us to combine proofs that are adjacent in terms of their shard ranges,
+/// regardless of their type. In particular, it is important that precompile shards are in the
+/// beginning, since they all share the same initial shard range and therefore can always find a
+/// sibling to combine with.
+pub(super) struct CompressTree {
     map: BTreeMap<ShardBoundary, RangeProofs>,
     batch_size: usize,
 }
 
 impl CompressTree {
+    /// Create an empty tree with the given batch size.
     pub fn new(batch_size: usize) -> Self {
         Self { map: BTreeMap::new(), batch_size }
     }
@@ -209,6 +247,10 @@ impl CompressTree {
     }
 
     /// Get the sibling of a proof.
+    ///
+    /// By definition, a sibling is defined according to the range. A left sibling is a range with
+    /// the same end as the start of the proof's range. A right sibling is a range with the same
+    /// start as the end of the proof's range.
     fn sibling(&mut self, proof: &RecursionProof) -> Option<Sibling> {
         // Check for a left sibling
         if let Some(previous) =
@@ -272,6 +314,8 @@ impl CompressTree {
     /// - A vector of proofs that have been reduced.
     ///
     /// ### Notes
+    ///
+    /// For information about the ordering used, see the documentation under [`CompressTree`].
     ///
     /// This function will terminate when the batch size is reached or when the full range is
     /// reached and proven.
@@ -541,9 +585,14 @@ mod test_utils {
     #[tokio::test]
     async fn test_compress_tree() {
         setup_logger();
-        let num_core_shards = 2000;
-        let num_memory_shards = 20;
-        let num_precompile_shards = 100;
+        let num_core_shards = 200;
+        let core_start_delay = Duration::from_millis(10);
+        let num_memory_shards = 40;
+        let memory_start_delay = Duration::from_millis(500);
+        let num_precompile_shards = 20;
+        let precompile_start_delay = Duration::from_millis(500);
+        let num_deferred_shards = 100;
+        let deferred_start_delay = Duration::from_millis(1);
         let num_iterations = 1;
         let random_intervals = HashMap::from([
             (TaskType::Controller, Duration::from_millis(20)..Duration::from_millis(100)),
@@ -585,6 +634,7 @@ mod test_utils {
                 let context = context.clone();
                 let core_proofs_tx = core_proofs_tx.clone();
                 async move {
+                    tokio::time::sleep(core_start_delay).await;
                     for i in 1..=num_core_shards {
                         let range = ShardRange {
                             timestamp_range: (i, i + 1),
@@ -592,7 +642,7 @@ mod test_utils {
                             finalized_address_range: (0, 0),
                             initialized_page_index_range: (0, 0),
                             finalized_page_index_range: (0, 0),
-                            deferred_proof_range: (0, 0),
+                            deferred_proof_range: (num_deferred_shards, num_deferred_shards),
                         };
                         create_dummy_prove_shard_task(
                             range,
@@ -616,6 +666,7 @@ mod test_utils {
                 let context = context.clone();
                 let core_proofs_tx = core_proofs_tx.clone();
                 async move {
+                    tokio::time::sleep(memory_start_delay).await;
                     for i in 0..num_memory_shards {
                         let range = ShardRange {
                             timestamp_range: (num_core_shards + 1, num_core_shards + 1),
@@ -623,7 +674,7 @@ mod test_utils {
                             finalized_address_range: (i, i + 1),
                             initialized_page_index_range: (0, 0),
                             finalized_page_index_range: (0, 0),
-                            deferred_proof_range: (0, 0),
+                            deferred_proof_range: (num_deferred_shards, num_deferred_shards),
                         };
                         create_dummy_prove_shard_task(
                             range,
@@ -645,9 +696,35 @@ mod test_utils {
                 let elf_artifact = elf_artifact.clone();
                 let common_input_artifact = common_input_artifact.clone();
                 let context = context.clone();
+                let core_proofs_tx = core_proofs_tx.clone();
                 async move {
+                    tokio::time::sleep(precompile_start_delay).await;
                     for _ in 1..=num_precompile_shards {
-                        let range = ShardRange::deferred();
+                        let range = ShardRange::precompile();
+                        create_dummy_prove_shard_task(
+                            range,
+                            elf_artifact.clone(),
+                            common_input_artifact.clone(),
+                            context.clone(),
+                            &core_proofs_tx,
+                            &worker_client,
+                            &artifact_client,
+                        )
+                        .await;
+                    }
+                }
+            });
+
+            tokio::task::spawn({
+                let worker_client = worker_client.clone();
+                let artifact_client = artifact_client.clone();
+                let elf_artifact = elf_artifact.clone();
+                let common_input_artifact = common_input_artifact.clone();
+                let context = context.clone();
+                async move {
+                    tokio::time::sleep(deferred_start_delay).await;
+                    for i in 0..num_deferred_shards {
+                        let range = ShardRange::deferred(i, i + 1);
                         create_dummy_prove_shard_task(
                             range,
                             elf_artifact.clone(),

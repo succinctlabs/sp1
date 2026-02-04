@@ -1,17 +1,14 @@
-use sp1_sdk::{
-    include_elf, network::Error, utils, Elf, ProveRequest, Prover, ProverClient, ProvingKey,
-    SP1ProofWithPublicValues, SP1Stdin,
-};
+use sp1_sdk::prelude::*;
+use sp1_sdk::ProverClient;
+
 
 /// The ELF we want to execute inside the zkVM.
 const ELF: Elf = include_elf!("fibonacci-program");
 
 #[tokio::main]
 async fn main() {
-    // Setup logging.
-    utils::setup_logger();
+    sp1_sdk::utils::setup_logger();
 
-    // Create an input stream and write '500' to it.
     let n = 1000u32;
 
     // The input stream that the program will read from using `sp1_zkvm::io::read`. Note that the
@@ -19,38 +16,12 @@ async fn main() {
     let mut stdin = SP1Stdin::new();
     stdin.write(&n);
 
-    // Create a `ProverClient` method.
-    let client = ProverClient::builder().network().build().await;
+    // TODO: Use network prover here
+    let client = ProverClient::from_env().await;
 
     // Generate the proof for the given program and input.
     let pk = client.setup(ELF).await.unwrap();
-    let proof_result = client.prove(&pk, stdin).compressed().await;
-
-    // Handle possible prover network errors.
-    let mut proof = match proof_result {
-        Ok(proof) => proof,
-        Err(e) => {
-            if let Some(network_error) = e.downcast_ref::<Error>() {
-                match network_error {
-                    Error::RequestUnexecutable { request_id: _ } => {
-                        eprintln!("Program is unexecutable: {}", e);
-                        std::process::exit(1);
-                    }
-                    Error::RequestUnfulfillable { request_id: _ } => {
-                        eprintln!("Proof request cannot be fulfilled: {}", e);
-                        std::process::exit(1);
-                    }
-                    _ => {
-                        eprintln!("Unexpected error: {}", e);
-                        std::process::exit(1);
-                    }
-                }
-            } else {
-                eprintln!("Unexpected error: {}", e);
-                std::process::exit(1);
-            }
-        }
-    };
+    let mut proof = client.prove(&pk, stdin).compressed().await.unwrap();
 
     println!("generated proof");
 

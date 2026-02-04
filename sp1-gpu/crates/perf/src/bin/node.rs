@@ -75,11 +75,12 @@ async fn main() {
 
     // Initialize the AirProver and permits
     let measurements = sp1_gpu_cudart::spawn(move |t| async move {
+        #[cfg(feature = "experimental")]
+        let worker_builder = cuda_worker_builder(t.clone()).await.without_vk_verification();
+        #[cfg(not(feature = "experimental"))]
+        let worker_builder = cuda_worker_builder(t.clone()).await;
         let client =
-            SP1LocalNodeBuilder::from_worker_client_builder(cuda_worker_builder(t.clone()).await)
-                .build()
-                .await
-                .unwrap();
+            SP1LocalNodeBuilder::from_worker_client_builder(worker_builder).build().await.unwrap();
 
         let time = tokio::time::Instant::now();
         let context = SP1Context::default();

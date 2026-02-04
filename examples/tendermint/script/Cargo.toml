@@ -5,15 +5,9 @@ edition = { workspace = true }
 publish = false
 
 [dependencies]
-sp1-sdk = { workspace = true, default-features = true }
+sp1-sdk = { workspace = true }
 tracing = "0.1"
 
-sp1-prover = { path = "../../../crates/prover" }
-
-sp1-core-executor = { workspace = true }
-sp1-build = { workspace = true }
-sp1-core-machine = { workspace = true }
-sp1-primitives = { workspace = true }
 serde_json = { workspace = true }
 tendermint-light-client-verifier = { version = "0.35.0", default-features = false, features = [
   "rust-crypto",
