@@ -78,8 +78,6 @@ backoff = { workspace = true, features = ["tokio"], optional = true }
 zstd = { workspace = true, optional = true }
 num-bigint = { workspace = true }
 sha2 = { workspace = true }
-test-artifacts = { path = "../test-artifacts", optional = true }
-
 # TEE Dependencies
 k256 = { workspace = true, features = ["serde"] } # Signing
 eventsource-stream = { workspace = true }         # SSE Extenstion for reqwest
@@ -120,11 +118,5 @@ profiling = ["sp1-core-executor/profiling", "sp1-prover/profiling"]
 blocking = []
 groth16-cuda = ["sp1-recursion-gnark-ffi/groth16-cuda", "native-gnark"]
 slow-tests = []
-bench = ["dep:test-artifacts"]
-
-[[bin]]
-name = "bench_setup"
-required-features = ["bench"]
-
 [lints]
 workspace = true

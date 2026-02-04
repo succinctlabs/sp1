@@ -7336,6 +7336,7 @@ dependencies = [
  "sp1-prover",
  "sp1-prover-types",
  "sp1-sdk",
+ "test-artifacts",
  "thiserror 1.0.69",
  "tokio",
  "tracing",
