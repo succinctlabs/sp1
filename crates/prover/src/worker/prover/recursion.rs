@@ -11,7 +11,7 @@ use crate::{
     verify::WRAP_VK_BYTES,
     worker::{
         CommonProverInput, ProverMetrics, RangeProofs, RawTaskRequest, TaskContext, TaskError,
-        TaskMetadata,
+        TaskMetadata, WrapAirProverInit,
     },
     RecursionSC, SP1CircuitWitness, SP1ProverComponents,
 };
@@ -412,8 +412,7 @@ pub struct SP1RecursionProver<A, C: SP1ProverComponents> {
 }
 
 struct WrapProverInit<C: SP1ProverComponents> {
-    prover: Arc<C::WrapProver>,
-    permits: ProverSemaphore,
+    wrap_air_prover: WrapAirProverInit<C>,
     config: SP1RecursionProverConfig,
     shrink_shape: BTreeMap<String, usize>,
     expected_wrap_vk: MachineVerifyingKey<SP1OuterGlobalContext>,
@@ -438,7 +437,7 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
         artifact_client: A,
         (compress_prover, compress_prover_permits): (Arc<C::RecursionProver>, ProverSemaphore),
         (shrink_prover, shrink_prover_permits): (Arc<C::RecursionProver>, ProverSemaphore),
-        (wrap_prover, wrap_prover_permits): (Arc<C::WrapProver>, ProverSemaphore),
+        wrap_air_prover_init: WrapAirProverInit<C>,
     ) -> Self {
         tokio::task::spawn_blocking(move || {
             // Get the reduce shape.
@@ -578,8 +577,7 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
 
             let expected_wrap_vk = bincode::deserialize(WRAP_VK_BYTES).unwrap();
             let wrap_prover_init = WrapProverInit {
-                prover: wrap_prover,
-                permits: wrap_prover_permits,
+                wrap_air_prover: wrap_air_prover_init,
                 config: config.clone(),
                 shrink_shape: shrink_prover.shrink_shape.clone(),
                 expected_wrap_vk,
@@ -639,9 +637,11 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
 
         let wrap_prover = tokio::task::spawn_blocking(move || {
             let expected_wrap_vk = wrap_prover_init.expected_wrap_vk.clone();
+            let wrap_air_prover = wrap_prover_init.wrap_air_prover.get_or_init();
+            let wrap_air_permits = wrap_prover_init.wrap_air_prover.permits();
             let wrap_prover = WrapProver::new(
-                wrap_prover_init.prover.clone(),
-                wrap_prover_init.permits.clone(),
+                wrap_air_prover,
+                wrap_air_permits,
                 prover_data,
                 wrap_prover_init.config.clone(),
                 wrap_prover_init.shrink_shape.clone(),

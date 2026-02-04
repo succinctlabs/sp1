@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use slop_futures::pipeline::SubmitError;
 use sp1_core_executor::SP1CoreOpts;
@@ -29,6 +29,29 @@ pub struct SP1ProverEngine<A, W, C: SP1ProverComponents> {
     pub vk_worker: RecursionVkWorker<C>,
 }
 
+pub(crate) struct WrapAirProverInit<C: SP1ProverComponents> {
+    builder: Arc<dyn Fn() -> Arc<C::WrapProver> + Send + Sync>,
+    permits: ProverSemaphore,
+    prover: OnceLock<Arc<C::WrapProver>>,
+}
+
+impl<C: SP1ProverComponents> WrapAirProverInit<C> {
+    pub(crate) fn new(
+        builder: impl Fn() -> Arc<C::WrapProver> + Send + Sync + 'static,
+        permits: ProverSemaphore,
+    ) -> Self {
+        Self { builder: Arc::new(builder), permits, prover: OnceLock::new() }
+    }
+
+    pub(crate) fn get_or_init(&self) -> Arc<C::WrapProver> {
+        self.prover.get_or_init(|| (self.builder.as_ref())()).clone()
+    }
+
+    pub(crate) fn permits(&self) -> ProverSemaphore {
+        self.permits.clone()
+    }
+}
+
 impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1ProverEngine<A, W, C> {
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
@@ -39,14 +62,14 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1ProverEngine
         core_prover_and_permits: (Arc<C::CoreProver>, ProverSemaphore),
         recursion_prover_and_permits: (Arc<C::RecursionProver>, ProverSemaphore),
         shrink_air_prover_and_permits: (Arc<C::RecursionProver>, ProverSemaphore),
-        wrap_air_prover_and_permits: (Arc<C::WrapProver>, ProverSemaphore),
+        wrap_air_prover_init: WrapAirProverInit<C>,
     ) -> Self {
         let recursion_prover = SP1RecursionProver::new(
             config.recursion_prover_config,
             artifact_client.clone(),
             recursion_prover_and_permits.clone(),
             shrink_air_prover_and_permits,
-            wrap_air_prover_and_permits,
+            wrap_air_prover_init,
         )
         .await;
 

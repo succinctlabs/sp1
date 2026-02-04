@@ -427,7 +427,11 @@ pub async fn download_file(
     url: &str,
     file: &mut (impl tokio::io::AsyncWrite + Unpin),
 ) -> std::result::Result<(), String> {
-    let res = client.get(url).send().await.or(Err(format!("Failed to GET from '{}'", &url)))?;
+    let res = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|err| format!("Failed to GET from '{}': {}", &url, err))?;
 
     let total_size =
         res.content_length().ok_or(format!("Failed to get content length from '{}'", &url))?;

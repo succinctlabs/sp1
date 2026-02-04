@@ -83,7 +83,6 @@ where
     let max_log_row_count = verifier.max_log_row_count();
 
     // Create the basefold prover from the verifier's PCS config
-    // TODO: get this straight from the verifier.
     let basefold_verifier = BasefoldVerifier::<GC>::new(*verifier.fri_config(), 2);
 
     let tcs_prover = PC::P::new(&scope);

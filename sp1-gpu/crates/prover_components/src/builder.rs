@@ -32,7 +32,7 @@ pub fn local_gpu_opts() -> (SP1CoreOpts, bool) {
     let shard_threshold = if gpu_memory_gb <= 30 {
         ELEMENT_THRESHOLD - (1 << 26) - (1 << 25)
     } else {
-        ELEMENT_THRESHOLD - (1 << 21)
+        ELEMENT_THRESHOLD
     };
 
     tracing::debug!("Shard threshold: {shard_threshold}");
@@ -90,5 +90,5 @@ pub async fn cuda_worker_builder(scope: TaskScope) -> SP1WorkerBuilder<SP1CudaPr
         .with_core_air_prover(core_prover, prover_permits.clone())
         .with_compress_air_prover(recursion_prover, prover_permits.clone())
         .with_shrink_air_prover(shrink_prover, prover_permits.clone())
-        .with_wrap_air_prover(wrap_prover, prover_permits)
+        .with_wrap_air_prover(move || wrap_prover.clone(), prover_permits)
 }
