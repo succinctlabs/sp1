@@ -168,7 +168,7 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                             task_set.spawn(async move {
                                 let result = handle.await.map(|res| res.map(|(_, metadata)| metadata));
                                 TaskOutput::handle_worker_result(result, &tx, proof_id, id, request, TaskType::SetupVkey);
-                            }.in_current_span()
+                            }
                           );
                         }
 

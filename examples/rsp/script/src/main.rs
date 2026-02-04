@@ -1,16 +1,5 @@
-// use sp1_sdk::{include_elf, utils, ProverClient, SP1Stdin};
-use sp1_core_executor::{RetainedEventsPreset, SP1CoreOpts, SP1Context, Executor, Program};
-use sp1_prover::{
-    local::{LocalProver, LocalProverOpts},
-    components::CpuSP1ProverComponents,
-    SP1ProverBuilder,
-};
-use sp1_build::Elf;
-use sp1_core_machine::io::SP1Stdin;
-use sp1_build::include_elf;
-use std::sync::Arc;
-use sp1_primitives::io::SP1PublicValues;
-use sp1_core_machine::utils::setup_logger;
+use sp1_sdk::prelude::*;
+use sp1_sdk::ProverClient;
 
 use alloy_primitives::B256;
 use clap::Parser;
@@ -37,28 +26,23 @@ fn load_input_from_cache(chain_id: u64, block_number: u64) -> ClientExecutorInpu
 
 #[tokio::main]
 async fn main() {
-    setup_logger();
+    sp1_sdk::utils::setup_logger();
+
     // Load the input from the cache.
     let client_input = load_input_from_cache(CHAIN_ID_ETH_MAINNET, 21740137);
     let mut stdin = SP1Stdin::default();
     let buffer = bincode::serialize(&client_input).unwrap();
     stdin.write_vec(buffer);
 
-    let opts = SP1CoreOpts::default();
-    let program = Arc::new(Program::from(&ELF).unwrap());
-    let mut runtime = Executor::with_context(program, opts, SP1Context::default());
-    runtime.maybe_setup_profiler(&ELF);
 
-    runtime.write_vecs(&stdin.buffer);
+    let client = ProverClient::from_env().await;
     let now = std::time::Instant::now();
-    runtime.run_fast().unwrap();
+    let (mut public_values, report) = client.execute(ELF, stdin.clone()).await.unwrap();
 
     println!("total elapsed: {:?}", now.elapsed());
 
-    println!("Full execution report:\n{:?}", runtime.report);
-    println!("Cycles: {:?}", runtime.report.total_instruction_count());
-
-    let mut public_values = SP1PublicValues::from(&runtime.state.public_values_stream); 
+    println!("Full execution report:\n{:?}", report);
+    println!("Cycles: {:?}", report.total_instruction_count());
 
     let block_hash = public_values.read::<B256>();
     println!("success: block_hash={block_hash}");

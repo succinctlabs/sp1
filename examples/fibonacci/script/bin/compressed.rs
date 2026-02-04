@@ -14,7 +14,7 @@ async fn main() {
     stdin.write(&n);
 
     // Generate the constant-sized proof for the given program and input.
-    let client = ProverClient::builder().cpu().build().await;
+    let client = ProverClient::from_env().await;
     let pk = client.setup(ELF).await.unwrap();
     let mut proof = client.prove(&pk, stdin).compressed().await.unwrap();
 

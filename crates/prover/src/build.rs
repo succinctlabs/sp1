@@ -472,7 +472,7 @@ pub async fn download_file(
 #[cfg(test)]
 mod tests {
     use sp1_core_executor::SP1Context;
-    use sp1_core_machine::{io::SP1Stdin, utils::setup_logger};
+    use sp1_core_machine::utils::setup_logger;
     use sp1_prover_types::network_base_types::ProofMode;
 
     use crate::{
@@ -494,7 +494,7 @@ mod tests {
             .expect("failed to build client");
 
         tracing::info!("prove compressed");
-        let stdin = SP1Stdin::new();
+        let stdin = sp1_core_machine::io::SP1Stdin::new();
         let compressed_proof = client
             .prove_with_mode(&elf, stdin, SP1Context::default(), ProofMode::Compressed)
             .await

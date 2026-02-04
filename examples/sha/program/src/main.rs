@@ -1,7 +1,6 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
-use rand::random;
 use sp1_zkvm::syscalls::{syscall_sha256_compress, syscall_sha256_extend};
 
 pub fn main() {

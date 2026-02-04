@@ -1,12 +1,13 @@
 use crate::{
     challenger::{CanObserveVariable, CanSampleBitsVariable, FieldChallengerVariable},
     hash::FieldHasherVariable,
+    symbolic::IntoSymbolic,
     CircuitConfig, SP1FieldConfigVariable,
 };
 use itertools::Itertools;
 use slop_algebra::{AbstractField, TwoAdicField};
 use slop_basefold::FriConfig;
-use slop_multilinear::{MleEval, Point};
+use slop_multilinear::{partial_lagrange_blocking, MleEval, Point};
 use sp1_recursion_compiler::{
     circuit::CircuitV2Builder,
     ir::{Builder, DslIr, Ext, Felt, SymbolicExt},
@@ -132,17 +133,25 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> RecursiveBasefoldVerifier<
         proof: &RecursiveBasefoldProof<C, SC>,
         challenger: &mut SC::FriChallengerVariable,
     ) {
-        // Sample the challenge used to batch all the different polynomials.
-        let batching_challenge =
-            SymbolicExt::<SP1Field, SP1ExtensionField>::from(challenger.sample_ext(builder));
+        // Sample batching coefficients via partial Lagrange basis.
+        let total_len = evaluation_claims
+            .iter()
+            .map(|batch_claims| batch_claims.num_polynomials())
+            .sum::<usize>();
+        let num_batching_variables = total_len.next_power_of_two().ilog2();
+        let batching_point: Point<Ext<SP1Field, SP1ExtensionField>> =
+            Point::from_iter((0..num_batching_variables).map(|_| challenger.sample_ext(builder)));
+        let batching_point_symbolic = IntoSymbolic::<C>::as_symbolic(&batching_point);
+        let batching_coefficients =
+            partial_lagrange_blocking(&batching_point_symbolic).into_buffer().into_vec();
 
         builder.cycle_tracker_v2_enter("compute eval_claim");
         // Compute the batched evaluation claim.
         let eval_claim = evaluation_claims
             .iter()
             .flat_map(|batch_claims| batch_claims.iter())
-            .zip(batching_challenge.powers())
-            .map(|(eval, batch_power)| *eval * batch_power)
+            .zip(batching_coefficients.iter())
+            .map(|(eval, batch_power)| *eval * *batch_power)
             .sum::<SymbolicExt<SP1Field, SP1ExtensionField>>();
         builder.cycle_tracker_v2_exit();
 
@@ -225,32 +234,17 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> RecursiveBasefoldVerifier<
         // Compute the batch evaluations from the openings of the component polynomials.
         let zero = SymbolicExt::<SP1Field, SP1ExtensionField>::zero();
         let mut batch_evals = vec![zero; query_indices.len()];
-        let mut batch_challenge_power = one;
+        let mut batch_idx = 0;
         for opening in proof.component_polynomials_query_openings_and_proofs.iter() {
             let values = &opening.values;
-            let beta_powers_symbolic = batching_challenge
-                .shifted_powers(SymbolicExt::from(batch_challenge_power))
-                .take(values.get(0).unwrap().as_slice().len());
-            let mut beta_powers = Vec::new();
-
-            for beta_power in beta_powers_symbolic {
-                let power = builder.eval(beta_power);
-                builder.reduce_e(power);
-                beta_powers.push(power);
-            }
+            let total_columns = values.get(0).unwrap().as_slice().len();
+            let round_coefficients = &batching_coefficients[batch_idx..batch_idx + total_columns];
             for (batch_eval, values) in batch_evals.iter_mut().zip_eq(values.split()) {
-                for (value, beta_power) in values.as_slice().iter().zip(beta_powers.iter()) {
-                    *batch_eval += *beta_power * *value;
+                for (value, coeff) in values.as_slice().iter().zip(round_coefficients.iter()) {
+                    *batch_eval += *coeff * *value;
                 }
             }
-            let count = values.get(0).unwrap().as_slice().len();
-            batch_challenge_power = builder.eval(
-                batching_challenge
-                    .shifted_powers(SymbolicExt::from(batch_challenge_power))
-                    .nth(count)
-                    .unwrap(),
-            );
-            builder.reduce_e(batch_challenge_power);
+            batch_idx += total_columns;
         }
         let batch_evals: Vec<Ext<SP1Field, SP1ExtensionField>> =
             batch_evals.into_iter().map(|x| builder.eval(x)).collect_vec();
