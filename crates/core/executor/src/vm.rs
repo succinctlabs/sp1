@@ -1,3 +1,6 @@
+#![allow(unknown_lints)]
+#![allow(clippy::manual_checked_ops)]
+
 use crate::{
     events::{MemoryAccessPosition, MemoryReadRecord, MemoryRecord, MemoryWriteRecord},
     vm::{
