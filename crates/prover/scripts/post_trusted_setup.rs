@@ -14,5 +14,5 @@ struct Args {
 pub fn main() {
     setup_logger();
     let args = Args::parse();
-    build_groth16_bn254_contracts(&args.build_dir);
+    build_groth16_bn254_contracts(&args.build_dir).expect("failed to build groth16 contracts");
 }
