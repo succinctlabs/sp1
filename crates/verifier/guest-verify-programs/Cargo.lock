@@ -1545,14 +1545,14 @@ checksum = "7a2ae44ef20feb57a68b23d846850f861394c2e02dc425a50098ae8c90267589"
 
 [[package]]
 name = "slop-air"
-version = "6.0.0-beta.1"
+version = "6.0.0-rc.1"
 dependencies = [
  "p3-air",
 ]
 
 [[package]]
 name = "slop-algebra"
-version = "6.0.0-beta.1"
+version = "6.0.0-rc.1"
 dependencies = [
  "itertools 0.14.0",
  "p3-field",
@@ -1561,7 +1561,7 @@ dependencies = [
 
 [[package]]
 name = "slop-alloc"
-version = "6.0.0-beta.1"
+version = "6.0.0-rc.1"
 dependencies = [
  "serde",
  "slop-algebra",
@@ -1570,7 +1570,7 @@ dependencies = [
 
 [[package]]
 name = "slop-baby-bear"
-version = "6.0.0-beta.1"
+version = "6.0.0-rc.1"
 dependencies = [
  "lazy_static",
  "p3-baby-bear",
@@ -1583,7 +1583,7 @@ dependencies = [
 
 [[package]]
 name = "slop-basefold"
-version = "6.0.0-beta.1"
+version = "6.0.0-rc.1"
 dependencies = [
  "derive-where",
  "itertools 0.14.0",
@@ -1604,7 +1604,7 @@ dependencies = [
 
 [[package]]
 name = "slop-basefold-prover"
-version = "6.0.0-beta.1"
+version = "6.0.0-rc.1"
 dependencies = [
  "derive-where",
  "itertools 0.14.0",
@@ -1629,7 +1629,7 @@ dependencies = [
 
 [[package]]
 name = "slop-bn254"
-version = "6.0.0-beta.1"
+version = "6.0.0-rc.1"
 dependencies = [
  "ff 0.13.1",
  "p3-bn254-fr",
@@ -1643,7 +1643,7 @@ dependencies = [
 
 [[package]]
 name = "slop-challenger"
-version = "6.0.0-beta.1"
+version = "6.0.0-rc.1"
 dependencies = [
  "futures",
  "p3-challenger",
@@ -1654,7 +1654,7 @@ dependencies = [
 
 [[package]]
 name = "slop-commit"
-version = "6.0.0-beta.1"
+version = "6.0.0-rc.1"
 dependencies = [
  "p3-commit",
  "serde",
@@ -1663,7 +1663,7 @@ dependencies = [
 
 [[package]]
 name = "slop-dft"
-version = "6.0.0-beta.1"
+version = "6.0.0-rc.1"
 dependencies = [
  "p3-dft",
  "serde",
@@ -1675,14 +1675,14 @@ dependencies = [
 
 [[package]]
 name = "slop-fri"
-version = "6.0.0-beta.1"
+version = "6.0.0-rc.1"
 dependencies = [
  "p3-fri",
 ]
 
 [[package]]
 name = "slop-futures"
-version = "6.0.0-beta.1"
+version = "6.0.0-rc.1"
 dependencies = [
  "crossbeam",
  "futures",
@@ -1695,7 +1695,7 @@ dependencies = [
 
 [[package]]
 name = "slop-jagged"
-version = "6.0.0-beta.1"
+version = "6.0.0-rc.1"
 dependencies = [
  "derive-where",
  "futures",
@@ -1727,7 +1727,7 @@ dependencies = [
 
 [[package]]
 name = "slop-koala-bear"
-version = "6.0.0-beta.1"
+version = "6.0.0-rc.1"
 dependencies = [
  "lazy_static",
  "p3-koala-bear",
@@ -1740,21 +1740,21 @@ dependencies = [
 
 [[package]]
 name = "slop-matrix"
-version = "6.0.0-beta.1"
+version = "6.0.0-rc.1"
 dependencies = [
  "p3-matrix",
 ]
 
 [[package]]
 name = "slop-maybe-rayon"
-version = "6.0.0-beta.1"
+version = "6.0.0-rc.1"
 dependencies = [
  "p3-maybe-rayon",
 ]
 
 [[package]]
 name = "slop-merkle-tree"
-version = "6.0.0-beta.1"
+version = "6.0.0-rc.1"
 dependencies = [
  "derive-where",
  "ff 0.13.1",
@@ -1779,7 +1779,7 @@ dependencies = [
 
 [[package]]
 name = "slop-multilinear"
-version = "6.0.0-beta.1"
+version = "6.0.0-rc.1"
 dependencies = [
  "derive-where",
  "futures",
@@ -1798,21 +1798,21 @@ dependencies = [
 
 [[package]]
 name = "slop-poseidon2"
-version = "6.0.0-beta.1"
+version = "6.0.0-rc.1"
 dependencies = [
  "p3-poseidon2",
 ]
 
 [[package]]
 name = "slop-primitives"
-version = "6.0.0-beta.1"
+version = "6.0.0-rc.1"
 dependencies = [
  "slop-algebra",
 ]
 
 [[package]]
 name = "slop-stacked"
-version = "6.0.0-beta.1"
+version = "6.0.0-rc.1"
 dependencies = [
  "derive-where",
  "futures",
@@ -1833,7 +1833,7 @@ dependencies = [
 
 [[package]]
 name = "slop-sumcheck"
-version = "6.0.0-beta.1"
+version = "6.0.0-rc.1"
 dependencies = [
  "futures",
  "itertools 0.14.0",
@@ -1849,14 +1849,14 @@ dependencies = [
 
 [[package]]
 name = "slop-symmetric"
-version = "6.0.0-beta.1"
+version = "6.0.0-rc.1"
 dependencies = [
  "p3-symmetric",
 ]
 
 [[package]]
 name = "slop-tensor"
-version = "6.0.0-beta.1"
+version = "6.0.0-rc.1"
 dependencies = [
  "arrayvec",
  "derive-where",
@@ -1874,14 +1874,14 @@ dependencies = [
 
 [[package]]
 name = "slop-uni-stark"
-version = "6.0.0-beta.1"
+version = "6.0.0-rc.1"
 dependencies = [
  "p3-uni-stark",
 ]
 
 [[package]]
 name = "slop-utils"
-version = "6.0.0-beta.1"
+version = "6.0.0-rc.1"
 dependencies = [
  "p3-util",
  "tracing-forest",
@@ -1890,7 +1890,7 @@ dependencies = [
 
 [[package]]
 name = "slop-whir"
-version = "6.0.0-beta.1"
+version = "6.0.0-rc.1"
 dependencies = [
  "derive-where",
  "futures",
@@ -1927,7 +1927,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-derive"
-version = "6.0.0-beta.1"
+version = "6.0.0-rc.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1936,7 +1936,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-hypercube"
-version = "6.0.0-beta.1"
+version = "6.0.0-rc.1"
 dependencies = [
  "arrayref",
  "deepsize2",
@@ -1982,7 +1982,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-lib"
-version = "6.0.0-beta.1"
+version = "6.0.0-rc.1"
 dependencies = [
  "bincode",
  "serde",
@@ -1991,7 +1991,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-primitives"
-version = "6.0.0-beta.1"
+version = "6.0.0-rc.1"
 dependencies = [
  "bincode",
  "blake3",
@@ -2013,7 +2013,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-executor"
-version = "6.0.0-beta.1"
+version = "6.0.0-rc.1"
 dependencies = [
  "backtrace",
  "cfg-if",
@@ -2035,7 +2035,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-recursion-machine"
-version = "6.0.0-beta.1"
+version = "6.0.0-rc.1"
 dependencies = [
  "itertools 0.14.0",
  "rand",
@@ -2056,7 +2056,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-verifier"
-version = "6.0.0-beta.1"
+version = "6.0.0-rc.1"
 dependencies = [
  "bincode",
  "blake3",
@@ -2081,7 +2081,7 @@ dependencies = [
 
 [[package]]
 name = "sp1-zkvm"
-version = "6.0.0-beta.1"
+version = "6.0.0-rc.1"
 dependencies = [
  "blake3",
  "cfg-if",
@@ -2580,4 +2580,4 @@ dependencies = [
 [[patch.unused]]
 name = "substrate-bn"
 version = "0.6.0"
-source = "git+https://github.com/sp1-patches/bn?tag=patch-0.6.0-sp1-6.0.0-beta.1#fdeb45f620ad6c7bbaf1ca3a1e937ead81d6653c"
+source = "git+https://github.com/sp1-patches/bn?tag=patch-0.6.0-sp1-6.0.0-rc.1#824b4ccf379c552b877ef5835099414db6bd923a"
