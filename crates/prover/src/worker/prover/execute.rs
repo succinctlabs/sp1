@@ -148,7 +148,7 @@ pub async fn execute_with_options(
     // Spawn a task that runs gas executors.
     join_set.spawn(async move {
         let mut report = ExecutionReport::default();
-        let mut cycles_left = max_cycles.unwrap_or(u64::MAX);
+        let max_cycles = max_cycles.unwrap_or(u64::MAX);
         let mut gas_handles: FuturesUnordered<SubmitHandle<GasExecutingEngine>> =
             FuturesUnordered::new();
         loop {
@@ -167,11 +167,10 @@ pub async fn execute_with_options(
                     report += chunk_report;
 
                     let total_instructions = report.total_instruction_count();
-                    if total_instructions >= cycles_left {
+                    if total_instructions >= max_cycles {
                         tracing::debug!("Cycle limit reached, stopping execution");
                         return Err(anyhow::anyhow!("cycle limit reached"));
                     }
-                    cycles_left -= total_instructions;
                 }
 
                 else => {
