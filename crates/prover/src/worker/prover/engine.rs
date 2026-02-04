@@ -1,4 +1,4 @@
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 
 use slop_futures::pipeline::SubmitError;
 use sp1_core_executor::SP1CoreOpts;
@@ -32,20 +32,19 @@ pub struct SP1ProverEngine<A, W, C: SP1ProverComponents> {
 pub struct WrapAirProverInit<C: SP1ProverComponents> {
     builder: Arc<C::WrapProverBuilder>,
     permits: ProverSemaphore,
-    prover: OnceLock<Arc<C::WrapProver>>,
 }
 
 impl<C: SP1ProverComponents> WrapAirProverInit<C> {
     pub(crate) fn new(builder: C::WrapProverBuilder, permits: ProverSemaphore) -> Self {
-        Self { builder: Arc::new(builder), permits, prover: OnceLock::new() }
-    }
-
-    pub(crate) fn get_or_init(&self) -> Arc<C::WrapProver> {
-        self.prover.get_or_init(|| self.builder.build()).clone()
+        Self { builder: Arc::new(builder), permits }
     }
 
     pub(crate) fn permits(&self) -> ProverSemaphore {
         self.permits.clone()
+    }
+
+    pub(crate) fn build(&self) -> Arc<C::WrapProver> {
+        self.builder.build()
     }
 }
 

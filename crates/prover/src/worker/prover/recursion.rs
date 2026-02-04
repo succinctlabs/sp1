@@ -49,9 +49,9 @@ use sp1_recursion_gnark_ffi::{Groth16Bn254Prover, PlonkBn254Prover};
 use std::{
     borrow::Borrow,
     collections::{BTreeMap, BTreeSet, VecDeque},
-    sync::{Arc, OnceLock},
+    sync::Arc,
 };
-use tokio::sync::oneshot;
+use tokio::sync::{oneshot, OnceCell};
 use tracing::Instrument;
 
 /// Configuration for the recursion prover.
@@ -405,7 +405,7 @@ pub type ReduceSubmitHandle<A, C> = SubmitHandle<ReducePipeline<A, C>>;
 pub struct SP1RecursionProver<A, C: SP1ProverComponents> {
     reduce_pipeline: Arc<ReducePipeline<A, C>>,
     pub shrink_prover: Arc<ShrinkProver<C>>,
-    wrap_prover: Arc<OnceLock<Arc<WrapProver<C>>>>,
+    wrap_prover: Arc<OnceCell<Arc<WrapProver<C>>>>,
     wrap_prover_init: Arc<WrapProverInit<C>>,
     pub prover_data: Arc<RecursionProverData<C>>,
     artifact_client: A,
@@ -586,7 +586,7 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
             Self {
                 reduce_pipeline,
                 shrink_prover,
-                wrap_prover: Arc::new(OnceLock::new()),
+                wrap_prover: Arc::new(OnceCell::new()),
                 wrap_prover_init: Arc::new(wrap_prover_init),
                 prover_data,
                 artifact_client,
@@ -628,45 +628,44 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
     }
 
     async fn wrap_prover(&self) -> Result<Arc<WrapProver<C>>, TaskError> {
-        if let Some(wrap_prover) = self.wrap_prover.get() {
-            return Ok(wrap_prover.clone());
-        }
-
         let wrap_prover_init = self.wrap_prover_init.clone();
         let prover_data = self.prover_data.clone();
 
-        let wrap_prover = tokio::task::spawn_blocking(move || {
-            let expected_wrap_vk = wrap_prover_init.expected_wrap_vk.clone();
-            let wrap_air_prover = wrap_prover_init.wrap_air_prover.get_or_init();
-            let wrap_air_permits = wrap_prover_init.wrap_air_prover.permits();
-            let wrap_prover = WrapProver::new(
-                wrap_air_prover,
-                wrap_air_permits,
-                prover_data,
-                wrap_prover_init.config.clone(),
-                wrap_prover_init.shrink_shape.clone(),
-            );
+        let wrap_prover = self
+            .wrap_prover
+            .get_or_try_init(|| async move {
+                let wrap_prover_init = wrap_prover_init.clone();
+                let prover_data = prover_data.clone();
+                tokio::task::spawn_blocking(move || {
+                    let expected_wrap_vk = wrap_prover_init.expected_wrap_vk.clone();
+                    let wrap_air_prover = wrap_prover_init.wrap_air_prover.build();
+                    let wrap_air_permits = wrap_prover_init.wrap_air_prover.permits();
+                    let wrap_prover = WrapProver::new(
+                        wrap_air_prover,
+                        wrap_air_permits,
+                        prover_data,
+                        wrap_prover_init.config.clone(),
+                        wrap_prover_init.shrink_shape.clone(),
+                    );
 
-            if wrap_prover.prover_data.recursion_vks.vk_verification()
-                && wrap_prover.verifying_key != expected_wrap_vk
-            {
-                return Err(TaskError::Fatal(anyhow::anyhow!(
-                    "Wrap vk mismatch, expected: {:?}, got: {:?}",
-                    expected_wrap_vk,
-                    wrap_prover.verifying_key
-                )));
-            }
+                    if wrap_prover.prover_data.recursion_vks.vk_verification()
+                        && wrap_prover.verifying_key != expected_wrap_vk
+                    {
+                        return Err(TaskError::Fatal(anyhow::anyhow!(
+                            "Wrap vk mismatch, expected: {:?}, got: {:?}",
+                            expected_wrap_vk,
+                            wrap_prover.verifying_key
+                        )));
+                    }
 
-            Ok(Arc::new(wrap_prover))
-        })
-        .await
-        .map_err(|err| TaskError::Fatal(anyhow::anyhow!(err)))??;
+                    Ok(Arc::new(wrap_prover))
+                })
+                .await
+                .map_err(|err| TaskError::Fatal(anyhow::anyhow!(err)))?
+            })
+            .await?;
 
-        if self.wrap_prover.set(wrap_prover.clone()).is_err() {
-            return Ok(self.wrap_prover.get().expect("wrap prover should be initialized").clone());
-        }
-
-        Ok(wrap_prover)
+        Ok(wrap_prover.clone())
     }
 
     pub async fn run_shrink_wrap(&self, request: RawTaskRequest) -> Result<(), TaskError> {
