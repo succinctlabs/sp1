@@ -1,7 +1,5 @@
+use crate::hook::{hookify, BoxedHook, HookEnv, HookRegistry};
 use core::mem::take;
-use crate::{
-    hook::{hookify, BoxedHook, HookEnv, HookRegistry},
-};
 use hashbrown::HashMap;
 use sp1_hypercube::air::PROOF_NONCE_NUM_WORDS;
 use std::io::Write;
@@ -323,5 +321,4 @@ mod tests {
             SP1Context::builder().without_default_hooks().hook(30, |_, _| vec![]).build();
         assert_eq!(&hook_registry.unwrap().table.into_keys().collect::<Vec<_>>(), &[30]);
     }
-
 }

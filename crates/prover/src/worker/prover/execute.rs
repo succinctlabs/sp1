@@ -12,11 +12,11 @@ use sp1_primitives::io::SP1PublicValues;
 use std::sync::Arc;
 use tracing::Instrument;
 
+use crate::verify::SP1Verifier;
 use crate::worker::{
     FinalVmState, FinalVmStateLock, DEFAULT_GAS_EXECUTOR_BUFFER_SIZE,
     DEFAULT_NUM_GAS_EXECUTOR_WORKERS,
 };
-use crate::verify::SP1Verifier;
 
 /// Configuration for the executor.
 #[derive(Debug, Clone)]
@@ -105,9 +105,7 @@ impl AsyncWorker<GasExecutingTask, Result<ExecutionReport, ExecutionError>> for 
     }
 }
 
-fn verify_deferred_proofs(
-    stdin: &SP1Stdin,
-) -> anyhow::Result<()> {
+fn verify_deferred_proofs(stdin: &SP1Stdin) -> anyhow::Result<()> {
     if stdin.proofs.is_empty() {
         return Ok(());
     }
