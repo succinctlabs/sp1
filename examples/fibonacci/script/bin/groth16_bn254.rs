@@ -17,7 +17,7 @@ async fn main() {
     stdin.write(&n);
 
     // Set up the pk and vk.
-    let client = ProverClient::builder().cpu().build().await;
+    let client = ProverClient::from_env().await;
     let pk = client.setup(ELF).await.unwrap();
     println!("vk: {:?}", pk.verifying_key().bytes32());
 

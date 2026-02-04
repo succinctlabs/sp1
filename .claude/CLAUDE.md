@@ -18,11 +18,11 @@ cargo test --release -p <crate-name>
 # E2E prover test (comprehensive, takes ~15 min)
 cargo test --release -p sp1-prover test_e2e_node
 
-# Check formatting
-cargo fmt --check
+# Check formatting. Run this and fix errors before handing control back to the user.
+cargo fmt --all -- --check
 
-# Run clippy
-cargo clippy -p <crate-name>
+# Run clippy. Run this and fix errors before handing control back to the user.
+cargo clippy -p <crate-name> --all-targets --all-features -- -D warnings -A incomplete-features
 ```
 
 ## Code Style Preferences

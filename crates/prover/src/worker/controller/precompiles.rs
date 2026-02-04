@@ -211,9 +211,8 @@ impl PrecompileHandler {
         artifact_client: impl ArtifactClient,
         worker_client: impl WorkerClient,
         context: TaskContext,
-        num_deferred_proofs: usize,
     ) -> Result<(), TaskError> {
-        let precompile_range = ShardRange::precompile(num_deferred_proofs);
+        let precompile_range = ShardRange::precompile();
         let mut join_set = JoinSet::new();
         let task_data_map = Arc::new(tokio::sync::Mutex::new(HashMap::new()));
 

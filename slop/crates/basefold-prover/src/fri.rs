@@ -30,7 +30,7 @@ impl<GC: IopCtx<F: TwoAdicField>, P: TensorCsProver<GC, CpuBackend>> FriCpuProve
     #[allow(clippy::type_complexity)]
     pub(crate) fn batch<M, Code>(
         &self,
-        batching_challenge: GC::EF,
+        batching_coefficients: &Tensor<GC::EF>,
         mles: Message<M>,
         _codewords: Message<Code>,
         evaluation_claims: Vec<MleEval<GC::EF, CpuBackend>>,
@@ -43,23 +43,19 @@ impl<GC: IopCtx<F: TwoAdicField>, P: TensorCsProver<GC, CpuBackend>> FriCpuProve
         let encoder = encoder.clone();
         let num_variables = mles.first().unwrap().as_ref().borrow().num_variables() as usize;
 
-        // Compute all the batch challenge powers.
-        let total_num_polynomials =
-            mles.iter().map(|mle| mle.borrow().num_polynomials()).sum::<usize>();
-        let mut batch_challenge_powers =
-            batching_challenge.powers().take(total_num_polynomials).collect::<Vec<_>>();
+        let mut batching_coefficients_iter = batching_coefficients.as_slice().iter();
 
         // Compute the random linear combination of the MLEs of the columns of the matrices
         let mut batch_mle = Mle::from(vec![GC::EF::zero(); 1 << num_variables]);
         for mle in mles.iter() {
             let mle: &Mle<_, _> = mle.as_ref().borrow();
             let batch_size = mle.num_polynomials();
-            let mut powers = batch_challenge_powers;
-            batch_challenge_powers = powers.split_off(batch_size);
+            let coeffs = batching_coefficients_iter.by_ref().take(batch_size).collect::<Vec<_>>();
             // Batch the mles as an inner product.
             batch_mle.guts_mut().as_mut_slice().iter_mut().zip_eq(mle.hypercube_iter()).for_each(
                 |(batch, row)| {
-                    let batch_row = powers.iter().zip_eq(row).map(|(a, b)| *a * *b).sum::<GC::EF>();
+                    let batch_row =
+                        coeffs.iter().zip_eq(row).map(|(a, b)| **a * *b).sum::<GC::EF>();
                     *batch += batch_row;
                 },
             );
@@ -70,8 +66,8 @@ impl<GC: IopCtx<F: TwoAdicField>, P: TensorCsProver<GC, CpuBackend>> FriCpuProve
             .flat_map(|batch_claims| unsafe {
                 batch_claims.evaluations().storage.copy_into_host_vec()
             })
-            .zip(batching_challenge.powers())
-            .map(|(eval, batch_power)| eval * batch_power)
+            .zip(batching_coefficients.as_slice())
+            .map(|(eval, batch_power)| eval * *batch_power)
             .sum::<GC::EF>();
 
         let batch_mle_f = Buffer::from(batch_mle.clone().into_guts().storage.as_slice().to_vec())

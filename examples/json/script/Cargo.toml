@@ -6,7 +6,7 @@ publish = false
 
 [dependencies]
 serde_json = { workspace = true }
-sp1-sdk = { workspace = true, default-features = true }
+sp1-sdk = { workspace = true }
 lib = { path = "../lib", package = "json-lib" }
 tokio = { workspace = true }
 

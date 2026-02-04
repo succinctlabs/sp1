@@ -669,7 +669,7 @@ impl SP1Verifier {
 
         // Verify the proof with the corresponding public inputs.
         if use_development_mode() {
-            let build_dir = plonk_bn254_artifacts_dev_dir(&self.wrap_vk);
+            let build_dir = plonk_bn254_artifacts_dev_dir(&self.wrap_vk)?;
             if !build_dir.exists() {
                 return Err(anyhow!("{:?} development plonk build dir does not exist", build_dir));
             }
@@ -741,7 +741,7 @@ impl SP1Verifier {
 
         // Verify the proof with the corresponding public inputs.
         if use_development_mode() {
-            let build_dir = groth16_bn254_artifacts_dev_dir(&self.wrap_vk);
+            let build_dir = groth16_bn254_artifacts_dev_dir(&self.wrap_vk)?;
             if !build_dir.exists() {
                 return Err(anyhow!(
                     "{:?} development groth16 build dir does not exist",

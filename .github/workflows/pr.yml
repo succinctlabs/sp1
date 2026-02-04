@@ -310,51 +310,47 @@ jobs:
           args: >-
             --workspace --all-targets --all-features
 
-  # examples:
-  #   name: Examples
-  #   runs-on:
-  #     [
-  #       runs-on,
-  #       runner=64cpu-linux-x64,
-  #       disk=large,
-  #       spot=false,
-  #       "run-id=${{ github.run_id }}",
-  #     ]
-  #   env:
-  #     CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-  #   steps:
-  #     - name: Checkout sources
-  #       uses: actions/checkout@v6
+  examples:
+    name: Examples
+    runs-on:
+      [
+        runs-on,
+        runner=64cpu-linux-x64,
+        disk=large,
+        spot=false,
+        "run-id=${{ github.run_id }}",
+      ]
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v6
 
-  #     - name: Setup CI
-  #       uses: ./.github/actions/setup
-  #       with:
-  #         pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+      - name: Setup CI
+        uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
 
-  #     - name: Install SP1 toolchain from repo
-  #       run: |
-  #         cargo run -p sp1-cli --no-default-features -- prove install-toolchain
-  #         cd crates/cli
-  #         cargo install --force --locked --path .
-  #         cargo clean  
+      - name: Install SP1 toolchain from repo
+        run: |
+          cargo run -p sp1-cli --no-default-features -- prove install-toolchain
+          cd crates/cli
+          cargo install --force --locked --path .
+          cargo clean  
 
-      # - name: Run cargo fmt
-      #   uses: actions-rs/cargo@v1
-      #   with:
-      #     command: fmt
-      #     args: --all -- --check
-      #     toolchain: nightly
-      #   env:
-      #     CARGO_INCREMENTAL: 1
+      - name: Run cargo fmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
+          toolchain: nightly
+        env:
+          CARGO_INCREMENTAL: 1
 
-  #     - name: Run cargo check
-  #       run: |
-  #         cd ./examples/
-  #         cargo check --all-targets --all-features
-
-  #     - name: Run cargo clippy
-  #       run: |
-  #         cd ./examples/
+      - name: Run cargo check
+        run: |
+          cd ./examples/
+          cargo check --all-targets --all-features
 
   # check-verifier-no-std:
   #   name: Check Verifier `no_std`

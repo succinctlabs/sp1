@@ -8,7 +8,9 @@ use slop_basefold_prover::{host_fold_even_odd, BasefoldProverError};
 use slop_challenger::{CanObserve, CanSampleBits, FieldChallenger, IopCtx};
 use slop_commit::{Message, Rounds};
 use slop_merkle_tree::MerkleTreeOpeningAndProof;
-use slop_multilinear::{Evaluations, Mle, MleEval, Point};
+use slop_multilinear::{
+    partial_lagrange_blocking, Evaluations, Mle, MleEval, MultilinearPcsChallenger, Point,
+};
 use slop_tensor::Tensor;
 use sp1_primitives::{SP1ExtensionField, SP1Field};
 
@@ -112,7 +114,7 @@ where
     #[allow(clippy::type_complexity)]
     pub fn batch(
         &self,
-        batching_challenge: GC::EF,
+        batching_coefficients: &Tensor<GC::EF>,
         mles: &TraceDenseData<GC::F, TaskScope>,
         codewords: Message<Tensor<Felt, TaskScope>>,
         evaluation_claims: Vec<MleEval<GC::EF, TaskScope>>,
@@ -120,9 +122,6 @@ where
         let log_stacking_height = self.log_height;
         // Compute all the batch challenge powers.
         let total_num_polynomials = codewords.iter().map(|c| c.sizes()[0]).sum::<usize>();
-
-        let mut batch_challenge_powers =
-            batching_challenge.powers().take(total_num_polynomials).collect::<Vec<_>>();
 
         // Compute the random linear combination of the MLEs of the columns of the matrices
         let num_variables = log_stacking_height;
@@ -139,10 +138,9 @@ where
             let block_dim = 256;
             let grid_dim = (1usize << num_variables).div_ceil(block_dim);
             let batch_size = total_num_polynomials;
-            let powers_device =
-                DeviceBuffer::from_host(&Buffer::from(batch_challenge_powers.clone()), &scope)
-                    .unwrap()
-                    .into_inner();
+            let powers_device = DeviceBuffer::from_host(batching_coefficients.as_buffer(), &scope)
+                .unwrap()
+                .into_inner();
             let mle_args = args!(
                 mles.dense.as_ptr(),
                 batch_mle.guts_mut().as_mut_ptr(),
@@ -155,10 +153,11 @@ where
                 .unwrap();
         }
 
+        let mut batch_coefficients = batching_coefficients.as_buffer().to_vec();
         for codeword in codewords.iter() {
             let batch_size = codeword.sizes()[0];
-            let mut powers = batch_challenge_powers;
-            batch_challenge_powers = powers.split_off(batch_size);
+            let mut powers = batch_coefficients;
+            batch_coefficients = powers.split_off(batch_size);
             let powers_device = DeviceBuffer::from_host(&Buffer::from(powers.clone()), &scope)
                 .unwrap()
                 .into_inner();
@@ -186,15 +185,16 @@ where
         }
 
         // Compute the batched evaluation claim.
-        let mut batch_eval_claim = GC::EF::zero();
-        let mut power = GC::EF::one();
-        for batch_claims in evaluation_claims {
-            let claims = DeviceTensor::from_raw(batch_claims.into_evaluations()).to_host().unwrap();
-            for value in claims.as_slice() {
-                batch_eval_claim += power * *value;
-                power *= batching_challenge;
-            }
-        }
+        let batch_eval_claim = evaluation_claims
+            .into_iter()
+            .flat_map(|batch_claims| {
+                let claims =
+                    DeviceTensor::from_raw(batch_claims.into_evaluations()).to_host().unwrap();
+                claims.into_buffer().into_vec()
+            })
+            .zip(batching_coefficients.as_slice())
+            .map(|(eval, coeff)| eval * *coeff)
+            .sum::<GC::EF>();
 
         (batch_mle, batch_codeword, batch_eval_claim)
     }
@@ -361,15 +361,18 @@ where
             }
         }
 
+        let total_num_polynomials = codewords.iter().map(|c| c.sizes()[0]).sum::<usize>();
+        let num_batching_variables = total_num_polynomials.next_power_of_two().ilog2();
+
         let encoded_messages: Message<_> = codewords.iter().cloned().collect();
 
         let evaluation_claims = evaluation_claims.into_iter().flatten().collect::<Vec<_>>();
+        let batching_point = challenger.sample_point::<GC::EF>(num_batching_variables);
+        let batching_coefficients = partial_lagrange_blocking(&batching_point);
 
-        // Sample a batching challenge and batch the mles and codewords.
-        let batching_challenge: GC::EF = challenger.sample_ext_element();
         // Batch the mles and codewords.
         let (mle_batch, codeword_batch, batched_eval_claim) =
-            self.batch(batching_challenge, mles.dense(), encoded_messages, evaluation_claims);
+            self.batch(&batching_coefficients, mles.dense(), encoded_messages, evaluation_claims);
         // From this point on, run the BaseFold protocol on the random linear combination codeword,
         // the random linear combination multilinear, and the random linear combination of the
         // evaluation claims.
