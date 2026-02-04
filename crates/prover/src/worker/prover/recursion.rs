@@ -663,11 +663,7 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
         .map_err(|err| TaskError::Fatal(anyhow::anyhow!(err)))??;
 
         if self.wrap_prover.set(wrap_prover.clone()).is_err() {
-            return Ok(self
-                .wrap_prover
-                .get()
-                .expect("wrap prover should be initialized")
-                .clone());
+            return Ok(self.wrap_prover.get().expect("wrap prover should be initialized").clone());
         }
 
         Ok(wrap_prover)
@@ -694,13 +690,10 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
             .in_scope(|| self.shrink_prover.verify(&shrink_proof))?;
 
         let wrap_prover = self.wrap_prover().await?;
-        let wrap_proof = wrap_prover
-            .prove(shrink_proof)
-            .instrument(tracing::info_span!("prove wrap"))
-            .await?;
+        let wrap_proof =
+            wrap_prover.prove(shrink_proof).instrument(tracing::info_span!("prove wrap")).await?;
 
-        tracing::debug_span!("verify wrap proof")
-            .in_scope(|| wrap_prover.verify(&wrap_proof))?;
+        tracing::debug_span!("verify wrap proof").in_scope(|| wrap_prover.verify(&wrap_proof))?;
 
         self.artifact_client
             .upload(&wrap_proof_artifact, wrap_proof)

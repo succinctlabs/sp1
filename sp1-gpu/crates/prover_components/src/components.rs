@@ -15,7 +15,7 @@ use sp1_gpu_shard_prover::{CudaShardProver, CudaShardProverComponents};
 use sp1_gpu_tracegen::CudaTracegenAir;
 use sp1_hypercube::{air::MachineAir, prover::ZerocheckAir, SP1InnerPcs, SP1OuterPcs, SP1SC};
 use sp1_primitives::{SP1ExtensionField, SP1Field, SP1GlobalContext, SP1OuterGlobalContext};
-use sp1_prover::{CompressAir, SP1ProverComponents, WrapAir};
+use sp1_prover::{CompressAir, ReadyWrapProverBuilder, SP1ProverComponents, WrapAir};
 
 pub struct SP1CudaProverComponents;
 
@@ -23,6 +23,7 @@ impl SP1ProverComponents for SP1CudaProverComponents {
     type CoreProver = CudaShardProver<SP1GlobalContext, CudaProverCoreComponents>;
     type RecursionProver = CudaShardProver<SP1GlobalContext, CudaProverRecursionComponents>;
     type WrapProver = CudaShardProver<SP1OuterGlobalContext, CudaProverWrapComponents>;
+    type WrapProverBuilder = ReadyWrapProverBuilder<Self>;
 }
 
 /// Core prover components for the CUDA prover.

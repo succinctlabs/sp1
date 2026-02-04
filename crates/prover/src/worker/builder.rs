@@ -10,7 +10,7 @@ use crate::{
         LocalWorkerClient, SP1Controller, SP1ProverEngine, SP1Worker, SP1WorkerConfig,
         WorkerClient, WrapAirProverInit,
     },
-    CpuSP1ProverComponents, SP1ProverComponents,
+    CpuSP1ProverComponents, CpuWrapProverBuilder, SP1ProverComponents,
 };
 
 pub struct SP1WorkerBuilder<
@@ -142,7 +142,7 @@ impl<C: SP1ProverComponents, A, W> SP1WorkerBuilder<C, A, W> {
     #[must_use]
     pub fn with_wrap_air_prover(
         mut self,
-        wrap_air_prover: impl Fn() -> Arc<C::WrapProver> + Send + Sync + 'static,
+        wrap_air_prover: C::WrapProverBuilder,
         permit: ProverSemaphore,
     ) -> Self {
         self.wrap_air_prover_and_permits = Some(WrapAirProverInit::new(wrap_air_prover, permit));
@@ -327,10 +327,7 @@ pub fn cpu_worker_builder() -> SP1WorkerBuilder<CpuSP1ProverComponents> {
     let artifact_client = InMemoryArtifactClient::new();
     let (worker_client, _) = LocalWorkerClient::init();
 
-    let wrap_prover = || {
-        let wrap_verifier = CpuSP1ProverComponents::wrap_verifier();
-        Arc::new(CpuShardProver::new(wrap_verifier.shard_verifier().clone()))
-    };
+    let wrap_prover = CpuWrapProverBuilder;
 
     SP1WorkerBuilder::new()
         .with_artifact_client(artifact_client)
