@@ -341,7 +341,6 @@ where
         join_set.spawn({
             let artifact_client = self.artifact_client.clone();
             let worker_client = self.worker_client.clone();
-            let num_deferred_proofs = self.num_deferred_proofs;
             let sender = self.sender.clone();
             let elf = self.elf.clone();
             let common_input = self.common_input.clone();
@@ -355,7 +354,6 @@ where
                         artifact_client,
                         worker_client,
                         context,
-                        num_deferred_proofs,
                     )
                     .await?;
                 Ok::<_, TaskError>(())
