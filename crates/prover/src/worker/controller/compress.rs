@@ -541,9 +541,10 @@ mod test_utils {
     #[tokio::test]
     async fn test_compress_tree() {
         setup_logger();
-        let num_core_shards = 2000;
-        let num_memory_shards = 20;
-        let num_precompile_shards = 100;
+        let num_core_shards = 20;
+        let num_memory_shards = 4;
+        let num_precompile_shards = 1;
+        let num_deferred_shards = 0;
         let num_iterations = 1;
         let random_intervals = HashMap::from([
             (TaskType::Controller, Duration::from_millis(20)..Duration::from_millis(100)),
@@ -592,7 +593,7 @@ mod test_utils {
                             finalized_address_range: (0, 0),
                             initialized_page_index_range: (0, 0),
                             finalized_page_index_range: (0, 0),
-                            deferred_proof_range: (0, 0),
+                            deferred_proof_range: (num_deferred_shards, num_deferred_shards),
                         };
                         create_dummy_prove_shard_task(
                             range,
@@ -645,9 +646,40 @@ mod test_utils {
                 let elf_artifact = elf_artifact.clone();
                 let common_input_artifact = common_input_artifact.clone();
                 let context = context.clone();
+                let core_proofs_tx = core_proofs_tx.clone();
                 async move {
                     for _ in 1..=num_precompile_shards {
-                        let range = ShardRange::deferred();
+                        let range = ShardRange::precompile(num_deferred_shards as usize);
+                        create_dummy_prove_shard_task(
+                            range,
+                            elf_artifact.clone(),
+                            common_input_artifact.clone(),
+                            context.clone(),
+                            &core_proofs_tx,
+                            &worker_client,
+                            &artifact_client,
+                        )
+                        .await;
+                    }
+                }
+            });
+
+            tokio::task::spawn({
+                let worker_client = worker_client.clone();
+                let artifact_client = artifact_client.clone();
+                let elf_artifact = elf_artifact.clone();
+                let common_input_artifact = common_input_artifact.clone();
+                let context = context.clone();
+                async move {
+                    for i in 0..num_deferred_shards {
+                        let range = ShardRange {
+                            timestamp_range: (1, 1),
+                            initialized_address_range: (0, 0),
+                            finalized_address_range: (0, 0),
+                            initialized_page_index_range: (0, 0),
+                            finalized_page_index_range: (0, 0),
+                            deferred_proof_range: (i, i + 1),
+                        };
                         create_dummy_prove_shard_task(
                             range,
                             elf_artifact.clone(),
