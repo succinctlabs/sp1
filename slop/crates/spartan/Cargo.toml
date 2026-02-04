@@ -1,6 +1,6 @@
 [package]
 name = "slop-spartan"
-description = "TODO"
+description = "Spartan proof system for R1CS instances"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

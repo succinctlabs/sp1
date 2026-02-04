@@ -1,6 +1,6 @@
 [package]
 name = "slop-commit"
-description = "TODO"
+description = "Polynomial commitment scheme abstractions for SLOP"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

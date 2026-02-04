@@ -1,6 +1,6 @@
 [package]
 name = "slop-basefold-prover"
-description = "TODO"
+description = "BaseFold prover implementation with FRI integration"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

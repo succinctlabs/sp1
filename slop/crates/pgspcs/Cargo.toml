@@ -1,6 +1,6 @@
 [package]
 name = "slop-pgspcs"
-description = "TODO"
+description = "Pretty Good Sparse Polynomial Commitment Scheme for SLOP"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

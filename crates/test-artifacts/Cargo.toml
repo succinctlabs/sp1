@@ -1,6 +1,6 @@
 [package]
 name = "test-artifacts"
-description = "TODO"
+description = "Test artifacts for SP1 development"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

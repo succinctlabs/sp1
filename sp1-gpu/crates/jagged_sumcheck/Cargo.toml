@@ -1,6 +1,6 @@
 [package]
 name = "sp1-gpu-jagged-sumcheck"
-description = "TODO"
+description = "GPU-accelerated sumcheck for jagged polynomials"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

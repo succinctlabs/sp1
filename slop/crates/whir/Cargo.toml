@@ -1,6 +1,6 @@
 [package]
 name = "slop-whir"
-description = "TODO"
+description = "WHIR polynomial commitment scheme for SLOP"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

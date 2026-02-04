@@ -1,6 +1,6 @@
 [package]
 name = "slop-multilinear"
-description = "TODO"
+description = "Multilinear polynomial extensions for SLOP"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

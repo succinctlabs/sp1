@@ -1,6 +1,6 @@
 [package]
 name = "sp1-gpu-perf"
-description = "TODO"
+description = "Performance benchmarks for SP1-GPU"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

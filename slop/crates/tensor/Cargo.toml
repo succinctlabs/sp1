@@ -1,6 +1,6 @@
 [package]
 name = "slop-tensor"
-description = "TODO"
+description = "N-dimensional tensor operations for polynomial proof systems"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

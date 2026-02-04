@@ -1,6 +1,6 @@
 [package]
 name = "slop-dft"
-description = "TODO"
+description = "Discrete Fourier Transform operations for tensors in SLOP"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

@@ -1,6 +1,6 @@
 [package]
 name = "sp1-recursion-gnark-ffi"
-description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
+description = "FFI bindings to Gnark for SP1"
 readme = "../../../README.md"
 version = { workspace = true }
 edition = { workspace = true }

@@ -1,6 +1,6 @@
 [package]
 name = "slop-utils"
-description = "TODO"
+description = "Utility functions and logger setup for SLOP"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

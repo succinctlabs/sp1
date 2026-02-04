@@ -1,6 +1,6 @@
 [package]
 name = "slop-basefold"
-description = "TODO"
+description = "BaseFold polynomial commitment scheme for SLOP"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

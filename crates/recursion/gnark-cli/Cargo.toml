@@ -1,6 +1,6 @@
 [package]
 name = "sp1-recursion-gnark-cli"
-description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
+description = "CLI for SP1 Gnark proof generation"
 readme = "../../../README.md"
 version = { workspace = true }
 edition = { workspace = true }

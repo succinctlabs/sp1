@@ -1,6 +1,6 @@
 [package]
 name = "slop-alloc"
-description = "TODO"
+description = "Memory allocation backend abstraction for SLOP"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

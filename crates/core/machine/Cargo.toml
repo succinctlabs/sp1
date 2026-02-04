@@ -1,6 +1,6 @@
 [package]
 name = "sp1-core-machine"
-description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
+description = "SP1 core machine definitions"
 readme = "../../../README.md"
 version = { workspace = true }
 edition = { workspace = true }

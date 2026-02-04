@@ -1,6 +1,6 @@
 [package]
 name = "sp1-gpu-tracegen"
-description = "TODO"
+description = "Core GPU trace generation for SP1 machines"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

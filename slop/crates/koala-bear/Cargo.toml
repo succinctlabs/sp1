@@ -1,6 +1,6 @@
 [package]
 name = "slop-koala-bear"
-description = "TODO"
+description = "KoalaBear field with Poseidon2 configuration for SLOP"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

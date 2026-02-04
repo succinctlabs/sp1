@@ -1,6 +1,6 @@
 [package]
 name = "slop-challenger"
-description = "TODO"
+description = "Fiat-Shamir challenger with SP1-specific extensions for SLOP"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

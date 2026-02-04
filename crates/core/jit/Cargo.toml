@@ -1,6 +1,6 @@
 [package]
 name = "sp1-jit"
-description = "TODO"
+description = "JIT compilation for SP1 trace generation"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
