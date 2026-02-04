@@ -145,23 +145,23 @@ sp1-gpu-tracing = { version = "6.0.0-rc.1", path = "sp1-gpu/crates/tracing" }
 sp1-gpu-utils = { version = "6.0.0-rc.1", path = "sp1-gpu/crates/utils" }
 sp1-gpu-zerocheck = { version = "6.0.0-rc.1", path = "sp1-gpu/crates/zerocheck" }
 
-p3-air = "0.2.4-succinct"
-p3-baby-bear = { version = "0.2.4-succinct", features = ["nightly-features"] }
-p3-bn254-fr = "0.2.4-succinct"
-p3-challenger = "0.2.4-succinct"
-p3-commit = "0.2.4-succinct"
-p3-dft = "0.2.4-succinct"
-p3-field = "0.2.4-succinct"
-p3-fri = "0.2.4-succinct"
-p3-keccak-air = "0.2.4-succinct"
-p3-koala-bear = "0.2.4-succinct"
-p3-matrix = "0.2.4-succinct"
-p3-maybe-rayon = { version = "0.2.4-succinct", features = ["parallel"] }
-p3-merkle-tree = "0.2.4-succinct"
-p3-poseidon2 = "0.2.4-succinct"
-p3-symmetric = "0.2.4-succinct"
-p3-uni-stark = "0.2.4-succinct"
-p3-util = "0.2.4-succinct"
+p3-air = "0.3.1-succinct"
+p3-baby-bear = { version = "0.3.1-succinct", features = ["nightly-features"] }
+p3-bn254-fr = "0.3.1-succinct"
+p3-challenger = "0.3.1-succinct"
+p3-commit = "0.3.1-succinct"
+p3-dft = "0.3.1-succinct"
+p3-field = "0.3.1-succinct"
+p3-fri = "0.3.1-succinct"
+p3-keccak-air = "0.3.1-succinct"
+p3-koala-bear = "0.3.1-succinct"
+p3-matrix = "0.3.1-succinct"
+p3-maybe-rayon = { version = "0.3.1-succinct", features = ["parallel"] }
+p3-merkle-tree = "0.3.1-succinct"
+p3-poseidon2 = "0.3.1-succinct"
+p3-symmetric = "0.3.1-succinct"
+p3-uni-stark = "0.3.1-succinct"
+p3-util = "0.3.1-succinct"
 
 slop-air = { version = "6.0.0-rc.1", path = "./slop/crates/air" }
 slop-algebra = { version = "6.0.0-rc.1", path = "./slop/crates/algebra" }

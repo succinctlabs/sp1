@@ -1,5 +1,6 @@
 #![allow(clippy::print_stdout)] // This prints a progress bar
 
+use anyhow::{anyhow, Context, Result};
 use itertools::Itertools;
 use sha2::{Digest, Sha256};
 use slop_algebra::{AbstractField, PrimeField32};
@@ -49,10 +50,10 @@ use crate::{
 pub(crate) fn get_or_create_plonk_artifacts_dev_build_dir(
     template_vk: &MachineVerifyingKey<SP1OuterGlobalContext>,
     template_proof: &ShardProof<SP1OuterGlobalContext, SP1PcsProofOuter>,
-) -> PathBuf {
-    let dev_dir = plonk_bn254_artifacts_dev_dir(template_vk);
+) -> Result<PathBuf> {
+    let dev_dir = plonk_bn254_artifacts_dev_dir(template_vk)?;
     if dev_dir.exists() {
-        dev_dir
+        Ok(dev_dir)
     } else {
         crate::build::try_build_plonk_bn254_artifacts_dev(template_vk, template_proof)
     }
@@ -61,10 +62,10 @@ pub(crate) fn get_or_create_plonk_artifacts_dev_build_dir(
 pub(crate) fn get_or_create_groth16_artifacts_dev_build_dir(
     template_vk: &MachineVerifyingKey<SP1OuterGlobalContext>,
     template_proof: &ShardProof<SP1OuterGlobalContext, SP1PcsProofOuter>,
-) -> PathBuf {
-    let dev_dir = groth16_bn254_artifacts_dev_dir(template_vk);
+) -> Result<PathBuf> {
+    let dev_dir = groth16_bn254_artifacts_dev_dir(template_vk)?;
     if dev_dir.exists() {
-        dev_dir
+        Ok(dev_dir)
     } else {
         crate::build::try_build_groth16_bn254_artifacts_dev(template_vk, template_proof)
     }
@@ -74,8 +75,8 @@ pub(crate) fn get_or_create_groth16_artifacts_dev_build_dir(
 fn try_build_plonk_bn254_artifacts_dev(
     template_vk: &MachineVerifyingKey<SP1OuterGlobalContext>,
     template_proof: &ShardProof<SP1OuterGlobalContext, SP1PcsProofOuter>,
-) -> PathBuf {
-    let build_dir = plonk_bn254_artifacts_dev_dir(template_vk);
+) -> Result<PathBuf> {
+    let build_dir = plonk_bn254_artifacts_dev_dir(template_vk)?;
     if build_dir.exists() {
         tracing::info!("[sp1] plonk bn254 found (build_dir: {})", build_dir.display());
     } else {
@@ -83,17 +84,17 @@ fn try_build_plonk_bn254_artifacts_dev(
             "[sp1] building plonk bn254 artifacts in development mode (build_dir: {})",
             build_dir.display()
         );
-        build_plonk_bn254_artifacts(template_vk, template_proof, &build_dir);
+        build_plonk_bn254_artifacts(template_vk, template_proof, &build_dir)?;
     }
-    build_dir
+    Ok(build_dir)
 }
 
 /// Tries to build the groth16 bn254 artifacts in the current environment.
 fn try_build_groth16_bn254_artifacts_dev(
     template_vk: &MachineVerifyingKey<SP1OuterGlobalContext>,
     template_proof: &ShardProof<SP1OuterGlobalContext, SP1PcsProofOuter>,
-) -> PathBuf {
-    let build_dir = groth16_bn254_artifacts_dev_dir(template_vk);
+) -> Result<PathBuf> {
+    let build_dir = groth16_bn254_artifacts_dev_dir(template_vk)?;
     if build_dir.exists() {
         tracing::info!("[sp1] groth16 bn254 found (build_dir: {})", build_dir.display());
     } else {
@@ -101,35 +102,29 @@ fn try_build_groth16_bn254_artifacts_dev(
             "[sp1] building groth16 bn254 artifacts in development mode (build_dir: {})",
             build_dir.display()
         );
-        build_groth16_bn254_artifacts(template_vk, template_proof, &build_dir);
+        build_groth16_bn254_artifacts(template_vk, template_proof, &build_dir)?;
     }
-    build_dir
+    Ok(build_dir)
 }
 
 /// Gets the directory where the PLONK artifacts are installed in development mode.
 pub(crate) fn plonk_bn254_artifacts_dev_dir(
     template_vk: &MachineVerifyingKey<SP1OuterGlobalContext>,
-) -> PathBuf {
-    let serialized_vk = bincode::serialize(template_vk).unwrap();
+) -> Result<PathBuf> {
+    let serialized_vk = bincode::serialize(template_vk)?;
     let vk_hash_prefix = hex_prefix(sha256_hash(&serialized_vk));
-    dirs::home_dir()
-        .unwrap()
-        .join(".sp1")
-        .join("circuits")
-        .join(format!("{vk_hash_prefix}-plonk-dev"))
+    let home_dir = dirs::home_dir().ok_or_else(|| anyhow!("home directory not found"))?;
+    Ok(home_dir.join(".sp1").join("circuits").join(format!("{vk_hash_prefix}-plonk-dev")))
 }
 
 /// Gets the directory where the groth16 artifacts are installed in development mode.
 pub(crate) fn groth16_bn254_artifacts_dev_dir(
     template_vk: &MachineVerifyingKey<SP1OuterGlobalContext>,
-) -> PathBuf {
-    let serialized_vk = bincode::serialize(template_vk).unwrap();
+) -> Result<PathBuf> {
+    let serialized_vk = bincode::serialize(template_vk)?;
     let vk_hash_prefix = hex_prefix(sha256_hash(&serialized_vk));
-    dirs::home_dir()
-        .unwrap()
-        .join(".sp1")
-        .join("circuits")
-        .join(format!("{vk_hash_prefix}-groth16-dev"))
+    let home_dir = dirs::home_dir().ok_or_else(|| anyhow!("home directory not found"))?;
+    Ok(home_dir.join(".sp1").join("circuits").join(format!("{vk_hash_prefix}-groth16-dev")))
 }
 
 fn hex_prefix(input: Vec<u8>) -> String {
@@ -142,29 +137,33 @@ pub fn build_plonk_bn254_artifacts(
     template_vk: &MachineVerifyingKey<SP1OuterGlobalContext>,
     template_proof: &ShardProof<SP1OuterGlobalContext, SP1PcsProofOuter>,
     build_dir: impl Into<PathBuf>,
-) {
+) -> Result<()> {
     let build_dir = build_dir.into();
-    std::fs::create_dir_all(&build_dir).expect("failed to create build directory");
-    let (constraints, witness) = build_constraints_and_witness(template_vk, template_proof);
+    std::fs::create_dir_all(&build_dir)?;
+    let (constraints, witness) = build_constraints_and_witness(template_vk, template_proof)?;
 
     // Serialize and write constraints.
-    let serialized = serde_json::to_string(&constraints).unwrap();
+    let serialized = serde_json::to_string(&constraints)?;
     let constraints_path = build_dir.join("constraints.json");
-    let mut file = File::create(constraints_path).unwrap();
-    file.write_all(serialized.as_bytes()).unwrap();
+    let mut file = File::create(constraints_path)?;
+    file.write_all(serialized.as_bytes())?;
 
     // Serialize and write witness.
     let witness_path = build_dir.join("plonk_witness.json");
     let gnark_witness = GnarkWitness::new(witness);
-    let mut file = File::create(witness_path).unwrap();
-    let serialized = serde_json::to_string(&gnark_witness).unwrap();
-    file.write_all(serialized.as_bytes()).unwrap();
+    let mut file = File::create(witness_path)?;
+    let serialized = serde_json::to_string(&gnark_witness)?;
+    file.write_all(serialized.as_bytes())?;
 
     // Build the circuit.
-    build_plonk_bn254(build_dir.to_str().unwrap());
+    let build_dir_str = build_dir
+        .to_str()
+        .ok_or_else(|| anyhow!("failed to convert path to string: {:?}", build_dir))?;
+    build_plonk_bn254(build_dir_str);
 
     // Build the contracts.
-    build_plonk_bn254_contracts(&build_dir);
+    build_plonk_bn254_contracts(&build_dir)?;
+    Ok(())
 }
 
 /// Build the groth16 bn254 artifacts to the given directory for the given verification key and
@@ -173,43 +172,47 @@ pub fn build_groth16_bn254_artifacts(
     template_vk: &MachineVerifyingKey<SP1OuterGlobalContext>,
     template_proof: &ShardProof<SP1OuterGlobalContext, SP1PcsProofOuter>,
     build_dir: impl Into<PathBuf>,
-) {
+) -> Result<()> {
     let build_dir = build_dir.into();
-    std::fs::create_dir_all(&build_dir).expect("failed to create build directory");
-    let (constraints, witness) = build_constraints_and_witness(template_vk, template_proof);
+    std::fs::create_dir_all(&build_dir)?;
+    let (constraints, witness) = build_constraints_and_witness(template_vk, template_proof)?;
 
     // Serialize and write constraints.
-    let serialized = serde_json::to_string(&constraints).unwrap();
+    let serialized = serde_json::to_string(&constraints)?;
     let constraints_path = build_dir.join("constraints.json");
-    let mut file = File::create(constraints_path).unwrap();
-    file.write_all(serialized.as_bytes()).unwrap();
+    let mut file = File::create(constraints_path)?;
+    file.write_all(serialized.as_bytes())?;
 
     // Serialize and write witness.
     let witness_path = build_dir.join("groth16_witness.json");
     let gnark_witness = GnarkWitness::new(witness);
-    let mut file = File::create(witness_path).unwrap();
-    let serialized = serde_json::to_string(&gnark_witness).unwrap();
-    file.write_all(serialized.as_bytes()).unwrap();
+    let mut file = File::create(witness_path)?;
+    let serialized = serde_json::to_string(&gnark_witness)?;
+    file.write_all(serialized.as_bytes())?;
 
     // Build the circuit.
-    build_groth16_bn254(build_dir.to_str().unwrap());
+    let build_dir_str = build_dir
+        .to_str()
+        .ok_or_else(|| anyhow!("failed to convert path to string: {:?}", build_dir))?;
+    build_groth16_bn254(build_dir_str);
 
     // Build the contracts.
-    build_groth16_bn254_contracts(&build_dir);
+    build_groth16_bn254_contracts(&build_dir)?;
+    Ok(())
 }
 
 /// Get the vkey hash for Plonk.
-pub fn get_plonk_vkey_hash(build_dir: &Path) -> [u8; 32] {
+pub fn get_plonk_vkey_hash(build_dir: &Path) -> Result<[u8; 32]> {
     let vkey_path = build_dir.join("plonk_vk.bin");
-    let vk_bin_bytes = std::fs::read(vkey_path).unwrap();
-    Sha256::digest(vk_bin_bytes).into()
+    let vk_bin_bytes = std::fs::read(vkey_path)?;
+    Ok(Sha256::digest(vk_bin_bytes).into())
 }
 
 /// Get the vkey hash for Groth16.
-pub fn get_groth16_vkey_hash(build_dir: &Path) -> [u8; 32] {
+pub fn get_groth16_vkey_hash(build_dir: &Path) -> Result<[u8; 32]> {
     let vkey_path = build_dir.join("groth16_vk.bin");
-    let vk_bin_bytes = std::fs::read(vkey_path).unwrap();
-    Sha256::digest(vk_bin_bytes).into()
+    let vk_bin_bytes = std::fs::read(vkey_path)?;
+    Ok(Sha256::digest(vk_bin_bytes).into())
 }
 
 /// Get the vk root as a hex string.
@@ -218,36 +221,38 @@ pub fn get_vk_root() -> String {
 }
 
 /// Build the Plonk contracts.
-pub fn build_plonk_bn254_contracts(build_dir: &Path) {
+pub fn build_plonk_bn254_contracts(build_dir: &Path) -> Result<()> {
     let sp1_verifier_path = build_dir.join("SP1VerifierPlonk.sol");
-    let vkey_hash = get_plonk_vkey_hash(build_dir);
+    let vkey_hash = get_plonk_vkey_hash(build_dir)?;
     let vk_root = get_vk_root();
     let sp1_verifier_str = include_str!("../assets/SP1VerifierPlonk.txt")
         .replace("{SP1_CIRCUIT_VERSION}", SP1_CIRCUIT_VERSION)
         .replace("{VERIFIER_HASH}", format!("0x{}", hex::encode(vkey_hash)).as_str())
         .replace("{VK_ROOT}", format!("0x00{}", vk_root).as_str()) // Pad with a 0 byte because it's in a bn254.
         .replace("{PROOF_SYSTEM}", "Plonk");
-    std::fs::write(sp1_verifier_path, sp1_verifier_str).unwrap();
+    std::fs::write(sp1_verifier_path, sp1_verifier_str)?;
+    Ok(())
 }
 
 /// Build the Groth16 contracts.
-pub fn build_groth16_bn254_contracts(build_dir: &Path) {
+pub fn build_groth16_bn254_contracts(build_dir: &Path) -> Result<()> {
     let sp1_verifier_path = build_dir.join("SP1VerifierGroth16.sol");
-    let vkey_hash = get_groth16_vkey_hash(build_dir);
+    let vkey_hash = get_groth16_vkey_hash(build_dir)?;
     let vk_root = get_vk_root();
     let sp1_verifier_str = include_str!("../assets/SP1VerifierGroth16.txt")
         .replace("{SP1_CIRCUIT_VERSION}", SP1_CIRCUIT_VERSION)
         .replace("{VERIFIER_HASH}", format!("0x{}", hex::encode(vkey_hash)).as_str())
         .replace("{VK_ROOT}", format!("0x00{}", vk_root).as_str()) // Pad with a 0 byte because it's in a bn254.
         .replace("{PROOF_SYSTEM}", "Groth16");
-    std::fs::write(sp1_verifier_path, sp1_verifier_str).unwrap();
+    std::fs::write(sp1_verifier_path, sp1_verifier_str)?;
+    Ok(())
 }
 
 /// Build the verifier constraints and template witness for the circuit.
 pub fn build_constraints_and_witness(
     template_vk: &MachineVerifyingKey<SP1OuterGlobalContext>,
     template_proof: &ShardProof<SP1OuterGlobalContext, SP1PcsProofOuter>,
-) -> (Vec<Constraint>, OuterWitness<OuterConfig>) {
+) -> Result<(Vec<Constraint>, OuterWitness<OuterConfig>)> {
     tracing::info!("building verifier constraints");
     let template_input = SP1ShapedWitnessValues {
         vks_and_proofs: vec![(template_vk.clone(), template_proof.clone())],
@@ -259,7 +264,9 @@ pub fn build_constraints_and_witness(
     let pv: &RecursionPublicValues<SP1Field> = template_proof.public_values.as_slice().borrow();
     let vkey_hash = koalabears_to_bn254(&pv.sp1_vk_digest);
     let committed_values_digest_bytes: [SP1Field; 32] =
-        words_to_bytes(&pv.committed_value_digest).try_into().unwrap();
+        words_to_bytes(&pv.committed_value_digest).try_into().map_err(|_| {
+            anyhow!("committed_value_digest has invalid length, expected exactly 32 elements")
+        })?;
     let committed_values_digest = koalabear_bytes_to_bn254(&committed_values_digest_bytes);
     let exit_code = Bn254Fr::from_canonical_u32(pv.exit_code.as_canonical_u32());
     let vk_root = koalabears_to_bn254(&pv.vk_root);
@@ -272,7 +279,7 @@ pub fn build_constraints_and_witness(
     witness.write_exit_code(exit_code);
     witness.write_vk_root(vk_root);
     witness.write_proof_nonce(proof_nonce);
-    (constraints, witness)
+    Ok((constraints, witness))
 }
 
 fn build_outer_circuit(
@@ -329,36 +336,37 @@ pub(crate) fn use_development_mode() -> bool {
 }
 
 /// The directory where the groth16 circuit artifacts will be stored.
-#[must_use]
-pub fn groth16_circuit_artifacts_dir() -> PathBuf {
-    std::env::var("SP1_GROTH16_CIRCUIT_PATH")
-        .map_or_else(
-            |_| dirs::home_dir().unwrap().join(".sp1").join("circuits/groth16"),
-            |path| path.parse().unwrap(),
-        )
-        .join(SP1_CIRCUIT_VERSION)
+pub fn groth16_circuit_artifacts_dir() -> Result<PathBuf> {
+    let base_path = match std::env::var("SP1_GROTH16_CIRCUIT_PATH") {
+        Ok(path) => PathBuf::from(path),
+        Err(_) => {
+            let home_dir = dirs::home_dir().ok_or_else(|| anyhow!("home directory not found"))?;
+            home_dir.join(".sp1").join("circuits/groth16")
+        }
+    };
+    Ok(base_path.join(SP1_CIRCUIT_VERSION))
 }
 
 /// The directory where the plonk circuit artifacts will be stored.
-#[must_use]
-pub fn plonk_circuit_artifacts_dir() -> PathBuf {
-    std::env::var("SP1_PLONK_CIRCUIT_PATH")
-        .map_or_else(
-            |_| dirs::home_dir().unwrap().join(".sp1").join("circuits/plonk"),
-            |path| path.parse().unwrap(),
-        )
-        .join(SP1_CIRCUIT_VERSION)
+pub fn plonk_circuit_artifacts_dir() -> Result<PathBuf> {
+    let base_path = match std::env::var("SP1_PLONK_CIRCUIT_PATH") {
+        Ok(path) => PathBuf::from(path),
+        Err(_) => {
+            let home_dir = dirs::home_dir().ok_or_else(|| anyhow!("home directory not found"))?;
+            home_dir.join(".sp1").join("circuits/plonk")
+        }
+    };
+    Ok(base_path.join(SP1_CIRCUIT_VERSION))
 }
 
 /// Tries to install the circuit artifacts if they are not already installed.
-#[must_use]
-pub async fn try_install_circuit_artifacts(artifacts_type: &str) -> PathBuf {
+pub async fn try_install_circuit_artifacts(artifacts_type: &str) -> Result<PathBuf> {
     let build_dir = if artifacts_type == "groth16" {
-        groth16_circuit_artifacts_dir()
+        groth16_circuit_artifacts_dir()?
     } else if artifacts_type == "plonk" {
-        plonk_circuit_artifacts_dir()
+        plonk_circuit_artifacts_dir()?
     } else {
-        unimplemented!("unsupported artifacts type: {}", artifacts_type);
+        return Err(anyhow!("unsupported artifacts type: {}", artifacts_type));
     };
 
     if build_dir.exists() {
@@ -375,9 +383,9 @@ pub async fn try_install_circuit_artifacts(artifacts_type: &str) -> PathBuf {
             build_dir.display()
         );
 
-        install_circuit_artifacts(build_dir.clone(), artifacts_type).await;
+        install_circuit_artifacts(build_dir.clone(), artifacts_type).await?;
     }
-    build_dir
+    Ok(build_dir)
 }
 
 /// Install the latest circuit artifacts.
@@ -385,9 +393,9 @@ pub async fn try_install_circuit_artifacts(artifacts_type: &str) -> PathBuf {
 /// This function will download the latest circuit artifacts from the S3 bucket and extract them
 /// to the directory specified by [`build_dir`].
 #[allow(clippy::needless_pass_by_value)]
-pub async fn install_circuit_artifacts(build_dir: PathBuf, artifacts_type: &str) {
+pub async fn install_circuit_artifacts(build_dir: PathBuf, artifacts_type: &str) -> Result<()> {
     // Create the build directory.
-    std::fs::create_dir_all(&build_dir).expect("failed to create build directory");
+    std::fs::create_dir_all(&build_dir)?;
 
     // Download the artifacts.
     let download_url =
@@ -397,28 +405,33 @@ pub async fn install_circuit_artifacts(build_dir: PathBuf, artifacts_type: &str)
     let tar_path = build_dir.join("artifacts.tar.gz");
 
     // Create a tokio friendly file to write the tarball to.
-    let mut file = tokio::fs::File::create(&tar_path).await.expect("failed to create tar file");
+    let mut file = tokio::fs::File::create(&tar_path).await?;
 
     // Download the file.
-    let client = Client::builder().build().expect("failed to create reqwest client");
-    download_file(&client, &download_url, &mut file).await.expect("failed to download file");
-    file.flush().await.expect("failed to flush file");
+    let client = Client::builder().build().context("failed to create reqwest client")?;
+    download_file(&client, &download_url, &mut file).await?;
+    file.flush().await?;
 
     // Extract the tarball to the build directory.
-    let res = Command::new("tar")
-        .args(["-Pxzf", tar_path.to_str().unwrap(), "-C", build_dir.to_str().unwrap()])
-        .output()
-        .await
-        .expect("failed to extract tarball");
+    let tar_path_str = tar_path
+        .to_str()
+        .ok_or_else(|| anyhow!("failed to convert path to string: {:?}", tar_path))?;
+    let build_dir_str = build_dir
+        .to_str()
+        .ok_or_else(|| anyhow!("failed to convert path to string: {:?}", build_dir))?;
+
+    let res =
+        Command::new("tar").args(["-Pxzf", tar_path_str, "-C", build_dir_str]).output().await?;
 
     // Remove the tarball after extraction.
-    tokio::fs::remove_file(&tar_path).await.expect("failed to remove tar file");
+    tokio::fs::remove_file(&tar_path).await?;
 
     if !res.status.success() {
-        panic!("[sp1] failed to extract tarball to {:?}", build_dir.to_str().unwrap());
+        return Err(anyhow!("failed to extract tarball to {}", build_dir_str));
     }
 
-    eprintln!("[sp1] downloaded {} to {:?}", download_url, build_dir.to_str().unwrap());
+    eprintln!("[sp1] downloaded {} to {}", download_url, build_dir_str);
+    Ok(())
 }
 
 /// Download the file with a progress bar that indicates the progress.
@@ -426,22 +439,27 @@ pub async fn download_file(
     client: &Client,
     url: &str,
     file: &mut (impl tokio::io::AsyncWrite + Unpin),
-) -> std::result::Result<(), String> {
-    let res = client.get(url).send().await.or(Err(format!("Failed to GET from '{}'", &url)))?;
+) -> Result<()> {
+    let res =
+        client.get(url).send().await.with_context(|| format!("failed to GET from '{}'", url))?;
 
-    let total_size =
-        res.content_length().ok_or(format!("Failed to get content length from '{}'", &url))?;
+    let total_size = res
+        .content_length()
+        .ok_or_else(|| anyhow!("failed to get content length from '{}'", url))?;
 
     let pb = ProgressBar::new(total_size);
-    pb.set_style(ProgressStyle::default_bar()
-        .template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}, {eta})").unwrap()
-        .progress_chars("#>-"));
+    pb.set_style(
+        ProgressStyle::default_bar()
+            .template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}, {eta})")
+            .context("failed to set progress bar style")?
+            .progress_chars("#>-"),
+    );
 
     let mut downloaded: u64 = 0;
     let mut stream = res.bytes_stream();
     while let Some(item) = stream.next().await {
-        let chunk = item.or(Err("Error while downloading file"))?;
-        file.write_all(&chunk).await.or(Err("Error while writing to file"))?;
+        let chunk = item.context("error while downloading file")?;
+        file.write_all(&chunk).await?;
         let new = min(downloaded + (chunk.len() as u64), total_size);
         downloaded = new;
         pb.set_position(new);
@@ -473,24 +491,27 @@ mod tests {
         let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder())
             .build()
             .await
-            .unwrap();
+            .expect("failed to build client");
 
         tracing::info!("prove compressed");
         let stdin = sp1_core_machine::io::SP1Stdin::new();
         let compressed_proof = client
             .prove_with_mode(&elf, stdin, SP1Context::default(), ProofMode::Compressed)
             .await
-            .unwrap();
+            .expect("failed to prove compressed");
 
         tracing::info!("shrink wrap");
-        let wrapped_proof = client.shrink_wrap(&compressed_proof.proof).await.unwrap();
+        let wrapped_proof =
+            client.shrink_wrap(&compressed_proof.proof).await.expect("failed to shrink wrap");
         let wrap_vk = wrapped_proof.vk;
         let wrapped_proof = wrapped_proof.proof;
 
-        let wrap_vk_bytes = bincode::serialize(&wrap_vk).unwrap();
-        let wrapped_proof_bytes = bincode::serialize(&wrapped_proof).unwrap();
-        std::fs::write("wrap_vk.bin", wrap_vk_bytes).unwrap();
-        std::fs::write("wrapped_proof.bin", wrapped_proof_bytes).unwrap();
+        let wrap_vk_bytes = bincode::serialize(&wrap_vk).expect("failed to serialize wrap_vk");
+        let wrapped_proof_bytes =
+            bincode::serialize(&wrapped_proof).expect("failed to serialize wrapped_proof");
+        std::fs::write("wrap_vk.bin", wrap_vk_bytes).expect("failed to write wrap_vk.bin");
+        std::fs::write("wrapped_proof.bin", wrapped_proof_bytes)
+            .expect("failed to write wrapped_proof.bin");
     }
 
     #[tokio::test]
@@ -501,11 +522,12 @@ mod tests {
         let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder())
             .build()
             .await
-            .unwrap();
+            .expect("failed to build client");
 
         // Check that the wrap vk is the same as the one included in the binary.
         let client_wrap_vk = client.wrap_vk().clone();
-        let expected_wrap_vk = bincode::deserialize(WRAP_VK_BYTES).unwrap();
+        let expected_wrap_vk =
+            bincode::deserialize(WRAP_VK_BYTES).expect("failed to deserialize WRAP_VK_BYTES");
         assert_eq!(client_wrap_vk, expected_wrap_vk);
     }
 }

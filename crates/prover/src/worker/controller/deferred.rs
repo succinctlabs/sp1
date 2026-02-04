@@ -78,14 +78,7 @@ impl DeferredInputs {
             // Calculate the range of the deferred proof.
             let prev_deferred_proof = input.deferred_proof_index.as_canonical_u32() as u64;
             let deferred_proof = prev_deferred_proof + input.input.vks_and_proofs.len() as u64;
-            let range = ShardRange {
-                timestamp_range: (1, 1),
-                initialized_address_range: (0, 0),
-                finalized_address_range: (0, 0),
-                initialized_page_index_range: (0, 0),
-                finalized_page_index_range: (0, 0),
-                deferred_proof_range: (prev_deferred_proof, deferred_proof),
-            };
+            let range = ShardRange::deferred(prev_deferred_proof, deferred_proof);
             // Upload the input
             let deferred_data = artifact_client.create_artifact()?;
             artifact_client.upload(&deferred_data, input).await?;
