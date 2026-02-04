@@ -393,7 +393,7 @@ mod tests {
 
         let recursion_vks = client.core().recursion_vks();
 
-        let mut file = std::fs::File::create("verifier_vks.bin")?;
+        let mut file = std::fs::File::create("../verifier/vk-artifacts/verifier_vks.bin")?;
 
         bincode::serialize_into(&mut file, &recursion_vks)?;
         Ok(())
