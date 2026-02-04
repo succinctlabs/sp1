@@ -660,8 +660,11 @@ RecursionVks::new(vk_map_path, config.max_compose_arity, config.vk_verification)
 
         let build_dir = if use_development_mode() {
             get_or_create_groth16_artifacts_dev_build_dir(&wrap_proof.vk, &wrap_proof.proof)
+                .map_err(|e| TaskError::Fatal(anyhow::anyhow!(e)))?
         } else {
-            try_install_circuit_artifacts("groth16").await
+            try_install_circuit_artifacts("groth16")
+                .await
+                .map_err(|e| TaskError::Fatal(anyhow::anyhow!(e)))?
         };
 
         let groth16_proof = tokio::task::spawn_blocking(move || {
@@ -673,7 +676,9 @@ RecursionVks::new(vk_map_path, config.max_compose_arity, config.vk_verification)
             let pv: &RecursionPublicValues<SP1Field> = proof.public_values.as_slice().borrow();
             let vkey_hash = koalabears_to_bn254(&pv.sp1_vk_digest);
             let committed_values_digest_bytes: [SP1Field; 32] =
-                words_to_bytes(&pv.committed_value_digest).try_into().unwrap();
+                words_to_bytes(&pv.committed_value_digest)
+                    .try_into()
+                    .expect("committed_value_digest should have exactly 32 elements");
             let committed_values_digest = koalabear_bytes_to_bn254(&committed_values_digest_bytes);
             let exit_code = Bn254Fr::from_canonical_u32(pv.exit_code.as_canonical_u32());
             let proof_nonce = koalabears_proof_nonce_to_bn254(&pv.proof_nonce);
@@ -726,8 +731,11 @@ RecursionVks::new(vk_map_path, config.max_compose_arity, config.vk_verification)
 
         let build_dir = if use_development_mode() {
             get_or_create_plonk_artifacts_dev_build_dir(&wrap_proof.vk, &wrap_proof.proof)
+                .map_err(|e| TaskError::Fatal(anyhow::anyhow!(e)))?
         } else {
-            try_install_circuit_artifacts("plonk").await
+            try_install_circuit_artifacts("plonk")
+                .await
+                .map_err(|e| TaskError::Fatal(anyhow::anyhow!(e)))?
         };
 
         let plonk_proof = tokio::task::spawn_blocking(move || {
@@ -739,7 +747,9 @@ RecursionVks::new(vk_map_path, config.max_compose_arity, config.vk_verification)
             let pv: &RecursionPublicValues<SP1Field> = wrap_proof.public_values.as_slice().borrow();
             let vkey_hash = koalabears_to_bn254(&pv.sp1_vk_digest);
             let committed_values_digest_bytes: [SP1Field; 32] =
-                words_to_bytes(&pv.committed_value_digest).try_into().unwrap();
+                words_to_bytes(&pv.committed_value_digest)
+                    .try_into()
+                    .expect("committed_value_digest should have exactly 32 elements");
             let committed_values_digest = koalabear_bytes_to_bn254(&committed_values_digest_bytes);
             let exit_code = Bn254Fr::from_canonical_u32(pv.exit_code.as_canonical_u32());
             let vk_root = koalabears_to_bn254(&pv.vk_root);
