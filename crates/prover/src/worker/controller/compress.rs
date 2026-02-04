@@ -586,9 +586,13 @@ mod test_utils {
     async fn test_compress_tree() {
         setup_logger();
         let num_core_shards = 200;
+        let core_start_delay = Duration::from_millis(10);
         let num_memory_shards = 40;
+        let memory_start_delay = Duration::from_millis(500);
         let num_precompile_shards = 20;
+        let precompile_start_delay = Duration::from_millis(500);
         let num_deferred_shards = 100;
+        let deferred_start_delay = Duration::from_millis(1);
         let num_iterations = 1;
         let random_intervals = HashMap::from([
             (TaskType::Controller, Duration::from_millis(20)..Duration::from_millis(100)),
@@ -630,6 +634,7 @@ mod test_utils {
                 let context = context.clone();
                 let core_proofs_tx = core_proofs_tx.clone();
                 async move {
+                    tokio::time::sleep(core_start_delay).await;
                     for i in 1..=num_core_shards {
                         let range = ShardRange {
                             timestamp_range: (i, i + 1),
@@ -661,6 +666,7 @@ mod test_utils {
                 let context = context.clone();
                 let core_proofs_tx = core_proofs_tx.clone();
                 async move {
+                    tokio::time::sleep(memory_start_delay).await;
                     for i in 0..num_memory_shards {
                         let range = ShardRange {
                             timestamp_range: (num_core_shards + 1, num_core_shards + 1),
@@ -692,7 +698,7 @@ mod test_utils {
                 let context = context.clone();
                 let core_proofs_tx = core_proofs_tx.clone();
                 async move {
-                    tokio::time::sleep(Duration::from_secs(1)).await;
+                    tokio::time::sleep(precompile_start_delay).await;
                     for _ in 1..=num_precompile_shards {
                         let range = ShardRange::precompile();
                         create_dummy_prove_shard_task(
@@ -716,6 +722,7 @@ mod test_utils {
                 let common_input_artifact = common_input_artifact.clone();
                 let context = context.clone();
                 async move {
+                    tokio::time::sleep(deferred_start_delay).await;
                     for i in 0..num_deferred_shards {
                         let range = ShardRange::deferred(i, i + 1);
                         create_dummy_prove_shard_task(
