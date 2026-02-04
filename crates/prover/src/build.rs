@@ -1,5 +1,6 @@
 #![allow(clippy::print_stdout)] // This prints a progress bar
 
+use anyhow::{anyhow, Context, Result};
 use itertools::Itertools;
 use sha2::{Digest, Sha256};
 use slop_algebra::{AbstractField, PrimeField32};
@@ -29,56 +30,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-/// Errors that can occur during the build process.
-#[derive(Debug)]
-pub enum BuildError {
-    Io(std::io::Error),
-    Serialization(bincode::Error),
-    JsonSerialization(serde_json::Error),
-    HomeDirNotFound,
-    PathParsing(String),
-    InvalidConversion,
-    TarballExtraction(String),
-    Download(String),
-}
-
-impl std::fmt::Display for BuildError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Io(e) => write!(f, "I/O error: {}", e),
-            Self::Serialization(e) => write!(f, "Serialization error: {}", e),
-            Self::JsonSerialization(e) => write!(f, "JSON serialization error: {}", e),
-            Self::HomeDirNotFound => write!(f, "Home directory not found"),
-            Self::PathParsing(s) => write!(f, "Failed to parse path: {}", s),
-            Self::InvalidConversion => write!(f, "Invalid type conversion"),
-            Self::TarballExtraction(msg) => write!(f, "Tarball extraction failed: {}", msg),
-            Self::Download(msg) => write!(f, "Download failed: {}", msg),
-        }
-    }
-}
-
-impl std::error::Error for BuildError {}
-
-impl From<std::io::Error> for BuildError {
-    fn from(e: std::io::Error) -> Self {
-        Self::Io(e)
-    }
-}
-
-impl From<bincode::Error> for BuildError {
-    fn from(e: bincode::Error) -> Self {
-        Self::Serialization(e)
-    }
-}
-
-impl From<serde_json::Error> for BuildError {
-    fn from(e: serde_json::Error) -> Self {
-        Self::JsonSerialization(e)
-    }
-}
-
-pub type BuildResult<T> = Result<T, BuildError>;
-
 pub use sp1_recursion_circuit::witness::{OuterWitness, Witnessable};
 
 use {
@@ -99,7 +50,7 @@ use crate::{
 pub(crate) fn get_or_create_plonk_artifacts_dev_build_dir(
     template_vk: &MachineVerifyingKey<SP1OuterGlobalContext>,
     template_proof: &ShardProof<SP1OuterGlobalContext, SP1PcsProofOuter>,
-) -> BuildResult<PathBuf> {
+) -> Result<PathBuf> {
     let dev_dir = plonk_bn254_artifacts_dev_dir(template_vk)?;
     if dev_dir.exists() {
         Ok(dev_dir)
@@ -111,7 +62,7 @@ pub(crate) fn get_or_create_plonk_artifacts_dev_build_dir(
 pub(crate) fn get_or_create_groth16_artifacts_dev_build_dir(
     template_vk: &MachineVerifyingKey<SP1OuterGlobalContext>,
     template_proof: &ShardProof<SP1OuterGlobalContext, SP1PcsProofOuter>,
-) -> BuildResult<PathBuf> {
+) -> Result<PathBuf> {
     let dev_dir = groth16_bn254_artifacts_dev_dir(template_vk)?;
     if dev_dir.exists() {
         Ok(dev_dir)
@@ -124,7 +75,7 @@ pub(crate) fn get_or_create_groth16_artifacts_dev_build_dir(
 fn try_build_plonk_bn254_artifacts_dev(
     template_vk: &MachineVerifyingKey<SP1OuterGlobalContext>,
     template_proof: &ShardProof<SP1OuterGlobalContext, SP1PcsProofOuter>,
-) -> BuildResult<PathBuf> {
+) -> Result<PathBuf> {
     let build_dir = plonk_bn254_artifacts_dev_dir(template_vk)?;
     if build_dir.exists() {
         tracing::info!("[sp1] plonk bn254 found (build_dir: {})", build_dir.display());
@@ -142,7 +93,7 @@ fn try_build_plonk_bn254_artifacts_dev(
 fn try_build_groth16_bn254_artifacts_dev(
     template_vk: &MachineVerifyingKey<SP1OuterGlobalContext>,
     template_proof: &ShardProof<SP1OuterGlobalContext, SP1PcsProofOuter>,
-) -> BuildResult<PathBuf> {
+) -> Result<PathBuf> {
     let build_dir = groth16_bn254_artifacts_dev_dir(template_vk)?;
     if build_dir.exists() {
         tracing::info!("[sp1] groth16 bn254 found (build_dir: {})", build_dir.display());
@@ -159,20 +110,20 @@ fn try_build_groth16_bn254_artifacts_dev(
 /// Gets the directory where the PLONK artifacts are installed in development mode.
 pub(crate) fn plonk_bn254_artifacts_dev_dir(
     template_vk: &MachineVerifyingKey<SP1OuterGlobalContext>,
-) -> BuildResult<PathBuf> {
+) -> Result<PathBuf> {
     let serialized_vk = bincode::serialize(template_vk)?;
     let vk_hash_prefix = hex_prefix(sha256_hash(&serialized_vk));
-    let home_dir = dirs::home_dir().ok_or(BuildError::HomeDirNotFound)?;
+    let home_dir = dirs::home_dir().ok_or_else(|| anyhow!("home directory not found"))?;
     Ok(home_dir.join(".sp1").join("circuits").join(format!("{vk_hash_prefix}-plonk-dev")))
 }
 
 /// Gets the directory where the groth16 artifacts are installed in development mode.
 pub(crate) fn groth16_bn254_artifacts_dev_dir(
     template_vk: &MachineVerifyingKey<SP1OuterGlobalContext>,
-) -> BuildResult<PathBuf> {
+) -> Result<PathBuf> {
     let serialized_vk = bincode::serialize(template_vk)?;
     let vk_hash_prefix = hex_prefix(sha256_hash(&serialized_vk));
-    let home_dir = dirs::home_dir().ok_or(BuildError::HomeDirNotFound)?;
+    let home_dir = dirs::home_dir().ok_or_else(|| anyhow!("home directory not found"))?;
     Ok(home_dir.join(".sp1").join("circuits").join(format!("{vk_hash_prefix}-groth16-dev")))
 }
 
@@ -186,7 +137,7 @@ pub fn build_plonk_bn254_artifacts(
     template_vk: &MachineVerifyingKey<SP1OuterGlobalContext>,
     template_proof: &ShardProof<SP1OuterGlobalContext, SP1PcsProofOuter>,
     build_dir: impl Into<PathBuf>,
-) -> BuildResult<()> {
+) -> Result<()> {
     let build_dir = build_dir.into();
     std::fs::create_dir_all(&build_dir)?;
     let (constraints, witness) = build_constraints_and_witness(template_vk, template_proof)?;
@@ -205,8 +156,9 @@ pub fn build_plonk_bn254_artifacts(
     file.write_all(serialized.as_bytes())?;
 
     // Build the circuit.
-    let build_dir_str =
-        build_dir.to_str().ok_or_else(|| BuildError::PathParsing(format!("{:?}", build_dir)))?;
+    let build_dir_str = build_dir
+        .to_str()
+        .ok_or_else(|| anyhow!("failed to convert path to string: {:?}", build_dir))?;
     build_plonk_bn254(build_dir_str);
 
     // Build the contracts.
@@ -220,7 +172,7 @@ pub fn build_groth16_bn254_artifacts(
     template_vk: &MachineVerifyingKey<SP1OuterGlobalContext>,
     template_proof: &ShardProof<SP1OuterGlobalContext, SP1PcsProofOuter>,
     build_dir: impl Into<PathBuf>,
-) -> BuildResult<()> {
+) -> Result<()> {
     let build_dir = build_dir.into();
     std::fs::create_dir_all(&build_dir)?;
     let (constraints, witness) = build_constraints_and_witness(template_vk, template_proof)?;
@@ -239,8 +191,9 @@ pub fn build_groth16_bn254_artifacts(
     file.write_all(serialized.as_bytes())?;
 
     // Build the circuit.
-    let build_dir_str =
-        build_dir.to_str().ok_or_else(|| BuildError::PathParsing(format!("{:?}", build_dir)))?;
+    let build_dir_str = build_dir
+        .to_str()
+        .ok_or_else(|| anyhow!("failed to convert path to string: {:?}", build_dir))?;
     build_groth16_bn254(build_dir_str);
 
     // Build the contracts.
@@ -249,14 +202,14 @@ pub fn build_groth16_bn254_artifacts(
 }
 
 /// Get the vkey hash for Plonk.
-pub fn get_plonk_vkey_hash(build_dir: &Path) -> BuildResult<[u8; 32]> {
+pub fn get_plonk_vkey_hash(build_dir: &Path) -> Result<[u8; 32]> {
     let vkey_path = build_dir.join("plonk_vk.bin");
     let vk_bin_bytes = std::fs::read(vkey_path)?;
     Ok(Sha256::digest(vk_bin_bytes).into())
 }
 
 /// Get the vkey hash for Groth16.
-pub fn get_groth16_vkey_hash(build_dir: &Path) -> BuildResult<[u8; 32]> {
+pub fn get_groth16_vkey_hash(build_dir: &Path) -> Result<[u8; 32]> {
     let vkey_path = build_dir.join("groth16_vk.bin");
     let vk_bin_bytes = std::fs::read(vkey_path)?;
     Ok(Sha256::digest(vk_bin_bytes).into())
@@ -268,7 +221,7 @@ pub fn get_vk_root() -> String {
 }
 
 /// Build the Plonk contracts.
-pub fn build_plonk_bn254_contracts(build_dir: &Path) -> BuildResult<()> {
+pub fn build_plonk_bn254_contracts(build_dir: &Path) -> Result<()> {
     let sp1_verifier_path = build_dir.join("SP1VerifierPlonk.sol");
     let vkey_hash = get_plonk_vkey_hash(build_dir)?;
     let vk_root = get_vk_root();
@@ -282,7 +235,7 @@ pub fn build_plonk_bn254_contracts(build_dir: &Path) -> BuildResult<()> {
 }
 
 /// Build the Groth16 contracts.
-pub fn build_groth16_bn254_contracts(build_dir: &Path) -> BuildResult<()> {
+pub fn build_groth16_bn254_contracts(build_dir: &Path) -> Result<()> {
     let sp1_verifier_path = build_dir.join("SP1VerifierGroth16.sol");
     let vkey_hash = get_groth16_vkey_hash(build_dir)?;
     let vk_root = get_vk_root();
@@ -299,7 +252,7 @@ pub fn build_groth16_bn254_contracts(build_dir: &Path) -> BuildResult<()> {
 pub fn build_constraints_and_witness(
     template_vk: &MachineVerifyingKey<SP1OuterGlobalContext>,
     template_proof: &ShardProof<SP1OuterGlobalContext, SP1PcsProofOuter>,
-) -> BuildResult<(Vec<Constraint>, OuterWitness<OuterConfig>)> {
+) -> Result<(Vec<Constraint>, OuterWitness<OuterConfig>)> {
     tracing::info!("building verifier constraints");
     let template_input = SP1ShapedWitnessValues {
         vks_and_proofs: vec![(template_vk.clone(), template_proof.clone())],
@@ -310,9 +263,10 @@ pub fn build_constraints_and_witness(
 
     let pv: &RecursionPublicValues<SP1Field> = template_proof.public_values.as_slice().borrow();
     let vkey_hash = koalabears_to_bn254(&pv.sp1_vk_digest);
-    let committed_values_digest_bytes: [SP1Field; 32] = words_to_bytes(&pv.committed_value_digest)
-        .try_into()
-        .map_err(|_| BuildError::InvalidConversion)?;
+    let committed_values_digest_bytes: [SP1Field; 32] =
+        words_to_bytes(&pv.committed_value_digest).try_into().map_err(|_| {
+            anyhow!("committed_value_digest has invalid length, expected exactly 32 elements")
+        })?;
     let committed_values_digest = koalabear_bytes_to_bn254(&committed_values_digest_bytes);
     let exit_code = Bn254Fr::from_canonical_u32(pv.exit_code.as_canonical_u32());
     let vk_root = koalabears_to_bn254(&pv.vk_root);
@@ -382,11 +336,11 @@ pub(crate) fn use_development_mode() -> bool {
 }
 
 /// The directory where the groth16 circuit artifacts will be stored.
-pub fn groth16_circuit_artifacts_dir() -> BuildResult<PathBuf> {
+pub fn groth16_circuit_artifacts_dir() -> Result<PathBuf> {
     let base_path = match std::env::var("SP1_GROTH16_CIRCUIT_PATH") {
         Ok(path) => PathBuf::from(path),
         Err(_) => {
-            let home_dir = dirs::home_dir().ok_or(BuildError::HomeDirNotFound)?;
+            let home_dir = dirs::home_dir().ok_or_else(|| anyhow!("home directory not found"))?;
             home_dir.join(".sp1").join("circuits/groth16")
         }
     };
@@ -394,11 +348,11 @@ pub fn groth16_circuit_artifacts_dir() -> BuildResult<PathBuf> {
 }
 
 /// The directory where the plonk circuit artifacts will be stored.
-pub fn plonk_circuit_artifacts_dir() -> BuildResult<PathBuf> {
+pub fn plonk_circuit_artifacts_dir() -> Result<PathBuf> {
     let base_path = match std::env::var("SP1_PLONK_CIRCUIT_PATH") {
         Ok(path) => PathBuf::from(path),
         Err(_) => {
-            let home_dir = dirs::home_dir().ok_or(BuildError::HomeDirNotFound)?;
+            let home_dir = dirs::home_dir().ok_or_else(|| anyhow!("home directory not found"))?;
             home_dir.join(".sp1").join("circuits/plonk")
         }
     };
@@ -406,16 +360,13 @@ pub fn plonk_circuit_artifacts_dir() -> BuildResult<PathBuf> {
 }
 
 /// Tries to install the circuit artifacts if they are not already installed.
-pub async fn try_install_circuit_artifacts(artifacts_type: &str) -> BuildResult<PathBuf> {
+pub async fn try_install_circuit_artifacts(artifacts_type: &str) -> Result<PathBuf> {
     let build_dir = if artifacts_type == "groth16" {
         groth16_circuit_artifacts_dir()?
     } else if artifacts_type == "plonk" {
         plonk_circuit_artifacts_dir()?
     } else {
-        return Err(BuildError::Download(format!(
-            "unsupported artifacts type: {}",
-            artifacts_type
-        )));
+        return Err(anyhow!("unsupported artifacts type: {}", artifacts_type));
     };
 
     if build_dir.exists() {
@@ -442,10 +393,7 @@ pub async fn try_install_circuit_artifacts(artifacts_type: &str) -> BuildResult<
 /// This function will download the latest circuit artifacts from the S3 bucket and extract them
 /// to the directory specified by [`build_dir`].
 #[allow(clippy::needless_pass_by_value)]
-pub async fn install_circuit_artifacts(
-    build_dir: PathBuf,
-    artifacts_type: &str,
-) -> BuildResult<()> {
+pub async fn install_circuit_artifacts(build_dir: PathBuf, artifacts_type: &str) -> Result<()> {
     // Create the build directory.
     std::fs::create_dir_all(&build_dir)?;
 
@@ -460,17 +408,17 @@ pub async fn install_circuit_artifacts(
     let mut file = tokio::fs::File::create(&tar_path).await?;
 
     // Download the file.
-    let client = Client::builder()
-        .build()
-        .map_err(|e| BuildError::Download(format!("failed to create reqwest client: {}", e)))?;
+    let client = Client::builder().build().context("failed to create reqwest client")?;
     download_file(&client, &download_url, &mut file).await?;
     file.flush().await?;
 
     // Extract the tarball to the build directory.
-    let tar_path_str =
-        tar_path.to_str().ok_or_else(|| BuildError::PathParsing(format!("{:?}", tar_path)))?;
-    let build_dir_str =
-        build_dir.to_str().ok_or_else(|| BuildError::PathParsing(format!("{:?}", build_dir)))?;
+    let tar_path_str = tar_path
+        .to_str()
+        .ok_or_else(|| anyhow!("failed to convert path to string: {:?}", tar_path))?;
+    let build_dir_str = build_dir
+        .to_str()
+        .ok_or_else(|| anyhow!("failed to convert path to string: {:?}", build_dir))?;
 
     let res =
         Command::new("tar").args(["-Pxzf", tar_path_str, "-C", build_dir_str]).output().await?;
@@ -479,10 +427,7 @@ pub async fn install_circuit_artifacts(
     tokio::fs::remove_file(&tar_path).await?;
 
     if !res.status.success() {
-        return Err(BuildError::TarballExtraction(format!(
-            "failed to extract tarball to {}",
-            build_dir_str
-        )));
+        return Err(anyhow!("failed to extract tarball to {}", build_dir_str));
     }
 
     eprintln!("[sp1] downloaded {} to {}", download_url, build_dir_str);
@@ -494,30 +439,26 @@ pub async fn download_file(
     client: &Client,
     url: &str,
     file: &mut (impl tokio::io::AsyncWrite + Unpin),
-) -> BuildResult<()> {
-    let res = client
-        .get(url)
-        .send()
-        .await
-        .map_err(|e| BuildError::Download(format!("Failed to GET from '{}': {}", url, e)))?;
+) -> Result<()> {
+    let res =
+        client.get(url).send().await.with_context(|| format!("failed to GET from '{}'", url))?;
 
-    let total_size = res.content_length().ok_or_else(|| {
-        BuildError::Download(format!("Failed to get content length from '{}'", url))
-    })?;
+    let total_size = res
+        .content_length()
+        .ok_or_else(|| anyhow!("failed to get content length from '{}'", url))?;
 
     let pb = ProgressBar::new(total_size);
     pb.set_style(
         ProgressStyle::default_bar()
             .template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}, {eta})")
-            .map_err(|e| BuildError::Download(format!("Failed to set progress bar style: {}", e)))?
+            .context("failed to set progress bar style")?
             .progress_chars("#>-"),
     );
 
     let mut downloaded: u64 = 0;
     let mut stream = res.bytes_stream();
     while let Some(item) = stream.next().await {
-        let chunk =
-            item.map_err(|e| BuildError::Download(format!("Error while downloading file: {}", e)))?;
+        let chunk = item.context("error while downloading file")?;
         file.write_all(&chunk).await?;
         let new = min(downloaded + (chunk.len() as u64), total_size);
         downloaded = new;
