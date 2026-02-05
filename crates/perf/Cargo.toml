@@ -29,6 +29,7 @@ async-scoped = { workspace = true }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }
+test-artifacts = { path = "../test-artifacts" }
 
 [[bin]]
 name = "sp1-perf"
@@ -37,6 +38,10 @@ path = "src/perf.rs"
 [[bin]]
 name = "sp1-perf-executor"
 path = "src/executor.rs"
+
+[[bin]]
+name = "sp1-perf-setup"
+path = "src/setup.rs"
 
 [features]
 bigint-rug = ["sp1-core-executor/bigint-rug"]

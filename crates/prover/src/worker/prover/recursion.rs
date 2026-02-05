@@ -8,9 +8,10 @@ use crate::{
         recursive_verifier, shrink_program_from_input, wrap_program_from_input, RecursionVks,
     },
     shapes::SP1RecursionProofShape,
+    verify::WRAP_VK_BYTES,
     worker::{
         CommonProverInput, ProverMetrics, RangeProofs, RawTaskRequest, TaskContext, TaskError,
-        TaskMetadata,
+        TaskMetadata, WrapAirProverInit,
     },
     RecursionSC, SP1CircuitWitness, SP1ProverComponents,
 };
@@ -50,7 +51,7 @@ use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     sync::Arc,
 };
-use tokio::sync::oneshot;
+use tokio::sync::{oneshot, OnceCell};
 use tracing::Instrument;
 
 /// Configuration for the recursion prover.
@@ -404,9 +405,17 @@ pub type ReduceSubmitHandle<A, C> = SubmitHandle<ReducePipeline<A, C>>;
 pub struct SP1RecursionProver<A, C: SP1ProverComponents> {
     reduce_pipeline: Arc<ReducePipeline<A, C>>,
     pub shrink_prover: Arc<ShrinkProver<C>>,
-    pub wrap_prover: Arc<WrapProver<C>>,
+    wrap_prover: Arc<OnceCell<Arc<WrapProver<C>>>>,
+    wrap_prover_init: Arc<WrapProverInit<C>>,
     pub prover_data: Arc<RecursionProverData<C>>,
     artifact_client: A,
+}
+
+struct WrapProverInit<C: SP1ProverComponents> {
+    wrap_air_prover: WrapAirProverInit<C>,
+    config: SP1RecursionProverConfig,
+    shrink_shape: BTreeMap<String, usize>,
+    expected_wrap_vk: MachineVerifyingKey<SP1OuterGlobalContext>,
 }
 
 impl<A: Clone, C: SP1ProverComponents> Clone for SP1RecursionProver<A, C> {
@@ -415,6 +424,7 @@ impl<A: Clone, C: SP1ProverComponents> Clone for SP1RecursionProver<A, C> {
             reduce_pipeline: self.reduce_pipeline.clone(),
             shrink_prover: self.shrink_prover.clone(),
             wrap_prover: self.wrap_prover.clone(),
+            wrap_prover_init: self.wrap_prover_init.clone(),
             prover_data: self.prover_data.clone(),
             artifact_client: self.artifact_client.clone(),
         }
@@ -427,7 +437,7 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
         artifact_client: A,
         (compress_prover, compress_prover_permits): (Arc<C::RecursionProver>, ProverSemaphore),
         (shrink_prover, shrink_prover_permits): (Arc<C::RecursionProver>, ProverSemaphore),
-        (wrap_prover, wrap_prover_permits): (Arc<C::WrapProver>, ProverSemaphore),
+        wrap_air_prover_init: WrapAirProverInit<C>,
     ) -> Self {
         tokio::task::spawn_blocking(move || {
             // Get the reduce shape.
@@ -442,7 +452,7 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
             let vk_map_path = config.vk_map_file.as_ref().map(std::path::PathBuf::from);
 
             let recursion_vks =
-RecursionVks::new(vk_map_path, config.max_compose_arity, config.vk_verification);
+                RecursionVks::new(vk_map_path, config.max_compose_arity, config.vk_verification);
 
             let recursion_vks_height = recursion_vks.height();
 
@@ -565,15 +575,22 @@ RecursionVks::new(vk_map_path, config.max_compose_arity, config.vk_verification)
                 config.clone(),
             ));
 
-            let wrap_prover = Arc::new(WrapProver::new(
-                wrap_prover,
-                wrap_prover_permits,
-                prover_data.clone(),
-                config.clone(),
-                shrink_prover.shrink_shape.clone(),
-            ));
+            let expected_wrap_vk = bincode::deserialize(WRAP_VK_BYTES).unwrap();
+            let wrap_prover_init = WrapProverInit {
+                wrap_air_prover: wrap_air_prover_init,
+                config: config.clone(),
+                shrink_shape: shrink_prover.shrink_shape.clone(),
+                expected_wrap_vk,
+            };
 
-            Self { reduce_pipeline, shrink_prover, wrap_prover, prover_data, artifact_client }
+            Self {
+                reduce_pipeline,
+                shrink_prover,
+                wrap_prover: Arc::new(OnceCell::new()),
+                wrap_prover_init: Arc::new(wrap_prover_init),
+                prover_data,
+                artifact_client,
+            }
         })
         .await
         .unwrap()
@@ -610,6 +627,47 @@ RecursionVks::new(vk_map_path, config.max_compose_arity, config.vk_verification)
         Ok(handle)
     }
 
+    async fn wrap_prover(&self) -> Result<Arc<WrapProver<C>>, TaskError> {
+        let wrap_prover_init = self.wrap_prover_init.clone();
+        let prover_data = self.prover_data.clone();
+
+        let wrap_prover = self
+            .wrap_prover
+            .get_or_try_init(|| async move {
+                let wrap_prover_init = wrap_prover_init.clone();
+                let prover_data = prover_data.clone();
+                tokio::task::spawn_blocking(move || {
+                    let expected_wrap_vk = wrap_prover_init.expected_wrap_vk.clone();
+                    let wrap_air_prover = wrap_prover_init.wrap_air_prover.build();
+                    let wrap_air_permits = wrap_prover_init.wrap_air_prover.permits();
+                    let wrap_prover = WrapProver::new(
+                        wrap_air_prover,
+                        wrap_air_permits,
+                        prover_data,
+                        wrap_prover_init.config.clone(),
+                        wrap_prover_init.shrink_shape.clone(),
+                    );
+
+                    if wrap_prover.prover_data.recursion_vks.vk_verification()
+                        && wrap_prover.verifying_key != expected_wrap_vk
+                    {
+                        return Err(TaskError::Fatal(anyhow::anyhow!(
+                            "Wrap vk mismatch, expected: {:?}, got: {:?}",
+                            expected_wrap_vk,
+                            wrap_prover.verifying_key
+                        )));
+                    }
+
+                    Ok(Arc::new(wrap_prover))
+                })
+                .await
+                .map_err(|err| TaskError::Fatal(anyhow::anyhow!(err)))?
+            })
+            .await?;
+
+        Ok(wrap_prover.clone())
+    }
+
     pub async fn run_shrink_wrap(&self, request: RawTaskRequest) -> Result<(), TaskError> {
         let RawTaskRequest { inputs, outputs, .. } = request;
         let [compress_proof_artifact] = inputs.try_into().unwrap();
@@ -630,14 +688,11 @@ RecursionVks::new(vk_map_path, config.max_compose_arity, config.vk_verification)
         tracing::debug_span!("verify shrink proof")
             .in_scope(|| self.shrink_prover.verify(&shrink_proof))?;
 
-        let wrap_proof = self
-            .wrap_prover
-            .prove(shrink_proof)
-            .instrument(tracing::info_span!("prove wrap"))
-            .await?;
+        let wrap_prover = self.wrap_prover().await?;
+        let wrap_proof =
+            wrap_prover.prove(shrink_proof).instrument(tracing::info_span!("prove wrap")).await?;
 
-        tracing::debug_span!("verify wrap proof")
-            .in_scope(|| self.wrap_prover.verify(&wrap_proof))?;
+        tracing::debug_span!("verify wrap proof").in_scope(|| wrap_prover.verify(&wrap_proof))?;
 
         self.artifact_client
             .upload(&wrap_proof_artifact, wrap_proof)
