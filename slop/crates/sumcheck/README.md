@@ -2,14 +2,15 @@
 
 Sumcheck protocol implementation for multilinear polynomials.
 
-Implements the sumcheck protocol, a fundamental building block for succinct proofs. The sumcheck protocol allows a prover to convince a verifier of the sum of a multilinear polynomial over the Boolean hypercube with logarithmic communication.
+Implements the sumcheck protocol, a fundamental building block for succinct proofs. The sumcheck protocol allows a prover to convince a verifier of the sum of a multivariate polynomial over the Boolean hypercube with logarithmic communication.
 
 ## Features
 
-- Prover for sumcheck over products of multilinear polynomials
-- Verifier with efficient round-by-round checking
+- `SumcheckPoly` traits to reduce code re-use between different sumchecks.
+- Prover for sumcheck, generic over a `SumcheckPolyFirstRound` implementation.
+- Sumcheck verifier
 - Support for batched sumcheck proofs
-- Integration with SLOP's tensor and multilinear infrastructure
+- Implementation of the `SumcheckPoly` traits for the `Mle` type.
 
 ## References
 

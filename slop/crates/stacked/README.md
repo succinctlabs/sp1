@@ -2,13 +2,11 @@
 
 Stacked polynomial commitment scheme.
 
-Implements a stacked multilinear polynomial commitment scheme using a Ligero-inspired interleaving algorithm. This enables efficient batch commitments to multiple polynomials with shared structure.
+Implements a multilinear polynomial commitment scheme using a Ligero-inspired interleaving algorithm.
 
 ## Features
 
-- Stacked polynomial representation
-- Ligero-inspired interleaving for efficient batching
-- Integration with BaseFold commitments
+- Implementations of the `MultilinearPcsProver` and `MultilinearPcsVerifier` traits (the other implementation is in `slop-whir`).
 
 ---
 

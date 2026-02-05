@@ -2,7 +2,7 @@
 
 Re-exports [`p3_matrix`](https://crates.io/crates/p3_matrix) from [Plonky3](https://github.com/Plonky3/Plonky3) for use in the SLOP library.
 
-This crate provides matrix types and operations optimized for proof system computations. It includes dense and sparse matrix representations used for storing execution traces and constraint evaluations.
+This crate provides matrix types and operations optimized for proof system computations. It includes dense and sparse matrix representations used for storing execution traces. 
 
 ## License
 

@@ -35,8 +35,6 @@ slop-merkle-tree = { workspace = true }
 slop-whir = { workspace = true }
 slop-futures = { workspace = true }
 slop-poseidon2 = { workspace = true }
-
-# p3
 slop-uni-stark = { workspace = true }
 
 # misc

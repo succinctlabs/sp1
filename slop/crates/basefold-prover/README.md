@@ -2,12 +2,13 @@
 
 BaseFold prover implementation.
 
-Provides the prover side of the BaseFold polynomial commitment scheme, including the encoder and low-degree testing components.
+Provides the prover side of the BaseFold polynomial commitment scheme, which uses a combination of Reed-Solomon encoding and folding to achieve efficient commitments with logarithmic proof sizes.
 
 ## Features
 
 - BaseFold polynomial encoder
 - Efficient batch proving for multiple polynomials
+- Foundation for stacked BaseFold PCS implemented in `slop-stacked`.
 
 ## References
 

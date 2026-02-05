@@ -33,8 +33,7 @@ Additional crates build on Plonky3 with SP1-specific extensions:
 The following are original implementations developed for SP1:
 
 - **Data structures**: `slop-tensor`, `slop-alloc`, `slop-multilinear`
-- **Protocols**: `slop-sumcheck`, `slop-basefold`, `slop-whir`, `slop-spartan`
-- **Utilities**: `slop-jagged`, `slop-stacked`, `slop-pgspcs`
+- **Protocols**: `slop-sumcheck`, `slop-basefold`, `slop-whir`, `slop-spartan`, `slop-jagged`, `slop-stacked`, `slop-pgspcs`
 
 ## Features
 

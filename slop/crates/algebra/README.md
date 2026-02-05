@@ -4,8 +4,7 @@ Field algebra and polynomial operations for SLOP.
 
 Built on [`p3_field`](https://crates.io/crates/p3_field) from [Plonky3](https://github.com/Plonky3/Plonky3), with additional functionality:
 
-- Univariate polynomial arithmetic
-- Polynomial evaluation and interpolation utilities
+- Univariate polynomial arithmetic, including evaluation and interpolation utilities
 
 ## License
 

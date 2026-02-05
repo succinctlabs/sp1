@@ -8,9 +8,8 @@ Implements the Spartan proof system for Rank-1 Constraint Systems (R1CS), provid
 
 - Lincheck protocol for linear constraint checking
 - Prodcheck protocol for product constraint checking
-- R1CS sparse matrix handling
-- Integration with PGSPCS for sparse polynomial commitments
-- Efficient prover and verifier implementations
+- R1CS sparse matrix conversion to sparse vector compatible with the PGSPCS.
+- Prover and verifier implementations
 
 ## References
 

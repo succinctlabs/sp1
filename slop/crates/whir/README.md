@@ -2,13 +2,11 @@
 
 WHIR polynomial commitment scheme.
 
-Implements the WHIR (Worst-case to average-case reduction for Hash-based Interactive arguments of Reed-Solomon proximity) multilinear polynomial commitment scheme, an alternative to BaseFold with different performance characteristics.
-
+Implements the WHIR multilinear polynomial commitment scheme, an alternative to BaseFold with smaller proof size and query complexity.
 ## Features
 
 - WHIR polynomial commitment and opening
 - Integration with SLOP's tensor and multilinear infrastructure
-- Efficient batch operations
 
 ## References
 

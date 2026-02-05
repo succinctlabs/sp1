@@ -2,7 +2,7 @@
 
 BN254 scalar field with Poseidon2 configuration for outer proving.
 
-Built on [`p3_bn254_fr`](https://crates.io/crates/p3_bn254_fr) from [Plonky3](https://github.com/Plonky3/Plonky3), with additional functionality:
+Built on [`p3_bn254_fr`](https://crates.io/crates/p3_bn254_fr) from [Plonky3](https://github.com/Plonky3/Plonky3), with additional definitions for use in SP1:
 
 - Poseidon2 hash configuration for the BN254 scalar field
 - Fixed parameters for SP1's outer proving layer

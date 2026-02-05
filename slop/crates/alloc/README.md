@@ -7,8 +7,7 @@ Provides the `Backend` trait that abstracts over different memory allocation str
 ## Features
 
 - `Backend` trait for generic memory allocation
-- Support for different alignment requirements
-- Foundation for CPU/GPU portable data structures
+- Foundation for CPU/GPU portable data structures, such as `Tensor`s and `Buffer`s.
 
 ---
 

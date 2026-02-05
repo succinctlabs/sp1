@@ -4,8 +4,7 @@ Discrete Fourier Transform operations for tensors.
 
 Built on [`p3_dft`](https://crates.io/crates/p3_dft) from [Plonky3](https://github.com/Plonky3/Plonky3), with additional functionality:
 
-- `Dft` trait for tensor-based DFT operations
-- Integration with SLOP's tensor infrastructure
+- `Dft` trait for integration of the Plonky3 trait with SLOP's tensor infrastructure.
 
 DFT operations are essential for polynomial arithmetic in proof systems, enabling efficient evaluation and interpolation.
 

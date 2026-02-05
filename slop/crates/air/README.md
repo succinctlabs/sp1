@@ -2,7 +2,7 @@
 
 Re-exports [`p3_air`](https://crates.io/crates/p3_air) from [Plonky3](https://github.com/Plonky3/Plonky3) for use in the SLOP library.
 
-This crate provides AIR (Algebraic Intermediate Representation) traits for defining arithmetic circuits. AIRs are the foundation for STARK-based proof systems, defining the constraints that valid execution traces must satisfy.
+This crate provides AIR (Algebraic Intermediate Representation) traits for defining arithmetic circuits. AIRs are the foundation for proof systems (including SP1 Hypercube), defining the constraints that valid execution traces must satisfy.
 
 ## License
 

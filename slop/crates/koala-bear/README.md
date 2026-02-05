@@ -7,7 +7,7 @@ Built on [`p3_koala_bear`](https://crates.io/crates/p3_koala_bear) from [Plonky3
 - Pre-configured Poseidon2 hash parameters optimized for SP1
 - Field-specific hash chain configurations
 
-KoalaBear is a 31-bit prime field designed for efficient arithmetic, similar to BabyBear but with different performance characteristics.
+KoalaBear is a 31-bit prime field (p=2^31-2^24+1) designed for efficient arithmetic, similar to BabyBear but with a more efficient Poseidon2 arithmetization.
 
 ## License
 

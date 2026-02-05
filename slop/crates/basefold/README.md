@@ -2,13 +2,14 @@
 
 BaseFold polynomial encoding and commitment scheme.
 
-Implements the BaseFold multilinear polynomial commitment scheme, which uses a combination of Reed-Solomon encoding and folding to achieve efficient commitments with logarithmic proof sizes.
+Implements the BaseFold multilinear polynomial commitment scheme verifier. 
 
 ## Features
 
-- BaseFold encoding for multilinear polynomials
-- Efficient commitment and opening operations
-- Integration with FRI for low-degree testing
+- Defines BaseFold proof struct.
+- Implementation of logarithmic-time BaseFold verifier.
+- Type aliases for BaseFold configurations used for testing and deployment of SP1.
+
 
 ## References
 

@@ -1,14 +1,14 @@
 # slop-primitives
 
-Core primitive types for SLOP.
-
-Provides foundational type definitions and traits used throughout the SLOP library, establishing common interfaces for the proof system components.
+Core primitive types for SLOP in a crate with minimal dependencies.
 
 ## Features
 
-- Core type definitions
-- Common traits and interfaces
-- Foundation for other SLOP crates
+- `FriConfig` struct, adapted from Plonky3.
+
+## License
+
+This crate adapts code from Plonky3, which is licensed under MIT/Apache-2.0.
 
 ---
 

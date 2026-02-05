@@ -2,7 +2,7 @@
 
 Re-exports [`p3_uni_stark`](https://crates.io/crates/p3_uni_stark) from [Plonky3](https://github.com/Plonky3/Plonky3) for use in the SLOP library.
 
-This crate provides a univariate STARK prover and verifier. It implements the core STARK protocol using univariate polynomials, suitable for proving AIR constraint satisfaction.
+This crate provides a univariate STARK prover and verifier. It is used in SP1 mainly for the symbolic expression language it provides.
 
 ## License
 

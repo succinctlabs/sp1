@@ -2,7 +2,7 @@
 
 Re-exports [`p3_keccak_air`](https://crates.io/crates/p3_keccak_air) from [Plonky3](https://github.com/Plonky3/Plonky3) for use in the SLOP library.
 
-This crate provides an AIR (Algebraic Intermediate Representation) for the Keccak-256 hash function. It defines the constraints needed to prove correct Keccak computations inside a STARK proof system.
+This crate provides an AIR (Algebraic Intermediate Representation) for the Keccak-256 hash function. It defines the constraints needed to prove correct Keccak computations inside a proof system that can prove AIRs.
 
 ## License
 

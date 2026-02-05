@@ -7,11 +7,11 @@ Provides representations and operations for multilinear polynomials, which are f
 ## Features
 
 - `Mle` - Multilinear extension representation
-- `PaddedMle` - Padded MLE for uniform sizing
-- `Point` - Evaluation point representation
+- `PaddedMle` - A dense representation of a multilinear polynomial with many zeroes. 
+- `Point` - A utility struct for multi-variate evaluation.
 - Efficient evaluation, folding, and restriction operations
-- Lagrange basis utilities
-- PCS (Polynomial Commitment Scheme) integration
+- Lagrange and monomial basis utilities
+- Multilinear PCS (Polynomial Commitment Scheme) trait definitions
 
 ---
 
