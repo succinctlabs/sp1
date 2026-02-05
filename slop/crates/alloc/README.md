@@ -2,7 +2,7 @@
 
 Memory allocation backend abstraction for SLOP.
 
-Provides the `Backend` trait that abstracts over different memory allocation strategies. This enables SLOP's data structures to work with both CPU and GPU memory backends, supporting future hardware acceleration.
+Provides the `Backend` trait that abstracts over different memory allocation strategies. This enables SLOP's data structures to work with both CPU and GPU memory backends, supporting hardware acceleration.
 
 ## Features
 

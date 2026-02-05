@@ -2,7 +2,7 @@
 
 Constraint compiler for SP1 core machines.
 
-Compiles the SP1 constraint system into an efficient representation for proving.
+Compiles the SP1 constraint system into an efficient representation for formal verification backends.
 
 ---
 

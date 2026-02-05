@@ -2,7 +2,7 @@
 
 The SP1 Hypercube proof system.
 
-Implements the core proving and verification logic for SP1, including shard proving, constraint compilation, and proof aggregation. This is the heart of SP1's zero-knowledge proof generation.
+Implements the core proving and verification logic for SP1, including shard proving. This is the heart of SP1's zero-knowledge proof generation.
 
 ---
 

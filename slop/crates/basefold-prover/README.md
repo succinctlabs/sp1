@@ -1,13 +1,12 @@
 # slop-basefold-prover
 
-BaseFold prover implementation with FRI integration.
+BaseFold prover implementation.
 
-Provides the prover side of the BaseFold polynomial commitment scheme, including the encoder and FRI-based low-degree testing components.
+Provides the prover side of the BaseFold polynomial commitment scheme, including the encoder and low-degree testing components.
 
 ## Features
 
 - BaseFold polynomial encoder
-- FRI integration for commitment proofs
 - Efficient batch proving for multiple polynomials
 
 ## References
