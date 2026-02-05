@@ -82,6 +82,7 @@ fn create_dummy_recursion_proof(
             point: Point::from_usize(0, 1),
             chip_openings: BTreeMap::new(),
         },
+        witness: SP1Field::zero(),
     };
 
     // Create dummy ShardProof.

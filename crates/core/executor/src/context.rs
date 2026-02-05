@@ -1,10 +1,5 @@
+use crate::hook::{hookify, BoxedHook, HookEnv, HookRegistry};
 use core::mem::take;
-use std::sync::Arc;
-
-use crate::{
-    hook::{hookify, BoxedHook, HookEnv, HookRegistry},
-    subproof::SubproofVerifier,
-};
 use hashbrown::HashMap;
 use sp1_hypercube::air::PROOF_NONCE_NUM_WORDS;
 use std::io::Write;
@@ -63,9 +58,6 @@ pub struct SP1Context<'a> {
     /// Note: `None` denotes the default list of hooks.
     pub hook_registry: Option<HookRegistry<'a>>,
 
-    /// The verifier for verifying subproofs.
-    pub subproof_verifier: Option<Arc<dyn SubproofVerifier>>,
-
     /// The maximum number of cpu cycles to use for execution.
     pub max_cycles: Option<u64>,
 
@@ -99,7 +91,6 @@ impl Default for SP1Context<'_> {
 pub struct SP1ContextBuilder<'a> {
     no_default_hooks: bool,
     hook_registry_entries: Vec<(u32, BoxedHook<'a>)>,
-    subproof_verifier: Option<Arc<dyn SubproofVerifier>>,
     max_cycles: Option<u64>,
     deferred_proof_verification: bool,
     calculate_gas: bool,
@@ -132,7 +123,6 @@ impl<'a> SP1ContextBuilder<'a> {
         Self {
             no_default_hooks: false,
             hook_registry_entries: Vec::new(),
-            subproof_verifier: None,
             max_cycles: None,
             // Always verify deferred proofs by default.
             deferred_proof_verification: true,
@@ -173,14 +163,12 @@ impl<'a> SP1ContextBuilder<'a> {
                 HookRegistry { table }
             });
 
-        let subproof_verifier = take(&mut self.subproof_verifier);
         let cycle_limit = take(&mut self.max_cycles);
         let deferred_proof_verification = take(&mut self.deferred_proof_verification);
         let calculate_gas = take(&mut self.calculate_gas);
         let proof_nonce = take(&mut self.proof_nonce);
         SP1Context {
             hook_registry,
-            subproof_verifier,
             max_cycles: cycle_limit,
             deferred_proof_verification,
             calculate_gas,
@@ -226,14 +214,6 @@ impl<'a> SP1ContextBuilder<'a> {
     /// Disabling gas calculation will likely speed up execution.
     pub fn calculate_gas(&mut self, value: bool) -> &mut Self {
         self.calculate_gas = value;
-        self
-    }
-
-    /// Add a subproof verifier.
-    ///
-    /// The verifier is used to sanity check `verify_sp1_proof` during runtime.
-    pub fn subproof_verifier(&mut self, subproof_verifier: Arc<dyn SubproofVerifier>) -> &mut Self {
-        self.subproof_verifier = Some(subproof_verifier);
         self
     }
 
@@ -311,16 +291,13 @@ impl<W: Write + Send + Sync> IoWriter for W {}
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
-    use crate::{subproof::NoOpSubproofVerifier, SP1Context};
+    use crate::SP1Context;
 
     #[test]
     fn defaults() {
-        let SP1Context { hook_registry, subproof_verifier, max_cycles: cycle_limit, .. } =
+        let SP1Context { hook_registry, max_cycles: cycle_limit, .. } =
             SP1Context::builder().build();
         assert!(hook_registry.is_none());
-        assert!(subproof_verifier.is_none());
         assert!(cycle_limit.is_none());
     }
 
@@ -343,14 +320,5 @@ mod tests {
         let SP1Context { hook_registry, .. } =
             SP1Context::builder().without_default_hooks().hook(30, |_, _| vec![]).build();
         assert_eq!(&hook_registry.unwrap().table.into_keys().collect::<Vec<_>>(), &[30]);
-    }
-
-    #[test]
-    fn subproof_verifier() {
-        let verifier = NoOpSubproofVerifier;
-
-        let SP1Context { subproof_verifier, .. } =
-            SP1Context::builder().subproof_verifier(Arc::new(verifier)).build();
-        assert!(subproof_verifier.is_some());
     }
 }

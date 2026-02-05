@@ -2,15 +2,21 @@ use futures::{stream::FuturesUnordered, StreamExt};
 use slop_futures::pipeline::{AsyncEngine, AsyncWorker, Pipeline, SubmitHandle};
 use sp1_core_executor::{
     ExecutionError, ExecutionReport, GasEstimatingVM, MinimalExecutor, Program, SP1Context,
-    SP1CoreOpts,
+    SP1CoreOpts, SP1RecursionProof,
 };
 use sp1_core_machine::io::SP1Stdin;
 use sp1_hypercube::air::PROOF_NONCE_NUM_WORDS;
+use sp1_hypercube::{MachineVerifyingKey, SP1PcsProofInner, SP1VerifyingKey};
 use sp1_jit::TraceChunkRaw;
 use sp1_primitives::io::SP1PublicValues;
+use sp1_primitives::SP1GlobalContext;
 use std::sync::Arc;
 use tracing::Instrument;
 
+use crate::verify::SP1Verifier;
+
+type DeferredProofInput =
+    (SP1RecursionProof<SP1GlobalContext, SP1PcsProofInner>, MachineVerifyingKey<SP1GlobalContext>);
 use crate::worker::{
     FinalVmState, FinalVmStateLock, DEFAULT_GAS_EXECUTOR_BUFFER_SIZE,
     DEFAULT_NUM_GAS_EXECUTOR_WORKERS,
@@ -103,6 +109,20 @@ impl AsyncWorker<GasExecutingTask, Result<ExecutionReport, ExecutionError>> for 
     }
 }
 
+fn verify_deferred_proofs(proofs: &[DeferredProofInput]) -> anyhow::Result<()> {
+    if proofs.is_empty() {
+        return Ok(());
+    }
+    let verifier = SP1Verifier::new(crate::verify::VerifierRecursionVks::default());
+    for (index, (proof, vk)) in proofs.iter().enumerate() {
+        let sp1_vk = SP1VerifyingKey { vk: vk.clone() };
+        verifier
+            .verify_compressed(proof, &sp1_vk)
+            .map_err(|e| anyhow::anyhow!("deferred proof {index} failed verification: {e}"))?;
+    }
+    Ok(())
+}
+
 pub async fn execute_with_options(
     program: Arc<Program>,
     stdin: SP1Stdin,
@@ -110,30 +130,9 @@ pub async fn execute_with_options(
     opts: SP1CoreOpts,
     executor_config: SP1ExecutorConfig,
 ) -> anyhow::Result<(SP1PublicValues, [u8; 32], ExecutionReport)> {
-    let calculate_gas = context.calculate_gas;
-    let nonce = context.proof_nonce;
-    let max_cycles = context.max_cycles;
-    let minimal_trace_chunk_threshold =
-        if context.calculate_gas { Some(opts.minimal_trace_chunk_threshold) } else { None };
-    let gas_engine =
-        initialize_gas_engine(&executor_config, program.clone(), nonce, opts, calculate_gas);
-
-    let mut minimal_executor =
-        MinimalExecutor::new(program.clone(), false, minimal_trace_chunk_threshold);
-
-    // Feed stdin buffers to the executor
-    for buf in stdin.buffer {
-        minimal_executor.with_input(&buf);
-    }
-
-    // Create a shared final VM state lock that will be set when execution completes.
-    let final_vm_state = FinalVmStateLock::new();
-
-    // Execute the program to completion, collecting all trace chunks
-    let (handle_sender, mut handle_receiver) = tokio::sync::mpsc::unbounded_channel();
-
-    // The return values of the two tasks in the join set.
+    // The return values of the spawned tasks.
     enum ExecutorOutput {
+        VerifyDone,
         Report(ExecutionReport),
         PublicValues {
             public_values: SP1PublicValues,
@@ -145,6 +144,37 @@ pub async fn execute_with_options(
     }
 
     let mut join_set = tokio::task::JoinSet::new();
+    let SP1Stdin { buffer, proofs, .. } = stdin;
+
+    let calculate_gas = context.calculate_gas;
+    let nonce = context.proof_nonce;
+    let max_cycles = context.max_cycles;
+    let minimal_trace_chunk_threshold =
+        if context.calculate_gas { Some(opts.minimal_trace_chunk_threshold) } else { None };
+    let gas_engine =
+        initialize_gas_engine(&executor_config, program.clone(), nonce, opts, calculate_gas);
+
+    if context.deferred_proof_verification {
+        join_set.spawn_blocking(move || {
+            verify_deferred_proofs(&proofs)?;
+            Ok::<_, anyhow::Error>(ExecutorOutput::VerifyDone)
+        });
+    }
+
+    let mut minimal_executor =
+        MinimalExecutor::new(program.clone(), false, minimal_trace_chunk_threshold);
+
+    // Feed stdin buffers to the executor
+    for buf in buffer {
+        minimal_executor.with_input(&buf);
+    }
+
+    // Create a shared final VM state lock that will be set when execution completes.
+    let final_vm_state = FinalVmStateLock::new();
+
+    // Execute the program to completion, collecting all trace chunks
+    let (handle_sender, mut handle_receiver) = tokio::sync::mpsc::unbounded_channel();
+
     // Spawn a task that runs gas executors.
     join_set.spawn(async move {
         let mut report = ExecutionReport::default();
@@ -245,13 +275,14 @@ pub async fn execute_with_options(
                     }
                 }
                 ExecutorOutput::Report(report) => final_report = report,
+                ExecutorOutput::VerifyDone => {}
             },
             Ok(Err(e)) => {
-                // Task returned an error
+                // Task returned an error.
                 return Err(e);
             }
             Err(join_error) => {
-                // Task panicked or was cancelled
+                // Task panicked or was cancelled.
                 return Err(join_error.into());
             }
         }

@@ -32,13 +32,15 @@ pub struct LogupGkrRoundProof<EF> {
 
 /// The proof for the log-up GKR circuit.
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct LogupGkrProof<EF> {
+pub struct LogupGkrProof<F, EF> {
     /// The output of the circuit.
     pub circuit_output: LogUpGkrOutput<EF>,
     /// The proof for each round.
     pub round_proofs: Vec<LogupGkrRoundProof<EF>>,
     /// The evaluations for each chip.
     pub logup_evaluations: LogUpEvaluations<EF>,
+    /// The grinding witness.
+    pub witness: F,
 }
 
 /// The evaluations for a chip

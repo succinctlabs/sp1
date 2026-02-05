@@ -9,14 +9,15 @@ use std::{
 use itertools::Itertools;
 use slop_algebra::AbstractField;
 use slop_alloc::HasBackend;
-use slop_challenger::{FieldChallenger, IopCtx, VariableLengthChallenger};
+use slop_challenger::{CanObserve, FieldChallenger, IopCtx, VariableLengthChallenger};
 use slop_multilinear::{MultilinearPcsChallenger, Point};
+use sp1_gpu_basefold::{DeviceGrindingChallenger, GrindingPowCudaProver};
 use sp1_gpu_cudart::{DevicePoint, TaskScope};
 use tracing::instrument;
 
 use sp1_hypercube::{
     air::MachineAir, Chip, ChipEvaluation, LogUpEvaluations, LogUpGkrOutput, LogupGkrProof,
-    LogupGkrRoundProof,
+    LogupGkrRoundProof, GKR_GRINDING_BITS,
 };
 
 use crate::{execution::DeviceLogUpGkrOutput, tracegen::generate_gkr_circuit};
@@ -173,21 +174,36 @@ pub fn prove_gkr_circuit<'a, C: FieldChallenger<Felt>>(
 }
 
 /// End-to-end proves lookups for a given trace.
-pub fn prove_logup_gkr<
-    GC: IopCtx<F = Felt, EF = Ext>,
-    A: MachineAir<Felt>,
-    C: MultilinearPcsChallenger<Felt> + VariableLengthChallenger<Felt, <GC as IopCtx>::Digest>,
->(
+pub fn prove_logup_gkr<GC: IopCtx<F = Felt, EF = Ext>, A: MachineAir<Felt>>(
     chips: &BTreeSet<Chip<Felt, A>>,
     all_interactions: BTreeMap<String, Arc<Interactions<Felt, TaskScope>>>,
     jagged_trace_data: &JaggedTraceMle<Felt, TaskScope>,
-    alpha: Ext,
-    beta_seed: Point<Ext>,
     options: CudaLogUpGkrOptions,
-    challenger: &mut C,
-) -> LogupGkrProof<Ext> {
+    challenger: &mut GC::Challenger,
+) -> LogupGkrProof<Felt, Ext>
+where
+    GC::Challenger: DeviceGrindingChallenger<Witness = GC::F>,
+{
     let CudaLogUpGkrOptions { recompute_first_layer, num_row_variables } = options;
     let backend = jagged_trace_data.backend().clone();
+
+    let max_interaction_arity = chips
+        .iter()
+        .flat_map(|c| c.sends().iter().chain(c.receives().iter()))
+        .map(|i| i.values.len() + 1)
+        .max()
+        .unwrap();
+    let beta_seed_dim = max_interaction_arity.next_power_of_two().ilog2();
+
+    let witness = GrindingPowCudaProver::grind(challenger, GKR_GRINDING_BITS, &backend);
+
+    // Sample the logup challenges.
+    let alpha = challenger.sample_ext_element::<GC::EF>();
+
+    let beta_seed =
+        (0..beta_seed_dim).map(|_| challenger.sample_ext_element::<GC::EF>()).collect::<Point<_>>();
+    let _pv_challenge = challenger.sample_ext_element::<GC::EF>();
+
     let num_interactions =
         chips.iter().map(|chip| chip.sends().len() + chip.receives().len()).sum::<usize>();
     let num_interaction_variables = num_interactions.next_power_of_two().ilog2();
@@ -270,7 +286,7 @@ pub fn prove_logup_gkr<
 
     let logup_evaluations = LogUpEvaluations { point: eval_point, chip_openings: chip_evaluations };
 
-    LogupGkrProof { circuit_output: output_host, round_proofs, logup_evaluations }
+    LogupGkrProof { circuit_output: output_host, round_proofs, logup_evaluations, witness }
 }
 
 #[cfg(test)]
@@ -285,7 +301,7 @@ mod tests {
     use slop_futures::queue::WorkerQueue;
     use slop_multilinear::Mle;
     use slop_sumcheck::partially_verify_sumcheck_proof;
-    use sp1_core_executor::ExecutionRecord;
+    use sp1_core_machine::riscv::RiscvAir;
     use sp1_gpu_cudart::{run_sync_in_place, DevicePoint, PinnedBuffer};
     use sp1_gpu_jagged_tracegen::{
         full_tracegen,
@@ -293,9 +309,7 @@ mod tests {
         CORE_MAX_TRACE_SIZE,
     };
     use sp1_gpu_utils::TestGC;
-    use sp1_hypercube::MachineRecord;
-    use sp1_hypercube::{prover::ProverSemaphore, ShardVerifier};
-    use sp1_primitives::fri_params::core_fri_config;
+    use sp1_hypercube::{prover::ProverSemaphore, SP1SC};
     use std::sync::Arc;
 
     use crate::execution::{extract_outputs, gkr_transition, layer_transition};
@@ -560,39 +574,7 @@ mod tests {
                 ));
 
             // *********** Generate LogupGKR traces and prove end to end ***********
-            let mut challenger = TestGC::default_challenger();
-
-            let alpha = challenger.sample_ext_element();
-            let max_interaction_arity = shard_chips
-                .iter()
-                .flat_map(|c| c.sends().iter().chain(c.receives().iter()))
-                .map(|i| i.values.len() + 1)
-                .max()
-                .unwrap();
-
-            let max_interaction_kinds_values = ExecutionRecord::interactions_in_public_values()
-                .iter()
-                .map(|kind| kind.num_values() + 1)
-                .max()
-                .unwrap_or(1);
-
-            let beta_seed_dim = std::cmp::max(max_interaction_arity, max_interaction_kinds_values)
-                .next_power_of_two()
-                .ilog2();
-
-            let beta_seed = challenger.sample_point(beta_seed_dim);
-            let pv_challenge: Ext = challenger.sample_ext_element();
-
-            let shard_verifier: ShardVerifier<TestGC, _> = ShardVerifier::from_basefold_parameters(
-                core_fri_config(),
-                LOG_STACKING_HEIGHT,
-                CORE_MAX_LOG_ROW_COUNT as usize,
-                machine.clone(),
-            );
-
-            let cumulative_sum: Ext = shard_verifier
-                .verify_public_values(pv_challenge, &alpha, &beta_seed, &public_values)
-                .unwrap();
+            let challenger = TestGC::default_challenger();
 
             let shard_chips = machine.smallest_cluster(&shard_chips).unwrap();
 
@@ -604,12 +586,10 @@ mod tests {
             }
 
             let mut prover_challenger = challenger.clone();
-            let proof = super::prove_logup_gkr::<TestGC, _, _>(
+            let proof = super::prove_logup_gkr::<TestGC, RiscvAir<Felt>>(
                 shard_chips,
                 all_interactions,
                 &jagged_trace_data,
-                alpha,
-                beta_seed.clone(),
                 CudaLogUpGkrOptions {
                     recompute_first_layer: true,
                     num_row_variables: CORE_MAX_LOG_ROW_COUNT,
@@ -624,20 +604,18 @@ mod tests {
                     let poly_size = jagged_trace_data.main_poly_height(c.name()).unwrap();
 
                     let threshold_point =
-                        Point::from_usize(poly_size, CORE_MAX_LOG_ROW_COUNT as usize + 1);
+                        Point::<Felt>::from_usize(poly_size, CORE_MAX_LOG_ROW_COUNT as usize + 1);
                     (c.name().to_string(), threshold_point)
                 })
                 .collect();
 
             let mut verifier_challenger = challenger.clone();
-            sp1_hypercube::LogUpGkrVerifier::verify_logup_gkr(
+            sp1_hypercube::LogUpGkrVerifier::<TestGC, SP1SC<TestGC, RiscvAir<Felt>>>::verify_logup_gkr(
                 shard_chips,
                 &degrees,
-                alpha,
-                &beta_seed,
-                -cumulative_sum,
                 CORE_MAX_LOG_ROW_COUNT as usize,
                 &proof,
+                &public_values,
                 &mut verifier_challenger,
             )
             .unwrap();

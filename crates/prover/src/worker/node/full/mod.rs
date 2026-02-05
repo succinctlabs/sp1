@@ -309,7 +309,6 @@ mod tests {
     use sp1_core_machine::utils::setup_logger;
 
     use crate::CpuSP1ProverComponents;
-    use slop_algebra::PrimeField32;
     use sp1_hypercube::HashableKey;
 
     use crate::worker::{cpu_worker_builder, SP1LocalNodeBuilder, SP1WorkerBuilder};
@@ -498,15 +497,40 @@ mod tests {
             _ => return Err(anyhow::anyhow!("deferred proof 2 is not a compressed proof")),
         };
 
+        // Exercise deferred proof verification during execute.
+        let mut invalid_proof = deferred_reduce_1.clone();
+        invalid_proof.proof.public_values.clear();
+        let mut execute_stdin = SP1Stdin::new();
+        let vkey_digest = keccak_vk.hash_u32();
+        execute_stdin.write(&vkey_digest);
+        execute_stdin.write(&vec![pv_1.clone(), pv_2.clone(), pv_2.clone()]);
+        execute_stdin.write_proof(invalid_proof, keccak_vk.vk.clone());
+        execute_stdin.write_proof(deferred_reduce_2.clone(), keccak_vk.vk.clone());
+        execute_stdin.write_proof(deferred_reduce_2.clone(), keccak_vk.vk.clone());
+
+        let execute_result = client.execute(&verify_elf, execute_stdin, context.clone()).await;
+        let err = execute_result.expect_err("expected deferred proof verification to fail");
+        assert!(
+            err.to_string().contains("deferred proof 0 failed verification"),
+            "unexpected error: {err}"
+        );
+
+        // Execute verify program with deferred proof verification enabled and valid proofs.
+        let mut execute_stdin = SP1Stdin::new();
+        let vkey_digest = keccak_vk.hash_u32();
+        execute_stdin.write(&vkey_digest);
+        execute_stdin.write(&vec![pv_1.clone(), pv_2.clone(), pv_2.clone()]);
+        execute_stdin.write_proof(deferred_reduce_1.clone(), keccak_vk.vk.clone());
+        execute_stdin.write_proof(deferred_reduce_2.clone(), keccak_vk.vk.clone());
+        execute_stdin.write_proof(deferred_reduce_2.clone(), keccak_vk.vk.clone());
+
+        let (_execute_pv, _execute_digest, execute_report) =
+            client.execute(&verify_elf, execute_stdin, context.clone()).await?;
+        assert_eq!(execute_report.exit_code, 0);
+
         // Run verify program with keccak vkey, subproofs, and their committed values.
         let mut stdin = SP1Stdin::new();
-        let vkey_digest = keccak_vk.hash_koalabear();
-        let vkey_digest: [u32; 8] = vkey_digest
-            .iter()
-            .map(|n| n.as_canonical_u32())
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap();
+        let vkey_digest = keccak_vk.hash_u32();
         stdin.write(&vkey_digest);
         stdin.write(&vec![pv_1.clone(), pv_2.clone(), pv_2.clone()]);
         stdin.write_proof(deferred_reduce_1.clone(), keccak_vk.vk.clone());

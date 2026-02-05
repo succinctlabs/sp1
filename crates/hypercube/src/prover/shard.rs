@@ -693,21 +693,6 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>>
             }
         }
 
-        let max_interaction_arity = shard_chips
-            .iter()
-            .flat_map(|c| c.sends().iter().chain(c.receives().iter()))
-            .map(|i| i.values.len() + 1)
-            .max()
-            .unwrap();
-        let beta_seed_dim = max_interaction_arity.next_power_of_two().ilog2();
-
-        // Sample the logup challenges.
-        let alpha = challenger.sample_ext_element::<GC::EF>();
-        let beta_seed = (0..beta_seed_dim)
-            .map(|_| challenger.sample_ext_element::<GC::EF>())
-            .collect::<Point<_>>();
-        let _pv_challenge = challenger.sample_ext_element::<GC::EF>();
-
         let logup_gkr_proof = {
             let _span = tracing::debug_span!("logup gkr proof").entered();
             self.inner.logup_gkr_prover.prove_logup_gkr(
@@ -715,8 +700,6 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>>
                 &pk.preprocessed_data.preprocessed_traces,
                 &traces,
                 public_values.clone(),
-                alpha,
-                beta_seed,
                 &mut challenger,
             )
         };

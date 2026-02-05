@@ -17,6 +17,7 @@ sp1-gpu-cudart = { workspace = true }
 sp1-gpu-utils = { workspace = true }
 sp1-gpu-jagged-tracegen = { workspace = true }
 sp1-gpu-zerocheck = { workspace = true }
+sp1-gpu-basefold = { workspace = true }
 
 # slop
 slop-air = { workspace = true }
@@ -56,6 +57,7 @@ sp1-sdk = { workspace = true}
 sp1-recursion-circuit = { workspace = true }
 sp1-primitives = { workspace = true }
 sp1-core-executor = { workspace = true }
+sp1-core-machine = { workspace = true }
 
 [[bin]]
 name = "logup_gkr_bench"

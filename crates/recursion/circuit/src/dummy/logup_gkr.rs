@@ -13,7 +13,7 @@ use super::sumcheck::dummy_sumcheck_proof;
 pub fn dummy_gkr_proof<F: Field, EF: ExtensionField<F>, A: MachineAir<F>>(
     shard_chips: &BTreeSet<Chip<F, A>>,
     log_max_row_height: usize,
-) -> LogupGkrProof<EF> {
+) -> LogupGkrProof<F, EF> {
     let total_num_interactions =
         shard_chips.iter().map(|chip| chip.num_interactions()).sum::<usize>();
     let output_size = 1 << (log2_ceil_usize(total_num_interactions) + 1);
@@ -55,5 +55,5 @@ pub fn dummy_gkr_proof<F: Field, EF: ExtensionField<F>, A: MachineAir<F>>(
             .collect(),
     };
 
-    LogupGkrProof { circuit_output, round_proofs, logup_evaluations }
+    LogupGkrProof { circuit_output, round_proofs, logup_evaluations, witness: F::zero() }
 }

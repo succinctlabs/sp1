@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
-use slop_challenger::IopCtx;
+use slop_challenger::{GrindingChallenger, IopCtx};
 use slop_jagged::JaggedPcsProof;
 use slop_matrix::dense::RowMajorMatrixView;
 use slop_multilinear::{MultilinearPcsVerifier, Point};
@@ -42,7 +42,7 @@ pub struct ShardProof<GC: IopCtx, Proof> {
     /// The commitments to main traces.
     pub main_commitment: GC::Digest,
     /// The Logup GKR IOP proof.
-    pub logup_gkr_proof: LogupGkrProof<GC::EF>,
+    pub logup_gkr_proof: LogupGkrProof<<GC::Challenger as GrindingChallenger>::Witness, GC::EF>,
     /// TH zerocheck IOP proof.
     pub zerocheck_proof: PartialSumcheckProof<GC::EF>,
     /// The values of the traces at the final random point.

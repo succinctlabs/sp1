@@ -670,29 +670,11 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
             }
         }
 
-        let max_interaction_arity = shard_chips
-            .iter()
-            .flat_map(|c| c.sends().iter().chain(c.receives().iter()))
-            .map(|i| i.values.len() + 1)
-            .max()
-            .unwrap();
-        let beta_seed_dim = max_interaction_arity.next_power_of_two().ilog2();
-
-        // Sample the logup challenges.
-        let alpha = challenger.sample_ext_element::<GC::EF>();
-
-        let beta_seed = (0..beta_seed_dim)
-            .map(|_| challenger.sample_ext_element::<GC::EF>())
-            .collect::<Point<_>>();
-        let _pv_challenge = challenger.sample_ext_element::<GC::EF>();
-
         let logup_gkr_proof = tracing::debug_span!("logup gkr proof").in_scope(|| {
-            prove_logup_gkr::<GC, _, _>(
+            prove_logup_gkr::<GC, _>(
                 shard_chips,
                 self.all_interactions.clone(),
                 traces,
-                alpha,
-                beta_seed,
                 CudaLogUpGkrOptions {
                     recompute_first_layer: self.recompute_first_layer,
                     num_row_variables: self.max_log_row_count,

@@ -2,12 +2,14 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use slop_algebra::AbstractField;
 use slop_alloc::{CanCopyFromRef, CpuBackend, ToHost};
-use slop_challenger::{CanObserve, FieldChallenger, IopCtx, VariableLengthChallenger};
+use slop_challenger::{
+    CanObserve, FieldChallenger, GrindingChallenger, IopCtx, VariableLengthChallenger,
+};
 use slop_multilinear::{Mle, MultilinearPcsChallenger, Point};
 
 use crate::{
     air::MachineAir, prove_gkr_round, prover::Traces, Chip, ChipEvaluation, LogupGkrCpuCircuit,
-    LogupGkrCpuTraceGenerator, ShardContext,
+    LogupGkrCpuTraceGenerator, ShardContext, GKR_GRINDING_BITS,
 };
 
 use super::{LogUpEvaluations, LogUpGkrOutput, LogupGkrProof, LogupGkrRoundProof};
@@ -71,10 +73,25 @@ impl<GC: IopCtx, SC: ShardContext<GC>> GkrProverImpl<GC, SC> {
         preprocessed_traces: &Traces<GC::F, CpuBackend>,
         traces: &Traces<GC::F, CpuBackend>,
         public_values: Vec<GC::F>,
-        alpha: GC::EF,
-        beta_seed: Point<GC::EF>,
         challenger: &mut GC::Challenger,
-    ) -> LogupGkrProof<GC::EF> {
+    ) -> LogupGkrProof<<GC::Challenger as GrindingChallenger>::Witness, GC::EF> {
+        let max_interaction_arity = chips
+            .iter()
+            .flat_map(|c| c.sends().iter().chain(c.receives().iter()))
+            .map(|i| i.values.len() + 1)
+            .max()
+            .unwrap();
+        let beta_seed_dim = max_interaction_arity.next_power_of_two().ilog2();
+
+        let witness = challenger.grind(GKR_GRINDING_BITS);
+
+        // Sample the logup challenges.
+        let alpha = challenger.sample_ext_element::<GC::EF>();
+        let beta_seed = (0..beta_seed_dim)
+            .map(|_| challenger.sample_ext_element::<GC::EF>())
+            .collect::<Point<_>>();
+        let _pv_challenge = challenger.sample_ext_element::<GC::EF>();
+
         let num_interactions =
             chips.iter().map(|chip| chip.sends().len() + chip.receives().len()).sum::<usize>();
         let num_interaction_variables = num_interactions.next_power_of_two().ilog2();
@@ -194,6 +211,6 @@ impl<GC: IopCtx, SC: ShardContext<GC>> GkrProverImpl<GC, SC> {
         let logup_evaluations =
             LogUpEvaluations { point: eval_point, chip_openings: chip_evaluations };
 
-        LogupGkrProof { circuit_output: output_host, round_proofs, logup_evaluations }
+        LogupGkrProof { circuit_output: output_host, round_proofs, logup_evaluations, witness }
     }
 }

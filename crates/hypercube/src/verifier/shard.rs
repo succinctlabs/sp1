@@ -6,7 +6,6 @@ use slop_stacked::{StackedBasefoldProof, StackedPcsVerifier};
 use slop_whir::{Verifier, WhirProofShape};
 use sp1_primitives::{SP1GlobalContext, SP1OuterGlobalContext};
 use std::{
-    cmp::max,
     collections::{BTreeMap, BTreeSet},
     iter::once,
     marker::PhantomData,
@@ -20,24 +19,26 @@ use slop_challenger::{CanObserve, FieldChallenger, IopCtx, VariableLengthChallen
 use slop_commit::Rounds;
 use slop_jagged::{JaggedPcsVerifier, JaggedPcsVerifierError};
 use slop_matrix::dense::RowMajorMatrixView;
-use slop_multilinear::{full_geq, Evaluations, Mle, MleEval, MultilinearPcsVerifier, Point};
+use slop_multilinear::{full_geq, Evaluations, Mle, MleEval, MultilinearPcsVerifier};
 use slop_sumcheck::{partially_verify_sumcheck_proof, SumcheckError};
 use thiserror::Error;
 
 use crate::{
     air::MachineAir,
-    prover::{CoreProofShape, PcsProof, Record, ZerocheckAir},
+    prover::{CoreProofShape, PcsProof, ZerocheckAir},
     Chip, ChipOpenedValues, LogUpEvaluations, LogUpGkrVerifier, LogupGkrVerificationError, Machine,
-    ShardContext, ShardContextImpl, VerifierConstraintFolder, VerifierPublicValuesConstraintFolder,
-    MAX_CONSTRAINT_DEGREE, PROOF_MAX_NUM_PVS, SP1SC,
+    ShardContext, ShardContextImpl, VerifierConstraintFolder, MAX_CONSTRAINT_DEGREE,
+    PROOF_MAX_NUM_PVS, SP1SC,
 };
 
 use super::{MachineVerifyingKey, ShardOpenedValues, ShardProof};
-use crate::record::MachineRecord;
 
 /// The number of commitments in an SP1 shard proof, corresponding to the preprocessed and main
 /// commitments.
 pub const NUM_SP1_COMMITMENTS: usize = 2;
+
+/// The number of bits to grind in sampling the GKR randomness.
+pub const GKR_GRINDING_BITS: usize = 12;
 
 #[allow(clippy::disallowed_types)]
 /// The Multilinear PCS used in SP1 shard proofs, generic in the `IopCtx`.
@@ -426,34 +427,6 @@ where {
         Ok(())
     }
 
-    /// Verify the public values satisfy the required constraints, and return the cumulative sum.
-    pub fn verify_public_values(
-        &self,
-        challenge: GC::EF,
-        alpha: &GC::EF,
-        beta_seed: &Point<GC::EF>,
-        public_values: &[GC::F],
-    ) -> Result<GC::EF, ShardVerifierConfigError<GC, SC::Config>> {
-        let betas = slop_multilinear::partial_lagrange_blocking(beta_seed).into_buffer().into_vec();
-        let mut folder = VerifierPublicValuesConstraintFolder::<GC> {
-            perm_challenges: (alpha, &betas),
-            alpha: challenge,
-            accumulator: GC::EF::zero(),
-            local_interaction_digest: GC::EF::zero(),
-            public_values,
-            _marker: PhantomData,
-        };
-        Record::<_, SC>::eval_public_values(&mut folder);
-        if folder.accumulator == GC::EF::zero() {
-            Ok(folder.local_interaction_digest)
-        } else {
-            Err(ShardVerifierError::<
-                _,
-                <SC::Config as MultilinearPcsVerifier<GC>>::VerifierError,
-            >::InvalidPublicValues)
-        }
-    }
-
     /// Verify a shard proof.
     #[allow(clippy::too_many_lines)]
     pub fn verify_shard(
@@ -560,31 +533,6 @@ where {
             return Err(ShardVerifierError::InvalidShape);
         }
 
-        let max_interaction_arity = shard_chips
-            .iter()
-            .flat_map(|c| c.sends().iter().chain(c.receives().iter()))
-            .map(|i| i.values.len() + 1)
-            .max()
-            .unwrap();
-
-        let max_interaction_kinds_values = Record::<_, SC>::interactions_in_public_values()
-            .iter()
-            .map(|kind| kind.num_values() + 1)
-            .max()
-            .unwrap_or(1);
-        let beta_seed_dim =
-            max(max_interaction_arity, max_interaction_kinds_values).next_power_of_two().ilog2();
-
-        let alpha = challenger.sample_ext_element::<GC::EF>();
-        let beta_seed = (0..beta_seed_dim)
-            .map(|_| challenger.sample_ext_element::<GC::EF>())
-            .collect::<Point<_>>();
-        let pv_challenge = challenger.sample_ext_element::<GC::EF>();
-
-        let max_log_row_count = self.jagged_pcs_verifier.max_log_row_count;
-        let cumulative_sum =
-            -self.verify_public_values(pv_challenge, &alpha, &beta_seed, public_values)?;
-
         let degrees = opened_values
             .chips
             .iter()
@@ -631,14 +579,12 @@ where {
         }
 
         // Verify the logup GKR proof.
-        LogUpGkrVerifier::<_, _, SC::Air>::verify_logup_gkr(
+        LogUpGkrVerifier::<GC, SC>::verify_logup_gkr(
             &shard_chips,
             &degrees,
-            alpha,
-            &beta_seed,
-            cumulative_sum,
             max_log_row_count,
             logup_gkr_proof,
+            public_values,
             challenger,
         )
         .map_err(ShardVerifierError::GkrVerificationFailed)?;
