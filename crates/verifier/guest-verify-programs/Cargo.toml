@@ -31,4 +31,4 @@ blake3 = ["sp1-zkvm/blake3"]
 
 [patch.crates-io]
 sp1-lib = { path = "../../zkvm/lib" }
-bn = { git = "https://github.com/sp1-patches/bn", tag = "patch-0.6.0-sp1-6.0.0-rc.1", package = "substrate-bn" }
+bn = { git = "https://github.com/sp1-patches/bn", tag = "patch-0.6.0-sp1-6.0.0-rc.1", package = "substrate-bn-succinct-rs" }
