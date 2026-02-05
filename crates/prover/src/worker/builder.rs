@@ -7,9 +7,10 @@ use sp1_prover_types::{ArtifactClient, InMemoryArtifactClient};
 use crate::{
     verify::{SP1Verifier, VerifierRecursionVks},
     worker::{
-        LocalWorkerClient, SP1Controller, SP1ProverEngine, SP1Worker, SP1WorkerConfig, WorkerClient,
+        LocalWorkerClient, SP1Controller, SP1ProverEngine, SP1Worker, SP1WorkerConfig,
+        WorkerClient, WrapAirProverInit,
     },
-    CpuSP1ProverComponents, SP1ProverComponents,
+    CpuSP1ProverComponents, CpuWrapProverBuilder, SP1ProverComponents,
 };
 
 pub struct SP1WorkerBuilder<
@@ -21,7 +22,7 @@ pub struct SP1WorkerBuilder<
     core_air_prover_and_permits: Option<(Arc<C::CoreProver>, ProverSemaphore)>,
     compress_air_prover_and_permits: Option<(Arc<C::RecursionProver>, ProverSemaphore)>,
     shrink_air_prover_and_permits: Option<(Arc<C::RecursionProver>, ProverSemaphore)>,
-    wrap_air_prover_and_permits: Option<(Arc<C::WrapProver>, ProverSemaphore)>,
+    wrap_air_prover_and_permits: Option<WrapAirProverInit<C>>,
     artifact_client: Option<A>,
     worker_client: Option<W>,
 }
@@ -141,10 +142,10 @@ impl<C: SP1ProverComponents, A, W> SP1WorkerBuilder<C, A, W> {
     #[must_use]
     pub fn with_wrap_air_prover(
         mut self,
-        wrap_air_prover: Arc<C::WrapProver>,
+        wrap_air_prover: C::WrapProverBuilder,
         permit: ProverSemaphore,
     ) -> Self {
-        self.wrap_air_prover_and_permits = Some((wrap_air_prover, permit));
+        self.wrap_air_prover_and_permits = Some(WrapAirProverInit::new(wrap_air_prover, permit));
         self
     }
 
@@ -323,11 +324,10 @@ pub fn cpu_worker_builder() -> SP1WorkerBuilder<CpuSP1ProverComponents> {
     let shrink_verifier = CpuSP1ProverComponents::shrink_verifier();
     let shrink_prover = Arc::new(CpuShardProver::new(shrink_verifier.shard_verifier().clone()));
 
-    let wrap_verifier = CpuSP1ProverComponents::wrap_verifier();
-    let wrap_prover = Arc::new(CpuShardProver::new(wrap_verifier.shard_verifier().clone()));
-
     let artifact_client = InMemoryArtifactClient::new();
     let (worker_client, _) = LocalWorkerClient::init();
+
+    let wrap_prover = CpuWrapProverBuilder;
 
     SP1WorkerBuilder::new()
         .with_artifact_client(artifact_client)

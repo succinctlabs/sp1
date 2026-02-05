@@ -4,7 +4,9 @@ use sp1_gpu_cudart::{cuda_memory_info, TaskScope};
 
 use sp1_core_executor::{SP1CoreOpts, ELEMENT_THRESHOLD};
 use sp1_hypercube::prover::ProverSemaphore;
-use sp1_prover::{worker::SP1WorkerBuilder, SP1ProverComponents, CORE_LOG_STACKING_HEIGHT};
+use sp1_prover::{
+    worker::SP1WorkerBuilder, ReadyWrapProverBuilder, SP1ProverComponents, CORE_LOG_STACKING_HEIGHT,
+};
 
 pub const RECURSION_TRACE_ALLOCATION: usize = 1 << 27;
 pub const SHRINK_TRACE_ALLOCATION: usize = 1 << 25;
@@ -90,5 +92,5 @@ pub async fn cuda_worker_builder(scope: TaskScope) -> SP1WorkerBuilder<SP1CudaPr
         .with_core_air_prover(core_prover, prover_permits.clone())
         .with_compress_air_prover(recursion_prover, prover_permits.clone())
         .with_shrink_air_prover(shrink_prover, prover_permits.clone())
-        .with_wrap_air_prover(wrap_prover, prover_permits)
+        .with_wrap_air_prover(ReadyWrapProverBuilder::new(wrap_prover), prover_permits)
 }
