@@ -165,7 +165,6 @@ impl SplicingVM<'_> {
 
 impl<'a> SplicingVM<'a> {
     /// Create a new full-tracing VM from a minimal trace.
-    #[tracing::instrument(name = "SplicingVM::new", skip_all)]
     pub fn new<T: MinimalTrace>(
         trace: &'a T,
         program: Arc<Program>,

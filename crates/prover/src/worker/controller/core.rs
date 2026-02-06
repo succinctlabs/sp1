@@ -161,7 +161,7 @@ where
         // Create a channel to send the splicing handles to be awaited and their task_ids being
         // sent after being submitted to the splicing pipeline.
         let (splicing_submit_tx, mut splicing_submit_rx) = mpsc::unbounded_channel();
-        let span = tracing::info_span!("minimal executor");
+        let span = tracing::debug_span!("minimal executor");
 
         // Making the minimal executor blocks the rest of execution anyway, so we initialize it before spawning the rest of the tokio tasks.
         let mut minimal_executor = if let Some(cache) = &self.minimal_executor_cache {
@@ -197,7 +197,7 @@ where
                 memory_tx
                     .send(unsafe_memory)
                     .map_err(|_| anyhow::anyhow!("failed to send unsafe memory"))?;
-                tracing::info!("Starting minimal executor");
+                tracing::debug!("Starting minimal executor");
                 let now = std::time::Instant::now();
                 let mut chunk_count = 0;
                 while let Some(chunk) = minimal_executor.execute_chunk() {
@@ -251,8 +251,8 @@ where
                     chunk_count += 1;
                 }
                 let elapsed = now.elapsed().as_secs_f64();
-                tracing::info!(
-                    "Minimal Executor finished. elapsed: {}s, mhz: {}",
+                tracing::debug!(
+                    "minimal Executor finished. elapsed: {}s, mhz: {}",
                     elapsed,
                     minimal_executor.global_clk() as f64 / (elapsed * 1e6)
                 );

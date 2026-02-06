@@ -164,6 +164,7 @@ impl SP1LocalNode {
         Ok(output)
     }
 
+    #[instrument(name = "prove", skip_all, fields(mode = ?mode))]
     pub async fn prove_with_mode(
         &self,
         elf: &[u8],

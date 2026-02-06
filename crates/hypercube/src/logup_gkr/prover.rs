@@ -133,7 +133,7 @@ impl<GC: IopCtx, SC: ShardContext<GC>> GkrProverImpl<GC, SC> {
 
         // Run the GKR circuit and get the output.
         let (output, circuit) = {
-            let _span = tracing::info_span!("generate GKR circuit").entered();
+            let _span = tracing::debug_span!("generate GKR circuit").entered();
             self.trace_generator.generate_gkr_circuit(
                 chips,
                 preprocessed_traces.clone(),
@@ -166,7 +166,7 @@ impl<GC: IopCtx, SC: ShardContext<GC>> GkrProverImpl<GC, SC> {
         let first_denominator_eval = denominator.eval_at_eq(&first_point_eq).to_host().unwrap()[0];
 
         let (eval_point, round_proofs) = {
-            let _span = tracing::info_span!("prove GKR circuit").entered();
+            let _span = tracing::debug_span!("prove GKR circuit").entered();
             self.prove_gkr_circuit(
                 first_numerator_eval,
                 first_denominator_eval,

@@ -28,6 +28,7 @@ impl MockProver {
     /// Create a new mock prover.
     #[must_use]
     pub async fn new() -> Self {
+        tracing::info!("initializing mock prover");
         Self { inner: SP1LightNode::new().await }
     }
 
@@ -106,6 +107,7 @@ impl<'a> IntoFuture for MockProveRequest<'a> {
     fn into_future(self) -> Self::IntoFuture {
         Box::pin(async move {
             let BaseProveRequest { prover, pk, mode, stdin, context_builder } = self.base;
+            tracing::info!(mode = ?mode, "generating mock proof");
 
             // Override the context builder, in case there's anything added.
             let mut req = prover.execute(pk.elf.clone(), stdin);

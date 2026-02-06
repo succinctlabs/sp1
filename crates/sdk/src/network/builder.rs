@@ -167,6 +167,7 @@ impl NetworkProverBuilder {
     /// ```
     #[must_use]
     pub async fn build(self) -> NetworkProver {
+        tracing::info!("initializing network prover");
         let signer = if let Some(provided_signer) = self.signer {
             provided_signer
         } else {

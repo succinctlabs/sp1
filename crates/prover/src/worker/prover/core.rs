@@ -265,7 +265,7 @@ where
                             );
                             // Here, we reserve 1/8 of the shard size for common events. In other words,
                             // we assume that no event will take up more than 1/8 of the shard's events.
-                            let record = tracing::info_span!("allocating record").in_scope(|| {
+                            let record = tracing::debug_span!("allocating record").in_scope(|| {
                                 ExecutionRecord::new_preallocated(
                                     program.clone(),
                                     common_input.nonce,
@@ -458,7 +458,7 @@ where
         });
 
         // Generate dependencies on the main record.
-        let span = tracing::info_span!("generate dependencies");
+        let span = tracing::debug_span!("generate dependencies");
         let machine_clone = self.machine().clone();
         let record = tokio::task::spawn_blocking(move || {
             let _guard = span.enter();
@@ -470,7 +470,7 @@ where
         .map_err(|e| TaskError::Fatal(e.into()))?;
 
         // If this is not a Core proof request, spawn a task to get the recursion program.
-        let span = tracing::info_span!("get recursion program");
+        let span = tracing::debug_span!("get recursion program");
         let recursion_program_handle = if common_input.mode != ProofMode::Core {
             let handle = tokio::task::spawn_blocking({
                 let normalize_program_compiler = self.normalize_program_compiler.clone();
@@ -634,11 +634,11 @@ impl<A: ArtifactClient, C: SP1ProverComponents>
 
         let permits = self.permits.clone();
         let (_pk, vk) = self.core_prover.setup(program, permits).await;
-        tracing::info!("Setup completed for task {}", id);
+        tracing::debug!("setup completed for task {}", id);
 
         // Upload the vk
         self.artifact_client.upload(&output, vk).await.expect("failed to upload vk");
-        tracing::info!("Upload completed for artifact {}", output.to_id());
+        tracing::debug!("upload completed for artifact {}", output.to_id());
 
         // TODO: Add the busy time here.
         Ok((id, TaskMetadata::default()))

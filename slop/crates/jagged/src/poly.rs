@@ -277,7 +277,7 @@ impl JaggedLittlePolynomialProverParams {
         let col_ranges = ColRanges::new(&self.col_prefix_sums_usize, total_area);
 
         let result_chunk_size = max(total_area / num_cpus::get(), 1);
-        tracing::info_span!("compute jagged values").in_scope(|| {
+        tracing::debug_span!("compute jagged values").in_scope(|| {
             (result.chunks_mut(result_chunk_size).enumerate().par_bridge()).for_each(
                 |(chunk_idx, chunk)| {
                     let i = chunk_idx * result_chunk_size;

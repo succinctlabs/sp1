@@ -99,7 +99,7 @@ impl Clone for LocalWorkerClient {
 
 impl WorkerClient for LocalWorkerClient {
     async fn submit_task(&self, kind: TaskType, task: RawTaskRequest) -> anyhow::Result<TaskId> {
-        tracing::info!("submitting task of kind {kind:?}");
+        tracing::debug!("submitting task of kind {kind:?}");
         let task_id = LocalWorkerClientInner::create_id();
         // Add the task to the proof index.
         self.inner

@@ -39,6 +39,7 @@ impl<'a> IntoFuture for CudaProveRequest<'a> {
 
         let context = context_builder.build();
         Box::pin(async move {
+            tracing::info!(mode = ?mode, "starting proof generation");
             Ok(prover.prover.prove_with_mode(pk, stdin, context, proof_mode(mode)).await?.into())
         })
     }

@@ -228,7 +228,7 @@ pub async fn execute_with_options(
                 .map_err(|e| anyhow::anyhow!("Gas engine submission failed: {}", e))?;
             handle_sender.send(handle)?;
         }
-        tracing::debug!("Minimal executor finished in {} cycles", minimal_executor.global_clk());
+        tracing::debug!("minimal executor finished in {} cycles", minimal_executor.global_clk());
 
         // Extract cycle tracker data before consuming the executor
         #[cfg(feature = "profiling")]

@@ -138,7 +138,7 @@ where
                     Ok(())
                 }
             }
-            .instrument(tracing::info_span!("get splices to serialize")),
+            .instrument(tracing::debug_span!("get splices to serialize")),
         );
 
         // This task waits for prove shard tasks to be sent.
@@ -162,7 +162,7 @@ where
                     Ok::<_, ExecutionError>(())
                 }
             }
-            .instrument(tracing::info_span!("spawn prove shard tasks")),
+            .instrument(tracing::debug_span!("spawn prove shard tasks")),
         );
 
         let common_prover_input = self
@@ -174,7 +174,7 @@ where
             })?;
 
         // Spawn the task that splices the trace.
-        let span = tracing::info_span!("splicing trace chunk");
+        let span = tracing::debug_span!("splicing trace chunk");
         join_set.spawn_blocking(
             move || {
             let _guard = span.enter();
