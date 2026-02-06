@@ -1,3 +1,5 @@
+use core::fmt;
+
 use arrayvec::ArrayVec;
 use itertools::Itertools;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -10,6 +12,12 @@ const MAX_DIMENSIONS: usize = 3;
 pub struct Dimensions {
     sizes: ArrayVec<usize, MAX_DIMENSIONS>,
     strides: ArrayVec<usize, MAX_DIMENSIONS>,
+}
+
+impl fmt::Display for Dimensions {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Dimensions({})", self.sizes.iter().join(", "))
+    }
 }
 
 #[derive(Debug, Clone, Copy, Error)]
@@ -63,9 +71,50 @@ impl Dimensions {
         &self.strides
     }
 
+    /// Maps a multi-dimensional index to a single-dimensional buffer index.
+    ///
+    /// Panics if the index is out of bounds, or the length of the index does not match the number
+    /// of dimensions.
     #[inline]
     pub(crate) fn index_map(&self, index: impl AsRef<[usize]>) -> usize {
-        index.as_ref().iter().zip_eq(self.strides.iter()).map(|(i, s)| i * s).sum()
+        // The panic code path was put into a cold function to not bloat the
+        // call site.
+        #[inline(never)]
+        #[cold]
+        #[track_caller]
+        fn index_length_mismatch(buffer_index: &[usize], dimensions: &Dimensions) -> ! {
+            panic!(
+                "Index tuple {buffer_index:?} has length {} which is out of bounds for dimensions 
+                {dimensions} of length {}",
+                buffer_index.len(),
+                dimensions.sizes().len()
+            );
+        }
+
+        // The panic code path was put into a cold function to not bloat the
+        // call site.
+        #[inline(never)]
+        #[cold]
+        #[track_caller]
+        fn index_out_of_bounds_fail(buffer_index: &[usize], dimensions: &Dimensions) -> ! {
+            panic!("Index {buffer_index:?} is out of bounds for dimensions {dimensions}",);
+        }
+
+        if index.as_ref().len() != self.sizes.len() {
+            index_length_mismatch(index.as_ref(), self);
+        }
+
+        let mut buffer_index = 0;
+        for ((idx, stride), len) in
+            index.as_ref().iter().zip_eq(self.strides.iter()).zip_eq(self.sizes.iter())
+        {
+            if *idx >= *len {
+                index_out_of_bounds_fail(index.as_ref(), self);
+            }
+            buffer_index += idx * stride;
+        }
+
+        buffer_index
     }
 }
 
