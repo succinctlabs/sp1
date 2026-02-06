@@ -129,10 +129,7 @@ pub struct TraceChunkHeader {
 
 #[repr(C)]
 #[derive(Clone)]
-pub struct TraceChunkRaw {
-    inner: Arc<Mmap>,
-    hint_lens: Vec<usize>,
-}
+pub struct TraceChunkRaw(Arc<Mmap>);
 
 impl TraceChunkRaw {
     /// # Safety
@@ -140,8 +137,8 @@ impl TraceChunkRaw {
     /// - The mmap must be a valid [`TraceChunkHeader`].
     /// - The mmap must contain valid [`MemValue`]s in after the header.
     /// - The `num_mem_reads` must be the number of [`MemValue`]s in the mmap after the header.
-    pub unsafe fn new(inner: Mmap, hint_lens: Vec<usize>) -> Self {
-        Self { inner: Arc::new(inner), hint_lens }
+    pub unsafe fn new(inner: Mmap) -> Self {
+        Self(Arc::new(inner))
     }
 }
 
@@ -149,48 +146,44 @@ impl MinimalTrace for TraceChunkRaw {
     fn start_registers(&self) -> [u64; 32] {
         let offset = std::mem::offset_of!(TraceChunkHeader, start_registers);
 
-        unsafe { std::ptr::read_unaligned(self.inner.as_ptr().add(offset) as *const [u64; 32]) }
+        unsafe { std::ptr::read_unaligned(self.0.as_ptr().add(offset) as *const [u64; 32]) }
     }
 
     fn pc_start(&self) -> u64 {
         let offset = std::mem::offset_of!(TraceChunkHeader, pc_start);
 
-        unsafe { std::ptr::read_unaligned(self.inner.as_ptr().add(offset) as *const u64) }
+        unsafe { std::ptr::read_unaligned(self.0.as_ptr().add(offset) as *const u64) }
     }
 
     fn clk_start(&self) -> u64 {
         let offset = std::mem::offset_of!(TraceChunkHeader, clk_start);
 
-        unsafe { std::ptr::read_unaligned(self.inner.as_ptr().add(offset) as *const u64) }
+        unsafe { std::ptr::read_unaligned(self.0.as_ptr().add(offset) as *const u64) }
     }
 
     fn clk_end(&self) -> u64 {
         let offset = std::mem::offset_of!(TraceChunkHeader, clk_end);
 
-        unsafe { std::ptr::read_unaligned(self.inner.as_ptr().add(offset) as *const u64) }
+        unsafe { std::ptr::read_unaligned(self.0.as_ptr().add(offset) as *const u64) }
     }
 
     fn num_mem_reads(&self) -> u64 {
         let offset = std::mem::offset_of!(TraceChunkHeader, num_mem_reads);
 
-        unsafe { std::ptr::read_unaligned(self.inner.as_ptr().add(offset) as *const u64) }
+        unsafe { std::ptr::read_unaligned(self.0.as_ptr().add(offset) as *const u64) }
     }
 
     fn mem_reads(&self) -> MemReads<'_> {
         let header_end = std::mem::size_of::<TraceChunkHeader>();
         let len = self.num_mem_reads() as usize;
 
-        debug_assert!(self.inner.len() - header_end >= len);
+        debug_assert!(self.0.len() - header_end >= len);
 
         // SAFETY:
         // - The memory is valid assuming num_mem_reads is correct.
         // - The memory is technically always valid for reads since all bitpatterns are valid for
         //   `MemValue`.
-        unsafe { MemReads::new(self.inner.as_ptr().add(header_end) as *const MemValue, len) }
-    }
-
-    fn hint_lens(&self) -> &[usize] {
-        &self.hint_lens
+        unsafe { MemReads::new(self.0.as_ptr().add(header_end) as *const MemValue, len) }
     }
 }
 
@@ -279,7 +272,6 @@ pub struct TraceChunk {
     pub pc_start: u64,
     pub clk_start: u64,
     pub clk_end: u64,
-    pub hint_lens: Vec<usize>,
     #[serde(serialize_with = "ser::serialize_mem_reads")]
     #[serde(deserialize_with = "ser::deserialize_mem_reads")]
     pub mem_reads: Arc<[MemValue]>,
@@ -287,7 +279,7 @@ pub struct TraceChunk {
 
 impl From<TraceChunkRaw> for TraceChunk {
     fn from(raw: TraceChunkRaw) -> Self {
-        TraceChunk::copy_from_bytes(raw.hint_lens, raw.inner.as_ref())
+        TraceChunk::copy_from_bytes(raw.0.as_ref())
     }
 }
 
@@ -298,7 +290,7 @@ impl TraceChunk {
     /// # Note:
     /// This method will panic if the buffer is not large enough,
     /// or the number of reads causes an overflow.
-    pub fn copy_from_bytes(hint_lens: Vec<usize>, src: &[u8]) -> Self {
+    pub fn copy_from_bytes(src: &[u8]) -> Self {
         const HDR: usize = size_of::<TraceChunkHeader>();
 
         /* ---------- 1. header must fit ---------- */
@@ -348,7 +340,6 @@ impl TraceChunk {
             pc_start: raw.pc_start,
             clk_start: raw.clk_start,
             clk_end: raw.clk_end,
-            hint_lens,
             // SAFETY: We know the memory is initialized, so we can assume it.
             mem_reads: unsafe { mem_reads.assume_init() },
         }
@@ -373,8 +364,6 @@ pub trait MinimalTrace: Clone + Send + Sync + 'static {
     fn num_mem_reads(&self) -> u64;
 
     fn mem_reads(&self) -> MemReads<'_>;
-
-    fn hint_lens(&self) -> &[usize];
 }
 
 impl MinimalTrace for TraceChunk {
@@ -404,10 +393,6 @@ impl MinimalTrace for TraceChunk {
         //   `MemValue`.
         // - the length comes directly from the Vec, which we know to be valid.
         unsafe { MemReads::new(self.mem_reads.as_ptr(), self.mem_reads.len()) }
-    }
-
-    fn hint_lens(&self) -> &[usize] {
-        &self.hint_lens
     }
 }
 
@@ -441,7 +426,6 @@ mod ser {
             pc_start: 6,
             clk_start: 7,
             clk_end: 8,
-            hint_lens: vec![1, 2, 3],
             mem_reads,
         };
 

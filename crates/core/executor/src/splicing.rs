@@ -28,8 +28,6 @@ pub struct SplicingVM<'a> {
     pub shape_checker: ShapeChecker,
     /// The addresses that have been touched.
     pub touched_addresses: &'a mut CompressedMemory,
-    /// The index of the hint lens the next shard will use.
-    pub hint_lens_idx: usize,
 }
 
 impl SplicingVM<'_> {
@@ -152,7 +150,6 @@ impl SplicingVM<'_> {
             self.core.pc(),
             self.core.clk(),
             total_mem_reads as usize - self.core.mem_reads.len(),
-            self.hint_lens_idx,
         ))
     }
 
@@ -177,7 +174,6 @@ impl<'a> SplicingVM<'a> {
         Self {
             core: CoreVM::new(trace, program, opts, proof_nonce),
             touched_addresses,
-            hint_lens_idx: 0,
             shape_checker: ShapeChecker::new(program_len, trace.clk_start(), sharding_threshold),
         }
     }
@@ -261,10 +257,6 @@ impl<'a> SplicingVM<'a> {
 
         let _ = CoreVM::execute_ecall(self, instruction, code)?;
 
-        if code == SyscallCode::HINT_LEN {
-            self.hint_lens_idx += 1;
-        }
-
         Ok(())
     }
 }
@@ -336,7 +328,6 @@ pub struct SplicedMinimalTrace<T: MinimalTrace> {
     start_pc: u64,
     start_clk: u64,
     memory_reads_idx: usize,
-    hint_lens_idx: usize,
     last_clk: u64,
     // Normally unused but can be set for the cluster.
     last_mem_reads_idx: usize,
@@ -351,7 +342,6 @@ impl<T: MinimalTrace> SplicedMinimalTrace<T> {
         start_pc: u64,
         start_clk: u64,
         memory_reads_idx: usize,
-        hint_lens_idx: usize,
     ) -> Self {
         Self {
             inner,
@@ -359,7 +349,6 @@ impl<T: MinimalTrace> SplicedMinimalTrace<T> {
             start_pc,
             start_clk,
             memory_reads_idx,
-            hint_lens_idx,
             last_clk: 0,
             last_mem_reads_idx: 0,
         }
@@ -379,9 +368,8 @@ impl<T: MinimalTrace> SplicedMinimalTrace<T> {
         tracing::trace!("start_pc: {}", start_pc);
         tracing::trace!("start_clk: {}", start_clk);
         tracing::trace!("trace.num_mem_reads(): {}", trace.num_mem_reads());
-        tracing::trace!("trace.hint_lens(): {:?}", trace.hint_lens().len());
 
-        Self::new(trace, start_registers, start_pc, start_clk, 0, 0)
+        Self::new(trace, start_registers, start_pc, start_clk, 0)
     }
 
     /// Set the last clock of the spliced minimal trace.
@@ -422,12 +410,6 @@ impl<T: MinimalTrace> MinimalTrace for SplicedMinimalTrace<T> {
 
         reads
     }
-
-    fn hint_lens(&self) -> &[usize] {
-        let slice = self.inner.hint_lens();
-
-        &slice[self.hint_lens_idx..]
-    }
 }
 
 impl<T: MinimalTrace> Serialize for SplicedMinimalTrace<T> {
@@ -449,9 +431,6 @@ impl<T: MinimalTrace> Serialize for SplicedMinimalTrace<T> {
             pc_start: self.start_pc,
             clk_start: self.start_clk,
             clk_end: self.last_clk,
-            // Just copy the whole hint_lens buffer,
-            // its small enough that sending the whole buffer is fine (for now).
-            hint_lens: self.hint_lens().to_vec(),
             mem_reads,
         };
 
@@ -472,11 +451,10 @@ mod tests {
             pc_start: 2,
             clk_start: 3,
             clk_end: 4,
-            hint_lens: vec![5, 6, 7],
             mem_reads: Arc::new([MemValue { clk: 8, value: 9 }, MemValue { clk: 10, value: 11 }]),
         };
 
-        let mut trace = SplicedMinimalTrace::new(trace_chunk, [2; 32], 2, 3, 1, 1);
+        let mut trace = SplicedMinimalTrace::new(trace_chunk, [2; 32], 2, 3, 1);
         trace.set_last_mem_reads_idx(2);
         trace.set_last_clk(2);
 
@@ -488,7 +466,6 @@ mod tests {
             pc_start: 2,
             clk_start: 3,
             clk_end: 2,
-            hint_lens: vec![6, 7],
             mem_reads: Arc::new([MemValue { clk: 10, value: 11 }]),
         };
 

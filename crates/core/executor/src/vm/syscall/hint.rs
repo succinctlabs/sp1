@@ -6,7 +6,6 @@ pub(crate) fn hint_len_syscall<'a, RT: SyscallRuntime<'a>>(
     _: SyscallCode,
     _: u64,
     _: u64,
-) -> Option<u64> {
-    let core_mut = ctx.core_mut();
-    core_mut.hint_lens.next().map_or(Some(u64::MAX), |len| Some(*len as u64))
+) -> u64 {
+    ctx.core_mut().mem_reads().next().expect("Hint read out of bounds").value
 }

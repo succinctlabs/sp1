@@ -332,9 +332,6 @@ impl JitFunction {
         let mem_ptr = self.memory.as_mut_ptr().add(align_offset);
         let tracing = self.trace_buf_size > 0;
 
-        // We want to skip any hints that the previous chunk read.
-        let start_hint_lens = self.hints.len();
-
         // SAFETY:
         // - The jump table is valid for the duration of the function call, its owned by self.
         // - The memory is valid for the duration of the function call, its owned by self.
@@ -372,15 +369,6 @@ impl JitFunction {
 
         tracing.then_some(TraceChunkRaw::new(
             trace_buf.make_read_only().expect("Failed to make trace buf read only"),
-            // For each chunk, we only want to include the hints that the previous chunk did not
-            // read. We also include any unread hints just in case we stopped in
-            // between a hint_len and hint_read.
-            self.hints
-                .iter()
-                .skip(start_hint_lens)
-                .map(|(_, hint)| hint.len())
-                .chain(self.input_buffer.iter().map(|input| input.len()))
-                .collect(),
         ))
     }
 
