@@ -17,7 +17,7 @@ To get started, make sure you have [Rust](https://www.rust-lang.org/tools/instal
 
 ## Security
 
-SP1 has undergone audits from [Veridise](https://www.veridise.com/), [Cantina](https://cantina.xyz/),
+SP1 has undergone audits from [Veridise](https://www.veridise.com/), [Cantina](https://cantina.xyz/), [Zellic](https://www.zellic.io/),
 and [KALOS](https://kalos.xyz/) and is recommended for production use. The audit reports are available [here](./audits).
 
 ## Supported Rust Versions (MSRV)
