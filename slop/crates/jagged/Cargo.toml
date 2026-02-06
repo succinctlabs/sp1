@@ -1,6 +1,7 @@
 [package]
 name = "slop-jagged"
-description = "TODO"
+description = "Jagged sparse-to-dense polynomial adapter for SLOP"
+readme = "README.md"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

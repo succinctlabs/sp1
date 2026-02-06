@@ -1,6 +1,7 @@
 [package]
 name = "slop-fri"
-description = "TODO"
+description = "Re-exports p3_fri from Plonky3 for SLOP"
+readme = "README.md"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

@@ -1,6 +1,6 @@
 [package]
 name = "sp1-zkvm"
-description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
+description = "The SP1 zkVM runtime and standard library"
 readme = "../../../README.md"
 version = { workspace = true }
 edition = { workspace = true }

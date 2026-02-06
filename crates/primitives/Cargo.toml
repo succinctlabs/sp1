@@ -1,6 +1,6 @@
 [package]
 name = "sp1-primitives"
-description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
+description = "Core primitive types for SP1"
 readme = "../../README.md"
 
 # Note: The release workflow depends on `sp1-build` version being set by the workspace, and that the `sp1-build` version refers to the canonical version.

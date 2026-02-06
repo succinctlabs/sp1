@@ -1,6 +1,6 @@
 [package]
 name = "sp1-gpu-utils"
-description = "TODO"
+description = "Utility functions for SP1 GPU operations"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

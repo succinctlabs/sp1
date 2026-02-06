@@ -1,6 +1,6 @@
 [package]
 name = "sp1-recursion-circuit"
-description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
+description = "Recursion circuit for SP1 proof aggregation"
 readme = "../../../README.md"
 version = { workspace = true }
 edition = { workspace = true }

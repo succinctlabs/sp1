@@ -1,6 +1,7 @@
 [package]
 name = "slop-sumcheck"
-description = "TODO"
+description = "Sumcheck protocol implementation for multilinear polynomials"
+readme = "README.md"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
