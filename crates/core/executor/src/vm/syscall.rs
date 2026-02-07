@@ -157,7 +157,7 @@ pub(crate) fn sp1_ecall_handler<'a, RT: SyscallRuntime<'a>>(
     let ret = match code {
         // Noop: This method just writes to uninitialized memory.
         // Since the tracing VM relies on oracled memory, this method is a no-op.
-        SyscallCode::HINT_LEN => Some(hint::hint_len_syscall(rt, code, args1, args2)),
+        SyscallCode::HINT_LEN => hint::hint_len_syscall(rt, code, args1, args2),
         SyscallCode::HALT => halt::halt_syscall(rt, code, args1, args2),
         SyscallCode::COMMIT => commit::commit_syscall(rt, code, args1, args2),
         SyscallCode::COMMIT_DEFERRED_PROOFS => {
