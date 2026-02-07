@@ -97,7 +97,7 @@ pub fn install_circuit_artifacts(build_dir: PathBuf, artifacts_type: &str) {
     // Extract the tarball to the build directory.
     let mut res = Command::new("tar")
         .args([
-            "-Pxzf",
+            "-xzf",
             artifacts_tar_gz_file.path().to_str().unwrap(),
             "-C",
             build_dir.to_str().unwrap(),
