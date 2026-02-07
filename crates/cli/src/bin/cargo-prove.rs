@@ -1,7 +1,10 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
-use sp1_cli::{commands::install_toolchain::InstallToolchainCmd, SP1_VERSION_MESSAGE};
+use sp1_cli::{
+    commands::{build_toolchain::BuildToolchainCmd, install_toolchain::InstallToolchainCmd},
+    SP1_VERSION_MESSAGE,
+};
 
 #[cfg(feature = "full")]
 use sp1_cli::commands::{build::BuildCmd, new::NewCmd, vkey::VkeyCmd};
@@ -27,6 +30,7 @@ pub enum ProveCliCommands {
     Build(BuildCmd),
     #[cfg(feature = "full")]
     Vkey(VkeyCmd),
+    BuildToolchain(BuildToolchainCmd),
     InstallToolchain(InstallToolchainCmd),
 }
 
@@ -41,6 +45,7 @@ async fn main() -> Result<()> {
         ProveCliCommands::Build(cmd) => cmd.run(),
         #[cfg(feature = "full")]
         ProveCliCommands::Vkey(cmd) => cmd.run().await,
+        ProveCliCommands::BuildToolchain(cmd) => cmd.run(),
         ProveCliCommands::InstallToolchain(cmd) => cmd.run().await,
     }
 }
