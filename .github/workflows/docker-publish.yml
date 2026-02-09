@@ -3,28 +3,38 @@
 name: Docker Publish CLI
 
 on:
-  schedule:
-    - cron: "0 0 * * *"
-  # Trigger without any parameters a proactive rebuild
   workflow_dispatch:
     inputs:
-      image_sp1:
-        description: "Override the image name to succinctlabs/sp1"
+      docker-tag:
+        description: "Tag to push"
+        type: string
+        required: true
+      use-current-repo-name:
+        description: "Use the current repository name as the docker image name"
         type: boolean
-      tag_override:
-        description: "Override the tag"
+        default: false
+      dry-run:
+        description: "Dry run - does not push the image"
+        type: boolean
+        default: false
   workflow_call:
     inputs:
-      push:
-        description: 'Push the image to registry'
+      docker-tag:
+        description: "Tag to push"
+        type: string
+        required: true
+      use-current-repo-name:
+        description: "Use the current repository name as the docker image name"
         type: boolean
-        default: true
+        default: false
+      dry-run:
+        description: "Dry run - does not push the image"
+        type: boolean
+        default: false
 
 env:
   REGISTRY: ghcr.io
-  # Will resolve to succinctlabs/sp1
-  IMAGE_NAME: ${{ github.event.inputs.image_sp1 && 'succinctlabs/sp1' || github.repository }}
-  TAG_OVERRIDE: ${{ github.event.inputs.tag_override || '' }}
+  IMAGE_NAME: ${{ inputs.use-current-repo-name && github.repository || 'succinctlabs/sp1' }}
 
 jobs:
   container:
@@ -72,19 +82,8 @@ jobs:
       - name: Finalize Docker Metadata
         id: docker_tagging
         run: |
-          if [[ "$TAG_OVERRIDE" != "" ]]; then
-            echo "Overriding tag to $TAG_OVERRIDE"
-            echo "docker_tags=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$TAG_OVERRIDE" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.event_name }}" == 'schedule' ]]; then
-            echo "cron trigger, assigning nightly tag"
-            echo "docker_tags=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:nightly,${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:nightly-${GITHUB_SHA}" >> $GITHUB_OUTPUT
-          elif [[ "${GITHUB_REF##*/}" == "main" ]] || [[ ${GITHUB_REF##*/} == "master" ]]; then
-            echo "manual trigger from master/main branch, assigning latest tag"
-            echo "docker_tags=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${GITHUB_REF##*/},${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_OUTPUT
-          else
-            echo "Neither scheduled nor manual release from main branch. Just tagging as branch name"
-            echo "docker_tags=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${GITHUB_REF##*/}" >> $GITHUB_OUTPUT
-          fi
+          echo "Assigning tags :${{ inputs.docker-tag }} and :latest"
+          echo "docker_tags=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.docker-tag }},${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_OUTPUT
 
       # Log docker metadata to explicitly know what is being pushed
       - name: Inspect Docker Metadata
@@ -100,7 +99,7 @@ jobs:
         with:
           context: ./
           file: ./Dockerfile.build
-          push: ${{ inputs.push != false }}
+          push: ${{ inputs.dry-run != true }}
           tags: ${{ steps.docker_tagging.outputs.docker_tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
