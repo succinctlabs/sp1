@@ -4,8 +4,8 @@
 //! the value of the `SP1_PROVER` environment variable.
 
 use crate::blocking::{
-    cuda::builder::CudaProverBuilder, prover::BaseProveRequest, CpuProver, CudaProver,
-    LightProver, MockProver, Prover,
+    cuda::builder::CudaProverBuilder, prover::BaseProveRequest, CpuProver, CudaProver, LightProver,
+    MockProver, Prover,
 };
 use sp1_core_executor::SP1CoreOpts;
 
