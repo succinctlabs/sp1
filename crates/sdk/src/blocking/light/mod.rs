@@ -79,17 +79,9 @@ impl<'a> ProveRequest<'a, LightProver> for LightProveRequest<'a> {
     }
 
     fn run(self) -> Result<SP1ProofWithPublicValues, CPUProverError> {
-        let BaseProveRequest { prover, pk, mode, stdin, context_builder } = self.base;
-        tracing::info!(mode = ?mode, "generating mock proof (light)");
-        let mut req = prover.execute(pk.elf.clone(), stdin);
-        req.context_builder = context_builder;
-        let (public_values, _) = req.run()?;
-        Ok(SP1ProofWithPublicValues::create_mock_proof(
-            &pk.vk,
-            public_values,
-            mode,
-            prover.version(),
-        ))
+        Err(CPUProverError::Unexpected(anyhow::anyhow!(
+            "Use LightProver for executing and verifying only. For proving, use CpuProver"
+        )))
     }
 }
 
@@ -103,38 +95,30 @@ mod tests {
 
     use super::LightProver;
 
-    /// Test that the light prover can generate mock proofs.
+    /// Test that prove() returns an error.
     #[test]
-    fn test_light_proof_generation() {
+    fn test_light_prove_errors() {
         setup_logger();
         let prover = LightProver::new();
         let pk = prover.setup(test_artifacts::FIBONACCI_ELF).expect("failed to setup proving key");
 
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
-        let core_proof =
-            prover.prove(&pk, stdin).core().run().expect("failed to create light Core proof");
-
-        // Light prover uses real verification, which will fail on mock proofs.
-        assert!(prover.verify(&core_proof, &pk.vk, None).is_err());
+        let result = prover.prove(&pk, stdin).core().run();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("executing and verifying only"));
     }
 
-    /// Test that light proofs have correct public values.
+    /// Test that execute works.
     #[test]
-    fn test_light_proof_public_values() {
+    fn test_light_execute() {
         setup_logger();
         let prover = LightProver::new();
-        let pk = prover.setup(test_artifacts::FIBONACCI_ELF).expect("failed to setup proving key");
+        let elf = test_artifacts::FIBONACCI_ELF;
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
-
-        let (expected_pv, _) =
-            prover.execute(pk.elf.clone(), stdin.clone()).run().expect("failed to execute program");
-
-        let proof =
-            prover.prove(&pk, stdin).core().run().expect("failed to create light Core proof");
-
-        assert_eq!(proof.public_values.as_slice(), expected_pv.as_slice());
+        let (pv, _) = prover.execute(elf, stdin).run().expect("failed to execute program");
+        assert!(!pv.as_slice().is_empty());
     }
 
     /// Test that builder syntax works: ProverClient::builder().light().build()
@@ -145,7 +129,7 @@ mod tests {
         let pk = prover.setup(test_artifacts::FIBONACCI_ELF).expect("failed to setup proving key");
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
-        let _proof =
-            prover.prove(&pk, stdin).core().run().expect("failed to create light Core proof");
+        // prove should error
+        assert!(prover.prove(&pk, stdin).core().run().is_err());
     }
 }

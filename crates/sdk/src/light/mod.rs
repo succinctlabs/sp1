@@ -90,19 +90,8 @@ impl<'a> IntoFuture for LightProveRequest<'a> {
 
     fn into_future(self) -> Self::IntoFuture {
         Box::pin(async move {
-            let BaseProveRequest { prover, pk, mode, stdin, context_builder } = self.base;
-            tracing::info!(mode = ?mode, "generating mock proof (light)");
-
-            let mut req = prover.execute(pk.elf.clone(), stdin);
-            req.context_builder = context_builder;
-
-            let (public_values, _) = req.await?;
-
-            Ok(SP1ProofWithPublicValues::create_mock_proof(
-                &pk.vk,
-                public_values,
-                mode,
-                prover.version(),
+            Err(anyhow::anyhow!(
+                "Use LightProver for executing and verifying only. For proving, use CpuProver"
             ))
         })
     }
@@ -112,70 +101,31 @@ impl<'a> IntoFuture for LightProveRequest<'a> {
 mod tests {
     use crate::{prover::ProveRequest, utils::setup_logger, LightProver, Prover, SP1Stdin};
 
-    /// Test that the light prover can generate mock proofs for all proof types.
+    /// Test that prove() returns an error.
     #[tokio::test]
-    async fn test_light_proof_all_types() {
+    async fn test_light_prove_errors() {
         setup_logger();
         let prover = LightProver::new().await;
         let pk =
             prover.setup(test_artifacts::FIBONACCI_ELF).await.expect("failed to setup proving key");
 
-        // Test Core proof.
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
-        let core_proof =
-            prover.prove(&pk, stdin).core().await.expect("failed to create light Core proof");
-        // Light prover uses real verification, which will fail on mock proofs.
-        assert!(prover.verify(&core_proof, &pk.vk, None).is_err());
-
-        // Test Compressed proof.
-        let mut stdin = SP1Stdin::new();
-        stdin.write(&10usize);
-        let compressed_proof = prover
-            .prove(&pk, stdin)
-            .compressed()
-            .await
-            .expect("failed to create light Compressed proof");
-        assert!(prover.verify(&compressed_proof, &pk.vk, None).is_err());
-
-        // Test Plonk proof.
-        let mut stdin = SP1Stdin::new();
-        stdin.write(&10usize);
-        let plonk_proof =
-            prover.prove(&pk, stdin).plonk().await.expect("failed to create light Plonk proof");
-        assert!(prover.verify(&plonk_proof, &pk.vk, None).is_err());
-
-        // Test Groth16 proof.
-        let mut stdin = SP1Stdin::new();
-        stdin.write(&10usize);
-        let groth16_proof = prover
-            .prove(&pk, stdin)
-            .groth16()
-            .await
-            .expect("failed to create light Groth16 proof");
-        assert!(prover.verify(&groth16_proof, &pk.vk, None).is_err());
+        let result = prover.prove(&pk, stdin).core().await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("executing and verifying only"));
     }
 
-    /// Test that light proofs have correct public values.
+    /// Test that execute works.
     #[tokio::test]
-    async fn test_light_proof_public_values() {
+    async fn test_light_execute() {
         setup_logger();
         let prover = LightProver::new().await;
-        let pk =
-            prover.setup(test_artifacts::FIBONACCI_ELF).await.expect("failed to setup proving key");
+        let elf = test_artifacts::FIBONACCI_ELF;
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
-
-        // Execute first to get expected public values.
-        let (expected_pv, _) =
-            prover.execute(pk.elf.clone(), stdin.clone()).await.expect("failed to execute program");
-
-        // Create a light core proof.
-        let proof =
-            prover.prove(&pk, stdin).core().await.expect("failed to create light Core proof");
-
-        // Verify public values match.
-        assert_eq!(proof.public_values.as_slice(), expected_pv.as_slice());
+        let (pv, _) = prover.execute(elf, stdin).await.expect("failed to execute program");
+        assert!(!pv.as_slice().is_empty());
     }
 
     /// Test that builder syntax works: ProverClient::builder().light().build().await
@@ -187,7 +137,7 @@ mod tests {
             prover.setup(test_artifacts::FIBONACCI_ELF).await.expect("failed to setup proving key");
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
-        let _proof =
-            prover.prove(&pk, stdin).core().await.expect("failed to create light Core proof");
+        // prove should error
+        assert!(prover.prove(&pk, stdin).core().await.is_err());
     }
 }
