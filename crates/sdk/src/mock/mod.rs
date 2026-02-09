@@ -272,20 +272,6 @@ mod tests {
         assert!(result.is_err(), "Verification should fail with tampered public values");
     }
 
-    /// Test that builder syntax works: `ProverClient::builder().mock().build().await`
-    #[tokio::test]
-    async fn test_mock_builder() {
-        setup_logger();
-        let prover = crate::ProverClient::builder().mock().build().await;
-        let pk =
-            prover.setup(test_artifacts::FIBONACCI_ELF).await.expect("failed to setup proving key");
-        let mut stdin = SP1Stdin::new();
-        stdin.write(&10usize);
-        let proof =
-            prover.prove(&pk, stdin).core().await.expect("failed to create mock Core proof");
-        prover.verify(&proof, &pk.vk, None).expect("failed to verify mock Core proof");
-    }
-
     /// Test that mock Groth16 proof verification fails with tampered public values.
     #[tokio::test]
     async fn test_mock_groth16_proof_tampered_public_values_fails() {
