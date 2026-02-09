@@ -25,7 +25,8 @@ on:
         default: false
 
 jobs:
-  container:
+  docker-publish-cli:
+    name: docker-publish-cli
     runs-on: ubuntu-latest
     # https://docs.github.com/en/actions/reference/authentication-in-a-workflow
     permissions:

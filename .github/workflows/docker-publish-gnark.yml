@@ -25,6 +25,13 @@ on:
 
 jobs:
   docker-publish-gnark:
+    name: docker-publish-gnark-${{ matrix.arch }}
+    runs-on: [runs-on, "runner=${{ matrix.runner }}", spot=false, "run-id=${{ github.run_id }}"]
+    permissions:
+      id-token: write
+      packages: write
+      contents: read
+
     strategy:
       matrix:
         include:
@@ -34,11 +41,6 @@ jobs:
           - arch: arm64
             platform: linux/arm64
             runner: 64cpu-linux-arm64
-    runs-on: [runs-on, "runner=${{ matrix.runner }}", spot=false, "run-id=${{ github.run_id }}"]
-    permissions:
-      id-token: write
-      packages: write
-      contents: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
