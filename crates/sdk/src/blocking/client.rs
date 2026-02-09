@@ -93,7 +93,7 @@ impl ProverClientBuilder {
         MockProverBuilder::new()
     }
 
-    /// Builds a [`LightProver`] that generates mock proofs but performs real verification.
+    /// Builds a [`LightProver`] that only executes and verifies but does not generate proofs.
     #[must_use]
     #[allow(clippy::unused_self)]
     pub fn light(&self) -> LightProverBuilder {

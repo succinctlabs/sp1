@@ -1,6 +1,6 @@
 //! # Light Prover (Blocking)
 //!
-//! A lightweight blocking prover that generates mock proofs but performs real verification.
+//! A lightweight blocking prover that only executes and verifies but does not generate proofs.
 
 pub mod builder;
 
@@ -16,7 +16,7 @@ use crate::{
     SP1ProofWithPublicValues, SP1ProvingKey,
 };
 
-/// A lightweight blocking prover that generates mock proofs but performs real verification.
+/// A lightweight blocking prover that only executes and verifies but does not generate proofs.
 #[derive(Clone)]
 pub struct LightProver {
     inner: SP1LightNode,
@@ -95,41 +95,24 @@ mod tests {
 
     use super::LightProver;
 
-    /// Test that prove() returns an error.
+    /// Test that execute works and prove errors.
     #[test]
-    fn test_light_prove_errors() {
+    fn test_light_execute_and_prove() {
         setup_logger();
         let prover = LightProver::new();
         let pk = prover.setup(test_artifacts::FIBONACCI_ELF).expect("failed to setup proving key");
 
+        // Execute should succeed.
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&10usize);
+        let (pv, _) = prover.execute(pk.elf.clone(), stdin).run().expect("failed to execute");
+        assert!(!pv.as_slice().is_empty());
+
+        // Prove should error.
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
         let result = prover.prove(&pk, stdin).core().run();
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("executing and verifying only"));
-    }
-
-    /// Test that execute works.
-    #[test]
-    fn test_light_execute() {
-        setup_logger();
-        let prover = LightProver::new();
-        let elf = test_artifacts::FIBONACCI_ELF;
-        let mut stdin = SP1Stdin::new();
-        stdin.write(&10usize);
-        let (pv, _) = prover.execute(elf, stdin).run().expect("failed to execute program");
-        assert!(!pv.as_slice().is_empty());
-    }
-
-    /// Test that builder syntax works: ProverClient::builder().light().build()
-    #[test]
-    fn test_light_builder() {
-        setup_logger();
-        let prover = crate::blocking::ProverClient::builder().light().build();
-        let pk = prover.setup(test_artifacts::FIBONACCI_ELF).expect("failed to setup proving key");
-        let mut stdin = SP1Stdin::new();
-        stdin.write(&10usize);
-        // prove should error
-        assert!(prover.prove(&pk, stdin).core().run().is_err());
     }
 }

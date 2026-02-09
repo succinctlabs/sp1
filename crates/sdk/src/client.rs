@@ -114,7 +114,7 @@ impl ProverClientBuilder {
         MockProverBuilder::new()
     }
 
-    /// Builds a [`LightProver`] that generates mock proofs but performs real verification.
+    /// Builds a [`LightProver`] that only executes and verifies but does not generate proofs.
     ///
     /// # Example
     /// ```no_run

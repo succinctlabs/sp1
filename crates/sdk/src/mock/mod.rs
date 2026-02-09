@@ -272,7 +272,7 @@ mod tests {
         assert!(result.is_err(), "Verification should fail with tampered public values");
     }
 
-    /// Test that builder syntax works: ProverClient::builder().mock().build().await
+    /// Test that builder syntax works: `ProverClient::builder().mock().build().await`
     #[tokio::test]
     async fn test_mock_builder() {
         setup_logger();

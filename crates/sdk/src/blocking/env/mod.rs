@@ -24,7 +24,7 @@ use sp1_prover::worker::SP1NodeCore;
 pub enum EnvProver {
     /// A mock prover that does not prove anything.
     Mock(MockProver),
-    /// A light prover that generates mock proofs but performs real verification.
+    /// A light prover that only executes and verifies but does not generate proofs.
     Light(LightProver),
     /// A CPU prover.
     Cpu(CpuProver),

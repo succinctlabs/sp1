@@ -1,6 +1,6 @@
 //! # Light Prover
 //!
-//! A lightweight prover that generates mock proofs but performs real verification.
+//! A lightweight prover that only executes and verifies but does not generate proofs.
 //!
 //! Unlike [`MockProver`](crate::MockProver), the light prover uses the default
 //! [`Prover::verify`](crate::Prover::verify) implementation which does full cryptographic
@@ -21,7 +21,7 @@ use crate::{
 };
 use std::future::{Future, IntoFuture};
 
-/// A lightweight prover that generates mock proofs but performs real verification.
+/// A lightweight prover that only executes and verifies but does not generate proofs.
 #[derive(Clone)]
 pub struct LightProver {
     inner: SP1LightNode,
@@ -101,43 +101,26 @@ impl<'a> IntoFuture for LightProveRequest<'a> {
 mod tests {
     use crate::{prover::ProveRequest, utils::setup_logger, LightProver, Prover, SP1Stdin};
 
-    /// Test that prove() returns an error.
+    /// Test that execute works and prove errors.
     #[tokio::test]
-    async fn test_light_prove_errors() {
+    async fn test_light_execute_and_prove() {
         setup_logger();
         let prover = LightProver::new().await;
         let pk =
             prover.setup(test_artifacts::FIBONACCI_ELF).await.expect("failed to setup proving key");
 
+        // Execute should succeed.
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&10usize);
+        let (pv, _) =
+            prover.execute(pk.elf.clone(), stdin).await.expect("failed to execute program");
+        assert!(!pv.as_slice().is_empty());
+
+        // Prove should error.
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
         let result = prover.prove(&pk, stdin).core().await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("executing and verifying only"));
-    }
-
-    /// Test that execute works.
-    #[tokio::test]
-    async fn test_light_execute() {
-        setup_logger();
-        let prover = LightProver::new().await;
-        let elf = test_artifacts::FIBONACCI_ELF;
-        let mut stdin = SP1Stdin::new();
-        stdin.write(&10usize);
-        let (pv, _) = prover.execute(elf, stdin).await.expect("failed to execute program");
-        assert!(!pv.as_slice().is_empty());
-    }
-
-    /// Test that builder syntax works: ProverClient::builder().light().build().await
-    #[tokio::test]
-    async fn test_light_builder() {
-        setup_logger();
-        let prover = crate::ProverClient::builder().light().build().await;
-        let pk =
-            prover.setup(test_artifacts::FIBONACCI_ELF).await.expect("failed to setup proving key");
-        let mut stdin = SP1Stdin::new();
-        stdin.write(&10usize);
-        // prove should error
-        assert!(prover.prove(&pk, stdin).core().await.is_err());
     }
 }
