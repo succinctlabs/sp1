@@ -9,10 +9,6 @@ on:
         description: "Tag to push"
         type: string
         required: true
-      use-current-repo-name:
-        description: "Use the current repository name as the docker image name"
-        type: boolean
-        default: false
       dry-run:
         description: "Dry run - does not push the image"
         type: boolean
@@ -23,18 +19,10 @@ on:
         description: "Tag to push"
         type: string
         required: true
-      use-current-repo-name:
-        description: "Use the current repository name as the docker image name"
-        type: boolean
-        default: false
       dry-run:
         description: "Dry run - does not push the image"
         type: boolean
         default: false
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ inputs.use-current-repo-name && github.repository || 'succinctlabs/sp1' }}
 
 jobs:
   container:
@@ -56,40 +44,16 @@ jobs:
         with:
           install: true
 
-      # Login against a Docker registry except on PR
-      # https://github.com/docker/login-action
-      - name: Log into registry ${{ env.REGISTRY }}
-        # Ensure this doesn't trigger on PR's
-        if: github.event_name != 'pull_request'
+      - name: Log into registry ghcr.io
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Extract metadata (tags, labels) for Docker
-      # https://github.com/docker/metadata-action
-      - name: Extract Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-
-      # Creates an additional 'latest' or 'nightly' tag
-      # If the job is triggered via cron schedule, tag nightly and nightly-{SHA}
-      # If the job is triggered via workflow dispatch and on a master branch, tag branch and latest
-      # Otherwise, just tag as the branch name
-      - name: Finalize Docker Metadata
-        id: docker_tagging
-        run: |
-          echo "Assigning tags :${{ inputs.docker-tag }} and :latest"
-          echo "docker_tags=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.docker-tag }},${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_OUTPUT
-
-      # Log docker metadata to explicitly know what is being pushed
-      - name: Inspect Docker Metadata
-        run: |
-          echo "TAGS -> ${{ steps.docker_tagging.outputs.docker_tags }}"
-          echo "LABELS ->  ${{ steps.meta.outputs.labels }}"
+      - name: Set build timestamp
+        id: ts
+        run: echo "time=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
 
       # Build and push Docker image
       # https://github.com/docker/build-push-action
@@ -100,11 +64,17 @@ jobs:
           context: ./
           file: ./Dockerfile.build
           push: ${{ inputs.dry-run != true }}
-          tags: ${{ steps.docker_tagging.outputs.docker_tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: |
+            ghcr.io/succinctlabs/sp1:${{ inputs.docker-tag }}
+            ghcr.io/succinctlabs/sp1:latest
+          labels: |
+            org.opencontainers.image.created=${{ steps.ts.outputs.time }}
+            org.opencontainers.image.description=SP1 is a zero-knowledge virtual machine that proves the correct execution of programs compiled for the RISC-V architecture.
+            org.opencontainers.image.licenses=Apache-2.0
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=https://github.com/succinctlabs/sp1
+            org.opencontainers.image.title=sp1
+            org.opencontainers.image.url=https://github.com/succinctlabs/sp1
+            org.opencontainers.image.version=${{ inputs.docker-tag }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          build-args: |
-            BUILDTIME=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
-            VERSION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.version'] }}
-            REVISION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.revision'] }}
