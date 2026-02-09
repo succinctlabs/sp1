@@ -7,7 +7,7 @@ use slack_rust::{
     chat::post_message::{post_message, PostMessageRequest},
     http_client::default_client,
 };
-use sp1_prover::{components::SP1ProverComponents, utils::get_cycles, SP1Prover};
+use sp1_prover::{components::SP1ProverComponents, SP1Prover};
 use sp1_sdk::{SP1Context, SP1Stdin};
 use sp1_stark::SP1ProverOpts;
 use std::time::{Duration, Instant};
@@ -169,8 +169,6 @@ fn run_evaluation<C: SP1ProverComponents>(
     stdin: &SP1Stdin,
     opts: SP1ProverOpts,
 ) -> PerformanceReport {
-    let cycles = get_cycles(elf, stdin);
-
     let prover = SP1Prover::<C>::new();
     let (_, pk_d, program, vk) = prover.setup(elf);
 
@@ -186,6 +184,8 @@ fn run_evaluation<C: SP1ProverComponents>(
         Ok(proof) => (true, Some(proof)),
         Err(_) => (false, None),
     };
+
+    let cycles = core_proof_opt.as_ref().map_or(0, |proof| proof.cycles);
 
     let (compress_ok, compress_duration) = if let Some(core_proof) = core_proof_opt {
         let (compress_result, dur) =
