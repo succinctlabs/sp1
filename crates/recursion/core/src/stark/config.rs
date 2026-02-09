@@ -138,8 +138,18 @@ impl BabyBearPoseidon2Outer {
         let hash = OuterHash::new(perm.clone()).unwrap();
         let compress = OuterCompress::new(perm.clone());
         let val_mmcs = OuterValMmcs::new(hash, compress);
+        let challenge_mmcs = OuterChallengeMmcs::new(val_mmcs.clone());
         let dft = OuterDft {};
-        let fri_config = outer_fri_config();
+        let num_queries = if sp1_dev_mode() {
+            1
+        } else {
+            match std::env::var("FRI_QUERIES") {
+                Ok(value) => value.parse().unwrap(),
+                Err(_) => 25,
+            }
+        };
+        let fri_config =
+            FriConfig { log_blowup: 4, num_queries, proof_of_work_bits: 16, mmcs: challenge_mmcs };
         let pcs = OuterPcs::new(27, dft, val_mmcs, fri_config);
         Self { pcs, perm }
     }
@@ -148,8 +158,18 @@ impl BabyBearPoseidon2Outer {
         let hash = OuterHash::new(perm.clone()).unwrap();
         let compress = OuterCompress::new(perm.clone());
         let val_mmcs = OuterValMmcs::new(hash, compress);
+        let challenge_mmcs = OuterChallengeMmcs::new(val_mmcs.clone());
         let dft = OuterDft {};
-        let fri_config = outer_fri_config_with_blowup(log_blowup);
+        let num_queries = if sp1_dev_mode() {
+            1
+        } else {
+            match std::env::var("FRI_QUERIES") {
+                Ok(value) => value.parse().unwrap(),
+                Err(_) => 100 / log_blowup,
+            }
+        };
+        let fri_config =
+            FriConfig { log_blowup, num_queries, proof_of_work_bits: 16, mmcs: challenge_mmcs };
         let pcs = OuterPcs::new(27, dft, val_mmcs, fri_config);
         Self { pcs, perm }
     }
