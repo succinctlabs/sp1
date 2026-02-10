@@ -45,6 +45,15 @@ impl<'a> ProveRequest<'a, EnvProver> for EnvProveRequest<'a> {
                 }
                 _ => panic!("Invalid proving key type for Mock prover"),
             },
+            EnvProver::Light(prover) => match self.base.pk {
+                EnvProvingKey::Light { pk, .. } => {
+                    let mut req = prover.prove(pk, stdin);
+                    req.base.mode = mode;
+                    req.base.context_builder = context_builder;
+                    Ok(req.run()?)
+                }
+                _ => panic!("Invalid proving key type for Light prover"),
+            },
         }
     }
 }
