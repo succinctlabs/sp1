@@ -6,7 +6,10 @@ use thiserror::Error;
 
 pub mod internal;
 
-use internal::{verify_sp1_proof, verify_sp1_reduce_proof, F, SC};
+use internal::{
+    verify_sp1_proof, verify_sp1_proof_with_public_values, verify_sp1_reduce_proof,
+    verify_sp1_reduce_proof_with_public_values, F, SC,
+};
 
 /// A reason why the verifier rejects a given proof.
 #[derive(Debug, Error)]
@@ -51,7 +54,17 @@ impl CompressedVerifier {
     /// let sp1_vkey_hash = bincode::serialize(&vk.hash_babybear()).unwrap();
     /// let proof: SP1Proof = match client.prove(&pk, &stdin).compressed().run().unwrap().proof;
     /// ```
-    pub fn verify_sp1_proof(
+    pub fn verify_sp1_proof(sp1_proof: &[u8], sp1_vkey_hash: &[u8]) -> Result<(), CompressedError> {
+        let sp1_proof: SP1Proof =
+            bincode::deserialize(sp1_proof).map_err(CompressedError::DeserializeProof)?;
+        let vkey_hash: [F; 8] = deserialize_vkey(sp1_vkey_hash)?;
+
+        verify_sp1_proof(&sp1_proof, &vkey_hash)?;
+
+        Ok(())
+    }
+
+    pub fn verify_sp1_proof_with_public_values(
         sp1_proof: &[u8],
         sp1_public_inputs: &[u8],
         sp1_vkey_hash: &[u8],
@@ -59,12 +72,25 @@ impl CompressedVerifier {
         let sp1_proof: SP1Proof =
             bincode::deserialize(sp1_proof).map_err(CompressedError::DeserializeProof)?;
         let vkey_hash: [F; 8] = deserialize_vkey(sp1_vkey_hash)?;
-
-        verify_sp1_proof(&sp1_proof, sp1_public_inputs, &vkey_hash)?;
+        verify_sp1_proof_with_public_values(&sp1_proof, sp1_public_inputs, &vkey_hash)?;
 
         Ok(())
     }
+
     pub fn verify_sp1_reduce_proof(
+        sp1_reduce_proof: &[u8],
+        sp1_vkey_hash: &[u8],
+    ) -> Result<(), CompressedError> {
+        let reduce_proof: Box<SP1ReduceProof<SC>> =
+            bincode::deserialize(sp1_reduce_proof).map_err(CompressedError::DeserializeProof)?;
+        let vkey_hash: [F; 8] = deserialize_vkey(sp1_vkey_hash)?;
+
+        verify_sp1_reduce_proof(reduce_proof.as_ref(), &vkey_hash)?;
+
+        Ok(())
+    }
+
+    pub fn verify_sp1_reduce_proof_with_public_values(
         sp1_reduce_proof: &[u8],
         sp1_public_inputs: &[u8],
         sp1_vkey_hash: &[u8],
@@ -72,8 +98,11 @@ impl CompressedVerifier {
         let reduce_proof: Box<SP1ReduceProof<SC>> =
             bincode::deserialize(sp1_reduce_proof).map_err(CompressedError::DeserializeProof)?;
         let vkey_hash: [F; 8] = deserialize_vkey(sp1_vkey_hash)?;
-
-        verify_sp1_reduce_proof(reduce_proof.as_ref(), sp1_public_inputs, &vkey_hash)?;
+        verify_sp1_reduce_proof_with_public_values(
+            reduce_proof.as_ref(),
+            sp1_public_inputs,
+            &vkey_hash,
+        )?;
 
         Ok(())
     }

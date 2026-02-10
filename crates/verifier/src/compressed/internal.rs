@@ -57,13 +57,12 @@ pub const RECURSION_VK_SET: &[[u32; 8]] = &[
 /// Then, calls [`verify_sp1_reduce_proof`] and returns the result.
 pub fn verify_sp1_proof(
     sp1_proof: &SP1Proof,
-    sp1_public_inputs: &[u8],
     vkey_hash: &[BabyBear; 8],
 ) -> Result<(), CompressedError> {
     let SP1Proof::Compressed(reduce_proof) = sp1_proof else {
         return Err(CompressedError::Mode(sp1_proof.into()));
     };
-    verify_sp1_reduce_proof(reduce_proof.as_ref(), sp1_public_inputs, vkey_hash)
+    verify_sp1_reduce_proof(reduce_proof.as_ref(), vkey_hash)
 }
 
 // The rest of the functions in this file have been copied from elsewhere with slight modifications.
@@ -71,7 +70,6 @@ pub fn verify_sp1_proof(
 /// Verify a compressed proof.
 pub fn verify_sp1_reduce_proof(
     reduce_proof: &SP1ReduceProof<SC>,
-    sp1_public_inputs: &[u8],
     vkey_hash: &[BabyBear; 8],
 ) -> Result<(), CompressedError> {
     let SP1ReduceProof { vk: compress_vk, proof } = reduce_proof;
@@ -88,20 +86,6 @@ pub fn verify_sp1_reduce_proof(
     let mut challenger = compress_machine.config().challenger();
     let machine_proof = MachineProof { shard_proofs: vec![proof.clone()] };
     compress_machine.verify(compress_vk, &machine_proof, &mut challenger)?;
-
-    // Validate the SP1 public values against the committed digest.
-    let committed_value_digest_bytes = public_values
-        .committed_value_digest
-        .iter()
-        .flat_map(|w| w.0.iter().map(|x| x.as_canonical_u32() as u8))
-        .collect::<Vec<_>>();
-
-    if committed_value_digest_bytes.as_slice() != hash_public_inputs(sp1_public_inputs).as_slice() &&
-        committed_value_digest_bytes.as_slice() !=
-            hash_public_inputs_with_fn(sp1_public_inputs, blake3_hash)
-    {
-        return Err(CompressedError::PublicValuesMismatch);
-    }
 
     // Validate recursion's public values.
     if !is_recursion_public_values_valid(compress_machine.config(), public_values) {
@@ -132,6 +116,55 @@ pub fn verify_sp1_reduce_proof(
     }
 
     Ok(())
+}
+
+/// Verify a compressed proof.
+pub fn verify_sp1_public_values(
+    reduce_proof: &SP1ReduceProof<SC>,
+    sp1_public_inputs: &[u8],
+) -> Result<(), CompressedError> {
+    let SP1ReduceProof { proof, .. } = reduce_proof;
+
+    let public_values: &RecursionPublicValues<_> = proof.public_values.as_slice().borrow();
+    // Validate the SP1 public values against the committed digest.
+    let committed_value_digest_bytes = public_values
+        .committed_value_digest
+        .iter()
+        .flat_map(|w| w.0.iter().map(|x| x.as_canonical_u32() as u8))
+        .collect::<Vec<_>>();
+
+    if committed_value_digest_bytes.as_slice() != hash_public_inputs(sp1_public_inputs).as_slice()
+        && committed_value_digest_bytes.as_slice()
+            != hash_public_inputs_with_fn(sp1_public_inputs, blake3_hash)
+    {
+        return Err(CompressedError::PublicValuesMismatch);
+    }
+
+    Ok(())
+}
+
+/// Verify a compressed proof with public values.
+pub fn verify_sp1_proof_with_public_values(
+    sp1_proof: &SP1Proof,
+    sp1_public_inputs: &[u8],
+    vkey_hash: &[BabyBear; 8],
+) -> Result<(), CompressedError> {
+    let SP1Proof::Compressed(reduce_proof) = sp1_proof else {
+        return Err(CompressedError::Mode(sp1_proof.into()));
+    };
+    verify_sp1_reduce_proof_with_public_values(reduce_proof, sp1_public_inputs, vkey_hash)
+}
+
+/// Verify a compressed proof.
+pub fn verify_sp1_reduce_proof_with_public_values(
+    reduce_proof: &SP1ReduceProof<SC>,
+    sp1_public_inputs: &[u8],
+    vkey_hash: &[BabyBear; 8],
+) -> Result<(), CompressedError> {
+    // Verify the proof
+    verify_sp1_reduce_proof(reduce_proof, vkey_hash)?;
+    // Verify the public values against the committed digest
+    verify_sp1_public_values(reduce_proof, sp1_public_inputs)
 }
 
 /// Compute the digest of the public values.
