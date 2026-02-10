@@ -310,7 +310,6 @@ install_private_asset_using_github_api() {
   check_url "$BIN_ARCHIVE_URL" "$ASSET_NAME" "$GITHUB_TOKEN"
   say "downloading $ASSET_NAME"
   ensure curl -# -S -L -H "Accept: application/octet-stream" -H "$AUTH" "$BIN_ARCHIVE_URL" | ensure tar -xzC "$SP1_BIN_DIR"
-  rm -f "$ASSET_NAME"
 }
 
 install_public_asset() {
