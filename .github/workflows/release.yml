@@ -29,7 +29,6 @@ jobs:
     outputs:
       tag_name: ${{ steps.release_info.outputs.tag_name }}
       release_name: ${{ steps.release_info.outputs.release_name }}
-      # changelog: ${{ steps.build_changelog.outputs.changelog }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -39,14 +38,6 @@ jobs:
         uses: ./.github/actions/setup
         with:
           pull_token: ${{ secrets.PULL_TOKEN }}
-
-      # - name: Build changelog
-      #   uses: mikepenz/release-changelog-builder-action@v4
-      #   id: build_changelog
-      #   with:
-      #     outputFile: ${{ steps.release_info.outputs.tag_name }}-changelog.md
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Compute release name and tag
         id: release_info
