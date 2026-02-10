@@ -1,9 +1,10 @@
 use futures::{stream::FuturesUnordered, StreamExt};
 use slop_futures::pipeline::{AsyncEngine, AsyncWorker, Pipeline, SubmitHandle};
 use sp1_core_executor::{
-    ExecutionError, ExecutionReport, GasEstimatingVM, MinimalExecutor, Program, SP1Context,
-    SP1CoreOpts, SP1RecursionProof,
+    ExecutionError, ExecutionReport, GasEstimatingVM, Program, SP1Context, SP1CoreOpts,
+    SP1RecursionProof,
 };
+use sp1_core_executor_runner::MinimalExecutorRunner;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_hypercube::air::PROOF_NONCE_NUM_WORDS;
 use sp1_hypercube::{MachineVerifyingKey, SP1PcsProofInner, SP1VerifyingKey};
@@ -162,7 +163,7 @@ pub async fn execute_with_options(
     }
 
     let mut minimal_executor =
-        MinimalExecutor::new(program.clone(), false, minimal_trace_chunk_threshold);
+        MinimalExecutorRunner::new(program.clone(), false, minimal_trace_chunk_threshold, None);
 
     // Feed stdin buffers to the executor
     for buf in buffer {
@@ -288,7 +289,7 @@ pub async fn execute_with_options(
         }
     }
 
-    // Merge cycle tracker data from MinimalExecutor into the final report
+    // Merge cycle tracker data from MinimalExecutorRunner into the final report
     // This must happen after all tasks complete to avoid race conditions
     #[cfg(feature = "profiling")]
     if let Some((cycle_tracker, invocation_tracker)) = cycle_tracker_data {

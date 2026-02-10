@@ -1,0 +1,40 @@
+[package]
+name = "sp1-core-executor-runner"
+description = "A crate wrapping native executor in a separate process"
+readme = "../../../README.md"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+include.workspace = true
+
+[dependencies]
+sp1-core-executor = { workspace = true }
+sp1-jit = { workspace = true }
+sp1-primitives = { workspace = true }
+
+base64 = { workspace = true }
+bincode = { workspace = true }
+hashbrown = { workspace = true }
+libc = { workspace = true }
+serde = { workspace = true, features = ["derive", "rc"] }
+sysinfo = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+
+[build-dependencies]
+sp1-core-executor = { workspace = true }
+sp1-core-executor-runner-binary = { workspace = true }
+
+cargo_metadata = { workspace = true }
+hex = { workspace = true }
+sha2 = { workspace = true }
+
+[lints]
+workspace = true
+
+[features]
+default = []
+profiling = ["sp1-core-executor/profiling"]

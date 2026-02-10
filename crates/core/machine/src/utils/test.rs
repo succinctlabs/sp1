@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use slop_basefold::FriConfig;
-use sp1_core_executor::{MinimalExecutor, Program, SP1Context, SP1CoreOpts};
+use sp1_core_executor::{Program, SP1Context, SP1CoreOpts};
+use sp1_core_executor_runner::MinimalExecutorRunner;
 use sp1_hypercube::{
     prover::{CpuShardProver, SP1InnerPcsProver, SimpleProver},
     MachineProof, MachineVerifierConfigError, SP1InnerPcs, SP1PcsProofInner, ShardVerifier,
@@ -23,8 +24,8 @@ pub async fn run_test(
     program: Arc<Program>,
     inputs: SP1Stdin,
 ) -> Result<SP1PublicValues, MachineVerifierConfigError<SP1GlobalContext, SP1InnerPcs>> {
-    // Run MinimalExecutor to get public values
-    let mut executor = MinimalExecutor::new(program.clone(), false, None);
+    // Run MinimalExecutorRunner to get public values
+    let mut executor = MinimalExecutorRunner::new(program.clone(), false, None, None);
     for buf in &inputs.buffer {
         executor.with_input(buf);
     }
@@ -40,8 +41,8 @@ pub async fn run_test_small_trace(
     program: Arc<Program>,
     inputs: SP1Stdin,
 ) -> Result<SP1PublicValues, MachineVerifierConfigError<SP1GlobalContext, SP1InnerPcs>> {
-    // Run MinimalExecutor to get public values
-    let mut executor = MinimalExecutor::new(program.clone(), false, None);
+    // Run MinimalExecutorRunner to get public values
+    let mut executor = MinimalExecutorRunner::new(program.clone(), false, None, None);
     for buf in &inputs.buffer {
         executor.with_input(buf);
     }

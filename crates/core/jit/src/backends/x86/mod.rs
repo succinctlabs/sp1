@@ -68,8 +68,6 @@ pub struct TranspilerBackend {
     jump_table: Vec<usize>,
     /// The size of the memory buffer to allocate.
     memory_size: usize,
-    /// The size of the trace buffer to allocate.
-    trace_buf_size: usize,
     /// The maximum trace size.
     max_trace_size: u64,
     /// Has at least one instruction been inserted.
@@ -225,10 +223,15 @@ impl TraceCollector for TranspilerBackend {
 
 impl TranspilerBackend {
     fn tracing(&self) -> bool {
-        self.trace_buf_size > 0
+        self.max_trace_size > 0
     }
 
     fn exit_if_trace_exceeds(&mut self, max_trace_size: u64) {
+        // For now, only tracing can trigger early exit
+        if !self.tracing() {
+            return;
+        }
+
         let num_mem_reads_offset = offset_of!(TraceChunkHeader, num_mem_reads) as i32;
         let threshold_mem_reads = max_trace_size;
 

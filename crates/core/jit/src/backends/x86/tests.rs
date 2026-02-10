@@ -1,8 +1,10 @@
 use super::TranspilerBackend;
 use crate::{
-    ComputeInstructions, ControlFlowInstructions, Debuggable, JitContext, MemoryInstructions,
-    MinimalTrace, RiscOperand, RiscRegister, RiscvTranspiler,
+    memory::AnonymousMemory, trace_capacity, ComputeInstructions, ControlFlowInstructions,
+    Debuggable, JitContext, JitFunction, MemoryInstructions, MinimalTrace, RiscOperand,
+    RiscRegister, RiscvTranspiler, TraceChunkRaw,
 };
+use memmap2::MmapMut;
 
 macro_rules! assert_register_is {
     ($expected:expr) => {{
@@ -18,13 +20,22 @@ fn new_backend() -> TranspilerBackend {
     TranspilerBackend::new(0, 1024 * 2, 1000, 100, 100, 8).unwrap()
 }
 
+fn run_func(func: &mut JitFunction<AnonymousMemory>) -> Option<TraceChunkRaw> {
+    let mut trace_buf = MmapMut::map_anon(trace_capacity(Some(1000))).expect("create mmap buf");
+    let trace_buf_ptr = trace_buf.as_mut_ptr();
+
+    unsafe {
+        func.call(trace_buf_ptr);
+    }
+
+    Some(unsafe { TraceChunkRaw::new(trace_buf.make_read_only().expect("make mmap read-only")) })
+}
+
 /// Finalize the function and call it.
 fn run_test(assembler: TranspilerBackend) {
     let mut func = assembler.finalize().expect("Failed to finalize function");
 
-    unsafe {
-        func.call();
-    }
+    run_func(&mut func);
 }
 
 mod alu {
@@ -1059,7 +1070,8 @@ mod memory {
     use super::*;
 
     fn run_test_with_memory(assembler: TranspilerBackend, memory: &[(u32, u32)]) {
-        let mut func = assembler.finalize().expect("Failed to finalize function");
+        let mut func =
+            assembler.finalize::<AnonymousMemory>().expect("Failed to finalize function");
 
         for (addr, val) in memory {
             assert!(*addr < func.memory.len() as u32, "Addr out of bounds");
@@ -1073,17 +1085,13 @@ mod memory {
             func.memory[addr + 3] = bytes[3];
         }
 
-        unsafe {
-            func.call();
-        }
+        run_func(&mut func);
     }
 
     fn run_test_and_check_memory(assembler: TranspilerBackend, check: impl Fn(&[MemValue])) {
         let mut func = assembler.finalize().expect("Failed to finalize function");
 
-        unsafe {
-            func.call();
-        }
+        run_func(&mut func);
 
         unsafe fn caster(input: &[u8]) -> &[MemValue] {
             std::mem::transmute(input)
@@ -1268,7 +1276,8 @@ mod memory {
 
     // Helper function for 64-bit memory operations
     fn run_test_with_memory_64(assembler: TranspilerBackend, memory: &[(u32, u64)]) {
-        let mut func = assembler.finalize().expect("Failed to finalize function");
+        let mut func =
+            assembler.finalize::<AnonymousMemory>().expect("Failed to finalize function");
 
         for (addr, val) in memory {
             assert!(*addr < func.memory.len() as u32, "Addr out of bounds");
@@ -1281,9 +1290,7 @@ mod memory {
             }
         }
 
-        unsafe {
-            func.call();
-        }
+        run_func(&mut func);
     }
 
     // RV64I Memory Operation Tests
@@ -1419,9 +1426,7 @@ mod infra {
         let mut func = backend.finalize().expect("Failed to finalize function");
         func.registers[5] = 5;
 
-        unsafe {
-            func.call();
-        }
+        run_func(&mut func);
     }
 
     #[test]
@@ -1432,9 +1437,7 @@ mod infra {
         backend.add(RiscRegister::X1, RiscOperand::Immediate(5), RiscOperand::Immediate(0));
 
         let mut func = backend.finalize().expect("Failed to finalize function");
-        unsafe {
-            func.call();
-        }
+        run_func(&mut func);
 
         assert_eq!(func.registers[1], 5);
     }
@@ -1483,7 +1486,7 @@ mod trace {
         backend.trace_pc_start();
 
         let mut func = backend.finalize().expect("Failed to finalize function");
-        let trace = unsafe { func.call() }.expect("No trace returned");
+        let trace = run_func(&mut func).expect("No trace returned");
 
         let registers = trace.start_registers();
         let pc = trace.pc_start();

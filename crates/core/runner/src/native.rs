@@ -1,0 +1,341 @@
+use base64::{engine::general_purpose::URL_SAFE, Engine};
+use serde::{Deserialize, Serialize};
+use sp1_core_executor::{MinimalTranspiler, Program, UnsafeMemory};
+use sp1_jit::{memory::SharedMemory, shm::ShmTraceRing, trace_capacity, MemValue, TraceChunkRaw};
+use sp1_primitives::consts::MAX_JIT_LOG_ADDR;
+use std::{
+    collections::VecDeque,
+    io::{BufRead, BufReader, Write},
+    process::{Child, Command, Stdio},
+    ptr::NonNull,
+    sync::Arc,
+    thread::{self, JoinHandle},
+    time::Duration,
+};
+use sysinfo::{Pid, System};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Input {
+    pub program: Arc<Program>,
+    pub is_debug: bool,
+    pub max_trace_size: Option<u64>,
+    pub input: VecDeque<Vec<u8>>,
+    pub shm_slot_size: usize,
+    pub id: String,
+    pub max_memory_size: usize,
+    pub memory_limit: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Output {
+    pub public_values_stream: Vec<u8>,
+    pub hints: Vec<(u64, Vec<u8>)>,
+    pub global_clk: u64,
+    pub exit_code: u32,
+}
+
+// TODO: tweak those
+const SHM_SLOT_SIZE: usize = 6;
+const MEMORY_MONITOR_INTERAL_MILLIS: u64 = 100;
+
+/// Minimal trace native executor that runs SP1 program in child process
+pub struct MinimalExecutorRunner {
+    input: Input,
+
+    memory: SharedMemory,
+    consumer: Option<ShmTraceRing>,
+
+    process: Option<(Child, JoinHandle<()>)>,
+    output: Option<Output>,
+}
+
+impl MinimalExecutorRunner {
+    /// Create a new minimal executor and transpile the program.
+    ///
+    /// # Arguments
+    ///
+    /// * `program` - The program to execute.
+    /// * `is_debug` - Whether to compile the program with debugging.
+    /// * `max_trace_size` - The maximum trace size in terms of [`MemValue`]s. If not set tracing
+    ///   will be disabled.
+    /// * `memory_limit` - The memory limit bytes. If not set, the default value(24 GB) will be used.
+    #[must_use]
+    pub fn new(
+        program: Arc<Program>,
+        is_debug: bool,
+        max_trace_size: Option<u64>,
+        memory_limit: Option<u64>,
+    ) -> Self {
+        let id = format!("sp1_{}", URL_SAFE.encode(uuid::Uuid::new_v4().as_bytes()));
+        let input = Input {
+            program,
+            is_debug,
+            max_trace_size,
+            input: VecDeque::new(),
+            shm_slot_size: SHM_SLOT_SIZE,
+            id,
+            max_memory_size: 2_u64.pow(MAX_JIT_LOG_ADDR as u32) as usize,
+            memory_limit: memory_limit.unwrap_or(crate::DEFAULT_MEMORY_LIMIT),
+        };
+        let (memory, consumer) = create(&input);
+
+        Self { input, consumer, memory, process: None, output: None }
+    }
+
+    /// Create a new minimal executor with no tracing or debugging.
+    #[must_use]
+    pub fn simple(program: Arc<Program>) -> Self {
+        Self::new(program, false, None, None)
+    }
+
+    /// Create a new minimal executor with tracing.
+    ///
+    /// # Arguments
+    ///
+    /// * `program` - The program to execute.
+    /// * `max_trace_size` - The maximum trace size in terms of [`MemValue`]s. If not set, it will
+    ///   be set to 2 gb worth of memory events.
+    #[must_use]
+    pub fn tracing(program: Arc<Program>, max_trace_size: u64) -> Self {
+        Self::new(program, false, Some(max_trace_size), None)
+    }
+
+    /// Create a new minimal executor with debugging.
+    #[must_use]
+    pub fn debug(program: Arc<Program>) -> Self {
+        Self::new(program, true, None, None)
+    }
+
+    /// Add input to the executor.
+    pub fn with_input(&mut self, input: &[u8]) {
+        // Input can only be added when process hasn't been started yet.
+        assert!(self.process.is_none());
+        self.input.input.push_back(input.to_vec());
+    }
+
+    /// Execute the program. Returning a trace chunk if the program has not completed.
+    pub fn execute_chunk(&mut self) -> Option<TraceChunkRaw> {
+        if self.output.is_some() {
+            return None;
+        }
+
+        if self.process.is_none() {
+            // Start the process
+            let mut child = spawn_restricted(
+                Command::new(crate::binary::get_binary_path()),
+                self.input.memory_limit,
+            )
+            .expect("start child proces");
+
+            {
+                let mut stdin = child.stdin.take().expect("open stdin");
+                bincode::serialize_into(&mut stdin, &self.input).expect("sending input");
+                stdin.flush().expect("flushing input");
+            }
+
+            let stderr = child.stderr.take().expect("open stderr");
+            let id = self.input.id.clone();
+            let log_handle = thread::spawn(move || {
+                let reader = BufReader::new(stderr);
+                use BufRead;
+                for l in reader.lines().map_while(Result::ok) {
+                    tracing::debug!("CHILD {}: {}", id, l);
+                }
+            });
+
+            self.process = Some((child, log_handle));
+        }
+
+        let chunk = self.consumer.as_ref().and_then(|consumer| consumer.access());
+        if chunk.is_none() {
+            // SP1 program terminates, wait for output and terminate child process.
+            let (mut child, log_thread) = self.process.take().unwrap();
+            let stdout = child.stdout.take().expect("open stdout");
+            let mut stdout_reader = BufReader::new(stdout);
+
+            let output: Output =
+                bincode::deserialize_from(&mut stdout_reader).expect("read output");
+            let status = child.wait().expect("wait for child to exit");
+            log_thread.join().expect("wait for log thread to finish");
+            // This captures memory limit violations.
+            assert!(status.success());
+
+            self.output = Some(output);
+        }
+
+        chunk.map(|guard| unsafe { TraceChunkRaw::from_shm(guard) })
+    }
+
+    /// Get the registers of the JIT function.
+    #[must_use]
+    pub fn registers(&self) -> [u64; 32] {
+        todo!()
+    }
+
+    /// Get the program counter of the JIT function.
+    #[must_use]
+    pub fn pc(&self) -> u64 {
+        todo!()
+    }
+
+    /// Check if the program has halted.
+    #[must_use]
+    pub fn is_done(&self) -> bool {
+        self.output.is_some()
+    }
+
+    /// Get the current value at an address.
+    #[must_use]
+    pub fn get_memory_value(&self, addr: u64) -> MemValue {
+        unsafe { self.unsafe_memory().get(addr) }
+    }
+
+    /// Get the program of the JIT function.
+    #[must_use]
+    pub fn program(&self) -> Arc<Program> {
+        self.input.program.clone()
+    }
+
+    /// Get the current clock of the JIT function.
+    ///
+    /// This clock is incremented by 8 or 256 depending on the instruction.
+    #[must_use]
+    pub fn clk(&self) -> u64 {
+        todo!()
+    }
+
+    /// Get the global clock of the JIT function.
+    ///
+    /// This clock is incremented by 1 per instruction.
+    #[must_use]
+    pub fn global_clk(&self) -> u64 {
+        self.output.as_ref().map(|output| output.global_clk).expect("Process is still running")
+    }
+
+    /// Get the exit code of the JIT function.
+    #[must_use]
+    pub fn exit_code(&self) -> u32 {
+        self.output.as_ref().map(|output| output.exit_code).expect("Process is still running")
+    }
+
+    /// Get the public values stream of the JIT function.
+    #[must_use]
+    pub fn public_values_stream(&self) -> &Vec<u8> {
+        self.output
+            .as_ref()
+            .map(|output| &output.public_values_stream)
+            .expect("Process is still running")
+    }
+
+    /// Consume self, and return the public values stream.
+    #[must_use]
+    pub fn into_public_values_stream(self) -> Vec<u8> {
+        self.output.map(|output| output.public_values_stream).expect("Process is still running")
+    }
+
+    /// Get the hints of the JIT function.
+    #[must_use]
+    pub fn hints(&self) -> &[(u64, Vec<u8>)] {
+        self.output.as_ref().map(|output| &output.hints).expect("Process is still running")
+    }
+
+    /// Get the lengths of all the hints.
+    #[must_use]
+    pub fn hint_lens(&self) -> Vec<usize> {
+        self.output
+            .as_ref()
+            .map(|output| output.hints.iter().map(|(_, hint)| hint.len()).collect())
+            .expect("Process is still running")
+    }
+
+    /// Get an unsafe memory view of the JIT function.
+    ///
+    /// This allows reading without lifetime and mutability constraints.
+    #[must_use]
+    #[allow(clippy::cast_ptr_alignment)]
+    pub fn unsafe_memory(&self) -> UnsafeMemory {
+        let entry_ptr = self.memory.as_ptr() as *mut MemValue;
+        UnsafeMemory::new(NonNull::new(entry_ptr).unwrap())
+    }
+
+    pub fn reset(&mut self) {
+        if let Some((mut child, _)) = self.process.take() {
+            child.kill().expect("running child cannot be killed");
+        }
+        self.output = None;
+
+        let (memory, consumer) = create(&self.input);
+        self.memory = memory;
+        self.consumer = consumer;
+    }
+}
+
+// Create partial field variables, so the common logic can be shared
+// between `MinimalExecutor::new` and `MinimalExecutor::reset`.
+fn create(input: &Input) -> (SharedMemory, Option<ShmTraceRing>) {
+    let transpiler =
+        MinimalTranspiler::new(input.max_memory_size, input.is_debug, input.max_trace_size);
+    let memory_buffer_size = transpiler.memory_buffer_size();
+    let memory = SharedMemory::create_readonly(&input.id, memory_buffer_size)
+        .expect("create shm file for memory");
+
+    let trace_buf_size = trace_capacity(input.max_trace_size);
+    let consumer = if trace_buf_size > 0 {
+        Some(
+            ShmTraceRing::create(&input.id, SHM_SLOT_SIZE, trace_buf_size)
+                .expect("create shm file for traces"),
+        )
+    } else {
+        None
+    };
+
+    (memory, consumer)
+}
+
+/// Spawns a process with piped I/O and an RSS memory monitor thread.
+/// **Written by Gemini 3**
+fn spawn_restricted(mut cmd: Command, limit_bytes: u64) -> std::io::Result<Child> {
+    // Force pipes for all three standard streams
+    cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
+
+    // Spawn the child normally using Rust std
+    let child = cmd.spawn()?;
+    let child_pid = child.id();
+
+    // Start the Background Memory Monitor (The Enforcer)
+    thread::spawn(move || {
+        let mut sys = System::new();
+        let pid = Pid::from_u32(child_pid);
+        let poll_interval = Duration::from_millis(MEMORY_MONITOR_INTERAL_MILLIS);
+
+        loop {
+            // Refresh only this specific process for performance
+            if !sys.refresh_process(pid) {
+                break; // Process is finished or gone
+            }
+
+            if let Some(proc) = sys.process(pid) {
+                // .memory() returns the Resident Set Size (RSS) in bytes
+                let current_rss = proc.memory();
+
+                if current_rss > limit_bytes {
+                    eprintln!(
+                        "Monitor: PID {} exceeded limit ({} MB > {} MB). Sending SIGKILL.",
+                        child_pid,
+                        current_rss / 1024 / 1024,
+                        limit_bytes / 1024 / 1024
+                    );
+
+                    // Kill the process immediately
+                    unsafe {
+                        libc::kill(child_pid as i32, libc::SIGKILL);
+                    }
+                    break;
+                }
+            }
+            thread::sleep(poll_interval);
+        }
+    });
+
+    Ok(child)
+}
