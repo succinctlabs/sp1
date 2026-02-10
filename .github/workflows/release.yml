@@ -3,9 +3,6 @@
 name: release
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
     inputs:
       prerelease:
@@ -369,10 +366,18 @@ jobs:
         uses: "actions/checkout@v6"
 
       - name: "Install SP1"
+        if: ${{ inputs.dry_run != true }}
         run: |
           cd sp1up
           chmod +x sp1up
           bash -x sp1up --token ${{ secrets.GITHUB_TOKEN }} --version ${{ needs.prepare.outputs.tag_name }}
+
+      - name: "Install SP1 (from private draft release)"
+        if: ${{ inputs.dry_run == true }}
+        run: |
+          cd sp1up
+          chmod +x sp1up
+          bash -x sp1up --private-release --token ${{ secrets.GITHUB_TOKEN }} --version ${{ needs.prepare.outputs.tag_name }}
 
       - name: "Create SP1 project from template"
         run: |
