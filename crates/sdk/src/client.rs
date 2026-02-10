@@ -2,7 +2,10 @@
 //!
 //! A client for interacting with the prover for the SP1 RISC-V zkVM.
 
-use crate::{cpu::builder::CpuProverBuilder, cuda::builder::CudaProverBuilder, env::EnvProver};
+use crate::{
+    cpu::builder::CpuProverBuilder, cuda::builder::CudaProverBuilder, env::EnvProver,
+    light::builder::LightProverBuilder, mock::builder::MockProverBuilder,
+};
 
 #[cfg(feature = "network")]
 use crate::network::{builder::NetworkProverBuilder, NetworkMode};
@@ -89,6 +92,46 @@ impl ProverClientBuilder {
     #[must_use]
     pub fn cuda(&self) -> CudaProverBuilder {
         CudaProverBuilder::default()
+    }
+
+    /// Builds a [`MockProver`] for testing without real proving or verification.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
+    ///
+    /// tokio_test::block_on(async {
+    ///     let elf = Elf::Static(&[1, 2, 3]);
+    ///     let stdin = SP1Stdin::new();
+    ///
+    ///     let prover = ProverClient::builder().mock().build().await;
+    ///     let pk = prover.setup(elf).await.unwrap();
+    ///     let proof = prover.prove(&pk, stdin).compressed().await.unwrap();
+    /// });
+    /// ```
+    #[must_use]
+    pub fn mock(&self) -> MockProverBuilder {
+        MockProverBuilder::new()
+    }
+
+    /// Builds a [`LightProver`] that only executes and verifies but does not generate proofs.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use sp1_sdk::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
+    ///
+    /// tokio_test::block_on(async {
+    ///     let elf = Elf::Static(&[1, 2, 3]);
+    ///     let stdin = SP1Stdin::new();
+    ///
+    ///     let prover = ProverClient::builder().light().build().await;
+    ///     let pk = prover.setup(elf).await.unwrap();
+    ///     let proof = prover.prove(&pk, stdin).compressed().await.unwrap();
+    /// });
+    /// ```
+    #[must_use]
+    pub fn light(&self) -> LightProverBuilder {
+        LightProverBuilder::new()
     }
 
     /// Builds a [`NetworkProver`] specifically for proving on the network.

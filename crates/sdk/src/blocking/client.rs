@@ -4,6 +4,7 @@
 
 use crate::blocking::{
     cpu::builder::CpuProverBuilder, cuda::builder::CudaProverBuilder, env::EnvProver,
+    light::builder::LightProverBuilder, mock::builder::MockProverBuilder,
 };
 
 /// An entrypoint for interacting with the prover for the SP1 RISC-V zkVM.
@@ -83,5 +84,19 @@ impl ProverClientBuilder {
     #[allow(clippy::unused_self)]
     pub fn cuda(&self) -> CudaProverBuilder {
         CudaProverBuilder::default()
+    }
+
+    /// Builds a [`MockProver`] for testing without real proving or verification.
+    #[must_use]
+    #[allow(clippy::unused_self)]
+    pub fn mock(&self) -> MockProverBuilder {
+        MockProverBuilder::new()
+    }
+
+    /// Builds a [`LightProver`] that only executes and verifies but does not generate proofs.
+    #[must_use]
+    #[allow(clippy::unused_self)]
+    pub fn light(&self) -> LightProverBuilder {
+        LightProverBuilder::new()
     }
 }

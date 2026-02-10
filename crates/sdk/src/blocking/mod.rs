@@ -4,6 +4,7 @@ mod client;
 mod cpu;
 mod cuda;
 mod env;
+mod light;
 mod mock;
 mod prover;
 
@@ -11,6 +12,7 @@ pub use client::ProverClient;
 pub use cpu::{builder::CpuProverBuilder, CpuProver};
 pub use cuda::{builder::CudaProverBuilder, CudaProver};
 pub use env::EnvProver;
+pub use light::LightProver;
 pub use mock::MockProver;
 pub use prover::{ProveRequest, Prover};
 

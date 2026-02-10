@@ -30,6 +30,8 @@ pub mod cpu;
 pub use cpu::CpuProver;
 pub mod mock;
 pub use mock::MockProver;
+pub mod light;
+pub use light::LightProver;
 pub mod cuda;
 pub use cuda::CudaProver;
 pub mod env;
