@@ -154,6 +154,9 @@ async fn main() {
         ProverMode::Network => {
             let private_key = std::env::var("NETWORK_PRIVATE_KEY")
                 .expect("NETWORK_PRIVATE_KEY environment variable must be set");
+            let auction_timeout = Duration::from_secs(
+                std::env::var("AUCTION_TIMEOUT_SECONDS").map_or(60, |s| s.parse().unwrap()),
+            );
             let signer = NetworkSigner::local(&private_key).expect("failed to create signer");
             let (ref prover, prover_init_duration) = time_operation_fut(async || {
                 ProverClient::builder()
@@ -179,7 +182,7 @@ async fn main() {
                     prover
                         .prove(&pk, stdin.clone())
                         .strategy(FulfillmentStrategy::Auction)
-                        .auction_timeout(Duration::from_secs(60))
+                        .auction_timeout(auction_timeout)
                         .min_auction_period(1)
                         .cycle_limit(100_000_000_000)
                         .gas_limit(10_000_000_000)

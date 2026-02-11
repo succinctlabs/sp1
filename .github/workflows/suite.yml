@@ -14,7 +14,12 @@ on:
         required: true
       network_concurrent_repeat_count:
         description: "Number of times to repeat the network workload concurrently (using tokio tasks)"
-        default: "1"
+        type: number
+        default: 1
+      auction_timeout_seconds:
+        description: "Number of seconds to wait for the auction to complete"
+        type: number
+        default: 60
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-
@@ -390,5 +395,6 @@ jobs:
           SP1_PRIVATE_KEY: ${{ secrets.SP1_PRIVATE_KEY }}
           NETWORK_PRIVATE_KEY: ${{ secrets.NETWORK_PRIVATE_KEY }}
           NETWORK_RPC_URL: "https://rpc.production.succinct.xyz" 
+          AUCTION_TIMEOUT_SECONDS: ${{ github.event.inputs.auction_timeout_seconds }}
         run: |
           ~/.sp1/bin/sp1-perf --program workdir/program.bin --stdin workdir/stdin.bin --mode network --concurrent-repeat-count ${{ github.event.inputs.network_concurrent_repeat_count }}
