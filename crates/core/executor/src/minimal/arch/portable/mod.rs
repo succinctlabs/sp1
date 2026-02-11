@@ -1,4 +1,6 @@
 #![allow(clippy::items_after_statements)]
+#![allow(unknown_lints)]
+#![allow(clippy::manual_checked_ops)]
 
 use sp1_jit::{
     debug::{self, DebugState},
@@ -711,7 +713,6 @@ impl MinimalExecutor {
                     (b as i64).wrapping_div(c as i64) as u64
                 }
             }
-            #[allow(clippy::manual_checked_ops)]
             Opcode::DIVU => {
                 if c == 0 {
                     u64::MAX
