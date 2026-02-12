@@ -34,7 +34,12 @@ pub fn populate_local_permutation_row<F: PrimeField, EF: ExtensionField<F>>(
     batch_size: usize,
 ) {
     let alpha = random_elements[0];
-    let betas = random_elements[1].powers(); // TODO: optimize
+
+    // Pre-compute powers of beta for optimization
+    // We need at most PERMUTATION_WIDTH (16) powers based on the maximum number of values in an Interaction
+    // This avoids repeated computation of powers() iterator in the inner loop
+    let max_powers_needed = 16; // PERMUTATION_WIDTH from recursion core
+    let betas: Vec<EF> = random_elements[1].powers().take(max_powers_needed).collect();
 
     let interaction_chunks = &sends
         .iter()
@@ -48,11 +53,11 @@ pub fn populate_local_permutation_row<F: PrimeField, EF: ExtensionField<F>>(
             .into_iter()
             .map(|(interaction, is_send)| {
                 let mut denominator = alpha;
-                let mut betas = betas.clone();
-                denominator +=
-                    betas.next().unwrap() * EF::from_canonical_usize(interaction.argument_index());
-                for (columns, beta) in interaction.values.iter().zip(betas) {
-                    denominator += beta * columns.apply::<F, F>(preprocessed_row, main_row);
+                let mut beta_iter = betas.iter();
+                denominator += *beta_iter.next().unwrap()
+                    * EF::from_canonical_usize(interaction.argument_index());
+                for (columns, beta) in interaction.values.iter().zip(beta_iter) {
+                    denominator += *beta * columns.apply::<F, F>(preprocessed_row, main_row);
                 }
                 let mut mult = interaction.multiplicity.apply::<F, F>(preprocessed_row, main_row);
 
@@ -268,16 +273,21 @@ pub fn eval_permutation_constraints<'a, F, AB>(
             // correct sign depending on wetther the interaction is a send or a receive.
             let mut rlcs: Vec<AB::ExprEF> = Vec::with_capacity(batch_size);
             let mut multiplicities: Vec<AB::Expr> = Vec::with_capacity(batch_size);
+            // Pre-compute powers of beta for optimization
+            // This avoids repeated computation of powers() iterator in the inner loop
+            let max_powers_needed = 16; // PERMUTATION_WIDTH from recursion core
+            let betas: Vec<AB::ExprEF> = beta.powers().take(max_powers_needed).collect();
+
             for (interaction, is_send) in chunk {
                 let mut rlc = alpha.clone();
-                let mut betas = beta.powers();
+                let mut beta_iter = betas.iter();
 
-                rlc = rlc.clone() +
-                    betas.next().unwrap() *
-                        AB::ExprEF::from_canonical_usize(interaction.argument_index());
-                for (field, beta) in interaction.values.iter().zip(betas.clone()) {
+                rlc = rlc.clone()
+                    + beta_iter.next().unwrap().clone()
+                        * AB::ExprEF::from_canonical_usize(interaction.argument_index());
+                for (field, beta) in interaction.values.iter().zip(beta_iter) {
                     let elem = field.apply::<AB::Expr, AB::Var>(&preprocessed_local, main_local);
-                    rlc = rlc.clone() + beta * elem;
+                    rlc = rlc.clone() + beta.clone() * elem;
                 }
                 rlcs.push(rlc);
 
@@ -285,8 +295,8 @@ pub fn eval_permutation_constraints<'a, F, AB>(
                 multiplicities.push(
                     interaction
                         .multiplicity
-                        .apply::<AB::Expr, AB::Var>(&preprocessed_local, main_local) *
-                        send_factor,
+                        .apply::<AB::Expr, AB::Var>(&preprocessed_local, main_local)
+                        * send_factor,
                 );
             }
 
