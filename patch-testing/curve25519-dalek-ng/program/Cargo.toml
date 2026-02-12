@@ -29,6 +29,6 @@ curve25519-dalek-ng = { version = "4.1.1", default-features = false, features = 
 
 [patch.crates-io]
 # patches are not transitvely applied to patches lmao
-curve25519-dalek-ng = { package = "curve25519-dalek-ng", git = "https://github.com/sp1-patches/curve25519-dalek-ng.git", tag = "patch-4.1.1-sp1-6.0.0-rc.1" }
+curve25519-dalek-ng = { package = "curve25519-dalek-ng", git = "https://github.com/sp1-patches/curve25519-dalek-ng.git", tag = "patch-4.1.1-sp1-6.0.0" }
 # Temporarily pinning to a specific version of ed25519-dalek to avoid a build failure
 sp1-lib = { path = "../../../crates/zkvm/lib" }

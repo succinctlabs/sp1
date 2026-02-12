@@ -9,5 +9,5 @@ sp1-zkvm = {  path = "../../../crates/zkvm/entrypoint" }
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 
 [patch.crates-io]
-tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", tag = "patch-2.0.2-sp1-6.0.0-rc.1" }
+tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", tag = "patch-2.0.2-sp1-6.0.0" }
 sp1-lib = { path = "../../../crates/zkvm/lib" }

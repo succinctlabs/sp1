@@ -33,7 +33,7 @@ path = "bin/test_bls_double.rs"
 [dependencies]
 sp1-lib = { path = "../../../crates/zkvm/lib" }
 sp1-zkvm = {  path = "../../../crates/zkvm/entrypoint" }
-bls12_381 = { git = "https://github.com/sp1-patches/bls12_381", tag = "patch-0.8.0-sp1-6.0.0-rc.1", features = [
+bls12_381 = { git = "https://github.com/sp1-patches/bls12_381", tag = "patch-0.8.0-sp1-6.0.0", features = [
     "groups",
 ] }
 

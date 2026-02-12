@@ -27,7 +27,7 @@ path = "bin/test_g1_double.rs"
 [dependencies]
 sp1-zkvm = {  path = "../../../crates/zkvm/entrypoint" }
 sp1-lib = { path = "../../../crates/zkvm/lib" }
-substrate-bn = { git = "https://github.com/sp1-patches/bn", tag = "patch-0.6.0-sp1-6.0.0-rc.1", package = "substrate-bn-succinct-rs" }
+substrate-bn = { git = "https://github.com/sp1-patches/bn", tag = "patch-0.6.0-sp1-6.0.0", package = "substrate-bn-succinct-rs" }
 
 [patch.crates-io]
 sp1-lib = { path = "../../../crates/zkvm/lib" }

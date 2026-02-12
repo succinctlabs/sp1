@@ -1,5 +1,5 @@
 [workspace.package]
-version = "6.0.0-rc.1"
+version = "6.0.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/succinctlabs/sp1"
@@ -100,50 +100,50 @@ debug = true
 debug-assertions = true
 
 [workspace.dependencies]
-sp1-build = { version = "6.0.0-rc.1", path = "crates/build" }
-sp1-cli = { version = "6.0.0-rc.1", path = "crates/cli", default-features = false }
-sp1-core-executor = { version = "6.0.0-rc.1", path = "crates/core/executor" }
-sp1-core-machine = { version = "6.0.0-rc.1", path = "crates/core/machine" }
-sp1-cuda = { version = "6.0.0-rc.1", path = "crates/cuda" }
-sp1-curves = { version = "6.0.0-rc.1", path = "crates/curves" }
-sp1-derive = { version = "6.0.0-rc.1", path = "crates/derive" }
-# sp1-eval = { version = "6.0.0-rc.1", path = "crates/eval" }
-sp1-helper = { version = "6.0.0-rc.1", path = "crates/helper", default-features = false }
-sp1-hypercube = { version = "6.0.0-rc.1", path = "crates/hypercube" }
-sp1-jit = { version = "6.0.0-rc.1", path = "crates/core/jit" }
-sp1-lib = { version = "6.0.0-rc.1", path = "crates/zkvm/lib", default-features = false }
-sp1-primitives = { version = "6.0.0-rc.1", path = "crates/primitives" }
-sp1-prover = { version = "6.0.0-rc.1", path = "crates/prover" }
-sp1-prover-types = { version = "6.0.0-rc.1", path = "crates/prover-types" }
-sp1-recursion-circuit = { version = "6.0.0-rc.1", path = "crates/recursion/circuit", default-features = false }
-sp1-recursion-compiler = { version = "6.0.0-rc.1", path = "crates/recursion/compiler" }
-sp1-recursion-executor = { version = "6.0.0-rc.1", path = "crates/recursion/executor", default-features = false }
-sp1-recursion-gnark-ffi = { version = "6.0.0-rc.1", path = "crates/recursion/gnark-ffi", default-features = false }
-sp1-recursion-machine = { version = "6.0.0-rc.1", path = "crates/recursion/machine", default-features = false }
-sp1-sdk = { version = "6.0.0-rc.1", path = "crates/sdk", default-features = false }
-sp1-verifier = { version = "6.0.0-rc.1", path = "crates/verifier", default-features = false }
-sp1-zkvm = { version = "6.0.0-rc.1", path = "crates/zkvm/entrypoint", default-features = false }
+sp1-build = { version = "6.0.0", path = "crates/build" }
+sp1-cli = { version = "6.0.0", path = "crates/cli", default-features = false }
+sp1-core-executor = { version = "6.0.0", path = "crates/core/executor" }
+sp1-core-machine = { version = "6.0.0", path = "crates/core/machine" }
+sp1-cuda = { version = "6.0.0", path = "crates/cuda" }
+sp1-curves = { version = "6.0.0", path = "crates/curves" }
+sp1-derive = { version = "6.0.0", path = "crates/derive" }
+# sp1-eval = { version = "6.0.0", path = "crates/eval" }
+sp1-helper = { version = "6.0.0", path = "crates/helper", default-features = false }
+sp1-hypercube = { version = "6.0.0", path = "crates/hypercube" }
+sp1-jit = { version = "6.0.0", path = "crates/core/jit" }
+sp1-lib = { version = "6.0.0", path = "crates/zkvm/lib", default-features = false }
+sp1-primitives = { version = "6.0.0", path = "crates/primitives" }
+sp1-prover = { version = "6.0.0", path = "crates/prover" }
+sp1-prover-types = { version = "6.0.0", path = "crates/prover-types" }
+sp1-recursion-circuit = { version = "6.0.0", path = "crates/recursion/circuit", default-features = false }
+sp1-recursion-compiler = { version = "6.0.0", path = "crates/recursion/compiler" }
+sp1-recursion-executor = { version = "6.0.0", path = "crates/recursion/executor", default-features = false }
+sp1-recursion-gnark-ffi = { version = "6.0.0", path = "crates/recursion/gnark-ffi", default-features = false }
+sp1-recursion-machine = { version = "6.0.0", path = "crates/recursion/machine", default-features = false }
+sp1-sdk = { version = "6.0.0", path = "crates/sdk", default-features = false }
+sp1-verifier = { version = "6.0.0", path = "crates/verifier", default-features = false }
+sp1-zkvm = { version = "6.0.0", path = "crates/zkvm/entrypoint", default-features = false }
 
 # sp1-gpu crates
-sp1-gpu-air = { version = "6.0.0-rc.1", path = "sp1-gpu/crates/air" }
-sp1-gpu-basefold = { version = "6.0.0-rc.1", path = "sp1-gpu/crates/basefold" }
-sp1-gpu-challenger = { version = "6.0.0-rc.1", path = "sp1-gpu/crates/challenger" }
-sp1-gpu-commit = { version = "6.0.0-rc.1", path = "sp1-gpu/crates/commit" }
-sp1-gpu-cudart = { version = "6.0.0-rc.1", path = "sp1-gpu/crates/cuda" }
-sp1-gpu-jagged-assist = { version = "6.0.0-rc.1", path = "sp1-gpu/crates/jagged_assist" }
-sp1-gpu-jagged-sumcheck = { version = "6.0.0-rc.1", path = "sp1-gpu/crates/jagged_sumcheck" }
-sp1-gpu-jagged-tracegen = { version = "6.0.0-rc.1", path = "sp1-gpu/crates/jagged_tracegen" }
-sp1-gpu-logup-gkr = { version = "6.0.0-rc.1", path = "sp1-gpu/crates/logup_gkr" }
-sp1-gpu-merkle-tree = { version = "6.0.0-rc.1", path = "sp1-gpu/crates/merkle_tree" }
-sp1-gpu-perf = { version = "6.0.0-rc.1", path = "sp1-gpu/crates/perf" }
-sp1-gpu-prover = { version = "6.0.0-rc.1", path = "sp1-gpu/crates/prover_components" }
-sp1-gpu-server = { version = "6.0.0-rc.1", path = "sp1-gpu/crates/server" }
-sp1-gpu-shard-prover = { version = "6.0.0-rc.1", path = "sp1-gpu/crates/shard_prover" }
-sp1-gpu-sys = { version = "6.0.0-rc.1", path = "sp1-gpu/crates/sys" }
-sp1-gpu-tracegen = { version = "6.0.0-rc.1", path = "sp1-gpu/crates/tracegen" }
-sp1-gpu-tracing = { version = "6.0.0-rc.1", path = "sp1-gpu/crates/tracing" }
-sp1-gpu-utils = { version = "6.0.0-rc.1", path = "sp1-gpu/crates/utils" }
-sp1-gpu-zerocheck = { version = "6.0.0-rc.1", path = "sp1-gpu/crates/zerocheck" }
+sp1-gpu-air = { version = "6.0.0", path = "sp1-gpu/crates/air" }
+sp1-gpu-basefold = { version = "6.0.0", path = "sp1-gpu/crates/basefold" }
+sp1-gpu-challenger = { version = "6.0.0", path = "sp1-gpu/crates/challenger" }
+sp1-gpu-commit = { version = "6.0.0", path = "sp1-gpu/crates/commit" }
+sp1-gpu-cudart = { version = "6.0.0", path = "sp1-gpu/crates/cuda" }
+sp1-gpu-jagged-assist = { version = "6.0.0", path = "sp1-gpu/crates/jagged_assist" }
+sp1-gpu-jagged-sumcheck = { version = "6.0.0", path = "sp1-gpu/crates/jagged_sumcheck" }
+sp1-gpu-jagged-tracegen = { version = "6.0.0", path = "sp1-gpu/crates/jagged_tracegen" }
+sp1-gpu-logup-gkr = { version = "6.0.0", path = "sp1-gpu/crates/logup_gkr" }
+sp1-gpu-merkle-tree = { version = "6.0.0", path = "sp1-gpu/crates/merkle_tree" }
+sp1-gpu-perf = { version = "6.0.0", path = "sp1-gpu/crates/perf" }
+sp1-gpu-prover = { version = "6.0.0", path = "sp1-gpu/crates/prover_components" }
+sp1-gpu-server = { version = "6.0.0", path = "sp1-gpu/crates/server" }
+sp1-gpu-shard-prover = { version = "6.0.0", path = "sp1-gpu/crates/shard_prover" }
+sp1-gpu-sys = { version = "6.0.0", path = "sp1-gpu/crates/sys" }
+sp1-gpu-tracegen = { version = "6.0.0", path = "sp1-gpu/crates/tracegen" }
+sp1-gpu-tracing = { version = "6.0.0", path = "sp1-gpu/crates/tracing" }
+sp1-gpu-utils = { version = "6.0.0", path = "sp1-gpu/crates/utils" }
+sp1-gpu-zerocheck = { version = "6.0.0", path = "sp1-gpu/crates/zerocheck" }
 
 p3-air = "0.3.1-succinct"
 p3-baby-bear = { version = "0.3.1-succinct", features = ["nightly-features"] }
@@ -163,36 +163,36 @@ p3-symmetric = "0.3.1-succinct"
 p3-uni-stark = "0.3.1-succinct"
 p3-util = "0.3.1-succinct"
 
-slop-air = { version = "6.0.0-rc.1", path = "./slop/crates/air" }
-slop-algebra = { version = "6.0.0-rc.1", path = "./slop/crates/algebra" }
-slop-alloc = { version = "6.0.0-rc.1", path = "./slop/crates/alloc" }
-slop-baby-bear = { version = "6.0.0-rc.1", path = "./slop/crates/baby-bear" }
-slop-basefold = { version = "6.0.0-rc.1", path = "./slop/crates/basefold" }
-slop-basefold-prover = { version = "6.0.0-rc.1", path = "./slop/crates/basefold-prover" }
-slop-bn254 = { version = "6.0.0-rc.1", path = "./slop/crates/bn254" }
-slop-challenger = { version = "6.0.0-rc.1", path = "./slop/crates/challenger" }
-slop-commit = { version = "6.0.0-rc.1", path = "./slop/crates/commit" }
-slop-dft = { version = "6.0.0-rc.1", path = "./slop/crates/dft" }
-slop-fri = { version = "6.0.0-rc.1", path = "./slop/crates/fri" }
-slop-futures = { version = "6.0.0-rc.1", path = "./slop/crates/futures" }
-slop-jagged = { version = "6.0.0-rc.1", path = "./slop/crates/jagged" }
-slop-keccak-air = { version = "6.0.0-rc.1", path = "./slop/crates/keccak-air" }
-slop-koala-bear = { version = "6.0.0-rc.1", path = "./slop/crates/koala-bear" }
-slop-matrix = { version = "6.0.0-rc.1", path = "./slop/crates/matrix" }
-slop-maybe-rayon = { version = "6.0.0-rc.1", path = "./slop/crates/maybe-rayon" }
-slop-merkle-tree = { version = "6.0.0-rc.1", path = "./slop/crates/merkle-tree" }
-slop-multilinear = { version = "6.0.0-rc.1", path = "./slop/crates/multilinear" }
-slop-pgspcs = { version = "6.0.0-rc.1", path = "./slop/crates/pgspcs" }
-slop-primitives = { version = "6.0.0-rc.1", path = "./slop/crates/primitives" }
-slop-poseidon2 = { version = "6.0.0-rc.1", path = "./slop/crates/poseidon2" }
-slop-spartan = { version = "6.0.0-rc.1", path = "./slop/crates/spartan" }
-slop-stacked = { version = "6.0.0-rc.1", path = "./slop/crates/stacked" }
-slop-sumcheck = { version = "6.0.0-rc.1", path = "./slop/crates/sumcheck" }
-slop-symmetric = { version = "6.0.0-rc.1", path = "./slop/crates/symmetric" }
-slop-tensor = { version = "6.0.0-rc.1", path = "./slop/crates/tensor" }
-slop-uni-stark = { version = "6.0.0-rc.1", path = "./slop/crates/uni-stark" }
-slop-utils = { version = "6.0.0-rc.1", path = "./slop/crates/utils" }
-slop-whir = { version = "6.0.0-rc.1", path = "./slop/crates/whir" }
+slop-air = { version = "6.0.0", path = "./slop/crates/air" }
+slop-algebra = { version = "6.0.0", path = "./slop/crates/algebra" }
+slop-alloc = { version = "6.0.0", path = "./slop/crates/alloc" }
+slop-baby-bear = { version = "6.0.0", path = "./slop/crates/baby-bear" }
+slop-basefold = { version = "6.0.0", path = "./slop/crates/basefold" }
+slop-basefold-prover = { version = "6.0.0", path = "./slop/crates/basefold-prover" }
+slop-bn254 = { version = "6.0.0", path = "./slop/crates/bn254" }
+slop-challenger = { version = "6.0.0", path = "./slop/crates/challenger" }
+slop-commit = { version = "6.0.0", path = "./slop/crates/commit" }
+slop-dft = { version = "6.0.0", path = "./slop/crates/dft" }
+slop-fri = { version = "6.0.0", path = "./slop/crates/fri" }
+slop-futures = { version = "6.0.0", path = "./slop/crates/futures" }
+slop-jagged = { version = "6.0.0", path = "./slop/crates/jagged" }
+slop-keccak-air = { version = "6.0.0", path = "./slop/crates/keccak-air" }
+slop-koala-bear = { version = "6.0.0", path = "./slop/crates/koala-bear" }
+slop-matrix = { version = "6.0.0", path = "./slop/crates/matrix" }
+slop-maybe-rayon = { version = "6.0.0", path = "./slop/crates/maybe-rayon" }
+slop-merkle-tree = { version = "6.0.0", path = "./slop/crates/merkle-tree" }
+slop-multilinear = { version = "6.0.0", path = "./slop/crates/multilinear" }
+slop-pgspcs = { version = "6.0.0", path = "./slop/crates/pgspcs" }
+slop-primitives = { version = "6.0.0", path = "./slop/crates/primitives" }
+slop-poseidon2 = { version = "6.0.0", path = "./slop/crates/poseidon2" }
+slop-spartan = { version = "6.0.0", path = "./slop/crates/spartan" }
+slop-stacked = { version = "6.0.0", path = "./slop/crates/stacked" }
+slop-sumcheck = { version = "6.0.0", path = "./slop/crates/sumcheck" }
+slop-symmetric = { version = "6.0.0", path = "./slop/crates/symmetric" }
+slop-tensor = { version = "6.0.0", path = "./slop/crates/tensor" }
+slop-uni-stark = { version = "6.0.0", path = "./slop/crates/uni-stark" }
+slop-utils = { version = "6.0.0", path = "./slop/crates/utils" }
+slop-whir = { version = "6.0.0", path = "./slop/crates/whir" }
 
 # For testing.
 tokio-test = "0.4.4"
