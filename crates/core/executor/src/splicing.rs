@@ -255,6 +255,10 @@ impl<'a> SplicingVM<'a> {
             }
         }
 
+        if code == SyscallCode::COMMIT || code == SyscallCode::COMMIT_DEFERRED_PROOFS {
+            self.shape_checker.handle_commit();
+        }
+
         let _ = CoreVM::execute_ecall(self, instruction, code)?;
 
         if code == SyscallCode::HINT_LEN {
