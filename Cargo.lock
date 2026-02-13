@@ -6926,6 +6926,7 @@ dependencies = [
  "sp1-recursion-circuit",
  "sp1-recursion-compiler",
  "sp1-sdk",
+ "test-artifacts",
  "tokio",
  "tracing",
  "zstd",

@@ -123,6 +123,7 @@ sp1-recursion-machine = { version = "6.0.0", path = "crates/recursion/machine", 
 sp1-sdk = { version = "6.0.0", path = "crates/sdk", default-features = false }
 sp1-verifier = { version = "6.0.0", path = "crates/verifier", default-features = false }
 sp1-zkvm = { version = "6.0.0", path = "crates/zkvm/entrypoint", default-features = false }
+test-artifacts = { path = "crates/test-artifacts" }
 
 # sp1-gpu crates
 sp1-gpu-air = { version = "6.0.0", path = "sp1-gpu/crates/air" }

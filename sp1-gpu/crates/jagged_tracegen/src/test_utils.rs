@@ -1,6 +1,6 @@
 //! Common test utilities shared across test modules.
-//! TODO: This should only be built in tests.
 
+#[cfg(any(test, feature = "test-utils"))]
 pub mod tracegen_setup {
     use sp1_core_executor::{ExecutionRecord, Program, SP1CoreOpts};
     use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAir, utils::generate_records};
@@ -9,22 +9,16 @@ pub mod tracegen_setup {
 
     use sp1_gpu_utils::Felt;
 
-    pub const FIBONACCI_ELF: &[u8] =
-        include_bytes!("../../prover_components/programs/fibonacci/riscv64im-succinct-zkvm-elf");
-
-    pub const KECCAK_ELF: &[u8] =
-        include_bytes!("../../prover_components/programs/keccak/riscv64im-succinct-zkvm-elf");
-
     pub const CORE_MAX_LOG_ROW_COUNT: u32 = 22;
     pub const LOG_STACKING_HEIGHT: u32 = 21;
 
     /// Which test program to execute for trace generation.
     #[derive(Debug, Clone, Copy, Default)]
     pub enum TestProgram {
-        /// Fibonacci program with input 8000 (~96_000 cycles)
+        /// Fibonacci program (hardcoded n=10)
         #[default]
         Fibonacci,
-        /// Keccak program (hash computation)
+        /// Keccak permute program (no stdin needed)
         Keccak,
     }
 
@@ -32,42 +26,28 @@ pub mod tracegen_setup {
         /// Returns the ELF bytes for this program.
         pub fn elf(&self) -> &'static [u8] {
             match self {
-                TestProgram::Fibonacci => FIBONACCI_ELF,
-                TestProgram::Keccak => KECCAK_ELF,
+                TestProgram::Fibonacci => &test_artifacts::FIBONACCI_ELF,
+                TestProgram::Keccak => &test_artifacts::KECCAK_PERMUTE_ELF,
             }
         }
 
         /// Returns the stdin for this program.
         pub fn stdin(&self) -> SP1Stdin {
-            let mut stdin = SP1Stdin::new();
-            match self {
-                TestProgram::Fibonacci => {
-                    stdin.write(&8_000u32);
-                }
-                TestProgram::Keccak => {
-                    // Keccak program expects input data to hash
-                    let input: Vec<u8> = vec![0u8; 1024];
-                    stdin.write_slice(&input);
-                }
-            }
-            stdin
+            SP1Stdin::new()
         }
 
         /// Returns the program name for error messages.
-        pub fn name(&self) -> String {
+        pub fn name(&self) -> &'static str {
             match self {
-                TestProgram::Fibonacci => "Fibonacci".to_string(),
-                TestProgram::Keccak => "Keccak".to_string(),
+                TestProgram::Fibonacci => "Fibonacci",
+                TestProgram::Keccak => "Keccak",
             }
         }
 
         /// Returns the number of records to skip before returning the desired one.
         /// Some programs have initialization shards that aren't representative.
         pub fn records_to_skip(&self) -> usize {
-            match self {
-                TestProgram::Fibonacci => 0,
-                TestProgram::Keccak => 1, // Skip first record (initialization)
-            }
+            0
         }
     }
 
