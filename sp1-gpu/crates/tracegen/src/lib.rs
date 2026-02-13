@@ -6,7 +6,6 @@ use core::pin::pin;
 use std::collections::BTreeSet;
 use std::{collections::BTreeMap, sync::Arc};
 
-use futures::stream::FuturesUnordered;
 use futures::{join, StreamExt};
 use rayon::prelude::*;
 use slop_air::BaseAir;
@@ -103,24 +102,24 @@ where
         let copied_host_traces = pin!(host_traces.then(|(name, trace)| async move {
             (name, DeviceMle::from_host(&trace, &self.trace_allocator).unwrap().into())
         }));
-        // Stream that, when polled, copies events to the device and generates traces.
-        let device_traces = device_airs
-            .into_iter()
-            .map(|air| {
-                // We want to borrow the program and move the air.
-                let program = program.as_ref();
-                async move {
-                    let maybe_trace = air
-                        .generate_preprocessed_trace_device(program, &self.trace_allocator)
-                        .await
+
+        // Spawn device preprocessed trace generation on rayon for parallel CPU work.
+        let (device_tx, device_traces) = futures::channel::mpsc::unbounded();
+        {
+            let scope = self.trace_allocator.clone();
+            let handle = tokio::runtime::Handle::current();
+            slop_futures::rayon::spawn(move || {
+                device_airs.into_par_iter().for_each_with(device_tx, |tx, air| {
+                    let maybe_trace = handle
+                        .block_on(air.generate_preprocessed_trace_device(program.as_ref(), &scope))
                         .unwrap();
-                    (air, maybe_trace)
-                }
-            })
-            .collect::<FuturesUnordered<_>>()
-            .filter_map(|(air, maybe_trace)| {
-                ready(maybe_trace.map(|trace| (air.name().to_string(), trace.into())))
+                    if let Some(trace) = maybe_trace {
+                        let _ = tx.unbounded_send((air.name().to_string(), trace.into()));
+                    }
+                });
+                // program is dropped here after rayon work completes.
             });
+        }
 
         let named_traces = futures::stream_select!(copied_host_traces, device_traces)
             .map(|(name, trace)| {
@@ -128,10 +127,6 @@ where
             })
             .collect::<BTreeMap<_, _>>()
             .await;
-
-        // If we're the last users of the program, expensively drop it in a separate task.
-        // TODO: in general, figure out the best way to drop expensive-to-drop things.
-        rayon::spawn(move || drop(program));
 
         Traces { named_traces }
     }
@@ -219,25 +214,30 @@ where
         let copied_host_traces = pin!(host_traces.then(|(name, trace)| async move {
             (name, DeviceMle::from_host(&trace, &self.trace_allocator).unwrap().into())
         }));
-        // Stream that, when polled, copies events to the device and generates traces.
-        let device_traces = device_airs
-            .into_iter()
-            .map(|air| {
-                // We want to borrow the record and move the chip.
-                let record = record.as_ref();
-                async move {
-                    let trace = air
-                        .generate_trace_device(
-                            record,
+
+        // Spawn device trace generation on rayon for parallel CPU work.
+        // Each chip's generate_trace_device does CPU event conversion followed by
+        // non-blocking GPU operations (async alloc, copy, kernel launch on the CUDA stream).
+        // Running on rayon parallelizes the CPU event conversion across all device chips,
+        // rather than processing them sequentially on the async executor.
+        let (device_tx, device_traces) = futures::channel::mpsc::unbounded();
+        {
+            let record = Arc::clone(&record);
+            let scope = self.trace_allocator.clone();
+            let handle = tokio::runtime::Handle::current();
+            slop_futures::rayon::spawn(move || {
+                device_airs.into_par_iter().for_each_with(device_tx, |tx, air| {
+                    let trace = handle
+                        .block_on(air.generate_trace_device(
+                            record.as_ref(),
                             &mut A::Record::default(),
-                            &self.trace_allocator,
-                        )
-                        .await
+                            &scope,
+                        ))
                         .unwrap();
-                    (air.name().to_string(), trace.into())
-                }
-            })
-            .collect::<FuturesUnordered<_>>();
+                    let _ = tx.unbounded_send((air.name().to_string(), trace.into()));
+                });
+            });
+        }
 
         let mut all_traces = padded_traces;
 
@@ -423,7 +423,7 @@ pub(crate) mod tests {
         assert_eq!(gpu_trace.dimensions, trace.dimensions);
 
         if verbose {
-            println!("{:?}", trace.dimensions);
+            tracing::debug!("{:?}", trace.dimensions);
         }
 
         let mut eventful_mismatched_columns = BTreeSet::new();
@@ -435,9 +435,12 @@ pub(crate) mod tests {
                 let expected = trace[[row_idx, col_idx]];
                 if actual != expected {
                     if verbose {
-                        println!(
+                        tracing::debug!(
                             "mismatch on row {} col {}. actual: {:?} expected: {:?}",
-                            row_idx, col_idx, *actual, *expected
+                            row_idx,
+                            col_idx,
+                            *actual,
+                            *expected
                         );
                     }
                     col_mismatches.insert(col_idx);
@@ -446,18 +449,20 @@ pub(crate) mod tests {
             let event = events.get(row_idx);
             if verbose {
                 if col_mismatches.is_empty() {
-                    println!(
+                    tracing::debug!(
                         "row {row_idx} matches   . event (assuming events/row = 1): {event:?}"
                     );
                 } else {
-                    println!(
+                    tracing::debug!(
                         "row {row_idx} MISMATCHES. event (assuming events/row = 1): {event:?}"
                     );
-                    println!("mismatched columns: {col_mismatches:?}");
+                    tracing::debug!("mismatched columns: {col_mismatches:?}");
                 }
             } else if !col_mismatches.is_empty() {
-                println!("row {row_idx} MISMATCHES. event (assuming events/row = 1): {event:?}");
-                println!("mismatched columns: {col_mismatches:?}");
+                tracing::debug!(
+                    "row {row_idx} MISMATCHES. event (assuming events/row = 1): {event:?}"
+                );
+                tracing::debug!("mismatched columns: {col_mismatches:?}");
             }
             if event.is_some() {
                 eventful_mismatched_columns.extend(col_mismatches);
@@ -469,8 +474,8 @@ pub(crate) mod tests {
             || !padding_mismatched_columns.is_empty()
             || verbose
         {
-            println!("eventful mismatched columns: {eventful_mismatched_columns:?}");
-            println!("padding mismatched columns: {padding_mismatched_columns:?}");
+            tracing::debug!("eventful mismatched columns: {eventful_mismatched_columns:?}");
+            tracing::debug!("padding mismatched columns: {padding_mismatched_columns:?}");
         }
 
         assert_eq!(gpu_trace, trace);

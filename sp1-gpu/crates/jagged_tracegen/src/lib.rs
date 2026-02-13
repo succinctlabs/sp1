@@ -794,23 +794,33 @@ async fn device_main_tracegen<A: CudaTracegenAir<Felt>>(
         tracing::trace_span!(parent: &outer_span, "copy host trace to device", chip = %name)
     )));
 
-    // Stream that, when polled, copies events to the device and generates traces.
-    let device_traces = device_airs
-        .into_iter()
-        .map(|air| {
-            // We want to borrow the record and move the chip.
-            let record = record.as_ref();
-            let outer_span = outer_span.clone();
-            async move {
-                let trace = air
-                    .generate_trace_device(record, &mut A::Record::default(), backend)
-                    .instrument(tracing::trace_span!(parent: &outer_span, "device chip tracegen", chip = %air.name()))
-                    .await
-                    .unwrap();
-                (air.name().to_string(), trace.into())
-            }
-        })
-        .collect::<FuturesUnordered<_>>();
+    // Spawn device trace generation on rayon for parallel CPU work.
+    // Each chip's generate_trace_device does CPU event conversion followed by
+    // non-blocking GPU operations (async alloc, copy, kernel launch on the CUDA stream).
+    // Running on rayon parallelizes the CPU event conversion across all device chips,
+    // rather than processing them sequentially on the async executor.
+    let (device_tx, device_traces) = futures::channel::mpsc::unbounded();
+    {
+        let record = Arc::clone(&record);
+        let backend = backend.clone();
+        let outer_span = outer_span.clone();
+        let handle = tokio::runtime::Handle::current();
+        rayon::spawn(move || {
+            device_airs.into_par_iter().for_each_with(device_tx, |tx, air| {
+                let span = tracing::trace_span!(parent: &outer_span, "device chip tracegen", chip = %air.name());
+                let trace = span.in_scope(|| {
+                    handle
+                        .block_on(air.generate_trace_device(
+                            record.as_ref(),
+                            &mut A::Record::default(),
+                            &backend,
+                        ))
+                        .unwrap()
+                });
+                let _ = tx.unbounded_send((air.name().to_string(), trace.into()));
+            });
+        });
+    }
 
     let mut all_traces = initial_traces;
 
