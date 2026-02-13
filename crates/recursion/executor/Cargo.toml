@@ -1,6 +1,6 @@
 [package]
 name = "sp1-recursion-executor"
-description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
+description = "Executor for SP1 recursion programs"
 readme = "../../../README.md"
 version = { workspace = true }
 edition = { workspace = true }

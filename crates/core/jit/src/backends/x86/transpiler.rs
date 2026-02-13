@@ -29,14 +29,21 @@ impl RiscvTranspiler for TranspilerBackend {
 
         let inner = Assembler::new()?;
 
-        // Create a trace buffer with that should only be 90% full before exiting.
+        // Allocate a trace buffer with enough headroom for the worst-case single-instruction
+        // overflow. The chunk-stop check only runs between instructions, so a precompile ecall
+        // can emit up to ~288 trace entries (sha256_extend) beyond max_trace_size.
+        const MAX_SINGLE_INSTRUCTION_MEM_OPS: usize = 512;
         let capacity_bytes = if max_trace_size == 0 {
             0
         } else {
             let event_bytes = max_trace_size as usize * std::mem::size_of::<crate::MemValue>();
+            // Scale by 10/9 for proportional leeway on large traces.
             let event_bytes = event_bytes * 10 / 9;
+            // Add fixed headroom for worst-case single-instruction overflow.
+            let worst_case_bytes =
+                MAX_SINGLE_INSTRUCTION_MEM_OPS * std::mem::size_of::<crate::MemValue>();
             let header_bytes = std::mem::size_of::<crate::TraceChunkHeader>();
-            event_bytes + header_bytes
+            event_bytes + worst_case_bytes + header_bytes
         };
 
         let mut this = Self {

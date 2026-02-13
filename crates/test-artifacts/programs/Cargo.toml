@@ -36,7 +36,6 @@ members = [
   "sha2",
   "ssz-withdrawals",
   "tendermint-benchmark",
-  "u256x2048-mul",
   "uint256-arith",
   "uint256-mul",
   "verify-proof",
@@ -50,8 +49,12 @@ num-bigint = "=0.4.6"
 crypto-bigint = "0.5"
 serde = "1.0.204"
 serde_json = "1.0.132"
+tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 
 [patch.crates-io]
 sha2-v0-9-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-v0.9.8" }
 ed25519-consensus = { git = "https://github.com/sp1-patches/ed25519-consensus", branch = "patch-v2.1.0" }
 sp1-lib = { path = "../../../crates/zkvm/lib" }
+tiny-keccak-patched = { git = "https://github.com/sp1-patches/tiny-keccak", tag = "patch-2.0.2-sp1-6.0.0", package = "tiny-keccak", features = [
+  "keccak",
+] }

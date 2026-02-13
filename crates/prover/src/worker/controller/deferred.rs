@@ -34,8 +34,8 @@ pub struct DeferredInputs {
 impl DeferredInputs {
     pub fn new(
         deferred_proofs: impl IntoIterator<Item = SP1RecursionProof<SP1GlobalContext, SP1PcsProofInner>>,
-        initial_deferred_digest: [SP1Field; DIGEST_SIZE],
     ) -> Self {
+        let initial_deferred_digest = Self::initial_deferred_digest();
         // Prepare the inputs for the deferred proofs recursive verification.
         let mut deferred_digest = initial_deferred_digest;
         let mut deferred_inputs = Vec::new();
@@ -58,6 +58,10 @@ impl DeferredInputs {
         DeferredInputs { inputs: deferred_inputs, deferred_digest }
     }
 
+    pub fn initial_deferred_digest() -> [SP1Field; DIGEST_SIZE] {
+        [SP1Field::zero(); DIGEST_SIZE]
+    }
+
     pub fn num_deferred_proofs(&self) -> usize {
         self.inputs.len()
     }
@@ -78,14 +82,7 @@ impl DeferredInputs {
             // Calculate the range of the deferred proof.
             let prev_deferred_proof = input.deferred_proof_index.as_canonical_u32() as u64;
             let deferred_proof = prev_deferred_proof + input.input.vks_and_proofs.len() as u64;
-            let range = ShardRange {
-                timestamp_range: (1, 1),
-                initialized_address_range: (0, 0),
-                finalized_address_range: (0, 0),
-                initialized_page_index_range: (0, 0),
-                finalized_page_index_range: (0, 0),
-                deferred_proof_range: (prev_deferred_proof, deferred_proof),
-            };
+            let range = ShardRange::deferred(prev_deferred_proof, deferred_proof);
             // Upload the input
             let deferred_data = artifact_client.create_artifact()?;
             artifact_client.upload(&deferred_data, input).await?;

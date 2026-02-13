@@ -1,12 +1,12 @@
 [package]
 name = "sp1-jit"
+description = "JIT compilation for SP1 trace generation"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 keywords.workspace = true
 categories.workspace = true
-include.workspace = true
 
 [dependencies]
 dynasmrt = { workspace = true }

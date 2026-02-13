@@ -5,6 +5,8 @@
 sp1_zkvm::entrypoint!(main);
 
 use sha2::{Digest, Sha256};
+use tiny_keccak::{Hasher, Keccak};
+
 use sp1_zkvm::lib::verify::verify_sp1_proof;
 
 pub fn main() {
@@ -21,4 +23,10 @@ pub fn main() {
         println!("Verified proof for digest: {:?}", hex::encode(pv_digest));
         println!("Verified input: {:?}", hex::encode(input));
     });
+    // Hash the vk so that the test program will have a precompile shard
+    let mut hasher = Keccak::v256();
+    hasher.update(bytemuck::cast_slice(&vkey));
+    let mut output = [0u8; 32];
+    hasher.finalize(&mut output);
+    println!("Keccak256 hash of vkey: {:?}", hex::encode(output));
 }

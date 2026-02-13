@@ -261,14 +261,16 @@ impl SP1RecursionProofShape {
                 .iter()
                 .map(|chip| self.shape.height(chip).unwrap() * chip.preprocessed_width())
                 .sum::<usize>())
-        .div_ceil(1 << max_log_row_count);
+        .div_ceil(1 << max_log_row_count)
+        .max(1);
 
         let main_padding_cols = ((main_multiple * (1 << log_stacking_height))
             - chips
                 .iter()
                 .map(|chip| self.shape.height(chip).unwrap() * chip.width())
                 .sum::<usize>())
-        .div_ceil(1 << max_log_row_count);
+        .div_ceil(1 << max_log_row_count)
+        .max(1);
 
         let dummy_proof = dummy_shard_proof(
             chips,

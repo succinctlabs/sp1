@@ -268,13 +268,16 @@ async fn test_verify_invalid_plonk(#[case] elf: Elf) {
 #[serial]
 #[tokio::test]
 async fn test_vkeys() {
-    let groth16_path = try_install_circuit_artifacts("groth16").await;
+    let groth16_path = try_install_circuit_artifacts("groth16")
+        .await
+        .expect("failed to install groth16 artifacts");
     let s3_vkey_path = groth16_path.join("groth16_vk.bin");
-    let s3_vkey_bytes = std::fs::read(s3_vkey_path).unwrap();
+    let s3_vkey_bytes = std::fs::read(s3_vkey_path).expect("failed to read groth16_vk.bin");
     assert_eq!(s3_vkey_bytes, *crate::GROTH16_VK_BYTES);
 
-    let plonk_path = try_install_circuit_artifacts("plonk").await;
+    let plonk_path =
+        try_install_circuit_artifacts("plonk").await.expect("failed to install plonk artifacts");
     let s3_vkey_path = plonk_path.join("plonk_vk.bin");
-    let s3_vkey_bytes = std::fs::read(s3_vkey_path).unwrap();
+    let s3_vkey_bytes = std::fs::read(s3_vkey_path).expect("failed to read plonk_vk.bin");
     assert_eq!(s3_vkey_bytes, *crate::PLONK_VK_BYTES);
 }

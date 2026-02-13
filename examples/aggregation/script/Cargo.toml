@@ -5,7 +5,7 @@ edition = { workspace = true }
 publish = false
 
 [dependencies]
-sp1-sdk = { workspace = true, default-features = true }
+sp1-sdk = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true }
 

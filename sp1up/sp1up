@@ -58,12 +58,14 @@ main() {
             shift
             check_required_arg "--arch" "$1"
             SP1UP_ARCH=$1;;
-            
+
         --platform)       
             shift
             check_required_arg "--platform" "$1"
             SP1UP_PLATFORM=$1;;
-            
+
+        --private-release) PRIVATE_CARGO_PROVE=true;;
+
         -t|--token)       
             shift
             check_required_arg "--token" "$1"
@@ -136,33 +138,21 @@ main() {
     determine_platform
     determine_architecture
 
-    # Compute the URL of the release tarball in the sp1 repository.
-    if [[ "$SP1UP_TAG" == "latest" ]]; then
-      # <https://docs.github.com/en/repositories/releasing-projects-on-github/linking-to-releases>
-      RELEASE_URL="https://github.com/${SP1UP_REPO}/releases/latest/download/"
-      # Get the actual version from the release API
-      SP1UP_VERSION=$(curl -s https://api.github.com/repos/succinctlabs/sp1/releases/latest | grep -o '"tag_name": "[^"]*"' | cut -d'"' -f4)
+    if [ "$PRIVATE_CARGO_PROVE" = true ]; then
+      if [ "$SP1UP_VERSION" == "latest" ]; then
+        err "An explicit --version (not latest) is required when using --private-release"
+      else
+        BIN_VERSION="$SP1UP_VERSION"
+      fi
+      install_private_asset_using_github_api "cargo_prove_${BIN_VERSION}_${PLATFORM}_${ARCHITECTURE}.$EXT"
     else
-      RELEASE_URL="https://github.com/${SP1UP_REPO}/releases/download/${SP1UP_TAG}/"
-    fi
-
-    BIN_ARCHIVE_URL="${RELEASE_URL}cargo_prove_${SP1UP_VERSION}_${PLATFORM}_${ARCHITECTURE}.$EXT"
-
-    echo "BIN_ARCHIVE_URL: $BIN_ARCHIVE_URL"
-
-    check_url "$BIN_ARCHIVE_URL" "binary"
-    # todo download spq-gpu-server
-
-    # Download and extract the binaries archive
-    say "downloading latest cargo-prove"
-    if [ "$PLATFORM" = "win32" ]; then
-      tmp="$(mktemp -d 2>/dev/null || echo ".")/cargo-prove.zip"
-      ensure download "$BIN_ARCHIVE_URL" "$tmp"
-      ensure unzip "$tmp" -d "$SP1_BIN_DIR"
-      rm -f "$tmp"
-    else
-      ensure download "$BIN_ARCHIVE_URL" | ensure tar -xzC "$SP1_BIN_DIR"
-      # download sp1-gpu-server
+      if [ "$SP1UP_VERSION" == "latest" ]; then
+        # Get the actual version from the release API
+        BIN_VERSION=$(curl -s https://api.github.com/repos/$SP1UP_REPO/releases/latest | grep -o '"tag_name": "[^"]*"' | cut -d'"' -f4)
+      else
+        BIN_VERSION="$SP1UP_VERSION"
+      fi
+      install_public_asset "cargo_prove_${BIN_VERSION}_${PLATFORM}_${ARCHITECTURE}.$EXT"
     fi
 
     for bin in "${BINS[@]}"; do
@@ -300,6 +290,52 @@ install_c_toolchain() {
   say "installed C++ toolchain for RISC-V and set environment variables"
 }
 
+install_private_asset_using_github_api() {
+  local ASSET_NAME=$1
+  if [ -z "$GITHUB_TOKEN" ]; then
+    err "A github token (--token) is required when using --private-release"
+  fi
+  need_cmd jq
+  AUTH="Authorization: Token $GITHUB_TOKEN"
+  RELEASES_URL="https://api.github.com/repos/$SP1UP_REPO/releases"
+  check_url "$RELEASES_URL" "releases" "$GITHUB_TOKEN"
+  RELEASE_ID=$(curl -s -H "$AUTH" "$RELEASES_URL" | jq -c ".[] | select(.tag_name == \"$SP1UP_VERSION\") | .id")
+  if [[ -z "$RELEASE_ID" ]]; then
+    err "no release found for tag_name: $SP1UP_VERSION"
+  fi
+  ASSETS_URL="https://api.github.com/repos/$SP1UP_REPO/releases/$RELEASE_ID"
+  check_url "$ASSETS_URL" "release $RELEASE_ID assets" "$GITHUB_TOKEN"
+  ASSET_ID=$(curl -s -H "$AUTH" "$ASSETS_URL" | jq -r -c ".assets[] | select(.name == \"$ASSET_NAME\") | .id")
+  BIN_ARCHIVE_URL="https://api.github.com/repos/$SP1UP_REPO/releases/assets/$ASSET_ID"
+  check_url "$BIN_ARCHIVE_URL" "$ASSET_NAME" "$GITHUB_TOKEN"
+  say "downloading $ASSET_NAME"
+  ensure curl -# -S -L -H "Accept: application/octet-stream" -H "$AUTH" "$BIN_ARCHIVE_URL" | ensure tar -xzC "$SP1_BIN_DIR"
+}
+
+install_public_asset() {
+  local ASSET_NAME=$1
+
+  # Compute the URL of the release tarball in the sp1 repository.
+  if [[ "$SP1UP_TAG" == "latest" ]]; then
+    # <https://docs.github.com/en/repositories/releasing-projects-on-github/linking-to-releases>
+    BIN_ARCHIVE_URL="https://github.com/${SP1UP_REPO}/releases/latest/download/${ASSET_NAME}"
+  else
+    BIN_ARCHIVE_URL="https://github.com/${SP1UP_REPO}/releases/download/${SP1UP_TAG}/${ASSET_NAME}"
+  fi
+  check_url "$BIN_ARCHIVE_URL" "binary"
+
+  # Download and extract the binaries archive
+  say "downloading $ASSET_NAME"
+  if [ "$PLATFORM" = "win32" ]; then
+    tmp="$(mktemp -d 2>/dev/null || echo ".")/cargo-prove.zip"
+    ensure download "$BIN_ARCHIVE_URL" "$tmp"
+    ensure unzip "$tmp" -d "$SP1_BIN_DIR"
+    rm -f "$tmp"
+  else
+    ensure download "$BIN_ARCHIVE_URL" | ensure tar -xzC "$SP1_BIN_DIR"
+  fi
+}
+
 determine_platform() {
   uname_s=$(uname -s)
   PLATFORM=$(tolower "${SP1UP_PLATFORM:-$uname_s}")
@@ -325,16 +361,30 @@ determine_platform() {
 check_url() {
     local url="$1"
     local description="$2"
-    
-    if ! curl --head --silent --fail "$url" --output /dev/null 2> /dev/null; then
-        echo "Error: Unable to access the $description at: $url" >&2
-        echo "Please check:" >&2
-        echo "  - Your internet connection" >&2
-        echo "  - If the version '${SP1UP_VERSION}' exists" >&2
-        echo "  - If the repository '${SP1UP_REPO}' is correct" >&2
-        echo "  - If the tag '${SP1UP_TAG}' exists" >&2
-        return 1
+    local auth_token="$3" # optional auth token
+
+    if [ -n "$auth_token" ]; then
+      if ! curl --head --silent --fail -H "Authorization: Token $auth_token" "$url" --output /dev/null 2> /dev/null; then
+          echo "Error: Unable to access the $description at: $url" >&2
+          echo "Please check:" >&2
+          echo "  - Your internet connection" >&2
+          echo "  - If the version '${SP1UP_VERSION}' exists" >&2
+          echo "  - If the repository '${SP1UP_REPO}' is correct" >&2
+          echo "  - If the tag '${SP1UP_TAG}' exists" >&2
+          return 1
+      fi
+    else
+      if ! curl --head --silent --fail "$url" --output /dev/null 2> /dev/null; then
+          echo "Error: Unable to access the $description at: $url" >&2
+          echo "Please check:" >&2
+          echo "  - Your internet connection" >&2
+          echo "  - If the version '${SP1UP_VERSION}' exists" >&2
+          echo "  - If the repository '${SP1UP_REPO}' is correct" >&2
+          echo "  - If the tag '${SP1UP_TAG}' exists" >&2
+          return 1
+      fi
     fi
+
     return 0
 }
 
@@ -387,6 +437,7 @@ OPTIONS:
     -c, --c-toolchain Install a C++ toolchain for RISC-V (needed building programs that bind to C code)
     --arch            Install a specific architecture (supports amd64 and arm64)
     --platform        Install a specific platform (supports win32, linux, and darwin)
+    --private-release Install a cargo-prove using github API (needs a github token and explicit version)
     -t, --token       GitHub token to use for avoiding API rate limits
 EOF
 }

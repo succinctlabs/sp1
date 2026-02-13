@@ -38,7 +38,7 @@ impl MinimalExecutor {
     }
 
     /// Transpile the program, saving the JIT function.
-    #[tracing::instrument(name = "MinimalExecutor::transpile", skip(program))]
+    #[tracing::instrument(name = "MinimalExecutor::transpile", level = "debug", skip(program))]
     fn transpile(program: &Program, is_debug: bool, max_trace_size: Option<u64>) -> JitFunction {
         let trace_buf_size = max_trace_size.unwrap_or(0);
 

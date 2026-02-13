@@ -80,7 +80,7 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
     /// Sets the wrap air prover to the worker client builder.
     pub fn with_wrap_air_prover(
         mut self,
-        wrap_air_prover: Arc<C::WrapProver>,
+        wrap_air_prover: C::WrapProverBuilder,
         permit: ProverSemaphore,
     ) -> Self {
         self.worker_builder = self.worker_builder.with_wrap_air_prover(wrap_air_prover, permit);
@@ -168,7 +168,7 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                             task_set.spawn(async move {
                                 let result = handle.await.map(|res| res.map(|(_, metadata)| metadata));
                                 TaskOutput::handle_worker_result(result, &tx, proof_id, id, request, TaskType::SetupVkey);
-                            }.in_current_span()
+                            }
                           );
                         }
 

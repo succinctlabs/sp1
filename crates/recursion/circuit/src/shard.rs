@@ -1,16 +1,10 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    marker::PhantomData,
-};
-
 use crate::{
     basefold::RecursiveBasefoldProof,
-    challenger::{CanObserveVariable, FieldChallengerVariable},
+    challenger::CanObserveVariable,
     jagged::{
         JaggedPcsProofVariable, RecursiveJaggedPcsVerifier, RecursiveMachineJaggedPcsVerifier,
     },
     logup_gkr::RecursiveLogUpGkrVerifier,
-    symbolic::IntoSymbolic,
     zerocheck::RecursiveVerifierConstraintFolder,
     CircuitConfig, SP1FieldConfigVariable,
 };
@@ -18,11 +12,12 @@ use slop_air::Air;
 use slop_algebra::AbstractField;
 use slop_challenger::IopCtx;
 use slop_commit::Rounds;
-use slop_multilinear::{Evaluations, MleEval, Point};
+use slop_multilinear::{Evaluations, MleEval};
 use slop_sumcheck::PartialSumcheckProof;
+
 use sp1_hypercube::{
     air::MachineAir, septic_digest::SepticDigest, GenericVerifierPublicValuesConstraintFolder,
-    LogupGkrProof, Machine, MachineRecord, ShardOpenedValues,
+    LogupGkrProof, Machine, ShardOpenedValues,
 };
 use sp1_primitives::{SP1ExtensionField, SP1Field};
 use sp1_recursion_compiler::{
@@ -31,6 +26,7 @@ use sp1_recursion_compiler::{
     prelude::{Ext, SymbolicFelt},
 };
 use sp1_recursion_executor::{DIGEST_SIZE, NUM_BITS};
+use std::collections::{BTreeMap, BTreeSet};
 
 #[allow(clippy::type_complexity)]
 pub struct ShardProofVariable<C: CircuitConfig, SC: SP1FieldConfigVariable<C> + Send + Sync> {
@@ -43,7 +39,7 @@ pub struct ShardProofVariable<C: CircuitConfig, SC: SP1FieldConfigVariable<C> + 
     /// The public values
     pub public_values: Vec<Felt<SP1Field>>,
     // TODO: The `LogUp+GKR` IOP proofs.
-    pub logup_gkr_proof: LogupGkrProof<Ext<SP1Field, SP1ExtensionField>>,
+    pub logup_gkr_proof: LogupGkrProof<Felt<SP1Field>, Ext<SP1Field, SP1ExtensionField>>,
     /// The evaluation proof.
     pub evaluation_proof: JaggedPcsProofVariable<RecursiveBasefoldProof<C, SC>, SC::DigestVariable>,
 }
@@ -100,32 +96,6 @@ where
     A: MachineAir<SP1Field>,
     C: CircuitConfig,
 {
-    /// Verify the public values satisfy the required constraints, and return the cumulative sum.
-    pub fn verify_public_values(
-        &self,
-        builder: &mut Builder<C>,
-        challenge: Ext<SP1Field, SP1ExtensionField>,
-        alpha: &Ext<SP1Field, SP1ExtensionField>,
-        beta_seed: &Point<Ext<SP1Field, SP1ExtensionField>>,
-        public_values: &[Felt<SP1Field>],
-    ) -> SymbolicExt<SP1Field, SP1ExtensionField> {
-        let beta_symbolic = IntoSymbolic::<C>::as_symbolic(beta_seed);
-        let betas =
-            slop_multilinear::partial_lagrange_blocking(&beta_symbolic).into_buffer().into_vec();
-        let mut folder = RecursiveVerifierPublicValuesConstraintFolder {
-            perm_challenges: (alpha, &betas),
-            alpha: challenge,
-            accumulator: SymbolicExt::zero(),
-            local_interaction_digest: SymbolicExt::zero(),
-            public_values,
-            _marker: PhantomData,
-        };
-        A::Record::eval_public_values(&mut folder);
-        // Check that the constraints hold.
-        builder.assert_ext_eq(folder.accumulator, SymbolicExt::zero());
-        folder.local_interaction_digest
-    }
-
     pub fn verify_shard(
         &self,
         builder: &mut Builder<C>,
@@ -193,25 +163,6 @@ where
             .cloned()
             .collect::<BTreeSet<_>>();
 
-        // Sample the permutation challenges.
-        let alpha = challenger.sample_ext(builder);
-        let max_interaction_arity = shard_chips
-            .iter()
-            .flat_map(|c| c.sends().iter().chain(c.receives().iter()))
-            .map(|i| i.values.len() + 1)
-            .max()
-            .unwrap();
-        let beta_seed_dim = max_interaction_arity.next_power_of_two().ilog2();
-        let beta_seed =
-            Point::from_iter((0..beta_seed_dim).map(|_| challenger.sample_ext(builder)));
-        // Sample the public value challenge.
-        let pv_challenge = challenger.sample_ext(builder);
-
-        builder.cycle_tracker_v2_enter("verify-public-values");
-        let cumulative_sum =
-            -self.verify_public_values(builder, pv_challenge, &alpha, &beta_seed, public_values);
-        builder.cycle_tracker_v2_exit();
-
         let degrees = opened_values.chips.values().map(|x| x.degree.clone()).collect::<Vec<_>>();
 
         let max_log_row_count = self.pcs_verifier.max_log_row_count;
@@ -222,11 +173,9 @@ where
             builder,
             &shard_chips,
             &degrees,
-            alpha,
-            beta_seed,
-            cumulative_sum,
             max_log_row_count,
             logup_gkr_proof,
+            public_values,
             challenger,
         );
         builder.cycle_tracker_v2_exit();

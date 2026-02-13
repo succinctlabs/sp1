@@ -4,7 +4,7 @@ use std::time::Duration;
 use tonic::Code;
 
 /// Default timeout for retry operations.
-pub const DEFAULT_RETRY_TIMEOUT: Duration = Duration::from_secs(120);
+pub const DEFAULT_RETRY_TIMEOUT: Duration = Duration::from_mins(2);
 
 /// Trait for implementing retryable RPC operations.
 #[async_trait::async_trait]
@@ -41,7 +41,7 @@ where
 {
     let backoff = ExponentialBackoff {
         initial_interval: Duration::from_secs(1),
-        max_interval: Duration::from_secs(120),
+        max_interval: Duration::from_mins(2),
         max_elapsed_time: timeout,
         ..Default::default()
     };

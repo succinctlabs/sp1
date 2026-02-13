@@ -9,7 +9,7 @@ use sp1_verifier::SP1ProofMode;
 
 /// Dump the program and stdin to files for debugging if `SP1_DUMP` is set.
 pub(crate) fn sp1_dump(elf: &[u8], stdin: &SP1Stdin) {
-    if std::env::var("SP1_DUMP").map(|v| v == "1" || v.to_lowercase() == "true").unwrap_or(false) {
+    if std::env::var("SP1_DUMP").is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true")) {
         std::fs::write("program.bin", elf).unwrap();
         let stdin = bincode::serialize(&stdin).unwrap();
         std::fs::write("stdin.bin", stdin.clone()).unwrap();

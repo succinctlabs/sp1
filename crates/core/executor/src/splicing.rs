@@ -165,7 +165,6 @@ impl SplicingVM<'_> {
 
 impl<'a> SplicingVM<'a> {
     /// Create a new full-tracing VM from a minimal trace.
-    #[tracing::instrument(name = "SplicingVM::new", skip_all)]
     pub fn new<T: MinimalTrace>(
         trace: &'a T,
         program: Arc<Program>,
@@ -254,6 +253,10 @@ impl<'a> SplicingVM<'a> {
             } else {
                 self.shape_checker.syscall_sent();
             }
+        }
+
+        if code == SyscallCode::COMMIT || code == SyscallCode::COMMIT_DEFERRED_PROOFS {
+            self.shape_checker.handle_commit();
         }
 
         let _ = CoreVM::execute_ecall(self, instruction, code)?;

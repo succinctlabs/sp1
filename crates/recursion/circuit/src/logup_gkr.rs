@@ -1,4 +1,5 @@
 use itertools::Itertools;
+use sp1_recursion_compiler::circuit::CircuitV2Builder;
 use sp1_recursion_compiler::prelude::*;
 use std::{collections::BTreeSet, marker::PhantomData, ops::Deref};
 
@@ -11,6 +12,7 @@ use sp1_hypercube::{
 use sp1_primitives::{SP1ExtensionField, SP1Field};
 use sp1_recursion_compiler::ir::Builder;
 
+use crate::shard::RecursiveVerifierPublicValuesConstraintFolder;
 use crate::{
     challenger::{CanObserveVariable, FieldChallengerVariable},
     sumcheck::{evaluate_mle_ext, verify_sumcheck},
@@ -18,6 +20,7 @@ use crate::{
     witness::{WitnessWriter, Witnessable},
     CircuitConfig, SP1FieldConfigVariable,
 };
+use sp1_hypercube::{MachineRecord, GKR_GRINDING_BITS};
 
 /// Verifier for `LogUp` GKR.
 #[derive(Clone, Debug, Copy, Default, PartialEq, Eq, Hash)]
@@ -29,6 +32,31 @@ where
     SC: SP1FieldConfigVariable<C>,
     A: MachineAir<SP1Field>,
 {
+    /// Verify the public values satisfy the required constraints, and return the cumulative sum.
+    pub fn verify_public_values(
+        builder: &mut Builder<C>,
+        challenge: Ext<SP1Field, SP1ExtensionField>,
+        alpha: &Ext<SP1Field, SP1ExtensionField>,
+        beta_seed: &Point<Ext<SP1Field, SP1ExtensionField>>,
+        public_values: &[Felt<SP1Field>],
+    ) -> SymbolicExt<SP1Field, SP1ExtensionField> {
+        let beta_symbolic = IntoSymbolic::<C>::as_symbolic(beta_seed);
+        let betas =
+            slop_multilinear::partial_lagrange_blocking(&beta_symbolic).into_buffer().into_vec();
+        let mut folder = RecursiveVerifierPublicValuesConstraintFolder {
+            perm_challenges: (alpha, &betas),
+            alpha: challenge,
+            accumulator: SymbolicExt::zero(),
+            local_interaction_digest: SymbolicExt::zero(),
+            public_values,
+            _marker: PhantomData,
+        };
+        A::Record::eval_public_values(&mut folder);
+        // Check that the constraints hold.
+        builder.assert_ext_eq(folder.accumulator, SymbolicExt::zero());
+        folder.local_interaction_digest
+    }
+
     /// Verify the `LogUp` GKR proof.
     ///
     /// # Errors
@@ -38,15 +66,41 @@ where
         builder: &mut Builder<C>,
         shard_chips: &BTreeSet<Chip<SP1Field, A>>,
         degrees: &[Point<Felt<SP1Field>>],
-        alpha: Ext<SP1Field, SP1ExtensionField>,
-        beta_seed: Point<Ext<SP1Field, SP1ExtensionField>>,
-        cumulative_sum: SymbolicExt<SP1Field, SP1ExtensionField>,
         max_log_row_count: usize,
-        proof: &LogupGkrProof<Ext<SP1Field, SP1ExtensionField>>,
+        proof: &LogupGkrProof<Felt<SP1Field>, Ext<SP1Field, SP1ExtensionField>>,
+        public_values: &[Felt<SP1Field>],
         challenger: &mut SC::FriChallengerVariable,
     ) {
-        let LogupGkrProof { circuit_output, round_proofs, logup_evaluations } = proof;
+        let LogupGkrProof { circuit_output, round_proofs, logup_evaluations, witness } = proof;
         let LogUpGkrOutput { numerator, denominator } = circuit_output;
+
+        // Check proof of work (grinding to find a number that hashes to have
+        // `GKR_GRINDING_BITS` zeroes at the beginning).
+        challenger.check_witness(builder, GKR_GRINDING_BITS, *witness);
+
+        // Sample the permutation challenges.
+        let alpha = challenger.sample_ext(builder);
+        let max_interaction_arity = shard_chips
+            .iter()
+            .flat_map(|c| c.sends().iter().chain(c.receives().iter()))
+            .map(|i| i.values.len() + 1)
+            .max()
+            .unwrap();
+        let beta_seed_dim = max_interaction_arity.next_power_of_two().ilog2();
+        let beta_seed =
+            Point::from_iter((0..beta_seed_dim).map(|_| challenger.sample_ext(builder)));
+        // Sample the public value challenge.
+        let pv_challenge = challenger.sample_ext(builder);
+
+        builder.cycle_tracker_v2_enter("verify-public-values");
+        let cumulative_sum = -RecursiveLogUpGkrVerifier::<C, SC, A>::verify_public_values(
+            builder,
+            pv_challenge,
+            &alpha,
+            &beta_seed,
+            public_values,
+        );
+        builder.cycle_tracker_v2_exit();
 
         // Observe the output claims.
         challenger.observe_variable_length_extension_slice(builder, numerator.guts().as_slice());
@@ -302,18 +356,22 @@ impl<C: CircuitConfig, T: Witnessable<C>> Witnessable<C> for LogUpEvaluations<T>
     }
 }
 
-impl<C: CircuitConfig, T: Witnessable<C>> Witnessable<C> for LogupGkrProof<T> {
-    type WitnessVariable = LogupGkrProof<T::WitnessVariable>;
+impl<C: CircuitConfig, T1: Witnessable<C>, T2: Witnessable<C>> Witnessable<C>
+    for LogupGkrProof<T1, T2>
+{
+    type WitnessVariable = LogupGkrProof<T1::WitnessVariable, T2::WitnessVariable>;
 
     fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
         let circuit_output = self.circuit_output.read(builder);
         let round_proofs = self.round_proofs.read(builder);
         let logup_evaluations = self.logup_evaluations.read(builder);
-        Self::WitnessVariable { circuit_output, round_proofs, logup_evaluations }
+        let witness = self.witness.read(builder);
+        Self::WitnessVariable { circuit_output, round_proofs, logup_evaluations, witness }
     }
     fn write(&self, witness: &mut impl WitnessWriter<C>) {
         self.circuit_output.write(witness);
         self.round_proofs.write(witness);
         self.logup_evaluations.write(witness);
+        self.witness.write(witness);
     }
 }

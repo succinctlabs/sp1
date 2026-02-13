@@ -57,6 +57,16 @@ impl<'a> IntoFuture for EnvProveRequest<'a> {
                 }
                 _ => panic!("Invalid proving key type for Mock prover"),
             },
+            EnvProver::Light(prover) => match self.base.pk {
+                EnvProvingKey::Light { pk, .. } => {
+                    let mut req = prover.prove(pk, stdin);
+                    req.base.mode = mode;
+                    req.base.context_builder = context_builder;
+
+                    Box::pin(async move { req.await })
+                }
+                _ => panic!("Invalid proving key type for Light prover"),
+            },
             #[cfg(feature = "network")]
             EnvProver::Network(prover) => match self.base.pk {
                 EnvProvingKey::Network { pk, .. } => {

@@ -35,13 +35,13 @@ jobs:
       ]
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup CI
         uses: ./.github/actions/setup
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_S3 }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_S3 }}
@@ -85,13 +85,13 @@ jobs:
       ]
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup CI
         uses: ./.github/actions/setup
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_S3 }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_S3 }}
@@ -135,13 +135,13 @@ jobs:
       ]
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup CI
         uses: ./.github/actions/setup
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_S3 }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_S3 }}

@@ -110,10 +110,12 @@ impl TraceChunkBuffer {
         let new_num_mem_reads =
             num_mem_reads.checked_add(values.len() as u64).expect("Num mem reads too large");
 
-        debug_assert!(
+        assert!(
             new_num_mem_reads * std::mem::size_of::<MemValue>() as u64
                 <= self.inner.len() as u64 - std::mem::size_of::<TraceChunkHeader>() as u64,
-            "Num mem reads too large"
+            "Num mem reads ({new_num_mem_reads}) would exceed buffer capacity of {} entries",
+            (self.inner.len() - std::mem::size_of::<TraceChunkHeader>())
+                / std::mem::size_of::<MemValue>()
         );
 
         // Write the new `num_mem_reads`

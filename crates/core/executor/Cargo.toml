@@ -1,6 +1,6 @@
 [package]
 name = "sp1-core-executor"
-description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
+description = "RISC-V executor for SP1"
 readme = "../../../README.md"
 version = { workspace = true }
 edition = { workspace = true }
@@ -55,7 +55,7 @@ sp1-jit = { workspace = true }
 
 [dev-dependencies]
 sp1-zkvm = { workspace = true, features = ["lib"] }
-test-artifacts = { workspace = true }
+test-artifacts = { path = "../../test-artifacts" }
 
 [features]
 bigint-rug = ["sp1-curves/bigint-rug"]

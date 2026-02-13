@@ -1,6 +1,6 @@
 [package]
 name = "sp1-hypercube"
-description = "SP1 is a performant, 100% open-source, contributor-friendly zkVM."
+description = "The SP1 Hypercube proof system"
 readme = "../../README.md"
 version = { workspace = true }
 edition = { workspace = true }
@@ -35,8 +35,6 @@ slop-merkle-tree = { workspace = true }
 slop-whir = { workspace = true }
 slop-futures = { workspace = true }
 slop-poseidon2 = { workspace = true }
-
-# p3
 slop-uni-stark = { workspace = true }
 
 # misc

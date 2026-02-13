@@ -528,6 +528,7 @@ impl<'a> IntoFuture for NetworkProveBuilder<'a> {
 
             sp1_dump(&self.base.pk.elf, &self.base.stdin);
 
+            tracing::info!(mode = ?self.base.mode, "requesting proof from network");
             self.base
                 .prover
                 .prove_impl(

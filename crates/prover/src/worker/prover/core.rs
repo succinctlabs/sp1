@@ -239,7 +239,7 @@ where
         };
 
         let span = tracing::debug_span!("into_record");
-        let (program, mut record, deferred_record) = tokio::task::spawn_blocking({
+        let (program, mut record, deferred_record, is_precompile) = tokio::task::spawn_blocking({
             let artifact_client = self.artifact_client.clone();
             let opts = self.opts.clone();
             move || {
@@ -249,7 +249,7 @@ where
                         TaskError::Fatal(anyhow::anyhow!("failed to disassemble program: {}", e))
                     })?;
                     let program = Arc::new(program);
-                    let (record, deferred_record) = match record {
+                    let (record, deferred_record, is_precompile) = match record {
                         TraceData::Core(chunk_bytes) => {
                             let chunk: TraceChunk =
                                 bincode::deserialize(&chunk_bytes).map_err(|e| {
@@ -265,7 +265,7 @@ where
                             );
                             // Here, we reserve 1/8 of the shard size for common events. In other words,
                             // we assume that no event will take up more than 1/8 of the shard's events.
-                            let record = tracing::info_span!("allocating record").in_scope(|| {
+                            let record = tracing::debug_span!("allocating record").in_scope(|| {
                                 ExecutionRecord::new_preallocated(
                                     program.clone(),
                                     common_input.nonce,
@@ -286,7 +286,7 @@ where
 
                             let deferred_record = record.defer(&opts.retained_events_presets);
 
-                            (record, Some(deferred_record))
+                            (record, Some(deferred_record), false)
                         }
                         TraceData::Memory(shard) => {
                             tracing::debug!("global memory shard");
@@ -340,7 +340,7 @@ where
                             record.public_values.last_finalize_page_idx = last_finalize_page_idx;
 
                             record.finalize_public_values::<SP1Field>(false);
-                            (record, None)
+                            (record, None, false)
                         }
                         TraceData::Precompile(artifacts, code) => {
                             tracing::debug!("precompile events: code {}", code);
@@ -411,11 +411,11 @@ where
                                 program.enable_untrusted_programs,
                             );
 
-                            (main_record, None)
+                            (main_record, None, true)
                         }
                     };
 
-                    Ok::<_, TaskError>((program, record, deferred_record))
+                    Ok::<_, TaskError>((program, record, deferred_record, is_precompile))
                 }
             }
         })
@@ -458,7 +458,7 @@ where
         });
 
         // Generate dependencies on the main record.
-        let span = tracing::info_span!("generate dependencies");
+        let span = tracing::debug_span!("generate dependencies");
         let machine_clone = self.machine().clone();
         let record = tokio::task::spawn_blocking(move || {
             let _guard = span.enter();
@@ -470,7 +470,7 @@ where
         .map_err(|e| TaskError::Fatal(e.into()))?;
 
         // If this is not a Core proof request, spawn a task to get the recursion program.
-        let span = tracing::info_span!("get recursion program");
+        let span = tracing::debug_span!("get recursion program");
         let recursion_program_handle = if common_input.mode != ProofMode::Core {
             let handle = tokio::task::spawn_blocking({
                 let normalize_program_compiler = self.normalize_program_compiler.clone();
@@ -553,7 +553,12 @@ where
                 })?
                 .await
                 .map_err(|e| TaskError::Fatal(e.into()))?;
-            let input = self.recursion_prover.get_normalize_witness(&common_input, &proof, false);
+            let input = self.recursion_prover.get_normalize_witness(
+                &common_input,
+                &proof,
+                false,
+                is_precompile,
+            );
             let witness = SP1CircuitWitness::Core(input);
             self.recursion_prover
                 .submit_prove_shard(recursion_program, witness, output, metrics.clone())
@@ -634,11 +639,11 @@ impl<A: ArtifactClient, C: SP1ProverComponents>
 
         let permits = self.permits.clone();
         let (_pk, vk) = self.core_prover.setup(program, permits).await;
-        tracing::info!("Setup completed for task {}", id);
+        tracing::debug!("setup completed for task {}", id);
 
         // Upload the vk
         self.artifact_client.upload(&output, vk).await.expect("failed to upload vk");
-        tracing::info!("Upload completed for artifact {}", output.to_id());
+        tracing::debug!("upload completed for artifact {}", output.to_id());
 
         // TODO: Add the busy time here.
         Ok((id, TaskMetadata::default()))

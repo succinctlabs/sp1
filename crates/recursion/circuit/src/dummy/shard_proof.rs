@@ -53,7 +53,6 @@ pub fn dummy_shard_proof<A: MachineAir<SP1Field>>(
 
     let logup_gkr_proof =
         dummy_gkr_proof::<_, SP1ExtensionField, _>(&shard_chips, max_log_row_count);
-    dummy_gkr_proof::<_, SP1ExtensionField, _>(&shard_chips, max_log_row_count);
 
     let zerocheck_proof = dummy_sumcheck_proof::<SP1ExtensionField>(max_log_row_count, 4);
 

@@ -6,7 +6,7 @@
 use crate::{
     cuda::builder::CudaProverBuilder,
     prover::{BaseProveRequest, SendFutureResult},
-    CpuProver, CudaProver, MockProver, Prover,
+    CpuProver, CudaProver, LightProver, MockProver, Prover,
 };
 use sp1_core_executor::SP1CoreOpts;
 
@@ -29,6 +29,8 @@ use sp1_prover::worker::SP1NodeCore;
 pub enum EnvProver {
     /// A mock prover that does not prove anything.
     Mock(MockProver),
+    /// A light prover that only executes and verifies but does not generate proofs.
+    Light(LightProver),
     /// A CPU prover.
     Cpu(CpuProver),
     /// A CUDA prover.
@@ -85,6 +87,7 @@ impl EnvProver {
             "cpu" => Self::Cpu(CpuProver::new_with_opts(core_opts).await),
             "cuda" => Self::Cuda(CudaProverBuilder::default().build().await),
             "mock" => Self::Mock(MockProver::new().await),
+            "light" => Self::Light(LightProver::new().await),
             #[cfg(feature = "network")]
             "network" => {
                 let private_key =
@@ -113,6 +116,7 @@ impl Prover for EnvProver {
             Self::Cpu(prover) => prover.inner(),
             Self::Cuda(prover) => prover.inner(),
             Self::Mock(prover) => prover.inner(),
+            Self::Light(prover) => prover.inner(),
             #[cfg(feature = "network")]
             Self::Network(prover) => prover.inner(),
         }
@@ -131,6 +135,10 @@ impl Prover for EnvProver {
                 Self::Mock(prover) => {
                     let pk = prover.setup(elf).await?;
                     Ok(EnvProvingKey::mock(pk))
+                }
+                Self::Light(prover) => {
+                    let pk = prover.setup(elf).await?;
+                    Ok(EnvProvingKey::light(pk))
                 }
                 #[cfg(feature = "network")]
                 Self::Network(prover) => {

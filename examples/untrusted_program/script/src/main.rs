@@ -18,7 +18,7 @@ async fn main() {
     stdin.write(&execute_prot_should_fail);
     stdin.write(&test_prot_none_fail);
 
-    let client = ProverClient::builder().cpu().build().await;
+    let client = ProverClient::from_env().await;
 
     let pk = client.setup(ELF).await.expect("setup failed");
 

@@ -110,7 +110,11 @@ pub fn dummy_pcs_proof(
     let new_column_counts: Rounds<Vec<usize>> = column_counts
         .into_iter()
         .zip(added_cols.iter())
-        .map(|(x, &added)| x.into_iter().chain([added - 1, 1]).collect())
+        .map(|(x, &added)| {
+            // Commit paths always reserve at least one padding column.
+            let added = added.max(1);
+            x.into_iter().chain([added - 1, 1]).collect()
+        })
         .collect();
 
     let row_counts_and_column_counts: Rounds<Vec<(usize, usize)>> = new_column_counts

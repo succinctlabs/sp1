@@ -35,6 +35,9 @@ pub fn blake3_hash(inputs: &[u8]) -> [u8; 32] {
 
 /// Decodes the sp1 vkey hash from the string from a call to `vk.bytes32`.
 pub fn decode_sp1_vkey_hash(sp1_vkey_hash: &str) -> Result<[u8; 32], Error> {
+    if sp1_vkey_hash.len() < 2 {
+        return Err(Error::InvalidProgramVkeyHash);
+    }
     let bytes = hex::decode(&sp1_vkey_hash[2..]).map_err(|_| Error::InvalidProgramVkeyHash)?;
     bytes.try_into().map_err(|_| Error::InvalidProgramVkeyHash)
 }

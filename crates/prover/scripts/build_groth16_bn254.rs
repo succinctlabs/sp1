@@ -27,7 +27,8 @@ pub fn main() {
         bincode::deserialize(WRAPPED_PROOF_BYTES).expect("failed to deserialize wrapped proof");
 
     tracing::info!("building groth16 bn254 artifacts to {:?}", args.build_dir);
-    build_groth16_bn254_artifacts(&wrap_vk, &wrapped_proof, &args.build_dir);
+    build_groth16_bn254_artifacts(&wrap_vk, &wrapped_proof, &args.build_dir)
+        .expect("failed to build groth16 artifacts");
 
     tracing::info!("done");
 }

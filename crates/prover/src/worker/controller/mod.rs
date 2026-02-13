@@ -16,15 +16,15 @@ pub use vk_tree::*;
 
 use lru::LruCache;
 
-use slop_algebra::{AbstractField, PrimeField32};
+use slop_algebra::PrimeField32;
 
 use sp1_core_executor::{MinimalExecutor, SP1CoreOpts};
 use sp1_core_machine::{executor::ExecutionOutput, io::SP1Stdin};
 use sp1_hypercube::{
     air::{PublicValues, PROOF_NONCE_NUM_WORDS},
-    SP1PcsProofInner, SP1VerifyingKey, ShardProof, DIGEST_SIZE,
+    SP1PcsProofInner, SP1VerifyingKey, ShardProof,
 };
-use sp1_primitives::{io::SP1PublicValues, SP1Field, SP1GlobalContext};
+use sp1_primitives::{io::SP1PublicValues, SP1GlobalContext};
 use sp1_prover_types::{
     network_base_types::ProofMode, Artifact, ArtifactClient, ArtifactType, TaskStatus, TaskType,
 };
@@ -207,7 +207,7 @@ where
         let stdin = Arc::new(stdin);
 
         let deferred_proofs = stdin.proofs.iter().map(|(proof, _)| proof.clone());
-        let deferred_inputs = DeferredInputs::new(deferred_proofs, [SP1Field::zero(); DIGEST_SIZE]);
+        let deferred_inputs = DeferredInputs::new(deferred_proofs);
 
         let num_deferred_proofs = deferred_inputs.num_deferred_proofs();
         let deferred_digest = deferred_inputs.deferred_digest().map(|x| x.as_canonical_u32());

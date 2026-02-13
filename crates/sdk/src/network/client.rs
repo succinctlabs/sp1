@@ -114,7 +114,7 @@ impl NetworkClient {
     ) -> Self {
         let client = reqwest::Client::builder()
             .pool_max_idle_per_host(0)
-            .pool_idle_timeout(Duration::from_secs(240))
+            .pool_idle_timeout(Duration::from_mins(4))
             .build()
             .unwrap();
         Self { signer, http: client.into(), rpc_url: rpc_url.into(), network_mode }

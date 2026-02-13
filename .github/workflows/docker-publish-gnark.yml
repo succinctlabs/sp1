@@ -2,102 +2,68 @@
 name: Docker Publish Gnark
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
-  schedule:
-    - cron: "0 0 * * *"
   workflow_dispatch:
     inputs:
-      tags:
+      docker-tag:
         description: "Docker tag to push"
+        type: string
         required: true
+      dry-run:
+        description: "Dry run - does not push the image"
+        type: boolean
+        default: false
   workflow_call:
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: succinctlabs/sp1-gnark
+    inputs:
+      docker-tag:
+        description: "Docker tag to push"
+        type: string
+        required: true
+      dry-run:
+        description: "Dry run - does not push the image"
+        type: boolean
+        default: false
 
 jobs:
-  build-amd64:
-    runs-on: [runs-on, runner=64cpu-linux-x64, spot=false, "run-id=${{ github.run_id }}"]
+  docker-publish-gnark:
+    name: docker-publish-gnark-${{ matrix.arch }}
+    runs-on: [runs-on, "runner=${{ matrix.runner }}", spot=false, "run-id=${{ github.run_id }}"]
     permissions:
       id-token: write
       packages: write
       contents: read
+
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: 64cpu-linux-x64
+          - arch: arm64
+            platform: linux/arm64
+            runner: 64cpu-linux-arm64
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+
       - name: Set up Docker BuildX
         uses: docker/setup-buildx-action@v3
-      - name: Log into registry ${{ env.REGISTRY }}
+
+      - name: Log into registry ghcr.io
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build and push AMD64 image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile.gnark-ffi
-          platforms: linux/amd64
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}-amd64
+          platforms: ${{ matrix.platform }}
+          push: ${{ inputs.dry-run != true }}
+          tags: |
+            ghcr.io/succinctlabs/sp1-gnark:${{ inputs.docker-tag }}
+            ghcr.io/succinctlabs/sp1-gnark:${{ github.sha }}-${{ matrix.arch }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-  build-arm64:
-    runs-on: [runs-on, runner=64cpu-linux-arm64, spot=false, "run-id=${{ github.run_id }}"]
-    permissions:
-      id-token: write
-      packages: write
-      contents: read
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Set up Docker BuildX
-        uses: docker/setup-buildx-action@v3
-      - name: Log into registry ${{ env.REGISTRY }}
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push ARM64 image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile.gnark-ffi
-          platforms: linux/arm64
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}-arm64
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  create-manifest:
-    needs: [build-amd64, build-arm64]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Log into registry ${{ env.REGISTRY }}
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Create and push manifest
-        run: |
-          TAGS=""
-          if [[ "${{ github.event_name }}" == 'workflow_dispatch' ]]; then
-            TAGS="${{ github.event.inputs.tags }}"
-          elif [[ "${{ github.event_name }}" == 'schedule' ]]; then
-            TAGS="nightly nightly-${{ github.sha }}"
-          else
-            TAGS="${GITHUB_REF##*/}"
-          fi
-          
-          for TAG in $TAGS; do
-            docker buildx imagetools create -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$TAG \
-              ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}-amd64 \
-              ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}-arm64
-          done

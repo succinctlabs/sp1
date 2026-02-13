@@ -1,4 +1,6 @@
 #![allow(clippy::items_after_statements)]
+#![allow(unknown_lints)]
+#![allow(clippy::manual_checked_ops)]
 
 use sp1_jit::{
     debug::{self, DebugState},
@@ -873,12 +875,20 @@ fn sign_extend_imm(value: u64, bits: u8) -> i64 {
     ((value as i64) << shift) >> shift
 }
 
+/// Worst-case memory operations a single instruction (precompile ecall) can emit.
+/// The chunk-stop check only runs between instructions, so a single precompile can
+/// emit this many trace entries beyond `max_trace_size` before the check fires.
+/// `sha256_extend` is the worst case at 288; we use 512 for safety margin.
+const MAX_SINGLE_INSTRUCTION_MEM_OPS: usize = 512;
+
 fn trace_capacity(size: u64) -> usize {
     let events_bytes = size as usize * std::mem::size_of::<MemValue>();
-    // Scale a bit for leeway.
+    // Scale by 10/9 for proportional leeway on large traces.
     let events_bytes = events_bytes * 10 / 9;
+    // Add fixed headroom for worst-case single-instruction overflow.
+    let worst_case_bytes = MAX_SINGLE_INSTRUCTION_MEM_OPS * std::mem::size_of::<MemValue>();
     let header_bytes = std::mem::size_of::<TraceChunkHeader>();
-    events_bytes + header_bytes
+    events_bytes + worst_case_bytes + header_bytes
 }
 
 impl DebugState for MinimalExecutor {

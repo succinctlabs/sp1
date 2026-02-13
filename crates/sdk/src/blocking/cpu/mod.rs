@@ -80,6 +80,7 @@ impl CpuProver {
     /// Creates a new [`CpuProver`] with optional custom [`SP1CoreOpts`].
     #[must_use]
     pub fn new_with_opts(core_opts: Option<sp1_core_executor::SP1CoreOpts>) -> Self {
+        tracing::info!("initializing cpu prover");
         let worker_builder = cpu_worker_builder().with_core_opts(core_opts.unwrap_or_default());
         let prover = Arc::new(
             crate::blocking::block_on(

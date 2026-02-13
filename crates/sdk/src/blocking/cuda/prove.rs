@@ -28,6 +28,7 @@ impl<'a> ProveRequest<'a, CudaProver> for CudaProveRequest<'a> {
 
     fn run(self) -> Result<SP1ProofWithPublicValues, CudaClientError> {
         let BaseProveRequest { prover, pk, stdin, mode, mut context_builder } = self.base;
+        tracing::info!(mode = ?mode, "starting proof generation");
         let context = context_builder.build();
         Ok(block_on(prover.prover.prove_with_mode(pk, stdin, context, proof_mode(mode)))?.into())
     }

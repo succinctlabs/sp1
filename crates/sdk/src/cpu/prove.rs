@@ -98,6 +98,7 @@ impl<'a> CpuProveBuilder<'a> {
         // Dump the program and stdin to files for debugging if `SP1_DUMP` is set.
         crate::utils::sp1_dump(&pk.elf, &stdin);
 
+        tracing::info!(mode = ?mode, "starting proof generation");
         let context = context_builder.build();
         Ok(prover.prover.prove_with_mode(&pk.elf, stdin, context, proof_mode(mode)).await?.into())
     }

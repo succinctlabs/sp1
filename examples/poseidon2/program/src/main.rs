@@ -18,7 +18,7 @@ pub fn main() {
     syscall_poseidon2(&p);
 
     let p = Poseidon2State([10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160]);
-    for i in 0..1000000 {
+    for _ in 0..1000000 {
         syscall_poseidon2(&p);
     }
 
