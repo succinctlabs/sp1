@@ -516,6 +516,7 @@ mod tests {
     use sp1_gpu_tracegen::CudaTraceGenerator;
     use sp1_hypercube::prover::{ProverSemaphore, TraceGenerator};
 
+    use sp1_core_machine::io::SP1Stdin;
     use sp1_gpu_jagged_tracegen::test_utils::tracegen_setup::{
         self, CORE_MAX_LOG_ROW_COUNT, LOG_STACKING_HEIGHT,
     };
@@ -529,7 +530,8 @@ mod tests {
     #[test]
     fn test_basefold() {
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let (machine, record, program) = rt.block_on(tracegen_setup::setup());
+        let (machine, record, program) =
+            rt.block_on(tracegen_setup::setup(&test_artifacts::FIBONACCI_ELF, SP1Stdin::new()));
 
         run_sync_in_place(|scope| {
             let verifier = BasefoldVerifier::<SP1GlobalContext>::new(core_fri_config(), 2);

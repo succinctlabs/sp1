@@ -30,7 +30,6 @@ slop-tensor = { workspace = true }
 sp1-hypercube = { workspace = true }
 sp1-core-executor = { workspace = true }
 sp1-core-machine = { workspace = true }
-test-artifacts = { workspace = true, optional = true }
 rand = { workspace = true }
 tokio = { workspace = true }
 futures = "0.3"
@@ -51,7 +50,7 @@ sp1-gpu-zerocheck = { workspace = true }
 sp1-gpu-tracing = { workspace = true }
 
 [features]
-test-utils = ["dep:test-artifacts"]
+test-utils = []
 
 [lints]
 workspace = true
