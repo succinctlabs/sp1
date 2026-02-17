@@ -1674,7 +1674,7 @@ pub mod tests {
         stdin.write(&vec![5, 6, 7]);
         let deferred_proof_2 =
             prover.prove_core(&keccak_pk_d, keccak_program, &stdin, opts, Default::default())?;
-        let pv_2 = deferred_proof_2.public_values.as_slice().to_vec().clone();
+        let pv_2 = deferred_proof_2.public_values.as_slice().to_vec();
 
         // Generate recursive proof of first subproof.
         tracing::info!("compress subproof 1");
