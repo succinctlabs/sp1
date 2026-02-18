@@ -1,4 +1,8 @@
-use crate::memory::{Entry, PagedMemory};
+use crate::{
+    memory::{Entry, PagedMemory, MAX_LOG_ADDR},
+    ExecutionError, Opcode,
+};
+use std::cell::RefCell;
 
 /// A memory backed by [`PagedMemory`], which can be in either owned or COW mode.
 pub enum MaybeCowMemory<T: Copy> {
@@ -104,14 +108,30 @@ impl Limiter {
     }
 
     /// Increate used entries by 1.
-    ///
-    /// # Safety
-    /// This method will panic when the memory limit is reached
-    fn increase(&mut self) {
+    fn increase(&mut self) -> Result<(), ExecutionError> {
         if let Self::Limit { current, limit } = self {
             *current += 1;
-            assert!(current <= limit, "memory limit is reached!");
+            if current > limit {
+                return Err(ExecutionError::TooMuchMemory());
+            }
         }
+        Ok(())
+    }
+
+    fn check_ptr(&self, addr: u64, write: bool) -> Result<(), ExecutionError> {
+        // Memory bound checking does not rely on values of memory limit.
+        // Nonetheless we do bound checking only when memory limit is present.
+        // This is to keep the old behavior of the portable executor unchanged.
+        if let Self::Limit { .. } = self {
+            let max_memory = 1u64 << MAX_LOG_ADDR;
+            if addr > max_memory - 8 {
+                return Err(ExecutionError::InvalidMemoryAccess(
+                    if write { Opcode::SD } else { Opcode::LD },
+                    addr,
+                ));
+            }
+        }
+        Ok(())
     }
 }
 
@@ -120,15 +140,29 @@ pub struct LimitedMemory<T: Copy> {
     memory: MaybeCowMemory<T>,
     limiter: Limiter,
     before_cow: Option<Limiter>,
+    // Last memory access error
+    last_error: RefCell<Option<ExecutionError>>,
+    // When last error exists, all read / write operation will be
+    // redirected to this dummy value.
+    dummy_value: T,
 }
 
-impl<T: Copy> LimitedMemory<T> {
+fn c(last_error: &RefCell<Option<ExecutionError>>, result: Result<(), ExecutionError>) {
+    let mut e = last_error.try_borrow_mut().expect("borrow twice");
+    if e.is_none() {
+        *e = result.err();
+    }
+}
+
+impl<T: Copy + Default> LimitedMemory<T> {
     /// Create a new owned, limited memory. Accepts an optional memory size limit in bytes.
     pub fn new_owned(memory_limit: Option<u64>) -> Self {
         Self {
             memory: MaybeCowMemory::new_owned(),
             limiter: Limiter::new(memory_limit),
             before_cow: None,
+            last_error: None.into(),
+            dummy_value: T::default(),
         }
     }
 
@@ -150,6 +184,10 @@ impl<T: Copy> LimitedMemory<T> {
     /// Get a value from the memory.
     #[inline]
     pub fn get(&self, addr: u64) -> Option<&T> {
+        self.check_ptr(addr, false);
+        if self.has_last_error() {
+            return Some(&self.dummy_value);
+        }
         // Getting a memory needs no limitation checks
         self.memory.get(addr)
     }
@@ -157,10 +195,34 @@ impl<T: Copy> LimitedMemory<T> {
     /// Insert a value into the memory.
     #[inline]
     pub fn insert(&mut self, addr: u64, value: T) {
+        self.check_ptr(addr, true);
+        if self.has_last_error() {
+            return;
+        }
         let previous_value = self.memory.insert(addr, value);
         if previous_value.is_none() {
-            self.limiter.increase();
+            c(&self.last_error, self.limiter.increase());
         }
+    }
+
+    #[inline]
+    fn check_ptr(&self, addr: u64, write: bool) {
+        c(&self.last_error, self.limiter.check_ptr(addr, write));
+    }
+
+    #[inline]
+    /// Returns true if last error is set
+    pub fn has_last_error(&self) -> bool {
+        self.last_error.borrow().is_some()
+    }
+
+    /// Returns last error
+    ///
+    /// # Safety
+    /// This method panics when last error is not set
+    #[inline]
+    pub fn last_error(&self) -> ExecutionError {
+        self.last_error.borrow().clone().unwrap()
     }
 }
 
@@ -168,9 +230,13 @@ impl<T: Copy + Default> LimitedMemory<T> {
     /// Get a mutable reference for the given address
     #[inline]
     pub fn get_mut(&mut self, addr: u64) -> &'_ mut T {
+        self.check_ptr(addr, true);
+        if self.has_last_error() {
+            return &mut self.dummy_value;
+        }
         let (entry, duplicated) = self.memory.entry(addr);
         if duplicated || matches!(entry, Entry::Vacant(_)) {
-            self.limiter.increase();
+            c(&self.last_error, self.limiter.increase());
         }
         entry.or_default()
     }

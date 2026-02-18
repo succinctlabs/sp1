@@ -2,6 +2,45 @@
 fn main() {}
 
 #[cfg(sp1_use_native_executor)]
+pub mod signal {
+    use crash_handler::{CrashContext, CrashEvent, CrashEventResult};
+    use sp1_jit::shm::ShmTraceRing;
+
+    pub struct CrashReporter {
+        pub ring: ShmTraceRing,
+    }
+
+    unsafe impl CrashEvent for CrashReporter {
+        fn on_crash(&self, context: &CrashContext) -> CrashEventResult {
+            // Extract info
+            let sig = context.siginfo.ssi_signo as i32;
+            let addr = context.siginfo.ssi_addr;
+            let code = context.siginfo.ssi_code;
+
+            // --- DEFINE MISSING CONSTANTS MANUALLY ---
+            // These are standard POSIX values for x86/ARM Linux & macOS.
+            const SEGV_MAPERR: i32 = 1; // Address not mapped to object
+            const SEGV_ACCERR: i32 = 2; // Invalid permissions for mapped object
+
+            // Hint: 2 = Write (if SEGV_ACCERR), 1 = Read (if SEGV_MAPERR, very likely), 0 = Unknown
+            let op_hint = match (sig, code) {
+                (libc::SIGSEGV, SEGV_ACCERR) => 2,
+                (libc::SIGSEGV, SEGV_MAPERR) => 1,
+                _ => 0,
+            };
+
+            eprintln!("[CrashHandler] CAUGHT SIGNAL {} at 0x{:x}", sig, addr);
+
+            // Direct access to the ring! No global statics needed.
+            self.ring.notify_crash(sig, addr, op_hint);
+
+            // Tell crash-handler to proceed with the next handler (or default behavior)
+            CrashEventResult::Handled(true)
+        }
+    }
+}
+
+#[cfg(sp1_use_native_executor)]
 fn main() {
     use serde::{Deserialize, Serialize};
     use sp1_core_executor::{MinimalTranspiler, Program, HALT_PC};
@@ -62,6 +101,10 @@ fn main() {
         let trace_buf_size = trace_capacity(input.max_trace_size);
         let producer = ShmTraceRing::open(&input.id, input.shm_slot_size, trace_buf_size)
             .expect("open shm file");
+        // Setup signal handler
+        let _handler = crash_handler::CrashHandler::attach(Box::new(signal::CrashReporter {
+            ring: producer.clone(),
+        }));
 
         while compiled.pc != HALT_PC {
             let mut guard = producer.acquire();

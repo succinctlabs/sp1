@@ -1,11 +1,16 @@
 use base64::{engine::general_purpose::URL_SAFE, Engine};
 use serde::{Deserialize, Serialize};
-use sp1_core_executor::{MinimalTranspiler, Program, UnsafeMemory};
-use sp1_jit::{memory::SharedMemory, shm::ShmTraceRing, trace_capacity, MemValue, TraceChunkRaw};
+use sp1_core_executor::{ExecutionError, MinimalTranspiler, Opcode, Program, UnsafeMemory};
+use sp1_jit::{
+    memory::SharedMemory,
+    shm::{ShmTraceRing, TraceResult},
+    trace_capacity, MemValue, TraceChunkRaw,
+};
 use sp1_primitives::consts::MAX_JIT_LOG_ADDR;
 use std::{
     collections::VecDeque,
     io::{BufRead, BufReader, Write},
+    os::unix::process::ExitStatusExt,
     process::{Child, Command, Stdio},
     ptr::NonNull,
     sync::Arc,
@@ -46,7 +51,7 @@ pub struct MinimalExecutorRunner {
     consumer: Option<ShmTraceRing>,
 
     process: Option<(Child, JoinHandle<()>)>,
-    output: Option<Output>,
+    output: Option<Result<Output, ExecutionError>>,
 }
 
 impl MinimalExecutorRunner {
@@ -115,8 +120,16 @@ impl MinimalExecutorRunner {
 
     /// Execute the program. Returning a trace chunk if the program has not completed.
     pub fn execute_chunk(&mut self) -> Option<TraceChunkRaw> {
-        if self.output.is_some() {
-            return None;
+        self.try_execute_chunk().expect("execute chunk")
+    }
+
+    /// Try executing the program, when errors happen, returns ExecutionError with more
+    /// diagnosis information.
+    pub fn try_execute_chunk(&mut self) -> Result<Option<TraceChunkRaw>, ExecutionError> {
+        match &self.output {
+            Some(Ok(_)) => return Ok(None),
+            Some(Err(e)) => return Err(e.clone()),
+            None => (),
         }
 
         if self.process.is_none() {
@@ -146,24 +159,98 @@ impl MinimalExecutorRunner {
             self.process = Some((child, log_handle));
         }
 
-        let chunk = self.consumer.as_ref().and_then(|consumer| consumer.access());
-        if chunk.is_none() {
-            // SP1 program terminates, wait for output and terminate child process.
-            let (mut child, log_thread) = self.process.take().unwrap();
-            let stdout = child.stdout.take().expect("open stdout");
-            let mut stdout_reader = BufReader::new(stdout);
+        if let Some(consumer) = &self.consumer {
+            // Looking for the next chunk
+            loop {
+                match consumer.access(Duration::from_millis(100)) {
+                    TraceResult::Data(guard) => {
+                        return Ok(Some(unsafe { TraceChunkRaw::from_shm(guard) }));
+                    }
+                    TraceResult::Finished => {
+                        self.wait_for_success();
+                        return Ok(None);
+                    }
+                    TraceResult::Crashed(details) => {
+                        // Process logs, they might provide insight into why the program crashed.
+                        self.process
+                            .take()
+                            .unwrap()
+                            .1
+                            .join()
+                            .expect("wait for log thread to finish");
+                        let opcode = match details.signal {
+                            1 => Opcode::LD,
+                            2 => Opcode::SD,
+                            _ => Opcode::UNIMP,
+                        };
+                        let error = match details.signal {
+                            libc::SIGSEGV => {
+                                ExecutionError::InvalidMemoryAccess(opcode, details.addr)
+                            }
+                            _ => ExecutionError::Other(format!(
+                                "Child native executor crashed, details: {details:?}"
+                            )),
+                        };
 
-            let output: Output =
-                bincode::deserialize_from(&mut stdout_reader).expect("read output");
-            let status = child.wait().expect("wait for child to exit");
-            log_thread.join().expect("wait for log thread to finish");
-            // This captures memory limit violations.
-            assert!(status.success());
-
-            self.output = Some(output);
+                        self.output = Some(Err(error.clone()));
+                        return Err(error);
+                    }
+                    TraceResult::Timeout => {
+                        // Consumer times out, we will need to check if child process is still running.
+                        if let Some(status) =
+                            self.process.as_mut().unwrap().0.try_wait().expect("try wait")
+                        {
+                            // We still want to process logs
+                            self.process
+                                .take()
+                                .unwrap()
+                                .1
+                                .join()
+                                .expect("wait for log thread to finish");
+                            // Child process is terminated, let's find out why
+                            let error = match (status.code(), status.signal()) {
+                                (_, Some(libc::SIGKILL)) => ExecutionError::TooMuchMemory(),
+                                (code, signal) => ExecutionError::Other(format!("Child native executor terminates early, code: {code:?}, signal: {signal:?}")),
+                            };
+                            self.output = Some(Err(error.clone()));
+                            return Err(error);
+                        }
+                        std::hint::spin_loop();
+                    }
+                }
+            }
+        } else {
+            // Tracing mode is disabled, wait for process termination
+            self.wait_for_success();
+            Ok(None)
         }
+    }
 
-        chunk.map(|guard| unsafe { TraceChunkRaw::from_shm(guard) })
+    fn wait_for_success(&mut self) {
+        // SP1 program terminates, wait for output and terminate child process.
+        let (mut child, log_thread) = self.process.take().unwrap();
+        let stdout = child.stdout.take().expect("open stdout");
+        let mut stdout_reader = BufReader::new(stdout);
+
+        let output: Output = bincode::deserialize_from(&mut stdout_reader).expect("read output");
+        let status = child.wait().expect("wait for child to exit");
+        log_thread.join().expect("wait for log thread to finish");
+        // Normal termination, this should just return success.
+        assert!(status.success());
+
+        self.output = Some(Ok(output));
+    }
+
+    fn output(&self) -> &Output {
+        self.output
+            .as_ref()
+            .expect("Process is still running")
+            .as_ref()
+            .expect("Process terminated with error state")
+    }
+
+    fn take_output(self) -> Output {
+        self.output.expect("Process is still running").expect("Process terminated with error state")
     }
 
     /// Get the registers of the JIT function.
@@ -209,43 +296,37 @@ impl MinimalExecutorRunner {
     /// This clock is incremented by 1 per instruction.
     #[must_use]
     pub fn global_clk(&self) -> u64 {
-        self.output.as_ref().map(|output| output.global_clk).expect("Process is still running")
+        self.output().global_clk
     }
 
     /// Get the exit code of the JIT function.
     #[must_use]
     pub fn exit_code(&self) -> u32 {
-        self.output.as_ref().map(|output| output.exit_code).expect("Process is still running")
+        self.output().exit_code
     }
 
     /// Get the public values stream of the JIT function.
     #[must_use]
     pub fn public_values_stream(&self) -> &Vec<u8> {
-        self.output
-            .as_ref()
-            .map(|output| &output.public_values_stream)
-            .expect("Process is still running")
+        &self.output().public_values_stream
     }
 
     /// Consume self, and return the public values stream.
     #[must_use]
     pub fn into_public_values_stream(self) -> Vec<u8> {
-        self.output.map(|output| output.public_values_stream).expect("Process is still running")
+        self.take_output().public_values_stream
     }
 
     /// Get the hints of the JIT function.
     #[must_use]
     pub fn hints(&self) -> &[(u64, Vec<u8>)] {
-        self.output.as_ref().map(|output| &output.hints).expect("Process is still running")
+        &self.output().hints
     }
 
     /// Get the lengths of all the hints.
     #[must_use]
     pub fn hint_lens(&self) -> Vec<usize> {
-        self.output
-            .as_ref()
-            .map(|output| output.hints.iter().map(|(_, hint)| hint.len()).collect())
-            .expect("Process is still running")
+        self.output().hints.iter().map(|(_, hint)| hint.len()).collect()
     }
 
     /// Get an unsafe memory view of the JIT function.
@@ -298,6 +379,28 @@ fn spawn_restricted(mut cmd: Command, limit_bytes: u64) -> std::io::Result<Child
     // Force pipes for all three standard streams
     cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
 
+    // Disable core dump for the child process for fast exiting, in debugging sessions
+    // you can comment this section out.
+    unsafe {
+        use std::os::unix::process::CommandExt;
+        cmd.pre_exec(|| {
+            // Create a limit structure with soft and hard limits set to 0
+            let limit = libc::rlimit {
+                rlim_cur: 0, // Soft limit
+                rlim_max: 0, // Hard limit
+            };
+
+            // Call setrlimit to disable core dumps
+            let ret = libc::setrlimit(libc::RLIMIT_CORE, &limit);
+
+            if ret != 0 {
+                // Convert libc error to Rust io::Error
+                return Err(std::io::Error::last_os_error());
+            }
+            Ok(())
+        });
+    }
+
     // Spawn the child normally using Rust std
     let child = cmd.spawn()?;
     let child_pid = child.id();
@@ -319,7 +422,7 @@ fn spawn_restricted(mut cmd: Command, limit_bytes: u64) -> std::io::Result<Child
                 let current_rss = proc.memory();
 
                 if current_rss > limit_bytes {
-                    eprintln!(
+                    tracing::warn!(
                         "Monitor: PID {} exceeded limit ({} MB > {} MB). Sending SIGKILL.",
                         child_pid,
                         current_rss / 1024 / 1024,
@@ -336,6 +439,5 @@ fn spawn_restricted(mut cmd: Command, limit_bytes: u64) -> std::io::Result<Child
             thread::sleep(poll_interval);
         }
     });
-
     Ok(child)
 }

@@ -32,6 +32,10 @@ cargo_metadata = { workspace = true }
 hex = { workspace = true }
 sha2 = { workspace = true }
 
+[dev-dependencies]
+sp1-core-machine = { workspace = true }
+test-artifacts = { path = "../../test-artifacts" }
+
 [lints]
 workspace = true
 

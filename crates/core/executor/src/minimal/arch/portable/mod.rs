@@ -18,8 +18,8 @@ use std::{
 use hashbrown::HashMap;
 
 use crate::{
-    minimal::ecall::ecall_handler, Instruction, Opcode, Program, Register, SyscallCode,
-    CLK_INC as CLK_INC_32, HALT_PC, PC_INC as PC_INC_32,
+    minimal::ecall::ecall_handler, ExecutionError, Instruction, Opcode, Program, Register,
+    SyscallCode, CLK_INC as CLK_INC_32, HALT_PC, PC_INC as PC_INC_32,
 };
 
 mod cow;
@@ -366,10 +366,20 @@ impl MinimalExecutor {
     }
 
     /// Execute the program. Returning a trace chunk if the program has not completed.
-    #[allow(clippy::redundant_closure_for_method_calls)]
+    #[inline]
     pub fn execute_chunk(&mut self) -> Option<TraceChunkRaw> {
+        self.try_execute_chunk().expect("execute chunk")
+    }
+
+    /// Execute the program. Returning a trace chunk if the program has not completed.
+    #[allow(clippy::redundant_closure_for_method_calls)]
+    pub fn try_execute_chunk(&mut self) -> Result<Option<TraceChunkRaw>, ExecutionError> {
+        if self.memory.has_last_error() {
+            return Err(self.memory.last_error());
+        }
+
         if self.is_done() {
-            return None;
+            return Ok(None);
         }
 
         let capacity = trace_capacity(self.max_trace_size);
@@ -386,7 +396,11 @@ impl MinimalExecutor {
             }
         }
 
-        while !self.execute_instruction() {}
+        while !self.execute_instruction() {
+            if self.memory.has_last_error() {
+                return Err(self.memory.last_error());
+            }
+        }
 
         #[cfg(feature = "profiling")]
         if self.is_done() {
@@ -406,7 +420,7 @@ impl MinimalExecutor {
         // chunk the remaining hints and input.
         let traces = std::mem::take(&mut self.traces);
 
-        traces.map(|trace| unsafe { TraceChunkRaw::new(trace.into()) })
+        Ok(traces.map(|trace| unsafe { TraceChunkRaw::new(trace.into()) }))
     }
 
     /// Check if the program has halted.

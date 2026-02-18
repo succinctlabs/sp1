@@ -220,7 +220,10 @@ pub async fn execute_with_options(
     // Spawn a blocking task to run the minimal executor.
     let final_vm_state_clone = final_vm_state.clone();
     join_set.spawn_blocking(move || {
-        while let Some(chunk) = minimal_executor.execute_chunk() {
+        while let Some(chunk) = minimal_executor
+            .try_execute_chunk()
+            .map_err(|e| anyhow::anyhow!("Execute chunk failed: {e}"))?
+        {
             let handle = gas_engine
                 .blocking_submit(GasExecutingTask {
                     chunk,

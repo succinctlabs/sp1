@@ -52,7 +52,7 @@ where
     }
 
     let mut trace_chunks = Vec::new();
-    while let Some(chunk) = minimal_executor.execute_chunk() {
+    while let Some(chunk) = minimal_executor.try_execute_chunk()? {
         // Convert TraceChunkRaw to TraceChunk so we are sure to **own**
         // the memory. This avoids deadlock situation when shared memory
         // based chunk is used.
@@ -299,4 +299,10 @@ pub enum SP1CoreProverError {
     IoError(io::Error),
     #[error("serialization error: {0}")]
     SerializationError(bincode::Error),
+}
+
+impl From<ExecutionError> for SP1CoreProverError {
+    fn from(e: ExecutionError) -> SP1CoreProverError {
+        SP1CoreProverError::ExecutionError(e)
+    }
 }

@@ -6,7 +6,7 @@ use thiserror::Error;
 use crate::Opcode;
 
 /// Errors that the executor can throw.
-#[derive(Error, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Error, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ExecutionError {
     /// The execution failed with an invalid memory access.
     #[error("invalid memory access for opcode {0} and address {1}")]
@@ -55,6 +55,10 @@ pub enum ExecutionError {
     /// The sharding state is invalid.
     #[error("Running executor in non-sharding state, but got a shard boundary or trace end")]
     InvalidShardingState(),
+
+    /// SP1 program consumes too much memory
+    #[error("SP1 program consumes too much memory")]
+    TooMuchMemory(),
 
     /// A generic error.
     #[error("{0}")]

@@ -202,7 +202,10 @@ where
                 tracing::debug!("Starting minimal executor");
                 let now = std::time::Instant::now();
                 let mut chunk_count = 0;
-                while let Some(chunk) = minimal_executor.execute_chunk() {
+                while let Some(chunk) = minimal_executor
+                    .try_execute_chunk()
+                    .map_err(|e| anyhow::anyhow!("failed to execute chunk: {e}"))?
+                {
                     tracing::debug!(
                         trace_chunk = chunk_count,
                         "mem reads chunk size bytes {}, program is done?: {}",

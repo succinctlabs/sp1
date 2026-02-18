@@ -1,8 +1,8 @@
 //! This module contains shared memory data structures written by Gemini 3.
 
 use libc::{
-    c_uint, c_void, ftruncate, madvise, sem_close, sem_open, sem_post, sem_t, sem_unlink, sem_wait,
-    shm_open, shm_unlink, MADV_FREE, O_CREAT, O_RDWR, S_IRUSR, S_IWUSR,
+    c_uint, c_void, ftruncate, madvise, sem_close, sem_open, sem_post, sem_t, sem_trywait,
+    sem_unlink, sem_wait, shm_open, shm_unlink, MADV_FREE, O_CREAT, O_RDWR, S_IRUSR, S_IWUSR,
 };
 use memmap2::{Mmap, MmapMut};
 use std::cmp::Reverse;
@@ -12,10 +12,11 @@ use std::fs::File;
 use std::io::{self, Error};
 use std::ops::{Deref, DerefMut};
 use std::os::fd::{AsRawFd, FromRawFd, RawFd};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{fence, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
-// POSIX Shared Memory Ring Buffer
+// POSIX Shared Memory Trace Ring
 //
 // Written by Gemini 3
 //
@@ -23,31 +24,51 @@ use std::sync::{Arc, Mutex};
 // ring buffer using POSIX Shared Memory and Named Semaphores.
 //
 // Features:
-// * Huge Page Optimized: Aligns slots to 2MB and uses MADV_HUGEPAGE (Linux) for performance.
+// * Huge Page Optimized: Aligns slots to 2MB and uses MADV_HUGEPAGE (Linux).
 // * Lazy Allocation: Uses sparse files; physical RAM is only consumed upon writing.
 // * RAII Safety: Automatic resource cleanup (unlink) and data commit on drop.
-// * Blocking API: 0% CPU usage when waiting for data or space.
+// * Hybrid Spin/Wait: Consumers spin briefly for ultra-low latency, then sleep.
+// * Crash Safe: Exposes `notify_crash()` for signal handlers.
+// * Explicit Return Types: Distinguishes between Data, Finished, Crashed, and Timeout.
 // * Parallel Access: Decouples reservation from completion, allowing multiple chunks to be held at once.
 
 // --- CONFIGURATION ---
 const HUGE_PAGE_SIZE: usize = 2 * 1024 * 1024;
 const HEADER_SIZE: usize = HUGE_PAGE_SIZE;
+const SPIN_LIMIT: usize = 10000;
+
+#[repr(C)]
+#[derive(Debug, Default, Clone, Copy)]
+pub struct CrashDetails {
+    pub signal: i32,    // e.g., 11 (SIGSEGV)
+    pub addr: u64,      // e.g., 0x0
+    pub operation: i32, // 0=Unknown, 1=Read, 2=Write, 3=Exec
+}
 
 #[repr(C)]
 struct RingHeader {
     write_idx: AtomicUsize,
-
     // "Safe" index (Oldest slot still in use). Producer checks this.
     read_idx: AtomicUsize,
-
     // "Next" index (Next slot to dispense). Consumer checks this.
     reserved_idx: AtomicUsize,
-
     capacity: usize,
     slot_size: usize,
+    // 0 = Running, 1 = Finished (EOS), 2 = Crashed
     finished: AtomicUsize,
+    // We don't need atomics here because we only read it AFTER finished=2.
+    crash_details: CrashDetails,
 }
 
+// --- RESULT ENUM ---
+pub enum TraceResult {
+    Data(ConsumerGuard),
+    Finished,              // Clean Exit
+    Crashed(CrashDetails), // Dirty Exit (Segfault)
+    Timeout,               // No Data yet
+}
+
+// --- SEMAPHORE WRAPPER ---
 struct PosixSemaphore {
     sem: *mut sem_t,
 }
@@ -65,17 +86,55 @@ impl PosixSemaphore {
             Ok(Self { sem })
         }
     }
+
     fn wait(&self) {
         unsafe {
             sem_wait(self.sem);
         }
     }
+
+    fn try_wait(&self) -> bool {
+        unsafe { sem_trywait(self.sem) == 0 }
+    }
+
     fn post(&self) {
         unsafe {
             sem_post(self.sem);
         }
     }
+
+    fn wait_timeout(&self, timeout: Duration) -> bool {
+        unsafe {
+            #[cfg(target_os = "linux")]
+            {
+                let mut ts = libc::timespec { tv_sec: 0, tv_nsec: 0 };
+                libc::clock_gettime(libc::CLOCK_REALTIME, &mut ts);
+
+                ts.tv_sec += timeout.as_secs() as i64;
+                ts.tv_nsec += timeout.subsec_nanos() as i64;
+                if ts.tv_nsec >= 1_000_000_000 {
+                    ts.tv_sec += 1;
+                    ts.tv_nsec -= 1_000_000_000;
+                }
+
+                libc::sem_timedwait(self.sem, &ts) == 0
+            }
+
+            #[cfg(target_os = "macos")]
+            {
+                let start = std::time::Instant::now();
+                while start.elapsed() < timeout {
+                    if sem_trywait(self.sem) == 0 {
+                        return true;
+                    }
+                    std::thread::sleep(Duration::from_millis(1));
+                }
+                false
+            }
+        }
+    }
 }
+
 impl Drop for PosixSemaphore {
     fn drop(&mut self) {
         unsafe {
@@ -179,7 +238,6 @@ impl Deref for ConsumerGuard {
 impl InnerRing {
     fn complete_read(&self, completed_idx: usize) {
         let mut heap = self.pending_completions.lock().unwrap();
-
         // Push completion to heap
         heap.push(Reverse(completed_idx));
 
@@ -215,11 +273,9 @@ impl ShmTraceRing {
     fn init(id: &str, capacity: usize, slot_size: usize, is_owner: bool) -> std::io::Result<Self> {
         // Force 2MB Alignment
         let aligned_size = (slot_size + HUGE_PAGE_SIZE - 1) & !(HUGE_PAGE_SIZE - 1);
-
         // Logic: ID -> Name conversion with suffix
         let base_name =
             if id.starts_with('/') { format!("{}_t", id) } else { format!("/{}_t", id) };
-
         let c_name = CString::new(base_name.clone()).unwrap();
         let total_size = HEADER_SIZE + (capacity * aligned_size);
 
@@ -258,6 +314,8 @@ impl ShmTraceRing {
                 (*header).read_idx.store(0, Ordering::Release);
                 (*header).reserved_idx.store(0, Ordering::Release);
                 (*header).finished.store(0, Ordering::Release);
+                // Zero out crash details initially
+                std::ptr::write_volatile(&mut (*header).crash_details, CrashDetails::default());
             }
         }
 
@@ -303,9 +361,20 @@ impl ShmTraceRing {
         })
     }
 
-    pub fn acquire(&self) -> ProducerGuard {
-        self.inner.sem_empty.wait();
+    // --- PRODUCER API ---
 
+    pub fn acquire(&self) -> ProducerGuard {
+        for _ in 0..SPIN_LIMIT {
+            if self.inner.sem_empty.try_wait() {
+                return self.claim_write_slot();
+            }
+            std::hint::spin_loop();
+        }
+        self.inner.sem_empty.wait();
+        self.claim_write_slot()
+    }
+
+    fn claim_write_slot(&self) -> ProducerGuard {
         let (w, _, cap, size) = unsafe { self.load_state() };
         let slot_idx = w % cap;
         let offset = slot_idx * size;
@@ -324,36 +393,121 @@ impl ShmTraceRing {
         self.inner.sem_filled.post();
     }
 
-    pub fn access(&self) -> Option<ConsumerGuard> {
-        self.inner.sem_filled.wait();
+    /// Notify Consumer of a Crash (Async-Signal-Safe).
+    /// `signal`: e.g. SIGSEGV (11)
+    /// `addr`: The faulty address (e.g. 0x0)
+    /// `operation`: 0=Unknown, 1=Read, 2=Write
+    pub fn notify_crash(&self, signal: i32, addr: u64, operation: i32) {
+        unsafe {
+            let h = self.inner.header;
+            // 1. Write Details (Relaxed is fine as long as we fence after)
+            // Using volatile to ensure compiler doesn't optimize it away before the fence
+            std::ptr::write_volatile(
+                &mut (*h).crash_details,
+                CrashDetails { signal, addr, operation },
+            );
 
+            // 2. Fence (Write Barrier)
+            // Ensures `crash_details` is visible before `finished` is set to 2.
+            fence(Ordering::Release);
+
+            // 3. Set Flag
+            (*h).finished.store(2, Ordering::Release);
+
+            // 4. Wake Consumer
+            self.inner.sem_filled.post();
+        }
+    }
+
+    // --- CONSUMER API ---
+
+    pub fn access(&self, timeout: Duration) -> TraceResult {
+        // 0. CHECK CRASH (Pre-check)
+        if let Some(details) = self.check_crash() {
+            return TraceResult::Crashed(details);
+        }
+
+        // We can spin here, but I'm commenting the code out since we only
+        // need producer to skip context switching, consumer code is fine
+        // waiting withing spinning.
+        // 1. HYBRID SPIN
+        // for _ in 0..SPIN_LIMIT {
+        //     if self.inner.sem_filled.try_wait() {
+        //         return self.claim_read_slot();
+        //     }
+        //     std::hint::spin_loop();
+        // }
+
+        // 2. TIMEOUT WAIT
+        if !self.inner.sem_filled.wait_timeout(timeout) {
+            // Timeout occurred. Check why.
+            if let Some(details) = self.check_crash() {
+                return TraceResult::Crashed(details);
+            }
+
+            unsafe {
+                if (*self.inner.header).finished.load(Ordering::Acquire) == 1 {
+                    // It is finished, but maybe semaphore count is off or we are perfectly caught up?
+                    // Check if there is data left.
+                    let w = (*self.inner.header).write_idx.load(Ordering::Acquire);
+                    let r = (*self.inner.header).reserved_idx.load(Ordering::Acquire);
+                    if w == r {
+                        return TraceResult::Finished;
+                    }
+                }
+            }
+            return TraceResult::Timeout;
+        }
+
+        // 3. CLAIM
+        self.claim_read_slot()
+    }
+
+    fn check_crash(&self) -> Option<CrashDetails> {
+        unsafe {
+            if (*self.inner.header).finished.load(Ordering::Acquire) == 2 {
+                // Read details
+                Some((*self.inner.header).crash_details)
+            } else {
+                None
+            }
+        }
+    }
+
+    fn claim_read_slot(&self) -> TraceResult {
         unsafe {
             let h = self.inner.header;
 
-            // 1. Peek at indices to check for EOS or data availability
+            // CRASH CHECK PRIORITY
+            if (*h).finished.load(Ordering::Acquire) == 2 {
+                let details = (*h).crash_details;
+                self.inner.sem_filled.post(); // Wake others
+                return TraceResult::Crashed(details);
+            }
+
             let w = (*h).write_idx.load(Ordering::Acquire);
             let current_reserved = (*h).reserved_idx.load(Ordering::Acquire);
 
             if w == current_reserved {
                 if (*h).finished.load(Ordering::Acquire) == 1 {
-                    self.inner.sem_filled.post(); // Wake other consumers
-                    return None;
+                    self.inner.sem_filled.post(); // Wake others
+                    return TraceResult::Finished;
                 }
-                // Spurious wake or race condition, retry
-                return self.access();
+
+                // Spurious wake or race condition (Semaphore > 0, but no data visible yet).
+                // Treat as Timeout for simplicity, or retry.
+                return TraceResult::Timeout;
             }
 
-            // 2. Claim unique slot index
             let my_idx = (*h).reserved_idx.fetch_add(1, Ordering::Release);
 
             let cap = (*h).capacity;
             let size = (*h).slot_size;
             let slot_idx = my_idx % cap;
             let offset = slot_idx * size;
-
             let ptr = self.inner.data_start.add(offset);
 
-            Some(ConsumerGuard {
+            TraceResult::Data(ConsumerGuard {
                 inner: self.inner.clone(),
                 data_ptr: ptr,
                 len: size,

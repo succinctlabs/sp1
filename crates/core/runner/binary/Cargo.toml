@@ -15,6 +15,8 @@ sp1-core-executor = { workspace = true }
 sp1-jit = { workspace = true }
 
 bincode = { workspace = true }
+crash-handler = { workspace = true }
+libc = { workspace = true }
 serde = { workspace = true, features = ["derive", "rc"] }
 tracing-subscriber = { workspace = true, features = ["std", "env-filter"] }
 

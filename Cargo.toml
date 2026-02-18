@@ -231,6 +231,7 @@ cargo_metadata = "0.18.1"
 cfg-if = "1.0.3"
 chrono = { version = "0.4.38", default-features = false }
 clap = "4.5.9"
+crash-handler = "0.7.0"
 critical-section = "1.2.0"
 crossbeam = "0.8.4"
 dashu = "0.4.2"

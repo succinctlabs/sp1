@@ -1,6 +1,6 @@
 #[cfg(feature = "profiling")]
 use hashbrown::HashMap;
-use sp1_core_executor::{MinimalExecutor, Program, UnsafeMemory};
+use sp1_core_executor::{ExecutionError, MinimalExecutor, Program, UnsafeMemory};
 use sp1_jit::{MemValue, TraceChunkRaw};
 use std::sync::Arc;
 
@@ -75,6 +75,12 @@ impl MinimalExecutorRunner {
     #[inline]
     pub fn execute_chunk(&mut self) -> Option<TraceChunkRaw> {
         self.inner.execute_chunk()
+    }
+
+    /// Execute the program. Returning a trace chunk if the program has not completed.
+    #[inline]
+    pub fn try_execute_chunk(&mut self) -> Result<Option<TraceChunkRaw>, ExecutionError> {
+        self.inner.try_execute_chunk()
     }
 
     /// Get the registers of the JIT function.
