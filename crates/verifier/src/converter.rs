@@ -47,7 +47,7 @@ pub fn compress_g2_point_to_x(g2: &AffineG2) -> Result<[u8; 64], Error> {
 ///
 /// If this Fq element is part of a compressed point, the flag that indicates the sign of the
 /// y coordinate is also returned.
-pub fn deserialize_with_flags(buf: &[u8]) -> Result<(Fq, CompressedPointFlag), Error> {
+pub(crate) fn deserialize_with_flags(buf: &[u8]) -> Result<(Fq, CompressedPointFlag), Error> {
     if buf.len() != 32 {
         return Err(Error::InvalidXLength);
     };
