@@ -99,7 +99,7 @@ add_subdirectory(lib/zerocheck)
 # Sppark sources (external library, kept separate)
 # These are C++ files that need CUDA headers
 add_library(sppark_objs OBJECT
-    ${CSL_SOURCE_DIR}/sppark/rust/src/lib.cpp
+    ${CSL_SOURCE_DIR}/sppark/lib.cpp
     ${CSL_SOURCE_DIR}/sppark/util/all_gpus.cpp
 )
 target_link_libraries(sppark_objs PRIVATE sp1_gpu_common)
