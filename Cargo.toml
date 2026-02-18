@@ -6,6 +6,7 @@ repository = "https://github.com/succinctlabs/sp1"
 keywords = ["sp1", "succinct", "zero-knowledge", "zkvm"]
 categories = ["cryptography"]
 include = ["SP1_VERSION"]
+rust-version = "1.91"
 
 [workspace]
 members = [

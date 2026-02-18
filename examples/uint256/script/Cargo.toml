@@ -2,6 +2,7 @@
 name = "uint256-script"
 version = { workspace = true }
 edition = { workspace = true }
+rust-version = { workspace = true }
 default-run = "uint256-script"
 publish = false
 
