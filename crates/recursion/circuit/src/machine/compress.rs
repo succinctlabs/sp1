@@ -277,8 +277,8 @@ where
             {
                 // Assert that `contains_execution_shard` is boolean.
                 builder.assert_felt_eq(
-                    current_public_values.contains_execution_shard *
-                        (SymbolicFelt::one() - current_public_values.contains_execution_shard),
+                    current_public_values.contains_execution_shard
+                        * (SymbolicFelt::one() - current_public_values.contains_execution_shard),
                     C::F::zero(),
                 );
                 // A flag to indicate whether the first execution shard has been seen. We have:
@@ -288,26 +288,26 @@ where
                 // seen an execution shard, we can use it to denote if we have seen an execution
                 // shard before.
                 let is_first_execution_shard_seen: Felt<_> = builder.eval(
-                    current_public_values.contains_execution_shard *
-                        (SymbolicFelt::one() - contains_execution_shard),
+                    current_public_values.contains_execution_shard
+                        * (SymbolicFelt::one() - contains_execution_shard),
                 );
 
                 // If this is the first execution shard, then we update the start execution shard
                 // and the `execution_shard` values.
                 compress_public_values.start_execution_shard = builder.eval(
-                    current_public_values.start_execution_shard * is_first_execution_shard_seen +
-                        compress_public_values.start_execution_shard *
-                            (SymbolicFelt::one() - is_first_execution_shard_seen),
+                    current_public_values.start_execution_shard * is_first_execution_shard_seen
+                        + compress_public_values.start_execution_shard
+                            * (SymbolicFelt::one() - is_first_execution_shard_seen),
                 );
                 execution_shard = builder.eval(
-                    current_public_values.start_execution_shard * is_first_execution_shard_seen +
-                        execution_shard * (SymbolicFelt::one() - is_first_execution_shard_seen),
+                    current_public_values.start_execution_shard * is_first_execution_shard_seen
+                        + execution_shard * (SymbolicFelt::one() - is_first_execution_shard_seen),
                 );
 
                 // If this is an execution shard, make the assertion that the value is consistent.
                 builder.assert_felt_eq(
-                    current_public_values.contains_execution_shard *
-                        (execution_shard - current_public_values.start_execution_shard),
+                    current_public_values.contains_execution_shard
+                        * (execution_shard - current_public_values.start_execution_shard),
                     C::F::zero(),
                 );
             }
@@ -332,29 +332,27 @@ where
                 // If `committed_value_digest` is not zero, then
                 // `public_values.committed_value_digest should be the current.
 
-                // Set a flags to indicate whether `committed_value_digest` is non-zero. The flags
-                // are given by the elements of the array, and they will be used as filters to
-                // constrain the equality.
-                let mut is_non_zero_flags = vec![];
-                for word in committed_value_digest {
-                    for byte in word {
-                        is_non_zero_flags.push(byte);
+                // Compute a single flag indicating whether `committed_value_digest` is non-zero.
+                // We use the sum of all elements as a proxy for non-zero check.
+                let mut digest_sum: Felt<_> = builder.eval(C::F::zero());
+                for word in committed_value_digest.iter() {
+                    for byte in word.0.iter() {
+                        digest_sum = builder.eval(digest_sum + *byte);
                     }
                 }
 
-                // Using the flags, we can constrain the equality.
-                for is_non_zero in is_non_zero_flags {
-                    for (word_current, word_public) in committed_value_digest
-                        .into_iter()
-                        .zip(current_public_values.committed_value_digest)
+                // Using the flag, we can constrain the equality in a single pass.
+                for (word_current, word_public) in committed_value_digest
+                    .iter()
+                    .zip(current_public_values.committed_value_digest.iter())
+                {
+                    for (byte_current, byte_public) in
+                        word_current.0.iter().zip(word_public.0.iter())
                     {
-                        for (byte_current, byte_public) in word_current.into_iter().zip(word_public)
-                        {
-                            builder.assert_felt_eq(
-                                is_non_zero * (byte_current - byte_public),
-                                C::F::zero(),
-                            );
-                        }
+                        builder.assert_felt_eq(
+                            digest_sum * (*byte_current - *byte_public),
+                            C::F::zero(),
+                        );
                     }
                 }
 
@@ -370,21 +368,21 @@ where
 
                 //  If `deferred_proofs_digest` is not zero, then the current value should be
                 // `public_values.deferred_proofs_digest`. We will use a similar approach as above.
-                let mut is_non_zero_flags = vec![];
-                for element in deferred_proofs_digest {
-                    is_non_zero_flags.push(element);
+                // Compute a single flag indicating whether `deferred_proofs_digest` is non-zero.
+                let mut deferred_sum: Felt<_> = builder.eval(C::F::zero());
+                for element in deferred_proofs_digest.iter() {
+                    deferred_sum = builder.eval(deferred_sum + *element);
                 }
 
-                for is_non_zero in is_non_zero_flags {
-                    for (digest_current, digest_public) in deferred_proofs_digest
-                        .into_iter()
-                        .zip(current_public_values.deferred_proofs_digest)
-                    {
-                        builder.assert_felt_eq(
-                            is_non_zero * (digest_current - digest_public),
-                            C::F::zero(),
-                        );
-                    }
+                // Using the flag, we can constrain the equality in a single pass.
+                for (digest_current, digest_public) in deferred_proofs_digest
+                    .iter()
+                    .zip(current_public_values.deferred_proofs_digest.iter())
+                {
+                    builder.assert_felt_eq(
+                        deferred_sum * (*digest_current - *digest_public),
+                        C::F::zero(),
+                    );
                 }
 
                 // Update the deferred proofs digest.
@@ -405,17 +403,17 @@ where
             // - If the current shard has an execution shard and the flag is set to one, it will
             //   remain set to one.
             contains_execution_shard = builder.eval(
-                contains_execution_shard +
-                    current_public_values.contains_execution_shard *
-                        (SymbolicFelt::one() - contains_execution_shard),
+                contains_execution_shard
+                    + current_public_values.contains_execution_shard
+                        * (SymbolicFelt::one() - contains_execution_shard),
             );
 
             // If this proof contains an execution shard, we update the execution shard value.
             execution_shard = builder.eval(
-                current_public_values.next_execution_shard *
-                    current_public_values.contains_execution_shard +
-                    execution_shard *
-                        (SymbolicFelt::one() - current_public_values.contains_execution_shard),
+                current_public_values.next_execution_shard
+                    * current_public_values.contains_execution_shard
+                    + execution_shard
+                        * (SymbolicFelt::one() - current_public_values.contains_execution_shard),
             );
 
             // Update the reconstruct deferred proof digest.
