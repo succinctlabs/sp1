@@ -42,36 +42,14 @@ pub mod signal {
 
 #[cfg(sp1_use_native_executor)]
 fn main() {
-    use serde::{Deserialize, Serialize};
-    use sp1_core_executor::{MinimalTranspiler, Program, HALT_PC};
+    use sp1_core_executor::{MinimalTranspiler, HALT_PC};
+    use sp1_core_executor_runner_binary::{Input, Output};
     use sp1_jit::{memory::SharedMemory, shm::ShmTraceRing, trace_capacity, TraceChunkHeader};
     use std::{
-        collections::VecDeque,
         io::{self, BufReader, BufWriter, Write},
         ops::DerefMut,
-        sync::Arc,
     };
     use tracing_subscriber::{fmt, prelude::*, EnvFilter};
-
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    struct Input {
-        pub program: Arc<Program>,
-        pub is_debug: bool,
-        pub max_trace_size: Option<u64>,
-        pub input: VecDeque<Vec<u8>>,
-        pub shm_slot_size: usize,
-        pub id: String,
-        pub max_memory_size: usize,
-        pub memory_limit: u64,
-    }
-
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    struct Output {
-        pub public_values_stream: Vec<u8>,
-        pub hints: Vec<(u64, Vec<u8>)>,
-        pub global_clk: u64,
-        pub exit_code: u32,
-    }
 
     // Stdin accepts input, stdout emits output, stderr handles all logging.
     tracing_subscriber::registry()

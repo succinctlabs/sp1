@@ -6638,7 +6638,6 @@ dependencies = [
  "hashbrown 0.14.5",
  "hex",
  "libc",
- "serde",
  "sha2",
  "sp1-core-executor",
  "sp1-core-executor-runner-binary",
