@@ -9,7 +9,7 @@ use sp1_jit::{
 use sp1_primitives::consts::MAX_JIT_LOG_ADDR;
 use std::{
     collections::VecDeque,
-    io::{BufRead, BufReader, Write},
+    io::{BufRead, BufReader, BufWriter, Write},
     os::unix::process::ExitStatusExt,
     process::{Child, Command, Stdio},
     ptr::NonNull,
@@ -121,9 +121,10 @@ impl MinimalExecutorRunner {
             .expect("start child proces");
 
             {
-                let mut stdin = child.stdin.take().expect("open stdin");
-                bincode::serialize_into(&mut stdin, &self.input).expect("sending input");
-                stdin.flush().expect("flushing input");
+                let stdin = child.stdin.take().expect("open stdin");
+                let mut writer = BufWriter::new(stdin);
+                bincode::serialize_into(&mut writer, &self.input).expect("sending input");
+                writer.flush().expect("flushing input");
             }
 
             let stderr = child.stderr.take().expect("open stderr");
