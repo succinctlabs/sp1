@@ -63,7 +63,6 @@ sp1-primitives = { workspace = true }
 sp1-prover-types = { workspace = true }
 sp1-recursion-gnark-ffi = { workspace = true }
 itertools = { workspace = true }
-tonic = { workspace = true, features = ["tls", "tls-roots"], optional = true }
 aws-config = { workspace = true, optional = true }
 aws-sdk-kms = { workspace = true, optional = true }
 rustls = { workspace = true, features = ["ring"], optional = true }
@@ -82,6 +81,11 @@ sha2 = { workspace = true }
 k256 = { workspace = true, features = ["serde"] } # Signing
 eventsource-stream = { workspace = true }         # SSE Extenstion for reqwest
 
+[target.'cfg(target_os = "ios")'.dependencies]
+tonic = { workspace = true, features = ["tls", "tls-webpki-roots"], optional = true }
+[target.'cfg(not(target_os = "ios"))'.dependencies]
+tonic = { workspace = true, features = ["tls", "tls-roots"], optional = true }
+
 [dev-dependencies]
 test-artifacts = { path = "../test-artifacts" }
 tokio = { workspace = true, features = ["macros", "rt"] }
@@ -91,7 +95,7 @@ rstest = { workspace = true }
 [features]
 default = []
 native-gnark = ["sp1-prover/native-gnark"]
-# TODO: Once alloy has a 1.* release, we can likely remove this feature flag, as there will be less 
+# TODO: Once alloy has a 1.* release, we can likely remove this feature flag, as there will be less
 # dependency resolution issues.
 network = [
   "dep:prost",
