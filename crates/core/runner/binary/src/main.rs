@@ -35,7 +35,7 @@ pub mod signal {
             self.ring.notify_crash(sig, addr, op_hint);
 
             // Tell crash-handler to proceed with the next handler (or default behavior)
-            CrashEventResult::Handled(true)
+            CrashEventResult::Handled(false)
         }
     }
 }
@@ -44,7 +44,7 @@ pub mod signal {
 fn main() {
     use serde::{Deserialize, Serialize};
     use sp1_core_executor::{MinimalTranspiler, Program, HALT_PC};
-    use sp1_jit::{memory::SharedMemory, shm::ShmTraceRing, trace_capacity};
+    use sp1_jit::{memory::SharedMemory, shm::ShmTraceRing, trace_capacity, TraceChunkHeader};
     use std::{
         collections::VecDeque,
         io::{self, BufReader, BufWriter, Write},
@@ -108,8 +108,12 @@ fn main() {
 
         while compiled.pc != HALT_PC {
             let mut guard = producer.acquire();
+            let ptr = guard.deref_mut().as_mut_ptr();
             unsafe {
-                compiled.call(guard.deref_mut().as_mut_ptr());
+                // In ring buffer setup we are reusing previous memory, we cannot make sure
+                // all memory is zero, but we need to set TraceChunkHeader to 0 values.
+                std::ptr::write_bytes(ptr as *mut TraceChunkHeader, 0, 1);
+                compiled.call(ptr);
             }
         }
 
