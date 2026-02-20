@@ -4,7 +4,7 @@
 set -e
 
 # Get the version from the command line.
-VERSION=$(cat ../../SP1_VERSION)
+VERSION=$(cat ../../SP1_CIRCUIT_VERSION)
 
 # Specify the S3 bucket name
 S3_BUCKET="sp1-circuits"
