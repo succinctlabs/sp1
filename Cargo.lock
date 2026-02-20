@@ -7708,6 +7708,7 @@ dependencies = [
  "sp1-recursion-executor",
  "sp1-verifier",
  "thiserror 1.0.69",
+ "tokio-test",
  "tracing",
 ]
 

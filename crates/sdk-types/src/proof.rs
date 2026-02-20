@@ -145,22 +145,19 @@ impl SP1ProofWithPublicValues {
     ///
     /// # Example
     /// ```rust,no_run
-    /// use sp1_sdk::{
-    ///     Elf, Prover, ProverClient, ProvingKey, SP1ProofMode, SP1ProofWithPublicValues, SP1Stdin,
-    ///     SP1_CIRCUIT_VERSION,
-    /// };
+    /// use sp1_primitives::io::SP1PublicValues;
+    /// use sp1_sdk_types::{Elf, SP1ProofMode, SP1ProofWithPublicValues, SP1_CIRCUIT_VERSION};
     ///
     /// tokio_test::block_on(async {
     ///     let elf = Elf::Static(&[1, 2, 3]);
-    ///     let stdin = SP1Stdin::new();
     ///
-    ///     let client = ProverClient::builder().cpu().build().await;
-    ///     let pk = client.setup(elf.clone()).await.unwrap();
-    ///     let (public_values, _) = client.execute(elf, stdin).await.unwrap();
+    ///     let node = sp1_prover::worker::SP1LightNode::new().await;
+    ///     let vk = node.setup(&elf).await.unwrap();
+    ///     let public_values = SP1PublicValues::default();
     ///
     ///     // Create a mock Plonk proof.
     ///     let mock_proof = SP1ProofWithPublicValues::create_mock_proof(
-    ///         &pk.verifying_key(),
+    ///         &vk,
     ///         public_values,
     ///         SP1ProofMode::Plonk,
     ///         SP1_CIRCUIT_VERSION,

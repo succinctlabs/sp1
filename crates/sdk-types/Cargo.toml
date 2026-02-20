@@ -37,5 +37,8 @@ sp1-verifier = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 
+[dev-dependencies]
+tokio-test = { workspace = true }
+
 [lints]
 workspace = true
