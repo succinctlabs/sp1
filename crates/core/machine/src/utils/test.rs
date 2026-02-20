@@ -25,7 +25,7 @@ pub async fn run_test(
     inputs: SP1Stdin,
 ) -> Result<SP1PublicValues, MachineVerifierConfigError<SP1GlobalContext, SP1InnerPcs>> {
     // Run MinimalExecutorRunner to get public values
-    let mut executor = MinimalExecutorRunner::new(program.clone(), false, None, None);
+    let mut executor = MinimalExecutorRunner::simple(program.clone());
     for buf in &inputs.buffer {
         executor.with_input(buf);
     }
@@ -42,7 +42,7 @@ pub async fn run_test_small_trace(
     inputs: SP1Stdin,
 ) -> Result<SP1PublicValues, MachineVerifierConfigError<SP1GlobalContext, SP1InnerPcs>> {
     // Run MinimalExecutorRunner to get public values
-    let mut executor = MinimalExecutorRunner::new(program.clone(), false, None, None);
+    let mut executor = MinimalExecutorRunner::simple(program.clone());
     for buf in &inputs.buffer {
         executor.with_input(buf);
     }

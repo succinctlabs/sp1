@@ -152,6 +152,8 @@ pub async fn execute_with_options(
     let max_cycles = context.max_cycles;
     let minimal_trace_chunk_threshold =
         if context.calculate_gas { Some(opts.minimal_trace_chunk_threshold) } else { None };
+    let memory_limit = opts.memory_limit;
+    let trace_chunk_slots = opts.trace_chunk_slots;
     let gas_engine =
         initialize_gas_engine(&executor_config, program.clone(), nonce, opts, calculate_gas);
 
@@ -162,8 +164,13 @@ pub async fn execute_with_options(
         });
     }
 
-    let mut minimal_executor =
-        MinimalExecutorRunner::new(program.clone(), false, minimal_trace_chunk_threshold, None);
+    let mut minimal_executor = MinimalExecutorRunner::new(
+        program.clone(),
+        false,
+        minimal_trace_chunk_threshold,
+        memory_limit,
+        trace_chunk_slots,
+    );
 
     // Feed stdin buffers to the executor
     for buf in buffer {

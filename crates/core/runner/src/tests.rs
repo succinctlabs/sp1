@@ -1,5 +1,5 @@
 use crate::MinimalExecutorRunner;
-use sp1_core_executor::{ExecutionError, Program};
+use sp1_core_executor::{ExecutionError, Program, DEFAULT_MEMORY_LIMIT};
 use sp1_core_machine::{io::SP1Stdin, utils::setup_logger};
 use std::sync::Arc;
 use test_artifacts::MEMORY_TESTER_ELF;
@@ -22,7 +22,8 @@ fn test_out_of_bound_access() {
     let mut stdin = SP1Stdin::new();
     stdin.write(&0u8);
 
-    let mut runner = MinimalExecutorRunner::new(program, false, Some(1000), None);
+    let mut runner =
+        MinimalExecutorRunner::new(program, false, Some(1000), DEFAULT_MEMORY_LIMIT, 1);
     for input in &stdin.buffer {
         runner.with_input(input);
     }
@@ -46,7 +47,7 @@ fn test_using_too_much_memory() {
     #[cfg(not(sp1_use_native_executor))]
     let memory_limit = 8 * 256 * 1024;
 
-    let mut runner = MinimalExecutorRunner::new(program, false, Some(16000000), Some(memory_limit));
+    let mut runner = MinimalExecutorRunner::new(program, false, Some(16000000), memory_limit, 1);
     for input in &stdin.buffer {
         runner.with_input(input);
     }

@@ -12,13 +12,6 @@
 //! more memory, when using the same memory limit. Since portable executor only
 //! caps actually used memory.
 
-/// Default memory limit to use, note this value has different semantics on
-/// different implementation. For native executor, it is the limit on total
-/// process memory(resident set size, or RSS) of thie entire child process. For
-/// portable executor, it is merely the limit on created memory entries. This
-/// means the actual memory usage for portable executor will exceed this limit.
-pub const DEFAULT_MEMORY_LIMIT: u64 = 24 * 1024 * 1024 * 1024; // 24 GB
-
 #[cfg(test)]
 pub mod tests;
 

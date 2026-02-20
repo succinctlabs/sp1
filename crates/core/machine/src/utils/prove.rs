@@ -44,8 +44,13 @@ where
     let split_opts = SplitOpts::new(&opts, program.instructions.len(), false);
 
     // Phase 1: Run MinimalExecutorRunner to generate trace chunks
-    let mut minimal_executor =
-        MinimalExecutorRunner::tracing(program.clone(), opts.minimal_trace_chunk_threshold);
+    let mut minimal_executor = MinimalExecutorRunner::new(
+        program.clone(),
+        false,
+        Some(opts.minimal_trace_chunk_threshold),
+        opts.memory_limit,
+        opts.trace_chunk_slots,
+    );
 
     for buf in stdin.buffer {
         minimal_executor.with_input(&buf);

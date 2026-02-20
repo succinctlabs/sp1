@@ -72,7 +72,7 @@ impl SP1CoreProofData {
 /// Get the number of cycles for a given program.
 pub fn get_cycles(elf: &[u8], stdin: &SP1Stdin) -> u64 {
     let program = Program::from(elf).unwrap();
-    let mut executor = MinimalExecutorRunner::new(Arc::new(program), false, None, None);
+    let mut executor = MinimalExecutorRunner::simple(Arc::new(program));
     for buf in &stdin.buffer {
         executor.with_input(buf);
     }

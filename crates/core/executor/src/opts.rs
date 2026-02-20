@@ -15,6 +15,14 @@ pub const HEIGHT_THRESHOLD: u64 = 1 << 22;
 /// The maximum size of a minimal trace chunk in terms of memory entries.
 pub const MINIMAL_TRACE_CHUNK_THRESHOLD: u64 =
     2147483648 / std::mem::size_of::<sp1_jit::MemValue>() as u64;
+/// The default number trace chunk slots
+pub const DEFAULT_TRACE_CHUNK_SLOTS: usize = 5;
+/// Default memory limit for SP1 programs, note this value has different semantics
+/// on different implementation. For native executor, it is the limit on total
+/// process memory(resident set size, or RSS) of thie entire child process. For
+/// portable executor, it is merely the limit on created memory entries. This
+/// means the actual memory usage for portable executor will exceed this limit.
+pub const DEFAULT_MEMORY_LIMIT: u64 = 24 * 1024 * 1024 * 1024;
 
 /// The threshold that determines when to split the shard.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -30,6 +38,10 @@ pub struct ShardingThreshold {
 pub struct SP1CoreOpts {
     /// The maximum size of a minimal trace chunk in terms of memory entries.
     pub minimal_trace_chunk_threshold: u64,
+    /// The number of slots in trace chunk ring buffer.
+    pub trace_chunk_slots: usize,
+    /// The memory limit of SP1 program.
+    pub memory_limit: u64,
     /// The size of a shard in terms of cycles. Used for estimating event counts when allocating records.
     pub shard_size: usize,
     /// The threshold that determines when to split the shard.
@@ -45,6 +57,16 @@ impl Default for SP1CoreOpts {
         let minimal_trace_chunk_threshold = env::var("MINIMAL_TRACE_CHUNK_THRESHOLD").map_or_else(
             |_| MINIMAL_TRACE_CHUNK_THRESHOLD,
             |s| s.parse::<u64>().unwrap_or(MINIMAL_TRACE_CHUNK_THRESHOLD),
+        );
+
+        let trace_chunk_slots = env::var("TRACE_CHUNK_SLOTS").map_or_else(
+            |_| DEFAULT_TRACE_CHUNK_SLOTS,
+            |s| s.parse::<usize>().unwrap_or(DEFAULT_TRACE_CHUNK_SLOTS),
+        );
+
+        let memory_limit = env::var("MEMORY_LIMIT").map_or_else(
+            |_| DEFAULT_MEMORY_LIMIT,
+            |s| s.parse::<u64>().unwrap_or(DEFAULT_MEMORY_LIMIT),
         );
 
         let shard_size = env::var("SHARD_SIZE")
@@ -67,6 +89,8 @@ impl Default for SP1CoreOpts {
 
         Self {
             minimal_trace_chunk_threshold,
+            trace_chunk_slots,
+            memory_limit,
             shard_size,
             sharding_threshold,
             retained_events_presets,

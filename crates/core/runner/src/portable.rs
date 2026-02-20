@@ -1,6 +1,8 @@
 #[cfg(feature = "profiling")]
 use hashbrown::HashMap;
-use sp1_core_executor::{ExecutionError, MinimalExecutor, Program, UnsafeMemory};
+use sp1_core_executor::{
+    ExecutionError, MinimalExecutor, Program, UnsafeMemory, DEFAULT_MEMORY_LIMIT,
+};
 use sp1_jit::{MemValue, TraceChunkRaw};
 use std::sync::Arc;
 
@@ -18,16 +20,18 @@ impl MinimalExecutorRunner {
     /// * `is_debug` - Whether to compile the program with debugging.
     /// * `max_trace_size` - The maximum trace size in terms of [`MemValue`]s. If not set tracing
     ///   will be disabled.
-    /// * `memory_limit` - The memory limit bytes. If not set, the default value(24 GB) will be used.
+    /// * `memory_limit` - The memory limit bytes.
+    /// * `shm_slot_size` - Share trace ring buffer slot size, Not used
+    ///   by portable executor, we are just preseving the same API interface
     #[must_use]
     #[inline]
     pub fn new(
         program: Arc<Program>,
         is_debug: bool,
         max_trace_size: Option<u64>,
-        memory_limit: Option<u64>,
+        memory_limit: u64,
+        _shm_slot_size: usize,
     ) -> Self {
-        let memory_limit = memory_limit.unwrap_or(crate::DEFAULT_MEMORY_LIMIT);
         Self {
             inner: MinimalExecutor::new_with_limit(
                 program,
@@ -42,10 +46,10 @@ impl MinimalExecutorRunner {
     #[must_use]
     #[inline]
     pub fn simple(program: Arc<Program>) -> Self {
-        Self::new(program, false, None, None)
+        Self::new(program, false, None, DEFAULT_MEMORY_LIMIT, 0)
     }
 
-    /// Create a new minimal executor with tracing.
+    /// Create a new tracing minimal executor with default configs
     ///
     /// # Arguments
     ///
@@ -54,15 +58,15 @@ impl MinimalExecutorRunner {
     ///   be set to 2 gb worth of memory events.
     #[must_use]
     #[inline]
-    pub fn tracing(program: Arc<Program>, max_trace_size: u64) -> Self {
-        Self::new(program, false, Some(max_trace_size), None)
+    pub fn simple_tracing(program: Arc<Program>, max_trace_size: u64) -> Self {
+        Self::new(program, false, Some(max_trace_size), DEFAULT_MEMORY_LIMIT, 0)
     }
 
     /// Create a new minimal executor with debugging.
     #[must_use]
     #[inline]
     pub fn debug(program: Arc<Program>) -> Self {
-        Self::new(program, true, None, None)
+        Self::new(program, true, None, DEFAULT_MEMORY_LIMIT, 0)
     }
 
     /// Add input to the executor.

@@ -1,5 +1,8 @@
 use base64::{engine::general_purpose::URL_SAFE, Engine};
-use sp1_core_executor::{ExecutionError, MinimalTranspiler, Opcode, Program, UnsafeMemory};
+use sp1_core_executor::{
+    ExecutionError, MinimalTranspiler, Opcode, Program, UnsafeMemory, DEFAULT_MEMORY_LIMIT,
+    DEFAULT_TRACE_CHUNK_SLOTS,
+};
 use sp1_core_executor_runner_binary::{Input, Output};
 use sp1_jit::{
     memory::SharedMemory,
@@ -19,9 +22,8 @@ use std::{
 };
 use sysinfo::{Pid, System};
 
-// TODO: tweak those
-const SHM_SLOT_SIZE: usize = 6;
 const MEMORY_MONITOR_INTERAL_MILLIS: u64 = 100;
+const CONSUMER_TIMEOUT_MILLIS: u64 = 100;
 
 /// Minimal trace native executor that runs SP1 program in child process
 pub struct MinimalExecutorRunner {
@@ -44,12 +46,14 @@ impl MinimalExecutorRunner {
     /// * `max_trace_size` - The maximum trace size in terms of [`MemValue`]s. If not set tracing
     ///   will be disabled.
     /// * `memory_limit` - The memory limit bytes. If not set, the default value(24 GB) will be used.
+    /// * `shm_slot_size` - Share trace ring buffer slot size
     #[must_use]
     pub fn new(
         program: Arc<Program>,
         is_debug: bool,
         max_trace_size: Option<u64>,
-        memory_limit: Option<u64>,
+        memory_limit: u64,
+        shm_slot_size: usize,
     ) -> Self {
         let id = format!("sp1_{}", URL_SAFE.encode(uuid::Uuid::new_v4().as_bytes()));
         let input = Input {
@@ -57,10 +61,10 @@ impl MinimalExecutorRunner {
             is_debug,
             max_trace_size,
             input: VecDeque::new(),
-            shm_slot_size: SHM_SLOT_SIZE,
+            shm_slot_size,
             id,
             max_memory_size: 2_u64.pow(MAX_JIT_LOG_ADDR as u32) as usize,
-            memory_limit: memory_limit.unwrap_or(crate::DEFAULT_MEMORY_LIMIT),
+            memory_limit,
         };
         let (memory, consumer) = create(&input);
 
@@ -70,10 +74,11 @@ impl MinimalExecutorRunner {
     /// Create a new minimal executor with no tracing or debugging.
     #[must_use]
     pub fn simple(program: Arc<Program>) -> Self {
-        Self::new(program, false, None, None)
+        // When no tracing is on, we don't need SHM slots.
+        Self::new(program, false, None, DEFAULT_MEMORY_LIMIT, 0)
     }
 
-    /// Create a new minimal executor with tracing.
+    /// Create a new tracing minimal executor with default configs
     ///
     /// # Arguments
     ///
@@ -81,14 +86,21 @@ impl MinimalExecutorRunner {
     /// * `max_trace_size` - The maximum trace size in terms of [`MemValue`]s. If not set, it will
     ///   be set to 2 gb worth of memory events.
     #[must_use]
-    pub fn tracing(program: Arc<Program>, max_trace_size: u64) -> Self {
-        Self::new(program, false, Some(max_trace_size), None)
+    pub fn simple_tracing(program: Arc<Program>, max_trace_size: u64) -> Self {
+        Self::new(
+            program,
+            false,
+            Some(max_trace_size),
+            DEFAULT_MEMORY_LIMIT,
+            DEFAULT_TRACE_CHUNK_SLOTS,
+        )
     }
 
     /// Create a new minimal executor with debugging.
     #[must_use]
     pub fn debug(program: Arc<Program>) -> Self {
-        Self::new(program, true, None, None)
+        // When no tracing is on, we don't need SHM slots.
+        Self::new(program, true, None, DEFAULT_MEMORY_LIMIT, 0)
     }
 
     /// Add input to the executor.
@@ -143,7 +155,7 @@ impl MinimalExecutorRunner {
         if let Some(consumer) = &self.consumer {
             // Looking for the next chunk
             loop {
-                match consumer.access(Duration::from_millis(100)) {
+                match consumer.access(Duration::from_millis(CONSUMER_TIMEOUT_MILLIS)) {
                     TraceResult::Data(guard) => {
                         return Ok(Some(unsafe { TraceChunkRaw::from_shm(guard) }));
                     }
@@ -189,6 +201,9 @@ impl MinimalExecutorRunner {
                                 .join()
                                 .expect("wait for log thread to finish");
                             // Child process is terminated, let's find out why
+                            if status.signal() == Some(libc::SIGBUS) {
+                                tracing::warn!("SIGBUS signal is received, there is a chance /dev/shm is full!");
+                            }
                             let error = match (status.code(), status.signal()) {
                                 (_, Some(libc::SIGKILL)) => ExecutionError::TooMuchMemory(),
                                 (code, signal) => ExecutionError::Other(format!("Child native executor terminates early, code: {code:?}, signal: {signal:?}")),
@@ -344,7 +359,7 @@ fn create(input: &Input) -> (SharedMemory, Option<ShmTraceRing>) {
     let trace_buf_size = trace_capacity(input.max_trace_size);
     let consumer = if trace_buf_size > 0 {
         Some(
-            ShmTraceRing::create(&input.id, SHM_SLOT_SIZE, trace_buf_size)
+            ShmTraceRing::create(&input.id, input.shm_slot_size, trace_buf_size)
                 .expect("create shm file for traces"),
         )
     } else {

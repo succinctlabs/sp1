@@ -172,10 +172,22 @@ where
                 tracing::info!("minimal executor cache hit");
                 minimal_executor
             } else {
-                MinimalExecutorRunner::tracing(program.clone(), opts.minimal_trace_chunk_threshold)
+                MinimalExecutorRunner::new(
+                    program.clone(),
+                    false,
+                    Some(opts.minimal_trace_chunk_threshold),
+                    opts.memory_limit,
+                    opts.trace_chunk_slots,
+                )
             }
         } else {
-            MinimalExecutorRunner::tracing(program.clone(), opts.minimal_trace_chunk_threshold)
+            MinimalExecutorRunner::new(
+                program.clone(),
+                false,
+                Some(opts.minimal_trace_chunk_threshold),
+                opts.memory_limit,
+                opts.trace_chunk_slots,
+            )
         };
         join_set.spawn_blocking({
             let program = program.clone();
