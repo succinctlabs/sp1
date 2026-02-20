@@ -47,5 +47,9 @@ unsafe fn panic_if_input_exhausted(ctx: &mut impl SyscallContext) {
 #[allow(clippy::unnecessary_wraps)]
 pub unsafe fn hint_len(ctx: &mut impl SyscallContext, _op_a: u64, _op_b: u64) -> Option<u64> {
     let input_stream: &mut std::collections::VecDeque<Vec<u8>> = ctx.input_buffer();
-    Some(input_stream.front().map_or(u64::MAX, |data| data.len() as u64))
+    let value = input_stream.front().map_or(u64::MAX, |data| data.len() as u64);
+
+    ctx.trace_value(value);
+
+    Some(value)
 }

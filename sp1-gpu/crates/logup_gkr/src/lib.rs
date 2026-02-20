@@ -301,6 +301,7 @@ mod tests {
     use slop_futures::queue::WorkerQueue;
     use slop_multilinear::Mle;
     use slop_sumcheck::partially_verify_sumcheck_proof;
+    use sp1_core_machine::io::SP1Stdin;
     use sp1_core_machine::riscv::RiscvAir;
     use sp1_gpu_cudart::{run_sync_in_place, DevicePoint, PinnedBuffer};
     use sp1_gpu_jagged_tracegen::{
@@ -551,7 +552,8 @@ mod tests {
     #[serial]
     fn test_logup_gkr_e2e() {
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let (machine, record, program) = rt.block_on(tracegen_setup::setup());
+        let (machine, record, program) =
+            rt.block_on(tracegen_setup::setup(&test_artifacts::FIBONACCI_ELF, SP1Stdin::new()));
 
         run_sync_in_place(|scope| {
             // *********** Generate traces using the host tracegen. ***********

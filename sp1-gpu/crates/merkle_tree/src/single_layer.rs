@@ -380,6 +380,7 @@ mod tests {
     use sp1_gpu_cudart::{run_in_place, PinnedBuffer};
     use sp1_hypercube::prover::{DefaultTraceGenerator, ProverSemaphore, TraceGenerator};
 
+    use sp1_core_machine::io::SP1Stdin;
     use sp1_gpu_jagged_tracegen::test_utils::tracegen_setup::{
         self, CORE_MAX_LOG_ROW_COUNT, LOG_STACKING_HEIGHT,
     };
@@ -391,7 +392,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_poseidon2_koala_bear_16() {
-        let (machine, record, program) = tracegen_setup::setup().await;
+        let (machine, record, program) =
+            tracegen_setup::setup(&test_artifacts::FIBONACCI_ELF, SP1Stdin::new()).await;
 
         run_in_place(|scope| async move {
             let old_prover = slop_merkle_tree::Poseidon2KoalaBear16Prover::default();

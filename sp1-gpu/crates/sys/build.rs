@@ -131,10 +131,9 @@ fn detect_cuda() -> bool {
 
 fn main() {
     // Directives for tracking changes in folders
-    println!("cargo:rerun-if-changed=../../include/");
-    println!("cargo:rerun-if-changed=../../lib/");
-    println!("cargo:rerun-if-changed=../../sppark/");
-    println!("cargo:rerun-if-changed=../../CMakeLists.txt");
+    println!("cargo:rerun-if-changed=include/");
+    println!("cargo:rerun-if-changed=lib/");
+    println!("cargo:rerun-if-changed=sppark/");
     println!("cargo:rerun-if-changed=CMakeLists.txt");
     // Directives for tracking changes in compilation profiles
     println!("cargo:rerun-if-env-changed=PROFILE");
@@ -228,7 +227,7 @@ fn main() {
     }
 
     // Link the library
-    println!("cargo:rustc-link-search=native={}/../../target/cuda-build/lib", crate_dir.display());
+    println!("cargo:rustc-link-search=native={}/lib", dst.display());
     println!("cargo:rustc-link-lib=static=sys-cuda");
 
     // Add CUDA library search paths

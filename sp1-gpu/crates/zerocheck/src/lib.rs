@@ -740,6 +740,7 @@ pub mod tests {
     use std::ops::Deref;
     use std::sync::Arc;
 
+    use sp1_core_machine::io::SP1Stdin;
     use sp1_gpu_jagged_tracegen::{
         full_tracegen,
         test_utils::tracegen_setup::{self, CORE_MAX_LOG_ROW_COUNT, LOG_STACKING_HEIGHT},
@@ -2015,7 +2016,8 @@ pub mod tests {
     #[tokio::test]
     #[serial]
     async fn test_zerocheck_real_traces() {
-        let (machine, record, program) = tracegen_setup::setup().await;
+        let (machine, record, program) =
+            tracegen_setup::setup(&test_artifacts::FIBONACCI_ELF, SP1Stdin::new()).await;
 
         run_in_place(|t| async move {
             let mut rng = rand::thread_rng();

@@ -20,30 +20,21 @@ GPU-accelerated cryptographic proving system for SP1 (Succinct's zkVM). It provi
 
 ```
 sp1-gpu/
-├── include/           # CUDA headers (.cuh) organized by module
-│   ├── algebra/       # Field arithmetic operations
-│   ├── basefold/      # Basefold polynomial commitment
-│   ├── challenger/    # Fiat-Shamir challenger
-│   ├── fields/        # Field type definitions (kb31_t, bn254_t, etc.)
-│   ├── merkle_tree/   # Merkle tree hashing
-│   ├── ntt/           # Number Theoretic Transform
-│   ├── poseidon2/     # Poseidon2 hash function
-│   ├── tracegen/      # Trace generation for jagged/stacked traces
-│   └── ...            # Other modules
-├── lib/               # CUDA sources (.cu) organized by module
-│   └── <module>/      # Each has CMakeLists.txt + source files
-├── sppark/            # External: NTT kernels and field arithmetic (DO NOT MODIFY)
 ├── crates/            # Rust crates
 │   ├── sys/           # FFI bindings, CUDA build orchestration
+│   │   ├── CMakeLists.txt  # CMake configuration for CUDA build
+│   │   ├── build.rs        # Orchestrates cbindgen + CMake + linking
+│   │   ├── include/        # CUDA headers (.cuh) organized by module
+│   │   ├── lib/            # CUDA sources (.cu) organized by module
+│   │   ├── sppark/         # External: NTT kernels and field arithmetic (DO NOT MODIFY)
+│   │   └── src/            # Rust FFI bindings
 │   ├── cuda/          # High-level Rust wrappers for CUDA ops
 │   ├── shard_prover/  # Main shard prover implementation
 │   ├── merkle_tree/   # Merkle tree prover (CUDA-accelerated)
 │   ├── jagged_tracegen/ # GPU trace generation
 │   ├── perf/          # Performance benchmarks and testing
 │   └── ...            # Other crates
-├── CMakeLists.txt     # Root CMake configuration for CUDA build
 └── target/            # Build artifacts
-    └── cuda-build/    # CUDA compilation output (libsys-cuda.a)
 ```
 
 ## Build System
@@ -58,9 +49,8 @@ sp1-gpu/
 ### Key Files
 | File | Purpose |
 |------|---------|
-| `CMakeLists.txt` | Root CUDA build configuration |
-| `lib/<module>/CMakeLists.txt` | Per-module CUDA source lists |
-| `crates/sys/CMakeLists.txt` | Entry point from Cargo (calls root CMake) |
+| `crates/sys/CMakeLists.txt` | CUDA build configuration |
+| `crates/sys/lib/<module>/CMakeLists.txt` | Per-module CUDA source lists |
 | `crates/sys/build.rs` | Orchestrates cbindgen + CMake + linking |
 
 ### Build Commands
@@ -94,7 +84,7 @@ cargo build                   # Debug build (still uses -O3 for CUDA)
 
 ## CUDA Modules
 
-The CUDA code is organized into modules under `include/` (headers) and `lib/` (sources):
+The CUDA code is organized into modules under `crates/sys/include/` (headers) and `crates/sys/lib/` (sources):
 
 | Module | Purpose |
 |--------|---------|
@@ -137,6 +127,7 @@ Programs are in the `v6/` directory convention. Common ones:
 ## Development Notes
 
 ### Adding a New CUDA Module
+All CUDA sources live under `crates/sys/`. Paths below are relative to that directory.
 1. Create `include/<module>/` with header files
 2. Create `lib/<module>/` with source files
 3. Add `lib/<module>/CMakeLists.txt`:
@@ -146,7 +137,7 @@ Programs are in the `v6/` directory convention. Common ones:
        file2.cu
    )
    ```
-4. Add `add_subdirectory(lib/<module>)` to root `CMakeLists.txt`
+4. Add `add_subdirectory(lib/<module>)` to `CMakeLists.txt`
 5. Add `$<TARGET_OBJECTS:<module>_objs>` to `ALL_CUDA_OBJECTS`
 
 ### Common Issues

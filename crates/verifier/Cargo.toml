@@ -8,6 +8,7 @@ license = { workspace = true }
 repository = { workspace = true }
 keywords = { workspace = true }
 categories = { workspace = true }
+rust-version = { workspace = true }
 
 # TODO: when reviving this crate, lift its dependencies to the workspace Cargo.toml.
 

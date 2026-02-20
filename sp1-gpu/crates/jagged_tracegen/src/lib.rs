@@ -1043,6 +1043,7 @@ mod tests {
     use crate::{
         count_and_add, fill_buf, full_tracegen, generate_jagged_traces, Trace, CORE_MAX_TRACE_SIZE,
     };
+    use sp1_core_machine::io::SP1Stdin;
 
     use rand::SeedableRng;
     use rand::{rngs::StdRng, Rng};
@@ -1053,7 +1054,8 @@ mod tests {
     #[serial]
     async fn test_jagged_tracegen() {
         init_tracer();
-        let (machine, record, program) = tracegen_setup::setup().await;
+        let (machine, record, program) =
+            tracegen_setup::setup(&test_artifacts::FIBONACCI_ELF, SP1Stdin::new()).await;
 
         let mut rng = StdRng::seed_from_u64(4);
         run_in_place(|scope| async move {

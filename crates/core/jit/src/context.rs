@@ -28,6 +28,8 @@ pub trait SyscallContext {
     fn exit_unconstrained(&mut self);
     /// Trace a hint.
     fn trace_hint(&mut self, addr: u64, value: Vec<u8>);
+    /// Trace a dummy value.
+    fn trace_value(&mut self, value: u64);
     /// Write a hint to memory, which is like setting uninitialized memory to a nonzero value
     /// The clk will be set to 0, just like for uninitialized memory.
     fn mw_hint(&mut self, addr: u64, val: u64);
@@ -167,6 +169,16 @@ impl SyscallContext for JitContext {
     fn trace_hint(&mut self, addr: u64, value: Vec<u8>) {
         if self.tracing {
             unsafe { self.trace_hint(addr, value) };
+        }
+    }
+
+    fn trace_value(&mut self, value: u64) {
+        if self.tracing {
+            unsafe {
+                // u64::MAX is used as the clock, so it should likely be distinguished
+                // from memory values.
+                self.trace_mem_access(&[MemValue { clk: u64::MAX, value }]);
+            }
         }
     }
 

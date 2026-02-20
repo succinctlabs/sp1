@@ -8,6 +8,7 @@ license = { workspace = true }
 repository = { workspace = true }
 keywords = { workspace = true }
 categories = { workspace = true }
+rust-version = { workspace = true }
 
 [package.metadata]
 deprecated = "This crate is deprecated. Please use sp1_build instead."

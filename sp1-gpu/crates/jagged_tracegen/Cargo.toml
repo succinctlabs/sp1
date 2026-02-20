@@ -38,6 +38,7 @@ tracing = { workspace = true }
 itertools = { workspace = true }
 
 [dev-dependencies]
+test-artifacts = { workspace = true }
 slop-stacked = { workspace = true }
 serial_test = "3.1"
 zstd = "0.13.3"
@@ -47,6 +48,9 @@ sp1-gpu-prover = { workspace = true }
 sp1-recursion-compiler = { workspace = true }
 sp1-gpu-zerocheck = { workspace = true }
 sp1-gpu-tracing = { workspace = true }
+
+[features]
+test-utils = []
 
 [lints]
 workspace = true
