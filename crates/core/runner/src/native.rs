@@ -193,7 +193,12 @@ impl MinimalExecutorRunner {
                         if let Some(status) =
                             self.process.as_mut().unwrap().0.try_wait().expect("try wait")
                         {
-                            // We still want to process logs
+                            if status.success() {
+                                // The child terminates as normals, we need to process its output.
+                                self.wait_for_success();
+                                return Ok(None);
+                            }
+                            // The child terminates with some errors. We still want to process logs.
                             self.process
                                 .take()
                                 .unwrap()
@@ -211,6 +216,7 @@ impl MinimalExecutorRunner {
                             self.output = Some(Err(error.clone()));
                             return Err(error);
                         }
+                        // Child process is still running, we spin and try again.
                         std::hint::spin_loop();
                     }
                 }
