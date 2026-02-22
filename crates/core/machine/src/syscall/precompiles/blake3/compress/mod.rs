@@ -15,10 +15,10 @@ pub const MSG_SCHEDULE: [[usize; 16]; 7] = [
     [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
     [2, 6, 3, 10, 7, 0, 4, 13, 1, 11, 12, 5, 9, 14, 15, 8],
     [3, 4, 10, 12, 13, 2, 7, 14, 6, 5, 9, 0, 11, 15, 8, 1],
-    [10, 12, 13, 14, 6, 3, 4, 11, 0, 7, 9, 2, 8, 5, 1, 15],
-    [6, 5, 9, 8, 2, 10, 13, 0, 4, 3, 7, 14, 11, 1, 12, 15],
-    [2, 3, 4, 14, 6, 5, 7, 11, 10, 8, 9, 1, 13, 12, 0, 15],
-    [12, 8, 9, 5, 11, 6, 14, 0, 2, 3, 7, 4, 13, 10, 1, 15],
+    [10, 7, 12, 9, 14, 3, 13, 15, 4, 0, 11, 2, 5, 8, 1, 6],
+    [12, 13, 9, 11, 15, 10, 14, 8, 7, 2, 5, 3, 0, 1, 6, 4],
+    [9, 14, 11, 5, 8, 12, 15, 1, 13, 3, 0, 10, 2, 6, 4, 7],
+    [11, 15, 5, 0, 1, 9, 8, 6, 14, 10, 2, 12, 3, 4, 7, 13],
 ];
 
 /// For each of the 8 operations per round, the 4 state word indices involved.
@@ -96,15 +96,37 @@ pub mod compress_tests {
         utils::{run_test, setup_logger},
     };
 
-    use super::{G_INDEX, MSG_SCHEDULE};
+    // ── Independent reference implementation ────────────────────────────────
+    // Constants hardcoded directly from the Blake3 spec — NOT imported from the
+    // machine chip.  Any divergence between this table and the chip's table will
+    // be caught by test_compress_vs_blake3_crate below.
 
-    /// Blake3 IV constants.
     const IV: [u32; 8] = [
         0x6A09E667, 0xBB67AE85, 0x3C6EF372, 0xA54FF53A,
         0x510E527F, 0x9B05688C, 0x1F83D9AB, 0x5BE0CD19,
     ];
 
-    fn g(state: &mut [u32; 16], a: usize, b: usize, c: usize, d: usize, mx: u32, my: u32) {
+    // Blake3 G-function column/diagonal index table (spec §2.1).
+    const G_INDEX_REF: [[usize; 4]; 8] = [
+        [0, 4, 8, 12], [1, 5, 9, 13], [2, 6, 10, 14], [3, 7, 11, 15],
+        [0, 5, 10, 15], [1, 6, 11, 12], [2, 7, 8, 13], [3, 4, 9, 14],
+    ];
+
+    // Blake3 message schedule — 7 rounds × 16 indices (spec §2.1 / reference_impl.rs).
+    // Independently verified against the `blake3` crate source and the formula
+    // schedule[r][j] = schedule[r-1][PERM[j]] where
+    // PERM = [2,6,3,10,7,0,4,13,1,11,12,5,9,14,15,8].
+    const MSG_SCHEDULE_REF: [[usize; 16]; 7] = [
+        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+        [2, 6, 3, 10, 7, 0, 4, 13, 1, 11, 12, 5, 9, 14, 15, 8],
+        [3, 4, 10, 12, 13, 2, 7, 14, 6, 5, 9, 0, 11, 15, 8, 1],
+        [10, 7, 12, 9, 14, 3, 13, 15, 4, 0, 11, 2, 5, 8, 1, 6],
+        [12, 13, 9, 11, 15, 10, 14, 8, 7, 2, 5, 3, 0, 1, 6, 4],
+        [9, 14, 11, 5, 8, 12, 15, 1, 13, 3, 0, 10, 2, 6, 4, 7],
+        [11, 15, 5, 0, 1, 9, 8, 6, 14, 10, 2, 12, 3, 4, 7, 13],
+    ];
+
+    fn g_ref(state: &mut [u32; 16], a: usize, b: usize, c: usize, d: usize, mx: u32, my: u32) {
         state[a] = state[a].wrapping_add(state[b]).wrapping_add(mx);
         state[d] = (state[d] ^ state[a]).rotate_right(16);
         state[c] = state[c].wrapping_add(state[d]);
@@ -115,18 +137,106 @@ pub mod compress_tests {
         state[b] = (state[b] ^ state[c]).rotate_right(7);
     }
 
-    /// Reference Blake3 compress_inner using the same MSG_SCHEDULE as the machine chip.
-    fn blake3_compress_inner_ref(state: &mut [u32; 16], msg: &[u32; 16]) {
+    fn compress_inner_ref(state: &mut [u32; 16], msg: &[u32; 16]) {
         for round in 0..7 {
             for op in 0..8 {
-                let [a, b, c, d] = G_INDEX[op];
-                let mx = msg[MSG_SCHEDULE[round][2 * op]];
-                let my = msg[MSG_SCHEDULE[round][2 * op + 1]];
-                g(state, a, b, c, d, mx, my);
+                let [a, b, c, d] = G_INDEX_REF[op];
+                let mx = msg[MSG_SCHEDULE_REF[round][2 * op]];
+                let my = msg[MSG_SCHEDULE_REF[round][2 * op + 1]];
+                g_ref(state, a, b, c, d, mx, my);
             }
         }
     }
 
+    // ── Fast unit tests (no proof, no executor) ──────────────────────────────
+
+    /// Verify MSG_SCHEDULE_REF matches the formula schedule[r][j] = schedule[r-1][PERM[j]].
+    /// This independently confirms the constant is self-consistent with the Blake3 permutation.
+    #[test]
+    fn test_msg_schedule_formula() {
+        const PERM: [usize; 16] = [2, 6, 3, 10, 7, 0, 4, 13, 1, 11, 12, 5, 9, 14, 15, 8];
+        let mut derived = [[0usize; 16]; 7];
+        for j in 0..16 { derived[0][j] = j; }
+        for r in 1..7 {
+            for j in 0..16 {
+                derived[r][j] = derived[r - 1][PERM[j]];
+            }
+        }
+        assert_eq!(derived, MSG_SCHEDULE_REF, "MSG_SCHEDULE_REF doesn't match permutation formula");
+    }
+
+    /// Cross-check compress_inner_ref against the `blake3` crate for several inputs.
+    ///
+    /// For a single 64-byte block the Blake3 hash equals:
+    ///   [state_out[i] ^ state_out[i+8] for i in 0..8]  encoded as little-endian bytes
+    /// where state_out = compress_inner(state_init, msg_words) with
+    ///   state_init = [cv[0..8], IV[0..4], counter_lo, counter_hi, block_len, flags].
+    ///
+    /// Using chaining_value = IV, counter = 0, flags = CHUNK_START|CHUNK_END|ROOT = 1|2|8 = 11
+    /// this is exactly blake3::hash(&block_bytes).
+    #[test]
+    fn test_compress_vs_blake3_crate() {
+        let test_cases: &[&[u8; 64]] = &[
+            &[0u8; 64],
+            &[0xFF; 64],
+            &{
+                let mut b = [0u8; 64];
+                for (i, v) in b.iter_mut().enumerate() { *v = i as u8; }
+                b
+            },
+            &{
+                let mut b = [0u8; 64];
+                for (i, v) in b.iter_mut().enumerate() { *v = (i * 7 + 3) as u8; }
+                b
+            },
+        ];
+
+        for (case_idx, block_bytes) in test_cases.iter().enumerate() {
+            // Parse block as little-endian u32 words.
+            let msg: [u32; 16] = std::array::from_fn(|i| {
+                u32::from_le_bytes(block_bytes[i * 4..(i + 1) * 4].try_into().unwrap())
+            });
+
+            // State init: chaining_value = IV, counter = 0, flags = 11.
+            let mut state: [u32; 16] = [
+                IV[0], IV[1], IV[2], IV[3], IV[4], IV[5], IV[6], IV[7],
+                IV[0], IV[1], IV[2], IV[3],
+                0, 0, 64, 11, // counter_lo, counter_hi, block_len, CHUNK_START|CHUNK_END|ROOT
+            ];
+
+            compress_inner_ref(&mut state, &msg);
+
+            // Output = XOR of two halves, encoded as LE bytes.
+            let mut our_output = [0u8; 32];
+            for i in 0..8 {
+                let word = state[i] ^ state[i + 8];
+                our_output[i * 4..(i + 1) * 4].copy_from_slice(&word.to_le_bytes());
+            }
+
+            let expected = blake3::hash(block_bytes.as_slice());
+            assert_eq!(
+                our_output,
+                *expected.as_bytes(),
+                "case {case_idx}: compress_inner_ref output doesn't match blake3::hash",
+            );
+        }
+    }
+
+    /// Confirm the machine chip's MSG_SCHEDULE constant matches MSG_SCHEDULE_REF.
+    /// This ensures any accidental edit to compress/mod.rs is caught immediately.
+    #[test]
+    fn test_chip_msg_schedule_matches_spec() {
+        use super::MSG_SCHEDULE as CHIP_SCHEDULE;
+        assert_eq!(
+            CHIP_SCHEDULE, MSG_SCHEDULE_REF,
+            "machine chip MSG_SCHEDULE diverges from Blake3 spec"
+        );
+    }
+
+    // ── Full proof test ───────────────────────────────────────────────────────
+
+    /// End-to-end test: prove the Blake3 compress guest program and verify the
+    /// committed output matches the independent reference implementation.
     #[tokio::test]
     async fn test_blake3_compress_program() {
         setup_logger();
@@ -134,10 +244,9 @@ pub mod compress_tests {
         let stdin = SP1Stdin::new();
         let mut public_values = run_test(program, stdin).await.unwrap();
 
-        // Deserialize the committed state from the guest.
         let proven_state = public_values.read::<[u64; 16]>();
 
-        // Reproduce the same computation natively with the reference implementation.
+        // Same inputs as the guest program.
         let mut ref_state: [u32; 16] = [
             IV[0], IV[1], IV[2], IV[3], IV[4], IV[5], IV[6], IV[7],
             IV[0], IV[1], IV[2], IV[3], 0, 0, 64, 11,
@@ -149,17 +258,14 @@ pub mod compress_tests {
             0x30313233, 0x34353637, 0x38393a3b, 0x3c3d3e3f,
         ];
         for _ in 0..4 {
-            blake3_compress_inner_ref(&mut ref_state, &msg);
+            compress_inner_ref(&mut ref_state, &msg);
         }
 
-        // The guest stores each u32 word in the lower 32 bits of a u64 slot.
         for i in 0..16 {
             assert_eq!(
-                proven_state[i] as u32,
-                ref_state[i],
+                proven_state[i] as u32, ref_state[i],
                 "state[{i}] mismatch: proven={:#010x} expected={:#010x}",
-                proven_state[i] as u32,
-                ref_state[i],
+                proven_state[i] as u32, ref_state[i],
             );
         }
     }

@@ -4,15 +4,16 @@ use crate::{
     SyscallCode,
 };
 
-/// Full Blake3 message schedule for 7 rounds (reference: https://github.com/BLAKE3-team/BLAKE3-specs).
+/// Full Blake3 message schedule for 7 rounds.
+/// Matches the official Blake3 reference: https://github.com/BLAKE3-team/BLAKE3
 const MSG_SCHEDULE: [[usize; 16]; 7] = [
     [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
     [2, 6, 3, 10, 7, 0, 4, 13, 1, 11, 12, 5, 9, 14, 15, 8],
     [3, 4, 10, 12, 13, 2, 7, 14, 6, 5, 9, 0, 11, 15, 8, 1],
-    [10, 12, 13, 14, 6, 3, 4, 11, 0, 7, 9, 2, 8, 5, 1, 15],
-    [6, 5, 9, 8, 2, 10, 13, 0, 4, 3, 7, 14, 11, 1, 12, 15],
-    [2, 3, 4, 14, 6, 5, 7, 11, 10, 8, 9, 1, 13, 12, 0, 15],
-    [12, 8, 9, 5, 11, 6, 14, 0, 2, 3, 7, 4, 13, 10, 1, 15],
+    [10, 7, 12, 9, 14, 3, 13, 15, 4, 0, 11, 2, 5, 8, 1, 6],
+    [12, 13, 9, 11, 15, 10, 14, 8, 7, 2, 5, 3, 0, 1, 6, 4],
+    [9, 14, 11, 5, 8, 12, 15, 1, 13, 3, 0, 10, 2, 6, 4, 7],
+    [11, 15, 5, 0, 1, 9, 8, 6, 14, 10, 2, 12, 3, 4, 7, 13],
 ];
 
 /// G_INDEX: for each of the 8 column operations in a round, the 4 state indices.
