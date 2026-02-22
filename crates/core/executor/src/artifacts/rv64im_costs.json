@@ -58,6 +58,8 @@
   "Bls12381DoubleAssign": 2391,
   "StoreHalf": 45,
   "Poseidon2": 348,
+  "Blake3Compress": 238,
+  "Blake3CompressControl": 117,
   "Lt": 44,
   "ShaExtendControl": 18,
   "Secp256r1DoubleAssign": 1591,

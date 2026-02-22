@@ -1,4 +1,5 @@
 mod bigint;
+mod blake3_compress;
 mod bls12381;
 mod bn254;
 mod ed25519;
@@ -22,6 +23,7 @@ mod unconstrained;
 mod verify;
 
 pub use bigint::*;
+pub use blake3_compress::*;
 pub use bls12381::*;
 pub use bn254::*;
 pub use ed25519::*;
@@ -178,3 +180,6 @@ pub const UINT256_MUL_CARRY: u32 = 0x00_01_01_31;
 pub const MPROTECT: u32 = 0x00_00_01_32;
 
 pub const POSEIDON2: u32 = 0x00_00_01_33;
+
+/// Executes the `BLAKE3_COMPRESS_INNER` precompile.
+pub const BLAKE3_COMPRESS_INNER: u32 = 0x00_01_01_34;

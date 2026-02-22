@@ -3,6 +3,7 @@ use crate::SyscallCode;
 use super::{
     hint::{hint_len, hint_read},
     precompiles::{
+        blake3::blake3_compress_inner,
         edwards::{edwards_add, edwards_decompress_syscall},
         fptower::{fp2_addsub_syscall, fp2_mul_syscall, fp_op_syscall},
         keccak::keccak_permute,
@@ -81,6 +82,7 @@ pub fn ecall_handler(ctx: &mut impl SyscallContext, code: SyscallCode) -> u64 {
     match code {
         SyscallCode::SHA_EXTEND => unsafe { sha256_extend(ctx, arg1, arg2) },
         SyscallCode::SHA_COMPRESS => unsafe { sha256_compress(ctx, arg1, arg2) },
+        SyscallCode::BLAKE3_COMPRESS_INNER => unsafe { blake3_compress_inner(ctx, arg1, arg2) },
         SyscallCode::KECCAK_PERMUTE => unsafe { keccak_permute(ctx, arg1, arg2) },
         SyscallCode::SECP256K1_ADD => unsafe {
             weierstrass_add_assign_syscall::<Secp256k1>(ctx, arg1, arg2)

@@ -77,6 +77,9 @@ pub enum InteractionKind {
 
     /// Interaction with the `PageProtGlobalFinalize` chip.
     PageProtGlobalFinalizeControl = 21,
+
+    /// Interaction with the `Blake3Compress` chip.
+    Blake3Compress = 22,
 }
 
 impl InteractionKind {
@@ -102,6 +105,7 @@ impl InteractionKind {
             InteractionKind::PageProtGlobalInitControl,
             InteractionKind::PageProtGlobalFinalizeControl,
             InteractionKind::PageProt,
+            InteractionKind::Blake3Compress,
         ]
     }
 
@@ -123,6 +127,9 @@ impl InteractionKind {
             InteractionKind::ShaExtend
             | InteractionKind::PageProt
             | InteractionKind::PageProtAccess => 6,
+
+            // clk_high(1) + clk_low(1) + state_ptr(3) + msg_ptr(3) + index(1) + state[16][2](32) + msg[16][2](32) = 73
+            InteractionKind::Blake3Compress => 73,
             InteractionKind::State
             | InteractionKind::PageProtGlobalInitControl
             | InteractionKind::PageProtGlobalFinalizeControl
@@ -237,6 +244,7 @@ impl Display for InteractionKind {
             InteractionKind::PageProtGlobalFinalizeControl => {
                 write!(f, "PageProtGlobalFinalizeControl")
             }
+            InteractionKind::Blake3Compress => write!(f, "Blake3Compress"),
         }
     }
 }

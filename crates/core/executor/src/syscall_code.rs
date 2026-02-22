@@ -173,6 +173,9 @@ pub enum SyscallCode {
 
     /// Executes the `POSEIDON2` syscall.
     POSEIDON2 = 0x00_00_01_33,
+
+    /// Executes the `BLAKE3_COMPRESS_INNER` precompile.
+    BLAKE3_COMPRESS_INNER = 0x00_01_01_34,
 }
 
 impl SyscallCode {
@@ -224,6 +227,7 @@ impl SyscallCode {
             #[allow(clippy::mistyped_literal_suffixes)]
             0x00_00_01_32 => SyscallCode::MPROTECT,
             0x00_00_01_33 => SyscallCode::POSEIDON2,
+            0x00_01_01_34 => SyscallCode::BLAKE3_COMPRESS_INNER,
             _ => panic!("invalid syscall number: {value}"),
         }
     }
@@ -326,6 +330,7 @@ impl SyscallCode {
             }
             SyscallCode::MPROTECT => RiscvAirId::Mprotect,
             SyscallCode::POSEIDON2 => RiscvAirId::Poseidon2,
+            SyscallCode::BLAKE3_COMPRESS_INNER => RiscvAirId::Blake3Compress,
             SyscallCode::HALT
             | SyscallCode::WRITE
             | SyscallCode::ENTER_UNCONSTRAINED
@@ -379,6 +384,8 @@ impl SyscallCode {
             SyscallCode::U256XU2048_MUL => 72,
             SyscallCode::MPROTECT => 0,
             SyscallCode::POSEIDON2 => 8,
+            // 16 state reads + 16 msg reads (state writes share same addresses as reads)
+            SyscallCode::BLAKE3_COMPRESS_INNER => 32,
             _ => 0,
         }
     }
@@ -427,6 +434,8 @@ impl SyscallCode {
             SyscallCode::U256XU2048_MUL => 4 * 2,
             SyscallCode::MPROTECT => 1,
             SyscallCode::POSEIDON2 => 2,
+            // 3 address slices: state_init, msg_read, finalize — each up to 2 pages
+            SyscallCode::BLAKE3_COMPRESS_INNER => 3 * 2,
             _ => 0,
         }
     }

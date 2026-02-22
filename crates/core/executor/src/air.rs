@@ -217,6 +217,10 @@ pub enum RiscvAirId {
     PageProtGlobalFinalize = 71,
     /// The poseidon2 chip.
     Poseidon2 = 72,
+    /// The blake3 compress chip.
+    Blake3Compress = 73,
+    /// The blake3 compress control chip.
+    Blake3CompressControl = 74,
 }
 
 impl RiscvAirId {
@@ -313,6 +317,7 @@ impl RiscvAirId {
                 | RiscvAirId::Bn254Fp2MulAssign
                 | RiscvAirId::Bls12381Decompress
                 | RiscvAirId::Poseidon2
+                | RiscvAirId::Blake3Compress
         )
     }
 
@@ -323,6 +328,8 @@ impl RiscvAirId {
             Self::ShaCompress => 80,
             Self::ShaExtend => 48,
             Self::KeccakPermute => 24,
+            // 16 state_init + 16 msg_read + 56 G-compute + 16 finalize = 104
+            Self::Blake3Compress => 104,
             _ => 1,
         }
     }
@@ -334,6 +341,7 @@ impl RiscvAirId {
             RiscvAirId::ShaCompress => Some(RiscvAirId::ShaCompressControl),
             RiscvAirId::ShaExtend => Some(RiscvAirId::ShaExtendControl),
             RiscvAirId::KeccakPermute => Some(RiscvAirId::KeccakPermuteControl),
+            RiscvAirId::Blake3Compress => Some(RiscvAirId::Blake3CompressControl),
             _ => None,
         }
     }
