@@ -70,7 +70,19 @@ pub const COMPUTE_START: usize = MSG_READ_START + MSG_READ_ROWS; // 32
 /// Row index where the finalize phase starts.
 pub const FINALIZE_START: usize = COMPUTE_START + COMPUTE_ROWS; // 88
 
-/// The Blake3 compress chip, which processes one G-function call per row.
+/// Implements the Blake3 `compress_inner` operation.
+///
+/// The syscall takes a pointer to a 16-word state array and a pointer to a 16-word message array.
+/// The state is updated in-place with the result of 7 rounds of 8 G-function calls each (56 total).
+///
+/// In the AIR, each Blake3 compress syscall occupies [`ROWS_PER_INVOCATION`] = 104 rows:
+/// - Rows   0–15:  state init — read `state[0..16]` from memory
+/// - Rows  16–31:  message read — read `msg[0..16]` from memory
+/// - Rows  32–87:  compute — one G-function call per row (56 rows across 7 rounds × 8 ops)
+/// - Rows  88–103: finalize — write the post-compression `state[0..16]` back to memory
+///
+/// Each memory word is a u32 stored in a u64 slot (upper 32 bits zero), represented in the AIR
+/// as two u16 half-words.
 #[derive(Default)]
 pub struct Blake3CompressChip;
 
@@ -80,7 +92,11 @@ impl Blake3CompressChip {
     }
 }
 
-/// The controller chip for Blake3 compress, which receives syscalls and routes them.
+/// Controller chip for the Blake3 compress precompile.
+///
+/// Receives the `BLAKE3_COMPRESS_INNER` syscall from the CPU, validates the two memory pointers,
+/// and sends/receives the initial and final states on the [`InteractionKind::Blake3Compress`] bus
+/// to be consumed by [`Blake3CompressChip`].
 #[derive(Default)]
 pub struct Blake3CompressControlChip;
 
