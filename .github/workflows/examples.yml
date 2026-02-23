@@ -1,0 +1,36 @@
+name: Examples
+
+on:
+  workflow_dispatch:
+
+jobs:
+  examples:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ssz-withdrawals
+          - name: tendermint
+          - name: cycle-tracking
+
+    name: ${{ matrix.name }}
+    runs-on: [runs-on, runner=64cpu-linux-x64, spot=false, disk=large, "run-id=${{ github.run_id }}"]
+    steps:
+    - name: Checkout sources
+      uses: actions/checkout@v6
+
+    - name: Setup CI
+      uses: ./.github/actions/setup
+
+    - name: Install SP1 toolchain from repo
+      run: cargo run -p sp1-cli --no-default-features -- prove install-toolchain
+
+    - name: Install SP1 CLI
+      run: cargo install --force --locked --path crates/cli
+
+    - name: Run script
+      run: |
+        cd examples/${{ matrix.name }}/program
+        cargo prove build
+        cd ../script
+        RUST_LOG=info cargo run --release
