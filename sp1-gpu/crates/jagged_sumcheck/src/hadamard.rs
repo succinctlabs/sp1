@@ -127,7 +127,9 @@ where
     Mle::new(output)
 }
 
-// returns (base_output, ext_output, next_univariate)
+/// Wrapper around the fused fix and sum hadamard kernel.
+///
+/// Returns (base_output, ext_output, next_univariate)
 pub fn fix_last_variable_and_sum_as_poly<F>(
     base: Mle<F, TaskScope>,
     ext: Mle<Ext, TaskScope>,
@@ -193,7 +195,7 @@ where
     (Mle::new(base_output), Mle::new(ext_output), uni_poly)
 }
 
-/// A simpler hadamard sumcheck. Avoids using the complex slop traits, and prioritizes a simple, readable implementation.
+/// End to end hadamard sumcheck.
 pub fn hadamard_sumcheck<C, F>(
     base: Mle<F, TaskScope>,
     ext: Mle<Ext, TaskScope>,

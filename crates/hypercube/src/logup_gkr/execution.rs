@@ -137,7 +137,6 @@ impl<F: Field, EF: ExtensionField<F>, A> LogupGkrCpuTraceGenerator<F, EF, A> {
             let mut numer_evals = vec![F::zero(); height * num_interactions];
             let mut denom_evals = vec![EF::one(); height * num_interactions];
 
-            // println!("preprocessed_trace: {:?}", preprocessed_trace.num_variables());
             if height > 0 {
                 match preprocessed_trace {
                     Some(prep) => {

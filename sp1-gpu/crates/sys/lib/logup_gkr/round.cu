@@ -459,9 +459,7 @@ __global__ void fixAndSumInteractionsLayer(
     }
 }
 
-extern "C" void* logup_gkr_sum_as_poly_circuit_layer() {
-    return (void*)sumAsPolyCircuitLayer;
-}
+extern "C" void* logup_gkr_sum_as_poly_circuit_layer() { return (void*)sumAsPolyCircuitLayer; }
 
 extern "C" void* logup_gkr_first_sum_as_poly_circuit_layer() {
     return (void*)firstSumAsPolyCircuitLayer;

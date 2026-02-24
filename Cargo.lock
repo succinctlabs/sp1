@@ -6891,11 +6891,13 @@ dependencies = [
  "slop-tensor",
  "sp1-gpu-cudart",
  "sp1-gpu-prover",
+ "sp1-gpu-tracing",
  "sp1-gpu-utils",
  "sp1-recursion-circuit",
  "sp1-recursion-compiler",
  "sp1-sdk",
  "tokio",
+ "tracing",
  "zstd",
 ]
 

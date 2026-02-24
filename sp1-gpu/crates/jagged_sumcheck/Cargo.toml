@@ -30,6 +30,8 @@ num-bigint = "0.4.6"
 rayon = "1.10.0"
 
 [dev-dependencies]
+sp1-gpu-tracing = { workspace = true }
+tracing = { workspace = true }
 serial_test = "3.1"
 zstd = "0.13.3"
 sp1-sdk = { workspace = true }

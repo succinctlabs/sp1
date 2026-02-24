@@ -3,13 +3,13 @@
     "[rust]": {
         "editor.defaultFormatter": "rust-lang.rust-analyzer",
         "editor.formatOnSave": true,
-        "editor.hover.enabled": "on"
+        "editor.hover.enabled": true
     },
     "editor.rulers": [
         100
     ],
     "rust-analyzer.check.extraEnv": {
-      "RUSTFLAGS": "--cfg sp1_debug_constraints"
+        "RUSTFLAGS": "--cfg sp1_debug_constraints"
     },
     "rust-analyzer.check.overrideCommand": [
         "cargo",
@@ -77,22 +77,39 @@
     // "rust-analyzer.check.workspace": false,
     // "rust-analyzer.check.invocationStrategy": "once",
     // "rust-analyzer.cargo.buildScripts.invocationStrategy": "once",
-    "C_Cpp.default.includePath": [
-        "${workspaceFolder}/crates/**/include",
-        "${workspaceFolder}/target/include",
-    ],
+    "C_Cpp.clang_format_fallbackStyle": "Google",
     "C_Cpp.intelliSenseEngine": "Tag Parser",
     "files.associations": {
         "random": "cpp",
-        "chrono": "cpp",
         "cstdint": "cpp",
         "ratio": "cpp",
-        "system_error": "cpp",
-        "array": "cpp",
         "functional": "cpp",
-        "tuple": "cpp",
-        "type_traits": "cpp",
-        "utility": "cpp",
-        "cmath": "cpp"
+        "__bit_reference": "cpp",
+        "__functional_base": "cpp",
+        "__node_handle": "cpp",
+        "algorithm": "cpp",
+        "bitset": "cpp",
+        "chrono": "cpp",
+        "deque": "cpp",
+        "__memory": "cpp",
+        "iterator": "cpp",
+        "limits": "cpp",
+        "locale": "cpp",
+        "memory": "cpp",
+        "vector": "cpp",
+        "iomanip": "cpp",
+        "istream": "cpp",
+        "mutex": "cpp",
+        "ostream": "cpp",
+        "numeric": "cpp",
+        "sstream": "cpp",
+        "streambuf": "cpp",
+        "__functional_03": "cpp",
+        "__hash_table": "cpp",
+        "__tuple": "cpp",
+        "thread": "cpp",
+        "unordered_map": "cpp",
+        "*.cu": "cuda-cpp",
+        "*.cuh": "cuda-cpp"
     },
 }

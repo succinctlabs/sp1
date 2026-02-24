@@ -146,6 +146,4 @@ __global__ void populateLastCircuitLayer(
     }
 }
 
-extern "C" void* logup_gkr_populate_last_circuit_layer() {
-    return (void*)populateLastCircuitLayer;
-}
+extern "C" void* logup_gkr_populate_last_circuit_layer() { return (void*)populateLastCircuitLayer; }
