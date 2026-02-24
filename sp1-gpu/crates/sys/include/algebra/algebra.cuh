@@ -1,5 +1,7 @@
 #pragma once
 
+extern "C" void* bandwidth_test_kernel();
+
 extern "C" void* addKernelu32Ptr();
 
 extern "C" void* add_koala_bear_kernel();

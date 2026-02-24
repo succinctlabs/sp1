@@ -115,6 +115,8 @@ fn sum_as_poly_first_round<'a>(
     let grid_dim = height.div_ceil(BLOCK_SIZE).div_ceil(STRIDE);
     let mut output = Tensor::<Ext, TaskScope>::with_sizes_in([2, grid_dim], backend.clone());
 
+    println!("grid dim: {}", grid_dim);
+
     let num_tiles = BLOCK_SIZE.checked_div(STRIDE).unwrap_or(1);
     let shared_mem = num_tiles * std::mem::size_of::<Ext>();
 
@@ -239,13 +241,24 @@ where
 
     let mut univariate_poly_msgs: Vec<UnivariatePolynomial<Ext>> = vec![];
 
+    let backend = poly.base.backend();
+    backend.synchronize_blocking().unwrap();
+    let now = std::time::Instant::now();
     let uni_poly = sum_as_poly_first_round(&poly, claim);
+    backend.synchronize_blocking().unwrap();
+    let elapsed = now.elapsed();
+    println!("sum_as_poly_first_round: {} s", elapsed.as_secs_f32());
 
     let alpha =
         process_univariate_polynomial(uni_poly, challenger, &mut univariate_poly_msgs, &mut point);
     let round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha);
 
+    backend.synchronize_blocking().unwrap();
+    let now = std::time::Instant::now();
     let (mut uni_poly, mut p, mut q) = fix_and_sum_first_round(poly, alpha, round_claim);
+    backend.synchronize_blocking().unwrap();
+    let elapsed = now.elapsed();
+    println!("fix_and_sum_first_round: {} s", elapsed.as_secs_f32());
 
     let mut alpha =
         process_univariate_polynomial(uni_poly, challenger, &mut univariate_poly_msgs, &mut point);
@@ -303,7 +316,9 @@ mod tests {
 
     use sp1_gpu_cudart::{run_sync_in_place, DeviceBuffer, DeviceMle, DevicePoint, TaskScope};
     use sp1_gpu_tracing::init_tracer;
-    use sp1_gpu_utils::{Ext, Felt, JaggedTraceMle, TestGC, TraceDenseData};
+    use sp1_gpu_utils::{
+        ideal_memory_bound_baseline, Ext, Felt, JaggedTraceMle, TestGC, TraceDenseData,
+    };
 
     use crate::sumcheck::{jagged_sumcheck, JaggedFirstRoundPoly};
 
@@ -522,10 +537,60 @@ mod tests {
                 let (proof, evaluations) =
                     jagged_sumcheck(jagged_first_round_poly, &mut proof_challenger, claim);
                 t.synchronize_blocking().unwrap();
-                tracing::info!("jagged sumcheck time: {:?}", now.elapsed());
+                let sumcheck_time = now.elapsed();
+                tracing::info!("jagged sumcheck time: {:?}", sumcheck_time);
+
+                // For this sumcheck, we:
+                // 1. load `dense_size` base elements (base traces) x2 (sum + fix)
+                // 2. load `max_row_count` ext elements (eq_z_row) x2 (sum + fix)
+                // 3. load `num_col_variables` ext elements (eq_z_col) x2 (sum + fix)
+                // 4. store `dense_size / 2` ext elements (2nd round p)
+                // 5. store `dense_size / 2` ext elements (2nd round q)
+                // 6. load `dense_size / 2` ext elements (2nd round p)
+                // 7. load `dense_size / 2` ext elements (2nd round q)
+                // ...
+                let write_count = dense_size * 4;
+                let read_count = write_count
+                    + dense_size * 2
+                    + (1 << log_max_row_count) * 2
+                    + (1 << num_col_variables) * 2;
+                let baseline_time = ideal_memory_bound_baseline(&t, read_count, write_count);
+                let bytes_moved = (read_count + write_count) * std::mem::size_of::<u32>();
+                tracing::info!(
+                    "ideal baseline time: {:?} ({:.2} GB/s)",
+                    baseline_time,
+                    bytes_moved as f64 / baseline_time.as_secs_f64() / 1e9
+                );
 
                 drop(traces);
                 t.synchronize_blocking().unwrap();
+
+                let first_sum_write_count = 2 * 24320;
+                let first_sum_read_count = first_sum_write_count
+                    + dense_size
+                    + (1 << log_max_row_count)
+                    + (1 << num_col_variables);
+
+                let first_sum_baseline_time =
+                    ideal_memory_bound_baseline(&t, first_sum_read_count, first_sum_write_count);
+
+                let first_fix_and_sum_write_count = dense_size * 4;
+                let first_fix_and_sum_read_count = first_fix_and_sum_write_count
+                    + dense_size
+                    + (1 << log_max_row_count)
+                    + (1 << num_col_variables);
+
+                let first_fix_and_sum_baseline_time = ideal_memory_bound_baseline(
+                    &t,
+                    first_fix_and_sum_read_count,
+                    first_fix_and_sum_write_count,
+                );
+
+                tracing::info!("first sum ideal time: {:?}", first_sum_baseline_time.as_secs_f64());
+                tracing::info!(
+                    "first fix and sum ideal time: {:?}",
+                    first_fix_and_sum_baseline_time.as_secs_f64()
+                );
 
                 // Verify the sumcheck proof.
                 let mut verification_challenger = challenger.clone();

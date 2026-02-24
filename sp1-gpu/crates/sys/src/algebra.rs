@@ -1,6 +1,7 @@
 use crate::runtime::KernelPtr;
 
 extern "C" {
+    pub fn bandwidth_test_kernel() -> KernelPtr;
     pub fn addKernelu32Ptr() -> KernelPtr;
     pub fn add_koala_bear_kernel() -> KernelPtr;
     pub fn add_koala_bear_ext_ext_kernel() -> KernelPtr;
