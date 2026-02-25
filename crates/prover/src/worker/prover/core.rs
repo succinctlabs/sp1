@@ -469,6 +469,28 @@ where
         .await
         .map_err(|e| TaskError::Fatal(e.into()))?;
 
+        // Optionally dump the shard record and vk to disk for benchmarking/replay.
+        if let Ok(dir) = std::env::var("SP1_DUMP_SHARD_DIR") {
+            use std::sync::atomic::{AtomicUsize, Ordering};
+            static SHARD_IDX: AtomicUsize = AtomicUsize::new(0);
+            let idx = SHARD_IDX.fetch_add(1, Ordering::SeqCst);
+            let path = std::path::PathBuf::from(&dir);
+            std::fs::create_dir_all(&path).ok();
+
+            let record_bytes = bincode::serialize(&record).expect("failed to serialize record");
+            std::fs::write(path.join(format!("record_{idx:04}.bin")), &record_bytes)
+                .expect("failed to write record");
+
+            let vk_bytes = bincode::serialize(&common_input.vk.vk).expect("failed to serialize vk");
+            std::fs::write(path.join(format!("vk_{idx:04}.bin")), &vk_bytes)
+                .expect("failed to write vk");
+
+            tracing::info!(
+                "Dumped shard {idx} record ({} bytes) and vk to {dir}",
+                record_bytes.len()
+            );
+        }
+
         // If this is not a Core proof request, spawn a task to get the recursion program.
         let span = tracing::debug_span!("get recursion program");
         let recursion_program_handle = if common_input.mode != ProofMode::Core {

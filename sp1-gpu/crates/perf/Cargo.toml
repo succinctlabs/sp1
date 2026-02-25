@@ -37,6 +37,7 @@ bincode = "1.3.3"
 prettytable = "0.10.0"
 dotenv = { workspace = true }
 either = { version = "1.8.0", features = ["serde"] }
+tempfile = "3"
 
 # telemetry
 opentelemetry = "^0.23.0"
@@ -71,3 +72,7 @@ path = "src/bin/node.rs"
 name = "vk-gen"
 path = "src/bin/vk_gen.rs"
 required-features = ["experimental"]
+
+[[bin]]
+name = "dump-shards"
+path = "src/bin/dump_shards.rs"
