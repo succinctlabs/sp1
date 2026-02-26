@@ -103,6 +103,36 @@ __global__ void fixLastVariableZeroPadding(
     }
 }
 
+template <typename F, typename EF>
+__global__ void fixLastVariableZeroPaddingAlphaPtr(
+    const F* input,
+    EF* __restrict__ output,
+    const EF* alpha_ptr,
+    size_t inputHeight,
+    size_t width) {
+    EF alpha = alpha_ptr[0];
+    size_t outputHeight = (inputHeight + 1) >> 1;
+    bool padding = inputHeight & 1;
+    for (size_t j = blockDim.y * blockIdx.y + threadIdx.y; j < width; j += blockDim.y * gridDim.y) {
+        for (size_t i = blockDim.x * blockIdx.x + threadIdx.x; i < outputHeight;
+             i += blockDim.x * gridDim.x) {
+            F zeroValue = F::load(input, j * inputHeight + (i << 1));
+            F oneValue;
+            if (padding) {
+                if (i < outputHeight - 1) {
+                    oneValue = F::load(input, j * inputHeight + (i << 1) + 1);
+                } else {
+                    oneValue = F::zero();
+                }
+            } else {
+                oneValue = F::load(input, j * inputHeight + (i << 1) + 1);
+            }
+            EF value = alpha.interpolateLinear(oneValue, zeroValue);
+            EF::store(output, j * outputHeight + i, value);
+        }
+    }
+}
+
 
 extern "C" void* mle_fix_last_variable_koala_bear_base_extension_constant_padding() {
     return (void*)fixLastVariableConstantPadding<kb31_t, kb31_extension_t>;
@@ -114,4 +144,8 @@ extern "C" void* mle_fix_last_variable_koala_bear_ext_ext_constant_padding() {
 
 extern "C" void* mle_fix_last_variable_koala_bear_ext_ext_zero_padding() {
     return (void*)fixLastVariableZeroPadding<kb31_extension_t, kb31_extension_t>;
+}
+
+extern "C" void* mle_fix_last_variable_koala_bear_ext_ext_zero_padding_alpha_ptr() {
+    return (void*)fixLastVariableZeroPaddingAlphaPtr<kb31_extension_t, kb31_extension_t>;
 }

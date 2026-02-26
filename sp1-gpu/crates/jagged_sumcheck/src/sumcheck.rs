@@ -1,10 +1,13 @@
 use sp1_gpu_cudart::{
     args,
     sys::v2_kernels::{
-        jagged_fix_and_sum, jagged_sum_as_poly,
-        mle_fix_last_variable_koala_bear_ext_ext_zero_padding, padded_hadamard_fix_and_sum,
+        jagged_fix_and_sum, jagged_fix_and_sum_with_alpha_ptr,
+        jagged_interpolate_and_observe_duplex, jagged_sum_as_poly,
+        mle_fix_last_variable_koala_bear_ext_ext_zero_padding,
+        mle_fix_last_variable_koala_bear_ext_ext_zero_padding_alpha_ptr,
+        padded_hadamard_fix_and_sum, padded_hadamard_fix_and_sum_with_alpha_ptr,
     },
-    DeviceMle, DeviceTensor, TaskScope,
+    DeviceBuffer, DeviceMle, DeviceTensor, TaskScope,
 };
 
 use itertools::Itertools;
@@ -12,11 +15,12 @@ use slop_algebra::{
     interpolate_univariate_polynomial, AbstractExtensionField, AbstractField, Field,
     UnivariatePolynomial,
 };
-use slop_alloc::{Backend, HasBackend};
+use slop_alloc::{Backend, Buffer, HasBackend};
 use slop_challenger::FieldChallenger;
 use slop_multilinear::Mle;
 use slop_sumcheck::PartialSumcheckProof;
 use slop_tensor::Tensor;
+use sp1_gpu_challenger::{DuplexChallenger, FromHostChallengerSync};
 
 use sp1_gpu_utils::{DenseData, Ext, Felt, JaggedTraceMle};
 
@@ -202,6 +206,201 @@ fn fix_and_sum_first_round<'a>(
     (uni_poly, Mle::new(output_p), Mle::new(output_q))
 }
 
+/// Get the first-round evaluations on device without interpolating on host.
+fn sum_as_poly_first_round_device(poly: &JaggedFirstRoundPoly<'_>) -> Tensor<Ext, TaskScope> {
+    let height = poly.height;
+    let backend = poly.base.backend();
+
+    const BLOCK_SIZE: usize = 256;
+    const STRIDE: usize = 32;
+
+    let grid_dim = height.div_ceil(BLOCK_SIZE).div_ceil(STRIDE);
+    let mut output = Tensor::<Ext, TaskScope>::with_sizes_in([2, grid_dim], backend.clone());
+
+    let num_tiles = BLOCK_SIZE.checked_div(STRIDE).unwrap_or(1);
+    let shared_mem = num_tiles * std::mem::size_of::<Ext>();
+
+    unsafe {
+        output.assume_init();
+        let args = args!(output.as_mut_ptr(), poly.as_ptr());
+        backend
+            .launch_kernel(jagged_sum_as_poly(), grid_dim, BLOCK_SIZE, &args, shared_mem)
+            .unwrap();
+    }
+
+    DeviceTensor::from_raw(output).sum_dim(1).into_inner()
+}
+
+/// Fix first jagged round using alpha from device memory and return next round evaluations.
+fn fix_and_sum_first_round_device(
+    poly: JaggedFirstRoundPoly<'_>,
+    alpha_ptr: *const Ext,
+) -> (Mle<Ext, TaskScope>, Mle<Ext, TaskScope>, Tensor<Ext, TaskScope>) {
+    let backend = poly.base.backend();
+    let height = poly.height;
+
+    let mut output_p: Tensor<Ext, TaskScope> = Tensor::with_sizes_in([1, height], backend.clone());
+    let mut output_q: Tensor<Ext, TaskScope> = Tensor::with_sizes_in([1, height], backend.clone());
+
+    const BLOCK_SIZE: usize = 256;
+    const STRIDE: usize = 32;
+    let grid_size_x = height.div_ceil(BLOCK_SIZE * STRIDE * 2);
+    let mut evaluations =
+        Tensor::<Ext, TaskScope>::with_sizes_in([2, grid_size_x], backend.clone());
+    let grid_size = (grid_size_x, 1, 1);
+
+    let num_tiles = BLOCK_SIZE.checked_div(STRIDE).unwrap_or(1);
+    let shared_mem = num_tiles * std::mem::size_of::<Ext>();
+
+    unsafe {
+        output_p.assume_init();
+        output_q.assume_init();
+        evaluations.assume_init();
+        let args = args!(
+            evaluations.as_mut_ptr(),
+            poly.as_ptr(),
+            output_p.as_mut_ptr(),
+            output_q.as_mut_ptr(),
+            alpha_ptr
+        );
+        backend
+            .launch_kernel(
+                jagged_fix_and_sum_with_alpha_ptr(),
+                grid_size,
+                BLOCK_SIZE,
+                &args,
+                shared_mem,
+            )
+            .unwrap();
+    }
+
+    let evaluations = DeviceTensor::from_raw(evaluations).sum_dim(1).into_inner();
+    (Mle::new(output_p), Mle::new(output_q), evaluations)
+}
+
+/// Wrapper around fused hadamard fix/sum using alpha from device memory.
+fn fix_last_variable_and_sum_as_poly_device(
+    base: Mle<Ext, TaskScope>,
+    ext: Mle<Ext, TaskScope>,
+    alpha_ptr: *const Ext,
+) -> (Mle<Ext, TaskScope>, Mle<Ext, TaskScope>, Tensor<Ext, TaskScope>) {
+    let input_height = base.guts().sizes()[1];
+    let output_height = input_height.div_ceil(2);
+    let backend = base.backend();
+
+    let mut base_output: Tensor<Ext, TaskScope> =
+        Tensor::with_sizes_in([1, output_height], backend.clone());
+    let mut ext_output: Tensor<Ext, TaskScope> =
+        Tensor::with_sizes_in([1, output_height], backend.clone());
+
+    const BLOCK_SIZE: usize = 256;
+    const STRIDE: usize = 1;
+    let grid_size_x = output_height.div_ceil(BLOCK_SIZE * STRIDE);
+
+    let num_tiles = BLOCK_SIZE.checked_div(32).unwrap_or(1);
+    let shared_mem = num_tiles * std::mem::size_of::<Ext>();
+
+    let mut univariate_evals =
+        Tensor::<Ext, TaskScope>::with_sizes_in([2, grid_size_x], backend.clone());
+
+    unsafe {
+        univariate_evals.assume_init();
+        base_output.assume_init();
+        ext_output.assume_init();
+        let args = args!(
+            base.guts().as_ptr(),
+            ext.guts().as_ptr(),
+            base_output.as_mut_ptr(),
+            ext_output.as_mut_ptr(),
+            alpha_ptr,
+            univariate_evals.as_mut_ptr(),
+            input_height
+        );
+        backend
+            .launch_kernel(
+                padded_hadamard_fix_and_sum_with_alpha_ptr(),
+                grid_size_x,
+                BLOCK_SIZE,
+                &args,
+                shared_mem,
+            )
+            .unwrap();
+    }
+
+    let univariate_evals = DeviceTensor::from_raw(univariate_evals).sum_dim(1).into_inner();
+    (Mle::new(base_output), Mle::new(ext_output), univariate_evals)
+}
+
+/// Fix last variable using alpha from device memory.
+fn fix_last_variable_with_alpha_ptr(
+    mle: Mle<Ext, TaskScope>,
+    alpha_ptr: *const Ext,
+) -> Mle<Ext, TaskScope> {
+    let input_height = mle.guts().sizes()[1];
+    let output_height = input_height.div_ceil(2);
+    let mut output: Tensor<Ext, TaskScope> =
+        Tensor::with_sizes_in([1, output_height], mle.backend().clone());
+
+    const BLOCK_SIZE: usize = 256;
+    const STRIDE: usize = 1;
+    let grid_size_x = output_height.div_ceil(BLOCK_SIZE * STRIDE);
+    let grid_size = (grid_size_x, 1, 1);
+
+    unsafe {
+        output.assume_init();
+        let args = args!(mle.guts().as_ptr(), output.as_mut_ptr(), alpha_ptr, input_height, 1usize);
+        mle.backend()
+            .launch_kernel(
+                mle_fix_last_variable_koala_bear_ext_ext_zero_padding_alpha_ptr(),
+                grid_size,
+                BLOCK_SIZE,
+                &args,
+                0,
+            )
+            .unwrap();
+    }
+
+    Mle::new(output)
+}
+
+/// Interpolate, observe coefficients on-device challenger, sample alpha, and update round claim.
+fn interpolate_observe_and_sample(
+    backend: &TaskScope,
+    reduced_evaluations: &Tensor<Ext, TaskScope>,
+    challenger: &mut DuplexChallenger<Felt, TaskScope>,
+    coefficients_out: *mut Ext,
+    alpha_out: *mut Ext,
+    claim_inout: *mut Ext,
+) {
+    unsafe {
+        let args = args!(
+            reduced_evaluations.as_ptr(),
+            challenger.as_mut_raw(),
+            coefficients_out,
+            alpha_out,
+            claim_inout
+        );
+        backend
+            .launch_kernel(jagged_interpolate_and_observe_duplex(), 1usize, 1usize, &args, 0)
+            .unwrap();
+    }
+}
+
+#[inline]
+fn replay_proof_on_host_challenger<C>(
+    univariate_polys: &[UnivariatePolynomial<Ext>],
+    challenger: &mut C,
+) where
+    C: FieldChallenger<Felt>,
+{
+    for poly in univariate_polys {
+        let coeffs =
+            poly.coefficients.iter().flat_map(|x| x.as_base_slice()).copied().collect_vec();
+        challenger.observe_slice(&coeffs);
+        let _: Ext = challenger.sample_ext_element();
+    }
+}
+
 /// Process a univariate polynomial by observing it with the challenger and sampling the next evaluation point
 #[inline]
 fn process_univariate_polynomial<C>(
@@ -289,6 +488,103 @@ where
     (proof, vec![p_eval, q_eval])
 }
 
+/// Optimized jagged sumcheck that keeps round interaction and challenger state on device.
+pub fn jagged_sumcheck_optimized<C>(
+    poly: JaggedFirstRoundPoly<'_>,
+    challenger: &mut C,
+    claim: Ext,
+) -> (PartialSumcheckProof<Ext>, Vec<Ext>)
+where
+    C: FieldChallenger<Felt> + Send + Sync,
+    DuplexChallenger<Felt, TaskScope>: FromHostChallengerSync<C>,
+{
+    let num_variables = poly.total_number_of_variables as usize;
+    assert!(num_variables >= 2);
+
+    let backend = poly.base.backend();
+    let mut device_challenger =
+        DuplexChallenger::<Felt, TaskScope>::from_host_challenger_sync(challenger, backend);
+
+    let mut coefficients =
+        Tensor::<Ext, TaskScope>::zeros_in([num_variables, 3], backend.clone()).into_buffer();
+    let mut alphas =
+        Tensor::<Ext, TaskScope>::zeros_in([num_variables], backend.clone()).into_buffer();
+    let mut round_claim = Buffer::with_capacity_in(1, backend.clone());
+    round_claim.extend_from_host_slice(&[claim]).unwrap();
+
+    let coefficients_ptr = |round: usize, coefficients: &mut Buffer<Ext, TaskScope>| unsafe {
+        coefficients.as_mut_ptr().add(round * 3)
+    };
+    let alpha_ptr_mut = |round: usize, alphas: &mut Buffer<Ext, TaskScope>| unsafe {
+        alphas.as_mut_ptr().add(round)
+    };
+    let alpha_ptr =
+        |round: usize, alphas: &Buffer<Ext, TaskScope>| unsafe { alphas.as_ptr().add(round) };
+
+    let first_round_evals = sum_as_poly_first_round_device(&poly);
+    interpolate_observe_and_sample(
+        backend,
+        &first_round_evals,
+        &mut device_challenger,
+        coefficients_ptr(0, &mut coefficients),
+        alpha_ptr_mut(0, &mut alphas),
+        round_claim.as_mut_ptr(),
+    );
+
+    let (mut p, mut q, mut round_evals) =
+        fix_and_sum_first_round_device(poly, alpha_ptr(0, &alphas));
+    interpolate_observe_and_sample(
+        backend,
+        &round_evals,
+        &mut device_challenger,
+        coefficients_ptr(1, &mut coefficients),
+        alpha_ptr_mut(1, &mut alphas),
+        round_claim.as_mut_ptr(),
+    );
+
+    for round in 2..num_variables {
+        (p, q, round_evals) =
+            fix_last_variable_and_sum_as_poly_device(p, q, alpha_ptr(round - 1, &alphas));
+        interpolate_observe_and_sample(
+            backend,
+            &round_evals,
+            &mut device_challenger,
+            coefficients_ptr(round, &mut coefficients),
+            alpha_ptr_mut(round, &mut alphas),
+            round_claim.as_mut_ptr(),
+        );
+    }
+
+    let final_alpha_ptr = alpha_ptr(num_variables - 1, &alphas);
+    let p = fix_last_variable_with_alpha_ptr(p, final_alpha_ptr);
+    let q = fix_last_variable_with_alpha_ptr(q, final_alpha_ptr);
+
+    let coefficients_host = DeviceBuffer::from_raw(coefficients).to_host().unwrap();
+    let mut alphas_host = DeviceBuffer::from_raw(alphas).to_host().unwrap();
+    let final_claim = DeviceBuffer::from_raw(round_claim).to_host().unwrap()[0];
+
+    let univariate_polys: Vec<UnivariatePolynomial<Ext>> = coefficients_host
+        .chunks_exact(3)
+        .map(|coeffs| UnivariatePolynomial { coefficients: coeffs.to_vec() })
+        .collect();
+
+    replay_proof_on_host_challenger(&univariate_polys, challenger);
+
+    alphas_host.reverse();
+    let proof = PartialSumcheckProof {
+        univariate_polys: univariate_polys.clone(),
+        claimed_sum: claim,
+        point_and_eval: (alphas_host.into(), final_claim),
+    };
+
+    let p_eval_tensor = DeviceTensor::copy_to_host(p.guts()).unwrap();
+    let p_eval = Ext::from_base(p_eval_tensor.as_slice()[0]);
+    let q_eval_tensor = DeviceTensor::copy_to_host(q.guts()).unwrap();
+    let q_eval = q_eval_tensor.as_slice()[0];
+
+    (proof, vec![p_eval, q_eval])
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
@@ -305,7 +601,7 @@ mod tests {
     use sp1_gpu_tracing::init_tracer;
     use sp1_gpu_utils::{Ext, Felt, JaggedTraceMle, TestGC, TraceDenseData};
 
-    use crate::sumcheck::{jagged_sumcheck, JaggedFirstRoundPoly};
+    use crate::sumcheck::{jagged_sumcheck, jagged_sumcheck_optimized, JaggedFirstRoundPoly};
 
     #[test]
     fn test_jagged_sumcheck_poly() {
@@ -512,7 +808,13 @@ mod tests {
                 let eq_z_col: Mle<Ext, TaskScope> = eq_z_col_device.into();
                 let eq_z_row: Mle<Ext, TaskScope> = eq_z_row_device.into();
 
-                let jagged_first_round_poly =
+                let jagged_first_round_poly = JaggedFirstRoundPoly::new(
+                    &traces,
+                    eq_z_col.clone(),
+                    eq_z_row.clone(),
+                    dense_size >> 1,
+                );
+                let jagged_first_round_poly_optimized =
                     JaggedFirstRoundPoly::new(&traces, eq_z_col, eq_z_row, dense_size >> 1);
 
                 let mut proof_challenger = challenger.clone();
@@ -523,6 +825,30 @@ mod tests {
                     jagged_sumcheck(jagged_first_round_poly, &mut proof_challenger, claim);
                 t.synchronize_blocking().unwrap();
                 tracing::info!("jagged sumcheck time: {:?}", now.elapsed());
+
+                let mut proof_challenger_optimized = challenger.clone();
+                let now = std::time::Instant::now();
+                let (proof_optimized, evaluations_optimized) = jagged_sumcheck_optimized(
+                    jagged_first_round_poly_optimized,
+                    &mut proof_challenger_optimized,
+                    claim,
+                );
+                t.synchronize_blocking().unwrap();
+                tracing::info!("jagged sumcheck optimized time: {:?}", now.elapsed());
+
+                assert_eq!(
+                    proof.univariate_polys, proof_optimized.univariate_polys,
+                    "optimized univariate polys mismatch"
+                );
+                assert_eq!(
+                    proof.claimed_sum, proof_optimized.claimed_sum,
+                    "optimized claim mismatch"
+                );
+                assert_eq!(
+                    proof.point_and_eval, proof_optimized.point_and_eval,
+                    "optimized point/eval mismatch"
+                );
+                assert_eq!(evaluations, evaluations_optimized, "optimized evaluations mismatch");
 
                 drop(traces);
                 t.synchronize_blocking().unwrap();

@@ -67,6 +67,7 @@ extern "C" {
     pub fn mle_fix_last_variable_koala_bear_ext_ext_constant_padding() -> KernelPtr;
 
     pub fn mle_fix_last_variable_koala_bear_ext_ext_zero_padding() -> KernelPtr;
+    pub fn mle_fix_last_variable_koala_bear_ext_ext_zero_padding_alpha_ptr() -> KernelPtr;
 
     // ******** LogUp GKR kernels - Round operations ********
     pub fn logup_gkr_sum_as_poly_circuit_layer() -> KernelPtr;
@@ -95,7 +96,11 @@ extern "C" {
     // ******** Jagged sumcheck kernels ********
     pub fn jagged_sum_as_poly() -> KernelPtr;
     pub fn jagged_fix_and_sum() -> KernelPtr;
+    pub fn jagged_fix_and_sum_with_alpha_ptr() -> KernelPtr;
     pub fn padded_hadamard_fix_and_sum() -> KernelPtr;
+    pub fn padded_hadamard_fix_and_sum_with_alpha_ptr() -> KernelPtr;
+    pub fn jagged_interpolate_and_observe_duplex() -> KernelPtr;
+    pub fn jagged_interpolate_and_observe_multi_field_32() -> KernelPtr;
 
     // Populate restrict eq
     pub fn populate_restrict_eq_host(

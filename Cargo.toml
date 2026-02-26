@@ -89,16 +89,24 @@ members = [
 exclude = ["examples/target", "crates/eval"]
 resolver = "2"
 
-[profile.release]
+[profile.dev]
 opt-level = 3
-
-[profile.bench]
-opt-level = 3
-
-[profile.fast]
-inherits = "release"
 debug = true
-debug-assertions = true
+incremental = false
+
+[profile.dev.package.sp1-gpu-sys]
+debug = false
+
+[profile.dev.package.sp1-gpu-prover]
+debug = false
+
+[profile.lto]
+inherits = "release"
+lto = "thin"
+incremental = true
+
+[profile.release]
+lto = true
 
 [workspace.dependencies]
 sp1-build = { version = "6.0.1", path = "crates/build" }

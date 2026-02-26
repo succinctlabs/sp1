@@ -6889,6 +6889,7 @@ dependencies = [
  "slop-stacked",
  "slop-sumcheck",
  "slop-tensor",
+ "sp1-gpu-challenger",
  "sp1-gpu-cudart",
  "sp1-gpu-prover",
  "sp1-gpu-tracing",
