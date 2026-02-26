@@ -267,6 +267,12 @@ impl<C: SP1ProverComponents, A, W> SP1WorkerBuilder<C, A, W> {
         }
     }
 
+    /// Get the core air prover and permits.
+    #[cfg(feature = "experimental")]
+    pub fn core_air_prover_and_permits(&self) -> Option<(Arc<C::CoreProver>, ProverSemaphore)> {
+        self.core_air_prover_and_permits.clone()
+    }
+
     /// Turn off vk verification for recursion proofs.
     #[cfg(feature = "experimental")]
     pub fn without_vk_verification(self) -> SP1WorkerBuilder<C, A, W> {
