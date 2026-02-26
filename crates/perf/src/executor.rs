@@ -3,7 +3,7 @@ use std::sync::Arc;
 use clap::Parser;
 
 use slop_algebra::AbstractField;
-use sp1_core_executor::SP1CoreOpts;
+use sp1_core_executor::{MinimalExecutor, Program, SP1CoreOpts};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_hypercube::{septic_digest::SepticDigest, MachineVerifyingKey};
 use sp1_primitives::{Elf, SP1Field};
@@ -43,6 +43,8 @@ struct Args {
     pub mode: String,
     #[arg(long, default_value = None)]
     pub cycle_limit: Option<u64>,
+    #[arg(long, default_value = "false")]
+    pub local: bool,
 }
 
 // Executes a program similarly to the cluster controller.
@@ -164,7 +166,39 @@ async fn execute_gas(elf: Vec<u8>, stdin: SP1Stdin) {
     );
 }
 
-pub fn get_program_and_input(program: String, param: String) -> (Vec<u8>, SP1Stdin) {
+// Executes MinimalExecutor alone
+fn execute_minimal(elf: Vec<u8>, stdin: SP1Stdin, trace: bool) {
+    let max_trace_size =
+        if trace { Some(SP1CoreOpts::default().minimal_trace_chunk_threshold) } else { None };
+
+    let now = std::time::Instant::now();
+    let program = Arc::new(Program::from(&elf).expect("parse elf"));
+    let mut executor = MinimalExecutor::new(program, false, max_trace_size);
+    for buf in stdin.buffer {
+        executor.with_input(&buf);
+    }
+    let time = now.elapsed();
+    println!("MinimalExecutor creation time: {:?}", time);
+
+    let now = std::time::Instant::now();
+    while executor.execute_chunk().is_some() {}
+    let time = now.elapsed();
+
+    println!("exit code: {}, cycles: {}", executor.exit_code(), executor.global_clk());
+    println!("execution time: {:?}", time);
+    println!("mhz: {}", executor.global_clk() as f64 / (time.as_secs_f64() * 1_000_000.0));
+}
+
+pub fn get_program_and_input(program: String, param: String, local: bool) -> (Vec<u8>, SP1Stdin) {
+    // When local flag is set, read program and input in local environment.
+    if local {
+        let program = std::fs::read(&program).unwrap();
+        let stdin = std::fs::read(&param).unwrap();
+        let stdin: SP1Stdin = bincode::deserialize(&stdin).unwrap();
+
+        return (program, stdin);
+    }
+
     // Otherwise, assume it's a program from the s3 bucket.
     // Download files from S3
     let s3_path = program;
@@ -218,11 +252,13 @@ async fn main() {
     setup_logger();
 
     // Get the program and input.
-    let (elf, stdin) = get_program_and_input(args.program, args.param);
+    let (elf, stdin) = get_program_and_input(args.program, args.param, args.local);
 
     match args.mode.as_str() {
         "node" => execute_node(args_clone, elf, stdin).await,
         "gas" => execute_gas(elf, stdin).await,
+        "minimal" => execute_minimal(elf, stdin, false),
+        "minimal_trace" => execute_minimal(elf, stdin, true),
         _ => panic!("invalid mode"),
     }
 }

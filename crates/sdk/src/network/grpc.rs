@@ -16,6 +16,9 @@ pub fn configure_endpoint(addr: &str) -> Result<Endpoint, Error> {
 
     // Configure TLS if using HTTPS.
     if addr.starts_with("https://") {
+        #[cfg(target_os = "ios")]
+        let tls_config = ClientTlsConfig::new().with_webpki_roots();
+        #[cfg(not(target_os = "ios"))]
         let tls_config = ClientTlsConfig::new().with_enabled_roots();
         endpoint = endpoint.tls_config(tls_config)?;
     }

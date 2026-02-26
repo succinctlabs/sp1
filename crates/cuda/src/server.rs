@@ -62,7 +62,7 @@ mod native {
 
             // If the version is not compatible, stop all instances of the server
             // and download the new version.
-            if version.trim() != sp1_primitives::SP1_VERSION {
+            if version.trim() != sp1_primitives::SP1_CRATE_VERSION {
                 download = true;
 
                 // Stop *ALL* services, so we can replace it with a new version.
@@ -81,7 +81,7 @@ mod native {
         if download {
             tracing::debug!("Downloading `sp1-gpu-server`");
 
-            let version = format!("v{}", sp1_primitives::SP1_VERSION);
+            let version = format!("v{}", sp1_primitives::SP1_CRATE_VERSION);
             let repo = "succinctlabs/sp1";
             let static_url = format!("https://github.com/{repo}/releases/download");
             let asset_name = format!("sp1_gpu_server_{version}_x86_64.tar.gz");

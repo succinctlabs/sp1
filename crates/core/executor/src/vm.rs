@@ -43,8 +43,6 @@ pub struct CoreVM<'a> {
     next_pc: u64,
     /// The next clock that will be set in [`CoreVM::advance`].
     next_clk: u64,
-    /// The hint lenghts that read from within the vm.
-    hint_lens: std::slice::Iter<'a, usize>,
     /// The program that is being executed.
     pub program: Arc<Program>,
     /// The syscalls that are not marked as external, ie. they stay in the same shard.
@@ -92,7 +90,6 @@ impl<'a> CoreVM<'a> {
         tracing::trace!("start_pc: {}", start_pc);
         tracing::trace!("trace.clk_end(): {}", trace.clk_end());
         tracing::trace!("trace.num_mem_reads(): {}", trace.num_mem_reads());
-        tracing::trace!("trace.hint_lens(): {:?}", trace.hint_lens().len());
         tracing::trace!("trace.start_registers(): {:?}", trace.start_registers());
 
         if trace.clk_start() == 1 {
@@ -108,7 +105,6 @@ impl<'a> CoreVM<'a> {
             mem_reads: trace.mem_reads(),
             next_pc: start_pc.wrapping_add(PC_INC),
             next_clk: start_clk.wrapping_add(CLK_INC),
-            hint_lens: trace.hint_lens().iter(),
             exit_code: 0,
             retained_syscall_codes,
             opts,

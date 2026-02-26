@@ -188,6 +188,17 @@ impl SyscallContext for MinimalExecutor {
         }
     }
 
+    fn trace_value(&mut self, value: u64) {
+        if self.traces.is_some() {
+            unsafe {
+                self.traces
+                    .as_mut()
+                    .unwrap_unchecked()
+                    .extend(&[MemValue { clk: u64::MAX, value }]);
+            }
+        }
+    }
+
     fn mw_hint(&mut self, addr: u64, val: u64) {
         self.memory.insert(addr, MemValue { clk: 0, value: val });
     }
@@ -358,11 +369,6 @@ impl MinimalExecutor {
             }
         }
 
-        // Keep track of the start hint index for this chunk,
-        // we dont want to give any subsequent chunks that were already given to the previous
-        // chunks.
-        let start_hint_idx = self.hints.len();
-
         while !self.execute_instruction() {}
 
         #[cfg(feature = "profiling")]
@@ -383,17 +389,7 @@ impl MinimalExecutor {
         // chunk the remaining hints and input.
         let traces = std::mem::take(&mut self.traces);
 
-        traces.map(|trace| unsafe {
-            TraceChunkRaw::new(
-                trace.into(),
-                self.hints
-                    .iter()
-                    .skip(start_hint_idx)
-                    .map(|(_, hint)| hint.len())
-                    .chain(self.input.iter().map(|input| input.len()))
-                    .collect(),
-            )
-        })
+        traces.map(|trace| unsafe { TraceChunkRaw::new(trace.into()) })
     }
 
     /// Check if the program has halted.

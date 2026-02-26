@@ -2,12 +2,14 @@
 
 This guide explains how to add new CUDA source files and modules to the project. The build system uses CMake with explicit module registration (similar to Rust's module system).
 
+All CUDA sources live under `crates/sys/`. All paths below are relative to that directory.
+
 ## Quick Reference
 
 | Task | What to do |
 |------|------------|
 | Add a `.cu` file to existing module | Edit `lib/<module>/CMakeLists.txt` |
-| Create a new module | Create folder + `CMakeLists.txt` + update root `CMakeLists.txt` |
+| Create a new module | Create folder + `CMakeLists.txt` + update `CMakeLists.txt` |
 
 ## Adding a File to an Existing Module
 
@@ -48,9 +50,9 @@ The `sp1_gpu_common` library provides:
 - Include paths (`include/`, `sppark/`, CUDA toolkit headers)
 - Compile definitions (`SPPARK`, `FEATURE_KOALA_BEAR`)
 
-### Step 3: Register the Module in Root CMakeLists.txt
+### Step 3: Register the Module in CMakeLists.txt
 
-Edit the root `CMakeLists.txt` in two places:
+Edit `CMakeLists.txt` in two places:
 
 **A. Add the subdirectory** (around line 82, alphabetically sorted):
 
@@ -83,7 +85,7 @@ Create your `.cu` files in `lib/your_module/`. Headers typically go in `include/
 | Rust | CMake (this project) |
 |------|----------------------|
 | `mod.rs` declares submodules | `CMakeLists.txt` lists source files |
-| `lib.rs` / `main.rs` at crate root | Root `CMakeLists.txt` lists all modules |
+| `lib.rs` / `main.rs` at crate root | `CMakeLists.txt` lists all modules |
 | `cargo` auto-discovers files | Files must be explicitly listed |
 | `use crate::module` | `#include "module/header.cuh"` |
 
@@ -105,14 +107,14 @@ EOF
 # 3. Create source files
 touch lib/hash/sha256.cu lib/hash/poseidon.cu
 
-# 4. Edit root CMakeLists.txt (add_subdirectory and ALL_CUDA_OBJECTS)
+# 4. Edit CMakeLists.txt (add_subdirectory and ALL_CUDA_OBJECTS)
 ```
 
 ## Common Issues
 
 ### File not being compiled
 - Check that the file is listed in the module's `CMakeLists.txt`
-- Check that the module is in `add_subdirectory()` in root `CMakeLists.txt`
+- Check that the module is in `add_subdirectory()` in `CMakeLists.txt`
 
 ### Include not found
 - Headers in `include/` are automatically available via `sp1_gpu_common`

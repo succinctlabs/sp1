@@ -8,6 +8,7 @@ license = { workspace = true }
 repository = { workspace = true }
 keywords = { workspace = true }
 categories = { workspace = true }
+rust-version = { workspace = true }
 
 [build-dependencies]
 vergen = { workspace = true, features = ["build", "git", "git2"] }
