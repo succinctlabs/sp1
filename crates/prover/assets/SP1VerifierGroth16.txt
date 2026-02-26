@@ -2,12 +2,12 @@
 pragma solidity ^0.8.20;
 
 import {ISP1Verifier, ISP1VerifierWithHash} from "../ISP1Verifier.sol";
-import {Groth16Verifier} from "./Groth16Verifier.sol";
+import {Verifier} from "./Groth16Verifier.sol";
 
 /// @title SP1 Verifier
 /// @author Succinct Labs
 /// @notice This contracts implements a solidity verifier for SP1.
-contract SP1Verifier is Groth16Verifier, ISP1VerifierWithHash {
+contract SP1Verifier is Verifier, ISP1VerifierWithHash {
     /// @notice Thrown when the verifier selector from this proof does not match the one in this
     /// verifier. This indicates that this proof was sent to the wrong verifier.
     /// @param received The verifier selector from the first 4 bytes of the proof.
@@ -40,9 +40,7 @@ contract SP1Verifier is Groth16Verifier, ISP1VerifierWithHash {
 
     /// @notice Hashes the public values to a field elements inside Bn254.
     /// @param publicValues The public values.
-    function hashPublicValues(
-        bytes calldata publicValues
-    ) public pure returns (bytes32) {
+    function hashPublicValues(bytes calldata publicValues) public pure returns (bytes32) {
         return sha256(publicValues) & bytes32(uint256((1 << 253) - 1));
     }
 
@@ -63,7 +61,8 @@ contract SP1Verifier is Groth16Verifier, ISP1VerifierWithHash {
         uint256 expectedVkRoot = uint256(VK_ROOT());
 
         bytes32 publicValuesDigest = hashPublicValues(publicValues);
-        (uint256 exitCode, uint256 vkRoot, uint256 nonce, uint256[8] memory proof) = abi.decode(proofBytes[4:], (uint256, uint256, uint256, uint256[8]));
+        (uint256 exitCode, uint256 vkRoot, uint256 nonce, uint256[8] memory proof) =
+            abi.decode(proofBytes[4:], (uint256, uint256, uint256, uint256[8]));
 
         if (exitCode != 0) {
             revert InvalidExitCode();
@@ -79,6 +78,6 @@ contract SP1Verifier is Groth16Verifier, ISP1VerifierWithHash {
         inputs[3] = vkRoot;
         inputs[4] = nonce;
 
-        this.Verify(proof, inputs);
+        this.verifyProof(proof, inputs);
     }
 }

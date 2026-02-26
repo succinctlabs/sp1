@@ -190,6 +190,35 @@ jobs:
           RUSTFLAGS: -Copt-level=3 -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
 
+  contract-check:
+    name: Contract Check
+    runs-on: [runs-on, runner=16cpu-linux-x64, disk=large, spot=false, "run-id=${{ github.run_id }}"]
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v6
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+
+      - name: Install SP1 toolchain from repo
+        run: cargo run -p sp1-cli --no-default-features -- prove install-toolchain
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Run contract compilation test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --release -p sp1-prover --lib build::tests::test_verifier_contracts_compile -- --ignored
+        env:
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
+          RUST_BACKTRACE: 1
+
   lint:
     name: Formatting & Clippy
     runs-on: [runs-on, runner=16cpu-linux-x64, disk=large, spot=false, "run-id=${{ github.run_id }}"]

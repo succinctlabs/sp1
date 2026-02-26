@@ -69,7 +69,7 @@ mti = { workspace = true }
 opentelemetry = { workspace = true }
 pin-project = { workspace = true }
 tonic = { workspace = true }
-reqwest = { workspace = true, features = ["stream"] }
+reqwest = { workspace = true, features = ["stream", "rustls-tls"] }
 indicatif = { workspace = true }
 tempfile = { workspace = true }
 sha2 = { workspace = true }

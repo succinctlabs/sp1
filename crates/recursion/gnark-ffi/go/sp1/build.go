@@ -62,8 +62,6 @@ func modifyGroth16Verifier(file *os.File) {
 		old, new, description string
 	}{
 		{"pragma solidity ^0.8.0;", "pragma solidity ^0.8.20;", "pragma version"},
-		{"contract Verifier {", "contract Groth16Verifier {", "contract name"},
-		{"function verifyProof(", "function Verify(", "verify function name"},
 	}
 
 	for _, r := range replacements {
