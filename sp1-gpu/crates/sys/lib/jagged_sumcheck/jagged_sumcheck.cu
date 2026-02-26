@@ -372,16 +372,16 @@ __global__ void jaggedInterpolateObserveAndSample(
 }
 
 __global__ void jaggedLastRoundsDuplexKernel(
-    const ext_t* p_input,
-    const ext_t* q_input,
+    const ext_t* __restrict p_input,
+    const ext_t* __restrict q_input,
     size_t input_height,
     size_t tail_start_round,
     size_t num_variables,
-    ext_t* coefficients_out,
-    ext_t* alphas,
+    ext_t* __restrict coefficients_out,
+    ext_t* __restrict alphas,
     DuplexChallenger challenger,
-    ext_t* claim_inout,
-    ext_t* final_evals_out) {
+    ext_t* __restrict claim_inout,
+    ext_t* __restrict final_evals_out) {
     if (blockIdx.x != 0) {
         return;
     }
@@ -420,9 +420,6 @@ __global__ void jaggedLastRoundsDuplexKernel(
         size_t output_height = (current_height + 1) >> 1;
         size_t half_output_height = (output_height + 1) >> 1;
 
-        ext_t local_eval_zero = ext_t::zero();
-        ext_t local_eval_half = ext_t::zero();
-
         bool use_global_input = (round_offset == 0);
         const ext_t* current_p;
         const ext_t* current_q;
@@ -445,31 +442,33 @@ __global__ void jaggedLastRoundsDuplexKernel(
             next_q = q_buf_0;
         }
 
+        // First pass: compute all fixed values and y(0) contribution.
+        for (size_t idx = threadIdx.x; idx < output_height; idx += blockDim.x) {
+            Pair pair = fixLastVariableInner(current_p, current_q, current_alpha, current_height, idx);
+            ext_t::store(next_p, idx, pair.p);
+            ext_t::store(next_q, idx, pair.q);
+        }
+
+        // Make sure all threads have written next_{p,q} before reading them for y(1/2).
+        block.sync();
+
+        ext_t local_eval_zero = ext_t::zero();
+        ext_t local_eval_half = ext_t::zero();
         for (size_t i = threadIdx.x; i < half_output_height; i += blockDim.x) {
             size_t first_idx = i << 1;
             size_t second_idx = first_idx + 1;
 
-            Pair pair1 =
-                fixLastVariableInner(current_p, current_q, current_alpha, current_height, first_idx);
-            ext_t::store(next_p, first_idx, pair1.p);
-            ext_t::store(next_q, first_idx, pair1.q);
-
-            Pair pair2;
+            ext_t p1 = ext_t::load(next_p, first_idx);
+            ext_t q1 = ext_t::load(next_q, first_idx);
+            ext_t p2 = ext_t::zero();
+            ext_t q2 = ext_t::zero();
             if (second_idx < output_height) {
-                pair2 = fixLastVariableInner(
-                    current_p,
-                    current_q,
-                    current_alpha,
-                    current_height,
-                    second_idx);
-                ext_t::store(next_p, second_idx, pair2.p);
-                ext_t::store(next_q, second_idx, pair2.q);
-            } else {
-                pair2 = Pair{ext_t::zero(), ext_t::zero()};
+                p2 = ext_t::load(next_p, second_idx);
+                q2 = ext_t::load(next_q, second_idx);
             }
 
-            local_eval_zero += pair1.p * pair1.q;
-            local_eval_half += (pair1.p + pair2.p) * (pair1.q + pair2.q);
+            local_eval_zero += p1 * q1;
+            local_eval_half += (p1 + p2) * (q1 + q2);
         }
 
         ext_t eval_zero = partialBlockReduce(block, tile, local_eval_zero, shared_zero);

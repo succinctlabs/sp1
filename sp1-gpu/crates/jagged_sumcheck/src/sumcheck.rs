@@ -506,7 +506,7 @@ where
 
     for round in 2..num_variables as usize {
         if round == tail_start_round {
-            p.backend().synchronize_blocking().unwrap();
+            // p.backend().synchronize_blocking().unwrap();
             tail_timer = Some(std::time::Instant::now());
         }
         // Get the round claims from the last round's univariate poly messages.
@@ -532,7 +532,7 @@ where
         fix_last_variable(p, q, alpha, mle_fix_last_variable_koala_bear_ext_ext_zero_padding);
 
     if let Some(tail_timer) = tail_timer {
-        p.backend().synchronize_blocking().unwrap();
+        // p.backend().synchronize_blocking().unwrap();
         tracing::info!(
             "jagged sumcheck original tail_10_rounds_plus_final_fix: {:?}",
             tail_timer.elapsed()
