@@ -532,7 +532,6 @@ where
         fix_last_variable(p, q, alpha, mle_fix_last_variable_koala_bear_ext_ext_zero_padding);
 
     if let Some(tail_timer) = tail_timer {
-        // p.backend().synchronize_blocking().unwrap();
         tracing::info!(
             "jagged sumcheck original tail_10_rounds_plus_final_fix: {:?}",
             tail_timer.elapsed()
@@ -551,6 +550,122 @@ where
     let p_eval = Ext::from_base(p_eval_tensor.as_slice()[0]);
     let q_eval_tensor = DeviceTensor::copy_to_host(q.guts()).unwrap();
     let q_eval = q_eval_tensor.as_slice()[0];
+
+    (proof, vec![p_eval, q_eval])
+}
+
+/// Half optimized jagged sumcheck: run host rounds until the last 10 rounds, then fuse tail rounds
+/// in a single kernel with a device challenger.
+pub fn jagged_sumcheck_half_optimized<C>(
+    poly: JaggedFirstRoundPoly<'_>,
+    challenger: &mut C,
+    claim: Ext,
+) -> (PartialSumcheckProof<Ext>, Vec<Ext>)
+where
+    C: FieldChallenger<Felt> + Send + Sync,
+    DuplexChallenger<Felt, TaskScope>: FromHostChallengerSync<C>,
+{
+    let num_variables = poly.total_number_of_variables as usize;
+    assert!(num_variables >= 2);
+    const FUSED_TAIL_ROUNDS: usize = 10;
+
+    let tail_start_round = if num_variables > FUSED_TAIL_ROUNDS + 1 {
+        num_variables - FUSED_TAIL_ROUNDS
+    } else {
+        num_variables
+    };
+
+    if tail_start_round >= num_variables || tail_start_round < 2 {
+        return jagged_sumcheck(poly, challenger, claim);
+    }
+
+    let backend = poly.base.backend();
+    let mut point = vec![];
+    let mut sampled_alphas = Vec::with_capacity(num_variables);
+    let mut univariate_poly_msgs: Vec<UnivariatePolynomial<Ext>> = vec![];
+
+    let uni_poly = sum_as_poly_first_round(&poly, claim);
+    let alpha =
+        process_univariate_polynomial(uni_poly, challenger, &mut univariate_poly_msgs, &mut point);
+    sampled_alphas.push(alpha);
+    let round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha);
+
+    let (mut uni_poly, mut p, mut q) = fix_and_sum_first_round(poly, alpha, round_claim);
+    let mut alpha =
+        process_univariate_polynomial(uni_poly, challenger, &mut univariate_poly_msgs, &mut point);
+    sampled_alphas.push(alpha);
+
+    for _round in 2..tail_start_round {
+        let round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha);
+        (p, q, uni_poly) = fix_last_variable_and_sum_as_poly(
+            p,
+            q,
+            alpha,
+            round_claim,
+            padded_hadamard_fix_and_sum,
+        );
+        alpha = process_univariate_polynomial(
+            uni_poly,
+            challenger,
+            &mut univariate_poly_msgs,
+            &mut point,
+        );
+        sampled_alphas.push(alpha);
+    }
+
+    let mut coefficients_host = vec![Ext::zero(); num_variables * 3];
+    for (round, poly) in univariate_poly_msgs.iter().enumerate().take(tail_start_round) {
+        coefficients_host[round * 3..round * 3 + 3].copy_from_slice(&poly.coefficients);
+    }
+    let mut alphas_host = vec![Ext::zero(); num_variables];
+    alphas_host[..tail_start_round].copy_from_slice(&sampled_alphas[..tail_start_round]);
+
+    let mut coefficients = Buffer::with_capacity_in(num_variables * 3, backend.clone());
+    coefficients.extend_from_host_slice(&coefficients_host).unwrap();
+    let mut alphas = Buffer::with_capacity_in(num_variables, backend.clone());
+    alphas.extend_from_host_slice(&alphas_host).unwrap();
+
+    let mut round_claim = Buffer::with_capacity_in(1, backend.clone());
+    let tail_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha);
+    round_claim.extend_from_host_slice(&[tail_claim]).unwrap();
+
+    let mut device_challenger =
+        DuplexChallenger::<Felt, TaskScope>::from_host_challenger_sync(challenger, backend);
+
+    let fused_timer = std::time::Instant::now();
+    let [p_eval, q_eval] = run_last_rounds_fused_kernel(
+        backend,
+        &p,
+        &q,
+        tail_start_round,
+        num_variables,
+        &mut coefficients,
+        &mut alphas,
+        &mut device_challenger,
+        &mut round_claim,
+    );
+    tracing::info!(
+        "jagged sumcheck half optimized fused_tail_10_rounds_plus_final_fix: {:?}",
+        fused_timer.elapsed()
+    );
+
+    let coefficients_host = DeviceBuffer::from_raw(coefficients).to_host().unwrap();
+    let mut alphas_host = DeviceBuffer::from_raw(alphas).to_host().unwrap();
+    let final_claim = DeviceBuffer::from_raw(round_claim).to_host().unwrap()[0];
+
+    let univariate_polys: Vec<UnivariatePolynomial<Ext>> = coefficients_host
+        .chunks_exact(3)
+        .map(|coeffs| UnivariatePolynomial { coefficients: coeffs.to_vec() })
+        .collect();
+
+    replay_proof_on_host_challenger(&univariate_polys[tail_start_round..], challenger);
+
+    alphas_host.reverse();
+    let proof = PartialSumcheckProof {
+        univariate_polys: univariate_polys.clone(),
+        claimed_sum: claim,
+        point_and_eval: (alphas_host.into(), final_claim),
+    };
 
     (proof, vec![p_eval, q_eval])
 }
@@ -630,7 +745,6 @@ where
     }
 
     let [p_eval, q_eval] = if tail_start_round < num_variables && tail_start_round >= 2 {
-        backend.synchronize_blocking().unwrap();
         let fused_timer = std::time::Instant::now();
         let evals = run_last_rounds_fused_kernel(
             backend,
@@ -696,7 +810,10 @@ mod tests {
     use sp1_gpu_tracing::init_tracer;
     use sp1_gpu_utils::{Ext, Felt, JaggedTraceMle, TestGC, TraceDenseData};
 
-    use crate::sumcheck::{jagged_sumcheck, jagged_sumcheck_optimized, JaggedFirstRoundPoly};
+    use crate::sumcheck::{
+        jagged_sumcheck, jagged_sumcheck_half_optimized, jagged_sumcheck_optimized,
+        JaggedFirstRoundPoly,
+    };
 
     #[test]
     fn test_jagged_sumcheck_poly() {
@@ -909,6 +1026,12 @@ mod tests {
                     eq_z_row.clone(),
                     dense_size >> 1,
                 );
+                let jagged_first_round_poly_half = JaggedFirstRoundPoly::new(
+                    &traces,
+                    eq_z_col.clone(),
+                    eq_z_row.clone(),
+                    dense_size >> 1,
+                );
                 let jagged_first_round_poly_optimized =
                     JaggedFirstRoundPoly::new(&traces, eq_z_col, eq_z_row, dense_size >> 1);
 
@@ -921,6 +1044,16 @@ mod tests {
                 t.synchronize_blocking().unwrap();
                 tracing::info!("jagged sumcheck time: {:?}", now.elapsed());
 
+                let mut proof_challenger_half = challenger.clone();
+                let now = std::time::Instant::now();
+                let (proof_half, evaluations_half) = jagged_sumcheck_half_optimized(
+                    jagged_first_round_poly_half,
+                    &mut proof_challenger_half,
+                    claim,
+                );
+                t.synchronize_blocking().unwrap();
+                tracing::info!("jagged sumcheck half optimized time: {:?}", now.elapsed());
+
                 let mut proof_challenger_optimized = challenger.clone();
                 let now = std::time::Instant::now();
                 let (proof_optimized, evaluations_optimized) = jagged_sumcheck_optimized(
@@ -930,6 +1063,20 @@ mod tests {
                 );
                 t.synchronize_blocking().unwrap();
                 tracing::info!("jagged sumcheck optimized time: {:?}", now.elapsed());
+
+                assert_eq!(
+                    proof.univariate_polys, proof_half.univariate_polys,
+                    "half optimized univariate polys mismatch"
+                );
+                assert_eq!(
+                    proof.claimed_sum, proof_half.claimed_sum,
+                    "half optimized claim mismatch"
+                );
+                assert_eq!(
+                    proof.point_and_eval, proof_half.point_and_eval,
+                    "half optimized point/eval mismatch"
+                );
+                assert_eq!(evaluations, evaluations_half, "half optimized evaluations mismatch");
 
                 assert_eq!(
                     proof.univariate_polys, proof_optimized.univariate_polys,
