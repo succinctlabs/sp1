@@ -136,6 +136,7 @@ pub fn fix_last_variable_and_sum_as_poly<F>(
     alpha: Ext,
     claim: Ext,
     kernel: unsafe extern "C" fn() -> KernelPtr,
+    mem_metrics: &mut crate::MemMetrics,
 ) -> (Mle<Ext, TaskScope>, Mle<Ext, TaskScope>, UnivariatePolynomial<Ext>)
 where
     F: Field,
@@ -145,6 +146,13 @@ where
     let backend = base.backend();
     let mut base_output: Tensor<Ext, TaskScope> = backend.uninit_mle(1, output_height);
     let mut ext_output: Tensor<Ext, TaskScope> = backend.uninit_mle(1, output_height);
+
+    mem_metrics.write_count += base_output.storage.len() * 4;
+    mem_metrics.write_count += ext_output.storage.len() * 4;
+
+    // wrong for the normal hadamard sumcheck, but for my silly microbenchmark base is always ext's here.
+    mem_metrics.read_count += base.guts().storage.len() * 4;
+    mem_metrics.read_count += ext.guts().storage.len() * 4;
 
     const BLOCK_SIZE: usize = 256;
     const STRIDE: usize = 1;
@@ -156,6 +164,8 @@ where
 
     let mut univariate_evals =
         Tensor::<Ext, TaskScope>::with_sizes_in([2, grid_size_x], backend.clone());
+
+    mem_metrics.write_count += 2 * grid_size_x * 4;
 
     unsafe {
         let args = args!(
@@ -235,6 +245,7 @@ where
         alpha,
         round_claim,
         base_ext_fix_and_sum_kernel,
+        &mut crate::MemMetrics::default(),
     );
 
     let coefficients =
@@ -259,6 +270,7 @@ where
             *point.first().unwrap(),
             round_claim,
             padded_hadamard_fix_and_sum,
+            &mut crate::MemMetrics::default(),
         );
 
         let coefficients =

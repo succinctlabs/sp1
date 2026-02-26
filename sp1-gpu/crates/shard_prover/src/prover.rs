@@ -263,8 +263,6 @@ where
         .await
         .unwrap();
 
-        // tracing::debug_span!("prove shard with data")
-        //     .in_scope(|| self.prove_shard_with_data(shard_data, challenger));
         drop(buffer);
 
         (vk, shard_proof, permit)

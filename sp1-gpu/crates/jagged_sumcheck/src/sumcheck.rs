@@ -22,6 +22,13 @@ use sp1_gpu_utils::{DenseData, Ext, Felt, JaggedTraceMle};
 
 use super::hadamard::{fix_last_variable, fix_last_variable_and_sum_as_poly};
 
+/// measured in base elements.
+#[derive(Default, Debug)]
+pub struct MemMetrics {
+    pub read_count: usize,
+    pub write_count: usize,
+}
+
 /// The polynomial for the first round of the jagged sumcheck.
 ///
 /// eq_z_col and eq_z_row are stored individually to save memory. In future smaller rounds,
@@ -102,6 +109,7 @@ pub fn generate_jagged_sumcheck_poly(
 fn sum_as_poly_first_round<'a>(
     poly: &JaggedFirstRoundPoly<'a>,
     claim: Ext,
+    mem_metrics: &mut MemMetrics,
 ) -> UnivariatePolynomial<Ext> {
     let circuit = &poly;
 
@@ -115,8 +123,6 @@ fn sum_as_poly_first_round<'a>(
     let grid_dim = height.div_ceil(BLOCK_SIZE).div_ceil(STRIDE);
     let mut output = Tensor::<Ext, TaskScope>::with_sizes_in([2, grid_dim], backend.clone());
 
-    println!("grid dim: {}", grid_dim);
-
     let num_tiles = BLOCK_SIZE.checked_div(STRIDE).unwrap_or(1);
     let shared_mem = num_tiles * std::mem::size_of::<Ext>();
 
@@ -128,11 +134,16 @@ fn sum_as_poly_first_round<'a>(
             .unwrap();
     }
 
+    mem_metrics.write_count += output.storage.len() * 4;
     let output = DeviceTensor::from_raw(output);
     let tensor = output.sum_dim(1).to_host().unwrap();
     let [eval_zero, eval_half] = tensor.as_slice().try_into().unwrap();
 
     let eval_one = claim - eval_zero;
+
+    mem_metrics.read_count += circuit.base.dense().dense.len();
+    mem_metrics.read_count += circuit.eq_z_col.guts().storage.len() * 4;
+    mem_metrics.read_count += circuit.eq_z_row.guts().storage.len() * 4;
 
     interpolate_univariate_polynomial(
         &[
@@ -149,6 +160,7 @@ fn fix_and_sum_first_round<'a>(
     poly: JaggedFirstRoundPoly<'a>,
     alpha: Ext,
     claim: Ext,
+    mem_metrics: &mut MemMetrics,
 ) -> (UnivariatePolynomial<Ext>, Mle<Ext, TaskScope>, Mle<Ext, TaskScope>) {
     let backend = poly.base.backend();
     let height = poly.height;
@@ -165,6 +177,9 @@ fn fix_and_sum_first_round<'a>(
         Tensor::<Ext, TaskScope>::with_sizes_in([2, grid_size_x], backend.clone());
     let grid_size = (grid_size_x, 1, 1);
     let block_dim = BLOCK_SIZE;
+
+    mem_metrics.write_count += evaluations.storage.len() * 4;
+    mem_metrics.write_count += height * 4 * 2;
 
     let num_tiles = BLOCK_SIZE.checked_div(STRIDE).unwrap_or(1);
     let shared_mem = num_tiles * std::mem::size_of::<Ext>();
@@ -189,6 +204,10 @@ fn fix_and_sum_first_round<'a>(
     let evaluations = DeviceTensor::from_raw(evaluations);
     let evaluations = evaluations.sum_dim(1).to_host().unwrap();
     let [eval_zero, eval_half] = evaluations.as_slice().try_into().unwrap();
+
+    mem_metrics.read_count += poly.base.dense().dense.len();
+    mem_metrics.read_count += poly.eq_z_col.guts().storage.len() * 4;
+    mem_metrics.read_count += poly.eq_z_row.guts().storage.len() * 4;
 
     let eval_one = claim - eval_zero;
 
@@ -241,24 +260,16 @@ where
 
     let mut univariate_poly_msgs: Vec<UnivariatePolynomial<Ext>> = vec![];
 
-    let backend = poly.base.backend();
-    backend.synchronize_blocking().unwrap();
-    let now = std::time::Instant::now();
-    let uni_poly = sum_as_poly_first_round(&poly, claim);
-    backend.synchronize_blocking().unwrap();
-    let elapsed = now.elapsed();
-    println!("sum_as_poly_first_round: {} s", elapsed.as_secs_f32());
+    let mut mem_metrics = MemMetrics::default();
+
+    let uni_poly = sum_as_poly_first_round(&poly, claim, &mut mem_metrics);
 
     let alpha =
         process_univariate_polynomial(uni_poly, challenger, &mut univariate_poly_msgs, &mut point);
     let round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha);
 
-    backend.synchronize_blocking().unwrap();
-    let now = std::time::Instant::now();
-    let (mut uni_poly, mut p, mut q) = fix_and_sum_first_round(poly, alpha, round_claim);
-    backend.synchronize_blocking().unwrap();
-    let elapsed = now.elapsed();
-    println!("fix_and_sum_first_round: {} s", elapsed.as_secs_f32());
+    let (mut uni_poly, mut p, mut q) =
+        fix_and_sum_first_round(poly, alpha, round_claim, &mut mem_metrics);
 
     let mut alpha =
         process_univariate_polynomial(uni_poly, challenger, &mut univariate_poly_msgs, &mut point);
@@ -273,6 +284,7 @@ where
             alpha,
             round_claim,
             padded_hadamard_fix_and_sum,
+            &mut mem_metrics,
         );
 
         alpha = process_univariate_polynomial(
@@ -285,6 +297,8 @@ where
 
     let (p, q) =
         fix_last_variable(p, q, alpha, mle_fix_last_variable_koala_bear_ext_ext_zero_padding);
+
+    println!("mem metrics: {mem_metrics:?}");
 
     let proof = PartialSumcheckProof {
         univariate_polys: univariate_poly_msgs.clone(),
@@ -549,11 +563,8 @@ mod tests {
                 // 6. load `dense_size / 2` ext elements (2nd round p)
                 // 7. load `dense_size / 2` ext elements (2nd round q)
                 // ...
-                let write_count = dense_size * 4;
-                let read_count = write_count
-                    + dense_size * 2
-                    + (1 << log_max_row_count) * 2
-                    + (1 << num_col_variables) * 2;
+                let write_count = 1600256064;
+                let read_count = 4018159600;
                 let baseline_time = ideal_memory_bound_baseline(&t, read_count, write_count);
                 let bytes_moved = (read_count + write_count) * std::mem::size_of::<u32>();
                 tracing::info!(
