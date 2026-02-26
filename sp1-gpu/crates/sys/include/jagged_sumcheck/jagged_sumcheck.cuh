@@ -10,6 +10,7 @@ extern "C" void* padded_hadamard_fix_and_sum();
 extern "C" void* padded_hadamard_fix_and_sum_with_alpha_ptr();
 extern "C" void* jagged_interpolate_and_observe_duplex();
 extern "C" void* jagged_interpolate_and_observe_multi_field_32();
+extern "C" void* jagged_last_rounds_duplex_kernel();
 
 struct Hadamard {
     ext_t* p;

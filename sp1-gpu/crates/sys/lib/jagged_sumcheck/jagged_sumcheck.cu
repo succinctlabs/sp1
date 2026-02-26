@@ -371,6 +371,161 @@ __global__ void jaggedInterpolateObserveAndSample(
     }
 }
 
+__global__ void jaggedLastRoundsDuplexKernel(
+    const ext_t* p_input,
+    const ext_t* q_input,
+    size_t input_height,
+    size_t tail_start_round,
+    size_t num_variables,
+    ext_t* coefficients_out,
+    ext_t* alphas,
+    DuplexChallenger challenger,
+    ext_t* claim_inout,
+    ext_t* final_evals_out) {
+    if (blockIdx.x != 0) {
+        return;
+    }
+
+    const size_t shared_capacity = (input_height + 1) >> 1;
+    extern __shared__ unsigned char memory[];
+    ext_t* p_buf_0 = reinterpret_cast<ext_t*>(memory);
+    ext_t* q_buf_0 = p_buf_0 + shared_capacity;
+    ext_t* p_buf_1 = q_buf_0 + shared_capacity;
+    ext_t* q_buf_1 = p_buf_1 + shared_capacity;
+    const size_t num_warps = (blockDim.x + 31) >> 5;
+    ext_t* shared_zero = q_buf_1 + shared_capacity;
+    ext_t* shared_half = shared_zero + num_warps;
+
+    auto block = cg::this_thread_block();
+    auto tile = cg::tiled_partition<32>(block);
+
+    __shared__ ext_t shared_alpha;
+    __shared__ ext_t shared_claim;
+    __shared__ size_t shared_height;
+
+    if (threadIdx.x == 0) {
+        shared_alpha = alphas[tail_start_round - 1];
+        shared_claim = claim_inout[0];
+        shared_height = input_height;
+    }
+    block.sync();
+
+    const size_t tail_rounds = num_variables - tail_start_round;
+    for (size_t round_offset = 0; round_offset < tail_rounds; round_offset++) {
+        const size_t round = tail_start_round + round_offset;
+
+        ext_t current_alpha = shared_alpha;
+        ext_t current_claim = shared_claim;
+        size_t current_height = shared_height;
+        size_t output_height = (current_height + 1) >> 1;
+        size_t half_output_height = (output_height + 1) >> 1;
+
+        ext_t local_eval_zero = ext_t::zero();
+        ext_t local_eval_half = ext_t::zero();
+
+        bool use_global_input = (round_offset == 0);
+        const ext_t* current_p;
+        const ext_t* current_q;
+        ext_t* next_p;
+        ext_t* next_q;
+        if (use_global_input) {
+            current_p = p_input;
+            current_q = q_input;
+            next_p = p_buf_0;
+            next_q = q_buf_0;
+        } else if ((round_offset & 1) == 1) {
+            current_p = p_buf_0;
+            current_q = q_buf_0;
+            next_p = p_buf_1;
+            next_q = q_buf_1;
+        } else {
+            current_p = p_buf_1;
+            current_q = q_buf_1;
+            next_p = p_buf_0;
+            next_q = q_buf_0;
+        }
+
+        for (size_t i = threadIdx.x; i < half_output_height; i += blockDim.x) {
+            size_t first_idx = i << 1;
+            size_t second_idx = first_idx + 1;
+
+            Pair pair1 =
+                fixLastVariableInner(current_p, current_q, current_alpha, current_height, first_idx);
+            ext_t::store(next_p, first_idx, pair1.p);
+            ext_t::store(next_q, first_idx, pair1.q);
+
+            Pair pair2;
+            if (second_idx < output_height) {
+                pair2 = fixLastVariableInner(
+                    current_p,
+                    current_q,
+                    current_alpha,
+                    current_height,
+                    second_idx);
+                ext_t::store(next_p, second_idx, pair2.p);
+                ext_t::store(next_q, second_idx, pair2.q);
+            } else {
+                pair2 = Pair{ext_t::zero(), ext_t::zero()};
+            }
+
+            local_eval_zero += pair1.p * pair1.q;
+            local_eval_half += (pair1.p + pair2.p) * (pair1.q + pair2.q);
+        }
+
+        ext_t eval_zero = partialBlockReduce(block, tile, local_eval_zero, shared_zero);
+        ext_t eval_half = partialBlockReduce(block, tile, local_eval_half, shared_half);
+
+        if (threadIdx.x == 0) {
+            ext_t y_0 = eval_zero;
+            ext_t y_1 = current_claim - y_0;
+            ext_t y_half = eval_half;
+            y_half *= felt_t::from_canonical_u16(4).reciprocal();
+
+            ext_t coeffs[3];
+            interpolateQuadratic<felt_t, ext_t>(
+                felt_t::zero(),
+                felt_t::one(),
+                felt_t::two().reciprocal(),
+                y_0,
+                y_1,
+                y_half,
+                coeffs);
+
+            ext_t::store(coefficients_out, round * 3, coeffs[0]);
+            ext_t::store(coefficients_out, round * 3 + 1, coeffs[1]);
+            ext_t::store(coefficients_out, round * 3 + 2, coeffs[2]);
+
+            challenger.observe_ext(&coeffs[0]);
+            challenger.observe_ext(&coeffs[1]);
+            challenger.observe_ext(&coeffs[2]);
+
+            ext_t sampled_alpha = challenger.sample_ext();
+            ext_t::store(alphas, round, sampled_alpha);
+
+            ext_t next_claim(coeffs[2]);
+            next_claim *= sampled_alpha;
+            next_claim += coeffs[1];
+            next_claim *= sampled_alpha;
+            next_claim += coeffs[0];
+
+            shared_alpha = sampled_alpha;
+            shared_claim = next_claim;
+            shared_height = output_height;
+        }
+        block.sync();
+    }
+
+    if (threadIdx.x == 0) {
+        const bool final_in_buf_0 = (tail_rounds & 1) == 1;
+        const ext_t* final_p = final_in_buf_0 ? p_buf_0 : p_buf_1;
+        const ext_t* final_q = final_in_buf_0 ? q_buf_0 : q_buf_1;
+        Pair final_pair = fixLastVariableInner(final_p, final_q, shared_alpha, shared_height, 0);
+        ext_t::store(final_evals_out, 0, final_pair.p);
+        ext_t::store(final_evals_out, 1, final_pair.q);
+        claim_inout[0] = shared_claim;
+    }
+}
+
 
 extern "C" void* jagged_sum_as_poly() { return (void*)jaggedSumAsPoly; }
 
@@ -391,3 +546,5 @@ extern "C" void* jagged_interpolate_and_observe_duplex() {
 extern "C" void* jagged_interpolate_and_observe_multi_field_32() {
     return (void*)jaggedInterpolateObserveAndSample<MultiField32Challenger>;
 }
+
+extern "C" void* jagged_last_rounds_duplex_kernel() { return (void*)jaggedLastRoundsDuplexKernel; }

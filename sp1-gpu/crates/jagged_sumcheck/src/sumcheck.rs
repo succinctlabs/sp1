@@ -2,8 +2,8 @@ use sp1_gpu_cudart::{
     args,
     sys::v2_kernels::{
         jagged_fix_and_sum, jagged_fix_and_sum_with_alpha_ptr,
-        jagged_interpolate_and_observe_duplex, jagged_sum_as_poly,
-        mle_fix_last_variable_koala_bear_ext_ext_zero_padding,
+        jagged_interpolate_and_observe_duplex, jagged_last_rounds_duplex_kernel,
+        jagged_sum_as_poly, mle_fix_last_variable_koala_bear_ext_ext_zero_padding,
         mle_fix_last_variable_koala_bear_ext_ext_zero_padding_alpha_ptr,
         padded_hadamard_fix_and_sum, padded_hadamard_fix_and_sum_with_alpha_ptr,
     },
@@ -386,6 +386,53 @@ fn interpolate_observe_and_sample(
     }
 }
 
+fn run_last_rounds_fused_kernel(
+    backend: &TaskScope,
+    p: &Mle<Ext, TaskScope>,
+    q: &Mle<Ext, TaskScope>,
+    tail_start_round: usize,
+    num_variables: usize,
+    coefficients: &mut Buffer<Ext, TaskScope>,
+    alphas: &mut Buffer<Ext, TaskScope>,
+    challenger: &mut DuplexChallenger<Felt, TaskScope>,
+    claim_inout: &mut Buffer<Ext, TaskScope>,
+) -> [Ext; 2] {
+    let current_height = p.guts().sizes()[1];
+    let mut final_evals = Tensor::<Ext, TaskScope>::zeros_in([2], backend.clone()).into_buffer();
+
+    unsafe {
+        const BLOCK_SIZE: usize = 256;
+        let num_warps = BLOCK_SIZE.div_ceil(32);
+        let shared_capacity = current_height.div_ceil(2);
+        let shared_elems = (4 * shared_capacity) + (2 * num_warps);
+        let shared_mem = shared_elems * std::mem::size_of::<Ext>();
+        let args = args!(
+            p.guts().as_ptr(),
+            q.guts().as_ptr(),
+            current_height,
+            tail_start_round,
+            num_variables,
+            coefficients.as_mut_ptr(),
+            alphas.as_mut_ptr(),
+            challenger.as_mut_raw(),
+            claim_inout.as_mut_ptr(),
+            final_evals.as_mut_ptr()
+        );
+        backend
+            .launch_kernel(
+                jagged_last_rounds_duplex_kernel(),
+                1usize,
+                BLOCK_SIZE,
+                &args,
+                shared_mem,
+            )
+            .unwrap();
+    }
+
+    let host_final_evals = DeviceBuffer::from_raw(final_evals).to_host().unwrap();
+    host_final_evals.as_slice().try_into().unwrap()
+}
+
 #[inline]
 fn replay_proof_on_host_challenger<C>(
     univariate_polys: &[UnivariatePolynomial<Ext>],
@@ -431,6 +478,7 @@ where
     C: FieldChallenger<Felt>,
 {
     let num_variables = poly.total_number_of_variables;
+    const TAIL_ROUNDS: usize = 10;
 
     assert!(num_variables >= 1_u32);
 
@@ -449,7 +497,18 @@ where
     let mut alpha =
         process_univariate_polynomial(uni_poly, challenger, &mut univariate_poly_msgs, &mut point);
 
-    for _ in 2..num_variables as usize {
+    let tail_start_round = if num_variables as usize > TAIL_ROUNDS + 1 {
+        num_variables as usize - TAIL_ROUNDS
+    } else {
+        num_variables as usize
+    };
+    let mut tail_timer = None;
+
+    for round in 2..num_variables as usize {
+        if round == tail_start_round {
+            p.backend().synchronize_blocking().unwrap();
+            tail_timer = Some(std::time::Instant::now());
+        }
         // Get the round claims from the last round's univariate poly messages.
         let round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha);
 
@@ -471,6 +530,14 @@ where
 
     let (p, q) =
         fix_last_variable(p, q, alpha, mle_fix_last_variable_koala_bear_ext_ext_zero_padding);
+
+    if let Some(tail_timer) = tail_timer {
+        p.backend().synchronize_blocking().unwrap();
+        tracing::info!(
+            "jagged sumcheck original tail_10_rounds_plus_final_fix: {:?}",
+            tail_timer.elapsed()
+        );
+    }
 
     let proof = PartialSumcheckProof {
         univariate_polys: univariate_poly_msgs.clone(),
@@ -500,6 +567,7 @@ where
 {
     let num_variables = poly.total_number_of_variables as usize;
     assert!(num_variables >= 2);
+    const FUSED_TAIL_ROUNDS: usize = 10;
 
     let backend = poly.base.backend();
     let mut device_challenger =
@@ -542,7 +610,13 @@ where
         round_claim.as_mut_ptr(),
     );
 
-    for round in 2..num_variables {
+    let tail_start_round = if num_variables > FUSED_TAIL_ROUNDS + 1 {
+        num_variables - FUSED_TAIL_ROUNDS
+    } else {
+        num_variables
+    };
+
+    for round in 2..tail_start_round {
         (p, q, round_evals) =
             fix_last_variable_and_sum_as_poly_device(p, q, alpha_ptr(round - 1, &alphas));
         interpolate_observe_and_sample(
@@ -555,9 +629,35 @@ where
         );
     }
 
-    let final_alpha_ptr = alpha_ptr(num_variables - 1, &alphas);
-    let p = fix_last_variable_with_alpha_ptr(p, final_alpha_ptr);
-    let q = fix_last_variable_with_alpha_ptr(q, final_alpha_ptr);
+    let [p_eval, q_eval] = if tail_start_round < num_variables && tail_start_round >= 2 {
+        backend.synchronize_blocking().unwrap();
+        let fused_timer = std::time::Instant::now();
+        let evals = run_last_rounds_fused_kernel(
+            backend,
+            &p,
+            &q,
+            tail_start_round,
+            num_variables,
+            &mut coefficients,
+            &mut alphas,
+            &mut device_challenger,
+            &mut round_claim,
+        );
+        tracing::info!(
+            "jagged sumcheck optimized fused_tail_10_rounds_plus_final_fix: {:?}",
+            fused_timer.elapsed()
+        );
+        evals
+    } else {
+        let final_alpha_ptr = alpha_ptr(num_variables - 1, &alphas);
+        let p = fix_last_variable_with_alpha_ptr(p, final_alpha_ptr);
+        let q = fix_last_variable_with_alpha_ptr(q, final_alpha_ptr);
+        let p_eval_tensor = DeviceTensor::copy_to_host(p.guts()).unwrap();
+        let p_eval = Ext::from_base(p_eval_tensor.as_slice()[0]);
+        let q_eval_tensor = DeviceTensor::copy_to_host(q.guts()).unwrap();
+        let q_eval = q_eval_tensor.as_slice()[0];
+        [p_eval, q_eval]
+    };
 
     let coefficients_host = DeviceBuffer::from_raw(coefficients).to_host().unwrap();
     let mut alphas_host = DeviceBuffer::from_raw(alphas).to_host().unwrap();
@@ -576,11 +676,6 @@ where
         claimed_sum: claim,
         point_and_eval: (alphas_host.into(), final_claim),
     };
-
-    let p_eval_tensor = DeviceTensor::copy_to_host(p.guts()).unwrap();
-    let p_eval = Ext::from_base(p_eval_tensor.as_slice()[0]);
-    let q_eval_tensor = DeviceTensor::copy_to_host(q.guts()).unwrap();
-    let q_eval = q_eval_tensor.as_slice()[0];
 
     (proof, vec![p_eval, q_eval])
 }
