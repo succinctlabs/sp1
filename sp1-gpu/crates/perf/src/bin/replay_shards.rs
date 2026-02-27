@@ -5,8 +5,8 @@ use clap::Parser;
 use serde::Deserialize;
 use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_gpu_prover::{
-    cuda_worker_builder, local_gpu_opts, new_cuda_prover, CudaProverCoreComponents,
-    CudaShardProver, SP1CudaProverComponents,
+    local_gpu_opts, new_cuda_prover, CudaProverCoreComponents, CudaShardProver,
+    SP1CudaProverComponents,
 };
 use sp1_hypercube::{prover::AirProver, MachineVerifyingKey};
 use sp1_primitives::SP1GlobalContext;

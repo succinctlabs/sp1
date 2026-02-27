@@ -61,7 +61,6 @@ bigint-rug = [
 ]
 native-gnark = ["sp1-prover/native-gnark"]
 groth16-cuda = ["sp1-recursion-gnark-ffi/groth16-cuda"]
-experimental = ["sp1-prover/experimental"]
 tokio-blocked = ["dep:tokio-blocked", "tokio/tracing"]
 
 [lints]
@@ -83,7 +82,6 @@ path = "src/bin/dump_shards.rs"
 [[bin]]
 name = "replay-shards"
 path = "src/bin/replay_shards.rs"
-required-features = ["experimental"]
 
 [[bin]]
 name = "download-shards"

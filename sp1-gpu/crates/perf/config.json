@@ -6,5 +6,9 @@
   {
     "program": "v6/fibonacci-200m",
     "inputs": []
+  },
+  {
+    "program": "v6/provable-edits",
+    "inputs": ["blur_crop_resize_640x480", "rotate_clockwise_90_flip_vertical_crop_resize_320x240"]
   }
 ]
