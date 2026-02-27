@@ -84,3 +84,7 @@ path = "src/bin/dump_shards.rs"
 name = "replay-shards"
 path = "src/bin/replay_shards.rs"
 required-features = ["experimental"]
+
+[[bin]]
+name = "download-shards"
+path = "src/bin/download_shards.rs"
