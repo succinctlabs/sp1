@@ -4,9 +4,13 @@ use std::time::Instant;
 use clap::Parser;
 use serde::Deserialize;
 use sp1_core_executor::{ExecutionRecord, Program};
-use sp1_gpu_prover::cuda_worker_builder;
+use sp1_gpu_prover::{
+    cuda_worker_builder, local_gpu_opts, new_cuda_prover, CudaProverCoreComponents,
+    CudaShardProver, SP1CudaProverComponents,
+};
 use sp1_hypercube::{prover::AirProver, MachineVerifyingKey};
 use sp1_primitives::SP1GlobalContext;
+use sp1_prover::{SP1ProverComponents, CORE_LOG_STACKING_HEIGHT};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about = "Replay pre-dumped shard records through the GPU prover")]
@@ -77,9 +81,9 @@ async fn main() {
     sp1_gpu_tracing::init_tracer();
 
     // Parse config.
-    let config_text = std::fs::read_to_string(&args.config).expect("failed to read config file");
+    let config_file = std::fs::File::open(&args.config).expect("failed to open config file");
     let entries: Vec<ConfigEntry> =
-        serde_json::from_str(&config_text).expect("failed to parse config JSON");
+        serde_json::from_reader(config_file).expect("failed to parse config JSON");
 
     // Expand entries into combos.
     let combos: Vec<Combo> = entries
@@ -141,11 +145,21 @@ async fn main() {
 
     // Run GPU proving.
     let timings = sp1_gpu_cudart::spawn(move |t| async move {
-        let worker_builder = cuda_worker_builder(t.clone()).await;
+        // let worker_builder = cuda_worker_builder(t.clone()).await;
 
-        let (core_prover, permits) = worker_builder
-            .core_air_prover_and_permits()
-            .expect("core_air_prover_and_permits not set");
+        let permits = sp1_hypercube::prover::ProverSemaphore::new(1);
+
+        // Get the core options.
+        let (opts, recompute_first_layer) = local_gpu_opts();
+
+        let num_elts =
+            opts.sharding_threshold.element_threshold as usize + (1 << CORE_LOG_STACKING_HEIGHT);
+
+        let core_verifier = SP1CudaProverComponents::core_verifier();
+        let core_prover: Arc<CudaShardProver<_, CudaProverCoreComponents>> = Arc::new(
+            new_cuda_prover(core_verifier.clone(), num_elts, 4, recompute_first_layer, t.clone())
+                .await,
+        );
 
         let mut timings: Vec<(String, f64)> = Vec::new();
 
