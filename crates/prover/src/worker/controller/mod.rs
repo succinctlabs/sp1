@@ -15,6 +15,7 @@ pub use splicing::*;
 pub use vk_tree::*;
 
 use lru::LruCache;
+use serde::{Deserialize, Serialize};
 
 use slop_algebra::PrimeField32;
 
@@ -38,7 +39,7 @@ use tracing::Instrument;
 
 use crate::{
     verify::SP1Verifier,
-    worker::{RawTaskRequest, TaskContext, TaskError, WorkerClient},
+    worker::{RawTaskRequest, TaskContext, TaskError, TaskId, WorkerClient},
     SP1_CIRCUIT_VERSION,
 };
 
@@ -74,6 +75,23 @@ pub struct SP1Controller<A, W> {
     pub(crate) worker_client: W,
     pub(crate) verifier: SP1Verifier,
     minimal_executor_cache: Option<MinimalExecutorCache>,
+}
+
+pub enum ControllerOutput {
+    // Complete the proof on controller completion.
+    CompleteProof,
+    // Defer proof completion to the wrap task. Contains the wrap task ID so callers
+    // can optionally wait for it (e.g. the local node needs to wait before returning).
+    DeferCompleteProof { wrap_task_id: TaskId },
+}
+
+/// Extra input passed to Groth16Wrap/PlonkWrap tasks when the controller defers proof
+/// completion. Contains the data needed to assemble and upload the final proof after wrapping.
+#[derive(Serialize, Deserialize)]
+pub struct WrapFinalizeInput {
+    pub output_artifact: Artifact,
+    pub public_value_stream: Vec<u8>,
+    pub artifacts_to_cleanup: Vec<Artifact>,
 }
 
 impl<A, W> SP1Controller<A, W>
@@ -129,7 +147,10 @@ where
         Arc::new(SplicingEngine::new(splicing_workers, self.config.splicing_buffer_size))
     }
 
-    pub async fn run(&self, request: RawTaskRequest) -> Result<ExecutionOutput, TaskError> {
+    pub async fn run(
+        &self,
+        request: RawTaskRequest,
+    ) -> Result<(ExecutionOutput, ControllerOutput), TaskError> {
         let RawTaskRequest { inputs, outputs, context } = request;
         let elf = inputs[0].clone();
         let stdin_artifact = inputs[1].clone();
@@ -245,9 +266,6 @@ where
 
         let mut core_proof_artifact = None;
         let mut compress_proof_artifact = None;
-        let mut shrinkwrap_proof_artifact = None;
-        let mut groth16_proof_artifact = None;
-        let mut plonk_proof_artifact = None;
 
         let (compress_complete_tx, compress_complete_rx) = tokio::sync::oneshot::channel();
 
@@ -284,72 +302,8 @@ where
             );
         }
 
-        match mode {
-            ProofMode::Groth16 => {
-                shrinkwrap_proof_artifact = Some(self.artifact_client.create_artifact()?);
-                groth16_proof_artifact = Some(self.artifact_client.create_artifact()?);
-
-                let shrinkwrap_task = RawTaskRequest {
-                    inputs: vec![compress_proof_artifact.clone().unwrap()],
-                    outputs: vec![shrinkwrap_proof_artifact.clone().unwrap()],
-                    context: context.clone(),
-                };
-
-                let groth16_task = RawTaskRequest {
-                    inputs: vec![shrinkwrap_proof_artifact.clone().unwrap()],
-                    outputs: vec![groth16_proof_artifact.clone().unwrap()],
-                    context: context.clone(),
-                };
-
-                let subscriber =
-                    self.worker_client.subscriber(context.proof_id.clone()).await?.per_task();
-                let worker_client = self.worker_client.clone();
-                join_set.spawn(async move {
-                    compress_complete_rx.await.unwrap();
-
-                    let shrinkwrap_task_id =
-                        worker_client.submit_task(TaskType::ShrinkWrap, shrinkwrap_task).await?;
-                    subscriber.wait_task(shrinkwrap_task_id).await?;
-
-                    let groth16_task_id =
-                        worker_client.submit_task(TaskType::Groth16Wrap, groth16_task).await?;
-                    subscriber.wait_task(groth16_task_id).await?;
-                    Ok(())
-                });
-            }
-            ProofMode::Plonk => {
-                shrinkwrap_proof_artifact = Some(self.artifact_client.create_artifact()?);
-                plonk_proof_artifact = Some(self.artifact_client.create_artifact()?);
-
-                let shrinkwrap_task = RawTaskRequest {
-                    inputs: vec![compress_proof_artifact.clone().unwrap()],
-                    outputs: vec![shrinkwrap_proof_artifact.clone().unwrap()],
-                    context: context.clone(),
-                };
-                let plonk_task = RawTaskRequest {
-                    inputs: vec![shrinkwrap_proof_artifact.clone().unwrap()],
-                    outputs: vec![plonk_proof_artifact.clone().unwrap()],
-                    context: context.clone(),
-                };
-
-                let subscriber =
-                    self.worker_client.subscriber(context.proof_id.clone()).await?.per_task();
-                let worker_client = self.worker_client.clone();
-                join_set.spawn(async move {
-                    compress_complete_rx.await.unwrap();
-
-                    let shrinkwrap_task_id =
-                        worker_client.submit_task(TaskType::ShrinkWrap, shrinkwrap_task).await?;
-                    subscriber.wait_task(shrinkwrap_task_id).await?;
-
-                    let plonk_task_id =
-                        worker_client.submit_task(TaskType::PlonkWrap, plonk_task).await?;
-                    subscriber.wait_task(plonk_task_id).await?;
-                    Ok(())
-                });
-            }
-            _ => {}
-        }
+        // Note: Groth16/Plonk wrapping (shrinkwrap + groth16/plonk) is deferred to a
+        // FinalizeController task so the controller releases its memory weight early.
 
         // Spawn a task to spawn the deferred tasks
         join_set.spawn(deferred_inputs.emit_deferred_tasks(
@@ -379,32 +333,9 @@ where
             result.map_err(|e| TaskError::Fatal(e.into()))??;
         }
 
-        // Get the proof and wrap it if the mode is either groth16 or plonk.
-        let inner_proof = match mode {
-            ProofMode::Core => {
-                let shard_proofs =
-                    self.artifact_client.download(&core_proof_artifact.clone().unwrap()).await?;
-                SP1Proof::Core(shard_proofs)
-            }
-            ProofMode::Compressed => {
-                let proof = self
-                    .artifact_client
-                    .download(&compress_proof_artifact.clone().unwrap())
-                    .await?;
-                SP1Proof::Compressed(Box::new(proof))
-            }
-            ProofMode::Plonk => {
-                let proof =
-                    self.artifact_client.download(&plonk_proof_artifact.clone().unwrap()).await?;
-                SP1Proof::Plonk(proof)
-            }
-            ProofMode::Groth16 => {
-                let proof =
-                    self.artifact_client.download(&groth16_proof_artifact.clone().unwrap()).await?;
-                SP1Proof::Groth16(proof)
-            }
-            _ => unimplemented!("proof mode not supported: {:?}", mode),
-        };
+        // compress_complete_rx was never consumed (Groth16/Plonk wrapping is deferred).
+        // Drop it now that the compress tree task has already sent on the tx.
+        drop(compress_complete_rx);
 
         let result = executor_result_rx
             .await
@@ -421,7 +352,79 @@ where
             }
         }
 
-        // Pair with public values and version
+        // For Groth16/Plonk: submit shrinkwrap (wait for it), then submit the wrap task
+        // with extra finalize data and return immediately, releasing the controller's weight.
+        if mode == ProofMode::Groth16 || mode == ProofMode::Plonk {
+            let compress_proof_artifact = compress_proof_artifact.unwrap();
+
+            // Submit shrinkwrap and wait.
+            let shrinkwrap_proof_artifact = self.artifact_client.create_artifact()?;
+            let shrinkwrap_task = RawTaskRequest {
+                inputs: vec![compress_proof_artifact.clone()],
+                outputs: vec![shrinkwrap_proof_artifact.clone()],
+                context: context.clone(),
+            };
+            let subscriber =
+                self.worker_client.subscriber(context.proof_id.clone()).await?.per_task();
+            let shrinkwrap_task_id = self
+                .worker_client
+                .submit_task(TaskType::ShrinkWrap, shrinkwrap_task)
+                .await
+                .map_err(TaskError::Fatal)?;
+            subscriber.wait_task(shrinkwrap_task_id).await?;
+
+            // Upload finalize data for the wrap task to use.
+            let finalize_input = WrapFinalizeInput {
+                output_artifact: output,
+                public_value_stream: result.public_value_stream.clone(),
+                artifacts_to_cleanup: vec![
+                    common_input_artifact,
+                    stdin_artifact,
+                    compress_proof_artifact,
+                    shrinkwrap_proof_artifact.clone(),
+                ],
+            };
+            let finalize_input_artifact = self.artifact_client.create_artifact()?;
+            self.artifact_client.upload(&finalize_input_artifact, finalize_input).await?;
+
+            // Submit groth16/plonk wrap with finalize input as extra input. Don't wait.
+            let wrap_proof_artifact = self.artifact_client.create_artifact()?;
+            let wrap_task_type = if mode == ProofMode::Groth16 {
+                TaskType::Groth16Wrap
+            } else {
+                TaskType::PlonkWrap
+            };
+            let wrap_task = RawTaskRequest {
+                inputs: vec![shrinkwrap_proof_artifact, finalize_input_artifact],
+                outputs: vec![wrap_proof_artifact],
+                context: context.clone(),
+            };
+            let wrap_task_id = self
+                .worker_client
+                .submit_task(wrap_task_type, wrap_task)
+                .await
+                .map_err(TaskError::Fatal)?;
+
+            return Ok((result, ControllerOutput::DeferCompleteProof { wrap_task_id }));
+        }
+
+        // For Core/Compressed: assemble and upload the proof immediately.
+        let inner_proof = match mode {
+            ProofMode::Core => {
+                let shard_proofs =
+                    self.artifact_client.download(&core_proof_artifact.clone().unwrap()).await?;
+                SP1Proof::Core(shard_proofs)
+            }
+            ProofMode::Compressed => {
+                let proof = self
+                    .artifact_client
+                    .download(&compress_proof_artifact.clone().unwrap())
+                    .await?;
+                SP1Proof::Compressed(Box::new(proof))
+            }
+            _ => unreachable!("Groth16/Plonk handled by deferred path above"),
+        };
+
         let public_values = SP1PublicValues::from(&result.public_value_stream);
         let proof = ProofFromNetwork {
             proof: inner_proof,
@@ -429,18 +432,13 @@ where
             sp1_version: SP1_CIRCUIT_VERSION.to_string(),
         };
 
-        // Upload the proof
         self.artifact_client.upload_proof(&output, proof).await?;
 
-        // Clean up artifacts
         let artifacts_to_cleanup = vec![
             Some(common_input_artifact),
             Some(stdin_artifact),
             core_proof_artifact,
             compress_proof_artifact,
-            shrinkwrap_proof_artifact,
-            groth16_proof_artifact,
-            plonk_proof_artifact,
         ]
         .into_iter()
         .flatten()
@@ -450,7 +448,7 @@ where
             .delete_batch(&artifacts_to_cleanup, ArtifactType::UnspecifiedArtifactType)
             .await?;
 
-        Ok(result)
+        Ok((result, ControllerOutput::CompleteProof))
     }
 }
 

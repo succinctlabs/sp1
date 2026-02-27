@@ -3,18 +3,22 @@ use std::sync::Arc;
 use slop_futures::pipeline::TaskJoinError;
 use sp1_hypercube::prover::ProverSemaphore;
 use sp1_prover_types::{
-    ArtifactClient, ArtifactType, InMemoryArtifactClient, TaskStatus, TaskType,
+    network_base_types::ProofMode, ArtifactClient, ArtifactType, InMemoryArtifactClient,
+    TaskStatus, TaskType,
 };
 use tokio::{sync::mpsc, task::JoinSet};
 use tracing::Instrument;
 
+use sp1_primitives::io::SP1PublicValues;
+
 use crate::{
     worker::{
-        node::SP1NodeCore, run_vk_generation, LocalWorkerClient, LocalWorkerClientChannels,
-        ProofId, RawTaskRequest, SP1LocalNode, SP1NodeInner, SP1WorkerBuilder, TaskError, TaskId,
-        TaskMetadata, WorkerClient,
+        node::SP1NodeCore, run_vk_generation, ControllerOutput, LocalWorkerClient,
+        LocalWorkerClientChannels, ProofFromNetwork, ProofId, RawTaskRequest, SP1LocalNode,
+        SP1NodeInner, SP1Proof, SP1WorkerBuilder, TaskError, TaskId, TaskMetadata, WorkerClient,
+        WrapFinalizeInput,
     },
-    SP1ProverComponents,
+    SP1ProverComponents, SP1_CIRCUIT_VERSION,
 };
 
 pub struct SP1LocalNodeBuilder<C: SP1ProverComponents> {
@@ -110,9 +114,24 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                 while let Some((task_id, request)) = controller_rx.recv().await {
                     let span = tracing::debug_span!("Controller", proof_id = %request.context.proof_id, task_id = %task_id);
                     // Run the controller task
-                    if let Err(e) = worker.controller().run(request.clone()).instrument(span).await
-                    {
-                        tracing::error!("Controller: task failed: {e:?}");
+                    match worker.controller().run(request.clone()).instrument(span).await {
+                        Ok((_, ControllerOutput::DeferCompleteProof { wrap_task_id })) => {
+                            // Wait for the deferred wrap task to finish before completing
+                            // the controller task, so prove_with_mode can download the proof.
+                            let subscriber = worker
+                                .worker_client()
+                                .subscriber(request.context.proof_id.clone())
+                                .await
+                                .unwrap()
+                                .per_task();
+                            if let Err(e) = subscriber.wait_task(wrap_task_id).await {
+                                tracing::error!("Controller: waiting for wrap task failed: {e:?}");
+                            }
+                        }
+                        Ok(_) => {}
+                        Err(e) => {
+                            tracing::error!("Controller: task failed: {e:?}");
+                        }
                     }
 
                     // Complete the task
@@ -445,12 +464,9 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                             let span = tracing::debug_span!("PlonkWrap", proof_id = %request.context.proof_id, task_id = %id);
                             let worker = worker.clone();
                             let proof_id = request.context.proof_id.clone();
-                            let result = worker
-                                .prover_engine()
-                                .run_plonk(request.clone())
+                            let result = run_wrap_with_finalize(&worker, request.clone(), ProofMode::Plonk)
                                 .instrument(span)
-                                .await
-                                .map(|_| TaskMetadata::default());
+                                .await;
                             TaskOutput::handle_worker_result(Ok(result), &task_tx, proof_id, id, request, TaskType::PlonkWrap);
                         }
                         Some(output) = task_rx.recv() => {
@@ -479,12 +495,9 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                             let span = tracing::debug_span!("Groth16Wrap", proof_id = %request.context.proof_id, task_id = %id);
                             let worker = worker.clone();
                             let proof_id = request.context.proof_id.clone();
-                            let result = worker
-                                .prover_engine()
-                                .run_groth16(request.clone())
+                            let result = run_wrap_with_finalize(&worker, request.clone(), ProofMode::Groth16)
                                 .instrument(span)
-                                .await
-                                .map(|_| TaskMetadata::default());
+                                .await;
                             TaskOutput::handle_worker_result(Ok(result), &task_tx, proof_id, id, request, TaskType::Groth16Wrap);
                         }
                         Some(output) = task_rx.recv() => {
@@ -507,6 +520,71 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
             Arc::new(SP1NodeInner { artifact_client, worker_client, core, _tasks: join_set });
         Ok(SP1LocalNode { inner })
     }
+}
+
+/// Runs a Groth16/Plonk wrap task, stripping any extra finalize input before calling the
+/// prover. If finalize data is present, assembles and uploads the final proof afterward.
+async fn run_wrap_with_finalize<C: SP1ProverComponents>(
+    worker: &crate::worker::SP1Worker<InMemoryArtifactClient, LocalWorkerClient, C>,
+    request: RawTaskRequest,
+    mode: ProofMode,
+) -> Result<TaskMetadata, TaskError> {
+    // Strip the optional finalize input before calling run_groth16/run_plonk.
+    let finalize_input_artifact =
+        if request.inputs.len() > 1 { Some(request.inputs[1].clone()) } else { None };
+
+    let prove_request = RawTaskRequest {
+        inputs: vec![request.inputs[0].clone()],
+        outputs: request.outputs.clone(),
+        context: request.context.clone(),
+    };
+
+    match mode {
+        ProofMode::Plonk => worker.prover_engine().run_plonk(prove_request).await?,
+        ProofMode::Groth16 => worker.prover_engine().run_groth16(prove_request).await?,
+        _ => return Err(TaskError::Fatal(anyhow::anyhow!("Invalid proof mode for wrap"))),
+    }
+
+    // If finalize input is present, assemble the final proof and complete.
+    if let Some(finalize_artifact) = finalize_input_artifact {
+        let finalize_input: WrapFinalizeInput =
+            worker.artifact_client().download(&finalize_artifact).await?;
+
+        let wrap_proof_artifact = &request.outputs[0];
+
+        let inner_proof = match mode {
+            ProofMode::Groth16 => {
+                let proof = worker.artifact_client().download(wrap_proof_artifact).await?;
+                SP1Proof::Groth16(proof)
+            }
+            ProofMode::Plonk => {
+                let proof = worker.artifact_client().download(wrap_proof_artifact).await?;
+                SP1Proof::Plonk(proof)
+            }
+            _ => unreachable!(),
+        };
+
+        let public_values = SP1PublicValues::from(&finalize_input.public_value_stream);
+        let proof = ProofFromNetwork {
+            proof: inner_proof,
+            public_values,
+            sp1_version: SP1_CIRCUIT_VERSION.to_string(),
+        };
+
+        worker.artifact_client().upload_proof(&finalize_input.output_artifact, proof).await?;
+
+        // Clean up artifacts.
+        let mut cleanup = finalize_input.artifacts_to_cleanup;
+        cleanup.push(finalize_artifact);
+        cleanup.push(wrap_proof_artifact.clone());
+
+        worker
+            .artifact_client()
+            .delete_batch(&cleanup, ArtifactType::UnspecifiedArtifactType)
+            .await?;
+    }
+
+    Ok(TaskMetadata::default())
 }
 
 struct TaskOutput {
