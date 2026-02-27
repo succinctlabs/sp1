@@ -65,6 +65,75 @@ jobs:
       - name: Print GH version
         run: |
           gh version
+  
+  gcc-toolchain-release:
+    name: ${{ matrix.target }} (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 240
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # `runner`: GHA runner label
+          # `target`: Rust build target triple
+          # `platform` and `arch`: Used in tarball names
+          # `svm`: target platform to use for the Solc binary: https://github.com/roynalnaruto/svm-rs/blob/84cbe0ac705becabdc13168bae28a45ad2299749/svm-builds/build.rs#L4-L24
+          - runner: ubuntu-latest
+            target: riscv64im-linux-x86_64
+            platform: linux
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            target: riscv64im-linux-aarch64
+            platform: linux
+            arch: arm64
+          - runner: macos-15-intel
+            target: riscv64im-osx-x86_64
+            platform: darwin
+            arch: amd64
+          - runner: macos-latest-xlarge
+            target: riscv64im-osx-arm64
+            platform: darwin
+            arch: arm64
+    steps:
+    - name: Darwin setup
+      if: matrix.platform == 'darwin'
+      run: brew install make python3 gawk gnu-sed gmp mpfr libmpc isl zlib expat texinfo flock
+
+    - name: Linux setup
+      if: matrix.platform == 'linux'
+      run: |
+        sudo apt-get update -y
+        sudo apt-get install autoconf automake autotools-dev curl python3 python3-pip python3-tomli libmpc-dev libmpfr-dev libgmp-dev gawk build-essential bison flex texinfo gperf libtool patchutils bc zlib1g-dev libexpat-dev ninja-build git cmake libglib2.0-dev libslirp-dev libncurses-dev
+
+    - name: Clone riscv-gnu-toolchain repo
+      run: git clone https://github.com/riscv/riscv-gnu-toolchain.git
+
+    - name: Checkout tag
+      working-directory: ./riscv-gnu-toolchain
+      run: git checkout 2026.02.13
+
+    - name: Configure
+      working-directory: ./riscv-gnu-toolchain
+      run: ./configure --prefix="$PWD/dist" --with-cmodel=medany --disable-gdb --with-arch=rv64im --with-abi=lp64
+
+    - name: Build (Linux)
+      if: matrix.platform == 'linux'
+      working-directory: ./riscv-gnu-toolchain
+      run: make -j"$(sysctl -n hw.ncpu)"
+
+    - name: Build (macOS)
+      if: matrix.platform == 'darwin'
+      working-directory: ./riscv-gnu-toolchain
+      run: gmake -j"$(sysctl -n hw.ncpu)"
+
+    - name: Archive toolchain
+      working-directory: ./riscv-gnu-toolchain
+      run: tar -czvf "${{ matrix.target }}.tar.gz" -C ./dist
+
+    - name: Upload toolchain
+      working-directory: ./riscv-gnu-toolchain
+      run: gh release upload ${{ needs.prepare.outputs.tag_name }} "${{ matrix.target }}.tar.gz"
 
   cargo-prove-release:
     name: ${{ matrix.target }} (${{ matrix.runner }})
@@ -323,7 +392,7 @@ jobs:
   set-latest-release:
     name: Set latest release
     runs-on: ubuntu-latest
-    needs: [sp1-gpu-server-release, cargo-prove-release, prepare]
+    needs: [sp1-gpu-server-release, cargo-prove-release, prepare, gcc-toolchain-release]
     if: ${{ success() && inputs.prerelease != true && inputs.dry_run != true }}
     steps:
       - uses: actions/checkout@v6
@@ -337,7 +406,7 @@ jobs:
 
   toolchain-test:
     name: "Test toolchain installation (${{ matrix.name }})"
-    needs: [sp1-gpu-server-release, cargo-prove-release, prepare]
+    needs: [sp1-gpu-server-release, cargo-prove-release, prepare, gcc-toolchain-release]
     strategy:
       fail-fast: false
       matrix:
@@ -383,7 +452,7 @@ jobs:
   issue:
     name: Open an issue
     runs-on: ubuntu-latest
-    needs: [sp1-gpu-server-release, cargo-prove-release, prepare]
+    needs: [sp1-gpu-server-release, cargo-prove-release, prepare, gcc-toolchain-release]
     if: ${{ failure() && inputs.dry_run != true }}
     steps:
       - uses: actions/checkout@v6
@@ -402,7 +471,7 @@ jobs:
   delete-failed-release:
     name: Delete failed release
     runs-on: ubuntu-latest
-    needs: [sp1-gpu-server-release, cargo-prove-release, prepare]
+    needs: [sp1-gpu-server-release, cargo-prove-release, prepare, gcc-toolchain-release]
     if: failure()
     steps:
       - uses: actions/checkout@v6
