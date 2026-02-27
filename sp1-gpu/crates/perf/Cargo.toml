@@ -61,8 +61,8 @@ bigint-rug = [
 ]
 native-gnark = ["sp1-prover/native-gnark"]
 groth16-cuda = ["sp1-recursion-gnark-ffi/groth16-cuda"]
-tokio-blocked = ["dep:tokio-blocked", "tokio/tracing"]
 experimental = ["sp1-prover/experimental"]
+tokio-blocked = ["dep:tokio-blocked", "tokio/tracing"]
 
 [lints]
 workspace = true
