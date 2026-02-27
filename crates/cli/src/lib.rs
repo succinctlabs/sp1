@@ -54,8 +54,6 @@ pub async fn get_toolchain_download_url(client: &Client, target: String) -> Stri
         .await
         .unwrap();
 
-    println!("All releases: {all_releases}");
-
     // Check if the release exists.
     let _ = all_releases
         .as_array()

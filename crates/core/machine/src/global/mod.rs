@@ -288,26 +288,26 @@ where
             InteractionScope::Local,
         );
 
-        // // Evaluate the interaction.
-        // GlobalInteractionOperation::<AB::F>::eval_single_digest(
-        //     builder,
-        //     local.message.map(Into::into),
-        //     local.interaction,
-        //     local.is_receive.into(),
-        //     local.is_send.into(),
-        //     local.is_real,
-        //     local.kind,
-        //     [local.message_0_16bit_limb, local.message_0_8bit_limb],
-        // );
+        // Evaluate the interaction.
+        GlobalInteractionOperation::<AB::F>::eval_single_digest(
+            builder,
+            local.message.map(Into::into),
+            local.interaction,
+            local.is_receive.into(),
+            local.is_send.into(),
+            local.is_real,
+            local.kind,
+            [local.message_0_16bit_limb, local.message_0_8bit_limb],
+        );
 
-        // // Evaluate the accumulation.
-        // GlobalAccumulationOperation::<AB::F>::eval_accumulation(
-        //     builder,
-        //     local.interaction,
-        //     local.is_real,
-        //     local.index,
-        //     local.accumulation,
-        // );
+        // Evaluate the accumulation.
+        GlobalAccumulationOperation::<AB::F>::eval_accumulation(
+            builder,
+            local.interaction,
+            local.is_real,
+            local.index,
+            local.accumulation,
+        );
     }
 }
 
