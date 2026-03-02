@@ -1,10 +1,10 @@
 use std::{
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{exit, Command, Stdio},
 };
 
 use anyhow::{Context, Result};
-use cargo_metadata::camino::Utf8PathBuf;
+use cargo_metadata::{camino::Utf8PathBuf, semver};
 
 use crate::{BuildArgs, WarningLevel};
 
@@ -126,11 +126,39 @@ pub(crate) fn create_docker_command(
 
     println!("cargo:warning=docker: rustc_bin: {rustc_bin:?}");
 
+    let docker_args = build_docker_args(
+        args,
+        workspace_root_path,
+        program_dir_path,
+        target_dir,
+        &rustc_bin,
+        &parsed_version,
+        image,
+    );
+
+    let mut command = Command::new("docker");
+    command.current_dir(canonicalized_program_dir.clone()).args(&docker_args);
+    Ok(command)
+}
+
+/// Builds the Docker argument vector for the `docker run` command.
+///
+/// Separated from [`create_docker_command`] for testability — this function is pure and does not
+/// require Docker to be installed.
+fn build_docker_args(
+    args: &BuildArgs,
+    workspace_root_path: String,
+    program_dir_path: String,
+    target_dir: String,
+    rustc_bin: &Path,
+    parsed_version: &semver::Version,
+    image: String,
+) -> Vec<String> {
     // When executing the Docker command:
     // 1. Set the target directory to a subdirectory of the program's target directory to avoid
-    //    build
-    // conflicts with the parent process. Source: https://github.com/rust-lang/cargo/issues/6412
-    // 3. Set the encoded rust flags.
+    //    build conflicts with the parent process.
+    //    Source: https://github.com/rust-lang/cargo/issues/6412
+    // 2. Set the encoded rust flags.
     // Note: In Docker, you can't use the .env command to set environment variables, you have to use
     // the -e flag.
     let mut docker_args = vec![
@@ -140,15 +168,33 @@ pub(crate) fn create_docker_command(
         "linux/amd64".to_string(),
         "-v".to_string(),
         workspace_root_path,
+    ];
+
+    // Mount Docker named volumes for cargo registry and git caches to avoid re-downloading
+    // dependencies on every build. Named volumes persist across `--rm` containers.
+    if !args.no_docker_cache {
+        docker_args.extend_from_slice(&[
+            "-v".to_string(),
+            "sp1-cargo-registry:/root/.cargo/registry".to_string(),
+            "-v".to_string(),
+            "sp1-cargo-git:/root/.cargo/git".to_string(),
+        ]);
+    }
+
+    docker_args.extend_from_slice(&[
         "-w".to_string(),
         program_dir_path,
         "-e".to_string(),
-        format!("CARGO_TARGET_DIR={}", target_dir),
+        format!("CARGO_TARGET_DIR={target_dir}"),
+        // Override the toolchain so that the workspace's rust-toolchain.toml does not trigger
+        // an unnecessary nightly toolchain download inside the container.
+        "-e".to_string(),
+        format!("RUSTUP_TOOLCHAIN={}", super::TOOLCHAIN_NAME),
         // TODO: remove once trim-paths is supported - https://github.com/rust-lang/rust/issues/111540
         "-e".to_string(),
         "RUSTC_BOOTSTRAP=1".to_string(), // allows trim-paths.
         "-e".to_string(),
-        format!("CARGO_ENCODED_RUSTFLAGS={}", get_rust_compiler_flags(args, &parsed_version)),
+        format!("CARGO_ENCODED_RUSTFLAGS={}", get_rust_compiler_flags(args, parsed_version)),
         "-e".to_string(),
         format!("RUSTC={}", rustc_bin.display()),
         "-e".to_string(),
@@ -157,14 +203,12 @@ pub(crate) fn create_docker_command(
         "".to_string(),
         image,
         "cargo".to_string(),
-    ];
+    ]);
 
     // Add the SP1 program build arguments.
     docker_args.extend_from_slice(&get_program_build_args(args));
 
-    let mut command = Command::new("docker");
-    command.current_dir(canonicalized_program_dir.clone()).args(&docker_args);
-    Ok(command)
+    docker_args
 }
 
 /// Setups a command to be run in the docker image.
@@ -179,4 +223,54 @@ fn run_command_in_docker(image: &str) -> Command {
     cmd.args(["--platform", "linux/amd64", "--entrypoint", "", "-i", image]);
 
     cmd
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::BuildArgs;
+    use std::path::PathBuf;
+
+    /// Helper to build args with default test values.
+    fn test_docker_args(args: &BuildArgs) -> Vec<String> {
+        let version = semver::Version::new(1, 93, 0);
+        build_docker_args(
+            args,
+            "/workspace:/root/program".to_string(),
+            "/root/program/my-program".to_string(),
+            "/root/program/target/elf-compilation/docker".to_string(),
+            &PathBuf::from("/root/.sp1/toolchains/abc/bin/rustc"),
+            &version,
+            "ghcr.io/succinctlabs/sp1:v6.0.2".to_string(),
+        )
+    }
+
+    #[test]
+    fn test_docker_args_include_cargo_cache_volumes() {
+        let args = BuildArgs { docker: true, ..Default::default() };
+        let docker_args = test_docker_args(&args);
+
+        assert!(docker_args.contains(&"sp1-cargo-registry:/root/.cargo/registry".to_string()));
+        assert!(docker_args.contains(&"sp1-cargo-git:/root/.cargo/git".to_string()));
+    }
+
+    #[test]
+    fn test_docker_args_exclude_cache_volumes_when_disabled() {
+        let args = BuildArgs { docker: true, no_docker_cache: true, ..Default::default() };
+        let docker_args = test_docker_args(&args);
+
+        assert!(!docker_args.contains(&"sp1-cargo-registry:/root/.cargo/registry".to_string()));
+        assert!(!docker_args.contains(&"sp1-cargo-git:/root/.cargo/git".to_string()));
+    }
+
+    #[test]
+    fn test_docker_args_include_rustup_toolchain() {
+        let args = BuildArgs { docker: true, ..Default::default() };
+        let docker_args = test_docker_args(&args);
+
+        let toolchain_env = format!("RUSTUP_TOOLCHAIN={}", super::super::TOOLCHAIN_NAME);
+        // Find `-e` followed by `RUSTUP_TOOLCHAIN=succinct`.
+        let has_toolchain = docker_args.windows(2).any(|w| w[0] == "-e" && w[1] == toolchain_env);
+        assert!(has_toolchain, "Expected RUSTUP_TOOLCHAIN env var in docker args");
+    }
 }
