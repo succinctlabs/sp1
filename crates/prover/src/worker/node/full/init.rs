@@ -115,7 +115,7 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                     let span = tracing::debug_span!("Controller", proof_id = %request.context.proof_id, task_id = %task_id);
                     // Run the controller task
                     match worker.controller().run(request.clone()).instrument(span).await {
-                        Ok((_, ControllerOutput::DeferCompleteProof { wrap_task_id })) => {
+                        Ok(ControllerOutput::DeferCompleteProof { wrap_task_id }) => {
                             // Wait for the deferred wrap task to finish before completing
                             // the controller task, so prove_with_mode can download the proof.
                             let subscriber = worker

@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 use slop_algebra::PrimeField32;
 
 use sp1_core_executor::{MinimalExecutor, SP1CoreOpts};
-use sp1_core_machine::{executor::ExecutionOutput, io::SP1Stdin};
+use sp1_core_machine::io::SP1Stdin;
 use sp1_hypercube::{
     air::{PublicValues, PROOF_NONCE_NUM_WORDS},
     SP1PcsProofInner, SP1VerifyingKey, ShardProof,
@@ -147,10 +147,7 @@ where
         Arc::new(SplicingEngine::new(splicing_workers, self.config.splicing_buffer_size))
     }
 
-    pub async fn run(
-        &self,
-        request: RawTaskRequest,
-    ) -> Result<(ExecutionOutput, ControllerOutput), TaskError> {
+    pub async fn run(&self, request: RawTaskRequest) -> Result<ControllerOutput, TaskError> {
         let RawTaskRequest { inputs, outputs, context } = request;
         let elf = inputs[0].clone();
         let stdin_artifact = inputs[1].clone();
@@ -267,8 +264,6 @@ where
         let mut core_proof_artifact = None;
         let mut compress_proof_artifact = None;
 
-        let (compress_complete_tx, compress_complete_rx) = tokio::sync::oneshot::channel();
-
         if mode == ProofMode::Core {
             core_proof_artifact = Some(self.artifact_client.create_artifact()?);
             join_set.spawn(collect_core_proofs(
@@ -295,7 +290,6 @@ where
                         &worker_client,
                     )
                     .await?;
-                    compress_complete_tx.send(()).unwrap();
                     Ok(())
                 }
                 .instrument(tracing::debug_span!("reduce")),
@@ -332,10 +326,6 @@ where
         while let Some(result) = join_set.join_next().await {
             result.map_err(|e| TaskError::Fatal(e.into()))??;
         }
-
-        // compress_complete_rx was never consumed (Groth16/Plonk wrapping is deferred).
-        // Drop it now that the compress tree task has already sent on the tx.
-        drop(compress_complete_rx);
 
         let result = executor_result_rx
             .await
@@ -405,7 +395,7 @@ where
                 .await
                 .map_err(TaskError::Fatal)?;
 
-            return Ok((result, ControllerOutput::DeferCompleteProof { wrap_task_id }));
+            return Ok(ControllerOutput::DeferCompleteProof { wrap_task_id });
         }
 
         // For Core/Compressed: assemble and upload the proof immediately.
@@ -448,7 +438,7 @@ where
             .delete_batch(&artifacts_to_cleanup, ArtifactType::UnspecifiedArtifactType)
             .await?;
 
-        Ok((result, ControllerOutput::CompleteProof))
+        Ok(ControllerOutput::CompleteProof)
     }
 }
 
