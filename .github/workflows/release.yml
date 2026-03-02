@@ -114,7 +114,7 @@ jobs:
           rustup install stable
 
       - name: Install go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: "^1.22.1"
 
@@ -260,7 +260,7 @@ jobs:
           log-file-suffix: "${{ matrix.platform }}-${{ matrix.arch }}.txt"
 
       - name: Install go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: "^1.22.1"
           
