@@ -47,7 +47,7 @@ jobs:
 
       - name: Setup/restore sp1-perf cache
         id: sp1-perf-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.sp1/bin/sp1-perf
           key: ${{ steps.sp1-perf-cache-key.outputs.key }}
@@ -103,7 +103,7 @@ jobs:
 
       - name: Setup/restore sp1-perf cache
         id: sp1-perf-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.sp1/bin/sp1-perf
           key: ${{ steps.sp1-perf-cache-key.outputs.key }}
@@ -174,7 +174,7 @@ jobs:
 
       - name: Restore sp1-gpu-server cache
         id: sp1-gpu-server-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.sp1/bin/sp1-gpu-server
           key: ${{ steps.sp1-gpu-server-cache-key.outputs.key }}
@@ -221,7 +221,7 @@ jobs:
     steps:
       - name: Restore sp1-perf cache
         id: restore-sp1-perf-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           fail-on-cache-miss: true
           path: ~/.sp1/bin/sp1-perf
@@ -275,7 +275,7 @@ jobs:
     steps:
       - name: Restore sp1-perf cache
         id: restore-sp1-perf-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           fail-on-cache-miss: true
           path: ~/.sp1/bin/sp1-perf
@@ -283,7 +283,7 @@ jobs:
 
       - name: Restore sp1-gpu-server cache
         id: restore-sp1-gpu-server-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           fail-on-cache-miss: true
           path: ~/.sp1/bin/sp1-gpu-server
@@ -361,7 +361,7 @@ jobs:
     steps:
       - name: Restore sp1-perf cache
         id: restore-sp1-perf-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           fail-on-cache-miss: true
           path: ~/.sp1/bin/sp1-perf
