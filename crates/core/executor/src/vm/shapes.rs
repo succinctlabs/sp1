@@ -52,12 +52,6 @@ impl ShapeChecker {
             + BYTE_NUM_ROWS * costs[RiscvAirId::Byte]
             + RANGE_NUM_ROWS * costs[RiscvAirId::Range];
 
-        let ShardingThreshold { element_threshold, height_threshold } = elem_threshold;
-        assert!(
-            element_threshold >= HALT_AREA && height_threshold >= HALT_HEIGHT,
-            "invalid sharding threshold"
-        );
-
         Self {
             program_len,
             trace_area: preprocessed_trace_area + MAXIMUM_PADDING_AREA + MAXIMUM_CYCLE_AREA,
@@ -66,10 +60,7 @@ impl ShapeChecker {
             syscall_sent: false,
             shard_start_clk,
             heights: EnumMap::default(),
-            sharding_threshold: ShardingThreshold {
-                element_threshold: element_threshold - HALT_AREA,
-                height_threshold: height_threshold - HALT_HEIGHT,
-            },
+            sharding_threshold: elem_threshold,
             costs,
             // Assume that all registers will be touched in each shard.
             local_mem_counts: 32,

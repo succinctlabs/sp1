@@ -40,7 +40,7 @@ impl Server {
     pub async fn run(self, task_scope: TaskScope) {
         eprintln!(
             "Running sp1-gpu-server {} with device {}",
-            sp1_primitives::SP1_VERSION,
+            sp1_primitives::SP1_CRATE_VERSION,
             self.cuda_device_id
         );
         let socket_path = socket_path(self.cuda_device_id);

@@ -16,6 +16,14 @@ pub struct SP1ProvingKey {
     pub(crate) elf: Elf,
 }
 
+impl SP1ProvingKey {
+    /// Creates a new `SP1ProvingKey` from a verifying key and ELF.
+    #[must_use]
+    pub fn new(vk: SP1VerifyingKey, elf: Elf) -> Self {
+        Self { vk, elf }
+    }
+}
+
 impl ProvingKey for SP1ProvingKey {
     fn verifying_key(&self) -> &SP1VerifyingKey {
         &self.vk

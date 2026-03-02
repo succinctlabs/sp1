@@ -39,7 +39,7 @@ pub use recursion_vks::VerifierRecursionVks;
 pub mod compressed;
 
 mod constants;
-mod converter;
+pub mod converter;
 mod error;
 mod proof;
 

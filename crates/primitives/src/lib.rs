@@ -18,7 +18,7 @@ pub mod fri_params;
 pub mod utils;
 
 /// The canonical version of the SP1 crate.
-pub const SP1_VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const SP1_CRATE_VERSION: &str = env!("CARGO_PKG_VERSION");
 #[allow(clippy::disallowed_types)]
 pub type SP1Field = KoalaBear;
 
