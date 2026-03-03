@@ -202,7 +202,7 @@ where
             })
             .collect();
 
-        let commitment = &proof.commitments[0];
+        let commitment = &proof.commitments.get(0).ok_or(WhirProofError::IncorrectShape)?;
 
         if ood_points != commitment.ood_points {
             return Err(WhirProofError::InvalidOOD);
@@ -263,7 +263,8 @@ where
 
         for round_index in 0..n_rounds {
             let round_params = &config.round_parameters[round_index];
-            let new_commitment = &proof.commitments[round_index + 1];
+            let new_commitment =
+                &proof.commitments.get(round_index + 1).ok_or(WhirProofError::IncorrectShape)?;
             if new_commitment.ood_answers.len() != round_params.ood_samples {
                 return Err(WhirProofError::InvalidNumberOfOODSamples(
                     round_params.ood_samples,
