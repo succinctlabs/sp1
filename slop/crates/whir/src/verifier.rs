@@ -202,7 +202,7 @@ where
             })
             .collect();
 
-        let commitment = proof.commitments.get(0).ok_or(WhirProofError::IncorrectShape)?;
+        let commitment = proof.commitments.first().ok_or(WhirProofError::IncorrectShape)?;
 
         if ood_points != commitment.ood_points {
             return Err(WhirProofError::InvalidOOD);
