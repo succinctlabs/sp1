@@ -36,6 +36,13 @@ extern "C" {
     /// Executes the SHA-256 compress operation on the given word array and a given state.
     pub fn syscall_sha256_compress(w: *mut [u64; 64], state: *mut [u64; 8]);
 
+    /// Executes the Blake3 inner compression function.
+    ///
+    /// `state` is a pointer to 16 u64 slots holding the pre-compression state words (u32 each,
+    /// upper 32 bits zero). It is updated in-place with the post-compression state.
+    /// `msg` is a pointer to 16 u64 slots holding the message words (read-only).
+    pub fn syscall_blake3_compress_inner(state: *mut u64, msg: *const u64);
+
     /// Executes an Ed25519 curve addition on the given points.
     pub fn syscall_ed_add(p: *mut [u64; 8], q: *const [u64; 8]);
 

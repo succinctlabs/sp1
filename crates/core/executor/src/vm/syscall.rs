@@ -226,6 +226,9 @@ pub(crate) fn sp1_ecall_handler<'a, RT: SyscallRuntime<'a>>(
             precompiles::fptower::fp_op::<_, Bn254BaseField>(rt, code, args1, args2)
         }
         SyscallCode::POSEIDON2 => poseidon2::poseidon2(rt, code, args1, args2),
+        SyscallCode::BLAKE3_COMPRESS_INNER => {
+            precompiles::blake3::blake3_compress_inner(rt, code, args1, args2)
+        }
         SyscallCode::VERIFY_SP1_PROOF
         | SyscallCode::MPROTECT
         | SyscallCode::ENTER_UNCONSTRAINED

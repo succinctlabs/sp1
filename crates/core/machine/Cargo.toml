@@ -58,6 +58,7 @@ tokio = { workspace = true, features = ["rt", "sync"] }
 static_assertions = { workspace = true }
 
 [dev-dependencies]
+blake3 = { workspace = true }
 rand = { workspace = true }
 num = { workspace = true, features = ["rand"] }
 sp1-core-executor = { workspace = true }
