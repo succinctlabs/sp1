@@ -67,6 +67,7 @@ where
     pub config: WhirProofShape<GC::F>,
     // First sumcheck
     pub initial_sumcheck_polynomials: Vec<(SumcheckPoly<GC::EF>, ProofOfWork<GC>)>,
+    pub initial_merkle_proof: Rounds<MerkleTreeOpeningAndProof<GC>>,
 
     // For internal rounds
     pub commitments: Vec<ParsedCommitment<GC>>,
@@ -168,9 +169,18 @@ where
     ) -> Result<(Point<GC::EF>, GC::EF), WhirProofError> {
         let config = &proof.config;
         let n_rounds = config.round_parameters.len();
+
+        if proof.merkle_proofs.len() != n_rounds - 1
+            || proof.query_proofs_of_work.len() != n_rounds
+            || proof.sumcheck_polynomials.len() != n_rounds
+            || proof.commitments.len() != n_rounds + 1
+        {
+            return Err(WhirProofError::IncorrectShape);
+        }
+
         if commitments.len() != self.num_expected_commitments
             || round_areas.len() != self.num_expected_commitments
-            || proof.merkle_proofs[0].len() != self.num_expected_commitments
+            || proof.initial_merkle_proof.len() != self.num_expected_commitments
         {
             return Err(WhirProofError::InvalidNumberOfCommitments(
                 self.num_expected_commitments,
@@ -180,7 +190,7 @@ where
 
         println!("Round areas: {round_areas:?}");
 
-        for (merkle_proof, area) in proof.merkle_proofs[0].iter().zip_eq(round_areas.iter()) {
+        for (merkle_proof, area) in proof.initial_merkle_proof.iter().zip_eq(round_areas.iter()) {
             if merkle_proof.proof.width << self.config.starting_interleaved_log_height != *area {
                 println!(
                     "proof width: {}, proof log height: {}, expected area {}, area: {}",
@@ -312,7 +322,11 @@ where
                 return Err(WhirProofError::PowError);
             }
 
-            let merkle_proof = &proof.merkle_proofs[round_index];
+            let merkle_proof = if round_index != 0 {
+                &proof.merkle_proofs[round_index - 1]
+            } else {
+                &proof.initial_merkle_proof
+            };
 
             if round_index != 0 {
                 assert_eq!(merkle_proof.len(), 1);
@@ -604,7 +618,7 @@ where
     /// Functionality to deduce round by round from the proof the multiples of `1<<log.stacking_height`
     /// corresponding to the round's total polynomial size.
     fn round_multiples(proof: &<Self as MultilinearPcsVerifier<GC>>::Proof) -> Vec<usize> {
-        proof.merkle_proofs[0].iter().map(|p| p.values.sizes()[1]).collect()
+        proof.initial_merkle_proof.iter().map(|merkle_proof| merkle_proof.proof.width).collect()
     }
 }
 

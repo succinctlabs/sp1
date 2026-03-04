@@ -511,9 +511,12 @@ where
             challenger,
         );
 
+        let initial_merkle_proof = merkle_proofs.remove(0);
+
         WhirProof {
             config: config.clone(),
             initial_sumcheck_polynomials,
+            initial_merkle_proof: initial_merkle_proof.into_iter().collect(),
             commitments: parsed_commitments,
             merkle_proofs: merkle_proofs
                 .into_iter()
