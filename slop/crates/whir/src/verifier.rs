@@ -120,6 +120,8 @@ pub enum SumcheckError {
     InvalidSum,
     #[error("invalid proof of work")]
     PowError,
+    #[error("invalid shape of proof of work")]
+    InvalidShape,
 }
 
 pub fn map_to_pow<F: AbstractField>(mut elem: F, len: usize) -> Point<F> {
@@ -170,7 +172,8 @@ where
         let config = &proof.config;
         let n_rounds = config.round_parameters.len();
 
-        if proof.merkle_proofs.len() != n_rounds - 1
+        if n_rounds == 0
+            || proof.merkle_proofs.len() != n_rounds - 1
             || proof.query_proofs_of_work.len() != n_rounds
             || proof.sumcheck_polynomials.len() != n_rounds
             || proof.commitments.len() != n_rounds + 1
@@ -543,6 +546,9 @@ where
                 rounds,
                 sumcheck_polynomials.len(),
             ));
+        }
+        if pow_bits.len() < rounds {
+            return Err(SumcheckError::InvalidShape);
         }
         let mut randomness = Vec::with_capacity(rounds);
         for i in 0..rounds {
