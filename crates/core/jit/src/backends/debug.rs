@@ -1,6 +1,6 @@
 use crate::{
     debug, ComputeInstructions, ControlFlowInstructions, DebugFn, Debuggable, EcallHandler,
-    ExternFn, JitContext, JitFunction, MemoryInstructions, RiscOperand, RiscRegister,
+    ExternFn, JitContext, JitFunction, JitMemory, MemoryInstructions, RiscOperand, RiscRegister,
     RiscvTranspiler, SystemInstructions, TraceCollector,
 };
 use std::io;
@@ -75,7 +75,7 @@ impl<B: RiscvTranspiler + Debuggable> RiscvTranspiler for DebugBackend<B> {
         self.backend.call_extern_fn(handler);
     }
 
-    fn finalize(self) -> io::Result<JitFunction> {
+    fn finalize<M: JitMemory>(self) -> io::Result<JitFunction<M>> {
         self.backend.finalize()
     }
 }

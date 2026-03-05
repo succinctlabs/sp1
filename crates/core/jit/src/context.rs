@@ -237,7 +237,7 @@ pub struct JitContext {
     /// The pointer to the program memory.
     pub(crate) memory: NonNull<u8>,
     /// The pointer to the trace buffer.
-    pub(crate) trace_buf: NonNull<u8>,
+    pub(crate) trace_buf: *mut u8,
     /// The registers to start the execution with,
     /// these are loaded into real native registers at the start of execution.
     pub(crate) registers: [u64; 32],
@@ -267,7 +267,7 @@ impl JitContext {
         // how to actually call this method safe without taking a `&mut self`.
 
         // Read the current num reads from the trace buf.
-        let raw = self.trace_buf.as_ptr();
+        let raw = self.trace_buf;
         let num_reads_offset = std::mem::offset_of!(TraceChunkHeader, num_mem_reads);
         let num_reads_ptr = raw.add(num_reads_offset);
         let num_reads = std::ptr::read_unaligned(num_reads_ptr as *mut u64);

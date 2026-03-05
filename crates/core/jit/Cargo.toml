@@ -16,6 +16,7 @@ tracing.workspace = true
 uuid = { workspace = true, features = ["v4"] }
 hashbrown = { workspace = true }
 memmap2 = { workspace = true }
+libc = { workspace = true }
 
 [dev-dependencies]
 bincode = { workspace = true }

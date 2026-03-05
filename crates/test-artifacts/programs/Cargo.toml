@@ -41,6 +41,7 @@ members = [
   "verify-proof",
   "u256x2048-mul",
   "hello-world",
+  "memory-tester",
 ]
 resolver = "2"
 
