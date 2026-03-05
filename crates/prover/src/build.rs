@@ -215,9 +215,16 @@ pub fn get_groth16_vkey_hash(build_dir: &Path) -> Result<[u8; 32]> {
     Ok(Sha256::digest(vk_bin_bytes).into())
 }
 
-/// Get the vk root as a hex string.
+/// Get the vk root as a hex string. Always returns exactly 64 hex characters (32 bytes).
 pub fn get_vk_root() -> String {
-    hex::encode(*VK_ROOT_BYTES)
+    let encoded = hex::encode(*VK_ROOT_BYTES);
+    debug_assert_eq!(
+        encoded.len(),
+        64,
+        "VK_ROOT hex must be exactly 64 chars (32 bytes), got {}",
+        encoded.len()
+    );
+    encoded
 }
 
 /// Build the Plonk contracts.
@@ -228,7 +235,7 @@ pub fn build_plonk_bn254_contracts(build_dir: &Path) -> Result<()> {
     let sp1_verifier_str = include_str!("../assets/SP1VerifierPlonk.txt")
         .replace("{SP1_CIRCUIT_VERSION}", SP1_CIRCUIT_VERSION)
         .replace("{VERIFIER_HASH}", format!("0x{}", hex::encode(vkey_hash)).as_str())
-        .replace("{VK_ROOT}", format!("0x00{}", vk_root).as_str()) // Pad with a 0 byte because it's in a bn254.
+        .replace("{VK_ROOT}", format!("0x{}", vk_root).as_str())
         .replace("{PROOF_SYSTEM}", "Plonk");
     std::fs::write(sp1_verifier_path, sp1_verifier_str)?;
     Ok(())
@@ -242,7 +249,7 @@ pub fn build_groth16_bn254_contracts(build_dir: &Path) -> Result<()> {
     let sp1_verifier_str = include_str!("../assets/SP1VerifierGroth16.txt")
         .replace("{SP1_CIRCUIT_VERSION}", SP1_CIRCUIT_VERSION)
         .replace("{VERIFIER_HASH}", format!("0x{}", hex::encode(vkey_hash)).as_str())
-        .replace("{VK_ROOT}", format!("0x00{}", vk_root).as_str()) // Pad with a 0 byte because it's in a bn254.
+        .replace("{VK_ROOT}", format!("0x{}", vk_root).as_str())
         .replace("{PROOF_SYSTEM}", "Groth16");
     std::fs::write(sp1_verifier_path, sp1_verifier_str)?;
     Ok(())
@@ -529,5 +536,112 @@ mod tests {
         let expected_wrap_vk =
             bincode::deserialize(WRAP_VK_BYTES).expect("failed to deserialize WRAP_VK_BYTES");
         assert_eq!(client_wrap_vk, expected_wrap_vk);
+    }
+
+    /// Tests that SP1VerifierGroth16.txt and SP1VerifierPlonk.txt, when filled out by the actual
+    /// build_*_bn254_contracts functions, produce valid Solidity that compiles against the real
+    /// Groth16Verifier.sol / PlonkVerifier.sol from circuit artifacts and implements
+    /// ISP1VerifierWithHash from sp1-contracts.
+    #[tokio::test]
+    #[ignore = "requires forge, run via CI contract-check job"]
+    async fn test_verifier_contracts_compile() {
+        // Install circuit artifacts (downloads from S3 if not already cached).
+        let groth16_artifacts = super::try_install_circuit_artifacts("groth16")
+            .await
+            .expect("failed to install groth16 artifacts");
+        let plonk_artifacts = super::try_install_circuit_artifacts("plonk")
+            .await
+            .expect("failed to install plonk artifacts");
+
+        // Set up a Foundry project: src/ISP1Verifier.sol at root, everything else in src/v6/.
+        let tmp_dir = std::env::temp_dir().join("sp1-verifier-contract-test");
+        let _ = std::fs::remove_dir_all(&tmp_dir);
+        let version_dir = tmp_dir.join("src").join("v6");
+        std::fs::create_dir_all(&version_dir).unwrap();
+
+        std::fs::write(
+            tmp_dir.join("foundry.toml"),
+            "[profile.default]\nsrc = \"src\"\nout = \"out\"\n",
+        )
+        .unwrap();
+
+        // ISP1Verifier.sol interface (from github.com/succinctlabs/sp1-contracts).
+        std::fs::write(
+            tmp_dir.join("src").join("ISP1Verifier.sol"),
+            r#"// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+interface ISP1Verifier {
+    function verifyProof(
+        bytes32 programVKey,
+        bytes calldata publicValues,
+        bytes calldata proofBytes
+    ) external view;
+}
+
+interface ISP1VerifierWithHash is ISP1Verifier {
+    function VERIFIER_HASH() external pure returns (bytes32);
+}
+"#,
+        )
+        .unwrap();
+
+        // Copy real base verifier contracts and vk.bin files from circuit artifacts.
+        for (artifacts, files) in [
+            (&groth16_artifacts, &["Groth16Verifier.sol", "groth16_vk.bin"][..]),
+            (&plonk_artifacts, &["PlonkVerifier.sol", "plonk_vk.bin"][..]),
+        ] {
+            for file in files {
+                std::fs::copy(artifacts.join(file), version_dir.join(file)).unwrap();
+            }
+        }
+
+        // Generate SP1Verifier contracts via the actual build functions.
+        super::build_groth16_bn254_contracts(&version_dir)
+            .expect("build_groth16_bn254_contracts failed");
+        super::build_plonk_bn254_contracts(&version_dir)
+            .expect("build_plonk_bn254_contracts failed");
+
+        // Verify no template placeholders remain.
+        let mut artifacts_mismatch = false;
+        for (name, file, artifacts) in [
+            ("Groth16", "SP1VerifierGroth16.sol", &groth16_artifacts),
+            ("Plonk", "SP1VerifierPlonk.sol", &plonk_artifacts),
+        ] {
+            let content = std::fs::read_to_string(version_dir.join(file)).unwrap();
+            for placeholder in ["{SP1_CIRCUIT_VERSION}", "{VERIFIER_HASH}", "{VK_ROOT}"] {
+                assert!(
+                    !content.contains(placeholder),
+                    "SP1Verifier{name} has unfilled placeholder: {placeholder}",
+                );
+            }
+            // Check that generated contracts match the pre-built ones in artifacts.
+            let expected = std::fs::read_to_string(artifacts.join(file)).unwrap();
+            if content != expected {
+                eprintln!("WARNING: SP1Verifier{name} does not match the pre-built contract in circuit artifacts");
+                artifacts_mismatch = true;
+            }
+        }
+
+        // Compile with forge to verify contracts are valid and implement ISP1VerifierWithHash.
+        let output = std::process::Command::new("forge")
+            .arg("build")
+            .current_dir(&tmp_dir)
+            .output()
+            .expect("failed to run forge build");
+
+        let _ = std::fs::remove_dir_all(&tmp_dir);
+
+        assert!(
+            output.status.success(),
+            "forge build failed:\nstdout: {}\nstderr: {}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
+
+        assert!(
+            !artifacts_mismatch,
+            "generated contracts do not match pre-built circuit artifacts (see warnings above)",
+        );
     }
 }

@@ -20,21 +20,29 @@ import (
 
 // Modify the PlonkVerifier so that it works with the SP1Verifier.
 func modifyPlonkVerifier(file *os.File) {
-	// Read the entire file
 	content, err := os.ReadFile(file.Name())
 	if err != nil {
 		panic(err)
 	}
 
-	// Replace the pragma version
-	modifiedContent := strings.Replace(
-		string(content),
-		"pragma solidity ^0.8.0;",
-		"pragma solidity ^0.8.20;",
-		1,
-	)
+	modifiedContent := string(content)
 
-	// Write the modified content back to the file
+	replacements := []struct {
+		old, new, description string
+	}{
+		{"pragma solidity ^0.8.0;", "pragma solidity ^0.8.20;", "pragma version"},
+	}
+
+	for _, r := range replacements {
+		if !strings.Contains(modifiedContent, r.old) {
+			panic(fmt.Sprintf(
+				"modifyPlonkVerifier: expected pattern not found for %s replacement: %q\nThis likely means gnark's ExportSolidity output format has changed.",
+				r.description, r.old,
+			))
+		}
+		modifiedContent = strings.Replace(modifiedContent, r.old, r.new, 1)
+	}
+
 	err = os.WriteFile(file.Name(), []byte(modifiedContent), 0644)
 	if err != nil {
 		panic(err)
@@ -43,19 +51,29 @@ func modifyPlonkVerifier(file *os.File) {
 
 // Modify the Groth16Verifier so that it works with the SP1Verifier.
 func modifyGroth16Verifier(file *os.File) {
-	// Read the entire file
 	content, err := os.ReadFile(file.Name())
 	if err != nil {
 		panic(err)
 	}
 
-	// Perform all replacements
 	modifiedContent := string(content)
-	modifiedContent = strings.Replace(modifiedContent, "pragma solidity ^0.8.0;", "pragma solidity ^0.8.20;", 1)
-	modifiedContent = strings.Replace(modifiedContent, "contract Verifier {", "contract Groth16Verifier {", 1)
-	modifiedContent = strings.Replace(modifiedContent, "function verifyProof(", "function Verify(", 1)
 
-	// Write the modified content back to the file
+	replacements := []struct {
+		old, new, description string
+	}{
+		{"pragma solidity ^0.8.0;", "pragma solidity ^0.8.20;", "pragma version"},
+	}
+
+	for _, r := range replacements {
+		if !strings.Contains(modifiedContent, r.old) {
+			panic(fmt.Sprintf(
+				"modifyGroth16Verifier: expected pattern not found for %s replacement: %q\nThis likely means gnark's ExportSolidity output format has changed.",
+				r.description, r.old,
+			))
+		}
+		modifiedContent = strings.Replace(modifiedContent, r.old, r.new, 1)
+	}
+
 	err = os.WriteFile(file.Name(), []byte(modifiedContent), 0644)
 	if err != nil {
 		panic(err)
