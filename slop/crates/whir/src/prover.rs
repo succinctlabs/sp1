@@ -47,7 +47,7 @@ where
     base_tensor.into_extension()
 }
 
-fn interleave<F: Field>(left: Tensor<F>, right: Tensor<F>) -> Tensor<F> {
+fn interleave<F: Clone>(left: Tensor<F>, right: Tensor<F>) -> Tensor<F> {
     assert_eq!(left.sizes().len(), 2);
     assert_eq!(right.sizes().len(), 2);
     assert_eq!(left.sizes()[0], right.sizes()[0]);
@@ -63,7 +63,7 @@ fn interleave<F: Field>(left: Tensor<F>, right: Tensor<F>) -> Tensor<F> {
         .reshape([height, width_1 + width_2])
 }
 
-pub(crate) fn interleave_chain<F: Field>(iter: impl Iterator<Item = Tensor<F>>) -> Tensor<F> {
+pub fn interleave_chain<F: Clone>(iter: impl Iterator<Item = Tensor<F>>) -> Tensor<F> {
     let mut iter = iter.peekable();
     let first = iter.next().unwrap();
     iter.fold(first, |acc, x| interleave(acc, x))
