@@ -9,6 +9,6 @@
   },
   {
     "program": "v6/provable-edits",
-    "inputs": ["blur_crop_resize_640x480", "rotate_clockwise_90_flip_vertical_crop_resize_320x240"]
+    "inputs": ["blur_crop_resize_640x480", "gaussian_blur_crop_resize_320x240" ]
   }
 ]
