@@ -179,6 +179,7 @@ pub struct CoreWorker<A, W, C: SP1ProverComponents> {
     /// Optional fixed PK cache shared across workers.
     pk: Option<CoreProvingKeyCache<C>>,
     verify_intermediates: bool,
+    dump_shard_dir: Option<String>,
 }
 
 impl<A, W, C: SP1ProverComponents> CoreWorker<A, W, C> {
@@ -193,6 +194,7 @@ impl<A, W, C: SP1ProverComponents> CoreWorker<A, W, C> {
         permits: ProverSemaphore,
         pk: Option<CoreProvingKeyCache<C>>,
         verify_intermediates: bool,
+        dump_shard_dir: Option<String>,
     ) -> Self {
         Self {
             normalize_program_compiler,
@@ -204,6 +206,7 @@ impl<A, W, C: SP1ProverComponents> CoreWorker<A, W, C> {
             permits,
             pk,
             verify_intermediates,
+            dump_shard_dir,
         }
     }
 
@@ -470,7 +473,7 @@ where
         .map_err(|e| TaskError::Fatal(e.into()))?;
 
         // Optionally dump the shard record and vk to disk for benchmarking/replay.
-        if let Ok(dir) = std::env::var("SP1_DUMP_SHARD_DIR") {
+        if let Some(dir) = self.dump_shard_dir.as_ref() {
             use std::sync::atomic::{AtomicUsize, Ordering};
             static SHARD_IDX: AtomicUsize = AtomicUsize::new(0);
             let idx = SHARD_IDX.fetch_add(1, Ordering::SeqCst);
@@ -754,6 +757,8 @@ pub struct SP1CoreProverConfig {
     pub use_fixed_pk: bool,
     /// Whether to verify intermediates.
     pub verify_intermediates: bool,
+    /// Optional directory to dump shard records and vks for benchmarking/replay.
+    pub dump_shard_dir: Option<String>,
 }
 
 impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1CoreProver<A, W, C> {
@@ -799,6 +804,7 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1CoreProver<A
                     permits.clone(),
                     pk_cache.clone(),
                     config.verify_intermediates,
+                    config.dump_shard_dir.clone(),
                 )
             })
             .collect::<Vec<_>>();

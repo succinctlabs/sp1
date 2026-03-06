@@ -96,6 +96,9 @@ impl Default for SP1WorkerConfig {
             .and_then(|s| s.parse::<usize>().ok())
             .unwrap_or(DEFAULT_NORMALIZE_PROGRAM_CACHE_SIZE);
 
+        // Build the recursion prover config.
+        let dump_shard_dir = env::var("SP1_DUMP_SHARD_DIR").ok();
+
         let core_prover_config = SP1CoreProverConfig {
             num_core_workers,
             core_buffer_size,
@@ -104,6 +107,7 @@ impl Default for SP1WorkerConfig {
             normalize_program_cache_size,
             use_fixed_pk,
             verify_intermediates,
+            dump_shard_dir,
         };
 
         // Build the recursion prover config.
