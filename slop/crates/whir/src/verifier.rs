@@ -149,10 +149,14 @@ where
         &self,
         commitment: &[GC::Digest],
         challenger: &mut GC::Challenger,
+        exepceted_length: usize,
     ) -> Result<(), WhirProofError> {
-        challenger.observe_constant_length_digest_slice(commitment);
-
-        Ok(())
+        if commitment.len() != exepceted_length {
+            Err(WhirProofError::InvalidNumberOfCommitments(exepceted_length, commitment.len()))
+        } else {
+            challenger.observe_constant_length_digest_slice(commitment);
+            Ok(())
+        }
     }
 
     /// The claim is that < f, v > = claim.
@@ -212,8 +216,6 @@ where
             return Err(WhirProofError::InvalidMerkleAuthentication);
         }
 
-        challenger.observe_ext_element_slice(&commitment.ood_answers);
-
         // Check that the number of OOD answers in the proof matches the expected value.
         if commitment.ood_answers.len() != config.starting_ood_samples {
             return Err(WhirProofError::InvalidNumberOfOODSamples(
@@ -221,6 +223,8 @@ where
                 commitment.ood_answers.len(),
             ));
         }
+
+        challenger.observe_ext_element_slice(&commitment.ood_answers);
 
         // Batch the initial claim with the OOD claims of the commitment
         let claim_batching_randomness: GC::EF = challenger.sample_ext_element();

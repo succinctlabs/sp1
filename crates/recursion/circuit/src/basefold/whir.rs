@@ -697,7 +697,11 @@ mod tests {
             &config,
         );
 
-        verifier.observe_commitment(&[commitment], &mut challenger_verifier).unwrap();
+        let commitments = vec![commitment];
+
+        verifier
+            .observe_commitment(&commitments, &mut challenger_verifier, commitments.len())
+            .unwrap();
 
         let (point, value) = verifier
             .verify(

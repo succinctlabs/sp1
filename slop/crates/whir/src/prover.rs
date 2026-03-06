@@ -1250,7 +1250,9 @@ mod tests {
         tracing::debug!("Proof size: {} bytes", proof_bytes.len());
 
         let verifier = Verifier::new(merkle_verifier, config.clone(), rounds.iter().count());
-        verifier.observe_commitment(&commitments, &mut challenger_verifier).unwrap();
+        verifier
+            .observe_commitment(&commitments, &mut challenger_verifier, rounds.iter().count())
+            .unwrap();
         verifier
             .verify_trusted_evaluation(
                 &commitments,
