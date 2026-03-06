@@ -86,6 +86,7 @@ members = [
   "sp1-gpu/crates/tracegen",
   "sp1-gpu/crates/tracing",
   "sp1-gpu/crates/utils",
+  "sp1-gpu/crates/whir",
   "sp1-gpu/crates/zerocheck",
 ]
 exclude = ["examples/target", "crates/eval"]
@@ -149,6 +150,7 @@ sp1-gpu-sys = { version = "6.0.2", path = "sp1-gpu/crates/sys" }
 sp1-gpu-tracegen = { version = "6.0.2", path = "sp1-gpu/crates/tracegen" }
 sp1-gpu-tracing = { version = "6.0.2", path = "sp1-gpu/crates/tracing" }
 sp1-gpu-utils = { version = "6.0.2", path = "sp1-gpu/crates/utils" }
+sp1-gpu-whir = { version = "6.0.2", path = "sp1-gpu/crates/whir" }
 sp1-gpu-zerocheck = { version = "6.0.2", path = "sp1-gpu/crates/zerocheck" }
 
 p3-air = "0.3.2-succinct"
