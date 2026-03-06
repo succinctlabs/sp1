@@ -1,4 +1,6 @@
-use std::{marker::PhantomData, sync::Arc};
+use crate::shm::ConsumerGuard;
+
+use std::{marker::PhantomData, ops::Deref, sync::Arc};
 
 use memmap2::Mmap;
 use serde::{Deserialize, Serialize};
@@ -127,9 +129,11 @@ pub struct TraceChunkHeader {
     pub num_mem_reads: u64,
 }
 
-#[repr(C)]
 #[derive(Clone)]
-pub struct TraceChunkRaw(Arc<Mmap>);
+pub enum TraceChunkRaw {
+    Mmap(Arc<Mmap>),
+    Shm(Arc<ConsumerGuard>),
+}
 
 impl TraceChunkRaw {
     /// # Safety
@@ -138,7 +142,35 @@ impl TraceChunkRaw {
     /// - The mmap must contain valid [`MemValue`]s in after the header.
     /// - The `num_mem_reads` must be the number of [`MemValue`]s in the mmap after the header.
     pub unsafe fn new(inner: Mmap) -> Self {
-        Self(Arc::new(inner))
+        Self::Mmap(Arc::new(inner))
+    }
+
+    /// # Safety
+    ///
+    /// See TraceChunkRaw::new for similar safety requirements
+    pub unsafe fn from_shm(inner: ConsumerGuard) -> Self {
+        Self::Shm(Arc::new(inner))
+    }
+
+    fn as_ref(&self) -> &[u8] {
+        match self {
+            Self::Mmap(mmap) => mmap.as_ref(),
+            Self::Shm(shm) => shm.deref(),
+        }
+    }
+
+    fn as_ptr(&self) -> *const u8 {
+        match self {
+            Self::Mmap(mmap) => mmap.as_ptr(),
+            Self::Shm(shm) => shm.deref().as_ptr(),
+        }
+    }
+
+    fn len(&self) -> usize {
+        match self {
+            Self::Mmap(mmap) => mmap.len(),
+            Self::Shm(shm) => shm.deref().len(),
+        }
     }
 }
 
@@ -146,44 +178,44 @@ impl MinimalTrace for TraceChunkRaw {
     fn start_registers(&self) -> [u64; 32] {
         let offset = std::mem::offset_of!(TraceChunkHeader, start_registers);
 
-        unsafe { std::ptr::read_unaligned(self.0.as_ptr().add(offset) as *const [u64; 32]) }
+        unsafe { std::ptr::read_unaligned(self.as_ptr().add(offset) as *const [u64; 32]) }
     }
 
     fn pc_start(&self) -> u64 {
         let offset = std::mem::offset_of!(TraceChunkHeader, pc_start);
 
-        unsafe { std::ptr::read_unaligned(self.0.as_ptr().add(offset) as *const u64) }
+        unsafe { std::ptr::read_unaligned(self.as_ptr().add(offset) as *const u64) }
     }
 
     fn clk_start(&self) -> u64 {
         let offset = std::mem::offset_of!(TraceChunkHeader, clk_start);
 
-        unsafe { std::ptr::read_unaligned(self.0.as_ptr().add(offset) as *const u64) }
+        unsafe { std::ptr::read_unaligned(self.as_ptr().add(offset) as *const u64) }
     }
 
     fn clk_end(&self) -> u64 {
         let offset = std::mem::offset_of!(TraceChunkHeader, clk_end);
 
-        unsafe { std::ptr::read_unaligned(self.0.as_ptr().add(offset) as *const u64) }
+        unsafe { std::ptr::read_unaligned(self.as_ptr().add(offset) as *const u64) }
     }
 
     fn num_mem_reads(&self) -> u64 {
         let offset = std::mem::offset_of!(TraceChunkHeader, num_mem_reads);
 
-        unsafe { std::ptr::read_unaligned(self.0.as_ptr().add(offset) as *const u64) }
+        unsafe { std::ptr::read_unaligned(self.as_ptr().add(offset) as *const u64) }
     }
 
     fn mem_reads(&self) -> MemReads<'_> {
         let header_end = std::mem::size_of::<TraceChunkHeader>();
         let len = self.num_mem_reads() as usize;
 
-        debug_assert!(self.0.len() - header_end >= len);
+        debug_assert!(self.len() - header_end >= len);
 
         // SAFETY:
         // - The memory is valid assuming num_mem_reads is correct.
         // - The memory is technically always valid for reads since all bitpatterns are valid for
         //   `MemValue`.
-        unsafe { MemReads::new(self.0.as_ptr().add(header_end) as *const MemValue, len) }
+        unsafe { MemReads::new(self.as_ptr().add(header_end) as *const MemValue, len) }
     }
 }
 
@@ -279,7 +311,7 @@ pub struct TraceChunk {
 
 impl From<TraceChunkRaw> for TraceChunk {
     fn from(raw: TraceChunkRaw) -> Self {
-        TraceChunk::copy_from_bytes(raw.0.as_ref())
+        TraceChunk::copy_from_bytes(raw.as_ref())
     }
 }
 
