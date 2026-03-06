@@ -1,7 +1,10 @@
+//! Native executor implementation
+
 use crate::{memory::MAX_LOG_ADDR, Instruction, Opcode, Program, Register, HALT_PC};
+use memmap2::MmapMut;
 use sp1_jit::{
-    debug, DebugBackend, JitFunction, MemValue, MemoryView, RiscOperand, RiscRegister,
-    RiscvTranspiler, TraceChunkRaw, TranspilerBackend,
+    debug, memory::AnonymousMemory, trace_capacity, DebugBackend, JitFunction, JitMemory, MemValue,
+    RiscOperand, RiscRegister, RiscvTranspiler, TraceChunkRaw, TranspilerBackend,
 };
 use std::{
     collections::VecDeque,
@@ -13,10 +16,17 @@ use std::{
 mod tests;
 
 /// A minimal trace executor.
+///
+/// This executor runs SP1 program in current process. It lacks certain protections:
+/// * The used memory by SP1 program is not limited.
+/// * VM memory is one flat region of memory, there is no out-of-bound checks.
+///   As a result, it is only suitable for known programs. Please refer to
+///   `sp1_core_executor_runner::MinimalExecutorRunner` for running arbitrary SP1 programs.
 pub struct MinimalExecutor {
     program: Arc<Program>,
-    compiled: JitFunction,
+    compiled: JitFunction<AnonymousMemory>,
     input: VecDeque<Vec<u8>>,
+    trace_buf_size: usize,
 }
 
 impl MinimalExecutor {
@@ -32,32 +42,19 @@ impl MinimalExecutor {
     pub fn new(program: Arc<Program>, is_debug: bool, max_trace_size: Option<u64>) -> Self {
         tracing::debug!("transpiling program, debug={is_debug}, max_trace_size={max_trace_size:?}");
 
-        let compiled = Self::transpile(program.as_ref(), is_debug, max_trace_size);
-
-        Self { program, compiled, input: VecDeque::new() }
-    }
-
-    /// Transpile the program, saving the JIT function.
-    #[tracing::instrument(name = "MinimalExecutor::transpile", level = "debug", skip(program))]
-    fn transpile(program: &Program, is_debug: bool, max_trace_size: Option<u64>) -> JitFunction {
-        let trace_buf_size = max_trace_size.unwrap_or(0);
-
-        let mut backend = TranspilerBackend::new(
-            program.instructions.len(),
+        let transpiler = MinimalTranspiler::new(
             2_u64.pow(MAX_LOG_ADDR as u32) as usize,
-            trace_buf_size,
-            program.pc_start_abs,
-            program.pc_base,
-            8,
-        )
-        .expect("Failed to create transpiler backend");
+            is_debug,
+            max_trace_size,
+        );
+        let mut compiled = transpiler.transpile(program.as_ref());
+        compiled.with_initial_memory_image(program.memory_image.clone());
 
-        backend.register_ecall_handler(crate::minimal::ecall::sp1_ecall_handler);
-
-        if is_debug {
-            Self::transpile_instructions(DebugBackend::new(backend), program, trace_buf_size > 0)
-        } else {
-            Self::transpile_instructions(backend, program, trace_buf_size > 0)
+        Self {
+            program,
+            compiled,
+            input: VecDeque::new(),
+            trace_buf_size: trace_capacity(max_trace_size),
         }
     }
 
@@ -96,8 +93,29 @@ impl MinimalExecutor {
             self.compiled.set_input_buffer(std::mem::take(&mut self.input));
         }
 
-        // SAFETY: The backend is assumed to output valid JIT functions.
-        unsafe { self.compiled.call() }
+        if self.pc() == 1 {
+            return None;
+        }
+
+        let mut trace_buf = if self.trace_buf_size > 0 {
+            // Mmap pages will be aligned to pages, there is no need to align
+            // them for MemValue again.
+            Some(MmapMut::map_anon(self.trace_buf_size).expect("Failed to create trace buf mmap"))
+        } else {
+            None
+        };
+        let trace_buf_ptr = match trace_buf {
+            Some(ref mut trce_buf) => trce_buf.as_mut_ptr(),
+            None => std::ptr::null_mut(),
+        };
+
+        unsafe {
+            self.compiled.call(trace_buf_ptr);
+        }
+
+        trace_buf.map(|trace_buf| unsafe {
+            TraceChunkRaw::new(trace_buf.make_read_only().expect("make trace buf read only"))
+        })
     }
 
     /// Get the registers of the JIT function.
@@ -121,7 +139,7 @@ impl MinimalExecutor {
     /// Get the current value at an address.
     #[must_use]
     pub fn get_memory_value(&self, addr: u64) -> MemValue {
-        MemoryView::new(&self.compiled.memory).get(addr)
+        unsafe { self.unsafe_memory().get(addr) }
     }
 
     /// Get the program of the JIT function.
@@ -176,20 +194,13 @@ impl MinimalExecutor {
         self.compiled.hints.iter().map(|(_, hint)| hint.len()).collect()
     }
 
-    /// Get a view of the current memory of the JIT function.
-    #[must_use]
-    pub fn memory(&self) -> MemoryView<'_> {
-        MemoryView::new(&self.compiled.memory)
-    }
-
     /// Get an unsafe memory view of the JIT function.
     ///
     /// This allows reading without lifetime and mutability constraints.
     #[must_use]
     #[allow(clippy::cast_ptr_alignment)]
     pub fn unsafe_memory(&self) -> UnsafeMemory {
-        let view = self.memory();
-        let entry_ptr = view.memory.as_ptr() as *mut MemValue;
+        let entry_ptr = self.compiled.memory.as_ptr() as *mut MemValue;
         UnsafeMemory { ptr: NonNull::new(entry_ptr).unwrap() }
     }
 
@@ -199,12 +210,118 @@ impl MinimalExecutor {
 
         let _ = std::mem::take(&mut self.input);
     }
+}
 
-    fn transpile_instructions<B: RiscvTranspiler>(
+impl debug::DebugState for MinimalExecutor {
+    fn current_state(&self) -> debug::State {
+        let registers = self.registers();
+        debug::State { pc: self.pc(), clk: self.clk(), global_clk: self.global_clk(), registers }
+    }
+
+    fn new_debug_receiver(&mut self) -> Option<mpsc::Receiver<Option<debug::State>>> {
+        self.compiled
+            .debug_sender
+            .is_none()
+            .then(|| {
+                let (tx, rx) = mpsc::sync_channel(0);
+                self.compiled.debug_sender = Some(tx);
+                Some(rx)
+            })
+            .flatten()
+    }
+}
+
+/// An unsafe memory view
+///
+/// This allows reading without lifetime and mutability constraints.
+pub struct UnsafeMemory {
+    ptr: NonNull<MemValue>,
+}
+
+unsafe impl Send for UnsafeMemory {}
+unsafe impl Sync for UnsafeMemory {}
+
+impl UnsafeMemory {
+    /// Create a new `UnsafeMemory` structure
+    #[must_use]
+    pub fn new(ptr: NonNull<MemValue>) -> Self {
+        Self { ptr }
+    }
+
+    /// Get a value from the memory.
+    ///
+    /// # Safety
+    /// As the function strictly breaks the lifetime rules, it is unsafe and should only be used
+    /// under strict guarantees that the memory is not being dropped or the same address being
+    /// accessed is being modified.
+    #[must_use]
+    pub unsafe fn get(&self, addr: u64) -> MemValue {
+        let word_address = addr / 8;
+        let entry_ptr = self.ptr.as_ptr();
+        std::ptr::read(entry_ptr.add(word_address as usize))
+    }
+}
+
+/// A transpiler building JIT function from RISC-V instructions.
+/// For now, the struct seems useless as all methods on it are pure functions.
+/// Later when we implement mprotect, the struct will then become a necessary component.
+#[derive(Debug)]
+pub struct MinimalTranspiler {
+    max_memory_size: usize,
+    is_debug: bool,
+    max_trace_size: u64,
+}
+
+impl MinimalTranspiler {
+    /// Creates `MinimalTranspiler`
+    #[must_use]
+    pub fn new(max_memory_size: usize, is_debug: bool, max_trace_size: Option<u64>) -> Self {
+        Self { max_memory_size, is_debug, max_trace_size: max_trace_size.unwrap_or(0) }
+    }
+
+    /// Returns whether tracing mode is on
+    #[must_use]
+    pub fn tracing(&self) -> bool {
+        self.max_trace_size > 0
+    }
+
+    /// Calculates the VM memory buffer size based on maximum memory size
+    #[allow(clippy::unused_self)]
+    #[must_use]
+    pub fn memory_buffer_size(&self) -> usize {
+        // Double the size of memory.
+        // We are going to store entries of the form (clk, word).
+        self.max_memory_size * 2
+    }
+
+    /// Transpile the program, saving the JIT function.
+    #[allow(clippy::unused_self)]
+    #[tracing::instrument(name = "MinimalTranspiler::transpile", level = "debug", skip(program))]
+    pub fn transpile<M: JitMemory>(&self, program: &Program) -> JitFunction<M> {
+        let mut backend = TranspilerBackend::new(
+            program.instructions.len(),
+            self.memory_buffer_size(),
+            self.max_trace_size,
+            program.pc_start_abs,
+            program.pc_base,
+            8,
+        )
+        .expect("Failed to create transpiler backend");
+
+        backend.register_ecall_handler(crate::minimal::ecall::sp1_ecall_handler);
+
+        if self.is_debug {
+            self.transpile_instructions(DebugBackend::new(backend), program)
+        } else {
+            self.transpile_instructions(backend, program)
+        }
+    }
+
+    fn transpile_instructions<B: RiscvTranspiler, M: JitMemory>(
+        &self,
         mut backend: B,
         program: &Program,
-        tracing: bool,
-    ) -> JitFunction {
+    ) -> JitFunction<M> {
         for instruction in program.instructions.iter() {
             backend.start_instr();
 
@@ -216,10 +333,10 @@ impl MinimalExecutor {
                 | Opcode::LHU
                 | Opcode::LD
                 | Opcode::LWU => {
-                    Self::transpile_load_instruction(&mut backend, instruction, tracing);
+                    self.transpile_load_instruction(&mut backend, instruction);
                 }
                 Opcode::SB | Opcode::SH | Opcode::SW | Opcode::SD => {
-                    Self::transpile_store_instruction(&mut backend, instruction, tracing);
+                    self.transpile_store_instruction(&mut backend, instruction);
                 }
                 Opcode::BEQ
                 | Opcode::BNE
@@ -285,22 +402,19 @@ impl MinimalExecutor {
             backend.end_instr();
         }
 
-        let mut finalized = backend.finalize().expect("Failed to finalize function");
-        finalized.with_initial_memory_image(program.memory_image.clone());
-
-        finalized
+        backend.finalize().expect("Failed to finalize function")
     }
 
     fn transpile_load_instruction<B: RiscvTranspiler>(
+        &self,
         backend: &mut B,
         instruction: &Instruction,
-        tracing: bool,
     ) {
         let (rd, rs1, imm) = instruction.i_type();
 
         // For each load, we want to trace the value at the address as well as the previous clock
         // at that address.
-        if tracing {
+        if self.tracing() {
             backend.trace_mem_value(rs1.into(), imm);
         }
 
@@ -317,15 +431,15 @@ impl MinimalExecutor {
     }
 
     fn transpile_store_instruction<B: RiscvTranspiler>(
+        &self,
         backend: &mut B,
         instruction: &Instruction,
-        tracing: bool,
     ) {
         let (rs1, rs2, imm) = instruction.s_type();
 
         // For stores, its the same logic as a load, we want the last known clk and value at the
         // address.
-        if tracing {
+        if self.tracing() {
             backend.trace_mem_value(rs2.into(), imm);
         }
 
@@ -418,49 +532,5 @@ impl MinimalExecutor {
             Opcode::REMW => backend.remw(rd, b, c),
             _ => unreachable!("Invalid ALU opcode: {:?}", instruction.opcode),
         }
-    }
-}
-
-impl debug::DebugState for MinimalExecutor {
-    fn current_state(&self) -> debug::State {
-        let registers = self.registers();
-        debug::State { pc: self.pc(), clk: self.clk(), global_clk: self.global_clk(), registers }
-    }
-
-    fn new_debug_receiver(&mut self) -> Option<mpsc::Receiver<Option<debug::State>>> {
-        self.compiled
-            .debug_sender
-            .is_none()
-            .then(|| {
-                let (tx, rx) = mpsc::sync_channel(0);
-                self.compiled.debug_sender = Some(tx);
-                Some(rx)
-            })
-            .flatten()
-    }
-}
-
-/// An unsafe memory view
-///
-/// This allows reading without lifetime and mutability constraints.
-pub struct UnsafeMemory {
-    ptr: NonNull<MemValue>,
-}
-
-unsafe impl Send for UnsafeMemory {}
-unsafe impl Sync for UnsafeMemory {}
-
-impl UnsafeMemory {
-    /// Get a value from the memory.
-    ///
-    /// # Safety
-    /// As the function strictly breaks the lifetime rules, it is unsafe and should only be used
-    /// under strict guarantees that the memory is not being dropped or the same address being
-    /// accessed is being modified.
-    #[must_use]
-    pub unsafe fn get(&self, addr: u64) -> MemValue {
-        let word_address = addr / 8;
-        let entry_ptr = self.ptr.as_ptr();
-        std::ptr::read(entry_ptr.add(word_address as usize))
     }
 }

@@ -3,6 +3,9 @@ use elf::abi::{PF_NONE, PF_R, PF_W, PF_X};
 /// The maximum size of the memory in bytes.
 pub const MAXIMUM_MEMORY_SIZE: u64 = (1u64 << 48) - 1;
 
+/// The maximum log2 size of native executor's memory
+pub const MAX_JIT_LOG_ADDR: usize = 40;
+
 /// The number of bits in a byte.
 pub const BYTE_SIZE: usize = 8;
 

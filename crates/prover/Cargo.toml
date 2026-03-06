@@ -32,6 +32,7 @@ slop-futures = { workspace = true }
 slop-symmetric = { workspace = true }
 slop-multilinear = { workspace = true }
 sp1-core-executor = { workspace = true }
+sp1-core-executor-runner = { workspace = true }
 sp1-primitives = { workspace = true }
 slop-algebra = { workspace = true }
 slop-bn254 = { workspace = true }

@@ -1,6 +1,7 @@
+use memmap2::MmapMut;
 use sp1_jit::{
-    ComputeInstructions, JitContext, MemoryInstructions, RiscOperand, RiscRegister,
-    RiscvTranspiler, SystemInstructions,
+    memory::AnonymousMemory, trace_capacity, ComputeInstructions, JitContext, MemoryInstructions,
+    RiscOperand, RiscRegister, RiscvTranspiler, SystemInstructions,
 };
 
 // Import the actual sp1_ecall_handler from the minimal executor
@@ -13,10 +14,13 @@ fn new_backend() -> sp1_jit::backends::x86::TranspilerBackend {
 
 // Finalize the function and call it.
 fn run_test(assembler: sp1_jit::backends::x86::TranspilerBackend) {
-    let mut func = assembler.finalize().expect("Failed to finalize function");
+    let mut func = assembler.finalize::<AnonymousMemory>().expect("Failed to finalize function");
+
+    let mut trace_buf = MmapMut::map_anon(trace_capacity(Some(1000))).expect("create mmap buf");
+    let trace_buf_ptr = trace_buf.as_mut_ptr();
 
     unsafe {
-        func.call();
+        func.call(trace_buf_ptr);
     }
 }
 
