@@ -38,7 +38,26 @@ cargo run --release -p sp1-gpu-perf --bin dump_shards -- --program v6/dec4-failu
 
 ### `download_shards` — Download shard records from S3
 
-Downloads shard records, verifying keys, and ELF binaries from S3 to a local directory. Uses a JSON config file to specify which programs (and optionally which inputs) to download from. Distributes the requested number of records across all program/input combinations.
+Downloads shard records, verifying keys, and ELF binaries from S3 to a local directory. Uses a JSON config file to specify which programs (and optionally which inputs) to download from. Distributes the requested number of records across all program/input combinations. For example:
+
+
+```json
+[
+  {
+    "program": "program_a",
+    "inputs": ["input_0"]
+  },
+  {
+    "program": "program_b",
+    "inputs": []
+  },
+  {
+    "program": "program_c",
+    "inputs": ["input_0", "input_1" ]
+  }
+]
+
+```
 
 ```bash
 # Download 15 records (default) using a config file
