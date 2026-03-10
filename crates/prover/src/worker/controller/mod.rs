@@ -138,6 +138,27 @@ where
         let cycle_limit = inputs.get(3).and_then(|a| a.clone().to_id().parse::<u64>().ok());
         let proof_nonce = inputs.get(4);
         let [output] = outputs.try_into().unwrap();
+
+        let execute_result_artifact = self.artifact_client.create_artifact()?;
+        let cycle_limit_artifact = self.artifact_client.create_artifact()?;
+        let task = RawTaskRequest {
+            inputs: vec![
+                elf.clone(),
+                stdin_artifact.clone(),
+                mode_artifact.clone(),
+                cycle_limit_artifact.clone(),
+            ],
+            outputs: vec![execute_result_artifact.clone()],
+            context: context.clone(),
+        };
+        let task_id = self.worker_client.submit_task(TaskType::ExecuteSlicing, task).await?;
+        self.worker_client
+            .subscriber(context.proof_id.clone())
+            .await?
+            .per_task()
+            .wait_task(task_id)
+            .await?;
+
         let mode = {
             let parsed =
                 mode_artifact.to_id().parse::<i32>().map_err(|e| TaskError::Fatal(e.into()))?;
