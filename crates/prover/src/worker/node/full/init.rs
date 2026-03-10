@@ -498,6 +498,12 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
             }
         });
 
+        join_set.spawn({
+            let mut execute_slicing_rx =
+                channels.task_receivers.remove(&TaskType::ExecuteSlicing).unwrap();
+            async move { while let Some((_task_id, _request)) = execute_slicing_rx.recv().await {} }
+        });
+
         // Get the verifier, artifact client, and worker client from the worker
         let verifier = worker.verifier().clone();
         let artifact_client = worker.artifact_client().clone();

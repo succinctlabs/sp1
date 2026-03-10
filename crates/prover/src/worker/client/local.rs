@@ -44,6 +44,7 @@ impl LocalWorkerClientInner {
             TaskType::PlonkWrap,
             TaskType::Groth16Wrap,
             TaskType::ExecuteOnly,
+            TaskType::ExecuteSlicing,
             TaskType::UtilVkeyMapChunk,
             TaskType::UtilVkeyMapController,
         ] {
