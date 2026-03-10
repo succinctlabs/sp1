@@ -1,0 +1,44 @@
+[package]
+name = "sp1-gpu-whir"
+description = "GPU-accelerated WHIR polynomial commitment scheme"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+# sp1-gpu
+sp1-gpu-cudart = { workspace = true }
+sp1-gpu-utils = { workspace = true }
+sp1-gpu-merkle-tree = { workspace = true }
+sp1-gpu-basefold = { workspace = true }
+sp1-gpu-challenger = { workspace = true }
+
+# slop
+slop-whir = { workspace = true }
+slop-algebra = { workspace = true }
+slop-alloc = { workspace = true }
+slop-tensor = { workspace = true }
+slop-multilinear = { workspace = true }
+slop-challenger = { workspace = true }
+slop-commit = { workspace = true }
+slop-merkle-tree = { workspace = true }
+slop-dft = { workspace = true }
+slop-utils = { workspace = true }
+slop-koala-bear = { workspace = true }
+
+# sp1
+sp1-primitives = { workspace = true }
+
+# misc
+itertools = { workspace = true }
+rand = { workspace = true }
+
+[dev-dependencies]
+slop-baby-bear = { workspace = true }
+tracing = { workspace = true }
+
+[lints]
+workspace = true

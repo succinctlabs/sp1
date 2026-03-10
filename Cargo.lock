@@ -7268,6 +7268,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp1-gpu-whir"
+version = "6.0.2"
+dependencies = [
+ "itertools 0.14.0",
+ "rand 0.8.5",
+ "slop-algebra",
+ "slop-alloc",
+ "slop-baby-bear",
+ "slop-challenger",
+ "slop-commit",
+ "slop-dft",
+ "slop-koala-bear",
+ "slop-merkle-tree",
+ "slop-multilinear",
+ "slop-tensor",
+ "slop-utils",
+ "slop-whir",
+ "sp1-gpu-basefold",
+ "sp1-gpu-challenger",
+ "sp1-gpu-cudart",
+ "sp1-gpu-merkle-tree",
+ "sp1-gpu-utils",
+ "sp1-primitives",
+ "tracing",
+]
+
+[[package]]
 name = "sp1-gpu-zerocheck"
 version = "6.0.2"
 dependencies = [
