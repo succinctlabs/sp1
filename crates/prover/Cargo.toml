@@ -77,11 +77,6 @@ tempfile = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true }
 
-[build-dependencies]
-downloader = { workspace = true, features = ["rustls-tls", "verify"] }
-sha2 = { workspace = true }
-hex = { workspace = true }
-
 [dev-dependencies]
 test-artifacts = { path = "../test-artifacts" }
 anyhow = { workspace = true }
