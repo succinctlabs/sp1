@@ -1,6 +1,7 @@
 mod compress;
 mod core;
 mod deferred;
+mod execute;
 mod global;
 mod precompiles;
 mod splicing;
@@ -9,6 +10,7 @@ mod vk_tree;
 pub use compress::*;
 pub use core::*;
 pub use deferred::*;
+pub use execute::*;
 pub use global::*;
 pub use precompiles::*;
 pub use splicing::*;

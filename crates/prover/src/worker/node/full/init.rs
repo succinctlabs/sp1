@@ -10,9 +10,9 @@ use tracing::Instrument;
 
 use crate::{
     worker::{
-        node::SP1NodeCore, run_vk_generation, LocalWorkerClient, LocalWorkerClientChannels,
-        ProofId, RawTaskRequest, SP1LocalNode, SP1NodeInner, SP1WorkerBuilder, TaskError, TaskId,
-        TaskMetadata, WorkerClient,
+        node::SP1NodeCore, run_vk_generation, ExecuteSlicingTask, LocalWorkerClient,
+        LocalWorkerClientChannels, ProofId, RawTaskRequest, SP1LocalNode, SP1NodeInner,
+        SP1WorkerBuilder, TaskError, TaskId, TaskMetadata, WorkerClient,
     },
     SP1ProverComponents,
 };
@@ -501,7 +501,11 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
         join_set.spawn({
             let mut execute_slicing_rx =
                 channels.task_receivers.remove(&TaskType::ExecuteSlicing).unwrap();
-            async move { while let Some((_task_id, _request)) = execute_slicing_rx.recv().await {} }
+            async move {
+                while let Some((_task_id, request)) = execute_slicing_rx.recv().await {
+                    ExecuteSlicingTask::run(request).await;
+                }
+            }
         });
 
         // Get the verifier, artifact client, and worker client from the worker
