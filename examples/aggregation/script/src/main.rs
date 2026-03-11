@@ -83,7 +83,7 @@ async fn main() {
         }
 
         // Generate the plonk bn254 proof.
-        client.prove(&agg_pk, stdin).core().await.expect("proving failed");
+        client.prove(&agg_pk, stdin).plonk().await.expect("proving failed");
     }
     .instrument(tracing::info_span!("aggregate the proofs"))
     .await;
