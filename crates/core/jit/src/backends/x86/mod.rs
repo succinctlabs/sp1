@@ -251,8 +251,8 @@ impl TranspilerBackend {
             // ------------------------------------
             // 2. Check if num_mem_reads is 0 (skip exit at beginning)
             // ------------------------------------
-            test Rq(TEMP_A), Rq(TEMP_A);
-            jz >skip_exit;  // If num_mem_reads == 0, skip the exit check
+            // test Rq(TEMP_A), Rq(TEMP_A);
+            // jz >skip_exit;  // If num_mem_reads == 0, skip the exit check
 
             // ------------------------------------
             // 3. Check if num_mem_reads >= 90% of max_mem_reads
@@ -263,8 +263,7 @@ impl TranspilerBackend {
             // ------------------------------------
             // 4. If num_mem_reads >= threshold, return
             // ------------------------------------
-            jae ->exit;  // Jump if above or equal (unsigned comparison)
-            skip_exit:
+            jae ->exit  // Jump if above or equal (unsigned comparison)
         }
     }
 
