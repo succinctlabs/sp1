@@ -82,9 +82,9 @@ sha2 = { workspace = true }
 k256 = { workspace = true, features = ["serde"] } # Signing
 eventsource-stream = { workspace = true }         # SSE Extenstion for reqwest
 
-[target.'cfg(target_os = "ios")'.dependencies]
+[target.'cfg(any(target_os = "ios", target_os = "android"))'.dependencies]
 tonic = { workspace = true, features = ["tls", "tls-webpki-roots"], optional = true }
-[target.'cfg(not(target_os = "ios"))'.dependencies]
+[target.'cfg(not(any(target_os = "ios", target_os = "android")))'.dependencies]
 tonic = { workspace = true, features = ["tls", "tls-roots"], optional = true }
 
 [dev-dependencies]
