@@ -160,9 +160,9 @@ impl TraceCollector for TranspilerBackend {
             // preserved till `exit_if_trace_exceeds`
             // ------------------------------------
             mov r8, QWORD [Rq(TRACE_BUF) + NUM_MEM_READS_OFFSET];
-            mov rax, r8;
-            shl rax, 4; // scale by the size of a `MemValue`.
-            lea rax, [Rq(TRACE_BUF) + rax + TAIL_START_OFFSET];
+            mov r9, r8;
+            shl r9, 4; // scale by the size of a `MemValue`.
+            lea rax, [Rq(TRACE_BUF) + r9 + TAIL_START_OFFSET];
 
             // ------------------------------------
             // Load the clk & word from the memory entry into registers
@@ -174,7 +174,7 @@ impl TraceCollector for TranspilerBackend {
             mov Rq(TEMP_B), QWORD [Rq(TEMP_A)];
             mov rcx, QWORD [Rq(TEMP_A) + 8];
             mov rdx, QWORD [Rq(CONTEXT) + CLK_OFFSET];
-            add rdx, 1;
+            inc rdx;
             mov [rax], Rq(TEMP_B);
             mov [rax + 8], rcx;
             mov [Rq(TEMP_A)], rdx;
