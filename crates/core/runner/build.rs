@@ -103,6 +103,9 @@ fn main() {
 
     let inner_target_dir = metadata.target_directory.clone().join("sp1-native-bins");
     cmd.env("CARGO_TARGET_DIR", &inner_target_dir);
+    // Clear target-specific rustflags so they don't leak into this host-native binary build.
+    cmd.env_remove("CARGO_ENCODED_RUSTFLAGS");
+    cmd.env_remove("RUSTFLAGS");
 
     let status = cmd.status().expect("Failed to execute cargo build for internal binary");
     if !status.success() {
