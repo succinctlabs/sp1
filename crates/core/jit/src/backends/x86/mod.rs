@@ -20,11 +20,13 @@ mod tests;
 mod transpiler;
 
 // To make the best use of OOO CPUs, we define the following conventions:
+// * rdi is used by prologue code.
+// * r11 always holds the value of a0. See `Location` definition below.
 // * TEMP_A, TEMP_B, rax, rcx, rdx, are free to used by any code sequences.
 // * r8 - r9 cannot be tampered by instruction implementation. They might
 //   be used by code before actual instruction (tracing), and read after
 //   instruction itself completes.
-// * rdi, rsi, r10, r11 are reserved for now. We will assign them as needed later.
+// * rsi, r10 are reserved for now. We will assign them as needed later.
 
 /// The first scratch register.
 ///
@@ -71,6 +73,66 @@ const MEMORY_PTR_OFFSET: i32 = offset_of!(JitContext, memory) as i32;
 /// The offset of the registers in the JitContext.
 const REGISTERS_OFFSET: i32 = offset_of!(JitContext, registers) as i32;
 
+/// A RISC-V register value, when running, could be any of the following
+/// location:
+/// * Zero, meaning the register is always zero, we don't need to store the
+///   value anywhere.
+/// * Either the upper or lower 64 bits of an xmm register.
+/// * A real x86_64 general purpose register.
+/// This way we can set aside at least one xmm for actual usage.
+/// It is also possible to have RISC-V registers that purely reside in memory.
+/// We might add those in the future if needed.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+enum Location {
+    Zero,
+    Xmm(u8, i8),
+    Gpr(u8),
+}
+
+/// Static lookup table for XMM register mapping.
+/// Maps RISC-V register index to their location.
+/// x0 does not need a location, a0 is stored in rdi.
+/// Each XMM register holds 2 x 64-bit values, so we can map the rest 30
+/// registers to XMM 0-14.
+/// The registers in XMM are organized based on usage: frequently used registers resides
+/// in lower 64 bits of XMM registers, while less frequently used registers reside in
+/// higher 64 bits.
+/// This way xmm15 is still available for implementing actual logic.
+const REG_LOOKUP: [Location; 32] = [
+    Location::Zero,      // Zero
+    Location::Xmm(0, 0), // ra
+    Location::Xmm(1, 0), // sp
+    Location::Xmm(0, 1), // gp
+    Location::Xmm(1, 1), // tp
+    Location::Xmm(2, 0), // t0
+    Location::Xmm(3, 0),
+    Location::Xmm(4, 0),
+    Location::Xmm(5, 0), // s0
+    Location::Xmm(6, 0),
+    Location::Gpr(Rq::R11 as u8), // a0
+    Location::Xmm(7, 0),
+    Location::Xmm(8, 0),
+    Location::Xmm(9, 0),
+    Location::Xmm(10, 0),
+    Location::Xmm(11, 0),
+    Location::Xmm(12, 0),
+    Location::Xmm(13, 0),
+    Location::Xmm(14, 0), // s2
+    Location::Xmm(2, 1),
+    Location::Xmm(3, 1),
+    Location::Xmm(4, 1),
+    Location::Xmm(5, 1),
+    Location::Xmm(6, 1),
+    Location::Xmm(7, 1),
+    Location::Xmm(8, 1),
+    Location::Xmm(9, 1),
+    Location::Xmm(10, 1),
+    Location::Xmm(11, 1), // t3
+    Location::Xmm(12, 1),
+    Location::Xmm(13, 1),
+    Location::Xmm(14, 1),
+];
+
 /// The x86 backend for JIT transpipling RISC-V instructions to x86-64, according to the
 /// [crate::SP1RiscvTranspiler] trait.
 pub struct TranspilerBackend {
@@ -102,15 +164,34 @@ pub struct TranspilerBackend {
 impl TraceCollector for TranspilerBackend {
     fn trace_registers(&mut self) {
         for reg in RiscRegister::all_registers().iter() {
-            let (xmm_index, xmm_offset) = Self::get_xmm_index(*reg);
             let value_byte_offset = *reg as u32 * 8;
 
-            dynasm! {
-                self;
-                .arch x64;
+            match Self::get_xmm_index(*reg) {
+                Location::Zero => {
+                    dynasm! {
+                        self;
+                        .arch x64;
 
-                pextrq [Rq(TRACE_BUF) + value_byte_offset as i32], Rx(xmm_index), xmm_offset
-            };
+                        mov QWORD [Rq(TRACE_BUF) + value_byte_offset as i32], 0
+                    };
+                }
+                Location::Xmm(xmm_index, xmm_offset) => {
+                    dynasm! {
+                        self;
+                        .arch x64;
+
+                        pextrq [Rq(TRACE_BUF) + value_byte_offset as i32], Rx(xmm_index), xmm_offset
+                    };
+                }
+                Location::Gpr(gpr_index) => {
+                    dynasm! {
+                        self;
+                        .arch x64;
+
+                        mov QWORD [Rq(TRACE_BUF) + value_byte_offset as i32], Rq(gpr_index)
+                    };
+                }
+            }
         }
     }
 
@@ -173,12 +254,10 @@ impl TraceCollector for TranspilerBackend {
             //
             // The code is written to minimize split RMW
             // ------------------------------------
-            mov Rq(TEMP_B), QWORD [Rq(TEMP_A)];
-            mov rcx, QWORD [Rq(TEMP_A) + 8];
+            movdqa xmm15, [Rq(TEMP_A)];
+            movdqa [rax], xmm15;
             mov rdx, QWORD [Rq(CONTEXT) + CLK_OFFSET];
             add rdx, 1;
-            mov [rax], Rq(TEMP_B);
-            mov [rax + 8], rcx;
             mov [Rq(TEMP_A)], rdx;
 
             // ------------------------------------
@@ -356,30 +435,61 @@ impl TranspilerBackend {
 
     fn save_registers_to_context(&mut self) {
         for reg in RiscRegister::all_registers().iter() {
-            let (xmm_index, xmm_offset) = Self::get_xmm_index(*reg);
             let value_byte_offset = *reg as u32 * 8;
 
-            dynasm! {
-                self;
-                .arch x64;
+            match Self::get_xmm_index(*reg) {
+                Location::Zero => {
+                    dynasm! {
+                        self;
+                        .arch x64;
 
-                pextrq [Rq(CONTEXT) + REGISTERS_OFFSET + value_byte_offset as i32], Rx(xmm_index), xmm_offset
-            };
+                        mov QWORD [Rq(CONTEXT) + REGISTERS_OFFSET + value_byte_offset as i32], 0
+                    };
+                }
+                Location::Xmm(xmm_index, xmm_offset) => {
+                    dynasm! {
+                        self;
+                        .arch x64;
+
+                        pextrq [Rq(CONTEXT) + REGISTERS_OFFSET + value_byte_offset as i32], Rx(xmm_index), xmm_offset
+                    };
+                }
+                Location::Gpr(gpr_index) => {
+                    dynasm! {
+                        self;
+                        .arch x64;
+
+                        mov QWORD [Rq(CONTEXT) + REGISTERS_OFFSET + value_byte_offset as i32], Rq(gpr_index)
+                    };
+                }
+            }
         }
     }
 
     fn load_registers_from_context(&mut self) {
         // For each register from the context, lets load it into a phyiscal register.
         for reg in RiscRegister::all_registers().iter() {
-            let (xmm_index, xmm_offset) = Self::get_xmm_index(*reg);
             let value_byte_offset = *reg as u32 * 8;
 
-            dynasm! {
-                self;
-                .arch x64;
+            match Self::get_xmm_index(*reg) {
+                Location::Zero => (),
+                Location::Xmm(xmm_index, xmm_offset) => {
+                    dynasm! {
+                        self;
+                        .arch x64;
 
-                pinsrq Rx(xmm_index), [Rq(CONTEXT) + REGISTERS_OFFSET + value_byte_offset as i32], xmm_offset
-            };
+                        pinsrq Rx(xmm_index), [Rq(CONTEXT) + REGISTERS_OFFSET + value_byte_offset as i32], xmm_offset
+                    };
+                }
+                Location::Gpr(gpr_index) => {
+                    dynasm! {
+                        self;
+                        .arch x64;
+
+                        mov Rq(gpr_index), QWORD [Rq(CONTEXT) + REGISTERS_OFFSET + value_byte_offset as i32]
+                    };
+                }
+            }
         }
     }
 
@@ -391,8 +501,8 @@ impl TranspilerBackend {
     /// NOTE: This aliases the full 64 bits of the register.
     fn emit_risc_operand_load(&mut self, op: RiscOperand, dst: u8) {
         match op {
-            RiscOperand::Register(reg) => match reg {
-                RiscRegister::X0 => {
+            RiscOperand::Register(reg) => match Self::get_xmm_index(reg) {
+                Location::Zero => {
                     dynasm! {
                         self;
                         .arch x64;
@@ -400,9 +510,7 @@ impl TranspilerBackend {
                         mov Rq(dst), 0_i32 // load 0 into dst
                     };
                 }
-                _ => {
-                    let (xmm_index, xmm_offset) = Self::get_xmm_index(reg);
-
+                Location::Xmm(xmm_index, xmm_offset) => {
                     // For the lower 64-bit value, we can use movq which completes in 1 cycle,
                     // typically pextrq would need 2 - 3 cycles.
                     if xmm_offset == 0 {
@@ -418,6 +526,16 @@ impl TranspilerBackend {
                             .arch x64;
 
                             pextrq Rq(dst), Rx(xmm_index), xmm_offset // load 64-bit value from XMM
+                        };
+                    }
+                }
+                Location::Gpr(gpr_index) => {
+                    if gpr_index != dst {
+                        dynasm! {
+                            self;
+                            .arch x64;
+
+                            mov Rq(dst), Rq(gpr_index)
                         };
                     }
                 }
@@ -438,60 +556,27 @@ impl TranspilerBackend {
     /// Note: This stores the full 64 bits of the register.
     #[inline]
     fn emit_risc_register_store(&mut self, src: u8, dst: RiscRegister) {
-        if dst == RiscRegister::X0 {
+        match Self::get_xmm_index(dst) {
             // x0 is hardwired to 0 in RISC-V, ignore stores to it.
-            return;
+            Location::Zero => (),
+            Location::Xmm(xmm_index, xmm_offset) => {
+                dynasm! {
+                    self;
+                    .arch x64;
+                    pinsrq Rx(xmm_index), Rq(src), xmm_offset
+                };
+            }
+            Location::Gpr(gpr_index) => {
+                if gpr_index != src {
+                    dynasm! {
+                        self;
+                        .arch x64;
+                        mov Rq(gpr_index), Rq(src)
+                    };
+                }
+            }
         }
-
-        let (xmm_index, xmm_offset) = Self::get_xmm_index(dst);
-
-        dynasm! {
-            self;
-            .arch x64;
-            pinsrq Rx(xmm_index), Rq(src), xmm_offset
-        };
     }
-
-    /// Static lookup table for XMM register mapping.
-    /// Maps RISC-V register index to (XMM index, XMM offset).
-    /// Each XMM register holds 2 x 64-bit values, so we map registers 0-31 to XMM 0-15.
-    /// The registers are organized based on usage: frequently used registers will be kept
-    /// in lower 64 bits of XMM registers, while less frequently used registers reside in
-    /// higher 64 bits.
-    const XMM_LOOKUP: [(u8, i8); 32] = [
-        (0, 1), // zero
-        (0, 0), // ra
-        (1, 0), // sp
-        (1, 1), // gp
-        (2, 1), // tp
-        (2, 0), // t0
-        (3, 0),
-        (4, 0),
-        (5, 0), // s0
-        (6, 0),
-        (7, 0), // a0
-        (8, 0),
-        (9, 0),
-        (10, 0),
-        (11, 0),
-        (12, 0),
-        (13, 0),
-        (14, 0),
-        (15, 0), // s2
-        (3, 1),
-        (4, 1),
-        (5, 1),
-        (6, 1),
-        (7, 1),
-        (8, 1),
-        (9, 1),
-        (10, 1),
-        (11, 1),
-        (12, 1), // t3
-        (13, 1),
-        (14, 1),
-        (15, 1),
-    ];
 
     /// Get XMM index and offset for the given register using static lookup.
     ///
@@ -499,8 +584,8 @@ impl TranspilerBackend {
     /// Each XMM register can hold 2 x 64-bit values.
     /// We map a register to an index in the range `[0, 15]` and an offset in the range `[0, 1]`.
     #[inline]
-    const fn get_xmm_index(reg: RiscRegister) -> (u8, i8) {
-        Self::XMM_LOOKUP[reg as usize]
+    const fn get_xmm_index(reg: RiscRegister) -> Location {
+        REG_LOOKUP[reg as usize]
     }
 
     /// Call an external function, assumes that the arguments are already in the correct registers.
