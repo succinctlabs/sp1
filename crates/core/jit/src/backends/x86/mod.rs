@@ -406,12 +406,23 @@ impl TranspilerBackend {
                 _ => {
                     let (xmm_index, xmm_offset) = Self::get_xmm_index(reg);
 
-                    dynasm! {
-                        self;
-                        .arch x64;
+                    // For the lower 64-bit value, we can use movq which completes in 1 cycle,
+                    // typically pextrq would need 2 - 3 cycles.
+                    if xmm_offset == 0 {
+                        dynasm! {
+                            self;
+                            .arch x64;
 
-                        pextrq Rq(dst), Rx(xmm_index), xmm_offset // load 64-bit value from XMM
-                    };
+                            movq Rq(dst), Rx(xmm_index) // load lower 64-bit value from XMM
+                        };
+                    } else {
+                        dynasm! {
+                            self;
+                            .arch x64;
+
+                            pextrq Rq(dst), Rx(xmm_index), xmm_offset // load 64-bit value from XMM
+                        };
+                    }
                 }
             },
             RiscOperand::Immediate(imm) => {
@@ -447,38 +458,41 @@ impl TranspilerBackend {
     /// Static lookup table for XMM register mapping.
     /// Maps RISC-V register index to (XMM index, XMM offset).
     /// Each XMM register holds 2 x 64-bit values, so we map registers 0-31 to XMM 0-15.
+    /// The registers are organized based on usage: frequently used registers will be kept
+    /// in lower 64 bits of XMM registers, while less frequently used registers reside in
+    /// higher 64 bits.
     const XMM_LOOKUP: [(u8, i8); 32] = [
-        (0, 0),
-        (0, 1),
-        (1, 0),
-        (1, 1),
-        (2, 0),
-        (2, 1),
+        (0, 1), // zero
+        (0, 0), // ra
+        (1, 0), // sp
+        (1, 1), // gp
+        (2, 1), // tp
+        (2, 0), // t0
         (3, 0),
-        (3, 1),
         (4, 0),
-        (4, 1),
-        (5, 0),
-        (5, 1),
+        (5, 0), // s0
         (6, 0),
-        (6, 1),
-        (7, 0),
-        (7, 1),
+        (7, 0), // a0
         (8, 0),
-        (8, 1),
         (9, 0),
-        (9, 1),
         (10, 0),
-        (10, 1),
         (11, 0),
-        (11, 1),
         (12, 0),
-        (12, 1),
         (13, 0),
-        (13, 1),
         (14, 0),
+        (15, 0), // s2
+        (3, 1),
+        (4, 1),
+        (5, 1),
+        (6, 1),
+        (7, 1),
+        (8, 1),
+        (9, 1),
+        (10, 1),
+        (11, 1),
+        (12, 1), // t3
+        (13, 1),
         (14, 1),
-        (15, 0),
         (15, 1),
     ];
 
