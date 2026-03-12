@@ -209,6 +209,9 @@ impl TraceCollector for TranspilerBackend {
             self;
             .arch x64;
 
+            // r8 will be used in tracing, and in `exit_if_trace_exceeds` code.
+            mov r8, QWORD [Rq(TRACE_BUF) + NUM_MEM_READS_OFFSET];
+
             // Check if were in unconstrained mode.
             mov rcx, QWORD [Rq(CONTEXT) + IS_UNCONSTRAINED_OFFSET];
             cmp rcx, 1;
@@ -237,10 +240,8 @@ impl TraceCollector for TranspilerBackend {
 
             // ------------------------------------
             // Compute the pointer to the tail
-            // and store into `r8`. `r8` will be
-            // preserved till `exit_if_trace_exceeds`
+            // and store into `rax`.
             // ------------------------------------
-            mov r8, QWORD [Rq(TRACE_BUF) + NUM_MEM_READS_OFFSET];
             // x64 does not allow scaling by 16 in addressing mode,
             // so we have to use 2 leas to scale by the size of
             // a `MemValue` (which is 16).
