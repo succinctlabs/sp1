@@ -22,7 +22,7 @@ use slop_alloc::{
 };
 use slop_futures::queue::{AcquireWorkerError, TryAcquireWorkerError, Worker, WorkerQueue};
 use sp1_gpu_sys::runtime::{
-    cuda_device_get_mem_pool, cuda_mem_pool_set_release_threshold, CudaDevice, CudaMemPool,
+    cuda_device_get_default_mem_pool, cuda_mem_pool_set_release_threshold, CudaDevice, CudaMemPool,
     CudaStreamHandle, Dim3, KernelPtr,
 };
 use thiserror::Error;
@@ -188,8 +188,11 @@ impl TaskPoolBuilder {
         // Set the memory release threshold
         unsafe {
             let mut mem_pool = CudaMemPool(ptr::null_mut());
-            CudaError::result_from_ffi(cuda_device_get_mem_pool(&mut mem_pool, self.device))
-                .unwrap();
+            CudaError::result_from_ffi(cuda_device_get_default_mem_pool(
+                &mut mem_pool,
+                self.device,
+            ))
+            .unwrap();
             CudaError::result_from_ffi(cuda_mem_pool_set_release_threshold(
                 mem_pool,
                 self.mem_release_threshold,
