@@ -160,9 +160,11 @@ impl TraceCollector for TranspilerBackend {
             // preserved till `exit_if_trace_exceeds`
             // ------------------------------------
             mov r8, QWORD [Rq(TRACE_BUF) + NUM_MEM_READS_OFFSET];
-            mov r9, r8;
-            shl r9, 4; // scale by the size of a `MemValue`.
-            lea rax, [Rq(TRACE_BUF) + r9 + TAIL_START_OFFSET];
+            // x64 does not allow scaling by 16 in addressing mode,
+            // so we have to use 2 leas to scale by the size of
+            // a `MemValue` (which is 16).
+            lea r9, [r8 * 8];
+            lea rax, [Rq(TRACE_BUF) + r9 * 2 + TAIL_START_OFFSET];
 
             // ------------------------------------
             // Load the clk & word from the memory entry into registers
@@ -174,7 +176,7 @@ impl TraceCollector for TranspilerBackend {
             mov Rq(TEMP_B), QWORD [Rq(TEMP_A)];
             mov rcx, QWORD [Rq(TEMP_A) + 8];
             mov rdx, QWORD [Rq(CONTEXT) + CLK_OFFSET];
-            inc rdx;
+            add rdx, 1;
             mov [rax], Rq(TEMP_B);
             mov [rax + 8], rcx;
             mov [Rq(TEMP_A)], rdx;
@@ -182,7 +184,7 @@ impl TraceCollector for TranspilerBackend {
             // ------------------------------------
             // Increment the num mem reads, since weve pushed into it.
             // ------------------------------------
-            inc r8;
+            add r8, 1;
             mov QWORD [Rq(TRACE_BUF) + NUM_MEM_READS_OFFSET], r8;
 
             done:
