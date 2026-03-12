@@ -14,6 +14,42 @@ use serde::{Deserialize, Serialize};
 use sp1_prover_types::{
     Artifact, ArtifactClient, ArtifactType, ProofRequestStatus, TaskStatus, TaskType,
 };
+
+/// An event received from a task's subscriber channel.
+///
+/// Wraps both status transitions and custom messages sent by the task.
+#[derive(Debug, Clone)]
+pub enum TaskEvent {
+    StatusChanged(TaskStatus),
+    Message(Vec<u8>),
+}
+
+impl TaskEvent {
+    /// Returns the status if this is a status event, or `None` for messages.
+    pub fn status(&self) -> Option<TaskStatus> {
+        match self {
+            TaskEvent::StatusChanged(s) => Some(*s),
+            TaskEvent::Message(_) => None,
+        }
+    }
+
+    /// Returns the payload if this is a message event, or `None` for status changes.
+    pub fn message(&self) -> Option<&[u8]> {
+        match self {
+            TaskEvent::Message(m) => Some(m),
+            TaskEvent::StatusChanged(_) => None,
+        }
+    }
+
+    pub fn is_terminal_status(&self) -> bool {
+        matches!(
+            self,
+            TaskEvent::StatusChanged(
+                TaskStatus::FailedFatal | TaskStatus::FailedRetryable | TaskStatus::Succeeded
+            )
+        )
+    }
+}
 use thiserror::Error;
 use tokio::{
     sync::{mpsc, watch, RwLock},
@@ -52,6 +88,13 @@ pub trait WorkerClient: Send + Sync + Clone + 'static {
         &self,
         proof_id: ProofId,
     ) -> impl Future<Output = anyhow::Result<SubscriberBuilder<Self>>> + Send;
+
+    fn send_message(
+        &self,
+        proof_id: ProofId,
+        task_id: TaskId,
+        message: Vec<u8>,
+    ) -> impl Future<Output = anyhow::Result<()>> + Send;
 
     fn submit_tasks(
         &self,
@@ -147,14 +190,14 @@ pub struct TaskMetadata {
 pub struct SubscriberBuilder<W> {
     client: W,
     subscriber_tx: mpsc::UnboundedSender<TaskId>,
-    subscriber_rx: mpsc::UnboundedReceiver<(TaskId, TaskStatus)>,
+    subscriber_rx: mpsc::UnboundedReceiver<(TaskId, TaskEvent)>,
 }
 
 impl<W> SubscriberBuilder<W> {
     pub fn new(
         client: W,
         subscriber_tx: mpsc::UnboundedSender<TaskId>,
-        subscriber_rx: mpsc::UnboundedReceiver<(TaskId, TaskStatus)>,
+        subscriber_rx: mpsc::UnboundedReceiver<(TaskId, TaskEvent)>,
     ) -> Self {
         Self { client, subscriber_tx, subscriber_rx }
     }
@@ -171,12 +214,15 @@ impl<W> SubscriberBuilder<W> {
 type TaskSubscriberDb =
     Arc<RwLock<HashMap<TaskId, (watch::Sender<TaskStatus>, watch::Receiver<TaskStatus>)>>>;
 
+type TaskMessageDb = Arc<RwLock<HashMap<TaskId, mpsc::UnboundedSender<Vec<u8>>>>>;
+
 // TODO: maybe traitify this struct to allow more flexibility in implementations.
 #[derive(Clone)]
 #[allow(clippy::type_complexity)]
 pub struct TaskSubscriber<W> {
     client: W,
     request_map: TaskSubscriberDb,
+    message_map: TaskMessageDb,
     subscriber_tx: mpsc::UnboundedSender<TaskId>,
     abort_handle: AbortHandle,
 }
@@ -191,43 +237,49 @@ impl<W> TaskSubscriber<W> {
     /// Create a new task subscriber.
     pub fn new(builder: SubscriberBuilder<W>) -> Self {
         let SubscriberBuilder { client, subscriber_tx, mut subscriber_rx, .. } = builder;
-        // Create stores to map all incoming status requests and subscribers.
         let request_map = Arc::new(RwLock::new(HashMap::<
             TaskId,
             (watch::Sender<TaskStatus>, watch::Receiver<TaskStatus>),
         >::new()));
-        // Spawn a blocking task to update the status map when new statuses are received.
+        let message_map: TaskMessageDb = Arc::new(RwLock::new(HashMap::new()));
+
         let handle = tokio::task::spawn({
             let request_map = request_map.clone();
+            let message_map = message_map.clone();
             async move {
-                while let Some((task_id, status)) = subscriber_rx.recv().await {
-                    // Send an update to the request map.
-                    let (sender, _) = request_map
-                        .read()
-                        .await
-                        .get(&task_id)
-                        .cloned()
-                        .expect("task should be in request map");
-                    // Send the status to the requester, it's ok if the receiver is dropped.
-                    sender.send(status).ok();
+                while let Some((task_id, event)) = subscriber_rx.recv().await {
+                    match event {
+                        TaskEvent::StatusChanged(status) => {
+                            let (sender, _) = request_map
+                                .read()
+                                .await
+                                .get(&task_id)
+                                .cloned()
+                                .expect("task should be in request map");
+                            sender.send(status).ok();
+                        }
+                        TaskEvent::Message(payload) => {
+                            if let Some(tx) = message_map.read().await.get(&task_id).cloned() {
+                                tx.send(payload).ok();
+                            }
+                        }
+                    }
                 }
             }
         });
         let abort_handle = handle.abort_handle();
 
-        Self { client, request_map, subscriber_tx, abort_handle }
+        Self { client, request_map, message_map, subscriber_tx, abort_handle }
     }
 
     /// Close the task subscriber.
     ///
-    /// The subsctiber will no longer receive updates on the status of the tasks.
+    /// The subscriber will no longer receive updates on the status of the tasks.
     pub fn close(&self) {
         self.abort_handle.abort();
     }
 
-    /// Wait for a task to complete.
-    ///
-    /// This function will return a `WaitTask` that can be used to wait for the task to complete.
+    /// Wait for a task to complete, discarding any custom messages.
     pub async fn wait_task(&self, task_id: TaskId) -> Result<TaskStatus, TaskError> {
         self.request_map
             .write()
@@ -243,7 +295,6 @@ impl<W> TaskSubscriber<W> {
             .cloned()
             .ok_or(TaskError::Fatal(anyhow::anyhow!("task does not exist")))?;
 
-        // Send the task id to the inner subscriber.
         self.subscriber_tx.send(task_id.clone()).map_err(|e| {
             TaskError::Fatal(anyhow::anyhow!("failed to send task id to inner subscriber: {e}"))
         })?;
@@ -259,6 +310,20 @@ impl<W> TaskSubscriber<W> {
             }
         }
         Err(TaskError::Fatal(anyhow::anyhow!("task status lost for task {task_id}")))
+    }
+
+    /// Wait for a task to complete while receiving custom messages on the returned channel.
+    pub async fn wait_task_with_messages(
+        &self,
+        task_id: TaskId,
+    ) -> Result<(TaskStatus, mpsc::UnboundedReceiver<Vec<u8>>), TaskError> {
+        let (msg_tx, msg_rx) = mpsc::unbounded_channel();
+        self.message_map.write().await.insert(task_id.clone(), msg_tx);
+
+        let status = self.wait_task(task_id.clone()).await?;
+
+        self.message_map.write().await.remove(&task_id);
+        Ok((status, msg_rx))
     }
 }
 
@@ -293,15 +358,26 @@ impl<W> StreamSubscriber<W> {
 }
 
 pub struct EventStream {
-    subscriber_rx: mpsc::UnboundedReceiver<(TaskId, TaskStatus)>,
+    subscriber_rx: mpsc::UnboundedReceiver<(TaskId, TaskEvent)>,
 }
 
 impl EventStream {
-    pub async fn recv(&mut self) -> Option<(TaskId, TaskStatus)> {
+    pub async fn recv(&mut self) -> Option<(TaskId, TaskEvent)> {
         self.subscriber_rx.recv().await
     }
 
-    pub fn blocking_recv(&mut self) -> Option<(TaskId, TaskStatus)> {
+    /// Receive the next status event, skipping any custom messages.
+    pub async fn recv_status(&mut self) -> Option<(TaskId, TaskStatus)> {
+        loop {
+            match self.subscriber_rx.recv().await {
+                Some((id, TaskEvent::StatusChanged(status))) => return Some((id, status)),
+                Some((_, TaskEvent::Message(_))) => continue,
+                None => return None,
+            }
+        }
+    }
+
+    pub fn blocking_recv(&mut self) -> Option<(TaskId, TaskEvent)> {
         self.subscriber_rx.blocking_recv()
     }
 
@@ -311,7 +387,7 @@ impl EventStream {
 }
 
 impl Stream for EventStream {
-    type Item = (TaskId, TaskStatus);
+    type Item = (TaskId, TaskEvent);
 
     fn poll_next(
         mut self: Pin<&mut Self>,
@@ -388,17 +464,28 @@ impl WorkerClient for TrivialWorkerClient {
         let task_map = self.inner.clone();
         tokio::task::spawn(async move {
             while let Some(task_id) = sub_input_rx.recv().await {
-                // Get the input artifacts
-
                 if task_map.lock().unwrap().contains(&task_id) {
-                    sub_output_tx.send((task_id, TaskStatus::Succeeded)).unwrap();
+                    sub_output_tx
+                        .send((task_id, TaskEvent::StatusChanged(TaskStatus::Succeeded)))
+                        .unwrap();
                 } else {
-                    sub_output_tx.send((task_id, TaskStatus::Pending)).unwrap();
+                    sub_output_tx
+                        .send((task_id, TaskEvent::StatusChanged(TaskStatus::Pending)))
+                        .unwrap();
                 }
             }
         });
 
         Ok(SubscriberBuilder::new(self.clone(), sub_input_tx, sub_output_rx))
+    }
+
+    async fn send_message(
+        &self,
+        _proof_id: ProofId,
+        _task_id: TaskId,
+        _message: Vec<u8>,
+    ) -> anyhow::Result<()> {
+        Ok(())
     }
 }
 
@@ -544,7 +631,6 @@ mod tests {
                 let output_tx = subscriber_output_tx.clone();
                 async move {
                     while let Some(id) = subscriber_input_rx.recv().await {
-                        // Spawn a task to send the status to the output channel.
                         let db = db.clone();
                         let output_tx = output_tx.clone();
                         tokio::task::spawn(async move {
@@ -559,7 +645,7 @@ mod tests {
                                         | TaskStatus::FailedRetryable
                                         | TaskStatus::Succeeded
                                 ) {
-                                    output_tx.send((id, value)).ok();
+                                    output_tx.send((id, TaskEvent::StatusChanged(value))).ok();
                                     return;
                                 }
                             }
@@ -568,6 +654,15 @@ mod tests {
                 }
             });
             Ok(SubscriberBuilder::new(self.clone(), subscriber_input_tx, subscriber_output_rx))
+        }
+
+        async fn send_message(
+            &self,
+            _proof_id: ProofId,
+            _task_id: TaskId,
+            _message: Vec<u8>,
+        ) -> anyhow::Result<()> {
+            Ok(())
         }
     }
 

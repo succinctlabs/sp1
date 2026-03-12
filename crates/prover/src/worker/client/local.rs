@@ -6,7 +6,7 @@ use sp1_prover_types::{ProofRequestStatus, TaskStatus, TaskType};
 use tokio::sync::{mpsc, watch, RwLock};
 
 use crate::worker::{
-    ProofId, RawTaskRequest, SubscriberBuilder, TaskId, TaskMetadata, WorkerClient,
+    ProofId, RawTaskRequest, SubscriberBuilder, TaskEvent, TaskId, TaskMetadata, WorkerClient,
 };
 
 type LocalDb =
@@ -18,10 +18,14 @@ pub struct LocalWorkerClientChannels {
     pub task_receivers: BTreeMap<TaskType, mpsc::Receiver<(TaskId, RawTaskRequest)>>,
 }
 
+type MessageSubscribers =
+    Arc<RwLock<HashMap<ProofId, Vec<mpsc::UnboundedSender<(TaskId, Vec<u8>)>>>>>;
+
 pub struct LocalWorkerClientInner {
     db: LocalDb,
     proof_index: ProofIndex,
     input_task_queues: HashMap<TaskType, mpsc::Sender<(TaskId, RawTaskRequest)>>,
+    message_subscribers: MessageSubscribers,
 }
 
 impl LocalWorkerClientInner {
@@ -55,7 +59,8 @@ impl LocalWorkerClientInner {
 
         let db = Arc::new(RwLock::new(HashMap::new()));
         let proof_index = Arc::new(RwLock::new(HashMap::new()));
-        let inner = Self { db, proof_index, input_task_queues: task_queues };
+        let message_subscribers = Arc::new(RwLock::new(HashMap::new()));
+        let inner = Self { db, proof_index, input_task_queues: task_queues, message_subscribers };
         (inner, LocalWorkerClientChannels { task_receivers: task_outputs })
     }
 }
@@ -152,16 +157,30 @@ impl WorkerClient for LocalWorkerClient {
         Ok(())
     }
 
-    async fn subscriber(&self, _proof_id: ProofId) -> anyhow::Result<SubscriberBuilder<Self>> {
+    async fn subscriber(&self, proof_id: ProofId) -> anyhow::Result<SubscriberBuilder<Self>> {
         let (subscriber_input_tx, mut subscriber_input_rx) = mpsc::unbounded_channel();
         let (subscriber_output_tx, subscriber_output_rx) = mpsc::unbounded_channel();
 
+        // Register a message subscriber for this proof so send_message can forward to us.
+        let (msg_tx, mut msg_rx) = mpsc::unbounded_channel::<(TaskId, Vec<u8>)>();
+        self.inner.message_subscribers.write().await.entry(proof_id).or_default().push(msg_tx);
+
+        // Forward custom messages into the unified output channel.
+        tokio::task::spawn({
+            let output_tx = subscriber_output_tx.clone();
+            async move {
+                while let Some((task_id, payload)) = msg_rx.recv().await {
+                    output_tx.send((task_id, TaskEvent::Message(payload))).ok();
+                }
+            }
+        });
+
+        // Forward status changes into the unified output channel.
         tokio::task::spawn({
             let db = self.inner.db.clone();
             let output_tx = subscriber_output_tx.clone();
             async move {
                 while let Some(id) = subscriber_input_rx.recv().await {
-                    // Spawn a task to send the status to the output channel.
                     let db = db.clone();
                     let output_tx = output_tx.clone();
                     tokio::task::spawn(async move {
@@ -176,7 +195,7 @@ impl WorkerClient for LocalWorkerClient {
                                     | TaskStatus::FailedRetryable
                                     | TaskStatus::Succeeded
                             ) {
-                                output_tx.send((id, value)).ok();
+                                output_tx.send((id, TaskEvent::StatusChanged(value))).ok();
                                 return;
                             }
                         }
@@ -185,6 +204,21 @@ impl WorkerClient for LocalWorkerClient {
             }
         });
         Ok(SubscriberBuilder::new(self.clone(), subscriber_input_tx, subscriber_output_rx))
+    }
+
+    async fn send_message(
+        &self,
+        proof_id: ProofId,
+        task_id: TaskId,
+        message: Vec<u8>,
+    ) -> anyhow::Result<()> {
+        let subs = self.inner.message_subscribers.read().await;
+        if let Some(subscribers) = subs.get(&proof_id) {
+            for tx in subscribers {
+                tx.send((task_id.clone(), message.clone())).ok();
+            }
+        }
+        Ok(())
     }
 }
 

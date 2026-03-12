@@ -50,6 +50,9 @@ service WorkerService {
     // Acknowledge that the client has received a task update from the server.
     rpc AckSub(AckSubRequest) returns (google.protobuf.Empty);
 
+    // Send a custom message from a task to its parent.
+    rpc SendTaskMessage(SendTaskMessageRequest) returns (google.protobuf.Empty);
+
     // Check that the server is still alive.
     rpc Healthcheck(google.protobuf.Empty) returns (google.protobuf.Empty);
 
@@ -234,7 +237,20 @@ message ServerSubMessage {
         EndOfStream end_of_stream = 3;
         UnknownTask unknown_task = 4;
         ServerSubHeartbeat server_heartbeat = 5;
+        TaskCustomMessage custom_message = 6;
     }
+}
+
+message TaskCustomMessage {
+    string task_id = 1;
+    bytes payload = 2;
+}
+
+message SendTaskMessageRequest {
+    string worker_id = 1;
+    string proof_id = 2;
+    string task_id = 3;
+    bytes payload = 4;
 }
 
 message TaskResult {

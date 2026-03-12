@@ -461,7 +461,11 @@ impl CompressTree {
                         self.insert(proofs);
                     }
                 }
-                Some((task_id, status)) = event_stream.recv() => {
+                Some((task_id, event)) = event_stream.recv() => {
+                    let status = match event {
+                        crate::worker::TaskEvent::StatusChanged(s) => s,
+                        crate::worker::TaskEvent::Message(_) => continue,
+                    };
                     if status != TaskStatus::Succeeded {
                         return Err(
                             TaskError::Fatal
@@ -470,7 +474,6 @@ impl CompressTree {
                     }
                     let proof = proof_map.remove(&task_id);
                     if let Some(proof) = proof {
-                        // Send the proof to the proof queue.
                         proof_tx.send(proof).map_err(|_| TaskError::Fatal(anyhow::anyhow!("Compress tree panicked")))?;
                     }
                     else {
@@ -478,7 +481,11 @@ impl CompressTree {
                     }
                 }
 
-                Some((task_id, status)) = core_proofs_event_stream.recv() => {
+                Some((task_id, event)) = core_proofs_event_stream.recv() => {
+                    let status = match event {
+                        crate::worker::TaskEvent::StatusChanged(s) => s,
+                        crate::worker::TaskEvent::Message(_) => continue,
+                    };
                     if status != TaskStatus::Succeeded {
                         return Err(
                             TaskError::Fatal

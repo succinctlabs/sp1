@@ -249,7 +249,11 @@ impl PrecompileHandler {
             let artifact_client = artifact_client.clone();
             async move {
                 let mut deferred_accumulator = DeferredEvents::empty();
-                while let Some((task_id, status)) = event_stream.next().await {
+                while let Some((task_id, event)) = event_stream.next().await {
+                    let status = match event {
+                        crate::worker::TaskEvent::StatusChanged(s) => s,
+                        crate::worker::TaskEvent::Message(_) => continue,
+                    };
                     tracing::debug!(
                         task_id = task_id.to_string(),
                         "received deferred marker task status: {:?}",
