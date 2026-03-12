@@ -105,7 +105,7 @@ impl PosixSemaphore {
 
     fn wait_timeout(&self, timeout: Duration) -> bool {
         unsafe {
-            #[cfg(target_os = "linux")]
+            #[cfg(any(target_os = "linux", target_os = "android"))]
             {
                 let mut ts = libc::timespec { tv_sec: 0, tv_nsec: 0 };
                 libc::clock_gettime(libc::CLOCK_REALTIME, &mut ts);

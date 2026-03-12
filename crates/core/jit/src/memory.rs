@@ -62,7 +62,7 @@ impl JitResetableMemory for AnonymousMemory {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 fn create_anonymous_file(size: usize) -> File {
     let fd = memfd::MemfdOptions::default()
         .create(uuid::Uuid::new_v4().to_string())
