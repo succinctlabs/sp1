@@ -91,3 +91,29 @@ macro_rules! impl_shift32_imm_opt {
         }
     };
 }
+
+/// Perform x64 operation with a variable length integer, optimize for code size
+#[macro_export]
+macro_rules! do_opt_imm_var {
+    ($self:expr, $op:ident, $target:expr, $imm:expr) => {
+        if $imm as i64 == ($imm as i8) as i64 {
+            dynasm! { $self; .arch x64; $op Rq($target), BYTE $imm as i8 };
+        } else if $imm as i64 == ($imm as i32) as i64 {
+            dynasm! { $self; .arch x64; $op Rq($target), $imm as i32 };
+        } else {
+            panic!("Value {} cannot be expressed in 32-bit!", $imm);
+        }
+    };
+}
+
+/// Perform x64 operation to load a variable length integer, optimize for code size
+#[macro_export]
+macro_rules! do_load_imm_var {
+    ($self:expr, $target:expr, $imm:expr) => {
+        if $imm as i64 == ($imm as i32) as i64 {
+            dynasm! { $self; .arch x64; mov Rd($target), $imm as i32 };
+        } else {
+            dynasm! { $self; .arch x64; mov Rq($target), QWORD $imm as i64 };
+        }
+    };
+}

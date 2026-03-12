@@ -1,7 +1,8 @@
 #![allow(clippy::fn_to_numeric_cast)]
 
 use crate::{
-    EcallHandler, JitContext, RiscOperand, RiscRegister, TraceChunkHeader, TraceCollector,
+    do_opt_imm_var, do_load_imm_var, EcallHandler, JitContext, RiscOperand, RiscRegister, TraceChunkHeader,
+    TraceCollector,
 };
 use dynasmrt::{
     dynasm,
@@ -17,6 +18,12 @@ mod instruction_impl;
 #[cfg(test)]
 mod tests;
 mod transpiler;
+
+// To make the best use of OOO CPUs, we define the following conventions:
+// * TEMP_A, TEMP_B, rax, rcx, rdx are free to use by any code sequences.
+// * r9 and r10 cannot be tampered by instruction implementation. They might
+//   be used by code before actual instruction (tracing), and read after
+//   instruction itself completes.
 
 /// The first scratch register.
 ///
@@ -121,13 +128,19 @@ impl TraceCollector for TranspilerBackend {
             .arch x64;
 
             // Check if were in unconstrained mode.
-            cmp QWORD [Rq(CONTEXT) + IS_UNCONSTRAINED_OFFSET], 1;
-            je >done;
+            mov rcx, QWORD [Rq(CONTEXT) + IS_UNCONSTRAINED_OFFSET];
+            cmp rcx, 1;
+            je >done
+        }
 
-            // ------------------------------------
-            // Compute the address to load from.
-            // ------------------------------------
-            add Rq(TEMP_A), imm as i32;
+        // ------------------------------------
+        // Compute the address to load from.
+        // ------------------------------------
+        do_opt_imm_var!(self, add, TEMP_A, imm);
+
+        dynasm! {
+            self;
+            .arch x64;
 
             // ------------------------------------
             // Align to the start of the word.
@@ -135,49 +148,41 @@ impl TraceCollector for TranspilerBackend {
             and Rq(TEMP_A), -8;
 
             // ------------------------------------
-            // Scale by the entry size.
+            // Scale by the entry size. Add the
+            // physical memory pointer.
             // ------------------------------------
-            shl Rq(TEMP_A), 1;
-
-            // ------------------------------------
-            // Add the physical memory pointer.
-            // ------------------------------------
-            add Rq(TEMP_A), Rq(TEMP_B);
+            lea Rq(TEMP_A), [Rq(TEMP_B) + Rq(TEMP_A) * 2];
 
             // ------------------------------------
             // Compute the pointer to the tail
-            // and store into `rax`.
+            // and store into `r9`. `r9` will be
+            // preserved till `exit_if_trace_exceeds`
             // ------------------------------------
-            mov rax, QWORD [Rq(TRACE_BUF) + NUM_MEM_READS_OFFSET];
+            mov r9, QWORD [Rq(TRACE_BUF) + NUM_MEM_READS_OFFSET];
+            mov rax, r9;
             shl rax, 4; // scale by the size of a `MemValue`.
-            add rax, TAIL_START_OFFSET;
-            add rax, Rq(TRACE_BUF);
+            lea rax, [Rq(TRACE_BUF) + rax + TAIL_START_OFFSET];
 
             // ------------------------------------
-            // Load the clk from the memory entry into TEMP_B
-            // and store it into the tail.
+            // Load the clk & word from the memory entry into registers
+            // (TEMP_B and rcx) and store them into the tail.
+            // Bump the current clk in the memory entry.
+            //
+            // The code is written to minimize split RMW
             // ------------------------------------
             mov Rq(TEMP_B), QWORD [Rq(TEMP_A)];
+            mov rcx, QWORD [Rq(TEMP_A) + 8];
+            mov rdx, QWORD [Rq(CONTEXT) + CLK_OFFSET];
+            add rdx, 1;            
             mov [rax], Rq(TEMP_B);
-
-            // ------------------------------------
-            // Bump the current clk in the memory entry.
-            // ------------------------------------
-            mov Rq(TEMP_B), QWORD [Rq(CONTEXT) + CLK_OFFSET];
-            add Rq(TEMP_B), 1;
-            mov [Rq(TEMP_A)], Rq(TEMP_B);
-
-            // ------------------------------------
-            // Load the word into TEMP_B
-            // and store it into the tail.
-            // ------------------------------------
-            mov Rq(TEMP_B), QWORD [Rq(TEMP_A) + 8];
-            mov [rax + 8], Rq(TEMP_B);
+            mov [rax + 8], rcx;
+            mov [Rq(TEMP_A)], rdx;
 
             // ------------------------------------
             // Increment the num mem reads, since weve pushed into it.
             // ------------------------------------
-            add QWORD [Rq(TRACE_BUF) + NUM_MEM_READS_OFFSET], 1;
+            inc r9;
+            mov QWORD [Rq(TRACE_BUF) + NUM_MEM_READS_OFFSET], r9;
 
             done:
         }
@@ -236,29 +241,18 @@ impl TranspilerBackend {
             return;
         }
 
-        let num_mem_reads_offset = offset_of!(TraceChunkHeader, num_mem_reads) as i32;
         let threshold_mem_reads = max_trace_size;
 
+        // Load threshold
+        do_load_imm_var!(self, TEMP_B, threshold_mem_reads);
         dynasm! {
             self;
             .arch x64;
 
             // ------------------------------------
-            // 1. Load num_mem_reads from trace buffer
-            // ------------------------------------
-            mov Rq(TEMP_A), [Rq(TRACE_BUF) + num_mem_reads_offset];
-
-            // ------------------------------------
-            // 2. Check if num_mem_reads is 0 (skip exit at beginning)
-            // ------------------------------------
-            // test Rq(TEMP_A), Rq(TEMP_A);
-            // jz >skip_exit;  // If num_mem_reads == 0, skip the exit check
-
-            // ------------------------------------
             // 3. Check if num_mem_reads >= 90% of max_mem_reads
             // ------------------------------------
-            mov Rq(TEMP_B), QWORD threshold_mem_reads as i64;  // Load threshold
-            cmp Rq(TEMP_A), Rq(TEMP_B);  // Compare num_mem_reads with threshold
+            cmp r9, Rq(TEMP_B);  // Compare num_mem_reads with threshold
 
             // ------------------------------------
             // 4. If num_mem_reads >= threshold, return
