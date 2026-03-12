@@ -1,8 +1,8 @@
 #![allow(clippy::fn_to_numeric_cast)]
 
 use crate::{
-    do_opt_imm_var, do_load_imm_var, EcallHandler, JitContext, RiscOperand, RiscRegister, TraceChunkHeader,
-    TraceCollector,
+    do_load_imm_var, do_opt_imm_var, EcallHandler, JitContext, RiscOperand, RiscRegister,
+    TraceChunkHeader, TraceCollector,
 };
 use dynasmrt::{
     dynasm,
@@ -20,10 +20,11 @@ mod tests;
 mod transpiler;
 
 // To make the best use of OOO CPUs, we define the following conventions:
-// * TEMP_A, TEMP_B, rax, rcx, rdx are free to use by any code sequences.
-// * r9 and r10 cannot be tampered by instruction implementation. They might
+// * TEMP_A, TEMP_B, rax, rcx, rdx, are free to used by any code sequences.
+// * r8 - r9 cannot be tampered by instruction implementation. They might
 //   be used by code before actual instruction (tracing), and read after
 //   instruction itself completes.
+// * rdi, rsi, r10, r11 are reserved for now. We will assign them as needed later.
 
 /// The first scratch register.
 ///
@@ -155,11 +156,11 @@ impl TraceCollector for TranspilerBackend {
 
             // ------------------------------------
             // Compute the pointer to the tail
-            // and store into `r9`. `r9` will be
+            // and store into `r8`. `r8` will be
             // preserved till `exit_if_trace_exceeds`
             // ------------------------------------
-            mov r9, QWORD [Rq(TRACE_BUF) + NUM_MEM_READS_OFFSET];
-            mov rax, r9;
+            mov r8, QWORD [Rq(TRACE_BUF) + NUM_MEM_READS_OFFSET];
+            mov rax, r8;
             shl rax, 4; // scale by the size of a `MemValue`.
             lea rax, [Rq(TRACE_BUF) + rax + TAIL_START_OFFSET];
 
@@ -173,7 +174,7 @@ impl TraceCollector for TranspilerBackend {
             mov Rq(TEMP_B), QWORD [Rq(TEMP_A)];
             mov rcx, QWORD [Rq(TEMP_A) + 8];
             mov rdx, QWORD [Rq(CONTEXT) + CLK_OFFSET];
-            add rdx, 1;            
+            add rdx, 1;
             mov [rax], Rq(TEMP_B);
             mov [rax + 8], rcx;
             mov [Rq(TEMP_A)], rdx;
@@ -181,8 +182,8 @@ impl TraceCollector for TranspilerBackend {
             // ------------------------------------
             // Increment the num mem reads, since weve pushed into it.
             // ------------------------------------
-            inc r9;
-            mov QWORD [Rq(TRACE_BUF) + NUM_MEM_READS_OFFSET], r9;
+            inc r8;
+            mov QWORD [Rq(TRACE_BUF) + NUM_MEM_READS_OFFSET], r8;
 
             done:
         }
@@ -252,7 +253,7 @@ impl TranspilerBackend {
             // ------------------------------------
             // 3. Check if num_mem_reads >= 90% of max_mem_reads
             // ------------------------------------
-            cmp r9, Rq(TEMP_B);  // Compare num_mem_reads with threshold
+            cmp r8, Rq(TEMP_B);  // Compare num_mem_reads with threshold
 
             // ------------------------------------
             // 4. If num_mem_reads >= threshold, return

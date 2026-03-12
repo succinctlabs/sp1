@@ -111,7 +111,15 @@ macro_rules! do_opt_imm_var {
 macro_rules! do_load_imm_var {
     ($self:expr, $target:expr, $imm:expr) => {
         if $imm as i64 == ($imm as i32) as i64 {
-            dynasm! { $self; .arch x64; mov Rd($target), $imm as i32 };
+            if ($target as u8) < 8 {
+                // dynasm would insert an unnecessary REX prefix if we use
+                // x64 as the `arch` value. Using x86 as `arch` value strips
+                // the prefix. The generated code sequence still work, but
+                // shorter.
+                dynasm! { $self; .arch x86; mov Rd($target), $imm as i32 };
+            } else {
+                dynasm! { $self; .arch x64; mov Rd($target), $imm as i32 };
+            }
         } else {
             dynasm! { $self; .arch x64; mov Rq($target), QWORD $imm as i64 };
         }
