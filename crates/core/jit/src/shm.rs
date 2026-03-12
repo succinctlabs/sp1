@@ -2,8 +2,24 @@
 
 use libc::{
     c_uint, c_void, ftruncate, madvise, sem_close, sem_open, sem_post, sem_t, sem_trywait,
-    sem_unlink, sem_wait, shm_open, shm_unlink, MADV_FREE, O_CREAT, O_RDWR, S_IRUSR, S_IWUSR,
+    sem_unlink, sem_wait, MADV_FREE, O_CREAT, O_RDWR, S_IRUSR, S_IWUSR,
 };
+#[cfg(not(target_os = "android"))]
+use libc::{shm_open, shm_unlink};
+
+#[cfg(target_os = "android")]
+unsafe fn shm_open(
+    _name: *const libc::c_char,
+    _oflag: libc::c_int,
+    _mode: libc::c_uint,
+) -> libc::c_int {
+    -1
+}
+
+#[cfg(target_os = "android")]
+unsafe fn shm_unlink(_name: *const libc::c_char) -> libc::c_int {
+    -1
+}
 use memmap2::{Mmap, MmapMut};
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
@@ -691,7 +707,7 @@ impl Drop for ShmMemory {
             // Ignore errors here (e.g., if it was already unlinked externally)
             if let Ok(c_name) = CString::new(self.name.as_str()) {
                 unsafe {
-                    libc::shm_unlink(c_name.as_ptr());
+                    shm_unlink(c_name.as_ptr());
                 }
             }
         }
