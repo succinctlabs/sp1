@@ -120,7 +120,7 @@ impl PosixSemaphore {
                 libc::sem_timedwait(self.sem, &ts) == 0
             }
 
-            #[cfg(target_os = "macos")]
+            #[cfg(any(target_os = "macos", target_os = "ios"))]
             {
                 let start = std::time::Instant::now();
                 while start.elapsed() < timeout {

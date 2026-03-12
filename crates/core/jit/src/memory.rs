@@ -72,7 +72,7 @@ fn create_anonymous_file(size: usize) -> File {
     file
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 fn create_anonymous_file(size: usize) -> File {
     use libc::{c_char, c_uint, ftruncate, shm_open, O_CREAT, O_RDWR, S_IRUSR, S_IWUSR};
     use std::io;
