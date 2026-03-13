@@ -53,6 +53,21 @@ pub trait WorkerClient: Send + Sync + Clone + 'static {
         proof_id: ProofId,
     ) -> impl Future<Output = anyhow::Result<SubscriberBuilder<Self>>> + Send;
 
+    /// Subscribe to the message stream for a task. The returned receiver's stream
+    /// ends when the producer task completes or fails.
+    fn subscribe_task_messages(
+        &self,
+        task_id: &TaskId,
+    ) -> impl Future<Output = anyhow::Result<mpsc::UnboundedReceiver<Vec<u8>>>> + Send;
+
+    /// Send a payload on the message channel for this task. Lazily creates the channel entry
+    /// if it does not yet exist.
+    fn send_task_message(
+        &self,
+        task_id: &TaskId,
+        payload: Vec<u8>,
+    ) -> impl Future<Output = anyhow::Result<()>> + Send;
+
     fn submit_tasks(
         &self,
         kind: TaskType,
@@ -71,6 +86,24 @@ pub trait WorkerClient: Send + Sync + Clone + 'static {
         tasks: impl Stream<Item = RawTaskRequest> + Send,
     ) -> impl Future<Output = anyhow::Result<Vec<TaskId>>> + Send {
         tasks.then(move |task| self.submit_task(kind, task)).try_collect()
+    }
+}
+
+/// Receiver end of a task message subscription created via [`WorkerClient::subscribe_task_messages`].
+pub struct MessageReceiver<T> {
+    rx: mpsc::UnboundedReceiver<Vec<u8>>,
+    _marker: std::marker::PhantomData<T>,
+}
+
+impl<T: serde::de::DeserializeOwned> MessageReceiver<T> {
+    pub fn new(rx: mpsc::UnboundedReceiver<Vec<u8>>) -> Self {
+        Self { rx, _marker: std::marker::PhantomData }
+    }
+
+    /// Receive and deserialize the next message, returning `None` when the channel is closed.
+    pub async fn recv(&mut self) -> Option<T> {
+        let bytes = self.rx.recv().await?;
+        Some(bincode::deserialize(&bytes).expect("failed to deserialize message channel payload"))
     }
 }
 
@@ -321,11 +354,17 @@ impl Stream for EventStream {
     }
 }
 
-/// A trivial client that can be used for testing
-#[derive(Clone, Debug)]
+struct TrivialMessageChannel {
+    tx: mpsc::UnboundedSender<Vec<u8>>,
+    rx: Option<mpsc::UnboundedReceiver<Vec<u8>>>,
+}
+
+/// A trivial client that can be used for testing.
+#[derive(Clone)]
 pub struct TrivialWorkerClient {
     inner: Arc<Mutex<HashSet<TaskId>>>,
     task_sender: mpsc::Sender<(TaskType, RawTaskRequest)>,
+    task_channels: Arc<Mutex<HashMap<TaskId, TrivialMessageChannel>>>,
 }
 
 impl TrivialWorkerClient {
@@ -350,7 +389,11 @@ impl TrivialWorkerClient {
             }
         });
 
-        Self { inner: Arc::new(Mutex::new(HashSet::new())), task_sender }
+        Self {
+            inner: Arc::new(Mutex::new(HashSet::new())),
+            task_sender,
+            task_channels: Arc::new(Mutex::new(HashMap::new())),
+        }
     }
 }
 
@@ -399,6 +442,35 @@ impl WorkerClient for TrivialWorkerClient {
         });
 
         Ok(SubscriberBuilder::new(self.clone(), sub_input_tx, sub_output_rx))
+    }
+
+    async fn subscribe_task_messages(
+        &self,
+        task_id: &TaskId,
+    ) -> anyhow::Result<mpsc::UnboundedReceiver<Vec<u8>>> {
+        let mut channels = self.task_channels.lock().unwrap();
+        if let Some(state) = channels.get_mut(task_id) {
+            let rx = state
+                .rx
+                .take()
+                .ok_or_else(|| anyhow::anyhow!("task channel already subscribed for {task_id}"))?;
+            return Ok(rx);
+        }
+        let (tx, rx) = mpsc::unbounded_channel();
+        channels.insert(task_id.clone(), TrivialMessageChannel { tx, rx: None });
+        Ok(rx)
+    }
+
+    async fn send_task_message(&self, task_id: &TaskId, payload: Vec<u8>) -> anyhow::Result<()> {
+        let mut channels = self.task_channels.lock().unwrap();
+        if let Some(state) = channels.get_mut(task_id) {
+            state.tx.send(payload).map_err(|_| anyhow::anyhow!("task channel receiver dropped"))?;
+        } else {
+            let (tx, rx) = mpsc::unbounded_channel();
+            tx.send(payload).expect("just-created channel cannot be closed");
+            channels.insert(task_id.clone(), TrivialMessageChannel { tx, rx: Some(rx) });
+        }
+        Ok(())
     }
 }
 
@@ -568,6 +640,22 @@ mod tests {
                 }
             });
             Ok(SubscriberBuilder::new(self.clone(), subscriber_input_tx, subscriber_output_rx))
+        }
+
+        async fn subscribe_task_messages(
+            &self,
+            _task_id: &TaskId,
+        ) -> anyhow::Result<mpsc::UnboundedReceiver<Vec<u8>>> {
+            let (_tx, rx) = mpsc::unbounded_channel();
+            Ok(rx)
+        }
+
+        async fn send_task_message(
+            &self,
+            _task_id: &TaskId,
+            _payload: Vec<u8>,
+        ) -> anyhow::Result<()> {
+            Ok(())
         }
     }
 

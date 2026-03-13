@@ -142,6 +142,39 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
             }
         });
 
+        // Spawn the CoreExecute handler
+        join_set.spawn({
+            let mut execute_rx =
+                channels.task_receivers.remove(&TaskType::CoreExecute).unwrap();
+            let worker = worker.clone();
+            async move {
+                while let Some((task_id, request)) = execute_rx.recv().await {
+                    let span = tracing::debug_span!("CoreExecute", proof_id = %request.context.proof_id, task_id = %task_id);
+                    let proof_id = request.context.proof_id.clone();
+                    match crate::worker::CoreExecuteTaskRequest::from_raw(request.clone()) {
+                        Ok(req) => {
+                            if let Err(e) =
+                                worker.controller().execute(task_id.clone(), req).instrument(span).await
+                            {
+                                tracing::error!("CoreExecute: task failed: {e:?}");
+                            }
+                        }
+                        Err(e) => {
+                            tracing::error!("CoreExecute: failed to parse request: {e:?}");
+                        }
+                    }
+
+                    if let Err(e) = worker
+                        .worker_client()
+                        .complete_task(proof_id, task_id, TaskMetadata { gpu_time: None })
+                        .await
+                    {
+                        tracing::error!("CoreExecute: marking task as complete failed: {e:?}");
+                    }
+                }
+            }
+        });
+
         // Spawn the setup handler
         join_set.spawn({
             let mut setup_rx = channels.task_receivers.remove(&TaskType::SetupVkey).unwrap();

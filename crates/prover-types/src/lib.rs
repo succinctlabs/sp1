@@ -26,7 +26,8 @@ impl WorkerType {
             | TaskType::PlonkWrap
             | TaskType::Groth16Wrap
             | TaskType::UtilVkeyMapController
-            | TaskType::ExecuteOnly => WorkerType::Cpu,
+            | TaskType::ExecuteOnly
+            | TaskType::CoreExecute => WorkerType::Cpu,
             TaskType::ProveShard
             | TaskType::RecursionReduce
             | TaskType::RecursionDeferred

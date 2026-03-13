@@ -9,6 +9,11 @@ use crate::worker::{
     ProofId, RawTaskRequest, SubscriberBuilder, TaskId, TaskMetadata, WorkerClient,
 };
 
+struct MessageChannelState {
+    tx: mpsc::UnboundedSender<Vec<u8>>,
+    rx: Option<mpsc::UnboundedReceiver<Vec<u8>>>,
+}
+
 type LocalDb =
     Arc<RwLock<HashMap<TaskId, (watch::Sender<TaskStatus>, watch::Receiver<TaskStatus>)>>>;
 
@@ -22,6 +27,7 @@ pub struct LocalWorkerClientInner {
     db: LocalDb,
     proof_index: ProofIndex,
     input_task_queues: HashMap<TaskType, mpsc::Sender<(TaskId, RawTaskRequest)>>,
+    task_channels: RwLock<HashMap<TaskId, MessageChannelState>>,
 }
 
 impl LocalWorkerClientInner {
@@ -46,6 +52,7 @@ impl LocalWorkerClientInner {
             TaskType::ExecuteOnly,
             TaskType::UtilVkeyMapChunk,
             TaskType::UtilVkeyMapController,
+            TaskType::CoreExecute,
         ] {
             let (tx, rx) = mpsc::channel(1);
             task_outputs.insert(task_type, rx);
@@ -54,7 +61,8 @@ impl LocalWorkerClientInner {
 
         let db = Arc::new(RwLock::new(HashMap::new()));
         let proof_index = Arc::new(RwLock::new(HashMap::new()));
-        let inner = Self { db, proof_index, input_task_queues: task_queues };
+        let task_channels = RwLock::new(HashMap::new());
+        let inner = Self { db, proof_index, input_task_queues: task_queues, task_channels };
         (inner, LocalWorkerClientChannels { task_receivers: task_outputs })
     }
 }
@@ -87,6 +95,14 @@ impl LocalWorkerClient {
             .ok_or_else(|| anyhow::anyhow!("task does not exist"))?;
 
         status_tx.send(status).map_err(|_| anyhow::anyhow!("failed to send status to task"))?;
+
+        if matches!(
+            status,
+            TaskStatus::Succeeded | TaskStatus::FailedFatal | TaskStatus::FailedRetryable
+        ) {
+            self.inner.task_channels.write().await.remove(&task_id);
+        }
+
         Ok(())
     }
 }
@@ -185,6 +201,37 @@ impl WorkerClient for LocalWorkerClient {
         });
         Ok(SubscriberBuilder::new(self.clone(), subscriber_input_tx, subscriber_output_rx))
     }
+
+    async fn subscribe_task_messages(
+        &self,
+        task_id: &TaskId,
+    ) -> anyhow::Result<mpsc::UnboundedReceiver<Vec<u8>>> {
+        let mut channels = self.inner.task_channels.write().await;
+        if let Some(state) = channels.get_mut(task_id) {
+            let rx = state.rx.take().ok_or_else(|| {
+                anyhow::anyhow!("task channel already subscribed for {task_id}")
+            })?;
+            return Ok(rx);
+        }
+        let (tx, rx) = mpsc::unbounded_channel();
+        channels.insert(task_id.clone(), MessageChannelState { tx, rx: None });
+        Ok(rx)
+    }
+
+    async fn send_task_message(&self, task_id: &TaskId, payload: Vec<u8>) -> anyhow::Result<()> {
+        let mut channels = self.inner.task_channels.write().await;
+        if let Some(state) = channels.get_mut(task_id) {
+            state
+                .tx
+                .send(payload)
+                .map_err(|_| anyhow::anyhow!("task channel receiver dropped"))?;
+        } else {
+            let (tx, rx) = mpsc::unbounded_channel();
+            tx.send(payload).expect("just-created channel cannot be closed");
+            channels.insert(task_id.clone(), MessageChannelState { tx, rx: Some(rx) });
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -211,6 +258,7 @@ pub mod test_utils {
             TaskType::PlonkWrap,
             TaskType::Groth16Wrap,
             TaskType::ExecuteOnly,
+            TaskType::CoreExecute,
         ] {
             let mut rx = channels.task_receivers.remove(&task_type).unwrap();
             let interval = random_interval.remove(&task_type).unwrap();

@@ -55,6 +55,12 @@ service WorkerService {
 
     // Get stats about the coordinator.
     rpc GetStats(google.protobuf.Empty) returns (GetStatsResponse);
+
+    // Subscribe to a task's message stream.
+    rpc SubscribeTaskMessages(SubscribeTaskMessagesRequest) returns (stream MessageStreamResponse);
+
+    // Send a message on a task's channel.
+    rpc SendTaskMessage(SendTaskMessageRequest) returns (google.protobuf.Empty);
 }
 
 // Task types
@@ -79,6 +85,7 @@ enum TaskType {
     PLONK_WRAP = 8;
     GROTH16_WRAP = 9;
     EXECUTE_ONLY = 10;
+    CORE_EXECUTE = 11;
     UTIL_VKEY_MAP_CONTROLLER = 101;
     UTIL_VKEY_MAP_CHUNK = 102;
 }
@@ -275,4 +282,24 @@ message GetStatsResponse {
     uint32 cpu_queue = 12;
     uint32 gpu_queue = 13;
     uint32 active_subscribers = 14;
+}
+
+// Message channel RPCs
+
+message SubscribeTaskMessagesRequest {
+    string worker_id = 1;
+    string task_id = 2;
+}
+
+message SendTaskMessageRequest {
+    string worker_id = 1;
+    string task_id = 2;
+    bytes payload = 3;
+}
+
+message MessageStreamResponse {
+    oneof message {
+        bytes payload = 1;
+        EndOfStream end_of_stream = 2;
+    }
 }
