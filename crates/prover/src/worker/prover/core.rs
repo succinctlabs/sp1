@@ -179,6 +179,7 @@ pub struct CoreWorker<A, W, C: SP1ProverComponents> {
     /// Optional fixed PK cache shared across workers.
     pk: Option<CoreProvingKeyCache<C>>,
     verify_intermediates: bool,
+    dump_shard_dir: Option<String>,
 }
 
 impl<A, W, C: SP1ProverComponents> CoreWorker<A, W, C> {
@@ -193,6 +194,7 @@ impl<A, W, C: SP1ProverComponents> CoreWorker<A, W, C> {
         permits: ProverSemaphore,
         pk: Option<CoreProvingKeyCache<C>>,
         verify_intermediates: bool,
+        dump_shard_dir: Option<String>,
     ) -> Self {
         Self {
             normalize_program_compiler,
@@ -204,6 +206,7 @@ impl<A, W, C: SP1ProverComponents> CoreWorker<A, W, C> {
             permits,
             pk,
             verify_intermediates,
+            dump_shard_dir,
         }
     }
 
@@ -469,6 +472,28 @@ where
         .await
         .map_err(|e| TaskError::Fatal(e.into()))?;
 
+        // Optionally dump the shard record and vk to disk for benchmarking/replay.
+        if let Some(dir) = self.dump_shard_dir.as_ref() {
+            use std::sync::atomic::{AtomicUsize, Ordering};
+            static SHARD_IDX: AtomicUsize = AtomicUsize::new(0);
+            let idx = SHARD_IDX.fetch_add(1, Ordering::SeqCst);
+            let path = std::path::PathBuf::from(&dir);
+            std::fs::create_dir_all(&path).ok();
+
+            let record_bytes = bincode::serialize(&record).expect("failed to serialize record");
+            std::fs::write(path.join(format!("record_{idx:04}.bin")), &record_bytes)
+                .expect("failed to write record");
+
+            let vk_bytes = bincode::serialize(&common_input.vk.vk).expect("failed to serialize vk");
+            std::fs::write(path.join(format!("vk_{idx:04}.bin")), &vk_bytes)
+                .expect("failed to write vk");
+
+            tracing::info!(
+                "Dumped shard {idx} record ({} bytes) and vk to {dir}",
+                record_bytes.len()
+            );
+        }
+
         // If this is not a Core proof request, spawn a task to get the recursion program.
         let span = tracing::debug_span!("get recursion program");
         let recursion_program_handle = if common_input.mode != ProofMode::Core {
@@ -732,6 +757,8 @@ pub struct SP1CoreProverConfig {
     pub use_fixed_pk: bool,
     /// Whether to verify intermediates.
     pub verify_intermediates: bool,
+    /// Optional directory to dump shard records and vks for benchmarking/replay.
+    pub dump_shard_dir: Option<String>,
 }
 
 impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1CoreProver<A, W, C> {
@@ -777,6 +804,7 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1CoreProver<A
                     permits.clone(),
                     pk_cache.clone(),
                     config.verify_intermediates,
+                    config.dump_shard_dir.clone(),
                 )
             })
             .collect::<Vec<_>>();
