@@ -208,9 +208,10 @@ impl WorkerClient for LocalWorkerClient {
     ) -> anyhow::Result<mpsc::UnboundedReceiver<Vec<u8>>> {
         let mut channels = self.inner.task_channels.write().await;
         if let Some(state) = channels.get_mut(task_id) {
-            let rx = state.rx.take().ok_or_else(|| {
-                anyhow::anyhow!("task channel already subscribed for {task_id}")
-            })?;
+            let rx = state
+                .rx
+                .take()
+                .ok_or_else(|| anyhow::anyhow!("task channel already subscribed for {task_id}"))?;
             return Ok(rx);
         }
         let (tx, rx) = mpsc::unbounded_channel();
@@ -221,10 +222,7 @@ impl WorkerClient for LocalWorkerClient {
     async fn send_task_message(&self, task_id: &TaskId, payload: Vec<u8>) -> anyhow::Result<()> {
         let mut channels = self.inner.task_channels.write().await;
         if let Some(state) = channels.get_mut(task_id) {
-            state
-                .tx
-                .send(payload)
-                .map_err(|_| anyhow::anyhow!("task channel receiver dropped"))?;
+            state.tx.send(payload).map_err(|_| anyhow::anyhow!("task channel receiver dropped"))?;
         } else {
             let (tx, rx) = mpsc::unbounded_channel();
             tx.send(payload).expect("just-created channel cannot be closed");
