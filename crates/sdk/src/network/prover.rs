@@ -567,6 +567,9 @@ impl NetworkProver {
         treasury: Option<Address>,
         max_price_per_pgu: Option<u64>,
     ) -> Result<B256> {
+        super::validation::validate_strategy_compatibility(self.network_mode(), strategy)
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
+
         let vk_hash = self.register_program(&pk.vk, &pk.elf).await?;
         let (cycle_limit, gas_limit, public_values_hash) = self
             .get_execution_limits(cycle_limit, gas_limit, &pk.elf, stdin, skip_simulation)
