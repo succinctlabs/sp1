@@ -23,15 +23,100 @@ use tracing::Instrument;
 
 use crate::worker::{
     global_memory, precompile_channel, DeferredMessage, MinimalExecutorCache,
-    PrecompileArtifactSlice, ProveShardTaskRequest, RawTaskRequest, SplicingEngine, SplicingTask,
-    TaskContext, TaskError, TaskId, WorkerClient,
+    PrecompileArtifactSlice, ProofId, ProveShardTaskRequest, RawTaskRequest, SplicingEngine,
+    SplicingTask, TaskContext, TaskError, TaskId, WorkerClient,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ProofData {
     pub task_id: TaskId,
     pub range: ShardRange,
     pub proof: Artifact,
+}
+
+pub struct ProofDataSender<W: WorkerClient> {
+    worker_client: W,
+    proof_id: ProofId,
+}
+
+impl<W: WorkerClient> ProofDataSender<W> {
+    pub fn new(worker_client: W, proof_id: ProofId) -> Self {
+        Self { worker_client, proof_id }
+    }
+
+    pub async fn send(&self, proof_data: ProofData) -> anyhow::Result<()> {
+        let payload = bincode::serialize(&proof_data)?;
+        self.worker_client.send_message(&self.proof_id, "core_proofs", payload).await
+    }
+
+    pub async fn close(&self) -> anyhow::Result<()> {
+        self.worker_client.close_message_sender(&self.proof_id, "core_proofs").await
+    }
+}
+
+impl<W: WorkerClient> Clone for ProofDataSender<W> {
+    fn clone(&self) -> Self {
+        Self { worker_client: self.worker_client.clone(), proof_id: self.proof_id.clone() }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+struct CoreExecuteMetadata {
+    num_deferred_proofs: usize,
+    cycle_limit: Option<u64>,
+}
+
+pub struct CoreExecuteTaskRequest {
+    pub elf: Artifact,
+    pub stdin: Artifact,
+    pub common_input: Artifact,
+    pub execution_output: Artifact,
+    pub num_deferred_proofs: usize,
+    pub cycle_limit: Option<u64>,
+    pub context: TaskContext,
+}
+
+impl CoreExecuteTaskRequest {
+    pub fn from_raw(request: RawTaskRequest) -> Result<Self, TaskError> {
+        let RawTaskRequest { inputs, outputs, context } = request;
+        let elf = inputs[0].clone();
+        let stdin = inputs[1].clone();
+        let common_input = inputs[2].clone();
+        let metadata_artifact = &inputs[3];
+        let execution_output = outputs[0].clone();
+
+        let metadata: CoreExecuteMetadata =
+            serde_json::from_str(&metadata_artifact.0).map_err(|e| {
+                TaskError::Fatal(anyhow::anyhow!(
+                    "failed to deserialize CoreExecuteMetadata: {e}"
+                ))
+            })?;
+
+        Ok(CoreExecuteTaskRequest {
+            elf,
+            stdin,
+            common_input,
+            execution_output,
+            num_deferred_proofs: metadata.num_deferred_proofs,
+            cycle_limit: metadata.cycle_limit,
+            context,
+        })
+    }
+
+    pub fn into_raw(self) -> Result<RawTaskRequest, TaskError> {
+        let metadata = CoreExecuteMetadata {
+            num_deferred_proofs: self.num_deferred_proofs,
+            cycle_limit: self.cycle_limit,
+        };
+        let metadata_str = serde_json::to_string(&metadata).map_err(|e| {
+            TaskError::Fatal(anyhow::anyhow!("failed to serialize CoreExecuteMetadata: {e}"))
+        })?;
+        let metadata_artifact = Artifact::from(metadata_str);
+
+        let inputs = vec![self.elf, self.stdin, self.common_input, metadata_artifact];
+        let outputs = vec![self.execution_output];
+        Ok(RawTaskRequest { inputs, outputs, context: self.context })
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -75,7 +160,7 @@ pub struct CommonProverInput {
     pub nonce: [u32; PROOF_NONCE_NUM_WORDS],
 }
 
-pub struct SP1CoreExecutor<A, W> {
+pub struct SP1CoreExecutor<A, W: WorkerClient> {
     splicing_engine: Arc<SplicingEngine<A, W>>,
     global_memory_buffer_size: usize,
     elf: Artifact,
@@ -84,14 +169,14 @@ pub struct SP1CoreExecutor<A, W> {
     opts: SP1CoreOpts,
     num_deferred_proofs: usize,
     context: TaskContext,
-    sender: mpsc::UnboundedSender<ProofData>,
+    sender: ProofDataSender<W>,
     artifact_client: A,
     worker_client: W,
     minimal_executor_cache: Option<MinimalExecutorCache>,
     cycle_limit: Option<u64>,
 }
 
-impl<A, W> SP1CoreExecutor<A, W> {
+impl<A, W: WorkerClient> SP1CoreExecutor<A, W> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         splicing_engine: Arc<SplicingEngine<A, W>>,
@@ -102,7 +187,7 @@ impl<A, W> SP1CoreExecutor<A, W> {
         opts: SP1CoreOpts,
         num_deferred_proofs: usize,
         context: TaskContext,
-        sender: mpsc::UnboundedSender<ProofData>,
+        sender: ProofDataSender<W>,
         artifact_client: A,
         worker_client: W,
         minimal_executor_cache: Option<MinimalExecutorCache>,

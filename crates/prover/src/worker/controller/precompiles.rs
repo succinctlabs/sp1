@@ -10,7 +10,7 @@ use tokio::{sync::mpsc, task::JoinSet};
 use tracing::Instrument;
 
 use crate::worker::{
-    controller::create_core_proving_task, ProofData, SpawnProveOutput, TaskContext, TaskError,
+    controller::create_core_proving_task, ProofDataSender, SpawnProveOutput, TaskContext, TaskError,
     TaskId, TraceData, WorkerClient,
 };
 
@@ -203,13 +203,13 @@ pub struct PrecompileHandler {
 
 impl PrecompileHandler {
     #[allow(clippy::too_many_arguments)]
-    pub(super) async fn emit_precompile_shards(
+    pub(super) async fn emit_precompile_shards<A: ArtifactClient, W: WorkerClient>(
         self,
         elf_artifact: Artifact,
         common_input_artifact: Artifact,
-        prove_shard_tx: mpsc::UnboundedSender<ProofData>,
-        artifact_client: impl ArtifactClient,
-        worker_client: impl WorkerClient,
+        prove_shard_tx: ProofDataSender<W>,
+        artifact_client: A,
+        worker_client: W,
         context: TaskContext,
     ) -> Result<(), TaskError> {
         let precompile_range = ShardRange::precompile();
@@ -300,7 +300,7 @@ impl PrecompileHandler {
                                     "deferred message is not none",
                                 )));
                             }
-                            prove_shard_tx.send(proof_data).map_err(|e| {
+                            prove_shard_tx.send(proof_data).await.map_err(|e| {
                                 TaskError::Fatal(anyhow::anyhow!(
                                     "error sending to proving tx: {}",
                                     e
@@ -333,7 +333,7 @@ impl PrecompileHandler {
                         .map_err(|e| TaskError::Fatal(e.into()))?;
 
                     debug_assert!(deferred_message.is_none());
-                    prove_shard_tx.send(proof_data).map_err(|e| {
+                    prove_shard_tx.send(proof_data).await.map_err(|e| {
                         TaskError::Fatal(anyhow::anyhow!("error sending to proving tx: {}", e))
                     })?;
                 }

@@ -11,11 +11,10 @@ use sp1_primitives::{hash_deferred_proof, SP1Field, SP1GlobalContext};
 use sp1_prover_types::{Artifact, ArtifactClient, TaskType};
 use sp1_recursion_circuit::machine::SP1ShapedWitnessValues;
 use sp1_recursion_executor::{RecursionPublicValues, DIGEST_SIZE};
-use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
     utils::words_to_bytes,
-    worker::{ProofData, RecursionDeferredTaskRequest, TaskContext, TaskError, WorkerClient},
+    worker::{ProofData, ProofDataSender, RecursionDeferredTaskRequest, TaskContext, TaskError, WorkerClient},
 };
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -70,13 +69,13 @@ impl DeferredInputs {
         self.deferred_digest
     }
 
-    pub async fn emit_deferred_tasks(
+    pub async fn emit_deferred_tasks<W: WorkerClient>(
         self,
         common_input: Artifact,
         context: TaskContext,
-        core_proofs_tx: UnboundedSender<ProofData>,
+        core_proofs_tx: ProofDataSender<W>,
         artifact_client: impl ArtifactClient,
-        worker_client: impl WorkerClient,
+        worker_client: W,
     ) -> Result<(), TaskError> {
         for input in self.inputs {
             // Calculate the range of the deferred proof.
@@ -102,6 +101,7 @@ impl DeferredInputs {
             let proof_data = ProofData { task_id, range, proof: output };
             core_proofs_tx
                 .send(proof_data)
+                .await
                 .map_err(|_| TaskError::Fatal(anyhow::anyhow!("Controller panicked, failed to send deferred proof data to core proofs channel")))?;
         }
         Ok(())

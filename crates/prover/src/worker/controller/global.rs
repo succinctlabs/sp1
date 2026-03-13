@@ -19,7 +19,7 @@ use tracing::Instrument;
 
 use crate::worker::{
     controller::create_core_proving_task, FinalVmState, GlobalMemoryShard, MinimalExecutorCache,
-    ProofData, SpawnProveOutput, TaskContext, TaskError, TraceData, WorkerClient,
+    ProofDataSender, SpawnProveOutput, TaskContext, TaskError, TraceData, WorkerClient,
 };
 
 pub struct SpliceAddresses {
@@ -70,20 +70,20 @@ pub fn global_memory(capacity: usize) -> (TouchedAddresses, GlobalMemoryHandler)
 
 impl GlobalMemoryHandler {
     #[allow(clippy::too_many_arguments)]
-    pub(super) async fn emit_global_memory_shards(
+    pub(super) async fn emit_global_memory_shards<A: ArtifactClient, W: WorkerClient>(
         mut self,
         program: Arc<Program>,
         final_state_rx: oneshot::Receiver<FinalVmState>,
         executor_rx: oneshot::Receiver<MinimalExecutorRunner>,
-        prove_shard_tx: mpsc::UnboundedSender<ProofData>,
+        prove_shard_tx: ProofDataSender<W>,
         elf_artifact: Artifact,
         common_input_artifact: Artifact,
         context: TaskContext,
         memory: UnsafeMemory,
         opts: SP1CoreOpts,
         num_deferred_proofs: usize,
-        artifact_client: impl ArtifactClient,
-        worker_client: impl WorkerClient,
+        artifact_client: A,
+        worker_client: W,
         minimal_executor_cache: Option<MinimalExecutorCache>,
     ) -> Result<(), TaskError> {
         let (shard_data_tx, mut shard_data_rx) =
@@ -352,9 +352,9 @@ impl GlobalMemoryHandler {
                             )
                             .await?;
 
-                            // Send the task data
                             prove_shard_tx
                                 .send(proof_data)
+                                .await
                                 .map_err(|e| anyhow::anyhow!("failed to send task id: {}", e))?;
                             Ok::<(), TaskError>(())
                         }

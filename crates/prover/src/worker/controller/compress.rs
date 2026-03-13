@@ -17,8 +17,8 @@ use tracing::Instrument;
 
 use crate::{
     worker::{
-        ProofData, RecursionProverData, ReduceTaskRequest, TaskContext, TaskError, TaskId,
-        WorkerClient,
+        MessageReceiver, ProofData, RecursionProverData, ReduceTaskRequest, TaskContext, TaskError,
+        TaskId, WorkerClient,
     },
     SP1CircuitWitness, SP1CompressWitness, SP1ProverComponents,
 };
@@ -323,7 +323,7 @@ impl CompressTree {
         &mut self,
         context: TaskContext,
         output: Artifact,
-        mut core_proofs_rx: mpsc::UnboundedReceiver<ProofData>,
+        mut core_proofs_rx: MessageReceiver,
         artifact_client: &impl ArtifactClient,
         worker_client: &impl WorkerClient,
     ) -> Result<(), TaskError> {
@@ -354,7 +354,7 @@ impl CompressTree {
             let core_proof_map = core_proof_map.clone();
             async move {
                 let mut num_core_proofs = 0;
-                while let Some(proof_data) = core_proofs_rx.recv().await {
+                while let Some(proof_data) = core_proofs_rx.recv_as::<ProofData>().await {
                     core_proofs_subscriber
                         .subscribe(proof_data.task_id.clone())
                         .map_err(|e| TaskError::Fatal(e.into()))?;
@@ -557,7 +557,7 @@ mod test_utils {
         elf_artifact: Artifact,
         common_input_artifact: Artifact,
         context: TaskContext,
-        core_proofs_tx: &mpsc::UnboundedSender<ProofData>,
+        core_proofs_tx: &mpsc::UnboundedSender<Vec<u8>>,
         worker_client: &impl WorkerClient,
         artifact_client: &impl ArtifactClient,
     ) {
@@ -576,10 +576,10 @@ mod test_utils {
 
         let task = request.into_raw().unwrap();
 
-        // Send the task to the worker.
         let task_id = worker_client.submit_task(TaskType::ProveShard, task).await.unwrap();
         let proof_data = ProofData { task_id, range, proof: proof_artifact };
-        core_proofs_tx.send(proof_data).unwrap();
+        let payload = bincode::serialize(&proof_data).unwrap();
+        core_proofs_tx.send(payload).unwrap();
     }
 
     #[tokio::test]
@@ -621,7 +621,8 @@ mod test_utils {
                 requester_id: RequesterId::new("test_compress_tree"),
             };
 
-            let (core_proofs_tx, core_proofs_rx) = mpsc::unbounded_channel::<ProofData>();
+            let (core_proofs_tx, core_proofs_rx_inner) = mpsc::unbounded_channel::<Vec<u8>>();
+            let core_proofs_rx = MessageReceiver::new(core_proofs_rx_inner);
 
             let elf_artifact = artifact_client.create_artifact().unwrap();
             let common_input_artifact = artifact_client.create_artifact().unwrap();

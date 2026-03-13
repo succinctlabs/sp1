@@ -1,4 +1,10 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+};
 
 use hashbrown::{HashMap, HashSet};
 use mti::prelude::{MagicTypeIdExt, V7};
@@ -6,8 +12,14 @@ use sp1_prover_types::{ProofRequestStatus, TaskStatus, TaskType};
 use tokio::sync::{mpsc, watch, RwLock};
 
 use crate::worker::{
-    ProofId, RawTaskRequest, SubscriberBuilder, TaskId, TaskMetadata, WorkerClient,
+    MessageReceiver, ProofId, RawTaskRequest, SubscriberBuilder, TaskId, TaskMetadata,
+    WorkerClient,
 };
+
+struct MessageChannelState {
+    remaining_senders: AtomicUsize,
+    tx: mpsc::UnboundedSender<Vec<u8>>,
+}
 
 type LocalDb =
     Arc<RwLock<HashMap<TaskId, (watch::Sender<TaskStatus>, watch::Receiver<TaskStatus>)>>>;
@@ -22,6 +34,7 @@ pub struct LocalWorkerClientInner {
     db: LocalDb,
     proof_index: ProofIndex,
     input_task_queues: HashMap<TaskType, mpsc::Sender<(TaskId, RawTaskRequest)>>,
+    message_channels: RwLock<HashMap<(ProofId, String), MessageChannelState>>,
 }
 
 impl LocalWorkerClientInner {
@@ -46,6 +59,7 @@ impl LocalWorkerClientInner {
             TaskType::ExecuteOnly,
             TaskType::UtilVkeyMapChunk,
             TaskType::UtilVkeyMapController,
+            TaskType::CoreExecute,
         ] {
             let (tx, rx) = mpsc::channel(1);
             task_outputs.insert(task_type, rx);
@@ -54,7 +68,8 @@ impl LocalWorkerClientInner {
 
         let db = Arc::new(RwLock::new(HashMap::new()));
         let proof_index = Arc::new(RwLock::new(HashMap::new()));
-        let inner = Self { db, proof_index, input_task_queues: task_queues };
+        let message_channels = RwLock::new(HashMap::new());
+        let inner = Self { db, proof_index, input_task_queues: task_queues, message_channels };
         (inner, LocalWorkerClientChannels { task_receivers: task_outputs })
     }
 }
@@ -185,6 +200,60 @@ impl WorkerClient for LocalWorkerClient {
         });
         Ok(SubscriberBuilder::new(self.clone(), subscriber_input_tx, subscriber_output_rx))
     }
+
+    async fn create_message_channel(
+        &self,
+        proof_id: &ProofId,
+        channel: &str,
+        num_senders: usize,
+    ) -> anyhow::Result<MessageReceiver> {
+        let (tx, rx) = mpsc::unbounded_channel();
+        let state = MessageChannelState {
+            remaining_senders: AtomicUsize::new(num_senders),
+            tx,
+        };
+        self.inner
+            .message_channels
+            .write()
+            .await
+            .insert((proof_id.clone(), channel.to_string()), state);
+        Ok(MessageReceiver::new(rx))
+    }
+
+    async fn send_message(
+        &self,
+        proof_id: &ProofId,
+        channel: &str,
+        payload: Vec<u8>,
+    ) -> anyhow::Result<()> {
+        let channels = self.inner.message_channels.read().await;
+        let key = (proof_id.clone(), channel.to_string());
+        let state = channels
+            .get(&key)
+            .ok_or_else(|| anyhow::anyhow!("message channel ({proof_id}, {channel}) not found"))?;
+        state.tx.send(payload).map_err(|_| anyhow::anyhow!("message channel receiver dropped"))?;
+        Ok(())
+    }
+
+    async fn close_message_sender(
+        &self,
+        proof_id: &ProofId,
+        channel: &str,
+    ) -> anyhow::Result<()> {
+        let key = (proof_id.clone(), channel.to_string());
+        let should_remove = {
+            let channels = self.inner.message_channels.read().await;
+            let state = channels.get(&key).ok_or_else(|| {
+                anyhow::anyhow!("message channel ({proof_id}, {channel}) not found")
+            })?;
+            let prev = state.remaining_senders.fetch_sub(1, Ordering::AcqRel);
+            prev == 1
+        };
+        if should_remove {
+            self.inner.message_channels.write().await.remove(&key);
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -211,6 +280,7 @@ pub mod test_utils {
             TaskType::PlonkWrap,
             TaskType::Groth16Wrap,
             TaskType::ExecuteOnly,
+            TaskType::CoreExecute,
         ] {
             let mut rx = channels.task_receivers.remove(&task_type).unwrap();
             let interval = random_interval.remove(&task_type).unwrap();

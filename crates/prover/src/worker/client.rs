@@ -53,6 +53,32 @@ pub trait WorkerClient: Send + Sync + Clone + 'static {
         proof_id: ProofId,
     ) -> impl Future<Output = anyhow::Result<SubscriberBuilder<Self>>> + Send;
 
+    /// Create a message channel identified by `(proof_id, channel)` with `num_senders` expected
+    /// producers. Returns a [`MessageReceiver`] whose stream ends once all senders have called
+    /// [`WorkerClient::close_message_sender`].
+    fn create_message_channel(
+        &self,
+        proof_id: &ProofId,
+        channel: &str,
+        num_senders: usize,
+    ) -> impl Future<Output = anyhow::Result<MessageReceiver>> + Send;
+
+    /// Deliver a payload to the message channel identified by `(proof_id, channel)`.
+    fn send_message(
+        &self,
+        proof_id: &ProofId,
+        channel: &str,
+        payload: Vec<u8>,
+    ) -> impl Future<Output = anyhow::Result<()>> + Send;
+
+    /// Signal that one sender is done with the channel. When the sender count reaches 0 the
+    /// receiver's stream ends.
+    fn close_message_sender(
+        &self,
+        proof_id: &ProofId,
+        channel: &str,
+    ) -> impl Future<Output = anyhow::Result<()>> + Send;
+
     fn submit_tasks(
         &self,
         kind: TaskType,
@@ -71,6 +97,27 @@ pub trait WorkerClient: Send + Sync + Clone + 'static {
         tasks: impl Stream<Item = RawTaskRequest> + Send,
     ) -> impl Future<Output = anyhow::Result<Vec<TaskId>>> + Send {
         tasks.then(move |task| self.submit_task(kind, task)).try_collect()
+    }
+}
+
+/// Receiver end of a message channel created via [`WorkerClient::create_message_channel`].
+pub struct MessageReceiver {
+    rx: mpsc::UnboundedReceiver<Vec<u8>>,
+}
+
+impl MessageReceiver {
+    pub fn new(rx: mpsc::UnboundedReceiver<Vec<u8>>) -> Self {
+        Self { rx }
+    }
+
+    pub async fn recv(&mut self) -> Option<Vec<u8>> {
+        self.rx.recv().await
+    }
+
+    /// Deserialize the next message as `T`, returning `None` when the channel is closed.
+    pub async fn recv_as<T: serde::de::DeserializeOwned>(&mut self) -> Option<T> {
+        let bytes = self.rx.recv().await?;
+        Some(bincode::deserialize(&bytes).expect("failed to deserialize message channel payload"))
     }
 }
 
@@ -400,6 +447,33 @@ impl WorkerClient for TrivialWorkerClient {
 
         Ok(SubscriberBuilder::new(self.clone(), sub_input_tx, sub_output_rx))
     }
+
+    async fn create_message_channel(
+        &self,
+        _proof_id: &ProofId,
+        _channel: &str,
+        _num_senders: usize,
+    ) -> anyhow::Result<MessageReceiver> {
+        let (_tx, rx) = mpsc::unbounded_channel();
+        Ok(MessageReceiver::new(rx))
+    }
+
+    async fn send_message(
+        &self,
+        _proof_id: &ProofId,
+        _channel: &str,
+        _payload: Vec<u8>,
+    ) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    async fn close_message_sender(
+        &self,
+        _proof_id: &ProofId,
+        _channel: &str,
+    ) -> anyhow::Result<()> {
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -568,6 +642,33 @@ mod tests {
                 }
             });
             Ok(SubscriberBuilder::new(self.clone(), subscriber_input_tx, subscriber_output_rx))
+        }
+
+        async fn create_message_channel(
+            &self,
+            _proof_id: &ProofId,
+            _channel: &str,
+            _num_senders: usize,
+        ) -> anyhow::Result<MessageReceiver> {
+            let (_tx, rx) = mpsc::unbounded_channel();
+            Ok(MessageReceiver::new(rx))
+        }
+
+        async fn send_message(
+            &self,
+            _proof_id: &ProofId,
+            _channel: &str,
+            _payload: Vec<u8>,
+        ) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn close_message_sender(
+            &self,
+            _proof_id: &ProofId,
+            _channel: &str,
+        ) -> anyhow::Result<()> {
+            Ok(())
         }
     }
 

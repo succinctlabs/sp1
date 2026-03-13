@@ -32,14 +32,14 @@ use sp1_prover_types::{
 use sp1_verifier::{ProofFromNetwork, SP1Proof};
 use std::{borrow::Borrow, sync::Arc};
 use tokio::{
-    sync::{mpsc, oneshot, Mutex, MutexGuard},
+    sync::{oneshot, Mutex, MutexGuard},
     task::JoinSet,
 };
 use tracing::Instrument;
 
 use crate::{
     verify::SP1Verifier,
-    worker::{RawTaskRequest, TaskContext, TaskError, WorkerClient},
+    worker::{MessageReceiver, RawTaskRequest, TaskContext, TaskError, WorkerClient},
     SP1_CIRCUIT_VERSION,
 };
 
@@ -130,6 +130,40 @@ where
         Arc::new(SplicingEngine::new(splicing_workers, self.config.splicing_buffer_size))
     }
 
+    /// Execute the core proving pipeline. This is the handler for `CoreExecute` tasks.
+    pub async fn execute(
+        &self,
+        request: CoreExecuteTaskRequest,
+    ) -> Result<ExecutionOutput, TaskError> {
+        let stdin = self.artifact_client.download_stdin::<SP1Stdin>(&request.stdin).await?;
+        let splicing_engine = self.initialize_splicing_engine();
+        let proof_data_sender =
+            ProofDataSender::new(self.worker_client.clone(), request.context.proof_id.clone());
+        let executor = SP1CoreExecutor::new(
+            splicing_engine,
+            self.global_memory_buffer_size(),
+            request.elf,
+            Arc::new(stdin),
+            request.common_input,
+            self.opts().clone(),
+            request.num_deferred_proofs,
+            request.context.clone(),
+            proof_data_sender,
+            self.artifact_client.clone(),
+            self.worker_client.clone(),
+            self.minimal_executor_cache.clone(),
+            request.cycle_limit,
+        );
+        let output = executor.execute().await;
+        self.worker_client
+            .close_message_sender(&request.context.proof_id, "core_proofs")
+            .await
+            .ok();
+        let output = output?;
+        self.artifact_client.upload(&request.execution_output, &output).await?;
+        Ok(output)
+    }
+
     pub async fn run(&self, request: RawTaskRequest) -> Result<ExecutionOutput, TaskError> {
         let RawTaskRequest { inputs, outputs, context } = request;
         let elf = inputs[0].clone();
@@ -168,7 +202,6 @@ where
                     tracing::debug!("setup cache hit");
                     vkey.clone()
                 } else {
-                    // Create a setup task and wait for the vk
                     let vk_artifact = artifact_client_clone.create_artifact()?;
                     let setup_request = RawTaskRequest {
                         inputs: vec![elf_clone.clone()],
@@ -180,7 +213,6 @@ where
                     let setup_id =
                         worker_client_clone.submit_task(TaskType::SetupVkey, setup_request).await?;
 
-                    // Wait for the setup task to finish
                     let subscriber =
                         worker_client_clone.subscriber(context.proof_id.clone()).await?.per_task();
                     let status = subscriber
@@ -212,7 +244,6 @@ where
 
         let num_deferred_proofs = deferred_inputs.num_deferred_proofs();
         let deferred_digest = deferred_inputs.deferred_digest().map(|x| x.as_canonical_u32());
-        // Create the common input
         let common_input = CommonProverInput {
             vk,
             mode,
@@ -220,28 +251,29 @@ where
             num_deferred_proofs,
             nonce: proof_nonce,
         };
-        // Upload the common input
         let common_input_artifact = self.artifact_client.create_artifact()?;
         self.artifact_client.upload(&common_input_artifact.clone(), common_input.clone()).await?;
 
-        let (core_proof_tx, core_proof_rx) = mpsc::unbounded_channel();
+        // 2 senders: the executor task and the deferred emitter
+        let core_proof_rx =
+            self.worker_client.create_message_channel(&context.proof_id, "core_proofs", 2).await?;
 
-        let splicing_engine = self.initialize_splicing_engine();
-        let executor = SP1CoreExecutor::new(
-            splicing_engine,
-            self.global_memory_buffer_size(),
-            elf,
-            stdin.clone(),
-            common_input_artifact.clone(),
-            self.opts().clone(),
+        // Submit the executor as a CoreExecute task
+        let execution_output_artifact = self.artifact_client.create_artifact()?;
+        let executor_request = CoreExecuteTaskRequest {
+            elf: elf.clone(),
+            stdin: stdin_artifact.clone(),
+            common_input: common_input_artifact.clone(),
+            execution_output: execution_output_artifact.clone(),
             num_deferred_proofs,
-            context.clone(),
-            core_proof_tx.clone(),
-            self.artifact_client.clone(),
-            self.worker_client.clone(),
-            self.minimal_executor_cache.clone(),
             cycle_limit,
-        );
+            context: context.clone(),
+        };
+        let executor_task_id = self
+            .worker_client
+            .submit_task(TaskType::CoreExecute, executor_request.into_raw()?)
+            .await?;
+
         let mut join_set = JoinSet::<Result<(), TaskError>>::new();
 
         let mut core_proof_artifact = None;
@@ -250,7 +282,7 @@ where
         let mut groth16_proof_artifact = None;
         let mut plonk_proof_artifact = None;
 
-        let (compress_complete_tx, compress_complete_rx) = tokio::sync::oneshot::channel();
+        let (compress_complete_tx, compress_complete_rx) = oneshot::channel();
 
         if mode == ProofMode::Core {
             core_proof_artifact = Some(self.artifact_client.create_artifact()?);
@@ -352,33 +384,53 @@ where
             _ => {}
         }
 
-        // Spawn a task to spawn the deferred tasks
-        join_set.spawn(deferred_inputs.emit_deferred_tasks(
-            common_input_artifact.clone(),
-            context.clone(),
-            core_proof_tx,
-            self.artifact_client.clone(),
-            self.worker_client.clone(),
-        ));
+        // Spawn a task for the deferred proofs (second sender on "core_proofs" channel)
+        {
+            let deferred_sender =
+                ProofDataSender::new(self.worker_client.clone(), context.proof_id.clone());
+            let artifact_client = self.artifact_client.clone();
+            let worker_client = self.worker_client.clone();
+            let common_input_artifact = common_input_artifact.clone();
+            let context = context.clone();
+            join_set.spawn(async move {
+                let result = deferred_inputs
+                    .emit_deferred_tasks(
+                        common_input_artifact,
+                        context,
+                        deferred_sender.clone(),
+                        artifact_client,
+                        worker_client,
+                    )
+                    .await;
+                deferred_sender.close().await.ok();
+                result
+            });
+        }
 
-        // Spawn a task for the executor and get a result handle rx.
-        let (executor_result_tx, executor_result_rx) = oneshot::channel();
-        join_set.spawn(
-            async move {
-                let result = executor.execute().await?;
-                tracing::trace!("executor finished");
-                executor_result_tx
-                    .send(result)
-                    .map_err(|_| TaskError::Fatal(anyhow::anyhow!("Controller panicked")))?;
+        // Spawn a task to wait for the executor CoreExecute task to complete
+        {
+            let subscriber =
+                self.worker_client.subscriber(context.proof_id.clone()).await?.per_task();
+            join_set.spawn(async move {
+                let status = subscriber
+                    .wait_task(executor_task_id)
+                    .instrument(tracing::debug_span!("wait executor"))
+                    .await?;
+                if status != TaskStatus::Succeeded {
+                    return Err(TaskError::Fatal(anyhow::anyhow!("CoreExecute task failed")));
+                }
                 Ok(())
-            }
-            .instrument(tracing::debug_span!("execute")),
-        );
+            });
+        }
 
-        // Wait for the executor and proof tasks to finish
+        // Wait for all tasks to finish
         while let Some(result) = join_set.join_next().await {
             result.map_err(|e| TaskError::Fatal(e.into()))??;
         }
+
+        // Download the execution output from the executor task's artifact
+        let result: ExecutionOutput =
+            self.artifact_client.download(&execution_output_artifact).await?;
 
         // Get the proof and wrap it if the mode is either groth16 or plonk.
         let inner_proof = match mode {
@@ -407,10 +459,6 @@ where
             _ => unimplemented!("proof mode not supported: {:?}", mode),
         };
 
-        let result = executor_result_rx
-            .await
-            .map_err(|_| TaskError::Fatal(anyhow::anyhow!("Executor panicked")))?;
-
         // Check if cycle limit was exceeded.
         if let Some(limit) = cycle_limit {
             if limit > 0 && result.cycles > limit {
@@ -437,6 +485,7 @@ where
         let artifacts_to_cleanup = vec![
             Some(common_input_artifact),
             Some(stdin_artifact),
+            Some(execution_output_artifact),
             core_proof_artifact,
             compress_proof_artifact,
             shrinkwrap_proof_artifact,
@@ -460,19 +509,17 @@ async fn collect_core_proofs(
     artifact_client: impl ArtifactClient,
     result_artifact: Artifact,
     context: TaskContext,
-    mut core_proof_rx: mpsc::UnboundedReceiver<ProofData>,
+    mut core_proof_rx: MessageReceiver,
 ) -> Result<(), TaskError> {
     let subscriber = worker_client.subscriber(context.proof_id.clone()).await?.per_task();
     let mut shard_proofs = Vec::new();
-    while let Some(proof_data) = core_proof_rx.recv().await {
+    while let Some(proof_data) = core_proof_rx.recv_as::<ProofData>().await {
         let ProofData { task_id, proof, .. } = proof_data;
-        // Wait for the task to finish
         let status = subscriber.wait_task(task_id.clone()).await?;
         if status != TaskStatus::Succeeded {
             tracing::error!("core proof task failed: {:?}", task_id);
             return Err(TaskError::Fatal(anyhow::anyhow!("core proof task failed: {:?}", task_id)));
         }
-        // Download the proof
         let proof = artifact_client
             .download::<ShardProof<SP1GlobalContext, SP1PcsProofInner>>(&proof)
             .await?;
@@ -484,7 +531,6 @@ async fn collect_core_proofs(
         public_values.range()
     });
 
-    // Upload the collected shard proofs
     artifact_client.upload(&result_artifact, shard_proofs).await?;
 
     Ok(())
