@@ -24,7 +24,8 @@ mod transpiler;
 // * r11 always holds the value of a0. See `Location` definition below.
 // * r8 holds `num_mem_reads` in tracing mode.
 // * r9 holds memory pointer.
-// * TODO: r10 can hold clk
+// * TODO: maybe r10 can hold `tail_start` of trace buf.
+// * r15 holds clk or saved stack pointer when calling external functions.
 // * TEMP_A, TEMP_B, rax, rcx, rdx, are free to used by any code sequences.
 // * rsi is reserved for now.
 
@@ -65,11 +66,11 @@ const TRACE_BUF: u8 = Rq::R14 as u8;
 
 /// The saved stack pointer, used during external function calls.
 ///
-/// Note this is only used for external function calls. It can also
-/// be a hoist register.
+/// When not making external function calls, clock is hoisted to
+/// this register.
 ///
 /// Callee-saved register.
-const SAVED_STACK_PTR: u8 = Rq::R15 as u8;
+const CLOCK_OR_SAVED_STACK_PTR: u8 = Rq::R15 as u8;
 
 /// The offset of the pc in the JitContext.
 const PC_OFFSET: i32 = offset_of!(JitContext, pc) as i32;
@@ -264,7 +265,7 @@ impl TraceCollector for TranspilerBackend {
             // ------------------------------------
             movdqu xmm15, [Rq(TEMP_A)];
             movdqu [rax], xmm15;
-            mov rdx, QWORD [Rq(CONTEXT) + CLK_OFFSET];
+            mov rdx, Rq(CLOCK_OR_SAVED_STACK_PTR);
             add rdx, 1;
             mov [Rq(TEMP_A)], rdx;
 
@@ -374,7 +375,7 @@ impl TranspilerBackend {
             push Rq(CONTEXT);
             push Rq(JUMP_TABLE);
             push Rq(TRACE_BUF);
-            push Rq(SAVED_STACK_PTR);
+            push Rq(CLOCK_OR_SAVED_STACK_PTR);
 
             // Save some useful pointers to non-volatile registers so we can use them in ASM easily.
             mov Rq(JUMP_TABLE), [rdi + jump_table_offset];
@@ -399,7 +400,9 @@ impl TranspilerBackend {
                 self;
                 .arch x64;
 
-                // Move `num_mem_reads` to a register for fast access
+                // Hoist clock
+                mov Rq(CLOCK_OR_SAVED_STACK_PTR), QWORD [Rq(CONTEXT) + CLK_OFFSET];
+                // Hoist `num_mem_reads`
                 mov Rq(NUM_MEM_READS), QWORD [Rq(TRACE_BUF) + NUM_MEM_READS_OFFSET]
             }
         }
@@ -430,16 +433,18 @@ impl TranspilerBackend {
         }
 
         if self.tracing() {
-            self.trace_clk_end();
-
             const NUM_MEM_READS_OFFSET: i32 = offset_of!(TraceChunkHeader, num_mem_reads) as i32;
             dynasm! {
                 self;
                 .arch x64;
 
                 // Write `num_mem_reads` back to memory
-                mov QWORD [Rq(TRACE_BUF) + NUM_MEM_READS_OFFSET], Rq(NUM_MEM_READS)
+                mov QWORD [Rq(TRACE_BUF) + NUM_MEM_READS_OFFSET], Rq(NUM_MEM_READS);
+                // Write clock back to memory
+                mov QWORD [Rq(CONTEXT) + CLK_OFFSET], Rq(CLOCK_OR_SAVED_STACK_PTR)
             }
+
+            self.trace_clk_end();
         }
 
         // Ensure the registers are saved to the context.
@@ -450,7 +455,7 @@ impl TranspilerBackend {
             .arch x64;
 
             // Restore the callee saved registers.
-            pop Rq(SAVED_STACK_PTR);
+            pop Rq(CLOCK_OR_SAVED_STACK_PTR);
             pop Rq(TRACE_BUF);
             pop Rq(JUMP_TABLE);
             pop Rq(CONTEXT);
@@ -630,14 +635,15 @@ impl TranspilerBackend {
             self;
             .arch x64;
 
-            // r8, r9, r11 are callee-saved registers with non-volatile values.
-            // Here we write r8 back to trace buf's `num_mem_reads`.
+            // r8, r9, r11, r15 are callee-saved registers with non-volatile values.
+            // Here we write r8 back to trace buf's `num_mem_reads`, r15 to clock.
             // r9 simply holds memory pointer, we don't need to save it.
             // r11 holds a RISC-V register, `save_registers_to_context` takes care of it.
             mov QWORD [Rq(TRACE_BUF) + NUM_MEM_READS_OFFSET], Rq(NUM_MEM_READS);
+            mov QWORD [Rq(CONTEXT) + CLK_OFFSET], Rq(CLOCK_OR_SAVED_STACK_PTR);
 
             // Save the original stack pointer
-            mov Rq(SAVED_STACK_PTR), rsp;
+            mov Rq(CLOCK_OR_SAVED_STACK_PTR), rsp;
 
             // Align the stack to 16 bytes for the call
             lea rsp, [rsp - 8]; // sub 8 from the rsp
@@ -650,9 +656,10 @@ impl TranspilerBackend {
             call rax;
 
             // Restore the original stack pointer
-            mov rsp, Rq(SAVED_STACK_PTR);
+            mov rsp, Rq(CLOCK_OR_SAVED_STACK_PTR);
 
-            // Restore `num_mem_reads`
+            // Restore clock & `num_mem_reads`
+            mov Rq(CLOCK_OR_SAVED_STACK_PTR), QWORD [Rq(CONTEXT) + CLK_OFFSET];
             mov Rq(NUM_MEM_READS), QWORD [Rq(TRACE_BUF) + NUM_MEM_READS_OFFSET]
         }
 
@@ -730,7 +737,7 @@ impl TranspilerBackend {
             // ------------------------------------
             // Add the amount to the clk field in the context.
             // ------------------------------------
-            add QWORD [Rq(CONTEXT) + CLK_OFFSET], clk_bump;
+            add Rq(CLOCK_OR_SAVED_STACK_PTR), clk_bump;
 
             // ------------------------------------
             // Add to global_clk based on is_unconstrained:
