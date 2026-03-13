@@ -16,7 +16,6 @@ use super::CompressedError;
 use crate::{
     blake3_hash,
     compressed::{RECURSION_LOG_STACKING_HEIGHT, RECURSION_MAX_LOG_ROW_COUNT},
-    hash_public_inputs, hash_public_inputs_with_fn,
 };
 
 /// The finite field used for compress proofs.
@@ -52,7 +51,7 @@ impl Default for SP1CompressedVerifier {
         );
 
         let verifier = MachineVerifier::new(recursion_shard_verifier);
-        let vk_merkle_root = [SP1Field::zero(); DIGEST_SIZE]; // Placeholder for vk merkle root.
+        let vk_merkle_root = crate::VerifierRecursionVks::default().root();
         Self { verifier, vk_merkle_root }
     }
 }
@@ -148,10 +147,13 @@ impl SP1CompressedVerifier {
             .flat_map(|w| w.iter().map(|x| x.as_canonical_u32() as u8))
             .collect::<Vec<_>>();
 
-        if committed_value_digest_bytes.as_slice()
-            != hash_public_inputs(sp1_public_inputs).as_slice()
-            && committed_value_digest_bytes.as_slice()
-                != hash_public_inputs_with_fn(sp1_public_inputs, blake3_hash)
+        // For compressed proofs, the committed digest uses the full hash (no bit masking).
+        // hash_public_inputs zeroes the top 3 bits for Plonk/Groth16 field compatibility,
+        // but that doesn't apply here.
+        let sha256_digest = crate::sha256_hash(sp1_public_inputs);
+        let blake3_digest = blake3_hash(sp1_public_inputs);
+        if committed_value_digest_bytes.as_slice() != sha256_digest.as_slice()
+            && committed_value_digest_bytes.as_slice() != blake3_digest.as_slice()
         {
             return Err(CompressedError::PublicValuesMismatch);
         }
