@@ -67,6 +67,7 @@ where
     pub config: WhirProofShape<GC::F>,
     // First sumcheck
     pub initial_sumcheck_polynomials: Vec<(SumcheckPoly<GC::EF>, ProofOfWork<GC>)>,
+    pub initial_merkle_proof: Rounds<MerkleTreeOpeningAndProof<GC>>,
 
     // For internal rounds
     pub commitments: Vec<ParsedCommitment<GC>>,
@@ -119,6 +120,8 @@ pub enum SumcheckError {
     InvalidSum,
     #[error("invalid proof of work")]
     PowError,
+    #[error("invalid shape of proof of work")]
+    InvalidShape,
 }
 
 pub fn map_to_pow<F: AbstractField>(mut elem: F, len: usize) -> Point<F> {
@@ -168,9 +171,19 @@ where
     ) -> Result<(Point<GC::EF>, GC::EF), WhirProofError> {
         let config = &proof.config;
         let n_rounds = config.round_parameters.len();
+
+        if n_rounds == 0
+            || proof.merkle_proofs.len() != n_rounds - 1
+            || proof.query_proofs_of_work.len() != n_rounds
+            || proof.sumcheck_polynomials.len() != n_rounds
+            || proof.commitments.len() != n_rounds + 1
+        {
+            return Err(WhirProofError::IncorrectShape);
+        }
+
         if commitments.len() != self.num_expected_commitments
             || round_areas.len() != self.num_expected_commitments
-            || proof.merkle_proofs[0].len() != self.num_expected_commitments
+            || proof.initial_merkle_proof.len() != self.num_expected_commitments
         {
             return Err(WhirProofError::InvalidNumberOfCommitments(
                 self.num_expected_commitments,
@@ -180,7 +193,7 @@ where
 
         println!("Round areas: {round_areas:?}");
 
-        for (merkle_proof, area) in proof.merkle_proofs[0].iter().zip_eq(round_areas.iter()) {
+        for (merkle_proof, area) in proof.initial_merkle_proof.iter().zip_eq(round_areas.iter()) {
             if merkle_proof.proof.width << self.config.starting_interleaved_log_height != *area {
                 println!(
                     "proof width: {}, proof log height: {}, expected area {}, area: {}",
@@ -202,7 +215,7 @@ where
             })
             .collect();
 
-        let commitment = &proof.commitments[0];
+        let commitment = proof.commitments.first().ok_or(WhirProofError::IncorrectShape)?;
 
         if ood_points != commitment.ood_points {
             return Err(WhirProofError::InvalidOOD);
@@ -263,7 +276,8 @@ where
 
         for round_index in 0..n_rounds {
             let round_params = &config.round_parameters[round_index];
-            let new_commitment = &proof.commitments[round_index + 1];
+            let new_commitment =
+                proof.commitments.get(round_index + 1).ok_or(WhirProofError::IncorrectShape)?;
             if new_commitment.ood_answers.len() != round_params.ood_samples {
                 return Err(WhirProofError::InvalidNumberOfOODSamples(
                     round_params.ood_samples,
@@ -311,7 +325,11 @@ where
                 return Err(WhirProofError::PowError);
             }
 
-            let merkle_proof = &proof.merkle_proofs[round_index];
+            let merkle_proof = if round_index != 0 {
+                &proof.merkle_proofs[round_index - 1]
+            } else {
+                &proof.initial_merkle_proof
+            };
 
             if round_index != 0 {
                 assert_eq!(merkle_proof.len(), 1);
@@ -529,6 +547,9 @@ where
                 sumcheck_polynomials.len(),
             ));
         }
+        if pow_bits.len() < rounds {
+            return Err(SumcheckError::InvalidShape);
+        }
         let mut randomness = Vec::with_capacity(rounds);
         for i in 0..rounds {
             let (sumcheck_poly, pow_witness) = &sumcheck_polynomials[i];
@@ -603,7 +624,7 @@ where
     /// Functionality to deduce round by round from the proof the multiples of `1<<log.stacking_height`
     /// corresponding to the round's total polynomial size.
     fn round_multiples(proof: &<Self as MultilinearPcsVerifier<GC>>::Proof) -> Vec<usize> {
-        proof.merkle_proofs[0].iter().map(|p| p.values.sizes()[1]).collect()
+        proof.initial_merkle_proof.iter().map(|merkle_proof| merkle_proof.proof.width).collect()
     }
 }
 
