@@ -255,8 +255,8 @@ impl TraceCollector for TranspilerBackend {
             //
             // The code is written to minimize split RMW
             // ------------------------------------
-            movdqa xmm15, [Rq(TEMP_A)];
-            movdqa [rax], xmm15;
+            movdqu xmm15, [Rq(TEMP_A)];
+            movdqu [rax], xmm15;
             mov rdx, QWORD [Rq(CONTEXT) + CLK_OFFSET];
             add rdx, 1;
             mov [Rq(TEMP_A)], rdx;
