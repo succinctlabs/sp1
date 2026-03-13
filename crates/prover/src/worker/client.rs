@@ -10,7 +10,7 @@ use futures::{prelude::*, stream::FuturesOrdered};
 use hashbrown::{HashMap, HashSet};
 use mti::prelude::{MagicTypeIdExt, V7};
 use opentelemetry::Context;
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp1_prover_types::{
     Artifact, ArtifactClient, ArtifactType, ProofRequestStatus, TaskStatus, TaskType,
 };
@@ -89,13 +89,13 @@ pub trait WorkerClient: Send + Sync + Clone + 'static {
     }
 }
 
-/// Receiver end of a task message subscription created via [`WorkerClient::subscribe_task_messages`].
-pub struct MessageReceiver<T> {
+/// Wrapper around an mpsc::UnboundedReceiver<Vec<u8>> that deserializes the payload as `T`.
+pub struct MessageReceiver<T: DeserializeOwned> {
     rx: mpsc::UnboundedReceiver<Vec<u8>>,
     _marker: std::marker::PhantomData<T>,
 }
 
-impl<T: serde::de::DeserializeOwned> MessageReceiver<T> {
+impl<T: DeserializeOwned> MessageReceiver<T> {
     pub fn new(rx: mpsc::UnboundedReceiver<Vec<u8>>) -> Self {
         Self { rx, _marker: std::marker::PhantomData }
     }
