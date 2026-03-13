@@ -1,6 +1,6 @@
 #![allow(clippy::fn_to_numeric_cast)]
 
-use super::{TranspilerBackend, CONTEXT, PC_OFFSET, TEMP_A, TEMP_B};
+use super::{TranspilerBackend, CONTEXT, MEMORY_PTR, PC_OFFSET, TEMP_A, TEMP_B};
 use crate::{
     impl_alu32_imm_opt, impl_alu_imm_opt, impl_risc_alu, impl_shift32_imm_opt, ComputeInstructions,
     ControlFlowInstructions, JitContext, MemoryInstructions, RiscOperand, RiscRegister,
@@ -1065,7 +1065,6 @@ impl MemoryInstructions for TranspilerBackend {
         // Load in the base address and the phy sical memory pointer.
         // ------------------------------------
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
-        self.load_memory_ptr(TEMP_B);
 
         dynasm! {
             self;
@@ -1098,7 +1097,7 @@ impl MemoryInstructions for TranspilerBackend {
             //
             // TEMP_A = addr + physical_memory_pointer
             // ------------------------------------
-            add Rq(TEMP_A), Rq(TEMP_B);
+            add Rq(TEMP_A), Rq(MEMORY_PTR);
 
             // ------------------------------------
             // 4. Load byte → sign-extend to 32 bits
@@ -1123,7 +1122,6 @@ impl MemoryInstructions for TranspilerBackend {
         // and the physical memory pointer.
         // ------------------------------------
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
-        self.load_memory_ptr(TEMP_B);
 
         dynasm! {
             self;
@@ -1155,7 +1153,7 @@ impl MemoryInstructions for TranspilerBackend {
             //
             // TEMP_A = addr + physical_memory_pointer
             // ------------------------------------
-            add Rq(TEMP_A), Rq(TEMP_B);
+            add Rq(TEMP_A), Rq(MEMORY_PTR);
 
             // ------------------------------------
             // Load byte → zero-extend to 32 bits
@@ -1174,7 +1172,6 @@ impl MemoryInstructions for TranspilerBackend {
         // and the physical memory pointer.
         // ------------------------------------
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
-        self.load_memory_ptr(TEMP_B);
 
         dynasm! {
             self;
@@ -1206,7 +1203,7 @@ impl MemoryInstructions for TranspilerBackend {
             //
             // TEMP_A = addr + physical_memory_pointer
             // ------------------------------------
-            add Rq(TEMP_A), Rq(TEMP_B);
+            add Rq(TEMP_A), Rq(MEMORY_PTR);
 
             // ------------------------------------
             // Load half-word → sign-extend to 32 bits
@@ -1225,7 +1222,6 @@ impl MemoryInstructions for TranspilerBackend {
         //  and the physical memory pointer.
         // ------------------------------------
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
-        self.load_memory_ptr(TEMP_B);
 
         dynasm! {
             self;
@@ -1257,7 +1253,7 @@ impl MemoryInstructions for TranspilerBackend {
             //
             // TEMP_A = addr + physical_memory_pointer
             // ------------------------------------
-            add Rq(TEMP_A), Rq(TEMP_B);
+            add Rq(TEMP_A), Rq(MEMORY_PTR);
 
             // ------------------------------------
             // Load 16 bits, zero-extend to 32 bits
@@ -1276,7 +1272,6 @@ impl MemoryInstructions for TranspilerBackend {
         // and physical memory pointer into TEMP_B
         // ------------------------------------
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
-        self.load_memory_ptr(TEMP_B);
 
         dynasm! {
             self;
@@ -1308,7 +1303,7 @@ impl MemoryInstructions for TranspilerBackend {
             //
             // TEMP_A = addr + physical_memory_pointer
             // ------------------------------------
-            add Rq(TEMP_A), Rq(TEMP_B);
+            add Rq(TEMP_A), Rq(MEMORY_PTR);
 
             // ------------------------------------
             // 4. Load the word from physical memory into TEMP_A (sign-extended to 64-bit)
@@ -1330,7 +1325,6 @@ impl MemoryInstructions for TranspilerBackend {
         // and physical memory pointer into TEMP_B
         // ------------------------------------
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
-        self.load_memory_ptr(TEMP_B);
 
         dynasm! {
             self;
@@ -1362,7 +1356,7 @@ impl MemoryInstructions for TranspilerBackend {
             //
             // TEMP_A = addr + physical_memory_pointer
             // ------------------------------------
-            add Rq(TEMP_A), Rq(TEMP_B);
+            add Rq(TEMP_A), Rq(MEMORY_PTR);
 
             // ------------------------------------
             // 4. Load the word from physical memory into TEMP_B (zero-extended to 64-bit)
@@ -1384,7 +1378,6 @@ impl MemoryInstructions for TranspilerBackend {
         // and physical memory pointer into TEMP_B
         // ------------------------------------
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
-        self.load_memory_ptr(TEMP_B);
 
         dynasm! {
             self;
@@ -1409,7 +1402,7 @@ impl MemoryInstructions for TranspilerBackend {
             //
             // TEMP_A = addr + physical_memory_pointer
             // ------------------------------------
-            add Rq(TEMP_A), Rq(TEMP_B);
+            add Rq(TEMP_A), Rq(MEMORY_PTR);
 
             // ------------------------------------
             // Load the word from physical memory into TEMP_A
@@ -1431,7 +1424,6 @@ impl MemoryInstructions for TranspilerBackend {
         // and physical memory pointer into TEMP_B
         // ------------------------------------
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
-        self.load_memory_ptr(TEMP_B);
 
         dynasm! {
             self;
@@ -1459,13 +1451,13 @@ impl MemoryInstructions for TranspilerBackend {
             // ------------------------------------
             // Add the risc32 byte offset to the physical memory pointer
             // ------------------------------------
-            add Rq(TEMP_B), Rq(TEMP_A)
+            add Rq(TEMP_A), Rq(MEMORY_PTR)
         }
 
         // ------------------------------------
-        // Load the word from the RISC register into TEMP_A
+        // Load the word from the RISC register into TEMP_B
         // ------------------------------------
-        self.emit_risc_operand_load(rs2.into(), TEMP_A);
+        self.emit_risc_operand_load(rs2.into(), TEMP_B);
 
         // ------------------------------------
         // Store the word into physical memory
@@ -1474,7 +1466,7 @@ impl MemoryInstructions for TranspilerBackend {
             self;
             .arch x64;
 
-            mov BYTE [Rq(TEMP_B) + 8 + rax], Rb(TEMP_A)
+            mov BYTE [Rq(TEMP_A) + 8 + rax], Rb(TEMP_B)
         }
     }
 
@@ -1486,7 +1478,6 @@ impl MemoryInstructions for TranspilerBackend {
         // and physical memory pointer into TEMP_B
         // ------------------------------------
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
-        self.load_memory_ptr(TEMP_B);
 
         dynasm! {
             self;
@@ -1513,13 +1504,13 @@ impl MemoryInstructions for TranspilerBackend {
             // ------------------------------------
             // Add the risc32 byte offset to the physical memory pointer
             // ------------------------------------
-            add Rq(TEMP_B), Rq(TEMP_A)
+            add Rq(TEMP_A), Rq(MEMORY_PTR)
         }
 
         // ------------------------------------
-        // Load the word from the RISC register into TEMP_A
+        // Load the word from the RISC register into TEMP_B
         // ------------------------------------
-        self.emit_risc_operand_load(rs2.into(), TEMP_A);
+        self.emit_risc_operand_load(rs2.into(), TEMP_B);
 
         // ------------------------------------
         // Store the word into physical memory
@@ -1528,7 +1519,7 @@ impl MemoryInstructions for TranspilerBackend {
             self;
             .arch x64;
 
-            mov WORD [Rq(TEMP_B) + 8 + rax], Rw(TEMP_A)
+            mov WORD [Rq(TEMP_A) + 8 + rax], Rw(TEMP_B)
         }
     }
 
@@ -1540,7 +1531,6 @@ impl MemoryInstructions for TranspilerBackend {
         // and physical memory pointer into TEMP_B
         // ------------------------------------
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
-        self.load_memory_ptr(TEMP_B);
 
         dynasm! {
             self;
@@ -1567,13 +1557,13 @@ impl MemoryInstructions for TranspilerBackend {
             // ------------------------------------
             // Add the risc32 byte offset to the physical memory pointer
             // ------------------------------------
-            add Rq(TEMP_B), Rq(TEMP_A)
+            add Rq(TEMP_A), Rq(MEMORY_PTR)
         }
 
         // ------------------------------------
-        // Load the word from the RISC register into TEMP_A
+        // Load the word from the RISC register into TEMP_B
         // ------------------------------------
-        self.emit_risc_operand_load(rs2.into(), TEMP_A);
+        self.emit_risc_operand_load(rs2.into(), TEMP_B);
 
         // ------------------------------------
         // Store the word into physical memory
@@ -1582,7 +1572,7 @@ impl MemoryInstructions for TranspilerBackend {
             self;
             .arch x64;
 
-            mov DWORD [Rq(TEMP_B) + 8 + rax], Rd(TEMP_A)
+            mov DWORD [Rq(TEMP_A) + 8 + rax], Rd(TEMP_B)
         }
     }
 
@@ -1594,7 +1584,6 @@ impl MemoryInstructions for TranspilerBackend {
         // and physical memory pointer into TEMP_B
         // ------------------------------------
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
-        self.load_memory_ptr(TEMP_B);
 
         dynasm! {
             self;
@@ -1615,13 +1604,13 @@ impl MemoryInstructions for TranspilerBackend {
             // ------------------------------------
             // 3. Add the risc32 byte offset to the physical memory pointer
             // ------------------------------------
-            add Rq(TEMP_B), Rq(TEMP_A)
+            add Rq(TEMP_A), Rq(MEMORY_PTR)
         }
 
         // ------------------------------------
-        // Load the word from the RISC register into TEMP_A
+        // Load the word from the RISC register into TEMP_B
         // ------------------------------------
-        self.emit_risc_operand_load(rs2.into(), TEMP_A);
+        self.emit_risc_operand_load(rs2.into(), TEMP_B);
 
         // ------------------------------------
         // Store the word into physical memory
@@ -1630,7 +1619,7 @@ impl MemoryInstructions for TranspilerBackend {
             self;
             .arch x64;
 
-            mov QWORD [Rq(TEMP_B) + 8], Rq(TEMP_A)
+            mov QWORD [Rq(TEMP_A) + 8], Rq(TEMP_B)
         }
     }
 }

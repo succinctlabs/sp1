@@ -22,11 +22,11 @@ mod transpiler;
 // To make the best use of OOO CPUs, we define the following conventions:
 // * rdi is used by prologue code.
 // * r11 always holds the value of a0. See `Location` definition below.
+// * r8 holds `num_mem_reads` in tracing mode.
+// * r9 holds memory pointer.
+// * TODO: r10 can hold clk
 // * TEMP_A, TEMP_B, rax, rcx, rdx, are free to used by any code sequences.
-// * r8 - r9 cannot be tampered by instruction implementation. They might
-//   be used by code before actual instruction (tracing), and read after
-//   instruction itself completes.
-// * rsi, r10 are reserved for now. We will assign them as needed later.
+// * rsi is reserved for now.
 
 /// The first scratch register.
 ///
@@ -37,6 +37,16 @@ const TEMP_A: u8 = Rq::RBX as u8;
 ///
 /// Callee-saved register.
 const TEMP_B: u8 = Rq::RBP as u8;
+
+/// A register copy of `num_mem_reads` in tracing mode.
+///
+/// Caller-saved register!
+const NUM_MEM_READS: u8 = Rq::R8 as u8;
+
+/// Memory pointer.
+///
+/// Caller-saved register!
+const MEMORY_PTR: u8 = Rq::R9 as u8;
 
 /// The JitContext pointer.
 ///
@@ -54,6 +64,9 @@ const JUMP_TABLE: u8 = Rq::R13 as u8;
 const TRACE_BUF: u8 = Rq::R14 as u8;
 
 /// The saved stack pointer, used during external function calls.
+///
+/// Note this is only used for external function calls. It can also
+/// be a hoist register.
 ///
 /// Callee-saved register.
 const SAVED_STACK_PTR: u8 = Rq::R15 as u8;
@@ -198,19 +211,14 @@ impl TraceCollector for TranspilerBackend {
     /// Write the value at [rs1 + imm] into the trace buffer.
     fn trace_mem_value(&mut self, rs1: RiscRegister, imm: u64) {
         const TAIL_START_OFFSET: i32 = std::mem::size_of::<TraceChunkHeader>() as i32;
-        const NUM_MEM_READS_OFFSET: i32 = offset_of!(TraceChunkHeader, num_mem_reads) as i32;
         const IS_UNCONSTRAINED_OFFSET: i32 = offset_of!(JitContext, is_unconstrained) as i32;
 
         // Load the value, assumed to be of a memory read, into TEMP_A.
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
-        self.load_memory_ptr(TEMP_B);
 
         dynasm! {
             self;
             .arch x64;
-
-            // r8 will be used in tracing, and in `exit_if_trace_exceeds` code.
-            mov r8, QWORD [Rq(TRACE_BUF) + NUM_MEM_READS_OFFSET];
 
             // Check if were in unconstrained mode.
             mov rcx, QWORD [Rq(CONTEXT) + IS_UNCONSTRAINED_OFFSET];
@@ -236,7 +244,7 @@ impl TraceCollector for TranspilerBackend {
             // Scale by the entry size. Add the
             // physical memory pointer.
             // ------------------------------------
-            lea Rq(TEMP_A), [Rq(TEMP_B) + Rq(TEMP_A) * 2];
+            lea Rq(TEMP_A), [Rq(MEMORY_PTR) + Rq(TEMP_A) * 2];
 
             // ------------------------------------
             // Compute the pointer to the tail
@@ -245,12 +253,11 @@ impl TraceCollector for TranspilerBackend {
             // x64 does not allow scaling by 16 in addressing mode,
             // so we have to use 2 leas to scale by the size of
             // a `MemValue` (which is 16).
-            lea r9, [r8 * 8];
-            lea rax, [Rq(TRACE_BUF) + r9 * 2 + TAIL_START_OFFSET];
+            lea Rq(TEMP_B), [r8 * 8];
+            lea rax, [Rq(TRACE_BUF) + Rq(TEMP_B) * 2 + TAIL_START_OFFSET];
 
             // ------------------------------------
-            // Load the clk & word from the memory entry into registers
-            // (TEMP_B and rcx) and store them into the tail.
+            // Load the clk & word from the memory entry into the tail.
             // Bump the current clk in the memory entry.
             //
             // The code is written to minimize split RMW
@@ -264,8 +271,7 @@ impl TraceCollector for TranspilerBackend {
             // ------------------------------------
             // Increment the num mem reads, since weve pushed into it.
             // ------------------------------------
-            add r8, 1;
-            mov QWORD [Rq(TRACE_BUF) + NUM_MEM_READS_OFFSET], r8;
+            add Rq(NUM_MEM_READS), 1;
 
             done:
         }
@@ -380,10 +386,22 @@ impl TranspilerBackend {
         // For each register from the context, lets load it into a phyiscal register.
         self.load_registers_from_context();
 
+        // Hoist memory pointer to register
+        self.load_memory_ptr(MEMORY_PTR);
+
         if self.tracing() {
             self.trace_pc_start();
             self.trace_clk_start();
             self.trace_registers();
+
+            const NUM_MEM_READS_OFFSET: i32 = offset_of!(TraceChunkHeader, num_mem_reads) as i32;
+            dynasm! {
+                self;
+                .arch x64;
+
+                // Move `num_mem_reads` to a register for fast access
+                mov Rq(NUM_MEM_READS), QWORD [Rq(TRACE_BUF) + NUM_MEM_READS_OFFSET]
+            }
         }
 
         // Its possible that enter back into the function with a non-zero PC.
@@ -413,6 +431,15 @@ impl TranspilerBackend {
 
         if self.tracing() {
             self.trace_clk_end();
+
+            const NUM_MEM_READS_OFFSET: i32 = offset_of!(TraceChunkHeader, num_mem_reads) as i32;
+            dynasm! {
+                self;
+                .arch x64;
+
+                // Write `num_mem_reads` back to memory
+                mov QWORD [Rq(TRACE_BUF) + NUM_MEM_READS_OFFSET], Rq(NUM_MEM_READS)
+            }
         }
 
         // Ensure the registers are saved to the context.
@@ -592,6 +619,8 @@ impl TranspilerBackend {
     /// Call an external function, assumes that the arguments are already in the correct registers.
     #[inline]
     fn call_extern_fn_raw(&mut self, fn_ptr: usize) {
+        const NUM_MEM_READS_OFFSET: i32 = offset_of!(TraceChunkHeader, num_mem_reads) as i32;
+
         // Before the call, save all the registers to the context.
         self.save_registers_to_context();
 
@@ -601,9 +630,11 @@ impl TranspilerBackend {
             self;
             .arch x64;
 
-            // Save callee-saved registers that might contain useful values
-            push r8;
-            push r9;
+            // r8, r9, r11 are callee-saved registers with non-volatile values.
+            // Here we write r8 back to trace buf's `num_mem_reads`.
+            // r9 simply holds memory pointer, we don't need to save it.
+            // r11 holds a RISC-V register, `save_registers_to_context` takes care of it.
+            mov QWORD [Rq(TRACE_BUF) + NUM_MEM_READS_OFFSET], Rq(NUM_MEM_READS);
 
             // Save the original stack pointer
             mov Rq(SAVED_STACK_PTR), rsp;
@@ -621,11 +652,11 @@ impl TranspilerBackend {
             // Restore the original stack pointer
             mov rsp, Rq(SAVED_STACK_PTR);
 
-            // Restore callee-saved registers
-            pop r9;
-            pop r8
+            // Restore `num_mem_reads`
+            mov Rq(NUM_MEM_READS), QWORD [Rq(TRACE_BUF) + NUM_MEM_READS_OFFSET]
         }
 
+        self.load_memory_ptr(MEMORY_PTR);
         self.load_registers_from_context();
     }
 
