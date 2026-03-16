@@ -542,7 +542,7 @@ where
             let folding_randomness_single: GC::EF = challenger.sample_ext_element();
             randomness.push(folding_randomness_single);
 
-            if !challenger.check_witness(pow_bits[i] as usize, *pow_witness) {
+            if !challenger.check_witness(pow_bits[i], *pow_witness) {
                 return Err(SumcheckError::PowError);
             }
 
