@@ -7,8 +7,9 @@ use crate::{
 use dynasmrt::{
     dynasm,
     x64::{Assembler, Rq},
-    DynasmApi, DynasmLabelApi,
+    AssemblyOffset, DynamicLabel, DynasmApi, DynasmLabelApi,
 };
+use hashbrown::HashMap;
 use std::{
     mem::offset_of,
     ops::{Deref, DerefMut},
@@ -182,8 +183,18 @@ pub struct TranspilerBackend {
     instruction_started: bool,
     /// Indicate that instuction has been inserted that may cause us to early exit.
     may_early_exit: bool,
+    /// Indicate if a branch has been generated
+    branch_generated: bool,
     /// The amount to bump the clk by each cycle.
     clk_bump: u64,
+    /// Current pc as of transpiling.
+    pc_current: u64,
+    /// Register values available at transpile time.
+    reg_values: HashMap<RiscRegister, u64>,
+    /// Labels for jumping to.
+    labels: HashMap<usize, DynamicLabel>,
+    /// Program size, or instruction count
+    program_size: usize,
 }
 
 impl TraceCollector for TranspilerBackend {
@@ -453,6 +464,14 @@ impl TranspilerBackend {
 
             ret
         };
+
+        // Define all used jump target labels
+        for (index, label) in &self.labels {
+            self.inner
+                .labels_mut()
+                .define_dynamic(*label, AssemblyOffset(self.jump_table[*index]))
+                .expect("define dynamic label");
+        }
     }
 
     fn save_registers_to_context(&mut self) {
@@ -574,28 +593,49 @@ impl TranspilerBackend {
     }
 
     /// Store the value from the general purpose register into the corresponding XMM register.
+    /// There can be 2 types of value:
+    /// * When value comes from x86_64 register, `src_or_temp` contains the register, `imm` is `None`;
+    /// * When value is known at transpile time, `imm` contains the value, `src_or_temp` works as a
+    ///   temporary register.
+    ///
+    /// TODO: should we combine `src_or_temp` and `imm` into a type?
     ///
     /// Note: This stores the full 64 bits of the register.
     #[inline]
-    fn emit_risc_register_store(&mut self, src: u8, dst: RiscRegister) {
-        match Self::get_xmm_index(dst) {
+    fn emit_risc_register_store(&mut self, src_or_temp: u8, imm: Option<u64>, dst: RiscRegister) {
+        match (Self::get_xmm_index(dst), imm) {
             // x0 is hardwired to 0 in RISC-V, ignore stores to it.
-            Location::Zero => (),
-            Location::Xmm(xmm_index, xmm_offset) => {
+            (Location::Zero, _) => (),
+            (Location::Xmm(xmm_index, xmm_offset), None) => {
+                self.reg_values.remove(&dst);
                 dynasm! {
                     self;
                     .arch x64;
-                    pinsrq Rx(xmm_index), Rq(src), xmm_offset
+                    pinsrq Rx(xmm_index), Rq(src_or_temp), xmm_offset
                 };
             }
-            Location::Gpr(gpr_index) => {
-                if gpr_index != src {
+            (Location::Xmm(xmm_index, xmm_offset), Some(imm)) => {
+                self.reg_values.insert(dst, imm);
+                do_load_imm_var!(self, src_or_temp, imm);
+                dynasm! {
+                    self;
+                    .arch x64;
+                    pinsrq Rx(xmm_index), Rq(src_or_temp), xmm_offset
+                };
+            }
+            (Location::Gpr(gpr_index), None) => {
+                self.reg_values.remove(&dst);
+                if gpr_index != src_or_temp {
                     dynasm! {
                         self;
                         .arch x64;
-                        mov Rq(gpr_index), Rq(src)
+                        mov Rq(gpr_index), Rq(src_or_temp)
                     };
                 }
+            }
+            (Location::Gpr(gpr_index), Some(imm)) => {
+                self.reg_values.insert(dst, imm);
+                do_load_imm_var!(self, gpr_index, imm);
             }
         }
     }
@@ -728,6 +768,25 @@ impl TranspilerBackend {
         }
     }
 
+    /// Find or create a label for given target PC address.
+    #[inline]
+    fn label_for_pc(&mut self, target: u64) -> Option<DynamicLabel> {
+        if target < self.pc_base
+            || target >= self.pc_base + self.program_size as u64 * 4
+            || target % 4 != 0
+        {
+            return None;
+        }
+        let index = (target - self.pc_base) as usize / 4;
+
+        if let Some(label) = self.labels.get(&index) {
+            return Some(*label);
+        }
+        let label = self.inner.new_dynamic_label();
+        self.labels.insert(index, label);
+        Some(label)
+    }
+
     /// Looks up into the jump table and executes a jump.
     #[inline]
     fn jump_to_pc(&mut self) {
@@ -780,6 +839,38 @@ impl TranspilerBackend {
 
             // Add the inverted value to global_clk
             add QWORD [Rq(CONTEXT) + GLOBAL_CLK_OFFSET], Rq(TEMP_A)
+        }
+    }
+
+    fn end_branch(&mut self, jump_target: Option<u64>) {
+        self.branch_generated = true;
+
+        // Add the base amount of cycles for the instruction.
+        self.bump_clk();
+
+        // If we have a control flow instruction that may early exit, we need to check if the
+        // trace size has been exceeded.
+        if self.may_early_exit {
+            self.exit_if_trace_exceeds(self.max_trace_size);
+        }
+
+        let mut handled = false;
+        if let Some(target_pc) = jump_target {
+            if let Some(label) = self.label_for_pc(target_pc) {
+                // When the target address is known and is a valid address,
+                // we can simplify jumping.
+                dynasm! {
+                    self;
+                    .arch x64;
+
+                    jmp =>label
+                }
+
+                handled = true;
+            }
+        }
+        if !handled {
+            self.jump_to_pc();
         }
     }
 }

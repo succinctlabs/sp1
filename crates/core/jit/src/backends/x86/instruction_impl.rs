@@ -90,7 +90,7 @@ impl ComputeInstructions for TranspilerBackend {
 
             done:
         }
-        self.emit_risc_register_store(Rq::RAX as u8, rd);
+        self.emit_risc_register_store(Rq::RAX as u8, None, rd);
     }
 
     fn divu(&mut self, rd: RiscRegister, rs1: RiscOperand, rs2: RiscOperand) {
@@ -119,7 +119,7 @@ impl ComputeInstructions for TranspilerBackend {
 
             done:
         }
-        self.emit_risc_register_store(Rq::RAX as u8, rd);
+        self.emit_risc_register_store(Rq::RAX as u8, None, rd);
     }
 
     fn mulh(&mut self, rd: RiscRegister, rs1: RiscOperand, rs2: RiscOperand) {
@@ -135,7 +135,7 @@ impl ComputeInstructions for TranspilerBackend {
             imul Rq(TEMP_B)          // signed 64×64 → 128; high → RDX
             // high 64 bits already in RDX
         }
-        self.emit_risc_register_store(Rq::RDX as u8, rd);
+        self.emit_risc_register_store(Rq::RDX as u8, None, rd);
     }
 
     fn mulhu(&mut self, rd: RiscRegister, rs1: RiscOperand, rs2: RiscOperand) {
@@ -151,7 +151,7 @@ impl ComputeInstructions for TranspilerBackend {
             mul  Rq(TEMP_B)          // unsigned 64×64 → 128; high → RDX
             // high 64 bits already in RDX
         }
-        self.emit_risc_register_store(Rq::RDX as u8, rd);
+        self.emit_risc_register_store(Rq::RDX as u8, None, rd);
     }
 
     fn mulhsu(&mut self, rd: RiscRegister, rs1: RiscOperand, rs2: RiscOperand) {
@@ -212,7 +212,7 @@ impl ComputeInstructions for TranspilerBackend {
             store_high:
             // result already in RDX
         }
-        self.emit_risc_register_store(Rq::RDX as u8, rd);
+        self.emit_risc_register_store(Rq::RDX as u8, None, rd);
     }
 
     /// Signed remainder: `rd = rs1 % rs2`  
@@ -341,7 +341,7 @@ impl ComputeInstructions for TranspilerBackend {
                     // Direct immediate shift (lower 6 bits automatically masked by x86)
                     shl Rq(TEMP_A), (imm & 0x3F) as i8
                 }
-                self.emit_risc_register_store(TEMP_A, rd);
+                self.emit_risc_register_store(TEMP_A, None, rd);
             }
             _ => {
                 self.emit_risc_operand_load(rs1, TEMP_A);
@@ -362,7 +362,7 @@ impl ComputeInstructions for TranspilerBackend {
                     // ──────────────────────────────────────────────────────────────
                     shl  Rq(TEMP_A), cl         // variable-count shift
                 }
-                self.emit_risc_register_store(TEMP_A, rd);
+                self.emit_risc_register_store(TEMP_A, None, rd);
             }
         }
     }
@@ -377,7 +377,7 @@ impl ComputeInstructions for TranspilerBackend {
                     // Direct immediate arithmetic right shift
                     sar Rq(TEMP_A), (imm & 0x3F) as i8
                 }
-                self.emit_risc_register_store(TEMP_A, rd);
+                self.emit_risc_register_store(TEMP_A, None, rd);
             }
             _ => {
                 self.emit_risc_operand_load(rs1, TEMP_A);
@@ -399,7 +399,7 @@ impl ComputeInstructions for TranspilerBackend {
                     // ──────────────────────────────────────────────────────────────
                     sar  Rq(TEMP_A), cl         // variable-count shift
                 }
-                self.emit_risc_register_store(TEMP_A, rd);
+                self.emit_risc_register_store(TEMP_A, None, rd);
             }
         }
     }
@@ -414,7 +414,7 @@ impl ComputeInstructions for TranspilerBackend {
                     // Direct immediate logical right shift
                     shr Rq(TEMP_A), (imm & 0x3F) as i8
                 }
-                self.emit_risc_register_store(TEMP_A, rd);
+                self.emit_risc_register_store(TEMP_A, None, rd);
             }
             _ => {
                 self.emit_risc_operand_load(rs1, TEMP_A);
@@ -434,7 +434,7 @@ impl ComputeInstructions for TranspilerBackend {
                     // ──────────────────────────────────────────────────────────────
                     shr  Rq(TEMP_A), cl
                 }
-                self.emit_risc_register_store(TEMP_A, rd);
+                self.emit_risc_register_store(TEMP_A, None, rd);
             }
         }
     }
@@ -464,7 +464,7 @@ impl ComputeInstructions for TranspilerBackend {
                     // ──────────────────────────────────────────────────────────────
                     movzx Rq(TEMP_A), Rb(TEMP_A)     // Rd(TEMP_A) = 0 or 1
                 }
-                self.emit_risc_register_store(TEMP_A, rd);
+                self.emit_risc_register_store(TEMP_A, None, rd);
             }
             _ => {
                 self.emit_risc_operand_load(rs1, TEMP_A);
@@ -490,7 +490,7 @@ impl ComputeInstructions for TranspilerBackend {
                     // ──────────────────────────────────────────────────────────────
                     movzx Rq(TEMP_A), Rb(TEMP_A)     // Rd(TEMP_A) = 0 or 1
                 }
-                self.emit_risc_register_store(TEMP_A, rd);
+                self.emit_risc_register_store(TEMP_A, None, rd);
             }
         }
     }
@@ -516,7 +516,7 @@ impl ComputeInstructions for TranspilerBackend {
                     // ------------------------------------
                     movzx Rq(TEMP_A), Rb(TEMP_A)
                 }
-                self.emit_risc_register_store(TEMP_A, rd);
+                self.emit_risc_register_store(TEMP_A, None, rd);
             }
             _ => {
                 self.emit_risc_operand_load(rs1, TEMP_A);
@@ -538,7 +538,7 @@ impl ComputeInstructions for TranspilerBackend {
                     // ------------------------------------
                     movzx Rq(TEMP_A), Rb(TEMP_A)
                 }
-                self.emit_risc_register_store(TEMP_A, rd);
+                self.emit_risc_register_store(TEMP_A, None, rd);
             }
         }
     }
@@ -643,7 +643,7 @@ impl ComputeInstructions for TranspilerBackend {
 
             done:
         }
-        self.emit_risc_register_store(Rq::RAX as u8, rd);
+        self.emit_risc_register_store(Rq::RAX as u8, None, rd);
     }
 
     fn divuw(&mut self, rd: RiscRegister, rs1: RiscOperand, rs2: RiscOperand) {
@@ -671,7 +671,7 @@ impl ComputeInstructions for TranspilerBackend {
 
             done:
         }
-        self.emit_risc_register_store(Rq::RAX as u8, rd);
+        self.emit_risc_register_store(Rq::RAX as u8, None, rd);
     }
 
     fn remw(&mut self, rd: RiscRegister, rs1: RiscOperand, rs2: RiscOperand) {
@@ -714,7 +714,7 @@ impl ComputeInstructions for TranspilerBackend {
 
             done:
         }
-        self.emit_risc_register_store(Rq::RDX as u8, rd);
+        self.emit_risc_register_store(Rq::RDX as u8, None, rd);
     }
 
     fn remuw(&mut self, rd: RiscRegister, rs1: RiscOperand, rs2: RiscOperand) {
@@ -742,28 +742,20 @@ impl ComputeInstructions for TranspilerBackend {
 
             done:
         }
-        self.emit_risc_register_store(Rq::RDX as u8, rd);
+        self.emit_risc_register_store(Rq::RDX as u8, None, rd);
     }
 
     fn auipc(&mut self, rd: RiscRegister, imm: u64) {
         // rd <- pc + imm
-        dynasm! {
-            self;
-            .arch x64;
 
-            // ------------------------------------
-            // 1. Copy the current PC into TEMP_A
-            // ------------------------------------
-            mov Rq(TEMP_A), [Rq(CONTEXT) + PC_OFFSET];
-
-            // ------------------------------------
-            // 2. Increment the PC by the immediate.
-            // ------------------------------------
-            add Rq(TEMP_A), imm as i32
-        }
+        // ------------------------------------
+        // 1. Copy the current PC into TEMP_A
+        // 2. Increment the PC by the immediate.
+        // ------------------------------------
+        let value = self.pc_current + imm;
 
         // Store the result in the destination register.
-        self.emit_risc_register_store(TEMP_A, rd);
+        self.emit_risc_register_store(TEMP_A, Some(value), rd);
     }
 
     fn lui(&mut self, rd: RiscRegister, imm: u64) {
@@ -777,7 +769,7 @@ impl ComputeInstructions for TranspilerBackend {
         }
 
         // Store the result in the destination register.
-        self.emit_risc_register_store(TEMP_A, rd);
+        self.emit_risc_register_store(TEMP_A, None, rd);
     }
 }
 
@@ -787,23 +779,19 @@ impl ControlFlowInstructions for TranspilerBackend {
         self.control_flow_instruction_inserted = true;
 
         // Store the current pc + 4 into
-        self.load_pc_into_register(TEMP_A);
-
-        dynasm! {
-            self;
-            .arch x64;
-
-            // ------------------------------------
-            // 1. Add 4 to the current PC in temp_a
-            // ------------------------------------
-            add Rq(TEMP_A), 4
-        }
+        let pc = self.pc_current;
+        let target_pc = pc + imm;
+        let next_pc = pc + 4;
 
         // Store the current PC + 4 into the destination register.
-        self.emit_risc_register_store(TEMP_A, rd);
+        self.emit_risc_register_store(TEMP_A, Some(next_pc), rd);
 
         // Adjust the PC store in the context by the immediate.
         self.bump_pc(imm as u32);
+
+        // We know the jump target at transpile time, we can issue jump
+        // to it directly, skipping jump table
+        self.end_branch(Some(target_pc));
     }
 
     fn jalr(&mut self, rd: RiscRegister, rs1: RiscRegister, imm: u64) {
@@ -811,23 +799,14 @@ impl ControlFlowInstructions for TranspilerBackend {
         self.control_flow_instruction_inserted = true;
 
         // ------------------------------------
-        // 1. Compute the PC to store into rd.
+        // 1. If rs1 is immediate, we can do fast jumping
         // ------------------------------------
-        self.load_pc_into_register(TEMP_B);
-
-        dynasm! {
-            self;
-            .arch x64;
-
-            add Rq(TEMP_B), 4
-        }
+        let jump_target = self.reg_values.get(&rs1).map(|rs1_imm| rs1_imm + imm);
 
         // ------------------------------------
-        // 2. Load rs1, add imm, and store it as PC
+        // 2. Update PC value
         // ------------------------------------
-
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
-
         dynasm! {
             self;
             .arch x64;
@@ -837,9 +816,12 @@ impl ControlFlowInstructions for TranspilerBackend {
         }
 
         // ------------------------------------
-        // 3. Store the computed PC into rd
+        // 3. Compute & store next PC into rd.
         // ------------------------------------
-        self.emit_risc_register_store(TEMP_B, rd);
+        let next_pc = self.pc_current + 4;
+        self.emit_risc_register_store(TEMP_B, Some(next_pc), rd);
+
+        self.end_branch(jump_target);
     }
 
     fn beq(&mut self, rs1: RiscRegister, rs2: RiscRegister, imm: u64) {
@@ -848,6 +830,9 @@ impl ControlFlowInstructions for TranspilerBackend {
 
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
         self.emit_risc_operand_load(rs2.into(), TEMP_B);
+
+        let branched_target = self.pc_current + imm;
+        let not_branched_target = self.pc_current + 4;
 
         // Compare the registers
         dynasm! {
@@ -863,8 +848,13 @@ impl ControlFlowInstructions for TranspilerBackend {
             // Branched:
             // 0. Bump the pc by the immediate.
             // ------------------------------------
-            add QWORD [Rq(CONTEXT) + PC_OFFSET], imm as i32;
-            jmp >done;
+            add QWORD [Rq(CONTEXT) + PC_OFFSET], imm as i32
+        }
+        self.end_branch(Some(branched_target));
+
+        dynasm! {
+            self;
+            .arch x64;
 
             // ------------------------------------
             // Not branched:
@@ -874,10 +864,9 @@ impl ControlFlowInstructions for TranspilerBackend {
             // ------------------------------------
             // 1. Bump the pc by 4
             // ------------------------------------
-            add QWORD [Rq(CONTEXT) + PC_OFFSET], 4;
-
-            done:
+            add QWORD [Rq(CONTEXT) + PC_OFFSET], 4
         }
+        self.end_branch(Some(not_branched_target));
     }
 
     fn bge(&mut self, rs1: RiscRegister, rs2: RiscRegister, imm: u64) {
@@ -886,6 +875,9 @@ impl ControlFlowInstructions for TranspilerBackend {
 
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
         self.emit_risc_operand_load(rs2.into(), TEMP_B);
+
+        let branched_target = self.pc_current + imm;
+        let not_branched_target = self.pc_current + 4;
 
         dynasm! {
             self;
@@ -900,8 +892,13 @@ impl ControlFlowInstructions for TranspilerBackend {
             // Branched:
             // 0. Bump the pc by the immediate.
             // ------------------------------------
-            add QWORD [Rq(CONTEXT) + PC_OFFSET], imm as i32;
-            jmp >done;
+            add QWORD [Rq(CONTEXT) + PC_OFFSET], imm as i32
+        }
+        self.end_branch(Some(branched_target));
+
+        dynasm! {
+            self;
+            .arch x64;
 
             // ------------------------------------
             // Not branched:
@@ -911,10 +908,9 @@ impl ControlFlowInstructions for TranspilerBackend {
             // ------------------------------------
             // 1. Bump the pc by 4
             // ------------------------------------
-            add QWORD [Rq(CONTEXT) + PC_OFFSET], 4;
-
-            done:
+            add QWORD [Rq(CONTEXT) + PC_OFFSET], 4
         }
+        self.end_branch(Some(not_branched_target));
     }
 
     fn bgeu(&mut self, rs1: RiscRegister, rs2: RiscRegister, imm: u64) {
@@ -923,6 +919,9 @@ impl ControlFlowInstructions for TranspilerBackend {
 
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
         self.emit_risc_operand_load(rs2.into(), TEMP_B);
+
+        let branched_target = self.pc_current + imm;
+        let not_branched_target = self.pc_current + 4;
 
         dynasm! {
             self;
@@ -936,8 +935,13 @@ impl ControlFlowInstructions for TranspilerBackend {
             // Branched:
             // 0. Bump the pc by the immediate.
             // ------------------------------------
-            add QWORD [Rq(CONTEXT) + PC_OFFSET], imm as i32;
-            jmp >done;
+            add QWORD [Rq(CONTEXT) + PC_OFFSET], imm as i32
+        }
+        self.end_branch(Some(branched_target));
+
+        dynasm! {
+            self;
+            .arch x64;
 
             // ------------------------------------
             // Not branched:
@@ -947,9 +951,9 @@ impl ControlFlowInstructions for TranspilerBackend {
             // ------------------------------------
             // 1. Bump the pc by 4
             // ------------------------------------
-            add QWORD [Rq(CONTEXT) + PC_OFFSET], 4;
-            done:
+            add QWORD [Rq(CONTEXT) + PC_OFFSET], 4
         }
+        self.end_branch(Some(not_branched_target));
     }
 
     fn blt(&mut self, rs1: RiscRegister, rs2: RiscRegister, imm: u64) {
@@ -958,6 +962,9 @@ impl ControlFlowInstructions for TranspilerBackend {
 
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
         self.emit_risc_operand_load(rs2.into(), TEMP_B);
+
+        let branched_target = self.pc_current + imm;
+        let not_branched_target = self.pc_current + 4;
 
         dynasm! {
             self;
@@ -973,8 +980,13 @@ impl ControlFlowInstructions for TranspilerBackend {
             // Branched:
             // 0. Bump the pc by the immediate.
             // ------------------------------------
-            add QWORD [Rq(CONTEXT) + PC_OFFSET], imm as i32;
-            jmp >done;
+            add QWORD [Rq(CONTEXT) + PC_OFFSET], imm as i32
+        }
+        self.end_branch(Some(branched_target));
+
+        dynasm! {
+            self;
+            .arch x64;
 
             // ------------------------------------
             // Not branched:
@@ -984,10 +996,9 @@ impl ControlFlowInstructions for TranspilerBackend {
             // ------------------------------------
             // 1. Bump the pc by 4
             // ------------------------------------
-            add QWORD [Rq(CONTEXT) + PC_OFFSET], 4;
-
-            done:
+            add QWORD [Rq(CONTEXT) + PC_OFFSET], 4
         }
+        self.end_branch(Some(not_branched_target));
     }
 
     fn bltu(&mut self, rs1: RiscRegister, rs2: RiscRegister, imm: u64) {
@@ -996,6 +1007,9 @@ impl ControlFlowInstructions for TranspilerBackend {
 
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
         self.emit_risc_operand_load(rs2.into(), TEMP_B);
+
+        let branched_target = self.pc_current + imm;
+        let not_branched_target = self.pc_current + 4;
 
         dynasm! {
             self;
@@ -1007,8 +1021,13 @@ impl ControlFlowInstructions for TranspilerBackend {
             // Branched:
             // 0. Bump the pc by the immediate.
             // ------------------------------------
-            add QWORD [Rq(CONTEXT) + PC_OFFSET], imm as i32;
-            jmp >done;
+            add QWORD [Rq(CONTEXT) + PC_OFFSET], imm as i32
+        }
+        self.end_branch(Some(branched_target));
+
+        dynasm! {
+            self;
+            .arch x64;
 
             // ------------------------------------
             // Not branched:
@@ -1016,10 +1035,9 @@ impl ControlFlowInstructions for TranspilerBackend {
             not_branched:;
 
             // 1. Bump the pc by 4
-            add QWORD [Rq(CONTEXT) + PC_OFFSET], 4;
-
-            done:
+            add QWORD [Rq(CONTEXT) + PC_OFFSET], 4
         }
+        self.end_branch(Some(not_branched_target));
     }
 
     fn bne(&mut self, rs1: RiscRegister, rs2: RiscRegister, imm: u64) {
@@ -1028,6 +1046,9 @@ impl ControlFlowInstructions for TranspilerBackend {
 
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
         self.emit_risc_operand_load(rs2.into(), TEMP_B);
+
+        let branched_target = self.pc_current + imm;
+        let not_branched_target = self.pc_current + 4;
 
         dynasm! {
             self;
@@ -1039,8 +1060,13 @@ impl ControlFlowInstructions for TranspilerBackend {
             // Branched:
             // 0. Bump the pc in the context by the immediate.
             // ------------------------------------
-            add QWORD [Rq(CONTEXT) + PC_OFFSET], imm as i32;
-            jmp >done;
+            add QWORD [Rq(CONTEXT) + PC_OFFSET], imm as i32
+        }
+        self.end_branch(Some(branched_target));
+
+        dynasm! {
+            self;
+            .arch x64;
 
             // ------------------------------------
             // Not branched:
@@ -1050,10 +1076,9 @@ impl ControlFlowInstructions for TranspilerBackend {
             // ------------------------------------
             // 1. Bump the pc by 4
             // ------------------------------------
-            add QWORD [Rq(CONTEXT) + PC_OFFSET], 4;
-
-            done:
+            add QWORD [Rq(CONTEXT) + PC_OFFSET], 4
         }
+        self.end_branch(Some(not_branched_target));
     }
 }
 
@@ -1111,7 +1136,7 @@ impl MemoryInstructions for TranspilerBackend {
         }
 
         // 4. Write back to destination register
-        self.emit_risc_register_store(TEMP_A, rd);
+        self.emit_risc_register_store(TEMP_A, None, rd);
     }
 
     fn lbu(&mut self, rd: RiscRegister, rs1: RiscRegister, imm: u64) {
@@ -1161,7 +1186,7 @@ impl MemoryInstructions for TranspilerBackend {
             movzx Rq(TEMP_A), BYTE [Rq(TEMP_A) + 8 + rax]
         }
 
-        self.emit_risc_register_store(TEMP_A, rd);
+        self.emit_risc_register_store(TEMP_A, None, rd);
     }
 
     fn lh(&mut self, rd: RiscRegister, rs1: RiscRegister, imm: u64) {
@@ -1211,7 +1236,7 @@ impl MemoryInstructions for TranspilerBackend {
             movsx Rq(TEMP_A), WORD [Rq(TEMP_A) + 8 + rax]
         }
 
-        self.emit_risc_register_store(TEMP_A, rd);
+        self.emit_risc_register_store(TEMP_A, None, rd);
     }
 
     fn lhu(&mut self, rd: RiscRegister, rs1: RiscRegister, imm: u64) {
@@ -1261,7 +1286,7 @@ impl MemoryInstructions for TranspilerBackend {
             movzx Rq(TEMP_A), WORD [Rq(TEMP_A) + 8 + rax]
         }
 
-        self.emit_risc_register_store(TEMP_A, rd);
+        self.emit_risc_register_store(TEMP_A, None, rd);
     }
 
     fn lw(&mut self, rd: RiscRegister, rs1: RiscRegister, imm: u64) {
@@ -1314,7 +1339,7 @@ impl MemoryInstructions for TranspilerBackend {
         // ------------------------------------
         // 5. Store the result in the destination register.
         // ------------------------------------
-        self.emit_risc_register_store(TEMP_A, rd);
+        self.emit_risc_register_store(TEMP_A, None, rd);
     }
 
     fn lwu(&mut self, rd: RiscRegister, rs1: RiscRegister, imm: u64) {
@@ -1367,7 +1392,7 @@ impl MemoryInstructions for TranspilerBackend {
         // ------------------------------------
         // 5. Store the result in the destination register.
         // ------------------------------------
-        self.emit_risc_register_store(TEMP_A, rd);
+        self.emit_risc_register_store(TEMP_A, None, rd);
     }
 
     fn ld(&mut self, rd: RiscRegister, rs1: RiscRegister, imm: u64) {
@@ -1413,7 +1438,7 @@ impl MemoryInstructions for TranspilerBackend {
         // ------------------------------------
         // Store the result in the destination register.
         // ------------------------------------
-        self.emit_risc_register_store(TEMP_A, rd);
+        self.emit_risc_register_store(TEMP_A, None, rd);
     }
 
     fn sb(&mut self, rs1: RiscRegister, rs2: RiscRegister, imm: u64) {
@@ -1640,7 +1665,9 @@ impl SystemInstructions for TranspilerBackend {
         self.call_extern_fn_raw(self.ecall_handler as _);
 
         // The ecall returns a u64 in RAX.
-        self.emit_risc_register_store(Rq::RAX as u8, RiscRegister::X5);
+        self.emit_risc_register_store(Rq::RAX as u8, None, RiscRegister::X5);
+
+        self.end_branch(None);
     }
 
     fn unimp(&mut self) {

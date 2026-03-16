@@ -7,7 +7,7 @@ macro_rules! impl_risc_alu {
         $self.emit_risc_operand_load($rs1, $temp_a);
         $self.emit_risc_operand_load($rs2, $temp_b);
         $code
-        $self.emit_risc_register_store($temp_a, $rd);
+        $self.emit_risc_register_store($temp_a, None, $rd);
     }};
 }
 
@@ -20,13 +20,13 @@ macro_rules! impl_imm_opt {
             RiscOperand::Immediate(imm) => {
                 $self.emit_risc_operand_load($rs1, TEMP_A);
                 $imm_code
-                $self.emit_risc_register_store(TEMP_A, $rd);
+                $self.emit_risc_register_store(TEMP_A, None, $rd);
             }
             _ => {
                 $self.emit_risc_operand_load($rs1, TEMP_A);
                 $self.emit_risc_operand_load($rs2, TEMP_B);
                 $reg_code
-                $self.emit_risc_register_store(TEMP_A, $rd);
+                $self.emit_risc_register_store(TEMP_A, None, $rd);
             }
         }
     }};
@@ -40,13 +40,13 @@ macro_rules! impl_alu_imm_opt {
             RiscOperand::Immediate(imm) => {
                 $self.emit_risc_operand_load($rs1, TEMP_A);
                 dynasm! { $self; .arch x64; $op Rq(TEMP_A), imm as i32 };
-                $self.emit_risc_register_store(TEMP_A, $rd);
+                $self.emit_risc_register_store(TEMP_A, None, $rd);
             }
             _ => {
                 $self.emit_risc_operand_load($rs1, TEMP_A);
                 $self.emit_risc_operand_load($rs2, TEMP_B);
                 dynasm! { $self; .arch x64; $op Rq(TEMP_A), Rq(TEMP_B) };
-                $self.emit_risc_register_store(TEMP_A, $rd);
+                $self.emit_risc_register_store(TEMP_A, None, $rd);
             }
         }
     };
@@ -60,13 +60,13 @@ macro_rules! impl_alu32_imm_opt {
             RiscOperand::Immediate(imm) => {
                 $self.emit_risc_operand_load($rs1, TEMP_A);
                 dynasm! { $self; .arch x64; $op Rd(TEMP_A), imm as i32; movsxd Rq(TEMP_A), Rd(TEMP_A) };
-                $self.emit_risc_register_store(TEMP_A, $rd);
+                $self.emit_risc_register_store(TEMP_A, None, $rd);
             }
             _ => {
                 $self.emit_risc_operand_load($rs1, TEMP_A);
                 $self.emit_risc_operand_load($rs2, TEMP_B);
                 dynasm! { $self; .arch x64; $op Rd(TEMP_A), Rd(TEMP_B); movsxd Rq(TEMP_A), Rd(TEMP_A) };
-                $self.emit_risc_register_store(TEMP_A, $rd);
+                $self.emit_risc_register_store(TEMP_A, None, $rd);
             }
         }
     };
@@ -80,13 +80,13 @@ macro_rules! impl_shift32_imm_opt {
             RiscOperand::Immediate(imm) => {
                 $self.emit_risc_operand_load($rs1, TEMP_A);
                 dynasm! { $self; .arch x64; $op Rd(TEMP_A), (imm & 0x1F) as i8; movsxd Rq(TEMP_A), Rd(TEMP_A) };
-                $self.emit_risc_register_store(TEMP_A, $rd);
+                $self.emit_risc_register_store(TEMP_A, None, $rd);
             }
             _ => {
                 $self.emit_risc_operand_load($rs1, TEMP_A);
                 $self.emit_risc_operand_load($rs2, Rq::RCX as u8);
                 dynasm! { $self; .arch x64; $op Rd(TEMP_A), cl; movsxd Rq(TEMP_A), Rd(TEMP_A) };
-                $self.emit_risc_register_store(TEMP_A, $rd);
+                $self.emit_risc_register_store(TEMP_A, None, $rd);
             }
         }
     };
