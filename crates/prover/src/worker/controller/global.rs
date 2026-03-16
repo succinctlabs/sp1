@@ -5,9 +5,10 @@ use std::{
 
 use itertools::Itertools;
 use sp1_core_executor::{
-    chunked_memory_init_events, events::MemoryInitializeFinalizeEvent, MinimalExecutor, Program,
-    SP1CoreOpts, SplitOpts, UnsafeMemory,
+    chunked_memory_init_events, events::MemoryInitializeFinalizeEvent, Program, SP1CoreOpts,
+    SplitOpts, UnsafeMemory,
 };
+use sp1_core_executor_runner::MinimalExecutorRunner;
 use sp1_hypercube::air::ShardRange;
 use sp1_prover_types::{Artifact, ArtifactClient};
 use tokio::{
@@ -73,7 +74,7 @@ impl GlobalMemoryHandler {
         mut self,
         program: Arc<Program>,
         final_state_rx: oneshot::Receiver<FinalVmState>,
-        executor_rx: oneshot::Receiver<MinimalExecutor>,
+        executor_rx: oneshot::Receiver<MinimalExecutorRunner>,
         prove_shard_tx: mpsc::UnboundedSender<ProofData>,
         elf_artifact: Artifact,
         common_input_artifact: Artifact,

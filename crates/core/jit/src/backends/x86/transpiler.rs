@@ -2,7 +2,8 @@
 
 use super::{TranspilerBackend, CONTEXT};
 use crate::{
-    DebugFn, EcallHandler, ExternFn, JitFunction, RiscOperand, RiscRegister, RiscvTranspiler,
+    DebugFn, EcallHandler, ExternFn, JitFunction, JitMemory, RiscOperand, RiscRegister,
+    RiscvTranspiler,
 };
 use dynasmrt::{
     dynasm,
@@ -27,32 +28,10 @@ impl RiscvTranspiler for TranspilerBackend {
             ));
         }
 
-        let inner = Assembler::new()?;
-
-        // Allocate a trace buffer with enough headroom for the worst-case single-instruction
-        // overflow. The chunk-stop check only runs between instructions, so a precompile ecall
-        // can emit up to ~288 trace entries (sha256_extend) beyond max_trace_size.
-        const MAX_SINGLE_INSTRUCTION_MEM_OPS: usize = 512;
-        let capacity_bytes = if max_trace_size == 0 {
-            0
-        } else {
-            let event_bytes = max_trace_size as usize * std::mem::size_of::<crate::MemValue>();
-            // Scale by 10/9 for proportional leeway on large traces.
-            let event_bytes = event_bytes * 10 / 9;
-            // Add fixed headroom for worst-case single-instruction overflow.
-            let worst_case_bytes =
-                MAX_SINGLE_INSTRUCTION_MEM_OPS * std::mem::size_of::<crate::MemValue>();
-            let header_bytes = std::mem::size_of::<crate::TraceChunkHeader>();
-            event_bytes + worst_case_bytes + header_bytes
-        };
-
         let mut this = Self {
-            inner,
+            inner: Assembler::new()?,
             jump_table: Vec::with_capacity(program_size),
-            // Double the size of memory.
-            // We are going to store entries of the form (clk, word).
-            memory_size: memory_size * 2,
-            trace_buf_size: capacity_bytes,
+            memory_size,
             has_instructions: false,
             pc_base,
             pc_start,
@@ -119,20 +98,14 @@ impl RiscvTranspiler for TranspilerBackend {
         self.instruction_started = false;
     }
 
-    fn finalize(mut self) -> io::Result<JitFunction> {
+    fn finalize<M: JitMemory>(mut self) -> io::Result<JitFunction<M>> {
         self.epilogue();
 
         let code = self.inner.finalize().expect("failed to finalize x86 backend");
 
         debug_assert!(code.size() > 0, "Got empty x86 code buffer");
 
-        JitFunction::new(
-            code,
-            self.jump_table,
-            self.memory_size,
-            self.trace_buf_size,
-            self.pc_start,
-        )
+        JitFunction::new(code, self.jump_table, self.memory_size, self.pc_start)
     }
 
     fn call_extern_fn(&mut self, fn_ptr: ExternFn) {
