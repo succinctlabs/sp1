@@ -5,8 +5,9 @@ use serde::{Deserialize, Serialize};
 use slop_futures::pipeline::Pipeline;
 use sp1_core_executor::{
     events::{MemoryInitializeFinalizeEvent, MemoryRecord},
-    CoreVM, ExecutionError, MinimalExecutor, Program, SP1CoreOpts, SyscallCode, UnsafeMemory,
+    CoreVM, ExecutionError, Program, SP1CoreOpts, SyscallCode, UnsafeMemory,
 };
+use sp1_core_executor_runner::MinimalExecutorRunner;
 use sp1_core_machine::{executor::ExecutionOutput, io::SP1Stdin};
 use sp1_hypercube::{
     air::{ShardRange, PROOF_NONCE_NUM_WORDS, PV_DIGEST_NUM_WORDS},
@@ -156,7 +157,8 @@ where
 
         // Start the minimal executor.
         let (memory_tx, memory_rx) = oneshot::channel::<UnsafeMemory>();
-        let (minimal_executor_tx, minimal_executor_rx) = oneshot::channel::<MinimalExecutor>();
+        let (minimal_executor_tx, minimal_executor_rx) =
+            oneshot::channel::<MinimalExecutorRunner>();
         let (output_tx, output_rx) = oneshot::channel::<ExecutionOutput>();
         // Create a channel to send the splicing handles to be awaited and their task_ids being
         // sent after being submitted to the splicing pipeline.
@@ -170,10 +172,22 @@ where
                 tracing::info!("minimal executor cache hit");
                 minimal_executor
             } else {
-                MinimalExecutor::tracing(program.clone(), opts.minimal_trace_chunk_threshold)
+                MinimalExecutorRunner::new(
+                    program.clone(),
+                    false,
+                    Some(opts.minimal_trace_chunk_threshold),
+                    opts.memory_limit,
+                    opts.trace_chunk_slots,
+                )
             }
         } else {
-            MinimalExecutor::tracing(program.clone(), opts.minimal_trace_chunk_threshold)
+            MinimalExecutorRunner::new(
+                program.clone(),
+                false,
+                Some(opts.minimal_trace_chunk_threshold),
+                opts.memory_limit,
+                opts.trace_chunk_slots,
+            )
         };
         join_set.spawn_blocking({
             let program = program.clone();
@@ -200,7 +214,10 @@ where
                 tracing::debug!("Starting minimal executor");
                 let now = std::time::Instant::now();
                 let mut chunk_count = 0;
-                while let Some(chunk) = minimal_executor.execute_chunk() {
+                while let Some(chunk) = minimal_executor
+                    .try_execute_chunk()
+                    .map_err(|e| anyhow::anyhow!("failed to execute chunk: {e}"))?
+                {
                     tracing::debug!(
                         trace_chunk = chunk_count,
                         "mem reads chunk size bytes {}, program is done?: {}",

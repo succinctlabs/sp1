@@ -77,13 +77,13 @@ pub async fn cuda_worker_builder(scope: TaskScope) -> SP1WorkerBuilder<SP1CudaPr
 
     let shrink_verifier = SP1CudaProverComponents::shrink_verifier();
     let shrink_prover = Arc::new(
-        new_cuda_prover(shrink_verifier.clone(), SHRINK_TRACE_ALLOCATION, 1, false, scope.clone())
+        new_cuda_prover(shrink_verifier.clone(), SHRINK_TRACE_ALLOCATION, 4, false, scope.clone())
             .await,
     );
 
     let wrap_verifier = SP1CudaProverComponents::wrap_verifier();
     let wrap_prover = Arc::new(
-        new_cuda_prover(wrap_verifier.clone(), WRAP_TRACE_ALLOCATION, 1, false, scope.clone())
+        new_cuda_prover(wrap_verifier.clone(), WRAP_TRACE_ALLOCATION, 4, false, scope.clone())
             .await,
     );
 

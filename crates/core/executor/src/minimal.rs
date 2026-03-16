@@ -1,5 +1,5 @@
 #![allow(clippy::items_after_statements)]
-pub use arch::{MinimalExecutor, UnsafeMemory};
+pub use arch::*;
 pub use postprocess::chunked_memory_init_events;
 pub use sp1_jit::TraceChunkRaw;
 

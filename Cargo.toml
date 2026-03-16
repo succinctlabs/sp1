@@ -16,6 +16,8 @@ members = [
   "crates/core/executor",
   "crates/core/jit",
   "crates/core/machine",
+  "crates/core/runner",
+  "crates/core/runner/binary",
   "crates/cuda",
   "crates/curves",
   "crates/derive",
@@ -104,6 +106,8 @@ debug-assertions = true
 sp1-build = { version = "6.0.2", path = "crates/build" }
 sp1-cli = { version = "6.0.2", path = "crates/cli", default-features = false }
 sp1-core-executor = { version = "6.0.2", path = "crates/core/executor" }
+sp1-core-executor-runner = { version = "6.0.2", path = "crates/core/runner" }
+sp1-core-executor-runner-binary = { version = "6.0.2", path = "crates/core/runner/binary" }
 sp1-core-machine = { version = "6.0.2", path = "crates/core/machine" }
 sp1-cuda = { version = "6.0.2", path = "crates/cuda" }
 sp1-curves = { version = "6.0.2", path = "crates/curves" }
@@ -217,6 +221,7 @@ async-scoped = { version = "0.9.0", features = ["use-tokio"] }
 async-trait = "0.1.81"
 backoff = "0.4"
 backtrace = "0.3.71"
+base64 = "0.22.1"
 bincode = "1.3.3"
 bindgen = "0.70.1"
 blake3 = { version = "1.6.1", default-features = false }
@@ -226,6 +231,7 @@ cargo_metadata = "0.18.1"
 cfg-if = "1.0.3"
 chrono = { version = "0.4.38", default-features = false }
 clap = "4.5.9"
+crash-handler = "0.7.0"
 critical-section = "1.2.0"
 crossbeam = "0.8.4"
 dashu = "0.4.2"
@@ -254,6 +260,7 @@ indicatif = "0.17.8"
 itertools = "0.14.0"
 k256 = "0.13.4"
 lazy_static = "1.5.0"
+libc = "0.2"
 libm = "0.2.8"
 lru = "0.12.4"
 memfd = "0.6.4"
@@ -337,4 +344,8 @@ print_stdout = "deny"
 unexpected_cfgs = { level = "warn", check-cfg = [
   'cfg(sp1_debug_constraints)',
   'cfg(sp1_debug_global_memory)',
+  'cfg(sp1_core_runner_override)',
+  'cfg(sp1_use_native_executor)',
+  'cfg(sp1_use_portable_executor)',
+  'cfg(sp1_native_executor_available)',
 ] }

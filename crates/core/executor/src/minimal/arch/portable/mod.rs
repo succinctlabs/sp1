@@ -4,7 +4,7 @@
 
 use sp1_jit::{
     debug::{self, DebugState},
-    MemValue, RiscRegister, SyscallContext, TraceChunkHeader, TraceChunkRaw,
+    trace_capacity, MemValue, RiscRegister, SyscallContext, TraceChunkRaw,
 };
 
 use std::{
@@ -18,12 +18,12 @@ use std::{
 use hashbrown::HashMap;
 
 use crate::{
-    minimal::ecall::ecall_handler, Instruction, Opcode, Program, Register, SyscallCode,
-    CLK_INC as CLK_INC_32, HALT_PC, PC_INC as PC_INC_32,
+    minimal::ecall::ecall_handler, ExecutionError, Instruction, Opcode, Program, Register,
+    SyscallCode, CLK_INC as CLK_INC_32, HALT_PC, PC_INC as PC_INC_32,
 };
 
 mod cow;
-use cow::MaybeCowMemory;
+use cow::LimitedMemory;
 mod trace;
 use trace::TraceChunkBuffer;
 
@@ -31,11 +31,17 @@ const CLK_INC: u64 = CLK_INC_32 as u64;
 const PC_INC: u64 = PC_INC_32 as u64;
 
 /// A minimal trace executor.
+///
+/// This executor runs SP1 program in current process. It does not limit the
+/// memory used by SP1 program. For a malicious program, it might consume a lot
+/// of memory, triggering OOM errors on the machine running SP1 provers.
+/// As a result, it is only suitable for known programs. Please refer to
+/// `sp1_core_executor_runner::MinimalExecutorRunner` for running arbitrary SP1 programs.
 pub struct MinimalExecutor {
     program: Arc<Program>,
     input: VecDeque<Vec<u8>>,
     registers: [u64; 32],
-    memory: Box<MaybeCowMemory<MemValue>>,
+    memory: Box<LimitedMemory<MemValue>>,
     traces: Option<TraceChunkBuffer>,
     pc: u64,
     clk: u64,
@@ -75,7 +81,7 @@ impl SyscallContext for MinimalExecutor {
     }
 
     fn mr(&mut self, addr: u64) -> u64 {
-        let mem_value = self.memory.entry(addr).or_default();
+        let mem_value = self.memory.get_mut(addr);
         if self.traces.is_some() {
             unsafe {
                 self.traces.as_mut().unwrap_unchecked().extend(&[*mem_value]);
@@ -87,7 +93,7 @@ impl SyscallContext for MinimalExecutor {
     }
 
     fn mw(&mut self, addr: u64, val: u64) {
-        let mem_value = self.memory.entry(addr).or_default();
+        let mem_value = self.memory.get_mut(addr);
         if self.traces.is_some() {
             unsafe {
                 self.traces.as_mut().unwrap_unchecked().extend(&[*mem_value]);
@@ -107,7 +113,7 @@ impl SyscallContext for MinimalExecutor {
     fn mr_slice(&mut self, addr: u64, len: usize) -> impl IntoIterator<Item = &u64> {
         let len = len as u64;
         for i in 0..len {
-            let mem_value = self.memory.entry(addr + i * 8).or_default();
+            let mem_value = self.memory.get_mut(addr + i * 8);
             if self.traces.is_some() {
                 unsafe {
                     self.traces.as_mut().unwrap_unchecked().extend(&[*mem_value]);
@@ -125,7 +131,7 @@ impl SyscallContext for MinimalExecutor {
     fn mr_slice_unsafe(&mut self, addr: u64, len: usize) -> impl IntoIterator<Item = &u64> {
         let len = len as u64;
         for i in 0..len {
-            let mem_value = self.memory.entry(addr + i * 8).or_default();
+            let mem_value = self.memory.get_mut(addr + i * 8);
             if self.traces.is_some() {
                 unsafe {
                     self.traces.as_mut().unwrap_unchecked().extend(&[*mem_value]);
@@ -246,11 +252,17 @@ impl SyscallContext for MinimalExecutor {
 }
 
 impl MinimalExecutor {
-    /// Create a new minimal executor and transpiles the program.
+    /// Create a new minimal executor with memory limit. This shall only be used
+    /// by `sp1_core_executor_runner`.
     #[must_use]
-    pub fn new(program: Arc<Program>, _debug: bool, max_trace_size: Option<u64>) -> Self {
+    pub fn new_with_limit(
+        program: Arc<Program>,
+        _debug: bool,
+        max_trace_size: Option<u64>,
+        memory_limit: Option<u64>,
+    ) -> Self {
         // Insert the memory image.
-        let mut memory = MaybeCowMemory::new_owned();
+        let mut memory = LimitedMemory::new_owned(memory_limit);
         let pc = program.pc_start_abs;
         for (addr, value) in program.memory_image.iter() {
             memory.insert(*addr, MemValue { clk: 0, value: *value });
@@ -282,6 +294,12 @@ impl MinimalExecutor {
         };
         result.maybe_setup_profiler();
         result
+    }
+
+    /// Create a new minimal executor and transpiles the program.
+    #[must_use]
+    pub fn new(program: Arc<Program>, debug: bool, max_trace_size: Option<u64>) -> Self {
+        Self::new_with_limit(program, debug, max_trace_size, None)
     }
 
     /// WARNING: This function's API is subject to change without a major version bump.
@@ -348,15 +366,24 @@ impl MinimalExecutor {
     }
 
     /// Execute the program. Returning a trace chunk if the program has not completed.
-    #[allow(clippy::redundant_closure_for_method_calls)]
+    #[inline]
     pub fn execute_chunk(&mut self) -> Option<TraceChunkRaw> {
-        if self.is_done() {
-            return None;
+        self.try_execute_chunk().expect("execute chunk")
+    }
+
+    /// Execute the program. Returning a trace chunk if the program has not completed.
+    #[allow(clippy::redundant_closure_for_method_calls)]
+    pub fn try_execute_chunk(&mut self) -> Result<Option<TraceChunkRaw>, ExecutionError> {
+        if self.memory.has_last_error() {
+            return Err(self.memory.last_error());
         }
 
-        if let Some(max_trace_size) = self.max_trace_size {
-            let capacity = trace_capacity(max_trace_size);
+        if self.is_done() {
+            return Ok(None);
+        }
 
+        let capacity = trace_capacity(self.max_trace_size);
+        if capacity > 0 {
             self.traces = Some(TraceChunkBuffer::new(capacity));
         }
 
@@ -369,7 +396,11 @@ impl MinimalExecutor {
             }
         }
 
-        while !self.execute_instruction() {}
+        while !self.execute_instruction() {
+            if self.memory.has_last_error() {
+                return Err(self.memory.last_error());
+            }
+        }
 
         #[cfg(feature = "profiling")]
         if self.is_done() {
@@ -389,7 +420,7 @@ impl MinimalExecutor {
         // chunk the remaining hints and input.
         let traces = std::mem::take(&mut self.traces);
 
-        traces.map(|trace| unsafe { TraceChunkRaw::new(trace.into()) })
+        Ok(traces.map(|trace| unsafe { TraceChunkRaw::new(trace.into()) }))
     }
 
     /// Check if the program has halted.
@@ -499,7 +530,7 @@ impl MinimalExecutor {
     /// Get an unsafe memory view of the executor.
     #[must_use]
     pub fn unsafe_memory(&self) -> UnsafeMemory {
-        let ptr = (&raw const *self.memory).cast::<MaybeCowMemory<MemValue>>().cast_mut();
+        let ptr = (&raw const *self.memory).cast::<LimitedMemory<MemValue>>().cast_mut();
         UnsafeMemory { memory: NonNull::new(ptr).unwrap() }
     }
 
@@ -565,7 +596,7 @@ impl MinimalExecutor {
         let addr = base.wrapping_add(imm_offset);
         let aligned_addr = addr & !0b111;
 
-        let mem_value = self.memory.entry(aligned_addr).or_default();
+        let mem_value = self.memory.get_mut(aligned_addr);
         if self.traces.is_some() && self.maybe_unconstrained.is_none() {
             unsafe {
                 self.traces.as_mut().unwrap_unchecked().extend(&[*mem_value]);
@@ -651,7 +682,7 @@ impl MinimalExecutor {
             }
             _ => unreachable!(),
         };
-        let mem_value = self.memory.entry(aligned_addr).or_default();
+        let mem_value = self.memory.get_mut(aligned_addr);
         if self.traces.is_some() && self.maybe_unconstrained.is_none() {
             unsafe {
                 self.traces.as_mut().unwrap_unchecked().extend(&[*mem_value]);
@@ -871,22 +902,6 @@ fn sign_extend_imm(value: u64, bits: u8) -> i64 {
     ((value as i64) << shift) >> shift
 }
 
-/// Worst-case memory operations a single instruction (precompile ecall) can emit.
-/// The chunk-stop check only runs between instructions, so a single precompile can
-/// emit this many trace entries beyond `max_trace_size` before the check fires.
-/// `sha256_extend` is the worst case at 288; we use 512 for safety margin.
-const MAX_SINGLE_INSTRUCTION_MEM_OPS: usize = 512;
-
-fn trace_capacity(size: u64) -> usize {
-    let events_bytes = size as usize * std::mem::size_of::<MemValue>();
-    // Scale by 10/9 for proportional leeway on large traces.
-    let events_bytes = events_bytes * 10 / 9;
-    // Add fixed headroom for worst-case single-instruction overflow.
-    let worst_case_bytes = MAX_SINGLE_INSTRUCTION_MEM_OPS * std::mem::size_of::<MemValue>();
-    let header_bytes = std::mem::size_of::<TraceChunkHeader>();
-    events_bytes + worst_case_bytes + header_bytes
-}
-
 impl DebugState for MinimalExecutor {
     fn current_state(&self) -> debug::State {
         debug::State {
@@ -913,7 +928,7 @@ impl DebugState for MinimalExecutor {
 ///
 /// This allows reading without lifetime and mutability constraints.
 pub struct UnsafeMemory {
-    memory: NonNull<MaybeCowMemory<MemValue>>,
+    memory: NonNull<LimitedMemory<MemValue>>,
 }
 
 unsafe impl Send for UnsafeMemory {}

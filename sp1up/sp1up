@@ -221,15 +221,20 @@ EOF
   fi
 
   if [ "$SP1UP_C_TOOLCHAIN" = true ]; then
-    install_c_toolchain
+    if [[ "$(get_publish_time "$SP1UP_VERSION")" < "2026-01-01T00:00:00Z" ]]; then
+      install_rv32im_c_toolchain
+    else
+      install_rv64im_c_toolchain
+    fi
   fi
 
   say "done!"
 }
 
-# Downloads the C++ toolchain for RISC-V and creates a symlink to it at SP1_BIN_DIR/riscv32-unknown-elf-gcc
-install_c_toolchain() {
-  say "installing C++ toolchain for RISC-V"
+# This can be removed once we drop support for SP1 V5
+# Downloads the C++ toolchain for RISC-V and creates a symlink to it at SP1_BIN_DIR/riscv64-unknown-elf-gcc
+install_rv32im_c_toolchain() {
+  say "installing C++ toolchain for RISC-V (rv32im)"
 
   determine_platform
   determine_architecture
@@ -287,7 +292,61 @@ install_c_toolchain() {
   export PATH="$SP1_BIN_DIR:$PATH"
   export CC_riscv32im_succinct_zkvm_elf="$SP1_BIN_DIR/riscv32-unknown-elf-gcc"
 
-  say "installed C++ toolchain for RISC-V and set environment variables"
+  say "installed C++ toolchain for RISC-V (rv32im) and set environment variables"
+}
+
+# Downloads the C++ toolchain for RISC-V and creates a symlink to it at SP1_BIN_DIR/riscv64-unknown-elf-gcc
+install_rv64im_c_toolchain() {
+  say "installing C++ toolchain for RISC-V (rv64im)"
+
+  determine_platform
+  determine_architecture
+
+  case $PLATFORM in
+    linux)
+      case $ARCHITECTURE in
+        amd64) TOOLCHAIN_URL="https://github.com/succinctlabs/riscv-gnu-toolchain/releases/download/2026.02.13/riscv64im-linux-amd64.tar.gz" ;;
+        arm64) TOOLCHAIN_URL="https://github.com/succinctlabs/riscv-gnu-toolchain/releases/download/2026.02.13/riscv64im-linux-arm64.tar.gz" ;;
+        *) err "unsupported architecture for Linux: $ARCHITECTURE" ;;
+      esac
+      ;;
+    darwin)
+      case $ARCHITECTURE in
+        amd64) TOOLCHAIN_URL="https://github.com/succinctlabs/riscv-gnu-toolchain/releases/download/2026.02.13/riscv64im-macos-amd64.tar.gz" ;;
+        arm64) TOOLCHAIN_URL="https://github.com/succinctlabs/riscv-gnu-toolchain/releases/download/2026.02.13/riscv64im-macos-arm64.tar.gz" ;;
+        *) err "unsupported architecture for macOS: $ARCHITECTURE" ;;
+      esac
+      ;;
+    *)
+      err "unsupported platform: $PLATFORM"
+      ;;
+  esac
+
+  TOOLCHAIN_ARCHIVE="/tmp/$(basename $TOOLCHAIN_URL)"
+  TOOLCHAIN_INSTALL_DIR="$SP1_DIR/riscv"
+
+  # Always re-download the RISC-V GCC prebuilt binary archive
+  ensure download "$TOOLCHAIN_URL" "$TOOLCHAIN_ARCHIVE"
+
+  # Create the ~/.sp1 and TOOLCHAIN_INSTALL_DIR directories if they don't exist
+  mkdir -p "$TOOLCHAIN_INSTALL_DIR"
+
+  # Extract the downloaded archive into the target directory
+  ensure tar -xvf "$TOOLCHAIN_ARCHIVE" -C "$TOOLCHAIN_INSTALL_DIR" >/dev/null 2>&1
+  rm -f "$TOOLCHAIN_ARCHIVE"
+
+  # Find the actual location of the gcc binary and create a symlink to it in SP1_BIN_DIR
+  GCC_PATH=$(find "$TOOLCHAIN_INSTALL_DIR" -name 'riscv64-unknown-elf-gcc' -type f | head -n 1)
+  if [ -z "$GCC_PATH" ]; then
+    err "riscv64-unknown-elf-gcc not found in extracted archive"
+  fi
+  ln -sf "$GCC_PATH" "$SP1_BIN_DIR/riscv64-unknown-elf-gcc"
+
+  # Set environment variables for the RISC-V toolchain
+  export PATH="$SP1_BIN_DIR:$PATH"
+  export CC_riscv64im_succinct_zkvm_elf="$SP1_BIN_DIR/riscv64-unknown-elf-gcc"
+
+  say "installed C++ toolchain for RISC-V (rv64im) and set environment variables"
 }
 
 install_private_asset_using_github_api() {
@@ -334,6 +393,25 @@ install_public_asset() {
   else
     ensure download "$BIN_ARCHIVE_URL" | ensure tar -xzC "$SP1_BIN_DIR"
   fi
+}
+
+get_publish_time() {
+  version="${1:-latest}"
+  if [[ "$version" == "latest" ]]; then
+    url="https://api.github.com/repos/$SP1UP_REPO/releases/latest"
+  else
+    url="https://api.github.com/repos/$SP1UP_REPO/releases/tags/$version"
+  fi
+
+  if [ -n "$GITHUB_TOKEN" ]; then
+    check_url "$url" "release $version" "$GITHUB_TOKEN"
+    response=$(curl -s -H "Authorization: Token $GITHUB_TOKEN" "$url")
+  else
+    check_url "$url" "release $version"
+    response=$(curl -s "$url")
+  fi
+  
+  printf '%s' "$response" | grep -o '"published_at": "[^"]*"' | cut -d'"' -f4
 }
 
 determine_platform() {

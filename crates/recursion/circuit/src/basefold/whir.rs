@@ -155,11 +155,11 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> RecursiveWhirVerifier<C, S
         let mut prev_commitment = commitment;
 
         let mut prev_folding_factor = num_variables - self.config.starting_interleaved_log_height;
-        let mut num_variables = num_variables;
+        let mut num_variables = self.config.starting_interleaved_log_height;
 
         for round_index in 0..n_rounds {
             let round_params = &self.config.round_parameters[round_index];
-            let new_commitment = &proof.commitments[round_index];
+            let new_commitment = &proof.commitments[round_index + 1];
 
             // Observe the round commitments
             for round_commitment in new_commitment.commitment.iter() {
@@ -244,25 +244,19 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> RecursiveWhirVerifier<C, S
                     })
                     .collect()
             } else {
-                merkle_proofs
-                    .iter()
-                    .flat_map(|merkle_proof| {
-                        merkle_proof
-                            .values
-                            .clone()
-                            .into_buffer()
-                            .to_vec()
-                            .into_iter()
-                            .map(|f| {
-                                let e: SymbolicExt<SP1Field, SP1ExtensionField> = f.into();
-                                builder.eval(e)
-                            })
-                            .collect::<Vec<_>>()
-                            .chunks_exact(1 << prev_folding_factor)
-                            .map(|v| Mle::new(v.to_vec().into()))
-                            .collect::<Vec<_>>()
+                let num_openings = merkle_proofs.iter().map(|p| p.values.sizes()[1]).sum::<usize>();
+                slop_whir::interleave_chain(merkle_proofs.iter().map(|p| p.values.clone()))
+                    .into_buffer()
+                    .to_vec()
+                    .into_iter()
+                    .map(|f| {
+                        let e: SymbolicExt<SP1Field, SP1ExtensionField> = f.into();
+                        builder.eval(e)
                     })
-                    .collect()
+                    .collect::<Vec<_>>()
+                    .chunks_exact(num_openings)
+                    .map(|v| Mle::new(v.to_vec().into()))
+                    .collect::<Vec<_>>()
             };
             // Compute the STIR values by reading the merkle values and folding across the column.
             let stir_values: Vec<Ext<SP1Field, SP1ExtensionField>> =
@@ -624,11 +618,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use rand::SeedableRng;
+    use rand::{Rng, SeedableRng};
     use slop_basefold::FriConfig;
     use slop_challenger::IopCtx;
     use slop_dft::p3::Radix2DitParallel;
     use slop_merkle_tree::{FieldMerkleTreeProver, MerkleTreeTcs, Poseidon2KoalaBear16Prover};
+    use slop_tensor::Tensor;
     use slop_whir::{Prover, Verifier};
     use sp1_core_machine::utils::setup_logger;
     use sp1_hypercube::{prover::simple_prover, MachineProof, MachineVerifier, ShardVerifier};
@@ -656,7 +651,6 @@ mod tests {
     type EF = BinomialExtensionField<SP1Field, 4>;
 
     #[tokio::test]
-    #[ignore = "todo: fix to work with the multi-round, padded version of WHIR"]
     async fn test_whir() {
         setup_logger();
         let config = WhirProofShape::default_whir_config();
@@ -665,7 +659,7 @@ mod tests {
 
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
 
-        let num_variables = 16;
+        let num_variables: usize = 16;
 
         let mut challenger_prover = SC::default_challenger();
         let mut challenger_verifier = SC::default_challenger();
@@ -674,55 +668,74 @@ mod tests {
 
         let prover = Prover::<_, _, _>::new(Radix2DitParallel, merkle_prover, config.clone());
         let merkle_verifier = MerkleTreeTcs::default();
-        let verifier = Verifier::<SC>::new(merkle_verifier, config.clone(), 1);
-        let polynomial: Mle<SP1Field> = Mle::rand(&mut rng, 1, num_variables);
-        let query_vector: Mle<EF> = Mle::<EF>::rand(&mut rng, 1, num_variables);
+        let verifier = Verifier::<SC>::new(merkle_verifier, config.clone(), 2);
 
-        let claim: EF = polynomial
-            .hypercube_iter()
-            .zip(query_vector.hypercube_iter())
-            .map(|(a, b)| b[0] * a[0])
-            .sum();
+        // Two polynomials committed in separate rounds, each 2^15 entries (width 1).
+        // Total = 2^16 = 2^num_variables, so no zero-padding needed.
+        let poly_1: Mle<SP1Field> = Mle::rand(&mut rng, 1, num_variables as u32 - 1);
+        let poly_2: Mle<SP1Field> = Mle::rand(&mut rng, 1, num_variables as u32 - 1);
 
-        tracing::debug!("claimed: {:?}", claim);
+        // Commit each round separately.
+        let (commitment_1, prover_data_1, _) =
+            prover.commit_multilinear(vec![poly_1.clone()].into()).unwrap();
+        let (commitment_2, prover_data_2, _) =
+            prover.commit_multilinear(vec![poly_2.clone()].into()).unwrap();
+        let commitments = vec![commitment_1, commitment_2];
 
-        let (commitment, prover_data, _) =
-            prover.commit_multilinear(vec![polynomial].into()).unwrap();
+        // Build the concatenated polynomial for computing eval_claim.
+        // For width-1 MLEs, transpose is a no-op on data, so we just concatenate.
+        let mut concat_vec: Vec<SP1Field> = poly_1.guts().as_slice().to_vec();
+        concat_vec.extend(poly_2.guts().as_slice().iter().copied());
+        let polynomial_concat: Mle<SP1Field> =
+            Mle::new(Tensor::from(concat_vec).reshape([1 << num_variables, 1]));
 
-        let proof = prover.prove(
-            query_vector,
-            vec![prover_data].into_iter().collect(),
-            claim,
-            &mut challenger_prover,
-            &config,
-        );
+        // Compute evaluation claim at a random point.
+        let eval_point: Point<EF> = (0..num_variables).map(|_| rng.gen()).collect();
+        let eval_claim: EF = polynomial_concat.eval_at(&eval_point)[0];
 
-        verifier.observe_commitment(&[commitment], &mut challenger_verifier).unwrap();
+        // Observe all commitments into both challengers.
+        verifier.observe_commitment(&commitments, &mut challenger_prover).unwrap();
+        verifier.observe_commitment(&commitments, &mut challenger_verifier).unwrap();
 
+        // Prove using prove_trusted_evaluation.
+        let prover_datas = vec![prover_data_1, prover_data_2].into_iter().collect();
+        let proof = prover
+            .prove_trusted_evaluation(eval_point, eval_claim, prover_datas, &mut challenger_prover)
+            .unwrap();
+
+        // Verify natively.
+        let round_areas = proof.merkle_proofs[0]
+            .iter()
+            .map(|p| p.proof.width << config.starting_interleaved_log_height)
+            .collect::<Vec<_>>();
         let (point, value) = verifier
             .verify(
-                &[commitment],
-                &[],
-                num_variables as usize,
-                claim,
+                &commitments,
+                &round_areas,
+                num_variables,
+                eval_claim,
                 &proof,
                 &mut challenger_verifier,
             )
             .unwrap();
 
+        // Recursive circuit verification.
         let mut builder = AsmBuilder::default();
         let mut witness_stream = Vec::new();
         let mut challenger_variable = DuplexChallengerVariable::new(&mut builder);
 
-        Witnessable::<AsmConfig>::write(&commitment, &mut witness_stream);
-        let commitment = commitment.read(&mut builder);
+        // Write and read both commitment digests.
+        Witnessable::<AsmConfig>::write(&commitment_1, &mut witness_stream);
+        Witnessable::<AsmConfig>::write(&commitment_2, &mut witness_stream);
+        let commitment_var_1 = commitment_1.read(&mut builder);
+        let commitment_var_2 = commitment_2.read(&mut builder);
 
         let recursive_verifier =
             RecursiveWhirVerifier::<C, SC> { config: config.clone(), _config: PhantomData };
 
         recursive_verifier.observe_commitment(
             &mut builder,
-            &[commitment].into_iter().collect(),
+            &[commitment_var_1, commitment_var_2].into_iter().collect(),
             &mut challenger_variable,
         );
 
@@ -735,13 +748,13 @@ mod tests {
         Witnessable::<AsmConfig>::write(&proof, &mut witness_stream);
         let proof = proof.read(&mut builder);
 
-        Witnessable::<AsmConfig>::write(&claim, &mut witness_stream);
-        let eval_claim = claim.read(&mut builder);
+        Witnessable::<AsmConfig>::write(&eval_claim, &mut witness_stream);
+        let eval_claim_var = eval_claim.read(&mut builder);
 
         let (point_var, claim_var) = recursive_verifier.verify_whir(
             &mut builder,
-            eval_claim,
-            num_variables as usize,
+            eval_claim_var,
+            num_variables,
             &proof,
             &mut challenger_variable,
         );
