@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
-use slop_algebra::TwoAdicField;
+use slop_algebra::{Field, TwoAdicField};
+use slop_challenger::{FieldChallenger, VariableLengthChallenger};
 
 /// A fully expanded WHIR configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -19,7 +20,7 @@ pub struct WhirProofShape<F> {
     pub starting_domain_log_size: usize,
 
     /// The initial pow bits used in the first fold.
-    pub starting_folding_pow_bits: Vec<f64>,
+    pub starting_folding_pow_bits: Vec<usize>,
 
     /// The round-specific parameters.
     pub round_parameters: Vec<RoundConfig>,
@@ -31,10 +32,10 @@ pub struct WhirProofShape<F> {
     pub final_queries: usize,
 
     /// Number of final bits of proof of work (for the queries).
-    pub final_pow_bits: f64,
+    pub final_pow_bits: usize,
 
     /// Number of final bits of proof of work (for the sumcheck).
-    pub final_folding_pow_bits: Vec<f64>,
+    pub final_folding_pow_bits: Vec<usize>,
 }
 
 impl<F: TwoAdicField> WhirProofShape<F> {
@@ -51,8 +52,8 @@ impl<F: TwoAdicField> WhirProofShape<F> {
                 RoundConfig {
                     folding_factor,
                     evaluation_domain_log_size: 12,
-                    queries_pow_bits: 10.0,
-                    pow_bits: vec![10.0; folding_factor],
+                    queries_pow_bits: 10,
+                    pow_bits: vec![10; folding_factor],
                     num_queries: 90,
                     ood_samples: 1,
                     log_inv_rate: 4,
@@ -60,8 +61,8 @@ impl<F: TwoAdicField> WhirProofShape<F> {
                 RoundConfig {
                     folding_factor,
                     evaluation_domain_log_size: 11,
-                    queries_pow_bits: 10.0,
-                    pow_bits: vec![10.0; folding_factor],
+                    queries_pow_bits: 10,
+                    pow_bits: vec![10; folding_factor],
                     num_queries: 15,
                     ood_samples: 1,
                     log_inv_rate: 7,
@@ -69,8 +70,8 @@ impl<F: TwoAdicField> WhirProofShape<F> {
             ],
             final_poly_log_degree: 4,
             final_queries: 10,
-            final_pow_bits: 10.0,
-            final_folding_pow_bits: vec![10.0; 8],
+            final_pow_bits: 10,
+            final_folding_pow_bits: vec![10; 8],
         }
     }
     pub fn big_beautiful_whir_config() -> Self {
@@ -117,6 +118,39 @@ impl<F: TwoAdicField> WhirProofShape<F> {
             final_folding_pow_bits: vec![0.0; 8],
         }
     }
+
+    fn write_to_challenger<D: Copy, C: VariableLengthChallenger<F, D>>(&self, challenger: &mut C) {
+        let &WhirProofShape {
+            domain_generator,
+            starting_ood_samples,
+            starting_log_inv_rate,
+            starting_interleaved_log_height,
+            starting_domain_log_size,
+            starting_folding_pow_bits,
+            round_parameters,
+            final_poly_log_degree,
+            final_queries,
+            final_pow_bits,
+            final_folding_pow_bits,
+        } = self;
+        challenger.observe(domain_generator);
+        challenger.observe(F::from_canonical_usize(starting_ood_samples));
+        challenger.observe(F::from_canonical_usize(starting_log_inv_rate));
+        challenger.observe(F::from_canonical_usize(starting_interleaved_log_height));
+        challenger.observe(F::from_canonical_usize(starting_domain_log_size));
+        challenger.observe_variable_length_slice(
+            &starting_folding_pow_bits
+                .iter()
+                .copied()
+                .map(F::from_canonical_usize)
+                .collect::<Vec<_>>(),
+        );
+        round_parameters.iter().for_each(|f| f.write_to_challenger(challenger));
+        challenger.observe(F::from_canonical_usize(final_poly_log_degree));
+        challenger.observe(F::from_canonical_usize(final_queries));
+        challenger.observe(F::from_canonical_usize(final_pow_bits));
+        challenger.observe(F::from_canonical_usize(final_folding_pow_bits));
+    }
 }
 /// Round specific configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -126,13 +160,30 @@ pub struct RoundConfig {
     /// Size of evaluation domain (of oracle sent in this round)
     pub evaluation_domain_log_size: usize,
     /// Number of bits of proof of work (for the queries).
-    pub queries_pow_bits: f64,
+    pub queries_pow_bits: usize,
     /// Number of bits of proof of work (for the folding).
-    pub pow_bits: Vec<f64>,
+    pub pow_bits: Vec<usize>,
     /// Number of queries in this round
     pub num_queries: usize,
     /// Number of OOD samples in this round
     pub ood_samples: usize,
     /// Rate of current RS codeword
     pub log_inv_rate: usize,
+}
+
+impl RoundConfig {
+    pub fn write_to_challenger<F: Field, D: Copy, C: VariableLengthChallenger<F, D>>(
+        &self,
+        challenger: &mut C,
+    ) {
+        challenger.observe(F::from_canonical_usize(self.folding_factor));
+        challenger.observe(F::from_canonical_usize(self.evaluation_domain_log_size));
+        challenger.observe_variable_length_slice(
+            &self.pow_bits.iter().copied().map(F::from_canonical_usize).collect::<Vec<_>>(),
+        );
+        challenger.observe(F::from_canonical_usize(self.queries_pow_bits));
+        challenger.observe(F::from_canonical_usize(self.num_queries));
+        challenger.observe(F::from_canonical_usize(self.ood_samples));
+        challenger.observe(F::from_canonical_usize(self.log_inv_rate));
+    }
 }

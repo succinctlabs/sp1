@@ -139,6 +139,7 @@ where
         merkle_verifier: MerkleTreeTcs<GC>,
         config: WhirProofShape<GC::F>,
         num_expected_commitments: usize,
+        challenger: &mut GC::Challenger,
     ) -> Self {
         assert_ne!(num_expected_commitments, 0, "commitment must exist");
         Self { merkle_verifier, config, num_expected_commitments }
