@@ -188,10 +188,10 @@ impl RoundConfig {
     ) {
         challenger.observe(F::from_canonical_usize(self.folding_factor));
         challenger.observe(F::from_canonical_usize(self.evaluation_domain_log_size));
+        challenger.observe(F::from_canonical_usize(self.queries_pow_bits));
         challenger.observe_variable_length_slice(
             &self.pow_bits.iter().copied().map(F::from_canonical_usize).collect::<Vec<_>>(),
         );
-        challenger.observe(F::from_canonical_usize(self.queries_pow_bits));
         challenger.observe(F::from_canonical_usize(self.num_queries));
         challenger.observe(F::from_canonical_usize(self.ood_samples));
         challenger.observe(F::from_canonical_usize(self.log_inv_rate));
