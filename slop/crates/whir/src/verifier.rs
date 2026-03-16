@@ -149,10 +149,10 @@ where
         &self,
         commitment: &[GC::Digest],
         challenger: &mut GC::Challenger,
-        exepceted_length: usize,
+        expected_length: usize,
     ) -> Result<(), WhirProofError> {
-        if commitment.len() != exepceted_length {
-            Err(WhirProofError::InvalidNumberOfCommitments(exepceted_length, commitment.len()))
+        if commitment.len() != expected_length {
+            Err(WhirProofError::InvalidNumberOfCommitments(expected_length, commitment.len()))
         } else {
             challenger.observe_constant_length_digest_slice(commitment);
             Ok(())
