@@ -1373,12 +1373,11 @@ mod tests {
             JaggedPcsVerifier::<GC, Verifier<GC>>::new(verifier, max_log_row_count as usize);
 
         // Begin the commit rounds
-        let mut challenger = jagged_verifier.challenger();
-
         let prover = Prover::<_, _, _>::new(Radix2DitParallel, merkle_prover, config.clone());
 
+        let mut challenger_prover = jagged_verifier.challenger();
         // Write the config to the challenger before proving.
-        config.write_to_challenger(&mut challenger);
+        config.write_to_challenger(&mut challenger_prover);
 
         let jagged_prover =
             JaggedProver::<GC, WhirProof<GC>, Prover<GC, MerkleProver, Radix2DitParallel>>::new(
@@ -1393,7 +1392,7 @@ mod tests {
         let mut commitments = Rounds::new();
         for round in round_mles.iter() {
             let (commit, data) = jagged_prover.commit_multilinears(round.clone()).ok().unwrap();
-            challenger.observe(commit);
+            challenger_prover.observe(commit);
             prover_data.push(data);
             commitments.push(commit);
         }
@@ -1413,7 +1412,7 @@ mod tests {
                 eval_point.clone(),
                 evaluation_claims.clone(),
                 prover_data,
-                &mut challenger,
+                &mut challenger_prover,
             )
             .ok()
             .unwrap();
