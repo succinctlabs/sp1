@@ -512,7 +512,6 @@ where
         );
 
         WhirProof {
-            config: config.clone(),
             initial_sumcheck_polynomials,
             commitments: parsed_commitments,
             merkle_proofs: merkle_proofs

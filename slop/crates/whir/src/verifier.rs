@@ -64,7 +64,6 @@ pub struct WhirProof<GC>
 where
     GC: IopCtx,
 {
-    pub config: WhirProofShape<GC::F>,
     // First sumcheck
     pub initial_sumcheck_polynomials: Vec<(SumcheckPoly<GC::EF>, ProofOfWork<GC>)>,
 
@@ -166,7 +165,7 @@ where
         proof: &WhirProof<GC>,
         challenger: &mut GC::Challenger,
     ) -> Result<(Point<GC::EF>, GC::EF), WhirProofError> {
-        let config = &proof.config;
+        let config = &self.config;
         let n_rounds = config.round_parameters.len();
         if commitments.len() != self.num_expected_commitments
             || round_areas.len() != self.num_expected_commitments
