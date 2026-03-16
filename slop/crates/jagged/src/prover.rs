@@ -71,6 +71,8 @@ pub enum JaggedProverError<Error> {
 pub trait DefaultJaggedProver<GC: IopCtx, Verifier: MultilinearPcsVerifier<GC>>:
     MultilinearPcsProver<GC, Verifier::Proof> + Sized
 {
+    /// Create a new `JaggedProver` from a `JaggedPcsVerifier`. The challenger argument is there
+    /// in case the caller needs the function to "intiialize" the challenger state before use.
     fn prover_from_verifier(
         verifier: &JaggedPcsVerifier<GC, Verifier>,
     ) -> JaggedProver<GC, Verifier::Proof, Self>;

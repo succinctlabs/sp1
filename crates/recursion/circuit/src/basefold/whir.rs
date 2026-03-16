@@ -203,7 +203,7 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> RecursiveWhirVerifier<C, S
 
             challenger.check_witness(
                 builder,
-                round_params.queries_pow_bits.ceil() as usize,
+                round_params.queries_pow_bits,
                 proof.query_proof_of_works[round_index],
             );
 
@@ -382,11 +382,7 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> RecursiveWhirVerifier<C, S
             );
         }
 
-        challenger.check_witness(
-            builder,
-            self.config.final_pow_bits.ceil() as usize,
-            proof.final_pow,
-        );
+        challenger.check_witness(builder, self.config.final_pow_bits, proof.final_pow);
 
         (folding_randomness, claimed_sum) = self.verify_whir_sumcheck(
             builder,
@@ -450,7 +446,7 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> RecursiveWhirVerifier<C, S
         sumcheck_polynomials: &[RecursiveProverMessage],
         mut claimed_sum: Ext<SP1Field, SP1ExtensionField>,
         rounds: usize,
-        pow_bits: &[f64],
+        pow_bits: &[usize],
         challenger: &mut SC::FriChallengerVariable,
     ) -> PointAndEval<Ext<SP1Field, SP1ExtensionField>> {
         let mut randomness = Vec::with_capacity(rounds);
@@ -466,7 +462,7 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> RecursiveWhirVerifier<C, S
                 challenger.sample_ext(builder);
             randomness.push(folding_randomness_single);
 
-            challenger.check_witness(builder, pow_bits[i].ceil() as usize, *pow_witness);
+            challenger.check_witness(builder, pow_bits[i], *pow_witness);
             claimed_sum = builder.eval(
                 IntoSymbolic::<C>::as_symbolic(sumcheck_poly)
                     .evaluate_at_point(IntoSymbolic::<C>::as_symbolic(&folding_randomness_single)),
@@ -668,7 +664,8 @@ mod tests {
 
         let prover = Prover::<_, _, _>::new(Radix2DitParallel, merkle_prover, config.clone());
         let merkle_verifier = MerkleTreeTcs::default();
-        let verifier = Verifier::<SC>::new(merkle_verifier, config.clone(), 2);
+        let verifier =
+            Verifier::<SC>::new(merkle_verifier, config.clone(), 2, &mut challenger_verifier);
 
         // Two polynomials committed in separate rounds, each 2^15 entries (width 1).
         // Total = 2^16 = 2^num_variables, so no zero-padding needed.

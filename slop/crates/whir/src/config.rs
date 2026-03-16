@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use slop_algebra::{Field, TwoAdicField};
-use slop_challenger::{FieldChallenger, VariableLengthChallenger};
+use slop_challenger::VariableLengthChallenger;
 
 /// A fully expanded WHIR configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,7 +47,7 @@ impl<F: TwoAdicField> WhirProofShape<F> {
             starting_log_inv_rate: 1,
             starting_interleaved_log_height: 12,
             starting_domain_log_size: 13,
-            starting_folding_pow_bits: vec![10.0; folding_factor],
+            starting_folding_pow_bits: vec![10; folding_factor],
             round_parameters: vec![
                 RoundConfig {
                     folding_factor,
@@ -82,13 +82,13 @@ impl<F: TwoAdicField> WhirProofShape<F> {
             starting_log_inv_rate: 1,
             starting_interleaved_log_height: 20,
             starting_domain_log_size: 21,
-            starting_folding_pow_bits: vec![0.; 10],
+            starting_folding_pow_bits: vec![0; 10],
             round_parameters: vec![
                 RoundConfig {
                     folding_factor,
                     evaluation_domain_log_size: 20,
-                    queries_pow_bits: 16.0,
-                    pow_bits: vec![0.0; folding_factor],
+                    queries_pow_bits: 16,
+                    pow_bits: vec![0; folding_factor],
                     num_queries: 84,
                     ood_samples: 2,
                     log_inv_rate: 4,
@@ -96,8 +96,8 @@ impl<F: TwoAdicField> WhirProofShape<F> {
                 RoundConfig {
                     folding_factor,
                     evaluation_domain_log_size: 19,
-                    queries_pow_bits: 16.0,
-                    pow_bits: vec![0.0; folding_factor],
+                    queries_pow_bits: 16,
+                    pow_bits: vec![0; folding_factor],
                     num_queries: 21,
                     ood_samples: 2,
                     log_inv_rate: 7,
@@ -105,8 +105,8 @@ impl<F: TwoAdicField> WhirProofShape<F> {
                 RoundConfig {
                     folding_factor,
                     evaluation_domain_log_size: 18,
-                    queries_pow_bits: 16.0,
-                    pow_bits: vec![0.0; folding_factor],
+                    queries_pow_bits: 16,
+                    pow_bits: vec![0; folding_factor],
                     num_queries: 12,
                     ood_samples: 2,
                     log_inv_rate: 10,
@@ -114,24 +114,28 @@ impl<F: TwoAdicField> WhirProofShape<F> {
             ],
             final_poly_log_degree: 8,
             final_queries: 9,
-            final_pow_bits: 16.0,
-            final_folding_pow_bits: vec![0.0; 8],
+            final_pow_bits: 16,
+            final_folding_pow_bits: vec![0; 8],
         }
     }
-
-    fn write_to_challenger<D: Copy, C: VariableLengthChallenger<F, D>>(&self, challenger: &mut C) {
+}
+impl<F: Field> WhirProofShape<F> {
+    pub fn write_to_challenger<D: Copy, C: VariableLengthChallenger<F, D>>(
+        &self,
+        challenger: &mut C,
+    ) {
         let &WhirProofShape {
             domain_generator,
             starting_ood_samples,
             starting_log_inv_rate,
             starting_interleaved_log_height,
             starting_domain_log_size,
-            starting_folding_pow_bits,
-            round_parameters,
+            ref starting_folding_pow_bits,
+            ref round_parameters,
             final_poly_log_degree,
             final_queries,
             final_pow_bits,
-            final_folding_pow_bits,
+            ref final_folding_pow_bits,
         } = self;
         challenger.observe(domain_generator);
         challenger.observe(F::from_canonical_usize(starting_ood_samples));
@@ -149,7 +153,13 @@ impl<F: TwoAdicField> WhirProofShape<F> {
         challenger.observe(F::from_canonical_usize(final_poly_log_degree));
         challenger.observe(F::from_canonical_usize(final_queries));
         challenger.observe(F::from_canonical_usize(final_pow_bits));
-        challenger.observe(F::from_canonical_usize(final_folding_pow_bits));
+        challenger.observe_variable_length_slice(
+            &final_folding_pow_bits
+                .iter()
+                .copied()
+                .map(F::from_canonical_usize)
+                .collect::<Vec<_>>(),
+        );
     }
 }
 /// Round specific configuration
