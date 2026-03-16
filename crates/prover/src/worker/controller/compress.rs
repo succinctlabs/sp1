@@ -515,9 +515,9 @@ impl CompressTree {
                         if let Some(num_core_proofs) = num_core_proofs {
                             if num_core_proofs_completed == num_core_proofs {
                                 full_range = Some(max_range.clone().into());
-                                tracing::info!("Setting full range to: {:?}", full_range);
+                                tracing::debug!("Setting full range to: {:?}", full_range);
                                 // Send the last core proof to the proof queue.
-                                tracing::info!("Sending last core proof to proof queue: {:?}", last_core_proof);
+                                tracing::debug!("Sending last core proof to proof queue: {:?}", last_core_proof);
                                 let last_core_proof = last_core_proof.take().unwrap();
                                 proof_tx.send(last_core_proof).map_err(|_| TaskError::Fatal(anyhow::anyhow!("Compress tree panicked")))?;
                                 // Close the core proofs event stream.
