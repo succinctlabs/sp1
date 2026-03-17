@@ -128,7 +128,30 @@ runs:
     - name: Ensure stable clippy and rustfmt is installed
       shell: bash
       run: |
+        set +e
         rustup toolchain install stable --component clippy,rustfmt
+        STATUS=$?
+        set -e
+        if [ $STATUS -ne 0 ]; then
+          echo "::group::Rustup debug diagnostics"
+          rustup --version || true
+          rustup show || true
+          rustup toolchain list -v || true
+          rustup component list --toolchain stable-aarch64-unknown-linux-gnu --installed || true
+          if [ -f "$HOME/.rustup/settings.toml" ]; then
+            sed -n '1,200p' "$HOME/.rustup/settings.toml" || true
+          fi
+          ls -la "$HOME/.rustup" || true
+          ls -la "$HOME/.rustup/tmp" || true
+          ls -la "$HOME/.rustup/toolchains" || true
+          ls -la "$HOME/.rustup/toolchains/stable-aarch64-unknown-linux-gnu" || true
+          df -h || true
+          df -i || true
+          echo "Re-running stable toolchain install with rustup debug logs..."
+          RUSTUP_LOG=rustup=debug rustup toolchain install stable --component clippy,rustfmt || true
+          echo "::endgroup::"
+          exit $STATUS
+        fi
         
     # install pkg-config and openssl
     - name: Install pkg-config and openssl
