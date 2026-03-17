@@ -289,6 +289,7 @@ message GetStatsResponse {
 message SubscribeTaskMessagesRequest {
     string worker_id = 1;
     string task_id = 2;
+    uint64 start_offset = 3;
 }
 
 message SendTaskMessageRequest {
