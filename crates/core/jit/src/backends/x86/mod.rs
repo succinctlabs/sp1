@@ -400,7 +400,7 @@ impl TranspilerBackend {
         self.load_registers_from_context();
 
         // Hoist memory pointer to register
-        self.load_memory_ptr(MEMORY_PTR);
+        self.load_memory_ptr();
 
         if self.tracing() {
             self.trace_pc_start();
@@ -687,7 +687,7 @@ impl TranspilerBackend {
             self.hoist_trace_pointers();
         }
         self.hoist_clock();
-        self.load_memory_ptr(MEMORY_PTR);
+        self.load_memory_ptr();
         self.load_registers_from_context();
     }
 
@@ -704,11 +704,11 @@ impl TranspilerBackend {
     }
 
     #[inline]
-    fn load_memory_ptr(&mut self, src: u8) {
+    fn load_memory_ptr(&mut self) {
         dynasm! {
             self;
             .arch x64;
-            mov Rq(src), QWORD [Rq(CONTEXT) + MEMORY_PTR_OFFSET]
+            mov Rq(MEMORY_PTR), QWORD [Rq(CONTEXT) + MEMORY_PTR_OFFSET]
         }
     }
 
@@ -845,8 +845,8 @@ impl TranspilerBackend {
     fn end_branch(&mut self, jump_target: Option<u64>) {
         self.branch_generated = true;
 
-        // Add the base amount of cycles for the instruction.
-        self.bump_clk();
+        // Branch instructions bump clock as they see fit, we don't bump
+        // the clock here for them.
 
         // If we have a control flow instruction that may early exit, we need to check if the
         // trace size has been exceeded.

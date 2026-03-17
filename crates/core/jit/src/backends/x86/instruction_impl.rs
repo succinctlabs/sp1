@@ -789,6 +789,9 @@ impl ControlFlowInstructions for TranspilerBackend {
         // Adjust the PC store in the context by the immediate.
         self.bump_pc(imm as u32);
 
+        // Add the base amount of cycles for the instruction.
+        self.bump_clk();
+
         // We know the jump target at transpile time, we can issue jump
         // to it directly, skipping jump table
         self.end_branch(Some(target_pc));
@@ -821,12 +824,18 @@ impl ControlFlowInstructions for TranspilerBackend {
         let next_pc = self.pc_current + 4;
         self.emit_risc_register_store(TEMP_B, Some(next_pc), rd);
 
+        // Add the base amount of cycles for the instruction.
+        self.bump_clk();
+
         self.end_branch(jump_target);
     }
 
     fn beq(&mut self, rs1: RiscRegister, rs2: RiscRegister, imm: u64) {
         // Mark that a control flow instruction has been inserted.
         self.control_flow_instruction_inserted = true;
+
+        // Add the base amount of cycles for the instruction.
+        self.bump_clk();
 
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
         self.emit_risc_operand_load(rs2.into(), TEMP_B);
@@ -873,6 +882,9 @@ impl ControlFlowInstructions for TranspilerBackend {
         // Mark that a control flow instruction has been inserted.
         self.control_flow_instruction_inserted = true;
 
+        // Add the base amount of cycles for the instruction.
+        self.bump_clk();
+
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
         self.emit_risc_operand_load(rs2.into(), TEMP_B);
 
@@ -917,6 +929,9 @@ impl ControlFlowInstructions for TranspilerBackend {
         // Mark that a control flow instruction has been inserted.
         self.control_flow_instruction_inserted = true;
 
+        // Add the base amount of cycles for the instruction.
+        self.bump_clk();
+
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
         self.emit_risc_operand_load(rs2.into(), TEMP_B);
 
@@ -959,6 +974,9 @@ impl ControlFlowInstructions for TranspilerBackend {
     fn blt(&mut self, rs1: RiscRegister, rs2: RiscRegister, imm: u64) {
         // Mark that a control flow instruction has been inserted.
         self.control_flow_instruction_inserted = true;
+
+        // Add the base amount of cycles for the instruction.
+        self.bump_clk();
 
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
         self.emit_risc_operand_load(rs2.into(), TEMP_B);
@@ -1005,6 +1023,9 @@ impl ControlFlowInstructions for TranspilerBackend {
         // Mark that a control flow instruction has been inserted.
         self.control_flow_instruction_inserted = true;
 
+        // Add the base amount of cycles for the instruction.
+        self.bump_clk();
+
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
         self.emit_risc_operand_load(rs2.into(), TEMP_B);
 
@@ -1043,6 +1064,9 @@ impl ControlFlowInstructions for TranspilerBackend {
     fn bne(&mut self, rs1: RiscRegister, rs2: RiscRegister, imm: u64) {
         // Mark that a control flow instruction has been inserted.
         self.control_flow_instruction_inserted = true;
+
+        // Add the base amount of cycles for the instruction.
+        self.bump_clk();
 
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
         self.emit_risc_operand_load(rs2.into(), TEMP_B);
@@ -1667,6 +1691,9 @@ impl SystemInstructions for TranspilerBackend {
         // The ecall returns a u64 in RAX.
         self.emit_risc_register_store(Rq::RAX as u8, None, RiscRegister::X5);
 
+        // Add the base amount of cycles for the instruction.
+        self.bump_clk();
+
         self.end_branch(None);
     }
 
@@ -1677,5 +1704,10 @@ impl SystemInstructions for TranspilerBackend {
         }
 
         self.call_extern_fn(unimp);
+
+        // Add the base amount of cycles for the instruction.
+        self.bump_clk();
+
+        self.end_branch(None);
     }
 }
