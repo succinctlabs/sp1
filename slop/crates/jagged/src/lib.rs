@@ -1,7 +1,7 @@
 #![allow(clippy::disallowed_types)]
 mod basefold;
 mod hadamard;
-mod jagged_eval;
+mod jagged_assist;
 mod long;
 mod poly;
 mod populate;
@@ -11,7 +11,7 @@ mod verifier;
 
 pub use basefold::*;
 pub use hadamard::*;
-pub use jagged_eval::*;
+pub use jagged_assist::*;
 pub use long::*;
 pub use poly::*;
 pub use prover::*;

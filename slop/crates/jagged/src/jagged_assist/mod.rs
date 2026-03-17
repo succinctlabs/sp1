@@ -34,7 +34,7 @@ pub trait JaggedEvalProver<F: Field, EF: ExtensionField<F>, Challenger>:
 mod tests {
 
     use crate::{
-        jagged_eval::sumcheck_poly::JaggedEvalSumcheckPoly, BranchingProgram,
+        jagged_assist::sumcheck_poly::JaggedEvalSumcheckPoly, BranchingProgram,
         JaggedLittlePolynomialProverParams, JaggedLittlePolynomialVerifierParams,
     };
     use itertools::Itertools;
