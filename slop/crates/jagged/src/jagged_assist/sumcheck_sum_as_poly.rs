@@ -10,7 +10,7 @@ use slop_alloc::{Backend, Buffer, CpuBackend};
 use slop_challenger::{FieldChallenger, VariableLengthChallenger};
 use slop_multilinear::Point;
 
-use crate::BranchingProgram;
+use crate::{BranchingProgram, MemoryState};
 
 use super::JaggedEvalSumcheckPoly;
 
@@ -54,59 +54,14 @@ pub trait JaggedAssistSumAsPoly<
     ) -> JaggedEvalSumcheckPoly<F, EF, Challenger, DeviceChallenger, Self, A>;
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct JaggedAssistSumAsPolyCPUImpl<F: Field, EF: ExtensionField<F>, Challenger> {
     branching_program: BranchingProgram<EF>,
     merged_prefix_sums: Arc<Vec<Point<F>>>,
+    prefix_states: Vec<Vec<[EF; 8]>>,
+    suffix_vector: [EF; 8],
     half: EF,
     _marker: PhantomData<Challenger>,
-}
-
-impl<F: Field, EF: ExtensionField<F>, Challenger: FieldChallenger<F>>
-    JaggedAssistSumAsPolyCPUImpl<F, EF, Challenger>
-{
-    #[inline]
-    fn eval(
-        &self,
-        lambda: EF,
-        round_num: usize,
-        merged_prefix_sum: &Point<F>,
-        z_col_eq_val: EF,
-        intermediate_eq_full_eval: EF,
-        rhos: &Point<EF>,
-    ) -> EF {
-        // We want to calculate eq(z_col, col_idx) * eq(x_1, (x, rho)) * h(x_2, x, rho) where
-        // x_1 || x_2 = merged_prefix_sum and rho is the sumcheck random point.  Note that the
-        // eq(x_col, col_idx) is already computed as `z_col_eq_val` and all but one term of eq(x_i,
-        // (x, rho)) is computed as `intermediate_eq_full_eval`.
-
-        // Split the merged prefix sum so that x_1 || x_2 = merged_prefix_sum.
-        let (h_prefix_sum, eq_prefix_sum) =
-            merged_prefix_sum.split_at(merged_prefix_sum.dimension() - round_num - 1);
-
-        // Compute the remaining eq term for `eq(x_i, (x, rho))`.
-        let eq_val = if lambda == EF::zero() {
-            EF::one() - *eq_prefix_sum.values()[0]
-        } else if lambda == self.half {
-            self.half
-        } else {
-            unreachable!("lambda must be 0 or 1/2")
-        };
-
-        // Compute full eval of eq(x_i, (x, rho))
-        let eq_eval = intermediate_eq_full_eval * eq_val;
-
-        // Compute eval of h(x_2, x, rho).
-        let mut h_prefix_sum: Point<EF> =
-            h_prefix_sum.to_vec().iter().map(|x| (*x).into()).collect::<Vec<_>>().into();
-        h_prefix_sum.add_dimension_back(lambda);
-        h_prefix_sum.extend(rhos);
-        let num_dimensions = h_prefix_sum.dimension();
-        let (h_left, h_right) = h_prefix_sum.split_at(num_dimensions / 2);
-        let h_eval = self.branching_program.eval(&h_left, &h_right);
-
-        z_col_eq_val * h_eval * eq_eval
-    }
 }
 
 impl<F: Field, EF: ExtensionField<F>, Challenger: FieldChallenger<F> + Send + Sync>
@@ -122,9 +77,22 @@ impl<F: Field, EF: ExtensionField<F>, Challenger: FieldChallenger<F> + Send + Sy
     ) -> Self {
         let branching_program = BranchingProgram::new(z_row, z_index);
 
+        let prefix_states: Vec<Vec<[EF; 8]>> = merged_prefix_sums
+            .iter()
+            .map(|ps| {
+                let ps_ef: Point<EF> = ps.iter().map(|x| (*x).into()).collect();
+                branching_program.precompute_prefix_states(&ps_ef)
+            })
+            .collect();
+
+        let mut suffix_vector = [EF::zero(); 8];
+        suffix_vector[MemoryState::initial_state().get_index()] = EF::one();
+
         Self {
             branching_program,
             merged_prefix_sums,
+            prefix_states,
+            suffix_vector,
             half: EF::two().inverse(),
             _marker: PhantomData,
         }
@@ -150,35 +118,59 @@ impl<F: Field, EF: ExtensionField<F>, Challenger: FieldChallenger<F> + Send + Sy
             .par_chunks(chunk_size)
             .zip_eq(z_col_eq_vals.par_chunks(chunk_size))
             .zip_eq(intermediate_eq_full_evals.par_chunks(chunk_size))
+            .zip_eq(self.prefix_states.par_chunks(chunk_size))
             .map(
                 |(
-                    (merged_prefix_sum_chunk, z_col_eq_val_chunk),
-                    intermediate_eq_full_eval_chunk,
+                    (
+                        (merged_prefix_sum_chunk, z_col_eq_val_chunk),
+                        intermediate_eq_full_eval_chunk,
+                    ),
+                    prefix_states_chunk,
                 )| {
                     merged_prefix_sum_chunk
                         .iter()
                         .zip_eq(z_col_eq_val_chunk.iter())
                         .zip_eq(intermediate_eq_full_eval_chunk.iter())
-                        .map(|((merged_prefix_sum, z_col_eq_val), intermediate_eq_full_eval)| {
-                            let y_0 = self.eval(
-                                EF::zero(),
-                                round_num,
-                                merged_prefix_sum,
-                                *z_col_eq_val,
-                                *intermediate_eq_full_eval,
-                                &rhos,
-                            );
-                            let y_half = self.eval(
-                                self.half,
-                                round_num,
-                                merged_prefix_sum,
-                                *z_col_eq_val,
-                                *intermediate_eq_full_eval,
-                                &rhos,
-                            );
+                        .zip_eq(prefix_states_chunk.iter())
+                        .map(
+                            |(
+                                ((merged_prefix_sum, z_col_eq_val), intermediate_eq_full_eval),
+                                col_prefix_states,
+                            )| {
+                                let prefix_sum_dim = merged_prefix_sum.dimension();
+                                let eq_prefix_sum_val: EF = (*merged_prefix_sum
+                                    .get(prefix_sum_dim - round_num - 1)
+                                    .unwrap())
+                                .into();
 
-                            (y_0, y_half)
-                        })
+                                // Eq term for lambda = 0.
+                                let eq_val_0 = EF::one() - eq_prefix_sum_val;
+                                let eq_eval_0 = *intermediate_eq_full_eval * eq_val_0;
+
+                                // Eq term for lambda = 1/2.
+                                let eq_eval_half = *intermediate_eq_full_eval * self.half;
+
+                                // BP evaluation using cached prefix + suffix.
+                                let prefix_state = &col_prefix_states[round_num + 1];
+                                let h_eval_0 = self.branching_program.eval_with_cached(
+                                    round_num,
+                                    EF::zero(),
+                                    prefix_state,
+                                    &self.suffix_vector,
+                                );
+                                let h_eval_half = self.branching_program.eval_with_cached(
+                                    round_num,
+                                    self.half,
+                                    prefix_state,
+                                    &self.suffix_vector,
+                                );
+
+                                let y_0 = *z_col_eq_val * h_eval_0 * eq_eval_0;
+                                let y_half = *z_col_eq_val * h_eval_half * eq_eval_half;
+
+                                (y_0, y_half)
+                            },
+                        )
                         .fold((EF::zero(), EF::zero()), |(y_0, y_2), (y_0_i, y_2_i)| {
                             (y_0 + y_0_i, y_2 + y_2_i)
                         })
@@ -232,8 +224,16 @@ impl<F: Field, EF: ExtensionField<F>, Challenger: FieldChallenger<F> + Send + Sy
             })
             .collect_vec();
 
+        // Extend the suffix vector by one layer using the transposed DP.
+        let mut bp_batch_eval = poly.bp_batch_eval;
+        bp_batch_eval.suffix_vector = bp_batch_eval.branching_program.apply_layer_step_transposed(
+            poly.round_num,
+            alpha,
+            &bp_batch_eval.suffix_vector,
+        );
+
         JaggedEvalSumcheckPoly::new(
-            poly.bp_batch_eval,
+            bp_batch_eval,
             poly.rho,
             poly.z_col,
             poly.merged_prefix_sums,

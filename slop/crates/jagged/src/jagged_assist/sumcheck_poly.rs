@@ -7,6 +7,8 @@ use slop_challenger::FieldChallenger;
 use slop_multilinear::{Mle, Point, PointBackend};
 use slop_utils::log2_ceil_usize;
 
+use crate::interleave_prefix_sums;
+
 use super::JaggedAssistSumAsPoly;
 
 /// A struct that represents the polynomial that is used to evaluate the sumcheck.
@@ -94,14 +96,10 @@ impl<
         let col_prefix_sums: Vec<Point<F>> =
             prefix_sums.iter().map(|&x| Point::from_usize(x, log_m + 1)).collect();
 
-        // Generate all of the merged prefix sums.
+        // Generate all of the merged prefix sums (interleaved layout).
         let merged_prefix_sums = col_prefix_sums
             .windows(2)
-            .map(|prefix_sums| {
-                let mut merged_prefix_sum = prefix_sums[0].clone();
-                merged_prefix_sum.extend(&prefix_sums[1]);
-                merged_prefix_sum
-            })
+            .map(|prefix_sums| interleave_prefix_sums(&prefix_sums[0], &prefix_sums[1]))
             .collect_vec();
 
         // Generate all of the z_col partial lagrange mle.

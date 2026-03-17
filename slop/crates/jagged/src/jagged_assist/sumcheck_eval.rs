@@ -10,7 +10,7 @@ use std::{fmt::Debug, marker::PhantomData};
 use thiserror::Error;
 
 use crate::{
-    poly::BranchingProgram, JaggedLittlePolynomialProverParams,
+    interleave_prefix_sums, poly::BranchingProgram, JaggedLittlePolynomialProverParams,
     JaggedLittlePolynomialVerifierParams,
 };
 
@@ -82,15 +82,6 @@ where
             return Err(JaggedEvalSumcheckError::SumcheckError(result));
         }
 
-        let (first_half_z_index, second_half_z_index) = partial_sumcheck_proof
-            .point_and_eval
-            .0
-            .split_at(partial_sumcheck_proof.point_and_eval.0.dimension() / 2);
-
-        if first_half_z_index.dimension() != second_half_z_index.dimension() {
-            return Err(JaggedEvalSumcheckError::IncorrectShape);
-        }
-
         if params.col_prefix_sums.len() - 1 > z_col_partial_lagrange.len() {
             return Err(JaggedEvalSumcheckError::IncorrectShape);
         }
@@ -107,8 +98,8 @@ where
             .try_fold(
                 EF::zero(),
                 |acc, ((current_column_prefix_sum, next_column_prefix_sum), z_col_eq_val)| {
-                    let mut merged_prefix_sum = current_column_prefix_sum.clone();
-                    merged_prefix_sum.extend(next_column_prefix_sum);
+                    let merged_prefix_sum =
+                        interleave_prefix_sums(current_column_prefix_sum, next_column_prefix_sum);
 
                     if current_column_prefix_sum.dimension() != next_column_prefix_sum.dimension() {
                         return Err(JaggedEvalSumcheckError::IncorrectShape);
@@ -141,7 +132,7 @@ where
 
         let branching_program = BranchingProgram::new(z_row.clone(), z_trace.clone());
         jagged_eval_sc_expected_eval *=
-            branching_program.eval(&first_half_z_index, &second_half_z_index);
+            branching_program.eval_interleaved(&partial_sumcheck_proof.point_and_eval.0);
 
         if jagged_eval_sc_expected_eval != partial_sumcheck_proof.point_and_eval.1 {
             Err(JaggedEvalSumcheckError::JaggedEvaluationFailed(

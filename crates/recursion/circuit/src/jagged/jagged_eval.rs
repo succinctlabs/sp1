@@ -2,7 +2,8 @@ use std::marker::PhantomData;
 
 use rayon::ThreadPoolBuilder;
 use slop_jagged::{
-    BranchingProgram, JaggedLittlePolynomialVerifierParams, JaggedSumcheckEvalProof,
+    interleave_prefix_sums, BranchingProgram, JaggedLittlePolynomialVerifierParams,
+    JaggedSumcheckEvalProof,
 };
 use slop_multilinear::{Mle, Point};
 use sp1_primitives::{SP1ExtensionField, SP1Field};
@@ -130,9 +131,6 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>>
         let proof_point = <Point<Ext<SP1Field, SP1ExtensionField>> as IntoSymbolic<C>>::as_symbolic(
             &partial_sumcheck_proof.point_and_eval.0,
         );
-        let (first_half_z_index, second_half_z_index) =
-            proof_point.split_at(proof_point.dimension() / 2);
-        assert!(first_half_z_index.len() == second_half_z_index.len());
 
         // Compute the jagged eval sc expected eval and assert it matches the proof's eval.
         let current_column_prefix_sums = params.col_prefix_sums.iter();
@@ -146,8 +144,8 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>>
                 assert!(current_column_prefix_sum.dimension() <= 30);
                 assert!(next_column_prefix_sum.dimension() <= 30);
 
-                let mut merged_prefix_sum = current_column_prefix_sum.clone();
-                merged_prefix_sum.extend(next_column_prefix_sum);
+                let merged_prefix_sum =
+                    interleave_prefix_sums(current_column_prefix_sum, next_column_prefix_sum);
 
                 let (full_lagrange_eval, felt) = C::prefix_sum_checks(
                     builder,
@@ -160,8 +158,7 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>>
             .sum::<SymbolicExt<SP1Field, SP1ExtensionField>>();
         builder.cycle_tracker_v2_exit();
         let branching_program = BranchingProgram::new(z_row.clone(), z_trace.clone());
-        jagged_eval_sc_expected_eval *=
-            branching_program.eval(&first_half_z_index, &second_half_z_index);
+        jagged_eval_sc_expected_eval *= branching_program.eval_interleaved(&proof_point);
 
         builder
             .assert_ext_eq(jagged_eval_sc_expected_eval, partial_sumcheck_proof.point_and_eval.1);

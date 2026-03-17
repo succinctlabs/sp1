@@ -34,8 +34,8 @@ pub trait JaggedEvalProver<F: Field, EF: ExtensionField<F>, Challenger>:
 mod tests {
 
     use crate::{
-        jagged_assist::sumcheck_poly::JaggedEvalSumcheckPoly, BranchingProgram,
-        JaggedLittlePolynomialProverParams, JaggedLittlePolynomialVerifierParams,
+        interleave_prefix_sums, jagged_assist::sumcheck_poly::JaggedEvalSumcheckPoly,
+        BranchingProgram, JaggedLittlePolynomialProverParams, JaggedLittlePolynomialVerifierParams,
     };
     use itertools::Itertools;
     use rand::{thread_rng, Rng};
@@ -84,9 +84,9 @@ mod tests {
         let merged_prefix_sums = prefix_sums
             .windows(2)
             .map(|x| {
-                let mut merged_prefix_sum: Point<F> = Point::from_usize(x[0], log_m + 1);
-                merged_prefix_sum.extend(&Point::from_usize(x[1], log_m + 1));
-                merged_prefix_sum
+                let curr: Point<F> = Point::from_usize(x[0], log_m + 1);
+                let next: Point<F> = Point::from_usize(x[1], log_m + 1);
+                interleave_prefix_sums(&curr, &next)
             })
             .collect::<Vec<_>>();
 
@@ -144,9 +144,7 @@ mod tests {
             .iter()
             .zip(z_col_eq_vals.iter())
             .map(|(merged_prefix_sum, z_col_eq_val)| {
-                let (lower, upper) =
-                    out_of_domain_point.split_at(out_of_domain_point.dimension() / 2);
-                let h_eval = h_poly.eval(&lower, &upper);
+                let h_eval = h_poly.eval_interleaved(&out_of_domain_point);
                 *z_col_eq_val
                     * Mle::full_lagrange_eval(merged_prefix_sum, &out_of_domain_point)
                     * h_eval

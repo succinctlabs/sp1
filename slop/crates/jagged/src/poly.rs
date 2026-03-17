@@ -32,40 +32,48 @@ use slop_utils::log2_ceil_usize;
 
 use slop_multilinear::{Mle, Point};
 
-/// A struct recording the state of the memory of the branching program. Because the program
-/// performs a two-way addition and one u32 comparison, the memory needed is a carry (which lies in
-/// {0,1}) and a boolean to store the comparison of the u32s up to the current bit.
+/// A struct recording the state of the memory of the branching program (width 8).
+/// The program performs a two-way addition and one u32 comparison, with an interleaved
+/// bit ordering that separates curr and next prefix sum bits into different layers.
+/// The memory stores a carry, the comparison result so far, and a saved index bit
+/// that is used in the next layer for comparison.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct MemoryState {
     pub carry: bool,
-
     pub comparison_so_far: bool,
+    pub saved_index_bit: bool,
 }
 
 impl fmt::Display for MemoryState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "COMPARISON_SO_FAR_{}__CARRY_{}",
-            self.comparison_so_far as usize, self.carry as usize
+            "COMPARISON_SO_FAR_{}__CARRY_{}__SAVED_INDEX_{}",
+            self.comparison_so_far as usize, self.carry as usize, self.saved_index_bit as usize
         )
     }
 }
 
 impl MemoryState {
     pub fn get_index(&self) -> usize {
-        (self.carry as usize) + ((self.comparison_so_far as usize) << 1)
+        (self.carry as usize)
+            + ((self.comparison_so_far as usize) << 1)
+            + ((self.saved_index_bit as usize) << 2)
     }
 }
 
 impl MemoryState {
-    /// The memory state which indicates success in the last layer of the branching program.
-    fn success() -> Self {
-        MemoryState { carry: false, comparison_so_far: true }
+    /// The two memory states which indicate success in the last layer of the branching program.
+    /// Both saved_index_bit values are accepted since the last layer (a next layer) clears it.
+    fn success_states() -> [Self; 2] {
+        [
+            MemoryState { carry: false, comparison_so_far: true, saved_index_bit: false },
+            MemoryState { carry: false, comparison_so_far: true, saved_index_bit: true },
+        ]
     }
 
-    fn initial_state() -> Self {
-        MemoryState { carry: false, comparison_so_far: false }
+    pub fn initial_state() -> Self {
+        MemoryState { carry: false, comparison_so_far: false, saved_index_bit: false }
     }
 }
 
@@ -85,83 +93,79 @@ impl fmt::Display for StateOrFail {
     }
 }
 
-/// A struct representing the four bits the branching program needs to read in order to go to the
-/// next layer of the program. The program streams the bits of the row, column, index, and the
-/// "table area prefix sum".
+/// The three bits the branching program reads on a curr (even) layer:
+/// row, index, and curr_col_prefix_sum.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub struct BitState<T> {
-    pub row_bit: T,
-    pub index_bit: T,
-    pub curr_col_prefix_sum_bit: T,
-    pub next_col_prefix_sum_bit: T,
+pub struct CurrLayerBitState {
+    pub row_bit: bool,
+    pub index_bit: bool,
+    pub curr_col_prefix_sum_bit: bool,
 }
 
-/// Enumerate all the possible memory states.
+/// The single bit the branching program reads on a next (odd) layer:
+/// next_col_prefix_sum.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct NextLayerBitState {
+    pub next_col_prefix_sum_bit: bool,
+}
+
+/// Enumerate all the possible memory states (width 8).
 pub fn all_memory_states() -> Vec<MemoryState> {
     (0..2)
-        .flat_map(|comparison_so_far| {
-            (0..2).map(move |carry| MemoryState {
-                carry: carry != 0,
-                comparison_so_far: comparison_so_far != 0,
-            })
-        })
-        .collect()
-}
-
-/// Enumerate all the possible bit states.
-pub fn all_bit_states() -> Vec<BitState<bool>> {
-    (0..2)
-        .flat_map(|row_bit| {
-            (0..2).flat_map(move |index_bit| {
-                (0..2).flat_map(move |curr_col_bit| {
-                    (0..2).map(move |next_col_bit| BitState {
-                        row_bit: row_bit != 0,
-                        index_bit: index_bit != 0,
-                        curr_col_prefix_sum_bit: curr_col_bit != 0,
-                        next_col_prefix_sum_bit: next_col_bit != 0,
-                    })
+        .flat_map(|saved_index_bit| {
+            (0..2).flat_map(move |comparison_so_far| {
+                (0..2).map(move |carry| MemoryState {
+                    carry: carry != 0,
+                    comparison_so_far: comparison_so_far != 0,
+                    saved_index_bit: saved_index_bit != 0,
                 })
             })
         })
         .collect()
 }
 
-/// The transition function that determines the next memory state given the current memory state and
-/// the current bits being read. The branching program reads bits from LSB to MSB.
-pub fn transition_function(bit_state: BitState<bool>, memory_state: MemoryState) -> StateOrFail {
-    // If the current (most significant bit read so far) index_bit matches the current next_tab_bit,
-    // then defer to the comparison so far. Otherwise, the comparison is correct only if
-    // `next_tab_bit` is 1 and `index_bit` is 0.
-    let new_comparison_so_far = if bit_state.index_bit == bit_state.next_col_prefix_sum_bit {
+/// Transition function for curr (even) layers. Checks the addition constraint,
+/// updates the carry, and saves the index_bit for comparison in the next layer.
+/// The comparison_so_far is unchanged.
+pub fn curr_layer_transition(
+    bit_state: CurrLayerBitState,
+    memory_state: MemoryState,
+) -> StateOrFail {
+    let sum = bit_state.row_bit as usize
+        + memory_state.carry as usize
+        + bit_state.curr_col_prefix_sum_bit as usize;
+
+    if (bit_state.index_bit as usize) != (sum & 1) {
+        return StateOrFail::Fail;
+    }
+
+    let new_carry = sum >> 1;
+
+    StateOrFail::State(MemoryState {
+        carry: new_carry != 0,
+        comparison_so_far: memory_state.comparison_so_far,
+        saved_index_bit: bit_state.index_bit,
+    })
+}
+
+/// Transition function for next (odd) layers. Updates the comparison using the
+/// saved index bit from the previous curr layer. The carry is unchanged.
+pub fn next_layer_transition(
+    bit_state: NextLayerBitState,
+    memory_state: MemoryState,
+) -> MemoryState {
+    let new_comparison_so_far = if memory_state.saved_index_bit == bit_state.next_col_prefix_sum_bit
+    {
         memory_state.comparison_so_far
     } else {
         bit_state.next_col_prefix_sum_bit
     };
 
-    // Compute the carry according to the logic of three-way addition, or fail if the current bits
-    // are not consistent with the three-way addition.
-    //
-    // However, we are checking that index = curr_tab + row * (1<<log_column_count) + col, so we
-    // need to read the row bit only if the layer is after log_column_count.
-    let new_carry = {
-        if (bit_state.index_bit as usize)
-            != ((bit_state.row_bit as usize)
-                + Into::<usize>::into(memory_state.carry)
-                + bit_state.curr_col_prefix_sum_bit as usize)
-                & 1
-        {
-            return StateOrFail::Fail;
-        }
-        (bit_state.row_bit as usize
-            + Into::<usize>::into(memory_state.carry)
-            + bit_state.curr_col_prefix_sum_bit as usize)
-            >> 1
-    };
-    // Successful transition.
-    StateOrFail::State(MemoryState {
-        carry: new_carry != 0,
+    MemoryState {
+        carry: memory_state.carry,
         comparison_so_far: new_comparison_so_far,
-    })
+        saved_index_bit: false,
+    }
 }
 
 /// A struct to hold all the parameters sufficient to determine the special multilinear polynopmial
@@ -222,8 +226,8 @@ impl<F: AbstractField + 'static + Send + Sync> JaggedLittlePolynomialVerifierPar
                     prefix_sum.iter().map(|x| EF::from(x.clone())).collect::<Point<EF>>();
                 let next_prefix_sum_ef =
                     next_prefix_sum.iter().map(|x| EF::from(x.clone())).collect::<Point<EF>>();
-                *branching_program_eval =
-                    branching_program.eval(&prefix_sum_ef, &next_prefix_sum_ef);
+                let interleaved = interleave_prefix_sums(&prefix_sum_ef, &next_prefix_sum_ef);
+                *branching_program_eval = branching_program.eval_interleaved(&interleaved);
 
                 z_col_correction.clone() * branching_program_eval.clone()
             })
@@ -382,12 +386,24 @@ impl ColRanges {
     }
 }
 
+/// Interleave two prefix sum points into a single point with big-endian layout:
+/// `[next[MSB], curr[MSB], next[MSB-1], curr[MSB-1], ..., next[LSB], curr[LSB]]`
+pub fn interleave_prefix_sums<K: Clone>(curr: &Point<K>, next: &Point<K>) -> Point<K> {
+    assert_eq!(curr.dimension(), next.dimension());
+    let d = curr.dimension();
+    let mut result = Vec::with_capacity(2 * d);
+    for i in 0..d {
+        result.push(next.get(i).unwrap().clone());
+        result.push(curr.get(i).unwrap().clone());
+    }
+    result.into()
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct BranchingProgram<K: AbstractField> {
     z_row: Point<K>,
     z_index: Point<K>,
     memory_states: Vec<MemoryState>,
-    bit_states: Vec<BitState<bool>>,
     pub(crate) num_vars: usize,
 }
 
@@ -395,72 +411,208 @@ impl<K: AbstractField + 'static> BranchingProgram<K> {
     pub fn new(z_row: Point<K>, z_index: Point<K>) -> Self {
         let log_m = z_index.dimension().max(z_row.dimension());
 
-        Self {
-            z_row,
-            z_index,
-            memory_states: all_memory_states(),
-            bit_states: all_bit_states(),
-            num_vars: log_m,
-        }
+        Self { z_row, z_index, memory_states: all_memory_states(), num_vars: log_m }
     }
 
-    pub fn eval(&self, prefix_sum: &Point<K>, next_prefix_sum: &Point<K>) -> K {
-        let mut state_by_state_results: [K; 4] = array::from_fn(|_| K::zero());
-        state_by_state_results[MemoryState::success().get_index()] = K::one();
+    /// Apply one DP layer. `interleaved_val` is the value at this layer's position.
+    ///
+    /// - Even layer 2k: builds 3-var point [z_row[k], z_index[k], interleaved_val], applies curr
+    ///   transition.
+    /// - Odd layer 2k+1: builds 1-var point [interleaved_val], applies next transition.
+    pub fn apply_layer_step(&self, layer: usize, interleaved_val: K, state: &[K; 8]) -> [K; 8] {
+        let mut new_state: [K; 8] = array::from_fn(|_| K::zero());
+        let k = layer / 2;
 
-        // The dynamic programming algorithm to output the result of the branching
-        // iterates over the layers of the branching program in reverse order.
-        for layer in (0..self.num_vars + 1).rev() {
-            let mut new_state_by_state_results: [K; 4] =
-                [K::zero(), K::zero(), K::zero(), K::zero()];
-
-            // We assume that bits are aligned in big-endian order. The algorithm,
-            // in the ith layer, looks at the ith least significant bit, which is
-            // the m - 1 - i th bit if the bits are in a bit array in big-endian.
+        if layer.is_multiple_of(2) {
             let point = [
-                Self::get_ith_least_significant_val(&self.z_row, layer),
-                Self::get_ith_least_significant_val(&self.z_index, layer),
-                Self::get_ith_least_significant_val(prefix_sum, layer),
-                Self::get_ith_least_significant_val(next_prefix_sum, layer),
+                Self::get_ith_least_significant_val(&self.z_row, k),
+                Self::get_ith_least_significant_val(&self.z_index, k),
+                interleaved_val,
             ]
             .into_iter()
             .collect::<Point<K>>();
 
-            let four_var_eq: Mle<K> = Mle::blocking_partial_lagrange(&point);
+            let three_var_eq: Mle<K> = Mle::blocking_partial_lagrange(&point);
 
-            // For each memory state in the new layer, compute the result of the branching
-            // program that starts at that memory state.
             for memory_state in &self.memory_states {
-                // For each possible bit state, compute the result of the branching
-                // program transition function and modify the weight associated to the output
-                // accordingly.
-                let mut accum_elems: [K; 4] = array::from_fn(|_| K::zero());
+                let mut accum_elems: [K; 8] = array::from_fn(|_| K::zero());
 
-                for (i, elem) in four_var_eq.guts().as_slice().iter().enumerate() {
-                    let bit_state = &self.bit_states[i];
+                for (i, elem) in three_var_eq.guts().as_slice().iter().enumerate() {
+                    let bit_state = CurrLayerBitState {
+                        row_bit: (i & 1) != 0,
+                        index_bit: ((i >> 1) & 1) != 0,
+                        curr_col_prefix_sum_bit: ((i >> 2) & 1) != 0,
+                    };
 
-                    let state_or_fail = transition_function(*bit_state, *memory_state);
+                    let state_or_fail = curr_layer_transition(bit_state, *memory_state);
 
                     if let StateOrFail::State(output_state) = state_or_fail {
                         accum_elems[output_state.get_index()] += elem.clone();
                     }
-                    // If the state is a fail state, we don't need to add anything to the
-                    // accumulator.
                 }
 
-                let accum = accum_elems.iter().zip(state_by_state_results.iter()).fold(
+                let accum = accum_elems.iter().zip(state.iter()).fold(
                     K::zero(),
-                    |acc, (accum_elem, state_by_state_result)| {
-                        acc + accum_elem.clone() * state_by_state_result.clone()
+                    |acc, (accum_elem, state_result)| {
+                        acc + accum_elem.clone() * state_result.clone()
                     },
                 );
 
-                new_state_by_state_results[memory_state.get_index()] = accum;
+                new_state[memory_state.get_index()] = accum;
             }
-            state_by_state_results = new_state_by_state_results;
+        } else {
+            let point = [interleaved_val].into_iter().collect::<Point<K>>();
+
+            let one_var_eq: Mle<K> = Mle::blocking_partial_lagrange(&point);
+
+            for memory_state in &self.memory_states {
+                let mut accum_elems: [K; 8] = array::from_fn(|_| K::zero());
+
+                for (i, elem) in one_var_eq.guts().as_slice().iter().enumerate() {
+                    let bit_state = NextLayerBitState { next_col_prefix_sum_bit: (i & 1) != 0 };
+
+                    let output_state = next_layer_transition(bit_state, *memory_state);
+                    accum_elems[output_state.get_index()] += elem.clone();
+                }
+
+                let accum = accum_elems.iter().zip(state.iter()).fold(
+                    K::zero(),
+                    |acc, (accum_elem, state_result)| {
+                        acc + accum_elem.clone() * state_result.clone()
+                    },
+                );
+
+                new_state[memory_state.get_index()] = accum;
+            }
         }
 
-        state_by_state_results[MemoryState::initial_state().get_index()].clone()
+        new_state
+    }
+
+    /// Evaluate the branching program with an interleaved point.
+    ///
+    /// The interleaved point has big-endian layout:
+    /// `[next[MSB], curr[MSB], next[MSB-1], curr[MSB-1], ..., next[LSB], curr[LSB]]`
+    ///
+    /// The BP processes `2*(num_vars+1)` layers, alternating:
+    /// - Even layer 2k: reads z_row[k], z_index[k], curr_prefix_sum[k] (3 bits)
+    /// - Odd layer 2k+1: reads next_prefix_sum[k] (1 bit)
+    pub fn eval_interleaved(&self, interleaved_point: &Point<K>) -> K {
+        let mut state: [K; 8] = array::from_fn(|_| K::zero());
+        for success in MemoryState::success_states() {
+            state[success.get_index()] = K::one();
+        }
+
+        let num_layers = 2 * (self.num_vars + 1);
+
+        for layer in (0..num_layers).rev() {
+            let interleaved_val = Self::get_ith_least_significant_val(interleaved_point, layer);
+            state = self.apply_layer_step(layer, interleaved_val, &state);
+        }
+
+        state[MemoryState::initial_state().get_index()].clone()
+    }
+
+    /// Precompute prefix states for a given interleaved point.
+    ///
+    /// Returns a `Vec` of length `num_layers + 1`. Entry `[l]` is the DP state after processing
+    /// layers `(num_layers-1)` down to `l` (inclusive). Entry `[num_layers]` is the initial
+    /// success state.
+    pub fn precompute_prefix_states(&self, interleaved_point: &Point<K>) -> Vec<[K; 8]> {
+        let num_layers = 2 * (self.num_vars + 1);
+        let mut states: Vec<[K; 8]> =
+            (0..num_layers + 1).map(|_| array::from_fn(|_| K::zero())).collect();
+
+        let mut current_state: [K; 8] = array::from_fn(|_| K::zero());
+        for success in MemoryState::success_states() {
+            current_state[success.get_index()] = K::one();
+        }
+        states[num_layers] = current_state.clone();
+
+        for layer in (0..num_layers).rev() {
+            let interleaved_val = Self::get_ith_least_significant_val(interleaved_point, layer);
+            current_state = self.apply_layer_step(layer, interleaved_val, &current_state);
+            states[layer] = current_state.clone();
+        }
+
+        states
+    }
+
+    /// Transposed DP step for suffix update. For each old state `s`, pushes weighted
+    /// contributions to output states `t = transition(s, b)`.
+    ///
+    /// Computes `result[t] = Σ_s suffix[s] * M_layer[s, t](interleaved_val)`.
+    pub fn apply_layer_step_transposed(
+        &self,
+        layer: usize,
+        interleaved_val: K,
+        suffix: &[K; 8],
+    ) -> [K; 8] {
+        let mut result: [K; 8] = array::from_fn(|_| K::zero());
+        let k = layer / 2;
+
+        if layer.is_multiple_of(2) {
+            let point = [
+                Self::get_ith_least_significant_val(&self.z_row, k),
+                Self::get_ith_least_significant_val(&self.z_index, k),
+                interleaved_val,
+            ]
+            .into_iter()
+            .collect::<Point<K>>();
+
+            let three_var_eq: Mle<K> = Mle::blocking_partial_lagrange(&point);
+
+            for memory_state in &self.memory_states {
+                let s = memory_state.get_index();
+                for (i, elem) in three_var_eq.guts().as_slice().iter().enumerate() {
+                    let bit_state = CurrLayerBitState {
+                        row_bit: (i & 1) != 0,
+                        index_bit: ((i >> 1) & 1) != 0,
+                        curr_col_prefix_sum_bit: ((i >> 2) & 1) != 0,
+                    };
+
+                    let state_or_fail = curr_layer_transition(bit_state, *memory_state);
+
+                    if let StateOrFail::State(output_state) = state_or_fail {
+                        result[output_state.get_index()] += suffix[s].clone() * elem.clone();
+                    }
+                }
+            }
+        } else {
+            let point = [interleaved_val].into_iter().collect::<Point<K>>();
+
+            let one_var_eq: Mle<K> = Mle::blocking_partial_lagrange(&point);
+
+            for memory_state in &self.memory_states {
+                let s = memory_state.get_index();
+                for (i, elem) in one_var_eq.guts().as_slice().iter().enumerate() {
+                    let bit_state = NextLayerBitState { next_col_prefix_sum_bit: (i & 1) != 0 };
+
+                    let output_state = next_layer_transition(bit_state, *memory_state);
+                    result[output_state.get_index()] += suffix[s].clone() * elem.clone();
+                }
+            }
+        }
+
+        result
+    }
+
+    /// Evaluate BP using precomputed prefix and suffix state.
+    ///
+    /// Processes only one layer (the lambda layer at `layer`) and combines with the
+    /// cached prefix state (from above) and suffix vector (from below).
+    pub fn eval_with_cached(
+        &self,
+        layer: usize,
+        lambda: K,
+        prefix_state: &[K; 8],
+        suffix_vector: &[K; 8],
+    ) -> K {
+        let after_lambda = self.apply_layer_step(layer, lambda, prefix_state);
+        suffix_vector
+            .iter()
+            .zip(after_lambda.iter())
+            .fold(K::zero(), |acc, (s, a)| acc + s.clone() * a.clone())
     }
 
     /// We assume that the point is in big-endian order.
@@ -488,17 +640,38 @@ pub mod tests {
     use crate::StateOrFail;
 
     use super::{
-        all_bit_states, all_memory_states, transition_function, JaggedLittlePolynomialProverParams,
-        JaggedLittlePolynomialVerifierParams,
+        all_memory_states, curr_layer_transition, next_layer_transition, CurrLayerBitState,
+        JaggedLittlePolynomialProverParams, JaggedLittlePolynomialVerifierParams,
+        NextLayerBitState,
     };
 
     #[test]
-    fn test_transition_function() {
-        for bit_state in all_bit_states() {
+    fn test_transition_functions() {
+        for row in [false, true] {
+            for index in [false, true] {
+                for curr_ps in [false, true] {
+                    let bit_state = CurrLayerBitState {
+                        row_bit: row,
+                        index_bit: index,
+                        curr_col_prefix_sum_bit: curr_ps,
+                    };
+                    for memory_state in all_memory_states() {
+                        println!(
+                            "Curr layer: {bit_state:?}, Memory State {memory_state:?} -> {:?}",
+                            curr_layer_transition(bit_state, memory_state)
+                        );
+                    }
+                }
+            }
+        }
+
+        for next_ps in [false, true] {
+            let bit_state = NextLayerBitState { next_col_prefix_sum_bit: next_ps };
             for memory_state in all_memory_states() {
-                println!("Bit state {bit_state:?}, Memory State {memory_state:?}");
-                let result = super::transition_function(bit_state, memory_state);
-                println!("Result: {result:?}");
+                println!(
+                    "Next layer: {bit_state:?}, Memory State {memory_state:?} -> {:?}",
+                    next_layer_transition(bit_state, memory_state)
+                );
             }
         }
     }
@@ -745,19 +918,36 @@ pub mod tests {
     #[test]
     fn output_transition_table() {
         let memory_states = all_memory_states();
-        let bit_states = all_bit_states();
 
-        for bit_state in bit_states {
-            let mut output_state: Vec<StateOrFail> = Vec::new();
-
-            for memory_state in memory_states.clone() {
-                output_state.push(transition_function(bit_state, memory_state));
+        println!("=== Curr layer transitions ===");
+        for row in [false, true] {
+            for index in [false, true] {
+                for curr_ps in [false, true] {
+                    let bit_state = CurrLayerBitState {
+                        row_bit: row,
+                        index_bit: index,
+                        curr_col_prefix_sum_bit: curr_ps,
+                    };
+                    let output_state: Vec<StateOrFail> = memory_states
+                        .iter()
+                        .map(|ms| curr_layer_transition(bit_state, *ms))
+                        .collect();
+                    println!(
+                        "{}",
+                        output_state.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(" ")
+                    );
+                }
             }
+        }
 
-            println!(
-                "{}",
-                output_state.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(" ")
-            );
+        println!("=== Next layer transitions ===");
+        for next_ps in [false, true] {
+            let bit_state = NextLayerBitState { next_col_prefix_sum_bit: next_ps };
+            let output_state: Vec<String> = memory_states
+                .iter()
+                .map(|ms| format!("{}", next_layer_transition(bit_state, *ms)))
+                .collect();
+            println!("{}", output_state.join(" "));
         }
     }
 }
