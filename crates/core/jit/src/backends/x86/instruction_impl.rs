@@ -787,7 +787,7 @@ impl ControlFlowInstructions for TranspilerBackend {
         self.emit_risc_register_store(TEMP_A, Some(next_pc), rd);
 
         // Adjust the PC store in the context by the immediate.
-        self.bump_pc(imm as u32);
+        self.update_pc(TEMP_B, target_pc);
 
         // Add the base amount of cycles for the instruction.
         self.bump_clk();
@@ -851,14 +851,13 @@ impl ControlFlowInstructions for TranspilerBackend {
             // Check if rs1 == rs2
             cmp Rq(TEMP_A), Rq(TEMP_B);
             // If rs1 != rs2, jump to not_branched, since that would imply !(rs1 == rs2)
-            jne >not_branched;
-
-            // ------------------------------------
-            // Branched:
-            // 0. Bump the pc by the immediate.
-            // ------------------------------------
-            add QWORD [Rq(CONTEXT) + PC_OFFSET], imm as i32
+            jne >not_branched
         }
+        // ------------------------------------
+        // Branched:
+        // 0. Bump the pc by the immediate.
+        // ------------------------------------
+        self.update_pc(Rq::RAX as u8, branched_target);
         self.end_branch(Some(branched_target));
 
         dynasm! {
@@ -868,13 +867,12 @@ impl ControlFlowInstructions for TranspilerBackend {
             // ------------------------------------
             // Not branched:
             // ------------------------------------
-            not_branched:;
-
-            // ------------------------------------
-            // 1. Bump the pc by 4
-            // ------------------------------------
-            add QWORD [Rq(CONTEXT) + PC_OFFSET], 4
+            not_branched:
         }
+        // ------------------------------------
+        // 1. Bump the pc by 4
+        // ------------------------------------
+        self.update_pc(Rq::RAX as u8, not_branched_target);
         self.end_branch(Some(not_branched_target));
     }
 
@@ -898,14 +896,13 @@ impl ControlFlowInstructions for TranspilerBackend {
             // Check if rs1 == rs2
             cmp Rq(TEMP_A), Rq(TEMP_B);
             // If rs1 < rs2, jump to not_branched, since that would imply !(rs1 >= rs2)
-            jl >not_branched;
-
-            // ------------------------------------
-            // Branched:
-            // 0. Bump the pc by the immediate.
-            // ------------------------------------
-            add QWORD [Rq(CONTEXT) + PC_OFFSET], imm as i32
+            jl >not_branched
         }
+        // ------------------------------------
+        // Branched:
+        // 0. Bump the pc by the immediate.
+        // ------------------------------------
+        self.update_pc(Rq::RAX as u8, branched_target);
         self.end_branch(Some(branched_target));
 
         dynasm! {
@@ -915,13 +912,12 @@ impl ControlFlowInstructions for TranspilerBackend {
             // ------------------------------------
             // Not branched:
             // ------------------------------------
-            not_branched:;
-
-            // ------------------------------------
-            // 1. Bump the pc by 4
-            // ------------------------------------
-            add QWORD [Rq(CONTEXT) + PC_OFFSET], 4
+            not_branched:
         }
+        // ------------------------------------
+        // 1. Bump the pc by 4
+        // ------------------------------------
+        self.update_pc(Rq::RAX as u8, not_branched_target);
         self.end_branch(Some(not_branched_target));
     }
 
@@ -944,14 +940,13 @@ impl ControlFlowInstructions for TranspilerBackend {
 
             cmp Rq(TEMP_A), Rq(TEMP_B);
             // If rs1 < rs2, jump to not_branched, since that would imply !(rs1 >= rs2)
-            jb >not_branched;
-
-            // ------------------------------------
-            // Branched:
-            // 0. Bump the pc by the immediate.
-            // ------------------------------------
-            add QWORD [Rq(CONTEXT) + PC_OFFSET], imm as i32
+            jb >not_branched
         }
+        // ------------------------------------
+        // Branched:
+        // 0. Bump the pc by the immediate.
+        // ------------------------------------
+        self.update_pc(Rq::RAX as u8, branched_target);
         self.end_branch(Some(branched_target));
 
         dynasm! {
@@ -961,13 +956,12 @@ impl ControlFlowInstructions for TranspilerBackend {
             // ------------------------------------
             // Not branched:
             // ------------------------------------
-            not_branched:;
-
-            // ------------------------------------
-            // 1. Bump the pc by 4
-            // ------------------------------------
-            add QWORD [Rq(CONTEXT) + PC_OFFSET], 4
+            not_branched:
         }
+        // ------------------------------------
+        // 1. Bump the pc by 4
+        // ------------------------------------
+        self.update_pc(Rq::RAX as u8, not_branched_target);
         self.end_branch(Some(not_branched_target));
     }
 
@@ -992,14 +986,13 @@ impl ControlFlowInstructions for TranspilerBackend {
             // Compare the two registers.
             //
             cmp Rq(TEMP_A), Rq(TEMP_B);   // signed compare
-            jge >not_branched;            // rs1 ≥ rs2  →  skip
-
-            // ------------------------------------
-            // Branched:
-            // 0. Bump the pc by the immediate.
-            // ------------------------------------
-            add QWORD [Rq(CONTEXT) + PC_OFFSET], imm as i32
+            jge >not_branched             // rs1 ≥ rs2  →  skip
         }
+        // ------------------------------------
+        // Branched:
+        // 0. Bump the pc by the immediate.
+        // ------------------------------------
+        self.update_pc(Rq::RAX as u8, branched_target);
         self.end_branch(Some(branched_target));
 
         dynasm! {
@@ -1009,13 +1002,12 @@ impl ControlFlowInstructions for TranspilerBackend {
             // ------------------------------------
             // Not branched:
             // ------------------------------------
-            not_branched:;
-
-            // ------------------------------------
-            // 1. Bump the pc by 4
-            // ------------------------------------
-            add QWORD [Rq(CONTEXT) + PC_OFFSET], 4
+            not_branched:
         }
+        // ------------------------------------
+        // 1. Bump the pc by 4
+        // ------------------------------------
+        self.update_pc(Rq::RAX as u8, not_branched_target);
         self.end_branch(Some(not_branched_target));
     }
 
@@ -1036,14 +1028,13 @@ impl ControlFlowInstructions for TranspilerBackend {
             self;
             .arch x64;
             cmp Rq(TEMP_A), Rq(TEMP_B);   // unsigned compare
-            jae >not_branched;             // rs1 ≥ rs2 (unsigned) → skip
-
-            // ------------------------------------
-            // Branched:
-            // 0. Bump the pc by the immediate.
-            // ------------------------------------
-            add QWORD [Rq(CONTEXT) + PC_OFFSET], imm as i32
+            jae >not_branched             // rs1 ≥ rs2 (unsigned) → skip
         }
+        // ------------------------------------
+        // Branched:
+        // 0. Bump the pc by the immediate.
+        // ------------------------------------
+        self.update_pc(Rq::RAX as u8, branched_target);
         self.end_branch(Some(branched_target));
 
         dynasm! {
@@ -1053,11 +1044,12 @@ impl ControlFlowInstructions for TranspilerBackend {
             // ------------------------------------
             // Not branched:
             // ------------------------------------
-            not_branched:;
-
-            // 1. Bump the pc by 4
-            add QWORD [Rq(CONTEXT) + PC_OFFSET], 4
+            not_branched:
         }
+        // ------------------------------------
+        // 1. Bump the pc by 4
+        // ------------------------------------
+        self.update_pc(Rq::RAX as u8, not_branched_target);
         self.end_branch(Some(not_branched_target));
     }
 
@@ -1078,14 +1070,13 @@ impl ControlFlowInstructions for TranspilerBackend {
             self;
             .arch x64;
             cmp Rq(TEMP_A), Rq(TEMP_B);   // sets ZF
-            je  >not_branched;            // rs1 == rs2  →  skip
-
-            // ------------------------------------
-            // Branched:
-            // 0. Bump the pc in the context by the immediate.
-            // ------------------------------------
-            add QWORD [Rq(CONTEXT) + PC_OFFSET], imm as i32
+            je  >not_branched             // rs1 == rs2  →  skip
         }
+        // ------------------------------------
+        // Branched:
+        // 0. Bump the pc by the immediate.
+        // ------------------------------------
+        self.update_pc(Rq::RAX as u8, branched_target);
         self.end_branch(Some(branched_target));
 
         dynasm! {
@@ -1095,13 +1086,12 @@ impl ControlFlowInstructions for TranspilerBackend {
             // ------------------------------------
             // Not branched:
             // ------------------------------------
-            not_branched:;
-
-            // ------------------------------------
-            // 1. Bump the pc by 4
-            // ------------------------------------
-            add QWORD [Rq(CONTEXT) + PC_OFFSET], 4
+            not_branched:
         }
+        // ------------------------------------
+        // 1. Bump the pc by 4
+        // ------------------------------------
+        self.update_pc(Rq::RAX as u8, not_branched_target);
         self.end_branch(Some(not_branched_target));
     }
 }
@@ -1704,10 +1694,5 @@ impl SystemInstructions for TranspilerBackend {
         }
 
         self.call_extern_fn(unimp);
-
-        // Add the base amount of cycles for the instruction.
-        self.bump_clk();
-
-        self.end_branch(None);
     }
 }

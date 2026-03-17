@@ -357,9 +357,20 @@ impl TranspilerBackend {
             cmp r8, Rq(TEMP_B);  // Compare num_mem_reads with threshold
 
             // ------------------------------------
-            // 4. If num_mem_reads >= threshold, return
+            // 4. If num_mem_reads >= threshold, set PC and return
             // ------------------------------------
-            jae ->exit  // Jump if above or equal (unsigned comparison)
+            jb >done  // Jump if below (unsigned comparison)
+        }
+
+        // Set PC address before exiting
+        self.update_pc(TEMP_A, self.pc_current + 4);
+        dynasm! {
+            self;
+            .arch x64;
+
+            jmp ->exit;
+
+            done:
         }
     }
 
@@ -660,6 +671,10 @@ impl TranspilerBackend {
         }
         self.write_back_clock();
 
+        // `sp1_ecall_handler` bumps PC for syscalls. So we just need
+        // to set current PC.
+        self.update_pc(TEMP_A, self.pc_current);
+
         // We need to save the caller-saved registers before we make any calls,
         // then restore them after the call.
         dynasm! {
@@ -757,6 +772,7 @@ impl TranspilerBackend {
 
     /// Bump the pc by the given amount.
     #[inline]
+    #[cfg(test)]
     fn bump_pc(&mut self, amt: u32) {
         let pc_offset = offset_of!(JitContext, pc) as i32;
 
@@ -765,6 +781,18 @@ impl TranspilerBackend {
             .arch x64;
 
             add QWORD [Rq(CONTEXT) + pc_offset], amt as i32
+        }
+    }
+
+    /// Update pc value
+    #[inline]
+    fn update_pc(&mut self, temp_reg: u8, pc: u64) {
+        do_load_imm_var!(self, temp_reg, pc);
+        dynasm! {
+            self;
+            .arch x64;
+
+            mov QWORD [Rq(CONTEXT) + PC_OFFSET], Rq(temp_reg)
         }
     }
 

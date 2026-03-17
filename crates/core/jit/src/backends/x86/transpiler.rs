@@ -78,9 +78,6 @@ impl RiscvTranspiler for TranspilerBackend {
     }
 
     fn end_instr(&mut self) {
-        // Transpiling is done for current instruction
-        self.pc_current += 4;
-
         if self.control_flow_instruction_inserted {
             // Control flow instructions might have multiple branch targets,
             // as a result, we let them call `end_branch` directly. Here we
@@ -96,13 +93,20 @@ impl RiscvTranspiler for TranspilerBackend {
             // Add the base amount of cycles for the instruction.
             self.bump_clk();
 
-            self.bump_pc(4);
+            // We only bump / update PC when:
+            // * A control flow instruction is executing.
+            // * Before ecall and unimp calls extern functions.
+            // * When trace is complete, execution suspends.
+            // For normal, sequential operations, there is no need to bump PC.
 
             // We dont have a control flow insruction so we need to bump the pc first.
             if self.may_early_exit {
                 self.exit_if_trace_exceeds(self.max_trace_size);
             }
         }
+
+        // Transpiling is done for current instruction
+        self.pc_current += 4;
 
         self.may_early_exit = false;
         self.control_flow_instruction_inserted = false;
