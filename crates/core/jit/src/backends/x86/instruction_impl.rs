@@ -1676,6 +1676,10 @@ impl SystemInstructions for TranspilerBackend {
             mov rdi, Rq(CONTEXT)
         };
 
+        // `sp1_ecall_handler` bumps PC for syscalls. So we just need
+        // to set current PC.
+        self.update_pc(TEMP_A, self.pc_current);
+
         self.call_extern_fn_raw(self.ecall_handler as _);
 
         // The ecall returns a u64 in RAX.
@@ -1693,6 +1697,7 @@ impl SystemInstructions for TranspilerBackend {
             eprintln!("Unimplemented instruction at pc: {}", ctx.pc);
         }
 
+        self.update_pc(TEMP_A, self.pc_current);
         self.call_extern_fn(unimp);
     }
 }

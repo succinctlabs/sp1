@@ -671,10 +671,6 @@ impl TranspilerBackend {
         }
         self.write_back_clock();
 
-        // `sp1_ecall_handler` bumps PC for syscalls. So we just need
-        // to set current PC.
-        self.update_pc(TEMP_A, self.pc_current);
-
         // We need to save the caller-saved registers before we make any calls,
         // then restore them after the call.
         dynasm! {
