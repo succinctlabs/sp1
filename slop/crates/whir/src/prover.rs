@@ -369,8 +369,7 @@ where
                 ood_answers: ood_answers.clone(),
             });
 
-            query_proof_of_works
-                .push(challenger.grind(round_params.queries_pow_bits.ceil() as usize));
+            query_proof_of_works.push(challenger.grind(round_params.queries_pow_bits));
 
             let id_query_indices = (0..round_params.num_queries)
                 .map(|_| challenger.sample_bits(prev_domain_log_size))
@@ -486,7 +485,7 @@ where
             f_vec.inner().as_ref().unwrap().guts().clone().into_buffer().to_vec();
         challenger.observe_constant_length_extension_slice(&final_polynomial);
 
-        let final_pow = challenger.grind(config.final_pow_bits.ceil() as usize);
+        let final_pow = challenger.grind(config.final_pow_bits);
 
         let final_id_indices = (0..config.final_queries)
             .map(|_| challenger.sample_bits(prev_domain_log_size))
@@ -773,7 +772,7 @@ where
             let sumcheck_poly = SumcheckPoly([c0, c1, c2]);
 
             challenger.observe_constant_length_extension_slice(&sumcheck_poly.0);
-            let pow = challenger.grind(round_pow_bits.ceil() as usize);
+            let pow = challenger.grind(*round_pow_bits);
             let folding_randomness_single: GC::EF = challenger.sample_ext_element();
             claimed_sum = sumcheck_poly.evaluate_at_point(folding_randomness_single);
             res.push((sumcheck_poly, pow));

@@ -295,7 +295,7 @@ where
             // Absorb the OOD answers
             challenger.observe_ext_element_slice(&new_commitment.ood_answers);
             if !challenger.check_witness(
-                round_params.queries_pow_bits.ceil() as usize,
+                round_params.queries_pow_bits,
                 proof.query_proofs_of_work[round_index],
             ) {
                 return Err(WhirProofError::PowError);
@@ -425,7 +425,7 @@ where
         let final_poly = proof.final_polynomial.clone();
         let final_poly_uv = UnivariatePolynomial::new(final_poly.clone());
 
-        if !challenger.check_witness(config.final_pow_bits.ceil() as usize, proof.final_pow) {
+        if !challenger.check_witness(config.final_pow_bits, proof.final_pow) {
             return Err(WhirProofError::PowError);
         }
 
@@ -538,7 +538,7 @@ where
                 return Err(SumcheckError::InvalidSum);
             }
 
-            if !challenger.check_witness(pow_bits[i].ceil() as usize, *pow_witness) {
+            if !challenger.check_witness(pow_bits[i], *pow_witness) {
                 return Err(SumcheckError::PowError);
             }
 
