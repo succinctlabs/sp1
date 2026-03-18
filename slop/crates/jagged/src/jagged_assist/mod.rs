@@ -41,7 +41,6 @@ mod tests {
     use itertools::Itertools;
     use rand::{thread_rng, Rng};
     use slop_algebra::{extension::BinomialExtensionField, AbstractField};
-    use slop_alloc::CpuBackend;
     use slop_baby_bear::{
         baby_bear_poseidon2::{my_bb_16_perm, Perm},
         BabyBear,
@@ -115,19 +114,11 @@ mod tests {
 
         let now = std::time::Instant::now();
 
-        let batch_eval_poly = JaggedEvalSumcheckPoly::<
-            F,
-            EF,
-            Challenger,
-            Challenger,
-            JaggedAssistSumAsPolyCPUImpl<F, EF, Challenger>,
-            CpuBackend,
-        >::new_from_jagged_params(
+        let batch_eval_poly = JaggedEvalSumcheckPoly::<F, EF, Challenger>::new_from_jagged_params(
             z_row.clone(),
             z_col.clone(),
             z_index.clone(),
             prefix_sums.clone(),
-            CpuBackend,
         );
         println!("Batch eval poly created in: {:?}", now.elapsed().as_secs_f32());
 

@@ -4,7 +4,7 @@ use slop_utils::log2_ceil_usize;
 use std::{fmt::Debug, iter::once, sync::Arc};
 
 use slop_algebra::AbstractField;
-use slop_alloc::{mem::CopyError, Buffer, CpuBackend, HasBackend};
+use slop_alloc::{mem::CopyError, Buffer, HasBackend};
 use slop_challenger::{FieldChallenger, IopCtx};
 use slop_commit::{Message, Rounds};
 use slop_multilinear::{
@@ -15,17 +15,11 @@ use slop_symmetric::{CryptographicHasher, PseudoCompressionFunction};
 use thiserror::Error;
 
 use crate::{
-    sumcheck::jagged_sumcheck_poly, JaggedAssistSumAsPolyCPUImpl, JaggedEvalProver,
-    JaggedEvalSumcheckProver, JaggedLittlePolynomialProverParams, JaggedPcsProof,
-    JaggedPcsVerifier,
+    sumcheck::jagged_sumcheck_poly, JaggedEvalProver, JaggedEvalSumcheckProver,
+    JaggedLittlePolynomialProverParams, JaggedPcsProof, JaggedPcsVerifier,
 };
 
-pub type JaggedAssistProver<GC> = JaggedEvalSumcheckProver<
-    <GC as IopCtx>::F,
-    JaggedAssistSumAsPolyCPUImpl<<GC as IopCtx>::F, <GC as IopCtx>::EF, <GC as IopCtx>::Challenger>,
-    CpuBackend,
-    <GC as IopCtx>::Challenger,
->;
+pub type JaggedAssistProver<GC> = JaggedEvalSumcheckProver<<GC as IopCtx>::F>;
 
 /// Result type for `commit_multilinears`.
 pub type CommitMultilinearsResult<GC, C, Proof> = Result<

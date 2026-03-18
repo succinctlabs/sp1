@@ -1,10 +1,7 @@
 use std::marker::PhantomData;
-use std::sync::Arc;
 
 use slop_algebra::{ExtensionField, Field};
 use slop_alloc::{Backend, Buffer, HasBackend};
-use slop_challenger::FieldChallenger;
-use slop_jagged::{JaggedAssistSumAsPoly, JaggedEvalSumcheckPoly};
 use slop_multilinear::Point;
 use slop_tensor::Tensor;
 use sp1_gpu_cudart::reduce::DeviceSumKernel;
@@ -198,74 +195,6 @@ where
                 )
                 .unwrap();
         }
-    }
-}
-
-// Implement the async trait by wrapping sync operations in std::future::ready()
-impl<F, EF, HostChallenger, DeviceChallenger>
-    JaggedAssistSumAsPoly<F, EF, TaskScope, HostChallenger, DeviceChallenger>
-    for JaggedAssistSumAsPolyGPUImpl<F, EF, DeviceChallenger>
-where
-    F: Field,
-    EF: ExtensionField<F>,
-    HostChallenger: FieldChallenger<F> + Send + Sync,
-    DeviceChallenger: AsMutRawChallenger + Send + Sync,
-    TaskScope: Backend
-        + DeviceSumKernel<EF>
-        + DeviceTransposeKernel<F>
-        + BranchingProgramKernel<F, EF, DeviceChallenger>,
-    Self: Clone,
-{
-    fn new(
-        z_row: Point<EF>,
-        z_index: Point<EF>,
-        merged_prefix_sums: Arc<Vec<Point<F>>>,
-        z_col_eq_vals: Vec<EF>,
-        backend: TaskScope,
-    ) -> Self {
-        JaggedAssistSumAsPolyGPUImpl::new(
-            z_row,
-            z_index,
-            &merged_prefix_sums,
-            &z_col_eq_vals,
-            &backend,
-        )
-    }
-
-    fn sum_as_poly_and_sample_into_point(
-        &self,
-        round_num: usize,
-        z_col_eq_vals: &Buffer<EF, TaskScope>,
-        intermediate_eq_full_evals: &Buffer<EF, TaskScope>,
-        sum_values: &mut Buffer<EF, TaskScope>,
-        challenger: &mut DeviceChallenger,
-        claim: EF,
-        rhos: Point<EF, TaskScope>,
-    ) -> (EF, Point<EF, TaskScope>) {
-        self.sum_as_poly_and_sample_into_point(
-            round_num,
-            z_col_eq_vals,
-            intermediate_eq_full_evals,
-            sum_values,
-            challenger,
-            claim,
-            rhos,
-        )
-    }
-
-    fn fix_last_variable(
-        mut poly: JaggedEvalSumcheckPoly<F, EF, HostChallenger, DeviceChallenger, Self, TaskScope>,
-    ) -> JaggedEvalSumcheckPoly<F, EF, HostChallenger, DeviceChallenger, Self, TaskScope> {
-        Self::fix_last_variable_kernel::<DeviceChallenger>(
-            &poly.merged_prefix_sums,
-            &mut poly.intermediate_eq_full_evals,
-            &poly.rho,
-            poly.prefix_sum_dimension as usize,
-            poly.round_num,
-        );
-        // Increment round_num after fixing the last variable
-        poly.round_num += 1;
-        poly
     }
 }
 

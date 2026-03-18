@@ -6,74 +6,29 @@ use rayon::{
     slice::ParallelSlice,
 };
 use slop_algebra::{interpolate_univariate_polynomial, ExtensionField, Field};
-use slop_alloc::{Backend, Buffer, CpuBackend};
+use slop_alloc::Buffer;
 use slop_challenger::{FieldChallenger, VariableLengthChallenger};
 use slop_multilinear::Point;
 
 use crate::{BranchingProgram, MemoryState, WIDE_BRANCHING_PROGRAM_WIDTH};
 
-use super::JaggedEvalSumcheckPoly;
-
-/// A trait for the jagged assist's sum as poly.
-pub trait JaggedAssistSumAsPoly<
-    F: Field,
-    EF: ExtensionField<F>,
-    A: Backend,
-    Challenger: FieldChallenger<F> + Send + Sync,
-    DeviceChallenger,
->: Sized + Send + Sync
-{
-    /// Construct a new sumcheck instance from the parameters.
-    fn new(
-        z_row: Point<EF>,
-        z_index: Point<EF>,
-        merged_prefix_sums: Arc<Vec<Point<F>>>,
-        z_col_eq_vals: Vec<EF>,
-        backend: A,
-    ) -> Self;
-
-    #[allow(clippy::too_many_arguments)]
-    /// Compute the sum as a polynomial in the last varaible, storing the result in `sum_values`,
-    /// then sample randomness, storing the result in `rhos`. Expected to return the evaluation
-    /// of the polynomial at the sampled point.
-    fn sum_as_poly_and_sample_into_point(
-        &self,
-        round_num: usize,
-        z_col_eq_vals: &Buffer<EF, A>,
-        intermediate_eq_full_evals: &Buffer<EF, A>,
-        sum_values: &mut Buffer<EF, A>,
-        challenger: &mut DeviceChallenger,
-        claim: EF,
-        rhos: Point<EF, A>,
-    ) -> (EF, Point<EF, A>);
-
-    /// Fix the last variable of the polynomial, returning a new polynomial with one less variable.
-    /// The zeroth coordinate of randomness_point is used for fixing the last variable.
-    fn fix_last_variable(
-        poly: JaggedEvalSumcheckPoly<F, EF, Challenger, DeviceChallenger, Self, A>,
-    ) -> JaggedEvalSumcheckPoly<F, EF, Challenger, DeviceChallenger, Self, A>;
-}
-
 #[derive(Debug, Clone)]
 pub struct JaggedAssistSumAsPolyCPUImpl<F: Field, EF: ExtensionField<F>, Challenger> {
-    branching_program: BranchingProgram<EF>,
+    pub(crate) branching_program: BranchingProgram<EF>,
     merged_prefix_sums: Arc<Vec<Point<F>>>,
     prefix_states: Vec<Vec<EF>>,
-    suffix_vector: [EF; WIDE_BRANCHING_PROGRAM_WIDTH],
+    pub(crate) suffix_vector: [EF; WIDE_BRANCHING_PROGRAM_WIDTH],
     half: F,
     _marker: PhantomData<Challenger>,
 }
 
 impl<F: Field, EF: ExtensionField<F>, Challenger: FieldChallenger<F> + Send + Sync>
-    JaggedAssistSumAsPoly<F, EF, CpuBackend, Challenger, Challenger>
-    for JaggedAssistSumAsPolyCPUImpl<F, EF, Challenger>
+    JaggedAssistSumAsPolyCPUImpl<F, EF, Challenger>
 {
-    fn new(
+    pub fn new(
         z_row: Point<EF>,
         z_index: Point<EF>,
         merged_prefix_sums: Arc<Vec<Point<F>>>,
-        _z_col_eq_vals: Vec<EF>,
-        _backend: CpuBackend,
     ) -> Self {
         let branching_program = BranchingProgram::new(z_row, z_index);
 
@@ -98,7 +53,8 @@ impl<F: Field, EF: ExtensionField<F>, Challenger: FieldChallenger<F> + Send + Sy
         }
     }
 
-    fn sum_as_poly_and_sample_into_point(
+    #[allow(clippy::too_many_arguments)]
+    pub fn sum_as_poly_and_sample_into_point(
         &self,
         round_num: usize,
         z_col_eq_vals: &Buffer<EF>,
@@ -200,47 +156,5 @@ impl<F: Field, EF: ExtensionField<F>, Challenger: FieldChallenger<F> + Send + Sy
 
         // Return the new claim for the next round.
         (poly.eval_at_point(alpha), rhos.clone())
-    }
-
-    fn fix_last_variable(
-        poly: JaggedEvalSumcheckPoly<F, EF, Challenger, Challenger, Self, CpuBackend>,
-    ) -> JaggedEvalSumcheckPoly<F, EF, Challenger, Challenger, Self, CpuBackend> {
-        // Add alpha to the rho point.
-        let alpha = *poly.rho.first().unwrap();
-
-        let merged_prefix_sum_dim = poly.prefix_sum_dimension as usize;
-
-        // Update the intermediate full eq evals.
-        let updated_intermediate_eq_full_evals = poly
-            .merged_prefix_sums
-            .chunks(merged_prefix_sum_dim)
-            .zip_eq(poly.intermediate_eq_full_evals.iter())
-            .map(|(merged_prefix_sum, intermediate_eq_full_eval)| {
-                let x_i =
-                    merged_prefix_sum.get(merged_prefix_sum_dim - 1 - poly.round_num).unwrap();
-                *intermediate_eq_full_eval
-                    * ((alpha * *x_i) + (EF::one() - alpha) * (EF::one() - *x_i))
-            })
-            .collect_vec();
-
-        // Extend the suffix vector by one layer using the transposed DP.
-        let mut bp_batch_eval = poly.bp_batch_eval;
-        bp_batch_eval.suffix_vector = bp_batch_eval.branching_program.apply_layer_step_transposed(
-            poly.round_num,
-            alpha,
-            &bp_batch_eval.suffix_vector,
-        );
-
-        JaggedEvalSumcheckPoly::new(
-            bp_batch_eval,
-            poly.rho,
-            poly.z_col,
-            poly.merged_prefix_sums,
-            poly.z_col_eq_vals,
-            poly.round_num + 1,
-            updated_intermediate_eq_full_evals.into(),
-            poly.half,
-            poly.prefix_sum_dimension,
-        )
     }
 }

@@ -2,64 +2,55 @@ use std::{marker::PhantomData, sync::Arc};
 
 use itertools::Itertools;
 use slop_algebra::{ExtensionField, Field};
-use slop_alloc::{Backend, Buffer, CanCopyFrom, CpuBackend};
+use slop_alloc::Buffer;
 use slop_challenger::FieldChallenger;
-use slop_multilinear::{Mle, Point, PointBackend};
+use slop_multilinear::{Mle, Point};
 use slop_utils::log2_ceil_usize;
 
 use crate::interleave_prefix_sums;
 
-use super::JaggedAssistSumAsPoly;
+use super::JaggedAssistSumAsPolyCPUImpl;
 
 /// A struct that represents the polynomial that is used to evaluate the sumcheck.
 pub struct JaggedEvalSumcheckPoly<
     F: Field,
     EF: ExtensionField<F>,
     Challenger: FieldChallenger<F> + Send + Sync,
-    DeviceChallenger,
-    BPE: JaggedAssistSumAsPoly<F, EF, A, Challenger, DeviceChallenger> + Send + Sync,
-    A: Backend,
 > {
     /// Batch evaluator of the branching program.
-    pub bp_batch_eval: BPE,
+    pub bp_batch_eval: JaggedAssistSumAsPolyCPUImpl<F, EF, Challenger>,
     /// The random point generated during the sumcheck proving time.
-    pub rho: Point<EF, A>,
+    pub rho: Point<EF>,
     /// The z_col point.
-    pub z_col: Point<EF, A>,
+    pub z_col: Point<EF>,
     /// This is a concatenation of the bitstring of t_c and t_{c+1} for every column c.
-    pub merged_prefix_sums: Buffer<F, A>,
+    pub merged_prefix_sums: Buffer<F>,
     /// The evaluations of the z_col at the merged prefix sums.
-    pub z_col_eq_vals: Buffer<EF, A>,
+    pub z_col_eq_vals: Buffer<EF>,
     /// The sumcheck round number that this poly is used in.
     pub round_num: usize,
     /// The intermediate full evaluations of the eq polynomials.
-    pub intermediate_eq_full_evals: Buffer<EF, A>,
+    pub intermediate_eq_full_evals: Buffer<EF>,
     /// The half value (1/2 in the base field).
     pub half: F,
 
     pub prefix_sum_dimension: u32,
 
-    _marker: PhantomData<(A, Challenger, DeviceChallenger)>,
+    _marker: PhantomData<Challenger>,
 }
 
-impl<
-        F: Field,
-        EF: ExtensionField<F>,
-        A: Backend,
-        Challenger: FieldChallenger<F> + Send + Sync,
-        DeviceChallenger,
-        BPE: JaggedAssistSumAsPoly<F, EF, A, Challenger, DeviceChallenger> + Send + Sync,
-    > JaggedEvalSumcheckPoly<F, EF, Challenger, DeviceChallenger, BPE, A>
+impl<F: Field, EF: ExtensionField<F>, Challenger: FieldChallenger<F> + Send + Sync>
+    JaggedEvalSumcheckPoly<F, EF, Challenger>
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        bp_batch_eval: BPE,
-        rho: Point<EF, A>,
-        z_col: Point<EF, A>,
-        merged_prefix_sums: Buffer<F, A>,
-        z_col_eq_vals: Buffer<EF, A>,
+        bp_batch_eval: JaggedAssistSumAsPolyCPUImpl<F, EF, Challenger>,
+        rho: Point<EF>,
+        z_col: Point<EF>,
+        merged_prefix_sums: Buffer<F>,
+        z_col_eq_vals: Buffer<EF>,
         round_num: usize,
-        intermediate_eq_full_evals: Buffer<EF, A>,
+        intermediate_eq_full_evals: Buffer<EF>,
         half: F,
         num_variables: u32,
     ) -> Self {
@@ -84,14 +75,7 @@ impl<
         z_col: Point<EF>,
         z_index: Point<EF>,
         prefix_sums: Vec<usize>,
-        backend: A,
-    ) -> Self
-    where
-        A: PointBackend<EF>
-            + PointBackend<F>
-            + CanCopyFrom<Buffer<EF>, CpuBackend, Output = Buffer<EF, A>>
-            + CanCopyFrom<Buffer<F>, CpuBackend, Output = Buffer<F, A>>,
-    {
+    ) -> Self {
         let log_m = log2_ceil_usize(*prefix_sums.last().unwrap());
         let col_prefix_sums: Vec<Point<F>> =
             prefix_sums.iter().map(|&x| Point::from_usize(x, log_m + 1)).collect();
@@ -123,47 +107,32 @@ impl<
         assert!(merged_prefix_sums_len == z_col_eq_vals.len());
 
         let merged_prefix_sums = Arc::new(merged_prefix_sums);
-        let z_col_device = backend.copy_to(&z_col).unwrap();
 
         let half = F::two().inverse();
-        let bp_batch_eval = BPE::new(
-            z_row,
-            z_index,
-            merged_prefix_sums.clone(),
-            z_col_eq_vals.clone(),
-            backend.clone(),
-        );
+        let bp_batch_eval =
+            JaggedAssistSumAsPolyCPUImpl::new(z_row, z_index, merged_prefix_sums.clone());
 
-        let z_col_eq_vals_device: Buffer<EF, A> =
-            backend.copy_into(Buffer::<EF>::from(z_col_eq_vals)).unwrap();
+        let z_col_eq_vals: Buffer<EF> = z_col_eq_vals.into();
 
-        let merged_prefix_sums_device = backend
-            .copy_into(
-                merged_prefix_sums
-                    .iter()
-                    .flat_map(|point| point.iter())
-                    .copied()
-                    .collect::<Buffer<F>>(),
-            )
-            .unwrap();
+        let merged_prefix_sums_flat: Buffer<F> =
+            merged_prefix_sums.iter().flat_map(|point| point.iter()).copied().collect();
 
-        let intermediate_eq_full_evals = vec![EF::one(); merged_prefix_sums_len];
-        let intermediate_eq_full_evals_device =
-            backend.copy_into(Buffer::<EF>::from(intermediate_eq_full_evals)).unwrap();
+        let intermediate_eq_full_evals: Buffer<EF> = vec![EF::one(); merged_prefix_sums_len].into();
 
         Self {
             bp_batch_eval,
-            rho: Point::new(Buffer::with_capacity_in(0, backend)),
-            z_col: z_col_device,
-            merged_prefix_sums: merged_prefix_sums_device,
+            rho: Point::default(),
+            z_col,
+            merged_prefix_sums: merged_prefix_sums_flat,
             round_num: 0,
-            z_col_eq_vals: z_col_eq_vals_device,
-            intermediate_eq_full_evals: intermediate_eq_full_evals_device,
+            z_col_eq_vals,
+            intermediate_eq_full_evals,
             half,
             prefix_sum_dimension: num_variables as u32,
             _marker: PhantomData,
         }
     }
+
     pub fn num_variables(&self) -> u32 {
         self.prefix_sum_dimension
     }
@@ -172,11 +141,38 @@ impl<
         Vec::new()
     }
 
+    /// Fix the last variable of the polynomial by incorporating the sampled randomness.
+    /// Updates intermediate eq evals and extends the suffix vector by one layer.
+    pub fn fix_last_variable(&mut self) {
+        let alpha = *self.rho.first().unwrap();
+
+        let merged_prefix_sum_dim = self.prefix_sum_dimension as usize;
+
+        // Update the intermediate full eq evals.
+        for (merged_prefix_sum_chunk, intermediate_eq_full_eval) in self
+            .merged_prefix_sums
+            .as_slice()
+            .chunks(merged_prefix_sum_dim)
+            .zip(self.intermediate_eq_full_evals.as_mut_slice().iter_mut())
+        {
+            let x_i = merged_prefix_sum_chunk[merged_prefix_sum_dim - 1 - self.round_num];
+            *intermediate_eq_full_eval *= (alpha * x_i) + (EF::one() - alpha) * (EF::one() - x_i);
+        }
+
+        // Extend the suffix vector by one layer using the transposed DP.
+        self.bp_batch_eval.suffix_vector = self
+            .bp_batch_eval
+            .branching_program
+            .apply_layer_step_transposed(self.round_num, alpha, &self.bp_batch_eval.suffix_vector);
+
+        self.round_num += 1;
+    }
+
     pub fn sum_as_poly_in_last_t_variables_observe_and_sample(
         &mut self,
         claim: Option<EF>,
-        sum_values: &mut Buffer<EF, A>,
-        challenger: &mut DeviceChallenger,
+        sum_values: &mut Buffer<EF>,
+        challenger: &mut Challenger,
         t: usize,
     ) -> EF {
         assert!(t == 1);
@@ -186,8 +182,8 @@ impl<
     pub fn sum_as_poly_in_last_variable_observe_and_sample(
         &mut self,
         claim: Option<EF>,
-        sum_values: &mut Buffer<EF, A>,
-        challenger: &mut DeviceChallenger,
+        sum_values: &mut Buffer<EF>,
+        challenger: &mut Challenger,
     ) -> EF {
         let claim = claim.expect("Claim must be provided");
         let (new_claim, new_point) = self.bp_batch_eval.sum_as_poly_and_sample_into_point(

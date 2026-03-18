@@ -1,9 +1,9 @@
 use slop_algebra::{interpolate_univariate_polynomial, ExtensionField, Field};
-use slop_alloc::{Backend, Buffer};
+use slop_alloc::Buffer;
 use slop_challenger::FieldChallenger;
 use slop_sumcheck::PartialSumcheckProof;
 
-use super::{JaggedAssistSumAsPoly, JaggedEvalSumcheckPoly};
+use super::JaggedEvalSumcheckPoly;
 
 /// The standard implementation of the sumcheck prover from an implementation of `SumcheckPoly`
 /// makes assumptions about how the Fiat-Shamir challenges are observed and sampled. This function
@@ -17,15 +17,12 @@ pub fn prove_jagged_eval_sumcheck<
     F: Field,
     EF: ExtensionField<F> + Send + Sync,
     Challenger: FieldChallenger<F> + Send + Sync,
-    DeviceChallenger,
-    BPE: JaggedAssistSumAsPoly<F, EF, A, Challenger, DeviceChallenger> + Send + Sync,
-    A: Backend,
 >(
-    mut poly: JaggedEvalSumcheckPoly<F, EF, Challenger, DeviceChallenger, BPE, A>,
-    challenger: &mut DeviceChallenger,
+    mut poly: JaggedEvalSumcheckPoly<F, EF, Challenger>,
+    challenger: &mut Challenger,
     claim: EF,
     t: usize,
-    sum_values: &mut Buffer<EF, A>,
+    sum_values: &mut Buffer<EF>,
 ) -> PartialSumcheckProof<EF> {
     let num_variables = poly.num_variables();
 
@@ -37,25 +34,20 @@ pub fn prove_jagged_eval_sumcheck<
         t,
     );
 
-    let mut polys_cursor = BPE::fix_last_variable(poly);
+    poly.fix_last_variable();
 
     for _ in t..num_variables as usize {
-        round_claim = polys_cursor.sum_as_poly_in_last_variable_observe_and_sample(
+        round_claim = poly.sum_as_poly_in_last_variable_observe_and_sample(
             Some(round_claim),
             sum_values,
             challenger,
         );
 
-        polys_cursor = BPE::fix_last_variable(polys_cursor);
+        poly.fix_last_variable();
     }
 
-    // Move the `sum_as_poly` evaluations to the CPU.
-    let host_sum_values = unsafe { sum_values.copy_into_host_vec() };
-
-    let univariate_polys = host_sum_values
+    let univariate_polys = sum_values
         .as_slice()
-        // The jagged eval sumcheck is of degree 2, which means that there are 3 evaluations needed
-        // per round of sumcheck.
         .chunks_exact(3)
         .map(|chunk| {
             // Compute the univariate polynomial message.
@@ -65,15 +57,13 @@ pub fn prove_jagged_eval_sumcheck<
         })
         .collect::<Vec<_>>();
 
-    // Move the randomness point to the CPU.
-    let point_host = unsafe { polys_cursor.rho.values().copy_into_host_vec() };
+    let rho_vec = poly.rho.to_vec();
 
-    let final_claim: EF =
-        univariate_polys.last().unwrap().eval_at_point(point_host.first().copied().unwrap());
+    let final_claim: EF = univariate_polys.last().unwrap().eval_at_point(*rho_vec.first().unwrap());
 
     PartialSumcheckProof {
         univariate_polys,
         claimed_sum: claim,
-        point_and_eval: (point_host.into(), final_claim),
+        point_and_eval: (rho_vec.into(), final_claim),
     }
 }

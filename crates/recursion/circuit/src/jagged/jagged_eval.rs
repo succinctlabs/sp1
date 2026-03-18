@@ -175,10 +175,10 @@ mod tests {
     use rand::{thread_rng, Rng};
     use slop_algebra::{extension::BinomialExtensionField, AbstractField};
     use slop_alloc::CpuBackend;
-    use slop_challenger::{DuplexChallenger, IopCtx};
+    use slop_challenger::DuplexChallenger;
     use slop_jagged::{
-        JaggedAssistSumAsPolyCPUImpl, JaggedEvalProver, JaggedEvalSumcheckProver,
-        JaggedLittlePolynomialProverParams, JaggedLittlePolynomialVerifierParams,
+        JaggedEvalProver, JaggedEvalSumcheckProver, JaggedLittlePolynomialProverParams,
+        JaggedLittlePolynomialVerifierParams,
     };
     use slop_multilinear::Point;
     use sp1_core_machine::utils::setup_logger;
@@ -265,12 +265,7 @@ mod tests {
         expected_result: EF,
         should_succeed: bool,
     ) -> Vec<Felt<F>> {
-        let prover = JaggedEvalSumcheckProver::<
-            F,
-            JaggedAssistSumAsPolyCPUImpl<_, _, _>,
-            CpuBackend,
-            <SP1GlobalContext as IopCtx>::Challenger,
-        >::default();
+        let prover = JaggedEvalSumcheckProver::<F>::default();
         let default_perm = inner_perm();
         let mut challenger =
             DuplexChallenger::<SP1Field, SP1Perm, 16, 8>::new(default_perm.clone());

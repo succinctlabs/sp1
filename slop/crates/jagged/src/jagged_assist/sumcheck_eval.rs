@@ -1,10 +1,9 @@
 use serde::{Deserialize, Serialize};
 use slop_algebra::{ExtensionField, Field};
-use slop_alloc::{Buffer, CanCopyFrom, CpuBackend};
-use slop_challenger::{FieldChallenger, FromChallenger, VariableLengthChallenger};
-use slop_multilinear::{Mle, Point, PointBackend};
+use slop_alloc::{Buffer, CpuBackend};
+use slop_challenger::FieldChallenger;
+use slop_multilinear::{Mle, Point};
 use slop_sumcheck::{partially_verify_sumcheck_proof, PartialSumcheckProof, SumcheckError};
-use slop_tensor::Tensor;
 use slop_utils::log2_ceil_usize;
 use std::{fmt::Debug, marker::PhantomData};
 use thiserror::Error;
@@ -14,10 +13,7 @@ use crate::{
     JaggedLittlePolynomialProverParams, JaggedLittlePolynomialVerifierParams,
 };
 
-use super::{
-    prove_jagged_eval_sumcheck, sumcheck_poly::JaggedEvalSumcheckPoly, JaggedAssistSumAsPoly,
-    JaggedEvalProver,
-};
+use super::{prove_jagged_eval_sumcheck, sumcheck_poly::JaggedEvalSumcheckPoly, JaggedEvalProver};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JaggedSumcheckEvalProof<F> {
@@ -146,31 +142,22 @@ where
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
-pub struct JaggedEvalSumcheckProver<F, BPE, A, DeviceChallenger>(
-    pub PhantomData<(F, BPE, A, DeviceChallenger)>,
-);
+pub struct JaggedEvalSumcheckProver<F>(pub PhantomData<F>);
 
-impl<F, BPE, A, DC> Default for JaggedEvalSumcheckProver<F, BPE, A, DC> {
+impl<F> Default for JaggedEvalSumcheckProver<F> {
     fn default() -> Self {
         Self(PhantomData)
     }
 }
 
-impl<F, EF, Challenger, BPE, A, DeviceChallenger> JaggedEvalProver<F, EF, Challenger>
-    for JaggedEvalSumcheckProver<F, BPE, A, DeviceChallenger>
+impl<F, EF, Challenger> JaggedEvalProver<F, EF, Challenger> for JaggedEvalSumcheckProver<F>
 where
-    JaggedEvalSumcheckProver<F, BPE, A, DeviceChallenger>: 'static,
+    JaggedEvalSumcheckProver<F>: 'static,
     F: Field,
     EF: ExtensionField<F>,
     Challenger: FieldChallenger<F> + Send + Sync,
-    DeviceChallenger: FromChallenger<Challenger, A> + Clone + Send + Sync,
-    BPE: JaggedAssistSumAsPoly<F, EF, A, Challenger, DeviceChallenger> + Send + Sync + Clone,
-    A: PointBackend<EF>
-        + PointBackend<F>
-        + CanCopyFrom<Buffer<EF>, CpuBackend, Output = Buffer<EF, A>>
-        + CanCopyFrom<Buffer<F>, CpuBackend, Output = Buffer<F, A>>,
 {
-    type A = A;
+    type A = CpuBackend;
 
     fn prove_jagged_evaluation(
         &self,
@@ -179,23 +166,16 @@ where
         z_col: &Point<EF>,
         z_trace: &Point<EF>,
         challenger: &mut Challenger,
-        backend: Self::A,
+        _backend: Self::A,
     ) -> JaggedSumcheckEvalProof<EF> {
         // Create sumcheck proof for the jagged eval.
-        let jagged_eval_sc_poly = JaggedEvalSumcheckPoly::<
-            F,
-            EF,
-            Challenger,
-            DeviceChallenger,
-            BPE,
-            A,
-        >::new_from_jagged_params(
-            z_row.clone(),
-            z_col.clone(),
-            z_trace.clone(),
-            params.col_prefix_sums_usize.clone(),
-            backend.clone(),
-        );
+        let jagged_eval_sc_poly =
+            JaggedEvalSumcheckPoly::<F, EF, Challenger>::new_from_jagged_params(
+                z_row.clone(),
+                z_col.clone(),
+                z_trace.clone(),
+                params.col_prefix_sums_usize.clone(),
+            );
 
         // Compute the full eval of the jagged poly.
         let verifier_params = params.clone().into_verifier_params();
@@ -204,30 +184,17 @@ where
 
         let log_m = log2_ceil_usize(*params.col_prefix_sums_usize.last().unwrap());
 
-        let mut sum_values = Tensor::zeros_in([3, 2 * (log_m + 1)], backend.clone()).into_buffer();
+        let mut sum_values = Buffer::from(vec![EF::zero(); 6 * (log_m + 1)]);
 
         challenger.observe_ext_element(expected_sum);
 
-        let mut device_challenger =
-            <DeviceChallenger as FromChallenger<Challenger, A>>::from_challenger(
-                challenger, &backend,
-            );
-
         let partial_sumcheck_proof = prove_jagged_eval_sumcheck(
             jagged_eval_sc_poly,
-            &mut device_challenger,
+            challenger,
             expected_sum,
             1,
             &mut sum_values,
         );
-
-        // The CPU challenger needs to observe the polynomial coefficients to sync with the state
-        // of the device challenger. This could also be done by copying the device challenger
-        // state to CPU.
-        for poly in &partial_sumcheck_proof.univariate_polys {
-            challenger.observe_constant_length_extension_slice(&poly.coefficients);
-            let _: EF = challenger.sample_ext_element();
-        }
 
         JaggedSumcheckEvalProof { partial_sumcheck_proof }
     }

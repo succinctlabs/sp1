@@ -7,9 +7,7 @@ use itertools::Itertools;
 use slop_algebra::{interpolate_univariate_polynomial, ExtensionField, Field};
 use slop_alloc::Buffer;
 use slop_challenger::FieldChallenger;
-use slop_jagged::{
-    JaggedEvalSumcheckPoly, JaggedLittlePolynomialProverParams, JaggedSumcheckEvalProof,
-};
+use slop_jagged::{JaggedLittlePolynomialProverParams, JaggedSumcheckEvalProof};
 use slop_multilinear::{Mle, Point};
 use slop_sumcheck::PartialSumcheckProof;
 use slop_tensor::Tensor;
@@ -30,27 +28,61 @@ fn log2_ceil_usize(n: usize) -> usize {
     }
 }
 
-/// Sync version of JaggedEvalSumcheckPoly::new_from_jagged_params for TaskScope.
-/// Uses DeviceBuffer::from_host() for sync device copies.
+/// GPU-specific sumcheck polynomial state for the jagged eval sumcheck.
+/// This is the GPU equivalent of `JaggedEvalSumcheckPoly` in slop-jagged,
+/// with all buffers on `TaskScope` (device) instead of `CpuBackend`.
+pub struct JaggedEvalSumcheckPolyGPU<F: Field, EF: ExtensionField<F>, DeviceChallenger> {
+    pub bp_batch_eval: JaggedAssistSumAsPolyGPUImpl<F, EF, DeviceChallenger>,
+    pub rho: Point<EF, TaskScope>,
+    pub z_col: Point<EF, TaskScope>,
+    pub merged_prefix_sums: Buffer<F, TaskScope>,
+    pub z_col_eq_vals: Buffer<EF, TaskScope>,
+    pub round_num: usize,
+    pub intermediate_eq_full_evals: Buffer<EF, TaskScope>,
+    pub half: EF,
+    pub prefix_sum_dimension: u32,
+}
+
+impl<F: Field, EF: ExtensionField<F>, DeviceChallenger>
+    JaggedEvalSumcheckPolyGPU<F, EF, DeviceChallenger>
+{
+    pub fn num_variables(&self) -> u32 {
+        self.prefix_sum_dimension
+    }
+
+    /// Fix the last variable by updating intermediate eq evals via GPU kernel.
+    pub fn fix_last_variable(&mut self)
+    where
+        DeviceChallenger: AsMutRawChallenger,
+        TaskScope: BranchingProgramKernel<F, EF, DeviceChallenger>
+            + DeviceSumKernel<EF>
+            + DeviceTransposeKernel<F>,
+    {
+        JaggedAssistSumAsPolyGPUImpl::<F, EF, DeviceChallenger>::fix_last_variable_kernel::<
+            DeviceChallenger,
+        >(
+            &self.merged_prefix_sums,
+            &mut self.intermediate_eq_full_evals,
+            &self.rho,
+            self.prefix_sum_dimension as usize,
+            self.round_num,
+        );
+        self.round_num += 1;
+    }
+}
+
+/// Construct a `JaggedEvalSumcheckPolyGPU` from jagged params, with all data on device.
 #[allow(clippy::type_complexity)]
-pub fn new_jagged_eval_sumcheck_poly_sync<F, EF, HostChallenger, DeviceChallenger>(
+pub fn new_jagged_eval_sumcheck_poly_sync<F, EF, DeviceChallenger>(
     z_row: Point<EF>,
     z_col: Point<EF>,
     z_index: Point<EF>,
     prefix_sums: Vec<usize>,
     backend: &TaskScope,
-) -> JaggedEvalSumcheckPoly<
-    F,
-    EF,
-    HostChallenger,
-    DeviceChallenger,
-    JaggedAssistSumAsPolyGPUImpl<F, EF, DeviceChallenger>,
-    TaskScope,
->
+) -> JaggedEvalSumcheckPolyGPU<F, EF, DeviceChallenger>
 where
     F: Field,
     EF: ExtensionField<F>,
-    HostChallenger: FieldChallenger<F> + Send + Sync,
     DeviceChallenger: AsMutRawChallenger + Send + Sync + Clone,
     TaskScope: BranchingProgramKernel<F, EF, DeviceChallenger>
         + DeviceSumKernel<EF>
@@ -123,30 +155,23 @@ where
     let intermediate_eq_full_evals_device =
         DeviceBuffer::from_host(&intermediate_eq_full_evals_buffer, backend).unwrap().into_inner();
 
-    JaggedEvalSumcheckPoly::new(
+    JaggedEvalSumcheckPolyGPU {
         bp_batch_eval,
-        Point::new(Buffer::with_capacity_in(0, backend.clone())),
-        z_col_device,
-        merged_prefix_sums_device,
-        z_col_eq_vals_device,
-        0,
-        intermediate_eq_full_evals_device,
+        rho: Point::new(Buffer::with_capacity_in(0, backend.clone())),
+        z_col: z_col_device,
+        merged_prefix_sums: merged_prefix_sums_device,
+        z_col_eq_vals: z_col_eq_vals_device,
+        round_num: 0,
+        intermediate_eq_full_evals: intermediate_eq_full_evals_device,
         half,
-        num_variables as u32,
-    )
+        prefix_sum_dimension: num_variables as u32,
+    }
 }
 
 /// Sync version of prove_jagged_eval_sumcheck for TaskScope.
 /// Calls sync methods directly instead of using async/.await.
-pub fn prove_jagged_eval_sumcheck_sync<F, EF, HostChallenger, DeviceChallenger>(
-    mut poly: JaggedEvalSumcheckPoly<
-        F,
-        EF,
-        HostChallenger,
-        DeviceChallenger,
-        JaggedAssistSumAsPolyGPUImpl<F, EF, DeviceChallenger>,
-        TaskScope,
-    >,
+pub fn prove_jagged_eval_sumcheck_sync<F, EF, DeviceChallenger>(
+    mut poly: JaggedEvalSumcheckPolyGPU<F, EF, DeviceChallenger>,
     challenger: &mut DeviceChallenger,
     claim: EF,
     t: usize,
@@ -155,7 +180,6 @@ pub fn prove_jagged_eval_sumcheck_sync<F, EF, HostChallenger, DeviceChallenger>(
 where
     F: Field,
     EF: ExtensionField<F> + Send + Sync,
-    HostChallenger: FieldChallenger<F> + Send + Sync,
     DeviceChallenger: AsMutRawChallenger + Send + Sync + Clone,
     TaskScope: BranchingProgramKernel<F, EF, DeviceChallenger>
         + DeviceSumKernel<EF>
@@ -175,17 +199,8 @@ where
     );
     poly.rho = new_point;
 
-    // Fix last variable - sync call
-    JaggedAssistSumAsPolyGPUImpl::<F, EF, DeviceChallenger>::fix_last_variable_kernel::<
-        DeviceChallenger,
-    >(
-        &poly.merged_prefix_sums,
-        &mut poly.intermediate_eq_full_evals,
-        &poly.rho,
-        poly.prefix_sum_dimension as usize,
-        poly.round_num,
-    );
-    poly.round_num += 1;
+    // Fix last variable
+    poly.fix_last_variable();
 
     for _ in t..num_variables as usize {
         let (new_claim, new_point) = poly.bp_batch_eval.sum_as_poly_and_sample_into_point(
@@ -200,16 +215,7 @@ where
         round_claim = new_claim;
         poly.rho = new_point;
 
-        JaggedAssistSumAsPolyGPUImpl::<F, EF, DeviceChallenger>::fix_last_variable_kernel::<
-            DeviceChallenger,
-        >(
-            &poly.merged_prefix_sums,
-            &mut poly.intermediate_eq_full_evals,
-            &poly.rho,
-            poly.prefix_sum_dimension as usize,
-            poly.round_num,
-        );
-        poly.round_num += 1;
+        poly.fix_last_variable();
     }
 
     // Move sum_as_poly evaluations to CPU
@@ -261,14 +267,13 @@ where
         + DeviceTransposeKernel<F>,
 {
     // Create sumcheck poly sync
-    let jagged_eval_sc_poly =
-        new_jagged_eval_sumcheck_poly_sync::<F, EF, HostChallenger, DeviceChallenger>(
-            z_row.clone(),
-            z_col.clone(),
-            z_trace.clone(),
-            params.col_prefix_sums_usize.clone(),
-            backend,
-        );
+    let jagged_eval_sc_poly = new_jagged_eval_sumcheck_poly_sync::<F, EF, DeviceChallenger>(
+        z_row.clone(),
+        z_col.clone(),
+        z_trace.clone(),
+        params.col_prefix_sums_usize.clone(),
+        backend,
+    );
 
     let log_m = log2_ceil_usize(*params.col_prefix_sums_usize.last().unwrap());
 
