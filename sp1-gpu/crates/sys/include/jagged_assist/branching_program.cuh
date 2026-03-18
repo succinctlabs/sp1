@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 extern "C" void* branching_program_kernel();
 extern "C" void* transition_kernel();
 extern "C" void* interpolateAndObserve_kernel();

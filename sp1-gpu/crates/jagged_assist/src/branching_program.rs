@@ -241,7 +241,7 @@ mod tests {
 
     use slop_challenger::{CanObserve, FieldChallenger, IopCtx};
     use slop_jagged::{
-        all_bit_states, all_memory_states, transition_function, BranchingProgram,
+        all_memory_states, transition, BitState, BranchingProgram,
         StateOrFail::{Fail, State},
     };
     use slop_koala_bear::KoalaBearDegree4Duplex;
@@ -270,14 +270,22 @@ mod tests {
 
     #[test]
     fn test_transition() {
-        let bit_states = all_bit_states();
+        // Generate all 16 combined bit states (the old width-4 format)
+        let bit_states: Vec<BitState> = (0..16)
+            .map(|i| BitState::Combined {
+                row_bit: (i & 1) != 0,
+                index_bit: ((i >> 1) & 1) != 0,
+                curr_col_prefix_sum_bit: ((i >> 2) & 1) != 0,
+                next_col_prefix_sum_bit: ((i >> 3) & 1) != 0,
+            })
+            .collect();
         let memory_states = all_memory_states(); // Note that this doesn't contain the FAIL state.
 
         let mut cpu_transition_results = Vec::new();
         for bit_state in bit_states.iter() {
             let mut bit_state_results = Vec::new();
             for output_memory_state in memory_states.iter() {
-                bit_state_results.push(transition_function(*bit_state, *output_memory_state));
+                bit_state_results.push(transition(*bit_state, *output_memory_state));
             }
             cpu_transition_results.push(bit_state_results);
         }
@@ -312,7 +320,6 @@ mod tests {
             .into();
 
         // Need to retrieve these again, because they are moved into the cuda task.
-        let bit_states = all_bit_states();
         let memory_states = all_memory_states();
 
         let mut gpu_transition_results: Tensor<usize, CpuBackend> = gpu_transition_results.into();
@@ -321,7 +328,9 @@ mod tests {
             cpu_transition_results.iter().zip(gpu_transition_results.split())
         {
             for (cpu_transition_result, gpu_transition_result) in
-                cpu_transition_mem_results.iter().zip(gpu_transition_mem_results.clone().as_slice())
+                cpu_transition_mem_results
+                    .iter()
+                    .zip::<&[usize]>(gpu_transition_mem_results.clone().as_slice())
             {
                 match cpu_transition_result {
                     State(cpu_transition_result) => {
