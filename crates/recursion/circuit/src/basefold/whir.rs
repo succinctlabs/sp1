@@ -323,7 +323,7 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> RecursiveWhirVerifier<C, S
             challenger.observe_ext_element_slice(builder, &new_commitment.ood_answers);
             challenger.check_witness(
                 builder,
-                round_params.queries_pow_bits.ceil() as usize,
+                round_params.queries_pow_bits,
                 proof.query_proof_of_works[round_index],
             );
             // Squeeze the STIR queries
@@ -470,11 +470,7 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> RecursiveWhirVerifier<C, S
         let final_poly = proof.final_polynomial.clone();
         let final_poly_uv = UnivariatePolynomial::new(IntoSymbolic::<C>::as_symbolic(&final_poly));
 
-        challenger.check_witness(
-            builder,
-            self.config.final_pow_bits.ceil() as usize,
-            proof.final_pow,
-        );
+        challenger.check_witness(builder, self.config.final_pow_bits, proof.final_pow);
 
         let final_id_indices = (0..self.config.final_queries)
             .map(|_| challenger.sample_bits(builder, domain_size))
@@ -593,7 +589,7 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> RecursiveWhirVerifier<C, S
 
             builder.assert_ext_eq(claimed_sum, sum);
 
-            challenger.check_witness(builder, pow_bits[i].ceil() as usize, *pow_witness);
+            challenger.check_witness(builder, pow_bits[i], *pow_witness);
             let folding_randomness_single: Ext<SP1Field, SP1ExtensionField> =
                 challenger.sample_ext(builder);
             randomness.push(folding_randomness_single);
