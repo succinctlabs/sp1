@@ -2,8 +2,8 @@ use std::marker::PhantomData;
 
 use rayon::ThreadPoolBuilder;
 use slop_jagged::{
-    interleave_prefix_sums, BranchingProgram, JaggedLittlePolynomialVerifierParams,
-    JaggedSumcheckEvalProof,
+    deinterleave_prefix_sums, interleave_prefix_sums, BranchingProgram,
+    JaggedLittlePolynomialVerifierParams, JaggedSumcheckEvalProof,
 };
 use slop_multilinear::{Mle, Point};
 use sp1_primitives::{SP1ExtensionField, SP1Field};
@@ -158,7 +158,8 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>>
             .sum::<SymbolicExt<SP1Field, SP1ExtensionField>>();
         builder.cycle_tracker_v2_exit();
         let branching_program = BranchingProgram::new(z_row.clone(), z_trace.clone());
-        jagged_eval_sc_expected_eval *= branching_program.eval_interleaved(&proof_point);
+        let (curr, next) = deinterleave_prefix_sums(&proof_point);
+        jagged_eval_sc_expected_eval *= branching_program.eval(&curr, &next);
 
         builder
             .assert_ext_eq(jagged_eval_sc_expected_eval, partial_sumcheck_proof.point_and_eval.1);

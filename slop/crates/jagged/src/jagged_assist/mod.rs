@@ -34,8 +34,9 @@ pub trait JaggedEvalProver<F: Field, EF: ExtensionField<F>, Challenger>:
 mod tests {
 
     use crate::{
-        interleave_prefix_sums, jagged_assist::sumcheck_poly::JaggedEvalSumcheckPoly,
-        BranchingProgram, JaggedLittlePolynomialProverParams, JaggedLittlePolynomialVerifierParams,
+        deinterleave_prefix_sums, interleave_prefix_sums,
+        jagged_assist::sumcheck_poly::JaggedEvalSumcheckPoly, BranchingProgram,
+        JaggedLittlePolynomialProverParams, JaggedLittlePolynomialVerifierParams,
     };
     use itertools::Itertools;
     use rand::{thread_rng, Rng};
@@ -144,7 +145,8 @@ mod tests {
             .iter()
             .zip(z_col_eq_vals.iter())
             .map(|(merged_prefix_sum, z_col_eq_val)| {
-                let h_eval = h_poly.eval_interleaved(&out_of_domain_point);
+                let (curr, next) = deinterleave_prefix_sums(&out_of_domain_point);
+                let h_eval = h_poly.eval(&curr, &next);
                 *z_col_eq_val
                     * Mle::full_lagrange_eval(merged_prefix_sum, &out_of_domain_point)
                     * h_eval

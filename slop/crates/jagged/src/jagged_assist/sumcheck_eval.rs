@@ -10,8 +10,8 @@ use std::{fmt::Debug, marker::PhantomData};
 use thiserror::Error;
 
 use crate::{
-    interleave_prefix_sums, poly::BranchingProgram, JaggedLittlePolynomialProverParams,
-    JaggedLittlePolynomialVerifierParams,
+    deinterleave_prefix_sums, interleave_prefix_sums, poly::BranchingProgram,
+    JaggedLittlePolynomialProverParams, JaggedLittlePolynomialVerifierParams,
 };
 
 use super::{
@@ -131,8 +131,8 @@ where
             )?;
 
         let branching_program = BranchingProgram::new(z_row.clone(), z_trace.clone());
-        jagged_eval_sc_expected_eval *=
-            branching_program.eval_interleaved(&partial_sumcheck_proof.point_and_eval.0);
+        let (curr, next) = deinterleave_prefix_sums(&partial_sumcheck_proof.point_and_eval.0);
+        jagged_eval_sc_expected_eval *= branching_program.eval(&curr, &next);
 
         if jagged_eval_sc_expected_eval != partial_sumcheck_proof.point_and_eval.1 {
             Err(JaggedEvalSumcheckError::JaggedEvaluationFailed(
