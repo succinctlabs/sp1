@@ -955,7 +955,7 @@ pub mod tests {
 
     use super::{
         all_memory_states, transition, BitState, JaggedLittlePolynomialProverParams,
-        JaggedLittlePolynomialVerifierParams,
+        JaggedLittlePolynomialVerifierParams, StateOrFail,
     };
 
     #[test]
@@ -985,6 +985,116 @@ pub mod tests {
                     "Next layer: {bit_state:?}, Memory State {memory_state:?} -> {:?}",
                     transition(bit_state, memory_state)
                 );
+            }
+        }
+    }
+
+    /// Verify the width-8 transition tables (CURR_TRANSITIONS_W8 and NEXT_TRANSITIONS_W8)
+    /// against the CPU `transition()` function.
+    ///
+    /// Width-8 memory state index: carry + (comparison_so_far << 1) + (saved_index_bit << 2).
+    /// WIDE_FAIL = 8.
+    ///
+    /// Even layer (Curr) bit state index: (curr_ps_bit << 2) | (index_bit << 1) | row_bit.
+    /// Odd layer (Next) bit state index: next_ps_bit.
+    #[test]
+    fn test_width8_transition_tables() {
+        const WIDE_FAIL: u8 = 8;
+
+        // Expected tables matching GPU's CURR_TRANSITIONS_W8 and NEXT_TRANSITIONS_W8.
+        #[rustfmt::skip]
+        const CURR_TRANSITIONS_W8: [[u8; 8]; 8] = [
+            [0, 8, 2, 8, 0, 8, 2, 8], // bit_state 0: row=0 idx=0 cps=0
+            [8, 1, 8, 3, 8, 1, 8, 3], // bit_state 1: row=1 idx=0 cps=0
+            [8, 4, 8, 6, 8, 4, 8, 6], // bit_state 2: row=0 idx=1 cps=0
+            [4, 8, 6, 8, 4, 8, 6, 8], // bit_state 3: row=1 idx=1 cps=0
+            [8, 1, 8, 3, 8, 1, 8, 3], // bit_state 4: row=0 idx=0 cps=1
+            [1, 8, 3, 8, 1, 8, 3, 8], // bit_state 5: row=1 idx=0 cps=1
+            [4, 8, 6, 8, 4, 8, 6, 8], // bit_state 6: row=0 idx=1 cps=1
+            [8, 5, 8, 7, 8, 5, 8, 7], // bit_state 7: row=1 idx=1 cps=1
+        ];
+
+        #[rustfmt::skip]
+        const NEXT_TRANSITIONS_W8: [[u8; 8]; 2] = [
+            [0, 1, 2, 3, 0, 1, 0, 1], // next_ps=0
+            [2, 3, 2, 3, 0, 1, 2, 3], // next_ps=1
+        ];
+
+        let all_states = all_memory_states();
+        assert_eq!(all_states.len(), 8);
+
+        // Test Curr (even layer) transitions: 8 bit states × 8 memory states.
+        for row in [false, true] {
+            for index in [false, true] {
+                for curr_ps in [false, true] {
+                    let bit_state_idx =
+                        (curr_ps as usize) << 2 | (index as usize) << 1 | row as usize;
+                    let bit_state = BitState::Curr {
+                        row_bit: row,
+                        index_bit: index,
+                        curr_col_prefix_sum_bit: curr_ps,
+                    };
+
+                    for mem_state in &all_states {
+                        let mem_idx = mem_state.get_index();
+                        let cpu_result = transition(bit_state, *mem_state);
+                        let expected = CURR_TRANSITIONS_W8[bit_state_idx][mem_idx];
+
+                        match cpu_result {
+                            StateOrFail::Fail => {
+                                assert_eq!(
+                                    expected, WIDE_FAIL,
+                                    "Curr mismatch at bit_state={bit_state_idx}, mem={mem_idx}: \
+                                     CPU=Fail, table={}",
+                                    expected
+                                );
+                            }
+                            StateOrFail::State(new_state) => {
+                                assert_eq!(
+                                    expected,
+                                    new_state.get_index() as u8,
+                                    "Curr mismatch at bit_state={bit_state_idx}, mem={mem_idx}: \
+                                     CPU={}, table={}",
+                                    new_state.get_index(),
+                                    expected
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Test Next (odd layer) transitions: 2 bit states × 8 memory states.
+        for next_ps in [false, true] {
+            let bit_state_idx = next_ps as usize;
+            let bit_state = BitState::Next { next_col_prefix_sum_bit: next_ps };
+
+            for mem_state in &all_states {
+                let mem_idx = mem_state.get_index();
+                let cpu_result = transition(bit_state, *mem_state);
+                let expected = NEXT_TRANSITIONS_W8[bit_state_idx][mem_idx];
+
+                match cpu_result {
+                    StateOrFail::Fail => {
+                        assert_eq!(
+                            expected, WIDE_FAIL,
+                            "Next mismatch at bit_state={bit_state_idx}, mem={mem_idx}: \
+                             CPU=Fail, table={}",
+                            expected
+                        );
+                    }
+                    StateOrFail::State(new_state) => {
+                        assert_eq!(
+                            expected,
+                            new_state.get_index() as u8,
+                            "Next mismatch at bit_state={bit_state_idx}, mem={mem_idx}: \
+                             CPU={}, table={}",
+                            new_state.get_index(),
+                            expected
+                        );
+                    }
+                }
             }
         }
     }
