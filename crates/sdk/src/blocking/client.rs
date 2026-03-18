@@ -7,6 +7,11 @@ use crate::blocking::{
     light::builder::LightProverBuilder, mock::builder::MockProverBuilder,
 };
 
+#[cfg(feature = "network")]
+use crate::blocking::network::builder::NetworkProverBuilder;
+#[cfg(feature = "network")]
+use crate::network::NetworkMode;
+
 /// An entrypoint for interacting with the prover for the SP1 RISC-V zkVM.
 ///
 /// IMPORTANT: `ProverClient` only needs to be initialized ONCE and can be reused for subsequent
@@ -98,5 +103,51 @@ impl ProverClientBuilder {
     #[allow(clippy::unused_self)]
     pub fn light(&self) -> LightProverBuilder {
         LightProverBuilder::new()
+    }
+
+    /// Builds a [`NetworkProver`] specifically for proving on the network.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use sp1_sdk::blocking::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin};
+    ///
+    /// let elf = Elf::Static(&[1, 2, 3]);
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let prover = ProverClient::builder().network().build();
+    /// let pk = prover.setup(elf).unwrap();
+    /// let proof = prover.prove(&pk, stdin).compressed().run().unwrap();
+    /// ```
+    #[cfg(feature = "network")]
+    #[must_use]
+    #[allow(clippy::unused_self)]
+    pub fn network(&self) -> NetworkProverBuilder {
+        NetworkProverBuilder::new()
+    }
+
+    /// Builds a [`NetworkProver`] specifically for proving on the network with a specified mode.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use sp1_sdk::{blocking::{Elf, ProveRequest, Prover, ProverClient, SP1Stdin}, network::NetworkMode};
+    ///
+    /// let elf = Elf::Static(&[1, 2, 3]);
+    /// let stdin = SP1Stdin::new();
+    ///
+    /// let prover = ProverClient::builder().network_for(NetworkMode::Mainnet).build();
+    /// let pk = prover.setup(elf).unwrap();
+    /// let proof = prover.prove(&pk, stdin).compressed().run().unwrap();
+    /// ```
+    #[cfg(feature = "network")]
+    #[must_use]
+    #[allow(clippy::unused_self)]
+    pub fn network_for(&self, mode: NetworkMode) -> NetworkProverBuilder {
+        NetworkProverBuilder {
+            private_key: None,
+            signer: None,
+            rpc_url: None,
+            tee_signers: None,
+            network_mode: Some(mode),
+        }
     }
 }

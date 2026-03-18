@@ -9,14 +9,14 @@ use sp1_hypercube::{septic_digest::SepticDigest, MachineVerifyingKey};
 use sp1_primitives::{Elf, SP1Field};
 use sp1_prover::{
     worker::{
-        CommonProverInput, ProofId, RequesterId, SP1CoreExecutor, SplicingEngine, SplicingWorker,
-        TaskContext, TrivialWorkerClient,
+        CommonProverInput, MessageReceiver, MessageSender, ProofData, ProofId, RequesterId,
+        SP1CoreExecutor, SplicingEngine, SplicingWorker, TaskContext, TaskId, TrivialWorkerClient,
+        WorkerClient,
     },
     SP1VerifyingKey,
 };
 use sp1_prover_types::{network_base_types::ProofMode, ArtifactClient, InMemoryArtifactClient};
 use sp1_sdk::{setup_logger, MockProver, Prover};
-use tokio::sync::mpsc;
 
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
@@ -93,7 +93,14 @@ async fn execute_node(args: Args, elf: Vec<u8>, stdin: SP1Stdin) {
         .await
         .expect("failed to upload common input");
 
-    let (sender, mut receiver) = mpsc::unbounded_channel();
+    let dummy_task_id = TaskId::new("perf-executor".to_string());
+    let sender = MessageSender::<TrivialWorkerClient, ProofData>::new(
+        worker_client.clone(),
+        dummy_task_id.clone(),
+    );
+    let mut receiver = MessageReceiver::<ProofData>::new(
+        worker_client.subscribe_task_messages(&dummy_task_id).await.unwrap(),
+    );
 
     let elf_artifact = artifact_client.create_artifact().expect("failed to create artifact");
     let elf_bytes = elf.to_vec();

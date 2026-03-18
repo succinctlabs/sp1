@@ -147,8 +147,14 @@ main() {
       install_private_asset_using_github_api "cargo_prove_${BIN_VERSION}_${PLATFORM}_${ARCHITECTURE}.$EXT"
     else
       if [ "$SP1UP_VERSION" == "latest" ]; then
-        # Get the actual version from the release API
-        BIN_VERSION=$(curl -s https://api.github.com/repos/$SP1UP_REPO/releases/latest | grep -o '"tag_name": "[^"]*"' | cut -d'"' -f4)
+        # Get the actual version from the release API (authenticated if token is provided).
+        if [ -n "$GITHUB_TOKEN" ]; then
+          check_url "https://api.github.com/repos/$SP1UP_REPO/releases/latest" "latest release" "$GITHUB_TOKEN"
+          BIN_VERSION=$(curl -s -H "Authorization: Token $GITHUB_TOKEN" "https://api.github.com/repos/$SP1UP_REPO/releases/latest" | grep -o '"tag_name": "[^"]*"' | cut -d'"' -f4)
+        else
+          check_url "https://api.github.com/repos/$SP1UP_REPO/releases/latest" "latest release"
+          BIN_VERSION=$(curl -s "https://api.github.com/repos/$SP1UP_REPO/releases/latest" | grep -o '"tag_name": "[^"]*"' | cut -d'"' -f4)
+        fi
       else
         BIN_VERSION="$SP1UP_VERSION"
       fi

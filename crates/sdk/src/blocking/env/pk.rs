@@ -7,10 +7,27 @@ use sp1_prover::SP1VerifyingKey;
 
 #[derive(Clone)]
 pub enum EnvProvingKey {
-    Cpu { pk: SP1ProvingKey, seal: sealed::Seal },
-    Cuda { pk: CudaProvingKey, seal: sealed::Seal },
-    Mock { pk: SP1ProvingKey, seal: sealed::Seal },
-    Light { pk: SP1ProvingKey, seal: sealed::Seal },
+    Cpu {
+        pk: SP1ProvingKey,
+        seal: sealed::Seal,
+    },
+    Cuda {
+        pk: CudaProvingKey,
+        seal: sealed::Seal,
+    },
+    Mock {
+        pk: SP1ProvingKey,
+        seal: sealed::Seal,
+    },
+    Light {
+        pk: SP1ProvingKey,
+        seal: sealed::Seal,
+    },
+    #[cfg(feature = "network")]
+    Network {
+        pk: SP1ProvingKey,
+        seal: sealed::Seal,
+    },
 }
 
 impl EnvProvingKey {
@@ -29,6 +46,11 @@ impl EnvProvingKey {
     pub(crate) const fn light(inner: SP1ProvingKey) -> Self {
         Self::Light { pk: inner, seal: sealed::Seal::new() }
     }
+
+    #[cfg(feature = "network")]
+    pub(crate) const fn network(inner: SP1ProvingKey) -> Self {
+        Self::Network { pk: inner, seal: sealed::Seal::new() }
+    }
 }
 
 impl ProvingKey for EnvProvingKey {
@@ -39,6 +61,8 @@ impl ProvingKey for EnvProvingKey {
             Self::Cuda { pk, .. } => pk.verifying_key(),
             Self::Mock { pk, .. } => pk.verifying_key(),
             Self::Light { pk, .. } => pk.verifying_key(),
+            #[cfg(feature = "network")]
+            Self::Network { pk, .. } => pk.verifying_key(),
         }
     }
 
@@ -49,6 +73,8 @@ impl ProvingKey for EnvProvingKey {
             Self::Cuda { pk, .. } => pk.elf(),
             Self::Mock { pk, .. } => pk.elf(),
             Self::Light { pk, .. } => pk.elf(),
+            #[cfg(feature = "network")]
+            Self::Network { pk, .. } => pk.elf(),
         }
     }
 }
