@@ -34,8 +34,8 @@ pub struct JaggedEvalSumcheckPoly<
     pub round_num: usize,
     /// The intermediate full evaluations of the eq polynomials.
     pub intermediate_eq_full_evals: Buffer<EF, A>,
-    /// The half value.
-    pub half: EF,
+    /// The half value (1/2 in the base field).
+    pub half: F,
 
     pub prefix_sum_dimension: u32,
 
@@ -60,7 +60,7 @@ impl<
         z_col_eq_vals: Buffer<EF, A>,
         round_num: usize,
         intermediate_eq_full_evals: Buffer<EF, A>,
-        half: EF,
+        half: F,
         num_variables: u32,
     ) -> Self {
         Self {
@@ -125,7 +125,7 @@ impl<
         let merged_prefix_sums = Arc::new(merged_prefix_sums);
         let z_col_device = backend.copy_to(&z_col).unwrap();
 
-        let half = EF::two().inverse();
+        let half = F::two().inverse();
         let bp_batch_eval = BPE::new(
             z_row,
             z_index,

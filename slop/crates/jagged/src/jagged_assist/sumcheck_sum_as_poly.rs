@@ -10,7 +10,7 @@ use slop_alloc::{Backend, Buffer, CpuBackend};
 use slop_challenger::{FieldChallenger, VariableLengthChallenger};
 use slop_multilinear::Point;
 
-use crate::{BranchingProgram, MemoryState};
+use crate::{BranchingProgram, MemoryState, WIDE_BRANCHING_PROGRAM_WIDTH};
 
 use super::JaggedEvalSumcheckPoly;
 
@@ -59,8 +59,8 @@ pub struct JaggedAssistSumAsPolyCPUImpl<F: Field, EF: ExtensionField<F>, Challen
     branching_program: BranchingProgram<EF>,
     merged_prefix_sums: Arc<Vec<Point<F>>>,
     prefix_states: Vec<Vec<EF>>,
-    suffix_vector: [EF; 8],
-    half: EF,
+    suffix_vector: [EF; WIDE_BRANCHING_PROGRAM_WIDTH],
+    half: F,
     _marker: PhantomData<Challenger>,
 }
 
@@ -81,14 +81,11 @@ impl<F: Field, EF: ExtensionField<F>, Challenger: FieldChallenger<F> + Send + Sy
         let prefix_states: Vec<Vec<EF>> = merged_prefix_sums
             .par_chunks(chunk_size)
             .flat_map_iter(|chunk| {
-                chunk.iter().map(|ps| {
-                    let ps_ef: Point<EF> = ps.iter().map(|x| (*x).into()).collect();
-                    branching_program.precompute_prefix_states(&ps_ef)
-                })
+                chunk.iter().map(|ps| branching_program.precompute_prefix_states(ps))
             })
             .collect();
 
-        let mut suffix_vector = [EF::zero(); 8];
+        let mut suffix_vector = [EF::zero(); WIDE_BRANCHING_PROGRAM_WIDTH];
         suffix_vector[MemoryState::initial_state().get_index()] = EF::one();
 
         Self {
@@ -96,7 +93,7 @@ impl<F: Field, EF: ExtensionField<F>, Challenger: FieldChallenger<F> + Send + Sy
             merged_prefix_sums,
             prefix_states,
             suffix_vector,
-            half: EF::two().inverse(),
+            half: F::two().inverse(),
             _marker: PhantomData,
         }
     }
@@ -141,28 +138,26 @@ impl<F: Field, EF: ExtensionField<F>, Challenger: FieldChallenger<F> + Send + Sy
                                 col_prefix_states,
                             )| {
                                 let prefix_sum_dim = merged_prefix_sum.dimension();
-                                let eq_prefix_sum_val: EF = (*merged_prefix_sum
-                                    .get(prefix_sum_dim - round_num - 1)
-                                    .unwrap())
-                                .into();
+                                let eq_prefix_sum_val: F =
+                                    *merged_prefix_sum.get(prefix_sum_dim - round_num - 1).unwrap();
 
-                                // Eq term for lambda = 0.
-                                let eq_val_0 = EF::one() - eq_prefix_sum_val;
+                                // Eq term for lambda = 0: eq(v, 0) = 1 - v (base field).
+                                let eq_val_0: F = F::one() - eq_prefix_sum_val;
                                 let eq_eval_0 = *intermediate_eq_full_eval * eq_val_0;
 
-                                // Eq term for lambda = 1/2.
+                                // Eq term for lambda = 1/2: eq(v, 1/2) = 1/2 (base field).
                                 let eq_eval_half = *intermediate_eq_full_eval * self.half;
 
                                 // BP evaluation using cached prefix + suffix.
-                                let offset = (round_num + 1) * 8;
-                                let prefix_state = &col_prefix_states[offset..offset + 8];
-                                let h_eval_0 = self.branching_program.eval_with_cached(
+                                let w = WIDE_BRANCHING_PROGRAM_WIDTH;
+                                let offset = (round_num + 1) * w;
+                                let prefix_state = &col_prefix_states[offset..offset + w];
+                                let h_eval_0 = self.branching_program.eval_with_cached_at_zero(
                                     round_num,
-                                    EF::zero(),
                                     prefix_state,
                                     &self.suffix_vector,
                                 );
-                                let h_eval_half = self.branching_program.eval_with_cached(
+                                let h_eval_half = self.branching_program.eval_with_cached_at_half(
                                     round_num,
                                     self.half,
                                     prefix_state,
