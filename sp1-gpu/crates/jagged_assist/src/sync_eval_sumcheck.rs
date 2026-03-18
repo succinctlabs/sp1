@@ -316,15 +316,14 @@ mod tests {
     use slop_jagged::{
         prove_jagged_eval_sumcheck, JaggedEvalSumcheckPoly, JaggedLittlePolynomialProverParams,
     };
-    use slop_koala_bear::{KoalaBearDegree4Duplex, KoalaPerm};
     use slop_multilinear::Point;
     use sp1_gpu_challenger::DuplexChallenger as DeviceDuplexChallenger;
     use sp1_gpu_cudart::TaskScope;
-    use sp1_primitives::{SP1ExtensionField, SP1Field};
+    use sp1_primitives::{SP1ExtensionField, SP1Field, SP1GlobalContext, SP1Perm};
 
     type F = SP1Field;
     type EF = SP1ExtensionField;
-    type HostChallenger = slop_challenger::DuplexChallenger<F, KoalaPerm, 16, 8>;
+    type HostChallenger = slop_challenger::DuplexChallenger<F, SP1Perm, 16, 8>;
     type DeviceChallenger = DeviceDuplexChallenger<F, TaskScope>;
 
     /// End-to-end test: run the GPU jagged assist sumcheck prover and compare
@@ -353,7 +352,7 @@ mod tests {
             verifier_params.full_jagged_little_polynomial_evaluation(&z_row, &z_col, &z_index);
 
         // --- CPU prover ---
-        let mut cpu_challenger = KoalaBearDegree4Duplex::default_challenger();
+        let mut cpu_challenger = SP1GlobalContext::default_challenger();
         cpu_challenger.observe_ext_element(expected_sum);
 
         let cpu_poly = JaggedEvalSumcheckPoly::<F, EF, HostChallenger>::new_from_jagged_params(
@@ -372,7 +371,7 @@ mod tests {
         );
 
         // --- GPU prover ---
-        let mut gpu_host_challenger = KoalaBearDegree4Duplex::default_challenger();
+        let mut gpu_host_challenger = SP1GlobalContext::default_challenger();
         let gpu_proof = sp1_gpu_cudart::run_sync_in_place(|backend| {
             prove_jagged_evaluation_sync::<F, EF, HostChallenger, DeviceChallenger>(
                 &prover_params,
