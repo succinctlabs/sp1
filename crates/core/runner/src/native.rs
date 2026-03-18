@@ -252,7 +252,10 @@ impl MinimalExecutorRunner {
     }
 
     fn take_output(self) -> Output {
-        self.output.expect("Process is still running").expect("Process terminated with error state")
+        self.output
+            .clone()
+            .expect("Process is still running")
+            .expect("Process terminated with error state")
     }
 
     /// Get the registers of the JIT function.
@@ -442,4 +445,12 @@ fn spawn_restricted(mut cmd: Command, limit_bytes: u64) -> std::io::Result<Child
         }
     });
     Ok(child)
+}
+
+impl Drop for MinimalExecutorRunner {
+    fn drop(&mut self) {
+        if let Some((mut child, _)) = self.process.take() {
+            let _ = child.kill();
+        }
+    }
 }
