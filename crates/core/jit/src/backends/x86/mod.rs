@@ -105,7 +105,8 @@ const TAIL_START_OFFSET: i32 = std::mem::size_of::<TraceChunkHeader>() as i32;
 ///   value anywhere.
 /// * Either the upper or lower 64 bits of an xmm register.
 /// * A real x86_64 general purpose register.
-/// This way we can set aside at least one xmm for actual usage.
+///   This way we can set aside at least one xmm for actual usage.
+///
 /// It is also possible to have RISC-V registers that purely reside in memory.
 /// We might add those in the future if needed.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -797,7 +798,7 @@ impl TranspilerBackend {
     fn label_for_pc(&mut self, target: u64) -> Option<DynamicLabel> {
         if target < self.pc_base
             || target >= self.pc_base + self.program_size as u64 * 4
-            || target % 4 != 0
+            || (!target.is_multiple_of(4))
         {
             return None;
         }
