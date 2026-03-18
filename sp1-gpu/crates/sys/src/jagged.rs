@@ -15,4 +15,8 @@ extern "C" {
     pub fn transition_kernel() -> KernelPtr;
 
     pub fn fixLastVariable_kernel() -> KernelPtr;
+
+    pub fn precomputePrefixStates_kernel() -> KernelPtr;
+    pub fn evalWithCachedAtZeroAndHalf_kernel() -> KernelPtr;
+    pub fn updateSuffixVector_kernel() -> KernelPtr;
 }

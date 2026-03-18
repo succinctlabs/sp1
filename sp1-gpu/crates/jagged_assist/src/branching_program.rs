@@ -10,8 +10,9 @@ use sp1_gpu_cudart::{
     args,
     sys::{
         jagged::{
-            branching_program_kernel, fixLastVariable_kernel, interpolateAndObserve_kernel_duplex,
-            interpolateAndObserve_kernel_multi_field_32,
+            branching_program_kernel, evalWithCachedAtZeroAndHalf_kernel, fixLastVariable_kernel,
+            interpolateAndObserve_kernel_duplex, interpolateAndObserve_kernel_multi_field_32,
+            precomputePrefixStates_kernel, updateSuffixVector_kernel,
         },
         runtime::KernelPtr,
     },
@@ -49,6 +50,12 @@ pub unsafe trait BranchingProgramKernel<F: Field, EF: ExtensionField<F>, Challen
     fn interpolate_and_observe_kernel() -> KernelPtr;
 
     fn fix_last_variable() -> KernelPtr;
+
+    fn precompute_prefix_states_kernel() -> KernelPtr;
+
+    fn eval_with_cached_kernel() -> KernelPtr;
+
+    fn update_suffix_vector_kernel() -> KernelPtr;
 }
 
 /// # Safety
@@ -67,6 +74,18 @@ unsafe impl<F: Field, EF: ExtensionField<F>>
     fn fix_last_variable() -> KernelPtr {
         unsafe { fixLastVariable_kernel() }
     }
+
+    fn precompute_prefix_states_kernel() -> KernelPtr {
+        unsafe { precomputePrefixStates_kernel() }
+    }
+
+    fn eval_with_cached_kernel() -> KernelPtr {
+        unsafe { evalWithCachedAtZeroAndHalf_kernel() }
+    }
+
+    fn update_suffix_vector_kernel() -> KernelPtr {
+        unsafe { updateSuffixVector_kernel() }
+    }
 }
 
 unsafe impl<F: Field, EF: ExtensionField<F>>
@@ -82,6 +101,18 @@ unsafe impl<F: Field, EF: ExtensionField<F>>
 
     fn fix_last_variable() -> KernelPtr {
         unsafe { fixLastVariable_kernel() }
+    }
+
+    fn precompute_prefix_states_kernel() -> KernelPtr {
+        unsafe { precomputePrefixStates_kernel() }
+    }
+
+    fn eval_with_cached_kernel() -> KernelPtr {
+        unsafe { evalWithCachedAtZeroAndHalf_kernel() }
+    }
+
+    fn update_suffix_vector_kernel() -> KernelPtr {
+        unsafe { updateSuffixVector_kernel() }
     }
 }
 

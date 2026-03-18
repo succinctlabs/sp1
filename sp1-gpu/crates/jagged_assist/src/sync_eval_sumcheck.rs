@@ -7,7 +7,9 @@ use itertools::Itertools;
 use slop_algebra::{interpolate_univariate_polynomial, ExtensionField, Field};
 use slop_alloc::Buffer;
 use slop_challenger::FieldChallenger;
-use slop_jagged::{JaggedLittlePolynomialProverParams, JaggedSumcheckEvalProof};
+use slop_jagged::{
+    interleave_prefix_sums, JaggedLittlePolynomialProverParams, JaggedSumcheckEvalProof,
+};
 use slop_multilinear::{Mle, Point};
 use slop_sumcheck::PartialSumcheckProof;
 use slop_tensor::Tensor;
@@ -92,14 +94,11 @@ where
     let col_prefix_sums: Vec<Point<F>> =
         prefix_sums.iter().map(|&x| Point::from_usize(x, log_m + 1)).collect();
 
-    // Generate all of the merged prefix sums
+    // Generate all of the merged prefix sums in interleaved layout:
+    // [next[MSB], curr[MSB], next[MSB-1], curr[MSB-1], ..., next[LSB], curr[LSB]]
     let merged_prefix_sums: Vec<Point<F>> = col_prefix_sums
         .windows(2)
-        .map(|prefix_sums| {
-            let mut merged_prefix_sum = prefix_sums[0].clone();
-            merged_prefix_sum.extend(&prefix_sums[1]);
-            merged_prefix_sum
-        })
+        .map(|prefix_sums| interleave_prefix_sums(&prefix_sums[0], &prefix_sums[1]))
         .collect();
 
     // Generate z_col partial lagrange mle
