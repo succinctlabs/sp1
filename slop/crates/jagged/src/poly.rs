@@ -438,27 +438,18 @@ impl ColRanges {
 /// `[next[MSB], curr[MSB], next[MSB-1], curr[MSB-1], ..., next[LSB], curr[LSB]]`
 pub fn interleave_prefix_sums<K: Clone>(curr: &Point<K>, next: &Point<K>) -> Point<K> {
     assert_eq!(curr.dimension(), next.dimension());
-    let d = curr.dimension();
-    let mut result = Vec::with_capacity(2 * d);
-    for i in 0..d {
-        result.push(next.get(i).unwrap().clone());
-        result.push(curr.get(i).unwrap().clone());
-    }
-    result.into()
+    next.iter().zip(curr.iter()).flat_map(|(n, c)| [n.clone(), c.clone()]).collect()
 }
 
 /// De-interleave an interleaved prefix sum point back into `(curr, next)`.
 /// Inverse of [`interleave_prefix_sums`].
 pub fn deinterleave_prefix_sums<K: Clone>(interleaved: &Point<K>) -> (Point<K>, Point<K>) {
-    let d = interleaved.dimension();
-    assert!(d.is_multiple_of(2));
-    let half = d / 2;
-    let mut curr = Vec::with_capacity(half);
-    let mut next = Vec::with_capacity(half);
-    for i in 0..half {
-        next.push(interleaved.get(2 * i).unwrap().clone());
-        curr.push(interleaved.get(2 * i + 1).unwrap().clone());
-    }
+    assert!(interleaved.dimension().is_multiple_of(2));
+    let (next, curr): (Vec<_>, Vec<_>) = interleaved
+        .to_vec()
+        .chunks(2)
+        .map(|pair| (pair[0].clone(), pair[1].clone()))
+        .unzip();
     (curr.into(), next.into())
 }
 
