@@ -3,6 +3,8 @@
 //! A prover that can execute programs and generate proofs with a different implementation based on
 //! the value of the `SP1_PROVER` environment variable.
 
+#[cfg(feature = "network")]
+use crate::blocking::NetworkProver;
 use crate::blocking::{
     cuda::builder::CudaProverBuilder, prover::BaseProveRequest, CpuProver, CudaProver, LightProver,
     MockProver, Prover,
@@ -30,6 +32,9 @@ pub enum EnvProver {
     Cpu(CpuProver),
     /// A CUDA prover.
     Cuda(CudaProver),
+    /// A network prover.
+    #[cfg(feature = "network")]
+    Network(Box<NetworkProver>),
 }
 
 impl Default for EnvProver {
@@ -87,7 +92,12 @@ impl EnvProver {
             "cuda" => Self::Cuda(CudaProverBuilder::default().build()),
             "mock" => Self::Mock(MockProver::new()),
             "light" => Self::Light(LightProver::new()),
-            "network" => panic!("The network prover is not supported in the blocking client"),
+            #[cfg(feature = "network")]
+            "network" => Self::Network(Box::new(
+                crate::blocking::network::builder::NetworkProverBuilder::new().build(),
+            )),
+            #[cfg(not(feature = "network"))]
+            "network" => panic!("The network prover requires the `network` feature to be enabled"),
             _ => unreachable!(),
         }
     }
@@ -104,6 +114,8 @@ impl Prover for EnvProver {
             Self::Cuda(prover) => prover.inner(),
             Self::Mock(prover) => prover.inner(),
             Self::Light(prover) => prover.inner(),
+            #[cfg(feature = "network")]
+            Self::Network(prover) => prover.inner(),
         }
     }
     fn setup(&self, elf: Elf) -> Result<Self::ProvingKey, Self::Error> {
@@ -123,6 +135,11 @@ impl Prover for EnvProver {
             Self::Light(prover) => {
                 let pk = prover.setup(elf)?;
                 Ok(EnvProvingKey::light(pk))
+            }
+            #[cfg(feature = "network")]
+            Self::Network(prover) => {
+                let pk = prover.setup(elf)?;
+                Ok(EnvProvingKey::network(pk))
             }
         }
     }

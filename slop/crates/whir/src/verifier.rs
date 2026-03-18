@@ -64,7 +64,6 @@ pub struct WhirProof<GC>
 where
     GC: IopCtx,
 {
-    pub config: WhirProofShape<GC::F>,
     // First sumcheck
     pub initial_sumcheck_polynomials: Vec<(SumcheckPoly<GC::EF>, ProofOfWork<GC>)>,
 
@@ -135,13 +134,16 @@ pub fn map_to_pow<F: AbstractField>(mut elem: F, len: usize) -> Point<F> {
 impl<GC> Verifier<GC>
 where
     GC: IopCtx,
+    GC::Challenger: VariableLengthChallenger<GC::F, GC::Digest>,
 {
     pub fn new(
         merkle_verifier: MerkleTreeTcs<GC>,
         config: WhirProofShape<GC::F>,
         num_expected_commitments: usize,
+        challenger: &mut GC::Challenger,
     ) -> Self {
         assert_ne!(num_expected_commitments, 0, "commitment must exist");
+        config.write_to_challenger::<GC::Digest, GC::Challenger>(challenger);
         Self { merkle_verifier, config, num_expected_commitments }
     }
 
@@ -166,7 +168,7 @@ where
         proof: &WhirProof<GC>,
         challenger: &mut GC::Challenger,
     ) -> Result<(Point<GC::EF>, GC::EF), WhirProofError> {
-        let config = &proof.config;
+        let config = &self.config;
         let n_rounds = config.round_parameters.len();
         if commitments.len() != self.num_expected_commitments
             || round_areas.len() != self.num_expected_commitments
@@ -519,7 +521,7 @@ where
         sumcheck_polynomials: &[(SumcheckPoly<GC::EF>, ProofOfWork<GC>)],
         mut claimed_sum: GC::EF,
         rounds: usize,
-        pow_bits: &[f64],
+        pow_bits: &[usize],
         challenger: &mut GC::Challenger,
     ) -> Result<(Vec<GC::EF>, GC::EF), SumcheckError> {
         if sumcheck_polynomials.len() != rounds {
