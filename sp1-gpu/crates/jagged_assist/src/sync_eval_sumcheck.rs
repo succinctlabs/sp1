@@ -192,32 +192,27 @@ where
     let num_variables = poly.num_variables();
 
     // First round of sumcheck - sync call
-    let (mut round_claim, new_point) = poly.bp_batch_eval.sum_as_poly_and_sample_into_point(
+    poly.rho = poly.bp_batch_eval.sum_as_poly_and_sample_into_point(
         poly.round_num,
         &poly.z_col_eq_vals,
         &poly.intermediate_eq_full_evals,
         sum_values,
         challenger,
-        claim,
         poly.rho.clone(),
     );
-    poly.rho = new_point;
 
     // Fix last variable
     poly.fix_last_variable();
 
     for _ in t..num_variables as usize {
-        let (new_claim, new_point) = poly.bp_batch_eval.sum_as_poly_and_sample_into_point(
+        poly.rho = poly.bp_batch_eval.sum_as_poly_and_sample_into_point(
             poly.round_num,
             &poly.z_col_eq_vals,
             &poly.intermediate_eq_full_evals,
             sum_values,
             challenger,
-            round_claim,
             poly.rho.clone(),
         );
-        round_claim = new_claim;
-        poly.rho = new_point;
 
         poly.fix_last_variable();
     }

@@ -23,6 +23,7 @@ pub struct JaggedAssistSumAsPolyGPUImpl<F: Field, EF: ExtensionField<F>, Challen
     half: EF,
     prefix_states: Buffer<EF, TaskScope>,
     suffix_vector_device: Buffer<EF, TaskScope>,
+    round_claim_device: Buffer<EF, TaskScope>,
     _marker: PhantomData<Challenger>,
 }
 
@@ -123,6 +124,10 @@ where
         let expected_sum: EF =
             bp_evals_host.iter().zip(z_col_eq_vals.iter()).map(|(bp, zcol)| *bp * *zcol).sum();
 
+        // Initialize round claim on device with expected_sum (avoids DtoH in sumcheck loop)
+        let claim_buffer = Buffer::<EF>::from(vec![expected_sum]);
+        let round_claim_device = DeviceBuffer::from_host(&claim_buffer, t).unwrap().into_inner();
+
         // Initialize suffix vector: [1, 0, 0, 0, 0, 0, 0, 0] (initial state at index 0)
         let mut suffix_init = vec![EF::zero(); 8];
         suffix_init[0] = EF::one();
@@ -141,13 +146,13 @@ where
                 half,
                 prefix_states,
                 suffix_vector_device,
+                round_claim_device,
                 _marker: PhantomData,
             },
             expected_sum,
         )
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub fn sum_as_poly_and_sample_into_point<OnDeviceChallenger: AsMutRawChallenger>(
         &mut self,
         round_num: usize,
@@ -155,9 +160,8 @@ where
         intermediate_eq_full_evals: &Buffer<EF, TaskScope>,
         sum_values: &mut Buffer<EF, TaskScope>,
         challenger: &mut OnDeviceChallenger,
-        claim: EF,
         rhos: Point<EF, TaskScope>,
-    ) -> (EF, Point<EF, TaskScope>)
+    ) -> Point<EF, TaskScope>
     where
         TaskScope: BranchingProgramKernel<F, EF, OnDeviceChallenger>,
     {
@@ -203,20 +207,20 @@ where
         }
 
         // 2. Reduce across columns → 2 values [y_0, y_half]
-        let mut results = DeviceTensor::from_raw(eval_results).sum_dim(1).into_inner();
+        let results = DeviceTensor::from_raw(eval_results).sum_dim(1).into_inner();
 
-        // 3. Launch interpolateAndObserve kernel
+        // 3. Launch interpolateAndObserve kernel (reads/writes round_claim on device)
         let mut sampled_value = Buffer::with_capacity_in(rhos.dimension() + 1, backend.clone());
 
         unsafe {
             sampled_value.assume_init();
             let interp_args = args!(
-                results.as_mut_ptr(),
+                results.as_ptr(),
                 challenger.as_mut_raw(),
                 sampled_value.as_mut_ptr(),
                 i8::try_from(round_num).unwrap(),
                 sum_values.as_mut_ptr(),
-                claim
+                self.round_claim_device.as_mut_ptr()
             );
 
             backend
@@ -263,9 +267,7 @@ where
         // Build new rho point: [alpha, ...existing rhos]
         sampled_value.extend_from_device_slice(&rhos).unwrap();
 
-        let bp_results_device: Vec<EF> = DeviceBuffer::from_raw(results.storage).to_host().unwrap();
-
-        (bp_results_device[0], Point::new(sampled_value))
+        Point::new(sampled_value)
     }
 
     pub fn fix_last_variable_kernel<OnDeviceChallenger>(

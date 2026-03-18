@@ -148,14 +148,12 @@ __global__ void interpolateAndObserve(
     EF *sampled_value,
     int8_t round_num,
     EF *sum_values,
-    EF claim
+    EF *round_claim  // device-resident: read current claim, write new claim
 ){
     if (blockIdx.x == 0 && threadIdx.x == 0 && blockIdx.y == 0 && threadIdx.y == 0) {
-
-
     EF y_0 = results[0];
     EF y_half = results[1];
-    EF y_1 = claim - y_0;
+    EF y_1 = round_claim[0] - y_0;
     F x_0 = F::zero();
     F x_one = F::one();
     F x_half = F::one() / F::two();
@@ -163,8 +161,6 @@ __global__ void interpolateAndObserve(
     sum_values[3*round_num + 0] = y_0;
     sum_values[3*round_num + 1] = y_half;
     sum_values[3*round_num + 2] = y_1;
-
-
 
     EF coefficients[3];
     interpolateQuadratic<F, EF>(x_0, x_half, x_one, y_0, y_half, y_1, coefficients);
@@ -177,14 +173,12 @@ __global__ void interpolateAndObserve(
 
     sampled_value[0] = alpha;
 
-    // results[0] = coefficients[0] + coefficients[1] * alpha + coefficients[2] * alpha * alpha;
-
     EF t(coefficients[2]);
     t *= alpha;
     t += coefficients[1];
     t *= alpha;
     t += coefficients[0];
-    results[0] = t;
+    round_claim[0] = t;
     }
 }
 
