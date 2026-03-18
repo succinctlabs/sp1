@@ -6,6 +6,8 @@ mod cuda;
 mod env;
 mod light;
 mod mock;
+#[cfg(feature = "network")]
+mod network;
 mod prover;
 
 pub use client::ProverClient;
@@ -14,9 +16,17 @@ pub use cuda::{builder::CudaProverBuilder, CudaProver};
 pub use env::EnvProver;
 pub use light::LightProver;
 pub use mock::MockProver;
+#[cfg(feature = "network")]
+pub use network::{builder::NetworkProverBuilder, NetworkProver};
 pub use prover::{ProveRequest, Prover};
 
 pub use crate::{utils, Elf, SP1ProofMode, SP1PublicValues, SP1Stdin};
+
+/// A prelude for the blocking API, including all the types and traits that are commonly used.
+pub mod prelude {
+    pub use super::{ProveRequest, Prover, SP1ProofMode, SP1Stdin};
+    pub use crate::{include_elf, Elf, HashableKey, ProvingKey, SP1ProofWithPublicValues};
+}
 
 use std::{future::Future, sync::LazyLock};
 
