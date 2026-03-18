@@ -1,5 +1,5 @@
-mod builder;
+mod ctx;
 pub mod sumcheck;
 pub mod zerocheck;
 
-pub use builder::{ConstraintCtx, ReadingCtx};
+pub use ctx::{ConstraintCtx, ReadingCtx};

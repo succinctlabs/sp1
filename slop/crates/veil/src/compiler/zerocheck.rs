@@ -2,8 +2,8 @@ use slop_multilinear::Point;
 use thiserror::Error;
 
 use super::{
-    builder::{ConstraintCtx, ReadingCtx},
     sumcheck::{SumcheckError, SumcheckParam, SumcheckView},
+    ConstraintCtx, ReadingCtx,
 };
 
 #[derive(Debug, Error)]

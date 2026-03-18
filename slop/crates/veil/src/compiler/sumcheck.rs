@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use super::builder::{ConstraintCtx, ReadingCtx};
+use super::{ConstraintCtx, ReadingCtx};
 
 #[derive(Debug, Error)]
 pub enum SumcheckError {
