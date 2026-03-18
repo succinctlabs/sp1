@@ -148,6 +148,7 @@ impl<GC, MerkleProver, D> Prover<GC, MerkleProver, D>
 where
     GC: IopCtx,
     D: Dft<GC::F>,
+    GC::Challenger: VariableLengthChallenger<GC::F, GC::Digest>,
     MerkleProver: TensorCsProver<GC, CpuBackend> + ComputeTcsOpenings<GC, CpuBackend>,
 {
     pub fn new(dft: D, merkle_prover: MerkleProver, config: WhirProofShape<GC::F>) -> Self {
@@ -379,8 +380,7 @@ where
 
             let claim_batching_randomness: GC::EF = challenger.sample_ext_element();
 
-            query_proof_of_works
-                .push(challenger.grind(round_params.queries_pow_bits.ceil() as usize));
+            query_proof_of_works.push(challenger.grind(round_params.queries_pow_bits));
 
             let merkle_openings: Vec<_> = prev_committed_data
                 .into_iter()
@@ -489,7 +489,7 @@ where
             .map(|_| challenger.sample_bits(prev_domain_log_size))
             .collect::<Vec<_>>();
 
-        let final_pow = challenger.grind(config.final_pow_bits.ceil() as usize);
+        let final_pow = challenger.grind(config.final_pow_bits);
 
         let final_merkle_openings = self.merkle_prover.compute_openings_at_indices(
             Message::<Tensor<GC::F>>::from(prev_committed_data.into_iter().collect::<Vec<_>>()),
@@ -512,7 +512,6 @@ where
         );
 
         WhirProof {
-            config: config.clone(),
             initial_sumcheck_polynomials,
             commitments: parsed_commitments,
             merkle_proofs: merkle_proofs
@@ -758,7 +757,7 @@ where
         &mut self,
         mut claimed_sum: GC::EF,
         num_rounds: usize,
-        pow_bits: &[f64],
+        pow_bits: &[usize],
         challenger: &mut GC::Challenger,
     ) -> (Vec<(SumcheckPoly<GC::EF>, ProofOfWork<GC>)>, Vec<GC::EF>, GC::EF) {
         let mut res = Vec::with_capacity(num_rounds);
@@ -774,7 +773,7 @@ where
 
             challenger.observe_constant_length_extension_slice(&sumcheck_poly.0);
             let folding_randomness_single: GC::EF = challenger.sample_ext_element();
-            let pow = challenger.grind(round_pow_bits.ceil() as usize);
+            let pow = challenger.grind(*round_pow_bits);
             claimed_sum = sumcheck_poly.evaluate_at_point(folding_randomness_single);
             res.push((sumcheck_poly, pow));
             folding_randomness.push(folding_randomness_single);
@@ -826,58 +825,10 @@ mod tests {
     use slop_utils::setup_logger;
 
     use super::*;
-    use crate::{
-        config::{RoundConfig, WhirProofShape},
-        verifier::Verifier,
-    };
+    use crate::{config::WhirProofShape, verifier::Verifier};
 
     type F = KoalaBear;
     type EF = BinomialExtensionField<F, 4>;
-
-    fn big_beautiful_whir_config<F: TwoAdicField>() -> WhirProofShape<F> {
-        let folding_factor = 4;
-        WhirProofShape::<F> {
-            domain_generator: F::two_adic_generator(21),
-            starting_ood_samples: 2,
-            starting_log_inv_rate: 1,
-            starting_interleaved_log_height: 20,
-            starting_domain_log_size: 21,
-            starting_folding_pow_bits: vec![0.; 8],
-            round_parameters: vec![
-                RoundConfig {
-                    folding_factor,
-                    evaluation_domain_log_size: 20,
-                    queries_pow_bits: 16.0,
-                    pow_bits: vec![0.0; folding_factor],
-                    num_queries: 84,
-                    ood_samples: 2,
-                    log_inv_rate: 4,
-                },
-                RoundConfig {
-                    folding_factor,
-                    evaluation_domain_log_size: 19,
-                    queries_pow_bits: 16.0,
-                    pow_bits: vec![0.0; folding_factor],
-                    num_queries: 21,
-                    ood_samples: 2,
-                    log_inv_rate: 7,
-                },
-                RoundConfig {
-                    folding_factor,
-                    evaluation_domain_log_size: 18,
-                    queries_pow_bits: 16.0,
-                    pow_bits: vec![0.0; folding_factor],
-                    num_queries: 12,
-                    ood_samples: 2,
-                    log_inv_rate: 10,
-                },
-            ],
-            final_poly_log_degree: 8,
-            final_queries: 9,
-            final_pow_bits: 16.0,
-            final_folding_pow_bits: vec![0.0; 8],
-        }
-    }
 
     #[test]
     fn whir_folding() {
@@ -986,7 +937,7 @@ mod tests {
         let (_, folding_randmness, claimed_sum) = sumcheck_prover.compute_sumcheck_polynomials(
             claim,
             num_variables,
-            &vec![0.; num_variables],
+            &vec![0; num_variables],
             &mut challenger_prover,
         );
 
@@ -1026,7 +977,7 @@ mod tests {
         let (_, folding_randomness, claimed_sum) = sumcheck_prover.compute_sumcheck_polynomials(
             claim,
             num_variables / 2,
-            &vec![0.; num_variables / 2],
+            &vec![0; num_variables / 2],
             &mut challenger_prover,
         );
 
@@ -1044,7 +995,7 @@ mod tests {
         let (_, folding_randomness_2, claimed_sum) = sumcheck_prover.compute_sumcheck_polynomials(
             claimed_sum + combination_randomness * f_eval[0],
             2,
-            &[0.; 2],
+            &[0; 2],
             &mut challenger_prover,
         );
 
@@ -1062,7 +1013,7 @@ mod tests {
         let (_, folding_randomness_3, claimed_sum) = sumcheck_prover.compute_sumcheck_polynomials(
             claimed_sum + combination_randomness_2 * f_eval[0],
             2,
-            &[0.; 2],
+            &[0; 2],
             &mut challenger_prover,
         );
 
@@ -1203,6 +1154,7 @@ mod tests {
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
 
         let mut challenger_prover = GC::default_challenger();
+        config.write_to_challenger(&mut challenger_prover);
         let mut challenger_verifier = GC::default_challenger();
 
         let prover = Prover::<_, _, _>::new(Radix2DitParallel, merkle_prover, config.clone());
@@ -1249,7 +1201,12 @@ mod tests {
         let proof_bytes = bincode::serialize(&proof).unwrap();
         tracing::debug!("Proof size: {} bytes", proof_bytes.len());
 
-        let verifier = Verifier::new(merkle_verifier, config.clone(), rounds.iter().count());
+        let verifier = Verifier::new(
+            merkle_verifier,
+            config.clone(),
+            rounds.iter().count(),
+            &mut challenger_verifier,
+        );
         verifier.observe_commitment(&commitments, &mut challenger_verifier).unwrap();
         verifier
             .verify_trusted_evaluation(
@@ -1334,7 +1291,7 @@ mod tests {
     #[test]
     #[ignore = "test used for benchmarking"]
     fn whir_test_realistic_koala_bear() {
-        let config = big_beautiful_whir_config::<KoalaBear>();
+        let config = WhirProofShape::<KoalaBear>::big_beautiful_whir_config();
         let merkle_prover: Poseidon2KoalaBear16Prover = FieldMerkleTreeProver::default();
         whir_test_single_round::<_, _>(config, 28, merkle_prover);
     }
@@ -1404,12 +1361,23 @@ mod tests {
             .collect::<Rounds<_>>();
 
         let merkle_verifier = MerkleTreeTcs::default();
-        let verifier = Verifier::<GC>::new(merkle_verifier, config.clone(), num_rounds);
+        let mut challenger_verifier = GC::default_challenger();
+        let verifier = Verifier::<GC>::new(
+            merkle_verifier,
+            config.clone(),
+            num_rounds,
+            &mut challenger_verifier,
+        );
 
         let jagged_verifier =
             JaggedPcsVerifier::<GC, Verifier<GC>>::new(verifier, max_log_row_count as usize);
 
+        // Begin the commit rounds
         let prover = Prover::<_, _, _>::new(Radix2DitParallel, merkle_prover, config.clone());
+
+        let mut challenger_prover = jagged_verifier.challenger();
+        // Write the config to the challenger before proving.
+        config.write_to_challenger(&mut challenger_prover);
 
         let jagged_prover =
             JaggedProver::<GC, WhirProof<GC>, Prover<GC, MerkleProver, Radix2DitParallel>>::new(
@@ -1420,14 +1388,11 @@ mod tests {
 
         let eval_point = (0..max_log_row_count).map(|_| rng.gen::<GC::EF>()).collect::<Point<_>>();
 
-        // Begin the commit rounds
-        let mut challenger = jagged_verifier.challenger();
-
         let mut prover_data = Rounds::new();
         let mut commitments = Rounds::new();
         for round in round_mles.iter() {
             let (commit, data) = jagged_prover.commit_multilinears(round.clone()).ok().unwrap();
-            challenger.observe(commit);
+            challenger_prover.observe(commit);
             prover_data.push(data);
             commitments.push(commit);
         }
@@ -1447,14 +1412,13 @@ mod tests {
                 eval_point.clone(),
                 evaluation_claims.clone(),
                 prover_data,
-                &mut challenger,
+                &mut challenger_prover,
             )
             .ok()
             .unwrap();
 
-        let mut challenger = jagged_verifier.challenger();
         for commitment in commitments.iter() {
-            challenger.observe(*commitment);
+            challenger_verifier.observe(*commitment);
         }
 
         let evaluation_claims = evaluation_claims
@@ -1468,7 +1432,7 @@ mod tests {
                 eval_point,
                 &evaluation_claims,
                 &proof,
-                &mut challenger,
+                &mut challenger_verifier,
             )
             .unwrap();
     }

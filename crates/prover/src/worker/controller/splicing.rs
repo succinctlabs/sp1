@@ -14,15 +14,15 @@ use tracing::Instrument;
 
 use crate::worker::{
     controller::create_core_proving_task, CommonProverInput, DeferredMessage, FinalVmState,
-    FinalVmStateLock, ProofData, SpawnProveOutput, TaskContext, TouchedAddresses, TraceData,
-    WorkerClient,
+    FinalVmStateLock, MessageSender, ProofData, SpawnProveOutput, TaskContext, TouchedAddresses,
+    TraceData, WorkerClient,
 };
 
 pub type SplicingEngine<A, W> =
-    AsyncEngine<SplicingTask, Result<(), ExecutionError>, SplicingWorker<A, W>>;
+    AsyncEngine<SplicingTask<W>, Result<(), ExecutionError>, SplicingWorker<A, W>>;
 
 /// A task for splicing a trace into single shard chunks.
-pub struct SplicingTask {
+pub struct SplicingTask<W: WorkerClient> {
     pub program: Arc<Program>,
     pub chunk: TraceChunkRaw,
     pub elf_artifact: Artifact,
@@ -30,7 +30,7 @@ pub struct SplicingTask {
     pub common_input_artifact: Artifact,
     pub all_touched_addresses: TouchedAddresses,
     pub final_vm_state: FinalVmStateLock,
-    pub prove_shard_tx: mpsc::UnboundedSender<ProofData>,
+    pub prove_shard_tx: MessageSender<W, ProofData>,
     pub context: TaskContext,
     pub opts: SP1CoreOpts,
     pub deferred_marker_tx: mpsc::UnboundedSender<DeferredMessage>,
@@ -68,7 +68,7 @@ where
         elf_artifact: Artifact,
         common_input_artifact: Artifact,
         context: TaskContext,
-        prove_shard_tx: mpsc::UnboundedSender<ProofData>,
+        prove_shard_tx: MessageSender<W, ProofData>,
         deferred_marker_tx: mpsc::UnboundedSender<DeferredMessage>,
     ) -> SendSpliceEngine<A, W> {
         let workers = (0..self.number_of_send_splice_workers)
@@ -87,12 +87,12 @@ where
     }
 }
 
-impl<A, W> AsyncWorker<SplicingTask, Result<(), ExecutionError>> for SplicingWorker<A, W>
+impl<A, W> AsyncWorker<SplicingTask<W>, Result<(), ExecutionError>> for SplicingWorker<A, W>
 where
     A: ArtifactClient,
     W: WorkerClient,
 {
-    async fn call(&self, input: SplicingTask) -> Result<(), ExecutionError> {
+    async fn call(&self, input: SplicingTask<W>) -> Result<(), ExecutionError> {
         let SplicingTask {
             program,
             chunk,
@@ -309,13 +309,13 @@ pub struct SendSpliceTask {
     pub range: ShardRange,
 }
 
-struct SendSpliceWorker<A, W> {
+struct SendSpliceWorker<A, W: WorkerClient> {
     artifact_client: A,
     worker_client: W,
     context: TaskContext,
     elf_artifact: Artifact,
     common_input_artifact: Artifact,
-    prove_shard_tx: mpsc::UnboundedSender<ProofData>,
+    prove_shard_tx: MessageSender<W, ProofData>,
     deferred_marker_tx: mpsc::UnboundedSender<DeferredMessage>,
 }
 
@@ -346,8 +346,8 @@ where
 
         self.prove_shard_tx
             .send(proof_data)
+            .await
             .map_err(|e| ExecutionError::Other(format!("error in send proof data: {}", e)))?;
-        // Send the deferred message to the deferred marker receiver.
         if let Some(deferred_message) = deferred_message {
             self.deferred_marker_tx.send(deferred_message).map_err(|e| {
                 ExecutionError::Other(format!("error in send deferred message: {}", e))
