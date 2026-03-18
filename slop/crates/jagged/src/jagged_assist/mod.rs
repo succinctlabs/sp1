@@ -113,6 +113,8 @@ mod tests {
         let expected_sum =
             verifier_params.full_jagged_little_polynomial_evaluation(&z_row, &z_col, &z_index);
 
+        let now = std::time::Instant::now();
+
         let batch_eval_poly = JaggedEvalSumcheckPoly::<
             F,
             EF,
@@ -127,6 +129,7 @@ mod tests {
             prefix_sums.clone(),
             CpuBackend,
         );
+        println!("Batch eval poly created in: {:?}", now.elapsed().as_secs_f32());
 
         let default_perm = my_bb_16_perm();
         let mut challenger = Challenger::new(default_perm.clone());

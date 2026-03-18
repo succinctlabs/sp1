@@ -58,7 +58,7 @@ pub trait JaggedAssistSumAsPoly<
 pub struct JaggedAssistSumAsPolyCPUImpl<F: Field, EF: ExtensionField<F>, Challenger> {
     branching_program: BranchingProgram<EF>,
     merged_prefix_sums: Arc<Vec<Point<F>>>,
-    prefix_states: Vec<Vec<[EF; 8]>>,
+    prefix_states: Vec<Vec<EF>>,
     suffix_vector: [EF; 8],
     half: EF,
     _marker: PhantomData<Challenger>,
@@ -77,11 +77,14 @@ impl<F: Field, EF: ExtensionField<F>, Challenger: FieldChallenger<F> + Send + Sy
     ) -> Self {
         let branching_program = BranchingProgram::new(z_row, z_index);
 
-        let prefix_states: Vec<Vec<[EF; 8]>> = merged_prefix_sums
-            .iter()
-            .map(|ps| {
-                let ps_ef: Point<EF> = ps.iter().map(|x| (*x).into()).collect();
-                branching_program.precompute_prefix_states(&ps_ef)
+        let chunk_size = std::cmp::max(merged_prefix_sums.len() / num_cpus::get(), 1);
+        let prefix_states: Vec<Vec<EF>> = merged_prefix_sums
+            .par_chunks(chunk_size)
+            .flat_map_iter(|chunk| {
+                chunk.iter().map(|ps| {
+                    let ps_ef: Point<EF> = ps.iter().map(|x| (*x).into()).collect();
+                    branching_program.precompute_prefix_states(&ps_ef)
+                })
             })
             .collect();
 
@@ -151,7 +154,8 @@ impl<F: Field, EF: ExtensionField<F>, Challenger: FieldChallenger<F> + Send + Sy
                                 let eq_eval_half = *intermediate_eq_full_eval * self.half;
 
                                 // BP evaluation using cached prefix + suffix.
-                                let prefix_state = &col_prefix_states[round_num + 1];
+                                let offset = (round_num + 1) * 8;
+                                let prefix_state = &col_prefix_states[offset..offset + 8];
                                 let h_eval_0 = self.branching_program.eval_with_cached(
                                     round_num,
                                     EF::zero(),

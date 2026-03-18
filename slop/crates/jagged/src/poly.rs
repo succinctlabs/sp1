@@ -473,7 +473,7 @@ impl<K: AbstractField + 'static> BranchingProgram<K> {
     /// - Even layer 2k: builds 3-var point [z_row[k], z_index[k], interleaved_val], applies curr
     ///   transition.
     /// - Odd layer 2k+1: builds 1-var point [interleaved_val], applies next transition.
-    pub fn apply_layer_step(&self, layer: usize, interleaved_val: K, state: &[K; 8]) -> [K; 8] {
+    pub fn apply_layer_step(&self, layer: usize, interleaved_val: K, state: &[K]) -> [K; 8] {
         let mut new_state: [K; 8] = array::from_fn(|_| K::zero());
         let k = layer / 2;
 
@@ -630,24 +630,22 @@ impl<K: AbstractField + 'static> BranchingProgram<K> {
 
     /// Precompute prefix states for a given interleaved point.
     ///
-    /// Returns a `Vec` of length `num_layers + 1`. Entry `[l]` is the DP state after processing
-    /// layers `(num_layers-1)` down to `l` (inclusive). Entry `[num_layers]` is the initial
-    /// success state.
-    pub fn precompute_prefix_states(&self, interleaved_point: &Point<K>) -> Vec<[K; 8]> {
+    /// Returns a flat `Vec<K>` of length `(num_layers + 1) * 8`. The state for layer `l` is
+    /// stored at `[8*l .. 8*(l+1)]`. Entry `[num_layers]` is the initial success state.
+    pub fn precompute_prefix_states(&self, interleaved_point: &Point<K>) -> Vec<K> {
         let num_layers = 2 * (self.num_vars + 1);
-        let mut states: Vec<[K; 8]> =
-            (0..num_layers + 1).map(|_| array::from_fn(|_| K::zero())).collect();
+        let mut states: Vec<K> = vec![K::zero(); (num_layers + 1) * 8];
 
         let mut current_state: [K; 8] = array::from_fn(|_| K::zero());
         for success in MemoryState::success_states() {
             current_state[success.get_index()] = K::one();
         }
-        states[num_layers] = current_state.clone();
+        states[num_layers * 8..(num_layers + 1) * 8].clone_from_slice(&current_state);
 
         for layer in (0..num_layers).rev() {
             let interleaved_val = Self::get_ith_least_significant_val(interleaved_point, layer);
             current_state = self.apply_layer_step(layer, interleaved_val, &current_state);
-            states[layer] = current_state.clone();
+            states[layer * 8..(layer + 1) * 8].clone_from_slice(&current_state);
         }
 
         states
@@ -661,7 +659,7 @@ impl<K: AbstractField + 'static> BranchingProgram<K> {
         &self,
         layer: usize,
         interleaved_val: K,
-        suffix: &[K; 8],
+        suffix: &[K],
     ) -> [K; 8] {
         let mut result: [K; 8] = array::from_fn(|_| K::zero());
         let k = layer / 2;
@@ -717,8 +715,8 @@ impl<K: AbstractField + 'static> BranchingProgram<K> {
         &self,
         layer: usize,
         lambda: K,
-        prefix_state: &[K; 8],
-        suffix_vector: &[K; 8],
+        prefix_state: &[K],
+        suffix_vector: &[K],
     ) -> K {
         let after_lambda = self.apply_layer_step(layer, lambda, prefix_state);
         suffix_vector
