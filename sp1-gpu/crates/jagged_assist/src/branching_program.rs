@@ -241,7 +241,7 @@ mod tests {
 
     use slop_challenger::{CanObserve, FieldChallenger, IopCtx};
     use slop_jagged::{
-        all_memory_states, transition, BitState, BranchingProgram,
+        transition, BitState, BranchingProgram, MemoryState,
         StateOrFail::{Fail, State},
     };
     use slop_koala_bear::KoalaBearDegree4Duplex;
@@ -270,16 +270,19 @@ mod tests {
 
     #[test]
     fn test_transition() {
-        // Generate all 16 combined bit states (the old width-4 format)
+        // Generate all 16 combined bit states in the GPU's bit ordering:
+        // bit 0 = next_ps, bit 1 = curr_ps, bit 2 = index, bit 3 = row
         let bit_states: Vec<BitState> = (0..16)
             .map(|i| BitState::Combined {
-                row_bit: (i & 1) != 0,
-                index_bit: ((i >> 1) & 1) != 0,
-                curr_col_prefix_sum_bit: ((i >> 2) & 1) != 0,
-                next_col_prefix_sum_bit: ((i >> 3) & 1) != 0,
+                next_col_prefix_sum_bit: (i & 1) != 0,
+                curr_col_prefix_sum_bit: ((i >> 1) & 1) != 0,
+                index_bit: ((i >> 2) & 1) != 0,
+                row_bit: ((i >> 3) & 1) != 0,
             })
             .collect();
-        let memory_states = all_memory_states(); // Note that this doesn't contain the FAIL state.
+        // Use width-4 memory states (no saved_index_bit) to match the GPU's
+        // TRANSITIONS table which has 4 real states + FAIL.
+        let memory_states = MemoryState::width4_states().to_vec();
 
         let mut cpu_transition_results = Vec::new();
         for bit_state in bit_states.iter() {
@@ -320,7 +323,7 @@ mod tests {
             .into();
 
         // Need to retrieve these again, because they are moved into the cuda task.
-        let memory_states = all_memory_states();
+        let memory_states = MemoryState::width4_states().to_vec();
 
         let mut gpu_transition_results: Tensor<usize, CpuBackend> = gpu_transition_results.into();
         gpu_transition_results.reshape_in_place([bit_states.len(), memory_states.len() + 1]);
