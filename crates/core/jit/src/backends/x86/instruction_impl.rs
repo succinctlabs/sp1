@@ -752,7 +752,7 @@ impl ComputeInstructions for TranspilerBackend {
         // 1. Copy the current PC into TEMP_A
         // 2. Increment the PC by the immediate.
         // ------------------------------------
-        let value = self.pc_current + imm;
+        let value = self.pc_current.wrapping_add(imm);
 
         // Store the result in the destination register.
         self.emit_risc_register_store(TEMP_A, Some(value), rd);
@@ -778,10 +778,8 @@ impl ControlFlowInstructions for TranspilerBackend {
         // Mark that a control flow instruction has been inserted.
         self.control_flow_instruction_inserted = true;
 
-        // Store the current pc + 4 into
-        let pc = self.pc_current;
-        let target_pc = pc + imm;
-        let next_pc = pc + 4;
+        let target_pc = self.pc_current.wrapping_add(imm);
+        let next_pc = self.pc_current.wrapping_add(4);
 
         // Store the current PC + 4 into the destination register.
         self.emit_risc_register_store(TEMP_A, Some(next_pc), rd);
@@ -804,7 +802,7 @@ impl ControlFlowInstructions for TranspilerBackend {
         // ------------------------------------
         // 1. If rs1 is immediate, we can do fast jumping
         // ------------------------------------
-        let jump_target = self.reg_values.get(&rs1).map(|rs1_imm| rs1_imm + imm);
+        let jump_target = self.reg_values.get(&rs1).map(|rs1_imm| rs1_imm.wrapping_add(imm));
 
         // ------------------------------------
         // 2. Update PC value
@@ -840,8 +838,8 @@ impl ControlFlowInstructions for TranspilerBackend {
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
         self.emit_risc_operand_load(rs2.into(), TEMP_B);
 
-        let branched_target = self.pc_current + imm;
-        let not_branched_target = self.pc_current + 4;
+        let branched_target = self.pc_current.wrapping_add(imm);
+        let not_branched_target = self.pc_current.wrapping_add(4);
 
         // Compare the registers
         dynasm! {
@@ -886,8 +884,8 @@ impl ControlFlowInstructions for TranspilerBackend {
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
         self.emit_risc_operand_load(rs2.into(), TEMP_B);
 
-        let branched_target = self.pc_current + imm;
-        let not_branched_target = self.pc_current + 4;
+        let branched_target = self.pc_current.wrapping_add(imm);
+        let not_branched_target = self.pc_current.wrapping_add(4);
 
         dynasm! {
             self;
@@ -931,8 +929,8 @@ impl ControlFlowInstructions for TranspilerBackend {
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
         self.emit_risc_operand_load(rs2.into(), TEMP_B);
 
-        let branched_target = self.pc_current + imm;
-        let not_branched_target = self.pc_current + 4;
+        let branched_target = self.pc_current.wrapping_add(imm);
+        let not_branched_target = self.pc_current.wrapping_add(4);
 
         dynasm! {
             self;
@@ -975,8 +973,8 @@ impl ControlFlowInstructions for TranspilerBackend {
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
         self.emit_risc_operand_load(rs2.into(), TEMP_B);
 
-        let branched_target = self.pc_current + imm;
-        let not_branched_target = self.pc_current + 4;
+        let branched_target = self.pc_current.wrapping_add(imm);
+        let not_branched_target = self.pc_current.wrapping_add(4);
 
         dynasm! {
             self;
@@ -1021,8 +1019,8 @@ impl ControlFlowInstructions for TranspilerBackend {
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
         self.emit_risc_operand_load(rs2.into(), TEMP_B);
 
-        let branched_target = self.pc_current + imm;
-        let not_branched_target = self.pc_current + 4;
+        let branched_target = self.pc_current.wrapping_add(imm);
+        let not_branched_target = self.pc_current.wrapping_add(4);
 
         dynasm! {
             self;
@@ -1063,8 +1061,8 @@ impl ControlFlowInstructions for TranspilerBackend {
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
         self.emit_risc_operand_load(rs2.into(), TEMP_B);
 
-        let branched_target = self.pc_current + imm;
-        let not_branched_target = self.pc_current + 4;
+        let branched_target = self.pc_current.wrapping_add(imm);
+        let not_branched_target = self.pc_current.wrapping_add(4);
 
         dynasm! {
             self;
