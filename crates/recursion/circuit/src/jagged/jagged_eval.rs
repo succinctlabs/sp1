@@ -2,8 +2,8 @@ use std::marker::PhantomData;
 
 use rayon::ThreadPoolBuilder;
 use slop_jagged::{
-    deinterleave_prefix_sums, interleave_prefix_sums, BranchingProgram,
-    JaggedLittlePolynomialVerifierParams, JaggedSumcheckEvalProof,
+    deinterleave_prefix_sums, BranchingProgram, JaggedLittlePolynomialVerifierParams,
+    JaggedSumcheckEvalProof,
 };
 use slop_multilinear::{Mle, Point};
 use sp1_primitives::{SP1ExtensionField, SP1Field};
@@ -133,6 +133,13 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>>
         );
 
         // Compute the jagged eval sc expected eval and assert it matches the proof's eval.
+        // De-interleave the proof point from interleaved [next, curr, next, curr, ...]
+        // to [curr..., next...] layout to match merged_prefix_sum ordering.
+        let (curr_ext, next_ext) =
+            deinterleave_prefix_sums(&partial_sumcheck_proof.point_and_eval.0);
+        let deinterleaved_point: Vec<_> =
+            curr_ext.to_vec().into_iter().chain(next_ext.to_vec()).collect();
+
         let current_column_prefix_sums = params.col_prefix_sums.iter();
         let next_column_prefix_sums = params.col_prefix_sums.iter().skip(1);
         let mut prefix_sum_felts = Vec::new();
@@ -144,13 +151,13 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>>
                 assert!(current_column_prefix_sum.dimension() <= 30);
                 assert!(next_column_prefix_sum.dimension() <= 30);
 
-                let merged_prefix_sum =
-                    interleave_prefix_sums(current_column_prefix_sum, next_column_prefix_sum);
+                let mut merged_prefix_sum = current_column_prefix_sum.clone();
+                merged_prefix_sum.extend(next_column_prefix_sum);
 
                 let (full_lagrange_eval, felt) = C::prefix_sum_checks(
                     builder,
                     merged_prefix_sum.to_vec(),
-                    partial_sumcheck_proof.point_and_eval.0.to_vec(),
+                    deinterleaved_point.clone(),
                 );
                 prefix_sum_felts.push(felt);
                 *z_col_eq_val * full_lagrange_eval
