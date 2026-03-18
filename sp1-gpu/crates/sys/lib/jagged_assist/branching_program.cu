@@ -481,7 +481,7 @@ __global__ void branchingProgram(
 // ============================================================================
 
 /// Compute the 3-variable partial Lagrange basis (8 entries) for variables (a, b, c).
-/// Output indices follow: index = (c_bit << 2) | (b_bit << 1) | a_bit
+/// Output indices follow: index = (a_bit << 2) | (b_bit << 1) | c_bit
 template<typename EF>
 __device__ void computeThreeVarPartialLagrange(EF a, EF b, EF c, EF *output) {
     EF a_vals[2] = {EF::one() - a, a};
@@ -549,7 +549,9 @@ __global__ void precomputePrefixStates(
                     current_prefix_sums, prefix_sum_length, col, num_columns, k));
 
                 EF three_var_eq[8];
-                computeThreeVarPartialLagrange<EF>(z_row_val, z_index_val, curr_ps_val, three_var_eq);
+                // Layout: (curr_ps_bit << 2) | (index_bit << 1) | row_bit
+                // to match CURR_TRANSITIONS_W8 bit state indexing.
+                computeThreeVarPartialLagrange<EF>(curr_ps_val, z_index_val, z_row_val, three_var_eq);
 
                 for (int ms = 0; ms < WIDE_BP_WIDTH; ms++) {
                     EF accum_elems[8];
@@ -828,7 +830,9 @@ __global__ void updateSuffixVector(
         EF z_index_val = getIthLeastSignificantVal<EF>(z_index, z_index_length, k);
 
         EF three_var_eq[8];
-        computeThreeVarPartialLagrange<EF>(z_row_val, z_index_val, alpha, three_var_eq);
+        // Layout: (alpha_bit << 2) | (index_bit << 1) | row_bit
+        // to match CURR_TRANSITIONS_W8 bit state indexing (alpha replaces curr_ps).
+        computeThreeVarPartialLagrange<EF>(alpha, z_index_val, z_row_val, three_var_eq);
 
         for (int ms = 0; ms < WIDE_BP_WIDTH; ms++) {
             for (int bs = 0; bs < 8; bs++) {
