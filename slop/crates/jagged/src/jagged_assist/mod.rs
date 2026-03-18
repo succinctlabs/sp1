@@ -59,7 +59,14 @@ mod tests {
 
     #[test]
     fn test_jagged_eval_sumcheck() {
-        let row_counts = [12, 1, 0, 0, 17, 0];
+        let mut row_counts =
+            vec![1 << 20, 1 << 17, 0, 0, 1 << 17, 0, 1 << 21, 1 << 21, 1 << 20, 1 << 19, 0];
+
+        let row_counts_extension = [1 << 21; 1 << 6];
+        let row_counts_second_extension = [1 << 9; 1 << 10];
+
+        row_counts.extend(&row_counts_extension);
+        row_counts.extend(&row_counts_second_extension);
 
         let mut rng = thread_rng();
 
@@ -75,7 +82,7 @@ mod tests {
         prefix_sums.push(*prefix_sums.last().unwrap() + row_counts.last().unwrap());
         let log_m = log2_ceil_usize(*prefix_sums.last().unwrap());
 
-        let log_max_row_count = 7;
+        let log_max_row_count = 21;
 
         let z_row: Point<EF> = (0..log_max_row_count).map(|_| rng.gen::<EF>()).collect();
         let z_col: Point<EF> =
@@ -126,6 +133,7 @@ mod tests {
 
         let mut sum_values = Buffer::from(vec![EF::zero(); 6 * (log_m + 1)]);
 
+        let now = std::time::Instant::now();
         let sc_proof = prove_jagged_eval_sumcheck(
             batch_eval_poly,
             &mut challenger,
@@ -133,6 +141,7 @@ mod tests {
             1,
             &mut sum_values,
         );
+        println!("Proof generation took: {:?}", now.elapsed().as_secs_f32());
 
         assert!(sc_proof.claimed_sum == expected_sum);
 
