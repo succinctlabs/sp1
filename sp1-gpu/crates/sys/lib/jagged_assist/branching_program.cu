@@ -624,8 +624,7 @@ __global__ void evalWithCachedAtZeroAndHalf(
     EF half,
     EF *output  // [2 * num_columns]: [y_0_values..., y_half_values...]
 ) {
-    size_t num_layers = 2 * (max(z_row_length, z_index_length) + 1);
-    size_t layer = num_layers - 1 - round_num;
+    size_t layer = round_num;
     int k = static_cast<int>(layer / 2);
 
     for (size_t col = blockDim.x * blockIdx.x + threadIdx.x; col < num_columns; col += blockDim.x * gridDim.x) {
@@ -769,9 +768,8 @@ __global__ void evalWithCachedAtZeroAndHalf(
         EF eq_zero;
         EF eq_half = half;
 
-        // The round_num-th least-significant bit of the merged prefix sum
-        // For even layers: layer = num_layers - 1 - round_num, and the relevant prefix sum
-        // depends on whether layer is even (curr) or odd (next).
+        // Access the k-th least-significant bit of the relevant prefix sum.
+        // Even layers use current_prefix_sums, odd layers use next_prefix_sums.
         if (layer % 2 == 0) {
             // curr prefix sum value
             EF ps_val = EF(getIthLeastSignificantValFromPoints<F>(
@@ -811,7 +809,7 @@ __global__ void updateSuffixVector(
     if (blockIdx.x != 0 || threadIdx.x != 0) return;
 
     EF alpha = alpha_ptr[0];
-    size_t layer = num_layers - 1 - round_num;
+    size_t layer = round_num;
     int k = static_cast<int>(layer / 2);
 
     EF suffix[8];
