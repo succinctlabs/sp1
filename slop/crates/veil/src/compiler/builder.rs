@@ -1,7 +1,5 @@
-use std::ops::{Add, Mul, Sub};
-
 use itertools::Itertools;
-use slop_algebra::AbstractField;
+use slop_algebra::{AbstractField, Algebra};
 use slop_multilinear::Point;
 
 pub trait ConstraintCtx {
@@ -9,10 +7,7 @@ pub trait ConstraintCtx {
 
     type Field: AbstractField;
 
-    type Expr: AbstractField
-        + Add<Self::Field, Output = Self::Expr>
-        + Sub<Self::Field, Output = Self::Expr>
-        + Mul<Self::Field, Output = Self::Expr>;
+    type Expr: Algebra<Self::Field>;
 
     fn assert_zero(&mut self, expr: Self::Expr);
 
