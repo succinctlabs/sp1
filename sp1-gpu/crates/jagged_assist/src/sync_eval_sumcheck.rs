@@ -303,3 +303,110 @@ where
 
     JaggedSumcheckEvalProof { partial_sumcheck_proof }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use rand::rngs::StdRng;
+    use rand::{Rng, SeedableRng};
+    use slop_algebra::AbstractField;
+    use slop_alloc::Buffer;
+    use slop_challenger::{FieldChallenger, IopCtx};
+    use slop_jagged::{
+        prove_jagged_eval_sumcheck, JaggedEvalSumcheckPoly, JaggedLittlePolynomialProverParams,
+    };
+    use slop_koala_bear::{KoalaBearDegree4Duplex, KoalaPerm};
+    use slop_multilinear::Point;
+    use sp1_gpu_challenger::DuplexChallenger as DeviceDuplexChallenger;
+    use sp1_gpu_cudart::TaskScope;
+    use sp1_primitives::{SP1ExtensionField, SP1Field};
+
+    type F = SP1Field;
+    type EF = SP1ExtensionField;
+    type HostChallenger = slop_challenger::DuplexChallenger<F, KoalaPerm, 16, 8>;
+    type DeviceChallenger = DeviceDuplexChallenger<F, TaskScope>;
+
+    /// End-to-end test: run the GPU jagged assist sumcheck prover and compare
+    /// its output against the CPU reference implementation.
+    #[test]
+    fn test_gpu_vs_cpu_jagged_eval_sumcheck() {
+        let row_counts = vec![1 << 10, 1 << 8, 0, 1 << 12, 1 << 7, 0, 1 << 11, 1 << 10];
+        let log_max_row_count = 12;
+
+        let prover_params =
+            JaggedLittlePolynomialProverParams::new(row_counts.clone(), log_max_row_count);
+
+        let mut rng = StdRng::seed_from_u64(42);
+
+        let prefix_sums = &prover_params.col_prefix_sums_usize;
+        let log_m = log2_ceil_usize(*prefix_sums.last().unwrap());
+
+        let z_row: Point<EF> = (0..log_max_row_count).map(|_| rng.gen::<EF>()).collect();
+        let z_col: Point<EF> =
+            (0..log2_ceil_usize(row_counts.len())).map(|_| rng.gen::<EF>()).collect();
+        let z_index: Point<EF> = (0..log_m + 1).map(|_| rng.gen::<EF>()).collect();
+
+        // Compute expected sum (shared reference value).
+        let verifier_params = prover_params.clone().into_verifier_params::<F>();
+        let expected_sum =
+            verifier_params.full_jagged_little_polynomial_evaluation(&z_row, &z_col, &z_index);
+
+        // --- CPU prover ---
+        let mut cpu_challenger = KoalaBearDegree4Duplex::default_challenger();
+        cpu_challenger.observe_ext_element(expected_sum);
+
+        let cpu_poly = JaggedEvalSumcheckPoly::<F, EF, HostChallenger>::new_from_jagged_params(
+            z_row.clone(),
+            z_col.clone(),
+            z_index.clone(),
+            prefix_sums.clone(),
+        );
+        let mut cpu_sum_values = Buffer::from(vec![EF::zero(); 6 * (log_m + 1)]);
+        let cpu_proof = prove_jagged_eval_sumcheck(
+            cpu_poly,
+            &mut cpu_challenger,
+            expected_sum,
+            1,
+            &mut cpu_sum_values,
+        );
+
+        // --- GPU prover ---
+        let mut gpu_host_challenger = KoalaBearDegree4Duplex::default_challenger();
+        let gpu_proof = sp1_gpu_cudart::run_sync_in_place(|backend| {
+            prove_jagged_evaluation_sync::<F, EF, HostChallenger, DeviceChallenger>(
+                &prover_params,
+                &z_row,
+                &z_col,
+                &z_index,
+                &mut gpu_host_challenger,
+                &backend,
+            )
+        })
+        .unwrap();
+        let gpu_proof = gpu_proof.partial_sumcheck_proof;
+
+        // --- Compare proofs ---
+        assert_eq!(cpu_proof.claimed_sum, gpu_proof.claimed_sum, "Claimed sums differ");
+
+        assert_eq!(
+            cpu_proof.univariate_polys.len(),
+            gpu_proof.univariate_polys.len(),
+            "Number of rounds differ"
+        );
+
+        for (i, (cpu_poly, gpu_poly)) in
+            cpu_proof.univariate_polys.iter().zip(gpu_proof.univariate_polys.iter()).enumerate()
+        {
+            assert_eq!(
+                cpu_poly.coefficients, gpu_poly.coefficients,
+                "Univariate polynomial coefficients differ at round {i}"
+            );
+        }
+
+        assert_eq!(
+            cpu_proof.point_and_eval, gpu_proof.point_and_eval,
+            "Final point and eval differ"
+        );
+    }
+}
