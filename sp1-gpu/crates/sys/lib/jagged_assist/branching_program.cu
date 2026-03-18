@@ -799,6 +799,25 @@ __global__ void transition(
     }
 }
 
+// Output the width-8 transition tables: CURR_TRANSITIONS_W8[8][8] followed by NEXT_TRANSITIONS_W8[2][8].
+// Total output: (8*8 + 2*8) = 80 entries as size_t.
+template<typename F, typename EF>
+__global__ void transition_w8(
+    size_t *__restrict__ output
+) {
+    size_t idx = 0;
+    for (size_t bs = 0; bs < 8; bs++) {
+        for (size_t ms = 0; ms < WIDE_BP_WIDTH; ms++) {
+            output[idx++] = CURR_TRANSITIONS_W8[bs][ms];
+        }
+    }
+    for (size_t bs = 0; bs < 2; bs++) {
+        for (size_t ms = 0; ms < WIDE_BP_WIDTH; ms++) {
+            output[idx++] = NEXT_TRANSITIONS_W8[bs][ms];
+        }
+    }
+}
+
 extern "C" void *branching_program_kernel()
 {
     return (void *)branchingProgram<kb31_t, kb31_extension_t>;
@@ -808,6 +827,11 @@ extern "C" void *branching_program_kernel()
 extern "C" void *transition_kernel()
 {
     return (void *)transition<kb31_t, kb31_extension_t>;
+}
+
+extern "C" void *transition_w8_kernel()
+{
+    return (void *)transition_w8<kb31_t, kb31_extension_t>;
 }
 
 

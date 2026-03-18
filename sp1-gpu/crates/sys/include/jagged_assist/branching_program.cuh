@@ -4,6 +4,7 @@
 
 extern "C" void* branching_program_kernel();
 extern "C" void* transition_kernel();
+extern "C" void* transition_w8_kernel();
 extern "C" void* interpolateAndObserve_kernel();
 extern "C" void* precomputePrefixStates_kernel();
 extern "C" void* evalWithCachedAtZeroAndHalf_kernel();

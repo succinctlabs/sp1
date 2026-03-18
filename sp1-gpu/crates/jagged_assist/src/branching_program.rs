@@ -241,7 +241,7 @@ mod tests {
 
     use slop_challenger::{CanObserve, FieldChallenger, IopCtx};
     use slop_jagged::{
-        transition, BitState, BranchingProgram, MemoryState,
+        all_memory_states, transition, BitState, BranchingProgram, MemoryState,
         StateOrFail::{Fail, State},
     };
     use slop_koala_bear::KoalaBearDegree4Duplex;
@@ -250,7 +250,10 @@ mod tests {
 
     use sp1_gpu_cudart::{
         args,
-        sys::{jagged::transition_kernel, runtime::KernelPtr},
+        sys::{
+            jagged::{transition_kernel, transition_w8_kernel},
+            runtime::KernelPtr,
+        },
         DeviceBuffer, DeviceTensor, TaskScope,
     };
     use sp1_primitives::{SP1ExtensionField, SP1Field};
@@ -260,11 +263,15 @@ mod tests {
 
     pub trait TransitionKernel {
         fn transition_kernel() -> KernelPtr;
+        fn transition_w8_kernel() -> KernelPtr;
     }
 
     impl TransitionKernel for TaskScope {
         fn transition_kernel() -> KernelPtr {
             unsafe { transition_kernel() }
+        }
+        fn transition_w8_kernel() -> KernelPtr {
+            unsafe { transition_w8_kernel() }
         }
     }
 
@@ -347,6 +354,111 @@ mod tests {
 
             // Verify that the transition from the FAIL state is FAIL.
             assert_eq!(gpu_transition_mem_results.as_slice()[4], 4);
+        }
+
+        // ---- Width-8 transition table checks ----
+        // Fetch CURR_TRANSITIONS_W8[8][8] and NEXT_TRANSITIONS_W8[2][8] from GPU.
+        const WIDE_BP_WIDTH: usize = 8;
+        const WIDE_FAIL: usize = 8;
+        const CURR_ROWS: usize = 8;
+        const NEXT_ROWS: usize = 2;
+        let total_entries = CURR_ROWS * WIDE_BP_WIDTH + NEXT_ROWS * WIDE_BP_WIDTH;
+
+        let gpu_w8_results: Buffer<usize, CpuBackend> =
+            sp1_gpu_cudart::run_sync_in_place(|t| unsafe {
+                let mut output: Tensor<usize, TaskScope> =
+                    Tensor::with_sizes_in([total_entries], t.clone());
+                let args = args!(output.as_mut_ptr());
+                output.assume_init();
+                t.launch_kernel(
+                    <TaskScope as TransitionKernel>::transition_w8_kernel(),
+                    (1usize, 1usize, 1usize),
+                    (1usize, 1usize, 1usize),
+                    &args,
+                    0,
+                )
+                .unwrap();
+                DeviceBuffer::from_raw(output.storage).to_host().unwrap()
+            })
+            .unwrap()
+            .into();
+
+        let gpu_w8: &[usize] = gpu_w8_results.as_slice();
+        let gpu_curr = &gpu_w8[..CURR_ROWS * WIDE_BP_WIDTH];
+        let gpu_next = &gpu_w8[CURR_ROWS * WIDE_BP_WIDTH..];
+
+        let w8_states = all_memory_states();
+        assert_eq!(w8_states.len(), WIDE_BP_WIDTH);
+
+        // Check Curr (even layer) transitions: 8 bit states × 8 memory states.
+        for row in [false, true] {
+            for index in [false, true] {
+                for curr_ps in [false, true] {
+                    let bit_state_idx =
+                        (curr_ps as usize) << 2 | (index as usize) << 1 | row as usize;
+                    let bit_state = BitState::Curr {
+                        row_bit: row,
+                        index_bit: index,
+                        curr_col_prefix_sum_bit: curr_ps,
+                    };
+
+                    for mem_state in &w8_states {
+                        let mem_idx = mem_state.get_index();
+                        let gpu_val = gpu_curr[bit_state_idx * WIDE_BP_WIDTH + mem_idx];
+                        let cpu_result = transition(bit_state, *mem_state);
+
+                        match cpu_result {
+                            State(new_state) => {
+                                assert_eq!(
+                                    gpu_val,
+                                    new_state.get_index(),
+                                    "Curr W8 mismatch: bs={bit_state_idx}, ms={mem_idx}, \
+                                     CPU={}, GPU={gpu_val}",
+                                    new_state.get_index()
+                                );
+                            }
+                            Fail => {
+                                assert_eq!(
+                                    gpu_val, WIDE_FAIL,
+                                    "Curr W8 mismatch: bs={bit_state_idx}, ms={mem_idx}, \
+                                     CPU=Fail, GPU={gpu_val}"
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Check Next (odd layer) transitions: 2 bit states × 8 memory states.
+        for next_ps in [false, true] {
+            let bit_state_idx = next_ps as usize;
+            let bit_state = BitState::Next { next_col_prefix_sum_bit: next_ps };
+
+            for mem_state in &w8_states {
+                let mem_idx = mem_state.get_index();
+                let gpu_val = gpu_next[bit_state_idx * WIDE_BP_WIDTH + mem_idx];
+                let cpu_result = transition(bit_state, *mem_state);
+
+                match cpu_result {
+                    State(new_state) => {
+                        assert_eq!(
+                            gpu_val,
+                            new_state.get_index(),
+                            "Next W8 mismatch: bs={bit_state_idx}, ms={mem_idx}, \
+                             CPU={}, GPU={gpu_val}",
+                            new_state.get_index()
+                        );
+                    }
+                    Fail => {
+                        assert_eq!(
+                            gpu_val, WIDE_FAIL,
+                            "Next W8 mismatch: bs={bit_state_idx}, ms={mem_idx}, \
+                             CPU=Fail, GPU={gpu_val}"
+                        );
+                    }
+                }
+            }
         }
     }
 
