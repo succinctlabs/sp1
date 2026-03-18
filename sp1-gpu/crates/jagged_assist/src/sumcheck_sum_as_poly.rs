@@ -33,13 +33,16 @@ where
         + DeviceTransposeKernel<F>
         + BranchingProgramKernel<F, EF, Challenger>,
 {
+    /// Returns `(Self, expected_sum)` where `expected_sum` is the full jagged little polynomial
+    /// evaluation, computed as the dot product of `z_col_eq_vals` with the branching program
+    /// evaluations extracted from `prefix_states[layer=0, state=INITIAL]`.
     pub fn new(
         z_row: Point<EF>,
         z_index: Point<EF>,
         merged_prefix_sums: &[Point<F>],
-        _z_col_eq_vals: &[EF],
+        z_col_eq_vals: &[EF],
         t: &TaskScope,
-    ) -> Self {
+    ) -> (Self, EF) {
         // Convert z_row and z_index to device
         let z_row_buffer: Buffer<EF> = z_row.to_vec().into();
         let z_row_device: Point<EF, TaskScope> =
@@ -111,25 +114,37 @@ where
             .unwrap();
         }
 
+        // Compute expected sum from prefix_states at layer=0, state=INITIAL_STATE=0.
+        // Layout: prefix_states[(layer * 8 + state) * num_columns + col], so layer=0, state=0
+        // gives prefix_states[0..num_columns], which are the full BP evaluations per column.
+        let mut bp_evals = Buffer::with_capacity_in(num_columns, t.clone());
+        bp_evals.extend_from_device_slice(&prefix_states[..num_columns]).unwrap();
+        let bp_evals_host = unsafe { bp_evals.copy_into_host_vec() };
+        let expected_sum: EF =
+            bp_evals_host.iter().zip(z_col_eq_vals.iter()).map(|(bp, zcol)| *bp * *zcol).sum();
+
         // Initialize suffix vector: [1, 0, 0, 0, 0, 0, 0, 0] (initial state at index 0)
         let mut suffix_init = vec![EF::zero(); 8];
         suffix_init[0] = EF::one();
         let suffix_buffer = Buffer::<EF>::from(suffix_init);
         let suffix_vector_device = DeviceBuffer::from_host(&suffix_buffer, t).unwrap().into_inner();
 
-        Self {
-            z_row: z_row_device,
-            z_index: z_index_device,
-            current_prefix_sums: curr_prefix_sums_device,
-            next_prefix_sums: next_prefix_sums_device,
-            prefix_sum_length,
-            num_columns,
-            num_layers,
-            half,
-            prefix_states,
-            suffix_vector_device,
-            _marker: PhantomData,
-        }
+        (
+            Self {
+                z_row: z_row_device,
+                z_index: z_index_device,
+                current_prefix_sums: curr_prefix_sums_device,
+                next_prefix_sums: next_prefix_sums_device,
+                prefix_sum_length,
+                num_columns,
+                num_layers,
+                half,
+                prefix_states,
+                suffix_vector_device,
+                _marker: PhantomData,
+            },
+            expected_sum,
+        )
     }
 
     #[allow(clippy::too_many_arguments)]
