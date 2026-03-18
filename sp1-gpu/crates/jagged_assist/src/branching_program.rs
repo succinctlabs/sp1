@@ -903,11 +903,9 @@ mod tests {
 
                 assert_eq!(alpha_from_device, alpha);
 
-                let bp_results_device =
-                    DeviceBuffer::from_raw(bp_results_device.0.storage).to_host().unwrap();
-                let bp_results_device = bp_results_device[0];
-
-                assert_eq!(bp_results_device, expected_result);
+                let round_claim_from_device =
+                    DeviceBuffer::from_raw(round_claim_device).to_host().unwrap();
+                assert_eq!(round_claim_from_device[0], expected_result);
             }
 
             let sum_values_from_device =
