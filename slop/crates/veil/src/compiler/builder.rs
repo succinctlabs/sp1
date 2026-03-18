@@ -4,7 +4,7 @@ use itertools::Itertools;
 use slop_algebra::AbstractField;
 use slop_multilinear::Point;
 
-pub trait ConstraintBuilder {
+pub trait ConstraintCtx {
     type MleOracle;
 
     type Field: AbstractField;
@@ -72,7 +72,7 @@ pub trait ConstraintBuilder {
     /// the PCS proof generation/verification phase.
     ///
     /// # Arguments
-    /// * `commitment_index` - Index of the committed MLE (from `commit_mle` or `read_next_pcs_commitment`)
+    /// * `oracle` - Handle to the committed MLE (from `read_oracle`)
     /// * `point` - The evaluation point
     /// * `eval_expr` - Expression representing the claimed evaluation value
     fn assert_mle_eval(
@@ -81,4 +81,22 @@ pub trait ConstraintBuilder {
         point: Point<Self::Expr>,
         eval_expr: Self::Expr,
     );
+}
+
+/// Extension of `ConstraintCtx` that can read from the proof transcript and sample challenges.
+///
+/// Used during the "read" phase of a protocol, where proof data is consumed from the transcript.
+/// Extends `ConstraintCtx` so that a reading context can also be used where only constraining
+/// is needed.
+pub trait ReadingCtx: ConstraintCtx {
+    /// Read a single element from the proof transcript.
+    /// Returns `None` if the transcript is exhausted.
+    fn read(&mut self) -> Option<Self::Expr>;
+
+    /// Read a PCS commitment from the transcript, returning an opaque oracle handle.
+    /// Returns `None` if the transcript is exhausted or parameters don't match.
+    fn read_oracle(&mut self, log_width: usize, log_stacking: usize) -> Option<Self::MleOracle>;
+
+    /// Sample a Fiat-Shamir challenge from the transcript.
+    fn sample(&mut self) -> Self::Expr;
 }
