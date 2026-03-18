@@ -304,13 +304,9 @@ where
 
                     // Check the `end_clk` for cycle limit
                     if let Some(cycle_limit) = self.cycle_limit {
-                        let last_clk = minimal_executor.global_clk();
+                        let last_clk = chunk.clk_end();
                         if last_clk > cycle_limit {
-                            tracing::error!(
-                                "Cycle limit exceeded: last_clk = {}, cycle_limit = {}",
-                                last_clk,
-                                cycle_limit
-                            );
+                            tracing::error!("Cycle limit exceeded: last_clk = {last_clk}, cycle_limit = {cycle_limit}");
                             return Err(TaskError::Execution(ExecutionError::ExceededCycleLimit(
                                 cycle_limit,
                             )));
