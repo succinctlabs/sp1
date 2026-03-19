@@ -1,5 +1,7 @@
 use thiserror::Error;
 
+use crate::compiler::ctx::TranscriptExhaustedError;
+
 use super::{ConstraintCtx, ReadingCtx};
 
 #[derive(Debug, Error)]
@@ -9,7 +11,7 @@ pub enum SumcheckError {
     #[error("sumcheck proof has no rounds")]
     EmptyProof,
     #[error("unexpected end of transcript")]
-    TranscriptExhausted,
+    TranscriptExhausted(#[from] TranscriptExhaustedError),
 }
 
 /// Parameters for a sumcheck protocol instance.
@@ -51,9 +53,7 @@ impl SumcheckParam {
         let mut univariate_poly_coeffs = Vec::with_capacity(self.num_variables as usize);
 
         for _ in 0..self.num_variables {
-            let coeffs: Vec<C::Expr> = (0..self.degree + 1)
-                .map(|_| ctx.read().ok_or(SumcheckError::TranscriptExhausted))
-                .collect::<Result<_, _>>()?;
+            let coeffs = ctx.read_next(self.degree + 1)?;
             let alpha = ctx.sample();
             alphas.push(alpha);
             univariate_poly_coeffs.push(coeffs);
@@ -62,8 +62,8 @@ impl SumcheckParam {
         // Alphas are collected outer-to-inner, reverse for point representation.
         alphas.reverse();
 
-        let claimed_sum = ctx.read().ok_or(SumcheckError::TranscriptExhausted)?;
-        let claimed_eval = ctx.read().ok_or(SumcheckError::TranscriptExhausted)?;
+        let claimed_sum = ctx.read_one()?;
+        let claimed_eval = ctx.read_one()?;
 
         Ok(SumcheckView { univariate_poly_coeffs, point: alphas, claimed_sum, claimed_eval })
     }

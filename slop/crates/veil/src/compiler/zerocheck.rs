@@ -68,9 +68,8 @@ impl ZerocheckParam {
         let sumcheck_view = sumcheck_param.read(ctx)?;
 
         // Read evaluations of each input polynomial at the sumcheck point.
-        let evals: Vec<C::Expr> = (0..self.num_polys)
-            .map(|_| ctx.read().ok_or(ZerocheckError::TranscriptExhausted))
-            .collect::<Result<_, _>>()?;
+        let evals =
+            ctx.read_next(self.num_polys).map_err(|_| ZerocheckError::TranscriptExhausted)?;
 
         Ok(ZerocheckView { oracles, z, sumcheck_view, evals })
     }

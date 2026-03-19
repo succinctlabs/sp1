@@ -1,6 +1,9 @@
+use core::slice;
+
 use itertools::Itertools;
 use slop_algebra::{Algebra, ExtensionField, Field};
 use slop_multilinear::Point;
+use thiserror::Error;
 
 pub trait ConstraintCtx {
     type Field: Field;
@@ -72,15 +75,18 @@ pub trait ConstraintCtx {
     );
 }
 
+#[derive(Clone, Copy, Debug, Error)]
+#[error("transcript exhausted, message size {0} too large")]
+pub struct TranscriptExhaustedError(pub usize);
+
 /// Extension of `ConstraintCtx` that can read from the proof transcript and sample challenges.
 ///
 /// Used during the "read" phase of a protocol, where proof data is consumed from the transcript.
 /// Extends `ConstraintCtx` so that a reading context can also be used where only constraining
 /// is needed.
 pub trait ReadingCtx: ConstraintCtx {
-    /// Read a single element from the proof transcript.
-    /// Returns `None` if the transcript is exhausted.
-    fn read(&mut self) -> Option<Self::Expr>;
+    /// Read a message from the transcript into a slice of expressions.
+    fn read_exact(&mut self, buf: &mut [Self::Expr]) -> Result<(), TranscriptExhaustedError>;
 
     /// Read a PCS commitment from the transcript, returning an opaque oracle handle.
     /// Returns `None` if the transcript is exhausted or parameters don't match.
@@ -88,4 +94,18 @@ pub trait ReadingCtx: ConstraintCtx {
 
     /// Sample a Fiat-Shamir challenge from the transcript.
     fn sample(&mut self) -> Self::Expr;
+
+    fn read_one(&mut self) -> Result<Self::Expr, TranscriptExhaustedError> {
+        let mut expr = Self::Expr::default();
+        self.read_exact(slice::from_mut(&mut expr))?;
+        Ok(expr)
+    }
+
+    fn read_next(&mut self, count: usize) -> Result<Vec<Self::Expr>, TranscriptExhaustedError> {
+        let mut values = vec![Self::Expr::default(); count];
+        self.read_exact(&mut values)?;
+        Ok(values)
+    }
 }
+
+pub trait TranscriptMessage {}

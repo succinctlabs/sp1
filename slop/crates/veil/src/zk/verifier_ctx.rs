@@ -4,7 +4,7 @@ use slop_algebra::{Dorroh, TwoAdicField};
 use slop_challenger::{FieldChallenger, IopCtx};
 use slop_multilinear::Point;
 
-use crate::compiler::{ConstraintCtx, ReadingCtx};
+use crate::compiler::{ConstraintCtx, ReadingCtx, TranscriptExhaustedError};
 use crate::zk::inner::{
     ConstraintContextInnerExt, ExpressionIndex, MleCommitmentIndex, ZkCnstrAndReadingCtxInner,
     ZkVerificationContext,
@@ -115,8 +115,19 @@ impl<GC: ZkIopCtx> ConstraintCtx for ZkVerifierCtx<GC> {
 // ============================================================================
 
 impl<GC: ZkIopCtx> ReadingCtx for ZkVerifierCtx<GC> {
-    fn read(&mut self) -> Option<HiddenElement<GC>> {
-        self.inner.read_one().map(Dorroh::Element)
+    fn read_exact(&mut self, buf: &mut [Self::Expr]) -> Result<(), TranscriptExhaustedError> {
+        // If we only want one element, use a more efficient method that avoids allocations.
+        if buf.len() == 1 {
+            buf[0] =
+                self.inner.read_one().map(Dorroh::Element).ok_or(TranscriptExhaustedError(1))?;
+            return Ok(());
+        }
+        // Otherwise, read a vector and copy.
+        let values = self.inner.read_next(buf.len()).ok_or(TranscriptExhaustedError(buf.len()))?;
+        for (b, value) in buf.iter_mut().zip(values) {
+            *b = Dorroh::Element(value);
+        }
+        Ok(())
     }
 
     fn read_oracle(&mut self, log_width: usize, log_stacking: usize) -> Option<MleCommit> {
