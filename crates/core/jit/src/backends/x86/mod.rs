@@ -27,8 +27,8 @@ mod transpiler;
 // * r9 holds `tail_start` in tracing mode.
 // * r10 holds memory pointer.
 // * r15 holds clk or saved stack pointer when calling external functions.
+// * rsi holds global clk.
 // * TEMP_A, TEMP_B, rax, rcx, rdx, are free to used by any code sequences.
-// * rsi is reserved for now.
 
 /// The first scratch register.
 ///
@@ -69,6 +69,11 @@ const JUMP_TABLE: u8 = Rq::R13 as u8;
 ///
 /// Callee-saved register.
 const TRACE_BUF: u8 = Rq::R14 as u8;
+
+/// The global clk value.
+///
+/// Callee-saved register.
+const GLOBAL_CLK: u8 = Rq::RSI as u8;
 
 /// The saved stack pointer, used during external function calls.
 ///
@@ -749,21 +754,27 @@ impl TranspilerBackend {
 
     #[inline]
     fn hoist_clock(&mut self) {
+        let global_clk_offset = offset_of!(JitContext, global_clk) as i32;
+
         dynasm! {
             self;
             .arch x64;
 
-            mov Rq(CLOCK_OR_SAVED_STACK_PTR), QWORD [Rq(CONTEXT) + CLK_OFFSET]
+            mov Rq(CLOCK_OR_SAVED_STACK_PTR), QWORD [Rq(CONTEXT) + CLK_OFFSET];
+            mov Rq(GLOBAL_CLK), QWORD [Rq(CONTEXT) + global_clk_offset]
         }
     }
 
     #[inline]
     fn write_back_clock(&mut self) {
+        let global_clk_offset = offset_of!(JitContext, global_clk) as i32;
+
         dynasm! {
             self;
             .arch x64;
 
-            mov QWORD [Rq(CONTEXT) + CLK_OFFSET], Rq(CLOCK_OR_SAVED_STACK_PTR)
+            mov QWORD [Rq(CONTEXT) + CLK_OFFSET], Rq(CLOCK_OR_SAVED_STACK_PTR);
+            mov QWORD [Rq(CONTEXT) + global_clk_offset], Rq(GLOBAL_CLK)
         }
     }
 
@@ -863,7 +874,7 @@ impl TranspilerBackend {
             xor Rq(TEMP_A), 1;
 
             // Add the inverted value to global_clk
-            add QWORD [Rq(CONTEXT) + GLOBAL_CLK_OFFSET], Rq(TEMP_A)
+            add Rq(GLOBAL_CLK), Rq(TEMP_A)
         }
     }
 
