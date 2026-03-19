@@ -1,10 +1,10 @@
 use slop_algebra::TwoAdicField;
 use slop_challenger::IopCtx;
 
-/// Extension of [`IopCtx`] for ZK proofs (field constraints only).
+/// Extension of [`IopCtx`] for IOP contexts that can be used with VEIL.
 ///
-/// Verifiers only need this trait. Prover code that requires merkle commitments
-/// should additionally constrain a separate `MK: ZkMerkleizer<GC>` parameter.
+/// Currently, we simply limit this to hash based IOPs using Reed-Solomon encoding. Future
+/// implementation can expend to other codes.
 pub trait ZkIopCtx: IopCtx<F: TwoAdicField, EF: TwoAdicField> {}
 
 /// KoalaBear ZK context.
