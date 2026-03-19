@@ -44,7 +44,7 @@
 //! )?;
 //! ```
 
-use crate::zk::inner::ZkIopCtx;
+use crate::zk::inner::{ZkIopCtx, ZkMerkleizer};
 use itertools::Itertools;
 use slop_algebra::{AbstractExtensionField, AbstractField, TwoAdicField};
 use slop_basefold::{BaseFoldVerifierError, BasefoldProof, BasefoldVerifier, FriConfig};
@@ -379,10 +379,10 @@ where
 /// ```ignore
 /// let (zk_prover, zk_verifier) = initialize_zk_prover_and_verifier::<GC>(1, NUM_VARS);
 /// ```
-pub fn initialize_zk_prover_and_verifier<GC: ZkIopCtx>(
+pub fn initialize_zk_prover_and_verifier<GC: ZkIopCtx, MK: ZkMerkleizer<GC>>(
     num_expected_commitments: usize,
     log_stacking_height: u32,
-) -> (ZkBasefoldProver<GC>, ZkStackedPcsVerifier<GC>)
+) -> (ZkBasefoldProver<GC, MK>, ZkStackedPcsVerifier<GC>)
 where
     GC::F: TwoAdicField,
 {

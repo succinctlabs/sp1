@@ -79,7 +79,7 @@
 //! See `basefold-prover/src/fri.rs::FriCpuProver::batch` for the standard batching
 //! implementation that you can adapt for ZK.
 
-use crate::zk::inner::{MerkleProverData, ZkIopCtx};
+use crate::zk::inner::{MerkleProverData, ZkIopCtx, ZkMerkleizer};
 use itertools::Itertools;
 use slop_algebra::AbstractField;
 use slop_alloc::CpuBackend;
@@ -93,7 +93,7 @@ use slop_commit::Message;
 use slop_dft::{Dft, DftOrdering};
 use slop_futures::OwnedBorrow;
 use slop_matrix::dense::RowMajorMatrix;
-use slop_merkle_tree::{ComputeTcsOpenings, MerkleTreeOpeningAndProof, TensorCsProver};
+use slop_merkle_tree::MerkleTreeOpeningAndProof;
 use slop_multilinear::{Mle, Point};
 use slop_tensor::Tensor;
 use std::{marker::PhantomData, sync::Arc};
@@ -116,16 +116,16 @@ use std::{marker::PhantomData, sync::Arc};
 /// A BasefoldProof or an error
 /// The commitments in the basefold proof correspond to the Merkleization of the basefield components of the extension field MLE
 #[allow(clippy::type_complexity)]
-pub fn prove_from_batched_inputs<GC: ZkIopCtx>(
-    basefold_prover: &BasefoldProver<GC, GC::Merkleizer>,
+pub fn prove_from_batched_inputs<GC: ZkIopCtx, MK: ZkMerkleizer<GC>>(
+    basefold_prover: &BasefoldProver<GC, MK>,
     mut eval_point: Point<GC::EF>,
     batched_mle: Mle<GC::EF, CpuBackend>,
     batched_eval_claim: GC::EF,
     batched_codeword: RsCodeWord<GC::F, CpuBackend>,
-    prover_data: BasefoldProverData<GC::F, MerkleProverData<GC>>,
+    prover_data: BasefoldProverData<GC::F, MerkleProverData<GC, MK>>,
     challenger: &mut GC::Challenger,
-) -> Result<BasefoldProof<GC>, BaseFoldConfigProverError<GC, GC::Merkleizer>> {
-    let fri_prover = FriCpuProver::<GC, GC::Merkleizer>(PhantomData);
+) -> Result<BasefoldProof<GC>, BaseFoldConfigProverError<GC, MK>> {
+    let fri_prover = FriCpuProver::<GC, MK>(PhantomData);
 
     // From this point on, run the BaseFold protocol on the random linear combination codeword,
     // the random linear combination multilinear, and the random linear combination of the
@@ -202,7 +202,7 @@ pub fn prove_from_batched_inputs<GC: ZkIopCtx>(
     let proof = basefold_prover
         .tcs_prover
         .prove_openings_at_indices(tcs_prover_data, &query_indices)
-        .map_err(BaseFoldConfigProverError::<GC, GC::Merkleizer>::TcsCommitError)
+        .map_err(BaseFoldConfigProverError::<GC, MK>::TcsCommitError)
         .unwrap();
     let opening = MerkleTreeOpeningAndProof::<GC> { values, proof };
     component_polynomials_query_openings_and_proofs.push(opening);
@@ -220,7 +220,7 @@ pub fn prove_from_batched_inputs<GC: ZkIopCtx>(
         let proof = basefold_prover
             .tcs_prover
             .prove_openings_at_indices(data, &indices)
-            .map_err(BaseFoldConfigProverError::<GC, GC::Merkleizer>::TcsCommitError)?;
+            .map_err(BaseFoldConfigProverError::<GC, MK>::TcsCommitError)?;
         let opening = MerkleTreeOpeningAndProof { values, proof };
         query_phase_openings_and_proofs.push(opening);
     }
@@ -247,14 +247,14 @@ pub fn prove_from_batched_inputs<GC: ZkIopCtx>(
 /// - `C::A = CpuBackend`: Only CPU backend is supported
 /// - `C::Encoder = CpuDftEncoder<GC::F, Radix2DitParallel>`: Encoder must use Radix2DitParallel DFT
 #[derive(Clone)]
-pub struct ZkBasefoldProver<GC: ZkIopCtx> {
+pub struct ZkBasefoldProver<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> {
     /// The underlying BasefoldProver instance
-    pub inner: BasefoldProver<GC, GC::Merkleizer>,
+    pub inner: BasefoldProver<GC, MK>,
 }
 
-impl<GC: ZkIopCtx> ZkBasefoldProver<GC> {
+impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkBasefoldProver<GC, MK> {
     /// Create a new ZkBasefoldProver wrapping a BasefoldProver
-    pub fn new(inner: BasefoldProver<GC, GC::Merkleizer>) -> Self {
+    pub fn new(inner: BasefoldProver<GC, MK>) -> Self {
         Self { inner }
     }
 
@@ -278,9 +278,9 @@ impl<GC: ZkIopCtx> ZkBasefoldProver<GC> {
         batched_mle: Mle<GC::EF, CpuBackend>,
         batched_codeword: RsCodeWord<GC::F, CpuBackend>,
         batched_eval_claim: GC::EF,
-        prover_data: BasefoldProverData<GC::F, MerkleProverData<GC>>,
+        prover_data: BasefoldProverData<GC::F, MerkleProverData<GC, MK>>,
         challenger: &mut GC::Challenger,
-    ) -> Result<BasefoldProof<GC>, BaseFoldConfigProverError<GC, GC::Merkleizer>> {
+    ) -> Result<BasefoldProof<GC>, BaseFoldConfigProverError<GC, MK>> {
         prove_from_batched_inputs(
             &self.inner,
             eval_point,
@@ -351,8 +351,8 @@ impl<GC: ZkIopCtx> ZkBasefoldProver<GC> {
         &self,
         mles: Message<Mle<GC::F, CpuBackend>>,
     ) -> Result<
-        (GC::Digest, BasefoldProverData<GC::F, MerkleProverData<GC>>),
-        BaseFoldConfigProverError<GC, GC::Merkleizer>,
+        (GC::Digest, BasefoldProverData<GC::F, MerkleProverData<GC, MK>>),
+        BaseFoldConfigProverError<GC, MK>,
     > {
         // Pad each MLE to the next power of two
         let padded_mles = mles
@@ -396,7 +396,7 @@ impl<GC: ZkIopCtx> ZkBasefoldProver<GC> {
             .inner
             .tcs_prover
             .commit_tensors(encoded_messages.clone())
-            .map_err(BaseFoldConfigProverError::<GC, GC::Merkleizer>::TcsCommitError)?;
+            .map_err(BaseFoldConfigProverError::<GC, MK>::TcsCommitError)?;
 
         Ok((commitment, BasefoldProverData { encoded_messages, tcs_prover_data }))
     }

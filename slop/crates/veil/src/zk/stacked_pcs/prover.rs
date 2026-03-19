@@ -1,7 +1,7 @@
 // ZK Stacked PCS Prover implementation
 use crate::zk::inner::{
-    MerkleProverData, PcsEvalClaim, ProverValue, ZkIopCtx, ZkPcsCommitmentError, ZkPcsProver,
-    ZkProtocolProof, ZkProverContext,
+    MerkleProverData, PcsEvalClaim, ProverValue, ZkIopCtx, ZkMerkleizer, ZkPcsCommitmentError,
+    ZkPcsProver, ZkProtocolProof, ZkProverContext,
 };
 use derive_where::derive_where;
 use itertools::Itertools;
@@ -26,18 +26,23 @@ use super::{basefold_prover_wrapper::ZkBasefoldProver, ZkStackedPcsConstraintDat
 ///
 /// This is the expression index type that should be used by downstream code
 /// (e.g., zk-sumcheck) when working with the ZK PCS prover context.
-pub type StackedPcsProverValue<GC> = ProverValue<GC, ZkStackedPcsProverData<GC>>;
+#[allow(type_alias_bounds)]
+pub type StackedPcsProverValue<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> =
+    ProverValue<GC, MK, ZkStackedPcsProverData<GC, MK>>;
 
 /// Type alias for `ZkProverContext` when using the ZK PCS (stacked PCS).
 ///
 /// This is the prover context type that should be used by downstream code
 /// (e.g., zk-sumcheck) when working with the ZK PCS.
-pub type StackedPcsZkProverContext<GC> = ZkProverContext<GC, ZkStackedPcsProverData<GC>>;
+#[allow(type_alias_bounds)]
+pub type StackedPcsZkProverContext<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> =
+    ZkProverContext<GC, MK, ZkStackedPcsProverData<GC, MK>>;
 
-#[derive(Debug, Clone)]
-#[derive_where(Serialize, Deserialize; MerkleProverData<GC>, Tensor<GC::F, CpuBackend>)]
-pub struct ZkStackedPcsProverData<GC: ZkIopCtx> {
-    pub full_pcs_data: BasefoldProverData<GC::F, MerkleProverData<GC>>,
+#[derive(Debug)]
+#[derive_where(Clone; MerkleProverData<GC, MK>: Clone)]
+#[derive_where(Serialize, Deserialize; MerkleProverData<GC, MK>, Tensor<GC::F, CpuBackend>)]
+pub struct ZkStackedPcsProverData<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> {
+    pub full_pcs_data: BasefoldProverData<GC::F, MerkleProverData<GC, MK>>,
     pub mles: Message<Mle<GC::F, CpuBackend>>,
     pub mle_num_vars: usize,
 }
@@ -61,10 +66,7 @@ pub struct ZkStackedPcsProof<GC: ZkIopCtx> {
     pub log_num_polys: usize,
 }
 
-impl<GC> ZkBasefoldProver<GC>
-where
-    GC: ZkIopCtx,
-{
+impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkBasefoldProver<GC, MK> {
     /// Takes in a batch of MLE's and commits it in a zk-way
     /// The last "padding" entries of each MLE are the padding
     #[allow(clippy::type_complexity)]
@@ -73,8 +75,8 @@ where
         mle: Mle<GC::F, CpuBackend>,
         rng: &mut RNG,
     ) -> Result<
-        (GC::Digest, ZkStackedPcsProverData<GC>),
-        ZkStackedPcsProverError<BaseFoldConfigProverError<GC, GC::Merkleizer>>,
+        (GC::Digest, ZkStackedPcsProverData<GC, MK>),
+        ZkStackedPcsProverError<BaseFoldConfigProverError<GC, MK>>,
     >
     where
         rand::distributions::Standard: rand::distributions::Distribution<GC::F>,
@@ -127,16 +129,16 @@ where
     #[allow(clippy::type_complexity)]
     pub fn zk_generate_eval_proof_for_mle(
         &self,
-        prover_data: ZkStackedPcsProverData<GC>,
+        prover_data: ZkStackedPcsProverData<GC, MK>,
         eval_point: &Point<GC::EF>,
-        eval_claim: &StackedPcsProverValue<GC>,
-        zkbuilder: &mut ZkProverContext<GC, ZkStackedPcsProverData<GC>>,
+        eval_claim: &StackedPcsProverValue<GC, MK>,
+        zkbuilder: &mut ZkProverContext<GC, MK, ZkStackedPcsProverData<GC, MK>>,
     ) -> Result<
         (
             ZkStackedPcsProof<GC>,
-            ZkStackedPcsConstraintData<GC, ZkProverContext<GC, ZkStackedPcsProverData<GC>>>,
+            ZkStackedPcsConstraintData<GC, ZkProverContext<GC, MK, ZkStackedPcsProverData<GC, MK>>>,
         ),
-        ZkStackedPcsProverError<BaseFoldConfigProverError<GC, GC::Merkleizer>>,
+        ZkStackedPcsProverError<BaseFoldConfigProverError<GC, MK>>,
     > {
         // Deconstruct prover_data
         let ZkStackedPcsProverData { full_pcs_data, mles, mle_num_vars } = prover_data;
@@ -249,8 +251,8 @@ where
 // ZkPcsProver trait implementation
 // ============================================================================
 
-impl<GC: ZkIopCtx> ZkPcsProver<GC> for ZkBasefoldProver<GC> {
-    type ProverData = ZkStackedPcsProverData<GC>;
+impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkPcsProver<GC, MK> for ZkBasefoldProver<GC, MK> {
+    type ProverData = ZkStackedPcsProverData<GC, MK>;
     type Proof = ZkStackedPcsProof<GC>;
 
     fn commit_mle<RNG: rand::CryptoRng + rand::Rng>(
@@ -275,8 +277,8 @@ impl<GC: ZkIopCtx> ZkPcsProver<GC> for ZkBasefoldProver<GC> {
 
     fn prove_eval(
         &self,
-        ctx: &mut ZkProverContext<GC, Self::ProverData>,
-        claim: PcsEvalClaim<GC::EF, ProverValue<GC, Self::ProverData>>,
+        ctx: &mut ZkProverContext<GC, MK, Self::ProverData>,
+        claim: PcsEvalClaim<GC::EF, ProverValue<GC, MK, Self::ProverData>>,
     ) -> Self::Proof {
         let commitment_index = claim.commitment_index;
 

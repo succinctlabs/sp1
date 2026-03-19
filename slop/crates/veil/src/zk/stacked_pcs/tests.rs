@@ -5,6 +5,7 @@ use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 use slop_challenger::IopCtx;
 use slop_koala_bear::KoalaBearDegree4Duplex;
+use slop_merkle_tree::Poseidon2KoalaBear16Prover;
 use slop_multilinear::{Mle, Point};
 
 use super::{
@@ -13,6 +14,7 @@ use super::{
 };
 
 type GC = KoalaBearDegree4Duplex;
+type MK = Poseidon2KoalaBear16Prover;
 
 /// Data read from transcript that mirrors prover's commitment and eval claim.
 struct PcsTranscriptData<Expr> {
@@ -72,7 +74,7 @@ fn run_zk_stacked_pcs_test(num_vars: u32, log_num_polys: u32, verbose: bool) {
     }
 
     let (zk_basefold_prover, zk_stacked_verifier) =
-        initialize_zk_prover_and_verifier::<GC>(1, num_vars);
+        initialize_zk_prover_and_verifier::<GC, MK>(1, num_vars);
 
     let masks_length = compute_mask_length::<GC, _, _, _>(
         |ctx| read_all(ctx, num_vars as usize, log_num_polys as usize),
@@ -82,7 +84,7 @@ fn run_zk_stacked_pcs_test(num_vars: u32, log_num_polys: u32, verbose: bool) {
     // Prover Side
     let prover_start = std::time::Instant::now();
     let zkproof = {
-        let mut prover_context: StackedPcsZkProverContext<GC> =
+        let mut prover_context: StackedPcsZkProverContext<GC, MK> =
             StackedPcsZkProverContext::initialize_only_lin_constraints(masks_length, &mut rng);
 
         let commitment_index = prover_context
@@ -138,7 +140,7 @@ fn test_zk_stacked_pcs_large_mle() {
 
 #[test]
 fn test_compute_padding_amount() {
-    let (zk_prover, _) = initialize_zk_prover_and_verifier::<GC>(1, 16);
+    let (zk_prover, _) = initialize_zk_prover_and_verifier::<GC, MK>(1, 16);
 
     let codeword_length = 1 << 16;
     let security_bits = 100;

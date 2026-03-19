@@ -11,7 +11,9 @@ use slop_multilinear::Mle;
 use thiserror::Error;
 
 use super::transcript::PcsEvalClaim;
-use super::{ProverValue, VerifierValue, ZkIopCtx, ZkProverContext, ZkVerificationContext};
+use super::{
+    ProverValue, VerifierValue, ZkIopCtx, ZkMerkleizer, ZkProverContext, ZkVerificationContext,
+};
 
 /// Error type for PCS commitment failures.
 #[derive(Debug, Clone, Error)]
@@ -37,7 +39,8 @@ pub enum ZkPcsVerificationError {
 ///
 /// # Type Parameters
 /// * `GC` - The ZK IOP context type (e.g., `KoalaBearDegree4Duplex`)
-pub trait ZkPcsProver<GC: ZkIopCtx> {
+/// * `MK` - The merkleizer type used by the inner constraint prover
+pub trait ZkPcsProver<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> {
     /// The prover data type returned from committing an MLE.
     ///
     /// This typically contains information needed to open the commitment
@@ -84,8 +87,8 @@ pub trait ZkPcsProver<GC: ZkIopCtx> {
     #[allow(clippy::type_complexity)]
     fn prove_eval(
         &self,
-        ctx: &mut ZkProverContext<GC, Self::ProverData>,
-        claim: PcsEvalClaim<GC::EF, ProverValue<GC, Self::ProverData>>,
+        ctx: &mut ZkProverContext<GC, MK, Self::ProverData>,
+        claim: PcsEvalClaim<GC::EF, ProverValue<GC, MK, Self::ProverData>>,
     ) -> Self::Proof;
 }
 

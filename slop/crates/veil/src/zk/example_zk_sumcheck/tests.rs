@@ -3,6 +3,10 @@ use crate::zk::inner::{
     compute_mask_length, ConstraintContextInnerExt, MleCommitmentIndex, ZkCnstrAndReadingCtxInner,
     ZkIopCtx, ZkProtocolParameters, ZkProtocolProof,
 };
+use slop_merkle_tree::Poseidon2KoalaBear16Prover;
+
+/// Default merkleizer used in tests (matches the concrete type for `KoalaBearDegree4Duplex`).
+type MK = Poseidon2KoalaBear16Prover;
 use crate::zk::stacked_pcs::{
     initialize_zk_prover_and_verifier, prover::StackedPcsZkProverContext,
     verifier::StackedPcsZkVerificationContext, ZkBasefoldProver, ZkStackedPcsVerifier,
@@ -126,7 +130,7 @@ fn test_zk_sumcheck() {
 
         // Starting the ZK proof
         let masks_length = compute_mask_length::<GC, _, _, _>(read_all, build_all_constraints);
-        let mut prover_context: StackedPcsZkProverContext<GC> =
+        let mut prover_context: StackedPcsZkProverContext<GC, MK> =
             StackedPcsZkProverContext::initialize_only_lin_constraints(masks_length, &mut rng);
 
         // Generating sumcheck proof
@@ -139,7 +143,7 @@ fn test_zk_sumcheck() {
         build_all_constraints(sumcheck_constraint_data, &mut prover_context);
 
         // Finalizing the ZK proof (no PCS used in this test)
-        let zkproof = prover_context.prove(&mut rng, None::<&ZkBasefoldProver<GC>>);
+        let zkproof = prover_context.prove(&mut rng, None::<&ZkBasefoldProver<GC, MK>>);
         eprintln!("Total prover time {:?}\n", now.elapsed());
         zkproof
     };
@@ -227,7 +231,7 @@ fn test_zk_sumcheck_with_pcs_eval_proof_single_mle() {
 
     // Initialize the verifiers and provers for PCS
     let (zk_basefold_prover, zk_stacked_verifier) =
-        initialize_zk_prover_and_verifier::<GC>(1, NUM_STACKED_VARS);
+        initialize_zk_prover_and_verifier::<GC, MK>(1, NUM_STACKED_VARS);
 
     //
     // Prover Side
@@ -238,7 +242,7 @@ fn test_zk_sumcheck_with_pcs_eval_proof_single_mle() {
 
         // Initialize the zkbuilder
         let masks_length = compute_mask_length::<GC, _, _, _>(read_all, build_all_constraints);
-        let mut prover_context: StackedPcsZkProverContext<GC> =
+        let mut prover_context: StackedPcsZkProverContext<GC, MK> =
             StackedPcsZkProverContext::initialize_only_lin_constraints(masks_length, &mut rng);
 
         eprintln!("Committing MLE...");
@@ -376,7 +380,7 @@ fn test_zk_sumcheck_with_pcs_eval_proof_hadamard_product() {
 
     // Initialize the verifiers and provers for PCS
     let (zk_basefold_prover, zk_stacked_verifier) =
-        initialize_zk_prover_and_verifier::<GC>(1, NUM_STACKED_VARS);
+        initialize_zk_prover_and_verifier::<GC, MK>(1, NUM_STACKED_VARS);
 
     //
     // Prover Side
@@ -387,7 +391,7 @@ fn test_zk_sumcheck_with_pcs_eval_proof_hadamard_product() {
 
         // Initialize the zkbuilder with multiplicative constraint support
         let masks_length = compute_mask_length::<GC, _, _, _>(read_all, build_all_constraints);
-        let mut prover_context: StackedPcsZkProverContext<GC> =
+        let mut prover_context: StackedPcsZkProverContext<GC, MK> =
             StackedPcsZkProverContext::initialize(masks_length, &mut rng);
 
         eprintln!("Committing MLEs...");
@@ -557,7 +561,7 @@ fn test_zk_sumcheck_with_pcs_eval_proof_batched_single_mles() {
 
     // Initialize PCS prover and verifier
     let (zk_basefold_prover, zk_stacked_verifier) =
-        initialize_zk_prover_and_verifier::<GC>(1, NUM_STACKED_VARS);
+        initialize_zk_prover_and_verifier::<GC, MK>(1, NUM_STACKED_VARS);
 
     //
     // Prover Side
@@ -567,7 +571,7 @@ fn test_zk_sumcheck_with_pcs_eval_proof_batched_single_mles() {
         let prover_start = std::time::Instant::now();
 
         let masks_length = compute_mask_length::<GC, _, _, _>(read_all, build_all_constraints);
-        let mut prover_context: StackedPcsZkProverContext<GC> =
+        let mut prover_context: StackedPcsZkProverContext<GC, MK> =
             StackedPcsZkProverContext::initialize_only_lin_constraints(masks_length, &mut rng);
 
         // Commit all MLEs
@@ -785,7 +789,7 @@ fn test_zk_sumcheck_triple_hadamard_with_batched_pcs() {
     eprintln!("  Claim hf: {:?}", claim_hf);
 
     let (zk_basefold_prover, zk_stacked_verifier) =
-        initialize_zk_prover_and_verifier::<GC>(1, NUM_STACKED_VARS);
+        initialize_zk_prover_and_verifier::<GC, MK>(1, NUM_STACKED_VARS);
 
     //
     // Prover Side
@@ -795,7 +799,7 @@ fn test_zk_sumcheck_triple_hadamard_with_batched_pcs() {
         let prover_start = std::time::Instant::now();
 
         let masks_length = compute_mask_length::<GC, _, _, _>(read_all, build_all_constraints);
-        let mut prover_context: StackedPcsZkProverContext<GC> =
+        let mut prover_context: StackedPcsZkProverContext<GC, MK> =
             StackedPcsZkProverContext::initialize(masks_length, &mut rng);
 
         // Commit f, g, h

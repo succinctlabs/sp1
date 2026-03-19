@@ -84,7 +84,8 @@ pub struct ZkHadamardProductProverSecretData<GC: IopCtx, ProverData, Code>
 where
     Code: MultiplicativeCode<GC::EF> + ZkCode<GC::EF>,
 {
-    pub(in crate::zk::hadamard_product) abc_commitment_data: ZkVectorProverData<GC, ProverData, Code>,
+    pub(in crate::zk::hadamard_product) abc_commitment_data:
+        ZkVectorProverData<GC, ProverData, Code>,
     /// Padded r'_× in intermediate form (length 2 * pml.next_power_of_two())
     pub(in crate::zk::hadamard_product) r_times_intermediate: Vec<GC::EF>,
 }
@@ -97,7 +98,8 @@ where
 {
     pub(in crate::zk::hadamard_product) gamma: GC::EF,
     pub(in crate::zk::hadamard_product) phi: Vec<GC::EF>,
-    pub(in crate::zk::hadamard_product) abc_commitment_data: ZkVectorProverData<GC, ProverData, Code>,
+    pub(in crate::zk::hadamard_product) abc_commitment_data:
+        ZkVectorProverData<GC, ProverData, Code>,
     pub(in crate::zk::hadamard_product) parameters: CodeParametersForZk<GC::EF, Code>,
 }
 
@@ -173,7 +175,11 @@ where
 /// gamma = u · D(r'_×)[0..n] where u = [1, z_base, z_base^2, ...]
 /// phi = (C*)^{-1}(Ca' · Cb' - Cc' + rho_times · C*r'_×)
 #[allow(clippy::type_complexity)]
-pub(in crate::zk::hadamard_product) fn zk_hadamard_product_pre_reveal<GC: IopCtx, ProverData, Code>(
+pub(in crate::zk::hadamard_product) fn zk_hadamard_product_pre_reveal<
+    GC: IopCtx,
+    ProverData,
+    Code,
+>(
     commitment: GC::Digest,
     prover_secret_data: ZkHadamardProductProverSecretData<GC, ProverData, Code>,
     challenger: &mut GC::Challenger,

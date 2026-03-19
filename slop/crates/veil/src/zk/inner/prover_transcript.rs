@@ -4,7 +4,7 @@ use slop_algebra::AbstractField;
 
 use super::{
     ConstraintContextInner, ExpressionIndex, TranscriptIndex, TranscriptLinConstraint, ZkElement,
-    ZkIopCtx, ZkLinExpression, ZkProverContext,
+    ZkIopCtx, ZkLinExpression, ZkMerkleizer, ZkProverContext,
 };
 
 // ============================================================================
@@ -197,9 +197,12 @@ impl<K: AbstractField + Copy> ZkLinExpression<K, ProverElement<K>> for ProverLin
 
 #[allow(type_alias_bounds)]
 /// Placeholder Value!
-pub type ProverValue<GC: ZkIopCtx, PD = ()> = ExpressionIndex<GC::EF, ZkProverContext<GC, PD>>;
+pub type ProverValue<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD = ()> =
+    ExpressionIndex<GC::EF, ZkProverContext<GC, MK, PD>>;
 
-impl<GC: ZkIopCtx, PD: Clone> ExpressionIndex<GC::EF, ZkProverContext<GC, PD>> {
+impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD: Clone>
+    ExpressionIndex<GC::EF, ZkProverContext<GC, MK, PD>>
+{
     /// Computes just the value associated to a given Prover Expression Index.
     ///
     /// This is an optimization that doesn't also compute the linear expression.

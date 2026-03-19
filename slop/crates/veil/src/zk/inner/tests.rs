@@ -13,6 +13,9 @@ use super::{
     ConstraintContextInner, ConstraintContextInnerExt, ExpressionIndex, TranscriptLinConstraint,
     ZkCnstrAndReadingCtxInner,
 };
+use slop_merkle_tree::Poseidon2KoalaBear16Prover;
+
+type MK = Poseidon2KoalaBear16Prover;
 use crate::name_constraint;
 
 /// Single source of truth constraint builder.
@@ -151,7 +154,7 @@ async fn test_zk_builder_with_generic_constraints() {
 
     // Prover side
     let zkproof = {
-        let mut prover_context: ZkProverContext<GC> =
+        let mut prover_context: ZkProverContext<GC, MK> =
             ZkProverContext::initialize(MASK_LENGTH, &mut rng);
 
         // Add values to the transcript
@@ -172,7 +175,7 @@ async fn test_zk_builder_with_generic_constraints() {
         let l_elem = prover_context.add_value(l_val);
 
         // Build constraints using the single source of truth function
-        build_constraints::<_, ZkProverContext<GC>>(
+        build_constraints::<_, ZkProverContext<GC, MK>>(
             a_elem, b_elem, c_elem, x_elem, y_elem, z_elem, d_elem, e_elem, f_elem, g_elem, h_elem,
             i_elem, j_elem, k_elem, l_elem,
         );
@@ -310,7 +313,7 @@ async fn test_equal_index_optimization() {
 
     // Prover side
     let zkproof = {
-        let mut prover_context: ZkProverContext<GC> =
+        let mut prover_context: ZkProverContext<GC, MK> =
             ZkProverContext::initialize(MASK_LENGTH, &mut rng);
 
         // Add values to the transcript
@@ -326,7 +329,7 @@ async fn test_equal_index_optimization() {
         let nested_result_elem = prover_context.add_value(nested_result_val);
 
         // Build constraints
-        build_equal_index_constraints::<_, ZkProverContext<GC>>(
+        build_equal_index_constraints::<_, ZkProverContext<GC, MK>>(
             a_elem,
             b_elem,
             c_elem,
@@ -483,7 +486,7 @@ async fn test_dot_product_constraint_generation_comparison() {
     eprintln!("--- TranscriptLinConstraint Approach ---");
     let prover_start = Instant::now();
     let zkproof_transcript = {
-        let mut prover_context: ZkProverContext<GC> =
+        let mut prover_context: ZkProverContext<GC, MK> =
             ZkProverContext::initialize_only_lin_constraints(MASK_LENGTH, &mut rng);
 
         // Add private vector to transcript
@@ -524,7 +527,7 @@ async fn test_dot_product_constraint_generation_comparison() {
     eprintln!("--- ExpressionIndex Approach ---");
     let prover_start = Instant::now();
     let zkproof_expr_index = {
-        let mut prover_context: ZkProverContext<GC> =
+        let mut prover_context: ZkProverContext<GC, MK> =
             ZkProverContext::initialize_only_lin_constraints(MASK_LENGTH, &mut rng);
 
         // Add private vector to transcript
@@ -594,7 +597,7 @@ fn test_pcs_commitment_tracking() {
     // Test prover side
     let zkproof = {
         let masks_length = 2;
-        let mut prover_context: ZkProverContext<GC> =
+        let mut prover_context: ZkProverContext<GC, MK> =
             ZkProverContext::initialize_only_lin_constraints(masks_length, &mut rng);
 
         // Register commitments (passing () for prover_data since we don't need it in this test)

@@ -1,4 +1,4 @@
-use crate::zk::inner::ZkIopCtx;
+use crate::zk::inner::{ZkIopCtx, ZkMerkleizer};
 use crate::zk::stacked_pcs::prover::{StackedPcsProverValue, StackedPcsZkProverContext};
 use derive_where::derive_where;
 use itertools::Itertools;
@@ -14,20 +14,21 @@ use super::verifier::{ZkPartialSumcheckParameters, ZkPartialSumcheckProof};
 /// Contains:
 /// - The evaluation point
 /// - Indices in the Proof Transcript for the claimed sum, total evaluation, and component poly evaluations
-#[derive_where(Clone; StackedPcsProverValue<GC>)]
-pub struct ZkPartialSumcheckOutput<GC: ZkIopCtx> {
+#[derive_where(Clone; StackedPcsProverValue<GC, MK>: Clone)]
+pub struct ZkPartialSumcheckOutput<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> {
     pub eval_point: Point<GC::EF>,
-    pub claimed_sum: StackedPcsProverValue<GC>,
-    pub total_eval: StackedPcsProverValue<GC>,
-    pub component_poly_evals: Vec<Vec<StackedPcsProverValue<GC>>>,
+    pub claimed_sum: StackedPcsProverValue<GC, MK>,
+    pub total_eval: StackedPcsProverValue<GC, MK>,
+    pub component_poly_evals: Vec<Vec<StackedPcsProverValue<GC, MK>>>,
 }
 
 /// Convenience function for sumcheck reduction when there is only a single polynomial and claim
-pub fn zk_reduce_sumcheck_to_evaluation<GC: ZkIopCtx>(
+pub fn zk_reduce_sumcheck_to_evaluation<GC: ZkIopCtx, MK: ZkMerkleizer<GC>>(
     poly: impl SumcheckPolyFirstRound<GC::EF>,
-    context: &mut StackedPcsZkProverContext<GC>,
-    claim: StackedPcsProverValue<GC>,
-) -> (ZkPartialSumcheckOutput<GC>, ZkPartialSumcheckProof<GC, StackedPcsZkProverContext<GC>>) {
+    context: &mut StackedPcsZkProverContext<GC, MK>,
+    claim: StackedPcsProverValue<GC, MK>,
+) -> (ZkPartialSumcheckOutput<GC, MK>, ZkPartialSumcheckProof<GC, StackedPcsZkProverContext<GC, MK>>)
+{
     zk_reduce_sumcheck_to_evaluation_general(vec![poly], context, vec![claim], 1, GC::EF::one())
 }
 
@@ -48,13 +49,14 @@ pub fn zk_reduce_sumcheck_to_evaluation<GC: ZkIopCtx>(
 /// # Panics
 ///
 /// Panics if the polynomial has zero variables.
-pub fn zk_reduce_sumcheck_to_evaluation_general<GC: ZkIopCtx>(
+pub fn zk_reduce_sumcheck_to_evaluation_general<GC: ZkIopCtx, MK: ZkMerkleizer<GC>>(
     polys: Vec<impl SumcheckPolyFirstRound<GC::EF>>,
-    context: &mut StackedPcsZkProverContext<GC>,
-    claims: Vec<StackedPcsProverValue<GC>>,
+    context: &mut StackedPcsZkProverContext<GC, MK>,
+    claims: Vec<StackedPcsProverValue<GC, MK>>,
     t: u32,
     lambda: GC::EF,
-) -> (ZkPartialSumcheckOutput<GC>, ZkPartialSumcheckProof<GC, StackedPcsZkProverContext<GC>>) {
+) -> (ZkPartialSumcheckOutput<GC, MK>, ZkPartialSumcheckProof<GC, StackedPcsZkProverContext<GC, MK>>)
+{
     assert!(!polys.is_empty());
 
     // Check that all the polynomials have the same number of variables.
@@ -72,7 +74,7 @@ pub fn zk_reduce_sumcheck_to_evaluation_general<GC: ZkIopCtx>(
     let claim_values = claims.iter().map(|claim| claim.value()).collect::<Vec<GC::EF>>();
 
     // The univariate poly messages.  This will be a rlc of the polys' univariate polys.
-    let mut univariate_poly_msgs: Vec<Vec<StackedPcsProverValue<GC>>> = vec![];
+    let mut univariate_poly_msgs: Vec<Vec<StackedPcsProverValue<GC, MK>>> = vec![];
 
     let mut uni_polys: Vec<_> = polys
         .iter()
@@ -129,7 +131,7 @@ pub fn zk_reduce_sumcheck_to_evaluation_general<GC: ZkIopCtx>(
     let component_poly_evals = component_poly_evals_out;
 
     // Wrap protocol parameters
-    let parameters: ZkPartialSumcheckParameters<GC, StackedPcsZkProverContext<GC>> =
+    let parameters: ZkPartialSumcheckParameters<GC, StackedPcsZkProverContext<GC, MK>> =
         ZkPartialSumcheckParameters {
             num_variables: num_variables - t + 1,
             degree,

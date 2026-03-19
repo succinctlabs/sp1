@@ -1,7 +1,7 @@
 use slop_algebra::TwoAdicField;
 use slop_alloc::CpuBackend;
 use slop_challenger::IopCtx;
-use slop_merkle_tree::{ComputeTcsOpenings, Poseidon2KoalaBear16Prover, TensorCsProver};
+use slop_merkle_tree::{ComputeTcsOpenings, TensorCsProver};
 
 pub mod constraints;
 #[cfg(sp1_debug_constraints)]
@@ -26,29 +26,34 @@ pub use transcript::*;
 pub use verifier::*;
 pub use verifier_transcript::*;
 
-/// Extension of [`IopCtx`] that includes a merkleizer type for ZK proofs.
+/// Extension of [`IopCtx`] for ZK proofs (field constraints only).
 ///
-/// This trait bundles together the `IopCtx` requirements along with the
-/// merkleizer traits needed for zero-knowledge proof generation.
-pub trait ZkIopCtx: IopCtx<F: TwoAdicField, EF: TwoAdicField> {
-    /// The merkleizer type used for committing to tensors
-    type Merkleizer: TensorCsProver<Self, CpuBackend>
-        + ComputeTcsOpenings<Self, CpuBackend>
-        + Default;
+/// Verifiers only need this trait. Prover code that requires merkle commitments
+/// should additionally constrain a separate `MK: ZkMerkleizer<GC>` parameter.
+pub trait ZkIopCtx: IopCtx<F: TwoAdicField, EF: TwoAdicField> {}
+
+/// Auto-implemented trait that bundles the merkle commitment bounds needed by prover code.
+///
+/// Any type implementing `TensorCsProver + ComputeTcsOpenings + Default` automatically
+/// satisfies this trait. Pass it as a separate generic `MK: ZkMerkleizer<GC>` on
+/// prover-side structs and functions instead of baking it into `ZkIopCtx`.
+pub trait ZkMerkleizer<GC: IopCtx>:
+    TensorCsProver<GC, CpuBackend> + ComputeTcsOpenings<GC, CpuBackend> + Default
+{
 }
 
-/// Type alias for the merkleizer's prover data type.
-/// This simplifies complex associated type paths like:
-/// `<GC::Merkleizer as TensorCsProver<GC, CpuBackend>>::ProverData`
-pub type MerkleProverData<GC> =
-    <<GC as ZkIopCtx>::Merkleizer as TensorCsProver<GC, CpuBackend>>::ProverData;
+impl<MK, GC: IopCtx> ZkMerkleizer<GC> for MK where
+    MK: TensorCsProver<GC, CpuBackend> + ComputeTcsOpenings<GC, CpuBackend> + Default
+{
+}
 
-/// KoalaBear ZK context with Poseidon2 merkleizer
+/// Type alias for the prover data produced by a `ZkMerkleizer`.
+pub type MerkleProverData<GC, MK> = <MK as TensorCsProver<GC, CpuBackend>>::ProverData;
+
+/// KoalaBear ZK context.
 pub use slop_koala_bear::KoalaBearDegree4Duplex;
 
-impl ZkIopCtx for KoalaBearDegree4Duplex {
-    type Merkleizer = Poseidon2KoalaBear16Prover;
-}
+impl ZkIopCtx for KoalaBearDegree4Duplex {}
 
 /// Names the most recently added linear constraint for debugging purposes.
 ///
