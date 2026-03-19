@@ -558,30 +558,40 @@ __global__ void evalWithCachedAtZeroAndHalf(
     size_t layer = round_num;
     int k = static_cast<int>(layer / 2);
 
+    // Extract base field half for cheaper F×EF multiplies.
+    // half = (h, 0, 0, 0) in the extension field since 1/2 lives in the base field.
+    F half_base = half.value[0];
+    F half_sq = half_base * half_base;  // half^2 = combined BP half * eq_half
+
+    // Load suffix into shared memory (identical across all threads in a block).
+    __shared__ EF shared_suffix[WIDE_BP_WIDTH];
+    if (threadIdx.x < WIDE_BP_WIDTH) {
+        shared_suffix[threadIdx.x] = suffix_vector[threadIdx.x];
+    }
+    __syncthreads();
+
     for (size_t col = blockDim.x * blockIdx.x + threadIdx.x; col < num_columns; col += blockDim.x * gridDim.x) {
         // Load prefix state at layer+1 (8 values)
-        EF pstate[8];
+        EF pstate[WIDE_BP_WIDTH];
         for (int s = 0; s < WIDE_BP_WIDTH; s++) {
             pstate[s] = prefix_states[((layer + 1) * WIDE_BP_WIDTH + s) * num_columns + col];
         }
 
-        // Load suffix vector
-        EF suffix[8];
+        // Load suffix from shared memory into registers
+        EF suffix[WIDE_BP_WIDTH];
         for (int s = 0; s < WIDE_BP_WIDTH; s++) {
-            suffix[s] = suffix_vector[s];
+            suffix[s] = shared_suffix[s];
         }
 
         EF y_0_result;
-        EF y_half_result;
+        EF y_half_raw;  // without any half factor; output multiplies by half^2
 
         if (layer % 2 == 0) {
             // Even layer: z_row[k], z_index[k], curr_ps[k]
             EF z_row_val = getIthLeastSignificantVal<EF>(z_row, z_row_length, k);
             EF z_index_val = getIthLeastSignificantVal<EF>(z_index, z_index_length, k);
 
-            // === At zero: only curr_ps=0 bit states contribute ===
             // two_var_eq index layout: (index_bit << 1) | row_bit
-            // to match CURR_TRANSITIONS_W8[0..3] = (0 << 2) | (index_bit << 1) | row_bit
             EF two_var_eq[4];
             {
                 EF a_vals[2] = {EF::one() - z_index_val, z_index_val};
@@ -592,131 +602,76 @@ __global__ void evalWithCachedAtZeroAndHalf(
                 }
             }
 
-            EF after_zero[8];
-            for (int s = 0; s < WIDE_BP_WIDTH; s++) after_zero[s] = EF::zero();
+            // Precompute suffix sums exploiting period-4 symmetry of CURR_TRANSITIONS_W8.
+            // The saved_index_bit (bit 2 of state) doesn't affect curr-layer transitions,
+            // so CURR_TRANSITIONS_W8[bs][m] == CURR_TRANSITIONS_W8[bs][m+4] for all bs, m.
+            // This lets us fold suffix[m] + suffix[m+4] and halve the inner loop.
+            EF ss[4];
+            for (int i = 0; i < 4; i++) ss[i] = suffix[i] + suffix[i + 4];
 
-            for (int ms = 0; ms < WIDE_BP_WIDTH; ms++) {
-                EF accum_elems[8];
-                for (int s = 0; s < WIDE_BP_WIDTH; s++) accum_elems[s] = EF::zero();
-
-                // curr_ps=0 bit states: indices 0..3 in CURR_TRANSITIONS_W8
-                // half_i = (index_bit << 1) | row_bit, matching two_var_eq layout
-                for (int half_i = 0; half_i < 4; half_i++) {
-                    uint8_t out_ms = CURR_TRANSITIONS_W8[half_i][ms];
+            // Compute y_0 (curr_ps=0, bit states 0..3) via transposed accumulation.
+            // For each half_i, accumulate: two_var_eq[half_i] * sum_{m} pstate[out] * ss[m].
+            y_0_result = EF::zero();
+            for (int half_i = 0; half_i < 4; half_i++) {
+                EF inner = EF::zero();
+                for (int m = 0; m < 4; m++) {
+                    uint8_t out_ms = CURR_TRANSITIONS_W8[half_i][m];
                     if (out_ms != WIDE_FAIL) {
-                        accum_elems[out_ms] += two_var_eq[half_i];
+                        inner += pstate[out_ms] * ss[m];
                     }
                 }
-
-                EF accum = EF::zero();
-                for (int s = 0; s < WIDE_BP_WIDTH; s++) {
-                    accum += accum_elems[s] * pstate[s];
-                }
-                after_zero[ms] = accum;
+                y_0_result += two_var_eq[half_i] * inner;
             }
 
-            y_0_result = EF::zero();
-            for (int s = 0; s < WIDE_BP_WIDTH; s++) {
-                y_0_result += after_zero[s] * suffix[s];
-            }
-
-            // === At half: both curr_ps=0 and curr_ps=1 contribute, multiply by half ===
-            EF after_half[8];
-            for (int s = 0; s < WIDE_BP_WIDTH; s++) after_half[s] = EF::zero();
-
-            for (int ms = 0; ms < WIDE_BP_WIDTH; ms++) {
-                EF accum_elems[8];
-                for (int s = 0; s < WIDE_BP_WIDTH; s++) accum_elems[s] = EF::zero();
-
-                for (int half_i = 0; half_i < 4; half_i++) {
-                    // Both bit=0 and bit=1 for curr_ps
-                    for (int bit = 0; bit < 2; bit++) {
-                        int bs = (bit << 2) | half_i;
-                        uint8_t out_ms = CURR_TRANSITIONS_W8[bs][ms];
-                        if (out_ms != WIDE_FAIL) {
-                            accum_elems[out_ms] += two_var_eq[half_i];
-                        }
+            // Compute y_one (curr_ps=1, bit states 4..7) via same approach.
+            EF y_one = EF::zero();
+            for (int half_i = 0; half_i < 4; half_i++) {
+                EF inner = EF::zero();
+                for (int m = 0; m < 4; m++) {
+                    uint8_t out_ms = CURR_TRANSITIONS_W8[4 + half_i][m];
+                    if (out_ms != WIDE_FAIL) {
+                        inner += pstate[out_ms] * ss[m];
                     }
                 }
-
-                EF accum = EF::zero();
-                for (int s = 0; s < WIDE_BP_WIDTH; s++) {
-                    accum += accum_elems[s] * pstate[s];
-                }
-                after_half[ms] = accum * half;
+                y_one += two_var_eq[half_i] * inner;
             }
 
-            y_half_result = EF::zero();
-            for (int s = 0; s < WIDE_BP_WIDTH; s++) {
-                y_half_result += after_half[s] * suffix[s];
-            }
+            // y_half without the half factors (BP half and eq_half applied at output).
+            y_half_raw = y_0_result + y_one;
+
         } else {
-            // Odd layer: next_prefix_sum[k]
-
-            // === At zero: only next_ps_bit=0 contributes with weight 1 ===
-            EF after_zero[8];
-            for (int s = 0; s < WIDE_BP_WIDTH; s++) after_zero[s] = EF::zero();
-
-            for (int ms = 0; ms < WIDE_BP_WIDTH; ms++) {
-                uint8_t out_ms = NEXT_TRANSITIONS_W8[0][ms];
-                after_zero[ms] = pstate[out_ms];
-            }
-
+            // Odd layer: permutations of pstate by NEXT_TRANSITIONS_W8.
+            // At zero: only next_ps_bit=0 contributes (weight 1, no multiplies).
+            // At one: next_ps_bit=1 contributes (weight 1).
+            // y_half_raw = y_0 + y_one (half^2 applied at output).
             y_0_result = EF::zero();
-            for (int s = 0; s < WIDE_BP_WIDTH; s++) {
-                y_0_result += after_zero[s] * suffix[s];
-            }
-
-            // === At half: both bits contribute, multiply by half ===
-            EF after_half[8];
-            for (int s = 0; s < WIDE_BP_WIDTH; s++) after_half[s] = EF::zero();
-
+            EF y_one = EF::zero();
             for (int ms = 0; ms < WIDE_BP_WIDTH; ms++) {
-                EF accum_elems[8];
-                for (int s = 0; s < WIDE_BP_WIDTH; s++) accum_elems[s] = EF::zero();
-
-                for (int bit = 0; bit < 2; bit++) {
-                    uint8_t out_ms = NEXT_TRANSITIONS_W8[bit][ms];
-                    accum_elems[out_ms] += EF::one();
-                }
-
-                EF accum = EF::zero();
-                for (int s = 0; s < WIDE_BP_WIDTH; s++) {
-                    accum += accum_elems[s] * pstate[s];
-                }
-                after_half[ms] = accum * half;
+                y_0_result += pstate[NEXT_TRANSITIONS_W8[0][ms]] * suffix[ms];
+                y_one += pstate[NEXT_TRANSITIONS_W8[1][ms]] * suffix[ms];
             }
-
-            y_half_result = EF::zero();
-            for (int s = 0; s < WIDE_BP_WIDTH; s++) {
-                y_half_result += after_half[s] * suffix[s];
-            }
+            y_half_raw = y_0_result + y_one;
         }
 
-        // Multiply by eq_eval and z_col_eq_val
-        // eq_eval for lambda=0: (1 - prefix_sum_val_at_round)
-        // eq_eval for lambda=1/2: half
-        EF eq_zero;
-        EF eq_half = half;
-
-        // Access the k-th least-significant bit of the relevant prefix sum.
-        // Even layers use current_prefix_sums, odd layers use next_prefix_sums.
+        // Output: multiply by eq_eval, z_col_eq_val, and intermed.
+        // eq_zero = (1 - ps_val) is a base field value → use F×EF multiply.
+        // Precompute common = z_col_eq_val * intermed (used for both outputs).
+        F ps_val_base;
         if (layer % 2 == 0) {
-            // curr prefix sum value
-            EF ps_val = EF(getIthLeastSignificantValFromPoints<F>(
-                current_prefix_sums, prefix_sum_length, col, num_columns, k));
-            eq_zero = EF::one() - ps_val;
+            ps_val_base = getIthLeastSignificantValFromPoints<F>(
+                current_prefix_sums, prefix_sum_length, col, num_columns, k);
         } else {
-            EF ps_val = EF(getIthLeastSignificantValFromPoints<F>(
-                next_prefix_sums, prefix_sum_length, col, num_columns, k));
-            eq_zero = EF::one() - ps_val;
+            ps_val_base = getIthLeastSignificantValFromPoints<F>(
+                next_prefix_sums, prefix_sum_length, col, num_columns, k);
         }
+        F eq_zero_base = F::one() - ps_val_base;
 
         EF z_col_eq_val = z_col_eq_vals[col];
         EF intermed = intermediate_eq_full_evals[col];
+        EF common = z_col_eq_val * intermed;
 
-        EF::store(output, col, y_0_result * z_col_eq_val * eq_zero * intermed);
-        EF::store(output, num_columns + col, y_half_result * z_col_eq_val * eq_half * intermed);
+        EF::store(output, col, (y_0_result * eq_zero_base) * common);
+        EF::store(output, num_columns + col, (y_half_raw * half_sq) * common);
     }
 }
 
