@@ -7703,6 +7703,7 @@ dependencies = [
  "slop-tensor",
  "sp1-build",
  "sp1-core-executor",
+ "sp1-core-executor-runner",
  "sp1-core-machine",
  "sp1-cuda",
  "sp1-hypercube",
