@@ -298,6 +298,12 @@ where
 
             // Absorb the OOD answers
             challenger.observe_ext_element_slice(&new_commitment.ood_answers);
+            if !challenger.check_witness(
+                round_params.queries_pow_bits,
+                proof.query_proofs_of_work[round_index],
+            ) {
+                return Err(WhirProofError::PowError);
+            }
 
             // Squeeze the STIR queries
             let id_query_indices = (0..round_params.num_queries)
@@ -309,13 +315,6 @@ where
                 .map(|pos| generator.exp_u64(pos as u64))
                 .collect();
             let claim_batching_randomness: GC::EF = challenger.sample_ext_element();
-
-            if !challenger.check_witness(
-                round_params.queries_pow_bits,
-                proof.query_proofs_of_work[round_index],
-            ) {
-                return Err(WhirProofError::PowError);
-            }
 
             let merkle_proof = &proof.merkle_proofs[round_index];
 
@@ -430,6 +429,10 @@ where
         let final_poly = proof.final_polynomial.clone();
         let final_poly_uv = UnivariatePolynomial::new(final_poly.clone());
 
+        if !challenger.check_witness(config.final_pow_bits, proof.final_pow) {
+            return Err(WhirProofError::PowError);
+        }
+
         let final_id_indices = (0..config.final_queries)
             .map(|_| challenger.sample_bits(domain_size))
             .collect::<Vec<_>>();
@@ -474,10 +477,6 @@ where
                 .collect::<Vec<_>>()
         {
             return Err(WhirProofError::FinalQueryMismatch);
-        }
-
-        if !challenger.check_witness(config.final_pow_bits, proof.final_pow) {
-            return Err(WhirProofError::PowError);
         }
 
         (folding_randomness, claimed_sum) = self
@@ -543,12 +542,12 @@ where
                 return Err(SumcheckError::InvalidSum);
             }
 
-            let folding_randomness_single: GC::EF = challenger.sample_ext_element();
-            randomness.push(folding_randomness_single);
-
             if !challenger.check_witness(pow_bits[i], *pow_witness) {
                 return Err(SumcheckError::PowError);
             }
+
+            let folding_randomness_single: GC::EF = challenger.sample_ext_element();
+            randomness.push(folding_randomness_single);
 
             claimed_sum = sumcheck_poly.evaluate_at_point(folding_randomness_single);
         }
