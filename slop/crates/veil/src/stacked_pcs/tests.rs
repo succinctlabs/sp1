@@ -1,5 +1,5 @@
 use crate::builder::{
-    compute_mask_length, ConstraintContext, MleCommitmentIndex, ZkCnstrAndReadingCtx,
+    compute_mask_length, ConstraintContextInnerExt, MleCommitmentIndex, ZkCnstrAndReadingCtxInner,
 };
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
@@ -21,7 +21,7 @@ struct PcsTranscriptData<Expr> {
 }
 
 /// Reads proof data from the transcript for a single evaluation claim.
-fn read_all<C: ZkCnstrAndReadingCtx<GC>>(
+fn read_all<C: ZkCnstrAndReadingCtxInner<GC>>(
     context: &mut C,
     num_vars: usize,
     log_num_polys: usize,
@@ -37,7 +37,7 @@ fn read_all<C: ZkCnstrAndReadingCtx<GC>>(
 
 /// Uniform constraint generation function (called by both prover and verifier).
 /// Registers a single evaluation claim for the commitment.
-fn build_all_constraints<C: ConstraintContext<<GC as IopCtx>::EF>>(
+fn build_all_constraints<C: ConstraintContextInnerExt<<GC as IopCtx>::EF>>(
     transcript_data: PcsTranscriptData<C::Expr>,
     point: &Point<<GC as IopCtx>::EF>,
     context: &mut C,

@@ -27,7 +27,7 @@ use slop_multilinear::{Mle, MultilinearPcsProver};
 use slop_stacked::{StackedPcsProver, StackedPcsVerifier};
 use slop_sumcheck::{partially_verify_sumcheck_proof, reduce_sumcheck_to_evaluation};
 use slop_veil::builder::{
-    compute_mask_length, ConstraintContext, MleCommitmentIndex, ZkCnstrAndReadingCtx, ZkIopCtx,
+    compute_mask_length, ConstraintContextInnerExt, MleCommitmentIndex, ZkCnstrAndReadingCtxInner, ZkIopCtx,
     ZkProtocolParameters, ZkProtocolProof,
 };
 use slop_veil::example_zk_sumcheck::{
@@ -161,7 +161,7 @@ fn run_zk(
     total_num_vars: u32,
     rng: &mut ChaCha20Rng,
 ) -> (Duration, Duration) {
-    fn read_all<GC2: ZkIopCtx, C: ZkCnstrAndReadingCtx<GC2>>(
+    fn read_all<GC2: ZkIopCtx, C: ZkCnstrAndReadingCtxInner<GC2>>(
         context: &mut C,
         num_stacked_vars: u32,
         log_stacking_height: u32,
@@ -178,7 +178,7 @@ fn run_zk(
         (commitment_index, sumcheck_data)
     }
 
-    fn build_all_constraints<GC2: ZkIopCtx, C: ConstraintContext<GC2::EF>>(
+    fn build_all_constraints<GC2: ZkIopCtx, C: ConstraintContextInnerExt<GC2::EF>>(
         (commitment_index, sumcheck_data): (MleCommitmentIndex, ZkPartialSumcheckProof<GC2, C>),
         ctx: &mut C,
     ) {

@@ -1,5 +1,6 @@
 mod constraints;
 mod debug;
+pub mod pcs;
 mod prover;
 mod transcript;
 mod verifier;

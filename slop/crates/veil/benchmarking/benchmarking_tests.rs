@@ -17,7 +17,7 @@ use slop_multilinear::{Mle, MultilinearPcsProver};
 use slop_stacked::{StackedPcsProver, StackedPcsVerifier};
 use slop_sumcheck::{partially_verify_sumcheck_proof, reduce_sumcheck_to_evaluation};
 use slop_veil::builder::{
-    compute_mask_length, ConstraintContext, MleCommitmentIndex, ZkCnstrAndReadingCtx, ZkIopCtx,
+    compute_mask_length, ConstraintContextInnerExt, MleCommitmentIndex, ZkCnstrAndReadingCtxInner, ZkIopCtx,
     ZkProtocolParameters, ZkProtocolProof,
 };
 use slop_veil::stacked_pcs::{
@@ -197,7 +197,7 @@ fn benchmark_zk_vs_standard_sumcheck_with_pcs() {
     eprintln!("\n===== ZK SUMCHECK + ZK STACKED PCS =====");
 
     /// Reads all proof data from the transcript including PCS commitment.
-    fn read_all<GC: ZkIopCtx, C: ZkCnstrAndReadingCtx<GC>>(
+    fn read_all<GC: ZkIopCtx, C: ZkCnstrAndReadingCtxInner<GC>>(
         context: &mut C,
     ) -> (MleCommitmentIndex, ZkPartialSumcheckProof<GC, C>) {
         let commitment_index = context
@@ -212,7 +212,7 @@ fn benchmark_zk_vs_standard_sumcheck_with_pcs() {
     }
 
     /// Uniform constraint generation function (called by both prover and verifier).
-    fn build_all_constraints<GC: ZkIopCtx, C: ConstraintContext<GC::EF>>(
+    fn build_all_constraints<GC: ZkIopCtx, C: ConstraintContextInnerExt<GC::EF>>(
         (commitment_index, sumcheck_data): (MleCommitmentIndex, ZkPartialSumcheckProof<GC, C>),
         ctx: &mut C,
     ) {

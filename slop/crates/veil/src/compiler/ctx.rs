@@ -15,9 +15,6 @@ pub trait ConstraintCtx {
     /// for constraints of the form a * b = c. Use this instead to avoid the extra materialization.
     fn assert_a_times_b_equals_c(&mut self, a: Self::Expr, b: Self::Expr, c: Self::Expr);
 
-    /// Add a constant as an expression in the context.
-    fn cst(&mut self, value: Self::Field) -> Self::Expr;
-
     #[cfg(sp1_debug_constraints)]
     fn name_last_lin_constraint(&self, _name: impl Into<String>) {}
 

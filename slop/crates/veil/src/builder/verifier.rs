@@ -18,7 +18,7 @@ use super::utils::{
 };
 use super::verifier_transcript::{VerifierElement, VerifierLinExpression, VerifierValue};
 use super::{
-    ConstraintContext, ConstraintContextInner, ExpressionIndex, ZkCnstrAndReadingCtx, ZkExpression,
+    ConstraintContextInnerExt, ConstraintContextInner, ExpressionIndex, ZkCnstrAndReadingCtxInner, ZkExpression,
     ZkIopCtx, ZkPcsVerificationError, ZkPcsVerifier,
 };
 
@@ -438,13 +438,13 @@ impl<GC: ZkIopCtx> ZkVerificationContext<GC, ()> {
     }
 }
 
-impl<GC: ZkIopCtx, PcsProof: Clone> ZkCnstrAndReadingCtx<GC>
+impl<GC: ZkIopCtx, PcsProof: Clone> ZkCnstrAndReadingCtxInner<GC>
     for ZkVerificationContext<GC, PcsProof>
 {
     /// Receives the next message of length 1, observes it, and outputs a single [`ExpressionIndex`].
     ///
     /// The expected length must be 1, otherwise returns `None`.
-    fn read_one(&mut self) -> Option<<Self as ConstraintContext<GC::EF>>::Expr> {
+    fn read_one(&mut self) -> Option<<Self as ConstraintContextInnerExt<GC::EF>>::Expr> {
         let idx = self.read_one_raw()?;
         Some(self.add_expr(idx.into()))
     }
@@ -452,7 +452,7 @@ impl<GC: ZkIopCtx, PcsProof: Clone> ZkCnstrAndReadingCtx<GC>
     /// Receives the next message, observes it, and outputs [`ExpressionIndex`]es.
     ///
     /// The expected length must match the length of the message in the proof, otherwise returns `None`.
-    fn read_next(&mut self, num: usize) -> Option<Vec<<Self as ConstraintContext<GC::EF>>::Expr>> {
+    fn read_next(&mut self, num: usize) -> Option<Vec<<Self as ConstraintContextInnerExt<GC::EF>>::Expr>> {
         let (block_index, len) = self.read_raw(num)?;
         Some((0..len).map(|i| self.add_expr([block_index, i].into())).collect())
     }
@@ -498,7 +498,7 @@ pub struct ZKProtocolShapeError;
 ///
 /// The returned proof contains `VerifierElement<GC>` since `read_proof_from_transcript`
 /// reads from the verifier context.
-pub trait ZkProtocolParameters<GC: ZkIopCtx, C: ZkCnstrAndReadingCtx<GC>> {
+pub trait ZkProtocolParameters<GC: ZkIopCtx, C: ZkCnstrAndReadingCtxInner<GC>> {
     /// The proof type produced by reading from transcript.
     /// Must implement `ZkProtocolProof` so it can generate its own constraints.
     type Proof: ZkProtocolProof<GC, C>;
@@ -514,7 +514,7 @@ pub trait ZkProtocolParameters<GC: ZkIopCtx, C: ZkCnstrAndReadingCtx<GC>> {
 /// to generate linear constraints without additional inputs.
 ///
 /// Generic over ConstraintContextOuter to be uniform across prover and verifier.
-pub trait ZkProtocolProof<GC: ZkIopCtx, C: ConstraintContext<GC::EF>>:
+pub trait ZkProtocolProof<GC: ZkIopCtx, C: ConstraintContextInnerExt<GC::EF>>:
     std::fmt::Debug + Clone
 {
     /// Builds and asserts constraints for this proof using the element's expression type.

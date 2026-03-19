@@ -1,5 +1,5 @@
 use crate::builder::{
-    ConstraintContext, PcsEvalClaim, VerifierValue, ZkCnstrAndReadingCtx, ZkIopCtx,
+    ConstraintContextInnerExt, PcsEvalClaim, VerifierValue, ZkCnstrAndReadingCtxInner, ZkIopCtx,
     ZkPcsVerificationError, ZkPcsVerifier, ZkProtocolProof, ZkVerificationContext,
 };
 use derive_where::derive_where;
@@ -50,7 +50,7 @@ where
     ///
     /// Beware: this verification loses a few bits of security compared to the base PCS.
     /// See the writeup for exact guarantees.
-    pub fn verify_zk_stacked_pcs<C: ZkCnstrAndReadingCtx<GC>>(
+    pub fn verify_zk_stacked_pcs<C: ZkCnstrAndReadingCtxInner<GC>>(
         &self,
         commitment: &GC::Digest,
         point: &Point<GC::EF>,
@@ -165,7 +165,7 @@ where
 /// Per-claim constraint data for a single evaluation claim within a batched proof.
 #[derive(Clone)]
 #[derive_where(Debug; C::Expr)]
-pub struct ZkStackedPcsClaimData<GC: IopCtx, C: ConstraintContext<GC::EF>> {
+pub struct ZkStackedPcsClaimData<GC: IopCtx, C: ConstraintContextInnerExt<GC::EF>> {
     /// Evaluation point for this claim
     pub point: Point<GC::EF>,
     /// Transcript element of the original evaluation claim
@@ -183,7 +183,7 @@ pub struct ZkStackedPcsClaimData<GC: IopCtx, C: ConstraintContext<GC::EF>> {
 /// Generic over the context type `C` which can be `ZkVerificationContext` or `ZkProverContext`.
 #[derive(Clone)]
 #[derive_where(Debug; C::Expr)]
-pub struct ZkStackedPcsConstraintData<GC: IopCtx, C: ConstraintContext<GC::EF>> {
+pub struct ZkStackedPcsConstraintData<GC: IopCtx, C: ConstraintContextInnerExt<GC::EF>> {
     /// Log of the number of columns (polynomials) in the stacking
     pub log_num_cols: usize,
     /// RLC point for eq-based linear combination (dimension = log_num_cols)
@@ -192,7 +192,7 @@ pub struct ZkStackedPcsConstraintData<GC: IopCtx, C: ConstraintContext<GC::EF>> 
     pub claim: ZkStackedPcsClaimData<GC, C>,
 }
 
-impl<GC: ZkIopCtx, C: ConstraintContext<GC::EF>> ZkProtocolProof<GC, C>
+impl<GC: ZkIopCtx, C: ConstraintContextInnerExt<GC::EF>> ZkProtocolProof<GC, C>
     for ZkStackedPcsConstraintData<GC, C>
 {
     fn build_constraints(self) {

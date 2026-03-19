@@ -1,5 +1,5 @@
 use crate::builder::{
-    ConstraintContext, ZkCnstrAndReadingCtx, ZkIopCtx, ZkProtocolParameters, ZkProtocolProof,
+    ConstraintContextInnerExt, ZkCnstrAndReadingCtxInner, ZkIopCtx, ZkProtocolParameters, ZkProtocolProof,
 };
 use derive_where::derive_where;
 use slop_algebra::AbstractField;
@@ -9,7 +9,7 @@ use slop_challenger::FieldChallenger;
 /// Parameters for the zero-knowledge sumcheck protocol.
 #[derive(Clone)]
 #[derive_where(Debug; C::Expr)]
-pub struct ZkPartialSumcheckParameters<GC: ZkIopCtx, C: ConstraintContext<GC::EF>> {
+pub struct ZkPartialSumcheckParameters<GC: ZkIopCtx, C: ConstraintContextInnerExt<GC::EF>> {
     /// Number of variables in the sumcheck.
     pub num_variables: u32,
     /// Degree of the polynomials.
@@ -24,7 +24,7 @@ pub struct ZkPartialSumcheckParameters<GC: ZkIopCtx, C: ConstraintContext<GC::EF
     pub t: u32,
 }
 
-impl<GC: ZkIopCtx, C: ConstraintContext<GC::EF>> ZkPartialSumcheckParameters<GC, C> {
+impl<GC: ZkIopCtx, C: ConstraintContextInnerExt<GC::EF>> ZkPartialSumcheckParameters<GC, C> {
     /// Parameters for a basic Hadamard product sumcheck with 2 multilinear components and degree 2.
     pub fn basic_hadamard_sumcheck(num_vars: u32, claim_expr: C::Expr) -> Self {
         ZkPartialSumcheckParameters {
@@ -56,7 +56,7 @@ impl<GC: ZkIopCtx, C: ConstraintContext<GC::EF>> ZkPartialSumcheckParameters<GC,
 /// Generic over the context type `C` which can be `ZkVerificationContext` or `ZkProverContext`.
 #[derive(Clone)]
 #[derive_where(Debug; C::Expr)]
-pub struct ZkPartialSumcheckProof<GC: ZkIopCtx, C: ConstraintContext<GC::EF>> {
+pub struct ZkPartialSumcheckProof<GC: ZkIopCtx, C: ConstraintContextInnerExt<GC::EF>> {
     /// The parameters this proof was read with
     pub parameters: ZkPartialSumcheckParameters<GC, C>,
     /// Univariate polynomial coefficients for each round
@@ -71,7 +71,7 @@ pub struct ZkPartialSumcheckProof<GC: ZkIopCtx, C: ConstraintContext<GC::EF>> {
     pub component_poly_evals: Vec<Vec<C::Expr>>,
 }
 
-impl<GC: ZkIopCtx, C: ZkCnstrAndReadingCtx<GC>> ZkProtocolParameters<GC, C>
+impl<GC: ZkIopCtx, C: ZkCnstrAndReadingCtxInner<GC>> ZkProtocolParameters<GC, C>
     for ZkPartialSumcheckParameters<GC, C>
 {
     type Proof = ZkPartialSumcheckProof<GC, C>;
@@ -120,7 +120,7 @@ impl<GC: ZkIopCtx, C: ZkCnstrAndReadingCtx<GC>> ZkProtocolParameters<GC, C>
     }
 }
 
-impl<GC: ZkIopCtx, C: ConstraintContext<GC::EF>> ZkProtocolProof<GC, C>
+impl<GC: ZkIopCtx, C: ConstraintContextInnerExt<GC::EF>> ZkProtocolProof<GC, C>
     for ZkPartialSumcheckProof<GC, C>
 {
     fn build_constraints(self) {

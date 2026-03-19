@@ -10,8 +10,8 @@ use slop_koala_bear::KoalaBearDegree4Duplex;
 
 use super::prover::ZkProverContext;
 use super::{
-    ConstraintContext, ConstraintContextInner, ExpressionIndex, TranscriptLinConstraint,
-    ZkCnstrAndReadingCtx,
+    ConstraintContextInnerExt, ConstraintContextInner, ExpressionIndex, TranscriptLinConstraint,
+    ZkCnstrAndReadingCtxInner,
 };
 use crate::name_constraint;
 
@@ -52,7 +52,7 @@ fn build_constraints<K, C>(
     l: C::Expr,
 ) where
     K: AbstractField + Copy,
-    C: ConstraintContext<K>,
+    C: ConstraintContextInnerExt<K>,
 {
     let mut ctx: C = a.as_ref().clone();
     // Linear constraint: a + b = c
@@ -238,7 +238,7 @@ fn build_equal_index_constraints<K, C>(
     nested_result: C::Expr,
 ) where
     K: AbstractField + Copy,
-    C: ConstraintContext<K>,
+    C: ConstraintContextInnerExt<K>,
 {
     let mut ctx: C = a.as_ref().clone();
     // Test 1: a + a = double_a (equal-index Add, simple element)

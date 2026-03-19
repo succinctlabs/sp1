@@ -402,7 +402,7 @@ impl<K: AbstractField + Copy, C: ConstraintContextInner<K>> Mul<ExpressionIndex<
 // ============================================================================
 
 /// Public interface for [`ConstraintContextInner`]
-pub trait ConstraintContext<K: AbstractField + Copy>: Clone {
+pub trait ConstraintContextInnerExt<K: AbstractField + Copy>: Clone {
     type Expr: Clone
         + std::fmt::Debug
         + AsRef<Self>
@@ -488,8 +488,8 @@ pub(in crate::builder) mod private {
     pub trait Sealed {}
 }
 
-impl<K: AbstractField + Copy, C: ConstraintContextInner<K> + private::Sealed> ConstraintContext<K>
-    for C
+impl<K: AbstractField + Copy, C: ConstraintContextInner<K> + private::Sealed>
+    ConstraintContextInnerExt<K> for C
 {
     type Expr = ExpressionIndex<K, C>;
 
@@ -528,7 +528,7 @@ impl<K: AbstractField + Copy, C: ConstraintContextInner<K> + private::Sealed> Co
 }
 
 /// Trait for reading ProofTranscripts
-pub trait ZkCnstrAndReadingCtx<GC: ZkIopCtx>: ConstraintContext<GC::EF> {
+pub trait ZkCnstrAndReadingCtxInner<GC: ZkIopCtx>: ConstraintContextInnerExt<GC::EF> {
     /// Read the next single element from the transcript.
     fn read_one(&mut self) -> Option<Self::Expr> {
         self.read_next(1)?.pop()

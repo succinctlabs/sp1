@@ -5,7 +5,7 @@ use std::rc::Rc;
 use slop_algebra::{AbstractExtensionField, AbstractField};
 use slop_challenger::IopCtx;
 
-use super::constraints::{ConstraintContext, ZkCnstrAndReadingCtx};
+use super::constraints::{ConstraintContextInnerExt, ZkCnstrAndReadingCtxInner};
 use super::ZkIopCtx;
 
 /// Computes the mask length by running the protocol's read and constraint
@@ -141,7 +141,7 @@ impl<GC: IopCtx, K: AbstractField + Copy> Mul<K> for MaskCounterContext<GC> {
 // ConstraintContext implementation
 // ============================================================================
 
-impl<GC: ZkIopCtx> ConstraintContext<GC::EF> for MaskCounterContext<GC> {
+impl<GC: ZkIopCtx> ConstraintContextInnerExt<GC::EF> for MaskCounterContext<GC> {
     type Expr = MaskCounterContext<GC>;
 
     fn assert_zero(&mut self, _expr: Self::Expr) {}
@@ -170,7 +170,7 @@ impl<GC: ZkIopCtx> ConstraintContext<GC::EF> for MaskCounterContext<GC> {
     }
 }
 
-impl<GC: ZkIopCtx> ZkCnstrAndReadingCtx<GC> for MaskCounterContext<GC> {
+impl<GC: ZkIopCtx> ZkCnstrAndReadingCtxInner<GC> for MaskCounterContext<GC> {
     fn read_next(&mut self, num: usize) -> Option<Vec<Self::Expr>> {
         // Increment the counter by the number of elements read
         *self.counter.borrow_mut() += num;

@@ -1,7 +1,7 @@
 #![allow(clippy::disallowed_types)]
 use crate::builder::{
-    compute_mask_length, ConstraintContext, MleCommitmentIndex, ZkCnstrAndReadingCtx, ZkIopCtx,
-    ZkProtocolParameters, ZkProtocolProof,
+    compute_mask_length, ConstraintContextInnerExt, MleCommitmentIndex, ZkCnstrAndReadingCtxInner,
+    ZkIopCtx, ZkProtocolParameters, ZkProtocolProof,
 };
 use crate::stacked_pcs::{
     initialize_zk_prover_and_verifier, prover::StackedPcsZkProverContext,
@@ -93,7 +93,7 @@ fn test_zk_sumcheck() {
 
     /// Reads all proof data from the transcript.
     /// Returns the data needed for `build_all_constraints`.
-    fn read_all<GC: ZkIopCtx, C: ZkCnstrAndReadingCtx<GC>>(
+    fn read_all<GC: ZkIopCtx, C: ZkCnstrAndReadingCtxInner<GC>>(
         context: &mut C,
     ) -> ZkPartialSumcheckProof<GC, C> {
         // Read the index of the claimed sum value
@@ -108,7 +108,7 @@ fn test_zk_sumcheck() {
 
     // Uniform constraint generation function (called by both prover and verifier)
     // Generic over the context type C to work with both ZkProverContext and ZkVerificationContext.
-    fn build_all_constraints<GC: ZkIopCtx, C: ConstraintContext<GC::EF>>(
+    fn build_all_constraints<GC: ZkIopCtx, C: ConstraintContextInnerExt<GC::EF>>(
         sumcheck_data: ZkPartialSumcheckProof<GC, C>,
         _ctx: &mut C,
     ) {
@@ -184,7 +184,7 @@ fn test_zk_sumcheck_with_pcs_eval_proof_single_mle() {
     eprintln!("  Variables per column: {}", NUM_STACKED_VARS);
 
     /// Reads all proof data from the transcript including PCS commitment.
-    fn read_all<GC: ZkIopCtx, C: ZkCnstrAndReadingCtx<GC>>(
+    fn read_all<GC: ZkIopCtx, C: ZkCnstrAndReadingCtxInner<GC>>(
         context: &mut C,
     ) -> (MleCommitmentIndex, ZkPartialSumcheckProof<GC, C>) {
         // Read PCS commitment
@@ -205,7 +205,7 @@ fn test_zk_sumcheck_with_pcs_eval_proof_single_mle() {
     }
 
     /// Uniform constraint generation function (called by both prover and verifier).
-    fn build_all_constraints<GC: ZkIopCtx, C: ConstraintContext<GC::EF>>(
+    fn build_all_constraints<GC: ZkIopCtx, C: ConstraintContextInnerExt<GC::EF>>(
         (commitment_index, sumcheck_data): (MleCommitmentIndex, ZkPartialSumcheckProof<GC, C>),
         ctx: &mut C,
     ) {
@@ -318,7 +318,7 @@ fn test_zk_sumcheck_with_pcs_eval_proof_hadamard_product() {
     eprintln!("  Variables per column: {}", NUM_STACKED_VARS);
 
     /// Reads all proof data from the transcript including both PCS commitments.
-    fn read_all<GC: ZkIopCtx, C: ZkCnstrAndReadingCtx<GC>>(
+    fn read_all<GC: ZkIopCtx, C: ZkCnstrAndReadingCtxInner<GC>>(
         context: &mut C,
     ) -> (MleCommitmentIndex, MleCommitmentIndex, ZkPartialSumcheckProof<GC, C>) {
         // Read both PCS commitments
@@ -342,7 +342,7 @@ fn test_zk_sumcheck_with_pcs_eval_proof_hadamard_product() {
     }
 
     /// Uniform constraint generation function (called by both prover and verifier).
-    fn build_all_constraints<GC: ZkIopCtx, C: ConstraintContext<GC::EF>>(
+    fn build_all_constraints<GC: ZkIopCtx, C: ConstraintContextInnerExt<GC::EF>>(
         (commitment_index_base, commitment_index_ext, sumcheck_data): (
             MleCommitmentIndex,
             MleCommitmentIndex,
@@ -482,7 +482,7 @@ fn test_zk_sumcheck_with_pcs_eval_proof_batched_single_mles() {
     eprintln!("  Variables per column: {}", NUM_STACKED_VARS);
 
     /// Reads all proof data from the transcript including PCS commitments and lambda.
-    fn read_all<GC: ZkIopCtx, C: ZkCnstrAndReadingCtx<GC>>(
+    fn read_all<GC: ZkIopCtx, C: ZkCnstrAndReadingCtxInner<GC>>(
         context: &mut C,
     ) -> (Vec<MleCommitmentIndex>, ZkPartialSumcheckProof<GC, C>) {
         // Read PCS commitments
@@ -520,7 +520,7 @@ fn test_zk_sumcheck_with_pcs_eval_proof_batched_single_mles() {
     }
 
     /// Uniform constraint generation function (called by both prover and verifier).
-    fn build_all_constraints<GC: ZkIopCtx, C: ConstraintContext<GC::EF>>(
+    fn build_all_constraints<GC: ZkIopCtx, C: ConstraintContextInnerExt<GC::EF>>(
         (commitment_indices, sumcheck_data): (
             Vec<MleCommitmentIndex>,
             ZkPartialSumcheckProof<GC, C>,
@@ -669,7 +669,7 @@ fn test_zk_sumcheck_triple_hadamard_with_batched_pcs() {
 
     /// Reads all proof data from the transcript: three PCS commitments and three
     /// hadamard sumcheck proofs (fg, gh, hf).
-    fn read_all<GC: ZkIopCtx, C: ZkCnstrAndReadingCtx<GC>>(
+    fn read_all<GC: ZkIopCtx, C: ZkCnstrAndReadingCtxInner<GC>>(
         context: &mut C,
     ) -> ([MleCommitmentIndex; 3], [ZkPartialSumcheckProof<GC, C>; 3]) {
         let commitment_f = context
@@ -696,7 +696,7 @@ fn test_zk_sumcheck_triple_hadamard_with_batched_pcs() {
     }
 
     /// Uniform constraint generation function (called by both prover and verifier).
-    fn build_all_constraints<GC: ZkIopCtx, C: ConstraintContext<GC::EF>>(
+    fn build_all_constraints<GC: ZkIopCtx, C: ConstraintContextInnerExt<GC::EF>>(
         (commitments, sumchecks): ([MleCommitmentIndex; 3], [ZkPartialSumcheckProof<GC, C>; 3]),
         ctx: &mut C,
     ) {
