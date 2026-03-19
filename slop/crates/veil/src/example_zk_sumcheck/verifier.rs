@@ -1,5 +1,6 @@
-use crate::builder::{
-    ConstraintContextInnerExt, ZkCnstrAndReadingCtxInner, ZkIopCtx, ZkProtocolParameters, ZkProtocolProof,
+use crate::inner::{
+    ConstraintContextInnerExt, ZkCnstrAndReadingCtxInner, ZkIopCtx, ZkProtocolParameters,
+    ZkProtocolProof,
 };
 use derive_where::derive_where;
 use slop_algebra::AbstractField;

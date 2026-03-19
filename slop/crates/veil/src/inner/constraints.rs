@@ -7,7 +7,7 @@ use derive_where::derive_where;
 use itertools::Itertools;
 use slop_algebra::AbstractField;
 
-use super::utils::{
+use super::transcript::{
     MleCommitmentIndex, Point, TranscriptIndex, TranscriptLinConstraint, TranscriptMulConstraint,
 };
 use super::ZkIopCtx;
@@ -283,7 +283,7 @@ pub struct ExpressionIndex<K, C> {
 }
 
 impl<K: AbstractField + Copy, C: ConstraintContextInner<K>> ExpressionIndex<K, C> {
-    pub(in crate::builder) fn new(index: usize, context: C) -> Self {
+    pub(in crate::inner) fn new(index: usize, context: C) -> Self {
         Self { index, context, _phantom_data: std::marker::PhantomData }
     }
 
@@ -482,7 +482,7 @@ pub trait ConstraintContextInnerExt<K: AbstractField + Copy>: Clone {
     );
 }
 
-pub(in crate::builder) mod private {
+pub(in crate::inner) mod private {
     /// Stupid hoop to jump through since Rust doesn't allow negative trait bounds, thereby making
     /// blanket implementations difficult
     pub trait Sealed {}

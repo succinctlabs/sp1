@@ -17,7 +17,7 @@ use slop_challenger::{CanObserve, FieldChallenger};
 use slop_merkle_tree::TensorCsProver;
 
 use super::prover_transcript::ProverElement;
-use super::utils::{
+use super::transcript::{
     MleCommitmentIndex, PcsCommitmentEntry, PcsEvalClaim, Point, ProofTranscript,
     TranscriptLinConstraint, TranscriptMulConstraint,
 };
@@ -37,10 +37,10 @@ use super::{ExpressionIndex, ZkIopCtx};
     deserialize = "PcsProof: serde::de::DeserializeOwned"
 ))]
 pub struct ZkProof<GC: ZkIopCtx, PcsProof = ()> {
-    pub(in crate::builder) proof: ZkCnstrProof<GC, PcsProof>,
-    pub(in crate::builder) transcript: ProofTranscript<GC::EF>,
+    pub(in crate::inner) proof: ZkCnstrProof<GC, PcsProof>,
+    pub(in crate::inner) transcript: ProofTranscript<GC::EF>,
     /// PCS commitment transcript: metadata for each committed MLE.
-    pub(in crate::builder) pcs_commitment_transcript: Vec<PcsCommitmentEntry<GC::Digest>>,
+    pub(in crate::inner) pcs_commitment_transcript: Vec<PcsCommitmentEntry<GC::Digest>>,
 }
 
 /// The static proof data from [`ZkProof`] needed to verify linear and multiplicative constraints.
@@ -128,7 +128,7 @@ pub struct ZkProverContextInner<GC: ZkIopCtx, PD = ()> {
 
     // Debug: constraint debugger (only present when sp1_debug_constraints is enabled)
     #[cfg(sp1_debug_constraints)]
-    debugger: super::debug::ConstraintDebugger,
+    debugger: crate::inner::debug::ConstraintDebugger,
 }
 
 impl<GC: ZkIopCtx, PD> super::constraints::private::Sealed for ZkProverContext<GC, PD> {}
@@ -408,7 +408,7 @@ impl<GC: ZkIopCtx, PD> ZkProverContext<GC, PD> {
     /// Prefer using `commit_mle` which handles commitment generation automatically.
     /// This method is exposed for testing and advanced use cases where commitment
     /// is generated separately.
-    pub(in crate::builder) fn register_commitment(
+    pub(in crate::inner) fn register_commitment(
         &mut self,
         digest: GC::Digest,
         prover_data: PD,

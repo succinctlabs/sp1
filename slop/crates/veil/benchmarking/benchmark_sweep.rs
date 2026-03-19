@@ -26,12 +26,12 @@ use slop_merkle_tree::Poseidon2KoalaBear16Prover;
 use slop_multilinear::{Mle, MultilinearPcsProver};
 use slop_stacked::{StackedPcsProver, StackedPcsVerifier};
 use slop_sumcheck::{partially_verify_sumcheck_proof, reduce_sumcheck_to_evaluation};
-use slop_veil::builder::{
-    compute_mask_length, ConstraintContextInnerExt, MleCommitmentIndex, ZkCnstrAndReadingCtxInner, ZkIopCtx,
-    ZkProtocolParameters, ZkProtocolProof,
-};
 use slop_veil::example_zk_sumcheck::{
     verifier::ZkPartialSumcheckParameters, zk_reduce_sumcheck_to_evaluation, ZkPartialSumcheckProof,
+};
+use slop_veil::inner::{
+    compute_mask_length, ConstraintContextInnerExt, MleCommitmentIndex, ZkCnstrAndReadingCtxInner,
+    ZkIopCtx, ZkProtocolParameters, ZkProtocolProof,
 };
 use slop_veil::stacked_pcs::{
     initialize_zk_prover_and_verifier, prover::StackedPcsZkProverContext,

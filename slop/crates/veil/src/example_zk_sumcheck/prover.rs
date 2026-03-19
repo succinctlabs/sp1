@@ -1,4 +1,4 @@
-use crate::builder::ZkIopCtx;
+use crate::inner::ZkIopCtx;
 use crate::stacked_pcs::prover::{StackedPcsProverValue, StackedPcsZkProverContext};
 use derive_where::derive_where;
 use itertools::Itertools;

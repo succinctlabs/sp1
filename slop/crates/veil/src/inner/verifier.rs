@@ -12,14 +12,14 @@ use slop_challenger::{CanObserve, FieldChallenger};
 use thiserror::Error;
 
 use super::prover::{ZkCnstrProof, ZkMulCnstrProof, ZkProof};
-use super::utils::{
+use super::transcript::{
     MleCommitmentIndex, PcsCommitmentEntry, PcsEvalClaim, Point, ProofTranscript,
     TranscriptLinConstraint, TranscriptMulConstraint,
 };
 use super::verifier_transcript::{VerifierElement, VerifierLinExpression, VerifierValue};
 use super::{
-    ConstraintContextInnerExt, ConstraintContextInner, ExpressionIndex, ZkCnstrAndReadingCtxInner, ZkExpression,
-    ZkIopCtx, ZkPcsVerificationError, ZkPcsVerifier,
+    ConstraintContextInner, ConstraintContextInnerExt, ExpressionIndex, ZkCnstrAndReadingCtxInner,
+    ZkExpression, ZkIopCtx, ZkPcsVerificationError, ZkPcsVerifier,
 };
 
 /// Handle to a [`ZkVerificationContextInner`] that provides shared mutable access.
@@ -452,7 +452,10 @@ impl<GC: ZkIopCtx, PcsProof: Clone> ZkCnstrAndReadingCtxInner<GC>
     /// Receives the next message, observes it, and outputs [`ExpressionIndex`]es.
     ///
     /// The expected length must match the length of the message in the proof, otherwise returns `None`.
-    fn read_next(&mut self, num: usize) -> Option<Vec<<Self as ConstraintContextInnerExt<GC::EF>>::Expr>> {
+    fn read_next(
+        &mut self,
+        num: usize,
+    ) -> Option<Vec<<Self as ConstraintContextInnerExt<GC::EF>>::Expr>> {
         let (block_index, len) = self.read_raw(num)?;
         Some((0..len).map(|i| self.add_expr([block_index, i].into())).collect())
     }

@@ -44,7 +44,7 @@
 //! )?;
 //! ```
 
-use crate::builder::ZkIopCtx;
+use crate::inner::ZkIopCtx;
 use itertools::Itertools;
 use slop_algebra::{AbstractExtensionField, AbstractField, TwoAdicField};
 use slop_basefold::{BaseFoldVerifierError, BasefoldProof, BasefoldVerifier, FriConfig};

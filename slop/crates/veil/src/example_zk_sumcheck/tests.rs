@@ -1,5 +1,5 @@
 #![allow(clippy::disallowed_types)]
-use crate::builder::{
+use crate::inner::{
     compute_mask_length, ConstraintContextInnerExt, MleCommitmentIndex, ZkCnstrAndReadingCtxInner,
     ZkIopCtx, ZkProtocolParameters, ZkProtocolProof,
 };

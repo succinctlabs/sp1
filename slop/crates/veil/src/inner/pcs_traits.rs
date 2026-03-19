@@ -10,7 +10,7 @@ use slop_alloc::CpuBackend;
 use slop_multilinear::Mle;
 use thiserror::Error;
 
-use super::utils::PcsEvalClaim;
+use super::transcript::PcsEvalClaim;
 use super::{ProverValue, VerifierValue, ZkIopCtx, ZkProverContext, ZkVerificationContext};
 
 /// Error type for PCS commitment failures.

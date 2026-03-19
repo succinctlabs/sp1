@@ -79,7 +79,7 @@
 //! See `basefold-prover/src/fri.rs::FriCpuProver::batch` for the standard batching
 //! implementation that you can adapt for ZK.
 
-use crate::builder::{MerkleProverData, ZkIopCtx};
+use crate::inner::{MerkleProverData, ZkIopCtx};
 use itertools::Itertools;
 use slop_algebra::AbstractField;
 use slop_alloc::CpuBackend;

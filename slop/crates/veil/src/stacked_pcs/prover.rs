@@ -1,5 +1,5 @@
 // ZK Stacked PCS Prover implementation
-use crate::builder::{
+use crate::inner::{
     MerkleProverData, PcsEvalClaim, ProverValue, ZkIopCtx, ZkPcsCommitmentError, ZkPcsProver,
     ZkProtocolProof, ZkProverContext,
 };

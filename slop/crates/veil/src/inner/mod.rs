@@ -10,7 +10,7 @@ pub mod mask_counter;
 pub mod pcs_traits;
 pub mod prover;
 pub mod prover_transcript;
-pub mod utils;
+pub mod transcript;
 pub mod verifier;
 pub mod verifier_transcript;
 
@@ -22,7 +22,7 @@ pub use mask_counter::*;
 pub use pcs_traits::*;
 pub use prover::*;
 pub use prover_transcript::*;
-pub use utils::*;
+pub use transcript::*;
 pub use verifier::*;
 pub use verifier_transcript::*;
 
@@ -72,10 +72,10 @@ impl ZkIopCtx for KoalaBearDegree4Duplex {
 macro_rules! name_constraint {
     ($ctx:expr, $name:expr) => {{
         #[cfg(sp1_debug_constraints)]
-        $crate::builder::ConstraintContextInnerExt::name_last_lin_constraint(&$ctx, $name);
+        $crate::inner::ConstraintContextInnerExt::name_last_lin_constraint(&$ctx, $name);
     }};
     ($ctx:expr, $fmt:expr, $($arg:tt)*) => {{
         #[cfg(sp1_debug_constraints)]
-        $crate::builder::ConstraintContext::name_last_lin_constraint(&$ctx, format!($fmt, $($arg)*));
+        $crate::inner::ConstraintContext::name_last_lin_constraint(&$ctx, format!($fmt, $($arg)*));
      }};
 }
