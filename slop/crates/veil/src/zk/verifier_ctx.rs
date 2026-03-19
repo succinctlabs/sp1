@@ -41,7 +41,7 @@ impl<GC: ZkIopCtx> ZkVerifierCtx<GC> {
 /// Either a concrete field constant (`Dorroh::Constant`) or an opaque expression index
 /// into the verifier transcript (`Dorroh::Element`).
 #[allow(type_alias_bounds)]
-pub type HiddenElement<GC: ZkIopCtx> =
+pub type TranscriptElement<GC: ZkIopCtx> =
     Dorroh<GC::EF, ExpressionIndex<GC::EF, ZkVerificationContext<GC>>>;
 
 pub struct MleCommit {
@@ -53,7 +53,7 @@ pub struct MleCommit {
 // ============================================================================
 
 fn into_verifier_value<GC: ZkIopCtx>(
-    elem: HiddenElement<GC>,
+    elem: TranscriptElement<GC>,
     ctx: &mut ZkVerificationContext<GC>,
 ) -> ExpressionIndex<GC::EF, ZkVerificationContext<GC>> {
     match elem {
@@ -69,19 +69,19 @@ fn into_verifier_value<GC: ZkIopCtx>(
 impl<GC: ZkIopCtx> ConstraintCtx for ZkVerifierCtx<GC> {
     type Field = GC::F;
     type Extension = GC::EF;
-    type Expr = HiddenElement<GC>;
+    type Expr = TranscriptElement<GC>;
     type MleOracle = MleCommit;
 
-    fn assert_zero(&mut self, expr: HiddenElement<GC>) {
+    fn assert_zero(&mut self, expr: TranscriptElement<GC>) {
         let idx = into_verifier_value(expr, &mut self.inner);
         self.inner.assert_zero(idx);
     }
 
     fn assert_a_times_b_equals_c(
         &mut self,
-        a: HiddenElement<GC>,
-        b: HiddenElement<GC>,
-        c: HiddenElement<GC>,
+        a: TranscriptElement<GC>,
+        b: TranscriptElement<GC>,
+        c: TranscriptElement<GC>,
     ) {
         let ai = into_verifier_value(a, &mut self.inner);
         let bi = into_verifier_value(b, &mut self.inner);
@@ -92,8 +92,8 @@ impl<GC: ZkIopCtx> ConstraintCtx for ZkVerifierCtx<GC> {
     fn assert_mle_eval(
         &mut self,
         oracle: MleCommit,
-        point: Point<HiddenElement<GC>>,
-        eval_expr: HiddenElement<GC>,
+        point: Point<TranscriptElement<GC>>,
+        eval_expr: TranscriptElement<GC>,
     ) {
         // Point coords are sampled Fiat-Shamir challenges, always Constant.
         let inner_point: Point<GC::EF> = point
@@ -136,7 +136,7 @@ impl<GC: ZkIopCtx> ReadingCtx for ZkVerifierCtx<GC> {
             .map(|idx| MleCommit { inner: idx })
     }
 
-    fn sample(&mut self) -> HiddenElement<GC> {
+    fn sample(&mut self) -> TranscriptElement<GC> {
         let f: GC::EF = self.inner.challenger().sample_ext_element();
         Dorroh::Constant(f)
     }
