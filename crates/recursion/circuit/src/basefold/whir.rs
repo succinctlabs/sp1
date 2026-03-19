@@ -321,7 +321,11 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> RecursiveWhirVerifier<C, S
 
             // Absorb the OOD answers
             challenger.observe_ext_element_slice(builder, &new_commitment.ood_answers);
-
+            challenger.check_witness(
+                builder,
+                round_params.queries_pow_bits,
+                proof.query_proof_of_works[round_index],
+            );
             // Squeeze the STIR queries
             let id_query_indices = (0..round_params.num_queries)
                 .map(|_| challenger.sample_bits(builder, domain_size))
@@ -330,14 +334,9 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> RecursiveWhirVerifier<C, S
                 .iter()
                 .map(|val| C::exp_reverse_bits(builder, generator, val.clone()))
                 .collect();
+
             let claim_batching_randomness: Ext<SP1Field, SP1ExtensionField> =
                 challenger.sample_ext(builder);
-
-            challenger.check_witness(
-                builder,
-                round_params.queries_pow_bits,
-                proof.query_proof_of_works[round_index],
-            );
 
             let merkle_proofs = &proof.merkle_proofs[round_index];
 
@@ -471,6 +470,8 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> RecursiveWhirVerifier<C, S
         let final_poly = proof.final_polynomial.clone();
         let final_poly_uv = UnivariatePolynomial::new(IntoSymbolic::<C>::as_symbolic(&final_poly));
 
+        challenger.check_witness(builder, self.config.final_pow_bits, proof.final_pow);
+
         let final_id_indices = (0..self.config.final_queries)
             .map(|_| challenger.sample_bits(builder, domain_size))
             .collect::<Vec<_>>();
@@ -513,8 +514,6 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> RecursiveWhirVerifier<C, S
                 final_poly_uv.eval_at_point((*final_id_val).into()),
             );
         }
-
-        challenger.check_witness(builder, self.config.final_pow_bits, proof.final_pow);
 
         (folding_randomness, claimed_sum) = self.verify_whir_sumcheck(
             builder,
@@ -590,11 +589,11 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> RecursiveWhirVerifier<C, S
 
             builder.assert_ext_eq(claimed_sum, sum);
 
+            challenger.check_witness(builder, pow_bits[i], *pow_witness);
             let folding_randomness_single: Ext<SP1Field, SP1ExtensionField> =
                 challenger.sample_ext(builder);
             randomness.push(folding_randomness_single);
 
-            challenger.check_witness(builder, pow_bits[i], *pow_witness);
             claimed_sum = builder.eval(
                 IntoSymbolic::<C>::as_symbolic(sumcheck_poly)
                     .evaluate_at_point(IntoSymbolic::<C>::as_symbolic(&folding_randomness_single)),
