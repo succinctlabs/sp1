@@ -156,3 +156,28 @@ extern "C" rustCudaError_t cuda_launch_kernel(
     CUDA_OK(cudaLaunchKernel(kernel, grid, block, args, shared_mem, stream));
     return CUDA_SUCCESS_CSL;
 }
+
+extern "C" rustCudaError_t cuda_launch_cooperative_kernel(
+    void* kernel,
+    dim3 grid,
+    dim3 block,
+    void** args,
+    size_t shared_mem,
+    cudaStream_t stream) {
+    CUDA_OK(cudaLaunchCooperativeKernel(kernel, grid, block, args, shared_mem, stream));
+    return CUDA_SUCCESS_CSL;
+}
+
+extern "C" rustCudaError_t cuda_occupancy_max_active_blocks_per_sm(
+    int* num_blocks,
+    void* kernel,
+    int block_size,
+    size_t smem) {
+    CUDA_OK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(num_blocks, kernel, block_size, smem));
+    return CUDA_SUCCESS_CSL;
+}
+
+extern "C" rustCudaError_t cuda_device_get_attribute_multiprocessor_count(int* count) {
+    CUDA_OK(cudaDeviceGetAttribute(count, cudaDevAttrMultiProcessorCount, 0));
+    return CUDA_SUCCESS_CSL;
+}

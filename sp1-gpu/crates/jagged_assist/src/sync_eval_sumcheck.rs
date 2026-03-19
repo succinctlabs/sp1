@@ -173,12 +173,12 @@ where
 }
 
 /// Sync version of prove_jagged_eval_sumcheck for TaskScope.
-/// Calls sync methods directly instead of using async/.await.
+/// Uses a single fused cooperative kernel launch for all rounds.
 pub fn prove_jagged_eval_sumcheck_sync<F, EF, DeviceChallenger>(
     mut poly: JaggedEvalSumcheckPolyGPU<F, EF, DeviceChallenger>,
     challenger: &mut DeviceChallenger,
     claim: EF,
-    t: usize,
+    _t: usize,
     sum_values: &mut Buffer<EF, TaskScope>,
 ) -> PartialSumcheckProof<EF>
 where
@@ -189,33 +189,18 @@ where
         + DeviceSumKernel<EF>
         + DeviceTransposeKernel<F>,
 {
-    let num_variables = poly.num_variables();
+    let num_variables = poly.num_variables() as usize;
 
-    // First round of sumcheck - sync call
-    poly.rho = poly.bp_batch_eval.sum_as_poly_and_sample_into_point(
-        poly.round_num,
+    // Single fused cooperative kernel launch for all rounds
+    let rho_buffer = poly.bp_batch_eval.fused_sumcheck(
+        num_variables,
         &poly.z_col_eq_vals,
-        &poly.intermediate_eq_full_evals,
+        &mut poly.intermediate_eq_full_evals,
         sum_values,
         challenger,
-        poly.rho.clone(),
+        &poly.merged_prefix_sums,
+        poly.prefix_sum_dimension as usize,
     );
-
-    // Fix last variable
-    poly.fix_last_variable();
-
-    for _ in t..num_variables as usize {
-        poly.rho = poly.bp_batch_eval.sum_as_poly_and_sample_into_point(
-            poly.round_num,
-            &poly.z_col_eq_vals,
-            &poly.intermediate_eq_full_evals,
-            sum_values,
-            challenger,
-            poly.rho.clone(),
-        );
-
-        poly.fix_last_variable();
-    }
 
     // Move sum_as_poly evaluations to CPU
     let host_sum_values = unsafe { sum_values.copy_into_host_vec() };
@@ -230,16 +215,17 @@ where
         })
         .collect::<Vec<_>>();
 
-    // Move randomness point to CPU
-    let point_host = unsafe { poly.rho.values().copy_into_host_vec() };
+    // Move rho_buffer to CPU and reverse (kernel writes forward, convention is reversed)
+    let mut rho_host = unsafe { rho_buffer.copy_into_host_vec() };
+    rho_host.reverse();
 
     let final_claim: EF =
-        univariate_polys.last().unwrap().eval_at_point(point_host.first().copied().unwrap());
+        univariate_polys.last().unwrap().eval_at_point(rho_host.first().copied().unwrap());
 
     PartialSumcheckProof {
         univariate_polys,
         claimed_sum: claim,
-        point_and_eval: (point_host.into(), final_claim),
+        point_and_eval: (rho_host.into(), final_claim),
     }
 }
 

@@ -85,6 +85,29 @@ impl CudaStream {
         ))
     }
 
+    /// # Safety
+    ///
+    /// Same as launch_kernel but uses cooperative launch to enable grid-level synchronization.
+    /// The grid size must not exceed the maximum cooperative grid size for the kernel.
+    #[inline]
+    pub unsafe fn launch_cooperative_kernel(
+        &self,
+        kernel: KernelPtr,
+        grid_dim: impl Into<Dim3>,
+        block_dim: impl Into<Dim3>,
+        args: &[*mut c_void],
+        shared_mem: usize,
+    ) -> Result<(), CudaError> {
+        CudaError::result_from_ffi(sp1_gpu_sys::runtime::cuda_launch_cooperative_kernel(
+            kernel,
+            grid_dim.into(),
+            block_dim.into(),
+            args.as_ptr() as *mut *mut c_void,
+            shared_mem,
+            self.0,
+        ))
+    }
+
     #[inline]
     fn query(&self) -> Result<(), CudaError> {
         CudaError::result_from_ffi(unsafe { cuda_stream_query(self.0) })

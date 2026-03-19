@@ -11,8 +11,10 @@ use sp1_gpu_cudart::{
     sys::{
         jagged::{
             branching_program_kernel, evalWithCachedAtZeroAndHalf_kernel, fixLastVariable_kernel,
-            interpolateAndObserve_kernel_duplex, interpolateAndObserve_kernel_multi_field_32,
-            precomputePrefixStates_kernel, updateSuffixVector_kernel,
+            fusedJaggedAssistSumcheck_kernel_duplex,
+            fusedJaggedAssistSumcheck_kernel_multi_field_32, interpolateAndObserve_kernel_duplex,
+            interpolateAndObserve_kernel_multi_field_32, precomputePrefixStates_kernel,
+            updateSuffixVector_kernel,
         },
         runtime::KernelPtr,
     },
@@ -56,6 +58,8 @@ pub unsafe trait BranchingProgramKernel<F: Field, EF: ExtensionField<F>, Challen
     fn eval_with_cached_kernel() -> KernelPtr;
 
     fn update_suffix_vector_kernel() -> KernelPtr;
+
+    fn fused_sumcheck_kernel() -> KernelPtr;
 }
 
 /// # Safety
@@ -86,6 +90,10 @@ unsafe impl<F: Field, EF: ExtensionField<F>>
     fn update_suffix_vector_kernel() -> KernelPtr {
         unsafe { updateSuffixVector_kernel() }
     }
+
+    fn fused_sumcheck_kernel() -> KernelPtr {
+        unsafe { fusedJaggedAssistSumcheck_kernel_duplex() }
+    }
 }
 
 unsafe impl<F: Field, EF: ExtensionField<F>>
@@ -113,6 +121,10 @@ unsafe impl<F: Field, EF: ExtensionField<F>>
 
     fn update_suffix_vector_kernel() -> KernelPtr {
         unsafe { updateSuffixVector_kernel() }
+    }
+
+    fn fused_sumcheck_kernel() -> KernelPtr {
+        unsafe { fusedJaggedAssistSumcheck_kernel_multi_field_32() }
     }
 }
 

@@ -308,6 +308,89 @@ where
                 .unwrap();
         }
     }
+
+    /// Run all sumcheck rounds in a single cooperative kernel launch.
+    /// Returns `(sum_values, rho_buffer)` where:
+    /// - `sum_values[3*round + {0,1,2}]` contains (y0, yhalf, y1) for each round
+    /// - `rho_buffer[round]` contains alpha for each round (forward order)
+    #[allow(clippy::too_many_arguments)]
+    pub fn fused_sumcheck<OnDeviceChallenger: AsMutRawChallenger>(
+        &mut self,
+        num_rounds: usize,
+        z_col_eq_vals: &Buffer<EF, TaskScope>,
+        intermediate_eq_full_evals: &mut Buffer<EF, TaskScope>,
+        sum_values: &mut Buffer<EF, TaskScope>,
+        challenger: &mut OnDeviceChallenger,
+        merged_prefix_sums: &Buffer<F, TaskScope>,
+        merged_prefix_sum_dim: usize,
+    ) -> Buffer<EF, TaskScope>
+    where
+        TaskScope: BranchingProgramKernel<F, EF, OnDeviceChallenger>,
+    {
+        let backend = self.current_prefix_sums.backend();
+
+        const BLOCK_SIZE: i32 = 256;
+        let shared_mem = (8 + BLOCK_SIZE as usize) * std::mem::size_of::<EF>();
+
+        // Query max cooperative grid size (consumes kernel ptr, so get it again for launch)
+        let occupancy_kernel =
+            <TaskScope as BranchingProgramKernel<F, EF, OnDeviceChallenger>>::fused_sumcheck_kernel(
+            );
+        let max_blocks =
+            TaskScope::max_cooperative_blocks(occupancy_kernel, BLOCK_SIZE, shared_mem).unwrap();
+        let needed_blocks = self.num_columns.div_ceil(BLOCK_SIZE as usize);
+        let grid_size = std::cmp::min(needed_blocks, max_blocks as usize);
+
+        // Allocate workspace
+        let mut block_partial_sums: Buffer<EF, TaskScope> =
+            Buffer::with_capacity_in(2 * grid_size, backend.clone());
+        unsafe { block_partial_sums.set_len(2 * grid_size) };
+
+        let mut rho_buffer = Buffer::with_capacity_in(num_rounds, backend.clone());
+        unsafe { rho_buffer.set_len(num_rounds) };
+
+        let kernel =
+            <TaskScope as BranchingProgramKernel<F, EF, OnDeviceChallenger>>::fused_sumcheck_kernel(
+            );
+
+        unsafe {
+            let kernel_args = args!(
+                self.prefix_states.as_ptr(),
+                self.z_row.as_ptr(),
+                self.z_row.dimension(),
+                self.z_index.as_ptr(),
+                self.z_index.dimension(),
+                self.current_prefix_sums.as_ptr(),
+                self.next_prefix_sums.as_ptr(),
+                self.prefix_sum_length,
+                z_col_eq_vals.as_ptr(),
+                self.half,
+                self.num_columns,
+                num_rounds,
+                self.suffix_vector_device.as_mut_ptr(),
+                self.round_claim_device.as_mut_ptr(),
+                intermediate_eq_full_evals.as_mut_ptr(),
+                challenger.as_mut_raw(),
+                sum_values.as_mut_ptr(),
+                rho_buffer.as_mut_ptr(),
+                merged_prefix_sums.as_ptr(),
+                merged_prefix_sum_dim,
+                block_partial_sums.as_mut_ptr()
+            );
+
+            backend
+                .launch_cooperative_kernel(
+                    kernel,
+                    grid_size,
+                    BLOCK_SIZE as usize,
+                    &kernel_args,
+                    shared_mem,
+                )
+                .unwrap();
+        }
+
+        rho_buffer
+    }
 }
 
 #[cfg(test)]

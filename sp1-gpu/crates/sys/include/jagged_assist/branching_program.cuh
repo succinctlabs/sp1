@@ -9,6 +9,8 @@ extern "C" void* interpolateAndObserve_kernel();
 extern "C" void* precomputePrefixStates_kernel();
 extern "C" void* evalWithCachedAtZeroAndHalf_kernel();
 extern "C" void* updateSuffixVector_kernel();
+extern "C" void* fusedJaggedAssistSumcheck_kernel_duplex();
+extern "C" void* fusedJaggedAssistSumcheck_kernel_multi_field_32();
 
 // A range of values where the start is inclusive and the end is exclusive.
 struct Range {
