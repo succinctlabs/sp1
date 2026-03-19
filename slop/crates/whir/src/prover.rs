@@ -1207,7 +1207,9 @@ mod tests {
             rounds.iter().count(),
             &mut challenger_verifier,
         );
-        verifier.observe_commitment(&commitments, &mut challenger_verifier).unwrap();
+        verifier
+            .observe_commitment(&commitments, &mut challenger_verifier, rounds.iter().count())
+            .unwrap();
         verifier
             .verify_trusted_evaluation(
                 &commitments,

@@ -823,8 +823,8 @@ mod tests {
         let eval_claim: EF = polynomial_concat.eval_at(&eval_point)[0];
 
         // Observe all commitments into both challengers.
-        verifier.observe_commitment(&commitments, &mut challenger_prover).unwrap();
-        verifier.observe_commitment(&commitments, &mut challenger_verifier).unwrap();
+        verifier.observe_commitment(&commitments, &mut challenger_prover, 2).unwrap();
+        verifier.observe_commitment(&commitments, &mut challenger_verifier, 2).unwrap();
 
         // Prove using prove_trusted_evaluation.
         let prover_datas = vec![prover_data_1, prover_data_2].into_iter().collect();
