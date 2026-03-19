@@ -80,6 +80,57 @@ CPU reference:
 **Root cause:** Test used `all_memory_states()` (8 states) but GPU transition table has 5 (4+FAIL for width-4). Also, bit state ordering in the test didn't match the GPU enum.
 **Fix:** Used `MemoryState::width4_states()` and corrected bit ordering to match GPU's `next_ps(bit0) | curr_ps(bit1) | index(bit2) | row(bit3)`.
 
+## `evalWithCachedAtZeroAndHalf` Optimizations (March 2026)
+
+The kernel evaluates the width-8 branching program at lambda=0 and lambda=1/2 for each column, combining precomputed prefix states with the suffix vector. The following optimizations reduce extension field multiplications by ~5×.
+
+### 1. Direct sparse accumulation (eliminates dense dot product)
+
+The transition table is very sparse: for each input memory state `ms`, only 2 out of 8 bit states produce non-FAIL transitions. The original code built a dense `accum_elems[8]` array and dotted it with `pstate[8]` (8 EF×EF mults, 6 wasted on zeros). The optimized code directly accumulates `two_var_eq[half_i] * pstate[out_ms]` for non-FAIL entries only.
+
+### 2. Period-4 suffix sum trick (even layer only)
+
+`CURR_TRANSITIONS_W8[bs][m] == CURR_TRANSITIONS_W8[bs][m+4]` for all `bs` and `m`, because the saved_index_bit (bit 2 of the state encoding) is passively carried through curr-layer transitions. This means `pstate[CURR_TRANS[bs][m]]` is identical for `m` and `m+4`. We precompute `ss[i] = suffix[i] + suffix[i+4]` (4 values) and loop over `m=0..3` instead of `ms=0..7`, halving the inner loop.
+
+Combined with the transposed accumulation order (loop over `half_i` first, then `m`), the even-layer BP computation uses ~24 EF×EF mults instead of ~128.
+
+**Note:** This symmetry does NOT hold for `NEXT_TRANSITIONS_W8` (odd layers), so the odd layer uses the full `ms=0..7` loop.
+
+### 3. Reuse y_0 in y_half
+
+For the "at half" evaluation, both `curr_ps=0` and `curr_ps=1` bit states contribute equally (weight `half` each). Since the `curr_ps=0` contribution is exactly `y_0`, we compute:
+- `y_0` from curr_ps=0 transitions
+- `y_one` from curr_ps=1 transitions
+- `y_half_raw = y_0 + y_one` (no half factor yet)
+
+The two half factors (BP half from `[1/2, 1/2]` base factors + eq_half from eq polynomial) are combined into `half_sq = half^2` and applied once at output.
+
+### 4. Base field multiplies (F×EF instead of EF×EF)
+
+Three values that are conceptually base field elements were previously wrapped in EF:
+- `eq_zero = 1 - ps_val` where `ps_val` comes from `getIthLeastSignificantValFromPoints<F>()` — kept as `F eq_zero_base`
+- `half` is `1/2` which lives in the base field — extracted via `F half_base = half.value[0]`
+- `half_sq = half_base * half_base` — computed as F×F
+
+F×EF multiplication is ~4× cheaper than EF×EF (4 base mults vs 16 + reduction).
+
+### 5. Precompute common output factor
+
+Both output lines multiply by `z_col_eq_val * intermed`. Computing `common = z_col_eq_val * intermed` once saves 1 EF×EF per column.
+
+### 6. Suffix vector in shared memory
+
+The 8-element suffix vector is identical across all columns. Loading it into `__shared__` memory once per block (128 bytes) avoids redundant global memory reads per thread.
+
+### EF multiplication count summary (per column)
+
+| Component | Original | Optimized |
+|-----------|----------|-----------|
+| Even layer BP (after_zero + after_half) | ~128 EF×EF | ~24 EF×EF |
+| Odd layer BP (after_zero + after_half) | ~72 EF×EF | 16 EF×EF |
+| Suffix dot products | 16 EF×EF | 0 (folded into transposed accum) |
+| Output chain | 6 EF×EF | 3 EF×EF + 2 F×EF |
+
 ## Testing
 
 - **Unit test:** `test_transition` in `branching_program.rs` — validates GPU transition tables against CPU `transition()` function
