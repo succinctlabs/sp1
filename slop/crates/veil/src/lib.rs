@@ -8,3 +8,4 @@ pub mod hadamard_product;
 pub mod stacked_pcs;
 
 pub mod compiler;
+pub mod zk;
