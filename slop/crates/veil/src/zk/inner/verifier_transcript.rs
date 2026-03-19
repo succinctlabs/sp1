@@ -25,8 +25,6 @@ impl<K: AbstractField + Copy> From<[usize; 2]> for ZkExpression<K, VerifierEleme
 /// Type alias for expression indices in the verifier context.
 ///
 /// # Type Parameters
-/// * `GC` - The ZK IOP context type
-/// * `PcsProof` - The PCS proof type (defaults to `()` when no PCS is used)
+/// * `GC` - The ZK IOP context type; `GC::PcsProof` is the PCS proof type.
 #[allow(type_alias_bounds)]
-pub type VerifierValue<GC: ZkIopCtx, PcsProof = ()> =
-    ExpressionIndex<GC::EF, ZkVerificationContext<GC, PcsProof>>;
+pub type VerifierValue<GC: ZkIopCtx> = ExpressionIndex<GC::EF, ZkVerificationContext<GC>>;

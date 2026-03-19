@@ -1,6 +1,4 @@
-use serde::Serialize;
 use std::cell::{Ref, RefCell, RefMut};
-use std::marker::PhantomData;
 use std::rc::Rc;
 
 use crate::zk::dot_product::{dot_product, verify_zk_dot_product, ZkDotProductError};
@@ -29,13 +27,12 @@ use super::{
 /// to hold references back to the context.
 ///
 /// # Type Parameters
-/// * `GC` - The ZK IOP context type
-/// * `PcsProof` - The PCS proof type (defaults to `()` when no PCS is used)
+/// * `GC` - The ZK IOP context type; `GC::PcsProof` is the PCS proof type.
 ///
 /// Contains a challenger which can be accessed using self.borrow_mut().challenger
-#[derive_where(Clone; PcsProof: Clone)]
-pub struct ZkVerificationContext<GC: ZkIopCtx, PcsProof = ()> {
-    inner: Rc<RefCell<ZkVerificationContextInner<GC, PcsProof>>>,
+#[derive(Clone)]
+pub struct ZkVerificationContext<GC: ZkIopCtx> {
+    inner: Rc<RefCell<ZkVerificationContextInner<GC>>>,
 }
 
 /// Verification context that accumulates constraints during verification.
@@ -44,10 +41,9 @@ pub struct ZkVerificationContext<GC: ZkIopCtx, PcsProof = ()> {
 /// and accumulating linear and multiplicative constraints.
 ///
 /// # Type Parameters
-/// * `GC` - The ZK IOP context type
-/// * `PcsProof` - The PCS proof type (defaults to `()` when no PCS is used)
-#[derive_where(Clone; PcsProof: Clone)]
-pub struct ZkVerificationContextInner<GC: ZkIopCtx, PcsProof = ()> {
+/// * `GC` - The ZK IOP context type; `GC::PcsProof` is the PCS proof type.
+#[derive(Clone)]
+pub struct ZkVerificationContextInner<GC: ZkIopCtx> {
     /// The challenger for Fiat-Shamir
     challenger: GC::Challenger,
 
@@ -70,23 +66,15 @@ pub struct ZkVerificationContextInner<GC: ZkIopCtx, PcsProof = ()> {
     pcs_commitment_current_index: usize,
 
     /// PCS evaluation claims to be verified
-    pcs_eval_claims: Vec<PcsEvalClaim<GC::EF, VerifierValue<GC, PcsProof>>>,
+    pcs_eval_claims: Vec<PcsEvalClaim<GC::EF, VerifierValue<GC>>>,
 
     /// The stored constraint proof
-    proof: ZkCnstrProof<GC, PcsProof>,
-
-    /// Phantom data for PcsProof type
-    _phantom: PhantomData<PcsProof>,
+    proof: ZkCnstrProof<GC>,
 }
 
-impl<GC: ZkIopCtx, PcsProof> super::constraints::private::Sealed
-    for ZkVerificationContext<GC, PcsProof>
-{
-}
+impl<GC: ZkIopCtx> super::constraints::private::Sealed for ZkVerificationContext<GC> {}
 
-impl<GC: ZkIopCtx, PcsProof: Clone> ConstraintContextInner<GC::EF>
-    for ZkVerificationContext<GC, PcsProof>
-{
+impl<GC: ZkIopCtx> ConstraintContextInner<GC::EF> for ZkVerificationContext<GC> {
     type Element = VerifierElement<GC::EF>;
 
     fn add_lin_constraints(
@@ -106,7 +94,7 @@ impl<GC: ZkIopCtx, PcsProof: Clone> ConstraintContextInner<GC::EF>
     fn add_expr(
         &mut self,
         expr: ZkExpression<GC::EF, VerifierElement<GC::EF>>,
-    ) -> VerifierValue<GC, PcsProof> {
+    ) -> VerifierValue<GC> {
         self.borrow_mut().expressions.push(expr);
         ExpressionIndex::new(self.borrow().expressions.len() - 1, self.clone())
     }
@@ -129,7 +117,7 @@ impl<GC: ZkIopCtx, PcsProof: Clone> ConstraintContextInner<GC::EF>
         &mut self,
         commitment_index: MleCommitmentIndex,
         point: Point<GC::EF>,
-        eval_expr: VerifierValue<GC, PcsProof>,
+        eval_expr: VerifierValue<GC>,
     ) {
         self.borrow_mut().pcs_eval_claims.push(PcsEvalClaim { commitment_index, point, eval_expr });
     }
@@ -151,13 +139,13 @@ pub enum ZkBuilderProofError {
     PcsVerificationFailed { index: usize, error: ZkPcsVerificationError },
 }
 
-impl<GC: ZkIopCtx, PcsProof: Clone + Serialize> ZkProof<GC, PcsProof> {
+impl<GC: ZkIopCtx> ZkProof<GC> {
     /// Opens a zkproof for verification.
     ///
     /// Returns an initialized mutable [`ZkVerificationContext`] containing the proof.
     ///
     /// Creates a default challenger internally and observes the mask commitment.
-    pub fn open(self) -> ZkVerificationContext<GC, PcsProof> {
+    pub fn open(self) -> ZkVerificationContext<GC> {
         let mut challenger = GC::default_challenger();
         challenger.observe(self.proof.mask_commitment);
 
@@ -172,21 +160,20 @@ impl<GC: ZkIopCtx, PcsProof: Clone + Serialize> ZkProof<GC, PcsProof> {
             pcs_commitment_current_index: 0,
             pcs_eval_claims: vec![],
             proof: self.proof,
-            _phantom: PhantomData,
         };
 
         ZkVerificationContext { inner: Rc::new(RefCell::new(inner)) }
     }
 }
 
-impl<GC: ZkIopCtx, PcsProof: Clone> ZkVerificationContext<GC, PcsProof> {
+impl<GC: ZkIopCtx> ZkVerificationContext<GC> {
     /// Borrow the inner context mutably and return a guard.
-    pub fn borrow_mut(&self) -> RefMut<'_, ZkVerificationContextInner<GC, PcsProof>> {
+    pub fn borrow_mut(&self) -> RefMut<'_, ZkVerificationContextInner<GC>> {
         self.inner.borrow_mut()
     }
 
     /// Borrow the inner context immutably and return a guard.
-    pub fn borrow(&self) -> Ref<'_, ZkVerificationContextInner<GC, PcsProof>> {
+    pub fn borrow(&self) -> Ref<'_, ZkVerificationContextInner<GC>> {
         self.inner.borrow()
     }
 
@@ -226,7 +213,7 @@ impl<GC: ZkIopCtx, PcsProof: Clone> ZkVerificationContext<GC, PcsProof> {
     }
 
     /// Returns the PCS evaluation claims registered so far.
-    pub fn pcs_eval_claims(&self) -> Vec<PcsEvalClaim<GC::EF, VerifierValue<GC, PcsProof>>> {
+    pub fn pcs_eval_claims(&self) -> Vec<PcsEvalClaim<GC::EF, VerifierValue<GC>>> {
         self.borrow().pcs_eval_claims.clone()
     }
 
@@ -252,7 +239,7 @@ impl<GC: ZkIopCtx, PcsProof: Clone> ZkVerificationContext<GC, PcsProof> {
     pub fn verify<V>(mut self, pcs_verifier: Option<&V>) -> Result<(), ZkBuilderProofError>
     where
         GC: ZkIopCtx,
-        V: ZkPcsVerifier<GC, Proof = PcsProof>,
+        V: ZkPcsVerifier<GC, Proof = GC::PcsProof>,
     {
         // Handle PCS evaluation claims first
         self.verify_pcs_claims(pcs_verifier)?;
@@ -305,7 +292,7 @@ impl<GC: ZkIopCtx, PcsProof: Clone> ZkVerificationContext<GC, PcsProof> {
     /// One proof is verified per claim.
     fn verify_pcs_claims<V>(&mut self, pcs_verifier: Option<&V>) -> Result<(), ZkBuilderProofError>
     where
-        V: ZkPcsVerifier<GC, Proof = PcsProof>,
+        V: ZkPcsVerifier<GC, Proof = GC::PcsProof>,
     {
         let eval_claims = self.pcs_eval_claims();
         let pcs_proofs = self.borrow().proof.pcs_proofs.clone();
@@ -410,19 +397,19 @@ impl<GC: ZkIopCtx, PcsProof: Clone> ZkVerificationContext<GC, PcsProof> {
 pub struct NoPcsVerifier;
 
 impl<GC: ZkIopCtx> ZkPcsVerifier<GC> for NoPcsVerifier {
-    type Proof = ();
+    type Proof = GC::PcsProof;
 
     fn verify_eval(
         &self,
-        _ctx: &mut ZkVerificationContext<GC, ()>,
-        _claim: PcsEvalClaim<GC::EF, VerifierValue<GC, ()>>,
-        _proof: &Self::Proof,
+        _ctx: &mut ZkVerificationContext<GC>,
+        _claim: PcsEvalClaim<GC::EF, VerifierValue<GC>>,
+        _proof: &GC::PcsProof,
     ) -> Result<(), ZkPcsVerificationError> {
         panic!("NoPcsVerifier::verify_eval should never be called")
     }
 }
 
-impl<GC: ZkIopCtx> ZkVerificationContext<GC, ()> {
+impl<GC: ZkIopCtx> ZkVerificationContext<GC> {
     /// Convenience method to verify a proof without PCS support.
     ///
     /// This only verifies the linear and multiplicative constraints.
@@ -438,9 +425,7 @@ impl<GC: ZkIopCtx> ZkVerificationContext<GC, ()> {
     }
 }
 
-impl<GC: ZkIopCtx, PcsProof: Clone> ZkCnstrAndReadingCtxInner<GC>
-    for ZkVerificationContext<GC, PcsProof>
-{
+impl<GC: ZkIopCtx> ZkCnstrAndReadingCtxInner<GC> for ZkVerificationContext<GC> {
     /// Receives the next message of length 1, observes it, and outputs a single [`ExpressionIndex`].
     ///
     /// The expected length must be 1, otherwise returns `None`.

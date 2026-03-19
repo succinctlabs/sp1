@@ -12,3 +12,10 @@ pub use basefold_verifier_wrapper::*;
 pub use prover::*;
 pub use utils::*;
 pub use verifier::*;
+
+use crate::zk::verifier_ctx::ZkIopCtx;
+use slop_koala_bear::KoalaBearDegree4Duplex;
+
+impl ZkIopCtx for KoalaBearDegree4Duplex {
+    type PcsProof = ZkStackedPcsProof<KoalaBearDegree4Duplex>;
+}

@@ -48,12 +48,6 @@ pub trait ZkPcsProver<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> {
     /// or Merkle tree authentication paths.
     type ProverData;
 
-    /// The serializable proof type that can be included in the overall proof.
-    ///
-    /// This proof will be sent to the verifier and should contain all
-    /// information needed to verify the evaluation claim.
-    type Proof;
-
     /// Commits to an MLE by stacking it internally.
     ///
     /// This method stacks the flat MLE into `2^log_stacking_height` columns,
@@ -83,13 +77,13 @@ pub trait ZkPcsProver<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> {
     /// * `claim` - The evaluation claim to prove
     ///
     /// # Returns
-    /// A proof for the claim.
+    /// A `GC::PcsProof` for the claim.
     #[allow(clippy::type_complexity)]
     fn prove_eval(
         &self,
         ctx: &mut ZkProverContext<GC, MK, Self::ProverData>,
         claim: PcsEvalClaim<GC::EF, ProverValue<GC, MK, Self::ProverData>>,
-    ) -> Self::Proof;
+    ) -> GC::PcsProof;
 }
 
 /// Trait for PCS verifiers that verify evaluation proofs.
@@ -97,12 +91,13 @@ pub trait ZkPcsProver<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> {
 /// Implementations verify zero-knowledge proofs for MLE evaluations
 /// and build the corresponding constraints on the verification context.
 ///
+/// The `Proof` associated type must equal `GC::PcsProof` when used with
+/// [`ZkVerificationContext::verify`].
+///
 /// # Type Parameters
 /// * `GC` - The ZK IOP context type
 pub trait ZkPcsVerifier<GC: ZkIopCtx> {
-    /// The proof type to verify.
-    ///
-    /// This should match the `Proof` type from the corresponding `ZkPcsProver`.
+    /// The proof type to verify. Must equal `GC::PcsProof` in practice.
     type Proof;
 
     /// Verifies an evaluation proof for a single claim on one commitment.
@@ -117,8 +112,8 @@ pub trait ZkPcsVerifier<GC: ZkIopCtx> {
     #[allow(clippy::type_complexity)]
     fn verify_eval(
         &self,
-        ctx: &mut ZkVerificationContext<GC, Self::Proof>,
-        claim: PcsEvalClaim<GC::EF, VerifierValue<GC, Self::Proof>>,
+        ctx: &mut ZkVerificationContext<GC>,
+        claim: PcsEvalClaim<GC::EF, VerifierValue<GC>>,
         proof: &Self::Proof,
     ) -> Result<(), ZkPcsVerificationError>;
 }

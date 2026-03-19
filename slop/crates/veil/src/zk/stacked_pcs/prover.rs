@@ -251,9 +251,10 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkBasefoldProver<GC, MK> {
 // ZkPcsProver trait implementation
 // ============================================================================
 
-impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkPcsProver<GC, MK> for ZkBasefoldProver<GC, MK> {
+impl<GC: ZkIopCtx<PcsProof = ZkStackedPcsProof<GC>>, MK: ZkMerkleizer<GC>> ZkPcsProver<GC, MK>
+    for ZkBasefoldProver<GC, MK>
+{
     type ProverData = ZkStackedPcsProverData<GC, MK>;
-    type Proof = ZkStackedPcsProof<GC>;
 
     fn commit_mle<RNG: rand::CryptoRng + rand::Rng>(
         &self,
@@ -279,7 +280,7 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkPcsProver<GC, MK> for ZkBasefoldProve
         &self,
         ctx: &mut ZkProverContext<GC, MK, Self::ProverData>,
         claim: PcsEvalClaim<GC::EF, ProverValue<GC, MK, Self::ProverData>>,
-    ) -> Self::Proof {
+    ) -> GC::PcsProof {
         let commitment_index = claim.commitment_index;
 
         // Look up the prover data from context using the commitment index

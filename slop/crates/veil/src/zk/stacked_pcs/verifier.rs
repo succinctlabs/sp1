@@ -19,13 +19,13 @@ use super::ZkStackedPcsProof;
 ///
 /// This is the expression index type that should be used by downstream code
 /// (e.g., zk-sumcheck) when working with the ZK stacked PCS verification context.
-pub type StackedPcsVerifierValue<GC> = VerifierValue<GC, ZkStackedPcsProof<GC>>;
+pub type StackedPcsVerifierValue<GC> = VerifierValue<GC>;
 
 /// Type alias for `ZkVerificationContext` when using the ZK stacked PCS.
 ///
 /// This is the verification context type that should be used by downstream code
 /// (e.g., zk-sumcheck) when working with the ZK stacked PCS.
-pub type StackedPcsZkVerificationContext<GC> = ZkVerificationContext<GC, ZkStackedPcsProof<GC>>;
+pub type StackedPcsZkVerificationContext<GC> = ZkVerificationContext<GC>;
 
 #[derive(Debug, Error)]
 pub enum ZkStackedVerifierError {
@@ -224,18 +224,19 @@ impl<GC: ZkIopCtx, C: ConstraintContextInnerExt<GC::EF>> ZkProtocolProof<GC, C>
 // ZkPcsVerifier trait implementation
 // ============================================================================
 
-impl<GC: ZkIopCtx> ZkPcsVerifier<GC> for ZkStackedPcsVerifier<GC>
+impl<GC: ZkIopCtx<PcsProof = ZkStackedPcsProof<GC>>> ZkPcsVerifier<GC> for ZkStackedPcsVerifier<GC>
 where
     GC::F: TwoAdicField,
 {
-    type Proof = super::ZkStackedPcsProof<GC>;
+    type Proof = ZkStackedPcsProof<GC>;
 
     fn verify_eval(
         &self,
-        ctx: &mut ZkVerificationContext<GC, Self::Proof>,
-        claim: PcsEvalClaim<GC::EF, VerifierValue<GC, Self::Proof>>,
-        proof: &Self::Proof,
+        ctx: &mut ZkVerificationContext<GC>,
+        claim: PcsEvalClaim<GC::EF, VerifierValue<GC>>,
+        proof: &ZkStackedPcsProof<GC>,
     ) -> Result<(), ZkPcsVerificationError> {
+        let proof = proof.clone();
         let commitment_index = claim.commitment_index;
 
         // Look up the commitment entry from context using the commitment index
