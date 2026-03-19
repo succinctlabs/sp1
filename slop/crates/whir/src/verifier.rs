@@ -64,7 +64,6 @@ pub struct WhirProof<GC>
 where
     GC: IopCtx,
 {
-    pub config: WhirProofShape<GC::F>,
     // First sumcheck
     pub initial_sumcheck_polynomials: Vec<(SumcheckPoly<GC::EF>, ProofOfWork<GC>)>,
 
@@ -135,13 +134,16 @@ pub fn map_to_pow<F: AbstractField>(mut elem: F, len: usize) -> Point<F> {
 impl<GC> Verifier<GC>
 where
     GC: IopCtx,
+    GC::Challenger: VariableLengthChallenger<GC::F, GC::Digest>,
 {
     pub fn new(
         merkle_verifier: MerkleTreeTcs<GC>,
         config: WhirProofShape<GC::F>,
         num_expected_commitments: usize,
+        challenger: &mut GC::Challenger,
     ) -> Self {
         assert_ne!(num_expected_commitments, 0, "commitment must exist");
+        config.write_to_challenger::<GC::Digest, GC::Challenger>(challenger);
         Self { merkle_verifier, config, num_expected_commitments }
     }
 
@@ -149,10 +151,14 @@ where
         &self,
         commitment: &[GC::Digest],
         challenger: &mut GC::Challenger,
+        expected_length: usize,
     ) -> Result<(), WhirProofError> {
-        challenger.observe_constant_length_digest_slice(commitment);
-
-        Ok(())
+        if commitment.len() != expected_length {
+            Err(WhirProofError::InvalidNumberOfCommitments(expected_length, commitment.len()))
+        } else {
+            challenger.observe_constant_length_digest_slice(commitment);
+            Ok(())
+        }
     }
 
     /// The claim is that < f, v > = claim.
@@ -166,7 +172,7 @@ where
         proof: &WhirProof<GC>,
         challenger: &mut GC::Challenger,
     ) -> Result<(Point<GC::EF>, GC::EF), WhirProofError> {
-        let config = &proof.config;
+        let config = &self.config;
         let n_rounds = config.round_parameters.len();
         if commitments.len() != self.num_expected_commitments
             || round_areas.len() != self.num_expected_commitments
@@ -212,8 +218,6 @@ where
             return Err(WhirProofError::InvalidMerkleAuthentication);
         }
 
-        challenger.observe_ext_element_slice(&commitment.ood_answers);
-
         // Check that the number of OOD answers in the proof matches the expected value.
         if commitment.ood_answers.len() != config.starting_ood_samples {
             return Err(WhirProofError::InvalidNumberOfOODSamples(
@@ -221,6 +225,8 @@ where
                 commitment.ood_answers.len(),
             ));
         }
+
+        challenger.observe_ext_element_slice(&commitment.ood_answers);
 
         // Batch the initial claim with the OOD claims of the commitment
         let claim_batching_randomness: GC::EF = challenger.sample_ext_element();
@@ -292,6 +298,12 @@ where
 
             // Absorb the OOD answers
             challenger.observe_ext_element_slice(&new_commitment.ood_answers);
+            if !challenger.check_witness(
+                round_params.queries_pow_bits,
+                proof.query_proofs_of_work[round_index],
+            ) {
+                return Err(WhirProofError::PowError);
+            }
 
             // Squeeze the STIR queries
             let id_query_indices = (0..round_params.num_queries)
@@ -303,13 +315,6 @@ where
                 .map(|pos| generator.exp_u64(pos as u64))
                 .collect();
             let claim_batching_randomness: GC::EF = challenger.sample_ext_element();
-
-            if !challenger.check_witness(
-                round_params.queries_pow_bits.ceil() as usize,
-                proof.query_proofs_of_work[round_index],
-            ) {
-                return Err(WhirProofError::PowError);
-            }
 
             let merkle_proof = &proof.merkle_proofs[round_index];
 
@@ -424,6 +429,10 @@ where
         let final_poly = proof.final_polynomial.clone();
         let final_poly_uv = UnivariatePolynomial::new(final_poly.clone());
 
+        if !challenger.check_witness(config.final_pow_bits, proof.final_pow) {
+            return Err(WhirProofError::PowError);
+        }
+
         let final_id_indices = (0..config.final_queries)
             .map(|_| challenger.sample_bits(domain_size))
             .collect::<Vec<_>>();
@@ -468,10 +477,6 @@ where
                 .collect::<Vec<_>>()
         {
             return Err(WhirProofError::FinalQueryMismatch);
-        }
-
-        if !challenger.check_witness(config.final_pow_bits.ceil() as usize, proof.final_pow) {
-            return Err(WhirProofError::PowError);
         }
 
         (folding_randomness, claimed_sum) = self
@@ -520,7 +525,7 @@ where
         sumcheck_polynomials: &[(SumcheckPoly<GC::EF>, ProofOfWork<GC>)],
         mut claimed_sum: GC::EF,
         rounds: usize,
-        pow_bits: &[f64],
+        pow_bits: &[usize],
         challenger: &mut GC::Challenger,
     ) -> Result<(Vec<GC::EF>, GC::EF), SumcheckError> {
         if sumcheck_polynomials.len() != rounds {
@@ -537,12 +542,12 @@ where
                 return Err(SumcheckError::InvalidSum);
             }
 
-            let folding_randomness_single: GC::EF = challenger.sample_ext_element();
-            randomness.push(folding_randomness_single);
-
-            if !challenger.check_witness(pow_bits[i].ceil() as usize, *pow_witness) {
+            if !challenger.check_witness(pow_bits[i], *pow_witness) {
                 return Err(SumcheckError::PowError);
             }
+
+            let folding_randomness_single: GC::EF = challenger.sample_ext_element();
+            randomness.push(folding_randomness_single);
 
             claimed_sum = sumcheck_poly.evaluate_at_point(folding_randomness_single);
         }
