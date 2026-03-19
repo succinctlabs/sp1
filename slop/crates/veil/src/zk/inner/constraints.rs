@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    ops::{Add, Mul, Sub},
+    ops::{Add, Mul, Neg, Sub},
 };
 
 use derive_where::derive_where;
@@ -356,6 +356,15 @@ impl<K: AbstractField + Copy, C: ConstraintContextInner<K>> Sub<K> for Expressio
     fn sub(self, rhs: K) -> Self::Output {
         let index_rhs = self.as_ref().clone().add_expr(ZkExpression::Cst(rhs));
         self - index_rhs
+    }
+}
+
+impl<K: AbstractField + Copy, C: ConstraintContextInner<K>> Neg for ExpressionIndex<K, C> {
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        let index_zero = self.as_ref().clone().add_expr(ZkExpression::Cst(K::zero()));
+        index_zero - self
     }
 }
 

@@ -65,10 +65,10 @@ where
 impl<F, E> AddAssign for Dorroh<F, E>
 where
     F: Field,
-    E: Module<F> + Add<Output = E> + Copy,
+    E: Module<F> + Add<Output = E>,
 {
     fn add_assign(&mut self, rhs: Self) {
-        *self = *self + rhs;
+        *self = self.clone() + rhs;
     }
 }
 
@@ -92,10 +92,10 @@ where
 impl<F, E> SubAssign for Dorroh<F, E>
 where
     F: Field,
-    E: Module<F> + Sub<Output = E> + Copy,
+    E: Module<F> + Sub<Output = E>,
 {
     fn sub_assign(&mut self, rhs: Self) {
-        *self = *self - rhs;
+        *self = self.clone() - rhs;
     }
 }
 
@@ -117,14 +117,14 @@ where
 impl<F, E> Mul for Dorroh<F, E>
 where
     F: Field,
-    E: Module<F> + Mul<Output = Self>,
+    E: Module<F> + Mul<Output = E>,
 {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self {
         match (self, rhs) {
             (Self::Constant(a), Self::Constant(b)) => Self::Constant(a * b),
-            (Self::Element(a), Self::Element(b)) => a * b,
+            (Self::Element(a), Self::Element(b)) => Self::Element(a * b),
             (Self::Constant(a), Self::Element(b)) => Self::Element(b * a),
             (Self::Element(a), Self::Constant(b)) => Self::Element(a * b),
         }
@@ -134,17 +134,17 @@ where
 impl<F, E> MulAssign for Dorroh<F, E>
 where
     F: Field,
-    E: Module<F> + Mul<Output = Self> + Copy,
+    E: Module<F> + Mul<Output = E>,
 {
     fn mul_assign(&mut self, rhs: Self) {
-        *self = *self * rhs;
+        *self = self.clone() * rhs;
     }
 }
 
 impl<F, E> Sum for Dorroh<F, E>
 where
     F: Field,
-    E: Module<F> + Mul<Output = Self> + Add<Output = E> + Sub<Output = E> + Copy + Debug,
+    E: Module<F> + Mul<Output = E> + Add<Output = E> + Sub<Output = E> + Debug,
 {
     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
         iter.fold(Self::zero(), |acc, x| acc + x)
@@ -154,17 +154,62 @@ where
 impl<F, E> Product for Dorroh<F, E>
 where
     F: Field,
-    E: Module<F> + Mul<Output = Self> + Add<Output = E> + Sub<Output = E> + Copy + Debug,
+    E: Module<F> + Mul<Output = E> + Add<Output = E> + Sub<Output = E> + Debug,
 {
     fn product<I: Iterator<Item = Self>>(iter: I) -> Self {
         iter.fold(Self::one(), |acc, x| acc * x)
     }
 }
 
+impl<F, E> Add<F> for Dorroh<F, E>
+where
+    F: Field,
+    E: Module<F>,
+{
+    type Output = Self;
+
+    fn add(self, rhs: F) -> Self {
+        match self {
+            Self::Constant(a) => Self::Constant(a + rhs),
+            Self::Element(a) => Self::Element(a + rhs),
+        }
+    }
+}
+
+impl<F, E> Sub<F> for Dorroh<F, E>
+where
+    F: Field,
+    E: Module<F>,
+{
+    type Output = Self;
+
+    fn sub(self, rhs: F) -> Self {
+        match self {
+            Self::Constant(a) => Self::Constant(a - rhs),
+            Self::Element(a) => Self::Element(a - rhs),
+        }
+    }
+}
+
+impl<F, E> Mul<F> for Dorroh<F, E>
+where
+    F: Field,
+    E: Module<F>,
+{
+    type Output = Self;
+
+    fn mul(self, rhs: F) -> Self {
+        match self {
+            Self::Constant(a) => Self::Constant(a * rhs),
+            Self::Element(a) => Self::Element(a * rhs),
+        }
+    }
+}
+
 impl<F, E> AbstractField for Dorroh<F, E>
 where
     F: Field,
-    E: Module<F> + Mul<Output = Self> + Add<Output = E> + Sub<Output = E> + Copy + Debug,
+    E: Module<F> + Mul<Output = E> + Add<Output = E> + Sub<Output = E> + Debug,
 {
     type F = F;
 

@@ -1,22 +1,19 @@
 use itertools::Itertools;
-use slop_algebra::{AbstractField, Algebra};
+use slop_algebra::{Algebra, ExtensionField, Field};
 use slop_multilinear::Point;
 
 pub trait ConstraintCtx {
+    type Field: Field;
+    type Extension: ExtensionField<Self::Field>;
+
+    type Expr: Algebra<Self::Extension>;
     type MleOracle;
-
-    type Field: AbstractField;
-
-    type Expr: Algebra<Self::Field>;
 
     fn assert_zero(&mut self, expr: Self::Expr);
 
     /// assert_zero(a * b - c) materializes the product of a and b. This is unnecessary specifically
     /// for constraints of the form a * b = c. Use this instead to avoid the extra materialization.
     fn assert_a_times_b_equals_c(&mut self, a: Self::Expr, b: Self::Expr, c: Self::Expr);
-
-    #[cfg(sp1_debug_constraints)]
-    fn name_last_lin_constraint(&self, _name: impl Into<String>) {}
 
     /// Creates an expression from a polynomial evaluation: `poly(point)`.
     ///

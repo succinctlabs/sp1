@@ -3,9 +3,10 @@ mod error_correcting_code;
 mod example_zk_sumcheck;
 mod hadamard_product;
 mod inner;
-pub mod prover_ctx;
+mod prover_ctx;
 mod stacked_pcs;
-pub mod verifier_ctx;
+mod verifier_ctx;
 
+pub use inner::ZkProof;
 pub use prover_ctx::*;
 pub use verifier_ctx::*;
