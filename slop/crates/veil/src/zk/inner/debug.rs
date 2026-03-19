@@ -3,7 +3,7 @@
 //! This module is only compiled when `sp1_debug_constraints` is enabled.
 //! It provides infrastructure for naming constraints and reporting failures.
 
-use crate::dot_product::dot_product;
+use crate::zk::dot_product::dot_product;
 use slop_algebra::AbstractField;
 
 use super::{ProofTranscript, TranscriptLinConstraint};

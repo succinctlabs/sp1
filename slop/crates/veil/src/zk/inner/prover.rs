@@ -1,11 +1,11 @@
 use std::cell::{Ref, RefCell, RefMut};
 use std::rc::Rc;
 
-use crate::dot_product::{
+use crate::zk::dot_product::{
     zk_dot_product_commitment, zk_dot_product_proof, ZkDotTotalProof, ZkVectorProverData,
 };
-use crate::error_correcting_code::{RsFromCoefficients, RsInterpolation};
-use crate::hadamard_product::{
+use crate::zk::error_correcting_code::{RsFromCoefficients, RsInterpolation};
+use crate::zk::hadamard_product::{
     zk_hadamard_and_dots_proof, zk_hadamard_product_commitment, ZkHadamardAndDotsTotalProof,
 };
 use derive_where::derive_where;
@@ -37,10 +37,10 @@ use super::{ExpressionIndex, ZkIopCtx};
     deserialize = "PcsProof: serde::de::DeserializeOwned"
 ))]
 pub struct ZkProof<GC: ZkIopCtx, PcsProof = ()> {
-    pub(in crate::inner) proof: ZkCnstrProof<GC, PcsProof>,
-    pub(in crate::inner) transcript: ProofTranscript<GC::EF>,
+    pub(in crate::zk::inner) proof: ZkCnstrProof<GC, PcsProof>,
+    pub(in crate::zk::inner) transcript: ProofTranscript<GC::EF>,
     /// PCS commitment transcript: metadata for each committed MLE.
-    pub(in crate::inner) pcs_commitment_transcript: Vec<PcsCommitmentEntry<GC::Digest>>,
+    pub(in crate::zk::inner) pcs_commitment_transcript: Vec<PcsCommitmentEntry<GC::Digest>>,
 }
 
 /// The static proof data from [`ZkProof`] needed to verify linear and multiplicative constraints.
@@ -128,7 +128,7 @@ pub struct ZkProverContextInner<GC: ZkIopCtx, PD = ()> {
 
     // Debug: constraint debugger (only present when sp1_debug_constraints is enabled)
     #[cfg(sp1_debug_constraints)]
-    debugger: crate::inner::debug::ConstraintDebugger,
+    debugger: crate::zk::inner::debug::ConstraintDebugger,
 }
 
 impl<GC: ZkIopCtx, PD> super::constraints::private::Sealed for ZkProverContext<GC, PD> {}
@@ -408,7 +408,7 @@ impl<GC: ZkIopCtx, PD> ZkProverContext<GC, PD> {
     /// Prefer using `commit_mle` which handles commitment generation automatically.
     /// This method is exposed for testing and advanced use cases where commitment
     /// is generated separately.
-    pub(in crate::inner) fn register_commitment(
+    pub(in crate::zk::inner) fn register_commitment(
         &mut self,
         digest: GC::Digest,
         prover_data: PD,

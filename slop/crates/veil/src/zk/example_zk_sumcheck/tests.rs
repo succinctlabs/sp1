@@ -1,9 +1,9 @@
 #![allow(clippy::disallowed_types)]
-use crate::inner::{
+use crate::zk::inner::{
     compute_mask_length, ConstraintContextInnerExt, MleCommitmentIndex, ZkCnstrAndReadingCtxInner,
     ZkIopCtx, ZkProtocolParameters, ZkProtocolProof,
 };
-use crate::stacked_pcs::{
+use crate::zk::stacked_pcs::{
     initialize_zk_prover_and_verifier, prover::StackedPcsZkProverContext,
     verifier::StackedPcsZkVerificationContext, ZkBasefoldProver, ZkStackedPcsVerifier,
 };

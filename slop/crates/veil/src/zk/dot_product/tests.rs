@@ -1,5 +1,5 @@
 #![allow(clippy::disallowed_types, clippy::disallowed_methods)]
-use crate::error_correcting_code::*;
+use crate::zk::error_correcting_code::*;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 use slop_challenger::IopCtx;

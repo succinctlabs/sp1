@@ -3,9 +3,9 @@ use std::cell::{Ref, RefCell, RefMut};
 use std::marker::PhantomData;
 use std::rc::Rc;
 
-use crate::dot_product::{dot_product, verify_zk_dot_product, ZkDotProductError};
-use crate::error_correcting_code::RsFromCoefficients;
-use crate::hadamard_product::{verify_zk_hadamard_and_dots, ZkHadamardAndDotsError};
+use crate::zk::dot_product::{dot_product, verify_zk_dot_product, ZkDotProductError};
+use crate::zk::error_correcting_code::RsFromCoefficients;
+use crate::zk::hadamard_product::{verify_zk_hadamard_and_dots, ZkHadamardAndDotsError};
 use derive_where::derive_where;
 use slop_algebra::AbstractField;
 use slop_challenger::{CanObserve, FieldChallenger};

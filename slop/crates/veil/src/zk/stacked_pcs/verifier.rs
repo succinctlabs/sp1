@@ -1,4 +1,4 @@
-use crate::inner::{
+use crate::zk::inner::{
     ConstraintContextInnerExt, PcsEvalClaim, VerifierValue, ZkCnstrAndReadingCtxInner, ZkIopCtx,
     ZkPcsVerificationError, ZkPcsVerifier, ZkProtocolProof, ZkVerificationContext,
 };

@@ -1,4 +1,4 @@
-use crate::error_correcting_code::{CodeParametersForZk, ZkCode};
+use crate::zk::error_correcting_code::{CodeParametersForZk, ZkCode};
 use itertools::Itertools;
 use rand::{CryptoRng, Rng};
 use serde::{Deserialize, Serialize};
@@ -13,8 +13,8 @@ use slop_tensor::Tensor;
 use std::iter::repeat_with;
 
 // Setup constants---choose for target bits of security
-pub(in crate::dot_product) const CODE_INVERSE_RATE: f64 = 16.0;
-pub(in crate::dot_product) const SECURITY_BITS: usize = 100;
+pub(in crate::zk::dot_product) const CODE_INVERSE_RATE: f64 = 16.0;
+pub(in crate::zk::dot_product) const SECURITY_BITS: usize = 100;
 
 // ============================================================================
 // FINAL PROOF OUTPUT
@@ -54,8 +54,8 @@ pub struct ZkDotProductProof<GC: IopCtx, Code: ZkCode<GC::EF>> {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "", deserialize = ""))]
 pub struct ZkDotTotalProof<GC: IopCtx, Code: ZkCode<GC::EF>> {
-    pub(in crate::dot_product) proof: ZkDotProductProof<GC, Code>,
-    pub(in crate::dot_product) proximity_check_proof: MerkleOpeningProof<GC>,
+    pub(in crate::zk::dot_product) proof: ZkDotProductProof<GC, Code>,
+    pub(in crate::zk::dot_product) proximity_check_proof: MerkleOpeningProof<GC>,
 }
 
 impl<GC: IopCtx, Code: ZkCode<GC::EF>> ZkDotTotalProof<GC, Code> {
@@ -150,7 +150,7 @@ pub struct ZkVectorProverData<GC: IopCtx, ProverData, Code: ZkCode<GC::EF>> {
 ///
 /// Use [`zk_vector_encode`] to prepare the vector batch for this function.
 #[allow(clippy::type_complexity)]
-pub(in crate::dot_product) fn zk_vector_merkleize<
+pub(in crate::zk::dot_product) fn zk_vector_merkleize<
     GC: IopCtx,
     MK: TensorCsProver<GC, CpuBackend> + ComputeTcsOpenings<GC, CpuBackend>,
     Code: ZkCode<GC::EF>,
@@ -180,7 +180,7 @@ pub(in crate::dot_product) fn zk_vector_merkleize<
 /// Commits to a batch of vectors with a custom padding schedule (encode + merkleize in one step).
 ///
 /// Returns the commitment and data needed for proof generation.
-pub(in crate::dot_product) fn zk_vector_commit<
+pub(in crate::zk::dot_product) fn zk_vector_commit<
     GC: IopCtx,
     MK: TensorCsProver<GC, CpuBackend> + ComputeTcsOpenings<GC, CpuBackend>,
     RNG: CryptoRng + Rng,

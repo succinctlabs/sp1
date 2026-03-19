@@ -4,11 +4,11 @@ use slop_merkle_tree::{MerkleTreeTcs, MerkleTreeTcsError};
 use slop_tensor::Tensor;
 use thiserror::Error;
 
-use crate::dot_product::{
+use crate::zk::dot_product::{
     dot_product, verify_zk_dot_product_pre_reveal, verify_zk_dot_product_reveal,
     MerkleOpeningProof, ZkDotProductError,
 };
-use crate::error_correcting_code::{MultiplicativeCode, ZkCode};
+use crate::zk::error_correcting_code::{MultiplicativeCode, ZkCode};
 use slop_algebra::{AbstractExtensionField, AbstractField, TwoAdicField};
 use slop_challenger::{CanObserve, CanSampleBits, FieldChallenger, IopCtx};
 
@@ -44,7 +44,7 @@ pub enum ZkHadamardAndDotsError {
 /// - D = square_to_base (reduction from product code to base code)
 /// - gamma = u · D(r'_×)[0..n]
 /// - phi = (C*)^{-1}(Ca' · Cb' - Cc' + rho_times · C*r'_×)
-pub(in crate::hadamard_product) fn verify_zk_hadamard_product_pre_reveal<GC: IopCtx, Code>(
+pub(in crate::zk::hadamard_product) fn verify_zk_hadamard_product_pre_reveal<GC: IopCtx, Code>(
     commitment: &GC::Digest,
     proof: &ZkHadamardProductProof<GC, Code>,
     challenger: &mut GC::Challenger,
@@ -98,7 +98,7 @@ where
 /// Verifies that each revealed evaluation satisfies:
 /// (C* phi)[idx] = a_hat * b_hat - c_hat + rho_times * r_times_hat
 /// where a_hat, b_hat, c_hat, r_times_hat are extracted from the combined tensor columns.
-pub(in crate::hadamard_product) fn verify_zk_hadamard_product_reveal<GC: IopCtx, Code>(
+pub(in crate::zk::hadamard_product) fn verify_zk_hadamard_product_reveal<GC: IopCtx, Code>(
     commitment: &GC::Digest,
     proof: &ZkHadamardProductProof<GC, Code>,
     revealed_data: &MerkleOpeningProof<GC>,

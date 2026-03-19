@@ -1,4 +1,4 @@
-use crate::inner::{
+use crate::zk::inner::{
     compute_mask_length, ConstraintContextInnerExt, MleCommitmentIndex, ZkCnstrAndReadingCtxInner,
 };
 use rand::SeedableRng;

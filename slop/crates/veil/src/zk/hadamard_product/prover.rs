@@ -1,8 +1,8 @@
-use crate::dot_product::{
+use crate::zk::dot_product::{
     dot_product, zk_dot_product_pre_reveal, zk_vector_encode, MerkleOpeningProof,
     ZkDotProductPreReveal, ZkDotProductProof, ZkVectorProverData,
 };
-use crate::error_correcting_code::{CodeParametersForZk, MultiplicativeCode, ZkCode};
+use crate::zk::error_correcting_code::{CodeParametersForZk, MultiplicativeCode, ZkCode};
 use itertools::Itertools;
 use rand::{CryptoRng, Rng};
 use serde::{Deserialize, Serialize};
@@ -17,7 +17,7 @@ use slop_tensor::Tensor;
 use std::iter::repeat_with;
 
 // Setup constants---choose for target bits of security
-pub(in crate::hadamard_product) const EVAL_SCHEDULE: [usize; 1] = [2];
+pub(in crate::zk::hadamard_product) const EVAL_SCHEDULE: [usize; 1] = [2];
 
 /// A proof that three vectors satisfy the Hadamard product relationship: `a_i * b_i = c_i` for all `i`.
 ///
@@ -27,15 +27,15 @@ pub(in crate::hadamard_product) const EVAL_SCHEDULE: [usize; 1] = [2];
 /// The revealed evaluations and Merkle paths are in [`MerkleOpeningProof`], not in this struct.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "", deserialize = ""))]
-pub(in crate::hadamard_product) struct ZkHadamardProductProof<GC: IopCtx, Code>
+pub(in crate::zk::hadamard_product) struct ZkHadamardProductProof<GC: IopCtx, Code>
 where
     Code: MultiplicativeCode<GC::EF> + ZkCode<GC::EF>,
 {
     /// gamma = u · D(r'_×)[0..n], where u = powers of z_base
-    pub(in crate::hadamard_product) gamma: GC::EF,
+    pub(in crate::zk::hadamard_product) gamma: GC::EF,
     /// phi = (C*)^{-1}(Ca' · Cb' - Cc' + rho_times · C*r'_×)
-    pub(in crate::hadamard_product) phi: Vec<GC::EF>,
-    pub(in crate::hadamard_product) parameters: CodeParametersForZk<GC::EF, Code>,
+    pub(in crate::zk::hadamard_product) phi: Vec<GC::EF>,
+    pub(in crate::zk::hadamard_product) parameters: CodeParametersForZk<GC::EF, Code>,
 }
 
 /// Complete Hadamard product proof: algebraic proof data + Merkle openings.
@@ -47,8 +47,8 @@ pub struct ZkHadamardTotalProof<GC: IopCtx, Code>
 where
     Code: MultiplicativeCode<GC::EF> + ZkCode<GC::EF>,
 {
-    pub(in crate::hadamard_product) proof: ZkHadamardProductProof<GC, Code>,
-    pub(in crate::hadamard_product) proximity_check_proof: MerkleOpeningProof<GC>,
+    pub(in crate::zk::hadamard_product) proof: ZkHadamardProductProof<GC, Code>,
+    pub(in crate::zk::hadamard_product) proximity_check_proof: MerkleOpeningProof<GC>,
 }
 
 /// Complete Hadamard + dot product proof: both algebraic proofs + shared Merkle openings.
@@ -60,9 +60,9 @@ pub struct ZkHadamardAndDotsTotalProof<GC: IopCtx, Code>
 where
     Code: MultiplicativeCode<GC::EF> + ZkCode<GC::EF>,
 {
-    pub(in crate::hadamard_product) hadamard_proof: ZkHadamardProductProof<GC, Code>,
-    pub(in crate::hadamard_product) dot_proof: ZkDotProductProof<GC, Code>,
-    pub(in crate::hadamard_product) proximity_check_proof: MerkleOpeningProof<GC>,
+    pub(in crate::zk::hadamard_product) hadamard_proof: ZkHadamardProductProof<GC, Code>,
+    pub(in crate::zk::hadamard_product) dot_proof: ZkDotProductProof<GC, Code>,
+    pub(in crate::zk::hadamard_product) proximity_check_proof: MerkleOpeningProof<GC>,
 }
 
 impl<GC: IopCtx, Code> ZkHadamardAndDotsTotalProof<GC, Code>
@@ -84,21 +84,21 @@ pub struct ZkHadamardProductProverSecretData<GC: IopCtx, ProverData, Code>
 where
     Code: MultiplicativeCode<GC::EF> + ZkCode<GC::EF>,
 {
-    pub(in crate::hadamard_product) abc_commitment_data: ZkVectorProverData<GC, ProverData, Code>,
+    pub(in crate::zk::hadamard_product) abc_commitment_data: ZkVectorProverData<GC, ProverData, Code>,
     /// Padded r'_× in intermediate form (length 2 * pml.next_power_of_two())
-    pub(in crate::hadamard_product) r_times_intermediate: Vec<GC::EF>,
+    pub(in crate::zk::hadamard_product) r_times_intermediate: Vec<GC::EF>,
 }
 
 /// Intermediate state after computing gamma, phi but before revealing evaluations.
 #[derive(Debug, Clone)]
-pub(in crate::hadamard_product) struct ZkHadamardProductPreReveal<GC: IopCtx, ProverData, Code>
+pub(in crate::zk::hadamard_product) struct ZkHadamardProductPreReveal<GC: IopCtx, ProverData, Code>
 where
     Code: MultiplicativeCode<GC::EF> + ZkCode<GC::EF>,
 {
-    pub(in crate::hadamard_product) gamma: GC::EF,
-    pub(in crate::hadamard_product) phi: Vec<GC::EF>,
-    pub(in crate::hadamard_product) abc_commitment_data: ZkVectorProverData<GC, ProverData, Code>,
-    pub(in crate::hadamard_product) parameters: CodeParametersForZk<GC::EF, Code>,
+    pub(in crate::zk::hadamard_product) gamma: GC::EF,
+    pub(in crate::zk::hadamard_product) phi: Vec<GC::EF>,
+    pub(in crate::zk::hadamard_product) abc_commitment_data: ZkVectorProverData<GC, ProverData, Code>,
+    pub(in crate::zk::hadamard_product) parameters: CodeParametersForZk<GC::EF, Code>,
 }
 
 /// Commits to the three input vectors for zero-knowledge Hadamard product.
@@ -173,7 +173,7 @@ where
 /// gamma = u · D(r'_×)[0..n] where u = [1, z_base, z_base^2, ...]
 /// phi = (C*)^{-1}(Ca' · Cb' - Cc' + rho_times · C*r'_×)
 #[allow(clippy::type_complexity)]
-pub(in crate::hadamard_product) fn zk_hadamard_product_pre_reveal<GC: IopCtx, ProverData, Code>(
+pub(in crate::zk::hadamard_product) fn zk_hadamard_product_pre_reveal<GC: IopCtx, ProverData, Code>(
     commitment: GC::Digest,
     prover_secret_data: ZkHadamardProductProverSecretData<GC, ProverData, Code>,
     challenger: &mut GC::Challenger,
@@ -229,7 +229,7 @@ where
 /// Second phase of the zero-knowledge Hadamard product proof: reveal evaluations and generate merkle proofs.
 ///
 /// Returns the proof and the revealed data.
-pub(in crate::hadamard_product) fn zk_hadamard_product_reveal<
+pub(in crate::zk::hadamard_product) fn zk_hadamard_product_reveal<
     GC: IopCtx,
     MK: TensorCsProver<GC, CpuBackend> + ComputeTcsOpenings<GC, CpuBackend>,
     Code: MultiplicativeCode<GC::EF> + ZkCode<GC::EF>,

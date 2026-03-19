@@ -72,10 +72,10 @@ impl ZkIopCtx for KoalaBearDegree4Duplex {
 macro_rules! name_constraint {
     ($ctx:expr, $name:expr) => {{
         #[cfg(sp1_debug_constraints)]
-        $crate::inner::ConstraintContextInnerExt::name_last_lin_constraint(&$ctx, $name);
+        $crate::zk::inner::ConstraintContextInnerExt::name_last_lin_constraint(&$ctx, $name);
     }};
     ($ctx:expr, $fmt:expr, $($arg:tt)*) => {{
         #[cfg(sp1_debug_constraints)]
-        $crate::inner::ConstraintContext::name_last_lin_constraint(&$ctx, format!($fmt, $($arg)*));
+        $crate::zk::inner::ConstraintContext::name_last_lin_constraint(&$ctx, format!($fmt, $($arg)*));
      }};
 }

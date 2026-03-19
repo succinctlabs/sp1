@@ -203,7 +203,7 @@ async fn test_zk_builder_with_generic_constraints() {
         let l_elem = verifier_context.read_one().expect("Failed to read l");
 
         // Build constraints using the same single source of truth function
-        build_constraints::<_, crate::inner::ZkVerificationContext<GC>>(
+        build_constraints::<_, crate::zk::inner::ZkVerificationContext<GC>>(
             a_elem, b_elem, c_elem, x_elem, y_elem, z_elem, d_elem, e_elem, f_elem, g_elem, h_elem,
             i_elem, j_elem, k_elem, l_elem,
         );
@@ -360,7 +360,7 @@ async fn test_equal_index_optimization() {
         let nested_result_elem = verifier_context.read_one().expect("Failed to read nested_result");
 
         // Build constraints using the same function
-        build_equal_index_constraints::<_, crate::inner::ZkVerificationContext<GC>>(
+        build_equal_index_constraints::<_, crate::zk::inner::ZkVerificationContext<GC>>(
             a_elem,
             b_elem,
             c_elem,

@@ -1,4 +1,4 @@
-use crate::inner::{
+use crate::zk::inner::{
     ConstraintContextInnerExt, ZkCnstrAndReadingCtxInner, ZkIopCtx, ZkProtocolParameters,
     ZkProtocolProof,
 };

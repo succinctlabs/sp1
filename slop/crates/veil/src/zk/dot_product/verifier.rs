@@ -1,6 +1,6 @@
 use std::iter::repeat_with;
 
-use crate::error_correcting_code::ZkCode;
+use crate::zk::error_correcting_code::ZkCode;
 use slop_merkle_tree::{MerkleTreeTcs, MerkleTreeTcsError};
 use slop_tensor::Tensor;
 use thiserror::Error;

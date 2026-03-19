@@ -30,7 +30,7 @@ pub trait ErrorCorrectingCode<K: Clone + Send + Sync>: std::fmt::Debug + Clone +
 /// I.e, the composition of embedding any k coordinates, encoding,
 /// and then projecting to any k coordinates is always invertible.
 pub trait ZkCode<K: Clone + Send + Sync>: ErrorCorrectingCode<K> + private::Sealed {}
-pub(in crate::error_correcting_code) mod private {
+pub(in crate::zk::error_correcting_code) mod private {
     pub trait Sealed {}
 }
 
