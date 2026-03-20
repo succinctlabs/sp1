@@ -1,10 +1,7 @@
 #include "jagged_sumcheck/jagged_sumcheck.cuh"
 #include "sum_and_reduce/reduce.cuh"
 #include "tracegen/jagged_tracegen/jagged.cuh"
-
-
-#include <cooperative_groups.h>
-#include <cooperative_groups/reduce.h>
+#include "runtime/gpu_compat.cuh"
 
 
 __global__ void

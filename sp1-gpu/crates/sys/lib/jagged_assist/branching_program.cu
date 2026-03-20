@@ -494,7 +494,7 @@ extern "C" void *branching_program_kernel()
 
 extern "C" void *transition_kernel()
 {
-    return (void *)transition<kb31_t, kb31_extension_t>;
+    return (void *)transition;
 }
 
 

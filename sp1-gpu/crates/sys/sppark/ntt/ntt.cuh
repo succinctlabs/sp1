@@ -13,6 +13,13 @@
 #include <util/gpu_t.cuh>
 
 #include "parameters.cuh"
+
+#ifdef __HIPCC__
+# define noop() do { asm volatile("s_nop 0" ::: "memory"); } while(0)
+#else
+# define noop()
+#endif
+
 #include "kernels.cu"
 
 class NTT {
@@ -94,34 +101,47 @@ public:
 private:
     static void LDE_powers(fr_t* inout, bool innt, bool bitrev,
                            uint32_t lg_dsz, uint32_t lg_blowup,
-                           const cudaStream_t stream)
+                           const cudaStream_t stream,
+                           unsigned int batch_count = 1,
+                           unsigned int col_stride = 0)
     {
         size_t domain_size = (size_t)1 << lg_dsz;
         const auto gen_powers =
             NTTParameters::all(innt)[gpu_id()].partial_group_gen_powers;
 
         if (domain_size < WARP_SZ)
-            LDE_distribute_powers<<<1, domain_size, 0, stream>>>
-                                 (inout, lg_dsz, lg_blowup, bitrev, gen_powers);
+            LDE_distribute_powers<<<dim3(1, batch_count), domain_size, 0, stream>>>
+                                 (inout, lg_dsz, lg_blowup, bitrev, gen_powers, col_stride);
         else if (lg_dsz < 32)
-            LDE_distribute_powers<<<domain_size / WARP_SZ, WARP_SZ, 0, stream>>>
-                                 (inout, lg_dsz, lg_blowup, bitrev, gen_powers);
+            LDE_distribute_powers<<<dim3(domain_size / WARP_SZ, batch_count), WARP_SZ, 0, stream>>>
+                                 (inout, lg_dsz, lg_blowup, bitrev, gen_powers, col_stride);
         else
-            LDE_distribute_powers<<<sm_count(), 1024, 0, stream>>>
-                                 (inout, lg_dsz, lg_blowup, bitrev, gen_powers);
+            LDE_distribute_powers<<<dim3(sm_count(), batch_count), 1024, 0, stream>>>
+                                 (inout, lg_dsz, lg_blowup, bitrev, gen_powers, col_stride);
 
         CUDA_UNWRAP_SPPARK(cudaGetLastError());
     }
 
     static void CT_NTT(fr_t* d_inout, const int lg_domain_size, bool intt,
                        const NTTParameters& ntt_parameters,
-                       const cudaStream_t stream)
+                       const cudaStream_t stream,
+                       unsigned int batch_count = 1,
+                       unsigned int col_stride = 0)
     {
-        CT_launcher params{d_inout, lg_domain_size, intt, ntt_parameters, stream};
+        CT_launcher params{d_inout, lg_domain_size, intt, ntt_parameters, stream,
+                           batch_count, col_stride};
 
         if (lg_domain_size <= 10) {
             params.step(lg_domain_size);
+#ifdef __HIPCC__
+# if defined(FEATURE_KOALA_BEAR) || defined(FEATURE_GOLDILOCKS)
+        } else if (lg_domain_size <= 20) {
+# else
+        } else if (lg_domain_size <= 20) {
+# endif
+#else
         } else if (lg_domain_size <= 17) {
+#endif
             int step = lg_domain_size / 2;
             params.step(step + lg_domain_size % 2);
             params.step(step);
@@ -145,13 +165,24 @@ private:
 
     static void GS_NTT(fr_t* d_inout, const int lg_domain_size, const bool is_intt,
                        const NTTParameters& ntt_parameters,
-                       const cudaStream_t stream)
+                       const cudaStream_t stream,
+                       unsigned int batch_count = 1,
+                       unsigned int col_stride = 0)
     {
-        GS_launcher params{d_inout, lg_domain_size, is_intt, ntt_parameters, stream};
+        GS_launcher params{d_inout, lg_domain_size, is_intt, ntt_parameters, stream,
+                           batch_count, col_stride};
 
         if (lg_domain_size <= 10) {
             params.step(lg_domain_size);
+#ifdef __HIPCC__
+# if defined(FEATURE_KOALA_BEAR) || defined(FEATURE_GOLDILOCKS)
+        } else if (lg_domain_size <= 20) {
+# else
+        } else if (lg_domain_size <= 20) {
+# endif
+#else
         } else if (lg_domain_size <= 17) {
+#endif
             int step = lg_domain_size / 2;
             params.step(step);
             params.step(step + lg_domain_size % 2);
@@ -176,7 +207,9 @@ private:
 protected:
     static void NTT_internal(fr_t* d_inout, uint32_t lg_domain_size,
                              InputOutputOrder order, Direction direction,
-                             Type type, const cudaStream_t stream)
+                             Type type, const cudaStream_t stream,
+                             unsigned int batch_count = 1,
+                             unsigned int col_stride = 0)
     {
         // Pick an NTT algorithm based on the input order and the desired output
         // order of the data. In certain cases, bit reversal can be avoided which
@@ -210,19 +243,23 @@ protected:
         }
 
         if (!intt && type == Type::coset)
-            LDE_powers(d_inout, intt, bitrev, lg_domain_size, 0, stream);
+            LDE_powers(d_inout, intt, bitrev, lg_domain_size, 0, stream,
+                       batch_count, col_stride);
 
         switch (algorithm) {
             case Algorithm::GS:
-                GS_NTT(d_inout, lg_domain_size, intt, ntt_parameters, stream);
+                GS_NTT(d_inout, lg_domain_size, intt, ntt_parameters, stream,
+                        batch_count, col_stride);
                 break;
             case Algorithm::CT:
-                CT_NTT(d_inout, lg_domain_size, intt, ntt_parameters, stream);
+                CT_NTT(d_inout, lg_domain_size, intt, ntt_parameters, stream,
+                        batch_count, col_stride);
                 break;
         }
 
         if (intt && type == Type::coset)
-            LDE_powers(d_inout, intt, !bitrev, lg_domain_size, 0, stream);
+            LDE_powers(d_inout, intt, !bitrev, lg_domain_size, 0, stream,
+                       batch_count, col_stride);
 
         if (order == InputOutputOrder::RR)
             bit_rev(d_inout, d_inout, lg_domain_size, stream);
@@ -292,9 +329,9 @@ public:
         //1. check params
         size_t shared_sz = sizeof(fr_t) * block_size;
         if (shMemPerBlock() < shared_sz)
-            CUDA_UNWRAP_SPPARK(cudaFuncSetAttribute(LDE_spread_distribute_powers, 
-                                cudaFuncAttributeMaxDynamicSharedMemorySize, 
-                                shared_sz));
+            CUDA_UNWRAP_SPPARK(cudaFuncSetAttribute((const void*)LDE_spread_distribute_powers,
+                                cudaFuncAttributeMaxDynamicSharedMemorySize,
+                                (int)shared_sz));
 
         if (num_blocks == 0 || block_size == 0) {
             int blockSize, minGridSize;
@@ -353,7 +390,7 @@ public:
                 NTTParameters::all()[gpu_id()].partial_group_gen_powers;
             
             cudaEvent_t event;
-            CUDA_UNWRAP_SPPARK(cudaEventCreate(&event, cudaEventDisableTiming));
+            CUDA_UNWRAP_SPPARK(cudaEventCreateWithFlags(&event, cudaEventDisableTiming));
 
 
             if (aux_out != nullptr) {
@@ -396,6 +433,16 @@ public:
     {
         NTT_internal(&d_inout[0], lg_domain_size, order, direction, type,
                      stream);
+    }
+
+    static void Base_dev_ptr_batch(const cudaStream_t stream, fr_t* d_inout,
+                                   uint32_t lg_domain_size,
+                                   InputOutputOrder order,
+                                   Direction direction, Type type,
+                                   uint32_t poly_count, uint32_t col_stride)
+    {
+        NTT_internal(d_inout, lg_domain_size, order, direction, type,
+                     stream, poly_count, col_stride);
     }
 
     static void LDE_powers(const cudaStream_t stream, fr_t* d_inout,

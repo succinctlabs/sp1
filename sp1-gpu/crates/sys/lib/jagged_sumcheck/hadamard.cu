@@ -7,11 +7,7 @@
 #include "sum_and_reduce/reduce.cuh"
 #include "config.cuh"
 #include "jagged_sumcheck/hadamard.cuh"
-
-#include <cooperative_groups.h>
-#include <cooperative_groups/reduce.h>
-
-namespace cg = cooperative_groups;
+#include "runtime/gpu_compat.cuh"
 
 template <typename F, typename EF>
 __global__ void hadamardSumAsPoly(

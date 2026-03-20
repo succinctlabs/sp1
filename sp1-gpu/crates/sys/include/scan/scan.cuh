@@ -1,5 +1,8 @@
 #pragma once
 
+#ifdef __HIPCC__
+#include <hip/hip_runtime.h>
+#endif
 #include <cstdint>
 
 // Scan kernel for T with large sizeof(T).
@@ -48,7 +51,8 @@ __device__ __inline__ void BrentKungScan(
 
 template <typename T>
 __global__ void SingleBlockScan(T* d_out, T* d_in, size_t n) {
-    __shared__ T aux[SECTION_SIZE];
+    __shared__ __attribute__((aligned(alignof(T)))) char aux_raw[sizeof(T) * SECTION_SIZE];
+    T* aux = reinterpret_cast<T*>(aux_raw);
     size_t block_idx = blockIdx.x;
     size_t block_dim = blockDim.x;
     size_t thread_idx = threadIdx.x;
@@ -67,12 +71,14 @@ Scan(T* d_out, T* d_in, size_t n, T* scan_values, uint32_t* BlockCounter, uint32
     size_t bid = bid_s;
 
     // Peform a scan on the local block.
-    __shared__ T aux[SECTION_SIZE];
+    __shared__ __attribute__((aligned(alignof(T)))) char aux_raw[sizeof(T) * SECTION_SIZE];
+    T* aux = reinterpret_cast<T*>(aux_raw);
     BrentKungScan(d_out, d_in, aux, bid, blockDim.x, threadIdx.x, n);
 
     // Get the sum of the previous block, add it to the sum of the current block and broadcast it
     // to the next block.
-    __shared__ T previous_sum;
+    __shared__ __attribute__((aligned(alignof(T)))) char previous_sum_raw[sizeof(T)];
+    T& previous_sum = *reinterpret_cast<T*>(previous_sum_raw);
     if (threadIdx.x == 0) {
         // Wait for the previous flag.
         while (atomicAdd(&flags[bid], 0) == 0) {

@@ -2,10 +2,7 @@
 #include "sum_and_reduce/reduce.cuh"
 #include "zerocheck/zerocheck.cuh"
 
-#include <cooperative_groups.h>
-#include <cooperative_groups/reduce.h>
-
-namespace cg = cooperative_groups;
+#include "runtime/gpu_compat.cuh"
 
 // see crates/prover-clea/src/zerocheck.rs
 template <typename F, typename EF>

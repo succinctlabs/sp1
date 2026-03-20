@@ -149,7 +149,10 @@ pub enum GlobalTaskPoolBuildError {
 
 impl TaskPoolBuilder {
     pub fn new() -> Self {
-        Self { capacity: None, device: CudaDevice(0), mem_release_threshold: u64::MAX }
+        // Release threshold 0 means the CUDA/HIP memory pool returns freed memory
+        // at synchronization points. With u64::MAX (the old default), freed memory
+        // was permanently held in the pool, causing OOM on large programs.
+        Self { capacity: None, device: CudaDevice(0), mem_release_threshold: 0 }
     }
 
     pub fn num_tasks(mut self, num_tasks: usize) -> Self {

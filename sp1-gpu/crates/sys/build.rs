@@ -1,6 +1,13 @@
 use std::path::PathBuf;
 use std::{env, fs};
 
+/// Which GPU backend to use.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GpuBackend {
+    Cuda,
+    Hip,
+}
+
 fn cbindgen_builder() -> cbindgen::Builder {
     /// The warning placed in the cbindgen header.
     const AUTOGEN_WARNING: &str =
@@ -129,6 +136,91 @@ fn detect_cuda() -> bool {
     false
 }
 
+/// Check if HIP/ROCm is available on this system.
+fn detect_hip() -> bool {
+    // Track rerun-if-env-changed for the explicit override
+    println!("cargo:rerun-if-env-changed=SP1_HIP_ENABLED");
+
+    // 1. Check explicit SP1_HIP_ENABLED env var
+    if let Ok(val) = env::var("SP1_HIP_ENABLED") {
+        match val.to_lowercase().as_str() {
+            "0" | "false" => return false,
+            "1" | "true" => return true,
+            _ => {} // Fall through to auto-detection
+        }
+    }
+
+    // 2. Try running hipcc --version
+    if std::process::Command::new("hipcc")
+        .arg("--version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+    {
+        return true;
+    }
+
+    // 3. Check ROCM_PATH env var
+    if env::var("ROCM_PATH").is_ok() {
+        return true;
+    }
+
+    // 4. Check HIP_PATH env var
+    if env::var("HIP_PATH").is_ok() {
+        return true;
+    }
+
+    // 5. Check common ROCm installation paths
+    for path in &[
+        "/opt/rocm/bin/hipcc",
+        "/opt/rocm-7.2.0/bin/hipcc",
+    ] {
+        if std::path::Path::new(path).exists() {
+            return true;
+        }
+    }
+
+    false
+}
+
+/// Determine which GPU backend to use.
+///
+/// Priority:
+/// 1. SP1_GPU_BACKEND=hip|cuda — explicit override
+/// 2. SP1_HIP_ENABLED=1 — forces HIP
+/// 3. SP1_CUDA_ENABLED=1 — forces CUDA
+/// 4. Auto-detect: prefer CUDA if available, fall back to HIP
+fn select_gpu_backend() -> Option<GpuBackend> {
+    println!("cargo:rerun-if-env-changed=SP1_GPU_BACKEND");
+
+    // Explicit backend selection
+    if let Ok(val) = env::var("SP1_GPU_BACKEND") {
+        match val.to_lowercase().as_str() {
+            "hip" | "rocm" | "amd" => return Some(GpuBackend::Hip),
+            "cuda" | "nvidia" => return Some(GpuBackend::Cuda),
+            "none" | "off" => return None,
+            _ => {} // Fall through
+        }
+    }
+
+    // Check explicit enable flags
+    if let Ok(val) = env::var("SP1_HIP_ENABLED") {
+        if val == "1" || val.to_lowercase() == "true" {
+            return Some(GpuBackend::Hip);
+        }
+    }
+
+    // Auto-detect: prefer CUDA, fall back to HIP
+    if detect_cuda() {
+        return Some(GpuBackend::Cuda);
+    }
+    if detect_hip() {
+        return Some(GpuBackend::Hip);
+    }
+
+    None
+}
+
 fn main() {
     // Directives for tracking changes in folders
     println!("cargo:rerun-if-changed=include/");
@@ -180,11 +272,19 @@ fn main() {
         Err(e) => panic!("{e:?}"),
     }
 
-    // Check if CUDA is available before attempting to build
-    if !detect_cuda() {
-        println!("cargo:warning=CUDA not detected, skipping GPU build");
-        return;
-    }
+    // Determine which GPU backend to use
+    let backend = match select_gpu_backend() {
+        Some(b) => b,
+        None => {
+            println!("cargo:warning=No GPU backend detected (neither CUDA nor HIP), skipping GPU build");
+            return;
+        }
+    };
+
+    println!("cargo:rerun-if-env-changed=HIP_ARCHS");
+    println!("cargo:rerun-if-env-changed=ROCM_PATH");
+    println!("cargo:rerun-if-env-changed=HIP_PATH");
+    println!("cargo:rerun-if-env-changed=SP1_GPU_BACKEND");
 
     // Build using CMake
     let mut cmake_config = cmake::Config::new(".");
@@ -192,10 +292,49 @@ fn main() {
     // Export compile commands for clangd IDE support
     cmake_config.define("CMAKE_EXPORT_COMPILE_COMMANDS", "ON");
 
-    // Pass CUDA architectures to CMake only if explicitly set
-    // Otherwise, CMake will use its own version-based defaults
-    if let Ok(cuda_archs) = env::var("CUDA_ARCHS") {
-        cmake_config.define("CUDA_ARCHS", &cuda_archs);
+    match backend {
+        GpuBackend::Hip => {
+            println!("cargo:warning=Building with HIP/ROCm backend for AMD GPUs");
+
+            // Tell CMakeLists.txt to use the HIP path
+            cmake_config.define("USE_HIP", "ON");
+
+            // Determine ROCm path
+            let rocm_path = env::var("ROCM_PATH")
+                .or_else(|_| env::var("HIP_PATH"))
+                .unwrap_or_else(|_| {
+                    // Auto-detect: check versioned paths first, then generic
+                    for candidate in &["/opt/rocm-7.2.0", "/opt/rocm"] {
+                        if std::path::Path::new(candidate).join("bin/hipcc").exists() {
+                            return candidate.to_string();
+                        }
+                    }
+                    "/opt/rocm".to_string()
+                });
+
+            // Point CMake at the ROCm installation
+            cmake_config.define("CMAKE_PREFIX_PATH", &rocm_path);
+
+            // Use the AMD clang compiler directly (CMake 4.x rejects hipcc wrapper).
+            // The ROCm clang at lib/llvm/bin/clang++ handles HIP natively.
+            let clang_path = format!("{}/lib/llvm/bin/clang++", rocm_path);
+            if std::path::Path::new(&clang_path).exists() {
+                cmake_config.define("CMAKE_HIP_COMPILER", &clang_path);
+            }
+            // If clang++ not found, let CMake auto-detect
+
+            // Pass HIP architectures if explicitly set
+            if let Ok(hip_archs) = env::var("HIP_ARCHS") {
+                cmake_config.define("HIP_ARCHS", &hip_archs);
+            }
+        }
+        GpuBackend::Cuda => {
+            // Pass CUDA architectures to CMake only if explicitly set
+            // Otherwise, CMake will use its own version-based defaults
+            if let Ok(cuda_archs) = env::var("CUDA_ARCHS") {
+                cmake_config.define("CUDA_ARCHS", &cuda_archs);
+            }
+        }
     }
 
     // Pass cbindgen include directory
@@ -226,23 +365,49 @@ fn main() {
         rel_symlink_file(&compile_commands_src, project_root.join("compile_commands.json"));
     }
 
-    // Link the library
+    // Link the static library (named sys-cuda for both backends, for FFI compatibility)
     println!("cargo:rustc-link-search=native={}/lib", dst.display());
     println!("cargo:rustc-link-lib=static=sys-cuda");
 
-    // Add CUDA library search paths
-    if let Ok(cuda_path) = env::var("CUDA_PATH") {
-        println!("cargo:rustc-link-search=native={cuda_path}/lib64");
-        println!("cargo:rustc-link-search=native={cuda_path}/lib");
-    } else {
-        println!("cargo:rustc-link-search=native=/usr/local/cuda/lib64");
+    match backend {
+        GpuBackend::Hip => {
+            // ROCm / HIP library search paths
+            let rocm_path = env::var("ROCM_PATH")
+                .or_else(|_| env::var("HIP_PATH"))
+                .unwrap_or_else(|_| {
+                    for candidate in &["/opt/rocm-7.2.0", "/opt/rocm"] {
+                        if std::path::Path::new(candidate).exists() {
+                            return candidate.to_string();
+                        }
+                    }
+                    "/opt/rocm".to_string()
+                });
+
+            println!("cargo:rustc-link-search=native={}/lib", rocm_path);
+            println!("cargo:rustc-link-search=native={}/lib64", rocm_path);
+
+            // HIP runtime libraries
+            println!("cargo:rustc-link-lib=amdhip64");
+
+            // HIP device runtime for relocatable device code (GPU linking)
+            println!("cargo:rustc-link-lib=hiprtc");
+        }
+        GpuBackend::Cuda => {
+            // Add CUDA library search paths
+            if let Ok(cuda_path) = env::var("CUDA_PATH") {
+                println!("cargo:rustc-link-search=native={cuda_path}/lib64");
+                println!("cargo:rustc-link-search=native={cuda_path}/lib");
+            } else {
+                println!("cargo:rustc-link-search=native=/usr/local/cuda/lib64");
+            }
+
+            // Link CUDA runtime libraries
+            println!("cargo:rustc-link-lib=cudart");
+            println!("cargo:rustc-link-lib=cudadevrt");
+        }
     }
 
-    // Link CUDA runtime libraries
-    println!("cargo:rustc-link-lib=cudart");
-    println!("cargo:rustc-link-lib=cudadevrt");
-
-    // Link system libraries
+    // Link system libraries (same for both backends)
     println!("cargo:rustc-link-lib=stdc++");
     println!("cargo:rustc-link-lib=gomp");
     println!("cargo:rustc-link-lib=dl");

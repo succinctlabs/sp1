@@ -236,14 +236,20 @@ struct MultiFieldHasherState : public HasherState<Params, Hasher_t> {
         if (overhangSize > 0) {
             F_t value =
                 poseidon2_bn254_3::reduceKoalaBear(overhang, nullptr, overhangSize, 0, 1, 0);
-            absorb(hasher, &value, 1);
+            this->absorb(hasher, &value, 1);
         }
         HasherState<Params, Hasher_t>::finalize(hasher, out);
     }
 };
 
 using KoalaBearHasher = StaticHasher<poseidon2_kb31_16::KoalaBear>;
+#ifndef __HIPCC__
 using Bn254Hasher = StaticHasher<poseidon2_bn254_3::Bn254>;
+#else
+// HIP stub: Bn254Hasher is not used on AMD (only DuplexChallenger/KoalaBear path).
+// Use a minimal DynamicHasher instead to satisfy template instantiations.
+using Bn254Hasher = DynamicHasher<poseidon2_bn254_3::Bn254>;
+#endif
 
 class KoalaBearHasherState : public HasherState<poseidon2_kb31_16::KoalaBear, KoalaBearHasher> {
   public:

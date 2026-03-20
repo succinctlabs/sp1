@@ -5,7 +5,11 @@
 #ifndef __NTT_KERNELS_CU__
 #define __NTT_KERNELS_CU__
 
-#include <cooperative_groups.h>
+#if defined(__NVCC__)
+# include <cooperative_groups.h>
+#elif defined(__HIPCC__)
+# include <hip/hip_cooperative_groups.h>
+#endif
 
 template<typename T>
 __device__ __forceinline__
@@ -150,11 +154,15 @@ fr_t get_intermediate_root(index_t pow, const fr_t (*roots)[WINDOW_SIZE])
 __launch_bounds__(1024) __global__
 void LDE_distribute_powers(fr_t* d_inout, uint32_t lg_domain_size,
                            uint32_t lg_blowup, bool bitrev,
-                           const fr_t (*gen_powers)[WINDOW_SIZE])
+                           const fr_t (*gen_powers)[WINDOW_SIZE],
+                           const unsigned int col_stride = 0)
 {
 #if 0
     assert(blockDim.x * gridDim.x == blockDim.x * (size_t)gridDim.x);
 #endif
+    if (col_stride)
+        d_inout += (index_t)blockIdx.y * col_stride;
+
     size_t domain_size = (size_t)1 << lg_domain_size;
     index_t idx = threadIdx.x + blockDim.x * blockIdx.x;
 

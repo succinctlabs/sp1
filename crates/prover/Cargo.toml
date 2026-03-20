@@ -11,6 +11,7 @@ categories = { workspace = true }
 rust-version = { workspace = true }
 
 [dependencies]
+rayon = { workspace = true }
 sp1-recursion-compiler = { workspace = true }
 sp1-prover-types = { workspace = true }
 sp1-verifier = { workspace = true }

@@ -1,6 +1,15 @@
 
 #pragma once
 
+#ifdef __HIPCC__
+#include <hip/hip_runtime.h>
+using cudaMemPool_t = hipMemPool_t;
+#define cudaDeviceGetDefaultMemPool hipDeviceGetDefaultMemPool
+#define cudaDeviceGetMemPool hipDeviceGetMemPool
+#define cudaMemPoolSetAttribute hipMemPoolSetAttribute
+#define cudaMemPoolAttrReleaseThreshold hipMemPoolAttrReleaseThreshold
+#endif
+
 #include "runtime/exception.cuh"
 #include <cstdint>
 

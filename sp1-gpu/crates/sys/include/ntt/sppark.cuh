@@ -1,5 +1,7 @@
 
+#ifndef __HIPCC__
 #include <cuda.h>
+#endif
 
 #if defined(FEATURE_BLS12_381)
 #include <ff/bls12-381.hpp>

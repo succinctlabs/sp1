@@ -1,7 +1,6 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
-};
+use std::sync::Arc;
+
+use hashbrown::{HashMap, HashSet};
 
 use itertools::Itertools;
 use sp1_core_executor::{
@@ -96,9 +95,9 @@ impl GlobalMemoryHandler {
             let program = program.clone();
             move || {
                 let _guard = span.enter();
-                let mut initialized_events = BTreeMap::<u64, MemoryInitializeFinalizeEvent>::new();
-                let mut finalized_events = BTreeMap::<u64, MemoryInitializeFinalizeEvent>::new();
-                let mut dirty_addresses = BTreeSet::<u64>::new();
+                let mut initialized_events = HashMap::<u64, MemoryInitializeFinalizeEvent>::new();
+                let mut finalized_events = HashMap::<u64, MemoryInitializeFinalizeEvent>::new();
+                let mut dirty_addresses = HashSet::<u64>::new();
                 #[cfg(sp1_debug_global_memory)]
                 let mut touched_addresses = hashbrown::HashSet::<u64>::new();
 
@@ -108,25 +107,14 @@ impl GlobalMemoryHandler {
                     for addr in addresses {
                         #[cfg(sp1_debug_global_memory)]
                         touched_addresses.insert(addr);
-                        // Add the address to the initialized events map if it was not already initialized.
                         initialized_events
                             .entry(addr)
                             .or_insert_with(|| MemoryInitializeFinalizeEvent::initialize(addr, 0));
-
-                        // Get the memory value
-                        // # Safety: since we are waiting for the minimal executor to finish, we assume that
-                        // it is still alive. However, if it did panic, the whole proof flow should fail
-                        // but the potential for undefined behavior is still there.
                         let value = unsafe { memory.get(addr) };
-                        // If the value was touched after this splice has finished, add it to the 
-                        // dirty addresses set and skip the finalization.
                         if value.clk > end_clk || value.clk < start_clk {
                             dirty_addresses.insert(addr);
                             continue;
                         }
-                        // Add the address to the finalized events map. If it was already seen, 
-                        // update the value, timestamp and clk. Otherwise, create a new event and 
-                        // add it to the map.
                         finalized_events
                             .entry(addr)
                             .and_modify(|entry| {
@@ -142,8 +130,6 @@ impl GlobalMemoryHandler {
                                     value.clk,
                                 )
                             });
-                        // If the address was previously dirty, remove it from the dirty addresses
-                        // set.
                         dirty_addresses.remove(&addr);
                     }
                 }
@@ -197,11 +183,6 @@ impl GlobalMemoryHandler {
                     );
                 }
 
-                // Remove initialized events for addresses in the program memory image.
-                for addr in program.memory_image.keys() {
-                    initialized_events.remove(addr);
-                }
-
                 // Handle the program memory image addresses.
                 for addr in program.memory_image.keys() {
                     #[cfg(sp1_debug_global_memory)]
@@ -237,10 +218,10 @@ impl GlobalMemoryHandler {
 
                 }
 
-                let mut memory_initialize_events = Vec::with_capacity(initialized_events.len());
-                memory_initialize_events.extend(initialized_events.into_values());
-                let mut memory_finalize_events = Vec::with_capacity(finalized_events.len());
-                memory_finalize_events.extend(finalized_events.into_values());
+                let mut memory_initialize_events: Vec<_> = initialized_events.into_values().collect();
+                memory_initialize_events.sort_unstable_by_key(|e| e.addr);
+                let mut memory_finalize_events: Vec<_> = finalized_events.into_values().collect();
+                memory_finalize_events.sort_unstable_by_key(|e| e.addr);
 
                 // Get the split opts.
                 let split_opts = SplitOpts::new(&opts, program.instructions.len(), false);

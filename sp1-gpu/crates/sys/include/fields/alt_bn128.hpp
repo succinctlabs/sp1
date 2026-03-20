@@ -72,8 +72,11 @@ static __device__ __constant__ const uint32_t ALT_BN128_m0 = 0xefffffff;
 
 } // namespace device
 
+#ifndef __HIPCC__
 #include "mont_t.cuh"
+#endif
 
+#ifndef __HIPCC__
 typedef mont_t<
     254,
     (254 + 31) / 32,
@@ -93,3 +96,4 @@ typedef mont_t<
     device::ALT_BN128_rone,
     device::ALT_BN128_rx4>
     fr_mont;
+#endif // !__HIPCC__

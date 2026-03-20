@@ -1,9 +1,6 @@
 #pragma once
 
-#include <cooperative_groups.h>
-#include <cooperative_groups/reduce.h>
-
-namespace cg = cooperative_groups;
+#include "runtime/gpu_compat.cuh"
 
 template <typename F, typename TyBlock, typename TyTile>
 __device__ __forceinline__ F

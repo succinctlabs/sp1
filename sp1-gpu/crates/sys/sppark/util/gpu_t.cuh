@@ -5,8 +5,28 @@
 #ifndef __SPPARK_UTIL_GPU_T_CUH__
 #define __SPPARK_UTIL_GPU_T_CUH__
 
-#ifndef __CUDACC__
-# include <cuda_runtime.h>
+#ifdef __HIPCC__
+// ROCm 7.2+ HIP compiler handles CUDA API mapping natively.
+// We only need the architecture classification macros from cuda2hip.hpp.
+# include <hip/hip_runtime.h>
+// Architecture macros for CDNA vs RDNA distinction
+# ifndef __AMDGCN_WAVEFRONT_SIZE
+#  ifdef __GFX9__
+#   define __AMDGCN_WAVEFRONT_SIZE 64
+#  else
+#   define __AMDGCN_WAVEFRONT_SIZE 32
+#  endif
+# endif
+# ifdef __GFX9__
+#  define __SPPARK_AMD_CDNA__
+# elif defined(__GFX10__) || defined(__GFX11__) || defined(__GFX12__)
+#  define __SPPARK_AMD_RDNA__
+# endif
+# define WARP_SZ 32
+#else
+# ifndef __CUDACC__
+#  include <cuda_runtime.h>
+# endif
 #endif
 
 #include "thread_pool_t.hpp"
@@ -28,10 +48,10 @@ class event_t {
     cudaEvent_t event;
 public:
     event_t() : event(nullptr)
-    {   CUDA_UNWRAP_SPPARK(cudaEventCreate(&event, cudaEventDisableTiming));   }
+    {   CUDA_UNWRAP_SPPARK(cudaEventCreateWithFlags(&event, cudaEventDisableTiming));   }
     event_t(cudaStream_t stream) : event(nullptr)
     {
-        CUDA_UNWRAP_SPPARK(cudaEventCreate(&event, cudaEventDisableTiming));
+        CUDA_UNWRAP_SPPARK(cudaEventCreateWithFlags(&event, cudaEventDisableTiming));
         CUDA_UNWRAP_SPPARK(cudaEventRecord(event, stream));
     }
     ~event_t()
@@ -42,7 +62,7 @@ public:
     inline void record(cudaStream_t stream)
     {   CUDA_UNWRAP_SPPARK(cudaEventRecord(event, stream));   }
     inline void wait(cudaStream_t stream)
-    {   CUDA_UNWRAP_SPPARK(cudaStreamWaitEvent(stream, event));   }
+    {   CUDA_UNWRAP_SPPARK(cudaStreamWaitEvent(stream, event, 0));   }
 };
 
 struct launch_params_t {
@@ -163,7 +183,7 @@ public:
     inline void record(cudaEvent_t event)
     {   CUDA_UNWRAP_SPPARK(cudaEventRecord(event, stream));   }
     inline void wait(cudaEvent_t event)
-    {   CUDA_UNWRAP_SPPARK(cudaStreamWaitEvent(stream, event));   }
+    {   CUDA_UNWRAP_SPPARK(cudaStreamWaitEvent(stream, event, 0));   }
 };
 
 class gpu_t {

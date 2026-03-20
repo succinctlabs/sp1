@@ -82,13 +82,11 @@ async fn main() {
         let client =
             SP1LocalNodeBuilder::from_worker_client_builder(worker_builder).build().await.unwrap();
 
-        let time = tokio::time::Instant::now();
         let context = SP1Context::default();
-        tracing::info!("executing the program");
-        let (_, _, report) = client.execute(&elf, stdin.clone(), context.clone()).await.unwrap();
-        let execute_time = time.elapsed();
-        let cycles = report.total_instruction_count() as usize;
-        tracing::info!("execute time: {:?}", execute_time);
+
+        // Skip separate execute() — the Controller re-executes internally anyway.
+        // We'll get cycles from the proof's public values after proving.
+        let execute_time = std::time::Duration::ZERO;
 
         let time = tokio::time::Instant::now();
         let vk = client.setup(&elf).await.unwrap();
@@ -107,10 +105,17 @@ async fn main() {
             let proof_time = time.elapsed();
             tracing::info!("proof time: {:?}", proof_time);
 
-            let num_shards = if let SP1Proof::Core(ref shard_proofs) = &proof.proof {
-                shard_proofs.len()
+            let (num_shards, cycles) = if let SP1Proof::Core(ref shard_proofs) = &proof.proof {
+                use std::borrow::Borrow;
+                use sp1_hypercube::air::PublicValues;
+                let max_ts = shard_proofs.iter().map(|p| {
+                    let pv: &PublicValues<[_; 4], [_; 3], [_; 4], _> =
+                        p.public_values.as_slice().borrow();
+                    pv.range().timestamp_range.1
+                }).max().unwrap_or(0);
+                (shard_proofs.len(), max_ts as usize)
             } else {
-                0
+                (0, 0)
             };
 
             // Verify the proof

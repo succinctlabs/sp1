@@ -1,12 +1,8 @@
 #include "sum_and_reduce/reduction.cuh"
-
-#include <cooperative_groups.h>
-#include <cooperative_groups/reduce.h>
+#include "runtime/gpu_compat.cuh"
 
 #include "fields/kb31_extension_t.cuh"
 #include "fields/kb31_t.cuh"
-
-namespace cg = cooperative_groups;
 
 template <typename F, typename TyOp>
 __global__ void partialBlockReduceKernel(F* partial, F* A, size_t width, size_t height, TyOp op) {

@@ -1,10 +1,8 @@
-#include <cooperative_groups.h>
+#include "runtime/gpu_compat.cuh"
 
 #include "mle/mle.cuh"
 #include "fields/kb31_extension_t.cuh"
 #include "fields/kb31_t.cuh"
-
-namespace cg = cooperative_groups;
 
 /*
 // TODO: This kernel does not work currently. It's rougtly a 2x over the naive kernel which might

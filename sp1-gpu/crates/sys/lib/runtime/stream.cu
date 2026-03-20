@@ -1,26 +1,148 @@
-// CUDA runtime bindings.
-
-#include <cuda.h>
-#include <nvtx3/nvToolsExt.h>
-#include <cuda_runtime.h>
+// CUDA/HIP runtime bindings.
 
 #include "runtime/exception.cuh"
 
+#ifdef __HIPCC__
+using cudaStream_t = hipStream_t;
+using cudaEvent_t = hipEvent_t;
+#define cudaDeviceSynchronize hipDeviceSynchronize
+#define cudaEventCreateWithFlags hipEventCreateWithFlags
+#define cudaEventDisableTiming hipEventDisableTiming
+#define cudaEventDestroy hipEventDestroy
+#define cudaEventRecord hipEventRecord
+#define cudaEventSynchronize hipEventSynchronize
+#define cudaEventElapsedTime hipEventElapsedTime
+#define cudaEventQuery hipEventQuery
+#define cudaStreamCreateWithFlags hipStreamCreateWithFlags
+#define cudaStreamNonBlocking hipStreamNonBlocking
+#define cudaStreamDefault hipStreamDefault
+#define cudaStreamDestroy hipStreamDestroy
+#define cudaStreamSynchronize hipStreamSynchronize
+#define cudaStreamWaitEvent hipStreamWaitEvent
+#define cudaStreamQuery hipStreamQuery
+#define cudaMemcpyAsync hipMemcpyAsync
+#define cudaMemsetAsync hipMemsetAsync
+#define cudaMemcpyDeviceToDevice hipMemcpyDeviceToDevice
+#define cudaMemcpyHostToDevice hipMemcpyHostToDevice
+#define cudaMemcpyDeviceToHost hipMemcpyDeviceToHost
+#define cudaMemcpyHostToHost hipMemcpyHostToHost
+#define cudaMemset hipMemset
+#define cudaLaunchKernel hipLaunchKernel
+#define cudaLaunchHostFunc hipLaunchHostFunc
+using cudaHostFn_t = hipHostFn_t;
+#else
+#include <cuda.h>
+#endif
+
+#if __has_include(<nvtx3/nvToolsExt.h>)
+#include <nvtx3/nvToolsExt.h>
+#define HAS_NVTX 1
+#else
+typedef void* nvtxDomainHandle_t;
+#define HAS_NVTX 0
+#endif
+
+#ifdef __HIPCC__
+// ROCm bug: hipMallocAsync/hipFreeAsync leak memory.
+// Use a caching allocator over synchronous hipMalloc/hipFree to avoid the
+// overhead of calling the driver for every allocation.
+#include <unordered_map>
+#include <vector>
+#include <mutex>
+
+static std::mutex g_alloc_mutex;
+static std::unordered_map<size_t, std::vector<void*>> g_free_pool;
+static std::unordered_map<void*, size_t> g_alloc_sizes;
+static size_t g_cached_bytes = 0;
+static constexpr size_t MAX_CACHED_BYTES = 2ULL * 1024 * 1024 * 1024; // 2 GB limit
+
+static hipError_t cachedHipMalloc(void** p, size_t s, hipStream_t) {
+    if (s == 0) { *p = nullptr; return hipSuccess; }
+    std::lock_guard<std::mutex> lock(g_alloc_mutex);
+    auto it = g_free_pool.find(s);
+    if (it != g_free_pool.end() && !it->second.empty()) {
+        *p = it->second.back();
+        it->second.pop_back();
+        g_cached_bytes -= s;
+        return hipSuccess;
+    }
+    hipError_t err = hipMalloc(p, s);
+    if (err != hipSuccess) {
+        // OOM: synchronize GPU work, evict all cached entries, and retry
+        hipDeviceSynchronize();
+        for (auto& [sz, ptrs] : g_free_pool) {
+            for (auto ptr : ptrs) {
+                hipFree(ptr);
+                g_alloc_sizes.erase(ptr);
+            }
+            g_cached_bytes -= sz * ptrs.size();
+            ptrs.clear();
+        }
+        g_free_pool.clear();
+        g_cached_bytes = 0;
+        err = hipMalloc(p, s);
+    }
+    if (err == hipSuccess) {
+        g_alloc_sizes[*p] = s;
+    }
+    return err;
+}
+
+static hipError_t cachedHipFree(void* p, hipStream_t) {
+    if (p == nullptr) return hipSuccess;
+    std::lock_guard<std::mutex> lock(g_alloc_mutex);
+    auto it = g_alloc_sizes.find(p);
+    if (it != g_alloc_sizes.end()) {
+        size_t s = it->second;
+        if (g_cached_bytes + s <= MAX_CACHED_BYTES) {
+            g_free_pool[s].push_back(p);
+            g_cached_bytes += s;
+            return hipSuccess;
+        }
+        g_alloc_sizes.erase(it);
+    }
+    return hipFree(p);
+}
+
+#define cudaMallocAsync cachedHipMalloc
+#define cudaFreeAsync cachedHipFree
+#endif // __HIPCC__
+
 // Create an nvtx domain.
 
-extern "C" nvtxDomainHandle_t nvtxDomainCreateARust(char* name) { return nvtxDomainCreateA(name); }
+extern "C" nvtxDomainHandle_t nvtxDomainCreateARust(char* name) {
+#if HAS_NVTX
+    return nvtxDomainCreateA(name);
+#else
+    return nullptr;
+#endif
+}
 
 // Destroy an nvtx domain.
 
-extern "C" void nvtxDomainDestroyARust(nvtxDomainHandle_t domain) { nvtxDomainDestroy(domain); }
+extern "C" void nvtxDomainDestroyARust(nvtxDomainHandle_t domain) {
+#if HAS_NVTX
+    nvtxDomainDestroy(domain);
+#endif
+}
 
 // Create a global nvtx range.
 
-extern "C" uint64_t nvtx_range_start(char* message) { return nvtxRangeStart(message); }
+extern "C" uint64_t nvtx_range_start(char* message) {
+#if HAS_NVTX
+    return nvtxRangeStart(message);
+#else
+    return 0;
+#endif
+}
 
 // Destroy a global nvtx range.
 
-extern "C" void nvtx_range_end(uint64_t id) { nvtxRangeEnd(id); }
+extern "C" void nvtx_range_end(uint64_t id) {
+#if HAS_NVTX
+    nvtxRangeEnd(id);
+#endif
+}
 
 // Sync device
 

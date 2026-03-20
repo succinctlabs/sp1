@@ -48,12 +48,20 @@ pub fn get_component_poly_evals(poly: &LogupRoundPolynomial) -> Vec<Ext> {
     }
 }
 
-fn finalize_univariate(
+/// Reduce the raw per-block univariate evaluations to a single [3]-shaped device tensor.
+/// This performs `sum_dim(1)` on the GPU without transferring data to the host.
+fn reduce_univariate_evals(univariate_evals: Tensor<Ext, TaskScope>) -> DeviceTensor<Ext> {
+    DeviceTensor::from_raw(univariate_evals).sum_dim(1)
+}
+
+/// Finalize the raw reduced evaluations into a univariate polynomial on the CPU.
+/// Takes the [3]-shaped reduced evals from `reduce_univariate_evals`.
+fn finalize_univariate_from_reduced(
     poly: &LogupRoundPolynomial,
-    univariate_evals: Tensor<Ext, TaskScope>,
+    reduced_evals: &DeviceTensor<Ext>,
     claim: Ext,
 ) -> UnivariatePolynomial<Ext> {
-    let evals = DeviceTensor::from_raw(univariate_evals).sum_dim(1).to_host().unwrap();
+    let evals = reduced_evals.to_host().unwrap();
     let mut eval_zero: Ext = *evals[[0]];
     let mut eval_half: Ext = *evals[[1]];
     let eq_sum = *evals[[2]];
@@ -90,6 +98,15 @@ fn finalize_univariate(
         ],
         &[eval_zero, eval_one, eval_half, Ext::zero()],
     )
+}
+
+fn finalize_univariate(
+    poly: &LogupRoundPolynomial,
+    univariate_evals: Tensor<Ext, TaskScope>,
+    claim: Ext,
+) -> UnivariatePolynomial<Ext> {
+    let reduced = reduce_univariate_evals(univariate_evals);
+    finalize_univariate_from_reduced(poly, &reduced, claim)
 }
 
 /// Evaluates the first layer polynomial and eq polynomial at 0 and 1/2.
@@ -351,11 +368,10 @@ fn fix_and_sum_first_layer(
     (univariate_evals, result_poly)
 }
 
-fn sum_as_poly_materialized_round(
-    poly: &LogupRoundPolynomial,
-    claim: Ext,
-) -> UnivariatePolynomial<Ext> {
-    let univariate_evals = match &poly.layer {
+/// Compute the raw per-block univariate evaluations for a materialized round.
+/// Returns the unreduced tensor of shape [3, grid_dim].
+fn sum_as_poly_materialized_round_raw(poly: &LogupRoundPolynomial) -> Tensor<Ext, TaskScope> {
+    match &poly.layer {
         PolynomialLayer::CircuitLayer(circuit) => {
             let height = circuit.jagged_mle.dense_data.height;
             let scope = circuit.jagged_mle.backend();
@@ -387,17 +403,239 @@ fn sum_as_poly_materialized_round(
         PolynomialLayer::InteractionsLayer(_guts) => {
             unreachable!("first sum_as_poly should always be circuit layer")
         }
-    };
+    }
+}
 
+fn sum_as_poly_materialized_round(
+    poly: &LogupRoundPolynomial,
+    claim: Ext,
+) -> UnivariatePolynomial<Ext> {
+    let univariate_evals = sum_as_poly_materialized_round_raw(poly);
     finalize_univariate(poly, univariate_evals, claim)
 }
 
-// returns (next univariate, next round polynomial)
-fn fix_and_sum_materialized_round(
+/// Fix last variable and compute raw (unreduced) univariate evaluations.
+/// Returns the raw tensor of shape [3, grid_dim] and the updated polynomial.
+/// The caller is responsible for reducing (sum_dim) and finalizing.
+fn fix_and_sum_materialized_round_raw(
     mut poly: LogupRoundPolynomial,
     alpha: Ext,
-    claim: Ext,
-) -> (UnivariatePolynomial<Ext>, LogupRoundPolynomial) {
+) -> (Tensor<Ext, TaskScope>, LogupRoundPolynomial) {
+    // Remove the last coordinate from the point
+    let last_coordinate = poly.point.remove_last_coordinate();
+    let padding_adjustment = poly.padding_adjustment
+        * (last_coordinate * alpha + (Ext::one() - last_coordinate) * (Ext::one() - alpha));
+
+    match &poly.layer {
+        PolynomialLayer::InteractionsLayer(guts) => {
+            // First, fix_last_variable on the eq_interaction
+            let eq_interaction =
+                poly.eq_interaction.fix_last_variable_constant_padding(alpha, Ext::zero());
+            let height = guts.sizes()[1];
+            let output_height = height.div_ceil(2);
+            let backend = guts.backend();
+
+            let mut output = Tensor::with_sizes_in([4, output_height], backend.clone());
+
+            const BLOCK_SIZE: usize = 256;
+            const STRIDE: usize = 32;
+            let grid_size_x = height.div_ceil(BLOCK_SIZE).div_ceil(STRIDE);
+            let grid_size = (grid_size_x, 1, 1);
+            let mut univariate_evals =
+                Tensor::<Ext, TaskScope>::with_sizes_in([3, grid_size_x], backend.clone());
+            let num_tiles = BLOCK_SIZE.checked_div(32).unwrap_or(1);
+            let shared_mem = num_tiles * std::mem::size_of::<Ext>();
+
+            unsafe {
+                univariate_evals.assume_init();
+                output.assume_init();
+                let null_ptr: *mut Ext = std::ptr::null_mut();
+                let args = args!(
+                    univariate_evals.as_mut_ptr(),
+                    guts.as_ptr(),
+                    output.as_mut_ptr(),
+                    alpha,
+                    height,
+                    output_height,
+                    eq_interaction.guts().as_ptr(),
+                    poly.lambda,
+                    null_ptr
+                );
+                backend
+                    .launch_kernel(
+                        fix_and_sum_interactions_layer_kernel(),
+                        grid_size,
+                        BLOCK_SIZE,
+                        &args,
+                        shared_mem,
+                    )
+                    .unwrap();
+            }
+
+            let layer = PolynomialLayer::InteractionsLayer(output);
+
+            let poly = LogupRoundPolynomial {
+                layer,
+                eq_row: poly.eq_row,
+                eq_interaction,
+                lambda: poly.lambda,
+                point: poly.point,
+                eq_adjustment: poly.eq_adjustment,
+                padding_adjustment,
+            };
+            (univariate_evals, poly)
+        }
+        PolynomialLayer::CircuitLayer(circuit) => {
+            let backend = circuit.jagged_mle.backend();
+            let height = circuit.jagged_mle.dense_data.height;
+            // If this is the last layer, we need to fix the last variable and create an
+            // interaction layer.
+            if circuit.num_row_variables == 1 {
+                let height = height >> 1;
+                let mut output: Tensor<Ext, TaskScope> =
+                    Tensor::with_sizes_in([4, height], backend.clone());
+
+                let eq_row = poly.eq_row.fix_last_variable_constant_padding(alpha, Ext::zero());
+
+                const BLOCK_SIZE: usize = 256;
+                const STRIDE: usize = 32;
+                let grid_size_x = height.div_ceil(BLOCK_SIZE).div_ceil(STRIDE);
+                let grid_size = (grid_size_x, 1, 1);
+                let mut univariate_evals =
+                    Tensor::<Ext, TaskScope>::with_sizes_in([3, grid_size_x], backend.clone());
+                let num_tiles = BLOCK_SIZE.checked_div(32).unwrap_or(1);
+                let shared_mem = num_tiles * std::mem::size_of::<Ext>();
+
+                unsafe {
+                    univariate_evals.assume_init();
+                    output.assume_init();
+                    let null_ptr: *mut Ext = std::ptr::null_mut();
+                    let args = args!(
+                        univariate_evals.as_mut_ptr(),
+                        circuit.jagged_mle.dense_data.as_ptr(),
+                        alpha,
+                        output.as_mut_ptr(),
+                        poly.eq_interaction.guts().as_ptr(),
+                        poly.lambda,
+                        null_ptr
+                    );
+                    backend
+                        .launch_kernel(
+                            fix_and_sum_last_circuit_layer_kernel(),
+                            grid_size,
+                            BLOCK_SIZE,
+                            &args,
+                            shared_mem,
+                        )
+                        .unwrap();
+                }
+                let poly = LogupRoundPolynomial {
+                    layer: PolynomialLayer::InteractionsLayer(output),
+                    eq_row,
+                    eq_interaction: poly.eq_interaction,
+                    lambda: poly.lambda,
+                    point: poly.point,
+                    eq_adjustment: padding_adjustment,
+                    padding_adjustment: Ext::one(),
+                };
+                (univariate_evals, poly)
+            } else {
+                let eq_row = poly.eq_row.fix_last_variable_constant_padding(alpha, Ext::zero());
+
+                let (output_interaction_start_indices, output_interaction_row_counts) =
+                    circuit.jagged_mle.next_start_indices_and_column_heights();
+                let output_height =
+                    output_interaction_start_indices.last().copied().unwrap() as usize;
+                let output_interaction_start_indices =
+                    DeviceBuffer::from_host(&output_interaction_start_indices, backend)
+                        .unwrap()
+                        .into_inner();
+
+                // Create a new layer
+                let output_layer: Tensor<Ext, TaskScope> =
+                    Tensor::with_sizes_in([4, 1, output_height * 2], backend.clone());
+                let output_col_index: Buffer<u32, TaskScope> =
+                    Buffer::with_capacity_in(output_height, backend.clone());
+
+                let output_jagged_layer = JaggedGkrLayer::new(output_layer, output_height);
+                let mut output_jagged_mle = JaggedMle::new(
+                    output_jagged_layer,
+                    output_col_index,
+                    output_interaction_start_indices,
+                    output_interaction_row_counts,
+                );
+
+                // populate the new layer
+                const BLOCK_SIZE: usize = 256;
+                const STRIDE: usize = 32;
+                let grid_size_x = height.div_ceil(BLOCK_SIZE).div_ceil(STRIDE);
+                let grid_size = (grid_size_x, 1, 1);
+                let block_dim = BLOCK_SIZE;
+
+                let mut univariate_evals =
+                    Tensor::<Ext, TaskScope>::with_sizes_in([3, grid_size_x], backend.clone());
+                let num_tiles = BLOCK_SIZE.checked_div(32).unwrap_or(1);
+                let shared_mem = num_tiles * std::mem::size_of::<Ext>();
+
+                unsafe {
+                    univariate_evals.assume_init();
+                    output_jagged_mle.dense_data.assume_init();
+                    output_jagged_mle.col_index.assume_init();
+                    let null_ptr: *mut Ext = std::ptr::null_mut();
+                    let args = args!(
+                        univariate_evals.as_mut_ptr(),
+                        circuit.jagged_mle.as_raw(),
+                        output_jagged_mle.as_mut_raw(),
+                        alpha,
+                        eq_row.guts().as_ptr(),
+                        poly.eq_interaction.guts().as_ptr(),
+                        poly.lambda,
+                        null_ptr
+                    );
+                    backend
+                        .launch_kernel(
+                            fix_and_sum_circuit_layer_kernel(),
+                            grid_size,
+                            block_dim,
+                            &args,
+                            shared_mem,
+                        )
+                        .unwrap();
+                }
+
+                let output_layer = GkrLayer {
+                    jagged_mle: output_jagged_mle,
+                    num_row_variables: circuit.num_row_variables - 1,
+                    num_interaction_variables: circuit.num_interaction_variables,
+                };
+
+                let poly = LogupRoundPolynomial {
+                    layer: PolynomialLayer::CircuitLayer(output_layer),
+                    eq_row,
+                    eq_interaction: poly.eq_interaction,
+                    lambda: poly.lambda,
+                    point: poly.point,
+                    eq_adjustment: poly.eq_adjustment,
+                    padding_adjustment,
+                };
+
+                (univariate_evals, poly)
+            }
+        }
+    }
+}
+
+/// Fix last variable and compute raw (unreduced) univariate evaluations, with fused atomic
+/// reduction. Each block atomically adds its partial sum into `reduced_output` (shape `[3]`),
+/// eliminating the need for a separate `sum_dim` kernel launch.
+///
+/// The `reduced_output` tensor must be pre-zeroed before the kernel launch.
+/// The unreduced `[3, grid_dim]` tensor is still produced for proof transcript reconstruction.
+fn fix_and_sum_materialized_round_raw_with_reduction(
+    mut poly: LogupRoundPolynomial,
+    alpha: Ext,
+    reduced_output: &mut Tensor<Ext, TaskScope>,
+) -> (Tensor<Ext, TaskScope>, LogupRoundPolynomial) {
     // Remove the last coordinate from the point
     let last_coordinate = poly.point.remove_last_coordinate();
     let padding_adjustment = poly.padding_adjustment
@@ -434,7 +672,8 @@ fn fix_and_sum_materialized_round(
                     height,
                     output_height,
                     eq_interaction.guts().as_ptr(),
-                    poly.lambda
+                    poly.lambda,
+                    reduced_output.as_mut_ptr()
                 );
                 backend
                     .launch_kernel(
@@ -458,7 +697,6 @@ fn fix_and_sum_materialized_round(
                 eq_adjustment: poly.eq_adjustment,
                 padding_adjustment,
             };
-            let univariate_evals = finalize_univariate(&poly, univariate_evals, claim);
             (univariate_evals, poly)
         }
         PolynomialLayer::CircuitLayer(circuit) => {
@@ -491,7 +729,8 @@ fn fix_and_sum_materialized_round(
                         alpha,
                         output.as_mut_ptr(),
                         poly.eq_interaction.guts().as_ptr(),
-                        poly.lambda
+                        poly.lambda,
+                        reduced_output.as_mut_ptr()
                     );
                     backend
                         .launch_kernel(
@@ -512,7 +751,6 @@ fn fix_and_sum_materialized_round(
                     eq_adjustment: padding_adjustment,
                     padding_adjustment: Ext::one(),
                 };
-                let univariate_evals = finalize_univariate(&poly, univariate_evals, claim);
                 (univariate_evals, poly)
             } else {
                 let eq_row = poly.eq_row.fix_last_variable_constant_padding(alpha, Ext::zero());
@@ -563,7 +801,8 @@ fn fix_and_sum_materialized_round(
                         alpha,
                         eq_row.guts().as_ptr(),
                         poly.eq_interaction.guts().as_ptr(),
-                        poly.lambda
+                        poly.lambda,
+                        reduced_output.as_mut_ptr()
                     );
                     backend
                         .launch_kernel(
@@ -592,11 +831,21 @@ fn fix_and_sum_materialized_round(
                     padding_adjustment,
                 };
 
-                let univariate = finalize_univariate(&poly, univariate_evals, claim);
-                (univariate, poly)
+                (univariate_evals, poly)
             }
         }
     }
+}
+
+// returns (next univariate, next round polynomial)
+fn fix_and_sum_materialized_round(
+    poly: LogupRoundPolynomial,
+    alpha: Ext,
+    claim: Ext,
+) -> (UnivariatePolynomial<Ext>, LogupRoundPolynomial) {
+    let (univariate_evals, poly) = fix_and_sum_materialized_round_raw(poly, alpha);
+    let univariate = finalize_univariate(&poly, univariate_evals, claim);
+    (univariate, poly)
 }
 
 /// Process a univariate polynomial by observing it with the challenger and sampling the next evaluation point
@@ -744,6 +993,316 @@ pub fn materialized_round_sumcheck<C: FieldChallenger<Felt>>(
         },
         component_poly_evals,
     )
+}
+
+// Re-use AsMutRawChallenger from jagged_sumcheck to avoid trait duplication.
+pub use sp1_gpu_jagged_sumcheck::AsMutRawChallenger;
+
+/// Trait for selecting the appropriate GPU cubic observe-and-sample kernel.
+///
+/// # Safety
+///
+/// The kernel pointer returned must match the challenger type's raw representation.
+pub unsafe trait ObserveAndSampleCubicKernel {
+    fn observe_and_sample_cubic_kernel() -> sp1_gpu_cudart::sys::runtime::KernelPtr;
+}
+
+unsafe impl<F> ObserveAndSampleCubicKernel for sp1_gpu_challenger::DuplexChallenger<F, TaskScope> {
+    fn observe_and_sample_cubic_kernel() -> sp1_gpu_cudart::sys::runtime::KernelPtr {
+        unsafe { sp1_gpu_cudart::sys::sumcheck::sumcheck_observe_and_sample_cubic_duplex() }
+    }
+}
+
+unsafe impl<F, PF> ObserveAndSampleCubicKernel
+    for sp1_gpu_challenger::MultiField32Challenger<F, PF, TaskScope>
+{
+    fn observe_and_sample_cubic_kernel() -> sp1_gpu_cudart::sys::runtime::KernelPtr {
+        unsafe { sp1_gpu_cudart::sys::sumcheck::sumcheck_observe_and_sample_cubic_multi_field_32() }
+    }
+}
+
+/// Launch the GPU observe-and-sample kernel for a cubic (degree-3) LogUp-GKR sumcheck round.
+///
+/// This single-thread kernel reads the reduced evals [eval_zero, eval_half, eq_sum] from device,
+/// applies eq corrections using the provided scalar parameters, interpolates the degree-3
+/// polynomial, observes coefficients with the device challenger, samples alpha, evaluates
+/// p(alpha) for next_claim, and writes alpha + next_claim to device buffers.
+#[allow(clippy::too_many_arguments)]
+fn launch_observe_and_sample_cubic<DC: AsMutRawChallenger + ObserveAndSampleCubicKernel>(
+    reduced_evals: &DeviceTensor<Ext>,
+    device_challenger: &mut DC,
+    alpha_buf: &mut DeviceBuffer<Ext>,
+    next_claim_buf: &mut DeviceBuffer<Ext>,
+    claim: Ext,
+    padding_adjustment: Ext,
+    eq_adjustment: Ext,
+    point_last: Ext,
+    backend: &TaskScope,
+) {
+    let challenger_raw = device_challenger.as_mut_raw();
+    unsafe {
+        let args = args!(
+            reduced_evals.as_ptr(),
+            challenger_raw,
+            alpha_buf.as_mut_ptr(),
+            claim,
+            next_claim_buf.as_mut_ptr(),
+            padding_adjustment,
+            eq_adjustment,
+            point_last
+        );
+        backend
+            .launch_kernel(DC::observe_and_sample_cubic_kernel(), 1usize, 1usize, &args, 0)
+            .unwrap();
+    }
+}
+
+/// LogUp-GKR materialized round sumcheck with GPU-side Fiat-Shamir challenger.
+///
+/// Instead of transferring reduced evaluations to the CPU for correction, interpolation,
+/// and challenger operations each round, this keeps the reduced evals on device and launches
+/// a single-thread GPU kernel that does correction + interpolation + observe + sample.
+///
+/// Per round, only alpha (16 bytes) and next_claim (16 bytes) are transferred D2H.
+/// The reduced eval device tensors are saved during the main loop and batch-transferred
+/// to CPU at the end to reconstruct the polynomial coefficients for the proof.
+/// The CPU challenger state is then synced via transcript replay.
+pub fn materialized_round_sumcheck_gpu_challenger<C, DC>(
+    mut poly: LogupRoundPolynomial,
+    challenger: &mut C,
+    claim: Ext,
+) -> (PartialSumcheckProof<Ext>, Vec<Ext>)
+where
+    C: FieldChallenger<Felt>,
+    DC: AsMutRawChallenger
+        + ObserveAndSampleCubicKernel
+        + sp1_gpu_challenger::FromHostChallengerSync<C>,
+{
+    let num_variables = poly.num_variables();
+    assert!(num_variables >= 1_u32);
+
+    // Get a backend reference from the polynomial's layer for device operations.
+    let backend = match &poly.layer {
+        PolynomialLayer::CircuitLayer(circuit) => circuit.jagged_mle.backend().clone(),
+        PolynomialLayer::InteractionsLayer(guts) => guts.backend().clone(),
+    };
+
+    // Create device challenger from the current CPU challenger state.
+    let mut device_challenger = DC::from_host_challenger_sync(challenger, &backend);
+
+    // Allocate reusable device buffers for alpha and next_claim (16 bytes each).
+    let mut alpha_buf = DeviceBuffer::<Ext>::with_capacity_in(1, backend.clone());
+    let mut next_claim_buf = DeviceBuffer::<Ext>::with_capacity_in(1, backend.clone());
+    unsafe {
+        alpha_buf.set_len(1);
+        next_claim_buf.set_len(1);
+    }
+
+    // Save reduced evals and poly snapshots for batch D2H at the end.
+    let mut saved_reduced_evals: Vec<DeviceTensor<Ext>> =
+        Vec::with_capacity(num_variables as usize);
+    // Save the correction parameters for each round (needed for CPU-side replay).
+    let mut saved_params: Vec<RoundParams> = Vec::with_capacity(num_variables as usize);
+
+    let mut point: Vec<Ext> = Vec::with_capacity(num_variables as usize);
+    let mut current_claim = claim;
+    let mut gpu_claims: Vec<Ext> = Vec::with_capacity(num_variables as usize);
+
+    // --- Round 0: sum_as_poly (first round, no fix_last_variable) ---
+    {
+        let raw_evals = sum_as_poly_materialized_round_raw(&poly);
+        let reduced_evals = reduce_univariate_evals(raw_evals);
+
+        let point_last = *poly.point.last().unwrap();
+        saved_params.push(RoundParams {
+            padding_adjustment: poly.padding_adjustment,
+            eq_adjustment: poly.eq_adjustment,
+            point_last,
+        });
+
+        launch_observe_and_sample_cubic(
+            &reduced_evals,
+            &mut device_challenger,
+            &mut alpha_buf,
+            &mut next_claim_buf,
+            current_claim,
+            poly.padding_adjustment,
+            poly.eq_adjustment,
+            point_last,
+            &backend,
+        );
+
+        saved_reduced_evals.push(reduced_evals);
+
+        let alpha = alpha_buf.to_host().unwrap()[0];
+        current_claim = next_claim_buf.to_host().unwrap()[0];
+        gpu_claims.push(current_claim);
+        point.push(alpha);
+    }
+
+    // Early return for single variable case
+    if num_variables == 1 {
+        poly = fix_last_variable_materialized_round(poly, point[0]);
+
+        // Batch D2H and reconstruct uni_polys
+        let (uni_polys, _) =
+            replay_and_reconstruct(&saved_reduced_evals, &saved_params, &point, claim, &gpu_claims);
+
+        let eval = uni_polys[0].eval_at_point(point[0]);
+        let component_poly_evals = get_component_poly_evals(&poly);
+
+        // Replay CPU challenger
+        replay_cpu_challenger(challenger, &uni_polys);
+
+        return (
+            PartialSumcheckProof {
+                univariate_polys: uni_polys,
+                claimed_sum: claim,
+                point_and_eval: (point.into(), eval),
+            },
+            component_poly_evals,
+        );
+    }
+
+    // --- Remaining rounds: fix_and_sum with standard sum_dim reduction ---
+    for _round in 1..num_variables as usize {
+        let current_alpha = point[0];
+
+        let (raw_evals, next_poly) = fix_and_sum_materialized_round_raw(
+            poly,
+            current_alpha,
+        );
+        poly = next_poly;
+
+        // Reduce the [3, grid_dim] tensor to [3] via sum_dim.
+        let reduced_evals = reduce_univariate_evals(raw_evals);
+
+        let point_last = *poly.point.last().unwrap();
+        saved_params.push(RoundParams {
+            padding_adjustment: poly.padding_adjustment,
+            eq_adjustment: poly.eq_adjustment,
+            point_last,
+        });
+
+        launch_observe_and_sample_cubic(
+            &reduced_evals,
+            &mut device_challenger,
+            &mut alpha_buf,
+            &mut next_claim_buf,
+            current_claim,
+            poly.padding_adjustment,
+            poly.eq_adjustment,
+            point_last,
+            &backend,
+        );
+
+        saved_reduced_evals.push(reduced_evals);
+
+        let alpha = alpha_buf.to_host().unwrap()[0];
+        current_claim = next_claim_buf.to_host().unwrap()[0];
+        gpu_claims.push(current_claim);
+        point.insert(0, alpha);
+    }
+
+    // Final fix_last_variable
+    poly = fix_last_variable_materialized_round(poly, point[0]);
+
+    // --- Batch D2H of reduced evals and reconstruct uni_polys ---
+    let (uni_polys, _) = replay_and_reconstruct(&saved_reduced_evals, &saved_params, &point, claim, &gpu_claims);
+
+    // Compute final evaluation
+    let eval = uni_polys.last().unwrap().eval_at_point(point[0]);
+    let component_poly_evals = get_component_poly_evals(&poly);
+
+    // Replay CPU challenger for state sync
+    replay_cpu_challenger(challenger, &uni_polys);
+
+    (
+        PartialSumcheckProof {
+            univariate_polys: uni_polys,
+            claimed_sum: claim,
+            point_and_eval: (point.into(), eval),
+        },
+        component_poly_evals,
+    )
+}
+
+/// Batch-transfer reduced evals from device and reconstruct univariate polynomials on CPU.
+/// Returns the vector of univariate polynomials and the final claim.
+fn replay_and_reconstruct(
+    saved_reduced_evals: &[DeviceTensor<Ext>],
+    saved_params: &[RoundParams],
+    point: &[Ext],
+    initial_claim: Ext,
+    gpu_claims: &[Ext],
+) -> (Vec<UnivariatePolynomial<Ext>>, Ext) {
+    let num_rounds = saved_reduced_evals.len();
+    let mut uni_polys: Vec<UnivariatePolynomial<Ext>> = Vec::with_capacity(num_rounds);
+    let mut replay_claim = initial_claim;
+
+    for (round, (saved_evals, params)) in
+        saved_reduced_evals.iter().zip(saved_params.iter()).enumerate()
+    {
+        let host_evals = saved_evals.to_host().unwrap();
+        let mut eval_zero: Ext = *host_evals[[0]];
+        let mut eval_half: Ext = *host_evals[[1]];
+        let eq_sum: Ext = *host_evals[[2]];
+
+        // Apply the same corrections as finalize_univariate
+        let eq_correction_term = params.padding_adjustment - eq_sum;
+        eval_zero += eq_correction_term * (Ext::one() - params.point_last);
+        eval_half += eq_correction_term * Ext::from_canonical_u16(4);
+        let eval_half = eval_half * Ext::from_canonical_u16(8).inverse();
+        let eval_zero = eval_zero * params.eq_adjustment;
+        let eval_half = eval_half * params.eq_adjustment;
+
+        let b_const = (Ext::one() - params.point_last) / (Ext::one() - params.point_last.double());
+        let eval_one = replay_claim - eval_zero;
+
+        let uni_poly = interpolate_univariate_polynomial(
+            &[
+                Ext::from_canonical_u16(0),
+                Ext::from_canonical_u16(1),
+                Ext::from_canonical_u16(2).inverse(),
+                b_const,
+            ],
+            &[eval_zero, eval_one, eval_half, Ext::zero()],
+        );
+
+        // The alpha for this round is stored in reverse order in the point vector.
+        let alpha = point[num_rounds - 1 - round];
+        replay_claim = uni_poly.eval_at_point(alpha);
+
+        // Diagnostic: compare GPU next_claim with CPU-replayed next_claim.
+        if round < gpu_claims.len() && replay_claim != gpu_claims[round] {
+            eprintln!("[GPU_CHALLENGER_DEBUG] MISMATCH at round {round}");
+        }
+
+        uni_polys.push(uni_poly);
+    }
+
+    (uni_polys, replay_claim)
+}
+
+/// Replay the CPU challenger with the reconstructed polynomials for state synchronization.
+fn replay_cpu_challenger<C: FieldChallenger<Felt>>(
+    challenger: &mut C,
+    uni_polys: &[UnivariatePolynomial<Ext>],
+) {
+    for poly in uni_polys {
+        let coefficients: Vec<Felt> =
+            poly.coefficients.iter().flat_map(|c| c.as_base_slice()).copied().collect();
+        challenger.observe_slice(&coefficients);
+        let _: Ext = challenger.sample_ext_element();
+    }
+}
+
+/// Correction parameters for a single sumcheck round.
+/// Saved during the GPU path for batch CPU-side replay at the end.
+struct RoundParams {
+    padding_adjustment: Ext,
+    eq_adjustment: Ext,
+    point_last: Ext,
 }
 
 pub fn bench_materialized_sumcheck<GC: IopCtx>(

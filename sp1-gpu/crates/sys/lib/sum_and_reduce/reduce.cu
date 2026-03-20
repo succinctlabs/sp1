@@ -1,10 +1,6 @@
 #include "config.cuh"
 #include "sum_and_reduce/reduce.cuh"
-
-#include <cooperative_groups.h>
-#include <cooperative_groups/reduce.h>
-
-namespace cg = cooperative_groups;
+#include "runtime/gpu_compat.cuh"
 
 template <typename F>
 /// @brief Reduce the columns of input array into the output array

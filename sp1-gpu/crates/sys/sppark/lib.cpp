@@ -1,4 +1,8 @@
+#ifdef __HIPCC__
+#include <hip/hip_runtime.h>
+#else
 #include <cuda_runtime.h>
+#endif
 #include <util/gpu_t.cuh>
 
 extern "C" void drop_gpu_ptr_t(gpu_ptr_t<void>& ref)

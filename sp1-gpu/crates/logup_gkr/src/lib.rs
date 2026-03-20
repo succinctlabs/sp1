@@ -37,6 +37,7 @@ pub use utils::*;
 
 pub use sumcheck::{
     bench_materialized_sumcheck, first_round_sumcheck, materialized_round_sumcheck,
+    materialized_round_sumcheck_gpu_challenger, AsMutRawChallenger, ObserveAndSampleCubicKernel,
 };
 
 pub use execution::{extract_outputs, gkr_transition};
@@ -106,6 +107,51 @@ fn prove_first_round<C: FieldChallenger<Felt>>(
     LogupGkrRoundProof { numerator_0, numerator_1, denominator_0, denominator_1, sumcheck_proof }
 }
 
+fn prove_materialized_round_gpu_challenger<C, DC>(
+    layer: GkrLayer,
+    eval_point: &Point<Ext>,
+    numerator_eval: Ext,
+    denominator_eval: Ext,
+    challenger: &mut C,
+) -> LogupGkrRoundProof<Ext>
+where
+    C: FieldChallenger<Felt>,
+    DC: AsMutRawChallenger
+        + ObserveAndSampleCubicKernel
+        + sp1_gpu_challenger::FromHostChallengerSync<C>,
+{
+    let lambda = challenger.sample_ext_element::<Ext>();
+    let claim = numerator_eval * lambda + denominator_eval;
+    let (interaction_point, row_point) =
+        eval_point.split_at(layer.num_interaction_variables as usize);
+
+    let backend = layer.jagged_mle.backend().clone();
+    let interaction_point =
+        DevicePoint::from_host(&interaction_point, &backend).unwrap().into_inner();
+    let row_point = DevicePoint::from_host(&row_point, &backend).unwrap().into_inner();
+    let eq_interaction = DevicePoint::new(interaction_point).partial_lagrange();
+    let eq_row = DevicePoint::new(row_point).partial_lagrange();
+    let sumcheck_poly = LogupRoundPolynomial {
+        layer: PolynomialLayer::CircuitLayer(layer),
+        eq_row,
+        eq_interaction,
+        lambda,
+        eq_adjustment: Ext::one(),
+        padding_adjustment: Ext::one(),
+        point: eval_point.clone(),
+    };
+
+    // Produce the sumcheck proof using GPU challenger.
+    let (sumcheck_proof, openings) = sumcheck::materialized_round_sumcheck_gpu_challenger::<C, DC>(
+        sumcheck_poly,
+        challenger,
+        claim,
+    );
+    let [numerator_0, numerator_1, denominator_0, denominator_1] = openings.try_into().unwrap();
+
+    LogupGkrRoundProof { numerator_0, numerator_1, denominator_0, denominator_1, sumcheck_proof }
+}
+
 pub fn prove_round<'a, C: FieldChallenger<Felt>>(
     circuit: GkrCircuitLayer<'a>,
     eval_point: &Point<Ext>,
@@ -122,6 +168,35 @@ pub fn prove_round<'a, C: FieldChallenger<Felt>>(
             challenger,
         ),
         GkrCircuitLayer::FirstLayer(layer) => {
+            prove_first_round(layer, eval_point, numerator_eval, denominator_eval, challenger)
+        }
+        GkrCircuitLayer::FirstLayerVirtual(_) => unreachable!(),
+    }
+}
+
+pub fn prove_round_gpu_challenger<'a, C, DC>(
+    circuit: GkrCircuitLayer<'a>,
+    eval_point: &Point<Ext>,
+    numerator_eval: Ext,
+    denominator_eval: Ext,
+    challenger: &mut C,
+) -> LogupGkrRoundProof<Ext>
+where
+    C: FieldChallenger<Felt>,
+    DC: AsMutRawChallenger
+        + ObserveAndSampleCubicKernel
+        + sp1_gpu_challenger::FromHostChallengerSync<C>,
+{
+    match circuit {
+        GkrCircuitLayer::Materialized(layer) => prove_materialized_round_gpu_challenger::<C, DC>(
+            layer,
+            eval_point,
+            numerator_eval,
+            denominator_eval,
+            challenger,
+        ),
+        GkrCircuitLayer::FirstLayer(layer) => {
+            // First round still uses CPU challenger (different polynomial structure).
             prove_first_round(layer, eval_point, numerator_eval, denominator_eval, challenger)
         }
         GkrCircuitLayer::FirstLayerVirtual(_) => unreachable!(),
@@ -173,8 +248,56 @@ pub fn prove_gkr_circuit<'a, C: FieldChallenger<Felt>>(
     (eval_point, round_proofs)
 }
 
+/// Like `prove_gkr_circuit` but uses GPU-side challenger for materialized rounds.
+#[instrument(skip_all, level = "debug")]
+pub fn prove_gkr_circuit_gpu_challenger<'a, C, DC>(
+    numerator_value: Ext,
+    denominator_value: Ext,
+    eval_point: Point<Ext>,
+    mut circuit: LogUpCudaCircuit<'a, TaskScope>,
+    challenger: &mut C,
+    recompute_first_layer: bool,
+) -> (Point<Ext>, Vec<LogupGkrRoundProof<Ext>>)
+where
+    C: FieldChallenger<Felt>,
+    DC: AsMutRawChallenger
+        + ObserveAndSampleCubicKernel
+        + sp1_gpu_challenger::FromHostChallengerSync<C>,
+{
+    let mut round_proofs = Vec::new();
+    let mut numerator_eval = numerator_value;
+    let mut denominator_eval = denominator_value;
+    let mut eval_point = eval_point;
+    while let Some(layer) = circuit.next(recompute_first_layer) {
+        let round_proof = prove_round_gpu_challenger::<C, DC>(
+            layer,
+            &eval_point,
+            numerator_eval,
+            denominator_eval,
+            challenger,
+        );
+
+        challenger.observe_ext_element::<Ext>(round_proof.numerator_0);
+        challenger.observe_ext_element::<Ext>(round_proof.numerator_1);
+        challenger.observe_ext_element::<Ext>(round_proof.denominator_0);
+        challenger.observe_ext_element::<Ext>(round_proof.denominator_1);
+
+        eval_point = round_proof.sumcheck_proof.point_and_eval.0.clone();
+        let last_coordinate = challenger.sample_ext_element::<Ext>();
+
+        numerator_eval = round_proof.numerator_0
+            + (round_proof.numerator_1 - round_proof.numerator_0) * last_coordinate;
+        denominator_eval = round_proof.denominator_0
+            + (round_proof.denominator_1 - round_proof.denominator_0) * last_coordinate;
+        eval_point.add_dimension_back(last_coordinate);
+
+        round_proofs.push(round_proof);
+    }
+    (eval_point, round_proofs)
+}
+
 /// End-to-end proves lookups for a given trace.
-pub fn prove_logup_gkr<GC: IopCtx<F = Felt, EF = Ext>, A: MachineAir<Felt>>(
+pub fn prove_logup_gkr<GC: IopCtx<F = Felt, EF = Ext>, A: MachineAir<Felt>, DC>(
     chips: &BTreeSet<Chip<Felt, A>>,
     all_interactions: BTreeMap<String, Arc<Interactions<Felt, TaskScope>>>,
     jagged_trace_data: &JaggedTraceMle<Felt, TaskScope>,
@@ -183,6 +306,9 @@ pub fn prove_logup_gkr<GC: IopCtx<F = Felt, EF = Ext>, A: MachineAir<Felt>>(
 ) -> LogupGkrProof<Felt, Ext>
 where
     GC::Challenger: DeviceGrindingChallenger<Witness = GC::F>,
+    DC: AsMutRawChallenger
+        + ObserveAndSampleCubicKernel
+        + sp1_gpu_challenger::FromHostChallengerSync<GC::Challenger>,
 {
     let CudaLogUpGkrOptions { recompute_first_layer, num_row_variables } = options;
     let backend = jagged_trace_data.backend().clone();

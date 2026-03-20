@@ -1,3 +1,5 @@
+use rayon::prelude::*;
+
 use crate::{
     build::{
         get_or_create_groth16_artifacts_dev_build_dir, get_or_create_plonk_artifacts_dev_build_dir,
@@ -461,18 +463,44 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
                 recursive_verifier::<SP1GlobalContext, _,  InnerConfig>(
                     compress_verifier.shard_verifier(),
                 );
-            for arity in 1..=config.max_compose_arity {
-                let dummy_input =
-                    dummy_compose_input::<C>(&reduce_shape, arity, recursion_vks_height);
-                let mut program = compose_program_from_input(
-                    &recursive_compress_verifier,
-                    config.vk_verification,
-                    &dummy_input,
+            // Compile all compose programs + deferred program in parallel.
+            // Each compilation is independent and CPU-bound.
+            let arities: Vec<usize> = (1..=config.max_compose_arity).collect();
+            let all_programs: Vec<(usize, Arc<_>)> = {
+                let reduce_shape = &reduce_shape;
+                let recursive_compress_verifier = &recursive_compress_verifier;
+                let vk_verification = config.vk_verification;
+                // Build compose programs + deferred program in parallel
+                let mut programs: Vec<(usize, Arc<_>)> = arities
+                    .par_iter()
+                    .map(|&arity| {
+                        let dummy_input =
+                            dummy_compose_input::<C>(reduce_shape, arity, recursion_vks_height);
+                        let mut program = compose_program_from_input(
+                            recursive_compress_verifier,
+                            vk_verification,
+                            &dummy_input,
+                        );
+                        program.shape = Some(reduce_shape.shape.clone());
+                        (arity, Arc::new(program))
+                    })
+                    .collect();
+                // Also build deferred program (can run in the same parallel batch)
+                let deferred_input =
+                    dummy_deferred_input(&compress_verifier, reduce_shape, recursion_vks_height);
+                let mut deferred_program = deferred_program_from_input(
+                    recursive_compress_verifier,
+                    vk_verification,
+                    &deferred_input,
                 );
-                program.shape = Some(reduce_shape.shape.clone());
-                let program = Arc::new(program);
+                deferred_program.shape = Some(reduce_shape.shape.clone());
+                programs.push((0, Arc::new(deferred_program))); // arity=0 signals deferred
+                programs
+            };
 
-                // Make the reduce keys.
+            // Now do key generation sequentially (requires tokio runtime for GPU setup)
+            let mut deferred_program = None;
+            for (arity, program) in all_programs {
                 let (tx, rx) = oneshot::channel();
                 tokio::task::spawn({
                     let program = program.clone();
@@ -485,33 +513,15 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
                 });
                 let (pk, vk) = rx.blocking_recv().unwrap();
                 let pk = unsafe { pk.into_inner() };
-                compose_keys.insert(arity, (pk, vk));
-                compose_programs.insert(arity, program);
-            }
-
-            // Make the deferred program and keys.
-            let deferred_input =
-                dummy_deferred_input(&compress_verifier, &reduce_shape, recursion_vks_height);
-            let mut deferred_program = deferred_program_from_input(
-                &recursive_compress_verifier,
-                config.vk_verification,
-                &deferred_input,
-            );
-            deferred_program.shape = Some(reduce_shape.shape.clone());
-            let deferred_program = Arc::new(deferred_program);
-            let (tx, rx) = oneshot::channel();
-            tokio::task::spawn({
-                let program = deferred_program.clone();
-                let air_prover = compress_prover.clone();
-                async move {
-                    let permits = ProverSemaphore::new(1);
-                    let (pk, vk) = air_prover.setup(program, permits).await;
-                    tx.send((pk, vk)).ok();
+                if arity == 0 {
+                    // Deferred
+                    deferred_program = Some((program, (pk, vk)));
+                } else {
+                    compose_keys.insert(arity, (pk, vk));
+                    compose_programs.insert(arity, program);
                 }
-            });
-            let (pk, vk) = rx.blocking_recv().unwrap();
-            let pk = unsafe { pk.into_inner() };
-            let deferred_keys = (pk, vk);
+            }
+            let (deferred_program, deferred_keys) = deferred_program.unwrap();
 
             let prover_data = Arc::new(RecursionProverData {
                 recursion_vks,

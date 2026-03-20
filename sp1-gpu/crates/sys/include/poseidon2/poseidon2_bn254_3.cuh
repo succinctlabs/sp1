@@ -3,6 +3,49 @@
 #include "fields/kb31_t.cuh"
 #include "fields/bn254_t.cuh"
 
+#ifdef __HIPCC__
+// BN254 Poseidon2 constants use mont_t which has PTX asm.
+// The MultiField32Challenger (BN254) is not used on AMD — only DuplexChallenger (KoalaBear).
+// Provide a minimal stub namespace so challenger.cuh compiles.
+namespace poseidon2_bn254_3 {
+namespace constants {
+constexpr const int DIGEST_WIDTH = 1;
+constexpr const int RATE = 2;
+constexpr const int WIDTH = 3;
+constexpr const int ROUNDS_P = 56;
+constexpr const int ROUNDS_F = 8;
+constexpr const int D = 5;
+} // namespace constants
+
+class Bn254 {
+  public:
+    using F_t = bn254_t;
+    using pF_t = const F_t;
+    static constexpr const int DIGEST_WIDTH = constants::DIGEST_WIDTH;
+    static constexpr const int RATE = constants::RATE;
+    static constexpr const int WIDTH = constants::WIDTH;
+    static constexpr const int ROUNDS_F = constants::ROUNDS_F;
+    static constexpr const int ROUNDS_P = constants::ROUNDS_P;
+    static constexpr const int D = constants::D;
+    // Stub pointers for StaticHasher template — never actually dereferenced on HIP
+    static constexpr pF_t* INTERNAL_ROUND_CONSTANTS = nullptr;
+    static constexpr pF_t* EXTERNAL_ROUND_CONSTANTS = nullptr;
+    static constexpr pF_t* MAT_INTERNAL_DIAG_M1 = nullptr;
+    static __device__ pF_t MONTY_INVERSE;
+    __device__ static void internalLinearLayer(F_t state[WIDTH], pF_t*, F_t) {}
+    __device__ static void externalLinearLayer(F_t state[WIDTH]) {}
+    __device__ static void mdsLightPermutation4x4(F_t state[4]) {}
+};
+
+__device__ inline bn254_t reduceKoalaBear(kb31_t* in, kb31_t* carry, size_t len, size_t offset, size_t stride = 1, size_t carry_offset = 0) {
+    bn254_t r; r.set_to_zero(); return r;
+}
+
+template <typename Hasher_t, typename HasherState_t>
+__device__ inline void absorbRow(Hasher_t, kb31_t*, int, size_t, size_t, HasherState_t*) {}
+} // namespace poseidon2_bn254_3
+#else // CUDA
+
 namespace poseidon2_bn254_3 {
 
 namespace constants {
@@ -959,3 +1002,4 @@ __device__ void absorbRow(
 }
 
 } // namespace poseidon2_bn254_3
+#endif // !__HIPCC__

@@ -4,7 +4,7 @@
 #include "poseidon2/poseidon2_bn254_3.cuh"
 
 template <typename Hasher_t, typename HashParams, typename HasherState_t>
-__global__ void leafHash(
+__global__ __launch_bounds__(256, 1) void leafHash(
     Hasher_t hasher,
     kb31_t* input,
     typename HashParams::F_t (*digests)[HashParams::DIGEST_WIDTH],
@@ -34,7 +34,7 @@ extern "C" void* leaf_hash_merkle_tree_bn254_kernel() {
 }
 
 template <typename Hasher_t, typename HashParams, typename HasherState_t>
-__global__ void compress(
+__global__ __launch_bounds__(128, 2) void compress(
     Hasher_t hasher,
     typename HashParams::F_t (*digests)[HashParams::DIGEST_WIDTH],
     size_t layer_height) {

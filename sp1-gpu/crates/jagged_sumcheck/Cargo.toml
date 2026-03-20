@@ -11,6 +11,7 @@ categories.workspace = true
 [dependencies]
 # sp1-gpu
 sp1-gpu-cudart = { workspace = true }
+sp1-gpu-challenger = { workspace = true }
 
 sp1-gpu-utils = { workspace = true }
 slop-algebra = { workspace = true }

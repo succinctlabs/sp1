@@ -8,15 +8,26 @@
 #include <cassert>
 #include <cstdint>
 
+#ifdef __HIPCC__
+#include "fields/ptx_portable.cuh"
+#else
 #include "fields/ptx.cuh"
+#endif
 
-#ifdef __CUDA_ARCH__
+#if defined(__CUDA_ARCH__) || defined(__HIPCC__)
 
+#ifdef __HIPCC__
+// HIP: __forceinline__ is already a macro, can't redefine inline
+#define inline __device__ inline __attribute__((always_inline))
+#define asm __asm__ __volatile__
+#else
+// CUDA: original definitions
 #define inline __device__ __forceinline__
 #ifdef __GNUC__
 #define asm __asm__ __volatile__
 #else
 #define asm asm volatile
+#endif
 #endif
 
 class kb31_t {
@@ -51,8 +62,15 @@ class kb31_t {
             unpack(tl, th, val);
 
             mul_lo(red, tl, M);
+#ifdef __HIPCC__
+            // Shift optimization: MOD = 2^31 - 2^24 + 1
+            // red * MOD = (red<<31) - (red<<24) + red
+            uint64_t wide = ((uint64_t)red << 31) - ((uint64_t)red << 24) + (uint64_t)red + tl;
+            th += (uint32_t)(wide >> 32);
+#else
             mad_lo_cc(tl, red, MOD, tl);
             madc_hi(th, red, MOD, th);
+#endif
 
             final_sub(th);
 
@@ -66,6 +84,7 @@ class kb31_t {
     __device__ kb31_t& operator=(const accel_t& x) { // Reduce and assign
         kb31_t t(x);
         *this = t;
+        return *this;
     }
 
     using mem_t = kb31_t;
@@ -101,11 +120,11 @@ class kb31_t {
 
     __host__ __device__ constexpr kb31_t() = default;
 
-    inline constexpr kb31_t(const uint32_t a) : val(a) {}
+    __host__ __device__ constexpr kb31_t(const uint32_t a) : val(a) {}
 
     inline kb31_t(const uint32_t* p) { val = *p; }
 
-    inline constexpr kb31_t(int a) : val(((uint64_t)a << 32) % MOD) {}
+    __host__ __device__ constexpr kb31_t(int a) : val(((uint64_t)a << 32) % MOD) {}
 
     static inline const kb31_t zero() { return kb31_t(0); }
 
@@ -113,7 +132,7 @@ class kb31_t {
 
     static inline const kb31_t two() { return from_canonical_u32(2); }
 
-    static inline constexpr uint32_t to_monty(uint32_t x) {
+    static __host__ __device__ constexpr uint32_t to_monty(uint32_t x) {
         return (((uint64_t)x << MONTY_BITS) % MOD);
     }
 
@@ -185,12 +204,18 @@ class kb31_t {
     friend inline kb31_t operator>>(kb31_t a, uint32_t r) { return a >>= r; }
 
     inline kb31_t& operator-=(const kb31_t b) {
+#ifdef __HIPCC__
+        bool brw = val < b.val;
+        val -= b.val;
+        if (brw) val += MOD;
+#else
         asm("{");
         asm(".reg.pred %brw;");
         asm("setp.lt.u32 %brw, %0, %1;" ::"r"(val), "r"(b.val));
         asm("sub.u32 %0, %0, %1;" : "+r"(val) : "r"(b.val));
         asm("@%brw add.u32 %0, %0, %1;" : "+r"(val) : "r"(MOD));
         asm("}");
+#endif
 
         return *this;
     }
@@ -198,12 +223,18 @@ class kb31_t {
     friend inline kb31_t operator-(kb31_t a, const kb31_t b) { return a -= b; }
 
     inline kb31_t cneg(bool flag) {
+#ifdef __HIPCC__
+        if (val != 0 && flag) {
+            val = MOD - val;
+        }
+#else
         asm("{");
         asm(".reg.pred %flag;");
         asm("setp.ne.u32 %flag, %0, 0;" ::"r"(val));
         asm("@%flag setp.ne.u32 %flag, %0, 0;" ::"r"((int)flag));
         asm("@%flag sub.u32 %0, %1, %0;" : "+r"(val) : "r"(MOD));
         asm("}");
+#endif
 
         return *this;
     }
@@ -223,11 +254,15 @@ class kb31_t {
     friend inline kb31_t czero(const kb31_t a, int set_z) {
         kb31_t ret;
 
+#ifdef __HIPCC__
+        ret.val = set_z ? 0 : a.val;
+#else
         asm("{");
         asm(".reg.pred %set_z;");
         asm("setp.ne.s32 %set_z, %0, 0;" : : "r"(set_z));
         asm("selp.u32 %0, 0, %1, %set_z;" : "=r"(ret.val) : "r"(a.val));
         asm("}");
+#endif
 
         return ret;
     }
@@ -235,11 +270,15 @@ class kb31_t {
     static inline kb31_t csel(const kb31_t a, const kb31_t b, int sel_a) {
         kb31_t ret;
 
+#ifdef __HIPCC__
+        ret.val = sel_a ? a.val : b.val;
+#else
         asm("{");
         asm(".reg.pred %sel_a;");
         asm("setp.ne.s32 %sel_a, %0, 0;" ::"r"(sel_a));
         asm("selp.u32 %0, %1, %2, %sel_a;" : "=r"(ret.val) : "r"(a.val), "r"(b.val));
         asm("}");
+#endif
 
         return ret;
     }
@@ -256,8 +295,14 @@ class kb31_t {
         mul_wide(t, val, b.val);
         unpack(tl, th, t);
         mul_lo(red, tl, M);
+#ifdef __HIPCC__
+        // Shift optimization: MOD = 2^31 - 2^24 + 1
+        uint64_t wide = ((uint64_t)red << 31) - ((uint64_t)red << 24) + (uint64_t)red + tl;
+        val = (uint32_t)(wide >> 32) + th;
+#else
         mad_lo_cc(tl, red, MOD, tl);
         madc_hi(val, red, MOD, th);
+#endif
 
         final_sub(val);
 
@@ -267,10 +312,17 @@ class kb31_t {
     inline uint32_t mul_by_1() const {
         uint32_t tmp[2], red;
 
+#ifdef __HIPCC__
+        red = val * M;
+        // Shift optimization: MOD = 2^31 - 2^24 + 1
+        uint64_t wide = ((uint64_t)red << 31) - ((uint64_t)red << 24) + (uint64_t)red + val;
+        tmp[1] = (uint32_t)(wide >> 32);
+#else
         asm("mul.lo.u32 %0, %1, %2;" : "=r"(red) : "r"(val), "r"(M));
         asm("mad.lo.cc.u32 %0, %2, %3, %4; madc.hi.u32 %1, %2, %3, 0;"
             : "=r"(tmp[0]), "=r"(tmp[1])
             : "r"(red), "r"(MOD), "r"(val));
+#endif
         return tmp[1];
     }
 
@@ -344,6 +396,41 @@ class kb31_t {
         uint32_t acc[2];
         size_t i = 1;
 
+#ifdef __HIPCC__
+        {
+            uint64_t w = (uint64_t)(*a[0]) * (*b[0]);
+            acc[0] = (uint32_t)w;
+            acc[1] = (uint32_t)(w >> 32);
+        }
+        if ((T & 1) == 0) {
+            uint64_t w = (uint64_t)(*a[i]) * (*b[i]) + ((uint64_t)acc[1] << 32 | acc[0]);
+            acc[0] = (uint32_t)w;
+            acc[1] = (uint32_t)(w >> 32);
+            i++;
+        }
+        for (; i < T; i += 2) {
+            {
+                uint64_t w = (uint64_t)(*a[i]) * (*b[i]) + ((uint64_t)acc[1] << 32 | acc[0]);
+                acc[0] = (uint32_t)w;
+                acc[1] = (uint32_t)(w >> 32);
+            }
+            {
+                uint64_t w = (uint64_t)(*a[i + 1]) * (*b[i + 1]) + ((uint64_t)acc[1] << 32 | acc[0]);
+                acc[0] = (uint32_t)w;
+                acc[1] = (uint32_t)(w >> 32);
+            }
+            final_sub(acc[1]);
+        }
+
+        uint32_t red = acc[0] * M;
+        {
+            // Shift optimization: MOD = 2^31 - 2^24 + 1
+            uint64_t w = ((uint64_t)red << 31) - ((uint64_t)red << 24) + (uint64_t)red + ((uint64_t)acc[1] << 32 | acc[0]);
+            acc[0] = (uint32_t)w;
+            acc[1] = (uint32_t)(w >> 32);
+        }
+        final_sub(acc[1]);
+#else
         asm("mul.lo.u32 %0, %2, %3; mul.hi.u32 %1, %2, %3;"
             : "=r"(acc[0]), "=r"(acc[1])
             : "r"(*a[0]), "r"(*b[0]));
@@ -369,6 +456,7 @@ class kb31_t {
             : "+r"(acc[0]), "+r"(acc[1])
             : "r"(red), "r"(MOD));
         final_sub(acc[1]);
+#endif
 
         return acc[1];
     }
@@ -379,6 +467,43 @@ class kb31_t {
         uint32_t acc[2];
         size_t i = 0;
 
+#ifdef __HIPCC__
+        {
+            uint64_t w = (uint64_t)(*a0) * (*b0);
+            acc[0] = (uint32_t)w;
+            acc[1] = (uint32_t)(w >> 32);
+        }
+        if ((T & 1) == 0) {
+            uint64_t w = (uint64_t)(*a[i]) * (*b[0]) + ((uint64_t)acc[1] << 32 | acc[0]);
+            acc[0] = (uint32_t)w;
+            acc[1] = (uint32_t)(w >> 32);
+            i++, b += stride_b;
+        }
+        for (; i < T - 1; i += 2) {
+            {
+                uint64_t w = (uint64_t)(*a[i]) * (*b[0]) + ((uint64_t)acc[1] << 32 | acc[0]);
+                acc[0] = (uint32_t)w;
+                acc[1] = (uint32_t)(w >> 32);
+            }
+            b += stride_b;
+            {
+                uint64_t w = (uint64_t)(*a[i + 1]) * (*b[0]) + ((uint64_t)acc[1] << 32 | acc[0]);
+                acc[0] = (uint32_t)w;
+                acc[1] = (uint32_t)(w >> 32);
+            }
+            b += stride_b;
+            final_sub(acc[1]);
+        }
+
+        uint32_t red = acc[0] * M;
+        {
+            // Shift optimization: MOD = 2^31 - 2^24 + 1
+            uint64_t w = ((uint64_t)red << 31) - ((uint64_t)red << 24) + (uint64_t)red + ((uint64_t)acc[1] << 32 | acc[0]);
+            acc[0] = (uint32_t)w;
+            acc[1] = (uint32_t)(w >> 32);
+        }
+        final_sub(acc[1]);
+#else
         asm("mul.lo.u32 %0, %2, %3; mul.hi.u32 %1, %2, %3;"
             : "=r"(acc[0]), "=r"(acc[1])
             : "r"(*a0), "r"(*b0));
@@ -406,6 +531,7 @@ class kb31_t {
             : "+r"(acc[0]), "+r"(acc[1])
             : "r"(red), "r"(MOD));
         final_sub(acc[1]);
+#endif
 
         return acc[1];
     }
@@ -421,6 +547,19 @@ class kb31_t {
         while (n--) {
             uint32_t tmp[2], red;
 
+#ifdef __HIPCC__
+            {
+                uint64_t w = (uint64_t)s.val * s.val;
+                tmp[0] = (uint32_t)w;
+                tmp[1] = (uint32_t)(w >> 32);
+            }
+            red = tmp[0] * M;
+            {
+                // Shift optimization: MOD = 2^31 - 2^24 + 1
+                uint64_t w = ((uint64_t)red << 31) - ((uint64_t)red << 24) + (uint64_t)red + tmp[0];
+                s.val = (uint32_t)(w >> 32) + tmp[1];
+            }
+#else
             asm("mul.lo.u32 %0, %2, %2; mul.hi.u32 %1, %2, %2;"
                 : "=r"(tmp[0]), "=r"(tmp[1])
                 : "r"(s.val));
@@ -428,6 +567,7 @@ class kb31_t {
             asm("mad.lo.cc.u32 %0, %2, %3, %0; madc.hi.u32 %1, %2, %3, %4;"
                 : "+r"(tmp[0]), "=r"(s.val)
                 : "r"(red), "r"(MOD), "r"(tmp[1]));
+#endif
 
             // if (n & 1)
             final_sub(s.val);
@@ -473,9 +613,20 @@ class kb31_t {
 
     inline kb31_t& operator/=(const kb31_t a) { return *this *= a.reciprocal(); }
 
+#ifdef __HIPCC__
+    inline void shfl_bfly(uint32_t laneMask) { val = __shfl_xor(val, laneMask); }
+#else
     inline void shfl_bfly(uint32_t laneMask) { val = __shfl_xor_sync(0xFFFFFFFF, val, laneMask); }
+#endif
 
     __device__ __forceinline__ kb31_t interpolateLinear(const kb31_t one, const kb31_t zero) const {
+#ifdef __HIPCC__
+        // HIP-safe: use schoolbook multiply via kb31_t operators
+        kb31_t diff = one - zero;
+        kb31_t result = *this * diff;
+        result += zero;
+        return result;
+#else
         uint64_t w;
         uint32_t l = zero.val, h = 0, t;
 
@@ -496,6 +647,7 @@ class kb31_t {
         kb31_t retval;
         retval.val = h;
         return retval;
+#endif
     }
 };
 

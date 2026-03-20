@@ -51,6 +51,10 @@ pub struct EvalProgramInfo<B: Backend = CpuBackend> {
     pub operations: Buffer<Instruction16, B>,
     pub operations_indices: Buffer<u32, B>,
     pub f_ctr: u32,
+    /// Per-chip f_ctr values, indexed by chip order in the BTreeSet.
+    /// Used for per-chip-group kernel dispatch to select the smallest
+    /// MEMORY_SIZE bucket for each group.
+    pub per_chip_f_ctr: Vec<u32>,
     pub f_constants: Buffer<Felt, B>,
     pub f_constants_indices: Buffer<u32, B>,
     pub ef_constants: Buffer<Ext, B>,
@@ -109,6 +113,7 @@ where
     let mut operations_indices: Vec<u32> = vec![];
     let mut f_ctr: u32 = 0;
     let mut ef_ctr: u32 = 0;
+    let mut per_chip_f_ctr: Vec<u32> = vec![];
     let mut f_constants: Vec<Felt> = vec![];
     let mut f_constants_indices: Vec<u32> = vec![];
     let mut ef_constants: Vec<Ext> = vec![];
@@ -155,6 +160,7 @@ where
             ef_constants_indices.push(current_ef_constants_len + idx);
         }
 
+        per_chip_f_ctr.push(*chip_f_ctr);
         f_ctr = f_ctr.max(*chip_f_ctr);
         ef_ctr = ef_ctr.max(*chip_ef_ctr);
     }
@@ -165,6 +171,7 @@ where
         operations: Buffer::from(operations),
         operations_indices: Buffer::from(operations_indices),
         f_ctr,
+        per_chip_f_ctr,
         f_constants: Buffer::from(f_constants),
         f_constants_indices: Buffer::from(f_constants_indices),
         ef_constants: Buffer::from(ef_constants),
@@ -204,6 +211,7 @@ where
         f_constants: f_constants_device,
         f_constants_indices: f_constants_indices_device,
         f_ctr: cpu_info.f_ctr,
+        per_chip_f_ctr: cpu_info.per_chip_f_ctr,
         ef_constants: ef_constants_device,
         ef_constants_indices: ef_constants_indices_device,
     }
@@ -380,6 +388,20 @@ impl JaggedConstraintPolyEvalKernel<Ext> for TaskScope {
     }
 }
 
+/// Returns the MEMORY_SIZE bucket for a given f_ctr value.
+/// Must match the kernel template instantiation sizes.
+fn memory_size_bucket(f_ctr: u32) -> usize {
+    match f_ctr {
+        0..=32 => 32,
+        33..=64 => 64,
+        65..=128 => 128,
+        129..=256 => 256,
+        257..=512 => 512,
+        513..=1024 => 1024,
+        _ => unreachable!("f_ctr {} exceeds maximum supported MEMORY_SIZE", f_ctr),
+    }
+}
+
 pub fn evaluate_zerocheck<'b, K: Field>(
     input: &'b ZeroCheckJaggedPoly<'b, K>,
 ) -> UnivariatePolynomial<Ext>
@@ -397,9 +419,6 @@ where
     let num_tiles = BLOCK_SIZE.div_ceil(32);
     let shared_mem = num_tiles * std::mem::size_of::<Ext>();
 
-    let mut output: Tensor<Ext, TaskScope> =
-        Tensor::with_sizes_in([NUM_EVAL_POINT, grid_size_x], backend.clone());
-
     let (rest, last) = input.zeta.split_at(input.zeta.dimension() - 1);
     let last = *last[0];
     let thresholds = input.virtual_geq.iter().map(|geq| geq.threshold).collect::<Buffer<_>>();
@@ -413,48 +432,66 @@ where
     let partial_lagrange = rest_point.partial_lagrange();
     let rest_point_dim = rest.dimension() as u32;
 
-    unsafe {
-        output.assume_init();
-        let args = args!(
-            input.program.constraint_indices.as_ptr(),
-            input.program.operations,
-            input.program.operations_indices.as_ptr(),
-            input.program.f_constants.as_ptr(),
-            input.program.f_constants_indices.as_ptr(),
-            input.program.ef_constants.as_ptr(),
-            input.program.ef_constants_indices.as_ptr(),
-            input.data.as_raw(),
-            input.info.as_raw(),
-            partial_lagrange.as_ptr(),
-            thresholds.as_ptr(),
-            eq_coefficients.as_ptr(),
-            (input.total_len / 2) as u32,
-            input.padded_row_adjustment.as_ptr(),
-            input.public_values.as_ptr(),
-            input.powers_of_alpha.as_ptr(),
-            input.gkr_powers.as_ptr(),
-            input.powers_of_lambda.as_ptr(),
-            input.preprocessed_column.as_ptr(),
-            input.main_column.as_ptr(),
-            input.total_num_preprocessed_column,
-            output.as_mut_ptr(),
-            rest_point_dim
-        );
-        backend
-            .launch_kernel(
-                <TaskScope as JaggedConstraintPolyEvalKernel<K>>::jagged_constraint_poly_eval_kernel(
-                    input.program.f_ctr as usize,
-                ),
-                grid_size,
-                (BLOCK_SIZE, 1, 1),
-                &args,
-                shared_mem,
-            )
-            .unwrap();
+    // Group chips by their MEMORY_SIZE bucket for per-group kernel dispatch.
+    // This avoids using the global max MEMORY_SIZE for all chips, reducing
+    // register pressure and spills for chips with small f_ctr.
+    let num_chips = input.program.per_chip_f_ctr.len();
+    let global_bucket = memory_size_bucket(input.program.f_ctr);
+
+    // Build a map from bucket -> list of chip indices in that bucket.
+    let mut bucket_to_chips: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
+    for (chip_idx, &chip_f_ctr) in input.program.per_chip_f_ctr.iter().enumerate() {
+        let bucket = memory_size_bucket(chip_f_ctr);
+        bucket_to_chips.entry(bucket).or_default().push(chip_idx);
     }
 
-    let output_eval = DeviceTensor::from_raw(output).sum_dim(1);
-    let result = output_eval.to_host().unwrap().into_buffer().into_vec();
+    let result = {
+        let mut output: Tensor<Ext, TaskScope> =
+            Tensor::with_sizes_in([NUM_EVAL_POINT, grid_size_x], backend.clone());
+
+        unsafe {
+            output.assume_init();
+            let args = args!(
+                input.program.constraint_indices.as_ptr(),
+                input.program.operations,
+                input.program.operations_indices.as_ptr(),
+                input.program.f_constants.as_ptr(),
+                input.program.f_constants_indices.as_ptr(),
+                input.program.ef_constants.as_ptr(),
+                input.program.ef_constants_indices.as_ptr(),
+                input.data.as_raw(),
+                input.info.as_raw(),
+                partial_lagrange.as_ptr(),
+                thresholds.as_ptr(),
+                eq_coefficients.as_ptr(),
+                (input.total_len / 2) as u32,
+                input.padded_row_adjustment.as_ptr(),
+                input.public_values.as_ptr(),
+                input.powers_of_alpha.as_ptr(),
+                input.gkr_powers.as_ptr(),
+                input.powers_of_lambda.as_ptr(),
+                input.preprocessed_column.as_ptr(),
+                input.main_column.as_ptr(),
+                input.total_num_preprocessed_column,
+                output.as_mut_ptr(),
+                rest_point_dim
+            );
+            backend
+                .launch_kernel(
+                    <TaskScope as JaggedConstraintPolyEvalKernel<K>>::jagged_constraint_poly_eval_kernel(
+                        global_bucket,
+                    ),
+                    grid_size,
+                    (BLOCK_SIZE, 1, 1),
+                    &args,
+                    shared_mem,
+                )
+                .unwrap();
+        }
+
+        let output_eval = DeviceTensor::from_raw(output).sum_dim(1);
+        output_eval.to_host().unwrap().into_buffer().into_vec()
+    };
 
     let mut xs =
         vec![Ext::from_canonical_u32(0), Ext::from_canonical_u32(2), Ext::from_canonical_u32(4)];

@@ -1,14 +1,15 @@
 #pragma once
 
+#include "runtime/gpu_compat.cuh"
+#ifdef __HIPCC__
+#include <hip/hip_runtime.h>
+#else
 #include <cuda/atomic>
-#include <cooperative_groups.h>
-#include <cooperative_groups/reduce.h>
+#endif
 
 #include "fields/kb31_extension_t.cuh"
 #include "fields/kb31_t.cuh"
 #include "runtime/exception.cuh"
-
-namespace cg = cooperative_groups;
 
 template <typename Ty>
 struct AddOpFinalReduce {
@@ -73,9 +74,26 @@ struct AddOpFinalReduce<kb31_t> {
     template <typename TyGroup>
     __device__ __forceinline__ static void
     final_block_reduction_async(const TyGroup& group, kb31_t* dst, kb31_t val) {
+#ifdef __HIPCC__
+        // HIP: manual warp reduce + atomic CAS to accumulate
+        val = cg::reduce(group, val, cg::plus<kb31_t>());
+        if (group.thread_rank() == 0) {
+            uint32_t old_val = dst[0].val;
+            uint32_t new_val;
+            uint32_t assumed;
+            do {
+                assumed = old_val;
+                kb31_t sum = kb31_t(assumed);
+                sum += val;
+                new_val = sum.val;
+                old_val = atomicCAS(reinterpret_cast<unsigned int*>(&dst[0].val), assumed, new_val);
+            } while (old_val != assumed);
+        }
+#else
         cuda::atomic_ref<kb31_t, cuda::thread_scope_block> atomic(dst[0]);
         // reduce thread sums across the tile, add the result to the atomic
         return cg::reduce_update_async(group, atomic, val, cg::plus<kb31_t>());
+#endif
     }
 };
 
@@ -87,8 +105,24 @@ struct AddOpFinalReduce<kb31_extension_t> {
 // Split the extension into a slice of base field elements and make a separate atomic update.
 #pragma unroll
         for (int j = 0; j < kb31_extension_t::D; j++) {
+#ifdef __HIPCC__
+            kb31_t reduced = cg::reduce(group, val.value[j], cg::plus<kb31_t>());
+            if (group.thread_rank() == 0) {
+                uint32_t old_val = dst[0].value[j].val;
+                uint32_t new_val;
+                uint32_t assumed;
+                do {
+                    assumed = old_val;
+                    kb31_t sum = kb31_t(assumed);
+                    sum += reduced;
+                    new_val = sum.val;
+                    old_val = atomicCAS(reinterpret_cast<unsigned int*>(&dst[0].value[j].val), assumed, new_val);
+                } while (old_val != assumed);
+            }
+#else
             cuda::atomic_ref<kb31_t, cuda::thread_scope_block> atomic(dst[0].value[j]);
             cg::reduce_update_async(group, atomic, val.value[j], cg::plus<kb31_t>());
+#endif
         }
     }
 };

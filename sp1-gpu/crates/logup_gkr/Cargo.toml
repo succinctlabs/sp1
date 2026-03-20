@@ -14,10 +14,12 @@ tokio-blocked = ["dep:tokio-blocked", "dep:tracing-subscriber"]
 [dependencies]
 # sp1-gpu
 sp1-gpu-cudart = { workspace = true }
+sp1-gpu-challenger = { workspace = true }
 sp1-gpu-utils = { workspace = true }
 sp1-gpu-jagged-tracegen = { workspace = true }
 sp1-gpu-zerocheck = { workspace = true }
 sp1-gpu-basefold = { workspace = true }
+sp1-gpu-jagged-sumcheck = { workspace = true }
 
 # slop
 slop-air = { workspace = true }

@@ -1,7 +1,11 @@
 #pragma once
 
 #include "fields/kb31_t.cuh"
+#ifdef __HIPCC__
+#include "fields/ptx_portable.cuh"
+#else
 #include "fields/ptx.cuh"
+#endif
 
 static constexpr size_t W_INT = 3; // The value of W in the kb31 field, used for multiplication
 
@@ -103,6 +107,24 @@ class kb31_extension_t {
     }
 
     __device__ __forceinline__ kb31_extension_t& operator*=(const kb31_extension_t b) {
+#ifdef __HIPCC__
+        // HIP device compiler has a bug with static constexpr class member access
+        // in complex functions. Use schoolbook multiply via kb31_t operators.
+        // IMPORTANT: Each product must be explicitly cast to kb31_t before addition
+        // to force Montgomery reduction.
+        kb31_t a0 = value[0], a1 = value[1], a2 = value[2], a3 = value[3];
+        kb31_t b0 = b.value[0], b1 = b.value[1], b2 = b.value[2], b3 = b.value[3];
+        kb31_t w_val = kb31_t(kb31_t::to_monty(3));
+
+        // Force reduce each product via explicit kb31_t cast
+        #define MUL(x, y) (kb31_t)((x) * (y))
+        value[0] = MUL(a0, b0) + MUL(w_val, MUL(a1, b3) + MUL(a2, b2) + MUL(a3, b1));
+        value[1] = MUL(a0, b1) + MUL(a1, b0) + MUL(w_val, MUL(a2, b3) + MUL(a3, b2));
+        value[2] = MUL(a0, b2) + MUL(a1, b1) + MUL(a2, b0) + MUL(w_val, MUL(a3, b3));
+        value[3] = MUL(a0, b3) + MUL(a1, b2) + MUL(a2, b1) + MUL(a3, b0);
+        #undef MUL
+        return *this;
+#else // !__HIPCC__ (CUDA optimized path)
         uint32_t x0 = value[0].val, x1 = value[1].val, x2 = value[2].val, x3 = value[3].val,
                  y0 = b.value[0].val, y1 = b.value[1].val, y2 = b.value[2].val, y3 = b.value[3].val;
 
@@ -216,6 +238,7 @@ class kb31_extension_t {
         value[3] = x3 >= MOD ? x3 - MOD : x3;
 
         return *this;
+#endif
     }
 
     __device__ __forceinline__ kb31_extension_t& operator*=(const kb31_t b) {
@@ -256,7 +279,7 @@ class kb31_extension_t {
 
     __device__ __forceinline__ kb31_extension_t frobenius() {
         kb31_t z0 = kb31_t(2113994754);
-        kb31_t z = z0;
+        kb31_t z = kb31_t::one();
         kb31_extension_t result;
         for (size_t i = 0; i < D; i++) {
             result.value[i] = value[i] * z;
@@ -277,7 +300,7 @@ class kb31_extension_t {
         for (size_t i = 1; i < D; i++) {
             g += a.value[i] * b.value[4 - i];
         }
-        g *= kb31_t(11);
+        g *= kb31_t((int)W_INT);
         g += a.value[0] * b.value[0];
         return f * g.reciprocal();
     }
@@ -308,6 +331,12 @@ class kb31_extension_t {
 
     __device__ __forceinline__ kb31_extension_t
     interpolateLinear(const kb31_extension_t one, const kb31_extension_t zero) const {
+#ifdef __HIPCC__
+        // HIP-safe: use schoolbook multiply via kb31_t operators
+        kb31_extension_t diff = one - zero;
+        kb31_extension_t result = *this * diff + zero;
+        return result;
+#else
         uint32_t x0 = value[0].val, x1 = value[1].val, x2 = value[2].val, x3 = value[3].val,
                  y0 = one.value[0].val - zero.value[0].val,
                  y1 = one.value[1].val - zero.value[1].val,
@@ -450,10 +479,18 @@ class kb31_extension_t {
         retval.value[2].val = x2;
         retval.value[3].val = x3;
         return retval;
+#endif
     }
 
     __device__ __forceinline__ kb31_extension_t
     interpolateLinear(const kb31_t one, const kb31_t zero) const {
+#ifdef __HIPCC__
+        // HIP-safe: use schoolbook multiply via kb31_t operators
+        kb31_t diff = one - zero;
+        kb31_extension_t result = *this * diff;
+        result.value[0] += zero;
+        return result;
+#else
         uint32_t x0 = value[0].val, x1 = value[1].val, x2 = value[2].val, x3 = value[3].val,
                  y0 = one.val - zero.val, y1, y2, y3;
 
@@ -533,5 +570,6 @@ class kb31_extension_t {
         retval.value[2].val = x2;
         retval.value[3].val = x3;
         return retval;
+#endif
     }
 };

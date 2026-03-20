@@ -1,4 +1,17 @@
-#include <cuda_runtime.h>
+#ifdef __HIPCC__
+#define cudaMalloc hipMalloc
+#define cudaMallocHost hipHostMalloc
+#define cudaHostRegister hipHostRegister
+#define cudaHostRegisterDefault hipHostRegisterDefault
+#define cudaFree hipFree
+#define cudaFreeHost hipHostFree
+#define cudaHostUnregister hipHostUnregister
+#define cudaMemGetInfo hipMemGetInfo
+#define cudaMemcpy hipMemcpy
+#define cudaMemcpyHostToDevice hipMemcpyHostToDevice
+#define cudaMemcpyDeviceToHost hipMemcpyDeviceToHost
+#define cudaMemcpyDeviceToDevice hipMemcpyDeviceToDevice
+#endif
 
 #include "runtime/exception.cuh"
 #include <cstdint>

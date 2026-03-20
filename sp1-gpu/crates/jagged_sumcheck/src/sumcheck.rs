@@ -4,7 +4,7 @@ use sp1_gpu_cudart::{
         jagged_fix_and_sum, jagged_sum_as_poly,
         mle_fix_last_variable_koala_bear_ext_ext_zero_padding, padded_hadamard_fix_and_sum,
     },
-    DeviceMle, DeviceTensor, TaskScope,
+    DeviceBuffer, DeviceMle, DeviceTensor, TaskScope,
 };
 
 use itertools::Itertools;
@@ -17,10 +17,14 @@ use slop_challenger::FieldChallenger;
 use slop_multilinear::Mle;
 use slop_sumcheck::PartialSumcheckProof;
 use slop_tensor::Tensor;
+use sp1_gpu_challenger::FromHostChallengerSync;
 
 use sp1_gpu_utils::{DenseData, Ext, Felt, JaggedTraceMle};
 
-use super::hadamard::{fix_last_variable, fix_last_variable_and_sum_as_poly};
+use super::hadamard::{
+    fix_last_variable, fix_last_variable_and_sum_as_poly, fix_last_variable_and_sum_as_poly_device,
+    launch_observe_and_sample, AsMutRawChallenger, ObserveAndSampleKernel,
+};
 
 pub struct JaggedFirstRoundPoly<'a, A: Backend = TaskScope> {
     // pub base: Arc<Tensor<Felt, A>>,
@@ -167,12 +171,14 @@ fn fix_and_sum_first_round<'a>(
         output_p.assume_init();
         output_q.assume_init();
         evaluations.assume_init();
+        let null_ptr: *mut Ext = std::ptr::null_mut();
         let args = args!(
             evaluations.as_mut_ptr(),
             poly.as_ptr(),
             output_p.as_mut_ptr(),
             output_q.as_mut_ptr(),
-            alpha
+            alpha,
+            null_ptr
         );
         backend
             .launch_kernel(jagged_fix_and_sum(), grid_size, block_dim, &args, shared_mem)
@@ -277,6 +283,254 @@ where
         point_and_eval: (
             point.clone().into(),
             univariate_poly_msgs.last().unwrap().eval_at_point(alpha),
+        ),
+    };
+    let p_eval_tensor = DeviceTensor::copy_to_host(p.guts()).unwrap();
+    let p_eval = Ext::from_base(p_eval_tensor.as_slice()[0]);
+    let q_eval_tensor = DeviceTensor::copy_to_host(q.guts()).unwrap();
+    let q_eval = q_eval_tensor.as_slice()[0];
+
+    (proof, vec![p_eval, q_eval])
+}
+
+/// Like `sum_as_poly_first_round`, but returns the reduced evals as a device tensor
+/// with shape [2] containing [eval_zero, eval_half] instead of interpolating on CPU.
+/// Used by the GPU challenger path.
+fn sum_as_poly_first_round_device(poly: &JaggedFirstRoundPoly<'_>) -> DeviceTensor<Ext> {
+    let circuit = &poly;
+    let height = circuit.height;
+    let backend = circuit.base.backend();
+
+    const BLOCK_SIZE: usize = 256;
+    const STRIDE: usize = 32;
+
+    let grid_dim = height.div_ceil(BLOCK_SIZE).div_ceil(STRIDE);
+    let mut output = Tensor::<Ext, TaskScope>::with_sizes_in([2, grid_dim], backend.clone());
+
+    let num_tiles = BLOCK_SIZE.checked_div(STRIDE).unwrap_or(1);
+    let shared_mem = num_tiles * std::mem::size_of::<Ext>();
+
+    unsafe {
+        output.assume_init();
+        let args = args!(output.as_mut_ptr(), circuit.as_ptr());
+        backend
+            .launch_kernel(jagged_sum_as_poly(), grid_dim, BLOCK_SIZE, &args, shared_mem)
+            .unwrap();
+    }
+
+    let output = DeviceTensor::from_raw(output);
+    // Reduce to shape [2] (eval_zero, eval_half) on device, don't transfer to host.
+    output.sum_dim(1)
+}
+
+/// Like `fix_and_sum_first_round`, but returns the reduced evals as a device tensor
+/// with shape [2] containing [eval_zero, eval_half] instead of interpolating on CPU.
+/// Used by the GPU challenger path.
+fn fix_and_sum_first_round_device(
+    poly: JaggedFirstRoundPoly<'_>,
+    alpha: Ext,
+) -> (Mle<Ext, TaskScope>, Mle<Ext, TaskScope>, DeviceTensor<Ext>) {
+    let backend = poly.base.backend();
+    let height = poly.height;
+
+    // Create a new layer
+    let mut output_p: Tensor<Ext, TaskScope> = Tensor::with_sizes_in([1, height], backend.clone());
+    let mut output_q: Tensor<Ext, TaskScope> = Tensor::with_sizes_in([1, height], backend.clone());
+
+    // populate the new layer
+    const BLOCK_SIZE: usize = 256;
+    const STRIDE: usize = 32;
+    let grid_size_x = height.div_ceil(BLOCK_SIZE * STRIDE * 2); // * 2 because we are doing 2 fixes per thread.
+    let mut evaluations =
+        Tensor::<Ext, TaskScope>::with_sizes_in([2, grid_size_x], backend.clone());
+    let grid_size = (grid_size_x, 1, 1);
+    let block_dim = BLOCK_SIZE;
+
+    let num_tiles = BLOCK_SIZE.checked_div(STRIDE).unwrap_or(1);
+    let shared_mem = num_tiles * std::mem::size_of::<Ext>();
+
+    unsafe {
+        output_p.assume_init();
+        output_q.assume_init();
+        evaluations.assume_init();
+        let null_ptr: *mut Ext = std::ptr::null_mut();
+        let args = args!(
+            evaluations.as_mut_ptr(),
+            poly.as_ptr(),
+            output_p.as_mut_ptr(),
+            output_q.as_mut_ptr(),
+            alpha,
+            null_ptr
+        );
+        backend
+            .launch_kernel(jagged_fix_and_sum(), grid_size, block_dim, &args, shared_mem)
+            .unwrap();
+    }
+
+    // Reduce to shape [2] (eval_zero, eval_half) on device, don't transfer to host.
+    let evaluations = DeviceTensor::from_raw(evaluations);
+    let reduced_evals = evaluations.sum_dim(1);
+
+    (Mle::new(output_p), Mle::new(output_q), reduced_evals)
+}
+
+/// Jagged sumcheck with GPU-side Fiat-Shamir challenger.
+///
+/// Instead of transferring polynomial evaluations to the CPU for interpolation and challenger
+/// operations each round, this keeps the reduced evals on device and launches a single-thread
+/// GPU kernel that does interpolation + observe + sample. Only the resulting alpha (16 bytes)
+/// and next_claim (16 bytes) are transferred D2H per round.
+///
+/// The reduced eval device tensors are saved during the main loop and batch-transferred to CPU
+/// at the end to reconstruct the polynomial coefficients. The CPU challenger state is then
+/// synced via transcript replay.
+pub fn jagged_sumcheck_gpu_challenger<C, DC>(
+    poly: JaggedFirstRoundPoly<'_>,
+    challenger: &mut C,
+    claim: Ext,
+) -> (PartialSumcheckProof<Ext>, Vec<Ext>)
+where
+    C: FieldChallenger<Felt>,
+    DC: AsMutRawChallenger + ObserveAndSampleKernel + FromHostChallengerSync<C>,
+{
+    let num_variables = poly.total_number_of_variables;
+    assert!(num_variables >= 1_u32);
+
+    let backend = poly.base.backend().clone();
+
+    // Create device challenger from the current CPU challenger state.
+    let mut device_challenger = DC::from_host_challenger_sync(challenger, &backend);
+
+    // Allocate reusable device buffers for alpha and next_claim (16 bytes each).
+    let mut alpha_buf = DeviceBuffer::<Ext>::with_capacity_in(1, backend.clone());
+    let mut next_claim_buf = DeviceBuffer::<Ext>::with_capacity_in(1, backend.clone());
+    unsafe {
+        alpha_buf.set_len(1);
+        next_claim_buf.set_len(1);
+    }
+
+    // Save reduced evals device tensors for batch D2H at the end.
+    let mut saved_reduced_evals: Vec<DeviceTensor<Ext>> =
+        Vec::with_capacity(num_variables as usize);
+
+    let mut point: Vec<Ext> = Vec::with_capacity(num_variables as usize);
+    let mut current_claim = claim;
+
+    // --- Round 0: sum_as_poly_first_round (jagged-specific first round) ---
+    let reduced_evals = sum_as_poly_first_round_device(&poly);
+
+    launch_observe_and_sample(
+        &reduced_evals,
+        &mut device_challenger,
+        &mut alpha_buf,
+        &mut next_claim_buf,
+        current_claim,
+        &backend,
+    );
+
+    saved_reduced_evals.push(reduced_evals);
+
+    let alpha = alpha_buf.to_host().unwrap()[0];
+    current_claim = next_claim_buf.to_host().unwrap()[0];
+    point.push(alpha);
+
+    // --- Round 1: fix_and_sum_first_round (jagged-specific, produces p and q MLEs) ---
+    let (mut p, mut q, reduced_evals) = fix_and_sum_first_round_device(poly, alpha);
+
+    launch_observe_and_sample(
+        &reduced_evals,
+        &mut device_challenger,
+        &mut alpha_buf,
+        &mut next_claim_buf,
+        current_claim,
+        &backend,
+    );
+
+    saved_reduced_evals.push(reduced_evals);
+
+    let alpha = alpha_buf.to_host().unwrap()[0];
+    current_claim = next_claim_buf.to_host().unwrap()[0];
+    point.insert(0, alpha);
+
+    // --- Rounds 2..num_variables: fix_last_variable_and_sum_as_poly (padded hadamard) ---
+    for _ in 2..num_variables as usize {
+        let current_alpha = *point.first().unwrap();
+
+        let reduced_evals;
+        (p, q, reduced_evals) = fix_last_variable_and_sum_as_poly_device(
+            p,
+            q,
+            current_alpha,
+            padded_hadamard_fix_and_sum,
+        );
+
+        launch_observe_and_sample(
+            &reduced_evals,
+            &mut device_challenger,
+            &mut alpha_buf,
+            &mut next_claim_buf,
+            current_claim,
+            &backend,
+        );
+
+        saved_reduced_evals.push(reduced_evals);
+
+        let alpha = alpha_buf.to_host().unwrap()[0];
+        current_claim = next_claim_buf.to_host().unwrap()[0];
+        point.insert(0, alpha);
+    }
+
+    // --- Batch D2H of reduced evals and reconstruct uni_polys ---
+    // For each round we saved [eval_zero, eval_half] on device. Transfer and interpolate.
+    let mut univariate_poly_msgs: Vec<UnivariatePolynomial<Ext>> =
+        Vec::with_capacity(num_variables as usize);
+
+    // Replay the claim sequence: claim_0 = initial_claim, claim_{i+1} = p_i(alpha_i).
+    let mut replay_claim = claim;
+    let num_rounds = saved_reduced_evals.len();
+    for (round, saved_evals) in saved_reduced_evals.iter().enumerate() {
+        let host_evals = saved_evals.to_host().unwrap();
+        let [eval_zero, eval_half]: [Ext; 2] = host_evals.as_slice().try_into().unwrap();
+
+        let eval_one = replay_claim - eval_zero;
+
+        let uni_poly = interpolate_univariate_polynomial(
+            &[
+                Ext::from_canonical_u16(0),
+                Ext::from_canonical_u16(1),
+                Ext::from_canonical_u16(2).inverse(),
+            ],
+            &[eval_zero, eval_one, eval_half * Ext::from_canonical_u16(4).inverse()],
+        );
+
+        // Point is [alpha_{n-1}, ..., alpha_1, alpha_0]. Alpha for round i is at
+        // index (num_rounds - 1 - i).
+        let alpha = point[num_rounds - 1 - round];
+
+        replay_claim = uni_poly.eval_at_point(alpha);
+
+        univariate_poly_msgs.push(uni_poly);
+    }
+
+    // --- Replay CPU challenger for state sync ---
+    for poly in &univariate_poly_msgs {
+        let coefficients: Vec<Felt> =
+            poly.coefficients.iter().flat_map(|c| c.as_base_slice()).copied().collect();
+        challenger.observe_slice(&coefficients);
+        let _: Ext = challenger.sample_ext_element();
+    }
+
+    // --- Final fix_last_variable to get evaluations ---
+    let last_alpha = *point.first().unwrap();
+    let (p, q) =
+        fix_last_variable(p, q, last_alpha, mle_fix_last_variable_koala_bear_ext_ext_zero_padding);
+
+    let proof = PartialSumcheckProof {
+        univariate_polys: univariate_poly_msgs.clone(),
+        claimed_sum: claim,
+        point_and_eval: (
+            point.clone().into(),
+            univariate_poly_msgs.last().unwrap().eval_at_point(last_alpha),
         ),
     };
     let p_eval_tensor = DeviceTensor::copy_to_host(p.guts()).unwrap();

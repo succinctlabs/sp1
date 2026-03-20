@@ -88,12 +88,17 @@ where
     }
 
     /// Generates the dependencies of the given records.
-    #[allow(clippy::needless_for_each)]
+    ///
+    /// Chips are processed in parallel where possible. The `Global` chip depends on
+    /// `global_interaction_events` produced by other chips, so it runs after all
+    /// independent chips have finished.
     pub fn generate_dependencies<'a>(
         &self,
         records: impl Iterator<Item = &'a mut A::Record>,
         chips_filter: Option<&[String]>,
     ) {
+        use rayon::prelude::*;
+
         let chips = self
             .chips
             .iter()
@@ -106,12 +111,41 @@ where
             })
             .collect::<Vec<_>>();
 
+        // Split chips into independent (can run in parallel) and the Global chip
+        // which must run after (it reads global_interaction_events produced by others).
+        let mut independent_chips = Vec::new();
+        let mut global_chip = None;
+        for chip in &chips {
+            if chip.name() == "Global" {
+                global_chip = Some(*chip);
+            } else {
+                independent_chips.push(*chip);
+            }
+        }
+
         records.for_each(|record| {
-            chips.iter().for_each(|chip| {
+            // Phase 1: Run all independent chips in parallel.
+            // Each chip reads from the shared immutable record and writes to its own output.
+            let outputs: Vec<A::Record> = independent_chips
+                .par_iter()
+                .map(|chip| {
+                    let mut output = A::Record::default();
+                    chip.generate_dependencies(record, &mut output);
+                    output
+                })
+                .collect();
+
+            // Merge all independent outputs into the record.
+            for mut output in outputs {
+                record.append(&mut output);
+            }
+
+            // Phase 2: Run GlobalChip (needs the merged global_interaction_events).
+            if let Some(chip) = &global_chip {
                 let mut output = A::Record::default();
                 chip.generate_dependencies(record, &mut output);
                 record.append(&mut output);
-            });
+            }
         });
     }
 }

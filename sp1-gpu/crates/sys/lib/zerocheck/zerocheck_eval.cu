@@ -6,10 +6,7 @@
 #include "sum_and_reduce/reduce.cuh"
 #include "tracegen/jagged_tracegen/jagged.cuh"
 
-#include <cooperative_groups.h>
-#include <cooperative_groups/reduce.h>
-
-namespace cg = cooperative_groups;
+#include "runtime/gpu_compat.cuh"
 
 #define DEBUG_FLAG 0 // Set this to 0 or 1
 

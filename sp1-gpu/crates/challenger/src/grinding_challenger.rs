@@ -40,16 +40,18 @@ where
     let cpu_challenger: DuplexChallenger<F, _> = challenger.clone().into();
 
     let mut result = DeviceBuffer::with_capacity_in(1, scope.clone());
-    let mut found_flag = DeviceBuffer::<bool>::with_capacity_in(1, scope.clone());
+    let mut found_flag = DeviceBuffer::<bool>::from_host_slice(&[false], scope).unwrap();
     let mut gpu_challenger = cpu_challenger.to_device_sync(scope).unwrap();
 
-    let block_dim: usize = 512;
-    let grid_dim: usize = 1;
+    let block_dim: usize = 256;
+    // Scale grid to ~4x expected nonces needed (2^bits), capped at 1M threads.
+    // Over-provisioning wastes GPU cycles on unnecessary Poseidon2 permutations.
+    let target_threads = (4usize << bits).min(1 << 20);
+    let grid_dim: usize = target_threads.div_ceil(block_dim).max(1);
     let n = F::ORDER_U64;
 
     unsafe {
         result.assume_init();
-        found_flag.assume_init();
         let args = args!(
             gpu_challenger.as_mut_raw(),
             result.as_mut_ptr(),
