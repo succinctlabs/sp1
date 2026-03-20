@@ -339,12 +339,6 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> RecursiveWhirVerifier<C, S
             let claim_batching_randomness: Ext<SP1Field, SP1ExtensionField> =
                 challenger.sample_ext(builder);
 
-            challenger.check_witness(
-                builder,
-                round_params.queries_pow_bits,
-                proof.query_proof_of_works[round_index],
-            );
-
             let merkle_proofs = if round_index != 0 {
                 &proof.merkle_proofs[round_index - 1]
             } else {
