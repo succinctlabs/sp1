@@ -1,7 +1,7 @@
 use slop_algebra::Dorroh;
 use slop_challenger::FieldChallenger;
 
-use crate::compiler::{ConstraintCtx, ReadingCtx, TranscriptExhaustedError};
+use crate::compiler::{ConstraintCtx, ReadingCtx, SendingCtx, TranscriptExhaustedError};
 use crate::zk::inner::MaskCounterContext;
 use crate::zk::verifier_ctx::MleCommit;
 use crate::zk::ZkIopCtx;
@@ -12,8 +12,8 @@ pub type MaskCounterExpr<GC: ZkIopCtx> = Dorroh<GC::EF, MaskCounterContext<GC>>;
 
 /// A counting context for determining the mask length needed by a ZK proof.
 ///
-/// Implements `ReadingCtx` + `ConstraintCtx` so it can be used with the public interface
-/// (compiler sumcheck, etc.) to count how many transcript elements will be read.
+/// Implements `ReadingCtx` + `SendingCtx` + `ConstraintCtx` so it can be used with the
+/// public interface (compiler sumcheck, etc.) to count how many transcript elements will be used.
 pub struct MaskCounter<GC: ZkIopCtx> {
     inner: MaskCounterContext<GC>,
 }
@@ -57,6 +57,7 @@ impl<GC: ZkIopCtx> ConstraintCtx for MaskCounter<GC> {
     type Field = GC::F;
     type Extension = GC::EF;
     type Expr = MaskCounterExpr<GC>;
+    type Challenge = GC::EF;
     type MleOracle = MleCommit;
 
     fn assert_zero(&mut self, _expr: Self::Expr) {}
@@ -66,7 +67,7 @@ impl<GC: ZkIopCtx> ConstraintCtx for MaskCounter<GC> {
     fn assert_mle_eval(
         &mut self,
         oracle: MleCommit,
-        _point: slop_multilinear::Point<Self::Expr>,
+        _point: slop_multilinear::Point<GC::EF>,
         _eval_expr: Self::Expr,
     ) {
         use crate::zk::inner::ConstraintContextInnerExt;
@@ -100,9 +101,33 @@ impl<GC: ZkIopCtx> ReadingCtx for MaskCounter<GC> {
             .map(|idx| MleCommit { inner: idx })
     }
 
-    fn sample(&mut self) -> Self::Expr {
+    fn sample(&mut self) -> GC::EF {
         use crate::zk::inner::ZkCnstrAndReadingCtxInner;
-        let f: GC::EF = self.inner.challenger().sample_ext_element();
-        Dorroh::Constant(f)
+        self.inner.challenger().sample_ext_element()
+    }
+}
+
+// ============================================================================
+// SendingCtx impl
+// ============================================================================
+
+impl<GC: ZkIopCtx> SendingCtx for MaskCounter<GC> {
+    fn send_value(&mut self, _value: GC::EF) -> MaskCounterExpr<GC> {
+        use crate::zk::inner::ZkCnstrAndReadingCtxInner;
+        // Increment counter by 1
+        let values = self.inner.read_next(1).unwrap();
+        Dorroh::Element(values.into_iter().next().unwrap())
+    }
+
+    fn send_values(&mut self, values: &[GC::EF]) -> Vec<MaskCounterExpr<GC>> {
+        use crate::zk::inner::ZkCnstrAndReadingCtxInner;
+        // Increment counter by values.len()
+        let inner_values = self.inner.read_next(values.len()).unwrap();
+        inner_values.into_iter().map(Dorroh::Element).collect()
+    }
+
+    fn sample(&mut self) -> GC::EF {
+        use crate::zk::inner::ZkCnstrAndReadingCtxInner;
+        self.inner.challenger().sample_ext_element()
     }
 }

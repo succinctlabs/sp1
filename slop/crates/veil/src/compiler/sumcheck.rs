@@ -1,8 +1,9 @@
+use slop_sumcheck::{SumcheckPoly, SumcheckPolyFirstRound};
 use thiserror::Error;
 
 use crate::compiler::ctx::TranscriptExhaustedError;
 
-use super::{ConstraintCtx, ReadingCtx};
+use super::{ConstraintCtx, ReadingCtx, SendingCtx};
 
 #[derive(Debug, Error)]
 pub enum SumcheckError {
@@ -31,7 +32,7 @@ pub struct SumcheckView<C: ConstraintCtx> {
     /// Univariate polynomial coefficients for each round.
     pub univariate_poly_coeffs: Vec<Vec<C::Expr>>,
     /// Fiat-Shamir challenges (evaluation point), stored inner-to-outer.
-    pub point: Vec<C::Expr>,
+    pub point: Vec<C::Challenge>,
     /// Claimed sum of the polynomial over the hypercube.
     pub claimed_sum: C::Expr,
     /// Claimed evaluation at the random point (output of the sumcheck).
@@ -66,6 +67,48 @@ impl SumcheckParam {
         let claimed_eval = ctx.read_one()?;
 
         Ok(SumcheckView { univariate_poly_coeffs, point: alphas, claimed_sum, claimed_eval })
+    }
+
+    /// Run the prover side of sumcheck, sending messages through the context.
+    ///
+    /// Returns a `SumcheckView` that can be used to build verification constraints.
+    pub fn prove<C: SendingCtx>(
+        &self,
+        poly: impl SumcheckPolyFirstRound<C::Extension>,
+        ctx: &mut C,
+        claim: C::Extension,
+    ) -> SumcheckView<C> {
+        assert!(self.num_variables >= 1);
+
+        let mut point = Vec::new();
+        let mut univariate_poly_coeffs = Vec::new();
+
+        // First round
+        let mut uni_poly = poly.sum_as_poly_in_last_t_variables(Some(claim), 1);
+        univariate_poly_coeffs.push(ctx.send_values(&uni_poly.coefficients));
+        let mut alpha: C::Challenge = ctx.sample();
+        point.push(alpha.clone());
+        let mut cursor = poly.fix_t_variables(alpha.clone().into(), 1);
+
+        // Remaining rounds
+        for _ in 1..self.num_variables {
+            let round_claim = uni_poly.eval_at_point(alpha.clone().into());
+            uni_poly = cursor.sum_as_poly_in_last_variable(Some(round_claim));
+            univariate_poly_coeffs.push(ctx.send_values(&uni_poly.coefficients));
+            alpha = ctx.sample();
+            point.push(alpha.clone());
+            cursor = cursor.fix_last_variable(alpha.clone().into());
+        }
+
+        // Point was collected outer-to-inner, reverse to match convention
+        point.reverse();
+
+        // Send claimed sum and claimed eval
+        let claimed_sum = ctx.send_value(claim);
+        let eval = uni_poly.eval_at_point(alpha.into());
+        let claimed_eval = ctx.send_value(eval);
+
+        SumcheckView { univariate_poly_coeffs, point, claimed_sum, claimed_eval }
     }
 }
 

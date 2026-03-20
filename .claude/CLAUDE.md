@@ -37,6 +37,12 @@ cargo clippy -p <crate-name> --all-targets --all-features -- -D warnings -A inco
 - Use type aliases to reduce clippy type complexity warnings
 - Prefer concrete implementations over overly abstract traits when simplicity helps
 
+### API & Naming
+- Name methods after what they mean in the protocol, not the mechanical action (e.g., `send_value` not `write` — the prover *sends* to the verifier in an interactive protocol)
+- If you find yourself writing runtime `match` arms that panic on "impossible" variants, the type system is wrong — introduce a new associated type or narrower type instead
+- Public wrappers around inner types should expose a clean interface via public traits; keep inner implementation details behind `pub(crate)` boundaries
+- When adding associated types to traits, think about what bounds downstream default implementations need (e.g., `Expr: Algebra<Challenge>` is needed if `poly_eval` multiplies expressions by challenges)
+
 ### Testing
 - Run tests after each significant change to catch issues early
 - Use `cargo test -p <crate>` to test individual crates during development

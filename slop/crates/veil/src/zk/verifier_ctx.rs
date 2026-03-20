@@ -7,8 +7,9 @@ use slop_multilinear::Point;
 use crate::compiler::{ConstraintCtx, ReadingCtx, TranscriptExhaustedError};
 use crate::zk::inner::{
     ConstraintContextInnerExt, ExpressionIndex, MleCommitmentIndex, ZkCnstrAndReadingCtxInner,
-    ZkVerificationContext,
+    ZkPcsVerifier, ZkVerificationContext, ZkVerifierError,
 };
+use crate::zk::ZkProof;
 
 /// Extension of [`IopCtx`] for IOP contexts that can be used with VEIL.
 ///
@@ -20,19 +21,24 @@ use crate::zk::inner::{
 pub trait ZkIopCtx: IopCtx<F: TwoAdicField, EF: TwoAdicField> {
     /// The PCS proof type for this context.
     type PcsProof: Clone + Serialize + DeserializeOwned;
+
+    type PcsVerifier: ZkPcsVerifier<Self, Proof = Self::PcsProof>;
 }
 
 pub struct ZkVerifierCtx<GC: ZkIopCtx> {
     inner: ZkVerificationContext<GC>,
+    pcs_verifier: Option<GC::PcsVerifier>,
 }
 
 impl<GC: ZkIopCtx> ZkVerifierCtx<GC> {
-    pub fn new(inner: ZkVerificationContext<GC>) -> Self {
-        Self { inner }
+    pub fn init(proof: ZkProof<GC>, pcs_verifier: Option<GC::PcsVerifier>) -> Self {
+        let inner = proof.open();
+        Self { inner, pcs_verifier }
     }
 
-    pub fn into_inner(self) -> ZkVerificationContext<GC> {
-        self.inner
+    /// Verify after consuming the transcript and building all constraints
+    pub fn verify(self) -> Result<(), ZkVerifierError> {
+        self.inner.verify(self.pcs_verifier.as_ref())
     }
 }
 
@@ -70,6 +76,7 @@ impl<GC: ZkIopCtx> ConstraintCtx for ZkVerifierCtx<GC> {
     type Field = GC::F;
     type Extension = GC::EF;
     type Expr = TranscriptElement<GC>;
+    type Challenge = GC::EF;
     type MleOracle = MleCommit;
 
     fn assert_zero(&mut self, expr: TranscriptElement<GC>) {
@@ -92,21 +99,11 @@ impl<GC: ZkIopCtx> ConstraintCtx for ZkVerifierCtx<GC> {
     fn assert_mle_eval(
         &mut self,
         oracle: MleCommit,
-        point: Point<TranscriptElement<GC>>,
+        point: Point<GC::EF>,
         eval_expr: TranscriptElement<GC>,
     ) {
-        // Point coords are sampled Fiat-Shamir challenges, always Constant.
-        let inner_point: Point<GC::EF> = point
-            .iter()
-            .map(|h| match h {
-                Dorroh::Constant(f) => *f,
-                Dorroh::Element(_) => {
-                    panic!("MLE eval point coordinate must be a field constant")
-                }
-            })
-            .collect();
         let eval_idx = into_verifier_value(eval_expr, &mut self.inner);
-        self.inner.assert_mle_eval(oracle.inner, inner_point, eval_idx);
+        self.inner.assert_mle_eval(oracle.inner, point, eval_idx);
     }
 }
 
@@ -136,8 +133,7 @@ impl<GC: ZkIopCtx> ReadingCtx for ZkVerifierCtx<GC> {
             .map(|idx| MleCommit { inner: idx })
     }
 
-    fn sample(&mut self) -> TranscriptElement<GC> {
-        let f: GC::EF = self.inner.challenger().sample_ext_element();
-        Dorroh::Constant(f)
+    fn sample(&mut self) -> GC::EF {
+        self.inner.challenger().sample_ext_element()
     }
 }

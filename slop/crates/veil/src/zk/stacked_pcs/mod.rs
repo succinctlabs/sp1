@@ -18,4 +18,6 @@ use slop_koala_bear::KoalaBearDegree4Duplex;
 
 impl ZkIopCtx for KoalaBearDegree4Duplex {
     type PcsProof = ZkStackedPcsProof<KoalaBearDegree4Duplex>;
+
+    type PcsVerifier = ZkStackedPcsVerifier<Self>;
 }

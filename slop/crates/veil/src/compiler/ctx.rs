@@ -9,7 +9,8 @@ pub trait ConstraintCtx {
     type Field: Field;
     type Extension: ExtensionField<Self::Field>;
 
-    type Expr: Algebra<Self::Extension>;
+    type Expr: Algebra<Self::Extension> + Algebra<Self::Challenge>;
+    type Challenge: Clone + Algebra<Self::Extension> + Into<Self::Extension>;
     type MleOracle;
 
     fn assert_zero(&mut self, expr: Self::Expr);
@@ -21,7 +22,7 @@ pub trait ConstraintCtx {
     /// Creates an expression from a polynomial evaluation: `poly(point)`.
     ///
     /// Computes: `coeff_0 + point * coeff_1 + ... + point^{n-1} * coeff_n`
-    fn poly_eval(poly: &[Self::Expr], point: Self::Expr) -> Self::Expr {
+    fn poly_eval(poly: &[Self::Expr], point: Self::Challenge) -> Self::Expr {
         let mut iter = poly.iter().rev();
         let first = iter.next().expect("poly_eval requires non-empty polynomial").clone();
         iter.fold(first, |acc, term| acc * point.clone() + term.clone())
@@ -65,12 +66,12 @@ pub trait ConstraintCtx {
     ///
     /// # Arguments
     /// * `oracle` - Handle to the committed MLE (from `read_oracle`)
-    /// * `point` - The evaluation point
+    /// * `point` - The evaluation point (challenges)
     /// * `eval_expr` - Expression representing the claimed evaluation value
     fn assert_mle_eval(
         &mut self,
         oracle: Self::MleOracle,
-        point: Point<Self::Expr>,
+        point: Point<Self::Challenge>,
         eval_expr: Self::Expr,
     );
 }
@@ -93,7 +94,7 @@ pub trait ReadingCtx: ConstraintCtx {
     fn read_oracle(&mut self, log_width: usize, log_stacking: usize) -> Option<Self::MleOracle>;
 
     /// Sample a Fiat-Shamir challenge from the transcript.
-    fn sample(&mut self) -> Self::Expr;
+    fn sample(&mut self) -> Self::Challenge;
 
     fn read_one(&mut self) -> Result<Self::Expr, TranscriptExhaustedError> {
         let mut expr = Self::Expr::default();
@@ -106,6 +107,18 @@ pub trait ReadingCtx: ConstraintCtx {
         self.read_exact(&mut values)?;
         Ok(values)
     }
+}
+
+/// Extension of `ConstraintCtx` for the prover side: sending values and sampling challenges.
+pub trait SendingCtx: ConstraintCtx {
+    /// Send a single value to the verifier (adds it to the proof transcript).
+    fn send_value(&mut self, value: Self::Extension) -> Self::Expr;
+
+    /// Send multiple values to the verifier (adds them to the proof transcript).
+    fn send_values(&mut self, values: &[Self::Extension]) -> Vec<Self::Expr>;
+
+    /// Sample a Fiat-Shamir challenge from the transcript.
+    fn sample(&mut self) -> Self::Challenge;
 }
 
 pub trait TranscriptMessage {}

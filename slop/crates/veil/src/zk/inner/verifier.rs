@@ -124,7 +124,7 @@ impl<GC: ZkIopCtx> ConstraintContextInner<GC::EF> for ZkVerificationContext<GC> 
 }
 
 #[derive(Debug, Clone, Error)]
-pub enum ZkBuilderProofError {
+pub enum ZkVerifierError {
     #[error("Inconsistent masked values dot product")]
     LinearConstraintFailure,
     #[error("Inconsistent mask dot product")]
@@ -145,7 +145,7 @@ impl<GC: ZkIopCtx> ZkProof<GC> {
     /// Returns an initialized mutable [`ZkVerificationContext`] containing the proof.
     ///
     /// Creates a default challenger internally and observes the mask commitment.
-    pub fn open(self) -> ZkVerificationContext<GC> {
+    pub(crate) fn open(self) -> ZkVerificationContext<GC> {
         let mut challenger = GC::default_challenger();
         challenger.observe(self.proof.mask_commitment);
 
@@ -236,7 +236,7 @@ impl<GC: ZkIopCtx> ZkVerificationContext<GC> {
     ///
     /// # Type Parameters
     /// * `V` - The PCS verifier type implementing `ZkPcsVerifier<GC>`
-    pub fn verify<V>(mut self, pcs_verifier: Option<&V>) -> Result<(), ZkBuilderProofError>
+    pub fn verify<V>(mut self, pcs_verifier: Option<&V>) -> Result<(), ZkVerifierError>
     where
         GC: ZkIopCtx,
         V: ZkPcsVerifier<GC, Proof = GC::PcsProof>,
@@ -272,7 +272,7 @@ impl<GC: ZkIopCtx> ZkVerificationContext<GC> {
         if dot_product(&dot_vec, &inner.transcript.values)
             != inner.proof.zk_dot_product_proof.claimed_dot_products()[0]
         {
-            return Err(ZkBuilderProofError::LinearConstraintFailure);
+            return Err(ZkVerifierError::LinearConstraintFailure);
         }
 
         if let Err(e) = verify_zk_dot_product::<GC, RsFromCoefficients<GC::EF>>(
@@ -281,7 +281,7 @@ impl<GC: ZkIopCtx> ZkVerificationContext<GC> {
             &inner.proof.zk_dot_product_proof,
             &mut inner.challenger,
         ) {
-            return Err(ZkBuilderProofError::MaskDotProductProofFailure(e));
+            return Err(ZkVerifierError::MaskDotProductProofFailure(e));
         }
 
         Ok(())
@@ -290,7 +290,7 @@ impl<GC: ZkIopCtx> ZkVerificationContext<GC> {
     /// Helper method to verify PCS evaluation claims.
     ///
     /// One proof is verified per claim.
-    fn verify_pcs_claims<V>(&mut self, pcs_verifier: Option<&V>) -> Result<(), ZkBuilderProofError>
+    fn verify_pcs_claims<V>(&mut self, pcs_verifier: Option<&V>) -> Result<(), ZkVerifierError>
     where
         V: ZkPcsVerifier<GC, Proof = GC::PcsProof>,
     {
@@ -301,14 +301,14 @@ impl<GC: ZkIopCtx> ZkVerificationContext<GC> {
             return Ok(());
         }
 
-        let pcs_verifier = pcs_verifier.ok_or(ZkBuilderProofError::PcsProofCountMismatch {
+        let pcs_verifier = pcs_verifier.ok_or(ZkVerifierError::PcsProofCountMismatch {
             expected: eval_claims.len(),
             actual: 0,
         })?;
 
         // Verify that we have the right number of PCS proofs
         if pcs_proofs.len() != eval_claims.len() {
-            return Err(ZkBuilderProofError::PcsProofCountMismatch {
+            return Err(ZkVerifierError::PcsProofCountMismatch {
                 expected: eval_claims.len(),
                 actual: pcs_proofs.len(),
             });
@@ -318,7 +318,7 @@ impl<GC: ZkIopCtx> ZkVerificationContext<GC> {
         for (i, (claim, pcs_proof)) in eval_claims.into_iter().zip(pcs_proofs.iter()).enumerate() {
             pcs_verifier
                 .verify_eval(self, claim, pcs_proof)
-                .map_err(|e| ZkBuilderProofError::PcsVerificationFailed { index: i, error: e })?;
+                .map_err(|e| ZkVerifierError::PcsVerificationFailed { index: i, error: e })?;
         }
 
         // Clear eval claims to drop VerifierValue references before calling verify
@@ -331,7 +331,7 @@ impl<GC: ZkIopCtx> ZkVerificationContext<GC> {
     fn verify_mul_proof(
         &mut self,
         mul_proof: Option<ZkMulCnstrProof<GC>>,
-    ) -> Result<(), ZkBuilderProofError> {
+    ) -> Result<(), ZkVerifierError> {
         let Some(mul_proof) = mul_proof else {
             return Ok(());
         };
@@ -340,10 +340,10 @@ impl<GC: ZkIopCtx> ZkVerificationContext<GC> {
         for _ in 0..2 {
             let [a, b] = self
                 .read_next(2)
-                .ok_or(ZkBuilderProofError::InvalidMulConstrProofShape)?
+                .ok_or(ZkVerifierError::InvalidMulConstrProofShape)?
                 .try_into()
                 .unwrap();
-            let c = self.read_one().ok_or(ZkBuilderProofError::InvalidMulConstrProofShape)?;
+            let c = self.read_one().ok_or(ZkVerifierError::InvalidMulConstrProofShape)?;
             // Add in the multiplicative constraint the padding should satisfy
             self.constrain_mul_triple(
                 a.try_into_index().unwrap(),
@@ -370,7 +370,7 @@ impl<GC: ZkIopCtx> ZkVerificationContext<GC> {
             &mul_proof.mul_proof,
             &mut self.borrow_mut().challenger,
         ) {
-            return Err(ZkBuilderProofError::InvalidHadamardAndDots(e));
+            return Err(ZkVerifierError::InvalidHadamardAndDots(e));
         }
 
         // Build and add the new linear constraints that dot product vects picked out correctly
@@ -417,7 +417,7 @@ impl<GC: ZkIopCtx> ZkVerificationContext<GC> {
     /// # Errors
     /// Returns an error if there are any PCS evaluation claims registered
     /// (use `verify` with a PCS verifier instead).
-    pub fn verify_without_pcs(self) -> Result<(), ZkBuilderProofError>
+    pub fn verify_without_pcs(self) -> Result<(), ZkVerifierError>
     where
         GC: ZkIopCtx,
     {

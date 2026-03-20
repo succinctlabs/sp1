@@ -3,10 +3,9 @@ use std::cell::RefMut;
 use slop_algebra::Dorroh;
 use slop_alloc::CpuBackend;
 use slop_challenger::{FieldChallenger, IopCtx};
-use slop_merkle_tree::{ComputeTcsOpenings, TensorCsProver};
 use slop_multilinear::Point;
 
-use crate::compiler::ConstraintCtx;
+use crate::compiler::{ConstraintCtx, SendingCtx};
 use crate::zk::inner::{ConstraintContextInnerExt, ProverValue, ZkProverContext};
 use crate::zk::verifier_ctx::MleCommit;
 use crate::zk::ZkIopCtx;
@@ -17,17 +16,22 @@ use crate::zk::ZkIopCtx;
 /// satisfies this trait. Pass it as a separate generic `MK: ZkMerkleizer<GC>` on
 /// prover-side structs and functions instead of baking it into `ZkIopCtx`.
 pub trait ZkMerkleizer<GC: IopCtx>:
-    TensorCsProver<GC, CpuBackend> + ComputeTcsOpenings<GC, CpuBackend> + Default
+    slop_merkle_tree::TensorCsProver<GC, CpuBackend>
+    + slop_merkle_tree::ComputeTcsOpenings<GC, CpuBackend>
+    + Default
 {
 }
 
 impl<MK, GC: IopCtx> ZkMerkleizer<GC> for MK where
-    MK: TensorCsProver<GC, CpuBackend> + ComputeTcsOpenings<GC, CpuBackend> + Default
+    MK: slop_merkle_tree::TensorCsProver<GC, CpuBackend>
+        + slop_merkle_tree::ComputeTcsOpenings<GC, CpuBackend>
+        + Default
 {
 }
 
 /// Type alias for the prover data produced by a `ZkMerkleizer`.
-pub type MerkleProverData<GC, MK> = <MK as TensorCsProver<GC, CpuBackend>>::ProverData;
+pub type MerkleProverData<GC, MK> =
+    <MK as slop_merkle_tree::TensorCsProver<GC, CpuBackend>>::ProverData;
 
 /// An abstract representation of a prover transcript extension field element.
 ///
@@ -73,6 +77,7 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD: Clone> ConstraintCtx for ZkProverCt
     type Field = GC::F;
     type Extension = GC::EF;
     type Expr = ProverTranscriptElement<GC, MK, PD>;
+    type Challenge = GC::EF;
     type MleOracle = MleCommit;
 
     fn assert_zero(&mut self, expr: ProverTranscriptElement<GC, MK, PD>) {
@@ -95,20 +100,29 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD: Clone> ConstraintCtx for ZkProverCt
     fn assert_mle_eval(
         &mut self,
         oracle: MleCommit,
-        point: Point<ProverTranscriptElement<GC, MK, PD>>,
+        point: Point<GC::EF>,
         eval_expr: ProverTranscriptElement<GC, MK, PD>,
     ) {
-        let inner_point: Point<GC::EF> = point
-            .iter()
-            .map(|h| match h {
-                Dorroh::Constant(f) => *f,
-                Dorroh::Element(_) => {
-                    panic!("MLE eval point coordinate must be a field constant")
-                }
-            })
-            .collect();
         let eval_idx = into_prover_value(eval_expr, &mut self.inner);
-        self.inner.assert_mle_eval(oracle.inner, inner_point, eval_idx);
+        self.inner.assert_mle_eval(oracle.inner, point, eval_idx);
+    }
+}
+
+// ============================================================================
+// SendingCtx impl
+// ============================================================================
+
+impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD: Clone> SendingCtx for ZkProverCtx<GC, MK, PD> {
+    fn send_value(&mut self, value: GC::EF) -> ProverTranscriptElement<GC, MK, PD> {
+        Dorroh::Element(self.inner.add_value(value))
+    }
+
+    fn send_values(&mut self, values: &[GC::EF]) -> Vec<ProverTranscriptElement<GC, MK, PD>> {
+        self.inner.add_values(values).into_iter().map(Dorroh::Element).collect()
+    }
+
+    fn sample(&mut self) -> GC::EF {
+        self.inner.challenger().sample_ext_element()
     }
 }
 
@@ -117,22 +131,6 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD: Clone> ConstraintCtx for ZkProverCt
 // ============================================================================
 
 impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD: Clone> ZkProverCtx<GC, MK, PD> {
-    /// Send a single value to the verifier (adds it to the proof transcript).
-    pub fn send_value(&mut self, value: GC::EF) -> ProverTranscriptElement<GC, MK, PD> {
-        Dorroh::Element(self.inner.add_value(value))
-    }
-
-    /// Send multiple values to the verifier (adds them to the proof transcript).
-    pub fn send_values(&mut self, values: &[GC::EF]) -> Vec<ProverTranscriptElement<GC, MK, PD>> {
-        self.inner.add_values(values).into_iter().map(Dorroh::Element).collect()
-    }
-
-    /// Sample a Fiat-Shamir challenge from the transcript.
-    pub fn sample(&mut self) -> ProverTranscriptElement<GC, MK, PD> {
-        let f: GC::EF = self.inner.challenger().sample_ext_element();
-        Dorroh::Constant(f)
-    }
-
     /// Access the challenger directly for Fiat-Shamir operations.
     pub fn challenger(&mut self) -> RefMut<'_, GC::Challenger> {
         self.inner.challenger()

@@ -34,7 +34,7 @@ pub struct ZerocheckView<C: ConstraintCtx> {
     /// Oracle handles for committed input polynomials.
     pub oracles: Vec<C::MleOracle>,
     /// Random challenge used to reduce zerocheck to sumcheck.
-    pub z: C::Expr,
+    pub z: C::Challenge,
     /// The inner sumcheck proof.
     pub sumcheck_view: SumcheckView<C>,
     /// Evaluations of the input polynomials at the sumcheck point.
