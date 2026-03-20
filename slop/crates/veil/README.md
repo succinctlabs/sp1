@@ -32,6 +32,7 @@ To convert an existing IOP into a ZK protocol using VEIL:
 
 - [`examples/root.rs`](examples/root.rs) — ZK proof of knowledge of a polynomial root (pure constraints, no PCS)
 - [`examples/mle_eval.rs`](examples/mle_eval.rs) — ZK proof of an MLE evaluation with PCS commitment
+- [`examples/zerocheck.rs`](examples/zerocheck.rs) — Zerocheck protocol proving that the pointwise product of two committed MLEs equals a third (sumcheck + PCS + polynomial constraints)
 
 ## Building and Testing
 
@@ -45,6 +46,7 @@ cargo test --release -p slop-veil
 # Run examples
 cargo run --release -p slop-veil --example root
 cargo run --release -p slop-veil --example mle_eval
+cargo run --release -p slop-veil --example zerocheck
 
 # Build with constraint debugging (prints constraint locations on failure)
 RUSTFLAGS="--cfg sp1_debug_constraints" cargo test --release -p slop-veil
