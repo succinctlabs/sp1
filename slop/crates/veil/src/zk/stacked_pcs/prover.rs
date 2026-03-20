@@ -15,12 +15,13 @@ use slop_commit::Message;
 use slop_matrix::dense::RowMajorMatrix;
 use slop_multilinear::{Mle, Point};
 use slop_tensor::Tensor;
-use std::{fmt::Debug, iter::repeat_with};
+use std::{fmt::Debug, iter::repeat_with, marker::PhantomData};
 use thiserror::Error;
 
 use rayon::prelude::*;
 
 use super::{basefold_prover_wrapper::ZkBasefoldProver, ZkStackedPcsConstraintData};
+use crate::zk::prover_ctx::{PcsProverConfig, ZkProverCtx};
 
 /// Type alias for `ProverValue` when using the ZK PCS (stacked PCS).
 ///
@@ -37,6 +38,54 @@ pub type StackedPcsProverValue<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> =
 #[allow(type_alias_bounds)]
 pub type StackedPcsZkProverContext<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> =
     ZkProverContext<GC, MK, ZkStackedPcsProverData<GC, MK>>;
+
+/// Configuration type that implements `PcsProverConfig` for the stacked PCS.
+pub struct StackedPcsProverConfig<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> {
+    _phantom: PhantomData<(GC, MK)>,
+}
+
+impl<GC: ZkIopCtx<PcsProof = ZkStackedPcsProof<GC>>, MK: ZkMerkleizer<GC>> PcsProverConfig<GC>
+    for StackedPcsProverConfig<GC, MK>
+{
+    type Merkelizer = MK;
+    type PcsProverData = ZkStackedPcsProverData<GC, MK>;
+    type PcsProver = ZkBasefoldProver<GC, MK>;
+}
+
+/// Type alias for `ZkProverCtx` when using the stacked PCS.
+#[allow(type_alias_bounds)]
+pub type StackedPcsZkProverCtx<
+    GC: ZkIopCtx<PcsProof = ZkStackedPcsProof<GC>>,
+    MK: ZkMerkleizer<GC>,
+> = ZkProverCtx<GC, StackedPcsProverConfig<GC, MK>>;
+
+impl<GC: ZkIopCtx<PcsProof = ZkStackedPcsProof<GC>>, MK: ZkMerkleizer<GC>>
+    ZkProverCtx<GC, StackedPcsProverConfig<GC, MK>>
+{
+    /// Initializes a prover context with stacked PCS support.
+    pub fn initialize_with_pcs<RNG: rand::CryptoRng + rand::Rng>(
+        mask_length: usize,
+        pcs_prover: ZkBasefoldProver<GC, MK>,
+        rng: &mut RNG,
+    ) -> Self
+    where
+        rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
+    {
+        Self::initialize(mask_length, rng, Some(pcs_prover))
+    }
+
+    /// Initializes a linear-only prover context with stacked PCS support.
+    pub fn initialize_with_pcs_only_lin<RNG: rand::CryptoRng + rand::Rng>(
+        mask_length: usize,
+        pcs_prover: ZkBasefoldProver<GC, MK>,
+        rng: &mut RNG,
+    ) -> Self
+    where
+        rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
+    {
+        Self::initialize_only_lin_constraints(mask_length, rng, Some(pcs_prover))
+    }
+}
 
 #[derive(Debug)]
 #[derive_where(Clone; MerkleProverData<GC, MK>: Clone)]

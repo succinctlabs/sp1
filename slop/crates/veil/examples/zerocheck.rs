@@ -13,6 +13,7 @@
 // use slop_merkle_tree::Poseidon2KoalaBear16Prover;
 // use slop_multilinear::Mle;
 // use slop_veil::compiler::sumcheck::SumcheckParam;
+// use slop_veil::zk::stacked_pcs::{StackedPcsProverConfig, StackedPcsZkProverCtx};
 // use slop_veil::zk::{compute_mask_length, ZkProverCtx, ZkVerifierCtx};
 
 // type GC = KoalaBearDegree4Duplex;
@@ -59,8 +60,8 @@
 //     eprintln!("\n=== PROVER ===");
 //     let proof = {
 //         let now = std::time::Instant::now();
-//         let mut ctx: ZkProverCtx<GC, MK> =
-//             ZkProverCtx::initialize_only_lin_constraints(mask_length, &mut rng);
+//         let mut ctx: StackedPcsZkProverCtx<GC, MK> =
+//             ZkProverCtx::initialize_with_pcs_only_lin(mask_length, todo!("pcs_prover"), &mut rng);
 
 //         // Prover-side sumcheck: send messages, get back a SumcheckView
 //         let view = param.prove(mle_ef, &mut ctx, claim);

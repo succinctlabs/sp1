@@ -1,4 +1,5 @@
 use std::cell::RefMut;
+use std::marker::PhantomData;
 
 use slop_algebra::Dorroh;
 use slop_alloc::CpuBackend;
@@ -6,9 +7,11 @@ use slop_challenger::{FieldChallenger, IopCtx};
 use slop_multilinear::Point;
 
 use crate::compiler::{ConstraintCtx, SendingCtx};
-use crate::zk::inner::{ConstraintContextInnerExt, ProverValue, ZkProverContext};
+use crate::zk::inner::{
+    ConstraintContextInnerExt, NoPcsProver, ProverValue, ZkPcsProver, ZkProverContext,
+};
 use crate::zk::verifier_ctx::MleCommit;
-use crate::zk::ZkIopCtx;
+use crate::zk::{ZkIopCtx, ZkProof};
 
 /// Auto-implemented trait that bundles the merkle commitment bounds needed by prover code.
 ///
@@ -33,24 +36,43 @@ impl<MK, GC: IopCtx> ZkMerkleizer<GC> for MK where
 pub type MerkleProverData<GC, MK> =
     <MK as slop_merkle_tree::TensorCsProver<GC, CpuBackend>>::ProverData;
 
+pub trait PcsProverConfig<GC: ZkIopCtx> {
+    type Merkelizer: ZkMerkleizer<GC>;
+    type PcsProverData: Clone;
+    type PcsProver: ZkPcsProver<GC, Self::Merkelizer, ProverData = Self::PcsProverData>;
+}
+
+/// A `PcsProverConfig` for proofs that don't use a PCS (pure constraint proofs).
+pub struct NoPcsConfig<MK>(PhantomData<MK>);
+
+impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> PcsProverConfig<GC> for NoPcsConfig<MK> {
+    type Merkelizer = MK;
+    type PcsProverData = ();
+    type PcsProver = NoPcsProver;
+}
+
 /// An abstract representation of a prover transcript extension field element.
 ///
 /// Either a concrete field constant (`Dorroh::Constant`) or an opaque expression index
 /// into the prover transcript (`Dorroh::Element`).
 #[allow(type_alias_bounds)]
-pub type ProverTranscriptElement<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD = ()> =
-    Dorroh<GC::EF, ProverValue<GC, MK, PD>>;
+pub type ProverTranscriptElement<GC: ZkIopCtx, PC: PcsProverConfig<GC>> =
+    Dorroh<GC::EF, ProverValue<GC, PC::Merkelizer, PC::PcsProverData>>;
 
-pub struct ZkProverCtx<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD = ()> {
-    inner: ZkProverContext<GC, MK, PD>,
+pub struct ZkProverCtx<GC: ZkIopCtx, PC: PcsProverConfig<GC>> {
+    inner: ZkProverContext<GC, PC::Merkelizer, PC::PcsProverData>,
+    pcs_prover: Option<PC::PcsProver>,
 }
 
-impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverCtx<GC, MK, PD> {
-    pub fn new(inner: ZkProverContext<GC, MK, PD>) -> Self {
-        Self { inner }
+impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ZkProverCtx<GC, PC> {
+    fn new(
+        inner: ZkProverContext<GC, PC::Merkelizer, PC::PcsProverData>,
+        pcs_prover: Option<PC::PcsProver>,
+    ) -> Self {
+        Self { inner, pcs_prover }
     }
 
-    pub fn into_inner(self) -> ZkProverContext<GC, MK, PD> {
+    fn into_inner(self) -> ZkProverContext<GC, PC::Merkelizer, PC::PcsProverData> {
         self.inner
     }
 }
@@ -59,10 +81,10 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverCtx<GC, MK, PD> {
 // Conversion helper: ProverTranscriptElement → ProverValue
 // ============================================================================
 
-fn into_prover_value<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD: Clone>(
-    elem: ProverTranscriptElement<GC, MK, PD>,
-    ctx: &mut ZkProverContext<GC, MK, PD>,
-) -> ProverValue<GC, MK, PD> {
+fn into_prover_value<GC: ZkIopCtx, PC: PcsProverConfig<GC>>(
+    elem: ProverTranscriptElement<GC, PC>,
+    ctx: &mut ZkProverContext<GC, PC::Merkelizer, PC::PcsProverData>,
+) -> ProverValue<GC, PC::Merkelizer, PC::PcsProverData> {
     match elem {
         Dorroh::Constant(f) => ctx.cst(f),
         Dorroh::Element(e) => e,
@@ -73,27 +95,27 @@ fn into_prover_value<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD: Clone>(
 // ConstraintCtx impl
 // ============================================================================
 
-impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD: Clone> ConstraintCtx for ZkProverCtx<GC, MK, PD> {
+impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ConstraintCtx for ZkProverCtx<GC, PC> {
     type Field = GC::F;
     type Extension = GC::EF;
-    type Expr = ProverTranscriptElement<GC, MK, PD>;
+    type Expr = ProverTranscriptElement<GC, PC>;
     type Challenge = GC::EF;
     type MleOracle = MleCommit;
 
-    fn assert_zero(&mut self, expr: ProverTranscriptElement<GC, MK, PD>) {
-        let idx = into_prover_value(expr, &mut self.inner);
+    fn assert_zero(&mut self, expr: ProverTranscriptElement<GC, PC>) {
+        let idx = into_prover_value::<GC, PC>(expr, &mut self.inner);
         self.inner.assert_zero(idx);
     }
 
     fn assert_a_times_b_equals_c(
         &mut self,
-        a: ProverTranscriptElement<GC, MK, PD>,
-        b: ProverTranscriptElement<GC, MK, PD>,
-        c: ProverTranscriptElement<GC, MK, PD>,
+        a: ProverTranscriptElement<GC, PC>,
+        b: ProverTranscriptElement<GC, PC>,
+        c: ProverTranscriptElement<GC, PC>,
     ) {
-        let ai = into_prover_value(a, &mut self.inner);
-        let bi = into_prover_value(b, &mut self.inner);
-        let ci = into_prover_value(c, &mut self.inner);
+        let ai = into_prover_value::<GC, PC>(a, &mut self.inner);
+        let bi = into_prover_value::<GC, PC>(b, &mut self.inner);
+        let ci = into_prover_value::<GC, PC>(c, &mut self.inner);
         self.inner.assert_a_times_b_equals_c(ai, bi, ci);
     }
 
@@ -101,9 +123,9 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD: Clone> ConstraintCtx for ZkProverCt
         &mut self,
         oracle: MleCommit,
         point: Point<GC::EF>,
-        eval_expr: ProverTranscriptElement<GC, MK, PD>,
+        eval_expr: ProverTranscriptElement<GC, PC>,
     ) {
-        let eval_idx = into_prover_value(eval_expr, &mut self.inner);
+        let eval_idx = into_prover_value::<GC, PC>(eval_expr, &mut self.inner);
         self.inner.assert_mle_eval(oracle.inner, point, eval_idx);
     }
 }
@@ -112,12 +134,12 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD: Clone> ConstraintCtx for ZkProverCt
 // SendingCtx impl
 // ============================================================================
 
-impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD: Clone> SendingCtx for ZkProverCtx<GC, MK, PD> {
-    fn send_value(&mut self, value: GC::EF) -> ProverTranscriptElement<GC, MK, PD> {
+impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> SendingCtx for ZkProverCtx<GC, PC> {
+    fn send_value(&mut self, value: GC::EF) -> ProverTranscriptElement<GC, PC> {
         Dorroh::Element(self.inner.add_value(value))
     }
 
-    fn send_values(&mut self, values: &[GC::EF]) -> Vec<ProverTranscriptElement<GC, MK, PD>> {
+    fn send_values(&mut self, values: &[GC::EF]) -> Vec<ProverTranscriptElement<GC, PC>> {
         self.inner.add_values(values).into_iter().map(Dorroh::Element).collect()
     }
 
@@ -130,7 +152,7 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD: Clone> SendingCtx for ZkProverCtx<G
 // Prover-specific methods
 // ============================================================================
 
-impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD: Clone> ZkProverCtx<GC, MK, PD> {
+impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ZkProverCtx<GC, PC> {
     /// Access the challenger directly for Fiat-Shamir operations.
     pub fn challenger(&mut self) -> RefMut<'_, GC::Challenger> {
         self.inner.challenger()
@@ -145,7 +167,7 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD: Clone> ZkProverCtx<GC, MK, PD> {
         rng: &mut RNG,
     ) -> Result<MleCommit, super::inner::ZkPcsCommitmentError>
     where
-        P: super::inner::ZkPcsProver<GC, MK, ProverData = PD>,
+        P: super::inner::ZkPcsProver<GC, PC::Merkelizer, ProverData = PC::PcsProverData>,
         RNG: rand::CryptoRng + rand::Rng,
         rand::distributions::Standard: rand::distributions::Distribution<GC::F>,
     {
@@ -155,46 +177,75 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD: Clone> ZkProverCtx<GC, MK, PD> {
     }
 
     /// Generates a zero-knowledge proof. Consumes self.
-    pub fn prove<RNG, P>(self, rng: &mut RNG, pcs_prover: Option<&P>) -> super::inner::ZkProof<GC>
-    where
-        RNG: rand::CryptoRng + rand::Rng,
-        rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
-        P: super::inner::ZkPcsProver<GC, MK, ProverData = PD>,
-    {
-        self.inner.prove(rng, pcs_prover)
-    }
-}
-
-impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkProverCtx<GC, MK, ()> {
-    /// Convenience method to generate a proof without PCS support.
-    pub fn prove_without_pcs<RNG: rand::CryptoRng + rand::Rng>(
-        self,
-        rng: &mut RNG,
-    ) -> super::inner::ZkProof<GC>
+    pub fn prove<RNG: rand::CryptoRng + rand::Rng>(self, rng: &mut RNG) -> ZkProof<GC>
     where
         rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
     {
-        self.inner.prove_without_pcs(rng)
+        self.inner.prove(rng, self.pcs_prover.as_ref())
     }
 }
 
-impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverCtx<GC, MK, PD> {
+impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ZkProverCtx<GC, PC> {
     /// Initializes a prover that supports both linear and multiplicative constraints.
-    pub fn initialize<RNG: rand::CryptoRng + rand::Rng>(length: usize, rng: &mut RNG) -> Self
+    pub fn initialize<RNG: rand::CryptoRng + rand::Rng>(
+        length: usize,
+        rng: &mut RNG,
+        pcs_prover: Option<PC::PcsProver>,
+    ) -> Self
     where
         rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
     {
-        Self { inner: ZkProverContext::initialize(length, rng) }
+        Self { inner: ZkProverContext::initialize(length, rng), pcs_prover }
     }
 
     /// Initializes a prover that supports only linear constraints.
     pub fn initialize_only_lin_constraints<RNG: rand::CryptoRng + rand::Rng>(
         length: usize,
         rng: &mut RNG,
+        pcs_prover: Option<PC::PcsProver>,
     ) -> Self
     where
         rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
     {
-        Self { inner: ZkProverContext::initialize_only_lin_constraints(length, rng) }
+        Self { inner: ZkProverContext::initialize_only_lin_constraints(length, rng), pcs_prover }
+    }
+}
+
+// ============================================================================
+// No-PCS convenience methods
+// ============================================================================
+
+impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkProverCtx<GC, NoPcsConfig<MK>> {
+    /// Generates a proof without PCS support. Panics if PCS eval claims were registered.
+    pub fn prove_without_pcs<RNG: rand::CryptoRng + rand::Rng>(self, rng: &mut RNG) -> ZkProof<GC>
+    where
+        rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
+    {
+        self.inner.prove_without_pcs(rng)
+    }
+
+    /// Initializes a no-PCS prover with both linear and multiplicative constraints.
+    pub fn initialize_without_pcs<RNG: rand::CryptoRng + rand::Rng>(
+        length: usize,
+        rng: &mut RNG,
+    ) -> Self
+    where
+        rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
+    {
+        Self { inner: ZkProverContext::initialize(length, rng), pcs_prover: None }
+    }
+
+    /// Initializes a no-PCS prover with only linear constraints.
+    pub fn initialize_without_pcs_only_lin<RNG: rand::CryptoRng + rand::Rng>(
+        length: usize,
+        rng: &mut RNG,
+    ) -> Self
+    where
+        rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
+    {
+        Self {
+            inner: ZkProverContext::initialize_only_lin_constraints(length, rng),
+            pcs_prover: None,
+        }
     }
 }

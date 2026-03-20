@@ -14,7 +14,7 @@ use slop_challenger::IopCtx;
 use slop_koala_bear::KoalaBearDegree4Duplex;
 use slop_merkle_tree::Poseidon2KoalaBear16Prover;
 use slop_veil::compiler::{ConstraintCtx, ReadingCtx, SendingCtx};
-use slop_veil::zk::{compute_mask_length, ZkProverCtx, ZkVerifierCtx};
+use slop_veil::zk::{compute_mask_length, NoPcsConfig, ZkProverCtx, ZkVerifierCtx};
 
 type GC = KoalaBearDegree4Duplex;
 type MK = Poseidon2KoalaBear16Prover;
@@ -79,7 +79,8 @@ fn main() {
     eprintln!("\n=== PROVER ===");
     let proof = {
         let now = std::time::Instant::now();
-        let mut ctx: ZkProverCtx<GC, MK> = ZkProverCtx::initialize(mask_length, &mut rng);
+        let mut ctx: ZkProverCtx<GC, NoPcsConfig<MK>> =
+            ZkProverCtx::initialize_without_pcs(mask_length, &mut rng);
 
         // Send the secret root
         let root_expr = ctx.send_value(secret_root);
@@ -95,17 +96,12 @@ fn main() {
     // === VERIFIER ===
     eprintln!("\n=== VERIFIER ===");
     {
-        let now = std::time::Instant::now();
         let mut ctx = ZkVerifierCtx::init(proof, None);
-
         // Read the root from transcript
         let root = ctx.read_one().expect("failed to read root");
-
         // Constrain: p(root) = 0
         build_poly_constraint(&poly_coeffs, root, &mut ctx);
-
         ctx.verify().expect("verification failed");
-        eprintln!("Verifier time: {:?}", now.elapsed());
     }
 
     eprintln!("\n=== PASSED ===");
