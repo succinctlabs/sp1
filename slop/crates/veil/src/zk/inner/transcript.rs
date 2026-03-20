@@ -422,6 +422,20 @@ pub struct PcsEvalClaim<K, Expr> {
     pub eval_expr: Expr,
 }
 
+/// A batched evaluation claim for multiple committed MLEs at the same point.
+///
+/// Groups several commitments that are all evaluated at a common point,
+/// enabling a single batched PCS proof instead of one proof per commitment.
+#[derive(Clone)]
+pub struct PcsMultiEvalClaim<K, Expr> {
+    /// Indices of the commitments being evaluated
+    pub commitment_indices: Vec<MleCommitmentIndex>,
+    /// The shared evaluation point
+    pub point: Point<K>,
+    /// Expressions representing the claimed evaluation values (one per commitment)
+    pub eval_exprs: Vec<Expr>,
+}
+
 /// Groups items by a key, preserving insertion order of first appearance.
 ///
 /// Returns a `Vec` of `(key, items)` pairs where items sharing the same key

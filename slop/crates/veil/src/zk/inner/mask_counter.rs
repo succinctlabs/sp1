@@ -160,21 +160,21 @@ impl<GC: ZkIopCtx> ConstraintContextInnerExt<GC::EF> for MaskCounterContext<GC> 
         self.clone()
     }
 
-    fn assert_mle_eval(
+    fn assert_mle_multi_eval(
         &mut self,
-        commitment_index: super::MleCommitmentIndex,
+        claims: Vec<(super::MleCommitmentIndex, Self::Expr)>,
         _point: super::Point<GC::EF>,
-        _eval_expr: Self::Expr,
     ) {
-        // Look up the commitment parameters for this index
         let pcs_commitments = self.pcs_commitments.borrow();
-        let log_num_polys = pcs_commitments[commitment_index.index()];
-
-        // PCS verification reads (1 << log_num_polys) + GC::EF::D elements from the transcript
-        // (see verify_zk_stacked_pcs which calls context.read_next(num_polys)
-        // where num_polys = (1 << log_num_polys) + GC::EF::D)
-        let num_elements = (1 << log_num_polys) + GC::EF::D;
-        *self.counter.borrow_mut() += num_elements;
+        // Each claim corresponds to evaluating a commitment at a point, which requires reading
+        // the data column evaluations.
+        for (commitment_index, _) in claims.iter() {
+            let log_num_polys = pcs_commitments[commitment_index.index()];
+            let num_data = 1 << log_num_polys;
+            *self.counter.borrow_mut() += num_data;
+        }
+        // Account for mask column evaluations (only once, from the first commitment)
+        *self.counter.borrow_mut() += GC::EF::D;
     }
 }
 

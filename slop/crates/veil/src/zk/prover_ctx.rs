@@ -119,14 +119,19 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ConstraintCtx for ZkProverCtx<GC, PC
         self.inner.assert_a_times_b_equals_c(ai, bi, ci);
     }
 
-    fn assert_mle_eval(
+    fn assert_mle_multi_eval(
         &mut self,
-        oracle: MleCommit,
+        claims: Vec<(MleCommit, ProverTranscriptElement<GC, PC>)>,
         point: Point<GC::EF>,
-        eval_expr: ProverTranscriptElement<GC, PC>,
     ) {
-        let eval_idx = into_prover_value::<GC, PC>(eval_expr, &mut self.inner);
-        self.inner.assert_mle_eval(oracle.inner, point, eval_idx);
+        let inner_claims: Vec<_> = claims
+            .into_iter()
+            .map(|(oracle, eval_expr)| {
+                let eval_idx = into_prover_value::<GC, PC>(eval_expr, &mut self.inner);
+                (oracle.inner, eval_idx)
+            })
+            .collect();
+        self.inner.assert_mle_multi_eval(inner_claims, point);
     }
 }
 

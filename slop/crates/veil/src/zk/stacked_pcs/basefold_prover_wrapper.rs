@@ -122,15 +122,10 @@ pub fn prove_from_batched_inputs<GC: ZkIopCtx, MK: ZkMerkleizer<GC>>(
     batched_mle: Mle<GC::EF, CpuBackend>,
     batched_eval_claim: GC::EF,
     batched_codeword: RsCodeWord<GC::F, CpuBackend>,
-    prover_data: BasefoldProverData<GC::F, MerkleProverData<GC, MK>>,
+    prover_datas: Vec<BasefoldProverData<GC::F, MerkleProverData<GC, MK>>>,
     challenger: &mut GC::Challenger,
 ) -> Result<BasefoldProof<GC>, BaseFoldConfigProverError<GC, MK>> {
     let fri_prover = FriCpuProver::<GC, MK>(PhantomData);
-
-    // From this point on, run the BaseFold protocol on the random linear combination codeword,
-    // the random linear combination multilinear, and the random linear combination of the
-    // evaluation claims.
-    let BasefoldProverData { encoded_messages, tcs_prover_data } = prover_data;
 
     let mut current_mle = batched_mle;
     let mut current_codeword = batched_codeword;
@@ -195,17 +190,21 @@ pub fn prove_from_batched_inputs<GC: ZkIopCtx, MK: ZkMerkleizer<GC>>(
         .map(|_| challenger.sample_bits(log_len as usize + fri_config.log_blowup()))
         .collect();
 
-    // Open the original polynomials at the query indices.
+    // Open each committed polynomial at the query indices.
     let mut component_polynomials_query_openings_and_proofs = vec![];
-    let values =
-        basefold_prover.tcs_prover.compute_openings_at_indices(encoded_messages, &query_indices);
-    let proof = basefold_prover
-        .tcs_prover
-        .prove_openings_at_indices(tcs_prover_data, &query_indices)
-        .map_err(BaseFoldConfigProverError::<GC, MK>::TcsCommitError)
-        .unwrap();
-    let opening = MerkleTreeOpeningAndProof::<GC> { values, proof };
-    component_polynomials_query_openings_and_proofs.push(opening);
+    for prover_data in prover_datas {
+        let BasefoldProverData { encoded_messages, tcs_prover_data } = prover_data;
+        let values = basefold_prover
+            .tcs_prover
+            .compute_openings_at_indices(encoded_messages, &query_indices);
+        let proof = basefold_prover
+            .tcs_prover
+            .prove_openings_at_indices(tcs_prover_data, &query_indices)
+            .map_err(BaseFoldConfigProverError::<GC, MK>::TcsCommitError)
+            .unwrap();
+        component_polynomials_query_openings_and_proofs
+            .push(MerkleTreeOpeningAndProof::<GC> { values, proof });
+    }
 
     // Provide openings for the FRI query phase.
     let mut query_phase_openings_and_proofs = vec![];
@@ -278,7 +277,7 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkBasefoldProver<GC, MK> {
         batched_mle: Mle<GC::EF, CpuBackend>,
         batched_codeword: RsCodeWord<GC::F, CpuBackend>,
         batched_eval_claim: GC::EF,
-        prover_data: BasefoldProverData<GC::F, MerkleProverData<GC, MK>>,
+        prover_datas: Vec<BasefoldProverData<GC::F, MerkleProverData<GC, MK>>>,
         challenger: &mut GC::Challenger,
     ) -> Result<BasefoldProof<GC>, BaseFoldConfigProverError<GC, MK>> {
         prove_from_batched_inputs(
@@ -287,7 +286,7 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkBasefoldProver<GC, MK> {
             batched_mle,
             batched_eval_claim,
             batched_codeword,
-            prover_data,
+            prover_datas,
             challenger,
         )
     }

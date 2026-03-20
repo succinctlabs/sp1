@@ -18,7 +18,7 @@ use slop_merkle_tree::TensorCsProver;
 
 use super::prover_transcript::ProverElement;
 use super::transcript::{
-    MleCommitmentIndex, PcsCommitmentEntry, PcsEvalClaim, Point, ProofTranscript,
+    MleCommitmentIndex, PcsCommitmentEntry, PcsMultiEvalClaim, Point, ProofTranscript,
     TranscriptLinConstraint, TranscriptMulConstraint,
 };
 use super::{
@@ -123,8 +123,8 @@ pub struct ZkProverContextInner<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD = ()> {
     // PCS commitment entries with their prover data
     pcs_commitments: Vec<(PcsCommitmentEntry<GC::Digest>, PD)>,
 
-    // PCS evaluation claims to be proven
-    pcs_eval_claims: Vec<PcsEvalClaim<GC::EF, ProverValue<GC, MK, PD>>>,
+    // PCS evaluation claims to be proven (each may batch multiple commitments at same point)
+    pcs_eval_claims: Vec<PcsMultiEvalClaim<GC::EF, ProverValue<GC, MK, PD>>>,
 
     // Debug: constraint debugger (only present when sp1_debug_constraints is enabled)
     #[cfg(sp1_debug_constraints)]
@@ -193,11 +193,15 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD: Clone> ConstraintContextInner<GC::E
 
     fn add_eval_claim(
         &mut self,
-        commitment_index: MleCommitmentIndex,
+        commitment_indices: Vec<MleCommitmentIndex>,
         point: Point<GC::EF>,
-        eval_expr: ProverValue<GC, MK, PD>,
+        eval_exprs: Vec<ProverValue<GC, MK, PD>>,
     ) {
-        self.borrow_mut().pcs_eval_claims.push(PcsEvalClaim { commitment_index, point, eval_expr });
+        self.borrow_mut().pcs_eval_claims.push(PcsMultiEvalClaim {
+            commitment_indices,
+            point,
+            eval_exprs,
+        });
     }
 }
 
@@ -439,7 +443,7 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
     }
 
     /// Returns the PCS evaluation claims registered so far.
-    pub fn pcs_eval_claims(&self) -> Vec<PcsEvalClaim<GC::EF, ProverValue<GC, MK, PD>>>
+    pub fn pcs_eval_claims(&self) -> Vec<PcsMultiEvalClaim<GC::EF, ProverValue<GC, MK, PD>>>
     where
         PD: Clone,
     {
@@ -580,12 +584,14 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
         // same commitment would leak information and break zero-knowledge.
         let mut seen = std::collections::HashSet::new();
         for claim in &eval_claims {
-            if !seen.insert(claim.commitment_index) {
-                eprintln!(
-                    "WARNING: Multiple eval claims on the same PCS commitment (index {}). \
-                     This breaks zero-knowledge but not soundness.",
-                    claim.commitment_index.index(),
-                );
+            for idx in &claim.commitment_indices {
+                if !seen.insert(*idx) {
+                    eprintln!(
+                        "WARNING: Multiple eval claims on the same PCS commitment (index {}). \
+                         This breaks zero-knowledge but not soundness.",
+                        idx.index(),
+                    );
+                }
             }
         }
 
@@ -596,7 +602,7 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
 
         let mut pcs_proofs = Vec::with_capacity(eval_claims.len());
         for claim in eval_claims {
-            let proof = pcs_prover.prove_eval(self, claim);
+            let proof = pcs_prover.prove_multi_eval(self, claim);
             pcs_proofs.push(proof);
         }
 
@@ -724,12 +730,12 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkPcsProver<GC, MK> for NoPcsProver {
         panic!("NoPcsProver::commit_mle should never be called")
     }
 
-    fn prove_eval(
+    fn prove_multi_eval(
         &self,
         _ctx: &mut ZkProverContext<GC, MK, ()>,
-        _claim: PcsEvalClaim<GC::EF, ProverValue<GC, MK, ()>>,
+        _claim: PcsMultiEvalClaim<GC::EF, ProverValue<GC, MK, ()>>,
     ) -> GC::PcsProof {
-        panic!("NoPcsProver::prove_eval should never be called")
+        panic!("NoPcsProver::prove_multi_eval should never be called")
     }
 }
 

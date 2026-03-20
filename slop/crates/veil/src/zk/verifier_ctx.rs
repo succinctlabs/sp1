@@ -96,14 +96,19 @@ impl<GC: ZkIopCtx> ConstraintCtx for ZkVerifierCtx<GC> {
         self.inner.assert_a_times_b_equals_c(ai, bi, ci);
     }
 
-    fn assert_mle_eval(
+    fn assert_mle_multi_eval(
         &mut self,
-        oracle: MleCommit,
+        claims: Vec<(MleCommit, TranscriptElement<GC>)>,
         point: Point<GC::EF>,
-        eval_expr: TranscriptElement<GC>,
     ) {
-        let eval_idx = into_verifier_value(eval_expr, &mut self.inner);
-        self.inner.assert_mle_eval(oracle.inner, point, eval_idx);
+        let inner_claims: Vec<_> = claims
+            .into_iter()
+            .map(|(oracle, eval_expr)| {
+                let eval_idx = into_verifier_value(eval_expr, &mut self.inner);
+                (oracle.inner, eval_idx)
+            })
+            .collect();
+        self.inner.assert_mle_multi_eval(inner_claims, point);
     }
 }
 

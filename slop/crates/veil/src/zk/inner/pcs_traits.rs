@@ -10,7 +10,7 @@ use slop_alloc::CpuBackend;
 use slop_multilinear::Mle;
 use thiserror::Error;
 
-use super::transcript::PcsEvalClaim;
+use super::transcript::PcsMultiEvalClaim;
 use super::{
     ProverValue, VerifierValue, ZkIopCtx, ZkMerkleizer, ZkProverContext, ZkVerificationContext,
 };
@@ -70,19 +70,20 @@ pub trait ZkPcsProver<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> {
     where
         rand::distributions::Standard: rand::distributions::Distribution<GC::F>;
 
-    /// Generates an evaluation proof for a single claim on one commitment.
+    /// Generates a (possibly batched) evaluation proof for one or more commitments
+    /// at the same point.
     ///
     /// # Arguments
     /// * `ctx` - The prover constraint context
-    /// * `claim` - The evaluation claim to prove
+    /// * `claim` - The evaluation claim (may contain one or multiple commitments)
     ///
     /// # Returns
-    /// A `GC::PcsProof` for the claim.
+    /// A single proof covering all commitments in the claim.
     #[allow(clippy::type_complexity)]
-    fn prove_eval(
+    fn prove_multi_eval(
         &self,
         ctx: &mut ZkProverContext<GC, MK, Self::ProverData>,
-        claim: PcsEvalClaim<GC::EF, ProverValue<GC, MK, Self::ProverData>>,
+        claim: PcsMultiEvalClaim<GC::EF, ProverValue<GC, MK, Self::ProverData>>,
     ) -> GC::PcsProof;
 }
 
@@ -100,20 +101,21 @@ pub trait ZkPcsVerifier<GC: ZkIopCtx> {
     /// The proof type to verify. Must equal `GC::PcsProof` in practice.
     type Proof;
 
-    /// Verifies an evaluation proof for a single claim on one commitment.
+    /// Verifies a (possibly batched) evaluation proof for one or more commitments
+    /// at the same point.
     ///
     /// # Arguments
     /// * `ctx` - The verifier constraint context
-    /// * `claim` - The evaluation claim to verify
+    /// * `claim` - The evaluation claim (may contain one or multiple commitments)
     /// * `proof` - The proof to verify
     ///
     /// # Returns
     /// `Ok(())` if verification succeeds, or an error describing the failure.
     #[allow(clippy::type_complexity)]
-    fn verify_eval(
+    fn verify_multi_eval(
         &self,
         ctx: &mut ZkVerificationContext<GC>,
-        claim: PcsEvalClaim<GC::EF, VerifierValue<GC>>,
+        claim: PcsMultiEvalClaim<GC::EF, VerifierValue<GC>>,
         proof: &Self::Proof,
     ) -> Result<(), ZkPcsVerificationError>;
 }

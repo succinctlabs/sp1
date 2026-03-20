@@ -79,20 +79,15 @@ pub trait ConstraintContextInner<K: AbstractField + Copy>: Clone {
         b: <Self::Element as ZkElement<K>>::LinExpr,
     ) -> Option<Self::Element>;
 
-    /// Adds a PCS evaluation claim.
+    /// Adds a (possibly batched) PCS evaluation claim for one or more commitments at the same point.
     ///
-    /// Associates a commitment with an evaluation point and the claimed evaluation value.
-    /// The actual PCS proof generation/verification is done externally.
-    ///
-    /// # Arguments
-    /// * `commitment_index` - Index of the committed MLE
-    /// * `point` - Evaluation point
-    /// * `eval_expr` - Expression index representing the evaluation claim
+    /// A single commitment produces a length-1 claim; multiple commitments at the same point
+    /// produce a batched proof.
     fn add_eval_claim(
         &mut self,
-        commitment_index: MleCommitmentIndex,
+        commitment_indices: Vec<MleCommitmentIndex>,
         point: Point<K>,
-        eval_expr: ExpressionIndex<K, Self>,
+        eval_exprs: Vec<ExpressionIndex<K, Self>>,
     );
 
     fn assert_zero_inner(&mut self, expr: ExpressionIndex<K, Self>) {
@@ -479,15 +474,24 @@ pub trait ConstraintContextInnerExt<K: AbstractField + Copy>: Clone {
     /// Registers an evaluation claim that will be proven/verified during
     /// the PCS proof generation/verification phase.
     ///
-    /// # Arguments
-    /// * `commitment_index` - Index of the committed MLE (from `commit_mle` or `read_next_pcs_commitment`)
-    /// * `point` - The evaluation point
-    /// * `eval_expr` - Expression representing the claimed evaluation value
+    /// Default implementation delegates to `assert_mle_multi_eval` with a single claim.
     fn assert_mle_eval(
         &mut self,
         commitment_index: MleCommitmentIndex,
         point: Point<K>,
         eval_expr: Self::Expr,
+    ) {
+        self.assert_mle_multi_eval(vec![(commitment_index, eval_expr)], point);
+    }
+
+    /// Asserts that multiple committed MLEs evaluate to the given values at a shared point.
+    ///
+    /// This produces a single batched PCS proof covering all commitments,
+    /// which is more efficient than calling `assert_mle_eval` once per commitment.
+    fn assert_mle_multi_eval(
+        &mut self,
+        claims: Vec<(MleCommitmentIndex, Self::Expr)>,
+        point: Point<K>,
     );
 }
 
@@ -526,13 +530,13 @@ impl<K: AbstractField + Copy, C: ConstraintContextInner<K> + private::Sealed>
         self.name_last_lin_constraint_inner(name)
     }
 
-    fn assert_mle_eval(
+    fn assert_mle_multi_eval(
         &mut self,
-        commitment_index: MleCommitmentIndex,
+        claims: Vec<(MleCommitmentIndex, Self::Expr)>,
         point: Point<K>,
-        eval_expr: Self::Expr,
     ) {
-        self.add_eval_claim(commitment_index, point, eval_expr)
+        let (commitment_indices, eval_exprs): (Vec<_>, Vec<_>) = claims.into_iter().unzip();
+        self.add_eval_claim(commitment_indices, point, eval_exprs)
     }
 }
 

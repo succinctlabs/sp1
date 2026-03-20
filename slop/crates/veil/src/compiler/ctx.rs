@@ -64,15 +64,24 @@ pub trait ConstraintCtx {
     /// Registers an evaluation claim that will be proven/verified during
     /// the PCS proof generation/verification phase.
     ///
-    /// # Arguments
-    /// * `oracle` - Handle to the committed MLE (from `read_oracle`)
-    /// * `point` - The evaluation point (challenges)
-    /// * `eval_expr` - Expression representing the claimed evaluation value
+    /// Default implementation delegates to `assert_mle_multi_eval` with a single claim.
     fn assert_mle_eval(
         &mut self,
         oracle: Self::MleOracle,
         point: Point<Self::Challenge>,
         eval_expr: Self::Expr,
+    ) {
+        self.assert_mle_multi_eval(vec![(oracle, eval_expr)], point);
+    }
+
+    /// Asserts that multiple committed MLEs evaluate to the given values at a shared point.
+    ///
+    /// This produces a single batched PCS proof covering all commitments,
+    /// which is more efficient than calling `assert_mle_eval` once per commitment.
+    fn assert_mle_multi_eval(
+        &mut self,
+        claims: Vec<(Self::MleOracle, Self::Expr)>,
+        point: Point<Self::Challenge>,
     );
 }
 

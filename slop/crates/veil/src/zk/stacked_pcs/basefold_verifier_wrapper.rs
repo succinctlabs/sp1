@@ -109,7 +109,7 @@ where
     /// 5. Final polynomial consistency check
     pub fn verify_trusted_ext_mle_evaluation(
         &self,
-        commitment: &GC::Digest,
+        commitments: &[GC::Digest],
         mut point: Point<GC::EF>,
         eval_claim: GC::EF,
         proof: &BasefoldProof<GC>,
@@ -118,9 +118,7 @@ where
     ) -> Result<(), BaseFoldVerifierError<MerkleTreeTcsError>> {
         let verifier = &self.inner.basefold_verifier;
 
-        if proof.component_polynomials_query_openings_and_proofs.len() != 1
-            || verifier.num_expected_commitments != 1
-        {
+        if proof.component_polynomials_query_openings_and_proofs.len() != commitments.len() {
             return Err(BaseFoldVerifierError::IncorrectShape);
         }
 
@@ -195,34 +193,35 @@ where
             .map(|_| challenger.sample_bits(log_len + verifier.fri_config.log_blowup()))
             .collect::<Vec<_>>();
 
-        // Compute the batch evaluations from the openings of the component polynomials.
-        let opening_and_proof = &proof.component_polynomials_query_openings_and_proofs[0];
-        let initial_opening_values = &opening_and_proof.values;
+        // Shape-check and verify Merkle openings for each committed polynomial.
+        let log_tensor_height = log_len + verifier.fri_config.log_blowup();
+        for (opening_and_proof, commitment) in
+            proof.component_polynomials_query_openings_and_proofs.iter().zip_eq(commitments)
+        {
+            let initial_opening_values = &opening_and_proof.values;
+            if initial_opening_values.dimensions.sizes().len() != 2 {
+                return Err(BaseFoldVerifierError::IncorrectShape);
+            }
+            if initial_opening_values.dimensions.sizes()[0] != query_indices.len() {
+                return Err(BaseFoldVerifierError::IncorrectShape);
+            }
+            if opening_and_proof.proof.log_tensor_height != log_tensor_height {
+                return Err(BaseFoldVerifierError::IncorrectShape);
+            }
 
-        if initial_opening_values.dimensions.sizes().len() != 2 {
-            return Err(BaseFoldVerifierError::IncorrectShape);
-        }
-        if initial_opening_values.dimensions.sizes()[0] != query_indices.len() {
-            return Err(BaseFoldVerifierError::IncorrectShape);
-        }
-        if opening_and_proof.proof.log_tensor_height != log_len + verifier.fri_config.log_blowup() {
-            return Err(BaseFoldVerifierError::IncorrectShape);
+            verifier
+                .tcs
+                .verify_tensor_openings(
+                    commitment,
+                    &query_indices,
+                    &opening_and_proof.values,
+                    &opening_and_proof.proof,
+                )
+                .map_err(BaseFoldVerifierError::TcsError)?;
         }
 
         // Compute corrected batch evaluations via the caller-provided closure.
-        let batch_evals_corrected =
-            compute_batch_evals(&query_indices, opening_and_proof.proof.log_tensor_height);
-
-        // Verify the proof of the claimed values.
-        verifier
-            .tcs
-            .verify_tensor_openings(
-                commitment,
-                &query_indices,
-                &opening_and_proof.values,
-                &opening_and_proof.proof,
-            )
-            .map_err(BaseFoldVerifierError::TcsError)?;
+        let batch_evals_corrected = compute_batch_evals(&query_indices, log_tensor_height);
 
         // Check that the query openings are consistent as FRI messages.
         self.verify_queries(

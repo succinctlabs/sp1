@@ -64,19 +64,16 @@ impl<GC: ZkIopCtx> ConstraintCtx for MaskCounter<GC> {
 
     fn assert_a_times_b_equals_c(&mut self, _a: Self::Expr, _b: Self::Expr, _c: Self::Expr) {}
 
-    fn assert_mle_eval(
+    fn assert_mle_multi_eval(
         &mut self,
-        oracle: MleCommit,
+        claims: Vec<(MleCommit, Self::Expr)>,
         _point: slop_multilinear::Point<GC::EF>,
-        _eval_expr: Self::Expr,
     ) {
         use crate::zk::inner::ConstraintContextInnerExt;
         // Delegate to inner which knows how to count PCS verification reads
-        self.inner.assert_mle_eval(
-            oracle.inner,
-            slop_multilinear::Point::default(),
-            self.inner.clone(),
-        );
+        let inner_claims: Vec<_> =
+            claims.into_iter().map(|(oracle, _)| (oracle.inner, self.inner.clone())).collect();
+        self.inner.assert_mle_multi_eval(inner_claims, slop_multilinear::Point::default());
     }
 }
 

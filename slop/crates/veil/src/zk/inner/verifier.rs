@@ -10,7 +10,7 @@ use thiserror::Error;
 
 use super::prover::{ZkCnstrProof, ZkMulCnstrProof, ZkProof};
 use super::transcript::{
-    MleCommitmentIndex, PcsCommitmentEntry, PcsEvalClaim, Point, ProofTranscript,
+    MleCommitmentIndex, PcsCommitmentEntry, PcsMultiEvalClaim, Point, ProofTranscript,
     TranscriptLinConstraint, TranscriptMulConstraint,
 };
 use super::verifier_transcript::{VerifierElement, VerifierLinExpression, VerifierValue};
@@ -64,8 +64,8 @@ pub struct ZkVerificationContextInner<GC: ZkIopCtx> {
     /// Current index into pcs_commitment_transcript for reading
     pcs_commitment_current_index: usize,
 
-    /// PCS evaluation claims to be verified
-    pcs_eval_claims: Vec<PcsEvalClaim<GC::EF, VerifierValue<GC>>>,
+    /// PCS evaluation claims to be verified (each may batch multiple commitments at same point)
+    pcs_eval_claims: Vec<PcsMultiEvalClaim<GC::EF, VerifierValue<GC>>>,
 
     /// The stored constraint proof
     proof: ZkCnstrProof<GC>,
@@ -114,11 +114,15 @@ impl<GC: ZkIopCtx> ConstraintContextInner<GC::EF> for ZkVerificationContext<GC> 
 
     fn add_eval_claim(
         &mut self,
-        commitment_index: MleCommitmentIndex,
+        commitment_indices: Vec<MleCommitmentIndex>,
         point: Point<GC::EF>,
-        eval_expr: VerifierValue<GC>,
+        eval_exprs: Vec<VerifierValue<GC>>,
     ) {
-        self.borrow_mut().pcs_eval_claims.push(PcsEvalClaim { commitment_index, point, eval_expr });
+        self.borrow_mut().pcs_eval_claims.push(PcsMultiEvalClaim {
+            commitment_indices,
+            point,
+            eval_exprs,
+        });
     }
 }
 
@@ -212,7 +216,7 @@ impl<GC: ZkIopCtx> ZkVerificationContext<GC> {
     }
 
     /// Returns the PCS evaluation claims registered so far.
-    pub fn pcs_eval_claims(&self) -> Vec<PcsEvalClaim<GC::EF, VerifierValue<GC>>> {
+    pub fn pcs_eval_claims(&self) -> Vec<PcsMultiEvalClaim<GC::EF, VerifierValue<GC>>> {
         self.borrow().pcs_eval_claims.clone()
     }
 
@@ -288,7 +292,7 @@ impl<GC: ZkIopCtx> ZkVerificationContext<GC> {
 
     /// Helper method to verify PCS evaluation claims.
     ///
-    /// One proof is verified per claim.
+    /// One proof is verified per claim. Each claim may batch multiple commitments.
     fn verify_pcs_claims<V>(&mut self, pcs_verifier: Option<&V>) -> Result<(), ZkVerifierError>
     where
         V: ZkPcsVerifier<GC, Proof = GC::PcsProof>,
@@ -316,7 +320,7 @@ impl<GC: ZkIopCtx> ZkVerificationContext<GC> {
         // Verify each PCS proof
         for (i, (claim, pcs_proof)) in eval_claims.into_iter().zip(pcs_proofs.iter()).enumerate() {
             pcs_verifier
-                .verify_eval(self, claim, pcs_proof)
+                .verify_multi_eval(self, claim, pcs_proof)
                 .map_err(|e| ZkVerifierError::PcsVerificationFailed { index: i, error: e })?;
         }
 
@@ -398,13 +402,13 @@ pub struct NoPcsVerifier;
 impl<GC: ZkIopCtx> ZkPcsVerifier<GC> for NoPcsVerifier {
     type Proof = GC::PcsProof;
 
-    fn verify_eval(
+    fn verify_multi_eval(
         &self,
         _ctx: &mut ZkVerificationContext<GC>,
-        _claim: PcsEvalClaim<GC::EF, VerifierValue<GC>>,
+        _claim: PcsMultiEvalClaim<GC::EF, VerifierValue<GC>>,
         _proof: &GC::PcsProof,
     ) -> Result<(), ZkPcsVerificationError> {
-        panic!("NoPcsVerifier::verify_eval should never be called")
+        panic!("NoPcsVerifier::verify_multi_eval should never be called")
     }
 }
 
