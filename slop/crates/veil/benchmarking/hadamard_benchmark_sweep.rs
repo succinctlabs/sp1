@@ -29,7 +29,7 @@ fn main() {
         concat!(env!("CARGO_MANIFEST_DIR"), "/benchmarking/hadamard_benchmark_sweep_results.csv");
     let mut file = File::create(output_path).expect("Failed to create output file");
 
-    let header = "num_stacked_vars,log_stacking_height,total_vars,run,\
+    let header = "num_encoding_variables,log_num_polynomials,num_variables,run,\
          std_prover_ms,std_verifier_ms,std_proof_bytes,\
          zk_prover_ms,zk_verifier_ms,zk_proof_bytes";
     writeln!(file, "{header}").unwrap();
@@ -37,16 +37,16 @@ fn main() {
 
     let mut rng = ChaCha20Rng::from_entropy();
 
-    for &(num_stacked_vars, log_stacking_height) in configs {
-        let total_vars = num_stacked_vars + log_stacking_height;
+    for &(num_encoding_variables, log_num_polynomials) in configs {
+        let num_variables = num_encoding_variables + log_num_polynomials;
 
         eprintln!(
-            "\n--- Config: num_stacked_vars={num_stacked_vars}, \
-             log_stacking_height={log_stacking_height}, total_vars={total_vars} ---"
+            "\n--- Config: num_encoding_variables={num_encoding_variables}, \
+             log_num_polynomials={log_num_polynomials}, num_variables={num_variables} ---"
         );
 
         let (mle_1, mle_2, hadamard_product, claim) =
-            generate_random_hadamard_product(&mut rng, total_vars);
+            generate_random_hadamard_product(&mut rng, num_variables);
 
         // Warmup
         {
@@ -70,23 +70,23 @@ fn main() {
                 &mle_2,
                 hadamard_product.clone(),
                 claim,
-                num_stacked_vars,
-                log_stacking_height,
-                total_vars,
+                num_encoding_variables,
+                log_num_polynomials,
+                num_variables,
             );
             let (zk_p, zk_v, zk_bytes) = run_zk_hadamard(
                 &mle_1,
                 &mle_2,
                 hadamard_product.clone(),
                 claim,
-                num_stacked_vars,
-                log_stacking_height,
-                total_vars,
+                num_encoding_variables,
+                log_num_polynomials,
+                num_variables,
                 &mut rng,
             );
 
             let line = format!(
-                "{num_stacked_vars},{log_stacking_height},{total_vars},{i},\
+                "{num_encoding_variables},{log_num_polynomials},{num_variables},{i},\
                  {:.3},{:.3},{std_bytes},{:.3},{:.3},{zk_bytes}",
                 std_p.as_secs_f64() * 1000.0,
                 std_v.as_secs_f64() * 1000.0,
@@ -114,7 +114,7 @@ fn main() {
         let mut zk_v: Vec<Duration> = results.iter().map(|r| r.zk_verifier).collect();
 
         let line = format!(
-            "{num_stacked_vars},{log_stacking_height},{total_vars},median,\
+            "{num_encoding_variables},{log_num_polynomials},{num_variables},median,\
              {:.3},{:.3},{},{:.3},{:.3},{}",
             median(&mut std_p).as_secs_f64() * 1000.0,
             median(&mut std_v).as_secs_f64() * 1000.0,

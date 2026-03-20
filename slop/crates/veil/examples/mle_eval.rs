@@ -19,11 +19,11 @@ type GC = KoalaBearDegree4Duplex;
 type MK = Poseidon2KoalaBear16Prover;
 
 const LOG_NUM_POLYNOMIALS: u32 = 8;
-const LOG_ENCODING_VARS: u32 = 8;
-const NUM_VARIABLES: u32 = LOG_NUM_POLYNOMIALS + LOG_ENCODING_VARS;
+const NUM_ENCODING_VARIABLES: u32 = 8;
+const NUM_VARIABLES: u32 = LOG_NUM_POLYNOMIALS + NUM_ENCODING_VARIABLES;
 
 fn read<C: ReadingCtx>(ctx: &mut C) -> (C::MleOracle, Point<C::Challenge>, C::Expr) {
-    let p_oracle = ctx.read_oracle(LOG_ENCODING_VARS, LOG_NUM_POLYNOMIALS).unwrap();
+    let p_oracle = ctx.read_oracle(NUM_ENCODING_VARIABLES, LOG_NUM_POLYNOMIALS).unwrap();
     let point = ctx.sample_point(NUM_VARIABLES);
     let eval = ctx.read_one().unwrap();
     (p_oracle, point, eval)
@@ -49,7 +49,7 @@ fn main() {
     });
     eprintln!("Mask length: {}", mask_length);
 
-    let (pcs_prover, verifier) = initialize_zk_prover_and_verifier(1, LOG_ENCODING_VARS);
+    let (pcs_prover, verifier) = initialize_zk_prover_and_verifier(1, NUM_ENCODING_VARIABLES);
 
     // === PROVER ===
     eprintln!("\n=== PROVER ===");

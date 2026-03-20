@@ -370,17 +370,27 @@ where
 /// a prover and verifier. The underlying `BasefoldVerifier` is shared (prover borrows it
 /// before verifier takes ownership).
 ///
-/// # Parameters
-/// - `num_expected_commitments`: Number of expected commitments
-/// - `log_stacking_height`: Log of the stacking height (number of variables per column)
+/// The `num_encoding_variables` value is fixed here and all subsequent
+/// [`commit_mle`](crate::zk::ZkProverCtx::commit_mle) and
+/// [`read_oracle`](crate::compiler::ReadingCtx::read_oracle) calls must use a matching
+/// `num_encoding_variables` (inferred from the MLE size for `commit_mle`, or passed
+/// directly for `read_oracle`).
+///
+/// # Arguments
+/// * `num_expected_commitments` — upper bound on the number of MLE commitments that
+///   will be made during the protocol.
+/// * `num_encoding_variables` — number of variables per stacked polynomial (encoding
+///   width). Each committed MLE will be stacked into a tensor whose rows have
+///   `2^num_encoding_variables` entries.
 ///
 /// # Example
 /// ```ignore
-/// let (zk_prover, zk_verifier) = initialize_zk_prover_and_verifier::<GC>(1, NUM_VARS);
+/// let (pcs_prover, pcs_verifier) =
+///     initialize_zk_prover_and_verifier::<GC, MK>(1, NUM_ENCODING_VARIABLES);
 /// ```
 pub fn initialize_zk_prover_and_verifier<GC: ZkIopCtx, MK: ZkMerkleizer<GC>>(
     num_expected_commitments: usize,
-    log_stacking_height: u32,
+    num_encoding_variables: u32,
 ) -> (ZkBasefoldProver<GC, MK>, ZkStackedPcsVerifier<GC>)
 where
     GC::F: TwoAdicField,
@@ -389,7 +399,7 @@ where
     let basefold_verifier = BasefoldVerifier::<GC>::new(fri_config, num_expected_commitments);
     let basefold_prover = BasefoldProver::new(&basefold_verifier);
     let zk_basefold_prover = ZkBasefoldProver::new(basefold_prover);
-    let stacked_verifier = StackedPcsVerifier::new(basefold_verifier, log_stacking_height);
+    let stacked_verifier = StackedPcsVerifier::new(basefold_verifier, num_encoding_variables);
     let zk_stacked_verifier = ZkStackedPcsVerifier::new(stacked_verifier);
     (zk_basefold_prover, zk_stacked_verifier)
 }

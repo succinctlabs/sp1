@@ -2,16 +2,16 @@ use slop_matrix::dense::RowMajorMatrix;
 use slop_multilinear::Mle;
 use thiserror::Error;
 
-/// Reshapes a flat MLE into a stacked MLE with `2^log_stacking_height` columns.
+/// Reshapes a flat MLE into a stacked MLE with `2^log_num_polynomials` columns.
 ///
-/// The flat MLE's data is reinterpreted as a matrix with `2^log_stacking_height` columns,
+/// The flat MLE's data is reinterpreted as a matrix with `2^log_num_polynomials` columns,
 /// effectively splitting one large polynomial into multiple smaller polynomials.
 ///
 /// # Panics
-/// Panics if the MLE's total length is not divisible by `2^log_stacking_height`.
-pub fn stack_mle<F: Copy + Send + Sync>(mle: Mle<F>, log_stacking_height: usize) -> Mle<F> {
+/// Panics if the MLE's total length is not divisible by `2^log_num_polynomials`.
+pub fn stack_mle<F: Copy + Send + Sync>(mle: Mle<F>, log_num_polynomials: usize) -> Mle<F> {
     let data = mle.into_guts().into_buffer().into_vec();
-    Mle::new(RowMajorMatrix::new(data, 1 << log_stacking_height).into())
+    Mle::new(RowMajorMatrix::new(data, 1 << log_num_polynomials).into())
 }
 
 #[derive(Debug, Error, Clone)]

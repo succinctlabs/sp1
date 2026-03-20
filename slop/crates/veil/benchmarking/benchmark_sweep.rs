@@ -24,7 +24,7 @@ fn main() {
 
     writeln!(
         file,
-        "total_num_vars,log_stacking_height,num_stacked_vars,\
+        "num_variables,log_num_polynomials,num_encoding_variables,\
          std_prover_median_ms,std_prover_stddev_ms,\
          std_verifier_median_ms,std_verifier_stddev_ms,\
          zk_prover_median_ms,zk_prover_stddev_ms,\
@@ -35,7 +35,7 @@ fn main() {
     file.flush().unwrap();
 
     eprintln!(
-        "Benchmark sweep: TOTAL_NUM_VARS {}..{}, LOG_STACKING_HEIGHT {}..{}",
+        "Benchmark sweep: NUM_VARIABLES {}..{}, LOG_NUM_POLYNOMIALS {}..{}",
         MIN_TOTAL_VARS, MAX_TOTAL_VARS, MIN_LOG_STACK, MAX_LOG_STACK
     );
     eprintln!("Warm-up: {NUM_WARMUP}, Measured iterations: {NUM_MEASURED} (reporting median)");
@@ -43,22 +43,22 @@ fn main() {
 
     let mut rng = ChaCha20Rng::from_entropy();
 
-    for total_num_vars in MIN_TOTAL_VARS..=MAX_TOTAL_VARS {
-        let max_log_stack = MAX_LOG_STACK.min(total_num_vars - 1);
-        for log_stacking_height in MIN_LOG_STACK..=max_log_stack {
-            let num_stacked_vars = total_num_vars - log_stacking_height;
+    for num_variables in MIN_TOTAL_VARS..=MAX_TOTAL_VARS {
+        let max_log_stack = MAX_LOG_STACK.min(num_variables - 1);
+        for log_num_polynomials in MIN_LOG_STACK..=max_log_stack {
+            let num_encoding_variables = num_variables - log_num_polynomials;
 
-            if num_stacked_vars < 10 {
+            if num_encoding_variables < 10 {
                 continue;
             }
 
             eprint!(
-                "total_vars={total_num_vars}, log_stack={log_stacking_height}, \
-                 stacked_vars={num_stacked_vars} ... "
+                "num_variables={num_variables}, log_num_polynomials={log_num_polynomials}, \
+                 num_encoding_variables={num_encoding_variables} ... "
             );
             std::io::Write::flush(&mut std::io::stdout()).unwrap();
 
-            let (original_mle, mle_ef, claim) = generate_random_mle(&mut rng, total_num_vars);
+            let (original_mle, mle_ef, claim) = generate_random_mle(&mut rng, num_variables);
 
             // Warm-up
             for _ in 0..NUM_WARMUP {
@@ -66,17 +66,17 @@ fn main() {
                     &original_mle,
                     &mle_ef,
                     claim,
-                    num_stacked_vars,
-                    log_stacking_height,
-                    total_num_vars,
+                    num_encoding_variables,
+                    log_num_polynomials,
+                    num_variables,
                 );
                 let _ = run_zk_single(
                     &original_mle,
                     &mle_ef,
                     claim,
-                    num_stacked_vars,
-                    log_stacking_height,
-                    total_num_vars,
+                    num_encoding_variables,
+                    log_num_polynomials,
+                    num_variables,
                     &mut rng,
                 );
             }
@@ -91,9 +91,9 @@ fn main() {
                     &original_mle,
                     &mle_ef,
                     claim,
-                    num_stacked_vars,
-                    log_stacking_height,
-                    total_num_vars,
+                    num_encoding_variables,
+                    log_num_polynomials,
+                    num_variables,
                 );
                 std_prover_samples.push(sp);
                 std_verifier_samples.push(sv);
@@ -102,9 +102,9 @@ fn main() {
                     &original_mle,
                     &mle_ef,
                     claim,
-                    num_stacked_vars,
-                    log_stacking_height,
-                    total_num_vars,
+                    num_encoding_variables,
+                    log_num_polynomials,
+                    num_variables,
                     &mut rng,
                 );
                 zk_prover_samples.push(zp);
@@ -125,7 +125,7 @@ fn main() {
 
             writeln!(
                 file,
-                "{total_num_vars},{log_stacking_height},{num_stacked_vars},\
+                "{num_variables},{log_num_polynomials},{num_encoding_variables},\
                  {std_p:.3},{std_p_sd:.3},\
                  {std_v:.3},{std_v_sd:.3},\
                  {zk_p:.3},{zk_p_sd:.3},\

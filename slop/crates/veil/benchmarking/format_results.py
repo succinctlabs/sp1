@@ -17,9 +17,9 @@ def load_csv(path):
         reader = csv.DictReader(f)
         for row in reader:
             rows.append({
-                "total": int(row["total_num_vars"]),
-                "log_stack": int(row["log_stacking_height"]),
-                "stacked": int(row["num_stacked_vars"]),
+                "total": int(row["num_variables"]),
+                "log_stack": int(row["log_num_polynomials"]),
+                "stacked": int(row["num_encoding_variables"]),
                 "std_p": float(row["std_prover_median_ms"]),
                 "std_v": float(row["std_verifier_median_ms"]),
                 "zk_p": float(row["zk_prover_median_ms"]),
@@ -31,7 +31,7 @@ def load_csv(path):
 
 
 def build_grid(rows, value_key):
-    """Build a 2D grid: rows = total_num_vars, cols = log_stacking_height."""
+    """Build a 2D grid: rows = num_variables, cols = log_num_polynomials."""
     grid = {}
     totals = set()
     stacks = set()
@@ -56,7 +56,7 @@ def print_table(title, rows, value_key, fmt_str="{:.2f}x"):
     print(f"{'=' * 70}")
     print()
 
-    # Column header: log_stacking_height values
+    # Column header: log_num_polynomials values
     col_w = 9
     header = "total\\log_sh"
     print(f"  {header:>11s}", end="")

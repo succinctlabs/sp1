@@ -52,20 +52,20 @@ fn build_all_constraints<C: ConstraintContextInnerExt<<GC as IopCtx>::EF>>(
 }
 
 /// Helper to run the full ZK stacked PCS prove-verify workflow with one claim.
-fn run_zk_stacked_pcs_test(num_vars: u32, log_num_polys: u32, verbose: bool) {
+fn run_zk_stacked_pcs_test(num_encoding_variables: u32, log_num_polynomials: u32, verbose: bool) {
     let mut rng = ChaCha20Rng::from_entropy();
 
-    let total_num_vars = log_num_polys + num_vars;
+    let num_variables = log_num_polynomials + num_encoding_variables;
 
     if verbose {
         eprintln!("Test configuration:");
-        eprintln!("  Total variables: {}", total_num_vars);
-        eprintln!("  Log stacking height: {}", log_num_polys);
-        eprintln!("  Variables per column: {}", num_vars);
+        eprintln!("  Total variables: {}", num_variables);
+        eprintln!("  Log num polynomials: {}", log_num_polynomials);
+        eprintln!("  Variables per column: {}", num_encoding_variables);
     }
 
-    let original_mle = Mle::<<GC as IopCtx>::F>::rand(&mut rng, 1, total_num_vars);
-    let eval_point = Point::<<GC as IopCtx>::EF>::rand(&mut rng, total_num_vars);
+    let original_mle = Mle::<<GC as IopCtx>::F>::rand(&mut rng, 1, num_variables);
+    let eval_point = Point::<<GC as IopCtx>::EF>::rand(&mut rng, num_variables);
     let expected_eval = original_mle.eval_at(&eval_point);
     let expected_eval_value = expected_eval.evaluations().as_slice()[0];
 
@@ -74,10 +74,10 @@ fn run_zk_stacked_pcs_test(num_vars: u32, log_num_polys: u32, verbose: bool) {
     }
 
     let (zk_basefold_prover, zk_stacked_verifier) =
-        initialize_zk_prover_and_verifier::<GC, MK>(1, num_vars);
+        initialize_zk_prover_and_verifier::<GC, MK>(1, num_encoding_variables);
 
     let masks_length = compute_mask_length::<GC, _, _, _>(
-        |ctx| read_all(ctx, num_vars as usize, log_num_polys as usize),
+        |ctx| read_all(ctx, num_encoding_variables as usize, log_num_polynomials as usize),
         |data, ctx| build_all_constraints(data, &eval_point, ctx),
     );
 
@@ -88,7 +88,12 @@ fn run_zk_stacked_pcs_test(num_vars: u32, log_num_polys: u32, verbose: bool) {
             StackedPcsZkProverContext::initialize_only_lin_constraints(masks_length, &mut rng);
 
         let commitment_index = prover_context
-            .commit_mle(original_mle.clone(), log_num_polys as usize, &zk_basefold_prover, &mut rng)
+            .commit_mle(
+                original_mle.clone(),
+                log_num_polynomials as usize,
+                &zk_basefold_prover,
+                &mut rng,
+            )
             .expect("Failed to commit MLEs");
 
         let claim = prover_context.add_value(expected_eval_value);
@@ -107,7 +112,8 @@ fn run_zk_stacked_pcs_test(num_vars: u32, log_num_polys: u32, verbose: bool) {
     {
         let mut context: StackedPcsZkVerificationContext<GC> = zkproof.open();
 
-        let transcript_data = read_all(&mut context, num_vars as usize, log_num_polys as usize);
+        let transcript_data =
+            read_all(&mut context, num_encoding_variables as usize, log_num_polynomials as usize);
         build_all_constraints(transcript_data, &eval_point, &mut context);
 
         context.verify(Some(&zk_stacked_verifier)).expect("Failed to verify proof");

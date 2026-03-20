@@ -9,19 +9,19 @@ include!("common.rs");
 
 #[test]
 fn benchmark_zk_vs_standard_sumcheck_with_pcs() {
-    let num_stacked_vars: u32 = 16;
-    let log_stacking_height: u32 = 8;
-    let total_num_vars = log_stacking_height + num_stacked_vars;
+    let num_encoding_variables: u32 = 16;
+    let log_num_polynomials: u32 = 8;
+    let num_variables = log_num_polynomials + num_encoding_variables;
 
     eprintln!("\n========================================");
     eprintln!("Benchmark: ZK vs Standard Sumcheck + PCS");
-    eprintln!("  Total variables: {total_num_vars}");
-    eprintln!("  MLE size: 2^{total_num_vars} = {}", 1u64 << total_num_vars);
-    eprintln!("  Stacking: log_height={log_stacking_height}, stacked_vars={num_stacked_vars}");
+    eprintln!("  Total variables: {num_variables}");
+    eprintln!("  MLE size: 2^{num_variables} = {}", 1u64 << num_variables);
+    eprintln!("  Stacking: log_num_polynomials={log_num_polynomials}, num_encoding_variables={num_encoding_variables}");
     eprintln!("========================================\n");
 
     let mut rng = ChaCha20Rng::from_entropy();
-    let (original_mle, mle_ef, claim) = generate_random_mle(&mut rng, total_num_vars);
+    let (original_mle, mle_ef, claim) = generate_random_mle(&mut rng, num_variables);
 
     // Warmup
     {
@@ -40,9 +40,9 @@ fn benchmark_zk_vs_standard_sumcheck_with_pcs() {
         &original_mle,
         &mle_ef,
         claim,
-        num_stacked_vars,
-        log_stacking_height,
-        total_num_vars,
+        num_encoding_variables,
+        log_num_polynomials,
+        num_variables,
     );
     eprintln!("  Standard prover:   {std_p:?}");
     eprintln!("  Standard verifier: {std_v:?}");
@@ -51,9 +51,9 @@ fn benchmark_zk_vs_standard_sumcheck_with_pcs() {
         &original_mle,
         &mle_ef,
         claim,
-        num_stacked_vars,
-        log_stacking_height,
-        total_num_vars,
+        num_encoding_variables,
+        log_num_polynomials,
+        num_variables,
         &mut rng,
     );
     eprintln!("  ZK prover:         {zk_p:?}");
@@ -70,20 +70,20 @@ fn benchmark_zk_vs_standard_sumcheck_with_pcs() {
 
 #[test]
 fn benchmark_zk_vs_standard_hadamard_sumcheck_with_pcs() {
-    let num_stacked_vars: u32 = 19;
-    let log_stacking_height: u32 = 8;
-    let total_num_vars = log_stacking_height + num_stacked_vars;
+    let num_encoding_variables: u32 = 19;
+    let log_num_polynomials: u32 = 8;
+    let num_variables = log_num_polynomials + num_encoding_variables;
 
     eprintln!("\n========================================");
     eprintln!("Benchmark: ZK vs Standard Hadamard Sumcheck + PCS");
-    eprintln!("  Total variables: {total_num_vars}");
-    eprintln!("  MLE size: 2^{total_num_vars} = {}", 1u64 << total_num_vars);
-    eprintln!("  Stacking: log_height={log_stacking_height}, stacked_vars={num_stacked_vars}");
+    eprintln!("  Total variables: {num_variables}");
+    eprintln!("  MLE size: 2^{num_variables} = {}", 1u64 << num_variables);
+    eprintln!("  Stacking: log_num_polynomials={log_num_polynomials}, num_encoding_variables={num_encoding_variables}");
     eprintln!("========================================\n");
 
     let mut rng = ChaCha20Rng::from_entropy();
     let (mle_1, mle_2, hadamard_product, claim) =
-        generate_random_hadamard_product(&mut rng, total_num_vars);
+        generate_random_hadamard_product(&mut rng, num_variables);
 
     // Warmup
     {
@@ -104,9 +104,9 @@ fn benchmark_zk_vs_standard_hadamard_sumcheck_with_pcs() {
         &mle_2,
         hadamard_product.clone(),
         claim,
-        num_stacked_vars,
-        log_stacking_height,
-        total_num_vars,
+        num_encoding_variables,
+        log_num_polynomials,
+        num_variables,
     );
     eprintln!("  Standard prover:   {std_p:?}");
     eprintln!("  Standard verifier: {std_v:?}");
@@ -117,9 +117,9 @@ fn benchmark_zk_vs_standard_hadamard_sumcheck_with_pcs() {
         &mle_2,
         hadamard_product,
         claim,
-        num_stacked_vars,
-        log_stacking_height,
-        total_num_vars,
+        num_encoding_variables,
+        log_num_polynomials,
+        num_variables,
         &mut rng,
     );
     eprintln!("  ZK prover:         {zk_p:?}");

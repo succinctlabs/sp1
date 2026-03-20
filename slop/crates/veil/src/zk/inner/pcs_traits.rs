@@ -50,21 +50,21 @@ pub trait ZkPcsProver<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> {
 
     /// Commits to an MLE by stacking it internally.
     ///
-    /// This method stacks the flat MLE into `2^log_stacking_height` columns,
-    /// then generates a commitment and returns the commitment digest along with
-    /// prover data needed for later evaluation proofs.
+    /// The flat MLE is stacked into a tensor with `2^log_num_polynomials` columns,
+    /// each over `num_encoding_variables = mle.num_variables() - log_num_polynomials`
+    /// variables.
     ///
     /// # Arguments
-    /// * `mle` - The flat (unstacked) MLE to commit to
-    /// * `log_stacking_height` - Log2 of the number of columns to stack into
-    /// * `rng` - Cryptographically secure random number generator
+    /// * `mle` — the flat (unstacked) MLE to commit to.
+    /// * `log_num_polynomials` — log2 of the number of stacked polynomials (tensor height).
+    /// * `rng` — cryptographically secure random number generator.
     ///
     /// # Returns
     /// A tuple of (commitment digest, prover data) or an error.
     fn commit_mle<RNG: rand::CryptoRng + rand::Rng>(
         &self,
         mle: Mle<GC::F, CpuBackend>,
-        log_stacking_height: usize,
+        log_num_polynomials: usize,
         rng: &mut RNG,
     ) -> Result<(GC::Digest, Self::ProverData), ZkPcsCommitmentError>
     where

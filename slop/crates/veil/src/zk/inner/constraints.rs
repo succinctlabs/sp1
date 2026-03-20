@@ -558,8 +558,9 @@ pub trait ZkCnstrAndReadingCtxInner<GC: ZkIopCtx>: ConstraintContextInnerExt<GC:
     /// Checks that the parameters match and observes the commitment in the Fiat-Shamir challenger.
     ///
     /// # Arguments
-    /// * `num_vars` - Expected number of variables in the committed MLE
-    /// * `log_num_polys` - Expected log2 of number of polynomials in the stacking
+    /// * `num_vars` — number of variables per stacked polynomial (encoding width).
+    ///   Must match the value the PCS was initialized with.
+    /// * `log_num_polys` — log2 of the number of stacked polynomials (tensor height).
     ///
     /// # Returns
     /// `Some(MleCommitmentIndex)` if successful, `None` if parameters don't match

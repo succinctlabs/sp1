@@ -71,12 +71,12 @@ fn generate_random_hadamard_product(
 
 fn single_mle_read<C: ReadingCtx>(
     ctx: &mut C,
-    num_stacked_vars: u32,
-    log_stacking_height: u32,
-    total_num_vars: u32,
+    num_encoding_variables: u32,
+    log_num_polynomials: u32,
+    num_variables: u32,
 ) -> (C::MleOracle, slop_veil::protocols::sumcheck::SumcheckView<C>) {
-    let oracle = ctx.read_oracle(num_stacked_vars, log_stacking_height).unwrap();
-    let param = SumcheckParam::new(total_num_vars, 1);
+    let oracle = ctx.read_oracle(num_encoding_variables, log_num_polynomials).unwrap();
+    let param = SumcheckParam::new(num_variables, 1);
     let view = param.read(ctx).unwrap();
     (oracle, view)
 }
@@ -95,9 +95,9 @@ fn run_standard_single(
     original_mle: &Mle<F>,
     mle_ef: &Mle<EF>,
     claim: EF,
-    num_stacked_vars: u32,
-    log_stacking_height: u32,
-    total_num_vars: u32,
+    num_encoding_variables: u32,
+    log_num_polynomials: u32,
+    num_variables: u32,
 ) -> (Duration, Duration) {
     let basefold_verifier = BasefoldVerifier::<GC>::new(FriConfig::default_fri_config(), 1);
 
@@ -105,8 +105,8 @@ fn run_standard_single(
         let prover_start = Instant::now();
 
         let basefold_prover = BasefoldProver::<GC, MK>::new(&basefold_verifier);
-        let batch_size = 1usize << log_stacking_height;
-        let stacked_prover = StackedPcsProver::new(basefold_prover, num_stacked_vars, batch_size);
+        let batch_size = 1usize << log_num_polynomials;
+        let stacked_prover = StackedPcsProver::new(basefold_prover, num_encoding_variables, batch_size);
 
         let mle_message = slop_commit::Message::from(vec![original_mle.clone()]);
         let (commitment, prover_data, _) = stacked_prover.commit_multilinears(mle_message).unwrap();
@@ -138,20 +138,20 @@ fn run_standard_single(
     let verifier_time = {
         let verifier_start = Instant::now();
 
-        let stacked_verifier = StackedPcsVerifier::new(basefold_verifier, num_stacked_vars);
+        let stacked_verifier = StackedPcsVerifier::new(basefold_verifier, num_encoding_variables);
         let mut verifier_challenger = GC::default_challenger();
         verifier_challenger.observe(commitment);
 
         partially_verify_sumcheck_proof::<F, EF, _>(
             &sumcheck_proof,
             &mut verifier_challenger,
-            total_num_vars as usize,
+            num_variables as usize,
             1,
         )
         .unwrap();
 
         let (eval_point, eval_claim) = sumcheck_proof.point_and_eval.clone();
-        let round_area = (1usize << total_num_vars).next_multiple_of(1usize << num_stacked_vars);
+        let round_area = (1usize << num_variables).next_multiple_of(1usize << num_encoding_variables);
         stacked_verifier
             .verify_trusted_evaluation(
                 &[commitment],
@@ -173,28 +173,28 @@ fn run_zk_single(
     original_mle: &Mle<F>,
     mle_ef: &Mle<EF>,
     claim: EF,
-    num_stacked_vars: u32,
-    log_stacking_height: u32,
-    total_num_vars: u32,
+    num_encoding_variables: u32,
+    log_num_polynomials: u32,
+    num_variables: u32,
     rng: &mut ChaCha20Rng,
 ) -> (Duration, Duration) {
     let (pcs_prover, zk_stacked_verifier) =
-        initialize_zk_prover_and_verifier::<GC, MK>(1, num_stacked_vars);
+        initialize_zk_prover_and_verifier::<GC, MK>(1, num_encoding_variables);
 
-    let param = SumcheckParam::new(total_num_vars, 1);
+    let param = SumcheckParam::new(num_variables, 1);
 
     let (zkproof, prover_time) = {
         let prover_start = Instant::now();
 
         let masks_length = compute_mask_length::<GC, _>(
-            |ctx| single_mle_read(ctx, num_stacked_vars, log_stacking_height, total_num_vars),
+            |ctx| single_mle_read(ctx, num_encoding_variables, log_num_polynomials, num_variables),
             |(oracle, view), ctx| single_mle_build_constraints(ctx, oracle, view),
         );
 
         let mut ctx: StackedPcsZkProverCtx<GC, MK> =
             ZkProverCtx::initialize_with_pcs_only_lin(masks_length, pcs_prover, rng);
 
-        let commit = ctx.commit_mle(original_mle.clone(), log_stacking_height, rng).unwrap();
+        let commit = ctx.commit_mle(original_mle.clone(), log_num_polynomials, rng).unwrap();
 
         let view = param.prove(mle_ef.clone(), &mut ctx, claim);
         let point: Point<EF> = Point::from(view.point.clone());
@@ -210,7 +210,7 @@ fn run_zk_single(
 
         let mut ctx = ZkVerifierCtx::init(zkproof, Some(zk_stacked_verifier));
         let (oracle, view) =
-            single_mle_read(&mut ctx, num_stacked_vars, log_stacking_height, total_num_vars);
+            single_mle_read(&mut ctx, num_encoding_variables, log_num_polynomials, num_variables);
         single_mle_build_constraints(&mut ctx, oracle, view);
         ctx.verify().expect("Failed to verify");
 
@@ -232,13 +232,13 @@ struct HadamardReadData<C: ConstraintCtx> {
 
 fn hadamard_read<C: ReadingCtx>(
     ctx: &mut C,
-    num_stacked_vars: u32,
-    log_stacking_height: u32,
-    total_num_vars: u32,
+    num_encoding_variables: u32,
+    log_num_polynomials: u32,
+    num_variables: u32,
 ) -> HadamardReadData<C> {
-    let ci_base = ctx.read_oracle(num_stacked_vars, log_stacking_height).unwrap();
-    let ci_ext = ctx.read_oracle(num_stacked_vars, log_stacking_height).unwrap();
-    let param = SumcheckParam::with_component_evals(total_num_vars, 2, 2);
+    let ci_base = ctx.read_oracle(num_encoding_variables, log_num_polynomials).unwrap();
+    let ci_ext = ctx.read_oracle(num_encoding_variables, log_num_polynomials).unwrap();
+    let param = SumcheckParam::with_component_evals(num_variables, 2, 2);
     let view = param.read(ctx).unwrap();
     HadamardReadData { ci_base, ci_ext, view }
 }
@@ -261,9 +261,9 @@ fn run_standard_hadamard(
     mle_2: &Mle<F>,
     hadamard_product: HadamardProduct<F, EF>,
     claim: EF,
-    num_stacked_vars: u32,
-    log_stacking_height: u32,
-    total_num_vars: u32,
+    num_encoding_variables: u32,
+    log_num_polynomials: u32,
+    num_variables: u32,
 ) -> (Duration, Duration, u64) {
     let basefold_verifier = BasefoldVerifier::<GC>::new(FriConfig::default_fri_config(), 2);
 
@@ -271,8 +271,8 @@ fn run_standard_hadamard(
         let prover_start = Instant::now();
 
         let basefold_prover = BasefoldProver::<GC, MK>::new(&basefold_verifier);
-        let batch_size = 1usize << log_stacking_height;
-        let stacked_prover = StackedPcsProver::new(basefold_prover, num_stacked_vars, batch_size);
+        let batch_size = 1usize << log_num_polynomials;
+        let stacked_prover = StackedPcsProver::new(basefold_prover, num_encoding_variables, batch_size);
 
         let (commitment_1, prover_data_1, _) = stacked_prover
             .commit_multilinears(slop_commit::Message::from(vec![mle_1.clone()]))
@@ -296,7 +296,7 @@ fn run_standard_hadamard(
 
         let (eval_point, _) = sumcheck_proof.point_and_eval.clone();
         let (batch_point, stack_point) =
-            eval_point.split_at(eval_point.dimension() - num_stacked_vars as usize);
+            eval_point.split_at(eval_point.dimension() - num_encoding_variables as usize);
         let batch_evals_1 = stacked_prover.round_batch_evaluations(&stack_point, &prover_data_1);
         let batch_evals_2 = stacked_prover.round_batch_evaluations(&stack_point, &prover_data_2);
         let batch_evals_mle: Mle<EF> =
@@ -323,7 +323,7 @@ fn run_standard_hadamard(
     let verifier_time = {
         let verifier_start = Instant::now();
 
-        let stacked_verifier = StackedPcsVerifier::new(basefold_verifier, num_stacked_vars);
+        let stacked_verifier = StackedPcsVerifier::new(basefold_verifier, num_encoding_variables);
         let mut challenger = GC::default_challenger();
         challenger.observe(commitments[0]);
         challenger.observe(commitments[1]);
@@ -332,15 +332,15 @@ fn run_standard_hadamard(
         partially_verify_sumcheck_proof::<F, EF, _>(
             &sumcheck_proof,
             &mut challenger,
-            total_num_vars as usize,
+            num_variables as usize,
             2,
         )
         .unwrap();
 
         let (eval_point, _) = sumcheck_proof.point_and_eval.clone();
-        let round_area = (1usize << total_num_vars).next_multiple_of(1usize << num_stacked_vars);
+        let round_area = (1usize << num_variables).next_multiple_of(1usize << num_encoding_variables);
         let (batch_point, _) =
-            eval_point.split_at(eval_point.dimension() - num_stacked_vars as usize);
+            eval_point.split_at(eval_point.dimension() - num_encoding_variables as usize);
         let batch_evals_mle: Mle<EF> =
             pcs_proof.batch_evaluations.iter().flatten().cloned().collect();
         let eval_claim = batch_evals_mle.blocking_eval_at(&batch_point)[0];
@@ -368,29 +368,29 @@ fn run_zk_hadamard(
     mle_2: &Mle<F>,
     hadamard_product: HadamardProduct<F, EF>,
     claim: EF,
-    num_stacked_vars: u32,
-    log_stacking_height: u32,
-    total_num_vars: u32,
+    num_encoding_variables: u32,
+    log_num_polynomials: u32,
+    num_variables: u32,
     rng: &mut ChaCha20Rng,
 ) -> (Duration, Duration, u64) {
     let (pcs_prover, zk_stacked_verifier) =
-        initialize_zk_prover_and_verifier::<GC, MK>(2, num_stacked_vars);
+        initialize_zk_prover_and_verifier::<GC, MK>(2, num_encoding_variables);
 
-    let param = SumcheckParam::with_component_evals(total_num_vars, 2, 2);
+    let param = SumcheckParam::with_component_evals(num_variables, 2, 2);
 
     let (zkproof, prover_time) = {
         let prover_start = Instant::now();
 
         let masks_length = compute_mask_length::<GC, _>(
-            |ctx| hadamard_read(ctx, num_stacked_vars, log_stacking_height, total_num_vars),
+            |ctx| hadamard_read(ctx, num_encoding_variables, log_num_polynomials, num_variables),
             |data, ctx| hadamard_build_constraints(ctx, data),
         );
 
         let mut ctx: StackedPcsZkProverCtx<GC, MK> =
             ZkProverCtx::initialize_with_pcs(masks_length, pcs_prover, rng);
 
-        let ci_base = ctx.commit_mle(mle_1.clone(), log_stacking_height, rng).unwrap();
-        let ci_ext = ctx.commit_mle(mle_2.clone(), log_stacking_height, rng).unwrap();
+        let ci_base = ctx.commit_mle(mle_1.clone(), log_num_polynomials, rng).unwrap();
+        let ci_ext = ctx.commit_mle(mle_2.clone(), log_num_polynomials, rng).unwrap();
 
         let view = param.prove(hadamard_product, &mut ctx, claim);
         let data = HadamardReadData { ci_base, ci_ext, view };
@@ -406,7 +406,7 @@ fn run_zk_hadamard(
         let verifier_start = Instant::now();
 
         let mut ctx = ZkVerifierCtx::init(zkproof, Some(zk_stacked_verifier));
-        let data = hadamard_read(&mut ctx, num_stacked_vars, log_stacking_height, total_num_vars);
+        let data = hadamard_read(&mut ctx, num_encoding_variables, log_num_polynomials, num_variables);
         hadamard_build_constraints(&mut ctx, data);
         ctx.verify().expect("Failed to verify");
 
