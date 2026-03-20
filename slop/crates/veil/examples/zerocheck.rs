@@ -6,7 +6,7 @@
 //! 3. Verifier samples a random point z_0
 //! 4. Build the composition f(x) = eq(x, z_0) * (p(x) * q(x) - r(x))
 //! 5. Use sumcheck to prove sum of f over the hypercube is 0, producing eval claims at z
-//! 6. Verify eq(z, z_0) by polynomial constraint (cheap for verifier)
+//! 6. Verify eq(z, z_0) (cheap for verifier)
 //! 7. Prove p(z), q(z), r(z) via PCS
 
 use itertools::Itertools;
