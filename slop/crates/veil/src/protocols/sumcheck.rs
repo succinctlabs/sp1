@@ -1,4 +1,4 @@
-use slop_sumcheck::{SumcheckPoly, SumcheckPolyFirstRound};
+use slop_sumcheck::{ComponentPoly, SumcheckPoly, SumcheckPolyFirstRound};
 use thiserror::Error;
 
 use crate::compiler::{ConstraintCtx, ReadingCtx, SendingCtx, TranscriptExhaustedError};
@@ -19,6 +19,9 @@ pub struct SumcheckParam {
     pub num_variables: u32,
     /// Degree of the composition polynomial.
     pub degree: usize,
+    /// Number of component polynomial evaluations sent after the sumcheck rounds.
+    /// Set to 0 if component evals are not needed.
+    pub num_component_evals: usize,
 }
 
 /// All proof data read from the transcript for a sumcheck instance.
@@ -35,11 +38,24 @@ pub struct SumcheckView<C: ConstraintCtx> {
     pub claimed_sum: C::Expr,
     /// Claimed evaluation at the random point (output of the sumcheck).
     pub claimed_eval: C::Expr,
+    /// Individual component polynomial evaluations at the random point.
+    /// These are the evaluations of each component (e.g., p(r) and q(r) for a Hadamard product).
+    /// Empty if `num_component_evals` was 0.
+    pub component_evals: Vec<C::Expr>,
 }
 
 impl SumcheckParam {
     pub fn new(num_variables: u32, degree: usize) -> Self {
-        Self { num_variables, degree }
+        Self { num_variables, degree, num_component_evals: 0 }
+    }
+
+    /// Create a sumcheck param that also sends/reads component evaluations.
+    pub fn with_component_evals(
+        num_variables: u32,
+        degree: usize,
+        num_component_evals: usize,
+    ) -> Self {
+        Self { num_variables, degree, num_component_evals }
     }
 
     /// Read the sumcheck proof from the transcript.
@@ -64,7 +80,19 @@ impl SumcheckParam {
         let claimed_sum = ctx.read_one()?;
         let claimed_eval = ctx.read_one()?;
 
-        Ok(SumcheckView { univariate_poly_coeffs, point: alphas, claimed_sum, claimed_eval })
+        let component_evals = if self.num_component_evals > 0 {
+            ctx.read_next(self.num_component_evals)?
+        } else {
+            vec![]
+        };
+
+        Ok(SumcheckView {
+            univariate_poly_coeffs,
+            point: alphas,
+            claimed_sum,
+            claimed_eval,
+            component_evals,
+        })
     }
 
     /// Run the prover side of sumcheck, sending messages through the context.
@@ -106,7 +134,22 @@ impl SumcheckParam {
         let eval = uni_poly.eval_at_point(alpha.into());
         let claimed_eval = ctx.send_value(eval);
 
-        SumcheckView { univariate_poly_coeffs, point, claimed_sum, claimed_eval }
+        // Send component evaluations if requested
+        let component_evals = if self.num_component_evals > 0 {
+            let evals = cursor.get_component_poly_evals();
+            assert_eq!(
+                evals.len(),
+                self.num_component_evals,
+                "component eval count mismatch: poly has {} but param expects {}",
+                evals.len(),
+                self.num_component_evals,
+            );
+            ctx.send_values(&evals)
+        } else {
+            vec![]
+        };
+
+        SumcheckView { univariate_poly_coeffs, point, claimed_sum, claimed_eval, component_evals }
     }
 }
 
