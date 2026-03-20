@@ -3,4 +3,5 @@
 #![allow(unused_imports)]
 
 pub mod compiler;
+pub mod protocols;
 pub mod zk;

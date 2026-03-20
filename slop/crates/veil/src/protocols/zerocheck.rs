@@ -1,10 +1,8 @@
 use slop_multilinear::Point;
 use thiserror::Error;
 
-use super::{
-    sumcheck::{SumcheckError, SumcheckParam, SumcheckView},
-    ConstraintCtx, ReadingCtx,
-};
+use super::sumcheck::{SumcheckError, SumcheckParam, SumcheckView};
+use crate::compiler::{ConstraintCtx, ReadingCtx};
 
 #[derive(Debug, Error)]
 pub enum ZerocheckError {

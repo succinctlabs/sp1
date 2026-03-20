@@ -7,10 +7,8 @@ pub mod verifier;
 #[cfg(test)]
 mod tests;
 
-pub use basefold_prover_wrapper::*;
 pub use basefold_verifier_wrapper::*;
 pub use prover::*;
-pub use utils::*;
 pub use verifier::*;
 
 use crate::zk::verifier_ctx::ZkIopCtx;

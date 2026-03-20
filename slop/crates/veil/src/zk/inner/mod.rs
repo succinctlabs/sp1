@@ -24,9 +24,6 @@ pub use transcript::*;
 pub use verifier::*;
 pub use verifier_transcript::*;
 
-/// KoalaBear ZK context.
-pub use slop_koala_bear::KoalaBearDegree4Duplex;
-
 /// Names the most recently added linear constraint for debugging purposes.
 ///
 /// When compiled with `RUSTFLAGS="--cfg sp1_debug_constraints"`, this macro

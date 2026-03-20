@@ -1,9 +1,7 @@
 use slop_sumcheck::{SumcheckPoly, SumcheckPolyFirstRound};
 use thiserror::Error;
 
-use crate::compiler::ctx::TranscriptExhaustedError;
-
-use super::{ConstraintCtx, ReadingCtx, SendingCtx};
+use crate::compiler::{ConstraintCtx, ReadingCtx, SendingCtx, TranscriptExhaustedError};
 
 #[derive(Debug, Error)]
 pub enum SumcheckError {
