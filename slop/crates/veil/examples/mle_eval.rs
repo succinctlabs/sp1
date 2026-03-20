@@ -7,25 +7,35 @@
 
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
-use slop_algebra::AbstractField;
 use slop_challenger::IopCtx;
 use slop_koala_bear::KoalaBearDegree4Duplex;
 use slop_merkle_tree::Poseidon2KoalaBear16Prover;
-use slop_multilinear::Mle;
-use slop_veil::compiler::{ConstraintCtx, ReadingCtx};
-use slop_veil::protocols::sumcheck::SumcheckParam;
-use slop_veil::zk::stacked_pcs::{StackedPcsProverConfig, StackedPcsZkProverCtx};
+use slop_multilinear::{Mle, Point};
+use slop_veil::compiler::{ConstraintCtx, ReadingCtx, SendingCtx};
+use slop_veil::zk::stacked_pcs::{initialize_zk_prover_and_verifier, StackedPcsZkProverCtx};
 use slop_veil::zk::{compute_mask_length, ZkProverCtx, ZkVerifierCtx};
 
 type GC = KoalaBearDegree4Duplex;
 type MK = Poseidon2KoalaBear16Prover;
-type EF = <GC as IopCtx>::EF;
 
-const NUM_VARIABLES: u32 = 10;
+const NUM_VARIABLES: u32 = 16;
+const LOG_STACKING_HEIGHT: usize = 12usize;
 
-fn read<C: ReadingCtx>(ctx: &mut C) {}
+fn read<C: ReadingCtx>(ctx: &mut C) -> (C::MleOracle, Point<C::Challenge>, C::Expr) {
+    let p_oracle = ctx.read_oracle(NUM_VARIABLES as usize, LOG_STACKING_HEIGHT).unwrap();
+    let point = ctx.sample_point(NUM_VARIABLES);
+    let eval = ctx.read_one().unwrap();
+    (p_oracle, point, eval)
+}
 
-fn build_constraints<C: ConstraintCtx>(ctx: &mut C) {}
+fn build_constraints<C: ConstraintCtx>(
+    ctx: &mut C,
+    p_oracle: C::MleOracle,
+    point: Point<C::Challenge>,
+    eval: C::Expr,
+) {
+    ctx.assert_mle_eval(p_oracle, point, eval);
+}
 
 fn main() {
     let mut rng = ChaCha20Rng::from_entropy();
@@ -33,41 +43,44 @@ fn main() {
     // Generate a random MLE
     let p = Mle::<<GC as IopCtx>::F>::rand(&mut rng, 1, NUM_VARIABLES);
 
-    // let mask_length = compute_mask_length::<GC, _>(
-    //     |ctx| param.read(ctx).unwrap(),
-    //     |view, ctx| view.build_constraints(ctx).unwrap(),
-    // );
-    // eprintln!("Mask length: {}", mask_length);
+    let mask_length = compute_mask_length::<GC, _>(read, |(p_o, point, eval), ctx| {
+        build_constraints(ctx, p_o, point, eval)
+    });
+    eprintln!("Mask length: {}", mask_length);
+
+    let (pcs_prover, verifier) = initialize_zk_prover_and_verifier(1, LOG_STACKING_HEIGHT as u32);
 
     // === PROVER ===
     eprintln!("\n=== PROVER ===");
     let proof = {
-        let now = std::time::Instant::now();
+        eprintln!("Proving...");
         let mut ctx: StackedPcsZkProverCtx<GC, MK> =
-            ZkProverCtx::initialize_with_pcs_only_lin(100, todo!("pcs_prover"), &mut rng);
+            ZkProverCtx::initialize_with_pcs_only_lin(mask_length, pcs_prover, &mut rng);
 
         // Commit to p
+        let commit =
+            ctx.commit_mle(p.clone(), LOG_STACKING_HEIGHT, &mut rng).expect("failed to commit");
+        // Get a random point
+        let point = ctx.sample_point(NUM_VARIABLES);
 
-        // Build constraints on prover context (ConstraintCtx only, no reading)
-        view.build_constraints(&mut ctx).expect("failed to build sumcheck constraints");
+        let eval = p.eval_at(&point)[0];
+        let eval = ctx.send_value(eval);
+
+        ctx.assert_mle_eval(commit, point, eval);
 
         let proof = ctx.prove(&mut rng);
-        eprintln!("Prover time: {:?}", now.elapsed());
+        eprintln!("Proving complete");
         proof
     };
 
     // === VERIFIER ===
     eprintln!("\n=== VERIFIER ===");
     {
-        let now = std::time::Instant::now();
-        let mut ctx = ZkVerifierCtx::init(proof, None);
-
+        let mut ctx = ZkVerifierCtx::init(proof, Some(verifier));
         // Verifier reads from transcript and builds constraints
-        let view = param.read(&mut ctx).expect("failed to read proof");
-        view.build_constraints(&mut ctx).expect("failed to build constraints");
-
+        let (p_oracle, point, eval) = read(&mut ctx);
+        build_constraints(&mut ctx, p_oracle, point, eval);
         ctx.verify().expect("verification failed");
-        eprintln!("Verifier time: {:?}", now.elapsed());
     }
 
     eprintln!("\n=== PASSED ===");

@@ -116,6 +116,12 @@ pub trait ReadingCtx: ConstraintCtx {
         self.read_exact(&mut values)?;
         Ok(values)
     }
+
+    /// Sample a multiplinear point
+    fn sample_point(&mut self, dimension: u32) -> Point<Self::Challenge> {
+        let values = (0..dimension).map(|_| self.sample()).collect::<Vec<_>>();
+        Point::from(values)
+    }
 }
 
 /// Extension of `ConstraintCtx` for the prover side: sending values and sampling challenges.
@@ -128,4 +134,10 @@ pub trait SendingCtx: ConstraintCtx {
 
     /// Sample a Fiat-Shamir challenge from the transcript.
     fn sample(&mut self) -> Self::Challenge;
+
+    /// Sample a multilinear point
+    fn sample_point(&mut self, dimension: u32) -> Point<Self::Challenge> {
+        let values = (0..dimension).map(|_| self.sample()).collect::<Vec<_>>();
+        Point::from(values)
+    }
 }

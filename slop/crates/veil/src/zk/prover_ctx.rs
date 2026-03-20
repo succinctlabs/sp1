@@ -5,6 +5,7 @@ use slop_algebra::Dorroh;
 use slop_alloc::CpuBackend;
 use slop_challenger::{FieldChallenger, IopCtx};
 use slop_multilinear::Point;
+use thiserror::Error;
 
 use crate::compiler::{ConstraintCtx, SendingCtx};
 use crate::zk::inner::{
@@ -157,6 +158,14 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> SendingCtx for ZkProverCtx<GC, PC> {
 // Prover-specific methods
 // ============================================================================
 
+#[derive(Debug, Clone, Error)]
+pub enum PcsCommitError {
+    #[error("commitment failed, {0}")]
+    Failed(#[from] super::inner::ZkPcsCommitmentError),
+    #[error("Context not initialized with Pcs Prover")]
+    NoPcsProver,
+}
+
 impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ZkProverCtx<GC, PC> {
     /// Access the challenger directly for Fiat-Shamir operations.
     pub fn challenger(&mut self) -> RefMut<'_, GC::Challenger> {
@@ -164,21 +173,24 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ZkProverCtx<GC, PC> {
     }
 
     /// Commits to a flat MLE and registers it in the context.
-    pub fn commit_mle<P, RNG>(
+    ///
+    /// TODO: optimize to not necessarily need to own the data
+    pub fn commit_mle<RNG>(
         &mut self,
         mle: slop_multilinear::Mle<GC::F, slop_alloc::CpuBackend>,
         log_stacking_height: usize,
-        pcs_prover: &P,
         rng: &mut RNG,
-    ) -> Result<MleCommit, super::inner::ZkPcsCommitmentError>
+    ) -> Result<MleCommit, PcsCommitError>
     where
-        P: super::inner::ZkPcsProver<GC, PC::Merkelizer, ProverData = PC::PcsProverData>,
         RNG: rand::CryptoRng + rand::Rng,
         rand::distributions::Standard: rand::distributions::Distribution<GC::F>,
     {
-        self.inner
+        let pcs_prover = self.pcs_prover.as_ref().ok_or(PcsCommitError::NoPcsProver)?;
+        let commit = self
+            .inner
             .commit_mle(mle, log_stacking_height, pcs_prover, rng)
-            .map(|idx| MleCommit { inner: idx })
+            .map(|idx| MleCommit { inner: idx })?;
+        Ok(commit)
     }
 
     /// Generates a zero-knowledge proof. Consumes self.
