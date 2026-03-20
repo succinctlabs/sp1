@@ -70,7 +70,7 @@ fn benchmark_zk_vs_standard_sumcheck_with_pcs() {
 
 #[test]
 fn benchmark_zk_vs_standard_hadamard_sumcheck_with_pcs() {
-    let num_encoding_variables: u32 = 19;
+    let num_encoding_variables: u32 = 16;
     let log_num_polynomials: u32 = 8;
     let num_variables = log_num_polynomials + num_encoding_variables;
 
