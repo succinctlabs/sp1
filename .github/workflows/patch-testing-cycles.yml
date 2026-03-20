@@ -38,7 +38,7 @@ jobs:
       - name: "Run patch testing on new branch"
         run: |
           cd ./patch-testing
-          SP1_PATCH_BENCH=../new_cycle_stats.json cargo test --release -- --test-threads 1
+          SP1_PATCH_BENCH=../new_cycle_stats.json cargo test --release -- --test-threads=1
 
       - name: "Checkout old patches"
         run: |
@@ -50,7 +50,7 @@ jobs:
           # Install the toolchain from the old head.
           cargo run -p sp1-cli -- prove install-toolchain
           cd ./patch-testing
-          SP1_PATCH_BENCH=../old_cycle_stats.json cargo test --release -- --test-threads 1
+          SP1_PATCH_BENCH=../old_cycle_stats.json cargo test --release -- --test-threads=1
 
       - name: "Compare results and create comment"
         run: |
