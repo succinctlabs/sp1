@@ -178,7 +178,7 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ZkProverCtx<GC, PC> {
     pub fn commit_mle<RNG>(
         &mut self,
         mle: slop_multilinear::Mle<GC::F, slop_alloc::CpuBackend>,
-        log_stacking_height: usize,
+        log_stacking_height: u32,
         rng: &mut RNG,
     ) -> Result<MleCommit, PcsCommitError>
     where
@@ -188,7 +188,7 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ZkProverCtx<GC, PC> {
         let pcs_prover = self.pcs_prover.as_ref().ok_or(PcsCommitError::NoPcsProver)?;
         let commit = self
             .inner
-            .commit_mle(mle, log_stacking_height, pcs_prover, rng)
+            .commit_mle(mle, log_stacking_height as usize, pcs_prover, rng)
             .map(|idx| MleCommit { inner: idx })?;
         Ok(commit)
     }

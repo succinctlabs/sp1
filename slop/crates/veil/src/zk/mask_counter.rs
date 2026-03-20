@@ -91,10 +91,10 @@ impl<GC: ZkIopCtx> ReadingCtx for MaskCounter<GC> {
         Ok(())
     }
 
-    fn read_oracle(&mut self, log_width: usize, log_stacking: usize) -> Option<MleCommit> {
+    fn read_oracle(&mut self, log_width: u32, log_stacking: u32) -> Option<MleCommit> {
         use crate::zk::inner::ZkCnstrAndReadingCtxInner;
         self.inner
-            .read_next_pcs_commitment(log_width, log_stacking)
+            .read_next_pcs_commitment(log_width as usize, log_stacking as usize)
             .map(|idx| MleCommit { inner: idx })
     }
 

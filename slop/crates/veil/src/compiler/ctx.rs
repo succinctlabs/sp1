@@ -100,7 +100,7 @@ pub trait ReadingCtx: ConstraintCtx {
 
     /// Read a PCS commitment from the transcript, returning an opaque oracle handle.
     /// Returns `None` if the transcript is exhausted or parameters don't match.
-    fn read_oracle(&mut self, log_width: usize, log_stacking: usize) -> Option<Self::MleOracle>;
+    fn read_oracle(&mut self, log_width: u32, log_stacking: u32) -> Option<Self::MleOracle>;
 
     /// Sample a Fiat-Shamir challenge from the transcript.
     fn sample(&mut self) -> Self::Challenge;

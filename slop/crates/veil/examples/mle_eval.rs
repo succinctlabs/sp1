@@ -18,11 +18,12 @@ use slop_veil::zk::{compute_mask_length, ZkProverCtx, ZkVerifierCtx};
 type GC = KoalaBearDegree4Duplex;
 type MK = Poseidon2KoalaBear16Prover;
 
-const NUM_VARIABLES: u32 = 16;
-const LOG_STACKING_HEIGHT: usize = 12usize;
+const LOG_NUM_POLYNOMIALS: u32 = 8;
+const LOG_ENCODING_VARS: u32 = 8;
+const NUM_VARIABLES: u32 = LOG_NUM_POLYNOMIALS + LOG_ENCODING_VARS;
 
 fn read<C: ReadingCtx>(ctx: &mut C) -> (C::MleOracle, Point<C::Challenge>, C::Expr) {
-    let p_oracle = ctx.read_oracle(NUM_VARIABLES as usize, LOG_STACKING_HEIGHT).unwrap();
+    let p_oracle = ctx.read_oracle(LOG_ENCODING_VARS, LOG_NUM_POLYNOMIALS).unwrap();
     let point = ctx.sample_point(NUM_VARIABLES);
     let eval = ctx.read_one().unwrap();
     (p_oracle, point, eval)
@@ -48,7 +49,7 @@ fn main() {
     });
     eprintln!("Mask length: {}", mask_length);
 
-    let (pcs_prover, verifier) = initialize_zk_prover_and_verifier(1, LOG_STACKING_HEIGHT as u32);
+    let (pcs_prover, verifier) = initialize_zk_prover_and_verifier(1, LOG_ENCODING_VARS);
 
     // === PROVER ===
     eprintln!("\n=== PROVER ===");
@@ -59,7 +60,7 @@ fn main() {
 
         // Commit to p
         let commit =
-            ctx.commit_mle(p.clone(), LOG_STACKING_HEIGHT, &mut rng).expect("failed to commit");
+            ctx.commit_mle(p.clone(), LOG_NUM_POLYNOMIALS, &mut rng).expect("failed to commit");
         // Get a random point
         let point = ctx.sample_point(NUM_VARIABLES);
 
