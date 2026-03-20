@@ -120,5 +120,3 @@ pub trait SendingCtx: ConstraintCtx {
     /// Sample a Fiat-Shamir challenge from the transcript.
     fn sample(&mut self) -> Self::Challenge;
 }
-
-pub trait TranscriptMessage {}
