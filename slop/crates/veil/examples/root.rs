@@ -88,7 +88,7 @@ fn main() {
         // Build constraint: p(root) = 0
         build_poly_constraint(&poly_coeffs, root_expr, &mut ctx);
 
-        let proof = ctx.prove_without_pcs(&mut rng);
+        let proof = ctx.prove(&mut rng);
         eprintln!("Prover time: {:?}", now.elapsed());
         proof
     };
