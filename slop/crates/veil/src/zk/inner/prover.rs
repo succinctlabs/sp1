@@ -567,8 +567,8 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
 
     /// Helper method to generate PCS proofs for all evaluation claims.
     ///
-    /// One proof is generated per claim. If multiple claims exist for the same
-    /// commitment, a warning is emitted because this breaks zero-knowledge
+    /// One proof is generated per claim. Panics if multiple claims exist for the same
+    /// commitment, as this breaks zero-knowledge
     fn generate_pcs_proofs<P>(&mut self, pcs_prover: Option<&P>) -> Vec<GC::PcsProof>
     where
         P: ZkPcsProver<GC, MK, ProverData = PD>,
@@ -586,8 +586,8 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
         for claim in &eval_claims {
             for idx in &claim.commitment_indices {
                 if !seen.insert(*idx) {
-                    eprintln!(
-                        "WARNING: Multiple eval claims on the same PCS commitment (index {}). \
+                    panic!(
+                        "Multiple eval claims on the same PCS commitment (index {}). \
                          This breaks zero-knowledge but not soundness.",
                         idx.index(),
                     );

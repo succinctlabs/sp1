@@ -651,6 +651,7 @@ fn test_zk_sumcheck_with_pcs_eval_proof_batched_single_mles() {
 }
 
 #[test]
+#[should_panic(expected = "Multiple eval claims on the same PCS commitment")]
 fn test_zk_sumcheck_triple_hadamard_with_batched_pcs() {
     // Test that generates three random MLEs f, g, h, commits them, runs three separate
     // hadamard sumchecks (fg, gh, hf), producing two evaluation claims per commitment
