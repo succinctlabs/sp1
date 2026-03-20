@@ -60,7 +60,7 @@ impl<GC: IopCtx> MaskCounterContext<GC> {
     }
 
     /// Returns the current count.
-    fn count(&self) -> usize {
+    pub fn count(&self) -> usize {
         *self.counter.borrow()
     }
 }
@@ -133,6 +133,14 @@ impl<GC: IopCtx, K: AbstractField + Copy> Mul<K> for MaskCounterContext<GC> {
     type Output = Self;
 
     fn mul(self, _rhs: K) -> Self::Output {
+        self
+    }
+}
+
+impl<GC: IopCtx> std::ops::Neg for MaskCounterContext<GC> {
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
         self
     }
 }
