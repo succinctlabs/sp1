@@ -64,9 +64,9 @@ pub struct WhirProof<GC>
 where
     GC: IopCtx,
 {
-    pub config: WhirProofShape<GC::F>,
     // First sumcheck
     pub initial_sumcheck_polynomials: Vec<(SumcheckPoly<GC::EF>, ProofOfWork<GC>)>,
+    pub initial_merkle_proof: Rounds<MerkleTreeOpeningAndProof<GC>>,
 
     // For internal rounds
     pub commitments: Vec<ParsedCommitment<GC>>,
@@ -119,6 +119,8 @@ pub enum SumcheckError {
     InvalidSum,
     #[error("invalid proof of work")]
     PowError,
+    #[error("invalid shape of proof of work")]
+    InvalidShape,
 }
 
 pub fn map_to_pow<F: AbstractField>(mut elem: F, len: usize) -> Point<F> {
@@ -135,13 +137,16 @@ pub fn map_to_pow<F: AbstractField>(mut elem: F, len: usize) -> Point<F> {
 impl<GC> Verifier<GC>
 where
     GC: IopCtx,
+    GC::Challenger: VariableLengthChallenger<GC::F, GC::Digest>,
 {
     pub fn new(
         merkle_verifier: MerkleTreeTcs<GC>,
         config: WhirProofShape<GC::F>,
         num_expected_commitments: usize,
+        challenger: &mut GC::Challenger,
     ) -> Self {
         assert_ne!(num_expected_commitments, 0, "commitment must exist");
+        config.write_to_challenger::<GC::Digest, GC::Challenger>(challenger);
         Self { merkle_verifier, config, num_expected_commitments }
     }
 
@@ -149,10 +154,14 @@ where
         &self,
         commitment: &[GC::Digest],
         challenger: &mut GC::Challenger,
+        expected_length: usize,
     ) -> Result<(), WhirProofError> {
-        challenger.observe_constant_length_digest_slice(commitment);
-
-        Ok(())
+        if commitment.len() != expected_length {
+            Err(WhirProofError::InvalidNumberOfCommitments(expected_length, commitment.len()))
+        } else {
+            challenger.observe_constant_length_digest_slice(commitment);
+            Ok(())
+        }
     }
 
     /// The claim is that < f, v > = claim.
@@ -166,21 +175,28 @@ where
         proof: &WhirProof<GC>,
         challenger: &mut GC::Challenger,
     ) -> Result<(Point<GC::EF>, GC::EF), WhirProofError> {
-        let config = &proof.config;
+        let config = &self.config;
         let n_rounds = config.round_parameters.len();
-        if commitments.len() != self.num_expected_commitments
+
+        if n_rounds == 0
+            || proof.merkle_proofs.len() != n_rounds - 1
+            || proof.query_proofs_of_work.len() != n_rounds
+            || proof.sumcheck_polynomials.len() != n_rounds
+            || proof.commitments.len() != n_rounds + 1
             || round_areas.len() != self.num_expected_commitments
-            || proof.merkle_proofs[0].len() != self.num_expected_commitments
+            || proof.initial_merkle_proof.len() != self.num_expected_commitments
         {
+            return Err(WhirProofError::IncorrectShape);
+        }
+
+        if commitments.len() != self.num_expected_commitments {
             return Err(WhirProofError::InvalidNumberOfCommitments(
                 self.num_expected_commitments,
                 commitments.len(),
             ));
         }
 
-        println!("Round areas: {round_areas:?}");
-
-        for (merkle_proof, area) in proof.merkle_proofs[0].iter().zip_eq(round_areas.iter()) {
+        for (merkle_proof, area) in proof.initial_merkle_proof.iter().zip_eq(round_areas.iter()) {
             if merkle_proof.proof.width << self.config.starting_interleaved_log_height != *area {
                 println!(
                     "proof width: {}, proof log height: {}, expected area {}, area: {}",
@@ -202,7 +218,9 @@ where
             })
             .collect();
 
-        let commitment = &proof.commitments[0];
+        // Because of the length checks at the start of the verification, the checked access isn't
+        // expected to produce an error.
+        let commitment = proof.commitments.first().ok_or(WhirProofError::IncorrectShape)?;
 
         if ood_points != commitment.ood_points {
             return Err(WhirProofError::InvalidOOD);
@@ -212,8 +230,6 @@ where
             return Err(WhirProofError::InvalidMerkleAuthentication);
         }
 
-        challenger.observe_ext_element_slice(&commitment.ood_answers);
-
         // Check that the number of OOD answers in the proof matches the expected value.
         if commitment.ood_answers.len() != config.starting_ood_samples {
             return Err(WhirProofError::InvalidNumberOfOODSamples(
@@ -221,6 +237,8 @@ where
                 commitment.ood_answers.len(),
             ));
         }
+
+        challenger.observe_ext_element_slice(&commitment.ood_answers);
 
         // Batch the initial claim with the OOD claims of the commitment
         let claim_batching_randomness: GC::EF = challenger.sample_ext_element();
@@ -263,7 +281,10 @@ where
 
         for round_index in 0..n_rounds {
             let round_params = &config.round_parameters[round_index];
-            let new_commitment = &proof.commitments[round_index + 1];
+            // Because of the length checks at the start of the verification, the checked access isn't
+            // expected to produce an error.
+            let new_commitment =
+                proof.commitments.get(round_index + 1).ok_or(WhirProofError::IncorrectShape)?;
             if new_commitment.ood_answers.len() != round_params.ood_samples {
                 return Err(WhirProofError::InvalidNumberOfOODSamples(
                     round_params.ood_samples,
@@ -292,6 +313,12 @@ where
 
             // Absorb the OOD answers
             challenger.observe_ext_element_slice(&new_commitment.ood_answers);
+            if !challenger.check_witness(
+                round_params.queries_pow_bits,
+                proof.query_proofs_of_work[round_index],
+            ) {
+                return Err(WhirProofError::PowError);
+            }
 
             // Squeeze the STIR queries
             let id_query_indices = (0..round_params.num_queries)
@@ -304,17 +331,14 @@ where
                 .collect();
             let claim_batching_randomness: GC::EF = challenger.sample_ext_element();
 
-            if !challenger.check_witness(
-                round_params.queries_pow_bits.ceil() as usize,
-                proof.query_proofs_of_work[round_index],
-            ) {
-                return Err(WhirProofError::PowError);
-            }
+            let merkle_proof = if round_index != 0 {
+                &proof.merkle_proofs[round_index - 1]
+            } else {
+                &proof.initial_merkle_proof
+            };
 
-            let merkle_proof = &proof.merkle_proofs[round_index];
-
-            if round_index != 0 {
-                assert_eq!(merkle_proof.len(), 1);
+            if round_index != 0 && merkle_proof.len() != 1 {
+                return Err(WhirProofError::IncorrectShape);
             }
 
             for (merkle_commitment, merkle_proof) in
@@ -411,6 +435,9 @@ where
             prev_folding_factor = round_params.folding_factor;
             generator = generator.square();
             num_variables -= round_params.folding_factor;
+            if prev_commitment.commitment.len() != 1 {
+                return Err(WhirProofError::IncorrectShape);
+            }
         }
 
         // Now, we want to verify the final evaluations
@@ -424,6 +451,10 @@ where
         let final_poly = proof.final_polynomial.clone();
         let final_poly_uv = UnivariatePolynomial::new(final_poly.clone());
 
+        if !challenger.check_witness(config.final_pow_bits, proof.final_pow) {
+            return Err(WhirProofError::PowError);
+        }
+
         let final_id_indices = (0..config.final_queries)
             .map(|_| challenger.sample_bits(domain_size))
             .collect::<Vec<_>>();
@@ -432,8 +463,6 @@ where
             .map(|val| reverse_bits_len(*val, domain_size))
             .map(|pos| generator.exp_u64(pos as u64))
             .collect();
-
-        assert_eq!(prev_commitment.commitment.len(), 1);
 
         self.merkle_verifier
             .verify_tensor_openings(
@@ -468,10 +497,6 @@ where
                 .collect::<Vec<_>>()
         {
             return Err(WhirProofError::FinalQueryMismatch);
-        }
-
-        if !challenger.check_witness(config.final_pow_bits.ceil() as usize, proof.final_pow) {
-            return Err(WhirProofError::PowError);
         }
 
         (folding_randomness, claimed_sum) = self
@@ -520,7 +545,7 @@ where
         sumcheck_polynomials: &[(SumcheckPoly<GC::EF>, ProofOfWork<GC>)],
         mut claimed_sum: GC::EF,
         rounds: usize,
-        pow_bits: &[f64],
+        pow_bits: &[usize],
         challenger: &mut GC::Challenger,
     ) -> Result<(Vec<GC::EF>, GC::EF), SumcheckError> {
         if sumcheck_polynomials.len() != rounds {
@@ -528,6 +553,9 @@ where
                 rounds,
                 sumcheck_polynomials.len(),
             ));
+        }
+        if pow_bits.len() < rounds {
+            return Err(SumcheckError::InvalidShape);
         }
         let mut randomness = Vec::with_capacity(rounds);
         for i in 0..rounds {
@@ -537,12 +565,12 @@ where
                 return Err(SumcheckError::InvalidSum);
             }
 
-            let folding_randomness_single: GC::EF = challenger.sample_ext_element();
-            randomness.push(folding_randomness_single);
-
-            if !challenger.check_witness(pow_bits[i].ceil() as usize, *pow_witness) {
+            if !challenger.check_witness(pow_bits[i], *pow_witness) {
                 return Err(SumcheckError::PowError);
             }
+
+            let folding_randomness_single: GC::EF = challenger.sample_ext_element();
+            randomness.push(folding_randomness_single);
 
             claimed_sum = sumcheck_poly.evaluate_at_point(folding_randomness_single);
         }
@@ -603,7 +631,7 @@ where
     /// Functionality to deduce round by round from the proof the multiples of `1<<log.stacking_height`
     /// corresponding to the round's total polynomial size.
     fn round_multiples(proof: &<Self as MultilinearPcsVerifier<GC>>::Proof) -> Vec<usize> {
-        proof.merkle_proofs[0].iter().map(|p| p.values.sizes()[1]).collect()
+        proof.initial_merkle_proof.iter().map(|merkle_proof| merkle_proof.proof.width).collect()
     }
 }
 

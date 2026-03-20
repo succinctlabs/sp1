@@ -774,10 +774,15 @@ where
         max_log_row_count: usize,
         machine: Machine<GC::F, A>,
         num_expected_commitments: usize,
+        challenger: &mut GC::Challenger,
     ) -> Self {
         let merkle_verifier = MerkleTreeTcs::default();
-        let verifier =
-            Verifier::<GC>::new(merkle_verifier, config.clone(), num_expected_commitments);
+        let verifier = Verifier::<GC>::new(
+            merkle_verifier,
+            config.clone(),
+            num_expected_commitments,
+            challenger,
+        );
 
         let jagged_verifier =
             JaggedPcsVerifier::<GC, Verifier<GC>>::new(verifier, max_log_row_count);
