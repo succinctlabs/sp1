@@ -286,7 +286,6 @@ impl<GC: ZkIopCtx> ZkVerificationContext<GC> {
         ) {
             return Err(ZkVerifierError::MaskDotProductProofFailure(e));
         }
-
         Ok(())
     }
 

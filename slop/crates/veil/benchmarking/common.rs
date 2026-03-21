@@ -329,6 +329,7 @@ fn run_standard_hadamard(
         challenger.observe(commitments[1]);
 
         let _lambda: EF = slop_challenger::CanSample::sample(&mut challenger);
+
         partially_verify_sumcheck_proof::<F, EF, _>(
             &sumcheck_proof,
             &mut challenger,
@@ -338,7 +339,8 @@ fn run_standard_hadamard(
         .unwrap();
 
         let (eval_point, _) = sumcheck_proof.point_and_eval.clone();
-        let round_area = (1usize << num_variables).next_multiple_of(1usize << num_encoding_variables);
+        let round_area =
+            (1usize << num_variables).next_multiple_of(1usize << num_encoding_variables);
         let (batch_point, _) =
             eval_point.split_at(eval_point.dimension() - num_encoding_variables as usize);
         let batch_evals_mle: Mle<EF> =
@@ -406,7 +408,8 @@ fn run_zk_hadamard(
         let verifier_start = Instant::now();
 
         let mut ctx = ZkVerifierCtx::init(zkproof, Some(zk_stacked_verifier));
-        let data = hadamard_read(&mut ctx, num_encoding_variables, log_num_polynomials, num_variables);
+        let data =
+            hadamard_read(&mut ctx, num_encoding_variables, log_num_polynomials, num_variables);
         hadamard_build_constraints(&mut ctx, data);
         ctx.verify().expect("Failed to verify");
 

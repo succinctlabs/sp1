@@ -22,6 +22,15 @@ pub trait ErrorCorrectingCode<K: Clone + Send + Sync>: std::fmt::Debug + Clone +
         let input_matrix = Self::batch_decode(output_matrix, input_length);
         input_matrix.values
     }
+
+    /// Encodes and returns only the values at the given indices.
+    ///
+    /// Default implementation computes a full encode and indexes into it.
+    /// Implementations may override with more efficient point evaluations.
+    fn encode_at_indices(input: &[K], output_length: usize, indices: &[usize]) -> Vec<K> {
+        let full = Self::encode(input, output_length);
+        indices.iter().map(|&i| full[i].clone()).collect()
+    }
 }
 
 /// Marker trait for [`ErrorCorrectingCode`]'s that are valid for use in zk-protocols.

@@ -13,7 +13,10 @@
       "Bash(RUSTFLAGS=\"--cfg sp1_debug_constraints\" cargo test --release -p slop-veil --lib)",
       "Bash(RUSTFLAGS=\"--cfg sp1_debug_constraints\" cargo build -p slop-veil --tests)",
       "Bash(cargo run:*)",
-      "Bash(xargs sed:*)"
+      "Bash(xargs sed:*)",
+      "Bash(for i:*)",
+      "Bash(do cargo:*)",
+      "Bash(ls -d /Users/rdalalsuccinct/Documents/sp1-wip/.claude/worktrees/*/)"
     ],
     "additionalDirectories": [
       "/Users/rdalalsuccinct/Documents/sp1-wip-veil-independent/slop/crates/veil/examples"
