@@ -4,6 +4,7 @@
 compile_error!("This crate is only supported on little endian targets.");
 
 pub mod backends;
+pub mod compiled;
 pub mod context;
 pub mod debug;
 pub mod instructions;
@@ -24,6 +25,7 @@ use std::{
 };
 
 pub use backends::*;
+pub use compiled::CompiledCode;
 pub use context::*;
 pub use instructions::*;
 pub use risc::*;
@@ -230,6 +232,31 @@ unsafe impl<M: Send> Send for JitFunction<M> {}
 
 #[cfg(sp1_native_executor_available)]
 impl<M: JitMemory> JitFunction<M> {
+    /// Reconstruct a [`JitFunction`] from a previously saved [`CompiledCode`] blob,
+    /// skipping the transpilation step entirely.
+    ///
+    /// The raw x86-64 bytes in `compiled` are copied into a fresh executable
+    /// memory mapping, and the jump table is rebased to absolute addresses.
+    ///
+    /// # Note on embedded function pointers
+    ///
+    /// The code bytes may contain absolute function-pointer immediates (e.g. the
+    /// ECALL handler address) that were valid only in the process that compiled
+    /// them.  If you are restoring the blob in a different process or address
+    /// space, call [`CompiledCode::patch_fn_ptr`] on the blob **before** passing
+    /// it here to fix up any relocated symbols.
+    pub fn from_compiled_code(compiled: &CompiledCode) -> io::Result<Self> {
+        use dynasmrt::mmap::MutableBuffer;
+
+        let code_len = compiled.code.len();
+        let mut buf = MutableBuffer::new(code_len)?;
+        buf.set_len(code_len);
+        buf[..].copy_from_slice(&compiled.code);
+        let exec_buf = buf.make_exec()?;
+
+        Self::new(exec_buf, compiled.jump_table.clone(), compiled.memory_size, compiled.pc_start)
+    }
+
     pub(crate) fn new(
         code: ExecutableBuffer,
         jump_table: Vec<usize>,

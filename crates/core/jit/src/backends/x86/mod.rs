@@ -201,6 +201,12 @@ pub struct TranspilerBackend {
     labels: HashMap<usize, DynamicLabel>,
     /// Program size, or instruction count
     program_size: usize,
+    /// Locations of embedded function-pointer immediates, used for cache invalidation
+    /// and patching when restoring compiled code in a different address space.
+    ///
+    /// Each entry is `(byte_offset_in_code_buffer, original_fn_ptr_value)`.
+    /// The pointer value is stored as a little-endian `u64` at the given offset.
+    pub(crate) fn_ptr_relocations: Vec<(usize, u64)>,
 }
 
 impl TraceCollector for TranspilerBackend {
@@ -668,6 +674,11 @@ impl TranspilerBackend {
     }
 
     /// Call an external function, assumes that the arguments are already in the correct registers.
+    ///
+    /// The function pointer is embedded as a 64-bit immediate (`mov rax, imm64`).
+    /// Its byte offset within the code buffer is recorded in [`Self::fn_ptr_relocations`]
+    /// so that [`crate::CompiledCode`] can patch it when restoring the blob in a
+    /// different address space.
     #[inline]
     fn call_extern_fn_raw(&mut self, fn_ptr: usize) {
         // Before the call, save all the registers to the context.
@@ -677,8 +688,8 @@ impl TranspilerBackend {
         }
         self.write_back_clock();
 
-        // We need to save the caller-saved registers before we make any calls,
-        // then restore them after the call.
+        // Emit the stack-alignment preamble in a separate block so we can capture
+        // the assembler offset right before the `mov rax, imm64` instruction.
         dynasm! {
             self;
             .arch x64;
@@ -687,10 +698,21 @@ impl TranspilerBackend {
             mov Rq(CLOCK_OR_SAVED_STACK_PTR), rsp;
 
             // Align the stack to 16 bytes for the call
-            lea rsp, [rsp - 8]; // sub 8 from the rsp
-            mov rax, rsp; // copy
-            and rax, 15; // compute rsp % 16
-            sub rsp, rax; // sub that from the rsp to ensure 16 byte alignment
+            lea rsp, [rsp - 8];
+            mov rax, rsp;
+            and rax, 15;
+            sub rsp, rax
+        }
+
+        // Record the offset of the upcoming `mov rax, imm64` instruction.
+        // The x86-64 encoding is: REX.W prefix (0x48)  +  B8+rd (0xB8 for rax)  +  8-byte imm.
+        // So the 8-byte function-pointer lives at (instruction start + 2).
+        let mov_offset = self.inner.offset().0;
+        self.fn_ptr_relocations.push((mov_offset + 2, fn_ptr as u64));
+
+        dynasm! {
+            self;
+            .arch x64;
 
             // Call the external function
             mov rax, QWORD fn_ptr as _;

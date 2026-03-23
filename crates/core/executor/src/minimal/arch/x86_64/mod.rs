@@ -3,8 +3,9 @@
 use crate::{memory::MAX_LOG_ADDR, Instruction, Opcode, Program, Register, HALT_PC};
 use memmap2::MmapMut;
 use sp1_jit::{
-    debug, memory::AnonymousMemory, trace_capacity, DebugBackend, JitFunction, JitMemory, MemValue,
-    RiscOperand, RiscRegister, RiscvTranspiler, TraceChunkHeader, TraceChunkRaw, TranspilerBackend,
+    debug, memory::AnonymousMemory, trace_capacity, CompiledCode, DebugBackend, JitFunction,
+    JitMemory, MemValue, RiscOperand, RiscRegister, RiscvTranspiler, TraceChunkHeader,
+    TraceChunkRaw, TranspilerBackend,
 };
 use std::{
     collections::VecDeque,
@@ -53,6 +54,39 @@ impl MinimalExecutor {
         Self {
             program,
             compiled,
+            input: VecDeque::new(),
+            trace_buf_size: trace_capacity(max_trace_size),
+        }
+    }
+
+    /// Restore a [`MinimalExecutor`] from a previously saved [`CompiledCode`] blob,
+    /// skipping the transpilation step.
+    ///
+    /// `max_trace_size` must match the value that was active when the code was
+    /// compiled (it determines the trace-buffer allocation, not the compiled
+    /// code itself).
+    ///
+    /// # Note on embedded function pointers
+    ///
+    /// The blob contains hardcoded addresses for the ECALL handler and any
+    /// precompile stubs.  These are valid only when the same binary is run; if
+    /// you load a blob compiled by a *different* build, call
+    /// [`CompiledCode::patch_fn_ptr`] on it first.
+    #[must_use]
+    pub fn from_compiled(
+        program: Arc<Program>,
+        compiled: &CompiledCode,
+        max_trace_size: Option<u64>,
+    ) -> Self {
+        tracing::debug!("restoring JIT function from compiled code cache");
+
+        let mut jit_fn: JitFunction<AnonymousMemory> =
+            JitFunction::from_compiled_code(compiled).expect("Failed to restore JIT function");
+        jit_fn.with_initial_memory_image(program.memory_image.clone());
+
+        Self {
+            program,
+            compiled: jit_fn,
             input: VecDeque::new(),
             trace_buf_size: trace_capacity(max_trace_size),
         }
@@ -364,11 +398,44 @@ impl MinimalTranspiler {
         }
     }
 
-    fn transpile_instructions<B: RiscvTranspiler, M: JitMemory>(
-        &self,
-        mut backend: B,
-        program: &Program,
-    ) -> JitFunction<M> {
+    /// Transpile the program and return a serialisable [`CompiledCode`] snapshot
+    /// rather than a live [`JitFunction`].
+    ///
+    /// Use this to persist the compiled code to disk and restore it later via
+    /// [`MinimalExecutor::from_compiled`], avoiding the transpilation cost on
+    /// subsequent runs.
+    ///
+    /// Debug mode is not supported; if `self.is_debug` is set it is silently
+    /// ignored (debug backends cannot be serialised).
+    #[tracing::instrument(
+        name = "MinimalTranspiler::transpile_to_compiled",
+        level = "debug",
+        skip(program)
+    )]
+    pub fn transpile_to_compiled(&self, program: &Program) -> std::io::Result<CompiledCode> {
+        let mut backend = TranspilerBackend::new(
+            program.instructions.len(),
+            self.memory_buffer_size(),
+            self.max_trace_size,
+            program.pc_start_abs,
+            program.pc_base,
+            8,
+        )
+        .expect("Failed to create transpiler backend");
+
+        backend.register_ecall_handler(crate::minimal::ecall::sp1_ecall_handler);
+
+        // Emit all instructions into the backend (same logic as transpile_instructions).
+        self.fill_backend(&mut backend, program);
+
+        backend.into_compiled_code()
+    }
+
+    /// Emit all RISC-V instructions from `program` into `backend`.
+    ///
+    /// This is the shared core used by both [`Self::transpile`] (generic over
+    /// backend type) and [`Self::transpile_to_compiled`] (concrete backend).
+    fn fill_backend<B: RiscvTranspiler>(&self, backend: &mut B, program: &Program) {
         for instruction in program.instructions.iter() {
             backend.start_instr();
 
@@ -380,10 +447,10 @@ impl MinimalTranspiler {
                 | Opcode::LHU
                 | Opcode::LD
                 | Opcode::LWU => {
-                    self.transpile_load_instruction(&mut backend, instruction);
+                    self.transpile_load_instruction(backend, instruction);
                 }
                 Opcode::SB | Opcode::SH | Opcode::SW | Opcode::SD => {
-                    self.transpile_store_instruction(&mut backend, instruction);
+                    self.transpile_store_instruction(backend, instruction);
                 }
                 Opcode::BEQ
                 | Opcode::BNE
@@ -391,10 +458,10 @@ impl MinimalTranspiler {
                 | Opcode::BGE
                 | Opcode::BLTU
                 | Opcode::BGEU => {
-                    Self::transpile_branch_instruction(&mut backend, instruction);
+                    Self::transpile_branch_instruction(backend, instruction);
                 }
                 Opcode::JAL | Opcode::JALR => {
-                    Self::transpile_jump_instruction(&mut backend, instruction);
+                    Self::transpile_jump_instruction(backend, instruction);
                 }
                 Opcode::ADD
                 | Opcode::ADDI
@@ -427,7 +494,7 @@ impl MinimalTranspiler {
                 | Opcode::REMW
                     if instruction.is_alu_instruction() =>
                 {
-                    Self::transpile_alu_instruction(&mut backend, instruction);
+                    Self::transpile_alu_instruction(backend, instruction);
                 }
                 Opcode::AUIPC => {
                     let (rd, imm) = instruction.u_type();
@@ -448,7 +515,14 @@ impl MinimalTranspiler {
 
             backend.end_instr();
         }
+    }
 
+    fn transpile_instructions<B: RiscvTranspiler, M: JitMemory>(
+        &self,
+        mut backend: B,
+        program: &Program,
+    ) -> JitFunction<M> {
+        self.fill_backend(&mut backend, program);
         backend.finalize().expect("Failed to finalize function")
     }
 

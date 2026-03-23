@@ -48,6 +48,7 @@ impl RiscvTranspiler for TranspilerBackend {
             reg_values: HashMap::new(),
             labels: HashMap::new(),
             program_size,
+            fn_ptr_relocations: Vec::new(),
         };
 
         // Handle calling conventions and save anything were gonna clobber.
@@ -152,5 +153,42 @@ impl RiscvTranspiler for TranspilerBackend {
         }
 
         self.call_extern_fn_raw(handler as _);
+    }
+}
+
+use crate::CompiledCode;
+
+impl TranspilerBackend {
+    /// Finalize the backend and return a [`CompiledCode`] snapshot instead of a
+    /// [`JitFunction`].
+    ///
+    /// This is the save-side of the JIT cache: after calling this you can
+    /// persist the blob with [`CompiledCode::save`] and later restore it with
+    /// [`JitFunction::from_compiled_code`].
+    ///
+    /// Unlike [`RiscvTranspiler::finalize`], this method does **not** allocate
+    /// JIT memory or build a live jump table, so it is suitable for offline
+    /// code-generation pipelines.
+    ///
+    /// # Note on embedded function pointers
+    ///
+    /// Function pointers (e.g. the ECALL handler, precompile stubs) are embedded
+    /// as 64-bit immediates in the generated code.  The returned [`CompiledCode`]
+    /// records their locations in [`CompiledCode::fn_ptr_relocations`] so that
+    /// they can be patched when restoring in a different address space.
+    pub fn into_compiled_code(mut self) -> io::Result<CompiledCode> {
+        self.epilogue();
+
+        let exec_buf = self.inner.finalize().expect("failed to finalize x86 backend");
+        debug_assert!(exec_buf.size() > 0, "Got empty x86 code buffer");
+
+        Ok(CompiledCode {
+            code: exec_buf.to_vec(),
+            jump_table: self.jump_table,
+            pc_start: self.pc_start,
+            pc_base: self.pc_base,
+            memory_size: self.memory_size,
+            fn_ptr_relocations: self.fn_ptr_relocations,
+        })
     }
 }

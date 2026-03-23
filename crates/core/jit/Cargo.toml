@@ -17,9 +17,10 @@ uuid = { workspace = true, features = ["v4"] }
 hashbrown = { workspace = true }
 memmap2 = { workspace = true }
 libc = { workspace = true }
+bincode = { workspace = true }
 
 [dev-dependencies]
-bincode = { workspace = true }
+tempfile = { workspace = true }
 
 [features]
 profiling = []
