@@ -252,7 +252,7 @@ impl<M: JitMemory> JitFunction<M> {
         buf[..].copy_from_slice(&compiled.code);
 
         // Patch each ECALL handler pointer with the live address.
-        let handler_bytes = (ecall_handler as u64).to_le_bytes();
+        let handler_bytes = (ecall_handler as usize as u64).to_le_bytes();
         for &offset in &compiled.ecall_ptr_offsets {
             buf[offset..offset + 8].copy_from_slice(&handler_bytes);
         }
