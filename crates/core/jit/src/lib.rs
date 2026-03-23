@@ -489,12 +489,16 @@ impl<M: JitMemory> JitFunction<M> {
     pub unsafe fn from_static_link() -> io::Result<Self> {
         use crate::static_link::*;
 
-        // The jump-table entries are already absolute code pointers — the linker
-        // resolved the `R_X86_64_64` relocations for the `riscv_pc_0x…` labels.
+        // Each jump-table entry is a byte offset from `sp1_jit_code`, stored as
+        // a plain u64 constant with no relocation (see write_asm docs).
+        // We recover the absolute pointer by adding the runtime address of
+        // sp1_jit_code — identical arithmetic to JitFunction::new().
+        let code_base = sp1_jit_code as *const u8;
         let jt_len = sp1_jump_table_len as usize;
-        let jt_ptr = sp1_jump_table.as_ptr();
+        let jt_offsets: &[u64] =
+            std::slice::from_raw_parts(sp1_jump_table.as_ptr(), jt_len);
         let jump_table: Vec<*const u8> =
-            std::slice::from_raw_parts(jt_ptr, jt_len).to_vec();
+            jt_offsets.iter().map(|&off| code_base.add(off as usize)).collect();
 
         let pc_start = sp1_pc_start;
         let memory_size = sp1_memory_size as usize;

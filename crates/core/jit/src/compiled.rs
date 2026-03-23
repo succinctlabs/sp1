@@ -115,7 +115,7 @@ impl CompiledCode {
     ///
     ///    | Symbol                      | Content                                              |
     ///    |-----------------------------|------------------------------------------------------|
-    ///    | `sp1_jump_table`            | Array of `.quad riscv_pc_0x…` (linker-resolved)      |
+    ///    | `sp1_jump_table`            | Array of `u64` byte offsets from `sp1_jit_code`      |
     ///    | `sp1_jump_table_len`        | `u64` — number of entries                            |
     ///    | `sp1_ecall_ptr_offsets`     | Array of `u64` byte offsets (patch sites)            |
     ///    | `sp1_ecall_ptr_offsets_len` | `u64` — number of entries                            |
@@ -125,10 +125,12 @@ impl CompiledCode {
     ///    | `sp1_pc_base`               | `u64` — base program counter (jump-table origin)     |
     ///    | `sp1_memory_size`           | `u64` — VM memory region size in bytes               |
     ///
-    ///    Because `sp1_jump_table` entries are emitted as `.quad riscv_pc_0x…`, the
-    ///    assembler records `R_X86_64_64` relocations so the **linker fills in the
-    ///    correct absolute addresses** at link time.  The resulting object therefore
-    ///    contains a fully-resolved jump table ready to use without any runtime patching.
+    ///    `sp1_jump_table` entries are emitted as `.quad riscv_pc_0x… - sp1_jit_code`.
+    ///    Because both symbols live in the same `.text` section of the same object file,
+    ///    GAS computes the difference as a **compile-time constant** and emits **no
+    ///    relocation** — making the object compatible with PIE executables and shared
+    ///    libraries.  At runtime, [`crate::JitFunction::from_static_link`] adds the
+    ///    load address of `sp1_jit_code` to each entry to recover the absolute pointer.
     ///
     /// # Parameters
     /// - `ecall_symbol`: the linker symbol name of the ECALL handler function
@@ -225,14 +227,19 @@ impl CompiledCode {
         writeln!(writer, "\t.section\t.rodata")?;
         writeln!(writer)?;
 
-        // ── jump_table: one absolute pointer per RISC-V instruction ──────
-        // Entries are emitted as `.quad riscv_pc_0x…` so the assembler emits
-        // R_X86_64_64 relocations; the linker fills the absolute addresses.
+        // ── jump_table: byte offsets from sp1_jit_code ───────────────────
+        // Entries are emitted as `.quad riscv_pc_0x… - sp1_jit_code`.
+        // Both symbols are in the same .text section, so GAS resolves the
+        // difference to a plain integer constant at assembly time — no
+        // relocation is emitted, making the object compatible with PIE/PIC.
+        // from_static_link() recovers the absolute pointer by adding the
+        // runtime address of sp1_jit_code, mirroring what JitFunction::new()
+        // does for the dynamic path.
         writeln!(writer, "\t.global\tsp1_jump_table")?;
         writeln!(writer, "\t.align\t8")?;
         writeln!(writer, "sp1_jump_table:")?;
         for (_, name) in &labels {
-            writeln!(writer, "\t.quad\t{name}")?;
+            writeln!(writer, "\t.quad\t{name} - sp1_jit_code")?;
         }
         writeln!(writer)?;
         writeln!(writer, "\t.global\tsp1_jump_table_len")?;
@@ -407,17 +414,24 @@ mod tests {
         assert!(text.contains("sp1_pc_base:"), "missing sp1_pc_base");
         assert!(text.contains("sp1_memory_size:"), "missing sp1_memory_size");
 
-        // jump_table entries reference instruction labels (not raw offsets).
-        // The rodata section should have `.quad riscv_pc_0x00001000` etc.
+        // jump_table entries are relative offsets from sp1_jit_code (no
+        // absolute relocations — required for PIE/PIC compatibility).
         let rodata_start = text.find(".section\t.rodata").unwrap();
         let rodata = &text[rodata_start..];
         assert!(
-            rodata.contains(".quad\triscv_pc_0x00001000"),
-            "jump table entry should reference instruction label"
+            rodata.contains(".quad\triscv_pc_0x00001000 - sp1_jit_code"),
+            "jump table entry should be a relative offset from sp1_jit_code"
         );
         assert!(
-            rodata.contains(".quad\triscv_pc_0x00001004"),
-            "jump table entry should reference instruction label"
+            rodata.contains(".quad\triscv_pc_0x00001004 - sp1_jit_code"),
+            "jump table entry should be a relative offset from sp1_jit_code"
+        );
+        // Absolute symbol references must NOT appear in the jump table (they
+        // would produce R_X86_64_64 relocations, incompatible with PIE/PIC).
+        assert!(
+            !rodata[..rodata.find("sp1_jump_table_len:").unwrap()]
+                .contains(".quad\triscv_pc_0x00001000\n"),
+            "absolute jump table entry must not be emitted"
         );
 
         // Scalar constants carry the right values.

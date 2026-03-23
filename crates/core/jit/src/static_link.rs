@@ -7,7 +7,7 @@
 //! | Symbol                      | Type                    | Content                              |
 //! |-----------------------------|-------------------------|--------------------------------------|
 //! | `sp1_jit_code`              | function                | JIT prologue / entry point           |
-//! | `sp1_jump_table`            | `[*const u8]`           | Absolute instruction addresses       |
+//! | `sp1_jump_table`            | `[u64]`                 | Byte offsets from `sp1_jit_code`     |
 //! | `sp1_jump_table_len`        | `u64`                   | Number of jump-table entries         |
 //! | `sp1_ecall_ptr_offsets`     | `[u64]`                 | ECALL patch-site offsets             |
 //! | `sp1_ecall_ptr_offsets_len` | `u64`                   | Number of ECALL patch sites          |
@@ -55,14 +55,18 @@ extern "C" {
 
     /// First element of the jump-table array.
     ///
-    /// The assembler emits one `.quad riscv_pc_0x…` per RISC-V instruction, so
-    /// the linker fills each entry with the absolute address of that instruction's
-    /// x86-64 code — identical to what [`crate::JitFunction::new`] computes at
-    /// runtime from offsets.
+    /// Each entry holds a **byte offset from `sp1_jit_code`** — emitted in the
+    /// `.S` file as `.quad riscv_pc_0x… - sp1_jit_code`.  Because both symbols
+    /// are in the same `.text` section, GAS computes the difference at assembly
+    /// time and emits no relocation, keeping the object PIE/PIC-compatible.
+    ///
+    /// [`crate::JitFunction::from_static_link`] converts each offset back to an
+    /// absolute pointer by adding the runtime address of `sp1_jit_code`, exactly
+    /// mirroring what [`crate::JitFunction::new`] does for the dynamic path.
     ///
     /// Declared as a zero-length array so that `sp1_jump_table.as_ptr()` yields
-    /// a pointer to the first `*const u8` entry without any indirection.
-    pub static sp1_jump_table: [*const u8; 0];
+    /// a `*const u64` to the first entry without any extra indirection.
+    pub static sp1_jump_table: [u64; 0];
 
     /// Number of entries in [`sp1_jump_table`].
     pub static sp1_jump_table_len: u64;
