@@ -1,7 +1,7 @@
 #![allow(clippy::fn_to_numeric_cast)]
 
 use crate::{
-    do_load_imm_var, do_opt_imm_var, EcallHandler, JitContext, RiscOperand, RiscRegister,
+    do_load_imm_var, do_opt_imm_var, EcallHandler, ExternFn, JitContext, RiscOperand, RiscRegister,
     TraceChunkHeader, TraceCollector,
 };
 use dynasmrt::{
@@ -210,9 +210,19 @@ pub struct TranspilerBackend {
     /// blob via [`crate::JitFunction::from_compiled_code`].
     pub(crate) ecall_ptr_offsets: Vec<usize>,
 
-    /// Set to `true` if any non-ECALL external function call has been emitted
-    /// (e.g. from [`crate::RiscvTranspiler::call_extern_fn`] or the debug
-    /// inspection helpers).
+    /// Byte offsets within the code buffer where the UNIMP handler address is embedded
+    /// as a 64-bit immediate (`mov rax, imm64`).
+    ///
+    /// Like [`Self::ecall_ptr_offsets`], these are patched at restore time because
+    /// the handler is a known function in the same binary.
+    pub(crate) unimp_ptr_offsets: Vec<usize>,
+
+    /// The UNIMP handler called when an `unimp` instruction is executed.
+    pub(crate) unimp_handler: ExternFn,
+
+    /// Set to `true` if any external function call other than the ECALL or UNIMP handler
+    /// has been emitted (e.g. from [`crate::RiscvTranspiler::call_extern_fn`] or the
+    /// debug inspection helpers).
     ///
     /// When this flag is set, [`TranspilerBackend::into_compiled_code`] will
     /// return an error because those embedded function pointers are unknown at
@@ -694,6 +704,7 @@ impl TranspilerBackend {
     ///
     /// Callers are responsible for deciding how to record this offset:
     /// - ECALL-handler calls → push into [`Self::ecall_ptr_offsets`].
+    /// - UNIMP-handler calls → push into [`Self::unimp_ptr_offsets`].
     /// - All other calls → set [`Self::has_non_ecall_extern_calls`].
     #[inline]
     #[must_use = "callers must record the returned offset or set the non-ecall flag"]
@@ -969,6 +980,12 @@ impl DerefMut for TranspilerBackend {
 /// If this is not the case, we throw an error at compile time.
 #[cfg(not(target_feature = "sse"))]
 compile_error!("SSE is required for the x86 backend");
+
+/// A dummy unimp handler that can be called by the JIT.
+extern "C" fn unimpk(ctx: *mut JitContext) {
+    let ctx = unsafe { &mut *ctx };
+    eprintln!("dummy unimp handler called at pc: 0x{:x}", ctx.pc);
+}
 
 /// A dummy ecall handler that can be called by the JIT.
 extern "C" fn ecallk(ctx: *mut JitContext) -> u64 {

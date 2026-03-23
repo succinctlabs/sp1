@@ -236,13 +236,18 @@ impl<M: JitMemory> JitFunction<M> {
     /// skipping the transpilation step entirely.
     ///
     /// The raw x86-64 bytes in `compiled` are copied into a writable buffer.
-    /// Before marking the buffer executable, every offset listed in
-    /// [`CompiledCode::ecall_ptr_offsets`] is overwritten with the address of
-    /// `ecall_handler`, so the restored code calls the correct live function
-    /// regardless of which process or ASLR layout compiled the blob.
+    /// Before marking the buffer executable:
+    /// - Every offset in [`CompiledCode::ecall_ptr_offsets`] is overwritten with
+    ///   the address of `ecall_handler`.
+    /// - Every offset in [`CompiledCode::unimp_ptr_offsets`] is overwritten with
+    ///   the address of `unimp_handler`.
+    ///
+    /// This ensures the restored code calls the correct live functions regardless
+    /// of which process or ASLR layout compiled the blob.
     pub fn from_compiled_code(
         compiled: &CompiledCode,
         ecall_handler: EcallHandler,
+        unimp_handler: ExternFn,
     ) -> io::Result<Self> {
         use dynasmrt::mmap::MutableBuffer;
 
@@ -252,9 +257,15 @@ impl<M: JitMemory> JitFunction<M> {
         buf[..].copy_from_slice(&compiled.code);
 
         // Patch each ECALL handler pointer with the live address.
-        let handler_bytes = (ecall_handler as usize as u64).to_le_bytes();
+        let ecall_bytes = (ecall_handler as usize as u64).to_le_bytes();
         for &offset in &compiled.ecall_ptr_offsets {
-            buf[offset..offset + 8].copy_from_slice(&handler_bytes);
+            buf[offset..offset + 8].copy_from_slice(&ecall_bytes);
+        }
+
+        // Patch each UNIMP handler pointer with the live address.
+        let unimp_bytes = (unimp_handler as usize as u64).to_le_bytes();
+        for &offset in &compiled.unimp_ptr_offsets {
+            buf[offset..offset + 8].copy_from_slice(&unimp_bytes);
         }
 
         let exec_buf = buf.make_exec()?;

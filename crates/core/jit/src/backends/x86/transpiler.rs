@@ -50,6 +50,8 @@ impl RiscvTranspiler for TranspilerBackend {
             labels: HashMap::new(),
             program_size,
             ecall_ptr_offsets: Vec::new(),
+            unimp_ptr_offsets: Vec::new(),
+            unimp_handler: super::unimpk as _,
             has_non_ecall_extern_calls: false,
         };
 
@@ -172,6 +174,11 @@ impl RiscvTranspiler for TranspilerBackend {
 use crate::CompiledCode;
 
 impl TranspilerBackend {
+    /// Register the handler called when an `unimp` instruction is executed.
+    pub fn register_unimp_handler(&mut self, handler: ExternFn) {
+        self.unimp_handler = handler;
+    }
+
     /// Finalize the backend and return a [`CompiledCode`] snapshot instead of a
     /// [`JitFunction`].
     ///
@@ -195,9 +202,9 @@ impl TranspilerBackend {
         if self.has_non_ecall_extern_calls {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                "cannot serialize JIT code that contains non-ECALL external function calls \
-                 (e.g. call_extern_fn, inspect_register, inspect_immediate); \
-                 those embedded pointers cannot be patched when restoring",
+                "cannot serialize JIT code that contains external function calls other than \
+                 the ECALL and UNIMP handlers (e.g. call_extern_fn, inspect_register, \
+                 inspect_immediate); those embedded pointers cannot be patched when restoring",
             ));
         }
 
@@ -215,6 +222,7 @@ impl TranspilerBackend {
             pc_base: self.pc_base,
             memory_size: self.memory_size,
             ecall_ptr_offsets: self.ecall_ptr_offsets,
+            unimp_ptr_offsets: self.unimp_ptr_offsets,
         })
     }
 }

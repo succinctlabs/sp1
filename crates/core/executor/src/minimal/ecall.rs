@@ -162,3 +162,14 @@ pub fn ecall_handler(ctx: &mut impl SyscallContext, code: SyscallCode) -> u64 {
         | SyscallCode::COMMIT_DEFERRED_PROOFS => None,
     }.unwrap_or(code as u64)
 }
+
+// Used by the x86_64 JIT executor. When profiling is enabled, only compiled for tests.
+#[cfg(all(
+    target_arch = "x86_64",
+    target_endian = "little",
+    any(not(feature = "profiling"), test)
+))]
+pub(super) extern "C" fn sp1_unimp_handler(ctx: *mut sp1_jit::JitContext) {
+    let ctx = unsafe { &mut *ctx };
+    eprintln!("Unimplemented instruction at pc: 0x{:x}", ctx.pc);
+}

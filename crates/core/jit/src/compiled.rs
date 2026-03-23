@@ -63,6 +63,13 @@ pub struct CompiledCode {
     /// [`crate::JitFunction::from_compiled_code`] overwrites each location with
     /// the live handler address before marking the buffer executable.
     pub ecall_ptr_offsets: Vec<usize>,
+
+    /// Byte offsets within [`Self::code`] where the UNIMP handler address is
+    /// embedded as a little-endian 64-bit immediate (`mov rax, imm64`).
+    ///
+    /// [`crate::JitFunction::from_compiled_code`] overwrites each location with
+    /// the live handler address before marking the buffer executable.
+    pub unimp_ptr_offsets: Vec<usize>,
 }
 
 // ─── Disk persistence ─────────────────────────────────────────────────────
@@ -110,17 +117,31 @@ impl CompiledCode {
     /// - `ecall_symbol`: the linker symbol name of the ECALL handler function
     ///   (e.g. `"sp1_ecall_handler"`).  The function must be exported from the
     ///   binary with that exact name (use `#[no_mangle]`).
+    /// - `unimp_symbol`: the linker symbol name of the UNIMP handler function
+    ///   (e.g. `"sp1_unimp_handler"`).  Same export requirement applies.
     ///
     /// # Assembling
     /// ```sh
     /// as -o out.o out.S          # GNU Binutils
     /// clang -c -o out.o out.S    # LLVM / Clang
     /// ```
-    pub fn write_asm<W: Write>(&self, writer: &mut W, ecall_symbol: &str) -> io::Result<()> {
-        use std::collections::BTreeSet;
+    pub fn write_asm<W: Write>(
+        &self,
+        writer: &mut W,
+        ecall_symbol: &str,
+        unimp_symbol: &str,
+    ) -> io::Result<()> {
+        use std::collections::BTreeMap;
 
-        // Sorted set of offsets where .quad replaces 8 raw bytes.
-        let ecall_set: BTreeSet<usize> = self.ecall_ptr_offsets.iter().copied().collect();
+        // Unified map: code offset → symbol name for every patchable pointer slot.
+        // Both ECALL and UNIMP handler addresses are emitted as `.quad <symbol>`.
+        let mut ptr_sites: BTreeMap<usize, &str> = BTreeMap::new();
+        for &off in &self.ecall_ptr_offsets {
+            ptr_sites.insert(off, ecall_symbol);
+        }
+        for &off in &self.unimp_ptr_offsets {
+            ptr_sites.insert(off, unimp_symbol);
+        }
 
         // Sorted list of (code_offset, label_name), one per RISC-V instruction.
         let mut labels: Vec<(usize, String)> = self
@@ -153,21 +174,18 @@ impl CompiledCode {
                 writeln!(writer, "{name}:")?;
             }
 
-            // ECALL relocation site: emit a symbol reference instead of bytes.
-            if ecall_set.contains(&pos) {
-                writeln!(writer, "\t.quad\t{ecall_symbol}")?;
+            // Patchable pointer site: emit a symbol reference instead of raw bytes.
+            if let Some(&symbol) = ptr_sites.get(&pos) {
+                writeln!(writer, "\t.quad\t{symbol}")?;
                 pos += 8;
                 continue;
             }
 
-            // Plain bytes: run until the next label or ecall site.
+            // Plain bytes: run until the next label or pointer site.
             let next_label = label_iter.peek().map(|(off, _)| *off);
-            let next_ecall = ecall_set.range(pos + 1..).next().copied();
-            let run_end = [next_label, next_ecall, Some(self.code.len())]
-                .into_iter()
-                .flatten()
-                .min()
-                .unwrap();
+            let next_ptr = ptr_sites.range(pos + 1..).next().map(|(&off, _)| off);
+            let run_end =
+                [next_label, next_ptr, Some(self.code.len())].into_iter().flatten().min().unwrap();
 
             for chunk in self.code[pos..run_end].chunks(8) {
                 let hex: Vec<String> = chunk.iter().map(|b| format!("0x{b:02x}")).collect();
@@ -181,9 +199,14 @@ impl CompiledCode {
 
     /// Convenience wrapper: write a `.S` assembly file to `path`.
     ///
-    /// See [`Self::write_asm`] for the `ecall_symbol` parameter.
-    pub fn write_asm_to_file(&self, path: &Path, ecall_symbol: &str) -> io::Result<()> {
-        self.write_asm(&mut File::create(path)?, ecall_symbol)
+    /// See [`Self::write_asm`] for the `ecall_symbol` and `unimp_symbol` parameters.
+    pub fn write_asm_to_file(
+        &self,
+        path: &Path,
+        ecall_symbol: &str,
+        unimp_symbol: &str,
+    ) -> io::Result<()> {
+        self.write_asm(&mut File::create(path)?, ecall_symbol, unimp_symbol)
     }
 }
 
@@ -202,6 +225,7 @@ mod tests {
             pc_base: 0x1000,
             memory_size: 4096,
             ecall_ptr_offsets: vec![],
+            unimp_ptr_offsets: vec![],
         };
 
         let dir = tempfile::tempdir().unwrap();
@@ -215,6 +239,7 @@ mod tests {
         assert_eq!(original.pc_base, loaded.pc_base);
         assert_eq!(original.memory_size, loaded.memory_size);
         assert_eq!(original.ecall_ptr_offsets, loaded.ecall_ptr_offsets);
+        assert_eq!(original.unimp_ptr_offsets, loaded.unimp_ptr_offsets);
     }
 
     #[test]
@@ -235,10 +260,11 @@ mod tests {
             pc_base: 0x1000,
             memory_size: 4096,
             ecall_ptr_offsets: vec![6],
+            unimp_ptr_offsets: vec![],
         };
 
         let mut out = Vec::new();
-        compiled.write_asm(&mut out, "sp1_ecall_handler").unwrap();
+        compiled.write_asm(&mut out, "sp1_ecall_handler", "sp1_unimp_handler").unwrap();
         let text = String::from_utf8(out).unwrap();
 
         // Section declaration present.
@@ -274,11 +300,10 @@ mod tests {
     }
 
     #[test]
-    fn ecall_ptr_offsets_roundtrip() {
-        // Simulate a code buffer with two embedded ECALL handler pointers.
+    fn ecall_and_unimp_ptr_offsets_roundtrip() {
+        // Simulate a code buffer with one ECALL and one UNIMP handler pointer.
         let handler_addr: u64 = 0xDEAD_BEEF_0000_0001;
         let mut code = vec![0u8; 32];
-        // Write fake handler address at offsets 2 and 18.
         code[2..10].copy_from_slice(&handler_addr.to_le_bytes());
         code[18..26].copy_from_slice(&handler_addr.to_le_bytes());
 
@@ -288,7 +313,8 @@ mod tests {
             pc_start: 0x1000,
             pc_base: 0x1000,
             memory_size: 4096,
-            ecall_ptr_offsets: vec![2, 18],
+            ecall_ptr_offsets: vec![2],
+            unimp_ptr_offsets: vec![18],
         };
 
         let dir = tempfile::tempdir().unwrap();
@@ -296,6 +322,7 @@ mod tests {
         compiled.save(&path).unwrap();
 
         let loaded = CompiledCode::load(&path).unwrap();
-        assert_eq!(loaded.ecall_ptr_offsets, vec![2, 18]);
+        assert_eq!(loaded.ecall_ptr_offsets, vec![2]);
+        assert_eq!(loaded.unimp_ptr_offsets, vec![18]);
     }
 }
