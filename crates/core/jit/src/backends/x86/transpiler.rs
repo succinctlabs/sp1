@@ -49,7 +49,8 @@ impl RiscvTranspiler for TranspilerBackend {
             reg_values: HashMap::new(),
             labels: HashMap::new(),
             program_size,
-            fn_ptr_relocations: Vec::new(),
+            ecall_ptr_offsets: Vec::new(),
+            has_non_ecall_extern_calls: false,
         };
 
         // Handle calling conventions and save anything were gonna clobber.
@@ -140,15 +141,18 @@ impl RiscvTranspiler for TranspilerBackend {
             mov rdi, Rq(CONTEXT)
         };
 
-        self.call_extern_fn_raw(fn_ptr as _);
+        // Non-ECALL external call: the pointer cannot be patched at restore time.
+        let _ = self.call_extern_fn_raw(fn_ptr as _);
+        self.has_non_ecall_extern_calls = true;
     }
 
     fn inspect_register(&mut self, reg: RiscRegister, handler: DebugFn) {
         // Load into the argument register for the function call.
         self.emit_risc_operand_load(RiscOperand::Register(reg), Rq::RDI as u8);
 
-        // Call the handler with the value of the register.
-        self.call_extern_fn_raw(handler as _);
+        // Non-ECALL external call: the pointer cannot be patched at restore time.
+        let _ = self.call_extern_fn_raw(handler as _);
+        self.has_non_ecall_extern_calls = true;
     }
 
     fn inspect_immediate(&mut self, imm: u64, handler: DebugFn) {
@@ -159,7 +163,9 @@ impl RiscvTranspiler for TranspilerBackend {
             mov rdi, imm as i32
         }
 
-        self.call_extern_fn_raw(handler as _);
+        // Non-ECALL external call: the pointer cannot be patched at restore time.
+        let _ = self.call_extern_fn_raw(handler as _);
+        self.has_non_ecall_extern_calls = true;
     }
 }
 
@@ -184,6 +190,17 @@ impl TranspilerBackend {
     /// records their locations in [`CompiledCode::fn_ptr_relocations`] so that
     /// they can be patched when restoring in a different address space.
     pub fn into_compiled_code(mut self) -> io::Result<CompiledCode> {
+        // Fail fast: non-ECALL external calls embed arbitrary function pointers that
+        // are unknown at restore time and cannot be patched, so caching is unsafe.
+        if self.has_non_ecall_extern_calls {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "cannot serialize JIT code that contains non-ECALL external function calls \
+                 (e.g. call_extern_fn, inspect_register, inspect_immediate); \
+                 those embedded pointers cannot be patched when restoring",
+            ));
+        }
+
         self.epilogue();
 
         // VecAssembler::finalize() resolves all internal relocations and returns
@@ -197,7 +214,7 @@ impl TranspilerBackend {
             pc_start: self.pc_start,
             pc_base: self.pc_base,
             memory_size: self.memory_size,
-            fn_ptr_relocations: self.fn_ptr_relocations,
+            ecall_ptr_offsets: self.ecall_ptr_offsets,
         })
     }
 }

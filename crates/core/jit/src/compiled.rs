@@ -10,16 +10,16 @@
 //!   RISC-V instruction boundary so that `objdump -d` or a debugger can correlate each
 //!   x86-64 sequence back to its originating RISC-V program counter.
 //!
-//! # Embedded function-pointer note
+//! # ECALL handler patching
 //!
-//! The generated x86-64 code embeds absolute addresses of Rust functions (e.g. the
-//! ECALL handler) as 64-bit immediates.  A blob saved from one process is therefore
-//! only valid in a process where those functions are mapped at the **same** virtual
-//! addresses.  In practice this means:
+//! The generated x86-64 code embeds the ECALL handler address as a 64-bit immediate.
+//! [`CompiledCode::ecall_ptr_offsets`] records where those immediates live so that
+//! [`crate::JitFunction::from_compiled_code`] can overwrite them with the correct
+//! handler address before making the buffer executable.
 //!
-//! * **Static binaries**: addresses are fixed – caching across runs is safe.
-//! * **Shared-library / ASLR builds**: patching is required before calling the restored
-//!   function.  See [`CompiledCode::patch_fn_ptr`].
+//! Only JIT code that exclusively calls the ECALL handler (no other external function
+//! calls) can be serialised.  The transpiler enforces this at [`into_compiled_code`]
+//! time and returns an error otherwise.
 
 use serde::{Deserialize, Serialize};
 use std::{
@@ -32,6 +32,9 @@ use std::{
 
 /// A snapshot of JIT-compiled x86-64 code that can be saved to disk and
 /// later used to reconstruct a [`crate::JitFunction`] without re-transpiling.
+///
+/// Only JIT code that calls **no** external functions other than the ECALL
+/// handler can be serialised; the transpiler returns an error otherwise.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CompiledCode {
     /// Raw x86-64 machine-code bytes.
@@ -53,11 +56,12 @@ pub struct CompiledCode {
     /// Size (bytes) of the JIT virtual-memory region to allocate at runtime.
     pub memory_size: usize,
 
-    /// Locations of embedded function-pointer immediates, used for patching
-    /// when the code is restored in a different address space.
+    /// Byte offsets within [`Self::code`] where the ECALL handler address is
+    /// embedded as a little-endian 64-bit immediate (`mov rax, imm64`).
     ///
-    /// Each entry is `(byte_offset_in_code, original_ptr_value)`.
-    pub fn_ptr_relocations: Vec<(usize, u64)>,
+    /// [`crate::JitFunction::from_compiled_code`] overwrites each location with
+    /// the live handler address before marking the buffer executable.
+    pub ecall_ptr_offsets: Vec<usize>,
 }
 
 // ─── Disk persistence ─────────────────────────────────────────────────────
@@ -75,26 +79,6 @@ impl CompiledCode {
         let mut bytes = Vec::new();
         File::open(path)?.read_to_end(&mut bytes)?;
         bincode::deserialize(&bytes).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
-    }
-
-    /// Patch a single embedded function pointer.
-    ///
-    /// `old_ptr` identifies the relocation entry; `new_ptr` is the address to
-    /// write in its place.  The patch is applied as a little-endian `u64` at
-    /// the stored byte offset.
-    ///
-    /// Returns `true` if at least one relocation was patched.
-    pub fn patch_fn_ptr(&mut self, old_ptr: u64, new_ptr: u64) -> bool {
-        let mut patched = false;
-        for (offset, stored) in &mut self.fn_ptr_relocations {
-            if *stored == old_ptr {
-                let bytes = new_ptr.to_le_bytes();
-                self.code[*offset..*offset + 8].copy_from_slice(&bytes);
-                *stored = new_ptr;
-                patched = true;
-            }
-        }
-        patched
     }
 }
 
@@ -358,7 +342,7 @@ mod tests {
             pc_start: 0x1000,
             pc_base: 0x1000,
             memory_size: 4096,
-            fn_ptr_relocations: vec![],
+            ecall_ptr_offsets: vec![],
         };
 
         let dir = tempfile::tempdir().unwrap();
@@ -371,6 +355,7 @@ mod tests {
         assert_eq!(original.pc_start, loaded.pc_start);
         assert_eq!(original.pc_base, loaded.pc_base);
         assert_eq!(original.memory_size, loaded.memory_size);
+        assert_eq!(original.ecall_ptr_offsets, loaded.ecall_ptr_offsets);
     }
 
     #[test]
@@ -381,7 +366,7 @@ mod tests {
             pc_start: 0x1000,
             pc_base: 0x1000,
             memory_size: 4096,
-            fn_ptr_relocations: vec![],
+            ecall_ptr_offsets: vec![],
         };
 
         let mut out = Vec::new();
@@ -400,27 +385,28 @@ mod tests {
     }
 
     #[test]
-    fn patch_fn_ptr_updates_code_and_reloc() {
-        let old_addr: u64 = 0xDEAD_BEEF_0000_0000;
-        let new_addr: u64 = 0x1234_5678_9ABC_DEF0;
+    fn ecall_ptr_offsets_roundtrip() {
+        // Simulate a code buffer with two embedded ECALL handler pointers.
+        let handler_addr: u64 = 0xDEAD_BEEF_0000_0001;
+        let mut code = vec![0u8; 32];
+        // Write fake handler address at offsets 2 and 18.
+        code[2..10].copy_from_slice(&handler_addr.to_le_bytes());
+        code[18..26].copy_from_slice(&handler_addr.to_le_bytes());
 
-        // A fake code buffer with the old address embedded at offset 2.
-        let mut code = vec![0x48u8, 0xB8]; // REX.W MOV rax, imm64 prefix
-        code.extend_from_slice(&old_addr.to_le_bytes());
-        code.push(0xFF); // trailing dummy byte
-
-        let mut compiled = CompiledCode {
+        let compiled = CompiledCode {
             code,
-            jump_table: vec![],
-            pc_start: 0,
-            pc_base: 0,
-            memory_size: 0,
-            fn_ptr_relocations: vec![(2, old_addr)],
+            jump_table: vec![0],
+            pc_start: 0x1000,
+            pc_base: 0x1000,
+            memory_size: 4096,
+            ecall_ptr_offsets: vec![2, 18],
         };
 
-        let patched = compiled.patch_fn_ptr(old_addr, new_addr);
-        assert!(patched);
-        assert_eq!(&compiled.code[2..10], &new_addr.to_le_bytes());
-        assert_eq!(compiled.fn_ptr_relocations[0].1, new_addr);
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test.bin");
+        compiled.save(&path).unwrap();
+
+        let loaded = CompiledCode::load(&path).unwrap();
+        assert_eq!(loaded.ecall_ptr_offsets, vec![2, 18]);
     }
 }

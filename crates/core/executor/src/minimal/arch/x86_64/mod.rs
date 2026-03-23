@@ -66,12 +66,10 @@ impl MinimalExecutor {
     /// compiled (it determines the trace-buffer allocation, not the compiled
     /// code itself).
     ///
-    /// # Note on embedded function pointers
-    ///
-    /// The blob contains hardcoded addresses for the ECALL handler and any
-    /// precompile stubs.  These are valid only when the same binary is run; if
-    /// you load a blob compiled by a *different* build, call
-    /// [`CompiledCode::patch_fn_ptr`] on it first.
+    /// The ECALL handler pointer embedded in the blob is replaced with the live
+    /// address of [`crate::minimal::ecall::sp1_ecall_handler`] before the buffer
+    /// is made executable, so the restored code works correctly regardless of
+    /// which process or ASLR layout compiled the blob.
     #[must_use]
     pub fn from_compiled(
         program: Arc<Program>,
@@ -81,7 +79,8 @@ impl MinimalExecutor {
         tracing::debug!("restoring JIT function from compiled code cache");
 
         let mut jit_fn: JitFunction<AnonymousMemory> =
-            JitFunction::from_compiled_code(compiled).expect("Failed to restore JIT function");
+            JitFunction::from_compiled_code(compiled, crate::minimal::ecall::sp1_ecall_handler)
+                .expect("Failed to restore JIT function");
         jit_fn.with_initial_memory_image(program.memory_image.clone());
 
         Self {

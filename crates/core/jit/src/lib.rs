@@ -235,23 +235,28 @@ impl<M: JitMemory> JitFunction<M> {
     /// Reconstruct a [`JitFunction`] from a previously saved [`CompiledCode`] blob,
     /// skipping the transpilation step entirely.
     ///
-    /// The raw x86-64 bytes in `compiled` are copied into a fresh executable
-    /// memory mapping, and the jump table is rebased to absolute addresses.
-    ///
-    /// # Note on embedded function pointers
-    ///
-    /// The code bytes may contain absolute function-pointer immediates (e.g. the
-    /// ECALL handler address) that were valid only in the process that compiled
-    /// them.  If you are restoring the blob in a different process or address
-    /// space, call [`CompiledCode::patch_fn_ptr`] on the blob **before** passing
-    /// it here to fix up any relocated symbols.
-    pub fn from_compiled_code(compiled: &CompiledCode) -> io::Result<Self> {
+    /// The raw x86-64 bytes in `compiled` are copied into a writable buffer.
+    /// Before marking the buffer executable, every offset listed in
+    /// [`CompiledCode::ecall_ptr_offsets`] is overwritten with the address of
+    /// `ecall_handler`, so the restored code calls the correct live function
+    /// regardless of which process or ASLR layout compiled the blob.
+    pub fn from_compiled_code(
+        compiled: &CompiledCode,
+        ecall_handler: EcallHandler,
+    ) -> io::Result<Self> {
         use dynasmrt::mmap::MutableBuffer;
 
         let code_len = compiled.code.len();
         let mut buf = MutableBuffer::new(code_len)?;
         buf.set_len(code_len);
         buf[..].copy_from_slice(&compiled.code);
+
+        // Patch each ECALL handler pointer with the live address.
+        let handler_bytes = (ecall_handler as u64).to_le_bytes();
+        for &offset in &compiled.ecall_ptr_offsets {
+            buf[offset..offset + 8].copy_from_slice(&handler_bytes);
+        }
+
         let exec_buf = buf.make_exec()?;
 
         Self::new(exec_buf, compiled.jump_table.clone(), compiled.memory_size, compiled.pc_start)

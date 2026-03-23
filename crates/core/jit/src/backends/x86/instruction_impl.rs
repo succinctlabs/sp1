@@ -1678,7 +1678,9 @@ impl SystemInstructions for TranspilerBackend {
         // to set current PC.
         self.update_pc(TEMP_A, self.pc_current);
 
-        self.call_extern_fn_raw(self.ecall_handler as _);
+        // Record the offset so the handler pointer can be patched at restore time.
+        let ptr_offset = self.call_extern_fn_raw(self.ecall_handler as _);
+        self.ecall_ptr_offsets.push(ptr_offset);
 
         // The ecall returns a u64 in RAX.
         self.emit_risc_register_store(Rq::RAX as u8, None, RiscRegister::X5);

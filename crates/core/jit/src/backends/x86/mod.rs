@@ -203,10 +203,21 @@ pub struct TranspilerBackend {
     program_size: usize,
     /// Locations of embedded function-pointer immediates, used for cache invalidation
     /// and patching when restoring compiled code in a different address space.
+    /// Byte offsets within the code buffer where the ECALL handler pointer is embedded
+    /// as a 64-bit immediate (`mov rax, imm64`).
     ///
-    /// Each entry is `(byte_offset_in_code_buffer, original_fn_ptr_value)`.
-    /// The pointer value is stored as a little-endian `u64` at the given offset.
-    pub(crate) fn_ptr_relocations: Vec<(usize, u64)>,
+    /// These are patched with the live handler address when restoring a [`CompiledCode`]
+    /// blob via [`crate::JitFunction::from_compiled_code`].
+    pub(crate) ecall_ptr_offsets: Vec<usize>,
+
+    /// Set to `true` if any non-ECALL external function call has been emitted
+    /// (e.g. from [`crate::RiscvTranspiler::call_extern_fn`] or the debug
+    /// inspection helpers).
+    ///
+    /// When this flag is set, [`TranspilerBackend::into_compiled_code`] will
+    /// return an error because those embedded function pointers are unknown at
+    /// restore time and cannot be patched.
+    pub(crate) has_non_ecall_extern_calls: bool,
 }
 
 impl TraceCollector for TranspilerBackend {
@@ -676,11 +687,17 @@ impl TranspilerBackend {
     /// Call an external function, assumes that the arguments are already in the correct registers.
     ///
     /// The function pointer is embedded as a 64-bit immediate (`mov rax, imm64`).
-    /// Its byte offset within the code buffer is recorded in [`Self::fn_ptr_relocations`]
-    /// so that [`crate::CompiledCode`] can patch it when restoring the blob in a
-    /// different address space.
+    ///
+    /// Returns the byte offset within the code buffer where the 8-byte pointer immediate
+    /// was written.  The x86-64 encoding is: `REX.W` (1 byte) + `B8+rd` (1 byte) + imm64
+    /// (8 bytes), so the immediate lives at `(instruction_start + 2)`.
+    ///
+    /// Callers are responsible for deciding how to record this offset:
+    /// - ECALL-handler calls → push into [`Self::ecall_ptr_offsets`].
+    /// - All other calls → set [`Self::has_non_ecall_extern_calls`].
     #[inline]
-    fn call_extern_fn_raw(&mut self, fn_ptr: usize) {
+    #[must_use = "callers must record the returned offset or set the non-ecall flag"]
+    fn call_extern_fn_raw(&mut self, fn_ptr: usize) -> usize {
         // Before the call, save all the registers to the context.
         self.save_registers_to_context();
         if self.tracing() {
@@ -704,11 +721,9 @@ impl TranspilerBackend {
             sub rsp, rax
         }
 
-        // Record the offset of the upcoming `mov rax, imm64` instruction.
-        // The x86-64 encoding is: REX.W prefix (0x48)  +  B8+rd (0xB8 for rax)  +  8-byte imm.
+        // The x86-64 encoding is: REX.W prefix (0x48) + B8+rd (0xB8 for rax) + 8-byte imm.
         // So the 8-byte function-pointer lives at (instruction start + 2).
-        let mov_offset = self.inner.offset().0;
-        self.fn_ptr_relocations.push((mov_offset + 2, fn_ptr as u64));
+        let ptr_offset = self.inner.offset().0 + 2;
 
         dynasm! {
             self;
@@ -728,6 +743,8 @@ impl TranspilerBackend {
         self.hoist_clock();
         self.load_memory_ptr();
         self.load_registers_from_context();
+
+        ptr_offset
     }
 
     /// Load the pc from the context into the given register.
