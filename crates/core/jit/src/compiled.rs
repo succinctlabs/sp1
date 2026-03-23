@@ -5,10 +5,11 @@
 //!   [`CompiledCode::save`] / [`CompiledCode::load`].
 //! * **Reconstruct** a [`crate::JitFunction`] from a cached blob without re-JITing via
 //!   [`crate::JitFunction::from_compiled_code`].
-//! * **Emit a relocatable ELF object** (`.o`) file via [`CompiledCode::write_elf`] /
-//!   [`CompiledCode::write_elf_to_file`].  The object carries a global symbol for every
-//!   RISC-V instruction boundary so that `objdump -d` or a debugger can correlate each
-//!   x86-64 sequence back to its originating RISC-V program counter.
+//! * **Emit a GAS-compatible assembly file** (`.S`) via [`CompiledCode::write_asm`] /
+//!   [`CompiledCode::write_asm_to_file`].  The file carries a global symbol for every
+//!   RISC-V instruction boundary so that a profiler or debugger can correlate each
+//!   x86-64 sequence back to its originating RISC-V program counter.  Assemble with
+//!   `as -o out.o out.S` or `clang -c -o out.o out.S`, then link normally.
 //!
 //! # ECALL handler patching
 //!
@@ -82,250 +83,108 @@ impl CompiledCode {
     }
 }
 
-// ─── ELF object-file emission ─────────────────────────────────────────────
-
-/// ELF constants (x86-64 relocatable object).
-mod elf_const {
-    pub const ET_REL: u16 = 1;
-    pub const EM_X86_64: u16 = 62;
-    pub const EV_CURRENT: u32 = 1;
-    pub const ELFCLASS64: u8 = 2;
-    pub const ELFDATA2LSB: u8 = 1;
-    pub const SHT_PROGBITS: u32 = 1;
-    pub const SHT_SYMTAB: u32 = 2;
-    pub const SHT_STRTAB: u32 = 3;
-    pub const SHF_ALLOC: u64 = 2;
-    pub const SHF_EXECINSTR: u64 = 4;
-    pub const STB_LOCAL: u8 = 0;
-    pub const STB_GLOBAL: u8 = 1;
-    pub const STT_NOTYPE: u8 = 0;
-    pub const STT_SECTION: u8 = 3;
-    pub const ELF_HDR_SIZE: usize = 64;
-    pub const SHDR_SIZE: usize = 64;
-    pub const SYM_SIZE: usize = 24;
-}
+// ─── Assembly-source emission ─────────────────────────────────────────────
 
 impl CompiledCode {
-    /// Write an x86-64 ELF relocatable object (`.o`) to `writer`.
+    /// Write a GAS-compatible x86-64 assembly file (`.S`) to `writer`.
     ///
-    /// The output contains:
-    /// * A `.text` section with the raw machine code.
-    /// * A global symbol `riscv_pc_0x{pc:08x}` for every RISC-V instruction,
-    ///   pointing to the first byte of the corresponding x86-64 sequence.
-    pub fn write_elf<W: Write>(&self, writer: &mut W) -> io::Result<()> {
-        use elf_const::*;
+    /// The output contains a `.text` section with the raw machine code expressed
+    /// as `.byte` directives, with a `.global` label at the start of every
+    /// RISC-V instruction's x86-64 sequence:
+    ///
+    /// ```text
+    /// riscv_pc_0x00010000:
+    ///     .byte 0x55,0x48,0x89,0xe5   # prologue bytes
+    ///     .byte 0x48,0xb8             # REX.W + MOV rax, imm64
+    ///     .quad sp1_ecall_handler     # <- linker fills the handler address
+    ///     .byte 0xff,0xd0             # CALL rax
+    /// ```
+    ///
+    /// At every byte offset listed in [`Self::ecall_ptr_offsets`] the 8 bytes
+    /// that hold the embedded handler address are emitted as
+    /// `.quad <ecall_symbol>` instead of raw `.byte` values.  The assembler
+    /// records a proper `R_X86_64_64` relocation so the linker fills in the
+    /// correct absolute address at link time.
+    ///
+    /// # Parameters
+    /// - `ecall_symbol`: the linker symbol name of the ECALL handler function
+    ///   (e.g. `"sp1_ecall_handler"`).  The function must be exported from the
+    ///   binary with that exact name (use `#[no_mangle]`).
+    ///
+    /// # Assembling
+    /// ```sh
+    /// as -o out.o out.S          # GNU Binutils
+    /// clang -c -o out.o out.S    # LLVM / Clang
+    /// ```
+    pub fn write_asm<W: Write>(&self, writer: &mut W, ecall_symbol: &str) -> io::Result<()> {
+        use std::collections::BTreeSet;
 
-        // ── Build .shstrtab ──────────────────────────────────────────────
-        let mut shstrtab = vec![0u8];
-        let sh_text = append_str(&mut shstrtab, ".text");
-        let sh_strtab = append_str(&mut shstrtab, ".strtab");
-        let sh_symtab = append_str(&mut shstrtab, ".symtab");
-        let sh_shstrtab = append_str(&mut shstrtab, ".shstrtab");
+        // Sorted set of offsets where .quad replaces 8 raw bytes.
+        let ecall_set: BTreeSet<usize> = self.ecall_ptr_offsets.iter().copied().collect();
 
-        // ── Build .strtab (symbol names) ─────────────────────────────────
-        let mut strtab = vec![0u8];
-        // Section symbol has no name (offset 0).
-        let mut sym_name_offsets: Vec<u32> = Vec::with_capacity(self.jump_table.len());
-        for i in 0..self.jump_table.len() {
-            let pc = self.pc_base + i as u64 * 4;
-            let name = format!("riscv_pc_0x{pc:08x}\0");
-            sym_name_offsets.push(strtab.len() as u32);
-            strtab.extend_from_slice(name.as_bytes());
+        // Sorted list of (code_offset, label_name), one per RISC-V instruction.
+        let mut labels: Vec<(usize, String)> = self
+            .jump_table
+            .iter()
+            .enumerate()
+            .map(|(i, &off)| {
+                let pc = self.pc_base + i as u64 * 4;
+                (off, format!("riscv_pc_0x{pc:08x}"))
+            })
+            .collect();
+        labels.sort_unstable_by_key(|(off, _)| *off);
+
+        // ── Header ───────────────────────────────────────────────────────
+        writeln!(writer, "\t.section\t.text,\"ax\",@progbits")?;
+        writeln!(writer)?;
+        for (_, name) in &labels {
+            writeln!(writer, "\t.global\t{name}")?;
         }
+        writeln!(writer)?;
 
-        // ── Build .symtab ────────────────────────────────────────────────
-        // Layout: [NULL, .text-section-sym, ...global RISC-V PC syms...]
-        let mut symtab: Vec<u8> = Vec::new();
-        let num_local: u32 = 2; // NULL + section symbol
+        // ── Body: walk the code buffer, emitting labels / .quad / .byte ──
+        let mut label_iter = labels.iter().peekable();
+        let mut pos = 0usize;
 
-        write_sym(&mut symtab, 0, mk_info(STB_LOCAL, STT_NOTYPE), 0, 0, 0, 0);
-        write_sym(&mut symtab, 0, mk_info(STB_LOCAL, STT_SECTION), 0, 1, 0, 0);
-        for i in 0..self.jump_table.len() {
-            write_sym(
-                &mut symtab,
-                sym_name_offsets[i],
-                mk_info(STB_GLOBAL, STT_NOTYPE),
-                0,
-                1, // shndx = .text
-                self.jump_table[i] as u64,
-                0,
-            );
+        while pos < self.code.len() {
+            // Emit any label(s) sitting at this position.
+            while label_iter.peek().map(|(off, _)| *off) == Some(pos) {
+                let (_, name) = label_iter.next().unwrap();
+                writeln!(writer, "{name}:")?;
+            }
+
+            // ECALL relocation site: emit a symbol reference instead of bytes.
+            if ecall_set.contains(&pos) {
+                writeln!(writer, "\t.quad\t{ecall_symbol}")?;
+                pos += 8;
+                continue;
+            }
+
+            // Plain bytes: run until the next label or ecall site.
+            let next_label = label_iter.peek().map(|(off, _)| *off);
+            let next_ecall = ecall_set.range(pos + 1..).next().copied();
+            let run_end = [next_label, next_ecall, Some(self.code.len())]
+                .into_iter()
+                .flatten()
+                .min()
+                .unwrap();
+
+            for chunk in self.code[pos..run_end].chunks(8) {
+                let hex: Vec<String> = chunk.iter().map(|b| format!("0x{b:02x}")).collect();
+                writeln!(writer, "\t.byte\t{}", hex.join(","))?;
+            }
+            pos = run_end;
         }
-
-        // ── Compute file layout ──────────────────────────────────────────
-        let text_off = ELF_HDR_SIZE;
-        let text_sz = self.code.len();
-        let strtab_off = align_up(text_off + text_sz, 1);
-        let strtab_sz = strtab.len();
-        let symtab_off = align_up(strtab_off + strtab_sz, 8);
-        let symtab_sz = symtab.len();
-        let shstrtab_off = align_up(symtab_off + symtab_sz, 1);
-        let shstrtab_sz = shstrtab.len();
-        let shdr_off = align_up(shstrtab_off + shstrtab_sz, 8);
-
-        const NUM_SECTIONS: u16 = 5; // NULL, .text, .strtab, .symtab, .shstrtab
-        const SHSTRTAB_IDX: u16 = 4;
-
-        // ── ELF header ───────────────────────────────────────────────────
-        let mut hdr = [0u8; ELF_HDR_SIZE];
-        hdr[0..4].copy_from_slice(b"\x7fELF");
-        hdr[4] = ELFCLASS64;
-        hdr[5] = ELFDATA2LSB;
-        hdr[6] = 1; // EI_VERSION
-        hdr[16..18].copy_from_slice(&ET_REL.to_le_bytes());
-        hdr[18..20].copy_from_slice(&EM_X86_64.to_le_bytes());
-        hdr[20..24].copy_from_slice(&EV_CURRENT.to_le_bytes());
-        hdr[40..48].copy_from_slice(&(shdr_off as u64).to_le_bytes());
-        hdr[52..54].copy_from_slice(&(ELF_HDR_SIZE as u16).to_le_bytes());
-        hdr[58..60].copy_from_slice(&(SHDR_SIZE as u16).to_le_bytes());
-        hdr[60..62].copy_from_slice(&NUM_SECTIONS.to_le_bytes());
-        hdr[62..64].copy_from_slice(&SHSTRTAB_IDX.to_le_bytes());
-
-        // ── Section headers ──────────────────────────────────────────────
-        let mut shdrs: Vec<u8> = Vec::with_capacity(NUM_SECTIONS as usize * SHDR_SIZE);
-        // 0: NULL
-        write_shdr(&mut shdrs, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-        // 1: .text
-        write_shdr(
-            &mut shdrs,
-            sh_text,
-            SHT_PROGBITS,
-            SHF_ALLOC | SHF_EXECINSTR,
-            0,
-            text_off as u64,
-            text_sz as u64,
-            0,
-            0,
-            16,
-            0,
-        );
-        // 2: .strtab
-        write_shdr(
-            &mut shdrs,
-            sh_strtab,
-            SHT_STRTAB,
-            0,
-            0,
-            strtab_off as u64,
-            strtab_sz as u64,
-            0,
-            0,
-            1,
-            0,
-        );
-        // 3: .symtab  (link = .strtab = 2, info = first global index)
-        write_shdr(
-            &mut shdrs,
-            sh_symtab,
-            SHT_SYMTAB,
-            0,
-            0,
-            symtab_off as u64,
-            symtab_sz as u64,
-            2,
-            num_local,
-            8,
-            SYM_SIZE as u64,
-        );
-        // 4: .shstrtab
-        write_shdr(
-            &mut shdrs,
-            sh_shstrtab,
-            SHT_STRTAB,
-            0,
-            0,
-            shstrtab_off as u64,
-            shstrtab_sz as u64,
-            0,
-            0,
-            1,
-            0,
-        );
-
-        // ── Write to output ──────────────────────────────────────────────
-        writer.write_all(&hdr)?;
-        writer.write_all(&self.code)?;
-        write_pad(writer, text_off + text_sz, strtab_off)?;
-        writer.write_all(&strtab)?;
-        write_pad(writer, strtab_off + strtab_sz, symtab_off)?;
-        writer.write_all(&symtab)?;
-        write_pad(writer, symtab_off + symtab_sz, shstrtab_off)?;
-        writer.write_all(&shstrtab)?;
-        write_pad(writer, shstrtab_off + shstrtab_sz, shdr_off)?;
-        writer.write_all(&shdrs)?;
 
         Ok(())
     }
 
-    /// Convenience wrapper: write an ELF object to the file at `path`.
-    pub fn write_elf_to_file(&self, path: &Path) -> io::Result<()> {
-        self.write_elf(&mut File::create(path)?)
+    /// Convenience wrapper: write a `.S` assembly file to `path`.
+    ///
+    /// See [`Self::write_asm`] for the `ecall_symbol` parameter.
+    pub fn write_asm_to_file(&self, path: &Path, ecall_symbol: &str) -> io::Result<()> {
+        self.write_asm(&mut File::create(path)?, ecall_symbol)
     }
-}
-
-// ─── Private helpers ──────────────────────────────────────────────────────
-
-fn align_up(n: usize, align: usize) -> usize {
-    if align <= 1 {
-        n
-    } else {
-        (n + align - 1) & !(align - 1)
-    }
-}
-
-/// Append a null-terminated string; return the start offset.
-fn append_str(buf: &mut Vec<u8>, s: &str) -> u32 {
-    let off = buf.len() as u32;
-    buf.extend_from_slice(s.as_bytes());
-    buf.push(0);
-    off
-}
-
-const fn mk_info(binding: u8, typ: u8) -> u8 {
-    (binding << 4) | (typ & 0xf)
-}
-
-fn write_sym(buf: &mut Vec<u8>, name: u32, info: u8, other: u8, shndx: u16, value: u64, size: u64) {
-    buf.extend_from_slice(&name.to_le_bytes());
-    buf.push(info);
-    buf.push(other);
-    buf.extend_from_slice(&shndx.to_le_bytes());
-    buf.extend_from_slice(&value.to_le_bytes());
-    buf.extend_from_slice(&size.to_le_bytes());
-}
-
-#[allow(clippy::too_many_arguments)]
-fn write_shdr(
-    buf: &mut Vec<u8>,
-    name: u32,
-    typ: u32,
-    flags: u64,
-    addr: u64,
-    offset: u64,
-    size: u64,
-    link: u32,
-    info: u32,
-    align: u64,
-    entsize: u64,
-) {
-    buf.extend_from_slice(&name.to_le_bytes());
-    buf.extend_from_slice(&typ.to_le_bytes());
-    buf.extend_from_slice(&flags.to_le_bytes());
-    buf.extend_from_slice(&addr.to_le_bytes());
-    buf.extend_from_slice(&offset.to_le_bytes());
-    buf.extend_from_slice(&size.to_le_bytes());
-    buf.extend_from_slice(&link.to_le_bytes());
-    buf.extend_from_slice(&info.to_le_bytes());
-    buf.extend_from_slice(&align.to_le_bytes());
-    buf.extend_from_slice(&entsize.to_le_bytes());
-}
-
-fn write_pad<W: Write>(w: &mut W, current: usize, target: usize) -> io::Result<()> {
-    if target > current {
-        let zeros = vec![0u8; target - current];
-        w.write_all(&zeros)?;
-    }
-    Ok(())
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────
@@ -359,29 +218,59 @@ mod tests {
     }
 
     #[test]
-    fn elf_output_has_correct_magic() {
+    fn asm_output_structure() {
+        // 20-byte code buffer:
+        //   [0..4]   regular bytes for instruction at pc 0x1000
+        //   [4..6]   REX.W + MOV rax opcode (0x48, 0xb8)
+        //   [6..14]  ecall handler pointer (ecall_ptr_offsets = [6])
+        //   [14..20] regular bytes for instruction at pc 0x1004
+        let mut code = vec![0xf4u8; 20];
+        code[4] = 0x48;
+        code[5] = 0xb8;
+
         let compiled = CompiledCode {
-            code: vec![0x90, 0xC3],
-            jump_table: vec![0],
+            code,
+            jump_table: vec![0, 14],
             pc_start: 0x1000,
             pc_base: 0x1000,
             memory_size: 4096,
-            ecall_ptr_offsets: vec![],
+            ecall_ptr_offsets: vec![6],
         };
 
         let mut out = Vec::new();
-        compiled.write_elf(&mut out).unwrap();
+        compiled.write_asm(&mut out, "sp1_ecall_handler").unwrap();
+        let text = String::from_utf8(out).unwrap();
 
-        // ELF magic
-        assert_eq!(&out[0..4], b"\x7fELF");
-        // ELFCLASS64
-        assert_eq!(out[4], 2);
-        // ELFDATA2LSB
-        assert_eq!(out[5], 1);
-        // ET_REL
-        assert_eq!(u16::from_le_bytes([out[16], out[17]]), 1);
-        // EM_X86_64
-        assert_eq!(u16::from_le_bytes([out[18], out[19]]), 62);
+        // Section declaration present.
+        assert!(text.contains(".section\t.text,\"ax\",@progbits"), "missing section directive");
+
+        // Both labels declared global and defined.
+        assert!(text.contains(".global\triscv_pc_0x00001000"), "missing global for pc 0x1000");
+        assert!(text.contains(".global\triscv_pc_0x00001004"), "missing global for pc 0x1004");
+        assert!(text.contains("riscv_pc_0x00001000:"), "missing label def for pc 0x1000");
+        assert!(text.contains("riscv_pc_0x00001004:"), "missing label def for pc 0x1004");
+
+        // ECALL handler emitted as a symbol reference, not raw bytes.
+        assert!(text.contains(".quad\tsp1_ecall_handler"), "missing .quad for ecall handler");
+
+        // The two REX.W + opcode bytes that precede the pointer are plain .byte.
+        assert!(text.contains("0x48,0xb8"), "missing REX.W + MOV-rax opcode bytes");
+
+        // The 8 bytes of the pointer slot must NOT appear as raw .byte values.
+        // (They are all 0xf4 in our dummy buffer, but they are replaced by .quad.)
+        let lines_with_f4_after_ecall: Vec<&str> = text
+            .lines()
+            .skip_while(|l| !l.contains("riscv_pc_0x00001004"))
+            .filter(|l| l.contains("0xf4"))
+            .collect();
+        // Only the post-ecall instruction bytes (riscv_pc_0x1004 region) may contain 0xf4.
+        // The ecall slot itself must not have been emitted as .byte.
+        assert!(
+            !text[..text.find("riscv_pc_0x00001004:").unwrap()]
+                .contains(".byte\t0xf4,0xf4,0xf4,0xf4,0xf4,0xf4,0xf4,0xf4"),
+            "ecall pointer bytes leaked as raw .byte"
+        );
+        let _ = lines_with_f4_after_ecall; // used above
     }
 
     #[test]
