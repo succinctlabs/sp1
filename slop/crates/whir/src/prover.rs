@@ -369,6 +369,8 @@ where
                 ood_answers: ood_answers.clone(),
             });
 
+            query_proof_of_works.push(challenger.grind(round_params.queries_pow_bits));
+
             let id_query_indices = (0..round_params.num_queries)
                 .map(|_| challenger.sample_bits(prev_domain_log_size))
                 .collect::<Vec<_>>();
@@ -379,8 +381,6 @@ where
                 .collect();
 
             let claim_batching_randomness: GC::EF = challenger.sample_ext_element();
-
-            query_proof_of_works.push(challenger.grind(round_params.queries_pow_bits));
 
             let merkle_openings: Vec<_> = prev_committed_data
                 .into_iter()
@@ -485,11 +485,11 @@ where
             f_vec.inner().as_ref().unwrap().guts().clone().into_buffer().to_vec();
         challenger.observe_constant_length_extension_slice(&final_polynomial);
 
+        let final_pow = challenger.grind(config.final_pow_bits);
+
         let final_id_indices = (0..config.final_queries)
             .map(|_| challenger.sample_bits(prev_domain_log_size))
             .collect::<Vec<_>>();
-
-        let final_pow = challenger.grind(config.final_pow_bits);
 
         let final_merkle_openings = self.merkle_prover.compute_openings_at_indices(
             Message::<Tensor<GC::F>>::from(prev_committed_data.into_iter().collect::<Vec<_>>()),
@@ -511,8 +511,11 @@ where
             challenger,
         );
 
+        let initial_merkle_proof = merkle_proofs.remove(0);
+
         WhirProof {
             initial_sumcheck_polynomials,
+            initial_merkle_proof: initial_merkle_proof.into_iter().collect(),
             commitments: parsed_commitments,
             merkle_proofs: merkle_proofs
                 .into_iter()
@@ -772,8 +775,8 @@ where
             let sumcheck_poly = SumcheckPoly([c0, c1, c2]);
 
             challenger.observe_constant_length_extension_slice(&sumcheck_poly.0);
-            let folding_randomness_single: GC::EF = challenger.sample_ext_element();
             let pow = challenger.grind(*round_pow_bits);
+            let folding_randomness_single: GC::EF = challenger.sample_ext_element();
             claimed_sum = sumcheck_poly.evaluate_at_point(folding_randomness_single);
             res.push((sumcheck_poly, pow));
             folding_randomness.push(folding_randomness_single);
@@ -1207,7 +1210,9 @@ mod tests {
             rounds.iter().count(),
             &mut challenger_verifier,
         );
-        verifier.observe_commitment(&commitments, &mut challenger_verifier).unwrap();
+        verifier
+            .observe_commitment(&commitments, &mut challenger_verifier, rounds.iter().count())
+            .unwrap();
         verifier
             .verify_trusted_evaluation(
                 &commitments,

@@ -191,6 +191,7 @@ where
 
     // For internal rounds
     pub commitments: Vec<RecursiveParsedCommitment<C, SC>>,
+    pub initial_merkle_proof: MerkleProofRounds<C, SC>,
     pub merkle_proofs: Vec<MerkleProofRounds<C, SC>>,
     pub query_proof_of_works: Vec<Felt<SP1Field>>,
     pub sumcheck_polynomials: Vec<Vec<RecursiveProverMessage>>,
@@ -321,7 +322,11 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> RecursiveWhirVerifier<C, S
 
             // Absorb the OOD answers
             challenger.observe_ext_element_slice(builder, &new_commitment.ood_answers);
-
+            challenger.check_witness(
+                builder,
+                round_params.queries_pow_bits,
+                proof.query_proof_of_works[round_index],
+            );
             // Squeeze the STIR queries
             let id_query_indices = (0..round_params.num_queries)
                 .map(|_| challenger.sample_bits(builder, domain_size))
@@ -330,16 +335,15 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> RecursiveWhirVerifier<C, S
                 .iter()
                 .map(|val| C::exp_reverse_bits(builder, generator, val.clone()))
                 .collect();
+
             let claim_batching_randomness: Ext<SP1Field, SP1ExtensionField> =
                 challenger.sample_ext(builder);
 
-            challenger.check_witness(
-                builder,
-                round_params.queries_pow_bits,
-                proof.query_proof_of_works[round_index],
-            );
-
-            let merkle_proofs = &proof.merkle_proofs[round_index];
+            let merkle_proofs = if round_index != 0 {
+                &proof.merkle_proofs[round_index - 1]
+            } else {
+                &proof.initial_merkle_proof
+            };
 
             for (merkle_proof, commitment) in
                 merkle_proofs.iter().zip(prev_commitment.commitment.iter())
@@ -471,6 +475,8 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> RecursiveWhirVerifier<C, S
         let final_poly = proof.final_polynomial.clone();
         let final_poly_uv = UnivariatePolynomial::new(IntoSymbolic::<C>::as_symbolic(&final_poly));
 
+        challenger.check_witness(builder, self.config.final_pow_bits, proof.final_pow);
+
         let final_id_indices = (0..self.config.final_queries)
             .map(|_| challenger.sample_bits(builder, domain_size))
             .collect::<Vec<_>>();
@@ -513,8 +519,6 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> RecursiveWhirVerifier<C, S
                 final_poly_uv.eval_at_point((*final_id_val).into()),
             );
         }
-
-        challenger.check_witness(builder, self.config.final_pow_bits, proof.final_pow);
 
         (folding_randomness, claimed_sum) = self.verify_whir_sumcheck(
             builder,
@@ -590,11 +594,11 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> RecursiveWhirVerifier<C, S
 
             builder.assert_ext_eq(claimed_sum, sum);
 
+            challenger.check_witness(builder, pow_bits[i], *pow_witness);
             let folding_randomness_single: Ext<SP1Field, SP1ExtensionField> =
                 challenger.sample_ext(builder);
             randomness.push(folding_randomness_single);
 
-            challenger.check_witness(builder, pow_bits[i], *pow_witness);
             claimed_sum = builder.eval(
                 IntoSymbolic::<C>::as_symbolic(sumcheck_poly)
                     .evaluate_at_point(IntoSymbolic::<C>::as_symbolic(&folding_randomness_single)),
@@ -700,7 +704,9 @@ where
             .map(|(poly, pow)| (poly.read(builder), pow.read(builder)))
             .collect();
         let final_pow = self.final_pow.read(builder);
+        let initial_merkle_proof = self.initial_merkle_proof.read(builder);
         RecursiveWhirProof {
+            initial_merkle_proof,
             initial_sumcheck_polynomials,
             commitments,
             merkle_proofs,
@@ -741,6 +747,7 @@ where
             pow.write(witness);
         }
         self.final_pow.write(witness);
+        self.initial_merkle_proof.write(witness);
     }
 }
 
@@ -824,8 +831,8 @@ mod tests {
         let eval_claim: EF = polynomial_concat.eval_at(&eval_point)[0];
 
         // Observe all commitments into both challengers.
-        verifier.observe_commitment(&commitments, &mut challenger_prover).unwrap();
-        verifier.observe_commitment(&commitments, &mut challenger_verifier).unwrap();
+        verifier.observe_commitment(&commitments, &mut challenger_prover, 2).unwrap();
+        verifier.observe_commitment(&commitments, &mut challenger_verifier, 2).unwrap();
 
         // Prove using prove_trusted_evaluation.
         let prover_datas = vec![prover_data_1, prover_data_2].into_iter().collect();
@@ -834,7 +841,8 @@ mod tests {
             .unwrap();
 
         // Verify natively.
-        let round_areas = proof.merkle_proofs[0]
+        let round_areas = proof
+            .initial_merkle_proof
             .iter()
             .map(|p| p.proof.width << config.starting_interleaved_log_height)
             .collect::<Vec<_>>();

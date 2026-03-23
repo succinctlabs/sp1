@@ -66,6 +66,7 @@ members = [
   "slop/crates/uni-stark",
   "slop/crates/utils",
   "slop/crates/primitives",
+  "slop/crates/veil",
   "slop/crates/whir",
   # sp1-gpu crates
   "sp1-gpu/crates/air",
@@ -198,6 +199,7 @@ slop-symmetric = { version = "6.0.2", path = "./slop/crates/symmetric" }
 slop-tensor = { version = "6.0.2", path = "./slop/crates/tensor" }
 slop-uni-stark = { version = "6.0.2", path = "./slop/crates/uni-stark" }
 slop-utils = { version = "6.0.2", path = "./slop/crates/utils" }
+slop-veil = { version = "6.0.2", path = "./slop/crates/veil" }
 slop-whir = { version = "6.0.2", path = "./slop/crates/whir" }
 
 # For testing.
@@ -275,6 +277,7 @@ proc-macro2 = "1.0"
 prost = "0.13"
 quote = "1.0"
 rand = "0.8.5"
+rand_chacha = "0.3.1"
 range-set-blaze = "0.1.16"
 rayon = "1.10.0"
 rayon-scan = "0.1.1"

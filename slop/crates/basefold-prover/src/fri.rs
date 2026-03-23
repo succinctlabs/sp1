@@ -86,7 +86,7 @@ impl<
     > FriCpuProver<GC, P>
 {
     #[allow(clippy::type_complexity)]
-    pub(crate) fn commit_phase_round(
+    pub fn commit_phase_round(
         &self,
         current_mle: Mle<GC::EF, CpuBackend>,
         current_codeword: RsCodeWord<GC::F, CpuBackend>,
@@ -128,7 +128,7 @@ impl<
         Ok((beta, folded_mle, folded_codeword, commit, leaves, prover_data))
     }
 
-    pub(crate) fn final_poly(&self, final_codeword: RsCodeWord<GC::F, CpuBackend>) -> GC::EF {
+    pub fn final_poly(&self, final_codeword: RsCodeWord<GC::F, CpuBackend>) -> GC::EF {
         GC::EF::from_base_slice(&final_codeword.data.storage.as_slice()[0..GC::EF::D])
     }
 }
