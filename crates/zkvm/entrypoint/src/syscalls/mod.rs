@@ -35,6 +35,7 @@ pub use keccak_permute::*;
 pub use memory::*;
 
 pub use mprotect::*;
+#[cfg(feature = "lib")]
 pub use poseidon2::*;
 pub use secp256k1::*;
 pub use secp256r1::*;
