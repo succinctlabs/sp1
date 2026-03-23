@@ -333,7 +333,7 @@ mod differential_tests {
         let code = deserialize(&serialized_code).expect("Failed to deserialize compiled code");
 
         // Run the native x86_64 executor
-        let mut native_executor = NativeExecutor::from_compiled(program.clone(), &code, None);
+        let mut native_executor = NativeExecutor::from_compiled(program.clone(), &code);
         native_executor.with_input(&serialize(&5_usize).unwrap());
         for i in 0..5 {
             native_executor.with_input(&serialize(&vec![i; i]).unwrap());

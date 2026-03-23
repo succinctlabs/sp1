@@ -70,6 +70,9 @@ pub struct CompiledCode {
     /// [`crate::JitFunction::from_compiled_code`] overwrites each location with
     /// the live handler address before marking the buffer executable.
     pub unimp_ptr_offsets: Vec<usize>,
+
+    /// The `max_trace_size` value at transpile time.
+    pub max_trace_size: u64,
 }
 
 // ─── Disk persistence ─────────────────────────────────────────────────────
@@ -130,6 +133,7 @@ impl CompiledCode {
     ///    | `sp1_pc_start`              | `u64` — starting program counter                     |
     ///    | `sp1_pc_base`               | `u64` — base program counter (jump-table origin)     |
     ///    | `sp1_memory_size`           | `u64` — VM memory region size in bytes               |
+    ///    | `sp1_max_trace_size`        | `u64` — Max trace size (number of entries)           |
     ///
     ///    `sp1_jump_table` entries are emitted as `.quad riscv_pc_0x… - sp1_jit_code`.
     ///    Because both symbols live in the same `.text` section of the same object file,
@@ -356,6 +360,11 @@ impl CompiledCode {
         writeln!(writer, "sp1_memory_size:")?;
         writeln!(writer, "\t.quad\t{}", self.memory_size)?;
 
+        writeln!(writer, "\t.global\tsp1_max_trace_size")?;
+        writeln!(writer, "\t.align\t8")?;
+        writeln!(writer, "sp1_max_trace_size:")?;
+        writeln!(writer, "\t.quad\t{}", self.max_trace_size)?;
+
         Ok(())
     }
 
@@ -386,6 +395,7 @@ mod tests {
             pc_start: 0x1000,
             pc_base: 0x1000,
             memory_size: 4096,
+            max_trace_size: 7777,
             ecall_ptr_offsets: vec![],
             unimp_ptr_offsets: vec![],
         };
@@ -400,6 +410,7 @@ mod tests {
         assert_eq!(original.pc_start, loaded.pc_start);
         assert_eq!(original.pc_base, loaded.pc_base);
         assert_eq!(original.memory_size, loaded.memory_size);
+        assert_eq!(original.max_trace_size, loaded.max_trace_size);
         assert_eq!(original.ecall_ptr_offsets, loaded.ecall_ptr_offsets);
         assert_eq!(original.unimp_ptr_offsets, loaded.unimp_ptr_offsets);
     }
@@ -425,6 +436,7 @@ mod tests {
             pc_start: 0x1000,
             pc_base: 0x1000,
             memory_size: 4096,
+            max_trace_size: 7777,
             ecall_ptr_offsets: vec![6],
             unimp_ptr_offsets: vec![],
         };
@@ -496,6 +508,7 @@ mod tests {
         assert!(text.contains("sp1_pc_start:"), "missing sp1_pc_start");
         assert!(text.contains("sp1_pc_base:"), "missing sp1_pc_base");
         assert!(text.contains("sp1_memory_size:"), "missing sp1_memory_size");
+        assert!(text.contains("sp1_max_trace_size:"), "missing sp1_max_trace_size");
 
         // jump_table entries are relative offsets from sp1_jit_code (no
         // absolute relocations — required for PIE/PIC compatibility).
@@ -535,6 +548,7 @@ mod tests {
             pc_start: 0x1000,
             pc_base: 0x1000,
             memory_size: 4096,
+            max_trace_size: 7777,
             ecall_ptr_offsets: vec![2],
             unimp_ptr_offsets: vec![18],
         };

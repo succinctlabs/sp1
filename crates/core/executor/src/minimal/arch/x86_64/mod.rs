@@ -71,11 +71,7 @@ impl MinimalExecutor {
     /// is made executable, so the restored code works correctly regardless of
     /// which process or ASLR layout compiled the blob.
     #[must_use]
-    pub fn from_compiled(
-        program: Arc<Program>,
-        compiled: &CompiledCode,
-        max_trace_size: Option<u64>,
-    ) -> Self {
+    pub fn from_compiled(program: Arc<Program>, compiled: &CompiledCode) -> Self {
         tracing::debug!("restoring JIT function from compiled code cache");
 
         let mut jit_fn: JitFunction<AnonymousMemory> = JitFunction::from_compiled_code(
@@ -90,7 +86,7 @@ impl MinimalExecutor {
             program,
             compiled: jit_fn,
             input: VecDeque::new(),
-            trace_buf_size: trace_capacity(max_trace_size),
+            trace_buf_size: trace_capacity(Some(compiled.max_trace_size)),
         }
     }
 
@@ -120,17 +116,15 @@ impl MinimalExecutor {
     /// relocations the assembler emits for the `.quad sp1_ecall_handler` /
     /// `.quad sp1_unimp_handler` directives in the `.text` section.
     ///
-    /// `max_trace_size` has the same semantics as in [`Self::from_compiled`].
-    ///
     /// # Safety
     /// The binary must have been linked against an object file produced from the
     /// `.S` file for *this exact program*.  Mismatches cause undefined behaviour.
     #[cfg(feature = "static-link")]
     #[must_use]
-    pub fn from_static_link(program: Arc<Program>, max_trace_size: Option<u64>) -> Self {
+    pub fn from_static_link(program: Arc<Program>) -> Self {
         tracing::debug!("restoring JIT function from statically linked symbols");
 
-        let mut jit_fn: JitFunction<AnonymousMemory> =
+        let (mut jit_fn, max_trace_size): (JitFunction<AnonymousMemory>, u64) =
             // SAFETY: the caller guarantees the binary is linked against the
             // correct object file for `program`.
             unsafe { JitFunction::from_static_link() }
@@ -141,7 +135,7 @@ impl MinimalExecutor {
             program,
             compiled: jit_fn,
             input: VecDeque::new(),
-            trace_buf_size: sp1_jit::trace_capacity(max_trace_size),
+            trace_buf_size: sp1_jit::trace_capacity(Some(max_trace_size)),
         }
     }
 

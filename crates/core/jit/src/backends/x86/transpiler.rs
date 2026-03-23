@@ -221,6 +221,7 @@ impl TranspilerBackend {
             pc_start: self.pc_start,
             pc_base: self.pc_base,
             memory_size: self.memory_size,
+            max_trace_size: self.max_trace_size,
             ecall_ptr_offsets: self.ecall_ptr_offsets,
             unimp_ptr_offsets: self.unimp_ptr_offsets,
         })

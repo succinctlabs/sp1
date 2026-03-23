@@ -16,6 +16,7 @@
 //! | `sp1_pc_start`              | `u64`                   | Starting program counter             |
 //! | `sp1_pc_base`               | `u64`                   | Base program counter                 |
 //! | `sp1_memory_size`           | `u64`                   | VM memory region size in bytes       |
+//! | `sp1_max_trace_size`        | `u64`                   | Max trace size (entries)             |
 //!
 //! This module declares those symbols as `extern "C"` so the Rust compiler
 //! knows they exist; the linker resolves their addresses when the final binary
@@ -94,4 +95,7 @@ extern "C" {
 
     /// VM memory region size in bytes (value of [`crate::CompiledCode::memory_size`]).
     pub static sp1_memory_size: u64;
+
+    /// Max trace size (in terms of entries)
+    pub static sp1_max_trace_size: u64;
 }
