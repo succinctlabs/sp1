@@ -7,8 +7,9 @@ use crate::{
 };
 use dynasmrt::{
     dynasm,
-    x64::{Assembler, Rq},
-    DynasmApi,
+    mmap::MutableBuffer,
+    x64::{Rq, X64Relocation},
+    DynasmApi, VecAssembler,
 };
 use hashbrown::HashMap;
 use std::io;
@@ -30,7 +31,7 @@ impl RiscvTranspiler for TranspilerBackend {
         }
 
         let mut this = Self {
-            inner: Assembler::new()?,
+            inner: VecAssembler::<X64Relocation>::new(0),
             jump_table: Vec::with_capacity(program_size),
             memory_size,
             has_instructions: false,
@@ -118,11 +119,17 @@ impl RiscvTranspiler for TranspilerBackend {
     fn finalize<M: JitMemory>(mut self) -> io::Result<JitFunction<M>> {
         self.epilogue();
 
-        let code = self.inner.finalize().expect("failed to finalize x86 backend");
+        let code_bytes = self.inner.finalize().expect("failed to finalize x86 backend");
+        debug_assert!(!code_bytes.is_empty(), "Got empty x86 code buffer");
 
-        debug_assert!(code.size() > 0, "Got empty x86 code buffer");
+        // VecAssembler produces plain bytes; copy into executable memory.
+        let code_len = code_bytes.len();
+        let mut buf = MutableBuffer::new(code_len)?;
+        buf.set_len(code_len);
+        buf[..].copy_from_slice(&code_bytes);
+        let exec_buf = buf.make_exec()?;
 
-        JitFunction::new(code, self.jump_table, self.memory_size, self.pc_start)
+        JitFunction::new(exec_buf, self.jump_table, self.memory_size, self.pc_start)
     }
 
     fn call_extern_fn(&mut self, fn_ptr: ExternFn) {
@@ -179,11 +186,13 @@ impl TranspilerBackend {
     pub fn into_compiled_code(mut self) -> io::Result<CompiledCode> {
         self.epilogue();
 
-        let exec_buf = self.inner.finalize().expect("failed to finalize x86 backend");
-        debug_assert!(exec_buf.size() > 0, "Got empty x86 code buffer");
+        // VecAssembler::finalize() resolves all internal relocations and returns
+        // the raw bytes directly — no mmap allocation or buffer copy required.
+        let code = self.inner.finalize().expect("failed to finalize x86 backend");
+        debug_assert!(!code.is_empty(), "Got empty x86 code buffer");
 
         Ok(CompiledCode {
-            code: exec_buf.to_vec(),
+            code,
             jump_table: self.jump_table,
             pc_start: self.pc_start,
             pc_base: self.pc_base,
