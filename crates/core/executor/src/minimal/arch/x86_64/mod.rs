@@ -94,6 +94,57 @@ impl MinimalExecutor {
         }
     }
 
+    /// Build a [`MinimalExecutor`] entirely from statically linked JIT symbols.
+    ///
+    /// This is the second construction path alongside [`Self::from_compiled`].
+    /// Instead of deserialising a [`CompiledCode`] blob at runtime, it reads the
+    /// JIT code and metadata directly from the linker symbols produced by
+    /// assembling the `.S` file emitted by [`CompiledCode::write_asm`]:
+    ///
+    /// ```sh
+    /// # 1. (build step) write the .S file:
+    /// #    compiled_code.write_asm_to_file("out.S", "sp1_ecall_handler", "sp1_unimp_handler")
+    ///
+    /// # 2. Assemble into an object file:
+    /// as -o out.o out.S          # or: clang -c -o out.o out.S
+    ///
+    /// # 3. Link out.o together with your binary (e.g. via build.rs / linker script).
+    ///
+    /// # 4. Enable the feature and call this constructor at runtime:
+    /// #    MinimalExecutor::from_static_link(program, max_trace_size)
+    /// ```
+    ///
+    /// Because the jump table in the object file already contains linker-resolved
+    /// absolute addresses, no pointer patching is performed.  The ECALL and UNIMP
+    /// handlers are likewise resolved by the linker via the `R_X86_64_64`
+    /// relocations the assembler emits for the `.quad sp1_ecall_handler` /
+    /// `.quad sp1_unimp_handler` directives in the `.text` section.
+    ///
+    /// `max_trace_size` has the same semantics as in [`Self::from_compiled`].
+    ///
+    /// # Safety
+    /// The binary must have been linked against an object file produced from the
+    /// `.S` file for *this exact program*.  Mismatches cause undefined behaviour.
+    #[cfg(feature = "static-link")]
+    #[must_use]
+    pub fn from_static_link(program: Arc<Program>, max_trace_size: Option<u64>) -> Self {
+        tracing::debug!("restoring JIT function from statically linked symbols");
+
+        let mut jit_fn: JitFunction<AnonymousMemory> =
+            // SAFETY: the caller guarantees the binary is linked against the
+            // correct object file for `program`.
+            unsafe { JitFunction::from_static_link() }
+                .expect("Failed to build JIT function from static linked data");
+        jit_fn.with_initial_memory_image(program.memory_image.clone());
+
+        Self {
+            program,
+            compiled: jit_fn,
+            input: VecDeque::new(),
+            trace_buf_size: sp1_jit::trace_capacity(max_trace_size),
+        }
+    }
+
     /// Create a new minimal executor with no tracing or debugging.
     #[must_use]
     pub fn simple(program: Arc<Program>) -> Self {

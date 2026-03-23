@@ -24,6 +24,11 @@ tempfile = { workspace = true }
 
 [features]
 profiling = []
+## Enables loading the JIT code and metadata from statically linked symbols
+## produced by assembling the `.S` file emitted by `CompiledCode::write_asm`.
+## When this feature is active, `JitFunction::from_static_link` and
+## `MinimalExecutor::from_static_link` become available.
+static-link = []
 
 [lints]
 workspace = true

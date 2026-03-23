@@ -95,23 +95,40 @@ impl CompiledCode {
 impl CompiledCode {
     /// Write a GAS-compatible x86-64 assembly file (`.S`) to `writer`.
     ///
-    /// The output contains a `.text` section with the raw machine code expressed
-    /// as `.byte` directives, with a `.global` label at the start of every
-    /// RISC-V instruction's x86-64 sequence:
+    /// The output contains:
     ///
-    /// ```text
-    /// riscv_pc_0x00010000:
-    ///     .byte 0x55,0x48,0x89,0xe5   # prologue bytes
-    ///     .byte 0x48,0xb8             # REX.W + MOV rax, imm64
-    ///     .quad sp1_ecall_handler     # <- linker fills the handler address
-    ///     .byte 0xff,0xd0             # CALL rax
-    /// ```
+    /// 1. A **`.text` section** with the raw machine code expressed as `.byte` directives,
+    ///    a global `sp1_jit_code` label at position 0 (the function entry point), and a
+    ///    `.global` label at the start of every RISC-V instruction's x86-64 sequence:
     ///
-    /// At every byte offset listed in [`Self::ecall_ptr_offsets`] the 8 bytes
-    /// that hold the embedded handler address are emitted as
-    /// `.quad <ecall_symbol>` instead of raw `.byte` values.  The assembler
-    /// records a proper `R_X86_64_64` relocation so the linker fills in the
-    /// correct absolute address at link time.
+    ///    ```text
+    ///    sp1_jit_code:                   # ← entry point (prologue starts here)
+    ///        .byte 0x55,0x48,...         # prologue bytes
+    ///    riscv_pc_0x00010000:
+    ///        .byte 0x48,0xb8             # REX.W + MOV rax, imm64
+    ///        .quad sp1_ecall_handler     # <- linker fills the handler address
+    ///        .byte 0xff,0xd0             # CALL rax
+    ///    ```
+    ///
+    /// 2. A **`.rodata` section** carrying all remaining [`CompiledCode`] fields as
+    ///    named, globally-visible symbols:
+    ///
+    ///    | Symbol                      | Content                                              |
+    ///    |-----------------------------|------------------------------------------------------|
+    ///    | `sp1_jump_table`            | Array of `.quad riscv_pc_0x…` (linker-resolved)      |
+    ///    | `sp1_jump_table_len`        | `u64` — number of entries                            |
+    ///    | `sp1_ecall_ptr_offsets`     | Array of `u64` byte offsets (patch sites)            |
+    ///    | `sp1_ecall_ptr_offsets_len` | `u64` — number of entries                            |
+    ///    | `sp1_unimp_ptr_offsets`     | Array of `u64` byte offsets (patch sites)            |
+    ///    | `sp1_unimp_ptr_offsets_len` | `u64` — number of entries                            |
+    ///    | `sp1_pc_start`              | `u64` — starting program counter                     |
+    ///    | `sp1_pc_base`               | `u64` — base program counter (jump-table origin)     |
+    ///    | `sp1_memory_size`           | `u64` — VM memory region size in bytes               |
+    ///
+    ///    Because `sp1_jump_table` entries are emitted as `.quad riscv_pc_0x…`, the
+    ///    assembler records `R_X86_64_64` relocations so the **linker fills in the
+    ///    correct absolute addresses** at link time.  The resulting object therefore
+    ///    contains a fully-resolved jump table ready to use without any runtime patching.
     ///
     /// # Parameters
     /// - `ecall_symbol`: the linker symbol name of the ECALL handler function
@@ -120,11 +137,15 @@ impl CompiledCode {
     /// - `unimp_symbol`: the linker symbol name of the UNIMP handler function
     ///   (e.g. `"sp1_unimp_handler"`).  Same export requirement applies.
     ///
-    /// # Assembling
+    /// # Assembling and linking
     /// ```sh
     /// as -o out.o out.S          # GNU Binutils
     /// clang -c -o out.o out.S    # LLVM / Clang
     /// ```
+    /// Then link `out.o` together with the object that exports `sp1_ecall_handler` and
+    /// `sp1_unimp_handler`.  With the `static-link` feature enabled in `sp1-jit` and
+    /// `sp1-core-executor`, [`crate::MinimalExecutor::from_static_link`] can bootstrap
+    /// the VM directly from those linked symbols without any runtime deserialization.
     pub fn write_asm<W: Write>(
         &self,
         writer: &mut W,
@@ -155,13 +176,18 @@ impl CompiledCode {
             .collect();
         labels.sort_unstable_by_key(|(off, _)| *off);
 
-        // ── Header ───────────────────────────────────────────────────────
+        // ── .text section ────────────────────────────────────────────────
         writeln!(writer, "\t.section\t.text,\"ax\",@progbits")?;
         writeln!(writer)?;
+        // Entry-point label visible to the static-link feature.
+        writeln!(writer, "\t.global\tsp1_jit_code")?;
+        writeln!(writer, "\t.type\tsp1_jit_code, @function")?;
         for (_, name) in &labels {
             writeln!(writer, "\t.global\t{name}")?;
         }
         writeln!(writer)?;
+        // sp1_jit_code sits at offset 0 — before any per-instruction label.
+        writeln!(writer, "sp1_jit_code:")?;
 
         // ── Body: walk the code buffer, emitting labels / .quad / .byte ──
         let mut label_iter = labels.iter().peekable();
@@ -193,6 +219,73 @@ impl CompiledCode {
             }
             pos = run_end;
         }
+
+        // ── .rodata section — all remaining CompiledCode fields ───────────
+        writeln!(writer)?;
+        writeln!(writer, "\t.section\t.rodata")?;
+        writeln!(writer)?;
+
+        // ── jump_table: one absolute pointer per RISC-V instruction ──────
+        // Entries are emitted as `.quad riscv_pc_0x…` so the assembler emits
+        // R_X86_64_64 relocations; the linker fills the absolute addresses.
+        writeln!(writer, "\t.global\tsp1_jump_table")?;
+        writeln!(writer, "\t.align\t8")?;
+        writeln!(writer, "sp1_jump_table:")?;
+        for (_, name) in &labels {
+            writeln!(writer, "\t.quad\t{name}")?;
+        }
+        writeln!(writer)?;
+        writeln!(writer, "\t.global\tsp1_jump_table_len")?;
+        writeln!(writer, "\t.align\t8")?;
+        writeln!(writer, "sp1_jump_table_len:")?;
+        writeln!(writer, "\t.quad\t{}", self.jump_table.len())?;
+        writeln!(writer)?;
+
+        // ── ecall_ptr_offsets ─────────────────────────────────────────────
+        writeln!(writer, "\t.global\tsp1_ecall_ptr_offsets")?;
+        writeln!(writer, "\t.align\t8")?;
+        writeln!(writer, "sp1_ecall_ptr_offsets:")?;
+        for &off in &self.ecall_ptr_offsets {
+            writeln!(writer, "\t.quad\t{off}")?;
+        }
+        writeln!(writer)?;
+        writeln!(writer, "\t.global\tsp1_ecall_ptr_offsets_len")?;
+        writeln!(writer, "\t.align\t8")?;
+        writeln!(writer, "sp1_ecall_ptr_offsets_len:")?;
+        writeln!(writer, "\t.quad\t{}", self.ecall_ptr_offsets.len())?;
+        writeln!(writer)?;
+
+        // ── unimp_ptr_offsets ─────────────────────────────────────────────
+        writeln!(writer, "\t.global\tsp1_unimp_ptr_offsets")?;
+        writeln!(writer, "\t.align\t8")?;
+        writeln!(writer, "sp1_unimp_ptr_offsets:")?;
+        for &off in &self.unimp_ptr_offsets {
+            writeln!(writer, "\t.quad\t{off}")?;
+        }
+        writeln!(writer)?;
+        writeln!(writer, "\t.global\tsp1_unimp_ptr_offsets_len")?;
+        writeln!(writer, "\t.align\t8")?;
+        writeln!(writer, "sp1_unimp_ptr_offsets_len:")?;
+        writeln!(writer, "\t.quad\t{}", self.unimp_ptr_offsets.len())?;
+        writeln!(writer)?;
+
+        // ── scalar constants ──────────────────────────────────────────────
+        writeln!(writer, "\t.global\tsp1_pc_start")?;
+        writeln!(writer, "\t.align\t8")?;
+        writeln!(writer, "sp1_pc_start:")?;
+        writeln!(writer, "\t.quad\t{}", self.pc_start)?;
+        writeln!(writer)?;
+
+        writeln!(writer, "\t.global\tsp1_pc_base")?;
+        writeln!(writer, "\t.align\t8")?;
+        writeln!(writer, "sp1_pc_base:")?;
+        writeln!(writer, "\t.quad\t{}", self.pc_base)?;
+        writeln!(writer)?;
+
+        writeln!(writer, "\t.global\tsp1_memory_size")?;
+        writeln!(writer, "\t.align\t8")?;
+        writeln!(writer, "sp1_memory_size:")?;
+        writeln!(writer, "\t.quad\t{}", self.memory_size)?;
 
         Ok(())
     }
@@ -270,13 +363,17 @@ mod tests {
         // Section declaration present.
         assert!(text.contains(".section\t.text,\"ax\",@progbits"), "missing section directive");
 
-        // Both labels declared global and defined.
+        // Entry-point label present in .text and declared global.
+        assert!(text.contains(".global\tsp1_jit_code"), "missing .global sp1_jit_code");
+        assert!(text.contains("sp1_jit_code:"), "missing sp1_jit_code label def");
+
+        // Both per-instruction labels declared global and defined.
         assert!(text.contains(".global\triscv_pc_0x00001000"), "missing global for pc 0x1000");
         assert!(text.contains(".global\triscv_pc_0x00001004"), "missing global for pc 0x1004");
         assert!(text.contains("riscv_pc_0x00001000:"), "missing label def for pc 0x1000");
         assert!(text.contains("riscv_pc_0x00001004:"), "missing label def for pc 0x1004");
 
-        // ECALL handler emitted as a symbol reference, not raw bytes.
+        // ECALL handler emitted as a symbol reference (in .text), not raw bytes.
         assert!(text.contains(".quad\tsp1_ecall_handler"), "missing .quad for ecall handler");
 
         // The two REX.W + opcode bytes that precede the pointer are plain .byte.
@@ -297,6 +394,36 @@ mod tests {
             "ecall pointer bytes leaked as raw .byte"
         );
         let _ = lines_with_f4_after_ecall; // used above
+
+        // .rodata section present with all metadata symbols.
+        assert!(text.contains(".section\t.rodata"), "missing .rodata section");
+        assert!(text.contains("sp1_jump_table:"), "missing sp1_jump_table");
+        assert!(text.contains("sp1_jump_table_len:"), "missing sp1_jump_table_len");
+        assert!(text.contains("sp1_ecall_ptr_offsets:"), "missing sp1_ecall_ptr_offsets");
+        assert!(text.contains("sp1_ecall_ptr_offsets_len:"), "missing sp1_ecall_ptr_offsets_len");
+        assert!(text.contains("sp1_unimp_ptr_offsets:"), "missing sp1_unimp_ptr_offsets");
+        assert!(text.contains("sp1_unimp_ptr_offsets_len:"), "missing sp1_unimp_ptr_offsets_len");
+        assert!(text.contains("sp1_pc_start:"), "missing sp1_pc_start");
+        assert!(text.contains("sp1_pc_base:"), "missing sp1_pc_base");
+        assert!(text.contains("sp1_memory_size:"), "missing sp1_memory_size");
+
+        // jump_table entries reference instruction labels (not raw offsets).
+        // The rodata section should have `.quad riscv_pc_0x00001000` etc.
+        let rodata_start = text.find(".section\t.rodata").unwrap();
+        let rodata = &text[rodata_start..];
+        assert!(
+            rodata.contains(".quad\triscv_pc_0x00001000"),
+            "jump table entry should reference instruction label"
+        );
+        assert!(
+            rodata.contains(".quad\triscv_pc_0x00001004"),
+            "jump table entry should reference instruction label"
+        );
+
+        // Scalar constants carry the right values.
+        assert!(text.contains("\t.quad\t0x1000") || text.contains("\t.quad\t4096"),
+            "pc_start value not found");
+        assert!(text.contains("\t.quad\t4096"), "memory_size value not found");
     }
 
     #[test]
