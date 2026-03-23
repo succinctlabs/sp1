@@ -467,7 +467,6 @@ impl<M: JitResetableMemory> JitFunction<M> {
     }
 }
 
-
 /// Static-link constructor — only available with the `static-link` feature.
 ///
 /// Builds a [`JitFunction`] entirely from linker symbols that were produced by
@@ -495,8 +494,7 @@ impl<M: JitMemory> JitFunction<M> {
         // sp1_jit_code — identical arithmetic to JitFunction::new().
         let code_base = sp1_jit_code as *const u8;
         let jt_len = sp1_jump_table_len as usize;
-        let jt_offsets: &[u64] =
-            std::slice::from_raw_parts(sp1_jump_table.as_ptr(), jt_len);
+        let jt_offsets: &[u64] = std::slice::from_raw_parts(sp1_jump_table.as_ptr(), jt_len);
         let jump_table: Vec<*const u8> =
             jt_offsets.iter().map(|&off| code_base.add(off as usize)).collect();
 
@@ -506,10 +504,10 @@ impl<M: JitMemory> JitFunction<M> {
         // The entry function is the JIT prologue in the linked .text section.
         // The extern "C" fn must be transmuted to the plain fn pointer type used
         // by JitFunction — the calling convention is identical (System V AMD64).
-        let entry_fn: fn(*mut JitContext) =
-            std::mem::transmute::<unsafe extern "C" fn(*mut JitContext), fn(*mut JitContext)>(
-                sp1_jit_code,
-            );
+        let entry_fn: fn(*mut JitContext) = std::mem::transmute::<
+            unsafe extern "C" fn(*mut JitContext),
+            fn(*mut JitContext),
+        >(sp1_jit_code);
 
         let memory = M::new(memory_size);
 

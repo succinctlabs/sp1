@@ -102,13 +102,19 @@ impl CompiledCode {
     ///    `.global` label at the start of every RISC-V instruction's x86-64 sequence:
     ///
     ///    ```text
-    ///    sp1_jit_code:                   # ← entry point (prologue starts here)
-    ///        .byte 0x55,0x48,...         # prologue bytes
+    ///    sp1_jit_code:                            # ← entry point (prologue starts here)
+    ///        .byte 0x55,0x48,...                  # prologue bytes
     ///    riscv_pc_0x00010000:
-    ///        .byte 0x48,0xb8             # REX.W + MOV rax, imm64
-    ///        .quad sp1_ecall_handler     # <- linker fills the handler address
-    ///        .byte 0xff,0xd0             # CALL rax
+    ///        .byte 0x0f,0x1f,0x80,0x00,0x00,0x00,0x00  # 7-byte NOP (PIE-safe padding)
+    ///        .byte 0xe8                           # CALL rel32 opcode
+    ///        .long sp1_ecall_handler - . - 4      # R_X86_64_PC32 ← linker resolves
     ///    ```
+    ///
+    ///    The original `MOV rax, imm64 + CALL rax` sequence (12 bytes) produced by the
+    ///    JIT is replaced in its entirety by `7-byte NOP + CALL rel32` (also 12 bytes).
+    ///    The `.long symbol - . - 4` expression emits an `R_X86_64_PC32` relocation,
+    ///    which lld accepts in `.text` for both PIE and non-PIE executables — unlike
+    ///    `.quad symbol` (`R_X86_64_64`) which lld rejects in a read-only `.text` section.
     ///
     /// 2. A **`.rodata` section** carrying all remaining [`CompiledCode`] fields as
     ///    named, globally-visible symbols:
@@ -157,7 +163,8 @@ impl CompiledCode {
         use std::collections::BTreeMap;
 
         // Unified map: code offset → symbol name for every patchable pointer slot.
-        // Both ECALL and UNIMP handler addresses are emitted as `.quad <symbol>`.
+        // Both ECALL and UNIMP handler addresses are emitted via a PIE-safe CALL rel32
+        // sequence (see the walk loop below for details).
         let mut ptr_sites: BTreeMap<usize, &str> = BTreeMap::new();
         for &off in &self.ecall_ptr_offsets {
             ptr_sites.insert(off, ecall_symbol);
@@ -191,7 +198,34 @@ impl CompiledCode {
         // sp1_jit_code sits at offset 0 — before any per-instruction label.
         writeln!(writer, "sp1_jit_code:")?;
 
-        // ── Body: walk the code buffer, emitting labels / .quad / .byte ──
+        // ── Body: walk the code buffer, emitting labels / call-stubs / .byte ──
+        //
+        // Handler call-site layout produced by call_extern_fn_raw (12 bytes total):
+        //
+        //   [ptr_site - 2]  0x48, 0xB8         REX.W + MOV rax opcode (preamble)
+        //   [ptr_site]      <8-byte imm64>      absolute handler address (the patch slot)
+        //   [ptr_site + 8]  0xFF, 0xD0         CALL rax (postamble)
+        //
+        // Emitting `.quad symbol` at ptr_site produces R_X86_64_64 — an absolute
+        // 64-bit relocation that lld rejects in a PIE executable's read-only .text
+        // section.  Instead the entire 12-byte window is replaced with a PIE-safe
+        // sequence of equal length:
+        //
+        //   7-byte NOP  (0x0F 0x1F 0x80 0x00 0x00 0x00 0x00)
+        //   CALL rel32  (0xE8 + .long symbol - . - 4)
+        //
+        // The `.long symbol - . - 4` expression produces R_X86_64_PC32, which lld
+        // accepts unconditionally in .text for both PIE and non-PIE binaries.
+        // The from_compiled_code restore path is unaffected: it patches the 8-byte
+        // absolute immediate in a freshly allocated, writable mmap buffer where
+        // R_X86_64_64 is fine.
+
+        // Byte counts for the MOV rax, imm64 / CALL rax sequence.
+        const CALL_PREAMBLE: usize = 2; // REX.W (0x48) + B8+rd opcode (0xB8)
+        const CALL_IMM: usize = 8; // 64-bit immediate — the patchable slot
+        const CALL_POSTAMBLE: usize = 2; // CALL rax (0xFF 0xD0)
+        const CALL_SEQ: usize = CALL_PREAMBLE + CALL_IMM + CALL_POSTAMBLE; // 12
+
         let mut label_iter = labels.iter().peekable();
         let mut pos = 0usize;
 
@@ -202,18 +236,46 @@ impl CompiledCode {
                 writeln!(writer, "{name}:")?;
             }
 
-            // Patchable pointer site: emit a symbol reference instead of raw bytes.
-            if let Some(&symbol) = ptr_sites.get(&pos) {
-                writeln!(writer, "\t.quad\t{symbol}")?;
-                pos += 8;
-                continue;
+            // Check for a handler call site whose preamble (MOV rax prefix) starts
+            // at `pos`.  The imm64 patch slot lives at pos + CALL_PREAMBLE; the
+            // full 12-byte window must fit within the code buffer.
+            if pos + CALL_SEQ <= self.code.len() {
+                if let Some(&symbol) = ptr_sites.get(&(pos + CALL_PREAMBLE)) {
+                    debug_assert_eq!(
+                        &self.code[pos..pos + CALL_PREAMBLE],
+                        &[0x48, 0xb8],
+                        "expected REX.W + MOV rax preamble at offset {pos}",
+                    );
+                    debug_assert_eq!(
+                        &self.code[pos + CALL_PREAMBLE + CALL_IMM
+                            ..pos + CALL_PREAMBLE + CALL_IMM + CALL_POSTAMBLE],
+                        &[0xff, 0xd0],
+                        "expected CALL rax postamble at offset {}",
+                        pos + CALL_PREAMBLE + CALL_IMM,
+                    );
+                    // Emit PIE-safe 12-byte replacement:
+                    //   7-byte NOP covers the preamble + first 5 bytes of imm64.
+                    //   CALL rel32 covers the remaining 3 imm64 bytes + CALL rax.
+                    // R_X86_64_PC32 is accepted by lld in .text for PIE binaries.
+                    writeln!(writer, "\t.byte\t0x0f,0x1f,0x80,0x00,0x00,0x00,0x00")?;
+                    writeln!(writer, "\t.byte\t0xe8")?;
+                    writeln!(writer, "\t.long\t{symbol} - . - 4")?;
+                    pos += CALL_SEQ;
+                    continue;
+                }
             }
 
-            // Plain bytes: run until the next label or pointer site.
+            // Plain bytes: stop CALL_PREAMBLE bytes before the next ptr_site so
+            // that its preamble bytes are included in the special-emission window.
             let next_label = label_iter.peek().map(|(off, _)| *off);
-            let next_ptr = ptr_sites.range(pos + 1..).next().map(|(&off, _)| off);
+            let next_ptr = ptr_sites
+                .range(pos + 1..)
+                .next()
+                .map(|(&off, _)| off.saturating_sub(CALL_PREAMBLE));
             let run_end =
                 [next_label, next_ptr, Some(self.code.len())].into_iter().flatten().min().unwrap();
+            // Guarantee forward progress for degenerate cases (ptr_site < CALL_PREAMBLE).
+            let run_end = run_end.max(pos + 1);
 
             for chunk in self.code[pos..run_end].chunks(8) {
                 let hex: Vec<String> = chunk.iter().map(|b| format!("0x{b:02x}")).collect();
@@ -344,18 +406,22 @@ mod tests {
 
     #[test]
     fn asm_output_structure() {
-        // 20-byte code buffer:
+        // 22-byte code buffer (realistic layout matching call_extern_fn_raw output):
         //   [0..4]   regular bytes for instruction at pc 0x1000
-        //   [4..6]   REX.W + MOV rax opcode (0x48, 0xb8)
-        //   [6..14]  ecall handler pointer (ecall_ptr_offsets = [6])
-        //   [14..20] regular bytes for instruction at pc 0x1004
-        let mut code = vec![0xf4u8; 20];
+        //   [4..6]   REX.W + MOV rax opcode (0x48, 0xb8)  — call-site preamble
+        //   [6..14]  ecall handler imm64 slot (ecall_ptr_offsets = [6])
+        //   [14..16] CALL rax (0xff, 0xd0)                — call-site postamble
+        //   [16..22] regular bytes for instruction at pc 0x1004
+        let mut code = vec![0xf4u8; 22];
         code[4] = 0x48;
         code[5] = 0xb8;
+        // imm64 slot [6..14] stays as 0xf4 (dummy handler address)
+        code[14] = 0xff; // CALL rax
+        code[15] = 0xd0;
 
         let compiled = CompiledCode {
             code,
-            jump_table: vec![0, 14],
+            jump_table: vec![0, 16], // second instruction starts after the 12-byte call site
             pc_start: 0x1000,
             pc_base: 0x1000,
             memory_size: 4096,
@@ -380,27 +446,44 @@ mod tests {
         assert!(text.contains("riscv_pc_0x00001000:"), "missing label def for pc 0x1000");
         assert!(text.contains("riscv_pc_0x00001004:"), "missing label def for pc 0x1004");
 
-        // ECALL handler emitted as a symbol reference (in .text), not raw bytes.
-        assert!(text.contains(".quad\tsp1_ecall_handler"), "missing .quad for ecall handler");
+        // ECALL call site must be emitted as a PIE-safe NOP + CALL rel32, NOT as .quad.
+        // The 12-byte window [MOV rax, imm64 + CALL rax] is replaced with:
+        //   7-byte NOP  → harmless padding
+        //   CALL rel32  → R_X86_64_PC32, accepted by lld in .text of PIE binaries
+        let text_section_end = text.find(".section\t.rodata").unwrap();
+        let text_section = &text[..text_section_end];
 
-        // The two REX.W + opcode bytes that precede the pointer are plain .byte.
-        assert!(text.contains("0x48,0xb8"), "missing REX.W + MOV-rax opcode bytes");
+        assert!(
+            text_section.contains("0x0f,0x1f,0x80,0x00,0x00,0x00,0x00"),
+            "missing 7-byte NOP in ecall call site"
+        );
+        assert!(text_section.contains("0xe8"), "missing CALL rel32 opcode in ecall call site");
+        assert!(
+            text_section.contains("sp1_ecall_handler - . - 4"),
+            "missing PC-relative offset expression for ecall handler"
+        );
 
-        // The 8 bytes of the pointer slot must NOT appear as raw .byte values.
-        // (They are all 0xf4 in our dummy buffer, but they are replaced by .quad.)
-        let lines_with_f4_after_ecall: Vec<&str> = text
-            .lines()
-            .skip_while(|l| !l.contains("riscv_pc_0x00001004"))
-            .filter(|l| l.contains("0xf4"))
-            .collect();
-        // Only the post-ecall instruction bytes (riscv_pc_0x1004 region) may contain 0xf4.
-        // The ecall slot itself must not have been emitted as .byte.
+        // Absolute .quad of the handler symbol must NOT appear in .text — it would
+        // produce R_X86_64_64 which lld rejects in a PIE executable's .text section.
+        assert!(
+            !text_section.contains(".quad\tsp1_ecall_handler"),
+            ".quad sp1_ecall_handler must not appear in .text (produces R_X86_64_64)"
+        );
+
+        // The MOV rax preamble bytes (0x48, 0xb8) are consumed by the special-emission
+        // window and must not appear as standalone .byte directives in .text.
+        assert!(
+            !text_section.contains("0x48,0xb8"),
+            "REX.W + MOV rax prefix must not appear as raw .byte (consumed by call-site emission)"
+        );
+
+        // The 8 imm64 slot bytes (all 0xf4) must not appear as raw .byte — they are
+        // absorbed into the NOP+CALL replacement.
         assert!(
             !text[..text.find("riscv_pc_0x00001004:").unwrap()]
                 .contains(".byte\t0xf4,0xf4,0xf4,0xf4,0xf4,0xf4,0xf4,0xf4"),
             "ecall pointer bytes leaked as raw .byte"
         );
-        let _ = lines_with_f4_after_ecall; // used above
 
         // .rodata section present with all metadata symbols.
         assert!(text.contains(".section\t.rodata"), "missing .rodata section");
@@ -435,9 +518,7 @@ mod tests {
         );
 
         // Scalar constants carry the right values.
-        assert!(text.contains("\t.quad\t0x1000") || text.contains("\t.quad\t4096"),
-            "pc_start value not found");
-        assert!(text.contains("\t.quad\t4096"), "memory_size value not found");
+        assert!(text.contains("\t.quad\t4096"), "pc_start or memory_size value not found");
     }
 
     #[test]

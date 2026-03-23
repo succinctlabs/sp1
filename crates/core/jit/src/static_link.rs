@@ -74,7 +74,8 @@ extern "C" {
     /// First element of the ECALL handler patch-site offset array.
     ///
     /// In the static-link case these offsets are informational only: the linker
-    /// has already resolved the `R_X86_64_64` relocations in the `.text` section,
+    /// has already resolved the `R_X86_64_PC32` relocations emitted by
+    /// [`crate::CompiledCode::write_asm`] in the `.text` section,
     /// so no runtime patching is required.
     pub static sp1_ecall_ptr_offsets: [u64; 0];
     /// Number of entries in [`sp1_ecall_ptr_offsets`].
@@ -94,4 +95,3 @@ extern "C" {
     /// VM memory region size in bytes (value of [`crate::CompiledCode::memory_size`]).
     pub static sp1_memory_size: u64;
 }
-
