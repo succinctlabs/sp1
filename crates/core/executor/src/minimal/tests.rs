@@ -314,4 +314,32 @@ mod differential_tests {
             });
         });
     }
+
+    #[test]
+    fn test_save_and_restore_jit_result() {
+        use crate::{memory::MAX_LOG_ADDR, x86_64::MinimalTranspiler};
+        use bincode::{deserialize, serialize};
+        use test_artifacts::KECCAK256_ELF;
+
+        let program = Program::from(&KECCAK256_ELF).unwrap();
+        let program = Arc::new(program);
+
+        // Transpile the code locally.
+        let transpiler =
+            MinimalTranspiler::new(2_u64.pow(MAX_LOG_ADDR as u32) as usize, false, None);
+        let code = transpiler.transpile_to_compiled(&program).expect("Failed to transpile program");
+
+        let serialized_code = serialize(&code).expect("Failed to serialize compiled code");
+        let code = deserialize(&serialized_code).expect("Failed to deserialize compiled code");
+
+        // Run the native x86_64 executor
+        let mut native_executor = NativeExecutor::from_compiled(program.clone(), &code, None);
+        native_executor.with_input(&serialize(&5_usize).unwrap());
+        for i in 0..5 {
+            native_executor.with_input(&serialize(&vec![i; i]).unwrap());
+        }
+        while native_executor.execute_chunk().is_some() {}
+
+        assert_eq!(native_executor.exit_code(), 0);
+    }
 }
