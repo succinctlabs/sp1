@@ -30,14 +30,12 @@ pub fn shape_from_record<GC: IopCtx, SC: ShardContext<GC>>(
         .iter()
         .map(|air| air.preprocessed_width() * air.num_rows(record).unwrap_or_default())
         .sum::<usize>()
-        .next_multiple_of(1 << log_stacking_height)
-        .max(1 << log_stacking_height);
+        .next_multiple_of(1 << log_stacking_height);
     let main_area = shard_chips
         .iter()
         .map(|air| air.width() * air.num_rows(record).unwrap_or_default())
         .sum::<usize>()
-        .next_multiple_of(1 << log_stacking_height)
-        .max(1 << log_stacking_height);
+        .next_multiple_of(1 << log_stacking_height);
 
     let main_padding_cols = (main_area
         - shard_chips
