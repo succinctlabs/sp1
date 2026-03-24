@@ -103,9 +103,8 @@ mod tests {
 
     #[test]
     fn test_grinding_multi_field32() {
-        use p3_bn254_fr::Bn254Fr;
         use slop_bn254::{
-            outer_perm, OuterPerm, OUTER_CHALLENGER_RATE, OUTER_CHALLENGER_STATE_WIDTH,
+            outer_perm, Bn254Fr, OuterPerm, OUTER_CHALLENGER_RATE, OUTER_CHALLENGER_STATE_WIDTH,
         };
 
         sp1_gpu_cudart::run_sync_in_place(|t| {

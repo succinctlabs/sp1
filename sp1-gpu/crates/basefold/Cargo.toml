@@ -44,7 +44,6 @@ tokio = { workspace = true }
 serde = { workspace = true }
 
 [dev-dependencies]
-p3-bn254-fr = { workspace = true }
 sp1-gpu-jagged-tracegen = { workspace = true, features = ["test-utils"] }
 test-artifacts = { workspace = true }
 sp1-core-machine = { workspace = true }
