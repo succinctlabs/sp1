@@ -174,11 +174,22 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ZkProverCtx<GC, PC> {
 
     /// Commits to a flat MLE and registers it in the context.
     ///
-    /// TODO: optimize to not necessarily need to own the data
+    /// The MLE is internally stacked into a tensor with `2^log_num_polynomials` columns.
+    /// The number of encoding variables is inferred as
+    /// `mle.num_variables() - log_num_polynomials`.
+    ///
+    /// # Arguments
+    /// * `mle` — the flat (unstacked) multilinear extension to commit to, with
+    ///   `num_encoding_variables + log_num_polynomials` total variables.
+    /// * `log_num_polynomials` — log2 of the number of stacked polynomials (tensor height).
+    ///   The inferred `num_encoding_variables` must match the value passed to
+    ///   [`initialize_zk_prover_and_verifier`](crate::zk::stacked_pcs::initialize_zk_prover_and_verifier)
+    ///   when the PCS was set up.
+    /// * `rng` — cryptographically secure random number generator.
     pub fn commit_mle<RNG>(
         &mut self,
         mle: slop_multilinear::Mle<GC::F, slop_alloc::CpuBackend>,
-        log_stacking_height: u32,
+        log_num_polynomials: u32,
         rng: &mut RNG,
     ) -> Result<MleCommit, PcsCommitError>
     where
@@ -188,7 +199,7 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ZkProverCtx<GC, PC> {
         let pcs_prover = self.pcs_prover.as_ref().ok_or(PcsCommitError::NoPcsProver)?;
         let commit = self
             .inner
-            .commit_mle(mle, log_stacking_height as usize, pcs_prover, rng)
+            .commit_mle(mle, log_num_polynomials as usize, pcs_prover, rng)
             .map(|idx| MleCommit { inner: idx })?;
         Ok(commit)
     }

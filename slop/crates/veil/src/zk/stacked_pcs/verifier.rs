@@ -84,11 +84,11 @@ where
             proof;
 
         let verifier = &self.inner.basefold_verifier;
-        let num_vars = self.inner.log_stacking_height as usize;
+        let num_encoding_variables = self.inner.log_stacking_height as usize;
         let num_polys = (1 << log_num_polys) + GC::EF::D; // +deg(EF/F) for mask
 
         // Shape check: point must have the right dimension
-        if log_num_polys + num_vars != point.dimension() {
+        if log_num_polys + num_encoding_variables != point.dimension() {
             return Err(ZkStackedVerifierError::IncorrectShape("Inconsistent dimensions".into()));
         }
 

@@ -99,8 +99,23 @@ pub trait ReadingCtx: ConstraintCtx {
     fn read_exact(&mut self, buf: &mut [Self::Expr]) -> Result<(), TranscriptExhaustedError>;
 
     /// Read a PCS commitment from the transcript, returning an opaque oracle handle.
+    ///
+    /// The committed MLE has `num_encoding_variables + log_num_polynomials` total variables.
+    /// It is stored as a tensor with `2^log_num_polynomials` columns, each of which is a
+    /// polynomial over `num_encoding_variables` variables.
+    ///
+    /// # Arguments
+    /// * `num_encoding_variables` — number of variables per stacked polynomial (encoding width).
+    ///   Must match the value passed to [`initialize_zk_prover_and_verifier`](crate::zk::stacked_pcs::initialize_zk_prover_and_verifier)
+    ///   when the PCS was set up.
+    /// * `log_num_polynomials` — log2 of the number of stacked polynomials (tensor height).
+    ///
     /// Returns `None` if the transcript is exhausted or parameters don't match.
-    fn read_oracle(&mut self, log_width: u32, log_stacking: u32) -> Option<Self::MleOracle>;
+    fn read_oracle(
+        &mut self,
+        num_encoding_variables: u32,
+        log_num_polynomials: u32,
+    ) -> Option<Self::MleOracle>;
 
     /// Sample a Fiat-Shamir challenge from the transcript.
     fn sample(&mut self) -> Self::Challenge;

@@ -132,9 +132,13 @@ impl<GC: ZkIopCtx> ReadingCtx for ZkVerifierCtx<GC> {
         Ok(())
     }
 
-    fn read_oracle(&mut self, log_width: u32, log_stacking: u32) -> Option<MleCommit> {
+    fn read_oracle(
+        &mut self,
+        num_encoding_variables: u32,
+        log_num_polynomials: u32,
+    ) -> Option<MleCommit> {
         self.inner
-            .read_next_pcs_commitment(log_width as usize, log_stacking as usize)
+            .read_next_pcs_commitment(num_encoding_variables as usize, log_num_polynomials as usize)
             .map(|idx| MleCommit { inner: idx })
     }
 

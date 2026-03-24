@@ -121,25 +121,27 @@ where
         ));
     }
 
-    // Compute FFT
-    // maybe optimization: should this be not FFT, but each point individually??
-    let fft_input = [&proof.rlc_vec[..], &proof.rlc_padding[..]].concat();
-    let fft_output = Code::encode(&fft_input, parameters.code_length);
+    // Evaluate the RLC polynomial directly at the revealed indices via Horner,
+    // instead of computing a full FFT over the entire code domain.
+    // O(num_evals * padded_message_length) vs O(code_length * log(code_length)).
+    let coeffs = [&proof.rlc_vec[..], &proof.rlc_padding[..]].concat();
+    let encoded_at_indices =
+        Code::encode_at_indices(&coeffs, parameters.code_length, revealed_indices);
 
     // Check revealed evaluations via Horner over all columns.
     // Work directly on the base field slice to avoid an expensive Tensor clone + into_extension.
     let base_slice = revealed_evals.as_slice();
-    let [num_evals, base_width]: [usize; 2] = revealed_evals.sizes().try_into().unwrap();
+    let [_num_evals, base_width]: [usize; 2] = revealed_evals.sizes().try_into().unwrap();
     let ext_width = base_width / d;
 
-    for i in 0..num_evals {
+    for (i, &expected) in encoded_at_indices.iter().enumerate() {
         let row_start = i * base_width;
         let rlc_eval = (0..ext_width).rev().fold(GC::EF::zero(), |acc, j| {
             let elem =
                 GC::EF::from_base_slice(&base_slice[row_start + j * d..row_start + (j + 1) * d]);
             elem + rlc_coeff * acc
         });
-        if rlc_eval != fft_output[revealed_indices[i]] {
+        if rlc_eval != expected {
             return Err(ZkDotProductError::RevealedEvalInconsistency(i));
         }
     }

@@ -378,10 +378,13 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
     /// 3. Stores the prover data for later proof generation
     ///
     /// # Arguments
-    /// * `mle` - The flat (unstacked) MLE to commit to
-    /// * `log_stacking_height` - Log2 of the number of columns to stack into
-    /// * `pcs_prover` - The PCS prover for generating commitments
-    /// * `rng` - Cryptographically secure random number generator
+    /// * `mle` — the flat (unstacked) MLE to commit to, with
+    ///   `num_encoding_variables + log_num_polynomials` total variables.
+    /// * `log_num_polynomials` — log2 of the number of stacked polynomials (tensor height).
+    ///   The inferred `num_encoding_variables = mle.num_variables() - log_num_polynomials`
+    ///   must match the value the PCS was initialized with.
+    /// * `pcs_prover` — the PCS prover for generating commitments.
+    /// * `rng` — cryptographically secure random number generator.
     ///
     /// # Returns
     /// An `MleCommitmentIndex` that can be used to reference this commitment
@@ -389,7 +392,7 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
     pub fn commit_mle<P, RNG>(
         &mut self,
         mle: slop_multilinear::Mle<GC::F, slop_alloc::CpuBackend>,
-        log_stacking_height: usize,
+        log_num_polynomials: usize,
         pcs_prover: &P,
         rng: &mut RNG,
     ) -> Result<MleCommitmentIndex, super::ZkPcsCommitmentError>
@@ -399,11 +402,11 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
         rand::distributions::Standard: rand::distributions::Distribution<GC::F>,
     {
         // Compute num_vars from the flat MLE's total variables minus stacking height
-        let num_vars = mle.num_variables() as usize - log_stacking_height;
-        let log_num_polys = log_stacking_height;
+        let num_vars = mle.num_variables() as usize - log_num_polynomials;
+        let log_num_polys = log_num_polynomials;
 
         // Generate commitment using the PCS prover (stacking happens inside)
-        let (digest, prover_data) = pcs_prover.commit_mle(mle, log_stacking_height, rng)?;
+        let (digest, prover_data) = pcs_prover.commit_mle(mle, log_num_polynomials, rng)?;
 
         // Register the commitment internally
         Ok(self.register_commitment(digest, prover_data, num_vars, log_num_polys))
@@ -567,8 +570,8 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
 
     /// Helper method to generate PCS proofs for all evaluation claims.
     ///
-    /// One proof is generated per claim. If multiple claims exist for the same
-    /// commitment, a warning is emitted because this breaks zero-knowledge
+    /// One proof is generated per claim. Panics if multiple claims exist for the same
+    /// commitment, as this breaks zero-knowledge
     fn generate_pcs_proofs<P>(&mut self, pcs_prover: Option<&P>) -> Vec<GC::PcsProof>
     where
         P: ZkPcsProver<GC, MK, ProverData = PD>,
@@ -586,8 +589,8 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
         for claim in &eval_claims {
             for idx in &claim.commitment_indices {
                 if !seen.insert(*idx) {
-                    eprintln!(
-                        "WARNING: Multiple eval claims on the same PCS commitment (index {}). \
+                    panic!(
+                        "Multiple eval claims on the same PCS commitment (index {}). \
                          This breaks zero-knowledge but not soundness.",
                         idx.index(),
                     );
@@ -721,7 +724,7 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkPcsProver<GC, MK> for NoPcsProver {
     fn commit_mle<RNG: rand::CryptoRng + rand::Rng>(
         &self,
         _mle: slop_multilinear::Mle<GC::F, slop_alloc::CpuBackend>,
-        _log_stacking_height: usize,
+        _log_num_polynomials: usize,
         _rng: &mut RNG,
     ) -> Result<(GC::Digest, Self::ProverData), super::ZkPcsCommitmentError>
     where

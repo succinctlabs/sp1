@@ -2,7 +2,7 @@ use crate::MinimalExecutorRunner;
 use sp1_core_executor::{ExecutionError, Program, DEFAULT_MEMORY_LIMIT};
 use sp1_core_machine::{io::SP1Stdin, utils::setup_logger};
 use std::sync::Arc;
-use test_artifacts::MEMORY_TESTER_ELF;
+use test_artifacts::{KECCAK256_ELF, MEMORY_TESTER_ELF};
 
 fn run(runner: &mut MinimalExecutorRunner) -> Option<ExecutionError> {
     loop {
@@ -54,4 +54,33 @@ fn test_using_too_much_memory() {
 
     let result = run(&mut runner);
     assert_eq!(result, Some(ExecutionError::TooMuchMemory()));
+}
+
+#[test]
+fn test_clks_should_be_available_while_running() {
+    use bincode::serialize;
+
+    let program = Program::from(&KECCAK256_ELF).unwrap();
+    let program = Arc::new(program);
+
+    let mut executor =
+        MinimalExecutorRunner::new(program.clone(), true, Some(10), DEFAULT_MEMORY_LIMIT, 1);
+    executor.with_input(&serialize(&5_usize).unwrap());
+    for i in 0..5 {
+        executor.with_input(&serialize(&vec![i; i]).unwrap());
+    }
+
+    let mut last_global_clk = 0;
+    let mut last_clk = 0;
+    let mut chunk_count = 0;
+    while let Some(_chunk) = executor.execute_chunk() {
+        assert!(executor.global_clk() > last_global_clk);
+        assert!(executor.clk() > last_clk);
+
+        last_global_clk = executor.global_clk();
+        last_clk = executor.clk();
+        chunk_count += 1;
+    }
+
+    assert!(chunk_count > 5, "no chunks were executed");
 }

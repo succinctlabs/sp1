@@ -7,7 +7,7 @@ use sp1_core_executor_runner_binary::{Input, Output};
 use sp1_jit::{
     memory::SharedMemory,
     shm::{ShmTraceRing, TraceResult},
-    trace_capacity, MemValue, TraceChunkRaw,
+    trace_capacity, MemValue, MinimalTrace, TraceChunkRaw,
 };
 use sp1_primitives::consts::MAX_JIT_LOG_ADDR;
 use std::{
@@ -34,6 +34,9 @@ pub struct MinimalExecutorRunner {
 
     process: Option<(Child, JoinHandle<()>)>,
     output: Option<Result<Output, ExecutionError>>,
+
+    global_clk: u64,
+    clk: u64,
 }
 
 impl MinimalExecutorRunner {
@@ -68,7 +71,7 @@ impl MinimalExecutorRunner {
         };
         let (memory, consumer) = create(&input);
 
-        Self { input, consumer, memory, process: None, output: None }
+        Self { input, consumer, memory, process: None, output: None, global_clk: 0, clk: 0 }
     }
 
     /// Create a new minimal executor with no tracing or debugging.
@@ -157,7 +160,11 @@ impl MinimalExecutorRunner {
             loop {
                 match consumer.access(Duration::from_millis(CONSUMER_TIMEOUT_MILLIS)) {
                     TraceResult::Data(guard) => {
-                        return Ok(Some(unsafe { TraceChunkRaw::from_shm(guard) }));
+                        let chunk = unsafe { TraceChunkRaw::from_shm(guard) };
+                        self.global_clk = chunk.global_clk_end();
+                        self.clk = chunk.clk_end();
+
+                        return Ok(Some(chunk));
                     }
                     TraceResult::Finished => {
                         self.wait_for_success();
@@ -240,6 +247,8 @@ impl MinimalExecutorRunner {
         // Normal termination, this should just return success.
         assert!(status.success());
 
+        self.global_clk = output.global_clk;
+        self.clk = output.clk;
         self.output = Some(Ok(output));
     }
 
@@ -293,7 +302,7 @@ impl MinimalExecutorRunner {
     /// This clock is incremented by 8 or 256 depending on the instruction.
     #[must_use]
     pub fn clk(&self) -> u64 {
-        todo!()
+        self.clk
     }
 
     /// Get the global clock of the JIT function.
@@ -301,7 +310,7 @@ impl MinimalExecutorRunner {
     /// This clock is incremented by 1 per instruction.
     #[must_use]
     pub fn global_clk(&self) -> u64 {
-        self.output().global_clk
+        self.global_clk
     }
 
     /// Get the exit code of the JIT function.
@@ -353,6 +362,9 @@ impl MinimalExecutorRunner {
         let (memory, consumer) = create(&self.input);
         self.memory = memory;
         self.consumer = consumer;
+
+        self.global_clk = 0;
+        self.clk = 0;
     }
 }
 

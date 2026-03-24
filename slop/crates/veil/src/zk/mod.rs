@@ -1,10 +1,10 @@
 mod dot_product;
 mod error_correcting_code;
-mod example_zk_sumcheck;
 mod hadamard_product;
 mod inner;
 mod mask_counter;
 mod prover_ctx;
+mod sumcheck_integration_tests;
 mod verifier_ctx;
 
 pub use inner::{ZkPcsProver, ZkPcsVerifier, ZkProof};

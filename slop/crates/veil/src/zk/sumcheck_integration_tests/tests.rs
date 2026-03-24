@@ -179,14 +179,14 @@ fn test_zk_sumcheck_with_pcs_eval_proof_single_mle() {
     type GC = KoalaBearDegree4Duplex;
 
     // Configuration parameters
-    const NUM_STACKED_VARS: u32 = 16; // Number of variables per column
-    const LOG_STACKING_HEIGHT: u32 = 8; // Log of number of polynomials for stacking
-    const TOTAL_NUM_VARS: u32 = LOG_STACKING_HEIGHT + NUM_STACKED_VARS;
+    const NUM_ENCODING_VARIABLES: u32 = 16; // Width / number of variables per stacked polynomial
+    const LOG_NUM_POLYNOMIALS: u32 = 8; // Stacking height / number of columns
+    const NUM_VARIABLES: u32 = LOG_NUM_POLYNOMIALS + NUM_ENCODING_VARIABLES;
 
     eprintln!("Test configuration:");
-    eprintln!("  Total variables: {}", TOTAL_NUM_VARS);
-    eprintln!("  Log stacking height: {}", LOG_STACKING_HEIGHT);
-    eprintln!("  Variables per column: {}", NUM_STACKED_VARS);
+    eprintln!("  Total variables: {}", NUM_VARIABLES);
+    eprintln!("  Log num polynomials: {}", LOG_NUM_POLYNOMIALS);
+    eprintln!("  Log encoding vars: {}", NUM_ENCODING_VARIABLES);
 
     /// Reads all proof data from the transcript including PCS commitment.
     fn read_all<GC: ZkIopCtx, C: ZkCnstrAndReadingCtxInner<GC>>(
@@ -194,7 +194,7 @@ fn test_zk_sumcheck_with_pcs_eval_proof_single_mle() {
     ) -> (MleCommitmentIndex, ZkPartialSumcheckProof<GC, C>) {
         // Read PCS commitment
         let commitment_index = context
-            .read_next_pcs_commitment(NUM_STACKED_VARS as usize, LOG_STACKING_HEIGHT as usize)
+            .read_next_pcs_commitment(NUM_ENCODING_VARIABLES as usize, LOG_NUM_POLYNOMIALS as usize)
             .unwrap();
 
         // Read claimed sum
@@ -202,7 +202,7 @@ fn test_zk_sumcheck_with_pcs_eval_proof_single_mle() {
 
         // Read sumcheck proof
         let sumcheck_data =
-            ZkPartialSumcheckParameters::basic_sumcheck(TOTAL_NUM_VARS, claimed_sum_index)
+            ZkPartialSumcheckParameters::basic_sumcheck(NUM_VARIABLES, claimed_sum_index)
                 .read_proof_from_transcript(context)
                 .unwrap();
 
@@ -226,13 +226,13 @@ fn test_zk_sumcheck_with_pcs_eval_proof_single_mle() {
     }
 
     // Generate test data
-    let (original_mle, mle_ef, claim) = generate_random_mle::<GC>(&mut rng, TOTAL_NUM_VARS);
+    let (original_mle, mle_ef, claim) = generate_random_mle::<GC>(&mut rng, NUM_VARIABLES);
 
     eprintln!("  Sumcheck claim (sum of all evals): {:?}", claim);
 
     // Initialize the verifiers and provers for PCS
     let (zk_basefold_prover, zk_stacked_verifier) =
-        initialize_zk_prover_and_verifier::<GC, MK>(1, NUM_STACKED_VARS);
+        initialize_zk_prover_and_verifier::<GC, MK>(1, NUM_ENCODING_VARIABLES);
 
     //
     // Prover Side
@@ -249,7 +249,7 @@ fn test_zk_sumcheck_with_pcs_eval_proof_single_mle() {
         eprintln!("Committing MLE...");
         let commit_start = std::time::Instant::now();
         let commitment_index = prover_context
-            .commit_mle(original_mle, LOG_STACKING_HEIGHT as usize, &zk_basefold_prover, &mut rng)
+            .commit_mle(original_mle, LOG_NUM_POLYNOMIALS as usize, &zk_basefold_prover, &mut rng)
             .expect("Failed to commit MLEs");
         eprintln!("  Commitment time: {:?}", commit_start.elapsed());
 
@@ -313,14 +313,14 @@ fn test_zk_sumcheck_with_pcs_eval_proof_hadamard_product() {
     type GC = KoalaBearDegree4Duplex;
 
     // Configuration parameters
-    const NUM_STACKED_VARS: u32 = 16; // Number of variables per column
-    const LOG_STACKING_HEIGHT: u32 = 8; // Log of number of polynomials for stacking
-    const TOTAL_NUM_VARS: u32 = LOG_STACKING_HEIGHT + NUM_STACKED_VARS;
+    const NUM_ENCODING_VARIABLES: u32 = 16; // Width / number of variables per stacked polynomial
+    const LOG_NUM_POLYNOMIALS: u32 = 8; // Stacking height / number of columns
+    const NUM_VARIABLES: u32 = LOG_NUM_POLYNOMIALS + NUM_ENCODING_VARIABLES;
 
     eprintln!("Test configuration:");
-    eprintln!("  Total variables: {}", TOTAL_NUM_VARS);
-    eprintln!("  Log stacking height: {}", LOG_STACKING_HEIGHT);
-    eprintln!("  Variables per column: {}", NUM_STACKED_VARS);
+    eprintln!("  Total variables: {}", NUM_VARIABLES);
+    eprintln!("  Log num polynomials: {}", LOG_NUM_POLYNOMIALS);
+    eprintln!("  Log encoding vars: {}", NUM_ENCODING_VARIABLES);
 
     /// Reads all proof data from the transcript including both PCS commitments.
     fn read_all<GC: ZkIopCtx, C: ZkCnstrAndReadingCtxInner<GC>>(
@@ -328,10 +328,10 @@ fn test_zk_sumcheck_with_pcs_eval_proof_hadamard_product() {
     ) -> (MleCommitmentIndex, MleCommitmentIndex, ZkPartialSumcheckProof<GC, C>) {
         // Read both PCS commitments
         let commitment_index_base = context
-            .read_next_pcs_commitment(NUM_STACKED_VARS as usize, LOG_STACKING_HEIGHT as usize)
+            .read_next_pcs_commitment(NUM_ENCODING_VARIABLES as usize, LOG_NUM_POLYNOMIALS as usize)
             .unwrap();
         let commitment_index_ext = context
-            .read_next_pcs_commitment(NUM_STACKED_VARS as usize, LOG_STACKING_HEIGHT as usize)
+            .read_next_pcs_commitment(NUM_ENCODING_VARIABLES as usize, LOG_NUM_POLYNOMIALS as usize)
             .unwrap();
 
         // Read claimed sum
@@ -339,7 +339,7 @@ fn test_zk_sumcheck_with_pcs_eval_proof_hadamard_product() {
 
         // Read sumcheck proof
         let sumcheck_data =
-            ZkPartialSumcheckParameters::basic_hadamard_sumcheck(TOTAL_NUM_VARS, claimed_sum_index)
+            ZkPartialSumcheckParameters::basic_hadamard_sumcheck(NUM_VARIABLES, claimed_sum_index)
                 .read_proof_from_transcript(context)
                 .unwrap();
 
@@ -375,13 +375,13 @@ fn test_zk_sumcheck_with_pcs_eval_proof_hadamard_product() {
 
     // Generate test data
     let (original_mle_1, original_mle_2, hadamard_product, claim) =
-        generate_random_hadamard_product::<GC>(&mut rng, TOTAL_NUM_VARS);
+        generate_random_hadamard_product::<GC>(&mut rng, NUM_VARIABLES);
 
     eprintln!("  Sumcheck claim (sum of Hadamard product): {:?}", claim);
 
     // Initialize the verifiers and provers for PCS
     let (zk_basefold_prover, zk_stacked_verifier) =
-        initialize_zk_prover_and_verifier::<GC, MK>(1, NUM_STACKED_VARS);
+        initialize_zk_prover_and_verifier::<GC, MK>(1, NUM_ENCODING_VARIABLES);
 
     //
     // Prover Side
@@ -399,11 +399,11 @@ fn test_zk_sumcheck_with_pcs_eval_proof_hadamard_product() {
         let commit_start = std::time::Instant::now();
         // Commit base MLE
         let commitment_index_base = prover_context
-            .commit_mle(original_mle_1, LOG_STACKING_HEIGHT as usize, &zk_basefold_prover, &mut rng)
+            .commit_mle(original_mle_1, LOG_NUM_POLYNOMIALS as usize, &zk_basefold_prover, &mut rng)
             .expect("Failed to commit base MLE");
         // Commit ext MLE
         let commitment_index_ext = prover_context
-            .commit_mle(original_mle_2, LOG_STACKING_HEIGHT as usize, &zk_basefold_prover, &mut rng)
+            .commit_mle(original_mle_2, LOG_NUM_POLYNOMIALS as usize, &zk_basefold_prover, &mut rng)
             .expect("Failed to commit ext MLE");
         eprintln!("  Commitment time: {:?}", commit_start.elapsed());
 
@@ -476,15 +476,15 @@ fn test_zk_sumcheck_with_pcs_eval_proof_batched_single_mles() {
 
     // Configuration parameters
     const NUM_CLAIMS: usize = 3;
-    const NUM_STACKED_VARS: u32 = 16;
-    const LOG_STACKING_HEIGHT: u32 = 8;
-    const TOTAL_NUM_VARS: u32 = LOG_STACKING_HEIGHT + NUM_STACKED_VARS;
+    const NUM_ENCODING_VARIABLES: u32 = 16;
+    const LOG_NUM_POLYNOMIALS: u32 = 8;
+    const NUM_VARIABLES: u32 = LOG_NUM_POLYNOMIALS + NUM_ENCODING_VARIABLES;
 
     eprintln!("Test configuration:");
     eprintln!("  Num claims: {}", NUM_CLAIMS);
-    eprintln!("  Total variables: {}", TOTAL_NUM_VARS);
-    eprintln!("  Log stacking height: {}", LOG_STACKING_HEIGHT);
-    eprintln!("  Variables per column: {}", NUM_STACKED_VARS);
+    eprintln!("  Total variables: {}", NUM_VARIABLES);
+    eprintln!("  Log num polynomials: {}", LOG_NUM_POLYNOMIALS);
+    eprintln!("  Log encoding vars: {}", NUM_ENCODING_VARIABLES);
 
     /// Reads all proof data from the transcript including PCS commitments and lambda.
     fn read_all<GC: ZkIopCtx, C: ZkCnstrAndReadingCtxInner<GC>>(
@@ -495,8 +495,8 @@ fn test_zk_sumcheck_with_pcs_eval_proof_batched_single_mles() {
             .map(|_| {
                 context
                     .read_next_pcs_commitment(
-                        NUM_STACKED_VARS as usize,
-                        LOG_STACKING_HEIGHT as usize,
+                        NUM_ENCODING_VARIABLES as usize,
+                        LOG_NUM_POLYNOMIALS as usize,
                     )
                     .unwrap()
             })
@@ -511,7 +511,7 @@ fn test_zk_sumcheck_with_pcs_eval_proof_batched_single_mles() {
 
         // Read sumcheck proof
         let sumcheck_data = ZkPartialSumcheckParameters {
-            num_variables: TOTAL_NUM_VARS,
+            num_variables: NUM_VARIABLES,
             degree: 1,
             poly_component_counts: vec![1; NUM_CLAIMS],
             claim_exprs: claimed_sum_indices,
@@ -550,7 +550,7 @@ fn test_zk_sumcheck_with_pcs_eval_proof_batched_single_mles() {
     let mut mles_ef = Vec::new();
     let mut claims = Vec::new();
     for _ in 0..NUM_CLAIMS {
-        let (original, ef, claim) = generate_random_mle::<GC>(&mut rng, TOTAL_NUM_VARS);
+        let (original, ef, claim) = generate_random_mle::<GC>(&mut rng, NUM_VARIABLES);
         flat_mles.push(original);
         mles_ef.push(ef);
         claims.push(claim);
@@ -562,7 +562,7 @@ fn test_zk_sumcheck_with_pcs_eval_proof_batched_single_mles() {
 
     // Initialize PCS prover and verifier
     let (zk_basefold_prover, zk_stacked_verifier) =
-        initialize_zk_prover_and_verifier::<GC, MK>(1, NUM_STACKED_VARS);
+        initialize_zk_prover_and_verifier::<GC, MK>(1, NUM_ENCODING_VARIABLES);
 
     //
     // Prover Side
@@ -584,7 +584,7 @@ fn test_zk_sumcheck_with_pcs_eval_proof_batched_single_mles() {
                 prover_context
                     .commit_mle(
                         flat_mle,
-                        LOG_STACKING_HEIGHT as usize,
+                        LOG_NUM_POLYNOMIALS as usize,
                         &zk_basefold_prover,
                         &mut rng,
                     )
@@ -651,6 +651,7 @@ fn test_zk_sumcheck_with_pcs_eval_proof_batched_single_mles() {
 }
 
 #[test]
+#[should_panic(expected = "Multiple eval claims on the same PCS commitment")]
 fn test_zk_sumcheck_triple_hadamard_with_batched_pcs() {
     // Test that generates three random MLEs f, g, h, commits them, runs three separate
     // hadamard sumchecks (fg, gh, hf), producing two evaluation claims per commitment
@@ -663,14 +664,14 @@ fn test_zk_sumcheck_triple_hadamard_with_batched_pcs() {
 
     type GC = KoalaBearDegree4Duplex;
 
-    const NUM_STACKED_VARS: u32 = 12;
-    const LOG_STACKING_HEIGHT: u32 = 6;
-    const TOTAL_NUM_VARS: u32 = LOG_STACKING_HEIGHT + NUM_STACKED_VARS;
+    const NUM_ENCODING_VARIABLES: u32 = 12;
+    const LOG_NUM_POLYNOMIALS: u32 = 6;
+    const NUM_VARIABLES: u32 = LOG_NUM_POLYNOMIALS + NUM_ENCODING_VARIABLES;
 
     eprintln!("Test configuration:");
-    eprintln!("  Total variables: {}", TOTAL_NUM_VARS);
-    eprintln!("  Log stacking height: {}", LOG_STACKING_HEIGHT);
-    eprintln!("  Variables per column: {}", NUM_STACKED_VARS);
+    eprintln!("  Total variables: {}", NUM_VARIABLES);
+    eprintln!("  Log num polynomials: {}", LOG_NUM_POLYNOMIALS);
+    eprintln!("  Log encoding vars: {}", NUM_ENCODING_VARIABLES);
 
     /// Reads all proof data from the transcript: three PCS commitments and three
     /// hadamard sumcheck proofs (fg, gh, hf).
@@ -678,18 +679,18 @@ fn test_zk_sumcheck_triple_hadamard_with_batched_pcs() {
         context: &mut C,
     ) -> ([MleCommitmentIndex; 3], [ZkPartialSumcheckProof<GC, C>; 3]) {
         let commitment_f = context
-            .read_next_pcs_commitment(NUM_STACKED_VARS as usize, LOG_STACKING_HEIGHT as usize)
+            .read_next_pcs_commitment(NUM_ENCODING_VARIABLES as usize, LOG_NUM_POLYNOMIALS as usize)
             .unwrap();
         let commitment_g = context
-            .read_next_pcs_commitment(NUM_STACKED_VARS as usize, LOG_STACKING_HEIGHT as usize)
+            .read_next_pcs_commitment(NUM_ENCODING_VARIABLES as usize, LOG_NUM_POLYNOMIALS as usize)
             .unwrap();
         let commitment_h = context
-            .read_next_pcs_commitment(NUM_STACKED_VARS as usize, LOG_STACKING_HEIGHT as usize)
+            .read_next_pcs_commitment(NUM_ENCODING_VARIABLES as usize, LOG_NUM_POLYNOMIALS as usize)
             .unwrap();
 
         let read_sumcheck = |ctx: &mut C| {
             let claimed_sum = ctx.read_one().unwrap();
-            ZkPartialSumcheckParameters::basic_hadamard_sumcheck(TOTAL_NUM_VARS, claimed_sum)
+            ZkPartialSumcheckParameters::basic_hadamard_sumcheck(NUM_VARIABLES, claimed_sum)
                 .read_proof_from_transcript(ctx)
                 .unwrap()
         };
@@ -752,18 +753,18 @@ fn test_zk_sumcheck_triple_hadamard_with_batched_pcs() {
     }
 
     // Generate three random MLEs
-    let mle_f = Mle::<<GC as IopCtx>::F>::rand(&mut rng, 1, TOTAL_NUM_VARS);
-    let mle_g = Mle::<<GC as IopCtx>::F>::rand(&mut rng, 1, TOTAL_NUM_VARS);
-    let mle_h = Mle::<<GC as IopCtx>::F>::rand(&mut rng, 1, TOTAL_NUM_VARS);
+    let mle_f = Mle::<<GC as IopCtx>::F>::rand(&mut rng, 1, NUM_VARIABLES);
+    let mle_g = Mle::<<GC as IopCtx>::F>::rand(&mut rng, 1, NUM_VARIABLES);
+    let mle_h = Mle::<<GC as IopCtx>::F>::rand(&mut rng, 1, NUM_VARIABLES);
 
     // Build Hadamard products and compute claims
     let build_hadamard =
         |base: &Mle<<GC as IopCtx>::F>, ext: &Mle<<GC as IopCtx>::F>| -> HadamardProduct<_, _> {
-            let long_base = LongMle::from_components(vec![base.clone()], TOTAL_NUM_VARS);
+            let long_base = LongMle::from_components(vec![base.clone()], NUM_VARIABLES);
             let ext_ef_data: Vec<<GC as IopCtx>::EF> =
                 ext.guts().as_slice().iter().map(|&x| x.into()).collect();
             let ext_as_ef = Mle::new(RowMajorMatrix::new(ext_ef_data, 1).into());
-            let long_ext = LongMle::from_components(vec![ext_as_ef], TOTAL_NUM_VARS);
+            let long_ext = LongMle::from_components(vec![ext_as_ef], NUM_VARIABLES);
             HadamardProduct { base: long_base, ext: long_ext }
         };
 
@@ -790,7 +791,7 @@ fn test_zk_sumcheck_triple_hadamard_with_batched_pcs() {
     eprintln!("  Claim hf: {:?}", claim_hf);
 
     let (zk_basefold_prover, zk_stacked_verifier) =
-        initialize_zk_prover_and_verifier::<GC, MK>(1, NUM_STACKED_VARS);
+        initialize_zk_prover_and_verifier::<GC, MK>(1, NUM_ENCODING_VARIABLES);
 
     //
     // Prover Side
@@ -807,13 +808,13 @@ fn test_zk_sumcheck_triple_hadamard_with_batched_pcs() {
         eprintln!("Committing MLEs...");
         let commit_start = std::time::Instant::now();
         let commitment_f = prover_context
-            .commit_mle(mle_f, LOG_STACKING_HEIGHT as usize, &zk_basefold_prover, &mut rng)
+            .commit_mle(mle_f, LOG_NUM_POLYNOMIALS as usize, &zk_basefold_prover, &mut rng)
             .expect("Failed to commit f");
         let commitment_g = prover_context
-            .commit_mle(mle_g, LOG_STACKING_HEIGHT as usize, &zk_basefold_prover, &mut rng)
+            .commit_mle(mle_g, LOG_NUM_POLYNOMIALS as usize, &zk_basefold_prover, &mut rng)
             .expect("Failed to commit g");
         let commitment_h = prover_context
-            .commit_mle(mle_h, LOG_STACKING_HEIGHT as usize, &zk_basefold_prover, &mut rng)
+            .commit_mle(mle_h, LOG_NUM_POLYNOMIALS as usize, &zk_basefold_prover, &mut rng)
             .expect("Failed to commit h");
         eprintln!("  Commitment time: {:?}", commit_start.elapsed());
 

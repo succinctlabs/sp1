@@ -44,6 +44,10 @@ slop-jagged = { workspace = true }
 name = "benchmark_sweep"
 path = "benchmarking/benchmark_sweep.rs"
 
+[[example]]
+name = "hadamard_benchmark_sweep"
+path = "benchmarking/hadamard_benchmark_sweep.rs"
+
 [[test]]
 name = "benchmarking_tests"
 path = "benchmarking/benchmarking_tests.rs"

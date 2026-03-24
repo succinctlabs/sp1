@@ -1,4 +1,5 @@
-use slop_algebra::TwoAdicField;
+use rayon::prelude::*;
+use slop_algebra::{AbstractField, TwoAdicField};
 use slop_dft::p3::{Radix2DitParallel, TwoAdicSubgroupDft};
 use slop_matrix::{dense::RowMajorMatrix, Matrix};
 
@@ -54,6 +55,22 @@ where
         all_coeffs.values.truncate(input_length * num_cols);
 
         all_coeffs
+    }
+
+    /// Evaluates the polynomial at specific points of the two-adic subgroup via Horner's method.
+    ///
+    /// This avoids computing a full FFT when only a few evaluations are needed.
+    /// Complexity: O(num_indices * input_length) vs O(output_length * log(output_length)) for full FFT.
+    fn encode_at_indices(input: &[K], output_length: usize, indices: &[usize]) -> Vec<K> {
+        let log_n = output_length.trailing_zeros() as usize;
+        let omega = K::two_adic_generator(log_n);
+        indices
+            .par_iter()
+            .map(|&idx| {
+                let point = omega.exp_u64(idx as u64);
+                input.iter().rev().fold(K::zero(), |acc, coeff| acc * point + *coeff)
+            })
+            .collect()
     }
 }
 
@@ -122,5 +139,23 @@ mod tests {
         assert_eq!(decoded.height(), input_length);
         assert_eq!(decoded.width(), num_vectors);
         assert_eq!(decoded.values, input_values, "Decoded matrix should match original input");
+    }
+
+    #[test]
+    fn test_encode_at_indices_matches_full_encode() {
+        let mut rng = thread_rng();
+
+        let input_length = 100; // non-power-of-two, like real usage
+        let output_length = 1024;
+
+        let input: Vec<KoalaBear> = (0..input_length).map(|_| rng.gen()).collect();
+        let full_encoded = RsFromCoefficients::encode(&input, output_length);
+
+        let indices: Vec<usize> = vec![0, 1, 7, 42, 100, 511, 1023];
+        let partial = RsFromCoefficients::encode_at_indices(&input, output_length, &indices);
+
+        for (k, &idx) in indices.iter().enumerate() {
+            assert_eq!(partial[k], full_encoded[idx], "mismatch at index {idx}");
+        }
     }
 }

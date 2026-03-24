@@ -19,5 +19,6 @@ pub struct Output {
     pub public_values_stream: Vec<u8>,
     pub hints: Vec<(u64, Vec<u8>)>,
     pub global_clk: u64,
+    pub clk: u64,
     pub exit_code: u32,
 }

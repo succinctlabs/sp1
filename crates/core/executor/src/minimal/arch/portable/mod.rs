@@ -413,6 +413,7 @@ impl MinimalExecutor {
             unsafe {
                 let traces = self.traces.as_mut().unwrap_unchecked();
                 traces.write_clk_end(self.clk);
+                traces.write_global_clk_end(self.global_clk);
             }
         }
 

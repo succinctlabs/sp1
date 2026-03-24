@@ -54,6 +54,9 @@ const PC_OFFSET: i32 = offset_of!(JitContext, pc) as i32;
 /// The offset of the clk in the JitContext.
 const CLK_OFFSET: i32 = offset_of!(JitContext, clk) as i32;
 
+/// The offset of the global clk in the JitContext.
+const GLOBAL_CLK_OFFSET: i32 = offset_of!(JitContext, global_clk) as i32;
+
 /// The offset of the memory pointer in the JitContext.
 const MEMORY_PTR_OFFSET: i32 = offset_of!(JitContext, memory) as i32;
 
@@ -197,7 +200,6 @@ impl TraceCollector for TranspilerBackend {
     /// Write the start clk of the trace chunk.
     fn trace_clk_start(&mut self) {
         const CLK_START_OFFSET: i32 = offset_of!(TraceChunkHeader, clk_start) as i32;
-        const CLK_OFFSET: i32 = offset_of!(JitContext, clk) as i32;
 
         dynasm! {
             self;
@@ -210,13 +212,15 @@ impl TraceCollector for TranspilerBackend {
 
     fn trace_clk_end(&mut self) {
         const CLK_END_OFFSET: i32 = offset_of!(TraceChunkHeader, clk_end) as i32;
-        const CLK_OFFSET: i32 = offset_of!(JitContext, clk) as i32;
+        const GLOBAL_CLK_END_OFFSET: i32 = offset_of!(TraceChunkHeader, global_clk_end) as i32;
 
         dynasm! {
             self;
             .arch x64;
             mov Rq(TEMP_A), [Rq(CONTEXT) + CLK_OFFSET];
-            mov [Rq(TRACE_BUF) + CLK_END_OFFSET], Rq(TEMP_A)
+            mov [Rq(TRACE_BUF) + CLK_END_OFFSET], Rq(TEMP_A);
+            mov Rq(TEMP_B), [Rq(CONTEXT) + GLOBAL_CLK_OFFSET];
+            mov [Rq(TRACE_BUF) + GLOBAL_CLK_END_OFFSET], Rq(TEMP_B)
         }
     }
 }
@@ -581,8 +585,6 @@ impl TranspilerBackend {
     }
 
     fn bump_clk(&mut self) {
-        let clk_offset = offset_of!(JitContext, clk) as i32;
-        let global_clk_offset = offset_of!(JitContext, global_clk) as i32;
         let is_unconstrained_offset = offset_of!(JitContext, is_unconstrained) as i32;
         let clk_bump = self.clk_bump as i32;
 
@@ -593,7 +595,7 @@ impl TranspilerBackend {
             // ------------------------------------
             // Add the amount to the clk field in the context.
             // ------------------------------------
-            add QWORD [Rq(CONTEXT) + clk_offset], clk_bump;
+            add QWORD [Rq(CONTEXT) + CLK_OFFSET], clk_bump;
 
             // ------------------------------------
             // Add to global_clk based on is_unconstrained:
@@ -608,7 +610,7 @@ impl TranspilerBackend {
             xor Rq(TEMP_A), 1;
 
             // Add the inverted value to global_clk
-            add QWORD [Rq(CONTEXT) + global_clk_offset], Rq(TEMP_A)
+            add QWORD [Rq(CONTEXT) + GLOBAL_CLK_OFFSET], Rq(TEMP_A)
         }
     }
 }
