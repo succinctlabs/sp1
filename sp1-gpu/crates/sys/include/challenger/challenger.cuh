@@ -7,6 +7,7 @@
 #include "fields/bn254_t.cuh"
 
 extern "C" void* grind_koala_bear();
+extern "C" void* grind_multi_field32();
 
 
 class DuplexChallenger {
@@ -218,7 +219,25 @@ class MultiField32Challenger {
         }
     }
 
+    // Number of KB31 elements for input buffer (WIDTH * num_duplex_elms = 3 * 8 = 24)
+    static constexpr const int INPUT_BUFFER_SIZE = 24;
+    // Number of KB31 elements for output buffer (WIDTH * num_f_elms = 3 * 4 = 12)
+    static constexpr const int OUTPUT_BUFFER_SIZE = 12;
+    // Number of buffer size entries
+    static constexpr const int NUM_BUFFER_SIZES = 4;
+
   public:
+    __device__ __forceinline__ MultiField32Challenger load(
+        bn254_t* sponge_shared, kb31_t* input_shared, kb31_t* output_shared,
+        size_t* buffer_sizes) {
+        MultiField32Challenger challenger;
+        challenger.sponge_state = sponge_shared;
+        challenger.input_buffer = input_shared;
+        challenger.output_buffer = output_shared;
+        challenger.buffer_sizes = buffer_sizes;
+        return challenger;
+    }
+
     __device__ __forceinline__ void observe(kb31_t* value) {
         // Clear the output buffer.
         buffer_sizes[1] = 0;
@@ -256,5 +275,78 @@ class MultiField32Challenger {
             result.value[i] = sample();
         }
         return result;
+    }
+
+    __device__ __forceinline__ size_t sample_bits(size_t bits) {
+        kb31_t rand_f = sample();
+        size_t rand_usize = rand_f.as_canonical_u32();
+        return rand_usize & ((1 << bits) - 1);
+    }
+
+    __device__ __forceinline__ bool check_witness(size_t bits, kb31_t* witness) {
+        observe(witness);
+        return sample_bits(bits) == 0;
+    }
+
+    __device__ __forceinline__ void
+    grind(size_t bits, kb31_t* result, volatile bool* found_flag, size_t n) {
+        size_t idx = threadIdx.x + blockIdx.x * blockDim.x;
+
+        size_t original_buffer_sizes[NUM_BUFFER_SIZES];
+        for (size_t j = 0; j < NUM_BUFFER_SIZES; j++) {
+            original_buffer_sizes[j] = buffer_sizes[j];
+        }
+
+        __shared__ bn254_t shared_sponge_state[WIDTH];
+        __shared__ kb31_t shared_input_buffer[INPUT_BUFFER_SIZE];
+        __shared__ kb31_t shared_output_buffer[OUTPUT_BUFFER_SIZE];
+
+        if (threadIdx.x == 0) {
+            for (size_t j = 0; j < WIDTH; j++) {
+                shared_sponge_state[j] = sponge_state[j];
+            }
+            for (size_t j = 0; j < INPUT_BUFFER_SIZE; j++) {
+                shared_input_buffer[j] = input_buffer[j];
+            }
+            for (size_t j = 0; j < OUTPUT_BUFFER_SIZE; j++) {
+                shared_output_buffer[j] = output_buffer[j];
+            }
+        }
+
+        // Ensure all threads see the shared memory initialized
+        __syncthreads();
+
+        // Local copy of challenger state for each thread in each iteration.
+        bn254_t local_sponge_state[WIDTH];
+        kb31_t local_input_buffer[INPUT_BUFFER_SIZE];
+        kb31_t local_output_buffer[OUTPUT_BUFFER_SIZE];
+        size_t local_buffer_sizes[NUM_BUFFER_SIZES];
+
+        for (size_t i = idx; i < n && !*found_flag; i += blockDim.x * gridDim.x) {
+            // Reset local state from shared memory.
+            for (size_t j = 0; j < NUM_BUFFER_SIZES; j++) {
+                local_buffer_sizes[j] = original_buffer_sizes[j];
+            }
+            for (size_t j = 0; j < WIDTH; j++) {
+                local_sponge_state[j] = shared_sponge_state[j];
+            }
+            for (size_t j = 0; j < INPUT_BUFFER_SIZE; j++) {
+                local_input_buffer[j] = shared_input_buffer[j];
+            }
+            for (size_t j = 0; j < OUTPUT_BUFFER_SIZE; j++) {
+                local_output_buffer[j] = shared_output_buffer[j];
+            }
+
+            MultiField32Challenger temp_challenger = load(
+                local_sponge_state, local_input_buffer, local_output_buffer, local_buffer_sizes);
+
+            kb31_t witness = kb31_t((int)i);
+            if (temp_challenger.check_witness(bits, &witness)) {
+                result[0] = witness;
+                atomicExch((int*)found_flag, 1);
+                __threadfence();
+                return;
+            }
+        }
     }
 };
