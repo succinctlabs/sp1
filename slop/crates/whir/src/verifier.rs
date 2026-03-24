@@ -2,7 +2,7 @@ use itertools::Itertools;
 use std::iter::once;
 
 use serde::{Deserialize, Serialize};
-use slop_algebra::{AbstractField, UnivariatePolynomial};
+use slop_algebra::{AbstractExtensionField, AbstractField, UnivariatePolynomial};
 use slop_challenger::{
     CanObserve, CanSampleBits, FieldChallenger, GrindingChallenger, IopCtx,
     VariableLengthChallenger,
@@ -196,6 +196,11 @@ where
             ));
         }
 
+        let expected_widths = round_areas
+            .iter()
+            .map(|area| (*area) >> self.config.starting_interleaved_log_height)
+            .collect::<Vec<_>>();
+
         for (merkle_proof, area) in proof.initial_merkle_proof.iter().zip_eq(round_areas.iter()) {
             if merkle_proof.proof.width << self.config.starting_interleaved_log_height != *area {
                 println!(
@@ -341,14 +346,27 @@ where
                 return Err(WhirProofError::IncorrectShape);
             }
 
-            for (merkle_commitment, merkle_proof) in
-                prev_commitment.commitment.iter().zip(merkle_proof.iter())
+            for (i, (merkle_commitment, merkle_proof)) in
+                prev_commitment.commitment.iter().zip(merkle_proof.iter()).enumerate()
             {
+                let expected_width = if round_index == 0 {
+                    expected_widths[i]
+                } else {
+                    (1 << config.round_parameters[round_index - 1].folding_factor) * GC::EF::D
+                };
+
+                let expected_log_height = if round_index == 0 {
+                    config.starting_interleaved_log_height + config.starting_log_inv_rate
+                } else {
+                    config.round_parameters[round_index - 1].evaluation_domain_log_size
+                };
                 self.merkle_verifier
                     .verify_tensor_openings(
                         merkle_commitment,
                         &id_query_indices,
                         &merkle_proof.values,
+                        expected_width,
+                        expected_log_height,
                         &merkle_proof.proof,
                     )
                     .map_err(|_| WhirProofError::InvalidMerkleAuthentication)?;
@@ -469,6 +487,8 @@ where
                 &prev_commitment.commitment[0],
                 &final_id_indices,
                 &proof.final_merkle_opening_and_proof.values,
+                (1 << config.round_parameters[n_rounds - 1].folding_factor) * GC::EF::D,
+                config.round_parameters[n_rounds - 1].evaluation_domain_log_size,
                 &proof.final_merkle_opening_and_proof.proof,
             )
             .map_err(|_| WhirProofError::InvalidMerkleAuthentication)?;
