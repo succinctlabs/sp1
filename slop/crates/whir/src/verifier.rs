@@ -85,8 +85,8 @@ where
 pub enum WhirProofError {
     #[error("invalid number of OOD samples: expected {0}, got {1}")]
     InvalidNumberOfOODSamples(usize, usize),
-    #[error("sumcheck error: {}, {}", .0.0, .0.1)]
-    SumcheckError((SumcheckError, usize)),
+    #[error("sumcheck error: {0}, {1}")]
+    SumcheckError(SumcheckError, usize),
     #[error("invalid proof of work")]
     PowError,
     #[error("invalid OOD evaluation")]
@@ -107,7 +107,7 @@ pub enum WhirProofError {
 
 impl From<(SumcheckError, usize)> for WhirProofError {
     fn from(value: (SumcheckError, usize)) -> Self {
-        WhirProofError::SumcheckError((value.0, value.1))
+        WhirProofError::SumcheckError(value.0, value.1)
     }
 }
 
@@ -459,13 +459,15 @@ where
         }
 
         // Now, we want to verify the final evaluations
-        challenger.observe_ext_element_slice(&proof.final_polynomial);
-        if proof.final_polynomial.len() > 1 << config.final_poly_log_degree {
+        if proof.final_polynomial.len() != 1 << config.final_poly_log_degree {
             return Err(WhirProofError::InvalidDegreeFinalPolynomial(
                 1 << config.final_poly_log_degree,
                 proof.final_polynomial.len(),
             ));
         }
+
+        challenger.observe_constant_length_extension_slice(&proof.final_polynomial);
+
         let final_poly = proof.final_polynomial.clone();
         let final_poly_uv = UnivariatePolynomial::new(final_poly.clone());
 
@@ -536,7 +538,9 @@ where
             .blocking_eval_at(&Point::from(folding_randomness))[0];
 
         let mut summand = GC::EF::zero();
-        for (i, eval_points) in final_evaluation_points.into_iter().enumerate() {
+        for (i, eval_points) in
+            final_evaluation_points.into_iter().enumerate().filter(|(_, ep)| !ep.is_empty())
+        {
             let combination_randomness = all_claim_batching_randomness[i];
             let len = eval_points[0].len();
             let eval_randomness: Point<GC::EF> =

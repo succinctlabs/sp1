@@ -108,6 +108,7 @@ fn main() {
         public_values_stream: compiled.public_values_stream,
         hints: compiled.hints,
         global_clk: compiled.global_clk,
+        clk: compiled.clk,
         exit_code: compiled.exit_code,
     };
 
