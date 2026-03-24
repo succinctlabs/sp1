@@ -108,14 +108,17 @@ impl<F: Field, EF: ExtensionField<F>, Challenger: FieldChallenger<F> + Send + Sy
                                 let w = WIDE_BRANCHING_PROGRAM_WIDTH;
                                 let offset = (round_num + 1) * w;
                                 let prefix_state = &col_prefix_states[offset..offset + w];
-                                let h_eval_0 = self.branching_program.eval_with_cached_at_zero(
+                                let h_eval_0 = self.branching_program.eval_with_cached(
                                     round_num,
+                                    None,
+                                    false,
                                     prefix_state,
                                     &self.suffix_vector,
                                 );
-                                let h_eval_half = self.branching_program.eval_with_cached_at_half(
+                                let h_eval_half = self.branching_program.eval_with_cached(
                                     round_num,
-                                    self.half,
+                                    Some(self.half),
+                                    true,
                                     prefix_state,
                                     &self.suffix_vector,
                                 );

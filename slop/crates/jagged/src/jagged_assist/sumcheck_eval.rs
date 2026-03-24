@@ -94,12 +94,14 @@ where
             .try_fold(
                 EF::zero(),
                 |acc, ((current_column_prefix_sum, next_column_prefix_sum), z_col_eq_val)| {
-                    let merged_prefix_sum =
-                        interleave_prefix_sums(current_column_prefix_sum, next_column_prefix_sum);
-
                     if current_column_prefix_sum.dimension() != next_column_prefix_sum.dimension() {
                         return Err(JaggedEvalSumcheckError::IncorrectShape);
                     }
+
+                    // The assert in this function call is never triggered, since the two points are checked
+                    // above to have the same dimension.
+                    let merged_prefix_sum =
+                        interleave_prefix_sums(current_column_prefix_sum, next_column_prefix_sum);
 
                     if merged_prefix_sum.dimension()
                         != partial_sumcheck_proof.point_and_eval.0.dimension()
@@ -127,6 +129,10 @@ where
             )?;
 
         let branching_program = BranchingProgram::new(z_row.clone(), z_trace.clone());
+
+        // The assert that occurs in `deinterleav_prefix_sums` is guaranteed not to trigger because
+        // the shape check has already checked that the dimension of this point is equal to `merged_prefix_sum.dimension()`
+        // which is constructed as the interleaving of two points of the same dimension.
         let (curr, next) = deinterleave_prefix_sums(&partial_sumcheck_proof.point_and_eval.0);
         jagged_eval_sc_expected_eval *= branching_program.eval(&curr, &next);
 
