@@ -127,6 +127,9 @@ pub struct TraceChunkHeader {
     pub clk_start: u64,
     pub clk_end: u64,
     pub num_mem_reads: u64,
+    pub global_clk_end: u64,
+    // This ensures TraceChunkHeader is aligned to 16 bytes.
+    _padding: u64,
 }
 
 #[derive(Clone)]
@@ -171,6 +174,17 @@ impl TraceChunkRaw {
             Self::Mmap(mmap) => mmap.len(),
             Self::Shm(shm) => shm.deref().len(),
         }
+    }
+
+    /// Fetching global_clk when trace ends.
+    /// For now, only native executor requires this data. So we implemented
+    /// it as a method of TraceChunkRaw, not as a trait method of MinimalTrace.
+    /// Adding it to MinimalTrace would complicate SplicingVM, while SplicingVM
+    /// does not really need global_clk now.
+    pub fn global_clk_end(&self) -> u64 {
+        let offset = std::mem::offset_of!(TraceChunkHeader, global_clk_end);
+
+        unsafe { std::ptr::read_unaligned(self.as_ptr().add(offset) as *const u64) }
     }
 }
 
@@ -465,5 +479,16 @@ mod ser {
         let deserialized = bincode::deserialize(&serialized).unwrap();
 
         assert_eq!(trace, deserialized);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // TraceChunkHeader must be aligned to 16 bytes
+    #[test]
+    fn test_trace_chunk_header_alignment() {
+        assert_eq!(std::mem::size_of::<TraceChunkHeader>() % 16, 0);
     }
 }
