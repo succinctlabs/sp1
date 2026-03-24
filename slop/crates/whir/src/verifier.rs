@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use std::iter::{once, repeat};
+use std::iter::once;
 
 use serde::{Deserialize, Serialize};
 use slop_algebra::{AbstractField, UnivariatePolynomial};
@@ -8,7 +8,7 @@ use slop_challenger::{
     VariableLengthChallenger,
 };
 use slop_commit::Rounds;
-use slop_merkle_tree::{MerkleTreeOpeningAndProof, MerkleTreeTcs, TcsOpeningShape};
+use slop_merkle_tree::{MerkleTreeOpeningAndProof, MerkleTreeTcs};
 use slop_multilinear::{Mle, MultilinearPcsVerifier, Point};
 use slop_utils::reverse_bits_len;
 use thiserror::Error;
@@ -197,20 +197,13 @@ where
         }
 
         for (merkle_proof, area) in proof.initial_merkle_proof.iter().zip_eq(round_areas.iter()) {
-            let TcsOpeningShape { log_height, width } =
-                MerkleTreeTcs::<GC>::tcs_opening_shape(&merkle_proof.proof);
-            if width.leading_zeros() < self.config.starting_interleaved_log_height as u32
-                || width << self.config.starting_interleaved_log_height != *area
-                || log_height
-                    != self.config.starting_interleaved_log_height
-                        + self.config.starting_log_inv_rate
-            {
+            if merkle_proof.proof.width << self.config.starting_interleaved_log_height != *area {
                 println!(
                     "proof width: {}, proof log height: {}, expected area {}, area: {}",
-                    width,
-                    log_height,
+                    merkle_proof.proof.width,
+                    merkle_proof.proof.log_tensor_height,
                     area,
-                    width << log_height
+                    merkle_proof.proof.width << merkle_proof.proof.log_tensor_height
                 );
                 return Err(WhirProofError::IncorrectShape);
             }
@@ -448,20 +441,15 @@ where
         }
 
         // Now, we want to verify the final evaluations
-        let padded_polynomial_coefficients = proof
-            .final_polynomial
-            .iter()
-            .chain(repeat(&GC::EF::zero()))
-            .take(1 << config.final_poly_log_degree)
-            .copied()
-            .collect::<Vec<_>>();
-        challenger.observe_constant_length_extension_slice(&padded_polynomial_coefficients);
-        if proof.final_polynomial.len() > 1 << config.final_poly_log_degree {
+        if proof.final_polynomial.len() != 1 << config.final_poly_log_degree {
             return Err(WhirProofError::InvalidDegreeFinalPolynomial(
                 1 << config.final_poly_log_degree,
                 proof.final_polynomial.len(),
             ));
         }
+
+        challenger.observe_constant_length_extension_slice(&proof.final_polynomial);
+
         let final_poly = proof.final_polynomial.clone();
         let final_poly_uv = UnivariatePolynomial::new(final_poly.clone());
 
@@ -647,11 +635,7 @@ where
     /// Functionality to deduce round by round from the proof the multiples of `1<<log.stacking_height`
     /// corresponding to the round's total polynomial size.
     fn round_multiples(proof: &<Self as MultilinearPcsVerifier<GC>>::Proof) -> Vec<usize> {
-        proof
-            .initial_merkle_proof
-            .iter()
-            .map(|merkle_proof| MerkleTreeTcs::<GC>::tcs_opening_shape(&merkle_proof.proof).width)
-            .collect()
+        proof.initial_merkle_proof.iter().map(|merkle_proof| merkle_proof.proof.width).collect()
     }
 }
 

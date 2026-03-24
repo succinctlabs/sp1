@@ -94,15 +94,7 @@ impl<GC: IopCtx> Default for MerkleTreeTcs<GC> {
     }
 }
 
-pub struct TcsOpeningShape {
-    pub log_height: usize,
-    pub width: usize,
-}
-
 impl<GC: IopCtx> MerkleTreeTcs<GC> {
-    pub fn tcs_opening_shape(proof: &MerkleTreeTcsProof<GC::Digest>) -> TcsOpeningShape {
-        TcsOpeningShape { log_height: proof.log_tensor_height, width: proof.width }
-    }
     pub fn verify_tensor_openings(
         &self,
         commit: &GC::Digest,

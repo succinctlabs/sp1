@@ -481,8 +481,11 @@ where
             KOrEfMle::EF(mle) => mle,
         };
 
-        let final_polynomial =
+        let mut final_polynomial =
             f_vec.inner().as_ref().unwrap().guts().clone().into_buffer().to_vec();
+
+        final_polynomial.resize(1 << config.final_poly_log_degree, GC::EF::zero());
+
         let padded_polynomial_coefficients = final_polynomial
             .iter()
             .chain(repeat(&GC::EF::zero()))
