@@ -482,23 +482,26 @@ impl<K: AbstractField + 'static> BranchingProgram<K> {
 
     /// Apply one DP layer of the branching program.
     ///
-    /// `interleaved_val`: `None` means zero, `Some(v)` means use `v`.
-    /// `is_half`: when true, both bit values contribute equally and the common
-    ///   factor is applied once at the end instead of per-bit.
-    ///
     /// - Even layer 2k: factors the 3-var eq into a 2-var eq (K) times base factors (F),
     ///   giving K*F multiplications instead of K*K.
     /// - Odd layer 2k+1: accumulates in F, then dot-products with state (K*F).
-    pub fn apply_layer_step<F: AbstractField + 'static>(
+    ///
+    /// Optimizations for `interleaved_val == 0` and `interleaved_val == 1/2`:
+    /// - Zero: only bit=0 entries contribute, halving the work on even layers
+    ///   and reducing to a direct state permutation on odd layers.
+    /// - Half: both bits contribute equally, so the common factor is applied once.
+    pub fn apply_layer_step<F: Field + 'static>(
         &self,
         layer: usize,
-        interleaved_val: Option<F>,
-        is_half: bool,
+        interleaved_val: F,
         state: &[K],
     ) -> [K; WIDE_BRANCHING_PROGRAM_WIDTH]
     where
         K: AbstractExtensionField<F>,
     {
+        let is_zero = interleaved_val == F::zero();
+        let is_half = interleaved_val == F::two().inverse();
+
         let mut new_state: [K; WIDE_BRANCHING_PROGRAM_WIDTH] = array::from_fn(|_| K::zero());
         let k = layer / 2;
 
@@ -512,8 +515,8 @@ impl<K: AbstractField + 'static> BranchingProgram<K> {
                 .collect::<Point<K>>(),
             );
             let two_var_eq_slice = two_var_eq.guts().as_slice();
-            let base_factors = if !is_half {
-                interleaved_val.as_ref().map(|v| [F::one() - v.clone(), v.clone()])
+            let base_factors = if !is_zero && !is_half {
+                Some([F::one() - interleaved_val, interleaved_val])
             } else {
                 None
             };
@@ -523,18 +526,16 @@ impl<K: AbstractField + 'static> BranchingProgram<K> {
                     array::from_fn(|_| K::zero());
 
                 for (half_i, eq_val) in two_var_eq_slice.iter().enumerate() {
-                    // Zero: only bit=0 contributes. Half/Val: both bits.
-                    let bit_end = if interleaved_val.is_none() { 1 } else { 2 };
+                    let bit_end = if is_zero { 1 } else { 2 };
                     for bit in 0..bit_end {
                         let i = (half_i << 1) | bit;
                         let bit_state = BitState::curr_from_index(i);
                         let state_or_fail = transition(bit_state, *memory_state);
 
                         if let StateOrFail::State(output_state) = state_or_fail {
-                            // Val: weight by base_factors[bit]. Zero/Half: eq_val directly.
                             if let Some(ref factors) = base_factors {
                                 accum_elems[output_state.get_index()] +=
-                                    eq_val.clone() * factors[bit].clone();
+                                    eq_val.clone() * factors[bit];
                             } else {
                                 accum_elems[output_state.get_index()] += eq_val.clone();
                             }
@@ -549,12 +550,11 @@ impl<K: AbstractField + 'static> BranchingProgram<K> {
                     },
                 );
 
-                // Half: multiply by the common factor once.
                 new_state[memory_state.get_index()] =
-                    if is_half { accum * interleaved_val.clone().unwrap() } else { accum };
+                    if is_half { accum * interleaved_val } else { accum };
             }
-        } else if interleaved_val.is_none() {
-            // Zero on odd layer: only bit=0 contributes with weight 1.
+        } else if is_zero {
+            // Only bit=0 contributes with weight 1; transition always succeeds for Next.
             for memory_state in &self.memory_states {
                 let state_or_fail = transition(BitState::next_from_index(0), *memory_state);
                 if let StateOrFail::State(output_state) = state_or_fail {
@@ -562,10 +562,7 @@ impl<K: AbstractField + 'static> BranchingProgram<K> {
                 }
             }
         } else {
-            // Half/Val on odd layer: both share the same structure with different base_factors.
-            let val = interleaved_val.unwrap();
-            let base_factors: [F; 2] =
-                if is_half { [val.clone(), val.clone()] } else { [F::one() - val.clone(), val] };
+            let base_factors: [F; 2] = [F::one() - interleaved_val, interleaved_val];
 
             for memory_state in &self.memory_states {
                 let mut accum_elems: [F; WIDE_BRANCHING_PROGRAM_WIDTH] =
@@ -576,16 +573,16 @@ impl<K: AbstractField + 'static> BranchingProgram<K> {
                     let state_or_fail = transition(bit_state, *memory_state);
 
                     if let StateOrFail::State(output_state) = state_or_fail {
-                        accum_elems[output_state.get_index()] += factor.clone();
+                        accum_elems[output_state.get_index()] += *factor;
                     }
                 }
 
-                let accum = accum_elems.iter().zip(state.iter()).fold(
-                    K::zero(),
-                    |acc, (accum_elem, state_result)| {
-                        acc + state_result.clone() * accum_elem.clone()
-                    },
-                );
+                let accum = accum_elems
+                    .iter()
+                    .zip(state.iter())
+                    .fold(K::zero(), |acc, (accum_elem, state_result)| {
+                        acc + state_result.clone() * *accum_elem
+                    });
 
                 new_state[memory_state.get_index()] = accum;
             }
@@ -661,7 +658,7 @@ impl<K: AbstractField + 'static> BranchingProgram<K> {
     /// Entry `[num_layers]` is the initial success state.
     ///
     /// Accepts a base-field point to avoid F-to-EF promotion of prefix sums.
-    pub fn precompute_prefix_states<F: AbstractField + 'static>(
+    pub fn precompute_prefix_states<F: Field + 'static>(
         &self,
         interleaved_point: &Point<F>,
     ) -> Vec<K>
@@ -680,8 +677,7 @@ impl<K: AbstractField + 'static> BranchingProgram<K> {
 
         for layer in (0..num_layers).rev() {
             let interleaved_val = Self::get_ith_least_significant_val(interleaved_point, layer);
-            current_state =
-                self.apply_layer_step(layer, Some(interleaved_val), false, &current_state);
+            current_state = self.apply_layer_step(layer, interleaved_val, &current_state);
             states[layer * w..(layer + 1) * w].clone_from_slice(&current_state);
         }
 
@@ -748,18 +744,17 @@ impl<K: AbstractField + 'static> BranchingProgram<K> {
     ///
     /// Processes only one layer (the lambda layer at `layer`) and combines with the
     /// cached prefix state (from above) and suffix vector (from below).
-    pub fn eval_with_cached<F: AbstractField + 'static>(
+    pub fn eval_with_cached<F: Field + 'static>(
         &self,
         layer: usize,
-        lambda: Option<F>,
-        is_half: bool,
+        lambda: F,
         prefix_state: &[K],
         suffix_vector: &[K],
     ) -> K
     where
         K: AbstractExtensionField<F>,
     {
-        let after_lambda = self.apply_layer_step(layer, lambda, is_half, prefix_state);
+        let after_lambda = self.apply_layer_step(layer, lambda, prefix_state);
         suffix_vector
             .iter()
             .zip(after_lambda.iter())

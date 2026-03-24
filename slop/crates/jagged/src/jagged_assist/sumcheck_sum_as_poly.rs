@@ -110,15 +110,13 @@ impl<F: Field, EF: ExtensionField<F>, Challenger: FieldChallenger<F> + Send + Sy
                                 let prefix_state = &col_prefix_states[offset..offset + w];
                                 let h_eval_0 = self.branching_program.eval_with_cached(
                                     round_num,
-                                    None,
-                                    false,
+                                    F::zero(),
                                     prefix_state,
                                     &self.suffix_vector,
                                 );
                                 let h_eval_half = self.branching_program.eval_with_cached(
                                     round_num,
-                                    Some(self.half),
-                                    true,
+                                    self.half,
                                     prefix_state,
                                     &self.suffix_vector,
                                 );
