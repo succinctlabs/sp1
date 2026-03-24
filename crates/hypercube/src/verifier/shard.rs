@@ -183,9 +183,14 @@ impl<GC: IopCtx, SC: ShardContext<GC>> ShardVerifier<GC, SC> {
             .collect::<BTreeSet<_>>();
         debug_assert_eq!(shard_chips.len(), proof.opened_values.chips.len());
 
-        let multiples = <SC::Config>::round_multiples(&proof.evaluation_proof.pcs_proof);
-        let preprocessed_multiple = multiples[0];
-        let main_multiple = multiples[1];
+        let areas = proof
+            .evaluation_proof
+            .row_counts_and_column_counts
+            .iter()
+            .map(|rc_cc| rc_cc.iter().map(|(r, c)| r * c).sum::<usize>())
+            .collect::<Vec<_>>();
+        let preprocessed_area = areas[0];
+        let main_area = areas[1];
 
         let added_columns: Vec<usize> = proof
             .evaluation_proof
@@ -196,8 +201,8 @@ impl<GC: IopCtx, SC: ShardContext<GC>> ShardVerifier<GC, SC> {
 
         CoreProofShape {
             shard_chips,
-            preprocessed_multiple,
-            main_multiple,
+            preprocessed_area,
+            main_area,
             preprocessed_padding_cols: added_columns[0],
             main_padding_cols: added_columns[1],
         }

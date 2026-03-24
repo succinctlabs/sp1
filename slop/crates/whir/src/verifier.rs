@@ -627,12 +627,6 @@ where
     fn log_stacking_height(verifier: &Self) -> u32 {
         verifier.config.starting_interleaved_log_height as u32
     }
-
-    /// Functionality to deduce round by round from the proof the multiples of `1<<log.stacking_height`
-    /// corresponding to the round's total polynomial size.
-    fn round_multiples(proof: &<Self as MultilinearPcsVerifier<GC>>::Proof) -> Vec<usize> {
-        proof.initial_merkle_proof.iter().map(|merkle_proof| merkle_proof.proof.width).collect()
-    }
 }
 
 #[cfg(test)]
