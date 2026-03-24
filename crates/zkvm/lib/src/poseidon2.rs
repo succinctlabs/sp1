@@ -32,7 +32,7 @@ impl Poseidon2State {
     /// # Safety
     /// This function assumes that the elements are within the `SP1Field` range. Breaking this
     /// constraint will lead to prover failure (the proof will not verify).
-    unsafe fn absorb_field_block_unchecked(&mut self, block: &[u32; RATE]) {
+    pub fn absorb_field_block_unchecked(&mut self, block: &[u32; RATE]) {
         self.0[0..RATE].copy_from_slice(block);
         self.permute();
     }
@@ -54,9 +54,7 @@ impl Poseidon2State {
             *element += (block[start_idx + 1] as u32) << 8;
             *element += (block[start_idx + 2] as u32) << 16;
         }
-        unsafe {
-            self.absorb_field_block_unchecked(&field_block);
-        }
+        self.absorb_field_block_unchecked(&field_block);
     }
 
     /// Returns the rate portion of the current sponge state as the hash output.
