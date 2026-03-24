@@ -263,7 +263,7 @@ mod tests {
             &commitment,
             &indices,
             &openings,
-            width,
+            width * num_tensors,
             slop_utils::log2_strict_usize(height),
             &proof,
         )
@@ -297,7 +297,7 @@ mod tests {
             &commitment,
             &indices,
             &openings,
-            width,
+            width * num_tensors,
             slop_utils::log2_strict_usize(height),
             &proof,
         )
