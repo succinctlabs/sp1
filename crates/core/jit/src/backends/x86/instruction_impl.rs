@@ -1,6 +1,6 @@
 #![allow(clippy::fn_to_numeric_cast)]
 
-use super::{TranspilerBackend, CONTEXT, PC_OFFSET, TEMP_A, TEMP_B};
+use super::{TranspilerBackend, CONTEXT, MEMORY_PTR, PC_OFFSET, TEMP_A, TEMP_B};
 use crate::{
     impl_alu32_imm_opt, impl_alu_imm_opt, impl_risc_alu, impl_shift32_imm_opt, ComputeInstructions,
     ControlFlowInstructions, JitContext, MemoryInstructions, RiscOperand, RiscRegister,
@@ -90,7 +90,7 @@ impl ComputeInstructions for TranspilerBackend {
 
             done:
         }
-        self.emit_risc_register_store(Rq::RAX as u8, rd);
+        self.emit_risc_register_store(Rq::RAX as u8, None, rd);
     }
 
     fn divu(&mut self, rd: RiscRegister, rs1: RiscOperand, rs2: RiscOperand) {
@@ -119,7 +119,7 @@ impl ComputeInstructions for TranspilerBackend {
 
             done:
         }
-        self.emit_risc_register_store(Rq::RAX as u8, rd);
+        self.emit_risc_register_store(Rq::RAX as u8, None, rd);
     }
 
     fn mulh(&mut self, rd: RiscRegister, rs1: RiscOperand, rs2: RiscOperand) {
@@ -135,7 +135,7 @@ impl ComputeInstructions for TranspilerBackend {
             imul Rq(TEMP_B)          // signed 64×64 → 128; high → RDX
             // high 64 bits already in RDX
         }
-        self.emit_risc_register_store(Rq::RDX as u8, rd);
+        self.emit_risc_register_store(Rq::RDX as u8, None, rd);
     }
 
     fn mulhu(&mut self, rd: RiscRegister, rs1: RiscOperand, rs2: RiscOperand) {
@@ -151,7 +151,7 @@ impl ComputeInstructions for TranspilerBackend {
             mul  Rq(TEMP_B)          // unsigned 64×64 → 128; high → RDX
             // high 64 bits already in RDX
         }
-        self.emit_risc_register_store(Rq::RDX as u8, rd);
+        self.emit_risc_register_store(Rq::RDX as u8, None, rd);
     }
 
     fn mulhsu(&mut self, rd: RiscRegister, rs1: RiscOperand, rs2: RiscOperand) {
@@ -212,7 +212,7 @@ impl ComputeInstructions for TranspilerBackend {
             store_high:
             // result already in RDX
         }
-        self.emit_risc_register_store(Rq::RDX as u8, rd);
+        self.emit_risc_register_store(Rq::RDX as u8, None, rd);
     }
 
     /// Signed remainder: `rd = rs1 % rs2`  
@@ -341,7 +341,7 @@ impl ComputeInstructions for TranspilerBackend {
                     // Direct immediate shift (lower 6 bits automatically masked by x86)
                     shl Rq(TEMP_A), (imm & 0x3F) as i8
                 }
-                self.emit_risc_register_store(TEMP_A, rd);
+                self.emit_risc_register_store(TEMP_A, None, rd);
             }
             _ => {
                 self.emit_risc_operand_load(rs1, TEMP_A);
@@ -362,7 +362,7 @@ impl ComputeInstructions for TranspilerBackend {
                     // ──────────────────────────────────────────────────────────────
                     shl  Rq(TEMP_A), cl         // variable-count shift
                 }
-                self.emit_risc_register_store(TEMP_A, rd);
+                self.emit_risc_register_store(TEMP_A, None, rd);
             }
         }
     }
@@ -377,7 +377,7 @@ impl ComputeInstructions for TranspilerBackend {
                     // Direct immediate arithmetic right shift
                     sar Rq(TEMP_A), (imm & 0x3F) as i8
                 }
-                self.emit_risc_register_store(TEMP_A, rd);
+                self.emit_risc_register_store(TEMP_A, None, rd);
             }
             _ => {
                 self.emit_risc_operand_load(rs1, TEMP_A);
@@ -399,7 +399,7 @@ impl ComputeInstructions for TranspilerBackend {
                     // ──────────────────────────────────────────────────────────────
                     sar  Rq(TEMP_A), cl         // variable-count shift
                 }
-                self.emit_risc_register_store(TEMP_A, rd);
+                self.emit_risc_register_store(TEMP_A, None, rd);
             }
         }
     }
@@ -414,7 +414,7 @@ impl ComputeInstructions for TranspilerBackend {
                     // Direct immediate logical right shift
                     shr Rq(TEMP_A), (imm & 0x3F) as i8
                 }
-                self.emit_risc_register_store(TEMP_A, rd);
+                self.emit_risc_register_store(TEMP_A, None, rd);
             }
             _ => {
                 self.emit_risc_operand_load(rs1, TEMP_A);
@@ -434,7 +434,7 @@ impl ComputeInstructions for TranspilerBackend {
                     // ──────────────────────────────────────────────────────────────
                     shr  Rq(TEMP_A), cl
                 }
-                self.emit_risc_register_store(TEMP_A, rd);
+                self.emit_risc_register_store(TEMP_A, None, rd);
             }
         }
     }
@@ -464,7 +464,7 @@ impl ComputeInstructions for TranspilerBackend {
                     // ──────────────────────────────────────────────────────────────
                     movzx Rq(TEMP_A), Rb(TEMP_A)     // Rd(TEMP_A) = 0 or 1
                 }
-                self.emit_risc_register_store(TEMP_A, rd);
+                self.emit_risc_register_store(TEMP_A, None, rd);
             }
             _ => {
                 self.emit_risc_operand_load(rs1, TEMP_A);
@@ -490,7 +490,7 @@ impl ComputeInstructions for TranspilerBackend {
                     // ──────────────────────────────────────────────────────────────
                     movzx Rq(TEMP_A), Rb(TEMP_A)     // Rd(TEMP_A) = 0 or 1
                 }
-                self.emit_risc_register_store(TEMP_A, rd);
+                self.emit_risc_register_store(TEMP_A, None, rd);
             }
         }
     }
@@ -516,7 +516,7 @@ impl ComputeInstructions for TranspilerBackend {
                     // ------------------------------------
                     movzx Rq(TEMP_A), Rb(TEMP_A)
                 }
-                self.emit_risc_register_store(TEMP_A, rd);
+                self.emit_risc_register_store(TEMP_A, None, rd);
             }
             _ => {
                 self.emit_risc_operand_load(rs1, TEMP_A);
@@ -538,7 +538,7 @@ impl ComputeInstructions for TranspilerBackend {
                     // ------------------------------------
                     movzx Rq(TEMP_A), Rb(TEMP_A)
                 }
-                self.emit_risc_register_store(TEMP_A, rd);
+                self.emit_risc_register_store(TEMP_A, None, rd);
             }
         }
     }
@@ -643,7 +643,7 @@ impl ComputeInstructions for TranspilerBackend {
 
             done:
         }
-        self.emit_risc_register_store(Rq::RAX as u8, rd);
+        self.emit_risc_register_store(Rq::RAX as u8, None, rd);
     }
 
     fn divuw(&mut self, rd: RiscRegister, rs1: RiscOperand, rs2: RiscOperand) {
@@ -671,7 +671,7 @@ impl ComputeInstructions for TranspilerBackend {
 
             done:
         }
-        self.emit_risc_register_store(Rq::RAX as u8, rd);
+        self.emit_risc_register_store(Rq::RAX as u8, None, rd);
     }
 
     fn remw(&mut self, rd: RiscRegister, rs1: RiscOperand, rs2: RiscOperand) {
@@ -714,7 +714,7 @@ impl ComputeInstructions for TranspilerBackend {
 
             done:
         }
-        self.emit_risc_register_store(Rq::RDX as u8, rd);
+        self.emit_risc_register_store(Rq::RDX as u8, None, rd);
     }
 
     fn remuw(&mut self, rd: RiscRegister, rs1: RiscOperand, rs2: RiscOperand) {
@@ -742,28 +742,20 @@ impl ComputeInstructions for TranspilerBackend {
 
             done:
         }
-        self.emit_risc_register_store(Rq::RDX as u8, rd);
+        self.emit_risc_register_store(Rq::RDX as u8, None, rd);
     }
 
     fn auipc(&mut self, rd: RiscRegister, imm: u64) {
         // rd <- pc + imm
-        dynasm! {
-            self;
-            .arch x64;
 
-            // ------------------------------------
-            // 1. Copy the current PC into TEMP_A
-            // ------------------------------------
-            mov Rq(TEMP_A), [Rq(CONTEXT) + PC_OFFSET];
-
-            // ------------------------------------
-            // 2. Increment the PC by the immediate.
-            // ------------------------------------
-            add Rq(TEMP_A), imm as i32
-        }
+        // ------------------------------------
+        // 1. Copy the current PC into TEMP_A
+        // 2. Increment the PC by the immediate.
+        // ------------------------------------
+        let value = self.pc_current.wrapping_add(imm);
 
         // Store the result in the destination register.
-        self.emit_risc_register_store(TEMP_A, rd);
+        self.emit_risc_register_store(TEMP_A, Some(value), rd);
     }
 
     fn lui(&mut self, rd: RiscRegister, imm: u64) {
@@ -777,7 +769,7 @@ impl ComputeInstructions for TranspilerBackend {
         }
 
         // Store the result in the destination register.
-        self.emit_risc_register_store(TEMP_A, rd);
+        self.emit_risc_register_store(TEMP_A, None, rd);
     }
 }
 
@@ -786,24 +778,21 @@ impl ControlFlowInstructions for TranspilerBackend {
         // Mark that a control flow instruction has been inserted.
         self.control_flow_instruction_inserted = true;
 
-        // Store the current pc + 4 into
-        self.load_pc_into_register(TEMP_A);
-
-        dynasm! {
-            self;
-            .arch x64;
-
-            // ------------------------------------
-            // 1. Add 4 to the current PC in temp_a
-            // ------------------------------------
-            add Rq(TEMP_A), 4
-        }
+        let target_pc = self.pc_current.wrapping_add(imm);
+        let next_pc = self.pc_current.wrapping_add(4);
 
         // Store the current PC + 4 into the destination register.
-        self.emit_risc_register_store(TEMP_A, rd);
+        self.emit_risc_register_store(TEMP_A, Some(next_pc), rd);
 
         // Adjust the PC store in the context by the immediate.
-        self.bump_pc(imm as u32);
+        self.update_pc(TEMP_B, target_pc);
+
+        // Add the base amount of cycles for the instruction.
+        self.bump_clk();
+
+        // We know the jump target at transpile time, we can issue jump
+        // to it directly, skipping jump table
+        self.end_branch(Some(target_pc));
     }
 
     fn jalr(&mut self, rd: RiscRegister, rs1: RiscRegister, imm: u64) {
@@ -811,23 +800,14 @@ impl ControlFlowInstructions for TranspilerBackend {
         self.control_flow_instruction_inserted = true;
 
         // ------------------------------------
-        // 1. Compute the PC to store into rd.
+        // 1. If rs1 is immediate, we can do fast jumping
         // ------------------------------------
-        self.load_pc_into_register(TEMP_B);
-
-        dynasm! {
-            self;
-            .arch x64;
-
-            add Rq(TEMP_B), 4
-        }
+        let jump_target = self.reg_values.get(&rs1).map(|rs1_imm| rs1_imm.wrapping_add(imm));
 
         // ------------------------------------
-        // 2. Load rs1, add imm, and store it as PC
+        // 2. Update PC value
         // ------------------------------------
-
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
-
         dynasm! {
             self;
             .arch x64;
@@ -837,17 +817,29 @@ impl ControlFlowInstructions for TranspilerBackend {
         }
 
         // ------------------------------------
-        // 3. Store the computed PC into rd
+        // 3. Compute & store next PC into rd.
         // ------------------------------------
-        self.emit_risc_register_store(TEMP_B, rd);
+        let next_pc = self.pc_current + 4;
+        self.emit_risc_register_store(TEMP_B, Some(next_pc), rd);
+
+        // Add the base amount of cycles for the instruction.
+        self.bump_clk();
+
+        self.end_branch(jump_target);
     }
 
     fn beq(&mut self, rs1: RiscRegister, rs2: RiscRegister, imm: u64) {
         // Mark that a control flow instruction has been inserted.
         self.control_flow_instruction_inserted = true;
 
+        // Add the base amount of cycles for the instruction.
+        self.bump_clk();
+
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
         self.emit_risc_operand_load(rs2.into(), TEMP_B);
+
+        let branched_target = self.pc_current.wrapping_add(imm);
+        let not_branched_target = self.pc_current.wrapping_add(4);
 
         // Compare the registers
         dynasm! {
@@ -857,35 +849,43 @@ impl ControlFlowInstructions for TranspilerBackend {
             // Check if rs1 == rs2
             cmp Rq(TEMP_A), Rq(TEMP_B);
             // If rs1 != rs2, jump to not_branched, since that would imply !(rs1 == rs2)
-            jne >not_branched;
+            jne >not_branched
+        }
+        // ------------------------------------
+        // Branched:
+        // 0. Bump the pc by the immediate.
+        // ------------------------------------
+        self.update_pc(Rq::RAX as u8, branched_target);
+        self.end_branch(Some(branched_target));
 
-            // ------------------------------------
-            // Branched:
-            // 0. Bump the pc by the immediate.
-            // ------------------------------------
-            add QWORD [Rq(CONTEXT) + PC_OFFSET], imm as i32;
-            jmp >done;
+        dynasm! {
+            self;
+            .arch x64;
 
             // ------------------------------------
             // Not branched:
             // ------------------------------------
-            not_branched:;
-
-            // ------------------------------------
-            // 1. Bump the pc by 4
-            // ------------------------------------
-            add QWORD [Rq(CONTEXT) + PC_OFFSET], 4;
-
-            done:
+            not_branched:
         }
+        // ------------------------------------
+        // 1. Bump the pc by 4
+        // ------------------------------------
+        self.update_pc(Rq::RAX as u8, not_branched_target);
+        self.end_branch(Some(not_branched_target));
     }
 
     fn bge(&mut self, rs1: RiscRegister, rs2: RiscRegister, imm: u64) {
         // Mark that a control flow instruction has been inserted.
         self.control_flow_instruction_inserted = true;
 
+        // Add the base amount of cycles for the instruction.
+        self.bump_clk();
+
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
         self.emit_risc_operand_load(rs2.into(), TEMP_B);
+
+        let branched_target = self.pc_current.wrapping_add(imm);
+        let not_branched_target = self.pc_current.wrapping_add(4);
 
         dynasm! {
             self;
@@ -894,35 +894,43 @@ impl ControlFlowInstructions for TranspilerBackend {
             // Check if rs1 == rs2
             cmp Rq(TEMP_A), Rq(TEMP_B);
             // If rs1 < rs2, jump to not_branched, since that would imply !(rs1 >= rs2)
-            jl >not_branched;
+            jl >not_branched
+        }
+        // ------------------------------------
+        // Branched:
+        // 0. Bump the pc by the immediate.
+        // ------------------------------------
+        self.update_pc(Rq::RAX as u8, branched_target);
+        self.end_branch(Some(branched_target));
 
-            // ------------------------------------
-            // Branched:
-            // 0. Bump the pc by the immediate.
-            // ------------------------------------
-            add QWORD [Rq(CONTEXT) + PC_OFFSET], imm as i32;
-            jmp >done;
+        dynasm! {
+            self;
+            .arch x64;
 
             // ------------------------------------
             // Not branched:
             // ------------------------------------
-            not_branched:;
-
-            // ------------------------------------
-            // 1. Bump the pc by 4
-            // ------------------------------------
-            add QWORD [Rq(CONTEXT) + PC_OFFSET], 4;
-
-            done:
+            not_branched:
         }
+        // ------------------------------------
+        // 1. Bump the pc by 4
+        // ------------------------------------
+        self.update_pc(Rq::RAX as u8, not_branched_target);
+        self.end_branch(Some(not_branched_target));
     }
 
     fn bgeu(&mut self, rs1: RiscRegister, rs2: RiscRegister, imm: u64) {
         // Mark that a control flow instruction has been inserted.
         self.control_flow_instruction_inserted = true;
 
+        // Add the base amount of cycles for the instruction.
+        self.bump_clk();
+
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
         self.emit_risc_operand_load(rs2.into(), TEMP_B);
+
+        let branched_target = self.pc_current.wrapping_add(imm);
+        let not_branched_target = self.pc_current.wrapping_add(4);
 
         dynasm! {
             self;
@@ -930,34 +938,43 @@ impl ControlFlowInstructions for TranspilerBackend {
 
             cmp Rq(TEMP_A), Rq(TEMP_B);
             // If rs1 < rs2, jump to not_branched, since that would imply !(rs1 >= rs2)
-            jb >not_branched;
+            jb >not_branched
+        }
+        // ------------------------------------
+        // Branched:
+        // 0. Bump the pc by the immediate.
+        // ------------------------------------
+        self.update_pc(Rq::RAX as u8, branched_target);
+        self.end_branch(Some(branched_target));
 
-            // ------------------------------------
-            // Branched:
-            // 0. Bump the pc by the immediate.
-            // ------------------------------------
-            add QWORD [Rq(CONTEXT) + PC_OFFSET], imm as i32;
-            jmp >done;
+        dynasm! {
+            self;
+            .arch x64;
 
             // ------------------------------------
             // Not branched:
             // ------------------------------------
-            not_branched:;
-
-            // ------------------------------------
-            // 1. Bump the pc by 4
-            // ------------------------------------
-            add QWORD [Rq(CONTEXT) + PC_OFFSET], 4;
-            done:
+            not_branched:
         }
+        // ------------------------------------
+        // 1. Bump the pc by 4
+        // ------------------------------------
+        self.update_pc(Rq::RAX as u8, not_branched_target);
+        self.end_branch(Some(not_branched_target));
     }
 
     fn blt(&mut self, rs1: RiscRegister, rs2: RiscRegister, imm: u64) {
         // Mark that a control flow instruction has been inserted.
         self.control_flow_instruction_inserted = true;
 
+        // Add the base amount of cycles for the instruction.
+        self.bump_clk();
+
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
         self.emit_risc_operand_load(rs2.into(), TEMP_B);
+
+        let branched_target = self.pc_current.wrapping_add(imm);
+        let not_branched_target = self.pc_current.wrapping_add(4);
 
         dynasm! {
             self;
@@ -967,93 +984,113 @@ impl ControlFlowInstructions for TranspilerBackend {
             // Compare the two registers.
             //
             cmp Rq(TEMP_A), Rq(TEMP_B);   // signed compare
-            jge >not_branched;            // rs1 ≥ rs2  →  skip
+            jge >not_branched             // rs1 ≥ rs2  →  skip
+        }
+        // ------------------------------------
+        // Branched:
+        // 0. Bump the pc by the immediate.
+        // ------------------------------------
+        self.update_pc(Rq::RAX as u8, branched_target);
+        self.end_branch(Some(branched_target));
 
-            // ------------------------------------
-            // Branched:
-            // 0. Bump the pc by the immediate.
-            // ------------------------------------
-            add QWORD [Rq(CONTEXT) + PC_OFFSET], imm as i32;
-            jmp >done;
+        dynasm! {
+            self;
+            .arch x64;
 
             // ------------------------------------
             // Not branched:
             // ------------------------------------
-            not_branched:;
-
-            // ------------------------------------
-            // 1. Bump the pc by 4
-            // ------------------------------------
-            add QWORD [Rq(CONTEXT) + PC_OFFSET], 4;
-
-            done:
+            not_branched:
         }
+        // ------------------------------------
+        // 1. Bump the pc by 4
+        // ------------------------------------
+        self.update_pc(Rq::RAX as u8, not_branched_target);
+        self.end_branch(Some(not_branched_target));
     }
 
     fn bltu(&mut self, rs1: RiscRegister, rs2: RiscRegister, imm: u64) {
         // Mark that a control flow instruction has been inserted.
         self.control_flow_instruction_inserted = true;
 
+        // Add the base amount of cycles for the instruction.
+        self.bump_clk();
+
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
         self.emit_risc_operand_load(rs2.into(), TEMP_B);
+
+        let branched_target = self.pc_current.wrapping_add(imm);
+        let not_branched_target = self.pc_current.wrapping_add(4);
 
         dynasm! {
             self;
             .arch x64;
             cmp Rq(TEMP_A), Rq(TEMP_B);   // unsigned compare
-            jae >not_branched;             // rs1 ≥ rs2 (unsigned) → skip
+            jae >not_branched             // rs1 ≥ rs2 (unsigned) → skip
+        }
+        // ------------------------------------
+        // Branched:
+        // 0. Bump the pc by the immediate.
+        // ------------------------------------
+        self.update_pc(Rq::RAX as u8, branched_target);
+        self.end_branch(Some(branched_target));
 
-            // ------------------------------------
-            // Branched:
-            // 0. Bump the pc by the immediate.
-            // ------------------------------------
-            add QWORD [Rq(CONTEXT) + PC_OFFSET], imm as i32;
-            jmp >done;
+        dynasm! {
+            self;
+            .arch x64;
 
             // ------------------------------------
             // Not branched:
             // ------------------------------------
-            not_branched:;
-
-            // 1. Bump the pc by 4
-            add QWORD [Rq(CONTEXT) + PC_OFFSET], 4;
-
-            done:
+            not_branched:
         }
+        // ------------------------------------
+        // 1. Bump the pc by 4
+        // ------------------------------------
+        self.update_pc(Rq::RAX as u8, not_branched_target);
+        self.end_branch(Some(not_branched_target));
     }
 
     fn bne(&mut self, rs1: RiscRegister, rs2: RiscRegister, imm: u64) {
         // Mark that a control flow instruction has been inserted.
         self.control_flow_instruction_inserted = true;
 
+        // Add the base amount of cycles for the instruction.
+        self.bump_clk();
+
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
         self.emit_risc_operand_load(rs2.into(), TEMP_B);
+
+        let branched_target = self.pc_current.wrapping_add(imm);
+        let not_branched_target = self.pc_current.wrapping_add(4);
 
         dynasm! {
             self;
             .arch x64;
             cmp Rq(TEMP_A), Rq(TEMP_B);   // sets ZF
-            je  >not_branched;            // rs1 == rs2  →  skip
+            je  >not_branched             // rs1 == rs2  →  skip
+        }
+        // ------------------------------------
+        // Branched:
+        // 0. Bump the pc by the immediate.
+        // ------------------------------------
+        self.update_pc(Rq::RAX as u8, branched_target);
+        self.end_branch(Some(branched_target));
 
-            // ------------------------------------
-            // Branched:
-            // 0. Bump the pc in the context by the immediate.
-            // ------------------------------------
-            add QWORD [Rq(CONTEXT) + PC_OFFSET], imm as i32;
-            jmp >done;
+        dynasm! {
+            self;
+            .arch x64;
 
             // ------------------------------------
             // Not branched:
             // ------------------------------------
-            not_branched:;
-
-            // ------------------------------------
-            // 1. Bump the pc by 4
-            // ------------------------------------
-            add QWORD [Rq(CONTEXT) + PC_OFFSET], 4;
-
-            done:
+            not_branched:
         }
+        // ------------------------------------
+        // 1. Bump the pc by 4
+        // ------------------------------------
+        self.update_pc(Rq::RAX as u8, not_branched_target);
+        self.end_branch(Some(not_branched_target));
     }
 }
 
@@ -1065,7 +1102,6 @@ impl MemoryInstructions for TranspilerBackend {
         // Load in the base address and the phy sical memory pointer.
         // ------------------------------------
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
-        self.load_memory_ptr(TEMP_B);
 
         dynasm! {
             self;
@@ -1098,7 +1134,7 @@ impl MemoryInstructions for TranspilerBackend {
             //
             // TEMP_A = addr + physical_memory_pointer
             // ------------------------------------
-            add Rq(TEMP_A), Rq(TEMP_B);
+            add Rq(TEMP_A), Rq(MEMORY_PTR);
 
             // ------------------------------------
             // 4. Load byte → sign-extend to 32 bits
@@ -1112,7 +1148,7 @@ impl MemoryInstructions for TranspilerBackend {
         }
 
         // 4. Write back to destination register
-        self.emit_risc_register_store(TEMP_A, rd);
+        self.emit_risc_register_store(TEMP_A, None, rd);
     }
 
     fn lbu(&mut self, rd: RiscRegister, rs1: RiscRegister, imm: u64) {
@@ -1123,7 +1159,6 @@ impl MemoryInstructions for TranspilerBackend {
         // and the physical memory pointer.
         // ------------------------------------
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
-        self.load_memory_ptr(TEMP_B);
 
         dynasm! {
             self;
@@ -1155,7 +1190,7 @@ impl MemoryInstructions for TranspilerBackend {
             //
             // TEMP_A = addr + physical_memory_pointer
             // ------------------------------------
-            add Rq(TEMP_A), Rq(TEMP_B);
+            add Rq(TEMP_A), Rq(MEMORY_PTR);
 
             // ------------------------------------
             // Load byte → zero-extend to 32 bits
@@ -1163,7 +1198,7 @@ impl MemoryInstructions for TranspilerBackend {
             movzx Rq(TEMP_A), BYTE [Rq(TEMP_A) + 8 + rax]
         }
 
-        self.emit_risc_register_store(TEMP_A, rd);
+        self.emit_risc_register_store(TEMP_A, None, rd);
     }
 
     fn lh(&mut self, rd: RiscRegister, rs1: RiscRegister, imm: u64) {
@@ -1174,7 +1209,6 @@ impl MemoryInstructions for TranspilerBackend {
         // and the physical memory pointer.
         // ------------------------------------
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
-        self.load_memory_ptr(TEMP_B);
 
         dynasm! {
             self;
@@ -1206,7 +1240,7 @@ impl MemoryInstructions for TranspilerBackend {
             //
             // TEMP_A = addr + physical_memory_pointer
             // ------------------------------------
-            add Rq(TEMP_A), Rq(TEMP_B);
+            add Rq(TEMP_A), Rq(MEMORY_PTR);
 
             // ------------------------------------
             // Load half-word → sign-extend to 32 bits
@@ -1214,7 +1248,7 @@ impl MemoryInstructions for TranspilerBackend {
             movsx Rq(TEMP_A), WORD [Rq(TEMP_A) + 8 + rax]
         }
 
-        self.emit_risc_register_store(TEMP_A, rd);
+        self.emit_risc_register_store(TEMP_A, None, rd);
     }
 
     fn lhu(&mut self, rd: RiscRegister, rs1: RiscRegister, imm: u64) {
@@ -1225,7 +1259,6 @@ impl MemoryInstructions for TranspilerBackend {
         //  and the physical memory pointer.
         // ------------------------------------
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
-        self.load_memory_ptr(TEMP_B);
 
         dynasm! {
             self;
@@ -1257,7 +1290,7 @@ impl MemoryInstructions for TranspilerBackend {
             //
             // TEMP_A = addr + physical_memory_pointer
             // ------------------------------------
-            add Rq(TEMP_A), Rq(TEMP_B);
+            add Rq(TEMP_A), Rq(MEMORY_PTR);
 
             // ------------------------------------
             // Load 16 bits, zero-extend to 32 bits
@@ -1265,7 +1298,7 @@ impl MemoryInstructions for TranspilerBackend {
             movzx Rq(TEMP_A), WORD [Rq(TEMP_A) + 8 + rax]
         }
 
-        self.emit_risc_register_store(TEMP_A, rd);
+        self.emit_risc_register_store(TEMP_A, None, rd);
     }
 
     fn lw(&mut self, rd: RiscRegister, rs1: RiscRegister, imm: u64) {
@@ -1276,7 +1309,6 @@ impl MemoryInstructions for TranspilerBackend {
         // and physical memory pointer into TEMP_B
         // ------------------------------------
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
-        self.load_memory_ptr(TEMP_B);
 
         dynasm! {
             self;
@@ -1308,7 +1340,7 @@ impl MemoryInstructions for TranspilerBackend {
             //
             // TEMP_A = addr + physical_memory_pointer
             // ------------------------------------
-            add Rq(TEMP_A), Rq(TEMP_B);
+            add Rq(TEMP_A), Rq(MEMORY_PTR);
 
             // ------------------------------------
             // 4. Load the word from physical memory into TEMP_A (sign-extended to 64-bit)
@@ -1319,7 +1351,7 @@ impl MemoryInstructions for TranspilerBackend {
         // ------------------------------------
         // 5. Store the result in the destination register.
         // ------------------------------------
-        self.emit_risc_register_store(TEMP_A, rd);
+        self.emit_risc_register_store(TEMP_A, None, rd);
     }
 
     fn lwu(&mut self, rd: RiscRegister, rs1: RiscRegister, imm: u64) {
@@ -1330,7 +1362,6 @@ impl MemoryInstructions for TranspilerBackend {
         // and physical memory pointer into TEMP_B
         // ------------------------------------
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
-        self.load_memory_ptr(TEMP_B);
 
         dynasm! {
             self;
@@ -1362,7 +1393,7 @@ impl MemoryInstructions for TranspilerBackend {
             //
             // TEMP_A = addr + physical_memory_pointer
             // ------------------------------------
-            add Rq(TEMP_A), Rq(TEMP_B);
+            add Rq(TEMP_A), Rq(MEMORY_PTR);
 
             // ------------------------------------
             // 4. Load the word from physical memory into TEMP_B (zero-extended to 64-bit)
@@ -1373,7 +1404,7 @@ impl MemoryInstructions for TranspilerBackend {
         // ------------------------------------
         // 5. Store the result in the destination register.
         // ------------------------------------
-        self.emit_risc_register_store(TEMP_A, rd);
+        self.emit_risc_register_store(TEMP_A, None, rd);
     }
 
     fn ld(&mut self, rd: RiscRegister, rs1: RiscRegister, imm: u64) {
@@ -1384,7 +1415,6 @@ impl MemoryInstructions for TranspilerBackend {
         // and physical memory pointer into TEMP_B
         // ------------------------------------
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
-        self.load_memory_ptr(TEMP_B);
 
         dynasm! {
             self;
@@ -1409,7 +1439,7 @@ impl MemoryInstructions for TranspilerBackend {
             //
             // TEMP_A = addr + physical_memory_pointer
             // ------------------------------------
-            add Rq(TEMP_A), Rq(TEMP_B);
+            add Rq(TEMP_A), Rq(MEMORY_PTR);
 
             // ------------------------------------
             // Load the word from physical memory into TEMP_A
@@ -1420,7 +1450,7 @@ impl MemoryInstructions for TranspilerBackend {
         // ------------------------------------
         // Store the result in the destination register.
         // ------------------------------------
-        self.emit_risc_register_store(TEMP_A, rd);
+        self.emit_risc_register_store(TEMP_A, None, rd);
     }
 
     fn sb(&mut self, rs1: RiscRegister, rs2: RiscRegister, imm: u64) {
@@ -1431,7 +1461,6 @@ impl MemoryInstructions for TranspilerBackend {
         // and physical memory pointer into TEMP_B
         // ------------------------------------
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
-        self.load_memory_ptr(TEMP_B);
 
         dynasm! {
             self;
@@ -1459,13 +1488,13 @@ impl MemoryInstructions for TranspilerBackend {
             // ------------------------------------
             // Add the risc32 byte offset to the physical memory pointer
             // ------------------------------------
-            add Rq(TEMP_B), Rq(TEMP_A)
+            add Rq(TEMP_A), Rq(MEMORY_PTR)
         }
 
         // ------------------------------------
-        // Load the word from the RISC register into TEMP_A
+        // Load the word from the RISC register into TEMP_B
         // ------------------------------------
-        self.emit_risc_operand_load(rs2.into(), TEMP_A);
+        self.emit_risc_operand_load(rs2.into(), TEMP_B);
 
         // ------------------------------------
         // Store the word into physical memory
@@ -1474,7 +1503,7 @@ impl MemoryInstructions for TranspilerBackend {
             self;
             .arch x64;
 
-            mov BYTE [Rq(TEMP_B) + 8 + rax], Rb(TEMP_A)
+            mov BYTE [Rq(TEMP_A) + 8 + rax], Rb(TEMP_B)
         }
     }
 
@@ -1486,7 +1515,6 @@ impl MemoryInstructions for TranspilerBackend {
         // and physical memory pointer into TEMP_B
         // ------------------------------------
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
-        self.load_memory_ptr(TEMP_B);
 
         dynasm! {
             self;
@@ -1513,13 +1541,13 @@ impl MemoryInstructions for TranspilerBackend {
             // ------------------------------------
             // Add the risc32 byte offset to the physical memory pointer
             // ------------------------------------
-            add Rq(TEMP_B), Rq(TEMP_A)
+            add Rq(TEMP_A), Rq(MEMORY_PTR)
         }
 
         // ------------------------------------
-        // Load the word from the RISC register into TEMP_A
+        // Load the word from the RISC register into TEMP_B
         // ------------------------------------
-        self.emit_risc_operand_load(rs2.into(), TEMP_A);
+        self.emit_risc_operand_load(rs2.into(), TEMP_B);
 
         // ------------------------------------
         // Store the word into physical memory
@@ -1528,7 +1556,7 @@ impl MemoryInstructions for TranspilerBackend {
             self;
             .arch x64;
 
-            mov WORD [Rq(TEMP_B) + 8 + rax], Rw(TEMP_A)
+            mov WORD [Rq(TEMP_A) + 8 + rax], Rw(TEMP_B)
         }
     }
 
@@ -1540,7 +1568,6 @@ impl MemoryInstructions for TranspilerBackend {
         // and physical memory pointer into TEMP_B
         // ------------------------------------
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
-        self.load_memory_ptr(TEMP_B);
 
         dynasm! {
             self;
@@ -1567,13 +1594,13 @@ impl MemoryInstructions for TranspilerBackend {
             // ------------------------------------
             // Add the risc32 byte offset to the physical memory pointer
             // ------------------------------------
-            add Rq(TEMP_B), Rq(TEMP_A)
+            add Rq(TEMP_A), Rq(MEMORY_PTR)
         }
 
         // ------------------------------------
-        // Load the word from the RISC register into TEMP_A
+        // Load the word from the RISC register into TEMP_B
         // ------------------------------------
-        self.emit_risc_operand_load(rs2.into(), TEMP_A);
+        self.emit_risc_operand_load(rs2.into(), TEMP_B);
 
         // ------------------------------------
         // Store the word into physical memory
@@ -1582,7 +1609,7 @@ impl MemoryInstructions for TranspilerBackend {
             self;
             .arch x64;
 
-            mov DWORD [Rq(TEMP_B) + 8 + rax], Rd(TEMP_A)
+            mov DWORD [Rq(TEMP_A) + 8 + rax], Rd(TEMP_B)
         }
     }
 
@@ -1594,7 +1621,6 @@ impl MemoryInstructions for TranspilerBackend {
         // and physical memory pointer into TEMP_B
         // ------------------------------------
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
-        self.load_memory_ptr(TEMP_B);
 
         dynasm! {
             self;
@@ -1615,13 +1641,13 @@ impl MemoryInstructions for TranspilerBackend {
             // ------------------------------------
             // 3. Add the risc32 byte offset to the physical memory pointer
             // ------------------------------------
-            add Rq(TEMP_B), Rq(TEMP_A)
+            add Rq(TEMP_A), Rq(MEMORY_PTR)
         }
 
         // ------------------------------------
-        // Load the word from the RISC register into TEMP_A
+        // Load the word from the RISC register into TEMP_B
         // ------------------------------------
-        self.emit_risc_operand_load(rs2.into(), TEMP_A);
+        self.emit_risc_operand_load(rs2.into(), TEMP_B);
 
         // ------------------------------------
         // Store the word into physical memory
@@ -1630,7 +1656,7 @@ impl MemoryInstructions for TranspilerBackend {
             self;
             .arch x64;
 
-            mov QWORD [Rq(TEMP_B) + 8], Rq(TEMP_A)
+            mov QWORD [Rq(TEMP_A) + 8], Rq(TEMP_B)
         }
     }
 }
@@ -1648,10 +1674,19 @@ impl SystemInstructions for TranspilerBackend {
             mov rdi, Rq(CONTEXT)
         };
 
+        // `sp1_ecall_handler` bumps PC for syscalls. So we just need
+        // to set current PC.
+        self.update_pc(TEMP_A, self.pc_current);
+
         self.call_extern_fn_raw(self.ecall_handler as _);
 
         // The ecall returns a u64 in RAX.
-        self.emit_risc_register_store(Rq::RAX as u8, RiscRegister::X5);
+        self.emit_risc_register_store(Rq::RAX as u8, None, RiscRegister::X5);
+
+        // Add the base amount of cycles for the instruction.
+        self.bump_clk();
+
+        self.end_branch(None);
     }
 
     fn unimp(&mut self) {
@@ -1660,6 +1695,7 @@ impl SystemInstructions for TranspilerBackend {
             eprintln!("Unimplemented instruction at pc: {}", ctx.pc);
         }
 
+        self.update_pc(TEMP_A, self.pc_current);
         self.call_extern_fn(unimp);
     }
 }

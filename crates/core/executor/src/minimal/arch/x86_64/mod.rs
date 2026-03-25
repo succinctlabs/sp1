@@ -4,7 +4,7 @@ use crate::{memory::MAX_LOG_ADDR, Instruction, Opcode, Program, Register, HALT_P
 use memmap2::MmapMut;
 use sp1_jit::{
     debug, memory::AnonymousMemory, trace_capacity, DebugBackend, JitFunction, JitMemory, MemValue,
-    RiscOperand, RiscRegister, RiscvTranspiler, TraceChunkRaw, TranspilerBackend,
+    RiscOperand, RiscRegister, RiscvTranspiler, TraceChunkHeader, TraceChunkRaw, TranspilerBackend,
 };
 use std::{
     collections::VecDeque,
@@ -100,6 +100,8 @@ impl MinimalExecutor {
         let mut trace_buf = if self.trace_buf_size > 0 {
             // Mmap pages will be aligned to pages, there is no need to align
             // them for MemValue again.
+            // Re-creating trace buffer here would cause significant slowdown.
+            // While this code works, it's best to avoid it in production.
             Some(MmapMut::map_anon(self.trace_buf_size).expect("Failed to create trace buf mmap"))
         } else {
             None
@@ -116,6 +118,51 @@ impl MinimalExecutor {
         trace_buf.map(|trace_buf| unsafe {
             TraceChunkRaw::new(trace_buf.make_read_only().expect("make trace buf read only"))
         })
+    }
+
+    /// Run `MinimalExecutor` till the end, returns the count of trace chunks generated.
+    /// In normal use case, this method is defected and should not be used. In benchmarks,
+    /// this method avoids overhead from creating anonymous zero-filled memory again and
+    /// again. In a production setup, it's likely `MinimalExecutorRunner` will use ring-buffer
+    /// based shared memory trace buffer instead.
+    pub fn run_till_end(&mut self) -> usize {
+        if !self.input.is_empty() {
+            self.compiled.set_input_buffer(std::mem::take(&mut self.input));
+        }
+
+        let mut count = 0;
+        let mut trace_buf = if self.trace_buf_size > 0 {
+            // Mmap pages will be aligned to pages, there is no need to align
+            // them for MemValue again.
+            Some(MmapMut::map_anon(self.trace_buf_size).expect("Failed to create trace buf mmap"))
+        } else {
+            None
+        };
+
+        while self.pc() != 1 {
+            let trace_buf_ptr = match trace_buf {
+                Some(ref mut trace_buf) => {
+                    let p = trace_buf.as_mut_ptr();
+                    // We are reusing trace buffer, it's imperative to reset counter
+                    // befor each iteration.
+                    // trace_buf_ptr is page aligned, so casting it is fine.
+                    #[allow(clippy::cast_ptr_alignment)]
+                    unsafe {
+                        std::ptr::write_bytes(p.cast::<TraceChunkHeader>(), 0, 1);
+                    }
+                    p
+                }
+                None => std::ptr::null_mut(),
+            };
+
+            unsafe {
+                self.compiled.call(trace_buf_ptr);
+            }
+
+            count += 1;
+        }
+
+        count
     }
 
     /// Get the registers of the JIT function.

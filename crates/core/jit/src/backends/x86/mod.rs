@@ -1,13 +1,15 @@
 #![allow(clippy::fn_to_numeric_cast)]
 
 use crate::{
-    EcallHandler, JitContext, RiscOperand, RiscRegister, TraceChunkHeader, TraceCollector,
+    do_load_imm_var, do_opt_imm_var, EcallHandler, JitContext, RiscOperand, RiscRegister,
+    TraceChunkHeader, TraceCollector,
 };
 use dynasmrt::{
     dynasm,
     x64::{Assembler, Rq},
-    DynasmApi, DynasmLabelApi,
+    AssemblyOffset, DynamicLabel, DynasmApi, DynasmLabelApi,
 };
+use hashbrown::HashMap;
 use std::{
     mem::offset_of,
     ops::{Deref, DerefMut},
@@ -18,6 +20,16 @@ mod instruction_impl;
 mod tests;
 mod transpiler;
 
+// To make the best use of OOO CPUs, we define the following conventions:
+// * rdi is used by prologue code.
+// * r11 always holds the value of a0. See `Location` definition below.
+// * r8 holds `num_mem_reads` in tracing mode.
+// * r9 holds `tail_start` in tracing mode.
+// * r10 holds memory pointer.
+// * r15 holds clk or saved stack pointer when calling external functions.
+// * rsi holds global clk.
+// * TEMP_A, TEMP_B, rax, rcx, rdx, are free to used by any code sequences.
+
 /// The first scratch register.
 ///
 /// Callee-saved register.
@@ -27,6 +39,21 @@ const TEMP_A: u8 = Rq::RBX as u8;
 ///
 /// Callee-saved register.
 const TEMP_B: u8 = Rq::RBP as u8;
+
+/// `num_mem_reads` in tracing mode.
+///
+/// Caller-saved register!
+const NUM_MEM_READS: u8 = Rq::R8 as u8;
+
+/// `tail_start` in tracing mode.
+///
+/// Caller-saved register!
+const TAIL_START: u8 = Rq::R9 as u8;
+
+/// Memory pointer.
+///
+/// Caller-saved register!
+const MEMORY_PTR: u8 = Rq::R10 as u8;
 
 /// The JitContext pointer.
 ///
@@ -43,10 +70,18 @@ const JUMP_TABLE: u8 = Rq::R13 as u8;
 /// Callee-saved register.
 const TRACE_BUF: u8 = Rq::R14 as u8;
 
-/// The saved stack pointer, used during external function calls.
+/// The global clk value.
 ///
 /// Callee-saved register.
-const SAVED_STACK_PTR: u8 = Rq::R15 as u8;
+const GLOBAL_CLK: u8 = Rq::RSI as u8;
+
+/// The saved stack pointer, used during external function calls.
+///
+/// When not making external function calls, clock is hoisted to
+/// this register.
+///
+/// Callee-saved register.
+const CLOCK_OR_SAVED_STACK_PTR: u8 = Rq::R15 as u8;
 
 /// The offset of the pc in the JitContext.
 const PC_OFFSET: i32 = offset_of!(JitContext, pc) as i32;
@@ -62,6 +97,73 @@ const MEMORY_PTR_OFFSET: i32 = offset_of!(JitContext, memory) as i32;
 
 /// The offset of the registers in the JitContext.
 const REGISTERS_OFFSET: i32 = offset_of!(JitContext, registers) as i32;
+
+/// The offset of `num_mem_reads` in TraceChunkHeader.
+const NUM_MEM_READS_OFFSET: i32 = offset_of!(TraceChunkHeader, num_mem_reads) as i32;
+
+/// The offset of `tail_start` in TraceChunkHeader.
+const TAIL_START_OFFSET: i32 = std::mem::size_of::<TraceChunkHeader>() as i32;
+
+/// A RISC-V register value, when running, could be any of the following
+/// location:
+/// * Zero, meaning the register is always zero, we don't need to store the
+///   value anywhere.
+/// * Either the upper or lower 64 bits of an xmm register.
+/// * A real x86_64 general purpose register.
+///   This way we can set aside at least one xmm for actual usage.
+///
+/// It is also possible to have RISC-V registers that purely reside in memory.
+/// We might add those in the future if needed.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+enum Location {
+    Zero,
+    Xmm(u8, i8),
+    Gpr(u8),
+}
+
+/// Static lookup table for XMM register mapping.
+/// Maps RISC-V register index to their location.
+/// x0 does not need a location, a0 is stored in rdi.
+/// Each XMM register holds 2 x 64-bit values, so we can map the rest 30
+/// registers to XMM 0-14.
+/// The registers in XMM are organized based on usage: frequently used registers resides
+/// in lower 64 bits of XMM registers, while less frequently used registers reside in
+/// higher 64 bits.
+/// This way xmm15 is still available for implementing actual logic.
+const REG_LOOKUP: [Location; 32] = [
+    Location::Zero,      // Zero
+    Location::Xmm(0, 0), // ra
+    Location::Xmm(1, 0), // sp
+    Location::Xmm(0, 1), // gp
+    Location::Xmm(1, 1), // tp
+    Location::Xmm(2, 0), // t0
+    Location::Xmm(3, 0),
+    Location::Xmm(4, 0),
+    Location::Xmm(5, 0), // s0
+    Location::Xmm(6, 0),
+    Location::Gpr(Rq::R11 as u8), // a0
+    Location::Xmm(7, 0),
+    Location::Xmm(8, 0),
+    Location::Xmm(9, 0),
+    Location::Xmm(10, 0),
+    Location::Xmm(11, 0),
+    Location::Xmm(12, 0),
+    Location::Xmm(13, 0),
+    Location::Xmm(14, 0), // s2
+    Location::Xmm(2, 1),
+    Location::Xmm(3, 1),
+    Location::Xmm(4, 1),
+    Location::Xmm(5, 1),
+    Location::Xmm(6, 1),
+    Location::Xmm(7, 1),
+    Location::Xmm(8, 1),
+    Location::Xmm(9, 1),
+    Location::Xmm(10, 1),
+    Location::Xmm(11, 1), // t3
+    Location::Xmm(12, 1),
+    Location::Xmm(13, 1),
+    Location::Xmm(14, 1),
+];
 
 /// The x86 backend for JIT transpipling RISC-V instructions to x86-64, according to the
 /// [crate::SP1RiscvTranspiler] trait.
@@ -87,47 +189,79 @@ pub struct TranspilerBackend {
     instruction_started: bool,
     /// Indicate that instuction has been inserted that may cause us to early exit.
     may_early_exit: bool,
+    /// Indicate if a branch has been generated
+    branch_generated: bool,
     /// The amount to bump the clk by each cycle.
     clk_bump: u64,
+    /// Current pc as of transpiling.
+    pc_current: u64,
+    /// Register values available at transpile time.
+    reg_values: HashMap<RiscRegister, u64>,
+    /// Labels for jumping to.
+    labels: HashMap<usize, DynamicLabel>,
+    /// Program size, or instruction count
+    program_size: usize,
 }
 
 impl TraceCollector for TranspilerBackend {
     fn trace_registers(&mut self) {
         for reg in RiscRegister::all_registers().iter() {
-            let (xmm_index, xmm_offset) = Self::get_xmm_index(*reg);
             let value_byte_offset = *reg as u32 * 8;
 
-            dynasm! {
-                self;
-                .arch x64;
+            match Self::get_xmm_index(*reg) {
+                Location::Zero => {
+                    dynasm! {
+                        self;
+                        .arch x64;
 
-                pextrq [Rq(TRACE_BUF) + value_byte_offset as i32], Rx(xmm_index), xmm_offset
-            };
+                        mov QWORD [Rq(TRACE_BUF) + value_byte_offset as i32], 0
+                    };
+                }
+                Location::Xmm(xmm_index, xmm_offset) => {
+                    dynasm! {
+                        self;
+                        .arch x64;
+
+                        pextrq [Rq(TRACE_BUF) + value_byte_offset as i32], Rx(xmm_index), xmm_offset
+                    };
+                }
+                Location::Gpr(gpr_index) => {
+                    dynasm! {
+                        self;
+                        .arch x64;
+
+                        mov QWORD [Rq(TRACE_BUF) + value_byte_offset as i32], Rq(gpr_index)
+                    };
+                }
+            }
         }
     }
 
     /// Write the value at [rs1 + imm] into the trace buffer.
     fn trace_mem_value(&mut self, rs1: RiscRegister, imm: u64) {
-        const TAIL_START_OFFSET: i32 = std::mem::size_of::<TraceChunkHeader>() as i32;
-        const NUM_MEM_READS_OFFSET: i32 = offset_of!(TraceChunkHeader, num_mem_reads) as i32;
         const IS_UNCONSTRAINED_OFFSET: i32 = offset_of!(JitContext, is_unconstrained) as i32;
 
         // Load the value, assumed to be of a memory read, into TEMP_A.
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
-        self.load_memory_ptr(TEMP_B);
 
         dynasm! {
             self;
             .arch x64;
 
             // Check if were in unconstrained mode.
-            cmp QWORD [Rq(CONTEXT) + IS_UNCONSTRAINED_OFFSET], 1;
-            je >done;
+            mov rcx, QWORD [Rq(CONTEXT) + IS_UNCONSTRAINED_OFFSET];
+            cmp rcx, 1;
+            je >done
+        }
 
-            // ------------------------------------
-            // Compute the address to load from.
-            // ------------------------------------
-            add Rq(TEMP_A), imm as i32;
+        // ------------------------------------
+        // Compute the address to load from.
+        // ------------------------------------
+        do_opt_imm_var!(self, add, TEMP_A, imm);
+
+        dynasm! {
+            self;
+            .arch x64;
 
             // ------------------------------------
             // Align to the start of the word.
@@ -135,49 +269,28 @@ impl TraceCollector for TranspilerBackend {
             and Rq(TEMP_A), -8;
 
             // ------------------------------------
-            // Scale by the entry size.
+            // Scale by the entry size. Add the
+            // physical memory pointer.
             // ------------------------------------
-            shl Rq(TEMP_A), 1;
+            lea Rq(TEMP_A), [Rq(MEMORY_PTR) + Rq(TEMP_A) * 2];
 
             // ------------------------------------
-            // Add the physical memory pointer.
-            // ------------------------------------
-            add Rq(TEMP_A), Rq(TEMP_B);
-
-            // ------------------------------------
-            // Compute the pointer to the tail
-            // and store into `rax`.
-            // ------------------------------------
-            mov rax, QWORD [Rq(TRACE_BUF) + NUM_MEM_READS_OFFSET];
-            shl rax, 4; // scale by the size of a `MemValue`.
-            add rax, TAIL_START_OFFSET;
-            add rax, Rq(TRACE_BUF);
-
-            // ------------------------------------
-            // Load the clk from the memory entry into TEMP_B
-            // and store it into the tail.
-            // ------------------------------------
-            mov Rq(TEMP_B), QWORD [Rq(TEMP_A)];
-            mov [rax], Rq(TEMP_B);
-
-            // ------------------------------------
+            // Load the clk & word from the memory entry into the tail.
             // Bump the current clk in the memory entry.
+            //
+            // The code is written to minimize split RMW
             // ------------------------------------
-            mov Rq(TEMP_B), QWORD [Rq(CONTEXT) + CLK_OFFSET];
-            add Rq(TEMP_B), 1;
-            mov [Rq(TEMP_A)], Rq(TEMP_B);
-
-            // ------------------------------------
-            // Load the word into TEMP_B
-            // and store it into the tail.
-            // ------------------------------------
-            mov Rq(TEMP_B), QWORD [Rq(TEMP_A) + 8];
-            mov [rax + 8], Rq(TEMP_B);
+            movdqu xmm15, [Rq(TEMP_A)];
+            movdqu [Rq(TAIL_START)], xmm15;
+            mov rdx, Rq(CLOCK_OR_SAVED_STACK_PTR);
+            add rdx, 1;
+            mov [Rq(TEMP_A)], rdx;
 
             // ------------------------------------
             // Increment the num mem reads, since weve pushed into it.
             // ------------------------------------
-            add QWORD [Rq(TRACE_BUF) + NUM_MEM_READS_OFFSET], 1;
+            add Rq(NUM_MEM_READS), 1;
+            add Rq(TAIL_START), 16;
 
             done:
         }
@@ -236,35 +349,34 @@ impl TranspilerBackend {
             return;
         }
 
-        let num_mem_reads_offset = offset_of!(TraceChunkHeader, num_mem_reads) as i32;
         let threshold_mem_reads = max_trace_size;
 
+        // Load threshold
+        do_load_imm_var!(self, TEMP_B, threshold_mem_reads);
         dynasm! {
             self;
             .arch x64;
 
             // ------------------------------------
-            // 1. Load num_mem_reads from trace buffer
-            // ------------------------------------
-            mov Rq(TEMP_A), [Rq(TRACE_BUF) + num_mem_reads_offset];
-
-            // ------------------------------------
-            // 2. Check if num_mem_reads is 0 (skip exit at beginning)
-            // ------------------------------------
-            test Rq(TEMP_A), Rq(TEMP_A);
-            jz >skip_exit;  // If num_mem_reads == 0, skip the exit check
-
-            // ------------------------------------
             // 3. Check if num_mem_reads >= 90% of max_mem_reads
             // ------------------------------------
-            mov Rq(TEMP_B), QWORD threshold_mem_reads as i64;  // Load threshold
-            cmp Rq(TEMP_A), Rq(TEMP_B);  // Compare num_mem_reads with threshold
+            cmp r8, Rq(TEMP_B);  // Compare num_mem_reads with threshold
 
             // ------------------------------------
-            // 4. If num_mem_reads >= threshold, return
+            // 4. If num_mem_reads >= threshold, set PC and return
             // ------------------------------------
-            jae ->exit;  // Jump if above or equal (unsigned comparison)
-            skip_exit:
+            jb >done  // Jump if below (unsigned comparison)
+        }
+
+        // Set PC address before exiting
+        self.update_pc(TEMP_A, self.pc_current + 4);
+        dynasm! {
+            self;
+            .arch x64;
+
+            jmp ->exit;
+
+            done:
         }
     }
 
@@ -292,7 +404,7 @@ impl TranspilerBackend {
             push Rq(CONTEXT);
             push Rq(JUMP_TABLE);
             push Rq(TRACE_BUF);
-            push Rq(SAVED_STACK_PTR);
+            push Rq(CLOCK_OR_SAVED_STACK_PTR);
 
             // Save some useful pointers to non-volatile registers so we can use them in ASM easily.
             mov Rq(JUMP_TABLE), [rdi + jump_table_offset];
@@ -304,11 +416,19 @@ impl TranspilerBackend {
         // For each register from the context, lets load it into a phyiscal register.
         self.load_registers_from_context();
 
+        // Hoist memory pointer to register
+        self.load_memory_ptr();
+
         if self.tracing() {
             self.trace_pc_start();
             self.trace_clk_start();
             self.trace_registers();
+
+            self.hoist_trace_pointers();
         }
+
+        // Hoist clock to register
+        self.hoist_clock();
 
         // Its possible that enter back into the function with a non-zero PC.
         self.jump_to_pc();
@@ -335,7 +455,12 @@ impl TranspilerBackend {
             ->exit:
         }
 
+        // Write clock back to memory
+        self.write_back_clock();
+
         if self.tracing() {
+            self.write_back_trace_pointers();
+
             self.trace_clk_end();
         }
 
@@ -347,7 +472,7 @@ impl TranspilerBackend {
             .arch x64;
 
             // Restore the callee saved registers.
-            pop Rq(SAVED_STACK_PTR);
+            pop Rq(CLOCK_OR_SAVED_STACK_PTR);
             pop Rq(TRACE_BUF);
             pop Rq(JUMP_TABLE);
             pop Rq(CONTEXT);
@@ -356,34 +481,73 @@ impl TranspilerBackend {
 
             ret
         };
+
+        // Define all used jump target labels
+        for (index, label) in &self.labels {
+            self.inner
+                .labels_mut()
+                .define_dynamic(*label, AssemblyOffset(self.jump_table[*index]))
+                .expect("define dynamic label");
+        }
     }
 
     fn save_registers_to_context(&mut self) {
         for reg in RiscRegister::all_registers().iter() {
-            let (xmm_index, xmm_offset) = Self::get_xmm_index(*reg);
             let value_byte_offset = *reg as u32 * 8;
 
-            dynasm! {
-                self;
-                .arch x64;
+            match Self::get_xmm_index(*reg) {
+                Location::Zero => {
+                    dynasm! {
+                        self;
+                        .arch x64;
 
-                pextrq [Rq(CONTEXT) + REGISTERS_OFFSET + value_byte_offset as i32], Rx(xmm_index), xmm_offset
-            };
+                        mov QWORD [Rq(CONTEXT) + REGISTERS_OFFSET + value_byte_offset as i32], 0
+                    };
+                }
+                Location::Xmm(xmm_index, xmm_offset) => {
+                    dynasm! {
+                        self;
+                        .arch x64;
+
+                        pextrq [Rq(CONTEXT) + REGISTERS_OFFSET + value_byte_offset as i32], Rx(xmm_index), xmm_offset
+                    };
+                }
+                Location::Gpr(gpr_index) => {
+                    dynasm! {
+                        self;
+                        .arch x64;
+
+                        mov QWORD [Rq(CONTEXT) + REGISTERS_OFFSET + value_byte_offset as i32], Rq(gpr_index)
+                    };
+                }
+            }
         }
     }
 
     fn load_registers_from_context(&mut self) {
         // For each register from the context, lets load it into a phyiscal register.
         for reg in RiscRegister::all_registers().iter() {
-            let (xmm_index, xmm_offset) = Self::get_xmm_index(*reg);
             let value_byte_offset = *reg as u32 * 8;
 
-            dynasm! {
-                self;
-                .arch x64;
+            match Self::get_xmm_index(*reg) {
+                Location::Zero => (),
+                Location::Xmm(xmm_index, xmm_offset) => {
+                    dynasm! {
+                        self;
+                        .arch x64;
 
-                pinsrq Rx(xmm_index), [Rq(CONTEXT) + REGISTERS_OFFSET + value_byte_offset as i32], xmm_offset
-            };
+                        pinsrq Rx(xmm_index), [Rq(CONTEXT) + REGISTERS_OFFSET + value_byte_offset as i32], xmm_offset
+                    };
+                }
+                Location::Gpr(gpr_index) => {
+                    dynasm! {
+                        self;
+                        .arch x64;
+
+                        mov Rq(gpr_index), QWORD [Rq(CONTEXT) + REGISTERS_OFFSET + value_byte_offset as i32]
+                    };
+                }
+            }
         }
     }
 
@@ -395,8 +559,8 @@ impl TranspilerBackend {
     /// NOTE: This aliases the full 64 bits of the register.
     fn emit_risc_operand_load(&mut self, op: RiscOperand, dst: u8) {
         match op {
-            RiscOperand::Register(reg) => match reg {
-                RiscRegister::X0 => {
+            RiscOperand::Register(reg) => match Self::get_xmm_index(reg) {
+                Location::Zero => {
                     dynasm! {
                         self;
                         .arch x64;
@@ -404,15 +568,34 @@ impl TranspilerBackend {
                         mov Rq(dst), 0_i32 // load 0 into dst
                     };
                 }
-                _ => {
-                    let (xmm_index, xmm_offset) = Self::get_xmm_index(reg);
+                Location::Xmm(xmm_index, xmm_offset) => {
+                    // For the lower 64-bit value, we can use movq which completes in 1 cycle,
+                    // typically pextrq would need 2 - 3 cycles.
+                    if xmm_offset == 0 {
+                        dynasm! {
+                            self;
+                            .arch x64;
 
-                    dynasm! {
-                        self;
-                        .arch x64;
+                            movq Rq(dst), Rx(xmm_index) // load lower 64-bit value from XMM
+                        };
+                    } else {
+                        dynasm! {
+                            self;
+                            .arch x64;
 
-                        pextrq Rq(dst), Rx(xmm_index), xmm_offset // load 64-bit value from XMM
-                    };
+                            pextrq Rq(dst), Rx(xmm_index), xmm_offset // load 64-bit value from XMM
+                        };
+                    }
+                }
+                Location::Gpr(gpr_index) => {
+                    if gpr_index != dst {
+                        dynasm! {
+                            self;
+                            .arch x64;
+
+                            mov Rq(dst), Rq(gpr_index)
+                        };
+                    }
                 }
             },
             RiscOperand::Immediate(imm) => {
@@ -427,61 +610,52 @@ impl TranspilerBackend {
     }
 
     /// Store the value from the general purpose register into the corresponding XMM register.
+    /// There can be 2 types of value:
+    /// * When value comes from x86_64 register, `src_or_temp` contains the register, `imm` is `None`;
+    /// * When value is known at transpile time, `imm` contains the value, `src_or_temp` works as a
+    ///   temporary register.
+    ///
+    /// TODO: should we combine `src_or_temp` and `imm` into a type?
     ///
     /// Note: This stores the full 64 bits of the register.
     #[inline]
-    fn emit_risc_register_store(&mut self, src: u8, dst: RiscRegister) {
-        if dst == RiscRegister::X0 {
+    fn emit_risc_register_store(&mut self, src_or_temp: u8, imm: Option<u64>, dst: RiscRegister) {
+        match (Self::get_xmm_index(dst), imm) {
             // x0 is hardwired to 0 in RISC-V, ignore stores to it.
-            return;
+            (Location::Zero, _) => (),
+            (Location::Xmm(xmm_index, xmm_offset), None) => {
+                self.reg_values.remove(&dst);
+                dynasm! {
+                    self;
+                    .arch x64;
+                    pinsrq Rx(xmm_index), Rq(src_or_temp), xmm_offset
+                };
+            }
+            (Location::Xmm(xmm_index, xmm_offset), Some(imm)) => {
+                self.reg_values.insert(dst, imm);
+                do_load_imm_var!(self, src_or_temp, imm);
+                dynasm! {
+                    self;
+                    .arch x64;
+                    pinsrq Rx(xmm_index), Rq(src_or_temp), xmm_offset
+                };
+            }
+            (Location::Gpr(gpr_index), None) => {
+                self.reg_values.remove(&dst);
+                if gpr_index != src_or_temp {
+                    dynasm! {
+                        self;
+                        .arch x64;
+                        mov Rq(gpr_index), Rq(src_or_temp)
+                    };
+                }
+            }
+            (Location::Gpr(gpr_index), Some(imm)) => {
+                self.reg_values.insert(dst, imm);
+                do_load_imm_var!(self, gpr_index, imm);
+            }
         }
-
-        let (xmm_index, xmm_offset) = Self::get_xmm_index(dst);
-
-        dynasm! {
-            self;
-            .arch x64;
-            pinsrq Rx(xmm_index), Rq(src), xmm_offset
-        };
     }
-
-    /// Static lookup table for XMM register mapping.
-    /// Maps RISC-V register index to (XMM index, XMM offset).
-    /// Each XMM register holds 2 x 64-bit values, so we map registers 0-31 to XMM 0-15.
-    const XMM_LOOKUP: [(u8, i8); 32] = [
-        (0, 0),
-        (0, 1),
-        (1, 0),
-        (1, 1),
-        (2, 0),
-        (2, 1),
-        (3, 0),
-        (3, 1),
-        (4, 0),
-        (4, 1),
-        (5, 0),
-        (5, 1),
-        (6, 0),
-        (6, 1),
-        (7, 0),
-        (7, 1),
-        (8, 0),
-        (8, 1),
-        (9, 0),
-        (9, 1),
-        (10, 0),
-        (10, 1),
-        (11, 0),
-        (11, 1),
-        (12, 0),
-        (12, 1),
-        (13, 0),
-        (13, 1),
-        (14, 0),
-        (14, 1),
-        (15, 0),
-        (15, 1),
-    ];
 
     /// Get XMM index and offset for the given register using static lookup.
     ///
@@ -489,8 +663,8 @@ impl TranspilerBackend {
     /// Each XMM register can hold 2 x 64-bit values.
     /// We map a register to an index in the range `[0, 15]` and an offset in the range `[0, 1]`.
     #[inline]
-    const fn get_xmm_index(reg: RiscRegister) -> (u8, i8) {
-        Self::XMM_LOOKUP[reg as usize]
+    const fn get_xmm_index(reg: RiscRegister) -> Location {
+        REG_LOOKUP[reg as usize]
     }
 
     /// Call an external function, assumes that the arguments are already in the correct registers.
@@ -498,6 +672,10 @@ impl TranspilerBackend {
     fn call_extern_fn_raw(&mut self, fn_ptr: usize) {
         // Before the call, save all the registers to the context.
         self.save_registers_to_context();
+        if self.tracing() {
+            self.write_back_trace_pointers();
+        }
+        self.write_back_clock();
 
         // We need to save the caller-saved registers before we make any calls,
         // then restore them after the call.
@@ -506,7 +684,7 @@ impl TranspilerBackend {
             .arch x64;
 
             // Save the original stack pointer
-            mov Rq(SAVED_STACK_PTR), rsp;
+            mov Rq(CLOCK_OR_SAVED_STACK_PTR), rsp;
 
             // Align the stack to 16 bytes for the call
             lea rsp, [rsp - 8]; // sub 8 from the rsp
@@ -519,9 +697,14 @@ impl TranspilerBackend {
             call rax;
 
             // Restore the original stack pointer
-            mov rsp, Rq(SAVED_STACK_PTR)
+            mov rsp, Rq(CLOCK_OR_SAVED_STACK_PTR)
         }
 
+        if self.tracing() {
+            self.hoist_trace_pointers();
+        }
+        self.hoist_clock();
+        self.load_memory_ptr();
         self.load_registers_from_context();
     }
 
@@ -538,16 +721,66 @@ impl TranspilerBackend {
     }
 
     #[inline]
-    fn load_memory_ptr(&mut self, src: u8) {
+    fn load_memory_ptr(&mut self) {
         dynasm! {
             self;
             .arch x64;
-            mov Rq(src), QWORD [Rq(CONTEXT) + MEMORY_PTR_OFFSET]
+            mov Rq(MEMORY_PTR), QWORD [Rq(CONTEXT) + MEMORY_PTR_OFFSET]
+        }
+    }
+
+    #[inline]
+    fn hoist_trace_pointers(&mut self) {
+        dynasm! {
+            self;
+            .arch x64;
+
+            mov Rq(NUM_MEM_READS), QWORD [Rq(TRACE_BUF) + NUM_MEM_READS_OFFSET];
+            lea Rq(TEMP_B), [Rq(NUM_MEM_READS) * 8];
+            lea Rq(TAIL_START), [Rq(TRACE_BUF) + Rq(TEMP_B) * 2 + TAIL_START_OFFSET]
+        }
+    }
+
+    #[inline]
+    fn write_back_trace_pointers(&mut self) {
+        dynasm! {
+            self;
+            .arch x64;
+
+            // Only `num_mem_reads` needs writeback
+            mov QWORD [Rq(TRACE_BUF) + NUM_MEM_READS_OFFSET], Rq(NUM_MEM_READS)
+        }
+    }
+
+    #[inline]
+    fn hoist_clock(&mut self) {
+        let global_clk_offset = offset_of!(JitContext, global_clk) as i32;
+
+        dynasm! {
+            self;
+            .arch x64;
+
+            mov Rq(CLOCK_OR_SAVED_STACK_PTR), QWORD [Rq(CONTEXT) + CLK_OFFSET];
+            mov Rq(GLOBAL_CLK), QWORD [Rq(CONTEXT) + global_clk_offset]
+        }
+    }
+
+    #[inline]
+    fn write_back_clock(&mut self) {
+        let global_clk_offset = offset_of!(JitContext, global_clk) as i32;
+
+        dynasm! {
+            self;
+            .arch x64;
+
+            mov QWORD [Rq(CONTEXT) + CLK_OFFSET], Rq(CLOCK_OR_SAVED_STACK_PTR);
+            mov QWORD [Rq(CONTEXT) + global_clk_offset], Rq(GLOBAL_CLK)
         }
     }
 
     /// Bump the pc by the given amount.
     #[inline]
+    #[cfg(test)]
     fn bump_pc(&mut self, amt: u32) {
         let pc_offset = offset_of!(JitContext, pc) as i32;
 
@@ -557,6 +790,37 @@ impl TranspilerBackend {
 
             add QWORD [Rq(CONTEXT) + pc_offset], amt as i32
         }
+    }
+
+    /// Update pc value
+    #[inline]
+    fn update_pc(&mut self, temp_reg: u8, pc: u64) {
+        do_load_imm_var!(self, temp_reg, pc);
+        dynasm! {
+            self;
+            .arch x64;
+
+            mov QWORD [Rq(CONTEXT) + PC_OFFSET], Rq(temp_reg)
+        }
+    }
+
+    /// Find or create a label for given target PC address.
+    #[inline]
+    fn label_for_pc(&mut self, target: u64) -> Option<DynamicLabel> {
+        if target < self.pc_base
+            || target >= self.pc_base + self.program_size as u64 * 4
+            || (!target.is_multiple_of(4))
+        {
+            return None;
+        }
+        let index = (target - self.pc_base) as usize / 4;
+
+        if let Some(label) = self.labels.get(&index) {
+            return Some(*label);
+        }
+        let label = self.inner.new_dynamic_label();
+        self.labels.insert(index, label);
+        Some(label)
     }
 
     /// Looks up into the jump table and executes a jump.
@@ -595,7 +859,7 @@ impl TranspilerBackend {
             // ------------------------------------
             // Add the amount to the clk field in the context.
             // ------------------------------------
-            add QWORD [Rq(CONTEXT) + CLK_OFFSET], clk_bump;
+            add Rq(CLOCK_OR_SAVED_STACK_PTR), clk_bump;
 
             // ------------------------------------
             // Add to global_clk based on is_unconstrained:
@@ -610,7 +874,39 @@ impl TranspilerBackend {
             xor Rq(TEMP_A), 1;
 
             // Add the inverted value to global_clk
-            add QWORD [Rq(CONTEXT) + GLOBAL_CLK_OFFSET], Rq(TEMP_A)
+            add Rq(GLOBAL_CLK), Rq(TEMP_A)
+        }
+    }
+
+    fn end_branch(&mut self, jump_target: Option<u64>) {
+        self.branch_generated = true;
+
+        // Branch instructions bump clock as they see fit, we don't bump
+        // the clock here for them.
+
+        // If we have a control flow instruction that may early exit, we need to check if the
+        // trace size has been exceeded.
+        if self.may_early_exit {
+            self.exit_if_trace_exceeds(self.max_trace_size);
+        }
+
+        let mut handled = false;
+        if let Some(target_pc) = jump_target {
+            if let Some(label) = self.label_for_pc(target_pc) {
+                // When the target address is known and is a valid address,
+                // we can simplify jumping.
+                dynasm! {
+                    self;
+                    .arch x64;
+
+                    jmp =>label
+                }
+
+                handled = true;
+            }
+        }
+        if !handled {
+            self.jump_to_pc();
         }
     }
 }
