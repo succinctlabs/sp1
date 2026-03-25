@@ -1,9 +1,10 @@
 use futures::{stream::FuturesUnordered, StreamExt};
 use slop_futures::pipeline::{AsyncEngine, AsyncWorker, Pipeline, SubmitHandle};
 use sp1_core_executor::{
-    ExecutionError, ExecutionReport, GasEstimatingVM, MinimalExecutor, Program, SP1Context,
-    SP1CoreOpts, SP1RecursionProof,
+    ExecutionError, ExecutionReport, GasEstimatingVM, Program, SP1Context, SP1CoreOpts,
+    SP1RecursionProof,
 };
+use sp1_core_executor_runner::MinimalExecutorRunner;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_hypercube::air::PROOF_NONCE_NUM_WORDS;
 use sp1_hypercube::{MachineVerifyingKey, SP1PcsProofInner, SP1VerifyingKey};
@@ -151,6 +152,8 @@ pub async fn execute_with_options(
     let max_cycles = context.max_cycles;
     let minimal_trace_chunk_threshold =
         if context.calculate_gas { Some(opts.minimal_trace_chunk_threshold) } else { None };
+    let memory_limit = opts.memory_limit;
+    let trace_chunk_slots = opts.trace_chunk_slots;
     let gas_engine =
         initialize_gas_engine(&executor_config, program.clone(), nonce, opts, calculate_gas);
 
@@ -161,8 +164,13 @@ pub async fn execute_with_options(
         });
     }
 
-    let mut minimal_executor =
-        MinimalExecutor::new(program.clone(), false, minimal_trace_chunk_threshold);
+    let mut minimal_executor = MinimalExecutorRunner::new(
+        program.clone(),
+        false,
+        minimal_trace_chunk_threshold,
+        memory_limit,
+        trace_chunk_slots,
+    );
 
     // Feed stdin buffers to the executor
     for buf in buffer {
@@ -219,7 +227,10 @@ pub async fn execute_with_options(
     // Spawn a blocking task to run the minimal executor.
     let final_vm_state_clone = final_vm_state.clone();
     join_set.spawn_blocking(move || {
-        while let Some(chunk) = minimal_executor.execute_chunk() {
+        while let Some(chunk) = minimal_executor
+            .try_execute_chunk()
+            .map_err(|e| anyhow::anyhow!("Execute chunk failed: {e}"))?
+        {
             let handle = gas_engine
                 .blocking_submit(GasExecutingTask {
                     chunk,
@@ -288,7 +299,7 @@ pub async fn execute_with_options(
         }
     }
 
-    // Merge cycle tracker data from MinimalExecutor into the final report
+    // Merge cycle tracker data from MinimalExecutorRunner into the final report
     // This must happen after all tasks complete to avoid race conditions
     #[cfg(feature = "profiling")]
     if let Some((cycle_tracker, invocation_tracker)) = cycle_tracker_data {

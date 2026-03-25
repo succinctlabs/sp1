@@ -96,6 +96,13 @@ pub struct BuildArgs {
 
     #[arg(long, value_enum, default_value = "all", help = "Control warning message verbosity")]
     pub warning_level: WarningLevel,
+
+    #[arg(
+        long,
+        action,
+        help = "Disable Docker volume caching for cargo registry and git dependencies."
+    )]
+    pub no_docker_cache: bool,
 }
 
 // Implement default args to match clap defaults.
@@ -116,6 +123,7 @@ impl Default for BuildArgs {
             no_default_features: false,
             workspace_directory: None,
             warning_level: WarningLevel::All,
+            no_docker_cache: false,
         }
     }
 }

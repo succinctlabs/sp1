@@ -9,11 +9,11 @@ use crate::{
     vm::{
         memory::CompressedMemory,
         results::{CycleResult, LoadResult, StoreResult},
-        shapes::ShapeChecker,
+        shapes::{ShapeChecker, HALT_AREA, HALT_HEIGHT},
         syscall::SyscallRuntime,
         CoreVM,
     },
-    ExecutionError, Instruction, Opcode, Program, SP1CoreOpts, SyscallCode,
+    ExecutionError, Instruction, Opcode, Program, SP1CoreOpts, ShardingThreshold, SyscallCode,
 };
 
 /// A RISC-V VM that uses a [`MinimalTrace`] to create multiple [`SplicedMinimalTrace`]s.
@@ -170,11 +170,22 @@ impl<'a> SplicingVM<'a> {
         opts: SP1CoreOpts,
     ) -> Self {
         let program_len = program.instructions.len() as u64;
-        let sharding_threshold = opts.sharding_threshold;
+        let ShardingThreshold { element_threshold, height_threshold } = opts.sharding_threshold;
+        assert!(
+            element_threshold >= HALT_AREA && height_threshold >= HALT_HEIGHT,
+            "invalid sharding threshold"
+        );
         Self {
             core: CoreVM::new(trace, program, opts, proof_nonce),
             touched_addresses,
-            shape_checker: ShapeChecker::new(program_len, trace.clk_start(), sharding_threshold),
+            shape_checker: ShapeChecker::new(
+                program_len,
+                trace.clk_start(),
+                ShardingThreshold {
+                    element_threshold: element_threshold - HALT_AREA,
+                    height_threshold: height_threshold - HALT_HEIGHT,
+                },
+            ),
         }
     }
 

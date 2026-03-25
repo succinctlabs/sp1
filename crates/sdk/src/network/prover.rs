@@ -68,10 +68,7 @@ impl Prover for NetworkProver {
     }
 
     fn prove<'a>(&'a self, pk: &'a Self::ProvingKey, stdin: SP1Stdin) -> Self::ProveRequest<'a> {
-        #[cfg(feature = "reserved-capacity")]
-        let strategy = FulfillmentStrategy::Reserved;
-        #[cfg(not(feature = "reserved-capacity"))]
-        let strategy = FulfillmentStrategy::Auction;
+        let strategy = self.default_fulfillment_strategy();
 
         NetworkProveBuilder {
             base: BaseProveRequest::new(self, pk, stdin),

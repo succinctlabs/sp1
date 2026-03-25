@@ -1,0 +1,39 @@
+name: Groth16 and Plonk tests
+
+on:
+  workflow_dispatch:
+
+jobs:
+  gnark:
+    runs-on: [runs-on, runner=64cpu-linux-x64, spot=false, disk=large, "run-id=${{ github.run_id }}"]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: groth16-native
+            run: cargo test --release -p sp1-sdk --features native-gnark --features slow-tests -- test_e2e_groth16 --nocapture
+          - name: plonk-native
+            run: cargo test --release -p sp1-sdk --features native-gnark --features slow-tests -- test_e2e_plonk --nocapture
+          - name: groth16-docker
+            run: cargo test --release -p sp1-sdk --features slow-tests -- test_e2e_groth16 --nocapture
+          - name: plonk-docker
+            run: cargo test --release -p sp1-sdk --features slow-tests -- test_e2e_plonk --nocapture
+
+    name: ${{ matrix.name }}
+    steps:
+    - name: Checkout sources
+      uses: actions/checkout@v6
+
+    - name: Setup CI
+      uses: ./.github/actions/setup
+      with:
+        pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+
+    - name: Install SP1 toolchain from repo
+      run: cargo run -p sp1-cli --no-default-features -- prove install-toolchain
+
+    - name: Run cargo test
+      env:
+        RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
+        RUST_BACKTRACE: 1
+      run: ${{ matrix.run }}

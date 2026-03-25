@@ -25,7 +25,7 @@ async fn main() {
     let args = Args::parse();
 
     if args.version {
-        println!("{}", sp1_primitives::SP1_VERSION);
+        println!("{}", sp1_primitives::SP1_CRATE_VERSION);
         return;
     }
 

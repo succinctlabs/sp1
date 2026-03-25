@@ -1,4 +1,4 @@
-#![cfg_attr(not(target_os = "linux"), allow(unused))]
+#![cfg_attr(not(sp1_native_executor_available), allow(unused))]
 
 #[cfg(not(target_endian = "little"))]
 compile_error!("This crate is only supported on little endian targets.");
@@ -8,14 +8,16 @@ pub mod context;
 pub mod debug;
 pub mod instructions;
 mod macros;
+pub mod memory;
 pub mod risc;
+pub mod shm;
 
 use dynasmrt::ExecutableBuffer;
 use hashbrown::HashMap;
-use memmap2::{MmapMut, MmapOptions};
 use std::{
     collections::VecDeque,
     io,
+    ops::{Deref, DerefMut},
     os::fd::AsRawFd,
     ptr::NonNull,
     sync::{mpsc, Arc},
@@ -133,7 +135,7 @@ pub trait RiscvTranspiler:
     /// Returns the function pointer to the generated code.
     ///
     /// This function is expected to be of the form: `fn(*mut JitContext)`.
-    fn finalize(self) -> io::Result<JitFunction>;
+    fn finalize<M: JitMemory>(self) -> io::Result<JitFunction<M>>;
 }
 
 /// A trait the collects traces, in the form [TraceChunk].
@@ -162,6 +164,16 @@ pub trait Debuggable {
     fn print_ctx(&mut self);
 }
 
+/// A trait representing JIT memory.
+pub trait JitMemory: Sized + Deref<Target = [u8]> + DerefMut + AsRawFd {
+    fn new(memory_size: usize) -> Self;
+}
+
+/// A JIT memory that is also resetable
+pub trait JitResetableMemory: JitMemory {
+    fn reset(&mut self);
+}
+
 impl<T: RiscvTranspiler> Debuggable for T {
     // Useful only for debugging.
     fn print_ctx(&mut self) {
@@ -176,17 +188,18 @@ impl<T: RiscvTranspiler> Debuggable for T {
     }
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(sp1_native_executor_available))]
 /// Stub implementation for non-linux targets to compile.
-pub struct JitFunction {}
+pub struct JitFunction<M> {
+    _marker: std::marker::PhantomData<M>,
+}
 
 /// A type representing a JIT compiled function.
 ///
 /// The underlying function should be of the form [`fn(*mut JitContext)`].
-#[cfg(target_os = "linux")]
-pub struct JitFunction {
+#[cfg(sp1_native_executor_available)]
+pub struct JitFunction<M> {
     jump_table: Vec<*const u8>,
-    trace_buf_size: usize,
     code: ExecutableBuffer,
 
     /// The initial memory image.
@@ -197,17 +210,13 @@ pub struct JitFunction {
     /// A stream of public values from the program (global to entire program).
     pub public_values_stream: Vec<u8>,
 
-    /// Keep around the memfd, and pass it to the JIT context,
-    /// we can use this to create the COW memory at runtime.
-    mem_fd: memfd::Memfd,
+    /// Memory structure,
+    pub memory: M,
 
     /// During execution, the hints are read by the program, and we store them here.
     /// This is effectively a mapping from start address to the value of the hint.
     pub hints: Vec<(u64, Vec<u8>)>,
 
-    /// The JIT function may stop "in the middle" of an program,
-    /// we want to be able to resume it, so this is the information needed to do so.
-    pub memory: MmapMut,
     pub pc: u64,
     pub registers: [u64; 32],
     pub clk: u64,
@@ -217,15 +226,14 @@ pub struct JitFunction {
     pub debug_sender: Option<mpsc::SyncSender<Option<debug::State>>>,
 }
 
-unsafe impl Send for JitFunction {}
+unsafe impl<M: Send> Send for JitFunction<M> {}
 
-#[cfg(target_os = "linux")]
-impl JitFunction {
+#[cfg(sp1_native_executor_available)]
+impl<M: JitMemory> JitFunction<M> {
     pub(crate) fn new(
         code: ExecutableBuffer,
         jump_table: Vec<usize>,
         memory_size: usize,
-        trace_buf_size: usize,
         pc_start: u64,
     ) -> std::io::Result<Self> {
         // Adjust the jump table to be absolute addresses.
@@ -233,18 +241,12 @@ impl JitFunction {
         let jump_table =
             jump_table.into_iter().map(|offset| unsafe { buf_ptr.add(offset) }).collect();
 
-        let fd = memfd::MemfdOptions::default()
-            .create(uuid::Uuid::new_v4().to_string())
-            .expect("Failed to create jit memory");
-
-        fd.as_file().set_len((memory_size + std::mem::align_of::<u64>()) as u64)?;
+        let memory = M::new(memory_size);
 
         Ok(Self {
             jump_table,
             code,
-            memory: unsafe { MmapOptions::new().no_reserve_swap().map_mut(fd.as_file())? },
-            mem_fd: fd,
-            trace_buf_size,
+            memory,
             pc: pc_start,
             clk: 1,
             global_clk: 0,
@@ -313,24 +315,17 @@ impl JitFunction {
     /// # SAFETY
     /// Relies on the builder to emit valid assembly
     /// and that the pointer is valid for the duration of the function call.
-    pub unsafe fn call(&mut self) -> Option<TraceChunkRaw> {
+    pub unsafe fn call(&mut self, trace_buf_ptr: *mut u8) {
         if self.pc == 1 {
-            return None;
+            return;
         }
 
         let as_fn = std::mem::transmute::<*const u8, fn(*mut JitContext)>(self.code.as_ptr());
 
-        // Ensure the pointer is aligned to the alignment of the MemValue.
-        let mut trace_buf =
-            MmapMut::map_anon(self.trace_buf_size + std::mem::align_of::<MemValue>())
-                .expect("Failed to create trace buf mmap");
-        let trace_buf_offset = trace_buf.as_ptr().align_offset(std::mem::align_of::<MemValue>());
-        let trace_buf_ptr = trace_buf.as_mut_ptr().add(trace_buf_offset);
-
         // Ensure the memory pointer is aligned to the alignment of the u64.
         let align_offset = self.memory.as_ptr().align_offset(std::mem::align_of::<u64>());
         let mem_ptr = self.memory.as_mut_ptr().add(align_offset);
-        let tracing = self.trace_buf_size > 0;
+        let tracing = !trace_buf_ptr.is_null();
 
         // SAFETY:
         // - The jump table is valid for the duration of the function call, its owned by self.
@@ -340,12 +335,12 @@ impl JitFunction {
         let mut ctx = JitContext {
             jump_table: NonNull::new_unchecked(self.jump_table.as_mut_ptr()),
             memory: NonNull::new_unchecked(mem_ptr),
-            trace_buf: NonNull::new_unchecked(trace_buf_ptr),
+            trace_buf: trace_buf_ptr,
             input_buffer: NonNull::new_unchecked(&mut self.input_buffer),
             hints: NonNull::new_unchecked(&mut self.hints),
             maybe_unconstrained: None,
             public_values_stream: NonNull::new_unchecked(&mut self.public_values_stream),
-            memory_fd: self.mem_fd.as_raw_fd(),
+            memory_fd: self.memory.as_raw_fd(),
             registers: self.registers,
             pc: self.pc,
             clk: self.clk,
@@ -366,46 +361,6 @@ impl JitFunction {
         self.clk = ctx.clk;
         self.global_clk = ctx.global_clk;
         self.exit_code = ctx.exit_code;
-
-        tracing.then_some(TraceChunkRaw::new(
-            trace_buf.make_read_only().expect("Failed to make trace buf read only"),
-        ))
-    }
-
-    /// Reset the JIT function to the initial state.
-    ///
-    /// This will clear the registers, the program counter, the clock, and the memory, restoring the
-    /// initial memory image.
-    pub fn reset(&mut self) {
-        self.pc = self.pc_start;
-        self.registers = [0; 32];
-        self.clk = 1;
-        self.global_clk = 0;
-        self.input_buffer = VecDeque::new();
-        self.hints = Vec::new();
-        self.public_values_stream = Vec::new();
-
-        // Store the original size of the memory.
-        let memory_size = self.memory.len();
-
-        // Create a new memfd for the backing memory.
-        self.mem_fd = memfd::MemfdOptions::default()
-            .create(uuid::Uuid::new_v4().to_string())
-            .expect("Failed to create jit memory");
-
-        self.mem_fd
-            .as_file()
-            .set_len(memory_size as u64)
-            .expect("Failed to set memfd size for backing memory.");
-
-        self.memory = unsafe {
-            MmapOptions::new()
-                .no_reserve_swap()
-                .map_mut(self.mem_fd.as_file())
-                .expect("Failed to map memory")
-        };
-
-        self.insert_memory_image();
     }
 
     fn insert_memory_image(&mut self) {
@@ -431,26 +386,22 @@ impl JitFunction {
     }
 }
 
-pub struct MemoryView<'a> {
-    pub memory: &'a MmapMut,
-}
-
-impl<'a> MemoryView<'a> {
-    pub const fn new(memory: &'a MmapMut) -> Self {
-        Self { memory }
-    }
-
-    /// Read a word from the memory at the address.
+#[cfg(sp1_native_executor_available)]
+impl<M: JitResetableMemory> JitFunction<M> {
+    /// Reset the JIT function to the initial state.
     ///
-    /// # Panics
-    ///
-    /// Panics if the address is not aligned to 8 bytes.
-    pub fn get(&self, addr: u64) -> MemValue {
-        assert!(addr.is_multiple_of(8), "Address {addr} is not aligned to 8");
+    /// This will clear the registers, the program counter, the clock, and the memory, restoring the
+    /// initial memory image.
+    pub fn reset(&mut self) {
+        self.pc = self.pc_start;
+        self.registers = [0; 32];
+        self.clk = 1;
+        self.global_clk = 0;
+        self.input_buffer = VecDeque::new();
+        self.hints = Vec::new();
+        self.public_values_stream = Vec::new();
+        self.memory.reset();
 
-        let word_address = addr / 8;
-        let entry_ptr = self.memory.as_ptr() as *mut MemValue;
-
-        unsafe { std::ptr::read(entry_ptr.add(word_address as usize)) }
+        self.insert_memory_image();
     }
 }

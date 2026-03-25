@@ -91,3 +91,5 @@ pub const GROTH16_BLAKE3_ELF: Elf = include_elf!("groth16_verify_blake3");
 pub const PLONK_ELF: Elf = include_elf!("plonk_verify");
 
 pub const PLONK_BLAKE3_ELF: Elf = include_elf!("plonk_verify_blake3");
+
+pub const MEMORY_TESTER_ELF: Elf = include_elf!("memory-tester");
