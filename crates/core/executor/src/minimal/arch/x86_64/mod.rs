@@ -240,7 +240,9 @@ impl MinimalExecutor {
                 self.compiled.call(trace_buf_ptr);
             }
 
-            count += 1;
+            if trace_buf.is_some() {
+                count += 1;
+            }
         }
 
         count
