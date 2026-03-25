@@ -14,11 +14,11 @@ BINS=(cargo-prove) # todo add sp1-gpu-server
 export RUSTFLAGS="-C target-cpu=native"
 
 main() {
-  need_cmd git
-  need_cmd curl
-
   while [[ -n $1 ]]; do
     case $1 in
+        current-version)
+            SP1UP_CURRENT_VERSION=true;;
+
         --)
             shift; break;;
         
@@ -53,6 +53,8 @@ main() {
             SP1UP_COMMIT=$1;;
             
         -c|--c-toolchain) SP1UP_C_TOOLCHAIN=true;;
+
+        --current-version) SP1UP_CURRENT_VERSION=true;;
         
         --arch)           
             shift
@@ -86,6 +88,14 @@ main() {
 
   # Print the banner after successfully parsing args
   banner
+
+  if [ "$SP1UP_CURRENT_VERSION" = true ]; then
+    print_current_version
+    exit 0
+  fi
+
+  need_cmd git
+  need_cmd curl
 
   if [ -n "$SP1UP_PR" ]; then
     if [ -z "$SP1UP_BRANCH" ]; then
@@ -512,6 +522,7 @@ USAGE:
 
 OPTIONS:
     -h, --help        Print help information
+    --current-version Print the currently installed cargo-prove version managed by sp1up
     -v, --version     Install a specific version
     -b, --branch      Install a specific branch
     -P, --pr          Install a specific Pull Request
@@ -524,6 +535,17 @@ OPTIONS:
     --private-release Install a cargo-prove using github API (needs a github token and explicit version)
     -t, --token       GitHub token to use for avoiding API rate limits
 EOF
+}
+
+print_current_version() {
+  local managed_bin="$SP1_BIN_DIR/cargo-prove"
+
+  if [ -x "$managed_bin" ]; then
+    ensure "$managed_bin" prove --version
+    return 0
+  fi
+
+  err "cargo-prove is not installed in $SP1_BIN_DIR. Run 'sp1up' first."
 }
 
 say() {
