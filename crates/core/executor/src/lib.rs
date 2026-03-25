@@ -20,6 +20,11 @@
 #![allow(clippy::struct_excessive_bools)]
 #![warn(missing_docs)]
 
+// We cannot write module doc for build module, since it will be use
+// in current crate's build script via `include!`.
+#[allow(missing_docs)]
+pub mod build;
+
 mod air;
 mod context;
 mod debug;

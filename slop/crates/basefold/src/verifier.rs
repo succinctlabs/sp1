@@ -254,14 +254,15 @@ where
         for (commit, opening_and_proof) in
             commitments.iter().zip_eq(proof.component_polynomials_query_openings_and_proofs.iter())
         {
-            if opening_and_proof.proof.log_tensor_height != log_len + self.fri_config.log_blowup() {
-                return Err(BaseFoldVerifierError::IncorrectShape);
-            }
+            // Sizes is checked to have at least two dimensions above.
+            let width = opening_and_proof.values.sizes()[1];
             self.tcs
                 .verify_tensor_openings(
                     commit,
                     &query_indices,
                     &opening_and_proof.values,
+                    width,
+                    log_len + self.fri_config.log_blowup(),
                     &opening_and_proof.proof,
                 )
                 .map_err(BaseFoldVerifierError::TcsError)?;
@@ -371,19 +372,15 @@ where
                 *x = x.square();
             }
 
-            // The magic constant 2 here is the folding factor we use for FRI.
-            if round_idx != query_opening.proof.log_tensor_height
-                || query_opening.proof.width != GC::EF::D * 2
-            {
-                return Err(BaseFoldVerifierError::IncorrectShape);
-            }
-
             // Check that the opening is consistent with the commitment.
+            // The magic constant 2 here is the folding factor we use for FRI.
             self.tcs
                 .verify_tensor_openings(
                     commitment,
                     &indices,
                     &query_opening.values,
+                    GC::EF::D * 2,
+                    round_idx,
                     &query_opening.proof,
                 )
                 .map_err(BaseFoldVerifierError::TcsError)?;

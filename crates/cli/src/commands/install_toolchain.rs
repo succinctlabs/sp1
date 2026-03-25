@@ -15,7 +15,8 @@ use reqwest::Client;
 use std::os::unix::fs::PermissionsExt;
 
 use crate::{
-    get_target, get_toolchain_download_url, is_supported_target, url_exists, RUSTUP_TOOLCHAIN_NAME,
+    get_target, get_toolchain_download_url, is_supported_target, send_with_retry, url_exists,
+    RUSTUP_TOOLCHAIN_NAME,
 };
 
 #[derive(Parser)]
@@ -101,7 +102,8 @@ impl InstallToolchainCmd {
         let toolchain_archive_path = root_dir.join(toolchain_asset_name.clone());
         let toolchain_dir = root_dir.join(&target);
 
-        let toolchain_download_url = get_toolchain_download_url(&client, target.to_string()).await;
+        let toolchain_download_url =
+            get_toolchain_download_url(&client, target.to_string()).await?;
 
         let artifact_exists = url_exists(&client, toolchain_download_url.as_str()).await;
         if !artifact_exists {
@@ -112,7 +114,9 @@ impl InstallToolchainCmd {
 
         // Download the toolchain.
         let mut file = tokio::fs::File::create(toolchain_archive_path).await.unwrap();
-        download_file(&client, toolchain_download_url.as_str(), &mut file).await.unwrap();
+        download_file(&client, toolchain_download_url.as_str(), &mut file)
+            .await
+            .map_err(|e| anyhow::anyhow!(e))?;
 
         // Remove the existing toolchain from rustup, if it exists.
         let mut child = Command::new("rustup")
@@ -184,7 +188,9 @@ pub async fn download_file(
     use futures::StreamExt;
     use tokio::io::AsyncWriteExt;
 
-    let res = client.get(url).send().await.or(Err(format!("Failed to GET from '{}'", &url)))?;
+    let res = send_with_retry(client, reqwest::Method::GET, url, "Download")
+        .await
+        .map_err(|e| e.to_string())?;
 
     let total_size =
         res.content_length().ok_or(format!("Failed to get content length from '{}'", &url))?;

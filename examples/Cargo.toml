@@ -56,6 +56,8 @@ members = [
   "uint256/script",
   "poseidon2/program",
   "poseidon2/script",
+  "sha-bench/program",
+  "sha-bench/script",
 ]
 resolver = "2"
 

@@ -197,7 +197,7 @@ impl<V> Default for Page<V> {
     }
 }
 
-pub(crate) const MAX_LOG_ADDR: usize = 40;
+pub(crate) const MAX_LOG_ADDR: usize = sp1_primitives::consts::MAX_JIT_LOG_ADDR;
 const LOG_PAGE_LEN: usize = 18;
 const PAGE_LEN: usize = 1 << LOG_PAGE_LEN;
 const MAX_PAGE_COUNT: usize = (1 << MAX_LOG_ADDR) / 8 / PAGE_LEN;
