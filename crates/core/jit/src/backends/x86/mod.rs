@@ -70,10 +70,13 @@ const JUMP_TABLE: u8 = Rq::R13 as u8;
 /// Callee-saved register.
 const TRACE_BUF: u8 = Rq::R14 as u8;
 
-/// The global clk value.
+/// The local clk value. Local clock represents an internal clock
+/// used by the JIT. This way JIT can bumps local clock in one instruction,
+/// at boundary between JIT code and Rust code, we use local clock
+/// to update both clk and global_clk.
 ///
-/// Callee-saved register.
-const GLOBAL_CLK: u8 = Rq::RSI as u8;
+/// Caller-saved register.
+const LOCAL_CLK: u8 = Rq::RSI as u8;
 
 /// The saved stack pointer, used during external function calls.
 ///
@@ -97,6 +100,9 @@ const MEMORY_PTR_OFFSET: i32 = offset_of!(JitContext, memory) as i32;
 
 /// The offset of the registers in the JitContext.
 const REGISTERS_OFFSET: i32 = offset_of!(JitContext, registers) as i32;
+
+/// The offset of the is_unconstrained flag in the JitContext.
+const IS_UNCONSTRAINED_OFFSET: i32 = offset_of!(JitContext, is_unconstrained) as i32;
 
 /// The offset of `num_mem_reads` in TraceChunkHeader.
 const NUM_MEM_READS_OFFSET: i32 = offset_of!(TraceChunkHeader, num_mem_reads) as i32;
@@ -239,8 +245,6 @@ impl TraceCollector for TranspilerBackend {
 
     /// Write the value at [rs1 + imm] into the trace buffer.
     fn trace_mem_value(&mut self, rs1: RiscRegister, imm: u64) {
-        const IS_UNCONSTRAINED_OFFSET: i32 = offset_of!(JitContext, is_unconstrained) as i32;
-
         // Load the value, assumed to be of a memory read, into TEMP_A.
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
 
@@ -283,6 +287,7 @@ impl TraceCollector for TranspilerBackend {
             movdqu xmm15, [Rq(TEMP_A)];
             movdqu [Rq(TAIL_START)], xmm15;
             mov rdx, Rq(CLOCK_OR_SAVED_STACK_PTR);
+            add rdx, Rq(LOCAL_CLK);
             add rdx, 1;
             mov [Rq(TEMP_A)], rdx;
 
@@ -341,6 +346,12 @@ impl TraceCollector for TranspilerBackend {
 impl TranspilerBackend {
     fn tracing(&self) -> bool {
         self.max_trace_size > 0
+    }
+
+    #[inline]
+    fn clk_bump_shifts(&self) -> i8 {
+        assert!(self.clk_bump > 0 && (self.clk_bump & (self.clk_bump - 1)) == 0, "clk_bump must be a power of 2!");
+        self.clk_bump.trailing_zeros() as i8
     }
 
     fn exit_if_trace_exceeds(&mut self, max_trace_size: u64) {
@@ -754,27 +765,50 @@ impl TranspilerBackend {
 
     #[inline]
     fn hoist_clock(&mut self) {
-        let global_clk_offset = offset_of!(JitContext, global_clk) as i32;
-
         dynasm! {
             self;
             .arch x64;
 
+            // Load clk from memory to register
             mov Rq(CLOCK_OR_SAVED_STACK_PTR), QWORD [Rq(CONTEXT) + CLK_OFFSET];
-            mov Rq(GLOBAL_CLK), QWORD [Rq(CONTEXT) + global_clk_offset]
+            // Setup local clk
+            xor Rq(LOCAL_CLK), Rq(LOCAL_CLK)
         }
     }
 
     #[inline]
     fn write_back_clock(&mut self) {
-        let global_clk_offset = offset_of!(JitContext, global_clk) as i32;
+        let clk_bump_shifts = self.clk_bump_shifts();
 
         dynasm! {
             self;
             .arch x64;
 
+            // Commit local clk first
+            add Rq(CLOCK_OR_SAVED_STACK_PTR), Rq(LOCAL_CLK);
+            // Save clk back to memory
             mov QWORD [Rq(CONTEXT) + CLK_OFFSET], Rq(CLOCK_OR_SAVED_STACK_PTR);
-            mov QWORD [Rq(CONTEXT) + global_clk_offset], Rq(GLOBAL_CLK)
+
+            // Convert local clk to global_clk form
+            shr Rq(LOCAL_CLK), clk_bump_shifts;
+
+            // Load is_unconstrained (8-bit) into TEMP_A with zero extension
+            mov Rq(TEMP_A), QWORD [Rq(CONTEXT) + IS_UNCONSTRAINED_OFFSET];
+
+            // ------------------------------------
+            // Add to global_clk based on is_unconstrained:
+            // - If is_unconstrained == 0, add 1 per bumped clk
+            // - If is_unconstrained == 1, add 0
+            // ------------------------------------
+            //
+            // Note that is_unconstrained can only be altered in ecalls. In
+            // JIT execution, it remains a constant.
+            xor eax, eax;
+            test Rq(TEMP_A), Rq(TEMP_A);
+            cmovnz Rq(LOCAL_CLK), rax;
+
+            // Add the inverted value to global_clk
+            add QWORD [Rq(CONTEXT) + GLOBAL_CLK_OFFSET], Rq(LOCAL_CLK)
         }
     }
 
@@ -849,7 +883,6 @@ impl TranspilerBackend {
     }
 
     fn bump_clk(&mut self) {
-        let is_unconstrained_offset = offset_of!(JitContext, is_unconstrained) as i32;
         let clk_bump = self.clk_bump as i32;
 
         dynasm! {
@@ -859,22 +892,7 @@ impl TranspilerBackend {
             // ------------------------------------
             // Add the amount to the clk field in the context.
             // ------------------------------------
-            add Rq(CLOCK_OR_SAVED_STACK_PTR), clk_bump;
-
-            // ------------------------------------
-            // Add to global_clk based on is_unconstrained:
-            // - If is_unconstrained == 0, add 1
-            // - If is_unconstrained == 1, add 0
-            // ------------------------------------
-
-            // Load is_unconstrained (8-bit) into TEMP_A with zero extension
-            mov Rq(TEMP_A), QWORD [Rq(CONTEXT) + is_unconstrained_offset];
-
-            // XOR with 1 to invert: 0 -> 1, 1 -> 0
-            xor Rq(TEMP_A), 1;
-
-            // Add the inverted value to global_clk
-            add Rq(GLOBAL_CLK), Rq(TEMP_A)
+            add Rq(LOCAL_CLK), clk_bump
         }
     }
 
