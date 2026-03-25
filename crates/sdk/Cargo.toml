@@ -119,5 +119,9 @@ profiling = ["sp1-core-executor/profiling", "sp1-prover/profiling"]
 blocking = []
 groth16-cuda = ["sp1-recursion-gnark-ffi/groth16-cuda", "native-gnark"]
 slow-tests = []
+
+[package.metadata.docs.rs]
+all-features = true
+
 [lints]
 workspace = true
