@@ -80,11 +80,11 @@ const LOCAL_CLK: u8 = Rq::RSI as u8;
 
 /// The saved stack pointer, used during external function calls.
 ///
-/// When not making external function calls, clock is hoisted to
-/// this register.
+/// When not making external function calls, we hoist unconstrained
+/// flag to this register.
 ///
 /// Callee-saved register.
-const CLOCK_OR_SAVED_STACK_PTR: u8 = Rq::R15 as u8;
+const UNCONSTRAINED_OR_SAVED_STACK_PTR: u8 = Rq::R15 as u8;
 
 /// The offset of the pc in the JitContext.
 const PC_OFFSET: i32 = offset_of!(JitContext, pc) as i32;
@@ -253,8 +253,7 @@ impl TraceCollector for TranspilerBackend {
             .arch x64;
 
             // Check if were in unconstrained mode.
-            mov rcx, QWORD [Rq(CONTEXT) + IS_UNCONSTRAINED_OFFSET];
-            cmp rcx, 1;
+            cmp Rq(UNCONSTRAINED_OR_SAVED_STACK_PTR), 1;
             je >done
         }
 
@@ -286,9 +285,10 @@ impl TraceCollector for TranspilerBackend {
             // ------------------------------------
             movdqu xmm15, [Rq(TEMP_A)];
             movdqu [Rq(TAIL_START)], xmm15;
-            mov rdx, Rq(CLOCK_OR_SAVED_STACK_PTR);
-            add rdx, Rq(LOCAL_CLK);
-            add rdx, 1;
+            // Load last committed clk
+            mov rdx, QWORD [Rq(CONTEXT) + CLK_OFFSET];
+            // Add local clk in current JIT execution batch, and 1 for memory write
+            lea rdx, [Rq(LOCAL_CLK) + rdx + 1];
             mov [Rq(TEMP_A)], rdx;
 
             // ------------------------------------
@@ -350,7 +350,10 @@ impl TranspilerBackend {
 
     #[inline]
     fn clk_bump_shifts(&self) -> i8 {
-        assert!(self.clk_bump > 0 && (self.clk_bump & (self.clk_bump - 1)) == 0, "clk_bump must be a power of 2!");
+        assert!(
+            self.clk_bump > 0 && (self.clk_bump & (self.clk_bump - 1)) == 0,
+            "clk_bump must be a power of 2!"
+        );
         self.clk_bump.trailing_zeros() as i8
     }
 
@@ -415,7 +418,7 @@ impl TranspilerBackend {
             push Rq(CONTEXT);
             push Rq(JUMP_TABLE);
             push Rq(TRACE_BUF);
-            push Rq(CLOCK_OR_SAVED_STACK_PTR);
+            push Rq(UNCONSTRAINED_OR_SAVED_STACK_PTR);
 
             // Save some useful pointers to non-volatile registers so we can use them in ASM easily.
             mov Rq(JUMP_TABLE), [rdi + jump_table_offset];
@@ -483,7 +486,7 @@ impl TranspilerBackend {
             .arch x64;
 
             // Restore the callee saved registers.
-            pop Rq(CLOCK_OR_SAVED_STACK_PTR);
+            pop Rq(UNCONSTRAINED_OR_SAVED_STACK_PTR);
             pop Rq(TRACE_BUF);
             pop Rq(JUMP_TABLE);
             pop Rq(CONTEXT);
@@ -695,7 +698,7 @@ impl TranspilerBackend {
             .arch x64;
 
             // Save the original stack pointer
-            mov Rq(CLOCK_OR_SAVED_STACK_PTR), rsp;
+            mov Rq(UNCONSTRAINED_OR_SAVED_STACK_PTR), rsp;
 
             // Align the stack to 16 bytes for the call
             lea rsp, [rsp - 8]; // sub 8 from the rsp
@@ -708,7 +711,7 @@ impl TranspilerBackend {
             call rax;
 
             // Restore the original stack pointer
-            mov rsp, Rq(CLOCK_OR_SAVED_STACK_PTR)
+            mov rsp, Rq(UNCONSTRAINED_OR_SAVED_STACK_PTR)
         }
 
         if self.tracing() {
@@ -770,7 +773,7 @@ impl TranspilerBackend {
             .arch x64;
 
             // Load clk from memory to register
-            mov Rq(CLOCK_OR_SAVED_STACK_PTR), QWORD [Rq(CONTEXT) + CLK_OFFSET];
+            mov Rq(UNCONSTRAINED_OR_SAVED_STACK_PTR), QWORD [Rq(CONTEXT) + IS_UNCONSTRAINED_OFFSET];
             // Setup local clk
             xor Rq(LOCAL_CLK), Rq(LOCAL_CLK)
         }
@@ -785,15 +788,13 @@ impl TranspilerBackend {
             .arch x64;
 
             // Commit local clk first
-            add Rq(CLOCK_OR_SAVED_STACK_PTR), Rq(LOCAL_CLK);
-            // Save clk back to memory
-            mov QWORD [Rq(CONTEXT) + CLK_OFFSET], Rq(CLOCK_OR_SAVED_STACK_PTR);
+            add QWORD [Rq(CONTEXT) + CLK_OFFSET], Rq(LOCAL_CLK);
 
             // Convert local clk to global_clk form
             shr Rq(LOCAL_CLK), clk_bump_shifts;
 
             // Load is_unconstrained (8-bit) into TEMP_A with zero extension
-            mov Rq(TEMP_A), QWORD [Rq(CONTEXT) + IS_UNCONSTRAINED_OFFSET];
+            // mov Rq(TEMP_A), QWORD [Rq(CONTEXT) + IS_UNCONSTRAINED_OFFSET];
 
             // ------------------------------------
             // Add to global_clk based on is_unconstrained:
@@ -802,9 +803,9 @@ impl TranspilerBackend {
             // ------------------------------------
             //
             // Note that is_unconstrained can only be altered in ecalls. In
-            // JIT execution, it remains a constant.
+            // each JIT execution batch, it remains a constant.
             xor eax, eax;
-            test Rq(TEMP_A), Rq(TEMP_A);
+            test Rq(UNCONSTRAINED_OR_SAVED_STACK_PTR), Rq(UNCONSTRAINED_OR_SAVED_STACK_PTR);
             cmovnz Rq(LOCAL_CLK), rax;
 
             // Add the inverted value to global_clk
