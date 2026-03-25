@@ -244,23 +244,26 @@ impl TraceCollector for TranspilerBackend {
     }
 
     /// Write the value at [rs1 + imm] into the trace buffer.
-    fn trace_mem_value(&mut self, rs1: RiscRegister, imm: u64) {
+    fn trace_mem_value(&mut self, rs1: RiscRegister, imm: u64, emit_offset: bool) {
         // Load the value, assumed to be of a memory read, into TEMP_A.
         self.emit_risc_operand_load(rs1.into(), TEMP_A);
-
-        dynasm! {
-            self;
-            .arch x64;
-
-            // Check if were in unconstrained mode.
-            cmp Rq(UNCONSTRAINED_OR_SAVED_STACK_PTR), 1;
-            je >done
-        }
-
         // ------------------------------------
         // Compute the address to load from.
         // ------------------------------------
         do_opt_imm_var!(self, add, TEMP_A, imm);
+
+        if emit_offset {
+            dynasm! {
+                self;
+                .arch x64;
+
+                // ------------------------------------
+                // Store the intra-word offset.
+                // ------------------------------------
+                mov rax, Rq(TEMP_A);
+                and rax, 7
+            }
+        }
 
         dynasm! {
             self;
@@ -276,6 +279,10 @@ impl TraceCollector for TranspilerBackend {
             // physical memory pointer.
             // ------------------------------------
             lea Rq(TEMP_A), [Rq(MEMORY_PTR) + Rq(TEMP_A) * 2];
+
+            // Check if were in unconstrained mode.
+            cmp Rq(UNCONSTRAINED_OR_SAVED_STACK_PTR), 1;
+            je >done;
 
             // ------------------------------------
             // Load the clk & word from the memory entry into the tail.
@@ -298,6 +305,12 @@ impl TraceCollector for TranspilerBackend {
             add Rq(TAIL_START), 16;
 
             done:
+
+            // When tracing is done, the following registers
+            // contain useful values for memory operations:
+            //
+            // * TEMP_A holds address of MemValue entry
+            // * rax holds intra-word offset (when emit_offset is true)
         }
     }
 

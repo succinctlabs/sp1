@@ -462,7 +462,7 @@ impl MinimalTranspiler {
         // For each load, we want to trace the value at the address as well as the previous clock
         // at that address.
         if self.tracing() {
-            backend.trace_mem_value(rs1.into(), imm);
+            backend.trace_mem_value(rs1.into(), imm, instruction.opcode != Opcode::LD);
         }
 
         match instruction.opcode {
@@ -487,7 +487,7 @@ impl MinimalTranspiler {
         // For stores, its the same logic as a load, we want the last known clk and value at the
         // address.
         if self.tracing() {
-            backend.trace_mem_value(rs2.into(), imm);
+            backend.trace_mem_value(rs2.into(), imm, instruction.opcode != Opcode::SD);
         }
 
         // Note: We switch around rs1 and rs2 operaneds to align with the executor.

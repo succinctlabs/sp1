@@ -148,7 +148,7 @@ pub trait TraceCollector {
     fn trace_registers(&mut self);
 
     /// Write the value located at rs1 + imm into the trace buf.
-    fn trace_mem_value(&mut self, rs1: RiscRegister, imm: u64);
+    fn trace_mem_value(&mut self, rs1: RiscRegister, imm: u64, emit_offset: bool);
 
     /// Write the start pc of the trace chunk.
     fn trace_pc_start(&mut self);
