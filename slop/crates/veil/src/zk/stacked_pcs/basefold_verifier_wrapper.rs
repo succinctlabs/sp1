@@ -215,6 +215,8 @@ where
                     commitment,
                     &query_indices,
                     &opening_and_proof.values,
+                    initial_opening_values.sizes()[1],
+                    log_tensor_height,
                     &opening_and_proof.proof,
                 )
                 .map_err(BaseFoldVerifierError::TcsError)?;
@@ -349,6 +351,8 @@ where
                     commitment,
                     &indices,
                     &query_opening.values,
+                    GC::EF::D * 2,
+                    round_idx,
                     &query_opening.proof,
                 )
                 .map_err(BaseFoldVerifierError::TcsError)?;

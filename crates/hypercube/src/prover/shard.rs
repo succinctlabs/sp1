@@ -799,11 +799,11 @@ pub struct CoreProofShape<F: Field, A: MachineAir<F>> {
     /// The chips included in the record.
     pub shard_chips: BTreeSet<Chip<F, A>>,
 
-    /// The multiple of `log_stacking_height` that the preprocessed area adds up to.
-    pub preprocessed_multiple: usize,
+    /// The number of trace cells in the preprocessed traces.
+    pub preprocessed_area: usize,
 
-    /// The multiple of `log_stacking_height` that the main area adds up to.
-    pub main_multiple: usize,
+    /// The area of the main traces.
+    pub main_area: usize,
 
     /// The number of columns added to the preprocessed commit to round to the nearest multiple of
     /// `stacking_height`.
@@ -825,8 +825,8 @@ where
                 "shard_chips",
                 &self.shard_chips.iter().map(MachineAir::name).collect::<BTreeSet<_>>(),
             )
-            .field("preprocessed_multiple", &self.preprocessed_multiple)
-            .field("main_multiple", &self.main_multiple)
+            .field("preprocessed_area", &self.preprocessed_area)
+            .field("main_area", &self.main_area)
             .field("preprocessed_padding_cols", &self.preprocessed_padding_cols)
             .field("main_padding_cols", &self.main_padding_cols)
             .finish()

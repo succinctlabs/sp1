@@ -176,6 +176,8 @@ where
         commitment,
         &revealed_indices,
         &revealed_data.revealed_evals,
+        revealed_data.revealed_evals.sizes()[1],
+        proof.parameters.code_log_length,
         &revealed_data.merkle_paths,
     ) {
         return Err(ZkDotProductError::HashInconsistency(e));
@@ -239,6 +241,8 @@ where
         commitment,
         &revealed_indices,
         &total_proof.proximity_check_proof.revealed_evals,
+        total_proof.proximity_check_proof.revealed_evals.sizes()[1],
+        proof.parameters.code_log_length,
         &total_proof.proximity_check_proof.merkle_paths,
     ) {
         return Err(ZkDotProductError::HashInconsistency(e));
