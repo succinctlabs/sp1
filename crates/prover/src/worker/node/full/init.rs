@@ -166,7 +166,7 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
 
                     if let Err(e) = worker
                         .worker_client()
-                        .complete_task(proof_id, task_id, TaskMetadata { gpu_time: None })
+                        .complete_task(proof_id, task_id, TaskMetadata { gpu_ms: None })
                         .await
                     {
                         tracing::error!("CoreExecute: marking task as complete failed: {e:?}");
