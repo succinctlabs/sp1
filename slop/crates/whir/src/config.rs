@@ -25,7 +25,8 @@ pub struct WhirProofShape<F> {
     /// The round-specific parameters.
     pub round_parameters: Vec<RoundConfig>,
 
-    /// Degree of the final polynomial sent over.
+    /// Logarithm of the number of coefficients in the final polynomial. (The final polynomial
+    /// technically has degree `2^final_poly_log_degree - 1`.)
     pub final_poly_log_degree: usize,
 
     /// Number of queries in the last round

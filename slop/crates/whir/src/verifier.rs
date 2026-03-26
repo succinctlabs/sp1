@@ -2,7 +2,7 @@ use itertools::Itertools;
 use std::iter::once;
 
 use serde::{Deserialize, Serialize};
-use slop_algebra::{AbstractField, UnivariatePolynomial};
+use slop_algebra::{AbstractExtensionField, AbstractField, UnivariatePolynomial};
 use slop_challenger::{
     CanObserve, CanSampleBits, FieldChallenger, GrindingChallenger, IopCtx,
     VariableLengthChallenger,
@@ -85,8 +85,8 @@ where
 pub enum WhirProofError {
     #[error("invalid number of OOD samples: expected {0}, got {1}")]
     InvalidNumberOfOODSamples(usize, usize),
-    #[error("sumcheck error: {}, {}", .0.0, .0.1)]
-    SumcheckError((SumcheckError, usize)),
+    #[error("sumcheck error: {0}, {1}")]
+    SumcheckError(SumcheckError, usize),
     #[error("invalid proof of work")]
     PowError,
     #[error("invalid OOD evaluation")]
@@ -107,7 +107,7 @@ pub enum WhirProofError {
 
 impl From<(SumcheckError, usize)> for WhirProofError {
     fn from(value: (SumcheckError, usize)) -> Self {
-        WhirProofError::SumcheckError((value.0, value.1))
+        WhirProofError::SumcheckError(value.0, value.1)
     }
 }
 
@@ -195,6 +195,11 @@ where
                 commitments.len(),
             ));
         }
+
+        let expected_widths = round_areas
+            .iter()
+            .map(|area| (*area) >> self.config.starting_interleaved_log_height)
+            .collect::<Vec<_>>();
 
         for (merkle_proof, area) in proof.initial_merkle_proof.iter().zip_eq(round_areas.iter()) {
             if merkle_proof.proof.width << self.config.starting_interleaved_log_height != *area {
@@ -341,14 +346,27 @@ where
                 return Err(WhirProofError::IncorrectShape);
             }
 
-            for (merkle_commitment, merkle_proof) in
-                prev_commitment.commitment.iter().zip(merkle_proof.iter())
+            for (i, (merkle_commitment, merkle_proof)) in
+                prev_commitment.commitment.iter().zip(merkle_proof.iter()).enumerate()
             {
+                let expected_width = if round_index == 0 {
+                    expected_widths[i]
+                } else {
+                    (1 << config.round_parameters[round_index - 1].folding_factor) * GC::EF::D
+                };
+
+                let expected_log_height = if round_index == 0 {
+                    config.starting_interleaved_log_height + config.starting_log_inv_rate
+                } else {
+                    config.round_parameters[round_index - 1].evaluation_domain_log_size
+                };
                 self.merkle_verifier
                     .verify_tensor_openings(
                         merkle_commitment,
                         &id_query_indices,
                         &merkle_proof.values,
+                        expected_width,
+                        expected_log_height,
                         &merkle_proof.proof,
                     )
                     .map_err(|_| WhirProofError::InvalidMerkleAuthentication)?;
@@ -441,13 +459,15 @@ where
         }
 
         // Now, we want to verify the final evaluations
-        challenger.observe_ext_element_slice(&proof.final_polynomial);
-        if proof.final_polynomial.len() > 1 << config.final_poly_log_degree {
+        if proof.final_polynomial.len() != 1 << config.final_poly_log_degree {
             return Err(WhirProofError::InvalidDegreeFinalPolynomial(
                 1 << config.final_poly_log_degree,
                 proof.final_polynomial.len(),
             ));
         }
+
+        challenger.observe_constant_length_extension_slice(&proof.final_polynomial);
+
         let final_poly = proof.final_polynomial.clone();
         let final_poly_uv = UnivariatePolynomial::new(final_poly.clone());
 
@@ -469,6 +489,8 @@ where
                 &prev_commitment.commitment[0],
                 &final_id_indices,
                 &proof.final_merkle_opening_and_proof.values,
+                (1 << config.round_parameters[n_rounds - 1].folding_factor) * GC::EF::D,
+                config.round_parameters[n_rounds - 1].evaluation_domain_log_size,
                 &proof.final_merkle_opening_and_proof.proof,
             )
             .map_err(|_| WhirProofError::InvalidMerkleAuthentication)?;
@@ -516,7 +538,9 @@ where
             .blocking_eval_at(&Point::from(folding_randomness))[0];
 
         let mut summand = GC::EF::zero();
-        for (i, eval_points) in final_evaluation_points.into_iter().enumerate() {
+        for (i, eval_points) in
+            final_evaluation_points.into_iter().enumerate().filter(|(_, ep)| !ep.is_empty())
+        {
             let combination_randomness = all_claim_batching_randomness[i];
             let len = eval_points[0].len();
             let eval_randomness: Point<GC::EF> =
@@ -626,12 +650,6 @@ where
     /// of `1<<log.stacking_height(verifier)`.
     fn log_stacking_height(verifier: &Self) -> u32 {
         verifier.config.starting_interleaved_log_height as u32
-    }
-
-    /// Functionality to deduce round by round from the proof the multiples of `1<<log.stacking_height`
-    /// corresponding to the round's total polynomial size.
-    fn round_multiples(proof: &<Self as MultilinearPcsVerifier<GC>>::Proof) -> Vec<usize> {
-        proof.initial_merkle_proof.iter().map(|merkle_proof| merkle_proof.proof.width).collect()
     }
 }
 

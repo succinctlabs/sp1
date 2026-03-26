@@ -121,7 +121,7 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                         .complete_task(
                             request.context.proof_id,
                             task_id,
-                            TaskMetadata { gpu_time: None },
+                            TaskMetadata { gpu_ms: None },
                         )
                         .await
                     {
@@ -166,7 +166,7 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
 
                     if let Err(e) = worker
                         .worker_client()
-                        .complete_task(proof_id, task_id, TaskMetadata { gpu_time: None })
+                        .complete_task(proof_id, task_id, TaskMetadata { gpu_ms: None })
                         .await
                     {
                         tracing::error!("CoreExecute: marking task as complete failed: {e:?}");
@@ -236,7 +236,7 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                         .complete_task(
                             request.context.proof_id,
                             task_id,
-                            TaskMetadata { gpu_time: None },
+                            TaskMetadata { gpu_ms: None },
                         )
                         .await
                     {
@@ -290,7 +290,7 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
 
                         Some((proof_id, task_id , status)) = task_rx.recv() => {
                             assert_eq!(status, TaskStatus::Succeeded);
-                         if let Err(e) = worker_client.complete_task(proof_id, task_id, TaskMetadata { gpu_time: None }).await {
+                         if let Err(e) = worker_client.complete_task(proof_id, task_id, TaskMetadata { gpu_ms: None }).await {
                              tracing::error!("Failed to complete vk chunk task: {:?}", e);
                          }
                         }

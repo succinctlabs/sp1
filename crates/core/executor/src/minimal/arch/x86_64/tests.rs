@@ -57,6 +57,10 @@ fn test_write_syscall_to_public_values() {
 
     backend.ecall();
 
+    // Inserts a jump target for ecall
+    backend.end_instr();
+    backend.start_instr();
+
     // Verify the public values were written to the stream
     extern "C" fn check_public_values(ctx: *mut JitContext) {
         let ctx = unsafe { &mut *ctx };
@@ -101,6 +105,10 @@ fn test_write_syscall_to_hint() {
     backend.add(RiscRegister::X12, RiscOperand::Immediate(4), RiscOperand::Immediate(0));
 
     backend.ecall();
+
+    // Inserts a jump target for ecall
+    backend.end_instr();
+    backend.start_instr();
 
     // Verify the hint was added to the input buffer
     extern "C" fn check_hint_buffer(ctx: *mut JitContext) {

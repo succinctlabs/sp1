@@ -492,7 +492,10 @@ mod tests {
             max_log_row_count,
             FriConfig::default_fri_config(),
             log_stacking_height as usize,
-            &[shape.preprocessed_multiple, shape.main_multiple],
+            &[
+                shape.preprocessed_area >> log_stacking_height,
+                shape.main_area >> log_stacking_height,
+            ],
             &[shape.preprocessed_padding_cols, shape.main_padding_cols],
         );
 

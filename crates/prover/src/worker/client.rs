@@ -174,7 +174,7 @@ pub struct TaskContext {
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct TaskMetadata {
-    pub gpu_time: Option<u64>,
+    pub gpu_ms: Option<u64>,
 }
 
 pub struct SubscriberBuilder<W> {

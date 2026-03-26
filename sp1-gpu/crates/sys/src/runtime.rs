@@ -162,6 +162,7 @@ extern "C" {
 
     pub fn cuda_device_get_mem_pool(memPool: *mut CudaMemPool, device: CudaDevice)
         -> CudaRustError;
+
     pub fn cuda_mem_pool_set_release_threshold(
         memPool: CudaMemPool,
         threshold: u64,

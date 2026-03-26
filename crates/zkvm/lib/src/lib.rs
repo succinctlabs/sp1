@@ -12,6 +12,7 @@ pub mod ecdsa;
 pub mod ed25519;
 pub mod io;
 pub mod mprotect;
+pub mod poseidon2;
 pub mod secp256k1;
 pub mod secp256r1;
 pub mod unconstrained;
@@ -175,6 +176,9 @@ extern "C" {
 
     /// Reads a buffer from the input stream.
     pub fn read_vec_raw() -> ReadVecResult;
+
+    /// Executes the Poseidon2 permutation on the given state buffer in-place.
+    pub fn syscall_poseidon2(inout: &mut crate::poseidon2::Poseidon2State);
 }
 
 #[repr(C)]

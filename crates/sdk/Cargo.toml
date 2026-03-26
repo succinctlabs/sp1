@@ -130,5 +130,9 @@ profiling = [
 blocking = []
 groth16-cuda = ["sp1-recursion-gnark-ffi/groth16-cuda", "native-gnark"]
 slow-tests = []
+
+[package.metadata.docs.rs]
+all-features = true
+
 [lints]
 workspace = true

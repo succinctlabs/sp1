@@ -133,10 +133,4 @@ where
     fn log_stacking_height(verifier: &Self) -> u32 {
         verifier.log_stacking_height
     }
-
-    /// Functionality to deduce round by round from the proof the multiples of `1<<log.stacking_height`
-    /// corresponding to the round's total polynomial size.
-    fn round_multiples(proof: &StackedBasefoldProof<GC>) -> Vec<usize> {
-        proof.batch_evaluations.iter().map(|e| e.iter().count()).collect()
-    }
 }

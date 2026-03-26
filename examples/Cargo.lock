@@ -6127,6 +6127,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "sha-bench-program"
+version = "1.1.0"
+dependencies = [
+ "sp1-zkvm",
+]
+
+[[package]]
+name = "sha-bench-script"
+version = "1.1.0"
+dependencies = [
+ "hex",
+ "sp1-build",
+ "sp1-sdk",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "sha-program"
 version = "1.1.0"
 dependencies = [
@@ -7170,6 +7188,7 @@ dependencies = [
  "slop-tensor",
  "sp1-build",
  "sp1-core-executor",
+ "sp1-core-executor-runner",
  "sp1-core-machine",
  "sp1-cuda",
  "sp1-hypercube",

@@ -10,6 +10,7 @@ use dynasmrt::{
     x64::{Assembler, Rq},
     DynasmApi,
 };
+use hashbrown::HashMap;
 use std::io;
 
 impl RiscvTranspiler for TranspilerBackend {
@@ -39,9 +40,14 @@ impl RiscvTranspiler for TranspilerBackend {
             ecall_handler: super::ecallk as _,
             control_flow_instruction_inserted: false,
             instruction_started: false,
+            branch_generated: false,
             clk_bump,
             max_trace_size,
             may_early_exit: false,
+            pc_current: pc_base,
+            reg_values: HashMap::new(),
+            labels: HashMap::new(),
+            program_size,
         };
 
         // Handle calling conventions and save anything were gonna clobber.
@@ -72,20 +78,26 @@ impl RiscvTranspiler for TranspilerBackend {
     }
 
     fn end_instr(&mut self) {
-        // Add the base amount of cycles for the instruction.
-        self.bump_clk();
-
-        // If the instruction is branch, jal, jalr or ecall then we need to emit a jump to pc
         if self.control_flow_instruction_inserted {
-            // If we have a control flow instruction that may early exit, we need to check if the
-            // trace size has been exceeded.
-            if self.may_early_exit {
-                self.exit_if_trace_exceeds(self.max_trace_size);
+            // Control flow instructions might have multiple branch targets,
+            // as a result, we let them call `end_branch` directly. Here we
+            // only handle bookkeeping tasks for control flow instructions.
+            if !self.branch_generated {
+                panic!("No branch has been generated, maybe a JIT mistake?");
             }
 
-            self.jump_to_pc();
+            // When basic block ends, reset all transpile-time register values, as they
+            // would be incorrect for the next basic block.
+            self.reg_values.clear();
         } else {
-            self.bump_pc(4);
+            // Add the base amount of cycles for the instruction.
+            self.bump_clk();
+
+            // We only bump / update PC when:
+            // * A control flow instruction is executing.
+            // * Before ecall and unimp calls extern functions.
+            // * When trace is complete, execution suspends.
+            // For normal, sequential operations, there is no need to bump PC.
 
             // We dont have a control flow insruction so we need to bump the pc first.
             if self.may_early_exit {
@@ -93,9 +105,13 @@ impl RiscvTranspiler for TranspilerBackend {
             }
         }
 
+        // Transpiling is done for current instruction
+        self.pc_current += 4;
+
         self.may_early_exit = false;
         self.control_flow_instruction_inserted = false;
         self.instruction_started = false;
+        self.branch_generated = false;
     }
 
     fn finalize<M: JitMemory>(mut self) -> io::Result<JitFunction<M>> {

@@ -24,6 +24,8 @@ slop-alloc = { workspace = true }
 slop-matrix = { workspace = true }
 slop-bn254 = { workspace = true }
 slop-koala-bear = { workspace = true }
+slop-utils = { workspace = true }
+
 
 thiserror = { workspace = true }
 serde = { workspace = true }

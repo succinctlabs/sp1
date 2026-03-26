@@ -275,7 +275,7 @@ pub mod test_utils {
                             .complete_task(
                                 request.context.proof_id,
                                 task_id,
-                                TaskMetadata { gpu_time: None },
+                                TaskMetadata { gpu_ms: None },
                             )
                             .await
                             .unwrap();

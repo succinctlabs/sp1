@@ -481,8 +481,11 @@ where
             KOrEfMle::EF(mle) => mle,
         };
 
-        let final_polynomial =
+        let mut final_polynomial =
             f_vec.inner().as_ref().unwrap().guts().clone().into_buffer().to_vec();
+
+        final_polynomial.resize(1 << config.final_poly_log_degree, GC::EF::zero());
+
         challenger.observe_constant_length_extension_slice(&final_polynomial);
 
         let final_pow = challenger.grind(config.final_pow_bits);
