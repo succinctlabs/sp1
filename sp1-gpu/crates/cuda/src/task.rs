@@ -403,6 +403,44 @@ impl TaskScope {
         self.stream().launch_kernel(kernel, grid_dim, block_dim, args, shared_mem)
     }
 
+    /// Launches a cooperative kernel in this task.
+    ///
+    /// # Safety
+    /// Same as launch_kernel but uses cooperative launch to enable grid-level synchronization.
+    /// The grid size must not exceed the maximum cooperative grid size for the kernel.
+    pub unsafe fn launch_cooperative_kernel(
+        &self,
+        kernel: KernelPtr,
+        grid_dim: impl Into<Dim3>,
+        block_dim: impl Into<Dim3>,
+        args: &[*mut c_void],
+        shared_mem: usize,
+    ) -> Result<(), CudaError> {
+        self.stream().launch_cooperative_kernel(kernel, grid_dim, block_dim, args, shared_mem)
+    }
+
+    /// Queries the maximum number of cooperative blocks for a kernel.
+    pub fn max_cooperative_blocks(
+        kernel: KernelPtr,
+        block_size: i32,
+        shared_mem: usize,
+    ) -> Result<i32, CudaError> {
+        let mut blocks_per_sm: i32 = 0;
+        CudaError::result_from_ffi(unsafe {
+            sp1_gpu_sys::runtime::cuda_occupancy_max_active_blocks_per_sm(
+                &mut blocks_per_sm,
+                kernel,
+                block_size,
+                shared_mem,
+            )
+        })?;
+        let mut sm_count: i32 = 0;
+        CudaError::result_from_ffi(unsafe {
+            sp1_gpu_sys::runtime::cuda_device_get_attribute_multiprocessor_count(&mut sm_count)
+        })?;
+        Ok(blocks_per_sm * sm_count)
+    }
+
     /// Sends the CUDA task to sleep for **at least** the given duration.
     ///
     /// This function will not block the calling host thread. The function does a small allocation

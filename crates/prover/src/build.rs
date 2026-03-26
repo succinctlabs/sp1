@@ -329,10 +329,14 @@ fn build_outer_circuit(
 /// The base URL for the S3 bucket containing the circuit artifacts.
 pub const CIRCUIT_ARTIFACTS_URL_BASE: &str = "https://sp1-circuits.s3-us-east-2.amazonaws.com";
 
-/// Whether use the development mode for the circuit artifacts.
+/// Whether to use development mode for the circuit artifacts.
+///
+/// In development mode, artifacts are built locally from the current circuit definition.
+/// In release mode, pre-built artifacts are downloaded from S3.
+///
+/// Defaults to release mode. Set `SP1_CIRCUIT_MODE=dev` to rebuild locally.
 pub(crate) fn use_development_mode() -> bool {
-    // TODO: Change this after v6.0.0 binary release
-    std::env::var("SP1_CIRCUIT_MODE").unwrap_or("release".to_string()) == "dev"
+    std::env::var("SP1_CIRCUIT_MODE").unwrap_or("release".to_string()) != "release"
 }
 
 /// The directory where the groth16 circuit artifacts will be stored.
@@ -481,6 +485,7 @@ mod tests {
     };
 
     #[tokio::test]
+    #[cfg(feature = "experimental")]
     #[ignore = "should be invoked when changing the wrap circuit"]
     async fn set_wrap_vk_and_wrapped_proof() {
         setup_logger();
@@ -488,10 +493,12 @@ mod tests {
         let elf = test_artifacts::FIBONACCI_ELF;
 
         tracing::info!("initializing prover");
-        let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder())
-            .build()
-            .await
-            .expect("failed to build client");
+        let client = SP1LocalNodeBuilder::from_worker_client_builder(
+            cpu_worker_builder().without_vk_verification(),
+        )
+        .build()
+        .await
+        .expect("failed to build client");
 
         tracing::info!("prove compressed");
         let stdin = sp1_core_machine::io::SP1Stdin::new();

@@ -155,6 +155,24 @@ extern "C" {
         stream: CudaStreamHandle,
     ) -> CudaRustError;
 
+    pub fn cuda_launch_cooperative_kernel(
+        kernel: KernelPtr,
+        grid: Dim3,
+        block: Dim3,
+        args: *mut *mut c_void,
+        shared_mem: usize,
+        stream: CudaStreamHandle,
+    ) -> CudaRustError;
+
+    pub fn cuda_occupancy_max_active_blocks_per_sm(
+        num_blocks: *mut i32,
+        kernel: KernelPtr,
+        block_size: i32,
+        smem: usize,
+    ) -> CudaRustError;
+
+    pub fn cuda_device_get_attribute_multiprocessor_count(count: *mut i32) -> CudaRustError;
+
     pub fn cuda_device_get_default_mem_pool(
         memPool: *mut CudaMemPool,
         device: CudaDevice,

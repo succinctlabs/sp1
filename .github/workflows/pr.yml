@@ -56,6 +56,12 @@ jobs:
           command: check
           args: --all-targets --all-features --tests
 
+      - name: Set SP1_CIRCUIT_MODE
+        run: |
+          if [ "${{ github.base_ref }}" == "dev" ]; then
+            echo "SP1_CIRCUIT_MODE=dev" >> $GITHUB_ENV
+          fi
+
       - name: Run cargo test
         uses: actions-rs/cargo@v1
         with:
@@ -112,6 +118,12 @@ jobs:
         run: |
           cargo run -p sp1-cli --no-default-features -- prove install-toolchain
           cd crates/cli
+
+      - name: Set SP1_CIRCUIT_MODE
+        run: |
+          if [ "${{ github.base_ref }}" == "dev" ]; then
+            echo "SP1_CIRCUIT_MODE=dev" >> $GITHUB_ENV
+          fi
 
       - name: Run cargo check
         uses: actions-rs/cargo@v1
@@ -175,25 +187,44 @@ jobs:
         run: |
           cargo run -p sp1-cli --no-default-features -- prove install-toolchain
           cd crates/cli
-  
+
+      - name: Set SP1_CIRCUIT_MODE
+        run: |
+          if [ "${{ github.base_ref }}" == "dev" ]; then
+            echo "SP1_CIRCUIT_MODE=dev" >> $GITHUB_ENV
+          fi
+
       - name: Run cargo check
         uses: actions-rs/cargo@v1
         with:
           command: check
           args: --all-targets --all-features --tests
 
+      - name: Set SP1_CIRCUIT_MODE
+        run: |
+          if [ "${{ github.base_ref }}" == "dev" ]; then
+            echo "SP1_CIRCUIT_MODE=dev" >> $GITHUB_ENV
+          fi
+
       - name: Run cargo test
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --release --package sp1-verifier -F ark
+          args: --release --package sp1-verifier -F ark --features experimental
         env:
           RUSTFLAGS: -Copt-level=3 -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
 
   lint:
     name: Formatting & Clippy
-    runs-on: [runs-on, runner=16cpu-linux-x64, disk=large, spot=false, "run-id=${{ github.run_id }}"]
+    runs-on:
+      [
+        runs-on,
+        runner=16cpu-linux-x64,
+        disk=large,
+        spot=false,
+        "run-id=${{ github.run_id }}",
+      ]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -231,7 +262,14 @@ jobs:
 
   check:
     name: Cargo Check
-    runs-on: [runs-on, runner=16cpu-linux-x64, disk=large, spot=false, "run-id=${{ github.run_id }}"]
+    runs-on:
+      [
+        runs-on,
+        runner=16cpu-linux-x64,
+        disk=large,
+        spot=false,
+        "run-id=${{ github.run_id }}",
+      ]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
       RUSTFLAGS: "--cfg sp1_debug_constraints"
@@ -272,7 +310,14 @@ jobs:
 
   check-nightly:
     name: Cargo Check (Nightly)
-    runs-on: [runs-on, runner=16cpu-linux-x64, disk=large, spot=false, "run-id=${{ github.run_id }}"]
+    runs-on:
+      [
+        runs-on,
+        runner=16cpu-linux-x64,
+        disk=large,
+        spot=false,
+        "run-id=${{ github.run_id }}",
+      ]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -337,7 +382,7 @@ jobs:
           cargo run -p sp1-cli --no-default-features -- prove install-toolchain
           cd crates/cli
           cargo install --force --locked --path .
-          cargo clean  
+          cargo clean
 
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1
@@ -362,15 +407,15 @@ jobs:
   #   steps:
   #     - name: Checkout Actions Repository
   #       uses: actions/checkout@v6
-  
+
   #     - name: Install Rust toolchain
   #       uses: dtolnay/rust-toolchain@stable
   #       with:
   #         targets: riscv32imac-unknown-none-elf
-          
+
   #     - name: Install target support
   #       run: rustup target add riscv32imac-unknown-none-elf
-        
+
   #     - name: Check build
   #       run: cargo check --target riscv32imac-unknown-none-elf --no-default-features -p sp1-verifier
 
@@ -387,7 +432,7 @@ jobs:
   #       image=ubuntu22-full-x64,
   #       spot=false,
   #       "run-id=${{ github.run_id }}",
-  #     ]    
+  #     ]
   #   env:
   #     CARGO_NET_GIT_FETCH_WITH_CLI: "true"
   #   steps:
@@ -413,7 +458,7 @@ jobs:
   #     - name: "Build SP1 without lock files"
   #       run: |
   #         cargo build --all --all-targets
-          
+
   #     - name: "Build examples without lock files"
   #       run: |
   #         cd examples
@@ -520,11 +565,17 @@ jobs:
       - name: Install SP1 toolchain from repo
         run: cargo run -p sp1-cli --no-default-features -- prove install-toolchain
 
+      - name: Set SP1_CIRCUIT_MODE
+        run: |
+          if [ "${{ github.base_ref }}" == "dev" ]; then
+            echo "SP1_CIRCUIT_MODE=dev" >> $GITHUB_ENV
+          fi
+
       - name: Run E2E node test
         uses: actions-rs/cargo@v1
         with:
           command: run
-          args: --release -p sp1-gpu-perf --bin node --features native-gnark -- --program local-rsp --param 21000001 --mode groth16
+          args: --release -p sp1-gpu-perf --bin node --features experimental,native-gnark -- --program local-rsp --param 21000001 --mode groth16
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1

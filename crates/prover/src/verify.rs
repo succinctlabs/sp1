@@ -513,7 +513,7 @@ impl SP1Verifier {
         }
 
         // The `vk_root` is the expected `vk_root`.
-        if public_values.vk_root != self.recursion_vks.root() {
+        if self.vk_verification() && public_values.vk_root != self.recursion_vks.root() {
             return Err(MachineVerifierError::InvalidPublicValues("vk_root mismatch"));
         }
 

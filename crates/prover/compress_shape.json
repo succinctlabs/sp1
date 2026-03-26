@@ -2,7 +2,7 @@
   "shape": {
     "heights": {
       "BaseAlu": 585792,
-      "ExtAlu": 795264,
+      "ExtAlu": 795328,
       "MemoryConst": 492288,
       "MemoryVar": 661920,
       "Poseidon2WideDeg3": 158368,

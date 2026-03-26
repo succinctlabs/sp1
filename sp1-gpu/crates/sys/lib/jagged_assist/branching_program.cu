@@ -2,6 +2,7 @@
 #include "fields/kb31_extension_t.cuh"
 #include "fields/kb31_t.cuh"
 #include "challenger/challenger.cuh"
+#include <cooperative_groups.h>
 #include <cstdio>
 
 // The points are stored in column major order.
@@ -143,118 +144,49 @@ __device__ static inline EF getEqVal(
 
 template<typename F, typename EF, typename Challenger>
 __global__ void interpolateAndObserve(
-    EF *results,
+    const EF *results,
     Challenger challenger,
     EF *sampled_value,
     int8_t round_num,
     EF *sum_values,
-    EF claim
+    EF *round_claim  // device-resident: read current claim, write new claim
 ){
     if (blockIdx.x == 0 && threadIdx.x == 0 && blockIdx.y == 0 && threadIdx.y == 0) {
-
-
     EF y_0 = results[0];
     EF y_half = results[1];
-    EF y_1 = claim - y_0;
-    F x_0 = F::zero();
-    F x_one = F::one();
-    F x_half = F::one() / F::two();
+    EF y_1 = round_claim[0] - y_0;
 
     sum_values[3*round_num + 0] = y_0;
     sum_values[3*round_num + 1] = y_half;
     sum_values[3*round_num + 2] = y_1;
 
+    // Closed-form interpolation for fixed x-values (0, 1/2, 1):
+    //   p(x) = c0 + c1*x + c2*x^2
+    //   c0 = y_0
+    //   c1 = -3*y_0 + 4*y_half - y_1
+    //   c2 = 2*(y_0 + y_1) - 4*y_half
+    EF c0 = y_0;
+    EF sum_01 = y_0 + y_1;
+    EF two_y_half = y_half + y_half;
+    EF c2 = sum_01 + sum_01 - two_y_half - two_y_half;
+    EF c1 = y_1 - y_0 - c2;
 
-
-    EF coefficients[3];
-    interpolateQuadratic<F, EF>(x_0, x_half, x_one, y_0, y_half, y_1, coefficients);
-
-    challenger.observe_ext(&coefficients[0]);
-    challenger.observe_ext(&coefficients[1]);
-    challenger.observe_ext(&coefficients[2]);
+    challenger.observe_ext(&c0);
+    challenger.observe_ext(&c1);
+    challenger.observe_ext(&c2);
 
     EF alpha = challenger.sample_ext();
-
     sampled_value[0] = alpha;
 
-    // results[0] = coefficients[0] + coefficients[1] * alpha + coefficients[2] * alpha * alpha;
-
-    EF t(coefficients[2]);
+    // Horner evaluation: p(alpha) = c0 + alpha*(c1 + alpha*c2)
+    EF t(c2);
     t *= alpha;
-    t += coefficients[1];
+    t += c1;
     t *= alpha;
-    t += coefficients[0];
-    results[0] = t;
+    t += c0;
+    round_claim[0] = t;
     }
 }
-
-template<typename F, typename EF>
-__device__ void interpolateQuadratic(
-    F x_0,
-    F x_1,
-    F x_2,
-    EF y_0,
-    EF y_1,
-    EF y_2,
-    EF coefficients[3])
-{
-    /* Compute the coefficients of the quadratic polynomial.
-
-    EF coeff_0 = y_0/((x_0-x_1)*(x_0-x_2));
-    EF coeff_1 = y_1/((x_1-x_0)*(x_1-x_2));
-    EF coeff_2 = y_2/((x_2-x_0)*(x_2-x_1));
-    */
-
-    F x0102 = (x_0-x_1)*(x_0-x_2);
-    F x1012 = (x_1-x_0)*(x_1-x_2);
-    F x2021 = (x_2-x_0)*(x_2-x_1);
-    F x0102x1012 = x0102 * x1012;
-    F denom = x0102x1012 * x2021;
-    F inv = denom.reciprocal();
-
-    EF coeff_0 = y_0 * inv * x1012 * x2021;
-    EF coeff_1 = y_1 * inv * x0102 * x2021;
-    EF coeff_2 = y_2 * inv * x0102x1012;
-
-    /* Compute the value of the polynomial at x.
-
-    // 3 F+F
-    // 4 EF+EF
-    // 9 EF*F
-    coefficients[2] =coeff_0+ coeff_1 + coeff_2;
-    coefficients[1] = -(coeff_0 * (x_1 + x_2) + coeff_1 * (x_0 + x_2) + coeff_2 * (x_0 + x_1));
-    coefficients[0] = coeff_0 * x_1 * x_2 + coeff_1 * x_0 * x_2 + coeff_2 * x_0 * x_1;
-    */
-
-    // 2 F+F
-    // 6 EF+EF
-    // 7 EF*F
-    EF
-        t0, t1, t2,
-        c0c1 = coeff_0 + coeff_1,       // EF+EF
-        c0x1 = coeff_0 * x_1,           // EF*F
-        c1x0 = coeff_1 * x_0,           // EF*F
-        c2x0 = coeff_2 * x_0,           // EF*F
-        c0c1x2 = c0c1 * x_2;            // EF*F
-
-    F x0x1 = x_0 + x_1;                 // F+F
-
-    t2 = c0c1 + coeff_2;                // F+F
-
-    t1  = coeff_2 * x0x1;               // EF*F
-    t1 += c0x1;                         // EF+EF
-    t1 += c1x0;                         // EF+EF
-    t1 += c0c1x2;                       // EF+EF
-
-    t0 = c0x1 + c1x0;                   // EF+EF
-    t0 *= x_2;                          // EF*F
-    t0 += c2x0 * x_1;                   // EF + EF*F
-
-    coefficients[2] = t2;
-    coefficients[1] = -t1;
-    coefficients[0] = t0;
-}
-
 
 template<typename F, typename EF>
 __global__ void fixLastVariable(
@@ -476,12 +408,654 @@ __global__ void branchingProgram(
     }
 }
 
+// ============================================================================
+// Width-8 interleaved branching program kernels (precomputed prefix states)
+// ============================================================================
+
+/// Compute the 3-variable partial Lagrange basis (8 entries) for variables (a, b, c).
+/// Output indices follow: index = (a_bit << 2) | (b_bit << 1) | c_bit
+template<typename EF>
+__device__ void computeThreeVarPartialLagrange(EF a, EF b, EF c, EF *output) {
+    EF a_vals[2] = {EF::one() - a, a};
+    EF ab_vals[4];
+    for (int i = 0; i < 2; i++) {
+        EF prod = a_vals[i] * b;
+        ab_vals[i * 2 + 1] = prod;
+        ab_vals[i * 2] = a_vals[i] - prod;
+    }
+    for (int i = 0; i < 4; i++) {
+        EF prod = ab_vals[i] * c;
+        output[i * 2 + 1] = prod;
+        output[i * 2] = ab_vals[i] - prod;
+    }
+}
+
+/// Compute the 1-variable partial Lagrange basis (2 entries) for variable a.
+template<typename EF>
+__device__ void computeOneVarPartialLagrange(EF a, EF *output) {
+    output[0] = EF::one() - a;
+    output[1] = a;
+}
+
+/// Precompute prefix states for all columns via backward DP through all layers.
+///
+/// Layout: prefix_states[(layer * WIDE_BP_WIDTH + state) * num_columns + col]
+/// Stores (num_layers+1) layers, where layer num_layers is the success initialization.
+template<typename F, typename EF>
+__global__ void precomputePrefixStates(
+    const F *current_prefix_sums,  // [prefix_sum_length, num_columns] col-major
+    const F *next_prefix_sums,     // [prefix_sum_length, num_columns] col-major
+    size_t prefix_sum_length,
+    const EF *z_row, size_t z_row_length,
+    const EF *z_index, size_t z_index_length,
+    size_t num_columns,
+    EF *prefix_states  // [(num_layers+1) * WIDE_BP_WIDTH * num_columns]
+) {
+    size_t num_layers = 2 * (max(z_row_length, z_index_length) + 1);
+
+    for (size_t col = blockDim.x * blockIdx.x + threadIdx.x; col < num_columns; col += blockDim.x * gridDim.x) {
+        // Initialize success states at layer num_layers
+        for (int s = 0; s < WIDE_BP_WIDTH; s++) {
+            EF val = (s == WIDE_SUCCESS_STATE_0 || s == WIDE_SUCCESS_STATE_1) ? EF::one() : EF::zero();
+            prefix_states[(num_layers * WIDE_BP_WIDTH + s) * num_columns + col] = val;
+        }
+
+        EF state[8];
+        for (int s = 0; s < WIDE_BP_WIDTH; s++) {
+            state[s] = (s == WIDE_SUCCESS_STATE_0 || s == WIDE_SUCCESS_STATE_1) ? EF::one() : EF::zero();
+        }
+
+        // Backward DP
+        for (int layer = static_cast<int>(num_layers) - 1; layer >= 0; layer--) {
+            int k = layer / 2;
+            EF new_state[8];
+            for (int s = 0; s < WIDE_BP_WIDTH; s++) {
+                new_state[s] = EF::zero();
+            }
+
+            if (layer % 2 == 0) {
+                // Even layer: reads z_row[k], z_index[k], curr_prefix_sum[k]
+                EF z_row_val = getIthLeastSignificantVal<EF>(z_row, z_row_length, k);
+                EF z_index_val = getIthLeastSignificantVal<EF>(z_index, z_index_length, k);
+                EF curr_ps_val = EF(getIthLeastSignificantValFromPoints<F>(
+                    current_prefix_sums, prefix_sum_length, col, num_columns, k));
+
+                EF three_var_eq[8];
+                // Layout: (curr_ps_bit << 2) | (index_bit << 1) | row_bit
+                // to match CURR_TRANSITIONS_W8 bit state indexing.
+                computeThreeVarPartialLagrange<EF>(curr_ps_val, z_index_val, z_row_val, three_var_eq);
+
+                for (int ms = 0; ms < WIDE_BP_WIDTH; ms++) {
+                    EF accum_elems[8];
+                    for (int s = 0; s < WIDE_BP_WIDTH; s++) accum_elems[s] = EF::zero();
+
+                    for (int bs = 0; bs < 8; bs++) {
+                        uint8_t out_ms = CURR_TRANSITIONS_W8[bs][ms];
+                        if (out_ms != WIDE_FAIL) {
+                            accum_elems[out_ms] += three_var_eq[bs];
+                        }
+                    }
+
+                    EF accum = EF::zero();
+                    for (int s = 0; s < WIDE_BP_WIDTH; s++) {
+                        accum += accum_elems[s] * state[s];
+                    }
+                    new_state[ms] = accum;
+                }
+            } else {
+                // Odd layer: reads next_prefix_sum[k]
+                EF next_ps_val = EF(getIthLeastSignificantValFromPoints<F>(
+                    next_prefix_sums, prefix_sum_length, col, num_columns, k));
+
+                EF one_var_eq[2];
+                computeOneVarPartialLagrange<EF>(next_ps_val, one_var_eq);
+
+                for (int ms = 0; ms < WIDE_BP_WIDTH; ms++) {
+                    EF accum_elems[8];
+                    for (int s = 0; s < WIDE_BP_WIDTH; s++) accum_elems[s] = EF::zero();
+
+                    for (int bs = 0; bs < 2; bs++) {
+                        uint8_t out_ms = NEXT_TRANSITIONS_W8[bs][ms];
+                        // Next transitions never fail
+                        accum_elems[out_ms] += one_var_eq[bs];
+                    }
+
+                    EF accum = EF::zero();
+                    for (int s = 0; s < WIDE_BP_WIDTH; s++) {
+                        accum += accum_elems[s] * state[s];
+                    }
+                    new_state[ms] = accum;
+                }
+            }
+
+            for (int s = 0; s < WIDE_BP_WIDTH; s++) {
+                state[s] = new_state[s];
+                prefix_states[(layer * WIDE_BP_WIDTH + s) * num_columns + col] = new_state[s];
+            }
+        }
+    }
+}
+
+/// Evaluate the branching program at lambda=0 and lambda=1/2 using cached prefix states.
+///
+/// Each thread processes one column. Uses precomputed prefix_states at (round_num+1) and
+/// applies a single layer step for lambda=0 and lambda=1/2, then dots with suffix_vector.
+template<typename F, typename EF>
+__global__ void evalWithCachedAtZeroAndHalf(
+    const EF *prefix_states,       // [(num_layers+1) * 8 * num_columns]
+    const EF *suffix_vector,       // [8] elements
+    const EF *z_row, size_t z_row_length,
+    const EF *z_index, size_t z_index_length,
+    const F *current_prefix_sums,
+    const F *next_prefix_sums,
+    size_t prefix_sum_length,
+    const EF *z_col_eq_vals,
+    const EF *intermediate_eq_full_evals,
+    size_t num_columns,
+    size_t round_num,
+    EF half,
+    EF *output  // [2 * num_columns]: [y_0_values..., y_half_values...]
+) {
+    size_t layer = round_num;
+    int k = static_cast<int>(layer / 2);
+
+    // Extract base field half for cheaper F×EF multiplies.
+    // half = (h, 0, 0, 0) in the extension field since 1/2 lives in the base field.
+    F half_base = half.value[0];
+    F half_sq = half_base * half_base;  // half^2 = combined BP half * eq_half
+
+    // Load suffix into shared memory (identical across all threads in a block).
+    __shared__ EF shared_suffix[WIDE_BP_WIDTH];
+    if (threadIdx.x < WIDE_BP_WIDTH) {
+        shared_suffix[threadIdx.x] = suffix_vector[threadIdx.x];
+    }
+    __syncthreads();
+
+    for (size_t col = blockDim.x * blockIdx.x + threadIdx.x; col < num_columns; col += blockDim.x * gridDim.x) {
+        // Load prefix state at layer+1 (8 values)
+        EF pstate[WIDE_BP_WIDTH];
+        for (int s = 0; s < WIDE_BP_WIDTH; s++) {
+            pstate[s] = prefix_states[((layer + 1) * WIDE_BP_WIDTH + s) * num_columns + col];
+        }
+
+        // Load suffix from shared memory into registers
+        EF suffix[WIDE_BP_WIDTH];
+        for (int s = 0; s < WIDE_BP_WIDTH; s++) {
+            suffix[s] = shared_suffix[s];
+        }
+
+        EF y_0_result;
+        EF y_half_raw;  // without any half factor; output multiplies by half^2
+
+        if (layer % 2 == 0) {
+            // Even layer: z_row[k], z_index[k], curr_ps[k]
+            EF z_row_val = getIthLeastSignificantVal<EF>(z_row, z_row_length, k);
+            EF z_index_val = getIthLeastSignificantVal<EF>(z_index, z_index_length, k);
+
+            // two_var_eq index layout: (index_bit << 1) | row_bit
+            EF two_var_eq[4];
+            {
+                EF a_vals[2] = {EF::one() - z_index_val, z_index_val};
+                for (int i = 0; i < 2; i++) {
+                    EF prod = a_vals[i] * z_row_val;
+                    two_var_eq[i * 2 + 1] = prod;
+                    two_var_eq[i * 2] = a_vals[i] - prod;
+                }
+            }
+
+            // Precompute suffix sums exploiting period-4 symmetry of CURR_TRANSITIONS_W8.
+            // The saved_index_bit (bit 2 of state) doesn't affect curr-layer transitions,
+            // so CURR_TRANSITIONS_W8[bs][m] == CURR_TRANSITIONS_W8[bs][m+4] for all bs, m.
+            // This lets us fold suffix[m] + suffix[m+4] and halve the inner loop.
+            EF ss[4];
+            for (int i = 0; i < 4; i++) ss[i] = suffix[i] + suffix[i + 4];
+
+            // Compute y_0 (curr_ps=0, bit states 0..3) via transposed accumulation.
+            // For each half_i, accumulate: two_var_eq[half_i] * sum_{m} pstate[out] * ss[m].
+            y_0_result = EF::zero();
+            for (int half_i = 0; half_i < 4; half_i++) {
+                EF inner = EF::zero();
+                for (int m = 0; m < 4; m++) {
+                    uint8_t out_ms = CURR_TRANSITIONS_W8[half_i][m];
+                    if (out_ms != WIDE_FAIL) {
+                        inner += pstate[out_ms] * ss[m];
+                    }
+                }
+                y_0_result += two_var_eq[half_i] * inner;
+            }
+
+            // Compute y_one (curr_ps=1, bit states 4..7) via same approach.
+            EF y_one = EF::zero();
+            for (int half_i = 0; half_i < 4; half_i++) {
+                EF inner = EF::zero();
+                for (int m = 0; m < 4; m++) {
+                    uint8_t out_ms = CURR_TRANSITIONS_W8[4 + half_i][m];
+                    if (out_ms != WIDE_FAIL) {
+                        inner += pstate[out_ms] * ss[m];
+                    }
+                }
+                y_one += two_var_eq[half_i] * inner;
+            }
+
+            // y_half without the half factors (BP half and eq_half applied at output).
+            y_half_raw = y_0_result + y_one;
+
+        } else {
+            // Odd layer: permutations of pstate by NEXT_TRANSITIONS_W8.
+            // At zero: only next_ps_bit=0 contributes (weight 1, no multiplies).
+            // At one: next_ps_bit=1 contributes (weight 1).
+            // y_half_raw = y_0 + y_one (half^2 applied at output).
+            y_0_result = EF::zero();
+            EF y_one = EF::zero();
+            for (int ms = 0; ms < WIDE_BP_WIDTH; ms++) {
+                y_0_result += pstate[NEXT_TRANSITIONS_W8[0][ms]] * suffix[ms];
+                y_one += pstate[NEXT_TRANSITIONS_W8[1][ms]] * suffix[ms];
+            }
+            y_half_raw = y_0_result + y_one;
+        }
+
+        // Output: multiply by eq_eval, z_col_eq_val, and intermed.
+        // eq_zero = (1 - ps_val) is a base field value → use F×EF multiply.
+        // Precompute common = z_col_eq_val * intermed (used for both outputs).
+        F ps_val_base;
+        if (layer % 2 == 0) {
+            ps_val_base = getIthLeastSignificantValFromPoints<F>(
+                current_prefix_sums, prefix_sum_length, col, num_columns, k);
+        } else {
+            ps_val_base = getIthLeastSignificantValFromPoints<F>(
+                next_prefix_sums, prefix_sum_length, col, num_columns, k);
+        }
+        F eq_zero_base = F::one() - ps_val_base;
+
+        EF z_col_eq_val = z_col_eq_vals[col];
+        EF intermed = intermediate_eq_full_evals[col];
+        EF common = z_col_eq_val * intermed;
+
+        EF::store(output, col, (y_0_result * eq_zero_base) * common);
+        EF::store(output, num_columns + col, (y_half_raw * half_sq) * common);
+    }
+}
+
+/// Update the suffix vector in-place on device after sampling alpha.
+///
+/// This is the transposed DP step: for each old state s, pushes weighted
+/// contributions to output states t = transition(s, b).
+template<typename F, typename EF>
+__global__ void updateSuffixVector(
+    EF *suffix_vector,     // [8], modified in-place
+    const EF *alpha_ptr,   // [1], sampled value from interpolateAndObserve
+    const EF *z_row, size_t z_row_length,
+    const EF *z_index, size_t z_index_length,
+    const F *current_prefix_sums,
+    const F *next_prefix_sums,
+    size_t prefix_sum_length,
+    size_t num_columns,
+    size_t round_num,
+    size_t num_layers
+) {
+    if (blockIdx.x != 0 || threadIdx.x != 0) return;
+
+    EF alpha = alpha_ptr[0];
+    size_t layer = round_num;
+    int k = static_cast<int>(layer / 2);
+
+    EF suffix[8];
+    for (int s = 0; s < WIDE_BP_WIDTH; s++) {
+        suffix[s] = suffix_vector[s];
+    }
+
+    EF result[8];
+    for (int s = 0; s < WIDE_BP_WIDTH; s++) {
+        result[s] = EF::zero();
+    }
+
+    if (layer % 2 == 0) {
+        // Even layer: transposed step with 3-var eq from (z_row[k], z_index[k], alpha)
+        EF z_row_val = getIthLeastSignificantVal<EF>(z_row, z_row_length, k);
+        EF z_index_val = getIthLeastSignificantVal<EF>(z_index, z_index_length, k);
+
+        EF three_var_eq[8];
+        // Layout: (alpha_bit << 2) | (index_bit << 1) | row_bit
+        // to match CURR_TRANSITIONS_W8 bit state indexing (alpha replaces curr_ps).
+        computeThreeVarPartialLagrange<EF>(alpha, z_index_val, z_row_val, three_var_eq);
+
+        for (int ms = 0; ms < WIDE_BP_WIDTH; ms++) {
+            for (int bs = 0; bs < 8; bs++) {
+                uint8_t out_ms = CURR_TRANSITIONS_W8[bs][ms];
+                if (out_ms != WIDE_FAIL) {
+                    result[out_ms] += suffix[ms] * three_var_eq[bs];
+                }
+            }
+        }
+    } else {
+        // Odd layer: transposed step with 1-var eq from alpha
+        EF one_var_eq[2];
+        computeOneVarPartialLagrange<EF>(alpha, one_var_eq);
+
+        for (int ms = 0; ms < WIDE_BP_WIDTH; ms++) {
+            for (int bs = 0; bs < 2; bs++) {
+                uint8_t out_ms = NEXT_TRANSITIONS_W8[bs][ms];
+                result[out_ms] += suffix[ms] * one_var_eq[bs];
+            }
+        }
+    }
+
+    for (int s = 0; s < WIDE_BP_WIDTH; s++) {
+        suffix_vector[s] = result[s];
+    }
+}
+
+// ============================================================================
+// Fused jagged assist sumcheck kernel using cooperative groups grid sync.
+// Combines evalWithCachedAtZeroAndHalf, block reduction, interpolateAndObserve,
+// updateSuffixVector, and fixLastVariable into a single cooperative kernel,
+// eliminating all inter-round kernel launch overhead.
+// ============================================================================
+
+template<typename F, typename EF, typename Challenger>
+__global__ void fusedJaggedAssistSumcheck(
+    // Read-only
+    const EF *prefix_states,
+    const EF *z_row, size_t z_row_length,
+    const EF *z_index, size_t z_index_length,
+    const F *current_prefix_sums, const F *next_prefix_sums, size_t prefix_sum_length,
+    const EF *z_col_eq_vals,
+    EF half,
+    size_t num_columns, size_t num_rounds,
+    // Read-write state
+    EF *suffix_vector, EF *round_claim,
+    EF *intermediate_eq_full_evals,
+    Challenger challenger,
+    // Outputs
+    EF *sum_values, EF *rho_buffer,
+    // fixLastVariable inputs
+    const F *merged_prefix_sums, size_t merged_prefix_sum_dim,
+    // Workspace
+    EF *block_partial_sums  // [2 * gridDim.x]
+)
+{
+    namespace cg = cooperative_groups;
+    cg::grid_group grid = cg::this_grid();
+
+    const int tid = threadIdx.x;
+    const int bid = blockIdx.x;
+    const int num_threads = blockDim.x;
+
+    // Dynamic shared memory layout:
+    //   [0..8): shared_suffix (8 EF elements)
+    //   [8..8+blockDim.x): smem for block reduction (blockDim.x EF elements)
+    extern __shared__ char dynamic_smem[];
+    EF *shared_suffix = (EF*)dynamic_smem;
+    EF *smem = (EF*)(dynamic_smem + WIDE_BP_WIDTH * sizeof(EF));
+
+    F half_base = half.value[0];
+    F half_sq = half_base * half_base;
+
+    for (size_t round = 0; round < num_rounds; round++) {
+        size_t layer = round;
+        int k = static_cast<int>(layer / 2);
+
+        // Load suffix into shared memory
+        if (tid < WIDE_BP_WIDTH) {
+            shared_suffix[tid] = suffix_vector[tid];
+        }
+        __syncthreads();
+
+        // ===== Phase 1: evalWithCachedAtZeroAndHalf + block reduction =====
+
+        EF local_y0 = EF::zero();
+        EF local_yhalf = EF::zero();
+
+        for (size_t col = num_threads * bid + tid; col < num_columns; col += num_threads * gridDim.x) {
+            // Load prefix state at layer+1
+            EF pstate[WIDE_BP_WIDTH];
+            for (int s = 0; s < WIDE_BP_WIDTH; s++) {
+                pstate[s] = prefix_states[((layer + 1) * WIDE_BP_WIDTH + s) * num_columns + col];
+            }
+
+            EF suffix[WIDE_BP_WIDTH];
+            for (int s = 0; s < WIDE_BP_WIDTH; s++) {
+                suffix[s] = shared_suffix[s];
+            }
+
+            EF y_0_result;
+            EF y_half_raw;
+
+            if (layer % 2 == 0) {
+                // Even layer: z_row[k], z_index[k], curr_ps[k]
+                EF z_row_val = getIthLeastSignificantVal<EF>(z_row, z_row_length, k);
+                EF z_index_val = getIthLeastSignificantVal<EF>(z_index, z_index_length, k);
+
+                EF two_var_eq[4];
+                {
+                    EF a_vals[2] = {EF::one() - z_index_val, z_index_val};
+                    for (int i = 0; i < 2; i++) {
+                        EF prod = a_vals[i] * z_row_val;
+                        two_var_eq[i * 2 + 1] = prod;
+                        two_var_eq[i * 2] = a_vals[i] - prod;
+                    }
+                }
+
+                // Fold suffix pairs exploiting period-4 symmetry
+                EF ss[4];
+                for (int i = 0; i < 4; i++) ss[i] = suffix[i] + suffix[i + 4];
+
+                y_0_result = EF::zero();
+                for (int half_i = 0; half_i < 4; half_i++) {
+                    EF inner = EF::zero();
+                    for (int m = 0; m < 4; m++) {
+                        uint8_t out_ms = CURR_TRANSITIONS_W8[half_i][m];
+                        if (out_ms != WIDE_FAIL) {
+                            inner += pstate[out_ms] * ss[m];
+                        }
+                    }
+                    y_0_result += two_var_eq[half_i] * inner;
+                }
+
+                EF y_one = EF::zero();
+                for (int half_i = 0; half_i < 4; half_i++) {
+                    EF inner = EF::zero();
+                    for (int m = 0; m < 4; m++) {
+                        uint8_t out_ms = CURR_TRANSITIONS_W8[4 + half_i][m];
+                        if (out_ms != WIDE_FAIL) {
+                            inner += pstate[out_ms] * ss[m];
+                        }
+                    }
+                    y_one += two_var_eq[half_i] * inner;
+                }
+
+                y_half_raw = y_0_result + y_one;
+            } else {
+                // Odd layer
+                y_0_result = EF::zero();
+                EF y_one = EF::zero();
+                for (int ms = 0; ms < WIDE_BP_WIDTH; ms++) {
+                    y_0_result += pstate[NEXT_TRANSITIONS_W8[0][ms]] * suffix[ms];
+                    y_one += pstate[NEXT_TRANSITIONS_W8[1][ms]] * suffix[ms];
+                }
+                y_half_raw = y_0_result + y_one;
+            }
+
+            // Multiply by eq_eval, z_col_eq_val, and intermediate
+            F ps_val_base;
+            if (layer % 2 == 0) {
+                ps_val_base = getIthLeastSignificantValFromPoints<F>(
+                    current_prefix_sums, prefix_sum_length, col, num_columns, k);
+            } else {
+                ps_val_base = getIthLeastSignificantValFromPoints<F>(
+                    next_prefix_sums, prefix_sum_length, col, num_columns, k);
+            }
+            F eq_zero_base = F::one() - ps_val_base;
+
+            EF z_col_eq_val = z_col_eq_vals[col];
+            EF intermed = intermediate_eq_full_evals[col];
+            EF common = z_col_eq_val * intermed;
+
+            local_y0 += (y_0_result * eq_zero_base) * common;
+            local_yhalf += (y_half_raw * half_sq) * common;
+        }
+
+        // Block reduction for y0 via shared memory
+        smem[tid] = local_y0;
+        __syncthreads();
+        for (int stride = num_threads / 2; stride > 0; stride >>= 1) {
+            if (tid < stride) {
+                smem[tid] += smem[tid + stride];
+            }
+            __syncthreads();
+        }
+        if (tid == 0) {
+            block_partial_sums[2 * bid] = smem[0];
+        }
+
+        // Block reduction for yhalf via shared memory
+        smem[tid] = local_yhalf;
+        __syncthreads();
+        for (int stride = num_threads / 2; stride > 0; stride >>= 1) {
+            if (tid < stride) {
+                smem[tid] += smem[tid + stride];
+            }
+            __syncthreads();
+        }
+        if (tid == 0) {
+            block_partial_sums[2 * bid + 1] = smem[0];
+        }
+
+        // Grid sync: all blocks have written their partial sums
+        grid.sync();
+
+        // ===== Phase 2: Serial interpolation, challenger, suffix update =====
+        if (bid == 0 && tid == 0) {
+            // Sum across all block partial sums
+            EF total_y0 = EF::zero();
+            EF total_yhalf = EF::zero();
+            for (int b = 0; b < static_cast<int>(gridDim.x); b++) {
+                total_y0 += block_partial_sums[2 * b];
+                total_yhalf += block_partial_sums[2 * b + 1];
+            }
+
+            EF y_0 = total_y0;
+            EF y_half = total_yhalf;
+            EF y_1 = round_claim[0] - y_0;
+
+            sum_values[3 * round + 0] = y_0;
+            sum_values[3 * round + 1] = y_half;
+            sum_values[3 * round + 2] = y_1;
+
+            // Closed-form interpolation for fixed x-values (0, 1/2, 1)
+            EF c0 = y_0;
+            EF sum_01 = y_0 + y_1;
+            EF two_y_half = y_half + y_half;
+            EF c2 = sum_01 + sum_01 - two_y_half - two_y_half;
+            EF c1 = y_1 - y_0 - c2;
+
+            challenger.observe_ext(&c0);
+            challenger.observe_ext(&c1);
+            challenger.observe_ext(&c2);
+
+            EF alpha = challenger.sample_ext();
+            rho_buffer[round] = alpha;
+
+            // Horner evaluation: round_claim = c0 + alpha*(c1 + alpha*c2)
+            EF rc(c2);
+            rc *= alpha;
+            rc += c1;
+            rc *= alpha;
+            rc += c0;
+            round_claim[0] = rc;
+
+            // Update suffix vector (transposed DP step)
+            EF suf[WIDE_BP_WIDTH];
+            for (int s = 0; s < WIDE_BP_WIDTH; s++) {
+                suf[s] = suffix_vector[s];
+            }
+
+            EF res[WIDE_BP_WIDTH];
+            for (int s = 0; s < WIDE_BP_WIDTH; s++) {
+                res[s] = EF::zero();
+            }
+
+            if (layer % 2 == 0) {
+                EF z_row_val = getIthLeastSignificantVal<EF>(z_row, z_row_length, k);
+                EF z_index_val = getIthLeastSignificantVal<EF>(z_index, z_index_length, k);
+
+                EF three_var_eq[WIDE_BP_WIDTH];
+                computeThreeVarPartialLagrange<EF>(alpha, z_index_val, z_row_val, three_var_eq);
+
+                for (int ms = 0; ms < WIDE_BP_WIDTH; ms++) {
+                    for (int bs = 0; bs < WIDE_BP_WIDTH; bs++) {
+                        uint8_t out_ms = CURR_TRANSITIONS_W8[bs][ms];
+                        if (out_ms != WIDE_FAIL) {
+                            res[out_ms] += suf[ms] * three_var_eq[bs];
+                        }
+                    }
+                }
+            } else {
+                EF one_var_eq[2];
+                computeOneVarPartialLagrange<EF>(alpha, one_var_eq);
+
+                for (int ms = 0; ms < WIDE_BP_WIDTH; ms++) {
+                    for (int bs = 0; bs < 2; bs++) {
+                        uint8_t out_ms = NEXT_TRANSITIONS_W8[bs][ms];
+                        res[out_ms] += suf[ms] * one_var_eq[bs];
+                    }
+                }
+            }
+
+            for (int s = 0; s < WIDE_BP_WIDTH; s++) {
+                suffix_vector[s] = res[s];
+            }
+        }
+
+        // Grid sync: alpha and suffix vector updated
+        grid.sync();
+
+        // ===== Phase 3: fixLastVariable =====
+        EF alpha = rho_buffer[round];
+
+        for (size_t col = num_threads * bid + tid; col < num_columns; col += num_threads * gridDim.x) {
+            F value = merged_prefix_sums[col * merged_prefix_sum_dim + merged_prefix_sum_dim - 1 - round];
+
+            EF v(value);
+            EF new_value = alpha * v;
+            new_value += new_value;
+            new_value -= alpha;
+            new_value -= v;
+            new_value += EF::one();
+
+            intermediate_eq_full_evals[col] *= new_value;
+        }
+
+        // Grid sync: intermediate_eq_full_evals updated for next round
+        grid.sync();
+    }
+}
+
 __global__ void transition(
     size_t *__restrict__ output
 ) {
     for (size_t bit_state = 0; bit_state < BIT_STATE_COUNT; bit_state++) {
         for (size_t output_memory_state = 0; output_memory_state < MEMORY_STATE_COUNT; output_memory_state++) {
             output[bit_state * MEMORY_STATE_COUNT + output_memory_state] = TRANSITIONS[bit_state][output_memory_state];
+        }
+    }
+}
+
+// Output the width-8 transition tables: CURR_TRANSITIONS_W8[8][8] followed by NEXT_TRANSITIONS_W8[2][8].
+// Total output: (8*8 + 2*8) = 80 entries as size_t.
+template<typename F, typename EF>
+__global__ void transition_w8(
+    size_t *__restrict__ output
+) {
+    size_t idx = 0;
+    for (size_t bs = 0; bs < 8; bs++) {
+        for (size_t ms = 0; ms < WIDE_BP_WIDTH; ms++) {
+            output[idx++] = CURR_TRANSITIONS_W8[bs][ms];
+        }
+    }
+    for (size_t bs = 0; bs < 2; bs++) {
+        for (size_t ms = 0; ms < WIDE_BP_WIDTH; ms++) {
+            output[idx++] = NEXT_TRANSITIONS_W8[bs][ms];
         }
     }
 }
@@ -495,6 +1069,11 @@ extern "C" void *branching_program_kernel()
 extern "C" void *transition_kernel()
 {
     return (void *)transition<kb31_t, kb31_extension_t>;
+}
+
+extern "C" void *transition_w8_kernel()
+{
+    return (void *)transition_w8<kb31_t, kb31_extension_t>;
 }
 
 
@@ -511,4 +1090,29 @@ extern "C" void *interpolateAndObserve_kernel_multi_field_32()
 extern "C" void *fixLastVariable_kernel()
 {
     return (void *)fixLastVariable<kb31_t, kb31_extension_t>;
+}
+
+extern "C" void *precomputePrefixStates_kernel()
+{
+    return (void *)precomputePrefixStates<kb31_t, kb31_extension_t>;
+}
+
+extern "C" void *evalWithCachedAtZeroAndHalf_kernel()
+{
+    return (void *)evalWithCachedAtZeroAndHalf<kb31_t, kb31_extension_t>;
+}
+
+extern "C" void *updateSuffixVector_kernel()
+{
+    return (void *)updateSuffixVector<kb31_t, kb31_extension_t>;
+}
+
+extern "C" void *fusedJaggedAssistSumcheck_kernel_duplex()
+{
+    return (void *)fusedJaggedAssistSumcheck<kb31_t, kb31_extension_t, DuplexChallenger>;
+}
+
+extern "C" void *fusedJaggedAssistSumcheck_kernel_multi_field_32()
+{
+    return (void *)fusedJaggedAssistSumcheck<kb31_t, kb31_extension_t, MultiField32Challenger>;
 }

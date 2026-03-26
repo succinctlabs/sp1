@@ -1,3 +1,4 @@
+#![cfg(feature = "experimental")]
 use crate::{error::Error, Groth16Error, PlonkError};
 use rstest::rstest;
 use serial_test::serial;
@@ -20,7 +21,7 @@ use test_artifacts::{
 #[serial]
 async fn test_verify_core(#[case] elf: Elf) {
     // Set up the pk and vk.
-    let client = CpuProver::new().await;
+    let client = CpuProver::new_experimental().await;
     let pk = client.setup(elf).await.unwrap();
 
     // Generate the proof.
@@ -39,7 +40,7 @@ async fn test_verify_core(#[case] elf: Elf) {
 #[serial]
 async fn test_verify_compressed(#[case] elf: Elf) {
     // Set up the pk and vk.
-    let client = CpuProver::new().await;
+    let client = CpuProver::new_experimental().await;
     let pk = client.setup(elf).await.unwrap();
 
     // Generate the proof.
@@ -59,7 +60,7 @@ async fn test_verify_compressed(#[case] elf: Elf) {
 #[serial]
 async fn test_verify_groth16(#[case] elf: Elf) {
     // Set up the pk and vk.
-    let client = CpuProver::new().await;
+    let client = CpuProver::new_experimental().await;
     let pk = client.setup(elf).await.unwrap();
 
     // Generate the proof.
@@ -78,7 +79,7 @@ async fn test_verify_groth16(#[case] elf: Elf) {
 #[serial]
 async fn test_verify_plonk(#[case] elf: Elf) {
     // Set up the pk and vk.
-    let client = CpuProver::new().await;
+    let client = CpuProver::new_experimental().await;
     let pk = client.setup(elf).await.unwrap();
 
     // Generate the proof.
@@ -97,7 +98,7 @@ async fn test_verify_plonk(#[case] elf: Elf) {
 #[serial]
 async fn test_groth16_verifier(#[case] elf: Elf, #[case] groth16_elf: Elf) {
     // Set up the pk and vk.
-    let client = CpuProver::new().await;
+    let client = CpuProver::new_experimental().await;
     let pk = client.setup(elf).await.unwrap();
 
     // Generate the Groth16 proof.
@@ -153,7 +154,7 @@ async fn test_groth16_verifier(#[case] elf: Elf, #[case] groth16_elf: Elf) {
 #[serial]
 async fn test_verify_invalid_groth16(#[case] elf: Elf) {
     // Set up the pk and vk.
-    let client = CpuProver::new().await;
+    let client = CpuProver::new_experimental().await;
     let pk = client.setup(elf).await.unwrap();
 
     // Generate the Groth16 proof.
@@ -207,7 +208,7 @@ async fn test_verify_invalid_groth16(#[case] elf: Elf) {
 #[serial]
 async fn test_plonk_verifier(#[case] elf: Elf, #[case] plonk_elf: Elf) {
     // Set up the pk and vk.
-    let client = CpuProver::new().await;
+    let client = CpuProver::new_experimental().await;
     let pk = client.setup(elf).await.unwrap();
 
     // Generate the Plonk proof.
@@ -241,7 +242,7 @@ async fn test_plonk_verifier(#[case] elf: Elf, #[case] plonk_elf: Elf) {
 #[serial]
 async fn test_verify_invalid_plonk(#[case] elf: Elf) {
     // Set up the pk and vk.
-    let client = CpuProver::new().await;
+    let client = CpuProver::new_experimental().await;
     let pk = client.setup(elf).await.unwrap();
 
     // Generate the Plonk proof.

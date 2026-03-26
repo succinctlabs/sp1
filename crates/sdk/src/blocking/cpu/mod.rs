@@ -100,6 +100,14 @@ impl CpuProver {
     #[cfg(feature = "experimental")]
     #[must_use]
     pub fn new_experimental() -> Self {
-        Self::new_with_opts(None)
+        tracing::info!("initializing cpu prover");
+        let worker_builder = cpu_worker_builder().without_vk_verification();
+        let prover = Arc::new(
+            crate::blocking::block_on(
+                SP1LocalNodeBuilder::from_worker_client_builder(worker_builder).build(),
+            )
+            .unwrap(),
+        );
+        Self { prover }
     }
 }

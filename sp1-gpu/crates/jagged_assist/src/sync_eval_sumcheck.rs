@@ -8,7 +8,7 @@ use slop_algebra::{interpolate_univariate_polynomial, ExtensionField, Field};
 use slop_alloc::Buffer;
 use slop_challenger::FieldChallenger;
 use slop_jagged::{
-    JaggedEvalSumcheckPoly, JaggedLittlePolynomialProverParams, JaggedSumcheckEvalProof,
+    interleave_prefix_sums, JaggedLittlePolynomialProverParams, JaggedSumcheckEvalProof,
 };
 use slop_multilinear::{Mle, Point};
 use slop_sumcheck::PartialSumcheckProof;
@@ -30,27 +30,63 @@ fn log2_ceil_usize(n: usize) -> usize {
     }
 }
 
-/// Sync version of JaggedEvalSumcheckPoly::new_from_jagged_params for TaskScope.
-/// Uses DeviceBuffer::from_host() for sync device copies.
+/// GPU-specific sumcheck polynomial state for the jagged eval sumcheck.
+/// This is the GPU equivalent of `JaggedEvalSumcheckPoly` in slop-jagged,
+/// with all buffers on `TaskScope` (device) instead of `CpuBackend`.
+pub struct JaggedEvalSumcheckPolyGPU<F: Field, EF: ExtensionField<F>, DeviceChallenger> {
+    pub bp_batch_eval: JaggedAssistSumAsPolyGPUImpl<F, EF, DeviceChallenger>,
+    pub rho: Point<EF, TaskScope>,
+    pub z_col: Point<EF, TaskScope>,
+    pub merged_prefix_sums: Buffer<F, TaskScope>,
+    pub z_col_eq_vals: Buffer<EF, TaskScope>,
+    pub round_num: usize,
+    pub intermediate_eq_full_evals: Buffer<EF, TaskScope>,
+    pub half: EF,
+    pub prefix_sum_dimension: u32,
+}
+
+impl<F: Field, EF: ExtensionField<F>, DeviceChallenger>
+    JaggedEvalSumcheckPolyGPU<F, EF, DeviceChallenger>
+{
+    pub fn num_variables(&self) -> u32 {
+        self.prefix_sum_dimension
+    }
+
+    /// Fix the last variable by updating intermediate eq evals via GPU kernel.
+    pub fn fix_last_variable(&mut self)
+    where
+        DeviceChallenger: AsMutRawChallenger,
+        TaskScope: BranchingProgramKernel<F, EF, DeviceChallenger>
+            + DeviceSumKernel<EF>
+            + DeviceTransposeKernel<F>,
+    {
+        JaggedAssistSumAsPolyGPUImpl::<F, EF, DeviceChallenger>::fix_last_variable_kernel::<
+            DeviceChallenger,
+        >(
+            &self.merged_prefix_sums,
+            &mut self.intermediate_eq_full_evals,
+            &self.rho,
+            self.prefix_sum_dimension as usize,
+            self.round_num,
+        );
+        self.round_num += 1;
+    }
+}
+
+/// Construct a `JaggedEvalSumcheckPolyGPU` from jagged params, with all data on device.
+/// Returns `(poly, expected_sum)` where `expected_sum` is the full jagged little polynomial
+/// evaluation, computed on the GPU during prefix state precomputation.
 #[allow(clippy::type_complexity)]
-pub fn new_jagged_eval_sumcheck_poly_sync<F, EF, HostChallenger, DeviceChallenger>(
+pub fn new_jagged_eval_sumcheck_poly_sync<F, EF, DeviceChallenger>(
     z_row: Point<EF>,
     z_col: Point<EF>,
     z_index: Point<EF>,
     prefix_sums: Vec<usize>,
     backend: &TaskScope,
-) -> JaggedEvalSumcheckPoly<
-    F,
-    EF,
-    HostChallenger,
-    DeviceChallenger,
-    JaggedAssistSumAsPolyGPUImpl<F, EF, DeviceChallenger>,
-    TaskScope,
->
+) -> (JaggedEvalSumcheckPolyGPU<F, EF, DeviceChallenger>, EF)
 where
     F: Field,
     EF: ExtensionField<F>,
-    HostChallenger: FieldChallenger<F> + Send + Sync,
     DeviceChallenger: AsMutRawChallenger + Send + Sync + Clone,
     TaskScope: BranchingProgramKernel<F, EF, DeviceChallenger>
         + DeviceSumKernel<EF>
@@ -60,14 +96,11 @@ where
     let col_prefix_sums: Vec<Point<F>> =
         prefix_sums.iter().map(|&x| Point::from_usize(x, log_m + 1)).collect();
 
-    // Generate all of the merged prefix sums
+    // Generate all of the merged prefix sums in interleaved layout:
+    // [next[MSB], curr[MSB], next[MSB-1], curr[MSB-1], ..., next[LSB], curr[LSB]]
     let merged_prefix_sums: Vec<Point<F>> = col_prefix_sums
         .windows(2)
-        .map(|prefix_sums| {
-            let mut merged_prefix_sum = prefix_sums[0].clone();
-            merged_prefix_sum.extend(&prefix_sums[1]);
-            merged_prefix_sum
-        })
+        .map(|prefix_sums| interleave_prefix_sums(&prefix_sums[0], &prefix_sums[1]))
         .collect();
 
     // Generate z_col partial lagrange mle
@@ -99,8 +132,8 @@ where
 
     let half = EF::two().inverse();
 
-    // Create the GPU implementation sync
-    let bp_batch_eval = JaggedAssistSumAsPolyGPUImpl::new(
+    // Create the GPU implementation sync (also computes expected_sum from prefix states)
+    let (bp_batch_eval, expected_sum) = JaggedAssistSumAsPolyGPUImpl::new(
         z_row,
         z_index,
         &merged_prefix_sums,
@@ -123,94 +156,51 @@ where
     let intermediate_eq_full_evals_device =
         DeviceBuffer::from_host(&intermediate_eq_full_evals_buffer, backend).unwrap().into_inner();
 
-    JaggedEvalSumcheckPoly::new(
-        bp_batch_eval,
-        Point::new(Buffer::with_capacity_in(0, backend.clone())),
-        z_col_device,
-        merged_prefix_sums_device,
-        z_col_eq_vals_device,
-        0,
-        intermediate_eq_full_evals_device,
-        half,
-        num_variables as u32,
+    (
+        JaggedEvalSumcheckPolyGPU {
+            bp_batch_eval,
+            rho: Point::new(Buffer::with_capacity_in(0, backend.clone())),
+            z_col: z_col_device,
+            merged_prefix_sums: merged_prefix_sums_device,
+            z_col_eq_vals: z_col_eq_vals_device,
+            round_num: 0,
+            intermediate_eq_full_evals: intermediate_eq_full_evals_device,
+            half,
+            prefix_sum_dimension: num_variables as u32,
+        },
+        expected_sum,
     )
 }
 
 /// Sync version of prove_jagged_eval_sumcheck for TaskScope.
-/// Calls sync methods directly instead of using async/.await.
-pub fn prove_jagged_eval_sumcheck_sync<F, EF, HostChallenger, DeviceChallenger>(
-    mut poly: JaggedEvalSumcheckPoly<
-        F,
-        EF,
-        HostChallenger,
-        DeviceChallenger,
-        JaggedAssistSumAsPolyGPUImpl<F, EF, DeviceChallenger>,
-        TaskScope,
-    >,
+/// Uses a single fused cooperative kernel launch for all rounds.
+pub fn prove_jagged_eval_sumcheck_sync<F, EF, DeviceChallenger>(
+    mut poly: JaggedEvalSumcheckPolyGPU<F, EF, DeviceChallenger>,
     challenger: &mut DeviceChallenger,
     claim: EF,
-    t: usize,
+    _t: usize,
     sum_values: &mut Buffer<EF, TaskScope>,
 ) -> PartialSumcheckProof<EF>
 where
     F: Field,
     EF: ExtensionField<F> + Send + Sync,
-    HostChallenger: FieldChallenger<F> + Send + Sync,
     DeviceChallenger: AsMutRawChallenger + Send + Sync + Clone,
     TaskScope: BranchingProgramKernel<F, EF, DeviceChallenger>
         + DeviceSumKernel<EF>
         + DeviceTransposeKernel<F>,
 {
-    let num_variables = poly.num_variables();
+    let num_variables = poly.num_variables() as usize;
 
-    // First round of sumcheck - sync call
-    let (mut round_claim, new_point) = poly.bp_batch_eval.sum_as_poly_and_sample_into_point(
-        poly.round_num,
+    // Single fused cooperative kernel launch for all rounds
+    let rho_buffer = poly.bp_batch_eval.fused_sumcheck(
+        num_variables,
         &poly.z_col_eq_vals,
-        &poly.intermediate_eq_full_evals,
+        &mut poly.intermediate_eq_full_evals,
         sum_values,
         challenger,
-        claim,
-        poly.rho.clone(),
-    );
-    poly.rho = new_point;
-
-    // Fix last variable - sync call
-    JaggedAssistSumAsPolyGPUImpl::<F, EF, DeviceChallenger>::fix_last_variable_kernel::<
-        DeviceChallenger,
-    >(
         &poly.merged_prefix_sums,
-        &mut poly.intermediate_eq_full_evals,
-        &poly.rho,
         poly.prefix_sum_dimension as usize,
-        poly.round_num,
     );
-    poly.round_num += 1;
-
-    for _ in t..num_variables as usize {
-        let (new_claim, new_point) = poly.bp_batch_eval.sum_as_poly_and_sample_into_point(
-            poly.round_num,
-            &poly.z_col_eq_vals,
-            &poly.intermediate_eq_full_evals,
-            sum_values,
-            challenger,
-            round_claim,
-            poly.rho.clone(),
-        );
-        round_claim = new_claim;
-        poly.rho = new_point;
-
-        JaggedAssistSumAsPolyGPUImpl::<F, EF, DeviceChallenger>::fix_last_variable_kernel::<
-            DeviceChallenger,
-        >(
-            &poly.merged_prefix_sums,
-            &mut poly.intermediate_eq_full_evals,
-            &poly.rho,
-            poly.prefix_sum_dimension as usize,
-            poly.round_num,
-        );
-        poly.round_num += 1;
-    }
 
     // Move sum_as_poly evaluations to CPU
     let host_sum_values = unsafe { sum_values.copy_into_host_vec() };
@@ -225,16 +215,17 @@ where
         })
         .collect::<Vec<_>>();
 
-    // Move randomness point to CPU
-    let point_host = unsafe { poly.rho.values().copy_into_host_vec() };
+    // Move rho_buffer to CPU and reverse (kernel writes forward, convention is reversed)
+    let mut rho_host = unsafe { rho_buffer.copy_into_host_vec() };
+    rho_host.reverse();
 
     let final_claim: EF =
-        univariate_polys.last().unwrap().eval_at_point(point_host.first().copied().unwrap());
+        univariate_polys.last().unwrap().eval_at_point(rho_host.first().copied().unwrap());
 
     PartialSumcheckProof {
         univariate_polys,
         claimed_sum: claim,
-        point_and_eval: (point_host.into(), final_claim),
+        point_and_eval: (rho_host.into(), final_claim),
     }
 }
 
@@ -259,20 +250,15 @@ where
         + DeviceSumKernel<EF>
         + DeviceTransposeKernel<F>,
 {
-    // Create sumcheck poly sync
-    let jagged_eval_sc_poly =
-        new_jagged_eval_sumcheck_poly_sync::<F, EF, HostChallenger, DeviceChallenger>(
+    // Create sumcheck poly sync (also computes expected_sum from GPU prefix states)
+    let (jagged_eval_sc_poly, expected_sum) =
+        new_jagged_eval_sumcheck_poly_sync::<F, EF, DeviceChallenger>(
             z_row.clone(),
             z_col.clone(),
             z_trace.clone(),
             params.col_prefix_sums_usize.clone(),
             backend,
         );
-
-    // Compute expected sum
-    let verifier_params = params.clone().into_verifier_params();
-    let expected_sum =
-        verifier_params.full_jagged_little_polynomial_evaluation(z_row, z_col, z_trace);
 
     let log_m = log2_ceil_usize(*params.col_prefix_sums_usize.last().unwrap());
 
@@ -302,4 +288,110 @@ where
     }
 
     JaggedSumcheckEvalProof { partial_sumcheck_proof }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use rand::rngs::StdRng;
+    use rand::{Rng, SeedableRng};
+    use slop_algebra::AbstractField;
+    use slop_alloc::Buffer;
+    use slop_challenger::{FieldChallenger, IopCtx};
+    use slop_jagged::{
+        prove_jagged_eval_sumcheck, JaggedEvalSumcheckPoly, JaggedLittlePolynomialProverParams,
+    };
+    use slop_multilinear::Point;
+    use sp1_gpu_challenger::DuplexChallenger as DeviceDuplexChallenger;
+    use sp1_gpu_cudart::TaskScope;
+    use sp1_primitives::{SP1ExtensionField, SP1Field, SP1GlobalContext, SP1Perm};
+
+    type F = SP1Field;
+    type EF = SP1ExtensionField;
+    type HostChallenger = slop_challenger::DuplexChallenger<F, SP1Perm, 16, 8>;
+    type DeviceChallenger = DeviceDuplexChallenger<F, TaskScope>;
+
+    /// End-to-end test: run the GPU jagged assist sumcheck prover and compare
+    /// its output against the CPU reference implementation.
+    #[test]
+    fn test_gpu_vs_cpu_jagged_eval_sumcheck() {
+        let row_counts = vec![1 << 10, 1 << 8, 0, 1 << 12, 1 << 7, 0, 1 << 11, 1 << 10];
+        let log_max_row_count = 12;
+
+        let prover_params =
+            JaggedLittlePolynomialProverParams::new(row_counts.clone(), log_max_row_count);
+
+        let mut rng = StdRng::seed_from_u64(42);
+
+        let prefix_sums = &prover_params.col_prefix_sums_usize;
+        let log_m = log2_ceil_usize(*prefix_sums.last().unwrap());
+
+        let z_row: Point<EF> = (0..log_max_row_count).map(|_| rng.gen::<EF>()).collect();
+        let z_col: Point<EF> =
+            (0..log2_ceil_usize(row_counts.len())).map(|_| rng.gen::<EF>()).collect();
+        let z_index: Point<EF> = (0..log_m + 1).map(|_| rng.gen::<EF>()).collect();
+
+        // Compute expected sum (shared reference value).
+        let verifier_params = prover_params.clone().into_verifier_params::<F>();
+        let expected_sum =
+            verifier_params.full_jagged_little_polynomial_evaluation(&z_row, &z_col, &z_index);
+
+        // --- CPU prover ---
+        let mut cpu_challenger = SP1GlobalContext::default_challenger();
+        cpu_challenger.observe_ext_element(expected_sum);
+
+        let cpu_poly = JaggedEvalSumcheckPoly::<F, EF, HostChallenger>::new_from_jagged_params(
+            z_row.clone(),
+            z_col.clone(),
+            z_index.clone(),
+            prefix_sums.clone(),
+        );
+        let mut cpu_sum_values = Buffer::from(vec![EF::zero(); 6 * (log_m + 1)]);
+        let cpu_proof = prove_jagged_eval_sumcheck(
+            cpu_poly,
+            &mut cpu_challenger,
+            expected_sum,
+            1,
+            &mut cpu_sum_values,
+        );
+
+        // --- GPU prover ---
+        let mut gpu_host_challenger = SP1GlobalContext::default_challenger();
+        let gpu_proof = sp1_gpu_cudart::run_sync_in_place(|backend| {
+            prove_jagged_evaluation_sync::<F, EF, HostChallenger, DeviceChallenger>(
+                &prover_params,
+                &z_row,
+                &z_col,
+                &z_index,
+                &mut gpu_host_challenger,
+                &backend,
+            )
+        })
+        .unwrap();
+        let gpu_proof = gpu_proof.partial_sumcheck_proof;
+
+        // --- Compare proofs ---
+        assert_eq!(cpu_proof.claimed_sum, gpu_proof.claimed_sum, "Claimed sums differ");
+
+        assert_eq!(
+            cpu_proof.univariate_polys.len(),
+            gpu_proof.univariate_polys.len(),
+            "Number of rounds differ"
+        );
+
+        for (i, (cpu_poly, gpu_poly)) in
+            cpu_proof.univariate_polys.iter().zip(gpu_proof.univariate_polys.iter()).enumerate()
+        {
+            assert_eq!(
+                cpu_poly.coefficients, gpu_poly.coefficients,
+                "Univariate polynomial coefficients differ at round {i}"
+            );
+        }
+
+        assert_eq!(
+            cpu_proof.point_and_eval, gpu_proof.point_and_eval,
+            "Final point and eval differ"
+        );
+    }
 }

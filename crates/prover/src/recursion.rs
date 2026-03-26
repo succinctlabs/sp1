@@ -58,7 +58,7 @@ impl Default for RecursionVks {
 
 impl RecursionVks {
     /// The map for the recursion vk hashes to their indice in the merkle tree.
-    const RECURSION_VK_MAP_BYTES: &[u8] = include_bytes!("vk_map.bin");
+    const RECURSION_VK_MAP_BYTES: &[u8] = include_bytes!("vk_map_dummy.bin");
 
     fn from_map(
         mut map: BTreeMap<[SP1Field; DIGEST_SIZE], usize>,
@@ -160,6 +160,9 @@ impl RecursionVks {
         proof: &MerkleProof<SP1GlobalContext>,
         vk: &MachineVerifyingKey<SP1GlobalContext>,
     ) -> Result<(), TaskError> {
+        if !self.vk_verification {
+            return Ok(());
+        }
         let digest = vk.hash_koalabear();
         verify_merkle_proof(proof, digest, self.root)
             .map_err(|e| TaskError::Fatal(anyhow::anyhow!("invalid merkle proof: {:?}", e)))

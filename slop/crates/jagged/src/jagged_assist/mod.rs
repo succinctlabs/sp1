@@ -4,21 +4,18 @@ mod sumcheck_poly;
 mod sumcheck_sum_as_poly;
 
 pub use eval_sumcheck_prover::*;
-use slop_alloc::{Buffer, CanCopyFrom, CpuBackend};
 pub use sumcheck_eval::*;
 pub use sumcheck_poly::*;
 pub use sumcheck_sum_as_poly::*;
 
 use slop_algebra::{ExtensionField, Field};
-use slop_multilinear::{Point, PointBackend};
+use slop_multilinear::Point;
 
 use crate::JaggedLittlePolynomialProverParams;
 
 pub trait JaggedEvalProver<F: Field, EF: ExtensionField<F>, Challenger>:
     'static + Send + Sync + Clone
 {
-    type A: PointBackend<EF> + CanCopyFrom<Buffer<EF>, CpuBackend, Output = Buffer<EF, Self::A>>;
-
     fn prove_jagged_evaluation(
         &self,
         params: &JaggedLittlePolynomialProverParams,
@@ -26,7 +23,6 @@ pub trait JaggedEvalProver<F: Field, EF: ExtensionField<F>, Challenger>:
         z_col: &Point<EF>,
         z_trace: &Point<EF>,
         challenger: &mut Challenger,
-        backend: Self::A,
     ) -> JaggedSumcheckEvalProof<EF>;
 }
 
@@ -34,13 +30,14 @@ pub trait JaggedEvalProver<F: Field, EF: ExtensionField<F>, Challenger>:
 mod tests {
 
     use crate::{
-        jagged_eval::sumcheck_poly::JaggedEvalSumcheckPoly, BranchingProgram,
+        deinterleave_prefix_sums, interleave_prefix_sums,
+        jagged_assist::sumcheck_poly::JaggedEvalSumcheckPoly, BranchingProgram,
         JaggedLittlePolynomialProverParams, JaggedLittlePolynomialVerifierParams,
     };
     use itertools::Itertools;
     use rand::{thread_rng, Rng};
     use slop_algebra::{extension::BinomialExtensionField, AbstractField};
-    use slop_alloc::CpuBackend;
+    use slop_alloc::Buffer;
     use slop_baby_bear::{
         baby_bear_poseidon2::{my_bb_16_perm, Perm},
         BabyBear,
@@ -58,7 +55,14 @@ mod tests {
 
     #[test]
     fn test_jagged_eval_sumcheck() {
-        let row_counts = [12, 1, 0, 0, 17, 0];
+        let mut row_counts =
+            vec![1 << 20, 1 << 17, 0, 0, 1 << 17, 0, 1 << 21, 1 << 21, 1 << 20, 1 << 19, 0];
+
+        let row_counts_extension = [1 << 21; 1 << 6];
+        let row_counts_second_extension = [1 << 9; 1 << 10];
+
+        row_counts.extend(&row_counts_extension);
+        row_counts.extend(&row_counts_second_extension);
 
         let mut rng = thread_rng();
 
@@ -74,7 +78,7 @@ mod tests {
         prefix_sums.push(*prefix_sums.last().unwrap() + row_counts.last().unwrap());
         let log_m = log2_ceil_usize(*prefix_sums.last().unwrap());
 
-        let log_max_row_count = 7;
+        let log_max_row_count = 21;
 
         let z_row: Point<EF> = (0..log_max_row_count).map(|_| rng.gen::<EF>()).collect();
         let z_col: Point<EF> =
@@ -84,9 +88,9 @@ mod tests {
         let merged_prefix_sums = prefix_sums
             .windows(2)
             .map(|x| {
-                let mut merged_prefix_sum: Point<F> = Point::from_usize(x[0], log_m + 1);
-                merged_prefix_sum.extend(&Point::from_usize(x[1], log_m + 1));
-                merged_prefix_sum
+                let curr: Point<F> = Point::from_usize(x[0], log_m + 1);
+                let next: Point<F> = Point::from_usize(x[1], log_m + 1);
+                interleave_prefix_sums(&curr, &next)
             })
             .collect::<Vec<_>>();
 
@@ -105,26 +109,22 @@ mod tests {
         let expected_sum =
             verifier_params.full_jagged_little_polynomial_evaluation(&z_row, &z_col, &z_index);
 
-        let batch_eval_poly = JaggedEvalSumcheckPoly::<
-            F,
-            EF,
-            Challenger,
-            Challenger,
-            JaggedAssistSumAsPolyCPUImpl<F, EF, Challenger>,
-            CpuBackend,
-        >::new_from_jagged_params(
+        let now = std::time::Instant::now();
+
+        let batch_eval_poly = JaggedEvalSumcheckPoly::<F, EF, Challenger>::new_from_jagged_params(
             z_row.clone(),
             z_col.clone(),
             z_index.clone(),
             prefix_sums.clone(),
-            CpuBackend,
         );
+        println!("Batch eval poly created in: {:?}", now.elapsed().as_secs_f32());
 
         let default_perm = my_bb_16_perm();
         let mut challenger = Challenger::new(default_perm.clone());
 
         let mut sum_values = Buffer::from(vec![EF::zero(); 6 * (log_m + 1)]);
 
+        let now = std::time::Instant::now();
         let sc_proof = prove_jagged_eval_sumcheck(
             batch_eval_poly,
             &mut challenger,
@@ -132,6 +132,7 @@ mod tests {
             1,
             &mut sum_values,
         );
+        println!("Proof generation took: {:?}", now.elapsed().as_secs_f32());
 
         assert!(sc_proof.claimed_sum == expected_sum);
 
@@ -144,9 +145,8 @@ mod tests {
             .iter()
             .zip(z_col_eq_vals.iter())
             .map(|(merged_prefix_sum, z_col_eq_val)| {
-                let (lower, upper) =
-                    out_of_domain_point.split_at(out_of_domain_point.dimension() / 2);
-                let h_eval = h_poly.eval(&lower, &upper);
+                let (curr, next) = deinterleave_prefix_sums(&out_of_domain_point);
+                let h_eval = h_poly.eval(&curr, &next);
                 *z_col_eq_val
                     * Mle::full_lagrange_eval(merged_prefix_sum, &out_of_domain_point)
                     * h_eval

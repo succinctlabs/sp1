@@ -40,7 +40,9 @@ async fn main() {
     let dump_path = dump_dir.path().to_path_buf();
 
     // Set the env var so the prover dumps shards.
-    std::env::set_var("SP1_DUMP_SHARD_DIR", dump_path.to_str().unwrap());
+    unsafe {
+        std::env::set_var("SP1_DUMP_SHARD_DIR", dump_path.to_str().unwrap());
+    }
 
     // Run the proving pipeline in core mode.
     let num_shards = sp1_gpu_cudart::spawn(move |t| async move {

@@ -46,7 +46,7 @@ ark-ec = { version = "0.5.0", optional = true }
 dirs = "5.0"
 
 [dev-dependencies]
-sp1-sdk = { path = "../sdk", features = ["native-gnark"] }
+sp1-sdk = { path = "../sdk", features = ["native-gnark", "experimental"] }
 test-artifacts = { path = "../test-artifacts" }
 cfg-if = "1.0.0"
 serial_test = "3.2.0"
@@ -55,6 +55,7 @@ tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [features]
 default = []
+experimental = []
 std = ["thiserror/std"]
 ark = ["ark-bn254", "ark-serialize", "ark-ff", "ark-groth16", "ark-ec"]
 
