@@ -1,19 +1,19 @@
 [package]
-name = "poseidon2-script"
+name = "sha-bench-script"
 version = { workspace = true }
 edition = { workspace = true }
-default-run = "poseidon2-script"
+default-run = "sha-bench-script"
 publish = false
 
 [dependencies]
 hex = "0.4.3"
 sp1-sdk = { workspace = true }
 tokio = { workspace = true }
-tracing = { workspace = true }
+tracing = "0.1"
 
 [build-dependencies]
 sp1-build = { workspace = true }
 
 [[bin]]
-name = "poseidon2-script"
+name = "sha-bench-script"
 path = "src/main.rs"
