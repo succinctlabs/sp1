@@ -458,7 +458,7 @@ impl TranspilerBackend {
         self.hoist_clock();
 
         // Its possible that enter back into the function with a non-zero PC.
-        self.jump_to_pc();
+        self.load_and_jump_to_pc();
     }
 
     /// Restore all the registers callee-saved registers we clobbered
@@ -840,7 +840,7 @@ impl TranspilerBackend {
         }
     }
 
-    /// Update pc value
+    /// Write pc value back to JitContext
     #[inline]
     fn update_pc(&mut self, temp_reg: u8, pc: u64) {
         do_load_imm_var!(self, temp_reg, pc);
@@ -871,11 +871,19 @@ impl TranspilerBackend {
         Some(label)
     }
 
+    /// Loads PC from JitContext, then looks up jump table,
+    /// executes a jump.
+    #[inline]
+    fn load_and_jump_to_pc(&mut self) {
+        self.load_pc_into_register(TEMP_A);
+        self.jump_to_pc();
+    }
+
     /// Looks up into the jump table and executes a jump.
+    /// This method assumes that PC is in TEMP_A. If you are
+    /// not sure, you should use `load_and_jump_to_pc`.
     #[inline]
     fn jump_to_pc(&mut self) {
-        self.load_pc_into_register(TEMP_A);
-
         let pc_base = self.pc_base as i32;
         dynasm! {
             self;
@@ -938,7 +946,15 @@ impl TranspilerBackend {
             }
         }
         if !handled {
-            self.jump_to_pc();
+            // If a target is not available, we fall back to the old path:
+            // update PC, and query jump table.
+            if let Some(target_pc) = jump_target {
+                // This saves a pair of memory store / load operation on PC.
+                do_load_imm_var!(self, TEMP_A, target_pc);
+                self.jump_to_pc();
+            } else {
+                self.load_and_jump_to_pc();
+            }
         }
     }
 }

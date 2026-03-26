@@ -784,9 +784,6 @@ impl ControlFlowInstructions for TranspilerBackend {
         // Store the current PC + 4 into the destination register.
         self.emit_risc_register_store(TEMP_A, Some(next_pc), rd);
 
-        // Adjust the PC store in the context by the immediate.
-        self.update_pc(TEMP_B, target_pc);
-
         // Add the base amount of cycles for the instruction.
         self.bump_clk();
 
@@ -804,16 +801,18 @@ impl ControlFlowInstructions for TranspilerBackend {
         // ------------------------------------
         let jump_target = self.reg_values.get(&rs1).map(|rs1_imm| rs1_imm.wrapping_add(imm));
 
-        // ------------------------------------
-        // 2. Update PC value
-        // ------------------------------------
-        self.emit_risc_operand_load(rs1.into(), TEMP_A);
-        dynasm! {
-            self;
-            .arch x64;
+        if jump_target.is_none() {
+            // ------------------------------------
+            // 2. Update PC value if we don't have it at transpile time.
+            // ------------------------------------
+            self.emit_risc_operand_load(rs1.into(), TEMP_A);
+            dynasm! {
+                self;
+                .arch x64;
 
-            add Rq(TEMP_A), imm as i32;
-            mov QWORD [Rq(CONTEXT) + PC_OFFSET], Rq(TEMP_A)
+                add Rq(TEMP_A), imm as i32;
+                mov QWORD [Rq(CONTEXT) + PC_OFFSET], Rq(TEMP_A)
+            }
         }
 
         // ------------------------------------
@@ -855,7 +854,6 @@ impl ControlFlowInstructions for TranspilerBackend {
         // Branched:
         // 0. Bump the pc by the immediate.
         // ------------------------------------
-        self.update_pc(Rq::RAX as u8, branched_target);
         self.end_branch(Some(branched_target));
 
         dynasm! {
@@ -870,7 +868,6 @@ impl ControlFlowInstructions for TranspilerBackend {
         // ------------------------------------
         // 1. Bump the pc by 4
         // ------------------------------------
-        self.update_pc(Rq::RAX as u8, not_branched_target);
         self.end_branch(Some(not_branched_target));
     }
 
@@ -900,7 +897,6 @@ impl ControlFlowInstructions for TranspilerBackend {
         // Branched:
         // 0. Bump the pc by the immediate.
         // ------------------------------------
-        self.update_pc(Rq::RAX as u8, branched_target);
         self.end_branch(Some(branched_target));
 
         dynasm! {
@@ -915,7 +911,6 @@ impl ControlFlowInstructions for TranspilerBackend {
         // ------------------------------------
         // 1. Bump the pc by 4
         // ------------------------------------
-        self.update_pc(Rq::RAX as u8, not_branched_target);
         self.end_branch(Some(not_branched_target));
     }
 
@@ -944,7 +939,6 @@ impl ControlFlowInstructions for TranspilerBackend {
         // Branched:
         // 0. Bump the pc by the immediate.
         // ------------------------------------
-        self.update_pc(Rq::RAX as u8, branched_target);
         self.end_branch(Some(branched_target));
 
         dynasm! {
@@ -959,7 +953,6 @@ impl ControlFlowInstructions for TranspilerBackend {
         // ------------------------------------
         // 1. Bump the pc by 4
         // ------------------------------------
-        self.update_pc(Rq::RAX as u8, not_branched_target);
         self.end_branch(Some(not_branched_target));
     }
 
@@ -990,7 +983,6 @@ impl ControlFlowInstructions for TranspilerBackend {
         // Branched:
         // 0. Bump the pc by the immediate.
         // ------------------------------------
-        self.update_pc(Rq::RAX as u8, branched_target);
         self.end_branch(Some(branched_target));
 
         dynasm! {
@@ -1005,7 +997,6 @@ impl ControlFlowInstructions for TranspilerBackend {
         // ------------------------------------
         // 1. Bump the pc by 4
         // ------------------------------------
-        self.update_pc(Rq::RAX as u8, not_branched_target);
         self.end_branch(Some(not_branched_target));
     }
 
@@ -1032,7 +1023,6 @@ impl ControlFlowInstructions for TranspilerBackend {
         // Branched:
         // 0. Bump the pc by the immediate.
         // ------------------------------------
-        self.update_pc(Rq::RAX as u8, branched_target);
         self.end_branch(Some(branched_target));
 
         dynasm! {
@@ -1047,7 +1037,6 @@ impl ControlFlowInstructions for TranspilerBackend {
         // ------------------------------------
         // 1. Bump the pc by 4
         // ------------------------------------
-        self.update_pc(Rq::RAX as u8, not_branched_target);
         self.end_branch(Some(not_branched_target));
     }
 
@@ -1074,7 +1063,6 @@ impl ControlFlowInstructions for TranspilerBackend {
         // Branched:
         // 0. Bump the pc by the immediate.
         // ------------------------------------
-        self.update_pc(Rq::RAX as u8, branched_target);
         self.end_branch(Some(branched_target));
 
         dynasm! {
@@ -1089,7 +1077,6 @@ impl ControlFlowInstructions for TranspilerBackend {
         // ------------------------------------
         // 1. Bump the pc by 4
         // ------------------------------------
-        self.update_pc(Rq::RAX as u8, not_branched_target);
         self.end_branch(Some(not_branched_target));
     }
 }
