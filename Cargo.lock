@@ -6690,6 +6690,7 @@ name = "sp1-core-machine"
 version = "6.0.2"
 dependencies = [
  "bincode",
+ "blake3",
  "cfg-if",
  "enum-map",
  "futures",

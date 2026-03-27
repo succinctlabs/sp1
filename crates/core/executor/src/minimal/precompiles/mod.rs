@@ -1,5 +1,6 @@
 mod ec;
 
+pub mod blake3;
 pub mod edwards;
 pub mod fptower;
 pub mod keccak;

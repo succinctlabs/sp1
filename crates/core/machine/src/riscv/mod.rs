@@ -56,6 +56,7 @@ pub(crate) mod riscv_chips {
                 keccak256::{KeccakPermuteChip, KeccakPermuteControlChip},
                 mprotect::MProtectChip,
                 poseidon2::Poseidon2Chip,
+                blake3::{Blake3CompressChip, Blake3CompressControlChip},
                 sha256::{
                     ShaCompressChip, ShaCompressControlChip, ShaExtendChip, ShaExtendControlChip,
                 },
@@ -172,6 +173,10 @@ pub enum RiscvAir<F: PrimeField32> {
     Sha256Compress(ShaCompressChip),
     /// A controller for sha256 compress.
     Sha256CompressControl(ShaCompressControlChip),
+    /// A precompile for blake3 compress.
+    Blake3Compress(Blake3CompressChip),
+    /// A controller for blake3 compress.
+    Blake3CompressControl(Blake3CompressControlChip),
     /// A precompile for addition on the Elliptic curve ed25519.
     Ed25519Add(EdAddAssignChip<EdwardsCurve<Ed25519Parameters>>),
     /// A precompile for decompressing a point on the Edwards curve ed25519.
@@ -241,6 +246,8 @@ impl<F: PrimeField32> RiscvAir<F> {
             RiscvAir::Sha256ExtendControl(ShaExtendControlChip::default()),
             RiscvAir::Sha256Compress(ShaCompressChip::default()),
             RiscvAir::Sha256CompressControl(ShaCompressControlChip::default()),
+            RiscvAir::Blake3Compress(Blake3CompressChip::default()),
+            RiscvAir::Blake3CompressControl(Blake3CompressControlChip::default()),
             RiscvAir::Ed25519Add(EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>>::new()),
             RiscvAir::Ed25519Decompress(EdDecompressChip::<Ed25519Parameters>::default()),
             RiscvAir::K256Decompress(
@@ -346,6 +353,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         let precompile_clusters = [
             [Sha256Extend, Sha256ExtendControl].as_slice(),
             [Sha256Compress, Sha256CompressControl].as_slice(),
+            [Blake3Compress, Blake3CompressControl].as_slice(),
             [Ed25519Add].as_slice(),
             [Ed25519Decompress].as_slice(),
             [K256Decompress].as_slice(),
@@ -507,6 +515,16 @@ impl<F: PrimeField32> RiscvAir<F> {
             Chip::new(RiscvAir::Sha256CompressControl(ShaCompressControlChip::default()));
         costs.insert(sha_compress_control.name().to_string(), sha_compress_control.cost());
         chips.push(sha_compress_control);
+
+        let blake3_compress =
+            Chip::new(RiscvAir::Blake3Compress(Blake3CompressChip::default()));
+        costs.insert(blake3_compress.name().to_string(), blake3_compress.cost());
+        chips.push(blake3_compress);
+
+        let blake3_compress_control =
+            Chip::new(RiscvAir::Blake3CompressControl(Blake3CompressControlChip::default()));
+        costs.insert(blake3_compress_control.name().to_string(), blake3_compress_control.cost());
+        chips.push(blake3_compress_control);
 
         let ed_add_assign = Chip::new(RiscvAir::Ed25519Add(EdAddAssignChip::<
             EdwardsCurve<Ed25519Parameters>,
@@ -946,6 +964,8 @@ impl From<RiscvAirDiscriminants> for RiscvAirId {
             RiscvAirDiscriminants::Bn254Fp2AddSub => RiscvAirId::Bn254Fp2AddSubAssign,
             RiscvAirDiscriminants::Sha256ExtendControl => RiscvAirId::ShaExtendControl,
             RiscvAirDiscriminants::Sha256CompressControl => RiscvAirId::ShaCompressControl,
+            RiscvAirDiscriminants::Blake3Compress => RiscvAirId::Blake3Compress,
+            RiscvAirDiscriminants::Blake3CompressControl => RiscvAirId::Blake3CompressControl,
             RiscvAirDiscriminants::KeccakPControl => RiscvAirId::KeccakPermuteControl,
             RiscvAirDiscriminants::Mprotect => RiscvAirId::Mprotect,
             RiscvAirDiscriminants::Poseidon2 => RiscvAirId::Poseidon2,

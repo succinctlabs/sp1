@@ -1,3 +1,4 @@
+mod blake3_compress;
 mod ec;
 mod edwards;
 mod fptower;
@@ -13,6 +14,7 @@ mod uint256_ops;
 use super::{MemoryLocalEvent, PageProtLocalEvent, SyscallEvent};
 use crate::{deserialize_hashmap_as_vec, serialize_hashmap_as_vec, SyscallCode};
 use deepsize2::DeepSizeOf;
+pub use blake3_compress::*;
 pub use ec::*;
 pub use edwards::*;
 pub use fptower::*;
@@ -89,6 +91,8 @@ pub enum PrecompileEvent {
     Mprotect(MProtectEvent),
     /// POSEIDON2 precompile event.
     POSEIDON2(Poseidon2PrecompileEvent),
+    /// Blake3 compress inner precompile event.
+    Blake3CompressInner(Blake3CompressEvent),
 }
 
 /// Trait to retrieve all the local memory events from a vec of precompile events.
@@ -158,6 +162,9 @@ impl PrecompileLocalMemory for Vec<(SyscallEvent, PrecompileEvent)> {
                 PrecompileEvent::POSEIDON2(e) => {
                     iterators.push(e.local_mem_access.iter());
                 }
+                PrecompileEvent::Blake3CompressInner(e) => {
+                    iterators.push(e.local_mem_access.iter());
+                }
                 PrecompileEvent::Mprotect(_) => {
                     // Mprotect doesn't have local memory access events
                 }
@@ -225,6 +232,9 @@ impl PrecompileLocalMemory for Vec<(SyscallEvent, PrecompileEvent)> {
                     iterators.push(e.local_page_prot_access.iter());
                 }
                 PrecompileEvent::EdDecompress(e) => {
+                    iterators.push(e.local_page_prot_access.iter());
+                }
+                PrecompileEvent::Blake3CompressInner(e) => {
                     iterators.push(e.local_page_prot_access.iter());
                 }
             }

@@ -12,6 +12,8 @@ pub const FIBONACCI_ELF: Elf = include_elf!("fibonacci-program-tests");
 
 pub const FIBONACCI_BLAKE3_ELF: Elf = include_elf!("fibonacci-blake3-test");
 
+pub const BLAKE3_COMPRESS_ELF: Elf = include_elf!("blake3-compress-test");
+
 pub const HELLO_WORLD_ELF: Elf = include_elf!("hello-world-program");
 
 pub const ED25519_ELF: Elf = include_elf!("ed25519-program");
