@@ -19,6 +19,7 @@ sp1-primitives = { workspace = true }
 sp1-gpu-prover = { workspace = true }
 sp1-gpu-cudart = { workspace = true }
 sp1-recursion-gnark-ffi = { workspace = true }
+sp1-hypercube = { workspace = true }
 sha2 = "0.10.9"
 bincode = "1.3.3"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
@@ -34,3 +35,4 @@ workspace = true
 
 [features]
 groth16-cuda = ["sp1-recursion-gnark-ffi/groth16-cuda"]
+experimental = ["sp1-gpu-prover/experimental"]

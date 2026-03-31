@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use sp1_core_executor::{ExecutionReport, Program, SP1Context, SP1CoreOpts};
 use sp1_core_machine::io::SP1Stdin;
-
-use sp1_hypercube::SP1VerifyingKey;
-use sp1_primitives::io::SP1PublicValues;
+use sp1_core_machine::riscv::RiscvAir;
+use sp1_hypercube::{Machine, SP1VerifyingKey};
+use sp1_primitives::{io::SP1PublicValues, SP1Field};
 use sp1_verifier::SP1Proof;
 use tracing::instrument;
 
@@ -34,6 +34,10 @@ impl SP1NodeCore {
         Self { inner: Arc::new(SP1NodeCoreInner { verifier, opts }) }
     }
 
+    pub fn machine(&self) -> &Machine<SP1Field, RiscvAir<SP1Field>> {
+        self.inner.verifier.core.machine()
+    }
+
     #[instrument(name = "execute_program", skip_all)]
     pub async fn execute(
         &self,
@@ -50,6 +54,7 @@ impl SP1NodeCore {
             context,
             self.inner.opts.clone(),
             SP1ExecutorConfig::default(),
+            self.machine().clone(),
         )
         .await?;
         Ok((public_values, public_value_digest, report))

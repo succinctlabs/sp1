@@ -4,6 +4,9 @@
 
 use super::MockProver;
 use sp1_core_executor::SP1CoreOpts;
+use sp1_core_machine::riscv::RiscvAir;
+use sp1_hypercube::Machine;
+use sp1_primitives::SP1Field;
 
 /// A builder for the [`MockProver`].
 ///
@@ -11,19 +14,15 @@ use sp1_core_executor::SP1CoreOpts;
 pub struct MockProverBuilder {
     /// Optional core options to configure the prover.
     core_opts: Option<SP1CoreOpts>,
-}
-
-impl Default for MockProverBuilder {
-    fn default() -> Self {
-        Self::new()
-    }
+    /// The machine
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
 }
 
 impl MockProverBuilder {
     /// Creates a new [`MockProverBuilder`] with default settings.
     #[must_use]
-    pub const fn new() -> Self {
-        Self { core_opts: None }
+    pub const fn new(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
+        Self { core_opts: None, machine }
     }
 
     /// Sets the core options for the prover.
@@ -43,8 +42,8 @@ impl MockProverBuilder {
     #[must_use]
     pub async fn build(self) -> MockProver {
         match self.core_opts {
-            Some(opts) => MockProver::new_with_opts(opts).await,
-            None => MockProver::new().await,
+            Some(opts) => MockProver::new_with_opts(self.machine, opts).await,
+            None => MockProver::new_with_machine(self.machine).await,
         }
     }
 }

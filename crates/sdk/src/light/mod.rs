@@ -12,7 +12,9 @@ pub mod builder;
 use std::pin::Pin;
 
 use sp1_core_executor::SP1CoreOpts;
-use sp1_core_machine::io::SP1Stdin;
+use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAir};
+use sp1_hypercube::Machine;
+use sp1_primitives::SP1Field;
 use sp1_prover::worker::{SP1LightNode, SP1NodeCore};
 
 use crate::{
@@ -30,15 +32,18 @@ pub struct LightProver {
 impl LightProver {
     /// Create a new light prover.
     #[must_use]
-    pub async fn new() -> Self {
+    pub async fn new(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
         tracing::info!("initializing light prover");
-        Self { inner: SP1LightNode::new().await }
+        Self { inner: SP1LightNode::new_with_machine(machine).await }
     }
 
     /// Create a new light prover with custom options.
     #[must_use]
-    pub async fn new_with_opts(opts: SP1CoreOpts) -> Self {
-        Self { inner: SP1LightNode::with_opts(opts).await }
+    pub async fn new_with_opts(
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+        opts: SP1CoreOpts,
+    ) -> Self {
+        Self { inner: SP1LightNode::with_opts(machine, opts).await }
     }
 }
 
@@ -99,13 +104,16 @@ impl<'a> IntoFuture for LightProveRequest<'a> {
 
 #[cfg(test)]
 mod tests {
+    use sp1_core_machine::riscv::RiscvAir;
+
     use crate::{prover::ProveRequest, utils::setup_logger, LightProver, Prover, SP1Stdin};
 
     /// Test that execute works and prove errors.
     #[tokio::test]
     async fn test_light_execute_and_prove() {
         setup_logger();
-        let prover = LightProver::new().await;
+        let machine = RiscvAir::machine();
+        let prover = LightProver::new(machine).await;
         let pk =
             prover.setup(test_artifacts::FIBONACCI_ELF).await.expect("failed to setup proving key");
 

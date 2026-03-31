@@ -7,12 +7,13 @@ use anyhow::{anyhow, Result};
 use num_bigint::BigUint;
 use slop_algebra::{AbstractField, PrimeField};
 use sp1_core_executor::SP1RecursionProof;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_core_machine::riscv::MAX_LOG_NUMBER_OF_SHARDS;
 use sp1_hypercube::{
     air::{PublicValues, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
-    koalabears_to_bn254, HashableKey, MachineVerifier, MachineVerifierConfigError,
-    MachineVerifierError, MachineVerifyingKey, SP1InnerPcs, SP1OuterPcs, SP1PcsProofInner,
-    SP1PcsProofOuter, SP1VerifyingKey, SP1WrapProof, PROOF_MAX_NUM_PVS,
+    HashableKey, Machine, MachineVerifier, MachineVerifierConfigError, MachineVerifierError,
+    MachineVerifyingKey, SP1InnerPcs, SP1OuterPcs, SP1PcsProofInner, SP1PcsProofOuter,
+    SP1VerifyingKey, SP1WrapProof, PROOF_MAX_NUM_PVS,
 };
 use sp1_primitives::{
     io::{blake3_hash, SP1PublicValues},
@@ -72,9 +73,12 @@ pub struct SP1Verifier {
 }
 
 impl SP1Verifier {
-    pub fn new(recursion_vks: VerifierRecursionVks) -> Self {
+    pub fn new(
+        recursion_vks: VerifierRecursionVks,
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+    ) -> Self {
         // Get the verifiers from the components.
-        let core = CpuSP1ProverComponents::core_verifier();
+        let core = CpuSP1ProverComponents::core_verifier(machine);
         let compress = CpuSP1ProverComponents::compress_verifier();
         let shrink = CpuSP1ProverComponents::shrink_verifier();
         let wrap = CpuSP1ProverComponents::wrap_verifier();
@@ -512,6 +516,7 @@ impl SP1Verifier {
             ));
         }
 
+        #[cfg(not(feature = "experimental"))]
         // The `vk_root` is the expected `vk_root`.
         if public_values.vk_root != self.recursion_vks.root() {
             return Err(MachineVerifierError::InvalidPublicValues("vk_root mismatch"));
@@ -575,6 +580,7 @@ impl SP1Verifier {
             ));
         }
 
+        #[cfg(not(feature = "experimental"))]
         // The `vk_root` is the expected `vk_root`.
         if public_values.vk_root != self.recursion_vks.root() {
             return Err(MachineVerifierError::InvalidPublicValues("vk_root mismatch"));
@@ -634,6 +640,7 @@ impl SP1Verifier {
             ));
         }
 
+        #[cfg(not(feature = "experimental"))]
         // The `vk_root` is the expected `vk_root`.
         if *public_values.vk_root() != self.recursion_vks.root() {
             return Err(MachineVerifierError::InvalidPublicValues("vk_root mismatch"));
@@ -657,10 +664,13 @@ impl SP1Verifier {
         let exit_code = parse_bn254_public_input(&proof.public_inputs[2])?;
         let vk_root = parse_bn254_public_input(&proof.public_inputs[3])?;
         let proof_nonce = parse_bn254_public_input(&proof.public_inputs[4])?;
-        let expected_vk_root = koalabears_to_bn254(&self.recursion_vks.root());
 
-        if vk_root != expected_vk_root.as_canonical_biguint() {
-            return Err(anyhow!("vk_root mismatch"));
+        #[cfg(not(feature = "experimental"))]
+        {
+            let expected_vk_root = koalabears_to_bn254(&self.recursion_vks.root());
+            if vk_root != expected_vk_root.as_canonical_biguint() {
+                return Err(anyhow!("vk_root mismatch"));
+            }
         }
 
         if vk.hash_bn254().as_canonical_biguint() != vkey_hash {
@@ -737,10 +747,13 @@ impl SP1Verifier {
         let exit_code = parse_bn254_public_input(&proof.public_inputs[2])?;
         let vk_root = parse_bn254_public_input(&proof.public_inputs[3])?;
         let proof_nonce = parse_bn254_public_input(&proof.public_inputs[4])?;
-        let expected_vk_root = koalabears_to_bn254(&self.recursion_vks.root());
 
-        if vk_root != expected_vk_root.as_canonical_biguint() {
-            return Err(anyhow!("vk_root mismatch"));
+        #[cfg(not(feature = "experimental"))]
+        {
+            let expected_vk_root = koalabears_to_bn254(&self.recursion_vks.root());
+            if vk_root != expected_vk_root.as_canonical_biguint() {
+                return Err(anyhow!("vk_root mismatch"));
+            }
         }
 
         if vk.hash_bn254().as_canonical_biguint() != vkey_hash {

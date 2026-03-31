@@ -6,11 +6,12 @@ use sp1_core_executor::{
 };
 use sp1_core_executor_runner::MinimalExecutorRunner;
 use sp1_core_machine::io::SP1Stdin;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::air::PROOF_NONCE_NUM_WORDS;
-use sp1_hypercube::{MachineVerifyingKey, SP1PcsProofInner, SP1VerifyingKey};
+use sp1_hypercube::{Machine, MachineVerifyingKey, SP1PcsProofInner, SP1VerifyingKey};
 use sp1_jit::TraceChunkRaw;
 use sp1_primitives::io::SP1PublicValues;
-use sp1_primitives::SP1GlobalContext;
+use sp1_primitives::{SP1Field, SP1GlobalContext};
 use std::sync::Arc;
 use tracing::Instrument;
 
@@ -110,11 +111,15 @@ impl AsyncWorker<GasExecutingTask, Result<ExecutionReport, ExecutionError>> for 
     }
 }
 
-fn verify_deferred_proofs(proofs: &[DeferredProofInput]) -> anyhow::Result<()> {
+fn verify_deferred_proofs(
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+    proofs: &[DeferredProofInput],
+) -> anyhow::Result<()> {
     if proofs.is_empty() {
         return Ok(());
     }
-    let verifier = SP1Verifier::new(crate::verify::VerifierRecursionVks::default());
+    let verifier =
+        SP1Verifier::new(crate::verify::VerifierRecursionVks::default(), machine.clone());
     for (index, (proof, vk)) in proofs.iter().enumerate() {
         let sp1_vk = SP1VerifyingKey { vk: vk.clone() };
         verifier
@@ -130,6 +135,7 @@ pub async fn execute_with_options(
     context: SP1Context<'static>,
     opts: SP1CoreOpts,
     executor_config: SP1ExecutorConfig,
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
 ) -> anyhow::Result<(SP1PublicValues, [u8; 32], ExecutionReport)> {
     // The return values of the spawned tasks.
     enum ExecutorOutput {
@@ -159,7 +165,7 @@ pub async fn execute_with_options(
 
     if context.deferred_proof_verification {
         join_set.spawn_blocking(move || {
-            verify_deferred_proofs(&proofs)?;
+            verify_deferred_proofs(machine, &proofs)?;
             Ok::<_, anyhow::Error>(ExecutorOutput::VerifyDone)
         });
     }
@@ -327,7 +333,7 @@ mod tests {
     use std::sync::Arc;
 
     use sp1_core_executor::{Program, SP1Context, SP1CoreOpts};
-    use sp1_core_machine::io::SP1Stdin;
+    use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAir};
 
     use super::{execute_with_options, SP1ExecutorConfig};
 
@@ -341,8 +347,16 @@ mod tests {
         let executor_config = SP1ExecutorConfig::default();
 
         let context = SP1Context::default();
-        let (pv, digest, report) =
-            execute_with_options(program, stdin, context, opts, executor_config).await.unwrap();
+        let (pv, digest, report) = execute_with_options(
+            program,
+            stdin,
+            context,
+            opts,
+            executor_config,
+            RiscvAir::machine(),
+        )
+        .await
+        .unwrap();
 
         assert!(pv.hash() == digest.to_vec() || pv.blake3_hash() == digest.to_vec());
         assert_eq!(report.exit_code, 0);

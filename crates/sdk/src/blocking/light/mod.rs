@@ -5,6 +5,9 @@
 pub mod builder;
 
 use sp1_core_machine::io::SP1Stdin;
+use sp1_core_machine::riscv::RiscvAir;
+use sp1_hypercube::Machine;
+use sp1_primitives::SP1Field;
 use sp1_prover::worker::{SP1LightNode, SP1NodeCore};
 
 use crate::{
@@ -24,17 +27,17 @@ pub struct LightProver {
 
 impl Default for LightProver {
     fn default() -> Self {
-        tracing::info!("initializing light prover");
-        let node = block_on(SP1LightNode::new());
-        Self { inner: node }
+        Self::new(RiscvAir::machine())
     }
 }
 
 impl LightProver {
     /// Create a new light prover.
     #[must_use]
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
+        tracing::info!("initializing light prover");
+        let node = block_on(SP1LightNode::new_with_machine(machine));
+        Self { inner: node }
     }
 
     /// Create a light prover from an existing light node.
@@ -93,13 +96,16 @@ mod tests {
         SP1Stdin,
     };
 
+    use sp1_core_machine::riscv::RiscvAir;
+
     use super::LightProver;
 
     /// Test that execute works and prove errors.
     #[test]
     fn test_light_execute_and_prove() {
         setup_logger();
-        let prover = LightProver::new();
+        let machine = RiscvAir::machine();
+        let prover = LightProver::new(machine);
         let pk = prover.setup(test_artifacts::FIBONACCI_ELF).expect("failed to setup proving key");
 
         // Execute should succeed.
