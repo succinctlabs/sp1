@@ -69,9 +69,12 @@ backoff = { workspace = true, features = ["tokio"], optional = true }
 zstd = { workspace = true, optional = true }
 num-bigint = { workspace = true }
 sha2 = { workspace = true }
+powdr-autoprecompiles.workspace = true
+
 # TEE Dependencies
 k256 = { workspace = true, features = ["serde"] } # Signing
 eventsource-stream = { workspace = true }         # SSE Extenstion for reqwest
+derive-where.workspace = true
 
 [target.'cfg(target_os = "ios")'.dependencies]
 tonic = { workspace = true, features = [
@@ -86,6 +89,7 @@ test-artifacts = { path = "../test-artifacts" }
 tokio = { workspace = true, features = ["macros", "rt"] }
 tokio-test = { workspace = true }
 rstest = { workspace = true }
+rand = { workspace = true }
 
 [features]
 default = []

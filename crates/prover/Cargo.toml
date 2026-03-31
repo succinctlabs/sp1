@@ -76,9 +76,11 @@ indicatif = { workspace = true }
 tempfile = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true }
+powdr-autoprecompiles.workspace = true
+# TODO: put back test-artifacts into dev-dependencies
+test-artifacts = { path = "../test-artifacts" }
 
 [dev-dependencies]
-test-artifacts = { path = "../test-artifacts" }
 anyhow = { workspace = true }
 
 [[bin]]
@@ -103,6 +105,7 @@ name = "gen_soundcalc_toml"
 path = "scripts/gen_soundcalc_toml.rs"
 
 [features]
+default = ["experimental"]
 native-gnark = ["sp1-recursion-gnark-ffi/native"]
 debug = ["sp1-core-machine/debug"]
 bigint-rug = ["sp1-core-machine/bigint-rug"]

@@ -23,6 +23,7 @@ sp1-recursion-executor = { workspace = true }
 sp1-recursion-gnark-ffi = { workspace = true }
 sp1-hypercube = { workspace = true }
 sp1-sdk = { workspace = true }
+powdr-autoprecompiles = { workspace = true }
 
 sp1-prover-types = { workspace = true }
 sp1-primitives = { workspace = true }

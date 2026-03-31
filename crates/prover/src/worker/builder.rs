@@ -45,7 +45,16 @@ impl<C: SP1ProverComponents> SP1WorkerBuilder<C> {
 
     pub fn new_with_machine(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
         // Note: the config is uniquely determined by the machine. We still cache it here.
-        let config = SP1WorkerConfig::new(machine.clone());
+        #[allow(unused_mut)]
+        let mut config = SP1WorkerConfig::new(machine.clone());
+
+        // Disable VK verification.
+        // TODO: Change this once vk verification is implemented for the modified vk.
+        #[cfg(feature = "experimental")]
+        {
+            config.prover_config.recursion_prover_config =
+                config.prover_config.recursion_prover_config.without_vk_verification();
+        }
 
         Self {
             machine,
