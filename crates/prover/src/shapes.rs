@@ -8,6 +8,7 @@ use std::{
     },
 };
 
+use futures::executor::block_on;
 use hashbrown::HashSet;
 use lru::LruCache;
 use serde::{Deserialize, Serialize};
@@ -186,15 +187,27 @@ impl SP1RecursionProofShape {
         max_arity: usize,
     ) -> SP1RecursionProofShape {
         match machine.chips().iter().eq(RiscvAir::<SP1Field>::machine().chips()) {
-            true => Self::compress_proof_shape_from_arity(max_arity).unwrap(),
-            false => unreachable!(
-                "All instances of `machine` are currently the same based on the test above"
-            ),
+            true => {
+                tracing::info!(
+                    "Reduce shape retrieved from cache, because the machine has no apcs."
+                );
+                // return the cached shape
+                Self::compress_proof_shape_from_arity(max_arity).unwrap()
+            }
+            false => {
+                tracing::info!("Reduce shape computation started, because the machine has apcs. Ideally, this should be loaded from disk.");
+                // compute the shape.
+                // TODO: we should cache it the same way the vanilla one is cached
+                assert_eq!(
+                    max_arity, DEFAULT_ARITY,
+                    "DEFAULT_ARITY is used a lot in the code so we require max_arity to match it"
+                );
+                block_on(Self::compute_compress_shape(machine))
+            }
         }
     }
 
     /// Dynamically computes the appropriate compress shape based on the machine configuration
-    #[cfg(test)]
     async fn compute_compress_shape(
         machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     ) -> SP1RecursionProofShape {

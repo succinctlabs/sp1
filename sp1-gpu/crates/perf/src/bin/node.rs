@@ -1,12 +1,17 @@
 use std::time::Duration;
 
 use clap::Parser;
-use sp1_core_executor::SP1Context;
+use powdr_autoprecompiles::{adapter::ApcWithStats, PgoConfig};
+use sp1_core_executor::{Program, SP1Context};
+use sp1_core_machine::autoprecompiles::{
+    execution_profile_from_program, sp1_powdr_config, CompiledProgram,
+};
 use sp1_gpu_perf::{get_program_and_input, Measurement};
 use sp1_gpu_prover::cuda_worker_builder_with_machine;
 use sp1_prover::worker::{SP1LocalNodeBuilder, SP1Proof};
 use sp1_prover_types::network_base_types::ProofMode;
 use sp1_sdk::RiscvAir;
+use std::sync::Arc;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -21,6 +26,8 @@ struct Args {
     pub mode: String,
     #[arg(long, short, default_value = "1")]
     pub num_iterations: usize,
+    #[arg(long, default_value_t = 0)]
+    pub autoprecompiles: u64,
 }
 
 fn proof_mode_from_string(s: &str) -> ProofMode {
@@ -73,7 +80,28 @@ async fn main() {
 
     // Get the program and input.
     let (elf, stdin) = get_program_and_input(args.program.clone(), args.param);
-    let machine = RiscvAir::machine();
+    let machine = if args.autoprecompiles > 0 {
+        let program = Arc::new(Program::from(elf.as_slice()).expect("failed to parse elf"));
+        // Use the exact same proving input for APC PGO.
+        let execution_profile = execution_profile_from_program(program, stdin.clone());
+        let config = sp1_powdr_config(args.autoprecompiles, 0);
+        let pgo_config = PgoConfig::Instruction(execution_profile);
+        let compiled_program = CompiledProgram::new(&elf, config, pgo_config);
+        let apcs: Vec<_> = compiled_program
+            .apcs_and_stats
+            .into_iter()
+            .map(ApcWithStats::into_parts)
+            .map(|(apc, _, _)| apc)
+            .collect();
+        tracing::info!(
+            requested_apcs = args.autoprecompiles,
+            generated_apcs = apcs.len(),
+            "generated autoprecompiles from proving input"
+        );
+        RiscvAir::machine_with_apcs(apcs)
+    } else {
+        RiscvAir::machine()
+    };
 
     // Initialize the AirProver and permits
     let measurements = sp1_gpu_cudart::spawn(move |t| async move {

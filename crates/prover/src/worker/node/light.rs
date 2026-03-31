@@ -10,9 +10,7 @@ use sp1_hypercube::{
 use sp1_primitives::{io::SP1PublicValues, SP1Field};
 use sp1_verifier::SP1Proof;
 
-#[cfg(not(feature = "mprotect"))]
-use crate::verify::VerifierRecursionVks;
-#[cfg(feature = "mprotect")]
+#[cfg(any(feature = "mprotect", feature = "experimental"))]
 use crate::{recursion::RecursionVks, worker::DEFAULT_MAX_COMPOSE_ARITY};
 use crate::{
     verify::SP1Verifier,
@@ -66,10 +64,10 @@ impl SP1LightNode {
                 Arc::new(CpuShardProver::new(core_verifier.shard_verifier().clone()));
             let permits = ProverSemaphore::new(1);
 
-            #[cfg(feature = "mprotect")]
+            #[cfg(any(feature = "mprotect", feature = "experimental"))]
             let verifier_vks =
                 RecursionVks::new(None, DEFAULT_MAX_COMPOSE_ARITY, false).to_verifier_vks();
-            #[cfg(not(feature = "mprotect"))]
+            #[cfg(not(any(feature = "mprotect", feature = "experimental")))]
             let verifier_vks = VerifierRecursionVks::default();
             let verifier = SP1Verifier::new_with_machine(verifier_vks, machine);
             // Create a new core node for the light node
@@ -82,7 +80,7 @@ impl SP1LightNode {
     }
 
     pub async fn setup(&self, elf: &[u8]) -> anyhow::Result<SP1VerifyingKey> {
-        let program = Program::from(elf)
+        let program = Program::custom(elf, self.inner.core.machine())
             .map_err(|e| anyhow::anyhow!("failed to disassemble program: {}", e))?;
         let program = Arc::new(program);
         let (_, vk) = self.inner.core_air_prover.setup(program, self.inner.permits.clone()).await;
