@@ -24,6 +24,7 @@ use std::{
     borrow::{Borrow, BorrowMut},
     mem::{size_of, MaybeUninit},
 };
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 #[derive(Default)]
 pub struct LoadX0Chip;
@@ -31,7 +32,7 @@ pub struct LoadX0Chip;
 pub const NUM_LOAD_X0_COLUMNS: usize = size_of::<LoadX0Columns<u8>>();
 
 /// The column layout for memory load instructions with `op_a = x0`.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct LoadX0Columns<T> {
     /// The current shard, timestamp, program counter of the CPU.
@@ -122,7 +123,7 @@ impl<F: PrimeField32> MachineAir<F> for LoadX0Chip {
             .enumerate()
             .par_bridge()
             .map(|(i, rows)| {
-                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
+                let mut blu: HashMap<ByteLookupEvent, isize> = HashMap::new();
                 rows.chunks_mut(NUM_LOAD_X0_COLUMNS).enumerate().for_each(|(j, row)| {
                     let idx = i * chunk_size + j;
                     let cols: &mut LoadX0Columns<F> = row.borrow_mut();
@@ -148,6 +149,9 @@ impl<F: PrimeField32> MachineAir<F> for LoadX0Chip {
             !shard.memory_load_x0_events.is_empty()
         }
     }
+    fn column_names(&self) -> Vec<String> {
+        LoadX0Columns::<F>::struct_reflection().unwrap()
+    }
 }
 
 impl LoadX0Chip {
@@ -155,7 +159,7 @@ impl LoadX0Chip {
         &self,
         event: &MemInstrEvent,
         cols: &mut LoadX0Columns<F>,
-        blu: &mut HashMap<ByteLookupEvent, usize>,
+        blu: &mut HashMap<ByteLookupEvent, isize>,
     ) {
         // Populate memory accesses for reading from memory.
         cols.memory_access.populate(event.mem_access, blu);

@@ -27,6 +27,7 @@ use sp1_core_executor::{
 };
 
 use sp1_hypercube::{air::MachineAir, Word};
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 #[derive(Default)]
 pub struct LoadWordChip;
@@ -34,7 +35,7 @@ pub struct LoadWordChip;
 pub const NUM_LOAD_WORD_COLUMNS: usize = size_of::<LoadWordColumns<u8>>();
 
 /// The column layout for memory load word instructions.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct LoadWordColumns<T> {
     /// The current shard, timestamp, program counter of the CPU.
@@ -116,7 +117,7 @@ impl<F: PrimeField32> MachineAir<F> for LoadWordChip {
             .enumerate()
             .par_bridge()
             .map(|(i, rows)| {
-                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
+                let mut blu: HashMap<ByteLookupEvent, isize> = HashMap::new();
                 rows.chunks_mut(NUM_LOAD_WORD_COLUMNS).enumerate().for_each(|(j, row)| {
                     let idx = i * chunk_size + j;
                     let cols: &mut LoadWordColumns<F> = row.borrow_mut();
@@ -142,6 +143,10 @@ impl<F: PrimeField32> MachineAir<F> for LoadWordChip {
             !shard.memory_load_word_events.is_empty()
         }
     }
+
+    fn column_names(&self) -> Vec<String> {
+        LoadWordColumns::<F>::struct_reflection().unwrap()
+    }
 }
 
 impl LoadWordChip {
@@ -149,7 +154,7 @@ impl LoadWordChip {
         &self,
         event: &MemInstrEvent,
         cols: &mut LoadWordColumns<F>,
-        blu: &mut HashMap<ByteLookupEvent, usize>,
+        blu: &mut HashMap<ByteLookupEvent, isize>,
     ) {
         // Populate memory accesses for reading from memory.
         cols.memory_access.populate(event.mem_access, blu);

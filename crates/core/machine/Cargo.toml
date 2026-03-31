@@ -28,6 +28,18 @@ sp1-derive = { workspace = true }
 sp1-primitives = { workspace = true }
 sp1-jit = { workspace = true }
 
+# Powdr CLI dependencies
+clap = { version = "^4.3", features = ["derive"] }
+eyre = "0.6.12"
+serde_cbor = "0.11.2"
+metrics-tracing-context = "0.16.0"
+powdr-autoprecompiles.workspace = true
+powdr-number = { workspace = true }
+powdr-expression = { workspace = true }
+powdr-constraint-solver = { workspace = true }
+powdr-riscv-elf = { workspace = true }
+
+struct-reflection = { git = "https://github.com/gzanitti/struct-reflection-rs.git" }
 
 slop-futures = { workspace = true }
 futures = { workspace = true }
@@ -46,7 +58,7 @@ num_cpus = { workspace = true }
 tempfile = { workspace = true }
 tracing = { workspace = true }
 tracing-forest = { workspace = true, features = ["ansi", "smallvec"] }
-tracing-subscriber = { workspace = true, features = ["std", "env-filter"] }
+tracing-subscriber = { workspace = true, features = ["std", "env-filter", "json"] }
 strum = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
 hashbrown = { workspace = true, features = ["serde", "inline-more"] }
@@ -56,6 +68,7 @@ sp1-core-executor = { workspace = true }
 sp1-curves = { workspace = true }
 tokio = { workspace = true, features = ["rt", "sync"] }
 static_assertions = { workspace = true }
+sp1-build = { workspace = true }
 
 [dev-dependencies]
 rand = { workspace = true }
@@ -83,6 +96,10 @@ bigint-rug = ["sp1-curves/bigint-rug"]
 [lib]
 path = "src/lib.rs"
 bench = false
+
+[[bin]]
+name = "powdr_sp1"
+path = "src/autoprecompiles/bin/cli.rs"
 
 [lints]
 workspace = true

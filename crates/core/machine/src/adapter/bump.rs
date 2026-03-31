@@ -15,9 +15,10 @@ use sp1_core_executor::{
 };
 use sp1_derive::AlignedBorrow;
 use sp1_hypercube::air::MachineAir;
+use struct_reflection::{StructReflection, StructReflectionHelper};
 pub(crate) const NUM_STATE_BUMP_COLS: usize = size_of::<StateBumpCols<u8>>();
 
-#[derive(AlignedBorrow, Clone, Copy)]
+#[derive(AlignedBorrow, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct StateBumpCols<T: Copy> {
     pub next_clk_32_48: T,
@@ -61,7 +62,7 @@ impl<F: PrimeField32> MachineAir<F> for StateBumpChip {
 
         let blu_batches = event_iter
             .map(|events| {
-                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
+                let mut blu: HashMap<ByteLookupEvent, isize> = HashMap::new();
                 events.iter().for_each(|(clk, increment, _, pc)| {
                     let next_clk = clk + increment;
                     let next_clk_0_16 = (next_clk & 0xFFFF) as u16;
@@ -170,6 +171,10 @@ impl<F: PrimeField32> MachineAir<F> for StateBumpChip {
 
     fn included(&self, shard: &Self::Record) -> bool {
         shard.cpu_event_count != 0
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        StateBumpCols::<F>::struct_reflection().unwrap()
     }
 }
 

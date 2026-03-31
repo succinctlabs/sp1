@@ -10,6 +10,7 @@ use sp1_core_executor::{
 };
 use sp1_hypercube::{air::MachineAir, Word};
 use sp1_primitives::consts::u64_to_u16_limbs;
+use struct_reflection::StructReflectionHelper;
 
 use crate::{operations::SP1FieldWordRangeChecker, utils::next_multiple_of_32};
 
@@ -62,7 +63,7 @@ impl<F: PrimeField32> MachineAir<F> for SyscallInstrsChip {
             .enumerate()
             .par_bridge()
             .map(|(i, rows)| {
-                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
+                let mut blu: HashMap<ByteLookupEvent, isize> = HashMap::new();
                 rows.chunks_mut(NUM_SYSCALL_INSTR_COLS).enumerate().for_each(|(j, row)| {
                     let idx = i * chunk_size + j;
                     let cols: &mut SyscallInstrColumns<F> = row.borrow_mut();
@@ -87,6 +88,10 @@ impl<F: PrimeField32> MachineAir<F> for SyscallInstrsChip {
         } else {
             !shard.syscall_events.is_empty()
         }
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        SyscallInstrColumns::<F>::struct_reflection().unwrap()
     }
 }
 

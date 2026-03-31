@@ -383,7 +383,7 @@ pub struct FinalVmState {
 }
 
 impl FinalVmState {
-    pub fn new<'a, 'b>(vm: &'a CoreVM<'b>) -> Self {
+    pub fn new<'a, 'b, S>(vm: &'a CoreVM<'b, S>) -> Self {
         let registers = *vm.registers();
         let timestamp = vm.clk();
         let pc = vm.pc();

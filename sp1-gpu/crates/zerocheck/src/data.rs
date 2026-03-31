@@ -57,7 +57,7 @@ pub struct DenseBuffer<F, B: Backend = TaskScope> {
 
 #[derive(Clone)]
 pub struct InfoBuffer<B: Backend = TaskScope> {
-    pub data: Buffer<u32, B>,
+    pub data: Buffer<u64, B>,
 }
 
 /// The raw pointer equivalent of [`DenseBuffer`] for use in cuda kernels.
@@ -69,7 +69,7 @@ pub struct DenseBufferRaw<F> {
 /// The raw pointer equivalent of [`InfoBuffer`] for use in cuda kernels.
 #[repr(C)]
 pub struct InfoBufferRaw {
-    data: *const u32,
+    data: *const u64,
 }
 
 /// The mutable raw pointer equivalent of [`DenseBuffer`] for use in cuda kernels.
@@ -81,7 +81,7 @@ pub struct DenseBufferMutRaw<F> {
 /// The mutable raw pointer equivalent of [`InfoBuffer`] for use in cuda kernels.
 #[repr(C)]
 pub struct InfoBufferMutRaw {
-    data: *mut u32,
+    data: *mut u64,
 }
 
 impl<F, A: Backend> DenseBuffer<F, A> {
@@ -104,7 +104,7 @@ impl<F, A: Backend> DenseBuffer<F, A> {
 
 impl<A: Backend> InfoBuffer<A> {
     #[inline]
-    pub fn new(data: Buffer<u32, A>) -> Self {
+    pub fn new(data: Buffer<u64, A>) -> Self {
         Self { data }
     }
 
@@ -115,7 +115,7 @@ impl<A: Backend> InfoBuffer<A> {
     }
 
     #[inline]
-    pub fn into_parts(self) -> Buffer<u32, A> {
+    pub fn into_parts(self) -> Buffer<u64, A> {
         self.data
     }
 }

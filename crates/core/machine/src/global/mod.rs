@@ -318,9 +318,9 @@ mod tests {
     use std::sync::Arc;
 
     use super::*;
-    use crate::io::SP1Stdin;
     use crate::programs::tests::*;
     use crate::utils::generate_records;
+    use crate::{io::SP1Stdin, riscv::RiscvAir};
 
     use slop_matrix::dense::RowMajorMatrix;
     use sp1_core_executor::{ExecutionRecord, SP1CoreOpts};
@@ -336,6 +336,7 @@ mod tests {
             SP1Stdin::new(),
             SP1CoreOpts::default(),
             [0; 4],
+            RiscvAir::machine(),
         )
         .unwrap();
 

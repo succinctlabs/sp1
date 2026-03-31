@@ -15,6 +15,7 @@ use sp1_core_executor::{
 };
 use sp1_derive::AlignedBorrow;
 use sp1_hypercube::air::MachineAir;
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     adapter::{
@@ -34,7 +35,7 @@ pub const NUM_ADDI_COLS: usize = size_of::<AddiCols<u8>>();
 pub struct AddiChip;
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Default, Clone, Copy)]
+#[derive(AlignedBorrow, StructReflection, Default, Clone, Copy)]
 #[repr(C)]
 pub struct AddiCols<T> {
     /// The current shard, timestamp, program counter of the CPU.
@@ -57,6 +58,10 @@ impl<F: PrimeField32> MachineAir<F> for AddiChip {
 
     fn name(&self) -> &'static str {
         "Addi"
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        AddiCols::<F>::struct_reflection().unwrap()
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
@@ -115,7 +120,7 @@ impl<F: PrimeField32> MachineAir<F> for AddiChip {
         let blu_batches = event_iter
             .par_bridge()
             .map(|events| {
-                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
+                let mut blu: HashMap<ByteLookupEvent, isize> = HashMap::new();
                 events.iter().for_each(|event| {
                     let mut row = [F::zero(); NUM_ADDI_COLS];
                     let cols: &mut AddiCols<F> = row.as_mut_slice().borrow_mut();

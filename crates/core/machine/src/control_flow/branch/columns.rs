@@ -1,5 +1,6 @@
 use sp1_derive::AlignedBorrow;
 use std::mem::size_of;
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     adapter::{register::i_type::ITypeReader, state::CPUState},
@@ -9,7 +10,7 @@ use crate::{
 pub const NUM_BRANCH_COLS: usize = size_of::<BranchColumns<u8>>();
 
 /// The column layout for branching.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct BranchColumns<T> {
     /// The current shard, timestamp, program counter of the CPU.

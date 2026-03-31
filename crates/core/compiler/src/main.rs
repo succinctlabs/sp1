@@ -1,6 +1,6 @@
 use clap::{Parser, ValueEnum};
 use slop_air::Air;
-use sp1_core_machine::riscv::RiscvAir;
+use sp1_core_machine::riscv::RiscvAirWithoutApcs;
 use sp1_hypercube::{
     air::MachineAir,
     ir::{ConstraintCompiler, Shape},
@@ -62,7 +62,7 @@ fn main() {
 #[allow(clippy::print_stdout)]
 #[allow(clippy::uninlined_format_args)]
 fn compile_chip(chip_name: &str, output_format: &OutputFormat) {
-    let machine = RiscvAir::<F>::machine();
+    let machine = RiscvAirWithoutApcs::<F>::machine();
     let chip =
         machine.chips().iter().find(|c| c.name() == chip_name).cloned().unwrap_or_else(|| {
             eprintln!("Error: Chip '{}' not found", chip_name);
@@ -125,7 +125,7 @@ fn compile_chip(chip_name: &str, output_format: &OutputFormat) {
 #[allow(clippy::uninlined_format_args)]
 fn compile_operation(chip_name: &str, operation_name: &str, output_format: &OutputFormat) {
     // Step 1: Compile the chip normally to register all operations
-    let machine = RiscvAir::<F>::machine();
+    let machine = RiscvAirWithoutApcs::<F>::machine();
     let air = machine
         .chips()
         .iter()

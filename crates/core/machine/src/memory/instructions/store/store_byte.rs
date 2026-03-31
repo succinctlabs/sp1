@@ -28,6 +28,7 @@ use std::{
     borrow::{Borrow, BorrowMut},
     mem::{size_of, MaybeUninit},
 };
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 #[derive(Default)]
 pub struct StoreByteChip;
@@ -35,7 +36,7 @@ pub struct StoreByteChip;
 pub const NUM_STORE_BYTE_COLUMNS: usize = size_of::<StoreByteColumns<u8>>();
 
 /// The column layout for memory store byte instructions.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct StoreByteColumns<T> {
     /// The current shard, timestamp, program counter of the CPU.
@@ -123,7 +124,7 @@ impl<F: PrimeField32> MachineAir<F> for StoreByteChip {
             .enumerate()
             .par_bridge()
             .map(|(i, rows)| {
-                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
+                let mut blu: HashMap<ByteLookupEvent, isize> = HashMap::new();
                 rows.chunks_mut(NUM_STORE_BYTE_COLUMNS).enumerate().for_each(|(j, row)| {
                     let idx = i * chunk_size + j;
                     let cols: &mut StoreByteColumns<F> = row.borrow_mut();
@@ -149,6 +150,10 @@ impl<F: PrimeField32> MachineAir<F> for StoreByteChip {
             !shard.memory_store_byte_events.is_empty()
         }
     }
+
+    fn column_names(&self) -> Vec<String> {
+        StoreByteColumns::<F>::struct_reflection().unwrap()
+    }
 }
 
 impl StoreByteChip {
@@ -156,7 +161,7 @@ impl StoreByteChip {
         &self,
         event: &MemInstrEvent,
         cols: &mut StoreByteColumns<F>,
-        blu: &mut HashMap<ByteLookupEvent, usize>,
+        blu: &mut HashMap<ByteLookupEvent, isize>,
     ) {
         // Populate memory accesses for reading from memory.
         cols.memory_access.populate(event.mem_access, blu);

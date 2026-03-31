@@ -112,7 +112,7 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
         let blu_batches = events
             .par_chunks(chunk_size)
             .map(|events| {
-                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
+                let mut blu: HashMap<ByteLookupEvent, isize> = HashMap::new();
                 let mut row = vec![F::zero(); NUM_SHA_COMPRESS_COLS * 80];
                 events.iter().for_each(|(_, event)| {
                     let event = if let PrecompileEvent::ShaCompress(event) = event {

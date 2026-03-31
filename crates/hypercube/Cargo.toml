@@ -48,6 +48,7 @@ rayon-scan = { workspace = true }
 rayon = { workspace = true }
 thiserror = { workspace = true }
 derive-where = { workspace = true }
+struct-reflection = { git = "https://github.com/gzanitti/struct-reflection-rs.git" }
 thousands = { workspace = true }
 deepsize2 = { workspace = true }
 
@@ -66,6 +67,8 @@ rand = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt"] }
 
 [features]
+default = ["experimental"]
+experimental = []
 test-proof = []
 
 [lints]

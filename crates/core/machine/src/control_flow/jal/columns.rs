@@ -4,10 +4,11 @@ use crate::{
 };
 use sp1_derive::AlignedBorrow;
 use std::mem::size_of;
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 pub const NUM_JAL_COLS: usize = size_of::<JalColumns<u8>>();
 
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct JalColumns<T> {
     /// The current shard, timestamp, program counter of the CPU.

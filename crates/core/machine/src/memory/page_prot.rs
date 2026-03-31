@@ -196,7 +196,7 @@ impl<F: PrimeField32> MachineAir<F> for PageProtChip {
             .par_iter_mut()
             .enumerate()
             .map(|(i, rows)| {
-                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
+                let mut blu: HashMap<ByteLookupEvent, isize> = HashMap::new();
 
                 rows.chunks_mut(NUM_PAGE_PROT_COLS).enumerate().for_each(|(j, row)| {
                     unsafe {
@@ -333,7 +333,7 @@ impl PageProtChip {
         &self,
         event: &PageProtEvent,
         cols: &mut SinglePageProtCols<F>,
-        blu: &mut HashMap<ByteLookupEvent, usize>,
+        blu: &mut HashMap<ByteLookupEvent, isize>,
     ) {
         cols.clk_high = F::from_canonical_u32((event.clk >> 24) as u32);
         cols.clk_low = F::from_canonical_u32((event.clk & 0xFFFFFF) as u32);

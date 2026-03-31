@@ -9,6 +9,7 @@ use sp1_core_executor::{
     ExecutionRecord, Program,
 };
 use sp1_hypercube::{air::MachineAir, Word};
+use struct_reflection::StructReflectionHelper;
 
 use crate::utils::next_multiple_of_32;
 
@@ -56,7 +57,7 @@ impl<F: PrimeField32> MachineAir<F> for JalrChip {
             .enumerate()
             .par_bridge()
             .map(|(i, rows)| {
-                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
+                let mut blu: HashMap<ByteLookupEvent, isize> = HashMap::new();
                 rows.chunks_mut(NUM_JALR_COLS).enumerate().for_each(|(j, row)| {
                     let idx = i * chunk_size + j;
                     let cols: &mut JalrColumns<F> = row.borrow_mut();
@@ -82,6 +83,10 @@ impl<F: PrimeField32> MachineAir<F> for JalrChip {
             !shard.jalr_events.is_empty()
         }
     }
+
+    fn column_names(&self) -> Vec<String> {
+        JalrColumns::<F>::struct_reflection().unwrap()
+    }
 }
 
 impl JalrChip {
@@ -91,7 +96,7 @@ impl JalrChip {
         event: &JumpEvent,
         imm: u64,
         cols: &mut JalrColumns<F>,
-        blu: &mut HashMap<ByteLookupEvent, usize>,
+        blu: &mut HashMap<ByteLookupEvent, isize>,
     ) {
         cols.is_real = F::one();
         cols.op_a_value = event.a.into();

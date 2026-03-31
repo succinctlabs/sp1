@@ -8,6 +8,7 @@ use sp1_core_executor::{
 use sp1_derive::{AlignedBorrow, InputExpr, InputParams, IntoShape, SP1OperationBuilder};
 use sp1_hypercube::air::SP1AirBuilder;
 use sp1_primitives::consts::WORD_BYTE_SIZE;
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 /// A set of columns needed to compute the bitwise operation over u64s in byte form.
 #[derive(
@@ -20,6 +21,7 @@ use sp1_primitives::consts::WORD_BYTE_SIZE;
     Deserialize,
     IntoShape,
     SP1OperationBuilder,
+    StructReflection,
 )]
 #[repr(C)]
 pub struct BitwiseOperation<T> {

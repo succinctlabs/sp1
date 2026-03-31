@@ -141,7 +141,7 @@ impl<F: PrimeField32> MachineAir<F> for InstructionFetchChip {
     fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
         let mut blu_batches = Vec::new();
         for full_event in input.instruction_fetch_events.iter() {
-            let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
+            let mut blu: HashMap<ByteLookupEvent, isize> = HashMap::new();
             let mut row = [F::zero(); NUM_INSTRUCTION_FETCH_COLS];
             let cols: &mut InstructionFetchCols<F> = row.as_mut_slice().borrow_mut();
             let (event, memory_access) = full_event;
@@ -199,7 +199,7 @@ impl<F: PrimeField32> MachineAir<F> for InstructionFetchChip {
                     let cols: &mut InstructionFetchCols<F> = row.borrow_mut();
                     let (event, memory_access) = &input.instruction_fetch_events[idx];
 
-                    let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
+                    let mut blu: HashMap<ByteLookupEvent, isize> = HashMap::new();
                     let (mem_access, encoded) = memory_access.untrusted_instruction.unwrap();
                     assert_eq!(encoded, event.encoded_instruction);
                     assert!(mem_access.current_record().timestamp == event.clk);

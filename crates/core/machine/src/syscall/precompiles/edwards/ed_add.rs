@@ -201,7 +201,7 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
         let blu_batches = events
             .par_chunks(chunk_size)
             .map(|events| {
-                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
+                let mut blu: HashMap<ByteLookupEvent, isize> = HashMap::new();
                 events.iter().for_each(|(_, event)| {
                     let event = if let PrecompileEvent::EdAdd(event) = event {
                         event

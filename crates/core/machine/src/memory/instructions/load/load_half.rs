@@ -28,6 +28,7 @@ use std::{
     borrow::{Borrow, BorrowMut},
     mem::{size_of, MaybeUninit},
 };
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 #[derive(Default)]
 pub struct LoadHalfChip;
@@ -35,7 +36,7 @@ pub struct LoadHalfChip;
 pub const NUM_LOAD_HALF_COLUMNS: usize = size_of::<LoadHalfColumns<u8>>();
 
 /// The column layout for memory load half instructions.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct LoadHalfColumns<T> {
     /// The current shard, timestamp, program counter of the CPU.
@@ -117,7 +118,7 @@ impl<F: PrimeField32> MachineAir<F> for LoadHalfChip {
             .enumerate()
             .par_bridge()
             .map(|(i, rows)| {
-                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
+                let mut blu: HashMap<ByteLookupEvent, isize> = HashMap::new();
                 rows.chunks_mut(NUM_LOAD_HALF_COLUMNS).enumerate().for_each(|(j, row)| {
                     let idx = i * chunk_size + j;
                     let cols: &mut LoadHalfColumns<F> = row.borrow_mut();
@@ -143,6 +144,10 @@ impl<F: PrimeField32> MachineAir<F> for LoadHalfChip {
             !shard.memory_load_half_events.is_empty()
         }
     }
+
+    fn column_names(&self) -> Vec<String> {
+        LoadHalfColumns::<F>::struct_reflection().unwrap()
+    }
 }
 
 impl LoadHalfChip {
@@ -150,7 +155,7 @@ impl LoadHalfChip {
         &self,
         event: &MemInstrEvent,
         cols: &mut LoadHalfColumns<F>,
-        blu: &mut HashMap<ByteLookupEvent, usize>,
+        blu: &mut HashMap<ByteLookupEvent, isize>,
     ) {
         // Populate memory accesses for reading from memory.
         cols.memory_access.populate(event.mem_access, blu);

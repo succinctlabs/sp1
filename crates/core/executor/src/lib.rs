@@ -21,6 +21,7 @@
 #![warn(missing_docs)]
 
 mod air;
+mod autoprecompiles;
 mod context;
 mod debug;
 mod disassembler;
@@ -30,13 +31,15 @@ mod hook;
 mod instruction;
 mod tracing;
 pub use tracing::TracingVM;
+mod frequency_map;
+pub use frequency_map::execute_for_frequency_map;
 mod vm;
 pub use vm::{
     gas::get_complexity_mapping,
     memory::CompressedMemory,
     results::CycleResult,
     shapes::{MAXIMUM_CYCLE_AREA, MAXIMUM_PADDING_AREA},
-    CoreVM,
+    CoreExecutionState, CoreVM,
 };
 mod splicing;
 pub use splicing::{SplicedMinimalTrace, SplicingVM};
@@ -47,7 +50,7 @@ mod minimal;
 pub use minimal::*;
 
 mod memory;
-mod opcode;
+pub mod opcode;
 mod opts;
 #[cfg(feature = "profiling")]
 mod profiler;

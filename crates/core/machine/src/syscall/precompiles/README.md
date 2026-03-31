@@ -191,9 +191,9 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Arc<dyn Syscall>> {
 In the `get_chips_and_costs` method, add the costs of your new syscall to a cost hashmap for later cost estimation.
 
 ```rust
-pub fn get_chips_and_costs() -> (Vec<Chip<F, Self>>, HashMap<RiscvAirDiscriminants, u64>) {
+pub fn get_chips_and_costs() -> (Vec<Chip<F, Self>>, HashMap<RiscvAirWithoutApcsDiscriminants, u64>) {
     let custom_op = Chip::new(RiscvAir::CustomOp(CustomOpChip::default()));
-    costs.insert(RiscvAirDiscriminants::CustomOp, custom_op.cost());
+    costs.insert(RiscvAirWithoutApcsDiscriminants::CustomOp, custom_op.cost());
     chips.push(custom_op);
 }
 ```
@@ -206,7 +206,7 @@ In the `estimate_area` method, add the costs of your new syscall to the executio
 fn estimate_area(&self) -> u64 {
     // other syscall update
     let custom_op_events = self.syscall_counts[SyscallCode::CUSTOM_OP];
-    total_area += (custom_op_events as u64) * costs[&RiscvAirDiscriminants::CustomOp];
+    total_area += (custom_op_events as u64) * costs[&RiscvAirWithoutApcsDiscriminants::CustomOp];
     total_chips += 1;
 }
 ```

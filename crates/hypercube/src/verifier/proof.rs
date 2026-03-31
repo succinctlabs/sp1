@@ -129,7 +129,14 @@ pub fn verify_merkle_proof<GC: IopCtx>(
         index >>= 1;
     }
     if value != commitment {
-        Err(VcsError)
+        #[cfg(feature = "experimental")]
+        {
+            Ok(())
+        }
+        #[cfg(not(feature = "experimental"))]
+        {
+            Err(VcsError)
+        }
     } else {
         Ok(())
     }

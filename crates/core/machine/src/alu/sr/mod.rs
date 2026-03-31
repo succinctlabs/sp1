@@ -15,6 +15,7 @@ use sp1_core_executor::{
 use sp1_derive::AlignedBorrow;
 use sp1_hypercube::{air::MachineAir, Word};
 use sp1_primitives::consts::{u64_to_u16_limbs, WORD_SIZE};
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     adapter::{
@@ -34,7 +35,7 @@ pub const NUM_SHIFT_RIGHT_COLS: usize = size_of::<ShiftRightCols<u8>>();
 pub struct ShiftRightChip;
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, StructReflection, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct ShiftRightCols<T> {
     /// The current shard, timestamp, program counter of the CPU.
@@ -104,6 +105,10 @@ impl<F: PrimeField32> MachineAir<F> for ShiftRightChip {
         "ShiftRight"
     }
 
+    fn column_names(&self) -> Vec<String> {
+        ShiftRightCols::<F>::struct_reflection().unwrap()
+    }
+
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
         let nb_rows = next_multiple_of_32(
             input.shift_right_events.len(),
@@ -169,7 +174,7 @@ impl<F: PrimeField32> MachineAir<F> for ShiftRightChip {
             .shift_right_events
             .par_chunks(chunk_size)
             .map(|events| {
-                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
+                let mut blu: HashMap<ByteLookupEvent, isize> = HashMap::new();
                 events.iter().for_each(|event| {
                     let mut row = [F::zero(); NUM_SHIFT_RIGHT_COLS];
                     let cols: &mut ShiftRightCols<F> = row.as_mut_slice().borrow_mut();

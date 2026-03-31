@@ -21,7 +21,7 @@ use std::{
     sync::Arc,
 };
 use thousands::Separable;
-use tracing::Instrument;
+use tracing::{Instrument, Level};
 
 use crate::{
     air::{MachineAir, MachineProgram},
@@ -34,6 +34,7 @@ use crate::{
     ConstraintSumcheckFolder, GkrProverImpl, LogUpEvaluations, Machine, MachineVerifyingKey,
     ShardContext, ShardOpenedValues, ShardProof,
 };
+use std::time::Instant;
 
 use super::{TraceGenerator, Traces};
 
@@ -549,14 +550,14 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>>
             let gkr_powers = Arc::new(gkr_opening_batch_randomness_powers);
 
             let alpha_powers = Arc::new(chip_powers_of_alpha);
+            let preprocessed_trace = preprocessed_traces.get(name).cloned();
+
             let air_data = ZerocheckCpuProverData::round_prover(
                 air,
                 public_values.clone(),
                 alpha_powers,
                 gkr_powers.clone(),
             );
-            let preprocessed_trace = preprocessed_traces.get(name).cloned();
-
             let chip_sumcheck_claim = main_opening
                 .evaluations()
                 .as_slice()
@@ -646,7 +647,7 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>>
     }
 
     /// Generate a proof for a given execution record.
-    #[allow(clippy::type_complexity)]
+    #[allow(clippy::type_complexity, clippy::too_many_lines)]
     pub fn prove_shard_with_data(
         &self,
         data: ShardData<GC, SC, C>,
@@ -655,14 +656,19 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>>
         let ShardData { pk, main_trace_data } = data;
         let MainTraceData { traces, public_values, shard_chips, permit } = main_trace_data;
 
+        let start_time = Instant::now();
+
         // Log the shard data.
         let mut total_number_of_cells = 0;
+        let mut total_local_bus_interactions = 0;
         tracing::debug!("Proving shard");
+
         for (chip, trace) in shard_chips.iter().zip_eq(traces.values()) {
             let height = trace.num_real_entries();
             let stats = ChipStatistics::new(chip, height);
             tracing::debug!("{}", stats);
             total_number_of_cells += stats.total_number_of_cells();
+            total_local_bus_interactions += stats.total_number_of_local_bus_interactions();
         }
 
         tracing::debug!(
@@ -787,6 +793,16 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>>
             zerocheck_proof: zerocheck_partial_sumcheck_proof,
             public_values,
         };
+
+        // Emit machine-readable event to collect shard proof time.
+        let total_ms = start_time.elapsed().as_millis() as u64;
+        tracing::event!(
+            Level::INFO,
+            total_ms = total_ms,
+            total_cells = total_number_of_cells as u64,
+            bus_interactions = total_local_bus_interactions as u64,
+            "prove_shard_with_data finished"
+        );
 
         (proof, permit)
     }

@@ -8,6 +8,7 @@ use crate::{
     RiscvAirId,
 };
 use hashbrown::HashMap;
+use powdr_autoprecompiles::execution::{ExecutionState, OptimisticConstraints};
 use serde::{Deserialize, Serialize};
 use slop_algebra::{Field, PrimeField32};
 use slop_maybe_rayon::prelude::{IntoParallelIterator, ParallelBridge, ParallelIterator};
@@ -16,11 +17,13 @@ use sp1_hypercube::{
     septic_curve::{SepticCurve, SepticCurveComplete},
     septic_digest::SepticDigest,
     shape::Shape,
-    InteractionKind,
+    InteractionKind, Machine,
 };
 use sp1_primitives::consts::split_page_idx;
 use std::sync::Arc;
 
+/// Cost of APC, currently defined as number of columns.
+pub type ApcCost = u64;
 /// The maximum number of instructions in a program.
 pub const MAX_PROGRAM_SIZE: usize = 1 << 22;
 
@@ -48,9 +51,153 @@ pub struct Program {
     pub enable_untrusted_programs: bool,
     /// Function symbols for profiling & debugging. In the form of (name, start address, size)
     pub function_symbols: Vec<(String, u64, u64)>,
+    /// The data about the apcs
+    pub apcs: Apcs,
+}
+
+/// Data about the apcs of this program, used during execution
+#[derive(Debug, Clone, Default, Serialize, Deserialize, deepsize2::DeepSizeOf)]
+pub struct Apcs {
+    /// The ranges of instructions that have APC chips. The values are indices in `apc_by_index`
+    pub apc_indices_by_start_idx: HashMap<usize, Vec<usize>>,
+    /// The details of each APC
+    pub apc_by_index: Vec<Apc>,
+}
+
+impl Apcs {
+    fn add(&mut self, apc: Apc) {
+        let index = self.apc_by_index.len();
+        self.apc_indices_by_start_idx.entry(apc.start_pc_idx).or_default().push(index);
+        self.apc_by_index.push(apc);
+    }
+
+    fn get(&self, index: usize) -> Option<&[usize]> {
+        self.apc_indices_by_start_idx.get(&index).map(std::vec::Vec::as_slice)
+    }
+}
+
+/// Represents an APC in the program, which is a range for which the prover can choose to run an
+/// alternative implementation.
+#[derive(Debug, Clone, Serialize, Deserialize, deepsize2::DeepSizeOf)]
+pub struct Apc {
+    /// The index of the pc at which this APC starts
+    start_pc_idx: usize,
+    /// The number of cycles required to go through this APC
+    cycle_count: usize,
+    /// The cost for this APC
+    cost: ApcCost,
+    /// The execution constraints for this APC
+    execution_constraints: OptimisticConstraints<u8, u64>,
+}
+
+impl Apc {
+    /// Create a new apc for a given range, cost, and execution constraints.
+    pub fn new<R: Into<ApcRange>>(
+        range: R,
+        cost: u64,
+        execution_constraints: OptimisticConstraints<u8, u64>,
+    ) -> Self {
+        let range = range.into();
+        Self {
+            start_pc_idx: range.start().unwrap(),
+            cycle_count: range.len(),
+            cost,
+            execution_constraints,
+        }
+    }
+
+    /// Return the cost of this apc.
+    #[must_use]
+    pub fn cost(&self) -> ApcCost {
+        self.cost
+    }
+}
+
+impl<S: ExecutionState<RegisterAddress = u8, Value = u64>> powdr_autoprecompiles::execution::Apc<S>
+    for Apc
+{
+    fn cycle_count(&self) -> usize {
+        self.cycle_count
+    }
+
+    fn priority(&self) -> usize {
+        // TODO: encode priority coming from saved cells
+        1
+    }
+
+    fn optimistic_constraints(&self) -> &OptimisticConstraints<u8, u64> {
+        &self.execution_constraints
+    }
+}
+
+/// Represents a APC range.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, deepsize2::DeepSizeOf)]
+pub struct ApcRange {
+    start_idx: usize,
+    len: usize,
+}
+
+impl ApcRange {
+    /// Create a new range from a start index and a length
+    #[must_use]
+    pub fn new(start_idx: usize, len: usize) -> Self {
+        Self { start_idx, len }
+    }
+
+    /// Returns the first value included in the range
+    #[must_use]
+    pub fn start(&self) -> Option<usize> {
+        if self.len > 0 {
+            Some(self.start_idx)
+        } else {
+            None
+        }
+    }
+
+    /// Returns the last value included in the range
+    #[must_use]
+    pub fn end(&self) -> Option<usize> {
+        if self.len > 0 {
+            Some(self.start_idx + self.len - 1)
+        } else {
+            None
+        }
+    }
+
+    /// Returns the length of the range
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    /// Returns true if the range is empty
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+}
+
+/// Convert a rust range (upper exclusive) to an APC range.
+impl From<&(usize, usize)> for ApcRange {
+    fn from((start, end): &(usize, usize)) -> Self {
+        Self::new(*start, *end - *start)
+    }
 }
 
 impl Program {
+    /// Add apcs to this program
+    #[must_use]
+    pub fn with_apcs(self, apc_ranges_and_costs: impl IntoIterator<Item = Apc>) -> Self {
+        apc_ranges_and_costs.into_iter().fold(self, Program::add_apc)
+    }
+
+    /// Add an APC range to the program.
+    #[must_use]
+    pub fn add_apc(mut self, apc: Apc) -> Self {
+        self.apcs.add(apc);
+        self
+    }
+
     /// Create a new [Program].
     #[must_use]
     pub fn new(instructions: Vec<Instruction>, pc_start_abs: u64, pc_base: u64) -> Self {
@@ -67,6 +214,7 @@ impl Program {
             preprocessed_shape: None,
             enable_untrusted_programs: false,
             function_symbols: Vec::new(),
+            apcs: Apcs::default(),
         }
     }
 
@@ -109,6 +257,7 @@ impl Program {
             preprocessed_shape: None,
             enable_untrusted_programs: elf.enable_untrusted_programs,
             function_symbols: elf.function_symbols,
+            apcs: Apcs::default(),
         })
     }
 
@@ -121,6 +270,15 @@ impl Program {
         let mut elf_code = Vec::new();
         File::open(path)?.read_to_end(&mut elf_code)?;
         Program::from(&elf_code)
+    }
+
+    /// Create a program and customize it with a machine. This means that the apcs of the machine are added to the program to be available during execution.
+    pub fn custom<F: Field>(
+        input: &[u8],
+        machine: &Machine<F, impl MachineAir<F, Program = Self>>,
+    ) -> eyre::Result<Self> {
+        // Return the program after customization by the machine
+        Self::from(input).map(|p| machine.customize_program(p))
     }
 
     /// Custom logic for padding the trace to a power of two according to the proof shape.
@@ -138,6 +296,17 @@ impl Program {
     pub fn fetch(&self, pc: u64) -> Option<&Instruction> {
         let idx = ((pc - self.pc_base) / 4) as usize;
         self.instructions.get(idx)
+    }
+
+    #[must_use]
+    /// Fetch the instruction at the given program counter, as well as the apc ranges, if any.
+    pub fn fetch_with_apcs(&self, pc: u64) -> Option<(&Instruction, Option<&[usize]>)> {
+        let idx = ((pc - self.pc_base) / 4) as usize;
+        if idx < self.instructions.len() {
+            Some((&self.instructions[idx], self.apcs.get(idx)))
+        } else {
+            None
+        }
     }
 }
 

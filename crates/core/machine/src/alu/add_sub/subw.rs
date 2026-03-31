@@ -15,6 +15,7 @@ use sp1_core_executor::{
 };
 use sp1_derive::AlignedBorrow;
 use sp1_hypercube::{air::MachineAir, Word};
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     adapter::{
@@ -34,7 +35,7 @@ pub const NUM_SUBW_COLS: usize = size_of::<SubwCols<u8>>();
 pub struct SubwChip;
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Default, Clone, Copy)]
+#[derive(AlignedBorrow, StructReflection, Default, Clone, Copy)]
 #[repr(C)]
 pub struct SubwCols<T> {
     /// The current shard, timestamp, program counter of the CPU.
@@ -57,6 +58,10 @@ impl<F: PrimeField32> MachineAir<F> for SubwChip {
 
     fn name(&self) -> &'static str {
         "Subw"
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        SubwCols::<F>::struct_reflection().unwrap()
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
@@ -114,7 +119,7 @@ impl<F: PrimeField32> MachineAir<F> for SubwChip {
         let blu_batches = event_iter
             .par_bridge()
             .map(|events| {
-                let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
+                let mut blu: HashMap<ByteLookupEvent, isize> = HashMap::new();
                 events.iter().for_each(|event| {
                     let mut row = [F::zero(); NUM_SUBW_COLS];
                     let cols: &mut SubwCols<F> = row.as_mut_slice().borrow_mut();
