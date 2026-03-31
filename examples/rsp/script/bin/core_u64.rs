@@ -35,5 +35,5 @@ async fn main() {
     let client = ProverClient::from_env().await;
     let pk = client.setup(ELF).await.unwrap();
     let proof = client.prove(&pk, stdin).core().await.unwrap();
-    client.verify(&proof, &pk.verifying_key(), None).unwrap();
+    client.verify(&proof, pk.verifying_key(), None).unwrap();
 }

@@ -9,9 +9,14 @@ bincode = "1.3.3"
 clap = { version = "4.5.7", features = ["derive", "env"] }
 tokio = "1.42.0"
 tracing = "0.1"
+powdr-autoprecompiles = { workspace = true }
 # rsp
 rsp-client-executor = { git = "https://github.com/succinctlabs/rsp/", rev = "3647076" }
-sp1-sdk = { workspace = true }
+sp1-sdk = { workspace = true, features = ["experimental"] }
+sp1-core-machine = { workspace = true }
+sp1-build = { workspace = true }
+sp1-primitives = { workspace = true }
+sp1-core-executor = { workspace = true }
 
 [build-dependencies]
 sp1-build = { path = "../../../crates/build" }

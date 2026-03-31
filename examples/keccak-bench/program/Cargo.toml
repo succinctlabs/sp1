@@ -1,0 +1,11 @@
+[package]
+name = "keccak-bench-program"
+version = "1.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+sp1-zkvm = { workspace = true }
+tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", tag = "patch-2.0.2-sp1-6.0.0-rc.1", features = ["keccak"] }
+# Note: We deliberately do NOT use the crates.io version, because it is patched at the workspace level...
+tiny-keccak-software = { package = "tiny-keccak", git = "https://github.com/debris/tiny-keccak", rev = "f0fa146", features = ["keccak"] }

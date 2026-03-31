@@ -31,6 +31,8 @@ members = [
   "json/script",
   "keccak/program",
   "keccak/script",
+  "keccak-bench/program",
+  "keccak-bench/script",
   "mprotect/program",
   "mprotect/script",
   # "untrusted_program/jit-program",
@@ -66,10 +68,13 @@ edition = "2021"
 [workspace.dependencies]
 sp1-build = { path = "../crates/build" }
 sp1-core-executor = { path = "../crates/core/executor" }
+sp1-core-machine = { path = "../crates/core/machine" }
+sp1-prover = { path = "../crates/prover" }
 sp1-primitives = { path = "../crates/primitives" }
 sp1-sdk = { path = "../crates/sdk" }
 sp1-zkvm = { path = "../crates/zkvm/entrypoint", features = ["lib"] }
 tokio = { version = "1.4", features = ["full"] }
+powdr-autoprecompiles = { git = "https://github.com/powdr-labs/powdr.git", rev = "87c4b37", default-features = false }
 
 # misc
 serde = "1.0.204"

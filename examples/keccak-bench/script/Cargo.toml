@@ -1,0 +1,22 @@
+[package]
+name = "keccak-bench-script"
+version = { workspace = true }
+edition = { workspace = true }
+default-run = "keccak-bench-script"
+publish = false
+
+[dependencies]
+hex = "0.4.3"
+clap = { version = "4.5.7", features = ["derive", "env"] }
+sp1-sdk = { workspace = true }
+tokio = { workspace = true }
+sp1-prover = { workspace = true }
+sp1-core-executor = { workspace = true }
+sp1-build = { workspace = true }
+sp1-core-machine = { workspace = true }
+sp1-primitives = { workspace = true }
+tracing = "0.1"
+powdr-autoprecompiles = { workspace = true }
+
+[build-dependencies]
+sp1-build = { workspace = true }
