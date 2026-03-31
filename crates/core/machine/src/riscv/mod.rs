@@ -91,7 +91,7 @@ pub const MAX_NUMBER_OF_SHARDS: usize = 1 << MAX_LOG_NUMBER_OF_SHARDS;
 /// different AIR variants have a joint lookup argument.
 #[derive(sp1_derive::MachineAir, EnumDiscriminants)]
 #[strum_discriminants(derive(Hash, EnumIter, PartialOrd, Ord))]
-pub enum RiscvAir<F: PrimeField32> {
+pub enum RiscvAirWithoutApcs<F: PrimeField32> {
     /// An AIR that contains a preprocessed program table and a lookup for the instructions.
     Program(ProgramChip),
     /// An AIR for the RISC-V Add instruction.
@@ -226,105 +226,121 @@ pub enum RiscvAir<F: PrimeField32> {
     Poseidon2(Poseidon2Chip),
 }
 
-impl<F: PrimeField32> RiscvAir<F> {
+impl<F: PrimeField32> RiscvAirWithoutApcs<F> {
     pub fn id(&self) -> RiscvAirId {
-        RiscvAirId::from(RiscvAirDiscriminants::from(self))
+        RiscvAirId::from(RiscvAirWithoutApcsDiscriminants::from(self))
+    }
+
+    pub fn airs() -> [RiscvAirWithoutApcs<F>; 66] {
+        // The order of the chips is used to determine the order of trace generation.
+        [
+            RiscvAirWithoutApcs::Program(ProgramChip::default()),
+            RiscvAirWithoutApcs::Sha256Extend(ShaExtendChip::default()),
+            RiscvAirWithoutApcs::Sha256ExtendControl(ShaExtendControlChip::default()),
+            RiscvAirWithoutApcs::Sha256Compress(ShaCompressChip::default()),
+            RiscvAirWithoutApcs::Sha256CompressControl(ShaCompressControlChip::default()),
+            RiscvAirWithoutApcs::Ed25519Add(
+                EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>>::new(),
+            ),
+            RiscvAirWithoutApcs::Ed25519Decompress(EdDecompressChip::<Ed25519Parameters>::default()),
+            RiscvAirWithoutApcs::K256Decompress(WeierstrassDecompressChip::<
+                SwCurve<Secp256k1Parameters>,
+            >::with_lsb_rule()),
+            RiscvAirWithoutApcs::Secp256k1Add(WeierstrassAddAssignChip::<
+                SwCurve<Secp256k1Parameters>,
+            >::new()),
+            RiscvAirWithoutApcs::Secp256k1Double(WeierstrassDoubleAssignChip::<
+                SwCurve<Secp256k1Parameters>,
+            >::new()),
+            RiscvAirWithoutApcs::P256Decompress(WeierstrassDecompressChip::<
+                SwCurve<Secp256r1Parameters>,
+            >::with_lsb_rule()),
+            RiscvAirWithoutApcs::Secp256r1Add(WeierstrassAddAssignChip::<
+                SwCurve<Secp256r1Parameters>,
+            >::new()),
+            RiscvAirWithoutApcs::Secp256r1Double(WeierstrassDoubleAssignChip::<
+                SwCurve<Secp256r1Parameters>,
+            >::new()),
+            RiscvAirWithoutApcs::KeccakP(KeccakPermuteChip::new()),
+            RiscvAirWithoutApcs::KeccakPControl(KeccakPermuteControlChip::new()),
+            RiscvAirWithoutApcs::Bn254Add(
+                WeierstrassAddAssignChip::<SwCurve<Bn254Parameters>>::new(),
+            ),
+            RiscvAirWithoutApcs::Bn254Double(
+                WeierstrassDoubleAssignChip::<SwCurve<Bn254Parameters>>::new(),
+            ),
+            RiscvAirWithoutApcs::Bls12381Add(
+                WeierstrassAddAssignChip::<SwCurve<Bls12381Parameters>>::new(),
+            ),
+            RiscvAirWithoutApcs::Bls12381Double(WeierstrassDoubleAssignChip::<
+                SwCurve<Bls12381Parameters>,
+            >::new()),
+            RiscvAirWithoutApcs::Uint256Mul(Uint256MulChip::default()),
+            RiscvAirWithoutApcs::Uint256Ops(Uint256OpsChip::default()),
+            RiscvAirWithoutApcs::U256x2048Mul(U256x2048MulChip::default()),
+            RiscvAirWithoutApcs::Bls12381Fp(FpOpChip::<Bls12381BaseField>::new()),
+            RiscvAirWithoutApcs::Bls12381Fp2AddSub(Fp2AddSubAssignChip::<Bls12381BaseField>::new()),
+            RiscvAirWithoutApcs::Bls12381Fp2Mul(Fp2MulAssignChip::<Bls12381BaseField>::new()),
+            RiscvAirWithoutApcs::Bn254Fp(FpOpChip::<Bn254BaseField>::new()),
+            RiscvAirWithoutApcs::Bn254Fp2AddSub(Fp2AddSubAssignChip::<Bn254BaseField>::new()),
+            RiscvAirWithoutApcs::Bn254Fp2Mul(Fp2MulAssignChip::<Bn254BaseField>::new()),
+            RiscvAirWithoutApcs::Bls12381Decompress(WeierstrassDecompressChip::<
+                SwCurve<Bls12381Parameters>,
+            >::with_lexicographic_rule()),
+            RiscvAirWithoutApcs::Mprotect(MProtectChip::default()),
+            RiscvAirWithoutApcs::Poseidon2(Poseidon2Chip::new()),
+            RiscvAirWithoutApcs::SyscallCore(SyscallChip::core()),
+            RiscvAirWithoutApcs::SyscallPrecompile(SyscallChip::precompile()),
+            RiscvAirWithoutApcs::DivRem(DivRemChip::default()),
+            RiscvAirWithoutApcs::Add(AddChip::default()),
+            RiscvAirWithoutApcs::Addi(AddiChip::default()),
+            RiscvAirWithoutApcs::Addw(AddwChip::default()),
+            RiscvAirWithoutApcs::Sub(SubChip::default()),
+            RiscvAirWithoutApcs::Subw(SubwChip::default()),
+            RiscvAirWithoutApcs::Bitwise(BitwiseChip::default()),
+            RiscvAirWithoutApcs::Mul(MulChip::default()),
+            RiscvAirWithoutApcs::ShiftRight(ShiftRightChip::default()),
+            RiscvAirWithoutApcs::ShiftLeft(ShiftLeftChip::default()),
+            RiscvAirWithoutApcs::Lt(LtChip::default()),
+            RiscvAirWithoutApcs::LoadByte(LoadByteChip::default()),
+            RiscvAirWithoutApcs::LoadHalf(LoadHalfChip::default()),
+            RiscvAirWithoutApcs::LoadWord(LoadWordChip::default()),
+            RiscvAirWithoutApcs::LoadDouble(LoadDoubleChip::default()),
+            RiscvAirWithoutApcs::LoadX0(LoadX0Chip::default()),
+            RiscvAirWithoutApcs::StoreByte(StoreByteChip::default()),
+            RiscvAirWithoutApcs::StoreHalf(StoreHalfChip::default()),
+            RiscvAirWithoutApcs::StoreWord(StoreWordChip::default()),
+            RiscvAirWithoutApcs::StoreDouble(StoreDoubleChip::default()),
+            RiscvAirWithoutApcs::UType(UTypeChip::default()),
+            RiscvAirWithoutApcs::Branch(BranchChip::default()),
+            RiscvAirWithoutApcs::Jal(JalChip::default()),
+            RiscvAirWithoutApcs::Jalr(JalrChip::default()),
+            RiscvAirWithoutApcs::SyscallInstrs(SyscallInstrsChip::default()),
+            RiscvAirWithoutApcs::MemoryBump(MemoryBumpChip::new()),
+            RiscvAirWithoutApcs::StateBump(StateBumpChip::new()),
+            RiscvAirWithoutApcs::MemoryGlobalInit(MemoryGlobalChip::new(
+                MemoryChipType::Initialize,
+            )),
+            RiscvAirWithoutApcs::MemoryGlobalFinal(MemoryGlobalChip::new(MemoryChipType::Finalize)),
+            RiscvAirWithoutApcs::MemoryLocal(MemoryLocalChip::new()),
+            RiscvAirWithoutApcs::Global(GlobalChip),
+            RiscvAirWithoutApcs::ByteLookup(ByteChip::default()),
+            RiscvAirWithoutApcs::RangeLookup(RangeChip::default()),
+        ]
     }
 
     pub fn machine() -> Machine<F, Self> {
-        use RiscvAirDiscriminants::*;
+        use RiscvAirWithoutApcsDiscriminants::*;
 
-        // The order of the chips is used to determine the order of trace generation.
-        let chips: Vec<Chip<F, RiscvAir<F>>> = [
-            RiscvAir::Program(ProgramChip::default()),
-            RiscvAir::Sha256Extend(ShaExtendChip::default()),
-            RiscvAir::Sha256ExtendControl(ShaExtendControlChip::default()),
-            RiscvAir::Sha256Compress(ShaCompressChip::default()),
-            RiscvAir::Sha256CompressControl(ShaCompressControlChip::default()),
-            RiscvAir::Ed25519Add(EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>>::new()),
-            RiscvAir::Ed25519Decompress(EdDecompressChip::<Ed25519Parameters>::default()),
-            RiscvAir::K256Decompress(
-                WeierstrassDecompressChip::<SwCurve<Secp256k1Parameters>>::with_lsb_rule(),
-            ),
-            RiscvAir::Secp256k1Add(WeierstrassAddAssignChip::<SwCurve<Secp256k1Parameters>>::new()),
-            RiscvAir::Secp256k1Double(
-                WeierstrassDoubleAssignChip::<SwCurve<Secp256k1Parameters>>::new(),
-            ),
-            RiscvAir::P256Decompress(
-                WeierstrassDecompressChip::<SwCurve<Secp256r1Parameters>>::with_lsb_rule(),
-            ),
-            RiscvAir::Secp256r1Add(WeierstrassAddAssignChip::<SwCurve<Secp256r1Parameters>>::new()),
-            RiscvAir::Secp256r1Double(
-                WeierstrassDoubleAssignChip::<SwCurve<Secp256r1Parameters>>::new(),
-            ),
-            RiscvAir::KeccakP(KeccakPermuteChip::new()),
-            RiscvAir::KeccakPControl(KeccakPermuteControlChip::new()),
-            RiscvAir::Bn254Add(WeierstrassAddAssignChip::<SwCurve<Bn254Parameters>>::new()),
-            RiscvAir::Bn254Double(WeierstrassDoubleAssignChip::<SwCurve<Bn254Parameters>>::new()),
-            RiscvAir::Bls12381Add(WeierstrassAddAssignChip::<SwCurve<Bls12381Parameters>>::new()),
-            RiscvAir::Bls12381Double(
-                WeierstrassDoubleAssignChip::<SwCurve<Bls12381Parameters>>::new(),
-            ),
-            RiscvAir::Uint256Mul(Uint256MulChip::default()),
-            RiscvAir::Uint256Ops(Uint256OpsChip::default()),
-            RiscvAir::U256x2048Mul(U256x2048MulChip::default()),
-            RiscvAir::Bls12381Fp(FpOpChip::<Bls12381BaseField>::new()),
-            RiscvAir::Bls12381Fp2AddSub(Fp2AddSubAssignChip::<Bls12381BaseField>::new()),
-            RiscvAir::Bls12381Fp2Mul(Fp2MulAssignChip::<Bls12381BaseField>::new()),
-            RiscvAir::Bn254Fp(FpOpChip::<Bn254BaseField>::new()),
-            RiscvAir::Bn254Fp2AddSub(Fp2AddSubAssignChip::<Bn254BaseField>::new()),
-            RiscvAir::Bn254Fp2Mul(Fp2MulAssignChip::<Bn254BaseField>::new()),
-            RiscvAir::Bls12381Decompress(
-                WeierstrassDecompressChip::<SwCurve<Bls12381Parameters>>::with_lexicographic_rule(),
-            ),
-            RiscvAir::Mprotect(MProtectChip::default()),
-            RiscvAir::Poseidon2(Poseidon2Chip::new()),
-            RiscvAir::SyscallCore(SyscallChip::core()),
-            RiscvAir::SyscallPrecompile(SyscallChip::precompile()),
-            RiscvAir::DivRem(DivRemChip::default()),
-            RiscvAir::Add(AddChip::default()),
-            RiscvAir::Addi(AddiChip::default()),
-            RiscvAir::Addw(AddwChip::default()),
-            RiscvAir::Sub(SubChip::default()),
-            RiscvAir::Subw(SubwChip::default()),
-            RiscvAir::Bitwise(BitwiseChip::default()),
-            RiscvAir::Mul(MulChip::default()),
-            RiscvAir::ShiftRight(ShiftRightChip::default()),
-            RiscvAir::ShiftLeft(ShiftLeftChip::default()),
-            RiscvAir::Lt(LtChip::default()),
-            RiscvAir::LoadByte(LoadByteChip::default()),
-            RiscvAir::LoadHalf(LoadHalfChip::default()),
-            RiscvAir::LoadWord(LoadWordChip::default()),
-            RiscvAir::LoadDouble(LoadDoubleChip::default()),
-            RiscvAir::LoadX0(LoadX0Chip::default()),
-            RiscvAir::StoreByte(StoreByteChip::default()),
-            RiscvAir::StoreHalf(StoreHalfChip::default()),
-            RiscvAir::StoreWord(StoreWordChip::default()),
-            RiscvAir::StoreDouble(StoreDoubleChip::default()),
-            RiscvAir::UType(UTypeChip::default()),
-            RiscvAir::Branch(BranchChip::default()),
-            RiscvAir::Jal(JalChip::default()),
-            RiscvAir::Jalr(JalrChip::default()),
-            RiscvAir::SyscallInstrs(SyscallInstrsChip::default()),
-            RiscvAir::MemoryBump(MemoryBumpChip::new()),
-            RiscvAir::StateBump(StateBumpChip::new()),
-            RiscvAir::MemoryGlobalInit(MemoryGlobalChip::new(MemoryChipType::Initialize)),
-            RiscvAir::MemoryGlobalFinal(MemoryGlobalChip::new(MemoryChipType::Finalize)),
-            RiscvAir::MemoryLocal(MemoryLocalChip::new()),
-            RiscvAir::Global(GlobalChip),
-            RiscvAir::ByteLookup(ByteChip::default()),
-            RiscvAir::RangeLookup(RangeChip::default()),
-        ]
-        .into_iter()
-        .map(Chip::new)
-        .collect::<Vec<_>>();
+        let chips = Self::airs().into_iter().map(Chip::new).collect::<Vec<_>>();
 
         let chips_map = chips
             .iter()
             .map(|c| (c.air.as_ref().into(), c))
-            .collect::<HashMap<RiscvAirDiscriminants, &Chip<F, RiscvAir<F>>>>();
+            .collect::<HashMap<RiscvAirWithoutApcsDiscriminants, &Chip<F, RiscvAirWithoutApcs<F>>>>(
+            );
         // Check that we listed all chips.
-        assert_eq!(chips_map.len(), RiscvAirDiscriminants::iter().len());
+        assert_eq!(chips_map.len(), RiscvAirWithoutApcsDiscriminants::iter().len());
         assert_eq!(chips_map.len(), chips.len());
 
         // Now that the chips are prepared, we can define clusters in terms of IDs.
@@ -486,305 +502,325 @@ impl<F: PrimeField32> RiscvAir<F> {
         // The order of the chips is used to determine the order of trace generation.
         let mut chips = vec![];
 
-        let program = Chip::new(RiscvAir::Program(ProgramChip::default()));
+        let program = Chip::new(RiscvAirWithoutApcs::Program(ProgramChip::default()));
         costs.insert(program.name().to_string(), program.cost());
         chips.push(program);
 
-        let sha_extend = Chip::new(RiscvAir::Sha256Extend(ShaExtendChip::default()));
+        let sha_extend = Chip::new(RiscvAirWithoutApcs::Sha256Extend(ShaExtendChip::default()));
         costs.insert(sha_extend.name().to_string(), sha_extend.cost());
         chips.push(sha_extend);
 
         let sha_extend_control =
-            Chip::new(RiscvAir::Sha256ExtendControl(ShaExtendControlChip::default()));
+            Chip::new(RiscvAirWithoutApcs::Sha256ExtendControl(ShaExtendControlChip::default()));
         costs.insert(sha_extend_control.name().to_string(), sha_extend_control.cost());
         chips.push(sha_extend_control);
 
-        let sha_compress = Chip::new(RiscvAir::Sha256Compress(ShaCompressChip::default()));
+        let sha_compress =
+            Chip::new(RiscvAirWithoutApcs::Sha256Compress(ShaCompressChip::default()));
         costs.insert(sha_compress.name().to_string(), sha_compress.cost());
         chips.push(sha_compress);
 
-        let sha_compress_control =
-            Chip::new(RiscvAir::Sha256CompressControl(ShaCompressControlChip::default()));
+        let sha_compress_control = Chip::new(RiscvAirWithoutApcs::Sha256CompressControl(
+            ShaCompressControlChip::default(),
+        ));
         costs.insert(sha_compress_control.name().to_string(), sha_compress_control.cost());
         chips.push(sha_compress_control);
 
-        let ed_add_assign = Chip::new(RiscvAir::Ed25519Add(EdAddAssignChip::<
+        let ed_add_assign = Chip::new(RiscvAirWithoutApcs::Ed25519Add(EdAddAssignChip::<
             EdwardsCurve<Ed25519Parameters>,
         >::new()));
         costs.insert(ed_add_assign.name().to_string(), ed_add_assign.cost());
         chips.push(ed_add_assign);
 
-        let ed_decompress = Chip::new(RiscvAir::Ed25519Decompress(EdDecompressChip::<
+        let ed_decompress = Chip::new(RiscvAirWithoutApcs::Ed25519Decompress(EdDecompressChip::<
             Ed25519Parameters,
         >::default()));
         costs.insert(ed_decompress.name().to_string(), ed_decompress.cost());
         chips.push(ed_decompress);
 
-        let k256_decompress = Chip::new(RiscvAir::K256Decompress(WeierstrassDecompressChip::<
-            SwCurve<Secp256k1Parameters>,
-        >::with_lsb_rule()));
+        let k256_decompress =
+            Chip::new(RiscvAirWithoutApcs::K256Decompress(WeierstrassDecompressChip::<
+                SwCurve<Secp256k1Parameters>,
+            >::with_lsb_rule()));
         costs.insert(k256_decompress.name().to_string(), k256_decompress.cost());
         chips.push(k256_decompress);
 
-        let secp256k1_add_assign = Chip::new(RiscvAir::Secp256k1Add(WeierstrassAddAssignChip::<
-            SwCurve<Secp256k1Parameters>,
-        >::new()));
+        let secp256k1_add_assign =
+            Chip::new(RiscvAirWithoutApcs::Secp256k1Add(WeierstrassAddAssignChip::<
+                SwCurve<Secp256k1Parameters>,
+            >::new()));
         costs.insert(secp256k1_add_assign.name().to_string(), secp256k1_add_assign.cost());
         chips.push(secp256k1_add_assign);
 
         let secp256k1_double_assign =
-            Chip::new(RiscvAir::Secp256k1Double(WeierstrassDoubleAssignChip::<
+            Chip::new(RiscvAirWithoutApcs::Secp256k1Double(WeierstrassDoubleAssignChip::<
                 SwCurve<Secp256k1Parameters>,
             >::new()));
         costs.insert(secp256k1_double_assign.name().to_string(), secp256k1_double_assign.cost());
         chips.push(secp256k1_double_assign);
 
-        let p256_decompress = Chip::new(RiscvAir::P256Decompress(WeierstrassDecompressChip::<
-            SwCurve<Secp256r1Parameters>,
-        >::with_lsb_rule()));
+        let p256_decompress =
+            Chip::new(RiscvAirWithoutApcs::P256Decompress(WeierstrassDecompressChip::<
+                SwCurve<Secp256r1Parameters>,
+            >::with_lsb_rule()));
         costs.insert(p256_decompress.name().to_string(), p256_decompress.cost());
         chips.push(p256_decompress);
 
-        let secp256r1_add_assign = Chip::new(RiscvAir::Secp256r1Add(WeierstrassAddAssignChip::<
-            SwCurve<Secp256r1Parameters>,
-        >::new()));
+        let secp256r1_add_assign =
+            Chip::new(RiscvAirWithoutApcs::Secp256r1Add(WeierstrassAddAssignChip::<
+                SwCurve<Secp256r1Parameters>,
+            >::new()));
         costs.insert(secp256r1_add_assign.name().to_string(), secp256r1_add_assign.cost());
         chips.push(secp256r1_add_assign);
 
         let secp256r1_double_assign =
-            Chip::new(RiscvAir::Secp256r1Double(WeierstrassDoubleAssignChip::<
+            Chip::new(RiscvAirWithoutApcs::Secp256r1Double(WeierstrassDoubleAssignChip::<
                 SwCurve<Secp256r1Parameters>,
             >::new()));
         costs.insert(secp256r1_double_assign.name().to_string(), secp256r1_double_assign.cost());
         chips.push(secp256r1_double_assign);
 
-        let keccak_permute = Chip::new(RiscvAir::KeccakP(KeccakPermuteChip::new()));
+        let keccak_permute = Chip::new(RiscvAirWithoutApcs::KeccakP(KeccakPermuteChip::new()));
         costs.insert(keccak_permute.name().to_string(), keccak_permute.cost());
         chips.push(keccak_permute);
 
-        let keccak_control = Chip::new(RiscvAir::KeccakPControl(KeccakPermuteControlChip::new()));
+        let keccak_control =
+            Chip::new(RiscvAirWithoutApcs::KeccakPControl(KeccakPermuteControlChip::new()));
         costs.insert(keccak_control.name().to_string(), keccak_control.cost());
         chips.push(keccak_control);
 
-        let bn254_add_assign = Chip::new(RiscvAir::Bn254Add(WeierstrassAddAssignChip::<
-            SwCurve<Bn254Parameters>,
-        >::new()));
+        let bn254_add_assign =
+            Chip::new(RiscvAirWithoutApcs::Bn254Add(WeierstrassAddAssignChip::<
+                SwCurve<Bn254Parameters>,
+            >::new()));
         costs.insert(bn254_add_assign.name().to_string(), bn254_add_assign.cost());
         chips.push(bn254_add_assign);
 
-        let bn254_double_assign = Chip::new(RiscvAir::Bn254Double(WeierstrassDoubleAssignChip::<
-            SwCurve<Bn254Parameters>,
-        >::new()));
+        let bn254_double_assign =
+            Chip::new(RiscvAirWithoutApcs::Bn254Double(WeierstrassDoubleAssignChip::<
+                SwCurve<Bn254Parameters>,
+            >::new()));
         costs.insert(bn254_double_assign.name().to_string(), bn254_double_assign.cost());
         chips.push(bn254_double_assign);
 
-        let bls12381_add = Chip::new(RiscvAir::Bls12381Add(WeierstrassAddAssignChip::<
+        let bls12381_add = Chip::new(RiscvAirWithoutApcs::Bls12381Add(WeierstrassAddAssignChip::<
             SwCurve<Bls12381Parameters>,
         >::new()));
         costs.insert(bls12381_add.name().to_string(), bls12381_add.cost());
         chips.push(bls12381_add);
 
-        let bls12381_double = Chip::new(RiscvAir::Bls12381Double(WeierstrassDoubleAssignChip::<
-            SwCurve<Bls12381Parameters>,
-        >::new()));
+        let bls12381_double =
+            Chip::new(RiscvAirWithoutApcs::Bls12381Double(WeierstrassDoubleAssignChip::<
+                SwCurve<Bls12381Parameters>,
+            >::new()));
         costs.insert(bls12381_double.name().to_string(), bls12381_double.cost());
         chips.push(bls12381_double);
 
-        let uint256_mul = Chip::new(RiscvAir::Uint256Mul(Uint256MulChip::default()));
+        let uint256_mul = Chip::new(RiscvAirWithoutApcs::Uint256Mul(Uint256MulChip::default()));
         costs.insert(uint256_mul.name().to_string(), uint256_mul.cost());
         chips.push(uint256_mul);
 
-        let u256x2048_mul = Chip::new(RiscvAir::U256x2048Mul(U256x2048MulChip::default()));
+        let u256x2048_mul =
+            Chip::new(RiscvAirWithoutApcs::U256x2048Mul(U256x2048MulChip::default()));
         costs.insert(u256x2048_mul.name().to_string(), u256x2048_mul.cost());
         chips.push(u256x2048_mul);
 
-        let uint256_ops = Chip::new(RiscvAir::Uint256Ops(Uint256OpsChip::default()));
+        let uint256_ops = Chip::new(RiscvAirWithoutApcs::Uint256Ops(Uint256OpsChip::default()));
         costs.insert(uint256_ops.name().to_string(), uint256_ops.cost());
         chips.push(uint256_ops);
 
-        let bls12381_fp = Chip::new(RiscvAir::Bls12381Fp(FpOpChip::<Bls12381BaseField>::new()));
+        let bls12381_fp =
+            Chip::new(RiscvAirWithoutApcs::Bls12381Fp(FpOpChip::<Bls12381BaseField>::new()));
         costs.insert(bls12381_fp.name().to_string(), bls12381_fp.cost());
         chips.push(bls12381_fp);
 
         let bls12381_fp2_addsub =
-            Chip::new(RiscvAir::Bls12381Fp2AddSub(Fp2AddSubAssignChip::<Bls12381BaseField>::new()));
+            Chip::new(RiscvAirWithoutApcs::Bls12381Fp2AddSub(Fp2AddSubAssignChip::<
+                Bls12381BaseField,
+            >::new()));
         costs.insert(bls12381_fp2_addsub.name().to_string(), bls12381_fp2_addsub.cost());
         chips.push(bls12381_fp2_addsub);
 
-        let bls12381_fp2_mul =
-            Chip::new(RiscvAir::Bls12381Fp2Mul(Fp2MulAssignChip::<Bls12381BaseField>::new()));
+        let bls12381_fp2_mul = Chip::new(RiscvAirWithoutApcs::Bls12381Fp2Mul(Fp2MulAssignChip::<
+            Bls12381BaseField,
+        >::new()));
         costs.insert(bls12381_fp2_mul.name().to_string(), bls12381_fp2_mul.cost());
         chips.push(bls12381_fp2_mul);
 
-        let bn254_fp = Chip::new(RiscvAir::Bn254Fp(FpOpChip::<Bn254BaseField>::new()));
+        let bn254_fp = Chip::new(RiscvAirWithoutApcs::Bn254Fp(FpOpChip::<Bn254BaseField>::new()));
         costs.insert(bn254_fp.name().to_string(), bn254_fp.cost());
         chips.push(bn254_fp);
 
-        let bn254_fp2_addsub =
-            Chip::new(RiscvAir::Bn254Fp2AddSub(Fp2AddSubAssignChip::<Bn254BaseField>::new()));
+        let bn254_fp2_addsub = Chip::new(RiscvAirWithoutApcs::Bn254Fp2AddSub(
+            Fp2AddSubAssignChip::<Bn254BaseField>::new(),
+        ));
         costs.insert(bn254_fp2_addsub.name().to_string(), bn254_fp2_addsub.cost());
         chips.push(bn254_fp2_addsub);
 
         let bn254_fp2_mul =
-            Chip::new(RiscvAir::Bn254Fp2Mul(Fp2MulAssignChip::<Bn254BaseField>::new()));
+            Chip::new(RiscvAirWithoutApcs::Bn254Fp2Mul(Fp2MulAssignChip::<Bn254BaseField>::new()));
         costs.insert(bn254_fp2_mul.name().to_string(), bn254_fp2_mul.cost());
         chips.push(bn254_fp2_mul);
 
         let bls12381_decompress =
-            Chip::new(RiscvAir::Bls12381Decompress(WeierstrassDecompressChip::<
+            Chip::new(RiscvAirWithoutApcs::Bls12381Decompress(WeierstrassDecompressChip::<
                 SwCurve<Bls12381Parameters>,
-            >::with_lexicographic_rule()));
+            >::with_lexicographic_rule(
+            )));
         costs.insert(bls12381_decompress.name().to_string(), bls12381_decompress.cost());
         chips.push(bls12381_decompress);
 
-        let mprotect = Chip::new(RiscvAir::Mprotect(MProtectChip::default()));
+        let mprotect = Chip::new(RiscvAirWithoutApcs::Mprotect(MProtectChip::default()));
         costs.insert(mprotect.name().to_string(), mprotect.cost());
         chips.push(mprotect);
 
-        let syscall_core = Chip::new(RiscvAir::SyscallCore(SyscallChip::core()));
+        let syscall_core = Chip::new(RiscvAirWithoutApcs::SyscallCore(SyscallChip::core()));
         costs.insert(syscall_core.name().to_string(), syscall_core.cost());
         chips.push(syscall_core);
 
-        let syscall_precompile = Chip::new(RiscvAir::SyscallPrecompile(SyscallChip::precompile()));
+        let syscall_precompile =
+            Chip::new(RiscvAirWithoutApcs::SyscallPrecompile(SyscallChip::precompile()));
         costs.insert(syscall_precompile.name().to_string(), syscall_precompile.cost());
         chips.push(syscall_precompile);
 
-        let div_rem = Chip::new(RiscvAir::DivRem(DivRemChip::default()));
+        let div_rem = Chip::new(RiscvAirWithoutApcs::DivRem(DivRemChip::default()));
         costs.insert(div_rem.name().to_string(), div_rem.cost());
         chips.push(div_rem);
 
-        let add = Chip::new(RiscvAir::Add(AddChip::default()));
+        let add = Chip::new(RiscvAirWithoutApcs::Add(AddChip::default()));
         costs.insert(add.name().to_string(), add.cost());
         chips.push(add);
 
-        let addw = Chip::new(RiscvAir::Addw(AddwChip::default()));
+        let addw = Chip::new(RiscvAirWithoutApcs::Addw(AddwChip::default()));
         costs.insert(addw.name().to_string(), addw.cost());
         chips.push(addw);
 
-        let addi = Chip::new(RiscvAir::Addi(AddiChip::default()));
+        let addi = Chip::new(RiscvAirWithoutApcs::Addi(AddiChip::default()));
         costs.insert(addi.name().to_string(), addi.cost());
         chips.push(addi);
 
-        let sub = Chip::new(RiscvAir::Sub(SubChip::default()));
+        let sub = Chip::new(RiscvAirWithoutApcs::Sub(SubChip::default()));
         costs.insert(sub.name().to_string(), sub.cost());
         chips.push(sub);
 
-        let subw = Chip::new(RiscvAir::Subw(SubwChip::default()));
+        let subw = Chip::new(RiscvAirWithoutApcs::Subw(SubwChip::default()));
         costs.insert(subw.name().to_string(), subw.cost());
         chips.push(subw);
 
-        let bitwise = Chip::new(RiscvAir::Bitwise(BitwiseChip::default()));
+        let bitwise = Chip::new(RiscvAirWithoutApcs::Bitwise(BitwiseChip::default()));
         costs.insert(bitwise.name().to_string(), bitwise.cost());
         chips.push(bitwise);
 
-        let mul = Chip::new(RiscvAir::Mul(MulChip::default()));
+        let mul = Chip::new(RiscvAirWithoutApcs::Mul(MulChip::default()));
         costs.insert(mul.name().to_string(), mul.cost());
         chips.push(mul);
 
-        let shift_right = Chip::new(RiscvAir::ShiftRight(ShiftRightChip::default()));
+        let shift_right = Chip::new(RiscvAirWithoutApcs::ShiftRight(ShiftRightChip::default()));
         costs.insert(shift_right.name().to_string(), shift_right.cost());
         chips.push(shift_right);
 
-        let shift_left = Chip::new(RiscvAir::ShiftLeft(ShiftLeftChip::default()));
+        let shift_left = Chip::new(RiscvAirWithoutApcs::ShiftLeft(ShiftLeftChip::default()));
         costs.insert(shift_left.name().to_string(), shift_left.cost());
         chips.push(shift_left);
 
-        let lt = Chip::new(RiscvAir::Lt(LtChip::default()));
+        let lt = Chip::new(RiscvAirWithoutApcs::Lt(LtChip::default()));
         costs.insert(lt.name().to_string(), lt.cost());
         chips.push(lt);
 
-        let load_byte = Chip::new(RiscvAir::LoadByte(LoadByteChip::default()));
+        let load_byte = Chip::new(RiscvAirWithoutApcs::LoadByte(LoadByteChip::default()));
         costs.insert(load_byte.name().to_string(), load_byte.cost());
         chips.push(load_byte);
 
-        let load_half = Chip::new(RiscvAir::LoadHalf(LoadHalfChip::default()));
+        let load_half = Chip::new(RiscvAirWithoutApcs::LoadHalf(LoadHalfChip::default()));
         costs.insert(load_half.name().to_string(), load_half.cost());
         chips.push(load_half);
 
-        let load_word = Chip::new(RiscvAir::LoadWord(LoadWordChip::default()));
+        let load_word = Chip::new(RiscvAirWithoutApcs::LoadWord(LoadWordChip::default()));
         costs.insert(load_word.name().to_string(), load_word.cost());
         chips.push(load_word);
 
-        let load_x0 = Chip::new(RiscvAir::LoadX0(LoadX0Chip::default()));
+        let load_x0 = Chip::new(RiscvAirWithoutApcs::LoadX0(LoadX0Chip::default()));
         costs.insert(load_x0.name().to_string(), load_x0.cost());
         chips.push(load_x0);
 
-        let load_double = Chip::new(RiscvAir::LoadDouble(LoadDoubleChip::default()));
+        let load_double = Chip::new(RiscvAirWithoutApcs::LoadDouble(LoadDoubleChip::default()));
         costs.insert(load_double.name().to_string(), load_double.cost());
         chips.push(load_double);
 
-        let store_byte = Chip::new(RiscvAir::StoreByte(StoreByteChip::default()));
+        let store_byte = Chip::new(RiscvAirWithoutApcs::StoreByte(StoreByteChip::default()));
         costs.insert(store_byte.name().to_string(), store_byte.cost());
         chips.push(store_byte);
 
-        let store_half = Chip::new(RiscvAir::StoreHalf(StoreHalfChip::default()));
+        let store_half = Chip::new(RiscvAirWithoutApcs::StoreHalf(StoreHalfChip::default()));
         costs.insert(store_half.name().to_string(), store_half.cost());
         chips.push(store_half);
 
-        let store_word = Chip::new(RiscvAir::StoreWord(StoreWordChip::default()));
+        let store_word = Chip::new(RiscvAirWithoutApcs::StoreWord(StoreWordChip::default()));
         costs.insert(store_word.name().to_string(), store_word.cost());
         chips.push(store_word);
 
-        let store_double = Chip::new(RiscvAir::StoreDouble(StoreDoubleChip::default()));
+        let store_double = Chip::new(RiscvAirWithoutApcs::StoreDouble(StoreDoubleChip::default()));
         costs.insert(store_double.name().to_string(), store_double.cost());
         chips.push(store_double);
 
-        let utype = Chip::new(RiscvAir::UType(UTypeChip::default()));
+        let utype = Chip::new(RiscvAirWithoutApcs::UType(UTypeChip::default()));
         costs.insert(utype.name().to_string(), utype.cost());
         chips.push(utype);
 
-        let branch = Chip::new(RiscvAir::Branch(BranchChip::default()));
+        let branch = Chip::new(RiscvAirWithoutApcs::Branch(BranchChip::default()));
         costs.insert(branch.name().to_string(), branch.cost());
         chips.push(branch);
 
-        let jal = Chip::new(RiscvAir::Jal(JalChip::default()));
+        let jal = Chip::new(RiscvAirWithoutApcs::Jal(JalChip::default()));
         costs.insert(jal.name().to_string(), jal.cost());
         chips.push(jal);
 
-        let jalr = Chip::new(RiscvAir::Jalr(JalrChip::default()));
+        let jalr = Chip::new(RiscvAirWithoutApcs::Jalr(JalrChip::default()));
         costs.insert(jalr.name().to_string(), jalr.cost());
         chips.push(jalr);
 
-        let syscall_instrs = Chip::new(RiscvAir::SyscallInstrs(SyscallInstrsChip::default()));
+        let syscall_instrs =
+            Chip::new(RiscvAirWithoutApcs::SyscallInstrs(SyscallInstrsChip::default()));
         costs.insert(syscall_instrs.name().to_string(), syscall_instrs.cost());
         chips.push(syscall_instrs);
 
-        let memory_bump = Chip::new(RiscvAir::MemoryBump(MemoryBumpChip::new()));
+        let memory_bump = Chip::new(RiscvAirWithoutApcs::MemoryBump(MemoryBumpChip::new()));
         costs.insert(memory_bump.name().to_string(), memory_bump.cost());
         chips.push(memory_bump);
 
-        let state_bump = Chip::new(RiscvAir::StateBump(StateBumpChip::new()));
+        let state_bump = Chip::new(RiscvAirWithoutApcs::StateBump(StateBumpChip::new()));
         costs.insert(state_bump.name().to_string(), state_bump.cost());
         chips.push(state_bump);
 
-        let memory_global_init = Chip::new(RiscvAir::MemoryGlobalInit(MemoryGlobalChip::new(
-            MemoryChipType::Initialize,
-        )));
+        let memory_global_init = Chip::new(RiscvAirWithoutApcs::MemoryGlobalInit(
+            MemoryGlobalChip::new(MemoryChipType::Initialize),
+        ));
         costs.insert(memory_global_init.name().to_string(), memory_global_init.cost());
         chips.push(memory_global_init);
 
-        let memory_global_finalize =
-            Chip::new(RiscvAir::MemoryGlobalFinal(MemoryGlobalChip::new(MemoryChipType::Finalize)));
+        let memory_global_finalize = Chip::new(RiscvAirWithoutApcs::MemoryGlobalFinal(
+            MemoryGlobalChip::new(MemoryChipType::Finalize),
+        ));
         costs.insert(memory_global_finalize.name().to_string(), memory_global_finalize.cost());
         chips.push(memory_global_finalize);
 
-        let memory_local = Chip::new(RiscvAir::MemoryLocal(MemoryLocalChip::new()));
+        let memory_local = Chip::new(RiscvAirWithoutApcs::MemoryLocal(MemoryLocalChip::new()));
         costs.insert(memory_local.name().to_string(), memory_local.cost());
         chips.push(memory_local);
 
-        let global = Chip::new(RiscvAir::Global(GlobalChip));
+        let global = Chip::new(RiscvAirWithoutApcs::Global(GlobalChip));
         costs.insert(global.name().to_string(), global.cost());
         chips.push(global);
 
-        let byte = Chip::new(RiscvAir::ByteLookup(ByteChip::default()));
+        let byte = Chip::new(RiscvAirWithoutApcs::ByteLookup(ByteChip::default()));
         costs.insert(byte.name().to_string(), byte.cost());
         chips.push(byte);
 
-        let range = Chip::new(RiscvAir::RangeLookup(RangeChip::default()));
+        let range = Chip::new(RiscvAirWithoutApcs::RangeLookup(RangeChip::default()));
         costs.insert(range.name().to_string(), range.cost());
         chips.push(range);
 
-        let poseidon2 = Chip::new(RiscvAir::Poseidon2(Poseidon2Chip::new()));
+        let poseidon2 = Chip::new(RiscvAirWithoutApcs::Poseidon2(Poseidon2Chip::new()));
         costs.insert(poseidon2.name().to_string(), poseidon2.cost());
         chips.push(poseidon2);
 
@@ -860,98 +896,104 @@ impl<F: PrimeField32> RiscvAir<F> {
     }
 }
 
-impl<F: PrimeField32> PartialEq for RiscvAir<F> {
+impl<F: PrimeField32> PartialEq for RiscvAirWithoutApcs<F> {
     fn eq(&self, other: &Self) -> bool {
         self.name() == other.name()
     }
 }
 
-impl<F: PrimeField32> Eq for RiscvAir<F> {}
+impl<F: PrimeField32> Eq for RiscvAirWithoutApcs<F> {}
 
-impl<F: PrimeField32> core::hash::Hash for RiscvAir<F> {
+impl<F: PrimeField32> core::hash::Hash for RiscvAirWithoutApcs<F> {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.name().to_string().hash(state);
     }
 }
 
-impl<F: PrimeField32> fmt::Debug for RiscvAir<F> {
+impl<F: PrimeField32> fmt::Debug for RiscvAirWithoutApcs<F> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name())
     }
 }
 
-impl From<RiscvAirDiscriminants> for RiscvAirId {
-    fn from(value: RiscvAirDiscriminants) -> Self {
+impl From<RiscvAirWithoutApcsDiscriminants> for RiscvAirId {
+    fn from(value: RiscvAirWithoutApcsDiscriminants) -> Self {
         match value {
-            RiscvAirDiscriminants::Program => RiscvAirId::Program,
-            RiscvAirDiscriminants::Add => RiscvAirId::Add,
-            RiscvAirDiscriminants::Addw => RiscvAirId::Addw,
-            RiscvAirDiscriminants::Addi => RiscvAirId::Addi,
-            RiscvAirDiscriminants::Sub => RiscvAirId::Sub,
-            RiscvAirDiscriminants::Subw => RiscvAirId::Subw,
-            RiscvAirDiscriminants::Bitwise => RiscvAirId::Bitwise,
-            RiscvAirDiscriminants::Mul => RiscvAirId::Mul,
-            RiscvAirDiscriminants::DivRem => RiscvAirId::DivRem,
-            RiscvAirDiscriminants::Lt => RiscvAirId::Lt,
-            RiscvAirDiscriminants::ShiftLeft => RiscvAirId::ShiftLeft,
-            RiscvAirDiscriminants::ShiftRight => RiscvAirId::ShiftRight,
-            RiscvAirDiscriminants::LoadByte => RiscvAirId::LoadByte,
-            RiscvAirDiscriminants::LoadHalf => RiscvAirId::LoadHalf,
-            RiscvAirDiscriminants::LoadWord => RiscvAirId::LoadWord,
-            RiscvAirDiscriminants::LoadX0 => RiscvAirId::LoadX0,
-            RiscvAirDiscriminants::LoadDouble => RiscvAirId::LoadDouble,
-            RiscvAirDiscriminants::StoreByte => RiscvAirId::StoreByte,
-            RiscvAirDiscriminants::StoreHalf => RiscvAirId::StoreHalf,
-            RiscvAirDiscriminants::StoreWord => RiscvAirId::StoreWord,
-            RiscvAirDiscriminants::StoreDouble => RiscvAirId::StoreDouble,
-            RiscvAirDiscriminants::RangeLookup => RiscvAirId::Range,
-            RiscvAirDiscriminants::MemoryBump => RiscvAirId::MemoryBump,
-            RiscvAirDiscriminants::StateBump => RiscvAirId::StateBump,
-            RiscvAirDiscriminants::UType => RiscvAirId::UType,
-            RiscvAirDiscriminants::Branch => RiscvAirId::Branch,
-            RiscvAirDiscriminants::Jal => RiscvAirId::Jal,
-            RiscvAirDiscriminants::Jalr => RiscvAirId::Jalr,
-            RiscvAirDiscriminants::SyscallInstrs => RiscvAirId::SyscallInstrs,
-            RiscvAirDiscriminants::ByteLookup => RiscvAirId::Byte,
-            RiscvAirDiscriminants::MemoryGlobalInit => RiscvAirId::MemoryGlobalInit,
-            RiscvAirDiscriminants::MemoryGlobalFinal => RiscvAirId::MemoryGlobalFinalize,
-            RiscvAirDiscriminants::MemoryLocal => RiscvAirId::MemoryLocal,
-            RiscvAirDiscriminants::SyscallCore => RiscvAirId::SyscallCore,
-            RiscvAirDiscriminants::SyscallPrecompile => RiscvAirId::SyscallPrecompile,
-            RiscvAirDiscriminants::Global => RiscvAirId::Global,
-            RiscvAirDiscriminants::Sha256Extend => RiscvAirId::ShaExtend,
-            RiscvAirDiscriminants::Sha256Compress => RiscvAirId::ShaCompress,
-            RiscvAirDiscriminants::Ed25519Add => RiscvAirId::EdAddAssign,
-            RiscvAirDiscriminants::Ed25519Decompress => RiscvAirId::EdDecompress,
-            RiscvAirDiscriminants::K256Decompress => RiscvAirId::Secp256k1Decompress,
-            RiscvAirDiscriminants::P256Decompress => RiscvAirId::Secp256r1Decompress,
-            RiscvAirDiscriminants::Secp256k1Add => RiscvAirId::Secp256k1AddAssign,
-            RiscvAirDiscriminants::Secp256k1Double => RiscvAirId::Secp256k1DoubleAssign,
-            RiscvAirDiscriminants::Secp256r1Add => RiscvAirId::Secp256r1AddAssign,
-            RiscvAirDiscriminants::Secp256r1Double => RiscvAirId::Secp256r1DoubleAssign,
-            RiscvAirDiscriminants::KeccakP => RiscvAirId::KeccakPermute,
-            RiscvAirDiscriminants::Bn254Add => RiscvAirId::Bn254AddAssign,
-            RiscvAirDiscriminants::Bn254Double => RiscvAirId::Bn254DoubleAssign,
-            RiscvAirDiscriminants::Bls12381Add => RiscvAirId::Bls12381AddAssign,
-            RiscvAirDiscriminants::Bls12381Double => RiscvAirId::Bls12381DoubleAssign,
-            RiscvAirDiscriminants::Uint256Mul => RiscvAirId::Uint256MulMod,
-            RiscvAirDiscriminants::Uint256Ops => RiscvAirId::Uint256Ops,
-            RiscvAirDiscriminants::U256x2048Mul => RiscvAirId::U256XU2048Mul,
-            RiscvAirDiscriminants::Bls12381Decompress => RiscvAirId::Bls12381Decompress,
-            RiscvAirDiscriminants::Bls12381Fp => RiscvAirId::Bls12381FpOpAssign,
-            RiscvAirDiscriminants::Bls12381Fp2Mul => RiscvAirId::Bls12381Fp2MulAssign,
-            RiscvAirDiscriminants::Bls12381Fp2AddSub => RiscvAirId::Bls12381Fp2AddSubAssign,
-            RiscvAirDiscriminants::Bn254Fp => RiscvAirId::Bn254FpOpAssign,
-            RiscvAirDiscriminants::Bn254Fp2Mul => RiscvAirId::Bn254Fp2MulAssign,
-            RiscvAirDiscriminants::Bn254Fp2AddSub => RiscvAirId::Bn254Fp2AddSubAssign,
-            RiscvAirDiscriminants::Sha256ExtendControl => RiscvAirId::ShaExtendControl,
-            RiscvAirDiscriminants::Sha256CompressControl => RiscvAirId::ShaCompressControl,
-            RiscvAirDiscriminants::KeccakPControl => RiscvAirId::KeccakPermuteControl,
-            RiscvAirDiscriminants::Mprotect => RiscvAirId::Mprotect,
-            RiscvAirDiscriminants::Poseidon2 => RiscvAirId::Poseidon2,
+            RiscvAirWithoutApcsDiscriminants::Program => RiscvAirId::Program,
+            RiscvAirWithoutApcsDiscriminants::Add => RiscvAirId::Add,
+            RiscvAirWithoutApcsDiscriminants::Addw => RiscvAirId::Addw,
+            RiscvAirWithoutApcsDiscriminants::Addi => RiscvAirId::Addi,
+            RiscvAirWithoutApcsDiscriminants::Sub => RiscvAirId::Sub,
+            RiscvAirWithoutApcsDiscriminants::Subw => RiscvAirId::Subw,
+            RiscvAirWithoutApcsDiscriminants::Bitwise => RiscvAirId::Bitwise,
+            RiscvAirWithoutApcsDiscriminants::Mul => RiscvAirId::Mul,
+            RiscvAirWithoutApcsDiscriminants::DivRem => RiscvAirId::DivRem,
+            RiscvAirWithoutApcsDiscriminants::Lt => RiscvAirId::Lt,
+            RiscvAirWithoutApcsDiscriminants::ShiftLeft => RiscvAirId::ShiftLeft,
+            RiscvAirWithoutApcsDiscriminants::ShiftRight => RiscvAirId::ShiftRight,
+            RiscvAirWithoutApcsDiscriminants::LoadByte => RiscvAirId::LoadByte,
+            RiscvAirWithoutApcsDiscriminants::LoadHalf => RiscvAirId::LoadHalf,
+            RiscvAirWithoutApcsDiscriminants::LoadWord => RiscvAirId::LoadWord,
+            RiscvAirWithoutApcsDiscriminants::LoadX0 => RiscvAirId::LoadX0,
+            RiscvAirWithoutApcsDiscriminants::LoadDouble => RiscvAirId::LoadDouble,
+            RiscvAirWithoutApcsDiscriminants::StoreByte => RiscvAirId::StoreByte,
+            RiscvAirWithoutApcsDiscriminants::StoreHalf => RiscvAirId::StoreHalf,
+            RiscvAirWithoutApcsDiscriminants::StoreWord => RiscvAirId::StoreWord,
+            RiscvAirWithoutApcsDiscriminants::StoreDouble => RiscvAirId::StoreDouble,
+            RiscvAirWithoutApcsDiscriminants::RangeLookup => RiscvAirId::Range,
+            RiscvAirWithoutApcsDiscriminants::MemoryBump => RiscvAirId::MemoryBump,
+            RiscvAirWithoutApcsDiscriminants::StateBump => RiscvAirId::StateBump,
+            RiscvAirWithoutApcsDiscriminants::UType => RiscvAirId::UType,
+            RiscvAirWithoutApcsDiscriminants::Branch => RiscvAirId::Branch,
+            RiscvAirWithoutApcsDiscriminants::Jal => RiscvAirId::Jal,
+            RiscvAirWithoutApcsDiscriminants::Jalr => RiscvAirId::Jalr,
+            RiscvAirWithoutApcsDiscriminants::SyscallInstrs => RiscvAirId::SyscallInstrs,
+            RiscvAirWithoutApcsDiscriminants::ByteLookup => RiscvAirId::Byte,
+            RiscvAirWithoutApcsDiscriminants::MemoryGlobalInit => RiscvAirId::MemoryGlobalInit,
+            RiscvAirWithoutApcsDiscriminants::MemoryGlobalFinal => RiscvAirId::MemoryGlobalFinalize,
+            RiscvAirWithoutApcsDiscriminants::MemoryLocal => RiscvAirId::MemoryLocal,
+            RiscvAirWithoutApcsDiscriminants::SyscallCore => RiscvAirId::SyscallCore,
+            RiscvAirWithoutApcsDiscriminants::SyscallPrecompile => RiscvAirId::SyscallPrecompile,
+            RiscvAirWithoutApcsDiscriminants::Global => RiscvAirId::Global,
+            RiscvAirWithoutApcsDiscriminants::Sha256Extend => RiscvAirId::ShaExtend,
+            RiscvAirWithoutApcsDiscriminants::Sha256Compress => RiscvAirId::ShaCompress,
+            RiscvAirWithoutApcsDiscriminants::Ed25519Add => RiscvAirId::EdAddAssign,
+            RiscvAirWithoutApcsDiscriminants::Ed25519Decompress => RiscvAirId::EdDecompress,
+            RiscvAirWithoutApcsDiscriminants::K256Decompress => RiscvAirId::Secp256k1Decompress,
+            RiscvAirWithoutApcsDiscriminants::P256Decompress => RiscvAirId::Secp256r1Decompress,
+            RiscvAirWithoutApcsDiscriminants::Secp256k1Add => RiscvAirId::Secp256k1AddAssign,
+            RiscvAirWithoutApcsDiscriminants::Secp256k1Double => RiscvAirId::Secp256k1DoubleAssign,
+            RiscvAirWithoutApcsDiscriminants::Secp256r1Add => RiscvAirId::Secp256r1AddAssign,
+            RiscvAirWithoutApcsDiscriminants::Secp256r1Double => RiscvAirId::Secp256r1DoubleAssign,
+            RiscvAirWithoutApcsDiscriminants::KeccakP => RiscvAirId::KeccakPermute,
+            RiscvAirWithoutApcsDiscriminants::Bn254Add => RiscvAirId::Bn254AddAssign,
+            RiscvAirWithoutApcsDiscriminants::Bn254Double => RiscvAirId::Bn254DoubleAssign,
+            RiscvAirWithoutApcsDiscriminants::Bls12381Add => RiscvAirId::Bls12381AddAssign,
+            RiscvAirWithoutApcsDiscriminants::Bls12381Double => RiscvAirId::Bls12381DoubleAssign,
+            RiscvAirWithoutApcsDiscriminants::Uint256Mul => RiscvAirId::Uint256MulMod,
+            RiscvAirWithoutApcsDiscriminants::Uint256Ops => RiscvAirId::Uint256Ops,
+            RiscvAirWithoutApcsDiscriminants::U256x2048Mul => RiscvAirId::U256XU2048Mul,
+            RiscvAirWithoutApcsDiscriminants::Bls12381Decompress => RiscvAirId::Bls12381Decompress,
+            RiscvAirWithoutApcsDiscriminants::Bls12381Fp => RiscvAirId::Bls12381FpOpAssign,
+            RiscvAirWithoutApcsDiscriminants::Bls12381Fp2Mul => RiscvAirId::Bls12381Fp2MulAssign,
+            RiscvAirWithoutApcsDiscriminants::Bls12381Fp2AddSub => {
+                RiscvAirId::Bls12381Fp2AddSubAssign
+            }
+            RiscvAirWithoutApcsDiscriminants::Bn254Fp => RiscvAirId::Bn254FpOpAssign,
+            RiscvAirWithoutApcsDiscriminants::Bn254Fp2Mul => RiscvAirId::Bn254Fp2MulAssign,
+            RiscvAirWithoutApcsDiscriminants::Bn254Fp2AddSub => RiscvAirId::Bn254Fp2AddSubAssign,
+            RiscvAirWithoutApcsDiscriminants::Sha256ExtendControl => RiscvAirId::ShaExtendControl,
+            RiscvAirWithoutApcsDiscriminants::Sha256CompressControl => {
+                RiscvAirId::ShaCompressControl
+            }
+            RiscvAirWithoutApcsDiscriminants::KeccakPControl => RiscvAirId::KeccakPermuteControl,
+            RiscvAirWithoutApcsDiscriminants::Mprotect => RiscvAirId::Mprotect,
+            RiscvAirWithoutApcsDiscriminants::Poseidon2 => RiscvAirId::Poseidon2,
         }
     }
 }
+
+pub type RiscvAir<F> = RiscvAirWithoutApcs<F>;
 
 #[cfg(test)]
 pub mod tests {
@@ -971,7 +1013,7 @@ pub mod tests {
 
     use crate::{
         programs::tests::*,
-        riscv::RiscvAir,
+        riscv::RiscvAirWithoutApcs,
         utils::{run_test_small_trace, setup_logger},
     };
     use sp1_core_executor::add_halt;
@@ -999,14 +1041,14 @@ pub mod tests {
         let file = std::fs::File::open("../executor/src/artifacts/rv64im_costs.json").unwrap();
         let costs: HashMap<String, u64> = serde_json::from_reader(file).unwrap();
         // Compare with costs computed by machine
-        let machine_costs = RiscvAir::<SP1Field>::costs();
+        let machine_costs = RiscvAirWithoutApcs::<SP1Field>::costs();
         assert_eq!(costs, machine_costs);
     }
 
     #[test]
     fn core_air_complexity_consistency() {
         let complexity = sp1_core_executor::get_complexity_mapping();
-        let machine = RiscvAir::<SP1Field>::machine();
+        let machine = RiscvAirWithoutApcs::<SP1Field>::machine();
         for chip in machine.chips() {
             let id = chip.air.id();
             let expected = complexity[id];
@@ -1020,7 +1062,7 @@ pub mod tests {
 
     #[test]
     fn test_interaction_counts() {
-        let interaction_sizes = RiscvAir::<SP1Field>::machine()
+        let interaction_sizes = RiscvAirWithoutApcs::<SP1Field>::machine()
             .chips()
             .iter()
             .flat_map(|chip| {
@@ -1038,10 +1080,10 @@ pub mod tests {
 
     #[test]
     fn test_eval_public_values_interactions() {
-        let machine = RiscvAir::<SP1Field>::machine();
+        let machine = RiscvAirWithoutApcs::<SP1Field>::machine();
         let kinds_and_counts = machine.chips().iter().flat_map(|chip| {
             let mut builder = InteractionBuilder::<SP1Field>::new(chip.preprocessed_width(), chip.width());
-            <<RiscvAir<SP1Field> as MachineAir<SP1Field>>::Record as MachineRecord>::eval_public_values(&mut builder);
+            <<RiscvAirWithoutApcs<SP1Field> as MachineAir<SP1Field>>::Record as MachineRecord>::eval_public_values(&mut builder);
             let (sends, receives) = builder.interactions();
             sends.iter().chain(receives.iter()).map(|interaction| (interaction.kind, interaction.values.len())).collect::<BTreeSet<(InteractionKind, usize)>>()
         }).collect::<BTreeMap<InteractionKind, usize>>();
@@ -1063,7 +1105,7 @@ pub mod tests {
     #[test]
     #[ignore = "should only be used to generate the artifact"]
     fn write_core_air_costs() {
-        let costs = RiscvAir::<SP1Field>::costs();
+        let costs = RiscvAirWithoutApcs::<SP1Field>::costs();
         // write to file
         // Create directory if it doesn't exist
         let dir = std::path::Path::new("../executor/src/artifacts");
@@ -1076,7 +1118,7 @@ pub mod tests {
 
     #[test]
     fn test_maximum_padding() {
-        let machine = RiscvAir::<SP1Field>::machine();
+        let machine = RiscvAirWithoutApcs::<SP1Field>::machine();
         let chip_clusters = &machine.shape().chip_clusters;
 
         for cluster in chip_clusters {
@@ -1207,7 +1249,7 @@ pub mod tests {
 
     #[test]
     fn test_chips_main_width_interaction_ratio() {
-        let chips = RiscvAir::<SP1Field>::chips();
+        let chips = RiscvAirWithoutApcs::<SP1Field>::chips();
         for chip in chips.iter() {
             let main_width = chip.air.width();
             for kind in InteractionKind::all_kinds() {
@@ -1431,7 +1473,7 @@ pub mod tests {
     //     let log_blowup = 1;
     //     let log_stacking_height = 21;
     //     let max_log_row_count = 21;
-    //     let machine = RiscvAir::machine();
+    //     let machine = RiscvAirWithApcs::machine();
     //     let verifier = ShardVerifier::from_basefold_parameters(
     //         log_blowup,
     //         log_stacking_height,
