@@ -523,7 +523,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: run
-          args: --release -p sp1-gpu-perf --bin node --features native-gnark -- --program local-rsp --param 21000001 --mode groth16
+          args: --release -p sp1-gpu-perf --bin node --features native-gnark -- --program local-rsp --param 21000001 --mode compressed
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_BACKTRACE: 1
