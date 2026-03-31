@@ -33,10 +33,11 @@ use anyhow::{Context, Result};
 use sp1_build::Elf;
 use sp1_core_executor::{SP1Context, StatusCode};
 use sp1_core_machine::io::SP1Stdin;
-use sp1_prover::{
-    worker::{SP1LightNode, SP1NodeCore},
-    SP1_CIRCUIT_VERSION,
-};
+use sp1_core_machine::riscv::RiscvAir;
+use sp1_hypercube::Machine;
+use sp1_primitives::SP1Field;
+use sp1_prover::worker::{SP1LightNode, SP1NodeCore};
+use sp1_prover::SP1_CIRCUIT_VERSION;
 
 use tokio::time::sleep;
 
@@ -136,11 +137,22 @@ impl NetworkProver {
         rpc_url: &str,
         network_mode: NetworkMode,
     ) -> Self {
+        Self::new_with_machine(signer, rpc_url, network_mode, RiscvAir::machine()).await
+    }
+
+    #[must_use]
+    /// Same as `new` but with a custom machine
+    pub async fn new_with_machine(
+        signer: impl Into<NetworkSigner>,
+        rpc_url: &str,
+        network_mode: NetworkMode,
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+    ) -> Self {
         // Install default CryptoProvider if not already installed.
         let _ = rustls::crypto::ring::default_provider().install_default();
 
         let signer = signer.into();
-        let node = SP1LightNode::new().await;
+        let node = SP1LightNode::new_with_machine(machine).await;
         let client = NetworkClient::new(signer, rpc_url, network_mode);
         Self { client, node, tee_signers: vec![], network_mode }
     }

@@ -7,7 +7,8 @@ use sp1_core_executor::{
     events::{PrecompileEvent, SyscallEvent},
     ExecutionRecord, Program, SP1CoreOpts, SplitOpts,
 };
-use sp1_core_machine::{executor::trace_chunk, riscv::RiscvAir};
+use sp1_core_machine::executor::trace_chunk;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::{
     prover::{shape_from_record, CoreProofShape, ProverSemaphore, ProvingKey},
     Machine, MachineProof, MachineVerifier, SP1VerifyingKey,
@@ -24,6 +25,7 @@ use tokio::sync::OnceCell;
 use tracing::Instrument;
 
 use crate::{
+    components::CoreSC,
     recursion::{normalize_program_from_input, recursive_verifier},
     shapes::{SP1NormalizeCache, SP1NormalizeInputShape, SP1RecursionProofShape},
     worker::{
@@ -31,7 +33,7 @@ use crate::{
         PrecompileArtifactSlice, ProofId, ProverMetrics, RawTaskRequest, SP1RecursionProver,
         TaskContext, TaskError, TaskId, TaskMetadata, TraceData, WorkerClient,
     },
-    CoreSC, SP1CircuitWitness, SP1ProverComponents,
+    SP1CircuitWitness, SP1ProverComponents,
 };
 
 pub struct SetupTask {
@@ -242,10 +244,11 @@ where
         let (program, mut record, deferred_record, is_precompile) = tokio::task::spawn_blocking({
             let artifact_client = self.artifact_client.clone();
             let opts = self.opts.clone();
+            let machine = self.machine().clone();
             move || {
                 let _guard = span.enter();
                 {
-                    let program = Program::from(&elf).map_err(|e| {
+                    let program = Program::custom(&elf, &machine).map_err(|e| {
                         TaskError::Fatal(anyhow::anyhow!("failed to disassemble program: {}", e))
                     })?;
                     let program = Arc::new(program);
@@ -534,10 +537,11 @@ where
 
         if self.verify_intermediates {
             let parent = tracing::Span::current();
+            let machine = self.machine().clone();
             tokio::task::spawn_blocking(move || {
                 let _guard = parent.enter();
                 let machine_proof = MachineProof::from(vec![proof_clone]);
-                C::core_verifier()
+                C::core_verifier(machine)
                     .verify(&vk_clone, &machine_proof)
                     .map_err(|e| TaskError::Retryable(anyhow!("shard verification failed: {e}")))
             })
@@ -634,7 +638,7 @@ impl<A: ArtifactClient, C: SP1ProverComponents>
 
         let elf = self.artifact_client.download_program(&elf).await?;
 
-        let program = Program::from(&elf)?;
+        let program = Program::custom(&elf, self.core_prover.machine())?;
         let program = Arc::new(program);
 
         let permits = self.permits.clone();
@@ -735,6 +739,7 @@ pub struct SP1CoreProverConfig {
 }
 
 impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1CoreProver<A, W, C> {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         config: SP1CoreProverConfig,
         opts: SP1CoreOpts,
@@ -743,9 +748,10 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1CoreProver<A
         air_prover: Arc<C::CoreProver>,
         permits: ProverSemaphore,
         recursion_prover: SP1RecursionProver<A, C>,
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     ) -> Self {
         // Initialize the normalize program compiler
-        let core_verifier = C::core_verifier();
+        let core_verifier = C::core_verifier(machine);
 
         let normalize_program_cache = SP1NormalizeCache::new(config.normalize_program_cache_size);
 

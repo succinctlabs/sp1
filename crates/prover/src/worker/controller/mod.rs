@@ -240,6 +240,8 @@ where
             self.worker_client.clone(),
             self.minimal_executor_cache.clone(),
             cycle_limit,
+            // TODO: is this expensive?
+            self.verifier.core.machine().clone(),
         );
         let mut join_set = JoinSet::<Result<(), TaskError>>::new();
 

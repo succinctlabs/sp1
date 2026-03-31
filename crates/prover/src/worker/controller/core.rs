@@ -7,12 +7,13 @@ use sp1_core_executor::{
     events::{MemoryInitializeFinalizeEvent, MemoryRecord},
     CoreVM, ExecutionError, MinimalExecutor, Program, SP1CoreOpts, SyscallCode, UnsafeMemory,
 };
-use sp1_core_machine::{executor::ExecutionOutput, io::SP1Stdin};
+use sp1_core_machine::{executor::ExecutionOutput, io::SP1Stdin, riscv::RiscvAir};
 use sp1_hypercube::{
     air::{ShardRange, PROOF_NONCE_NUM_WORDS, PV_DIGEST_NUM_WORDS},
-    SP1VerifyingKey, DIGEST_SIZE,
+    Machine, SP1VerifyingKey, DIGEST_SIZE,
 };
 use sp1_jit::MinimalTrace;
+use sp1_primitives::SP1Field;
 use sp1_prover_types::{network_base_types::ProofMode, Artifact, ArtifactClient, TaskType};
 use tokio::{
     sync::{mpsc, oneshot},
@@ -88,6 +89,7 @@ pub struct SP1CoreExecutor<A, W> {
     worker_client: W,
     minimal_executor_cache: Option<MinimalExecutorCache>,
     cycle_limit: Option<u64>,
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
 }
 
 impl<A, W> SP1CoreExecutor<A, W> {
@@ -106,6 +108,7 @@ impl<A, W> SP1CoreExecutor<A, W> {
         worker_client: W,
         minimal_executor_cache: Option<MinimalExecutorCache>,
         cycle_limit: Option<u64>,
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     ) -> Self {
         Self {
             splicing_engine,
@@ -121,6 +124,7 @@ impl<A, W> SP1CoreExecutor<A, W> {
             worker_client,
             minimal_executor_cache,
             cycle_limit,
+            machine,
         }
     }
 }
@@ -136,7 +140,7 @@ where
         let opts = self.opts.clone();
 
         // Get the program from the elf. TODO: handle errors.
-        let program = Arc::new(Program::from(&elf_bytes).map_err(|e| {
+        let program = Arc::new(Program::custom(&elf_bytes, &self.machine).map_err(|e| {
             TaskError::Execution(ExecutionError::Other(format!(
                 "failed to dissassemble program: {}",
                 e

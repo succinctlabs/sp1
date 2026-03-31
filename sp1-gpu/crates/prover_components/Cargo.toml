@@ -48,6 +48,7 @@ slop-jagged = { workspace = true }
 [features]
 default = []
 bigint-rug = ["sp1-core-machine/bigint-rug"]
+experimental = ["sp1-prover/experimental"]
 
 [lints]
 workspace = true

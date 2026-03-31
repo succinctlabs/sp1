@@ -11,7 +11,9 @@ use anyhow::Result;
 use prove::CpuProveBuilder;
 use sp1_core_executor::ExecutionError;
 use sp1_core_machine::io::SP1Stdin;
-use sp1_primitives::Elf;
+use sp1_core_machine::riscv::RiscvAir;
+use sp1_hypercube::Machine;
+use sp1_primitives::{Elf, SP1Field};
 use sp1_prover::worker::{
     cpu_worker_builder, SP1LocalNode, SP1LocalNodeBuilder, SP1NodeCore, TaskError,
 };
@@ -29,7 +31,7 @@ pub struct CpuProver {
 
 impl Default for CpuProver {
     fn default() -> Self {
-        Self::new_with_opts(None)
+        Self::new(RiscvAir::machine())
     }
 }
 
@@ -73,15 +75,19 @@ impl Prover for CpuProver {
 impl CpuProver {
     /// Creates a new [`CpuProver`], using the default [`LocalProverOpts`].
     #[must_use]
-    pub fn new() -> Self {
-        Self::new_with_opts(None)
+    pub fn new(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
+        Self::new_with_opts(None, machine)
     }
 
     /// Creates a new [`CpuProver`] with optional custom [`SP1CoreOpts`].
     #[must_use]
-    pub fn new_with_opts(core_opts: Option<sp1_core_executor::SP1CoreOpts>) -> Self {
+    pub fn new_with_opts(
+        core_opts: Option<sp1_core_executor::SP1CoreOpts>,
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+    ) -> Self {
         tracing::info!("initializing cpu prover");
-        let worker_builder = cpu_worker_builder().with_core_opts(core_opts.unwrap_or_default());
+        let worker_builder =
+            cpu_worker_builder(machine).with_core_opts(core_opts.unwrap_or_default());
         let prover = Arc::new(
             crate::blocking::block_on(
                 SP1LocalNodeBuilder::from_worker_client_builder(worker_builder).build(),
@@ -99,7 +105,7 @@ impl CpuProver {
     /// recursion proofs are not guaranteed to be about a permitted recursion program.
     #[cfg(feature = "experimental")]
     #[must_use]
-    pub fn new_experimental() -> Self {
-        Self::new_with_opts(None)
+    pub fn new_experimental(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
+        Self::new_with_opts(None, machine)
     }
 }

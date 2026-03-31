@@ -19,7 +19,9 @@ pub mod prove;
 pub use pk::EnvProvingKey;
 use prove::EnvProveRequest;
 use sp1_core_machine::io::SP1Stdin;
-use sp1_primitives::Elf;
+use sp1_core_machine::riscv::RiscvAir;
+use sp1_hypercube::Machine;
+use sp1_primitives::{Elf, SP1Field};
 use sp1_prover::worker::SP1NodeCore;
 
 /// A prover that can execute programs and generate proofs with a different implementation based on
@@ -47,28 +49,8 @@ impl EnvProver {
     /// to use. If the variable is not set, it will default to the CPU prover.
     ///
     /// If the prover is a network prover, the `NETWORK_PRIVATE_KEY` variable must be set.
-    pub async fn new() -> Self {
-        Self::from_env_with_opts(None).await
-    }
-
-    /// Updates the core options for this prover.
-    ///
-    /// This method allows you to configure the prover after creation.
-    /// It recreates the prover with the new options based on the current environment settings.
-    ///
-    /// # Example
-    /// ```rust,no_run
-    /// use sp1_core_executor::SP1CoreOpts;
-    /// use sp1_sdk::ProverClient;
-    ///
-    /// tokio_test::block_on(async {
-    ///     let mut client = ProverClient::from_env().await;
-    ///     let opts = SP1CoreOpts { shard_size: 500_000, ..Default::default() };
-    ///     client = client.with_opts(opts).await;
-    /// });
-    /// ```
-    pub async fn with_opts(self, opts: SP1CoreOpts) -> Self {
-        Self::from_env_with_opts(Some(opts)).await
+    pub async fn new(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
+        Self::from_env_with_opts(None, machine).await
     }
 
     /// Creates an [`EnvProver`] from the environment with optional custom [`SP1CoreOpts`].
@@ -77,17 +59,26 @@ impl EnvProver {
     /// to use. If the variable is not set, it will default to the CPU prover.
     ///
     /// If the prover is a network prover, the `NETWORK_PRIVATE_KEY` variable must be set.
-    pub async fn from_env_with_opts(core_opts: Option<SP1CoreOpts>) -> Self {
+    pub async fn from_env_with_opts(
+        core_opts: Option<SP1CoreOpts>,
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+    ) -> Self {
         let prover = match std::env::var("SP1_PROVER") {
             Ok(prover) => prover,
             Err(_) => "cpu".to_string(),
         };
 
         match prover.as_str() {
-            "cpu" => Self::Cpu(CpuProver::new_with_opts(core_opts).await),
-            "cuda" => Self::Cuda(CudaProverBuilder::default().build().await),
-            "mock" => Self::Mock(MockProver::new().await),
-            "light" => Self::Light(LightProver::new().await),
+            "cpu" => Self::Cpu(CpuProver::new_with_opts(core_opts, machine).await),
+            "cuda" => {
+                let mut builder = CudaProverBuilder::new_with_machine(machine);
+                if let Some(opts) = core_opts {
+                    builder = builder.core_opts(opts);
+                }
+                Self::Cuda(builder.build().await)
+            }
+            "mock" => Self::Mock(MockProver::new_with_machine(machine).await),
+            "light" => Self::Light(LightProver::new(machine).await),
             #[cfg(feature = "network")]
             "network" => {
                 let private_key =
@@ -96,8 +87,8 @@ impl EnvProver {
                 Please set it to your private key or use the .private_key() method.",
                     );
 
-                let network_builder =
-                    crate::network::builder::NetworkProverBuilder::new().private_key(&private_key);
+                let network_builder = crate::network::builder::NetworkProverBuilder::default()
+                    .private_key(&private_key);
 
                 Self::Network(network_builder.build().await)
             }

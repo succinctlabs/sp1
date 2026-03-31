@@ -79,6 +79,8 @@ pub struct SP1RecursionProverConfig {
     /// An optional file path for the vk map. Should be `None` by default and only can be set manually
     /// for code that is feature-gated behind the `experimental` flag.
     vk_map_file: Option<String>,
+    /// The reduce shape
+    pub reduce_shape: SP1RecursionProofShape,
 }
 
 impl SP1RecursionProverConfig {
@@ -92,6 +94,7 @@ impl SP1RecursionProverConfig {
         recursion_prover_buffer_size: usize,
         max_compose_arity: usize,
         verify_intermediates: bool,
+        reduce_shape: SP1RecursionProofShape,
     ) -> Self {
         Self {
             num_prepare_reduce_workers,
@@ -104,6 +107,7 @@ impl SP1RecursionProverConfig {
             vk_verification: true,
             verify_intermediates,
             vk_map_file: None,
+            reduce_shape,
         }
     }
     #[cfg(feature = "experimental")]
@@ -441,9 +445,7 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
     ) -> Self {
         tokio::task::spawn_blocking(move || {
             // Get the reduce shape.
-            let reduce_shape =
-                SP1RecursionProofShape::compress_proof_shape_from_arity(config.max_compose_arity)
-                    .expect("arity not supported");
+            let reduce_shape = config.reduce_shape.clone();
 
             // Make the reduce programs and keys.
             let mut compose_programs = BTreeMap::new();
