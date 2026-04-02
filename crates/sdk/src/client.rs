@@ -3,9 +3,12 @@
 //! A client for interacting with the prover for the SP1 RISC-V zkVM.
 
 use crate::{
-    cpu::builder::CpuProverBuilder, cuda::builder::CudaProverBuilder, env::EnvProver,
-    light::builder::LightProverBuilder, mock::builder::MockProverBuilder,
+    cpu::builder::CpuProverBuilder, env::EnvProver, light::builder::LightProverBuilder,
+    mock::builder::MockProverBuilder,
 };
+
+#[cfg(feature = "cuda")]
+use crate::cuda::builder::CudaProverBuilder;
 
 #[cfg(feature = "network")]
 use crate::network::{builder::NetworkProverBuilder, NetworkMode};
@@ -89,6 +92,7 @@ impl ProverClientBuilder {
     ///     let proof = prover.prove(&pk, stdin).compressed().await.unwrap();
     /// });
     /// ```
+    #[cfg(feature = "cuda")]
     #[must_use]
     pub fn cuda(&self) -> CudaProverBuilder {
         CudaProverBuilder::default()

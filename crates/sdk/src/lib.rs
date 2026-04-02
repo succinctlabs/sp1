@@ -32,7 +32,9 @@ pub mod mock;
 pub use mock::MockProver;
 pub mod light;
 pub use light::LightProver;
+#[cfg(feature = "cuda")]
 pub mod cuda;
+#[cfg(feature = "cuda")]
 pub use cuda::CudaProver;
 pub mod env;
 
