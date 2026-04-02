@@ -53,6 +53,7 @@ deepsize2 = { workspace = true }
 
 arrayref = { workspace = true }
 num-bigint = { workspace = true }
+static_assertions = { workspace = true }
 strum = { workspace = true, features = ["derive"] }
 num-traits = { workspace = true }
 num_cpus = { workspace = true }
