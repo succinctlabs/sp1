@@ -63,7 +63,7 @@ sp1-recursion-executor = { workspace = true }
 sp1-hypercube = { workspace = true }
 sp1-primitives = { workspace = true }
 sp1-prover-types = { workspace = true }
-sp1-recursion-gnark-ffi = { workspace = true }
+sp1-recursion-gnark-ffi = { workspace = true, optional = true }
 itertools = { workspace = true }
 aws-config = { workspace = true, optional = true }
 aws-sdk-kms = { workspace = true, optional = true }
@@ -96,7 +96,7 @@ rstest = { workspace = true }
 
 [features]
 default = []
-native-gnark = ["sp1-prover/native-gnark"]
+native-gnark = ["dep:sp1-recursion-gnark-ffi", "sp1-prover/native-gnark"]
 # TODO: Once alloy has a 1.* release, we can likely remove this feature flag, as there will be less
 # dependency resolution issues.
 network = [

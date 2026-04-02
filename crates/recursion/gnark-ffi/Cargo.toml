@@ -29,11 +29,11 @@ sha2 = { workspace = true }
 hex = { workspace = true }
 
 [build-dependencies]
-bindgen = { workspace = true }
+bindgen = { workspace = true, optional = true }
 cfg-if = { workspace = true }
 
 [features]
-native = []
+native = ["dep:bindgen"]
 groth16-cuda = []
 
 [lints]

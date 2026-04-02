@@ -3,9 +3,6 @@
 use cfg_if::cfg_if;
 use std::{collections::HashMap, env, path::PathBuf, process::Command};
 
-#[allow(deprecated)]
-use bindgen::CargoCallbacks;
-
 /// Build the go library, generate Rust bindings for the exposed functions, and link the library.
 #[allow(clippy::uninlined_format_args)]
 fn main() {
