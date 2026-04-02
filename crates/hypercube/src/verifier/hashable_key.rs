@@ -1,7 +1,8 @@
 use std::borrow::Borrow;
 
 use serde::{Deserialize, Serialize};
-use slop_algebra::{AbstractField, PrimeField, PrimeField32};
+pub use slop_algebra::PrimeField32;
+use slop_algebra::{AbstractField, PrimeField};
 use slop_bn254::Bn254Fr;
 use slop_challenger::IopCtx;
 use sp1_primitives::{poseidon2_hash, SP1Field, SP1GlobalContext};
