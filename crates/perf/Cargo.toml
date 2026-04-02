@@ -14,7 +14,7 @@ publish = false
 
 [dependencies]
 sp1-core-executor = { workspace = true }
-sp1-sdk = { workspace = true, features = ["native-gnark", "network"] }
+sp1-sdk = { workspace = true, features = ["native-gnark", "network", "cuda"] }
 sp1-prover = { workspace = true }
 sp1-prover-types = { workspace = true }
 sp1-core-machine = { workspace = true }
