@@ -25,6 +25,9 @@ message ProofRequestCreateRequest {
   uint64 deadline = 7;
   uint64 cycle_limit = 8;
   uint64 gas_limit = 9;
+  // Identifies which executor/fulfiller scheduled this request. Used to filter
+  // submit/fail when multiple fulfillers share a coordinator.
+  optional string scheduled_by = 10;
 }
 
 message ProofRequestCancelRequest {
@@ -48,6 +51,8 @@ message ProofRequest {
   uint64 created_at = 14;
   uint64 updated_at = 15;
   optional string extra_data = 16;
+  // Identifies which executor/fulfiller scheduled this request.
+  optional string scheduled_by = 17;
 }
 
 message ProofRequestListRequest {
@@ -57,6 +62,8 @@ message ProofRequestListRequest {
   optional bool handled = 4;
   optional uint32 limit = 5;
   optional uint32 offset = 6;
+  // Filter to only requests scheduled by this executor/fulfiller.
+  optional string scheduled_by = 7;
 }
 
 message ProofRequestListResponse {
