@@ -27,6 +27,7 @@ impl<'a> ProveRequest<'a, EnvProver> for EnvProveRequest<'a> {
                 }
                 _ => panic!("Invalid proving key type for CPU prover"),
             },
+            #[cfg(feature = "cuda")]
             EnvProver::Cuda(prover) => match self.base.pk {
                 EnvProvingKey::Cuda { pk, .. } => {
                     let mut req = prover.prove(pk, stdin);

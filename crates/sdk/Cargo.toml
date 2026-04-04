@@ -26,7 +26,7 @@ anyhow = { workspace = true }
 sp1-prover = { workspace = true }
 sp1-verifier = { workspace = true }
 sp1-core-machine = { workspace = true }
-sp1-cuda = { workspace = true }
+sp1-cuda = { workspace = true, optional = true }
 sp1-build = { workspace = true }
 futures = { workspace = true }
 bincode = { workspace = true }
@@ -119,7 +119,7 @@ network = [
 ]
 tee-2fa = []
 reserved-capacity = ["network"]
-cuda = []
+cuda = ["dep:sp1-cuda"]
 bigint-rug = ["sp1-core-machine/bigint-rug"]
 experimental = ["sp1-prover/experimental"]
 profiling = [

@@ -2,6 +2,7 @@
 
 mod client;
 mod cpu;
+#[cfg(feature = "cuda")]
 mod cuda;
 mod env;
 mod light;
@@ -12,8 +13,9 @@ mod prover;
 
 pub use client::ProverClient;
 pub use cpu::{builder::CpuProverBuilder, CpuProver};
+#[cfg(feature = "cuda")]
 pub use cuda::{builder::CudaProverBuilder, CudaProver};
-pub use env::EnvProver;
+pub use env::{EnvProver, EnvProvingKey};
 pub use light::LightProver;
 pub use mock::MockProver;
 #[cfg(feature = "network")]

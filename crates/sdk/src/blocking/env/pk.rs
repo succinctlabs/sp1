@@ -1,6 +1,7 @@
 #![allow(missing_docs)]
 
 use crate::{ProvingKey, SP1ProvingKey};
+#[cfg(feature = "cuda")]
 use sp1_cuda::CudaProvingKey;
 use sp1_primitives::Elf;
 use sp1_prover::SP1VerifyingKey;
@@ -11,6 +12,7 @@ pub enum EnvProvingKey {
         pk: SP1ProvingKey,
         seal: sealed::Seal,
     },
+    #[cfg(feature = "cuda")]
     Cuda {
         pk: CudaProvingKey,
         seal: sealed::Seal,
@@ -35,6 +37,7 @@ impl EnvProvingKey {
         Self::Cpu { pk: inner, seal: sealed::Seal::new() }
     }
 
+    #[cfg(feature = "cuda")]
     pub(crate) const fn cuda(inner: CudaProvingKey) -> Self {
         Self::Cuda { pk: inner, seal: sealed::Seal::new() }
     }
@@ -58,6 +61,7 @@ impl ProvingKey for EnvProvingKey {
         #[allow(clippy::match_same_arms)]
         match self {
             Self::Cpu { pk, .. } => pk.verifying_key(),
+            #[cfg(feature = "cuda")]
             Self::Cuda { pk, .. } => pk.verifying_key(),
             Self::Mock { pk, .. } => pk.verifying_key(),
             Self::Light { pk, .. } => pk.verifying_key(),
@@ -70,6 +74,7 @@ impl ProvingKey for EnvProvingKey {
         #[allow(clippy::match_same_arms)]
         match self {
             Self::Cpu { pk, .. } => pk.elf(),
+            #[cfg(feature = "cuda")]
             Self::Cuda { pk, .. } => pk.elf(),
             Self::Mock { pk, .. } => pk.elf(),
             Self::Light { pk, .. } => pk.elf(),
