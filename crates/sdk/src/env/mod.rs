@@ -4,10 +4,12 @@
 //! the value of the `SP1_PROVER` environment variable.
 
 use crate::{
-    cuda::builder::CudaProverBuilder,
     prover::{BaseProveRequest, SendFutureResult},
-    CpuProver, CudaProver, LightProver, MockProver, Prover,
+    CpuProver, LightProver, MockProver, Prover,
 };
+
+#[cfg(feature = "cuda")]
+use crate::{cuda::builder::CudaProverBuilder, CudaProver};
 use sp1_core_executor::SP1CoreOpts;
 
 #[cfg(feature = "network")]
@@ -34,6 +36,7 @@ pub enum EnvProver {
     /// A CPU prover.
     Cpu(CpuProver),
     /// A CUDA prover.
+    #[cfg(feature = "cuda")]
     Cuda(CudaProver),
     /// A network prover.
     #[cfg(feature = "network")]
@@ -85,7 +88,10 @@ impl EnvProver {
 
         match prover.as_str() {
             "cpu" => Self::Cpu(CpuProver::new_with_opts(core_opts).await),
+            #[cfg(feature = "cuda")]
             "cuda" => Self::Cuda(CudaProverBuilder::default().build().await),
+            #[cfg(not(feature = "cuda"))]
+            "cuda" => panic!("The CUDA prover requires the `cuda` feature to be enabled"),
             "mock" => Self::Mock(MockProver::new().await),
             "light" => Self::Light(LightProver::new().await),
             #[cfg(feature = "network")]
@@ -114,6 +120,7 @@ impl Prover for EnvProver {
     fn inner(&self) -> &SP1NodeCore {
         match self {
             Self::Cpu(prover) => prover.inner(),
+            #[cfg(feature = "cuda")]
             Self::Cuda(prover) => prover.inner(),
             Self::Mock(prover) => prover.inner(),
             Self::Light(prover) => prover.inner(),
@@ -128,6 +135,7 @@ impl Prover for EnvProver {
                     let pk = prover.setup(elf).await?;
                     Ok(EnvProvingKey::cpu(pk))
                 }
+                #[cfg(feature = "cuda")]
                 Self::Cuda(prover) => {
                     let pk = prover.setup(elf).await?;
                     Ok(EnvProvingKey::cuda(pk))
