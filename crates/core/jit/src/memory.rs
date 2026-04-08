@@ -62,7 +62,7 @@ impl JitResetableMemory for AnonymousMemory {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 fn create_anonymous_file(size: usize) -> File {
     let fd = memfd::MemfdOptions::default()
         .create(uuid::Uuid::new_v4().to_string())
@@ -72,7 +72,7 @@ fn create_anonymous_file(size: usize) -> File {
     file
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 fn create_anonymous_file(size: usize) -> File {
     use libc::{c_char, c_uint, ftruncate, shm_open, O_CREAT, O_RDWR, S_IRUSR, S_IWUSR};
     use std::io;
