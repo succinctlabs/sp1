@@ -68,18 +68,20 @@ contract SP1Verifier is PlonkVerifier, ISP1VerifierWithHash {
         uint256 vkRoot = uint256(bytes32(proofBytes[36:68]));
         uint256 nonce = uint256(bytes32(proofBytes[68:100]));
 
-        uint256[] memory inputs = new uint256[](5);
-        inputs[0] = uint256(programVKey);
-        inputs[1] = uint256(publicValuesDigest);
-        inputs[2] = exitCode;
-        inputs[3] = vkRoot;
-        inputs[4] = nonce;
         if (exitCode != 0) {
             revert InvalidExitCode();
         }
         if (vkRoot != expectedVkRoot) {
             revert InvalidVkRoot();
         }
+
+        uint256[] memory inputs = new uint256[](5);
+        inputs[0] = uint256(programVKey);
+        inputs[1] = uint256(publicValuesDigest);
+        inputs[2] = exitCode;
+        inputs[3] = vkRoot;
+        inputs[4] = nonce;
+
         bool success = this.Verify(proofBytes[100:], inputs);
         if (!success) {
             revert InvalidProof();
