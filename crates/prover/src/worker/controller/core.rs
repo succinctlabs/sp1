@@ -346,6 +346,15 @@ where
                     elapsed,
                     minimal_executor.global_clk() as f64 / (elapsed * 1e6)
                 );
+
+                if chunk_count == 0 {
+                    return Err(TaskError::Fatal(anyhow::anyhow!(
+                        "executor produced zero trace chunks in {elapsed:.3}s \
+                         (global_clk={}, is_done={})",
+                        minimal_executor.global_clk(),
+                        minimal_executor.is_done(),
+                    )));
+                }
                 // Get the output and send it to the output channel.
                 let cycles = minimal_executor.global_clk();
                 let public_value_stream = minimal_executor.public_values_stream().clone();
