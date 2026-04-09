@@ -56,6 +56,9 @@ jobs:
         run: |
           cd ./patch-testing
           cargo run --bin compare-results
+        env:
+          OLD_CYCLE_STATS: ${{ github.workspace }}/old_cycle_stats.json
+          NEW_CYCLE_STATS: ${{ github.workspace }}/new_cycle_stats.json
 
       - name: "Upload cycle stats"
         uses: actions/upload-artifact@v4
