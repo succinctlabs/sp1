@@ -780,7 +780,7 @@ where
     /// Create a shard verifier from basefold parameters.
     #[must_use]
     pub fn from_config(
-        config: &WhirProofShape<GC::F>,
+        config: &WhirProofShape<GC::F, GC::EF>,
         max_log_row_count: usize,
         machine: Machine<GC::F, A>,
         num_expected_commitments: usize,

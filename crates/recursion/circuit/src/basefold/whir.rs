@@ -26,7 +26,7 @@ use sp1_recursion_compiler::{
 
 #[derive(Clone)]
 pub struct RecursiveWhirVerifier<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> {
-    config: WhirProofShape<SP1Field>,
+    config: WhirProofShape<SP1Field, SP1ExtensionField>,
     _config: PhantomData<(C, SC)>,
 }
 
@@ -34,19 +34,18 @@ pub fn write_round_config_to_challenger<
     C: CircuitConfig,
     SC: SP1FieldConfigVariable<C, F = SP1Field>,
 >(
-    round_param: RoundConfig,
+    round_param: &RoundConfig,
     challenger: &mut SC::FriChallengerVariable,
     builder: &mut Builder<C>,
 ) {
-    let RoundConfig {
+    let &RoundConfig {
         folding_factor,
         evaluation_domain_log_size,
         queries_pow_bits,
-        pow_bits,
+        ref pow_bits,
         num_queries,
         ood_samples,
-        log_inv_rate,
-    } = round_param.clone();
+    } = round_param;
 
     let folding_factor_felt: Felt<_> =
         builder.constant(<SC as IopCtx>::F::from_canonical_usize(folding_factor));
@@ -61,8 +60,8 @@ pub fn write_round_config_to_challenger<
     challenger.observe(builder, queries_pow_bits_felt);
 
     let pow_bits_felt: Vec<Felt<_>> = pow_bits
-        .into_iter()
-        .map(|b| builder.constant(<SC as IopCtx>::F::from_canonical_usize(b)))
+        .iter()
+        .map(|b| builder.constant(<SC as IopCtx>::F::from_canonical_usize(*b)))
         .collect();
     challenger.observe_variable_length_slice(builder, &pow_bits_felt);
 
@@ -73,88 +72,70 @@ pub fn write_round_config_to_challenger<
     let ood_samples_felt: Felt<_> =
         builder.constant(<SC as IopCtx>::F::from_canonical_usize(ood_samples));
     challenger.observe(builder, ood_samples_felt);
-
-    let log_inv_rate_felt: Felt<_> =
-        builder.constant(<SC as IopCtx>::F::from_canonical_usize(log_inv_rate));
-    challenger.observe(builder, log_inv_rate_felt);
 }
 
 fn write_whir_config_to_challenger<
     C: CircuitConfig,
     SC: SP1FieldConfigVariable<C, F = SP1Field>,
 >(
-    config: WhirProofShape<SP1Field>,
+    config: WhirProofShape<SP1Field, SP1ExtensionField>,
     challenger: &mut SC::FriChallengerVariable,
     builder: &mut Builder<C>,
 ) {
-    let WhirProofShape {
-        domain_generator,
-        starting_ood_samples,
-        starting_log_inv_rate,
-        starting_interleaved_log_height,
-        starting_domain_log_size,
-        starting_folding_pow_bits,
-        round_parameters,
-        final_poly_log_degree,
-        final_queries,
-        final_pow_bits,
-        final_folding_pow_bits,
-    } = config.clone();
-
-    let domain_generator_felt: Felt<_> = builder.constant(domain_generator);
-    challenger.observe(builder, domain_generator_felt);
-
     let starting_ood_samples_felt: Felt<_> =
-        builder.constant(<SC as IopCtx>::F::from_canonical_usize(starting_ood_samples));
+        builder.constant(<SC as IopCtx>::F::from_canonical_usize(config.starting_ood_samples()));
     challenger.observe(builder, starting_ood_samples_felt);
 
     let starting_log_inv_rate_felt: Felt<_> =
-        builder.constant(<SC as IopCtx>::F::from_canonical_usize(starting_log_inv_rate));
+        builder.constant(<SC as IopCtx>::F::from_canonical_usize(config.starting_log_inv_rate()));
     challenger.observe(builder, starting_log_inv_rate_felt);
 
-    let starting_interleaved_log_height_felt: Felt<_> =
-        builder.constant(<SC as IopCtx>::F::from_canonical_usize(starting_interleaved_log_height));
+    let starting_interleaved_log_height_felt: Felt<_> = builder.constant(
+        <SC as IopCtx>::F::from_canonical_usize(config.starting_interleaved_log_height()),
+    );
     challenger.observe(builder, starting_interleaved_log_height_felt);
 
-    let starting_domain_log_size_felt: Felt<_> =
-        builder.constant(<SC as IopCtx>::F::from_canonical_usize(starting_domain_log_size));
-    challenger.observe(builder, starting_domain_log_size_felt);
-
-    let starting_folding_pow_bits_felt: Vec<Felt<_>> = starting_folding_pow_bits
-        .into_iter()
-        .map(|b| builder.constant(<SC as IopCtx>::F::from_canonical_usize(b)))
+    let starting_folding_pow_bits_felt: Vec<Felt<_>> = config
+        .starting_folding_pow_bits()
+        .iter()
+        .map(|b| builder.constant(<SC as IopCtx>::F::from_canonical_usize(*b)))
         .collect();
     challenger.observe_variable_length_slice(builder, &starting_folding_pow_bits_felt);
 
-    for round_param in round_parameters {
+    let len_felt: Felt<_> =
+        builder.constant(<SC as IopCtx>::F::from_canonical_usize(config.round_parameters().len()));
+    challenger.observe(builder, len_felt);
+    for round_param in config.round_parameters() {
         write_round_config_to_challenger::<C, SC>(round_param, challenger, builder);
     }
 
-    let final_poly_log_degree_felt: Felt<_> =
-        builder.constant(<SC as IopCtx>::F::from_canonical_usize(final_poly_log_degree));
-    challenger.observe(builder, final_poly_log_degree_felt);
-
     let final_queries_felt: Felt<_> =
-        builder.constant(<SC as IopCtx>::F::from_canonical_usize(final_queries));
+        builder.constant(<SC as IopCtx>::F::from_canonical_usize(config.final_queries()));
     challenger.observe(builder, final_queries_felt);
 
     let final_pow_bits_felt: Felt<_> =
-        builder.constant(<SC as IopCtx>::F::from_canonical_usize(final_pow_bits));
+        builder.constant(<SC as IopCtx>::F::from_canonical_usize(config.final_pow_bits()));
     challenger.observe(builder, final_pow_bits_felt);
 
-    let final_folding_pow_bits_felt: Vec<Felt<_>> = final_folding_pow_bits
-        .into_iter()
-        .map(|b| builder.constant(<SC as IopCtx>::F::from_canonical_usize(b)))
+    let final_folding_pow_bits_felt: Vec<Felt<_>> = config
+        .final_folding_pow_bits()
+        .iter()
+        .map(|b| builder.constant(<SC as IopCtx>::F::from_canonical_usize(*b)))
         .collect();
     challenger.observe_variable_length_slice(builder, &final_folding_pow_bits_felt);
 }
 
 impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C, F = SP1Field>> RecursiveWhirVerifier<C, SC> {
     pub fn new(
-        config: WhirProofShape<SP1Field>,
+        config: WhirProofShape<SP1Field, SP1ExtensionField>,
         builder: &mut Builder<C>,
         challenger: &mut SC::FriChallengerVariable,
+        num_expected_commitments: usize,
     ) -> Self {
+        let num_expected_commitments_felt: Felt<_> =
+            builder.constant(<SC as IopCtx>::F::from_canonical_usize(num_expected_commitments));
+        challenger.observe(builder, num_expected_commitments_felt);
+
         write_whir_config_to_challenger::<C, SC>(config.clone(), challenger, builder);
         Self { config, _config: PhantomData }
     }
@@ -225,10 +206,10 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> RecursiveWhirVerifier<C, S
         proof: &RecursiveWhirProof<C, SC>,
         challenger: &mut SC::FriChallengerVariable,
     ) -> PointAndEval<Ext<SP1Field, SP1ExtensionField>> {
-        let n_rounds = self.config.round_parameters.len();
+        let n_rounds = self.config.round_parameters().len();
 
         let ood_points: Vec<Point<Ext<SP1Field, SP1ExtensionField>>> =
-            (0..self.config.starting_ood_samples)
+            (0..self.config.starting_ood_samples())
                 .map(|_| {
                     (0..num_variables)
                         .map(|_| challenger.sample_ext(builder))
@@ -268,8 +249,8 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> RecursiveWhirVerifier<C, S
             builder,
             &proof.initial_sumcheck_polynomials,
             claimed_sum,
-            num_variables - self.config.starting_interleaved_log_height,
-            &self.config.starting_folding_pow_bits,
+            num_variables - self.config.starting_interleaved_log_height(),
+            self.config.starting_folding_pow_bits(),
             challenger,
         );
 
@@ -282,16 +263,15 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> RecursiveWhirVerifier<C, S
 
         // This is relative to the previous commitment (i.e. prev_commitment has a domain size of
         // this size)
-        let mut domain_size =
-            self.config.starting_interleaved_log_height + self.config.starting_log_inv_rate;
-        let mut generator: Felt<SP1Field> = builder.constant(self.config.domain_generator);
+        let mut domain_size = self.config.starting_domain_log_size();
+        let mut generator: Felt<SP1Field> = builder.constant(self.config.domain_generator());
         let mut prev_commitment = commitment;
 
-        let mut prev_folding_factor = num_variables - self.config.starting_interleaved_log_height;
-        let mut num_variables = self.config.starting_interleaved_log_height;
+        let mut prev_folding_factor = num_variables - self.config.starting_interleaved_log_height();
+        let mut num_variables = self.config.starting_interleaved_log_height();
 
         for round_index in 0..n_rounds {
-            let round_params = &self.config.round_parameters[round_index];
+            let round_params = &self.config.round_parameters()[round_index];
             let new_commitment = &proof.commitments[round_index + 1];
 
             // Observe the round commitments
@@ -475,9 +455,9 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> RecursiveWhirVerifier<C, S
         let final_poly = proof.final_polynomial.clone();
         let final_poly_uv = UnivariatePolynomial::new(IntoSymbolic::<C>::as_symbolic(&final_poly));
 
-        challenger.check_witness(builder, self.config.final_pow_bits, proof.final_pow);
+        challenger.check_witness(builder, self.config.final_pow_bits(), proof.final_pow);
 
-        let final_id_indices = (0..self.config.final_queries)
+        let final_id_indices = (0..self.config.final_queries())
             .map(|_| challenger.sample_bits(builder, domain_size))
             .collect::<Vec<_>>();
         let final_id_values: Vec<Felt<SP1Field>> = final_id_indices
@@ -524,8 +504,8 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> RecursiveWhirVerifier<C, S
             builder,
             &proof.final_sumcheck_polynomials,
             claimed_sum,
-            self.config.final_poly_log_degree,
-            &self.config.final_folding_pow_bits,
+            self.config.final_poly_log_degree(),
+            self.config.final_folding_pow_bits(),
             challenger,
         );
 
@@ -755,10 +735,11 @@ where
 mod tests {
     use rand::{Rng, SeedableRng};
     use slop_basefold::FriConfig;
-    use slop_challenger::IopCtx;
+    use slop_challenger::{CanObserve, IopCtx};
     use slop_dft::p3::Radix2DitParallel;
     use slop_merkle_tree::{FieldMerkleTreeProver, MerkleTreeTcs, Poseidon2KoalaBear16Prover};
     use slop_tensor::Tensor;
+    use slop_whir::UncheckedWhirProofShape;
     use slop_whir::{Prover, Verifier};
     use sp1_core_machine::utils::setup_logger;
     use sp1_hypercube::{prover::simple_prover, MachineProof, MachineVerifier, ShardVerifier};
@@ -788,7 +769,8 @@ mod tests {
     #[tokio::test]
     async fn test_whir() {
         setup_logger();
-        let config = WhirProofShape::default_whir_config();
+        let config = UncheckedWhirProofShape::default_whir_config();
+        let config = WhirProofShape::new(config);
         type C = InnerConfig;
         type SC = SP1GlobalContext;
 
@@ -802,6 +784,7 @@ mod tests {
         let merkle_prover: Poseidon2KoalaBear16Prover = FieldMerkleTreeProver::default();
 
         let prover = Prover::<_, _, _>::new(Radix2DitParallel, merkle_prover, config.clone());
+        challenger_prover.observe(<SC as IopCtx>::F::two());
         config.write_to_challenger::<<SC as IopCtx>::Digest, _>(&mut challenger_prover);
         let merkle_verifier = MerkleTreeTcs::default();
         let verifier =
@@ -844,7 +827,7 @@ mod tests {
         let round_areas = proof
             .initial_merkle_proof
             .iter()
-            .map(|p| p.proof.width << config.starting_interleaved_log_height)
+            .map(|p| p.proof.width << config.starting_interleaved_log_height())
             .collect::<Vec<_>>();
         let (point, value) = verifier
             .verify(
@@ -872,6 +855,7 @@ mod tests {
             config.clone(),
             &mut builder,
             &mut challenger_variable,
+            2,
         );
 
         recursive_verifier.observe_commitment(
