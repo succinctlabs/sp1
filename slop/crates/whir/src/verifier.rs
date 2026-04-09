@@ -292,6 +292,10 @@ where
                 ));
             }
 
+            if new_commitment.commitment.len() != 1 {
+                return Err(WhirProofError::IncorrectShape);
+            }
+
             // Observe the commitments
             new_commitment.commitment.iter().for_each(|c| {
                 challenger.observe(*c);
@@ -448,9 +452,6 @@ where
             prev_folding_factor = round_params.folding_factor;
             generator = generator.square();
             num_variables -= round_params.folding_factor;
-            if prev_commitment.commitment.len() != 1 {
-                return Err(WhirProofError::IncorrectShape);
-            }
         }
 
         // Now, we want to verify the final evaluations
