@@ -225,9 +225,11 @@ where
     let host_numerator = numerator.to_host().unwrap();
     let host_denominator = denominator.to_host().unwrap();
     challenger
-        .observe_variable_length_extension_slice(host_numerator.guts().as_buffer().as_slice());
+        .observe_variable_length_extension_slice(host_numerator.guts().as_buffer().as_slice())
+        .unwrap();
     challenger
-        .observe_variable_length_extension_slice(host_denominator.guts().as_buffer().as_slice());
+        .observe_variable_length_extension_slice(host_denominator.guts().as_buffer().as_slice())
+        .unwrap();
 
     let output_host = LogUpGkrOutput { numerator: host_numerator, denominator: host_denominator };
 
@@ -277,9 +279,11 @@ where
 
         // Observe the openings.
         if let Some(prep_eval) = openings.preprocessed_trace_evaluations.as_ref() {
-            challenger.observe_variable_length_extension_slice(prep_eval);
+            challenger.observe_variable_length_extension_slice(prep_eval).unwrap();
         }
-        challenger.observe_variable_length_extension_slice(&openings.main_trace_evaluations);
+        challenger
+            .observe_variable_length_extension_slice(&openings.main_trace_evaluations)
+            .unwrap();
 
         chip_evaluations.insert(chip.name().to_string(), openings);
     }

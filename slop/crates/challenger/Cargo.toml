@@ -11,7 +11,9 @@ categories.workspace = true
 
 [dependencies]
 p3-challenger = { workspace = true }
+thiserror = { workspace = true }
 slop-symmetric = { workspace = true }
 slop-algebra = { workspace = true }
 futures = { workspace = true }
 serde = { workspace = true }
+num-bigint = { workspace = true }

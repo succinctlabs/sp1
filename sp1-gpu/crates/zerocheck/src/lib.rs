@@ -675,14 +675,14 @@ where
             local: individual_column_evals[preprocessed_ptr..preprocessed_ptr + preprocessed_width]
                 .to_vec(),
         };
-        challenger.observe_variable_length_extension_slice(&preprocessed.local);
+        challenger.observe_variable_length_extension_slice(&preprocessed.local).unwrap();
         preprocessed_ptr += preprocessed_width;
 
         let width = chip.width();
 
         let main =
             AirOpenedValues { local: individual_column_evals[main_ptr..main_ptr + width].to_vec() };
-        challenger.observe_variable_length_extension_slice(&main.local);
+        challenger.observe_variable_length_extension_slice(&main.local).unwrap();
         main_ptr += width;
 
         opened_values.insert(
@@ -1451,8 +1451,10 @@ pub mod tests {
 
         // Observe the openings
         for (_, opening) in opened_values.chips.iter() {
-            challenger.observe_variable_length_extension_slice(&opening.preprocessed.local);
-            challenger.observe_variable_length_extension_slice(&opening.main.local);
+            challenger
+                .observe_variable_length_extension_slice(&opening.preprocessed.local)
+                .unwrap();
+            challenger.observe_variable_length_extension_slice(&opening.main.local).unwrap();
         }
     }
 

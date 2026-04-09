@@ -6163,10 +6163,12 @@ name = "slop-challenger"
 version = "6.1.0"
 dependencies = [
  "futures",
+ "num-bigint 0.4.6",
  "p3-challenger",
  "serde",
  "slop-algebra",
  "slop-symmetric",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -6501,6 +6503,7 @@ dependencies = [
  "derive-where",
  "futures",
  "itertools 0.14.0",
+ "num-bigint 0.4.6",
  "rand 0.8.5",
  "rayon",
  "serde",

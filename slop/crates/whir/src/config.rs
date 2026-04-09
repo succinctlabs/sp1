@@ -1,5 +1,6 @@
+use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
-use slop_algebra::{Field, PrimeField, PrimeField32, TwoAdicField};
+use slop_algebra::{Field, TwoAdicField};
 use slop_challenger::VariableLengthChallenger;
 
 /// A fully expanded WHIR configuration.
@@ -120,7 +121,7 @@ impl<F: TwoAdicField> WhirProofShape<F> {
         }
     }
 }
-impl<F: PrimeField32> WhirProofShape<F> {
+impl<F: Field> WhirProofShape<F> {
     pub fn check_usizes_bound_by_field_order(&self) -> bool {
         let &WhirProofShape {
             starting_ood_samples,
@@ -136,12 +137,12 @@ impl<F: PrimeField32> WhirProofShape<F> {
             ..
         } = self;
         let mut result = true;
-        let order = F::ORDER_U32 as usize;
-        result &= starting_ood_samples <= order;
-        result &= starting_log_inv_rate <= order;
-        result &= starting_interleaved_log_height <= order;
-        result &= starting_domain_log_size <= order;
-        result &= starting_folding_pow_bits.iter().all(|&b| b <= order);
+        let order = F::order();
+        result &= BigUint::from(starting_ood_samples) <= order;
+        result &= BigUint::from(starting_log_inv_rate) <= order;
+        result &= BigUint::from(starting_interleaved_log_height) <= order;
+        result &= BigUint::from(starting_domain_log_size) <= order;
+        result &= starting_folding_pow_bits.iter().all(|&b| BigUint::from(b) <= order);
         round_parameters.iter().for_each(|rp| {
             let &RoundConfig {
                 folding_factor,
@@ -152,18 +153,18 @@ impl<F: PrimeField32> WhirProofShape<F> {
                 ood_samples,
                 log_inv_rate,
             } = rp;
-            result &= folding_factor <= order
-                && evaluation_domain_log_size <= order
-                && queries_pow_bits <= order
-                && pow_bits.iter().all(|&b| b <= order)
-                && num_queries <= order
-                && ood_samples <= order
-                && log_inv_rate <= order;
+            result &= BigUint::from(folding_factor) <= order
+                && BigUint::from(evaluation_domain_log_size) <= order
+                && BigUint::from(queries_pow_bits) <= order
+                && pow_bits.iter().all(|&b| BigUint::from(b) <= order)
+                && BigUint::from(num_queries) <= order
+                && BigUint::from(ood_samples) <= order
+                && BigUint::from(log_inv_rate) <= order;
         });
-        result &= final_poly_log_degree <= order;
-        result &= final_queries <= order;
-        result &= final_pow_bits <= order;
-        result &= final_folding_pow_bits.iter().all(|&b| b <= order);
+        result &= BigUint::from(final_poly_log_degree) <= order;
+        result &= BigUint::from(final_queries) <= order;
+        result &= BigUint::from(final_pow_bits) <= order;
+        result &= final_folding_pow_bits.iter().all(|&b| BigUint::from(b) <= order);
         result
     }
     pub fn write_to_challenger<D: Copy, C: VariableLengthChallenger<F, D>>(
@@ -189,26 +190,30 @@ impl<F: PrimeField32> WhirProofShape<F> {
         challenger.observe(F::from_canonical_usize(starting_log_inv_rate));
         challenger.observe(F::from_canonical_usize(starting_interleaved_log_height));
         challenger.observe(F::from_canonical_usize(starting_domain_log_size));
-        challenger.observe_variable_length_slice(
-            &starting_folding_pow_bits
-                .iter()
-                .copied()
-                .map(F::from_canonical_usize)
-                .collect::<Vec<_>>(),
-        );
-        assert!(round_parameters.len() <= F::ORDER_U32 as usize);
+        challenger
+            .observe_variable_length_slice(
+                &starting_folding_pow_bits
+                    .iter()
+                    .copied()
+                    .map(F::from_canonical_usize)
+                    .collect::<Vec<_>>(),
+            )
+            .unwrap();
+        assert!(BigUint::from(round_parameters.len()) <= F::order());
         challenger.observe(F::from_canonical_usize(round_parameters.len()));
         round_parameters.iter().for_each(|f| f.write_to_challenger(challenger));
         challenger.observe(F::from_canonical_usize(final_poly_log_degree));
         challenger.observe(F::from_canonical_usize(final_queries));
         challenger.observe(F::from_canonical_usize(final_pow_bits));
-        challenger.observe_variable_length_slice(
-            &final_folding_pow_bits
-                .iter()
-                .copied()
-                .map(F::from_canonical_usize)
-                .collect::<Vec<_>>(),
-        );
+        challenger
+            .observe_variable_length_slice(
+                &final_folding_pow_bits
+                    .iter()
+                    .copied()
+                    .map(F::from_canonical_usize)
+                    .collect::<Vec<_>>(),
+            )
+            .unwrap();
     }
 }
 /// Round specific configuration
@@ -238,9 +243,11 @@ impl RoundConfig {
         challenger.observe(F::from_canonical_usize(self.folding_factor));
         challenger.observe(F::from_canonical_usize(self.evaluation_domain_log_size));
         challenger.observe(F::from_canonical_usize(self.queries_pow_bits));
-        challenger.observe_variable_length_slice(
-            &self.pow_bits.iter().copied().map(F::from_canonical_usize).collect::<Vec<_>>(),
-        );
+        challenger
+            .observe_variable_length_slice(
+                &self.pow_bits.iter().copied().map(F::from_canonical_usize).collect::<Vec<_>>(),
+            )
+            .unwrap();
         challenger.observe(F::from_canonical_usize(self.num_queries));
         challenger.observe(F::from_canonical_usize(self.ood_samples));
         challenger.observe(F::from_canonical_usize(self.log_inv_rate));

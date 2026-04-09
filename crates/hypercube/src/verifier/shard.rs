@@ -15,7 +15,9 @@ use std::{
 use itertools::Itertools;
 use slop_air::{Air, BaseAir};
 use slop_algebra::{AbstractField, PrimeField32, TwoAdicField};
-use slop_challenger::{CanObserve, FieldChallenger, IopCtx, VariableLengthChallenger};
+use slop_challenger::{
+    CanObserve, FieldChallenger, IopCtx, USizeOutOfFieldBounds, VariableLengthChallenger,
+};
 use slop_commit::Rounds;
 use slop_jagged::{JaggedPcsVerifier, JaggedPcsVerifierError};
 use slop_matrix::dense::RowMajorMatrixView;
@@ -115,6 +117,9 @@ pub enum ShardVerifierError<EF, PcsError> {
     /// The height is larger than `1 << max_log_row_count`.
     #[error("height is larger than maximum possible value")]
     HeightTooLarge,
+    /// Observing variable length slices can produce this error.
+    #[error("slice length out of field bounds")]
+    SliceLengthOutOfFieldBounds(#[from] USizeOutOfFieldBounds),
 }
 
 /// Derive the error type from the jagged config.
@@ -425,8 +430,8 @@ where {
         let len = shard_chips.len();
         challenger.observe(GC::F::from_canonical_usize(len));
         for (_, opening) in opened_values.chips.iter() {
-            challenger.observe_variable_length_extension_slice(&opening.preprocessed.local);
-            challenger.observe_variable_length_extension_slice(&opening.main.local);
+            challenger.observe_variable_length_extension_slice(&opening.preprocessed.local)?;
+            challenger.observe_variable_length_extension_slice(&opening.main.local)?;
         }
 
         Ok(())

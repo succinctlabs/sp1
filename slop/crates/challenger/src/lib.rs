@@ -3,11 +3,13 @@ mod synchronize;
 
 use std::fmt::Debug;
 
+use num_bigint::BigUint;
 pub use p3_challenger::*;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use slop_algebra::{ExtensionField, Field, PrimeField32};
 use slop_symmetric::{CryptographicHasher, PseudoCompressionFunction};
 pub use synchronize::*;
+use thiserror::Error;
 
 pub trait FromChallenger<Challenger, A>: Sized {
     fn from_challenger(challenger: &Challenger, backend: &A) -> Self;
@@ -51,18 +53,37 @@ pub trait IopCtx:
     fn default_challenger() -> Self::Challenger;
 }
 
+#[derive(Error, Debug, Clone, Copy, Eq, PartialEq)]
+#[error("usize out of field bounds")]
+pub struct USizeOutOfFieldBounds;
+
 pub trait VariableLengthChallenger<F: Field, Digest: Copy>:
     FieldChallenger<F> + CanObserve<Digest>
 {
-    fn observe_variable_length_slice(&mut self, data: &[F]) {
+    fn observe_variable_length_slice(&mut self, data: &[F]) -> Result<(), USizeOutOfFieldBounds> {
+        let data_len_big_uint = BigUint::from(data.len());
+
+        if data_len_big_uint >= F::order() {
+            return Err(USizeOutOfFieldBounds);
+        }
         self.observe(F::from_canonical_u32(data.len() as u32));
         self.observe_slice(data);
+        Ok(())
     }
-    fn observe_variable_length_extension_slice<EF: ExtensionField<F>>(&mut self, data: &[EF]) {
+    fn observe_variable_length_extension_slice<EF: ExtensionField<F>>(
+        &mut self,
+        data: &[EF],
+    ) -> Result<(), USizeOutOfFieldBounds> {
+        let data_len_big_uint = BigUint::from(data.len());
+
+        if data_len_big_uint >= F::order() {
+            return Err(USizeOutOfFieldBounds);
+        }
         self.observe(F::from_canonical_u32(data.len() as u32));
         for &item in data {
             self.observe_ext_element(item);
         }
+        Ok(())
     }
     fn observe_constant_length_slice(&mut self, data: &[F]) {
         self.observe_slice(data);
@@ -75,9 +96,18 @@ pub trait VariableLengthChallenger<F: Field, Digest: Copy>:
     fn observe_constant_length_digest_slice(&mut self, data: &[Digest]) {
         self.observe_slice(data);
     }
-    fn observe_variable_length_digest_slice(&mut self, data: &[Digest]) {
+    fn observe_variable_length_digest_slice(
+        &mut self,
+        data: &[Digest],
+    ) -> Result<(), USizeOutOfFieldBounds> {
+        let data_len_big_uint = BigUint::from(data.len());
+
+        if data_len_big_uint >= F::order() {
+            return Err(USizeOutOfFieldBounds);
+        }
         self.observe(F::from_canonical_u32(data.len() as u32));
         self.observe_slice(data);
+        Ok(())
     }
 }
 

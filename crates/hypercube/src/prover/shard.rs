@@ -622,8 +622,8 @@ impl<GC: IopCtx, SC: ShardContext<GC>, C: DefaultJaggedProver<GC, SC::Config>>
                 let (preprocessed_evals, main_evals) = evals.split_at(air.preprocessed_width());
 
                 // Observe the openings
-                challenger.observe_variable_length_extension_slice(preprocessed_evals);
-                challenger.observe_variable_length_extension_slice(main_evals);
+                challenger.observe_variable_length_extension_slice(preprocessed_evals).unwrap();
+                challenger.observe_variable_length_extension_slice(main_evals).unwrap();
 
                 let preprocessed = AirOpenedValues { local: preprocessed_evals.to_vec() };
 
