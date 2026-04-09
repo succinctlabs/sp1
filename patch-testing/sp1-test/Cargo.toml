@@ -23,3 +23,7 @@ console-subscriber = { workspace = true }
 [[bin]]
 name = "post-to-github"
 path = "bin/post_to_github.rs"
+
+[[bin]]
+name = "compare-results"
+path = "bin/compare_results.rs"
