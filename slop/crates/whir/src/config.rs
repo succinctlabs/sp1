@@ -3,17 +3,6 @@ use serde::{Deserialize, Serialize};
 use slop_algebra::{Field, TwoAdicField};
 use slop_challenger::VariableLengthChallenger;
 
-// - `num_variables >= starting_interleaved_log_height`
-// - `starting_interleaved_log_height = \\sum round_params[i].folding_factor + final_poly_log_degree`
-// - `starting_domain_log_size = starting_interleaved_log_height + starting_log_inv_rate`
-// - `domain_generator` has order `2^starting_domain_log_size`
-// - `round_params[i].evaluation_domain_log_size = starting_domain_log_size - i - 1`
-
-// Note that the last condition in particular required `starting_domain_log_size >= round_params.len()`.
-// The following condition is required and checked:
-
-// - `round_params.len() = num_expeceted_commitments`
-
 /// A fully expanded WHIR configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WhirProofShape<F> {
