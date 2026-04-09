@@ -327,7 +327,7 @@ where
     /// unsafe {
     ///     // Initialize all 4 bytes
     ///     buffer.as_mut_ptr().write_bytes(0, 4);
-    ///     
+    ///
     ///     // Now we can safely assume all memory is initialized
     ///     buffer.assume_init();
     /// }
@@ -719,43 +719,6 @@ where
         let cap = original_cap * T::D;
         unsafe { Buffer::from_raw_parts(ptr, len, cap, allocator) }
     }
-
-    /// Reinterprets the buffer's base field elements as extension field elements.
-    ///
-    /// This method consumes the buffer and returns a new buffer where every `D`
-    /// base field elements are reinterpreted as one extension field element,
-    /// where `D` is the degree of the extension.
-    ///
-    /// # Type Parameters
-    ///
-    /// - `T`: The base field type
-    /// - `E`: Must implement `ExtensionField<T>`
-    ///
-    /// # Panics
-    ///
-    /// Panics if the buffer length is not divisible by the extension degree.
-    ///
-    /// # Examples
-    ///
-    /// ```rust,ignore
-    /// // If E is a degree-4 extension over T
-    /// let buffer: Buffer<BaseField> = buffer![b1, b2, b3, b4, b5, b6, b7, b8];
-    /// let ext_buffer: Buffer<ExtField> = buffer.into_extension();
-    /// assert_eq!(ext_buffer.len(), 2); // 8 / 4 = 2
-    /// ```
-    pub fn into_extension<E>(self) -> Buffer<E, A>
-    where
-        T: Field,
-        E: ExtensionField<T>,
-    {
-        let mut buffer = ManuallyDrop::new(self);
-        let (original_ptr, original_len, original_cap, allocator) =
-            (buffer.as_mut_ptr(), buffer.len(), buffer.capacity(), buffer.allocator().clone());
-        let ptr = original_ptr as *mut E;
-        let len = original_len.checked_div(E::D).unwrap();
-        let cap = original_cap.checked_div(E::D).unwrap();
-        unsafe { Buffer::from_raw_parts(ptr, len, cap, allocator) }
-    }
 }
 
 impl<T, A: Backend> HasBackend for Buffer<T, A> {
@@ -1043,6 +1006,37 @@ impl<T> Buffer<T, CpuBackend> {
         let mut vec = Vec::from(take_self);
         vec.insert(index, value);
         *self = Self::from(vec);
+    }
+
+    /// Reinterprets the buffer's base field elements as extension field elements.
+    ///
+    /// This method consumes the buffer and returns a new buffer where every `D`
+    /// base field elements are reinterpreted as one extension field element,
+    /// where `D` is the degree of the extension.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `T`: The base field type
+    /// - `E`: Must implement `ExtensionField<T>`
+    ///
+    /// # Panics
+    ///
+    /// Panics if the buffer length is not divisible by the extension degree.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,ignore
+    /// // If E is a degree-4 extension over T
+    /// let buffer: Buffer<BaseField> = buffer![b1, b2, b3, b4, b5, b6, b7, b8];
+    /// let ext_buffer: Buffer<ExtField> = buffer.into_extension();
+    /// assert_eq!(ext_buffer.len(), 2); // 8 / 4 = 2
+    /// ```
+    pub fn into_extension<E>(self) -> Buffer<E, CpuBackend>
+    where
+        T: Field,
+        E: ExtensionField<T>,
+    {
+        self.into_vec().chunks_exact(E::D).map(E::from_base_slice).collect()
     }
 }
 

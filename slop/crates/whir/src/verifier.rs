@@ -383,11 +383,8 @@ where
                         proof
                             .values
                             .clone()
+                            .into_extension::<GC::EF>()
                             .into_buffer()
-                            .to_vec()
-                            .chunks_exact(GC::EF::D)
-                            .map(|v| GC::EF::from_base_slice(v))
-                            .collect::<Vec<_>>()
                             .chunks_exact(1 << prev_folding_factor)
                             .map(|v| Mle::new(v.to_vec().into()))
                             .collect::<Vec<_>>()
@@ -498,10 +495,7 @@ where
             .values
             .clone()
             .into_buffer()
-            .to_vec()
-            .chunks_exact(GC::EF::D)
-            .map(|v| GC::EF::from_base_slice(v))
-            .collect::<Vec<_>>()
+            .into_extension::<GC::EF>()
             .chunks_exact(1 << prev_folding_factor)
             .map(|v| Mle::new(v.to_vec().into()))
             .collect();
