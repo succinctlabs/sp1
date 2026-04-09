@@ -146,6 +146,8 @@ where
         challenger: &mut GC::Challenger,
     ) -> Self {
         assert_ne!(num_expected_commitments, 0, "commitment must exist");
+        assert!(num_expected_commitments <= 1 << 12, "too many commitments");
+        challenger.observe(GC::F::from_canonical_usize(num_expected_commitments));
         config.write_to_challenger::<GC::Digest, GC::Challenger>(challenger);
         Self { merkle_verifier, config, num_expected_commitments }
     }

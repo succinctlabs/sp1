@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use slop_algebra::{Field, TwoAdicField};
+use slop_algebra::{Field, PrimeField, PrimeField32, TwoAdicField};
 use slop_challenger::VariableLengthChallenger;
 
 /// A fully expanded WHIR configuration.
@@ -120,11 +120,57 @@ impl<F: TwoAdicField> WhirProofShape<F> {
         }
     }
 }
-impl<F: Field> WhirProofShape<F> {
+impl<F: PrimeField32> WhirProofShape<F> {
+    pub fn check_usizes_bound_by_field_order(&self) -> bool {
+        let &WhirProofShape {
+            starting_ood_samples,
+            starting_log_inv_rate,
+            starting_interleaved_log_height,
+            starting_domain_log_size,
+            ref starting_folding_pow_bits,
+            ref round_parameters,
+            final_poly_log_degree,
+            final_queries,
+            final_pow_bits,
+            ref final_folding_pow_bits,
+            ..
+        } = self;
+        let mut result = true;
+        let order = F::ORDER_U32 as usize;
+        result &= starting_ood_samples <= order;
+        result &= starting_log_inv_rate <= order;
+        result &= starting_interleaved_log_height <= order;
+        result &= starting_domain_log_size <= order;
+        result &= starting_folding_pow_bits.iter().all(|&b| b <= order);
+        round_parameters.iter().for_each(|rp| {
+            let &RoundConfig {
+                folding_factor,
+                evaluation_domain_log_size,
+                queries_pow_bits,
+                ref pow_bits,
+                num_queries,
+                ood_samples,
+                log_inv_rate,
+            } = rp;
+            result &= folding_factor <= order
+                && evaluation_domain_log_size <= order
+                && queries_pow_bits <= order
+                && pow_bits.iter().all(|&b| b <= order)
+                && num_queries <= order
+                && ood_samples <= order
+                && log_inv_rate <= order;
+        });
+        result &= final_poly_log_degree <= order;
+        result &= final_queries <= order;
+        result &= final_pow_bits <= order;
+        result &= final_folding_pow_bits.iter().all(|&b| b <= order);
+        result
+    }
     pub fn write_to_challenger<D: Copy, C: VariableLengthChallenger<F, D>>(
         &self,
         challenger: &mut C,
     ) {
+        assert!(self.check_usizes_bound_by_field_order());
         let &WhirProofShape {
             domain_generator,
             starting_ood_samples,
@@ -150,6 +196,8 @@ impl<F: Field> WhirProofShape<F> {
                 .map(F::from_canonical_usize)
                 .collect::<Vec<_>>(),
         );
+        assert!(round_parameters.len() <= F::ORDER_U32 as usize);
+        challenger.observe(F::from_canonical_usize(round_parameters.len()));
         round_parameters.iter().for_each(|f| f.write_to_challenger(challenger));
         challenger.observe(F::from_canonical_usize(final_poly_log_degree));
         challenger.observe(F::from_canonical_usize(final_queries));
