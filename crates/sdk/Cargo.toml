@@ -84,7 +84,10 @@ k256 = { workspace = true, features = ["serde"] } # Signing
 eventsource-stream = { workspace = true }         # SSE Extenstion for reqwest
 
 [target.'cfg(target_os = "ios")'.dependencies]
-tonic = { workspace = true, features = ["tls", "tls-webpki-roots"], optional = true }
+tonic = { workspace = true, features = [
+  "tls",
+  "tls-webpki-roots",
+], optional = true }
 [target.'cfg(not(target_os = "ios"))'.dependencies]
 tonic = { workspace = true, features = ["tls", "tls-roots"], optional = true }
 
@@ -114,8 +117,6 @@ network = [
   "dep:tonic",
   "dep:backoff",
   "dep:zstd",
-  "dep:aws-sdk-kms",
-  "dep:aws-config",
 ]
 tee-2fa = []
 reserved-capacity = ["network"]
@@ -125,7 +126,7 @@ experimental = ["sp1-prover/experimental"]
 profiling = [
   "sp1-core-executor/profiling",
   "sp1-core-executor-runner/profiling",
-  "sp1-prover/profiling"
+  "sp1-prover/profiling",
 ]
 blocking = []
 groth16-cuda = ["sp1-recursion-gnark-ffi/groth16-cuda", "native-gnark"]
