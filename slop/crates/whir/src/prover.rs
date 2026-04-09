@@ -1160,6 +1160,7 @@ mod tests {
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
 
         let mut challenger_prover = GC::default_challenger();
+        challenger_prover.observe(GC::F::from_canonical_usize(rounds.len()));
         config.write_to_challenger(&mut challenger_prover);
         let mut challenger_verifier = GC::default_challenger();
 
@@ -1385,6 +1386,7 @@ mod tests {
 
         let mut challenger_prover = jagged_verifier.challenger();
         // Write the config to the challenger before proving.
+        challenger_prover.observe(GC::F::from_canonical_usize(num_rounds));
         config.write_to_challenger(&mut challenger_prover);
 
         let jagged_prover =

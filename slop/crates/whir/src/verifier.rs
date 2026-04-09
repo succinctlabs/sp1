@@ -1,4 +1,3 @@
-use itertools::Itertools;
 use std::iter::once;
 
 use serde::{Deserialize, Serialize};
@@ -198,23 +197,17 @@ where
             ));
         }
 
+        if !round_areas
+            .iter()
+            .all(|area| area.is_multiple_of(1 << self.config.starting_interleaved_log_height))
+        {
+            return Err(WhirProofError::IncorrectShape);
+        }
+
         let expected_widths = round_areas
             .iter()
             .map(|area| (*area) >> self.config.starting_interleaved_log_height)
             .collect::<Vec<_>>();
-
-        for (merkle_proof, area) in proof.initial_merkle_proof.iter().zip_eq(round_areas.iter()) {
-            if merkle_proof.proof.width << self.config.starting_interleaved_log_height != *area {
-                println!(
-                    "proof width: {}, proof log height: {}, expected area {}, area: {}",
-                    merkle_proof.proof.width,
-                    merkle_proof.proof.log_tensor_height,
-                    area,
-                    merkle_proof.proof.width << merkle_proof.proof.log_tensor_height
-                );
-                return Err(WhirProofError::IncorrectShape);
-            }
-        }
 
         let ood_points: Vec<Point<GC::EF>> = (0..config.starting_ood_samples)
             .map(|_| {
