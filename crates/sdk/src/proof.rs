@@ -4,103 +4,17 @@
 #![allow(missing_docs)]
 #![allow(clippy::double_parens)] // For some reason we need this to use EnumTryAs
 
-use std::{collections::BTreeMap, fmt::Debug, fs::File, path::Path};
+use std::{fmt::Debug, fs::File, path::Path};
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use slop_algebra::AbstractField;
-use slop_alloc::{CpuBackend, GLOBAL_CPU_BACKEND};
-use slop_basefold::BasefoldProof;
-use slop_commit::Rounds;
-use slop_jagged::{JaggedPcsProof, JaggedSumcheckEvalProof};
-use slop_multilinear::{Mle, MleEval, Point};
-use slop_sumcheck::PartialSumcheckProof;
-use slop_tensor::Tensor;
-use sp1_hypercube::SP1PcsProof;
-use sp1_hypercube::{
-    LogUpEvaluations, LogUpGkrOutput, LogupGkrProof, MerkleProof, SP1PcsProofInner,
-    SP1RecursionProof, ShardOpenedValues, ShardProof, DIGEST_SIZE,
-};
-use sp1_primitives::{io::SP1PublicValues, SP1ExtensionField, SP1Field, SP1GlobalContext};
+use sp1_hypercube::create_dummy_recursion_proof;
+use sp1_primitives::io::SP1PublicValues;
 use sp1_prover::{Groth16Bn254Proof, HashableKey, PlonkBn254Proof, SP1VerifyingKey};
 
 // Re-export the types from the verifier crate in order to avoid importing the verifier crate
 // for downstream dependencies.
 pub use sp1_verifier::{ProofFromNetwork, SP1Proof, SP1ProofMode};
-
-/// Creates a dummy recursion proof with minimal values for mock proof creation.
-///
-/// This is used internally for creating mock compressed proofs. The proof contains
-/// valid structures but with zero/empty values since the mock verifier doesn't
-/// actually verify the proof contents.
-fn create_dummy_recursion_proof(
-    vk: &SP1VerifyingKey,
-) -> SP1RecursionProof<SP1GlobalContext, SP1PcsProofInner> {
-    // Create minimal dummy values for the proof.
-    // These are the minimum required to satisfy the type system.
-
-    // Create dummy basefold proof.
-    let dummy_query_proof = Vec::new();
-    let basefold_proof = BasefoldProof::<SP1GlobalContext> {
-        univariate_messages: vec![],
-        fri_commitments: vec![],
-        final_poly: SP1ExtensionField::zero(),
-        pow_witness: SP1Field::zero(),
-        component_polynomials_query_openings_and_proofs: vec![],
-        query_phase_openings_and_proofs: dummy_query_proof,
-    };
-
-    let batch_evaluations: Rounds<MleEval<SP1ExtensionField, CpuBackend>> = Rounds::default();
-
-    let stacked_proof = SP1PcsProof { basefold_proof, batch_evaluations };
-
-    let jagged_eval_proof =
-        JaggedSumcheckEvalProof { partial_sumcheck_proof: PartialSumcheckProof::dummy() };
-
-    let evaluation_proof = JaggedPcsProof {
-        pcs_proof: stacked_proof,
-        jagged_eval_proof,
-        sumcheck_proof: PartialSumcheckProof::dummy(),
-        merkle_tree_commitments: Rounds::default(),
-        row_counts_and_column_counts: Rounds::default(),
-        expected_eval: SP1ExtensionField::zero(),
-        max_log_row_count: 1,
-        log_m: 1,
-    };
-
-    // Create dummy LogupGkrProof.
-    // Create empty Mle with minimal size using Tensor::zeros_in.
-    let empty_tensor: Tensor<SP1ExtensionField, CpuBackend> =
-        Tensor::zeros_in([1], GLOBAL_CPU_BACKEND);
-    let logup_gkr_proof = LogupGkrProof {
-        circuit_output: LogUpGkrOutput {
-            numerator: Mle::new(empty_tensor.clone()),
-            denominator: Mle::new(empty_tensor),
-        },
-        round_proofs: vec![],
-        logup_evaluations: LogUpEvaluations {
-            point: Point::from_usize(0, 1),
-            chip_openings: BTreeMap::new(),
-        },
-        witness: SP1Field::zero(),
-    };
-
-    // Create dummy ShardProof.
-    let dummy_shard_proof = ShardProof {
-        public_values: Vec::new(),
-        main_commitment: [SP1Field::zero(); DIGEST_SIZE],
-        logup_gkr_proof,
-        zerocheck_proof: PartialSumcheckProof::dummy(),
-        opened_values: ShardOpenedValues { chips: BTreeMap::new() },
-        evaluation_proof,
-    };
-
-    SP1RecursionProof {
-        vk: vk.vk.clone(),
-        proof: dummy_shard_proof,
-        vk_merkle_proof: MerkleProof { index: 0, path: vec![] },
-    }
-}
 
 /// Verify that the mock proof's public inputs match the expected values.
 ///

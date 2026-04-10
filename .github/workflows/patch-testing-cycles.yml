@@ -52,10 +52,19 @@ jobs:
           cd ./patch-testing
           SP1_PATCH_BENCH=../old_cycle_stats.json cargo test --release -- --test-threads=1
 
-      - name: "Compare results and create comment"
+      - name: "Compare results"
         run: |
           cd ./patch-testing
-          RUST_BACKTRACE=full cargo run --bin post-to-github
+          cargo run --bin compare-results
         env:
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OLD_CYCLE_STATS: ${{ github.workspace }}/patch-testing/old_cycle_stats.json
+          NEW_CYCLE_STATS: ${{ github.workspace }}/patch-testing/new_cycle_stats.json
+
+      - name: "Upload cycle stats"
+        uses: actions/upload-artifact@v4
+        with:
+          name: patch-testing-results
+          path: |
+            patch-testing/new_cycle_stats.json
+            patch-testing/old_cycle_stats.json
+          retention-days: 1

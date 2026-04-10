@@ -1,0 +1,48 @@
+name: Patch Testing Cycles Comment
+
+on:
+  workflow_run:
+    workflows: ["Patch Testing Cycles"]
+    types: [completed]
+
+jobs:
+  post-comment:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      issues: write
+    steps:
+      - name: "Checkout sources"
+        uses: "actions/checkout@v6"
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PRIVATE_PULL_TOKEN }}
+
+      - name: "Download cycle stats"
+        uses: actions/download-artifact@v4
+        with:
+          name: patch-testing-results
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Get PR number"
+        id: pr
+        run: |
+          # Get the PR number from the workflow run
+          PR_NUMBER=$(gh api repos/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }} --jq '.pull_requests[0].number')
+          echo "number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Post comment to PR"
+        run: |
+          cd ./patch-testing
+          RUST_BACKTRACE=full cargo run --bin post-to-github
+        env:
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OLD_CYCLE_STATS: ${{ github.workspace }}/patch-testing/old_cycle_stats.json
+          NEW_CYCLE_STATS: ${{ github.workspace }}/patch-testing/new_cycle_stats.json

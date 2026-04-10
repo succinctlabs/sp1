@@ -1,7 +1,4 @@
-use sp1_test::{
-    utils::{post_to_github_pr_sync, pretty_comparison},
-    BenchEntry,
-};
+use sp1_test::{utils::pretty_comparison, BenchEntry};
 
 pub fn main() {
     let old_path =
@@ -18,11 +15,4 @@ pub fn main() {
     let comparison = pretty_comparison(old_cycle_stats, new_cycle_stats).unwrap();
 
     println!("{comparison}");
-
-    let pr_number = std::env::var("PR_NUMBER").unwrap();
-    let token = std::env::var("GITHUB_TOKEN").unwrap();
-    let github_repo = std::env::var("GITHUB_REPOSITORY").unwrap();
-    let (owner, repo) = github_repo.split_once('/').unwrap();
-
-    post_to_github_pr_sync(owner, repo, &pr_number, &token, &comparison).unwrap();
 }

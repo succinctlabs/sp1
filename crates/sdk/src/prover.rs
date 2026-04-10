@@ -6,8 +6,8 @@ use crate::StatusCode;
 use anyhow::Result;
 use itertools::Itertools;
 use num_bigint::BigUint;
-use slop_algebra::PrimeField32;
 use sp1_core_machine::io::SP1Stdin;
+use sp1_hypercube::PrimeField32;
 use sp1_hypercube::{air::PublicValues, PROOF_MAX_NUM_PVS};
 use sp1_primitives::types::Elf;
 use sp1_prover::{
