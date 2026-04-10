@@ -44,5 +44,5 @@ jobs:
         env:
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OLD_CYCLE_STATS: ${{ github.workspace }}/old_cycle_stats.json
-          NEW_CYCLE_STATS: ${{ github.workspace }}/new_cycle_stats.json
+          OLD_CYCLE_STATS: ${{ github.workspace }}/patch-testing/old_cycle_stats.json
+          NEW_CYCLE_STATS: ${{ github.workspace }}/patch-testing/new_cycle_stats.json

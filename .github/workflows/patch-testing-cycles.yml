@@ -52,26 +52,19 @@ jobs:
           cd ./patch-testing
           SP1_PATCH_BENCH=../old_cycle_stats.json cargo test --release -- --test-threads=1
 
-      - name: "Debug: check cycle stats files"
-        run: |
-          echo "Workspace: ${{ github.workspace }}"
-          ls -la ${{ github.workspace }}/*cycle_stats* || echo "No cycle stats files in workspace root"
-          ls -la ${{ github.workspace }}/patch-testing/*cycle_stats* || echo "No cycle stats files in patch-testing/"
-          find ${{ github.workspace }} -name "*cycle_stats*" 2>/dev/null || echo "No cycle stats files found anywhere"
-
       - name: "Compare results"
         run: |
           cd ./patch-testing
           cargo run --bin compare-results
         env:
-          OLD_CYCLE_STATS: ${{ github.workspace }}/old_cycle_stats.json
-          NEW_CYCLE_STATS: ${{ github.workspace }}/new_cycle_stats.json
+          OLD_CYCLE_STATS: ${{ github.workspace }}/patch-testing/old_cycle_stats.json
+          NEW_CYCLE_STATS: ${{ github.workspace }}/patch-testing/new_cycle_stats.json
 
       - name: "Upload cycle stats"
         uses: actions/upload-artifact@v4
         with:
           name: patch-testing-results
           path: |
-            new_cycle_stats.json
-            old_cycle_stats.json
+            patch-testing/new_cycle_stats.json
+            patch-testing/old_cycle_stats.json
           retention-days: 1
