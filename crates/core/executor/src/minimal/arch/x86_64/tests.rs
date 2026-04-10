@@ -1,7 +1,7 @@
 use memmap2::MmapMut;
 use sp1_jit::{
     memory::AnonymousMemory, trace_capacity, ComputeInstructions, JitContext, MemoryInstructions,
-    RiscOperand, RiscRegister, RiscvTranspiler, SystemInstructions,
+    RiscOperand, RiscRegister, RiscvTranspiler, SystemInstructions, TraceCollector,
 };
 
 // Import the actual sp1_ecall_handler from the minimal executor
@@ -37,12 +37,14 @@ fn test_write_syscall_to_public_values() {
 
     // Store some data at address 0x10
     backend.add(RiscRegister::X1, RiscOperand::Immediate(0x12345678), RiscOperand::Immediate(0));
+    backend.trace_mem_value(RiscRegister::X0, 0x10, true);
     backend.sw(RiscRegister::X0, RiscRegister::X1, 0x10);
     backend.add(
         RiscRegister::X1,
         RiscOperand::Immediate(0x9ABCDEF0u32 as i32),
         RiscOperand::Immediate(0),
     );
+    backend.trace_mem_value(RiscRegister::X0, 0x14, true);
     backend.sw(RiscRegister::X0, RiscRegister::X1, 0x14);
 
     // Set up WRITE syscall for public values
@@ -92,6 +94,7 @@ fn test_write_syscall_to_hint() {
         RiscOperand::Immediate(0xDEADBEEFu32 as i32),
         RiscOperand::Immediate(0),
     );
+    backend.trace_mem_value(RiscRegister::X0, 0x10, true);
     backend.sw(RiscRegister::X0, RiscRegister::X1, 0x10);
 
     // Set up WRITE syscall for hint buffer

@@ -723,8 +723,8 @@ impl<B: RiscvTranspiler> TraceCollector for DebugBackend<B> {
         self.backend.trace_clk_start();
     }
 
-    fn trace_mem_value(&mut self, rs1: RiscRegister, imm: u64) {
-        self.backend.trace_mem_value(rs1, imm);
+    fn trace_mem_value(&mut self, rs1: RiscRegister, imm: u64, emit_offset: bool) {
+        self.backend.trace_mem_value(rs1, imm, emit_offset);
     }
 
     fn trace_pc_start(&mut self) {
