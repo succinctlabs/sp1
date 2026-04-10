@@ -104,6 +104,14 @@ fn main() {
     let inner_target_dir = metadata.target_directory.clone().join("sp1-native-bins");
     cmd.env("CARGO_TARGET_DIR", &inner_target_dir);
 
+    // Clear inherited RUSTFLAGS to avoid cross-compilation issues. When the outer
+    // build targets e.g. x86_64-unknown-linux-musl with +crt-static, those flags
+    // leak into this nested cargo invocation which builds for the host. On GNU
+    // targets, +crt-static makes proc-macro crate types unavailable, breaking
+    // proc-macro dependencies like ark-ff-asm.
+    cmd.env_remove("RUSTFLAGS");
+    cmd.env_remove("CARGO_ENCODED_RUSTFLAGS");
+
     let status = cmd.status().expect("Failed to execute cargo build for internal binary");
     if !status.success() {
         panic!("Failed to build internal binary: {}", binary_name);
