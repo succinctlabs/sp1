@@ -17,7 +17,7 @@ members = [
   "crates/core/jit",
   "crates/core/machine",
   "crates/core/runner",
-  "crates/core/runner/binary",
+  "crates/core/runner-binary",
   "crates/cuda",
   "crates/curves",
   "crates/derive",
@@ -108,7 +108,7 @@ sp1-build = { version = "6.1.0", path = "crates/build" }
 sp1-cli = { version = "6.1.0", path = "crates/cli", default-features = false }
 sp1-core-executor = { version = "6.1.0", path = "crates/core/executor" }
 sp1-core-executor-runner = { version = "6.1.0", path = "crates/core/runner" }
-sp1-core-executor-runner-binary = { version = "6.1.0", path = "crates/core/runner/binary" }
+sp1-core-executor-runner-binary = { version = "6.1.0", path = "crates/core/runner-binary" }
 sp1-core-machine = { version = "6.1.0", path = "crates/core/machine" }
 sp1-cuda = { version = "6.1.0", path = "crates/cuda" }
 sp1-curves = { version = "6.1.0", path = "crates/curves" }
