@@ -15,7 +15,7 @@ use reqwest::Client;
 use std::os::unix::fs::PermissionsExt;
 
 use crate::{
-    get_target, get_toolchain_download_url, is_supported_target, send_with_retry, url_exists,
+    get_target, get_toolchain_download_url, is_supported_target, send_with_retry,
     RUSTUP_TOOLCHAIN_NAME,
 };
 
@@ -104,13 +104,6 @@ impl InstallToolchainCmd {
 
         let toolchain_download_url =
             get_toolchain_download_url(&client, target.to_string()).await?;
-
-        let artifact_exists = url_exists(&client, toolchain_download_url.as_str()).await;
-        if !artifact_exists {
-            return Err(anyhow::anyhow!(
-                "Unsupported architecture. Please build the toolchain from source."
-            ));
-        }
 
         // Download the toolchain.
         let mut file = tokio::fs::File::create(toolchain_archive_path).await.unwrap();

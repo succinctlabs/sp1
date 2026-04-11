@@ -58,13 +58,6 @@ pub(crate) async fn send_with_retry(
     )
 }
 
-pub async fn url_exists(client: &Client, url: &str) -> bool {
-    match client.head(url).send().await {
-        Ok(res) => res.status().is_success(),
-        Err(_) => false,
-    }
-}
-
 #[allow(unreachable_code)]
 pub fn is_supported_target() -> bool {
     #[cfg(all(target_arch = "x86_64", target_os = "linux"))]
