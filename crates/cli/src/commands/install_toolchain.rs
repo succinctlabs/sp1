@@ -15,7 +15,8 @@ use reqwest::Client;
 use std::os::unix::fs::PermissionsExt;
 
 use crate::{
-    get_target, get_toolchain_asset_url, is_supported_target, send_with_retry, RUSTUP_TOOLCHAIN_NAME,
+    get_target, get_toolchain_asset_url, is_supported_target, send_with_retry,
+    RUSTUP_TOOLCHAIN_NAME,
 };
 
 #[derive(Parser)]
