@@ -145,7 +145,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
             .apc()
             .block
             .instructions()
-            .map(|instr| {
+            .map(|(_pc, instr)| {
                 try_instruction_type_to_air_id(InstructionType::from(instr.0))
                     .expect("Invalid instruction as an original instruction in an APC: {instr.0:?}")
             })
@@ -299,7 +299,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
             .apc()
             .block
             .instructions()
-            .map(|instr| {
+            .map(|(_pc, instr)| {
                 try_instruction_type_to_air_id(InstructionType::from(instr.0))
                     .expect("Invalid instruction as an original instruction in an APC: {instr.0:?}")
             })
