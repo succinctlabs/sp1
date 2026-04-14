@@ -25,6 +25,15 @@ fi
 # Put the version in the build directory
 echo "$COMMIT_HASH $VERSION" > ./build/SP1_COMMIT
 
+# Regenerate the Solidity verifiers from the current {groth16,plonk}_vk.bin and
+# verifier_vks.bin so the .sol bundled into the tarball is always internally
+# consistent with the vk artifacts shipped alongside it. Without this step,
+# a stale `VERIFIER_HASH` or `VK_ROOT` placeholder (from a prior run, or from
+# a vk/verifier_vks update that landed after .sol generation) can ship to S3
+# and propagate into deployed verifier contracts downstream.
+cargo run --release --bin post_trusted_setup       -- --build-dir ./build/groth16
+cargo run --release --bin post_trusted_setup_plonk -- --build-dir ./build/plonk
+
 # Create archives for Groth16, Plonk, and Trusted Setup
 GROTH16_ARCHIVE="${VERSION}-groth16.tar.gz"
 PLONK_ARCHIVE="${VERSION}-plonk.tar.gz"
