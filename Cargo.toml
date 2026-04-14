@@ -203,11 +203,11 @@ slop-veil = { version = "6.2.0", path = "./slop/crates/veil" }
 slop-whir = { version = "6.2.0", path = "./slop/crates/whir" }
 
 # powdr
-powdr-autoprecompiles = { git = "https://github.com/powdr-labs/powdr.git", rev = "87c4b37", default-features = false }
-powdr-number = { git = "https://github.com/powdr-labs/powdr.git", rev = "87c4b37", default-features = false }
-powdr-expression = { git = "https://github.com/powdr-labs/powdr.git", rev = "87c4b37", default-features = false }
-powdr-constraint-solver = { git = "https://github.com/powdr-labs/powdr.git", rev = "87c4b37", default-features = false }
-powdr-riscv-elf = { git = "https://github.com/powdr-labs/powdr.git", rev = "87c4b37", default-features = false }
+powdr-autoprecompiles = { git = "https://github.com/powdr-labs/powdr.git", rev = "68fca4485", default-features = false }
+powdr-number = { git = "https://github.com/powdr-labs/powdr.git", rev = "68fca4485", default-features = false }
+powdr-expression = { git = "https://github.com/powdr-labs/powdr.git", rev = "68fca4485", default-features = false }
+powdr-constraint-solver = { git = "https://github.com/powdr-labs/powdr.git", rev = "68fca4485", default-features = false }
+powdr-riscv-elf = { git = "https://github.com/powdr-labs/powdr.git", rev = "68fca4485", default-features = false }
 
 # For local development.
 # powdr-autoprecompiles = { path = "../powdr/autoprecompiles/" }
