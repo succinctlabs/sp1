@@ -1,12 +1,16 @@
-use std::sync::{Arc, OnceLock};
+use std::{
+    marker::PhantomData,
+    sync::{Arc, OnceLock},
+};
 
 use futures::{prelude::*, stream::FuturesUnordered};
 use serde::{Deserialize, Serialize};
 use slop_futures::pipeline::Pipeline;
 use sp1_core_executor::{
     events::{MemoryInitializeFinalizeEvent, MemoryRecord},
-    CoreVM, ExecutionError, MinimalExecutor, Program, SP1CoreOpts, SyscallCode, UnsafeMemory,
+    CoreVM, ExecutionError, Program, SP1CoreOpts, SyscallCode, UnsafeMemory,
 };
+use sp1_core_executor_runner::MinimalExecutorRunner;
 use sp1_core_machine::{executor::ExecutionOutput, io::SP1Stdin};
 use sp1_hypercube::{
     air::{ShardRange, PROOF_NONCE_NUM_WORDS, PV_DIGEST_NUM_WORDS},
@@ -26,11 +30,85 @@ use crate::worker::{
     TaskContext, TaskError, TaskId, WorkerClient,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProofData {
     pub task_id: TaskId,
     pub range: ShardRange,
     pub proof: Artifact,
+}
+
+#[derive(Debug, Clone)]
+pub struct MessageSender<W: WorkerClient, T: Serialize> {
+    worker_client: W,
+    task_id: TaskId,
+    _marker: PhantomData<T>,
+}
+
+impl<W: WorkerClient, T: Serialize> MessageSender<W, T> {
+    pub fn new(worker_client: W, task_id: TaskId) -> Self {
+        Self { worker_client, task_id, _marker: PhantomData }
+    }
+
+    pub async fn send(&self, message: T) -> anyhow::Result<()> {
+        let payload = bincode::serialize(&message)?;
+        self.worker_client.send_task_message(&self.task_id, payload).await
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+struct CoreExecuteMetadata {
+    num_deferred_proofs: usize,
+    cycle_limit: Option<u64>,
+}
+
+pub struct CoreExecuteTaskRequest {
+    pub elf: Artifact,
+    pub stdin: Artifact,
+    pub common_input: Artifact,
+    pub execution_output: Artifact,
+    pub num_deferred_proofs: usize,
+    pub cycle_limit: Option<u64>,
+    pub context: TaskContext,
+}
+
+impl CoreExecuteTaskRequest {
+    pub fn from_raw(request: RawTaskRequest) -> Result<Self, TaskError> {
+        let RawTaskRequest { inputs, outputs, context } = request;
+        let [elf, stdin, common_input, metadata] = inputs
+            .try_into()
+            .map_err(|e| TaskError::Fatal(anyhow::anyhow!("invalid task inputs: {e:?}")))?;
+        let [execution_output] = outputs
+            .try_into()
+            .map_err(|e| TaskError::Fatal(anyhow::anyhow!("invalid task outputs: {e:?}")))?;
+        let metadata: CoreExecuteMetadata =
+            serde_json::from_str(&metadata.to_id()).map_err(|e| {
+                TaskError::Fatal(anyhow::anyhow!("failed to deserialize CoreExecuteMetadata: {e}"))
+            })?;
+        Ok(CoreExecuteTaskRequest {
+            elf,
+            stdin,
+            common_input,
+            execution_output,
+            num_deferred_proofs: metadata.num_deferred_proofs,
+            cycle_limit: metadata.cycle_limit,
+            context,
+        })
+    }
+
+    pub fn into_raw(self) -> Result<RawTaskRequest, TaskError> {
+        let metadata = CoreExecuteMetadata {
+            num_deferred_proofs: self.num_deferred_proofs,
+            cycle_limit: self.cycle_limit,
+        };
+        let metadata_str = serde_json::to_string(&metadata).map_err(|e| {
+            TaskError::Fatal(anyhow::anyhow!("failed to serialize CoreExecuteMetadata: {e}"))
+        })?;
+        let metadata_artifact = Artifact::from(metadata_str);
+
+        let inputs = vec![self.elf, self.stdin, self.common_input, metadata_artifact];
+        let outputs = vec![self.execution_output];
+        Ok(RawTaskRequest { inputs, outputs, context: self.context })
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -74,7 +152,7 @@ pub struct CommonProverInput {
     pub nonce: [u32; PROOF_NONCE_NUM_WORDS],
 }
 
-pub struct SP1CoreExecutor<A, W> {
+pub struct SP1CoreExecutor<A, W: WorkerClient> {
     splicing_engine: Arc<SplicingEngine<A, W>>,
     global_memory_buffer_size: usize,
     elf: Artifact,
@@ -83,14 +161,14 @@ pub struct SP1CoreExecutor<A, W> {
     opts: SP1CoreOpts,
     num_deferred_proofs: usize,
     context: TaskContext,
-    sender: mpsc::UnboundedSender<ProofData>,
+    sender: MessageSender<W, ProofData>,
     artifact_client: A,
     worker_client: W,
     minimal_executor_cache: Option<MinimalExecutorCache>,
     cycle_limit: Option<u64>,
 }
 
-impl<A, W> SP1CoreExecutor<A, W> {
+impl<A, W: WorkerClient> SP1CoreExecutor<A, W> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         splicing_engine: Arc<SplicingEngine<A, W>>,
@@ -101,7 +179,7 @@ impl<A, W> SP1CoreExecutor<A, W> {
         opts: SP1CoreOpts,
         num_deferred_proofs: usize,
         context: TaskContext,
-        sender: mpsc::UnboundedSender<ProofData>,
+        sender: MessageSender<W, ProofData>,
         artifact_client: A,
         worker_client: W,
         minimal_executor_cache: Option<MinimalExecutorCache>,
@@ -156,7 +234,8 @@ where
 
         // Start the minimal executor.
         let (memory_tx, memory_rx) = oneshot::channel::<UnsafeMemory>();
-        let (minimal_executor_tx, minimal_executor_rx) = oneshot::channel::<MinimalExecutor>();
+        let (minimal_executor_tx, minimal_executor_rx) =
+            oneshot::channel::<MinimalExecutorRunner>();
         let (output_tx, output_rx) = oneshot::channel::<ExecutionOutput>();
         // Create a channel to send the splicing handles to be awaited and their task_ids being
         // sent after being submitted to the splicing pipeline.
@@ -170,10 +249,22 @@ where
                 tracing::info!("minimal executor cache hit");
                 minimal_executor
             } else {
-                MinimalExecutor::tracing(program.clone(), opts.minimal_trace_chunk_threshold)
+                MinimalExecutorRunner::new(
+                    program.clone(),
+                    false,
+                    Some(opts.minimal_trace_chunk_threshold),
+                    opts.memory_limit,
+                    opts.trace_chunk_slots,
+                )
             }
         } else {
-            MinimalExecutor::tracing(program.clone(), opts.minimal_trace_chunk_threshold)
+            MinimalExecutorRunner::new(
+                program.clone(),
+                false,
+                Some(opts.minimal_trace_chunk_threshold),
+                opts.memory_limit,
+                opts.trace_chunk_slots,
+            )
         };
         join_set.spawn_blocking({
             let program = program.clone();
@@ -200,7 +291,10 @@ where
                 tracing::debug!("Starting minimal executor");
                 let now = std::time::Instant::now();
                 let mut chunk_count = 0;
-                while let Some(chunk) = minimal_executor.execute_chunk() {
+                while let Some(chunk) = minimal_executor
+                    .try_execute_chunk()
+                    .map_err(|e| anyhow::anyhow!("failed to execute chunk: {e}"))?
+                {
                     tracing::debug!(
                         trace_chunk = chunk_count,
                         "mem reads chunk size bytes {}, program is done?: {}",
@@ -210,13 +304,9 @@ where
 
                     // Check the `end_clk` for cycle limit
                     if let Some(cycle_limit) = self.cycle_limit {
-                        let last_clk = minimal_executor.global_clk();
+                        let last_clk = chunk.clk_end();
                         if last_clk > cycle_limit {
-                            tracing::error!(
-                                "Cycle limit exceeded: last_clk = {}, cycle_limit = {}",
-                                last_clk,
-                                cycle_limit
-                            );
+                            tracing::error!("Cycle limit exceeded: last_clk = {last_clk}, cycle_limit = {cycle_limit}");
                             return Err(TaskError::Execution(ExecutionError::ExceededCycleLimit(
                                 cycle_limit,
                             )));

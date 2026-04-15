@@ -15,14 +15,11 @@ pub struct CpuDftEncoder<F> {
 
 impl<F: TwoAdicField> CpuDftEncoder<F> {
     #[inline]
-    pub(crate) fn config(&self) -> FriConfig<F> {
+    pub fn config(&self) -> FriConfig<F> {
         self.config
     }
 
-    pub(crate) fn encode_batch<M>(
-        &self,
-        data: Message<M>,
-    ) -> Result<Message<RsCodeWord<F>>, Infallible>
+    pub fn encode_batch<M>(&self, data: Message<M>) -> Result<Message<RsCodeWord<F>>, Infallible>
     where
         M: OwnedBorrow<Mle<F>>,
     {

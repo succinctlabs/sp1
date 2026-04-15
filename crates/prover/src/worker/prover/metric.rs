@@ -18,7 +18,7 @@ impl ProverMetrics {
         Self { permit_ms: Arc::new(AtomicU64::new(0)) }
     }
 
-    pub fn gpu_time(&self) -> u64 {
+    pub fn gpu_ms(&self) -> u64 {
         self.permit_ms.load(Ordering::Relaxed)
     }
 
@@ -28,7 +28,7 @@ impl ProverMetrics {
     }
 
     pub fn to_metadata(&self) -> TaskMetadata {
-        let gpu_time = self.permit_ms.load(Ordering::Relaxed);
-        TaskMetadata { gpu_time: Some(gpu_time) }
+        let gpu_ms = self.permit_ms.load(Ordering::Relaxed);
+        TaskMetadata { gpu_ms: Some(gpu_ms) }
     }
 }

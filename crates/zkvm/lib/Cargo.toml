@@ -16,7 +16,11 @@ serde = { workspace = true, features = ["derive"] }
 sp1-primitives = { workspace = true }
 
 # ecdsa
-elliptic-curve = { workspace = true, features = ["hazmat", "sec1", "ecdh"], optional = true }
+elliptic-curve = { workspace = true, features = [
+    "hazmat",
+    "sec1",
+    "ecdh",
+], optional = true }
 
 [features]
 default = ["ecdsa"]

@@ -241,7 +241,7 @@ mod tests {
     fn test_merkle_proof_sync() {
         let mut rng = thread_rng();
 
-        let height: usize = 1000;
+        let height: usize = 1 << 10;
         let width = 25;
         let num_tensors = 10;
 
@@ -259,14 +259,22 @@ mod tests {
         let openings = prover.compute_openings_at_indices(tensors, &indices);
 
         let tcs = MerkleTreeTcs::<BabyBearDegree4Duplex>::default();
-        tcs.verify_tensor_openings(&commitment, &indices, &openings, &proof).unwrap();
+        tcs.verify_tensor_openings(
+            &commitment,
+            &indices,
+            &openings,
+            width * num_tensors,
+            slop_utils::log2_strict_usize(height),
+            &proof,
+        )
+        .unwrap();
     }
 
     #[test]
     fn test_kb_merkle_proof_sync() {
         let mut rng = thread_rng();
 
-        let height = 1000;
+        let height = 1 << 10;
         let width = 25;
         let num_tensors = 10;
 
@@ -285,6 +293,14 @@ mod tests {
 
         let tcs = MerkleTreeTcs::<KoalaBearDegree4Duplex>::default();
 
-        tcs.verify_tensor_openings(&commitment, &indices, &openings, &proof).unwrap();
+        tcs.verify_tensor_openings(
+            &commitment,
+            &indices,
+            &openings,
+            width * num_tensors,
+            slop_utils::log2_strict_usize(height),
+            &proof,
+        )
+        .unwrap();
     }
 }

@@ -1,12 +1,12 @@
 #![allow(clippy::disallowed_types)]
 
-use crate::DuplexChallenger;
-use slop_algebra::PrimeField64;
+use crate::{DuplexChallenger, MultiField32Challenger};
+use slop_algebra::{Field, PrimeField, PrimeField31, PrimeField32, PrimeField64};
 use slop_challenger::GrindingChallenger;
 use slop_koala_bear::KoalaBear;
 use slop_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
 use slop_symmetric::CryptographicPermutation;
-use sp1_gpu_cudart::sys::challenger::grind_koala_bear;
+use sp1_gpu_cudart::sys::challenger::{grind_koala_bear, grind_multi_field32};
 use sp1_gpu_cudart::sys::runtime::KernelPtr;
 use sp1_gpu_cudart::{args, DeviceBuffer, TaskScope};
 use sp1_primitives::SP1DiffusionMatrix;
@@ -80,6 +80,59 @@ pub fn grind_koala_bear_challenger_on_device(
     scope: &TaskScope,
 ) -> KoalaBear {
     grind_duplex_challenger_on_device(challenger, bits, koala_bear_grind_kernel, scope)
+}
+
+/// Returns the grinding kernel for MultiField32.
+fn multi_field32_grind_kernel() -> KernelPtr {
+    unsafe { grind_multi_field32() }
+}
+
+/// Grinds on device synchronously for a MultiField32Challenger.
+pub fn grind_multi_field32_challenger_on_device<F, PF, P, const WIDTH: usize, const RATE: usize>(
+    challenger: &mut slop_challenger::MultiField32Challenger<F, PF, P, WIDTH, RATE>,
+    bits: usize,
+    scope: &TaskScope,
+) -> F
+where
+    F: PrimeField64 + PrimeField31 + PrimeField32 + Send + Sync,
+    PF: PrimeField + Field + Send + Sync,
+    P: CryptographicPermutation<[PF; WIDTH]> + Send + Sync,
+{
+    let cpu_challenger: MultiField32Challenger<F, PF, _> = challenger.clone().into();
+
+    let mut result = DeviceBuffer::with_capacity_in(1, scope.clone());
+    let mut found_flag = DeviceBuffer::<bool>::with_capacity_in(1, scope.clone());
+    let mut gpu_challenger = cpu_challenger.to_device_sync(scope).unwrap();
+
+    let block_dim: usize = 512;
+    let grid_dim: usize = 1;
+    let n = F::ORDER_U64;
+
+    unsafe {
+        result.assume_init();
+        found_flag.assume_init();
+        let args = args!(
+            gpu_challenger.as_mut_raw(),
+            result.as_mut_ptr(),
+            bits,
+            n,
+            found_flag.as_mut_ptr()
+        );
+        scope
+            .launch_kernel(multi_field32_grind_kernel(), (grid_dim, 1, 1), block_dim, &args, 0)
+            .unwrap();
+    }
+
+    // Copy result back to host synchronously
+    let result = result.to_host().unwrap();
+
+    let witness = *result.first().unwrap();
+
+    // Check the witness. This is necessary because it changes the internal state of the
+    // challenger, and the CPU version of the challenger does this as well. It's also necessary
+    // for the security of the protocol.
+    assert!(challenger.check_witness(bits, witness));
+    witness
 }
 
 #[cfg(test)]

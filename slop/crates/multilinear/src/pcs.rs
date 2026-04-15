@@ -92,10 +92,6 @@ pub trait MultilinearPcsVerifier<GC: IopCtx>: 'static + Send + Sync + Clone {
     /// The jagged verifier will assume that the underlying PCS will pad commitments to a multiple
     /// of `1<<log.stacking_height(verifier)`.
     fn log_stacking_height(verifier: &Self) -> u32;
-
-    /// Functionality to deduce round by round from the proof the multiples of `1<<log.stacking_height`
-    /// corresponding to the round's total polynomial size.
-    fn round_multiples(proof: &<Self as MultilinearPcsVerifier<GC>>::Proof) -> Vec<usize>;
 }
 
 /// A trait for prover data that can be converted into the original "committed-to" MLEs.

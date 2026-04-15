@@ -117,7 +117,10 @@ impl SP1NormalizeInputShape {
                     self.max_log_row_count,
                     core_fri_config(),
                     self.log_stacking_height,
-                    &[core_shape.preprocessed_multiple, core_shape.main_multiple],
+                    &[
+                        core_shape.preprocessed_area >> self.log_stacking_height,
+                        core_shape.main_area >> self.log_stacking_height,
+                    ],
                     &[core_shape.preprocessed_padding_cols, core_shape.main_padding_cols],
                 )
             })
@@ -591,8 +594,8 @@ pub fn create_all_input_shapes(
                     for cluster in &core_shape.chip_clusters {
                         result.push(SP1RecursionProgramShape::Normalize(CoreProofShape {
                             shard_chips: cluster.clone(),
-                            preprocessed_multiple,
-                            main_multiple,
+                            preprocessed_area: preprocessed_multiple << CORE_LOG_STACKING_HEIGHT,
+                            main_area: main_multiple << CORE_LOG_STACKING_HEIGHT,
                             preprocessed_padding_cols,
                             main_padding_cols,
                         }));
@@ -670,8 +673,8 @@ pub fn create_test_shape(
     SP1NormalizeInputShape {
         proof_shapes: vec![CoreProofShape {
             shard_chips: cluster.clone(),
-            preprocessed_multiple,
-            main_multiple,
+            preprocessed_area: preprocessed_multiple << CORE_LOG_STACKING_HEIGHT,
+            main_area: main_multiple << CORE_LOG_STACKING_HEIGHT,
             preprocessed_padding_cols: num_padding_cols,
             main_padding_cols: num_padding_cols,
         }],

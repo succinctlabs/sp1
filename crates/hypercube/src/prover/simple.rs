@@ -26,18 +26,18 @@ pub fn shape_from_record<GC: IopCtx, SC: ShardContext<GC>>(
     let airs = verifier.machine().chips();
     let shard_chips: BTreeSet<_> =
         airs.iter().filter(|air| air.included(record)).cloned().collect();
-    let preprocessed_multiple = shard_chips
+    let preprocessed_area = shard_chips
         .iter()
         .map(|air| air.preprocessed_width() * air.num_rows(record).unwrap_or_default())
         .sum::<usize>()
-        .div_ceil(1 << log_stacking_height);
-    let main_multiple = shard_chips
+        .next_multiple_of(1 << log_stacking_height);
+    let main_area = shard_chips
         .iter()
         .map(|air| air.width() * air.num_rows(record).unwrap_or_default())
         .sum::<usize>()
-        .div_ceil(1 << log_stacking_height);
+        .next_multiple_of(1 << log_stacking_height);
 
-    let main_padding_cols = (main_multiple * (1 << log_stacking_height)
+    let main_padding_cols = (main_area
         - shard_chips
             .iter()
             .map(|air| air.width() * air.num_rows(record).unwrap_or_default())
@@ -45,7 +45,7 @@ pub fn shape_from_record<GC: IopCtx, SC: ShardContext<GC>>(
     .div_ceil(1 << max_log_row_count)
     .max(1);
 
-    let preprocessed_padding_cols = (preprocessed_multiple * (1 << log_stacking_height)
+    let preprocessed_padding_cols = (preprocessed_area
         - shard_chips
             .iter()
             .map(|air| air.preprocessed_width() * air.num_rows(record).unwrap_or_default())
@@ -56,8 +56,8 @@ pub fn shape_from_record<GC: IopCtx, SC: ShardContext<GC>>(
     let shard_chips = verifier.machine().smallest_cluster(&shard_chips).cloned()?;
     Some(CoreProofShape {
         shard_chips,
-        preprocessed_multiple,
-        main_multiple,
+        preprocessed_area,
+        main_area,
         preprocessed_padding_cols,
         main_padding_cols,
     })

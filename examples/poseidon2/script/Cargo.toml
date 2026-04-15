@@ -9,7 +9,7 @@ publish = false
 hex = "0.4.3"
 sp1-sdk = { workspace = true }
 tokio = { workspace = true }
-tracing = "0.1"
+tracing = { workspace = true }
 
 [build-dependencies]
 sp1-build = { workspace = true }

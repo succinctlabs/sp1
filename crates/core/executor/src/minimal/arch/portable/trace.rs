@@ -93,6 +93,22 @@ impl TraceChunkBuffer {
         }
     }
 
+    /// Writes the global clk end to the header.
+    ///
+    /// # SAFETY
+    ///
+    /// See the safety section of [`TraceChunkBuffer`].
+    pub unsafe fn write_global_clk_end(&self, global_clk_end: u64) {
+        unsafe {
+            std::ptr::write_unaligned(
+                self.as_mut_ptr()
+                    .add(std::mem::offset_of!(TraceChunkHeader, global_clk_end))
+                    .cast::<u64>(),
+                global_clk_end,
+            );
+        }
+    }
+
     /// Writes the memory reads to the buffer.
     ///
     /// # SAFETY

@@ -20,12 +20,12 @@ async fn main() {
     
     let (_, report) = client.execute(ELF, stdin.clone()).await.unwrap();
     println!("executed program {:?} ", report);
- 
 
     // Generate the proof for the given program and input.
     let pk = client.setup(ELF).await.unwrap();
-    let proof = client.prove(&pk, stdin.clone()).core().await.unwrap();
-    println!("generated proof");
+    let time = std::time::Instant::now();
+    let proof = client.prove(&pk, stdin.clone()).compressed().await.unwrap();
+    println!("generated proof in {:?}", time.elapsed());
     
     // Verify proof and public values
     client.verify(&proof, pk.verifying_key(), None).expect("verification failed");

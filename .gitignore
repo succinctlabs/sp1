@@ -43,6 +43,10 @@ crates/prover/semaphore-gnark-11
 crates/prover/trusted-setup
 crates/prover/vk
 
+
+# NSYS reports
+*.nsys-rep
+
 # Example legacy elf
 examples/elf 
 
