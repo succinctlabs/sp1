@@ -9,7 +9,7 @@ use slop_challenger::{
 use slop_commit::Rounds;
 use slop_merkle_tree::{MerkleTreeOpeningAndProof, MerkleTreeTcs};
 use slop_multilinear::{Mle, MultilinearPcsVerifier, Point};
-use slop_utils::reverse_bits_len;
+use slop_utils::{log2_ceil_usize, reverse_bits_len};
 use thiserror::Error;
 
 use crate::{config::WhirProofShape, interleave_chain};
@@ -174,13 +174,14 @@ where
         &self,
         commitments: &[GC::Digest],
         round_areas: &[usize],
-        num_variables: usize,
         claim: GC::EF,
         proof: &WhirProof<GC>,
         challenger: &mut GC::Challenger,
     ) -> Result<(Point<GC::EF>, GC::EF), WhirProofError> {
         let config = &self.config;
         let n_rounds = config.round_parameters().len();
+
+        let num_variables = log2_ceil_usize(round_areas.iter().sum::<usize>());
 
         if num_variables < config.starting_interleaved_log_height() {
             return Err(WhirProofError::StartingInterleavedLogHeightExceedsNumVariables);
@@ -628,14 +629,8 @@ where
         proof: &Self::Proof,
         challenger: &mut <GC as IopCtx>::Challenger,
     ) -> Result<(), Self::VerifierError> {
-        let (randomness, claimed_value) = self.verify(
-            commitments,
-            round_polynomial_sizes,
-            point.dimension(),
-            evaluation_claims,
-            proof,
-            challenger,
-        )?;
+        let (randomness, claimed_value) =
+            self.verify(commitments, round_polynomial_sizes, evaluation_claims, proof, challenger)?;
         let (folding_point, stacking_point) =
             point.split_at(point.dimension() - self.config.starting_interleaved_log_height());
         let point = stacking_point

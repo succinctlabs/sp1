@@ -830,14 +830,7 @@ mod tests {
             .map(|p| p.proof.width << config.starting_interleaved_log_height())
             .collect::<Vec<_>>();
         let (point, value) = verifier
-            .verify(
-                &commitments,
-                &round_areas,
-                num_variables,
-                eval_claim,
-                &proof,
-                &mut challenger_verifier,
-            )
+            .verify(&commitments, &round_areas, eval_claim, &proof, &mut challenger_verifier)
             .unwrap();
 
         // Recursive circuit verification.
