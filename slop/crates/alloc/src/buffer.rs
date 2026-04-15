@@ -686,39 +686,6 @@ where
 
         Ok(())
     }
-
-    /// Reinterprets the buffer's elements as base field elements.
-    ///
-    /// This method consumes the buffer and returns a new buffer where each
-    /// extension field element is reinterpreted as `D` base field elements,
-    /// where `D` is the degree of the extension.
-    ///
-    /// # Type Parameters
-    ///
-    /// - `E`: The base field type
-    /// - `T`: Must implement `ExtensionField<E>`
-    ///
-    /// # Examples
-    ///
-    /// ```rust,ignore
-    /// // If T is a degree-4 extension over E
-    /// let buffer: Buffer<ExtField> = buffer![ext1, ext2, ext3];
-    /// let base_buffer: Buffer<BaseField> = buffer.flatten_to_base();
-    /// assert_eq!(base_buffer.len(), 12); // 3 * 4 = 12
-    /// ```
-    pub fn flatten_to_base<E>(self) -> Buffer<E, A>
-    where
-        T: ExtensionField<E>,
-        E: Field,
-    {
-        let mut buffer = ManuallyDrop::new(self);
-        let (original_ptr, original_len, original_cap, allocator) =
-            (buffer.as_mut_ptr(), buffer.len(), buffer.capacity(), buffer.allocator().clone());
-        let ptr = original_ptr as *mut E;
-        let len = original_len * T::D;
-        let cap = original_cap * T::D;
-        unsafe { Buffer::from_raw_parts(ptr, len, cap, allocator) }
-    }
 }
 
 impl<T, A: Backend> HasBackend for Buffer<T, A> {
@@ -1037,6 +1004,33 @@ impl<T> Buffer<T, CpuBackend> {
         E: ExtensionField<T>,
     {
         self.into_vec().chunks_exact(E::D).map(E::from_base_slice).collect()
+    }
+
+    /// Reinterprets the buffer's elements as base field elements.
+    ///
+    /// This method consumes the buffer and returns a new buffer where each
+    /// extension field element is reinterpreted as `D` base field elements,
+    /// where `D` is the degree of the extension.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `E`: The base field type
+    /// - `T`: Must implement `ExtensionField<E>`
+    ///
+    /// # Examples
+    ///
+    /// ```rust,ignore
+    /// // If T is a degree-4 extension over E
+    /// let buffer: Buffer<ExtField> = buffer![ext1, ext2, ext3];
+    /// let base_buffer: Buffer<BaseField> = buffer.flatten_to_base();
+    /// assert_eq!(base_buffer.len(), 12); // 3 * 4 = 12
+    /// ```
+    pub fn flatten_to_base<E>(self) -> Buffer<E>
+    where
+        T: ExtensionField<E>,
+        E: Field,
+    {
+        self.into_vec().iter().flat_map(T::as_base_slice).copied().collect()
     }
 }
 
