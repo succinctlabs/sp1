@@ -266,8 +266,10 @@ impl<F: PrimeField32> MachineAir<F> for PageProtGlobalChip {
             shape.included::<F, _>(self)
         } else {
             match self.kind {
-                MemoryChipType::Initialize => !shard.global_page_prot_initialize_events.is_empty(),
-                MemoryChipType::Finalize => !shard.global_page_prot_finalize_events.is_empty(),
+                MemoryChipType::Initialize => {
+                    shard.global_page_prot_initialize_events_len(None) > 0
+                }
+                MemoryChipType::Finalize => shard.global_page_prot_finalize_events_len(None) > 0,
             }
         }
     }

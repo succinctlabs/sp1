@@ -205,27 +205,32 @@ impl<F: PrimeField32> MachineAir<F> for DivRemChip {
         DivRemCols::<F>::struct_reflection().unwrap()
     }
 
-    fn num_rows(&self, input: &Self::Record) -> Option<usize> {
-        let nb_rows =
-            next_multiple_of_32(input.divrem_events.len(), input.fixed_log2_rows::<F, _>(self));
+    fn num_rows_for(&self, input: &Self::Record, apc_id: Option<usize>) -> Option<usize> {
+        let nb_rows = next_multiple_of_32(
+            input.divrem_events_len(apc_id),
+            input.fixed_log2_rows::<F, _>(self),
+        );
         Some(nb_rows)
     }
 
-    fn generate_trace_into(
+    fn generate_trace_into_for(
         &self,
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
         buffer: &mut [MaybeUninit<F>],
+        apc_id: Option<usize>,
     ) {
         // Generate the trace rows for each event.
-        let padded_nb_rows = <DivRemChip as MachineAir<F>>::num_rows(self, input).unwrap();
+        let event_spans = input.divrem_events_for(apc_id);
+        let divrem_events: Vec<_> = event_spans.iter_events(&input.divrem_events).collect();
+        let padded_nb_rows =
+            <DivRemChip as MachineAir<F>>::num_rows_for(self, input, apc_id).unwrap();
 
         let buffer_ptr = buffer.as_mut_ptr() as *mut F;
         let values = unsafe {
             core::slice::from_raw_parts_mut(buffer_ptr, padded_nb_rows * NUM_DIVREM_COLS)
         };
 
-        let divrem_events = input.divrem_events.clone();
         for (row_idx, event_record) in divrem_events.iter().enumerate() {
             let event = event_record.0;
             let r_record = event_record.1;
@@ -541,18 +546,19 @@ impl<F: PrimeField32> MachineAir<F> for DivRemChip {
         };
 
         debug_assert!(padded_row_template.len() == NUM_DIVREM_COLS);
-        for row_idx in input.divrem_events.len()..padded_nb_rows {
+        for row_idx in divrem_events.len()..padded_nb_rows {
             let row_start = row_idx * NUM_DIVREM_COLS;
             values[row_start..row_start + NUM_DIVREM_COLS].copy_from_slice(&padded_row_template);
         }
     }
 
-    fn included(&self, shard: &Self::Record) -> bool {
-        if let Some(shape) = shard.shape.as_ref() {
-            shape.included::<F, _>(self)
-        } else {
-            !shard.divrem_events.is_empty()
+    fn included_for(&self, shard: &Self::Record, apc_id: Option<usize>) -> bool {
+        if apc_id.is_none() {
+            if let Some(shape) = shard.shape.as_ref() {
+                return shape.included::<F, _>(self);
+            }
         }
+        shard.divrem_events_len(apc_id) > 0
     }
 }
 

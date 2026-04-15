@@ -89,13 +89,13 @@ where
             deferred.append(&mut record.defer(&opts.retained_events_presets));
             let can_pack = done
                 && record.estimated_trace_area <= split_opts.pack_trace_threshold
-                && deferred.global_memory_initialize_events.len()
+                && deferred.global_memory_initialize_events_len(None)
                     <= split_opts.combine_memory_threshold
-                && deferred.global_memory_finalize_events.len()
+                && deferred.global_memory_finalize_events_len(None)
                     <= split_opts.combine_memory_threshold
-                && deferred.global_page_prot_initialize_events.len()
+                && deferred.global_page_prot_initialize_events_len(None)
                     <= split_opts.combine_page_prot_threshold
-                && deferred.global_page_prot_finalize_events.len()
+                && deferred.global_page_prot_finalize_events_len(None)
                     <= split_opts.combine_page_prot_threshold;
             let deferred_records =
                 deferred.split(done || is_last, &mut record, can_pack, &split_opts);

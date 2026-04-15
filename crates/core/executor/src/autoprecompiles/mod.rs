@@ -1,10 +1,7 @@
-#[derive(Debug)]
-pub struct ExecutionRecordSnapshotWithPc {
-    pub record: ExecutionRecordSnapshot,
-    pub pc: u64,
-}
+use deepsize2::DeepSizeOf;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, DeepSizeOf, Serialize, Deserialize)]
 /// A snapshot of current state of the execution record
 /// The execution record is made of vectors for each type of events, as well as single values
 /// The snapshot stores the size of the vectors and the current values of the single values at the time of snapshotting

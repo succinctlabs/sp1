@@ -44,7 +44,7 @@ impl Adapter for Sp1ApcAdapter {
         let stats_before = apc
             .block
             .instructions()
-            .map(|(_pc, s)| *instruction_handler.get_instruction_air_stats(s).unwrap())
+            .map(|(_pc, instr)| *instruction_handler.get_instruction_air_stats(instr).unwrap())
             .sum();
         let stats_after = AirStats::new(apc.machine());
 

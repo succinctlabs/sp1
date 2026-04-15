@@ -175,7 +175,7 @@ impl<F: PrimeField32> MachineAir<F> for InstructionFetchChip {
     ) {
         let padded_nb_rows =
             <InstructionFetchChip as MachineAir<F>>::num_rows(self, input).unwrap();
-        let num_event_rows = input.instruction_fetch_events.len();
+        let num_event_rows = input.instruction_fetch_events_len(None);
 
         unsafe {
             let padding_start = num_event_rows * NUM_INSTRUCTION_FETCH_COLS;
@@ -190,7 +190,7 @@ impl<F: PrimeField32> MachineAir<F> for InstructionFetchChip {
             core::slice::from_raw_parts_mut(buffer_ptr, num_event_rows * NUM_INSTRUCTION_FETCH_COLS)
         };
 
-        let chunk_size = std::cmp::max(input.instruction_fetch_events.len() / num_cpus::get(), 1);
+        let chunk_size = std::cmp::max(num_event_rows / num_cpus::get(), 1);
 
         values.chunks_mut(chunk_size * NUM_INSTRUCTION_FETCH_COLS).enumerate().for_each(
             |(i, rows)| {
@@ -215,13 +215,13 @@ impl<F: PrimeField32> MachineAir<F> for InstructionFetchChip {
         if let Some(shape) = shard.shape.as_ref() {
             shape.included::<F, _>(self)
         } else {
-            !shard.instruction_fetch_events.is_empty()
+            shard.instruction_fetch_events_len(None) > 0
         }
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
         let nb_rows = next_multiple_of_32(
-            input.instruction_fetch_events.len(),
+            input.instruction_fetch_events_len(None),
             input.fixed_log2_rows::<F, _>(self),
         );
 

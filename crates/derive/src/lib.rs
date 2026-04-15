@@ -232,6 +232,34 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                 }
             });
 
+            let num_rows_for_arms = variants.iter().map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) => <#field_ty as sp1_hypercube::air::MachineAir<F>>::num_rows_for(x, input, apc_id)
+                }
+            });
+
+            let generate_trace_for_arms = variants.iter().map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) => <#field_ty as sp1_hypercube::air::MachineAir<F>>::generate_trace_for(x, input, output, apc_id)
+                }
+            });
+
+            let generate_trace_into_for_arms = variants.iter().map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) => <#field_ty as sp1_hypercube::air::MachineAir<F>>::generate_trace_into_for(x, input, output, buffer, apc_id)
+                }
+            });
+
+            let included_for_arms = variants.iter().map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) => <#field_ty as sp1_hypercube::air::MachineAir<F>>::included_for(x, shard, apc_id)
+                }
+            });
+
             let machine_air = quote! {
                 impl #impl_generics sp1_hypercube::air::MachineAir<F> for #name #ty_generics #where_clause {
                     type Record = #execution_record_path;
@@ -326,6 +354,41 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
 
                     fn customize_program(&self, program: <Self as MachineAir<F>>::Program) -> <Self as MachineAir<F>>::Program {
                         match self { #(#customize_program_arms,)* }
+                    }
+
+                    fn num_rows_for(&self, input: &Self::Record, apc_id: Option<usize>) -> Option<usize> {
+                        match self {
+                            #(#num_rows_for_arms,)*
+                        }
+                    }
+
+                    fn generate_trace_for(
+                        &self,
+                        input: &#execution_record_path,
+                        output: &mut #execution_record_path,
+                        apc_id: Option<usize>,
+                    ) -> slop_matrix::dense::RowMajorMatrix<F> {
+                        match self {
+                            #(#generate_trace_for_arms,)*
+                        }
+                    }
+
+                    fn generate_trace_into_for(
+                        &self,
+                        input: &#execution_record_path,
+                        output: &mut #execution_record_path,
+                        buffer: &mut [MaybeUninit<F>],
+                        apc_id: Option<usize>,
+                    ) {
+                        match self {
+                            #(#generate_trace_into_for_arms,)*
+                        }
+                    }
+
+                    fn included_for(&self, shard: &Self::Record, apc_id: Option<usize>) -> bool {
+                        match self {
+                            #(#included_for_arms,)*
+                        }
                     }
                 }
             };

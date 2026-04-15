@@ -166,21 +166,27 @@ impl<F: PrimeField32> MachineAir<F> for UTypeChip {
         "UType"
     }
 
-    fn num_rows(&self, input: &Self::Record) -> Option<usize> {
-        let nb_rows =
-            next_multiple_of_32(input.utype_events.len(), input.fixed_log2_rows::<F, _>(self));
+    fn num_rows_for(&self, input: &Self::Record, apc_id: Option<usize>) -> Option<usize> {
+        let nb_rows = next_multiple_of_32(
+            input.utype_events_len(apc_id),
+            input.fixed_log2_rows::<F, _>(self),
+        );
         Some(nb_rows)
     }
 
-    fn generate_trace_into(
+    fn generate_trace_into_for(
         &self,
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
         buffer: &mut [MaybeUninit<F>],
+        apc_id: Option<usize>,
     ) {
-        let padded_nb_rows = <UTypeChip as MachineAir<F>>::num_rows(self, input).unwrap();
-        let chunk_size = std::cmp::max((input.utype_events.len()) / num_cpus::get(), 1);
-        let num_event_rows = input.utype_events.len();
+        let event_spans = input.utype_events_for(apc_id);
+        let utype_events: Vec<_> = event_spans.iter_events(&input.utype_events).collect();
+        let padded_nb_rows =
+            <UTypeChip as MachineAir<F>>::num_rows_for(self, input, apc_id).unwrap();
+        let chunk_size = std::cmp::max(utype_events.len() / num_cpus::get(), 1);
+        let num_event_rows = utype_events.len();
 
         unsafe {
             let padding_start = num_event_rows * NUM_UTYPE_COLS;
@@ -204,8 +210,8 @@ impl<F: PrimeField32> MachineAir<F> for UTypeChip {
                     let idx = i * chunk_size + j;
                     let cols: &mut UTypeColumns<F> = row.borrow_mut();
 
-                    if idx < input.utype_events.len() {
-                        let (event, record) = &input.utype_events[idx];
+                    if idx < utype_events.len() {
+                        let (event, record) = utype_events[idx];
                         cols.is_auipc = F::from_bool(event.opcode == Opcode::AUIPC);
                         cols.is_real = F::one();
                         if record.op_a != 0 {
@@ -229,12 +235,13 @@ impl<F: PrimeField32> MachineAir<F> for UTypeChip {
         output.add_byte_lookup_events_from_maps(blu_events.iter().collect_vec());
     }
 
-    fn included(&self, shard: &Self::Record) -> bool {
-        if let Some(shape) = shard.shape.as_ref() {
-            shape.included::<F, _>(self)
-        } else {
-            !shard.utype_events.is_empty()
+    fn included_for(&self, shard: &Self::Record, apc_id: Option<usize>) -> bool {
+        if apc_id.is_none() {
+            if let Some(shape) = shard.shape.as_ref() {
+                return shape.included::<F, _>(self);
+            }
         }
+        shard.utype_events_len(apc_id) > 0
     }
 
     fn column_names(&self) -> Vec<String> {

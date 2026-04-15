@@ -240,8 +240,8 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
             shape.included::<F, _>(self)
         } else {
             match self.kind {
-                MemoryChipType::Initialize => !shard.global_memory_initialize_events.is_empty(),
-                MemoryChipType::Finalize => !shard.global_memory_finalize_events.is_empty(),
+                MemoryChipType::Initialize => shard.global_memory_initialize_events_len(None) > 0,
+                MemoryChipType::Finalize => shard.global_memory_finalize_events_len(None) > 0,
             }
         }
     }

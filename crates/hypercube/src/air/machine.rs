@@ -40,8 +40,8 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
     /// The number of rows in the trace, if the chip is included.
     ///
     /// **Warning**:: if the chip is not included, `num_rows` is allowed to return anything.
-    fn num_rows(&self, _input: &Self::Record) -> Option<usize> {
-        None
+    fn num_rows(&self, input: &Self::Record) -> Option<usize> {
+        self.num_rows_for(input, None)
     }
 
     /// Generate the trace for a given execution record.
@@ -54,11 +54,9 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
         let num_columns = <Self as BaseAir<F>>::width(self);
         let mut values: Vec<F> = Vec::with_capacity(padded_nb_rows * num_columns);
         self.generate_trace_into(input, output, values.spare_capacity_mut());
-
         unsafe {
             values.set_len(padded_nb_rows * num_columns);
         }
-
         RowMajorMatrix::new(values, num_columns)
     }
 
@@ -73,10 +71,57 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
         input: &Self::Record,
         output: &mut Self::Record,
         buffer: &mut [MaybeUninit<F>],
-    );
+    ) {
+        self.generate_trace_into_for(input, output, buffer, None);
+    }
 
     /// Whether this execution record contains events for this air.
-    fn included(&self, shard: &Self::Record) -> bool;
+    fn included(&self, shard: &Self::Record) -> bool {
+        self.included_for(shard, None)
+    }
+
+    /// The number of rows for a given group context.
+    /// `None` = software events, `Some(idx)` = APC group.
+    /// Only chips used in APC should implement this.
+    fn num_rows_for(&self, _input: &Self::Record, _apc_id: Option<usize>) -> Option<usize> {
+        unimplemented!("only chips used in APC should implement this")
+    }
+
+    /// Generate the trace for a given group context.
+    /// Default: allocates buffer and calls `generate_trace_into_for`.
+    fn generate_trace_for(
+        &self,
+        input: &Self::Record,
+        output: &mut Self::Record,
+        apc_id: Option<usize>,
+    ) -> RowMajorMatrix<F> {
+        let padded_nb_rows = self.num_rows_for(input, apc_id).unwrap();
+        let num_columns = <Self as BaseAir<F>>::width(self);
+        let mut values: Vec<F> = Vec::with_capacity(padded_nb_rows * num_columns);
+        self.generate_trace_into_for(input, output, values.spare_capacity_mut(), apc_id);
+        unsafe {
+            values.set_len(padded_nb_rows * num_columns);
+        }
+        RowMajorMatrix::new(values, num_columns)
+    }
+
+    /// Generate trace into buffer for a given group context.
+    /// Only chips used in APC should implement this.
+    fn generate_trace_into_for(
+        &self,
+        _input: &Self::Record,
+        _output: &mut Self::Record,
+        _buffer: &mut [MaybeUninit<F>],
+        _apc_id: Option<usize>,
+    ) {
+        unimplemented!("only chips used in APC should implement this")
+    }
+
+    /// Whether this air is included for a given group context.
+    /// Only chips used in APC should implement this.
+    fn included_for(&self, _shard: &Self::Record, _apc_id: Option<usize>) -> bool {
+        unimplemented!("only chips used in APC should implement this")
+    }
 
     /// The width of the preprocessed trace.
     fn preprocessed_width(&self) -> usize {

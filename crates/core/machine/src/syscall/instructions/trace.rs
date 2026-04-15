@@ -29,7 +29,7 @@ impl<F: PrimeField32> MachineAir<F> for SyscallInstrsChip {
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
-        let nb_rows = input.syscall_events.len();
+        let nb_rows = input.syscall_events_len(None);
         let size_log2 = input.fixed_log2_rows::<F, _>(self);
         let padded_nb_rows = next_multiple_of_32(nb_rows, size_log2);
         Some(padded_nb_rows)
@@ -41,9 +41,16 @@ impl<F: PrimeField32> MachineAir<F> for SyscallInstrsChip {
         output: &mut ExecutionRecord,
         buffer: &mut [MaybeUninit<F>],
     ) {
-        let chunk_size = std::cmp::max((input.syscall_events.len()) / num_cpus::get(), 1);
+        let spans = input.syscall_events_for(None);
+        let sw_events: Vec<_> = spans
+            .spans()
+            .iter()
+            .flat_map(|(start, end)| input.syscall_events[*start..*end].iter())
+            .collect();
+        let num_event_rows = spans.count_events();
+
+        let chunk_size = std::cmp::max(num_event_rows / num_cpus::get(), 1);
         let padded_nb_rows = <SyscallInstrsChip as MachineAir<F>>::num_rows(self, input).unwrap();
-        let num_event_rows = input.syscall_events.len();
 
         unsafe {
             let padding_start = num_event_rows * NUM_SYSCALL_INSTR_COLS;
@@ -68,8 +75,8 @@ impl<F: PrimeField32> MachineAir<F> for SyscallInstrsChip {
                     let idx = i * chunk_size + j;
                     let cols: &mut SyscallInstrColumns<F> = row.borrow_mut();
 
-                    if idx < input.syscall_events.len() {
-                        let event = &input.syscall_events[idx];
+                    if idx < num_event_rows {
+                        let event = sw_events[idx];
                         self.event_to_row(&event.0, &event.1, cols, &mut blu);
                         cols.state.populate(&mut blu, event.0.clk, event.0.pc);
                         cols.adapter.populate(&mut blu, event.1);
@@ -86,7 +93,7 @@ impl<F: PrimeField32> MachineAir<F> for SyscallInstrsChip {
         if let Some(shape) = shard.shape.as_ref() {
             shape.included::<F, _>(self)
         } else {
-            !shard.syscall_events.is_empty()
+            shard.syscall_events_len(None) > 0
         }
     }
 

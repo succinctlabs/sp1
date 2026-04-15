@@ -87,13 +87,17 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
 
     fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
         let events = match self.shard_kind {
-            SyscallShardKind::Core => &input
-                .syscall_events
-                .iter()
-                .map(|(event, _)| event)
-                .filter(|e| e.should_send)
-                .copied()
-                .collect::<Vec<_>>(),
+            SyscallShardKind::Core => {
+                let sw_spans = input.syscall_events_for(None);
+                &sw_spans
+                    .spans()
+                    .iter()
+                    .flat_map(|&(s, e)| &input.syscall_events[s..e])
+                    .map(|(event, _)| event)
+                    .filter(|e| e.should_send)
+                    .copied()
+                    .collect::<Vec<_>>()
+            }
             SyscallShardKind::Precompile => &input
                 .precompile_events
                 .all_events()
@@ -131,13 +135,17 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
         let events = match self.shard_kind {
-            SyscallShardKind::Core => &input
-                .syscall_events
-                .iter()
-                .map(|(event, _)| event)
-                .filter(|e| e.should_send)
-                .copied()
-                .collect::<Vec<_>>(),
+            SyscallShardKind::Core => {
+                let sw_spans = input.syscall_events_for(None);
+                &sw_spans
+                    .spans()
+                    .iter()
+                    .flat_map(|&(s, e)| &input.syscall_events[s..e])
+                    .map(|(event, _)| event)
+                    .filter(|e| e.should_send)
+                    .copied()
+                    .collect::<Vec<_>>()
+            }
             SyscallShardKind::Precompile => &input
                 .precompile_events
                 .all_events()
@@ -178,10 +186,12 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
         let padded_nb_rows = <SyscallChip as MachineAir<F>>::num_rows(self, input).unwrap();
 
         // Get event slice based on shard kind
+        let sw_spans = input.syscall_events_for(None);
         let events: Vec<&SyscallEvent> = match self.shard_kind {
-            SyscallShardKind::Core => input
-                .syscall_events
+            SyscallShardKind::Core => sw_spans
+                .spans()
                 .iter()
+                .flat_map(|&(s, e)| &input.syscall_events[s..e])
                 .map(|(event, _)| event)
                 .filter(|e| e.should_send)
                 .collect(),
@@ -219,22 +229,21 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
         } else {
             match self.shard_kind {
                 SyscallShardKind::Core => {
-                    shard
-                        .syscall_events
+                    let sw_spans = shard.syscall_events_for(None);
+                    sw_spans
+                        .spans()
                         .iter()
+                        .flat_map(|&(s, e)| &shard.syscall_events[s..e])
                         .map(|(event, _)| event)
-                        .filter(|e| e.should_send)
-                        .take(1)
-                        .count()
-                        > 0
+                        .any(|e| e.should_send)
                 }
                 SyscallShardKind::Precompile => {
                     !shard.precompile_events.is_empty()
                         && !shard.contains_cpu()
-                        && shard.global_memory_initialize_events.is_empty()
-                        && shard.global_memory_finalize_events.is_empty()
-                        && shard.global_page_prot_initialize_events.is_empty()
-                        && shard.global_page_prot_finalize_events.is_empty()
+                        && shard.global_memory_initialize_events_len(None) == 0
+                        && shard.global_memory_finalize_events_len(None) == 0
+                        && shard.global_page_prot_initialize_events_len(None) == 0
+                        && shard.global_page_prot_finalize_events_len(None) == 0
                 }
             }
         }

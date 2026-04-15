@@ -8,7 +8,7 @@ use sp1_hypercube::air::{PublicValues, PROOF_NONCE_NUM_WORDS};
 use sp1_jit::MinimalTrace;
 
 use crate::{
-    autoprecompiles::ExecutionRecordSnapshotWithPc,
+    autoprecompiles::ExecutionRecordSnapshot,
     events::{
         AluEvent, BranchEvent, IntoMemoryRecord, JumpEvent, MemInstrEvent, MemoryLocalEvent,
         MemoryReadRecord, MemoryRecord, MemoryRecordEnum, MemoryWriteRecord, PrecompileEvent,
@@ -29,7 +29,7 @@ use crate::{
 /// A RISC-V VM that uses a [`MinimalTrace`] to create a [`ExecutionRecord`].
 pub struct TracingVM<'a> {
     /// The core VM.
-    pub core: CoreVM<'a, ExecutionRecordSnapshotWithPc>,
+    pub core: CoreVM<'a, ExecutionRecordSnapshot>,
     /// The local memory access for the CPU.
     pub local_memory_access: LocalMemoryAccess,
     /// The local memory access for any deferred precompiles.
@@ -67,11 +67,7 @@ impl TracingVM<'_> {
 
     /// Execute the next instruction at the current PC.
     pub fn execute_instruction(&mut self) -> Result<CycleResult, ExecutionError> {
-        // TODO: is there a way to avoid this call? It is needed now so that `next_pc` is set correctly in the apc record
-        let pc = self.core.pc();
-        let instruction = self
-            .core
-            .fetch(|| ExecutionRecordSnapshotWithPc { record: self.record.snapshot(), pc });
+        let instruction = self.core.fetch(|| self.record.snapshot());
         if instruction.is_none() {
             unreachable!("Fetching the next instruction failed");
         }
@@ -138,11 +134,7 @@ impl TracingVM<'_> {
 
         self.core.check_bump(&instruction);
 
-        let next_pc = self.core.next_pc();
-        let (res, calls) = self.core.advance(|| ExecutionRecordSnapshotWithPc {
-            record: self.record.snapshot(),
-            pc: next_pc,
-        });
+        let (res, calls) = self.core.advance(|| self.record.snapshot());
         self.record.apply_calls(&calls);
 
         Ok(res)
@@ -431,7 +423,7 @@ impl<'a> TracingVM<'a> {
 
         // Actually execute the ecall.
         let EcallResult { a: _, a_record, b, b_record, c, c_record } =
-            CoreVM::<'a, ExecutionRecordSnapshotWithPc>::execute_ecall(self, instruction, code)?;
+            CoreVM::<'a, ExecutionRecordSnapshot>::execute_ecall(self, instruction, code)?;
 
         self.local_memory_access.insert_record(Register::X11 as u64, c_record);
         self.local_memory_access.insert_record(Register::X10 as u64, b_record);
@@ -769,7 +761,7 @@ impl TracingVM<'_> {
 
 impl<'a> SyscallRuntime<'a> for TracingVM<'a> {
     const TRACING: bool = true;
-    type Snapshot = ExecutionRecordSnapshotWithPc;
+    type Snapshot = ExecutionRecordSnapshot;
 
     fn core(&self) -> &CoreVM<'a, Self::Snapshot> {
         &self.core
@@ -1036,7 +1028,7 @@ mod tests {
             assert_eq!(registers[Register::X31 as usize].value, 42);
             assert_eq!(registers[Register::X26 as usize].value, 42);
             // Check that the APCs were executed iff there were any
-            assert_eq!(!record.apc_events.is_empty(), should_execute_apcs);
+            assert_eq!(!record.apc_partition.is_empty(), should_execute_apcs);
         }
     }
 
@@ -1068,7 +1060,7 @@ mod tests {
 
         assert_eq!(registers[Register::X30 as usize].value, 2);
         assert_eq!(registers[Register::X31 as usize].value, 2);
-        assert_eq!(record.apc_events.len(), 2);
+        assert_eq!(record.apc_partition.num_calls(), 2);
     }
 
     #[test]
@@ -1130,7 +1122,7 @@ mod tests {
             assert_eq!(registers[Register::X31 as usize].value, 42);
             assert_eq!(registers[Register::X26 as usize].value, 42);
             // Check that the APCs were executed iff there were any
-            assert!(record.apc_events.is_empty());
+            assert!(record.apc_partition.is_empty());
         }
     }
 
@@ -1171,9 +1163,9 @@ mod tests {
             assert_eq!(registers[Register::X31 as usize].value, 42);
             assert_eq!(registers[Register::X26 as usize].value, 42);
             // Check that only the first apc was executed (priority is based on insertion order)
-            assert_eq!(record.apc_events.len(), 1);
-            assert_eq!(record.apc_events.get_events(0).unwrap().count, 1);
-            assert!(record.apc_events.get_events(1).is_none());
+            assert_eq!(record.apc_partition.num_apc_ids(), 1);
+            assert_eq!(record.apc_event_count(0), 1);
+            assert!(!record.has_apc_events(1));
         }
     }
 
@@ -1227,10 +1219,10 @@ mod tests {
         assert_eq!(registers[Register::X31 as usize].value, 42);
         assert_eq!(registers[Register::X26 as usize].value, 42);
         // Check that AB was not executed but A and B were
-        assert_eq!(record.apc_events.len(), 2);
-        assert!(record.apc_events.get_events(0).is_none());
-        assert_eq!(record.apc_events.get_events(1).unwrap().count, 1);
-        assert_eq!(record.apc_events.get_events(2).unwrap().count, 1);
+        assert_eq!(record.apc_partition.num_apc_ids(), 2);
+        assert!(!record.has_apc_events(0));
+        assert_eq!(record.apc_event_count(1), 1);
+        assert_eq!(record.apc_event_count(2), 1);
     }
 
     #[test]
@@ -1285,10 +1277,10 @@ mod tests {
         assert_eq!(registers[Register::X31 as usize].value, 42);
         assert_eq!(registers[Register::X26 as usize].value, 42);
         // Check that AB executed and A/B were cancelled.
-        assert_eq!(record.apc_events.len(), 1);
-        assert_eq!(record.apc_events.get_events(0).unwrap().count, 1);
-        assert!(record.apc_events.get_events(1).is_none());
-        assert!(record.apc_events.get_events(2).is_none());
+        assert_eq!(record.apc_partition.num_apc_ids(), 1);
+        assert_eq!(record.apc_event_count(0), 1);
+        assert!(!record.has_apc_events(1));
+        assert!(!record.has_apc_events(2));
     }
 
     #[test]
@@ -1343,7 +1335,7 @@ mod tests {
             run_tracing_vm(Arc::new(program), SP1CoreOpts::default(), 100_000);
         assert!(status.is_done(), "TracingVM did not complete");
         assert!(
-            record.apc_events.is_empty(),
+            record.apc_partition.is_empty(),
             "Expected APC to be rejected when a state bump occurs"
         );
     }
@@ -1420,7 +1412,7 @@ mod tests {
         // The APC covering indices 5-7 should be rejected because index 5 reads x11
         // whose prev_timestamp is in epoch 0 while the current clk is in epoch 1.
         assert!(
-            record.apc_events.is_empty(),
+            record.apc_partition.is_empty(),
             "Expected APC to be rejected due to memory bump (stale register access across epoch)"
         );
     }

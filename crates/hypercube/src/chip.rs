@@ -236,6 +236,33 @@ where
     fn customize_program(&self, program: Self::Program) -> Self::Program {
         self.air.customize_program(program)
     }
+
+    fn num_rows_for(&self, input: &A::Record, apc_id: Option<usize>) -> Option<usize> {
+        self.air.num_rows_for(input, apc_id)
+    }
+
+    fn generate_trace_for(
+        &self,
+        input: &A::Record,
+        output: &mut A::Record,
+        apc_id: Option<usize>,
+    ) -> RowMajorMatrix<F> {
+        self.air.generate_trace_for(input, output, apc_id)
+    }
+
+    fn generate_trace_into_for(
+        &self,
+        input: &A::Record,
+        output: &mut A::Record,
+        buffer: &mut [std::mem::MaybeUninit<F>],
+        apc_id: Option<usize>,
+    ) {
+        self.air.generate_trace_into_for(input, output, buffer, apc_id);
+    }
+
+    fn included_for(&self, shard: &Self::Record, apc_id: Option<usize>) -> bool {
+        self.air.included_for(shard, apc_id)
+    }
 }
 
 // Implement AIR directly on Chip, evaluating both execution and permutation constraints.

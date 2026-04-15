@@ -78,21 +78,24 @@ impl<F: PrimeField32> MachineAir<F> for MulChip {
         MulCols::<F>::struct_reflection().unwrap()
     }
 
-    fn num_rows(&self, input: &Self::Record) -> Option<usize> {
+    fn num_rows_for(&self, input: &Self::Record, apc_id: Option<usize>) -> Option<usize> {
         let nb_rows =
-            next_multiple_of_32(input.mul_events.len(), input.fixed_log2_rows::<F, _>(self));
+            next_multiple_of_32(input.mul_events_len(apc_id), input.fixed_log2_rows::<F, _>(self));
         Some(nb_rows)
     }
 
-    fn generate_trace_into(
+    fn generate_trace_into_for(
         &self,
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
         buffer: &mut [MaybeUninit<F>],
+        apc_id: Option<usize>,
     ) {
         // Generate the trace rows for each event.
-        let nb_rows = input.mul_events.len();
-        let padded_nb_rows = <MulChip as MachineAir<F>>::num_rows(self, input).unwrap();
+        let event_spans = input.mul_events_for(apc_id);
+        let mul_events: Vec<_> = event_spans.iter_events(&input.mul_events).collect();
+        let nb_rows = mul_events.len();
+        let padded_nb_rows = <MulChip as MachineAir<F>>::num_rows_for(self, input, apc_id).unwrap();
         let chunk_size = std::cmp::max((nb_rows + 1) / num_cpus::get(), 1);
 
         unsafe {
@@ -114,7 +117,7 @@ impl<F: PrimeField32> MachineAir<F> for MulChip {
 
                     if idx < nb_rows {
                         let mut byte_lookup_events = Vec::new();
-                        let event = &input.mul_events[idx];
+                        let event = mul_events[idx];
                         cols.adapter.populate(&mut byte_lookup_events, event.1);
                         self.event_to_row(&event.0, cols, &mut byte_lookup_events);
                         cols.state.populate(&mut byte_lookup_events, event.0.clk, event.0.pc);
@@ -125,10 +128,11 @@ impl<F: PrimeField32> MachineAir<F> for MulChip {
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
-        let chunk_size = std::cmp::max(input.mul_events.len() / num_cpus::get(), 1);
+        let event_spans = input.mul_events_for(None);
+        let mul_events: Vec<_> = event_spans.iter_events(&input.mul_events).collect();
+        let chunk_size = std::cmp::max(mul_events.len() / num_cpus::get(), 1);
 
-        let blu_batches = input
-            .mul_events
+        let blu_batches = mul_events
             .par_chunks(chunk_size)
             .map(|events| {
                 let mut blu: HashMap<ByteLookupEvent, isize> = HashMap::new();
@@ -146,12 +150,13 @@ impl<F: PrimeField32> MachineAir<F> for MulChip {
         output.add_byte_lookup_events_from_maps(blu_batches.iter().collect::<Vec<_>>());
     }
 
-    fn included(&self, shard: &Self::Record) -> bool {
-        if let Some(shape) = shard.shape.as_ref() {
-            shape.included::<F, _>(self)
-        } else {
-            !shard.mul_events.is_empty()
+    fn included_for(&self, shard: &Self::Record, apc_id: Option<usize>) -> bool {
+        if apc_id.is_none() {
+            if let Some(shape) = shard.shape.as_ref() {
+                return shape.included::<F, _>(self);
+            }
         }
+        shard.mul_events_len(apc_id) > 0
     }
 }
 

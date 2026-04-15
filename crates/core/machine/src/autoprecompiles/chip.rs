@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap},
     sync::Arc,
 };
 
@@ -100,7 +100,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
-        let num_apc_events = input.get_apc_events(self.id).map_or(0, |events| events.count);
+        let num_apc_events = input.apc_event_count(self.id);
         let nb_rows = next_multiple_of_32(num_apc_events, input.fixed_log2_rows::<F, _>(self));
         Some(nb_rows)
     }
@@ -111,8 +111,8 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
         _output: &mut Self::Record,
         buffer: &mut [std::mem::MaybeUninit<F>],
     ) {
-        // Get all events for the given APC ID
-        let events = input.get_apc_events(self.id).expect("APC events not found");
+        let apc_id = self.id;
+        let event_count = input.apc_event_count(apc_id);
 
         // Mapping from poly_id to contiguous index in apc
         let apc_poly_id_to_index = self
@@ -128,18 +128,6 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
             self.apc().machine.main_columns().find(|c| &*c.name == "is_valid").unwrap();
         let is_valid_index = apc_poly_id_to_index[&is_valid_column.id];
 
-        // Generate traces for each included air in parallel
-        let chips_and_traces = self
-            .machine
-            .chips()
-            .into_par_iter()
-            .filter(|air| air.included(&events.record))
-            .map(|air| {
-                let trace = air.generate_trace(&events.record, &mut Default::default());
-                (air.air.id(), trace)
-            })
-            .collect::<BTreeMap<_, _>>();
-
         // Get the AIR IDs for the original instructions
         let original_instruction_air_ids = self
             .apc()
@@ -147,9 +135,26 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
             .instructions()
             .map(|(_pc, instr)| {
                 try_instruction_type_to_air_id(InstructionType::from(instr.0))
-                    .expect("Invalid instruction as an original instruction in an APC: {instr.0:?}")
+                    .expect("Invalid instruction as an original instruction in an APC: {instr:?}")
             })
             .collect::<Vec<_>>();
+        let needed_ids: BTreeSet<_> = original_instruction_air_ids.iter().copied().collect();
+
+        // Generate traces only for needed instruction chips using zero-copy access.
+        // We filter by needed_ids to avoid running non-instruction chips (e.g. GlobalChip)
+        // which could have side effects on the main record.
+        let chips_and_traces = self
+            .machine
+            .chips()
+            .into_par_iter()
+            .filter(|air| {
+                needed_ids.contains(&air.air.id()) && air.included_for(input, Some(apc_id))
+            })
+            .map(|air| {
+                let trace = air.generate_trace_for(input, &mut Default::default(), Some(apc_id));
+                (air.air.id(), trace)
+            })
+            .collect::<BTreeMap<_, _>>();
 
         // Map from AIR ID to number of occurrences
         let air_id_occurrences = original_instruction_air_ids.iter().counts();
@@ -166,7 +171,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
             .collect::<Vec<_>>();
 
         // Create slices of dummy values
-        let dummy_values_by_event = (0..events.count)
+        let dummy_values_by_event = (0..event_count)
             .into_par_iter()
             .map(|event_index| {
                 original_instruction_air_ids
@@ -214,7 +219,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
         let trace_width = self.width();
 
         // Zero only padding rows (event rows are fully written by the substitution loop).
-        let padding_start = events.count * trace_width;
+        let padding_start = event_count * trace_width;
         unsafe {
             core::ptr::write_bytes(
                 buffer[padding_start..].as_mut_ptr(),
@@ -231,14 +236,15 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
         };
 
         // Fill in the trace values in parallel for each event row
-        trace_values[..events.count * trace_width]
+        trace_values[..event_count * trace_width]
             .par_chunks_mut(trace_width)
             .zip_eq(dummy_values_by_event.par_iter())
-            .for_each(|(trace_row, dummy_values_by_instruction)| {
+            .for_each(|(trace_row, dummy_values_by_instruction): (&mut [F], &Vec<&[F]>)| {
                 for (instruction_index, dummy_slice) in
                     dummy_values_by_instruction.iter().enumerate()
                 {
-                    let map = &dummy_trace_index_to_apc_index_by_instruction[instruction_index];
+                    let map: &HashMap<usize, usize> =
+                        &dummy_trace_index_to_apc_index_by_instruction[instruction_index];
                     // By caching `dummy_trace_index_to_apc_index_by_instruction`, we only loop over
                     // the values that are assigned to the APC instead of all values in the dummy
                     // trace
@@ -255,18 +261,15 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
-        // Get all events for the given APC ID
-        let events = input.get_apc_events(self.id);
-        // Because `generate_dependencies` is run during execution for all chips, it's not
-        // guaranteed that there will be APC events at all.
-        if events.is_none() {
+        let apc_id = self.id;
+        if !input.has_apc_events(apc_id) {
             tracing::debug!(
                 "No APC events found for APC ID during `generate_dependencies`: {}",
-                self.id
+                apc_id
             );
-            return; // Early return because no dependencies to generate.
+            return;
         }
-        let events = events.unwrap();
+        let event_count = input.apc_event_count(apc_id);
 
         // Mapping from poly_id to contiguous index in apc
         let apc_poly_id_to_index = self
@@ -282,18 +285,6 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
             self.apc().machine.main_columns().find(|c| &*c.name == "is_valid").unwrap();
         let is_valid_index = apc_poly_id_to_index[&is_valid_column.id];
 
-        // Generate traces for each included air in parallel
-        let chips_and_traces = self
-            .machine
-            .chips()
-            .into_par_iter()
-            .filter(|air| air.included(&events.record))
-            .map(|air| {
-                let trace = air.generate_trace(&events.record, &mut Default::default());
-                (air.air.id(), trace)
-            })
-            .collect::<BTreeMap<_, _>>();
-
         // Get the AIR IDs for the original instructions
         let original_instruction_air_ids = self
             .apc()
@@ -301,9 +292,24 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
             .instructions()
             .map(|(_pc, instr)| {
                 try_instruction_type_to_air_id(InstructionType::from(instr.0))
-                    .expect("Invalid instruction as an original instruction in an APC: {instr.0:?}")
+                    .expect("Invalid instruction as an original instruction in an APC: {instr:?}")
             })
             .collect::<Vec<_>>();
+        let needed_ids: BTreeSet<_> = original_instruction_air_ids.iter().copied().collect();
+
+        // Generate traces only for needed instruction chips using zero-copy access.
+        let chips_and_traces = self
+            .machine
+            .chips()
+            .into_par_iter()
+            .filter(|air| {
+                needed_ids.contains(&air.air.id()) && air.included_for(input, Some(apc_id))
+            })
+            .map(|air| {
+                let trace = air.generate_trace_for(input, &mut Default::default(), Some(apc_id));
+                (air.air.id(), trace)
+            })
+            .collect::<BTreeMap<_, _>>();
 
         // Map from AIR ID to number of occurrences
         let air_id_occurrences = original_instruction_air_ids.iter().counts();
@@ -320,7 +326,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
             .collect::<Vec<_>>();
 
         // Create slices of dummy values
-        let dummy_values_by_event = (0..events.count)
+        let dummy_values_by_event = (0..event_count)
             .into_par_iter()
             .map(|event_index| {
                 original_instruction_air_ids
@@ -367,7 +373,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
 
         // Allocate final trace values
         let trace_width = self.width();
-        let mut trace_values = zeroed_f_vec(events.count * trace_width);
+        let mut trace_values = zeroed_f_vec(event_count * trace_width);
 
         // Fill in the trace values in parallel for each row (apc event)
         let byte_lookup_effects = trace_values
@@ -448,7 +454,7 @@ impl<F: PrimeField32> MachineAir<F> for ApcChip<F> {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        shard.apc_events.get_events(self.id).is_some()
+        shard.has_apc_events(self.id)
     }
 
     fn customize_program(&self, program: Self::Program) -> Self::Program {

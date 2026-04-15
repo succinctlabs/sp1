@@ -75,21 +75,24 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
         LtCols::<F>::struct_reflection().unwrap()
     }
 
-    fn num_rows(&self, input: &Self::Record) -> Option<usize> {
+    fn num_rows_for(&self, input: &Self::Record, apc_id: Option<usize>) -> Option<usize> {
         let nb_rows =
-            next_multiple_of_32(input.lt_events.len(), input.fixed_log2_rows::<F, _>(self));
+            next_multiple_of_32(input.lt_events_len(apc_id), input.fixed_log2_rows::<F, _>(self));
         Some(nb_rows)
     }
 
-    fn generate_trace_into(
+    fn generate_trace_into_for(
         &self,
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
         buffer: &mut [MaybeUninit<F>],
+        apc_id: Option<usize>,
     ) {
         // Generate the trace rows for each event.
-        let nb_rows = input.lt_events.len();
-        let padded_nb_rows = <LtChip as MachineAir<F>>::num_rows(self, input).unwrap();
+        let event_spans = input.lt_events_for(apc_id);
+        let lt_events: Vec<_> = event_spans.iter_events(&input.lt_events).collect();
+        let nb_rows = lt_events.len();
+        let padded_nb_rows = <LtChip as MachineAir<F>>::num_rows_for(self, input, apc_id).unwrap();
         let chunk_size = std::cmp::max((nb_rows + 1) / num_cpus::get(), 1);
 
         unsafe {
@@ -111,7 +114,7 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
 
                     if idx < nb_rows {
                         let mut byte_lookup_events = Vec::new();
-                        let event = &input.lt_events[idx];
+                        let event = lt_events[idx];
                         cols.adapter.populate(&mut byte_lookup_events, event.1);
                         self.event_to_row(&event.0, cols, &mut byte_lookup_events);
                         cols.state.populate(&mut byte_lookup_events, event.0.clk, event.0.pc);
@@ -122,10 +125,11 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
-        let chunk_size = std::cmp::max(input.lt_events.len() / num_cpus::get(), 1);
+        let event_spans = input.lt_events_for(None);
+        let lt_events: Vec<_> = event_spans.iter_events(&input.lt_events).collect();
+        let chunk_size = std::cmp::max(lt_events.len() / num_cpus::get(), 1);
 
-        let blu_batches = input
-            .lt_events
+        let blu_batches = lt_events
             .par_chunks(chunk_size)
             .map(|events| {
                 let mut blu: HashMap<ByteLookupEvent, isize> = HashMap::new();
@@ -143,12 +147,13 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
         output.add_byte_lookup_events_from_maps(blu_batches.iter().collect_vec());
     }
 
-    fn included(&self, shard: &Self::Record) -> bool {
-        if let Some(shape) = shard.shape.as_ref() {
-            shape.included::<F, _>(self)
-        } else {
-            !shard.lt_events.is_empty()
+    fn included_for(&self, shard: &Self::Record, apc_id: Option<usize>) -> bool {
+        if apc_id.is_none() {
+            if let Some(shape) = shard.shape.as_ref() {
+                return shape.included::<F, _>(self);
+            }
         }
+        shard.lt_events_len(apc_id) > 0
     }
 }
 

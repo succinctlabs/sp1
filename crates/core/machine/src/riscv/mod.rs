@@ -18,8 +18,7 @@ use crate::{
             store_byte::StoreByteChip, store_double::StoreDoubleChip, store_half::StoreHalfChip,
             store_word::StoreWordChip,
         },
-        MemoryBumpChip, MemoryChipType, MemoryLocalChip, NUM_LOCAL_MEMORY_ENTRIES_PER_ROW,
-        NUM_LOCAL_PAGE_PROT_ENTRIES_PER_ROW, NUM_PAGE_PROT_ENTRIES_PER_ROW,
+        MemoryBumpChip, MemoryChipType, MemoryLocalChip,
     },
     range::RangeChip,
     syscall::{
@@ -31,7 +30,7 @@ use crate::{
 use hashbrown::HashMap;
 use itertools::Itertools;
 use slop_algebra::PrimeField32;
-use sp1_core_executor::{ExecutionRecord, RiscvAirId};
+use sp1_core_executor::RiscvAirId;
 use sp1_curves::weierstrass::{bls12_381::Bls12381BaseField, bn254::Bn254BaseField};
 use sp1_hypercube::{
     air::{MachineAir, SP1_PROOF_NUM_PV_ELTS},
@@ -828,72 +827,6 @@ impl<F: PrimeField32> RiscvAirWithoutApcs<F> {
         assert_eq!(chips.len(), costs.len(), "chips and costs must have the same length",);
 
         (chips, costs)
-    }
-
-    /// Get the heights of the chips for a given execution record.
-    pub fn core_heights(record: &ExecutionRecord) -> Vec<(RiscvAirId, usize)> {
-        vec![
-            (RiscvAirId::DivRem, record.divrem_events.len()),
-            (RiscvAirId::Add, record.add_events.len()),
-            (RiscvAirId::Addw, record.addw_events.len()),
-            (RiscvAirId::Addi, record.addi_events.len()),
-            (RiscvAirId::Sub, record.sub_events.len()),
-            (RiscvAirId::Subw, record.subw_events.len()),
-            (RiscvAirId::Bitwise, record.bitwise_events.len()),
-            (RiscvAirId::Mul, record.mul_events.len()),
-            (RiscvAirId::ShiftRight, record.shift_right_events.len()),
-            (RiscvAirId::ShiftLeft, record.shift_left_events.len()),
-            (RiscvAirId::Lt, record.lt_events.len()),
-            (
-                RiscvAirId::MemoryLocal,
-                record
-                    .get_local_mem_events()
-                    .chunks(NUM_LOCAL_MEMORY_ENTRIES_PER_ROW)
-                    .into_iter()
-                    .count(),
-            ),
-            (RiscvAirId::MemoryBump, record.bump_memory_events.len()),
-            (
-                RiscvAirId::PageProt,
-                (record.memory_load_byte_events.len()
-                    + record.memory_store_byte_events.len()
-                    + record.memory_load_word_events.len()
-                    + record.memory_store_word_events.len()
-                    + record.memory_load_double_events.len()
-                    + record.memory_store_double_events.len()
-                    + record.memory_load_half_events.len()
-                    + record.memory_store_half_events.len()
-                    + record.memory_load_x0_events.len())
-                .div_ceil(NUM_PAGE_PROT_ENTRIES_PER_ROW),
-            ),
-            (
-                RiscvAirId::PageProtLocal,
-                record
-                    .get_local_page_prot_events()
-                    .chunks(NUM_LOCAL_PAGE_PROT_ENTRIES_PER_ROW)
-                    .into_iter()
-                    .count(),
-            ),
-            (RiscvAirId::StateBump, record.bump_state_events.len()),
-            (RiscvAirId::LoadByte, record.memory_load_byte_events.len()),
-            (RiscvAirId::LoadHalf, record.memory_load_half_events.len()),
-            (RiscvAirId::LoadWord, record.memory_load_word_events.len()),
-            (RiscvAirId::LoadDouble, record.memory_load_double_events.len()),
-            (RiscvAirId::LoadX0, record.memory_load_x0_events.len()),
-            (RiscvAirId::StoreByte, record.memory_store_byte_events.len()),
-            (RiscvAirId::StoreHalf, record.memory_store_half_events.len()),
-            (RiscvAirId::StoreWord, record.memory_store_word_events.len()),
-            (RiscvAirId::StoreDouble, record.memory_store_double_events.len()),
-            (RiscvAirId::UType, record.utype_events.len()),
-            (RiscvAirId::Branch, record.branch_events.len()),
-            (RiscvAirId::Jal, record.jal_events.len()),
-            (RiscvAirId::Jalr, record.jalr_events.len()),
-            (RiscvAirId::Global, record.global_interaction_events.len()),
-            (RiscvAirId::SyscallCore, record.syscall_events.len()),
-            (RiscvAirId::SyscallInstrs, record.syscall_events.len()),
-            (RiscvAirId::InstructionDecode, record.instruction_fetch_events.len()),
-            (RiscvAirId::InstructionFetch, record.instruction_fetch_events.len()),
-        ]
     }
 }
 

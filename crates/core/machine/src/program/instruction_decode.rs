@@ -80,7 +80,7 @@ impl<F: PrimeField32> MachineAir<F> for InstructionDecodeChip {
     ) {
         let padded_nb_rows =
             <InstructionDecodeChip as MachineAir<F>>::num_rows(self, input).unwrap();
-        let num_event_rows = input.instruction_decode_events.len();
+        let num_event_rows = input.instruction_decode_events_len(None);
 
         unsafe {
             let padding_start = num_event_rows * NUM_INSTRUCTION_DECODE_COLS;
@@ -182,13 +182,13 @@ impl<F: PrimeField32> MachineAir<F> for InstructionDecodeChip {
         if let Some(shape) = shard.shape.as_ref() {
             shape.included::<F, _>(self)
         } else {
-            !shard.instruction_decode_events.is_empty()
+            shard.instruction_decode_events_len(None) > 0
         }
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
         let nb_rows = next_multiple_of_32(
-            input.instruction_decode_events.len(),
+            input.instruction_decode_events_len(None),
             input.fixed_log2_rows::<F, _>(self),
         );
         Some(nb_rows)

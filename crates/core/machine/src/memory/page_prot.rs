@@ -84,15 +84,15 @@ impl<F: PrimeField32> MachineAir<F> for PageProtChip {
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
         let mut count = 0;
         if input.public_values.is_untrusted_programs_enabled == 1 {
-            count = input.memory_load_byte_events.len()
-                + input.memory_store_byte_events.len()
-                + input.memory_load_word_events.len()
-                + input.memory_store_word_events.len()
-                + input.memory_load_double_events.len()
-                + input.memory_store_double_events.len()
-                + input.memory_load_half_events.len()
-                + input.memory_store_half_events.len()
-                + input.memory_load_x0_events.len()
+            count = input.memory_load_byte_events_len(None)
+                + input.memory_store_byte_events_len(None)
+                + input.memory_load_word_events_len(None)
+                + input.memory_store_word_events_len(None)
+                + input.memory_load_double_events_len(None)
+                + input.memory_store_double_events_len(None)
+                + input.memory_load_half_events_len(None)
+                + input.memory_store_half_events_len(None)
+                + input.memory_load_x0_events_len(None)
                 + input.instruction_fetch_events.len();
         }
 
@@ -110,58 +110,52 @@ impl<F: PrimeField32> MachineAir<F> for PageProtChip {
         let mut events = vec![];
 
         if input.public_values.is_untrusted_programs_enabled == 1 {
-            events = input
-                .memory_load_byte_events
-                .iter()
-                .map(|e| Self::generate_page_prot_event(&e.0, true, false, false))
-                .chain(
-                    input
-                        .memory_store_byte_events
-                        .iter()
-                        .map(|e| Self::generate_page_prot_event(&e.0, false, true, false)),
-                )
-                .chain(
-                    input
-                        .memory_load_word_events
-                        .iter()
-                        .map(|e| Self::generate_page_prot_event(&e.0, true, false, false)),
-                )
-                .chain(
-                    input
-                        .memory_store_word_events
-                        .iter()
-                        .map(|e| Self::generate_page_prot_event(&e.0, false, true, false)),
-                )
-                .chain(
-                    input
-                        .memory_load_double_events
-                        .iter()
-                        .map(|e| Self::generate_page_prot_event(&e.0, true, false, false)),
-                )
-                .chain(
-                    input
-                        .memory_store_double_events
-                        .iter()
-                        .map(|e| Self::generate_page_prot_event(&e.0, false, true, false)),
-                )
-                .chain(
-                    input
-                        .memory_load_half_events
-                        .iter()
-                        .map(|e| Self::generate_page_prot_event(&e.0, true, false, false)),
-                )
-                .chain(
-                    input
-                        .memory_store_half_events
-                        .iter()
-                        .map(|e| Self::generate_page_prot_event(&e.0, false, true, false)),
-                )
-                .chain(
-                    input
-                        .memory_load_x0_events
-                        .iter()
-                        .map(|e| Self::generate_page_prot_event(&e.0, true, false, false)),
-                )
+            // Helper to iterate software spans for a memory event type.
+            macro_rules! sw_iter {
+                ($field:ident, $fn_for:ident, $is_load:expr, $is_store:expr) => {{
+                    let spans = input.$fn_for(None);
+                    let spans: Vec<(usize, usize)> = spans.spans().to_vec();
+                    spans.into_iter().flat_map(move |(s, e)| {
+                        input.$field[s..e].iter().map(move |ev| {
+                            Self::generate_page_prot_event(&ev.0, $is_load, $is_store, false)
+                        })
+                    })
+                }};
+            }
+            events = sw_iter!(memory_load_byte_events, memory_load_byte_events_for, true, false)
+                .chain(sw_iter!(
+                    memory_store_byte_events,
+                    memory_store_byte_events_for,
+                    false,
+                    true
+                ))
+                .chain(sw_iter!(memory_load_word_events, memory_load_word_events_for, true, false))
+                .chain(sw_iter!(
+                    memory_store_word_events,
+                    memory_store_word_events_for,
+                    false,
+                    true
+                ))
+                .chain(sw_iter!(
+                    memory_load_double_events,
+                    memory_load_double_events_for,
+                    true,
+                    false
+                ))
+                .chain(sw_iter!(
+                    memory_store_double_events,
+                    memory_store_double_events_for,
+                    false,
+                    true
+                ))
+                .chain(sw_iter!(memory_load_half_events, memory_load_half_events_for, true, false))
+                .chain(sw_iter!(
+                    memory_store_half_events,
+                    memory_store_half_events_for,
+                    false,
+                    true
+                ))
+                .chain(sw_iter!(memory_load_x0_events, memory_load_x0_events_for, true, false))
                 .chain(input.instruction_fetch_events.iter().map(|e| {
                     let (mem_access, _) = e.1.untrusted_instruction.unwrap();
                     Self::generate_fetch_instruction_page_prot_event(
@@ -224,16 +218,16 @@ impl<F: PrimeField32> MachineAir<F> for PageProtChip {
         if let Some(shape) = shard.shape.as_ref() {
             shape.included::<F, _>(self)
         } else {
-            shard.memory_load_byte_events.len()
-                + shard.memory_store_byte_events.len()
-                + shard.memory_load_word_events.len()
-                + shard.memory_store_word_events.len()
-                + shard.memory_load_double_events.len()
-                + shard.memory_store_double_events.len()
-                + shard.memory_load_half_events.len()
-                + shard.memory_store_half_events.len()
-                + shard.memory_load_x0_events.len()
-                + shard.instruction_fetch_events.len()
+            shard.memory_load_byte_events_len(None)
+                + shard.memory_store_byte_events_len(None)
+                + shard.memory_load_word_events_len(None)
+                + shard.memory_store_word_events_len(None)
+                + shard.memory_load_double_events_len(None)
+                + shard.memory_store_double_events_len(None)
+                + shard.memory_load_half_events_len(None)
+                + shard.memory_store_half_events_len(None)
+                + shard.memory_load_x0_events_len(None)
+                + shard.instruction_fetch_events_len(None)
                 > 0
         }
     }

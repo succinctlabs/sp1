@@ -19,8 +19,8 @@ use crate::{
 };
 use hashbrown::HashMap;
 use itertools::Itertools;
-use rayon::iter::{ParallelBridge, ParallelIterator};
 use slop_algebra::{AbstractField, PrimeField32};
+use slop_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
 use sp1_core_executor::{
     events::{ByteLookupEvent, ByteRecord, MemInstrEvent, MemoryAccessPosition},
     ExecutionRecord, Opcode, Program, CLK_INC, PC_INC,
@@ -81,23 +81,28 @@ impl<F: PrimeField32> MachineAir<F> for LoadWordChip {
         "LoadWord"
     }
 
-    fn num_rows(&self, input: &Self::Record) -> Option<usize> {
+    fn num_rows_for(&self, input: &Self::Record, apc_id: Option<usize>) -> Option<usize> {
         let nb_rows = next_multiple_of_32(
-            input.memory_load_word_events.len(),
+            input.memory_load_word_events_len(apc_id),
             input.fixed_log2_rows::<F, _>(self),
         );
         Some(nb_rows)
     }
 
-    fn generate_trace_into(
+    fn generate_trace_into_for(
         &self,
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
         buffer: &mut [MaybeUninit<F>],
+        apc_id: Option<usize>,
     ) {
-        let chunk_size = std::cmp::max((input.memory_load_word_events.len()) / num_cpus::get(), 1);
-        let padded_nb_rows = <LoadWordChip as MachineAir<F>>::num_rows(self, input).unwrap();
-        let num_event_rows = input.memory_load_word_events.len();
+        let event_spans = input.memory_load_word_events_for(apc_id);
+        let memory_load_word_events: Vec<_> =
+            event_spans.iter_events(&input.memory_load_word_events).collect();
+        let chunk_size = std::cmp::max(memory_load_word_events.len() / num_cpus::get(), 1);
+        let padded_nb_rows =
+            <LoadWordChip as MachineAir<F>>::num_rows_for(self, input, apc_id).unwrap();
+        let num_event_rows = memory_load_word_events.len();
 
         unsafe {
             let padding_start = num_event_rows * NUM_LOAD_WORD_COLUMNS;
@@ -122,8 +127,8 @@ impl<F: PrimeField32> MachineAir<F> for LoadWordChip {
                     let idx = i * chunk_size + j;
                     let cols: &mut LoadWordColumns<F> = row.borrow_mut();
 
-                    if idx < input.memory_load_word_events.len() {
-                        let event = &input.memory_load_word_events[idx];
+                    if idx < memory_load_word_events.len() {
+                        let event = memory_load_word_events[idx];
                         self.event_to_row(&event.0, cols, &mut blu);
                         cols.state.populate(&mut blu, event.0.clk, event.0.pc);
                         cols.adapter.populate(&mut blu, event.1);
@@ -136,12 +141,13 @@ impl<F: PrimeField32> MachineAir<F> for LoadWordChip {
         output.add_byte_lookup_events_from_maps(blu_events.iter().collect_vec());
     }
 
-    fn included(&self, shard: &Self::Record) -> bool {
-        if let Some(shape) = shard.shape.as_ref() {
-            shape.included::<F, _>(self)
-        } else {
-            !shard.memory_load_word_events.is_empty()
+    fn included_for(&self, shard: &Self::Record, apc_id: Option<usize>) -> bool {
+        if apc_id.is_none() {
+            if let Some(shape) = shard.shape.as_ref() {
+                return shape.included::<F, _>(self);
+            }
         }
+        shard.memory_load_word_events_len(apc_id) > 0
     }
 
     fn column_names(&self) -> Vec<String> {

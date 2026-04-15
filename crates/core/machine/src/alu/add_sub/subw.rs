@@ -64,22 +64,26 @@ impl<F: PrimeField32> MachineAir<F> for SubwChip {
         SubwCols::<F>::struct_reflection().unwrap()
     }
 
-    fn num_rows(&self, input: &Self::Record) -> Option<usize> {
+    fn num_rows_for(&self, input: &Self::Record, apc_id: Option<usize>) -> Option<usize> {
         let nb_rows =
-            next_multiple_of_32(input.subw_events.len(), input.fixed_log2_rows::<F, _>(self));
+            next_multiple_of_32(input.subw_events_len(apc_id), input.fixed_log2_rows::<F, _>(self));
         Some(nb_rows)
     }
 
-    fn generate_trace_into(
+    fn generate_trace_into_for(
         &self,
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
         buffer: &mut [MaybeUninit<F>],
+        apc_id: Option<usize>,
     ) {
         // Generate the rows for the trace.
-        let chunk_size = std::cmp::max(input.subw_events.len() / num_cpus::get(), 1);
-        let padded_nb_rows = <SubwChip as MachineAir<F>>::num_rows(self, input).unwrap();
-        let num_event_rows = input.subw_events.len();
+        let event_spans = input.subw_events_for(apc_id);
+        let subw_events: Vec<_> = event_spans.iter_events(&input.subw_events).collect();
+        let chunk_size = std::cmp::max(subw_events.len() / num_cpus::get(), 1);
+        let padded_nb_rows =
+            <SubwChip as MachineAir<F>>::num_rows_for(self, input, apc_id).unwrap();
+        let num_event_rows = subw_events.len();
 
         unsafe {
             let padding_start = num_event_rows * NUM_SUBW_COLS;
@@ -99,9 +103,9 @@ impl<F: PrimeField32> MachineAir<F> for SubwChip {
                     let idx = i * chunk_size + j;
                     let cols: &mut SubwCols<F> = row.borrow_mut();
 
-                    if idx < input.subw_events.len() {
+                    if idx < subw_events.len() {
                         let mut byte_lookup_events = Vec::new();
-                        let event = input.subw_events[idx];
+                        let event = subw_events[idx];
                         self.event_to_row(&event.0, cols, &mut byte_lookup_events);
                         cols.state.populate(&mut byte_lookup_events, event.0.clk, event.0.pc);
                         cols.adapter.populate(&mut byte_lookup_events, event.1);
@@ -112,9 +116,11 @@ impl<F: PrimeField32> MachineAir<F> for SubwChip {
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
-        let chunk_size = std::cmp::max(input.subw_events.len() / num_cpus::get(), 1);
+        let event_spans = input.subw_events_for(None);
+        let subw_events: Vec<_> = event_spans.iter_events(&input.subw_events).collect();
+        let chunk_size = std::cmp::max(subw_events.len() / num_cpus::get(), 1);
 
-        let event_iter = input.subw_events.chunks(chunk_size);
+        let event_iter = subw_events.chunks(chunk_size);
 
         let blu_batches = event_iter
             .par_bridge()
@@ -134,12 +140,13 @@ impl<F: PrimeField32> MachineAir<F> for SubwChip {
         output.add_byte_lookup_events_from_maps(blu_batches.iter().collect_vec());
     }
 
-    fn included(&self, shard: &Self::Record) -> bool {
-        if let Some(shape) = shard.shape.as_ref() {
-            shape.included::<F, _>(self)
-        } else {
-            !shard.subw_events.is_empty()
+    fn included_for(&self, shard: &Self::Record, apc_id: Option<usize>) -> bool {
+        if apc_id.is_none() {
+            if let Some(shape) = shard.shape.as_ref() {
+                return shape.included::<F, _>(self);
+            }
         }
+        shard.subw_events_len(apc_id) > 0
     }
 }
 
