@@ -531,7 +531,7 @@ where
 }
 
 /// Threshold (totalLen / 2) below which we switch to the tail kernel.
-const TAIL_KERNEL_THRESHOLD: usize = 1 << 14;
+const TAIL_KERNEL_THRESHOLD: usize = 1 << 11;
 
 pub fn evaluate_zerocheck<'b, K: Field>(
     input: &'b ZeroCheckJaggedPoly<'b, K>,
