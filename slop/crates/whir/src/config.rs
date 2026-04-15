@@ -15,6 +15,37 @@ pub struct UncheckedWhirProofShape {
 }
 
 impl UncheckedWhirProofShape {
+    pub fn default_whir_config() -> Self {
+        let folding_factor = 4;
+        Self {
+            starting_ood_samples: 1,
+            starting_log_inv_rate: 1,
+            starting_interleaved_log_height: 12,
+            starting_folding_pow_bits: vec![10; folding_factor],
+            round_parameters: vec![
+                RoundConfig {
+                    folding_factor,
+                    evaluation_domain_log_size: 12,
+                    queries_pow_bits: 10,
+                    pow_bits: vec![10; folding_factor],
+                    num_queries: 90,
+                    ood_samples: 1,
+                },
+                RoundConfig {
+                    folding_factor,
+                    evaluation_domain_log_size: 11,
+                    queries_pow_bits: 10,
+                    pow_bits: vec![10; folding_factor],
+                    num_queries: 15,
+                    ood_samples: 1,
+                },
+            ],
+            final_queries: 10,
+            final_pow_bits: 10,
+            final_folding_pow_bits: vec![10; 8],
+        }
+    }
+
     pub fn big_beautiful_whir_config() -> Self {
         let folding_factor = 4;
         Self {
@@ -51,37 +82,6 @@ impl UncheckedWhirProofShape {
             final_queries: 9,
             final_folding_pow_bits: vec![0; 8],
             final_pow_bits: 16,
-        }
-    }
-
-    pub fn default_whir_config() -> Self {
-        let folding_factor = 4;
-        Self {
-            starting_ood_samples: 1,
-            starting_log_inv_rate: 1,
-            starting_interleaved_log_height: 12,
-            starting_folding_pow_bits: vec![10; folding_factor],
-            round_parameters: vec![
-                RoundConfig {
-                    folding_factor,
-                    evaluation_domain_log_size: 12,
-                    queries_pow_bits: 10,
-                    pow_bits: vec![10; folding_factor],
-                    num_queries: 90,
-                    ood_samples: 1,
-                },
-                RoundConfig {
-                    folding_factor,
-                    evaluation_domain_log_size: 11,
-                    queries_pow_bits: 10,
-                    pow_bits: vec![10; folding_factor],
-                    num_queries: 15,
-                    ood_samples: 1,
-                },
-            ],
-            final_queries: 10,
-            final_pow_bits: 10,
-            final_folding_pow_bits: vec![10; 8],
         }
     }
 }
@@ -210,7 +210,6 @@ impl<F: TwoAdicField, EF: ExtensionField<F>> WhirProofShape<F, EF> {
         &self,
         challenger: &mut C,
     ) {
-        assert!(self.check_usizes_bound_by_field_order());
         let &WhirProofShape {
             starting_ood_samples,
             starting_log_inv_rate,
@@ -220,11 +219,12 @@ impl<F: TwoAdicField, EF: ExtensionField<F>> WhirProofShape<F, EF> {
             final_queries,
             final_pow_bits,
             ref final_folding_pow_bits,
-            ..
+            _marker,
         } = self;
         challenger.observe(F::from_canonical_usize(starting_ood_samples));
         challenger.observe(F::from_canonical_usize(starting_log_inv_rate));
         challenger.observe(F::from_canonical_usize(starting_interleaved_log_height));
+        // It is ok to unwrap the error here because this function is only called Verifier initialization.
         challenger
             .observe_variable_length_slice(
                 &starting_folding_pow_bits
@@ -239,6 +239,7 @@ impl<F: TwoAdicField, EF: ExtensionField<F>> WhirProofShape<F, EF> {
         round_parameters.iter().for_each(|f| f.write_to_challenger(challenger));
         challenger.observe(F::from_canonical_usize(final_queries));
         challenger.observe(F::from_canonical_usize(final_pow_bits));
+        // It is ok to unwrap the error here because this function is only called Verifier initialization.
         challenger
             .observe_variable_length_slice(
                 &final_folding_pow_bits
@@ -325,6 +326,7 @@ impl RoundConfig {
         challenger.observe(F::from_canonical_usize(self.folding_factor));
         challenger.observe(F::from_canonical_usize(self.evaluation_domain_log_size));
         challenger.observe(F::from_canonical_usize(self.queries_pow_bits));
+        // It is ok to unwrap the result here because this function is only called at Verifier initialization.
         challenger
             .observe_variable_length_slice(
                 &self.pow_bits.iter().copied().map(F::from_canonical_usize).collect::<Vec<_>>(),

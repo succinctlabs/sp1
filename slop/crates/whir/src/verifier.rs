@@ -279,8 +279,8 @@ where
 
         // This is relative to the previous commitment (i.e. prev_commitment has a domain size of
         // this size)
-        let mut domain_size =
-            config.starting_interleaved_log_height() + config.starting_log_inv_rate();
+        let mut domain_size = config.starting_domain_log_size();
+
         let mut generator = config.domain_generator();
         let mut prev_commitment = commitment;
 
@@ -363,7 +363,7 @@ where
                 };
 
                 let expected_log_height = if round_index == 0 {
-                    config.starting_interleaved_log_height() + config.starting_log_inv_rate()
+                    config.starting_domain_log_size()
                 } else {
                     config.round_parameters()[round_index - 1].evaluation_domain_log_size
                 };
