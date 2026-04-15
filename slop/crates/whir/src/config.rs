@@ -134,6 +134,7 @@ impl<F: TwoAdicField + PrimeField64, EF: ExtensionField<F>> WhirProofShape<F, EF
 
         assert!(config.starting_folding_pow_bits.iter().all(|&bits| 1 << bits < F::ORDER_U64));
         assert!(config.final_folding_pow_bits.iter().all(|&bits| 1 << bits < F::ORDER_U64));
+        assert!(1 << config.final_pow_bits < F::ORDER_U64);
 
         for round_param in &config.round_parameters {
             assert!(round_param.folding_factor < usize::BITS as usize);
