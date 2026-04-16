@@ -95,4 +95,5 @@
         "utility": "cpp",
         "cmath": "cpp"
     },
+    "cmake.sourceDirectory": "/home/tamir/sp1/sp1-gpu/crates/sys",
 }
