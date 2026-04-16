@@ -763,7 +763,7 @@ dependencies = [
 name = "guest-verify-programs"
 version = "0.1.0"
 dependencies = [
- "sp1-verifier",
+ "sp1-verifier-legacy",
  "sp1-zkvm",
 ]
 
@@ -2141,7 +2141,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sp1-verifier"
+name = "sp1-verifier-legacy"
 version = "6.0.2"
 dependencies = [
  "bincode",

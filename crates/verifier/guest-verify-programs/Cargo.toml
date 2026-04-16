@@ -24,7 +24,7 @@ required-features = ["blake3"]
 
 [dependencies]
 sp1-zkvm = { path = "../../zkvm/entrypoint" }
-sp1-verifier = { path = "../", default-features = false }
+sp1-verifier = { path = "../", default-features = false, package = "sp1-verifier-legacy" }
 
 [features]
 blake3 = ["sp1-zkvm/blake3"]
