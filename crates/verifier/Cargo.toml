@@ -1,6 +1,6 @@
 [package]
-name = "sp1-verifier"
-description = "Verifier for SP1 Groth16 and Plonk proofs."
+name = "sp1-verifier-legacy"
+description = "A legacy version of the Verifier for SP1 Groth16 and Plonk proofs"
 readme = "README.md"
 version = { workspace = true }
 edition = { workspace = true }

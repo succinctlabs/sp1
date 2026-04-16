@@ -1,4 +1,12 @@
-# SP1 Verifier
+# [DEPRECATED] SP1 Verifier
+
+This crate is an archive version of SP1 verifier corresponding to 6.0.2. This is only to be used 
+for needs of backward compatibility. For the latest safe version of SP1 verifier, 
+please refer to the `sp1-verifier` crate.
+
+
+# original README.md
+
 
 This crate contains primitives for verifying SP1 proofs generated using the [SP1 SDK](../sdk).
 
