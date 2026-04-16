@@ -152,6 +152,20 @@ pub trait ArtifactClient: Send + Sync + Clone + 'static {
         artifact_type: ArtifactType,
     ) -> impl Future<Output = Result<()>> + Send;
 
+    /// Block until the store has room for an upload of this artifact.
+    ///
+    /// Default is a no-op; memory-bounded stores (Redis) override to re-introduce
+    /// the producer/consumer backpressure lost across a distributed split. The
+    /// return type is deliberately `()` — this call is advisory and must never
+    /// fail a proof. Implementations that can't determine store state should
+    /// return silently and let the upload proceed.
+    fn wait_for_upload_headroom(
+        &self,
+        _artifact: &impl ArtifactId,
+    ) -> impl Future<Output = ()> + Send {
+        async {}
+    }
+
     fn try_delete(
         &self,
         artifact: &impl ArtifactId,
