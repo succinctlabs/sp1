@@ -7427,7 +7427,7 @@ dependencies = [
  "sp1-recursion-executor",
  "sp1-recursion-gnark-ffi",
  "sp1-recursion-machine",
- "sp1-verifier",
+ "sp1-verifier-legacy",
  "static_assertions",
  "sysinfo 0.30.13",
  "tempfile",
@@ -7572,7 +7572,7 @@ dependencies = [
  "sp1-hypercube",
  "sp1-primitives",
  "sp1-recursion-compiler",
- "sp1-verifier",
+ "sp1-verifier-legacy",
  "tempfile",
  "tracing",
 ]
@@ -7651,7 +7651,7 @@ dependencies = [
  "sp1-prover-types",
  "sp1-recursion-executor",
  "sp1-recursion-gnark-ffi",
- "sp1-verifier",
+ "sp1-verifier-legacy",
  "strum",
  "tempfile",
  "test-artifacts",
@@ -7665,7 +7665,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sp1-verifier"
+name = "sp1-verifier-legacy"
 version = "6.0.2"
 dependencies = [
  "ark-bn254",
