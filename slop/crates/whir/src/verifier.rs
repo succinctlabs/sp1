@@ -1,7 +1,10 @@
 use std::iter::once;
 
+use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
-use slop_algebra::{AbstractExtensionField, AbstractField, TwoAdicField, UnivariatePolynomial};
+use slop_algebra::{
+    AbstractExtensionField, AbstractField, Field, TwoAdicField, UnivariatePolynomial,
+};
 use slop_challenger::{
     CanObserve, CanSampleBits, FieldChallenger, GrindingChallenger, IopCtx,
     VariableLengthChallenger,
@@ -104,6 +107,8 @@ pub enum WhirProofError {
     IncorrectShape,
     #[error("number of variables does not exceed starting_interleaved_log_height")]
     StartingInterleavedLogHeightExceedsNumVariables,
+    #[error("the total area overflows usize")]
+    AreaOverflow,
 }
 
 impl From<(SumcheckError, usize)> for WhirProofError {
@@ -148,24 +153,11 @@ where
         challenger: &mut GC::Challenger,
     ) -> Self {
         assert_ne!(num_expected_commitments, 0, "commitment must exist");
-        assert!(num_expected_commitments <= 1 << 12, "too many commitments");
+        assert!(GC::F::order() >= BigUint::from((1 << 12) as u64), "field order too small");
+        assert!(num_expected_commitments < 1 << 12, "too many commitments");
         challenger.observe(GC::F::from_canonical_usize(num_expected_commitments));
         config.write_to_challenger::<GC::Digest, GC::Challenger>(challenger);
         Self { merkle_verifier, config, num_expected_commitments }
-    }
-
-    pub fn observe_commitment(
-        &self,
-        commitment: &[GC::Digest],
-        challenger: &mut GC::Challenger,
-        expected_length: usize,
-    ) -> Result<(), WhirProofError> {
-        if commitment.len() != expected_length {
-            Err(WhirProofError::InvalidNumberOfCommitments(expected_length, commitment.len()))
-        } else {
-            challenger.observe_constant_length_digest_slice(commitment);
-            Ok(())
-        }
     }
 
     /// The claim is that < f, v > = claim.
@@ -181,7 +173,13 @@ where
         let config = &self.config;
         let n_rounds = config.round_parameters().len();
 
+        let mut total_area: usize = 0;
+        for area in round_areas {
+            total_area = total_area.checked_add(*area).ok_or(WhirProofError::AreaOverflow)?;
+        }
+
         let num_variables = log2_ceil_usize(round_areas.iter().sum::<usize>());
+        challenger.observe(GC::F::from_canonical_usize(num_variables));
 
         if num_variables < config.starting_interleaved_log_height() {
             return Err(WhirProofError::StartingInterleavedLogHeightExceedsNumVariables);
@@ -363,11 +361,7 @@ where
                     (1 << config.round_parameters()[round_index - 1].folding_factor) * GC::EF::D
                 };
 
-                let expected_log_height = if round_index == 0 {
-                    config.starting_domain_log_size()
-                } else {
-                    config.round_parameters()[round_index - 1].evaluation_domain_log_size
-                };
+                let expected_log_height = domain_size;
                 self.merkle_verifier
                     .verify_tensor_openings(
                         merkle_commitment,
@@ -455,11 +449,11 @@ where
                 .concat(),
             );
 
-            domain_size = round_params.evaluation_domain_log_size;
             prev_commitment = new_commitment;
             prev_folding_factor = round_params.folding_factor;
             generator = generator.square();
             num_variables -= round_params.folding_factor;
+            domain_size -= 1;
         }
 
         // Now, we want to verify the final evaluations
@@ -494,7 +488,7 @@ where
                 &final_id_indices,
                 &proof.final_merkle_opening_and_proof.values,
                 (1 << config.round_parameters()[n_rounds - 1].folding_factor) * GC::EF::D,
-                config.round_parameters()[n_rounds - 1].evaluation_domain_log_size,
+                domain_size,
                 &proof.final_merkle_opening_and_proof.proof,
             )
             .map_err(|_| WhirProofError::InvalidMerkleAuthentication)?;

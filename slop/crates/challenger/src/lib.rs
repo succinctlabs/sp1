@@ -66,7 +66,7 @@ pub trait VariableLengthChallenger<F: Field, Digest: Copy>:
         if data_len_big_uint >= F::order() {
             return Err(USizeOutOfFieldBounds);
         }
-        self.observe(F::from_canonical_u32(data.len() as u32));
+        self.observe(F::from_canonical_usize(data.len()));
         self.observe_slice(data);
         Ok(())
     }
@@ -79,7 +79,7 @@ pub trait VariableLengthChallenger<F: Field, Digest: Copy>:
         if data_len_big_uint >= F::order() {
             return Err(USizeOutOfFieldBounds);
         }
-        self.observe(F::from_canonical_u32(data.len() as u32));
+        self.observe(F::from_canonical_usize(data.len()));
         for &item in data {
             self.observe_ext_element(item);
         }
@@ -105,7 +105,7 @@ pub trait VariableLengthChallenger<F: Field, Digest: Copy>:
         if data_len_big_uint >= F::order() {
             return Err(USizeOutOfFieldBounds);
         }
-        self.observe(F::from_canonical_u32(data.len() as u32));
+        self.observe(F::from_canonical_usize(data.len()));
         self.observe_slice(data);
         Ok(())
     }

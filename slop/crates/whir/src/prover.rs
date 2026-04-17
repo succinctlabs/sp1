@@ -269,6 +269,9 @@ where
         config: &WhirProofShape<GC::F, GC::EF>,
     ) -> WhirProof<GC> {
         let n_rounds = config.round_parameters().len();
+        let num_variables = query_vector.num_variables() as usize;
+
+        challenger.observe(GC::F::from_canonical_usize(num_variables));
 
         let witness_data = self.parse_commitment_data(challenger, config, witness_data);
 
@@ -281,8 +284,6 @@ where
         let mut parsed_commitments = Vec::with_capacity(n_rounds);
 
         parsed_commitments.push(witness_data.parsed_commitment.clone());
-
-        let num_variables = query_vector.num_variables() as usize;
 
         let mut sumcheck_prover = SumcheckProver::<GC, GC::F>::new(
             witness_data.polynomial.clone(),
@@ -330,10 +331,10 @@ where
 
             // We encode via a log inverse rate such that there are `1 << round_params.folding_factor`
             // messages each of height `1<<(num_remaining_variables - round_params.folding_factor)`
-            // and the codewords have height `1 << round_params.evaluation_domain_log_size`.
-            // Hence the log inverse rate is `round_params.evaluation_domain_log_size - (num_remaining_variables - round_params.folding_factor)`.
-            let log_inv_rate = round_params.evaluation_domain_log_size
-                - (num_remaining_variables - round_params.folding_factor);
+            // and the codewords have height `prev_domain_log_size -1`.
+            // Hence the log inverse rate is `prev_domain_log_size - 1 - (num_remaining_variables - round_params.folding_factor)`.
+            let log_inv_rate =
+                prev_domain_log_size - 1 - (num_remaining_variables - round_params.folding_factor);
             // Update the number of remaining variables.
             num_remaining_variables -= round_params.folding_factor;
 
@@ -403,8 +404,6 @@ where
                 .collect();
 
             let num_openings: usize = merkle_openings.iter().map(|o| o.sizes()[1]).sum();
-
-            // assert!(num_openings <= 1 << prev_folding_factor);
 
             let merkle_proof: Vec<_> = prev_prover_data
                 .into_iter()
@@ -479,7 +478,7 @@ where
             // Update
             generator = generator.square();
             prev_folding_factor = round_params.folding_factor;
-            prev_domain_log_size = round_params.evaluation_domain_log_size;
+            prev_domain_log_size -= 1;
             (prev_prover_data, prev_committed_data) = (
                 vec![prover_data].into_iter().collect(),
                 vec![Arc::new(encoding_base)].into_iter().collect(),
@@ -830,7 +829,7 @@ mod tests {
 
     use rand::{distributions::Standard, prelude::Distribution, thread_rng, Rng, SeedableRng};
     use slop_algebra::{extension::BinomialExtensionField, TwoAdicField, UnivariatePolynomial};
-    use slop_baby_bear::BabyBear;
+    use slop_baby_bear::{baby_bear_poseidon2::BabyBearDegree4Duplex, BabyBear};
     use slop_commit::Rounds;
     use slop_dft::p3::Radix2DitParallel;
     use slop_jagged::{JaggedEvalSumcheckProver, JaggedPcsVerifier, JaggedProver};
@@ -1226,9 +1225,9 @@ mod tests {
             rounds.iter().count(),
             &mut challenger_verifier,
         );
-        verifier
-            .observe_commitment(&commitments, &mut challenger_verifier, rounds.iter().count())
-            .unwrap();
+
+        challenger_verifier.observe_constant_length_digest_slice(&commitments);
+
         verifier
             .verify_trusted_evaluation(
                 &commitments,
@@ -1296,7 +1295,7 @@ mod tests {
 
     #[test]
     fn whir_test_multi_round_koala_bear() {
-        let config = UncheckedWhirProofShape::default_whir_config();
+        let config = UncheckedWhirProofShape::<KoalaBear>::default_whir_config();
         let config = WhirProofShape::<KoalaBear, BinomialExtensionField<KoalaBear, 4>>::new(config);
         let merkle_prover: Poseidon2KoalaBear16Prover = FieldMerkleTreeProver::default();
 
@@ -1305,7 +1304,7 @@ mod tests {
 
     #[test]
     fn whir_test_e2e_koala_bear() {
-        let config = UncheckedWhirProofShape::default_whir_config();
+        let config = UncheckedWhirProofShape::<KoalaBear>::default_whir_config();
         let config = WhirProofShape::<KoalaBear, BinomialExtensionField<KoalaBear, 4>>::new(config);
         let merkle_prover: Poseidon2KoalaBear16Prover = FieldMerkleTreeProver::default();
         whir_test_single_round::<_, _>(config, 16, merkle_prover);
@@ -1314,7 +1313,7 @@ mod tests {
     #[test]
     #[ignore = "test used for benchmarking"]
     fn whir_test_realistic_koala_bear() {
-        let config = UncheckedWhirProofShape::default_whir_config();
+        let config = UncheckedWhirProofShape::<KoalaBear>::big_beautiful_whir_config();
         let config = WhirProofShape::<KoalaBear, BinomialExtensionField<KoalaBear, 4>>::new(config);
         let merkle_prover: Poseidon2KoalaBear16Prover = FieldMerkleTreeProver::default();
         whir_test_single_round::<_, _>(config, 28, merkle_prover);
@@ -1322,16 +1321,16 @@ mod tests {
 
     #[test]
     fn whir_test_e2e_baby_bear() {
-        let config = UncheckedWhirProofShape::default_whir_config();
+        let config = UncheckedWhirProofShape::<BabyBear>::default_whir_config();
         let config = WhirProofShape::<BabyBear, BinomialExtensionField<BabyBear, 4>>::new(config);
         let merkle_prover: Poseidon2BabyBear16Prover = FieldMerkleTreeProver::default();
-        whir_test_single_round::<_, _>(config, 16, merkle_prover);
+        whir_test_single_round::<BabyBearDegree4Duplex, _>(config, 16, merkle_prover);
     }
 
     #[test]
     #[ignore = "test used for benchmarking"]
     fn whir_test_realistic_baby_bear() {
-        let config = UncheckedWhirProofShape::default_whir_config();
+        let config = UncheckedWhirProofShape::<BabyBear>::big_beautiful_whir_config();
         let config = WhirProofShape::<BabyBear, BinomialExtensionField<BabyBear, 4>>::new(config);
         let merkle_prover: Poseidon2BabyBear16Prover = FieldMerkleTreeProver::default();
         whir_test_single_round::<_, _>(config, 28, merkle_prover);
@@ -1339,7 +1338,7 @@ mod tests {
 
     #[test]
     fn jagged_whir_test_baby_bear() {
-        let config = UncheckedWhirProofShape::default_whir_config();
+        let config = UncheckedWhirProofShape::<BabyBear>::default_whir_config();
         let config = WhirProofShape::<BabyBear, BinomialExtensionField<BabyBear, 4>>::new(config);
         let merkle_prover: Poseidon2BabyBear16Prover = FieldMerkleTreeProver::default();
 

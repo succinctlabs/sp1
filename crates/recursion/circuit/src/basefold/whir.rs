@@ -34,26 +34,22 @@ pub fn write_round_config_to_challenger<
     C: CircuitConfig,
     SC: SP1FieldConfigVariable<C, F = SP1Field>,
 >(
-    round_param: &RoundConfig,
+    round_param: &RoundConfig<SP1Field>,
     challenger: &mut SC::FriChallengerVariable,
     builder: &mut Builder<C>,
 ) {
     let &RoundConfig {
         folding_factor,
-        evaluation_domain_log_size,
         queries_pow_bits,
         ref pow_bits,
         num_queries,
         ood_samples,
+        ..
     } = round_param;
 
     let folding_factor_felt: Felt<_> =
         builder.constant(<SC as IopCtx>::F::from_canonical_usize(folding_factor));
     challenger.observe(builder, folding_factor_felt);
-
-    let evaluation_domain_log_size_felt: Felt<_> =
-        builder.constant(<SC as IopCtx>::F::from_canonical_usize(evaluation_domain_log_size));
-    challenger.observe(builder, evaluation_domain_log_size_felt);
 
     let queries_pow_bits_felt: Felt<_> =
         builder.constant(<SC as IopCtx>::F::from_canonical_usize(queries_pow_bits));
@@ -442,7 +438,7 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> RecursiveWhirVerifier<C, S
                 .concat(),
             );
 
-            domain_size = round_params.evaluation_domain_log_size;
+            domain_size -= 1;
             prev_commitment = new_commitment;
             prev_folding_factor = round_params.folding_factor;
             generator = builder.eval(IntoSymbolic::<C>::as_symbolic(&generator).square());
@@ -735,7 +731,7 @@ where
 mod tests {
     use rand::{Rng, SeedableRng};
     use slop_basefold::FriConfig;
-    use slop_challenger::{CanObserve, IopCtx};
+    use slop_challenger::{CanObserve, IopCtx, VariableLengthChallenger};
     use slop_dft::p3::Radix2DitParallel;
     use slop_merkle_tree::{FieldMerkleTreeProver, MerkleTreeTcs, Poseidon2KoalaBear16Prover};
     use slop_tensor::Tensor;
@@ -814,8 +810,8 @@ mod tests {
         let eval_claim: EF = polynomial_concat.eval_at(&eval_point)[0];
 
         // Observe all commitments into both challengers.
-        verifier.observe_commitment(&commitments, &mut challenger_prover, 2).unwrap();
-        verifier.observe_commitment(&commitments, &mut challenger_verifier, 2).unwrap();
+        challenger_prover.observe_constant_length_digest_slice(&commitments);
+        challenger_verifier.observe_constant_length_digest_slice(&commitments);
 
         // Prove using prove_trusted_evaluation.
         let prover_datas = vec![prover_data_1, prover_data_2].into_iter().collect();
