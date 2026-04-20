@@ -104,21 +104,29 @@ impl<
             })
             .collect_vec();
 
-        // Generate all of the z_col partial lagrange mle.
-        let z_col_partial_lagrange = Mle::blocking_partial_lagrange(&z_col);
+        // let z_col_device = backend.copy_to(&z_col).unwrap();
 
-        // Condense the merged_prefix_sums and z_col_eq_vals for empty tables.
-        let (merged_prefix_sums, z_col_eq_vals): (Vec<Point<F>>, Vec<EF>) = merged_prefix_sums
-            .iter()
-            .zip(z_col_partial_lagrange.guts().as_slice())
-            .chunk_by(|(merged_prefix_sum, _)| *merged_prefix_sum)
+        // Generate all of the z_col partial lagrange mle.
+        let z_col_eq_vals = Mle::blocking_partial_lagrange(&z_col)
+            .into_guts()
+            .into_buffer()
             .into_iter()
-            .map(|(merged_prefix_sum, group)| {
-                let group_elements =
-                    group.into_iter().map(|(_, z_col_eq_val)| *z_col_eq_val).collect_vec();
-                (merged_prefix_sum.clone(), group_elements.into_iter().sum::<EF>())
-            })
-            .unzip();
+            .copied()
+            .take(merged_prefix_sums.len())
+            .collect::<Vec<EF>>();
+
+        // // Condense the merged_prefix_sums and z_col_eq_vals for empty tables.
+        // let (merged_prefix_sums, z_col_eq_vals): (Vec<Point<F>>, Vec<EF>) = merged_prefix_sums
+        //     .iter()
+        //     .zip(z_col_partial_lagrange.guts().as_slice())
+        //     .chunk_by(|(merged_prefix_sum, _)| *merged_prefix_sum)
+        //     .into_iter()
+        //     .map(|(merged_prefix_sum, group)| {
+        //         let group_elements =
+        //             group.into_iter().map(|(_, z_col_eq_val)| *z_col_eq_val).collect_vec();
+        //         (merged_prefix_sum.clone(), group_elements.into_iter().sum::<EF>())
+        //     })
+        //     .unzip();
 
         let merged_prefix_sums_len = merged_prefix_sums.len();
         let num_variables = merged_prefix_sums[0].dimension();
