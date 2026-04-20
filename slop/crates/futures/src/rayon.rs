@@ -9,8 +9,26 @@ use crate::handle::TaskHandle;
 
 static GLOBAL_POOL: OnceLock<()> = OnceLock::new();
 
-fn init_global_pool() {
-    rayon::ThreadPoolBuilder::new().panic_handler(panic_handler).build_global().ok();
+/// Initialize the rayon global thread pool.
+///
+/// Defaults to physical core count when `RAYON_NUM_THREADS` is not set,
+/// because SMT siblings cause excessive crossbeam work-stealing contention
+/// that outweighs the parallelism benefit.
+///
+/// Must be called before any rayon work (par_iter, spawn, etc.) to take effect.
+/// Safe to call multiple times — only the first call configures the pool.
+pub fn init_global_pool() {
+    GLOBAL_POOL.get_or_init(|| {
+        let mut builder = rayon::ThreadPoolBuilder::new().panic_handler(panic_handler);
+
+        if std::env::var("RAYON_NUM_THREADS").is_err() {
+            let physical = num_cpus::get_physical();
+            tracing::info!("rayon pool: using {physical} threads (physical cores)");
+            builder = builder.num_threads(physical);
+        }
+
+        builder.build_global().ok();
+    });
 }
 
 fn panic_handler(panic_payload: Box<dyn Any + Send>) {
@@ -40,7 +58,7 @@ where
     F: FnOnce() -> R + Send + 'static,
     R: Send + 'static,
 {
-    GLOBAL_POOL.get_or_init(init_global_pool);
+    init_global_pool();
     let (tx, rx) = oneshot::channel();
     let (abort_handle, _) = AbortHandle::new_pair();
     rayon::spawn(move || {
@@ -56,7 +74,7 @@ where
     F: FnOnce(AbortHandle) -> R + Send + 'static,
     R: Send + 'static,
 {
-    GLOBAL_POOL.get_or_init(init_global_pool);
+    init_global_pool();
     let (tx, rx) = oneshot::channel();
     let (abort_handle, abort_registration) = AbortHandle::new_pair();
     rayon::spawn(move || {
