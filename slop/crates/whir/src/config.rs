@@ -142,7 +142,7 @@ impl<F: TwoAdicField + PrimeField64, EF: ExtensionField<F>> WhirProofShape<F, EF
             _marker: std::marker::PhantomData,
         };
 
-        // The check before calling the constructor guarantees no overflow here.
+        // The check before calling the constructor guarantees no underflow in the subtraction in the function call.
         assert!(result.final_poly_log_degree() < usize::BITS as usize);
 
         assert!(result.check_usizes_bound_by_field_order());

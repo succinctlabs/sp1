@@ -192,7 +192,7 @@ where
             total_area = total_area.checked_add(*area).ok_or(WhirProofError::AreaOverflow)?;
         }
 
-        let num_variables = log2_ceil_usize(round_areas.iter().sum::<usize>());
+        let num_variables = log2_ceil_usize(total_area);
         challenger.observe(GC::F::from_canonical_usize(num_variables));
 
         if num_variables < config.starting_interleaved_log_height() {
