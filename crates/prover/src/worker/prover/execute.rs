@@ -207,7 +207,9 @@ pub async fn execute_with_options(
                     let total_instructions = report.total_instruction_count();
                     if total_instructions >= max_cycles {
                         tracing::debug!("Cycle limit reached, stopping execution");
-                        return Err(anyhow::anyhow!("cycle limit reached"));
+                        return Err(anyhow::Error::new(ExecutionError::ExceededCycleLimit(
+                            max_cycles,
+                        )));
                     }
                 }
 
@@ -227,10 +229,7 @@ pub async fn execute_with_options(
     // Spawn a blocking task to run the minimal executor.
     let final_vm_state_clone = final_vm_state.clone();
     join_set.spawn_blocking(move || {
-        while let Some(chunk) = minimal_executor
-            .try_execute_chunk()
-            .map_err(|e| anyhow::anyhow!("Execute chunk failed: {e}"))?
-        {
+        while let Some(chunk) = minimal_executor.try_execute_chunk()? {
             let handle = gas_engine
                 .blocking_submit(GasExecutingTask {
                     chunk,

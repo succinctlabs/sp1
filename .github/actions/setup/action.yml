@@ -189,6 +189,7 @@ runs:
       uses: arduino/setup-protoc@v3
       with:
         version: "29.4"
+        repo-token: ${{ github.token }} # avoid gh api rate limiting
 
     - name: Echo docker buildx version
       shell: bash

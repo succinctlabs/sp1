@@ -15,7 +15,7 @@ use reqwest::Client;
 use std::os::unix::fs::PermissionsExt;
 
 use crate::{
-    get_target, get_toolchain_download_url, is_supported_target, send_with_retry, url_exists,
+    get_target, get_toolchain_asset_url, is_supported_target, send_with_retry,
     RUSTUP_TOOLCHAIN_NAME,
 };
 
@@ -102,19 +102,14 @@ impl InstallToolchainCmd {
         let toolchain_archive_path = root_dir.join(toolchain_asset_name.clone());
         let toolchain_dir = root_dir.join(&target);
 
-        let toolchain_download_url =
-            get_toolchain_download_url(&client, target.to_string()).await?;
+        let toolchain_asset_url = get_toolchain_asset_url(&client, target.to_string()).await?;
 
-        let artifact_exists = url_exists(&client, toolchain_download_url.as_str()).await;
-        if !artifact_exists {
-            return Err(anyhow::anyhow!(
-                "Unsupported architecture. Please build the toolchain from source."
-            ));
-        }
-
-        // Download the toolchain.
+        // Download the toolchain via the GitHub API. Using the API asset URL with
+        // Accept: application/octet-stream works correctly with authentication,
+        // unlike browser download URLs which redirect to a CDN that rejects the
+        // Authorization header.
         let mut file = tokio::fs::File::create(toolchain_archive_path).await.unwrap();
-        download_file(&client, toolchain_download_url.as_str(), &mut file)
+        download_file(&client, toolchain_asset_url.as_str(), &mut file)
             .await
             .map_err(|e| anyhow::anyhow!(e))?;
 
@@ -188,7 +183,9 @@ pub async fn download_file(
     use futures::StreamExt;
     use tokio::io::AsyncWriteExt;
 
-    let res = send_with_retry(client, reqwest::Method::GET, url, "Download")
+    let mut headers = reqwest::header::HeaderMap::new();
+    headers.insert(reqwest::header::ACCEPT, "application/octet-stream".parse().unwrap());
+    let res = send_with_retry(client, reqwest::Method::GET, url, Some(headers), "Download")
         .await
         .map_err(|e| e.to_string())?;
 

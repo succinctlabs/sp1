@@ -126,6 +126,7 @@ jobs:
         uses: arduino/setup-protoc@v3
         with:
           version: "29.4"
+          repo-token: ${{ secrets.GITHUB_TOKEN }} # avoid gh api rate limiting
 
       - name: Set up git private repo access
         run: |
@@ -272,6 +273,7 @@ jobs:
         uses: arduino/setup-protoc@v3
         with:
           version: "29.4"
+          repo-token: ${{ secrets.GITHUB_TOKEN }} # avoid gh api rate limiting
 
       - name: print nvcc version
         run: |

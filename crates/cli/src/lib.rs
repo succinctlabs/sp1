@@ -25,6 +25,7 @@ pub(crate) async fn send_with_retry(
     client: &Client,
     method: reqwest::Method,
     url: &str,
+    headers: Option<reqwest::header::HeaderMap>,
     operation: &str,
 ) -> Result<reqwest::Response> {
     let mut last_err = None;
@@ -39,7 +40,11 @@ pub(crate) async fn send_with_retry(
             );
             sleep(backoff).await;
         }
-        match client.request(method.clone(), url).send().await {
+        let mut request = client.request(method.clone(), url);
+        if let Some(ref headers) = headers {
+            request = request.headers(headers.clone());
+        }
+        match request.send().await {
             Ok(res) if res.status().is_success() => return Ok(res),
             Ok(res) => {
                 let status = res.status();
@@ -56,13 +61,6 @@ pub(crate) async fn send_with_retry(
         MAX_RETRIES + 1,
         last_err.unwrap_or_default()
     )
-}
-
-pub async fn url_exists(client: &Client, url: &str) -> bool {
-    match client.head(url).send().await {
-        Ok(res) => res.status().is_success(),
-        Err(_) => false,
-    }
 }
 
 #[allow(unreachable_code)]
@@ -93,11 +91,16 @@ pub fn get_target() -> String {
     target.to_string()
 }
 
-pub async fn get_toolchain_download_url(client: &Client, target: String) -> Result<String> {
+/// Find the toolchain asset for the given target in the GitHub releases API and return
+/// its API download URL. Using the API URL (with `Accept: application/octet-stream`)
+/// instead of the browser download URL ensures authentication works correctly, including
+/// for draft releases.
+pub async fn get_toolchain_asset_url(client: &Client, target: String) -> Result<String> {
     let response = send_with_retry(
         client,
         reqwest::Method::GET,
         "https://api.github.com/repos/succinctlabs/rust/releases",
+        None,
         "Fetching GitHub releases",
     )
     .await?;
@@ -107,7 +110,7 @@ pub async fn get_toolchain_download_url(client: &Client, target: String) -> Resu
 
     let releases = all_releases.as_array().context("GitHub API response was not a JSON array")?;
 
-    releases
+    let release = releases
         .iter()
         .find(|release| {
             release["tag_name"].as_str() == Some(LATEST_SUPPORTED_TOOLCHAIN_VERSION_TAG)
@@ -116,7 +119,14 @@ pub async fn get_toolchain_download_url(client: &Client, target: String) -> Resu
             format!("No release found for tag: {LATEST_SUPPORTED_TOOLCHAIN_VERSION_TAG}")
         })?;
 
-    Ok(format!(
-        "https://github.com/succinctlabs/rust/releases/download/{LATEST_SUPPORTED_TOOLCHAIN_VERSION_TAG}/rust-toolchain-{target}.tar.gz"
-    ))
+    let expected_name = format!("rust-toolchain-{target}.tar.gz");
+    let assets = release["assets"].as_array().context("Release has no assets array")?;
+    let asset = assets
+        .iter()
+        .find(|a| a["name"].as_str() == Some(&expected_name))
+        .with_context(|| {
+            format!("No asset '{expected_name}' found in release {LATEST_SUPPORTED_TOOLCHAIN_VERSION_TAG}")
+        })?;
+
+    asset["url"].as_str().map(String::from).context("Asset has no API URL")
 }

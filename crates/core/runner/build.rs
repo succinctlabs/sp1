@@ -6,14 +6,13 @@
 use cargo_metadata::MetadataCommand;
 use sha2::{Digest, Sha256};
 use std::env;
-use std::path::PathBuf;
 use std::process::Command;
 
 // --- CONFIGURATION ---
 // The name of the environment variable used to override the binary.
 const OVERRIDE_ENV_VAR: &str = "SP1_CORE_RUNNER_OVERRIDE_BINARY";
-// The directory name where the inner binary crate lives (relative to this crate).
-const INNER_CRATE_DIR: &str = "binary";
+// The package name of the inner binary crate (resolved via cargo metadata).
+const INNER_CRATE_NAME: &str = "sp1-core-executor-runner-binary";
 
 fn main() {
     // This is a quick-and-dirty fix so when sp1-core-executor or sp1-jit
@@ -55,43 +54,36 @@ fn main() {
     // =========================================================
     // PATH 2: BUILD MODE (Standard)
     // =========================================================
-    let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
-    let inner_crate_path = manifest_dir.join(INNER_CRATE_DIR);
-    let inner_manifest_path = inner_crate_path.join("Cargo.toml");
+    // Resolve the binary crate's manifest path via cargo metadata. This works both
+    // in a workspace (path points to the workspace member) and when installed from
+    // crates.io (path points to the registry cache).
+    let metadata = MetadataCommand::new().exec().expect("Failed to run cargo metadata");
 
-    // Sanity Check
-    if !inner_manifest_path.exists() {
-        panic!(
-            "Could not find internal binary manifest at {}. \
-            Ensure the '{}' directory exists and is included in Cargo.toml.",
-            inner_manifest_path.display(),
-            INNER_CRATE_DIR
-        );
-    }
+    let package = metadata
+        .packages
+        .iter()
+        .find(|p| p.name == INNER_CRATE_NAME)
+        .unwrap_or_else(|| panic!("Could not find {INNER_CRATE_NAME} in cargo metadata"));
+
+    let inner_manifest_path = package.manifest_path.as_std_path();
+    let inner_crate_path = inner_manifest_path.parent().unwrap();
 
     // 1. Watch the inner directory for changes
     println!("cargo:rerun-if-changed={}", inner_crate_path.display());
 
-    // 2. Identify the target binary name
-    // We parse the inner Cargo.toml to find the actual [[bin]] name.
-    let metadata = MetadataCommand::new()
-        .manifest_path(&inner_manifest_path)
-        .exec()
-        .expect("Failed to parse internal binary Cargo.toml");
-
-    let package = metadata.root_package().expect("Internal crate has no package definition");
+    // 2. Identify the target binary name from the package metadata.
     let bin_target = package
         .targets
         .iter()
         .find(|t| t.kind.iter().any(|k| k == "bin"))
-        .expect("Internal crate has no [[bin]] target!");
+        .unwrap_or_else(|| panic!("{INNER_CRATE_NAME} has no [[bin]] target!"));
 
     let binary_name = &bin_target.name;
 
     // 3. Build the inner crate
     let profile = env::var("PROFILE").unwrap();
     let mut cmd = Command::new("cargo");
-    cmd.arg("build").arg("--manifest-path").arg(&inner_manifest_path);
+    cmd.arg("build").arg("--manifest-path").arg(inner_manifest_path);
 
     // Pass the profile (release/debug)
     if profile == "release" {
@@ -101,8 +93,16 @@ fn main() {
     #[cfg(feature = "profiling")]
     cmd.arg("--features").arg("profiling");
 
-    let inner_target_dir = metadata.target_directory.clone().join("sp1-native-bins");
+    let inner_target_dir = metadata.target_directory.join("sp1-native-bins");
     cmd.env("CARGO_TARGET_DIR", &inner_target_dir);
+
+    // Clear inherited RUSTFLAGS to avoid cross-compilation issues. When the outer
+    // build targets e.g. x86_64-unknown-linux-musl with +crt-static, those flags
+    // leak into this nested cargo invocation which builds for the host. On GNU
+    // targets, +crt-static makes proc-macro crate types unavailable, breaking
+    // proc-macro dependencies like ark-ff-asm.
+    cmd.env_remove("RUSTFLAGS");
+    cmd.env_remove("CARGO_ENCODED_RUSTFLAGS");
 
     let status = cmd.status().expect("Failed to execute cargo build for internal binary");
     if !status.success() {
