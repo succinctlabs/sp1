@@ -404,7 +404,7 @@ where
                 .collect();
             let merkle_proof = merkle_proof
                 .into_iter()
-                .zip(merkle_openings.into_iter())
+                .zip(merkle_openings)
                 .map(|(proof, opening)| MerkleTreeOpeningAndProof { values: opening, proof })
                 .collect::<Vec<_>>();
             let merkle_read_values: Vec<Mle<GC::EF>> = if round_index != 0 {
