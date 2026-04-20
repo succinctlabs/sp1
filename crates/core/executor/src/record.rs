@@ -42,7 +42,7 @@ pub struct ExecutionRecord {
     pub program: Arc<Program>,
     /// The number of CPU related events.
     pub cpu_event_count: u32,
-    /// A trace of ALU events with rd = x0.
+    /// A trace of ALU events with `rd = x0`.
     pub alu_x0_events: Vec<(AluEvent, ALUTypeRecord)>,
     /// A trace of the ADD, and ADDI events.
     pub add_events: Vec<(AluEvent, RTypeRecord)>,

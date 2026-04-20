@@ -252,6 +252,7 @@ impl ShapeChecker<SupervisorMode> {
     /// * `instruction`: The instruction that is being handled.
     /// * `syscall_sent`: Whether a syscall was sent during this cycle.
     /// * `bump_clk_high`: Whether the clk's top 24 bits incremented during this cycle.
+    /// * `is_alu_x0`: Whether the instruction is an ALU instruction with `rd = x0`.
     /// * `is_load_x0`: Whether the instruction is a load of x0, if so the riscv air id is `LoadX0`.
     ///
     /// # Returns

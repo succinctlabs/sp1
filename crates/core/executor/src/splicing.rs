@@ -51,6 +51,7 @@ impl SplicingVM<'_, SupervisorMode> {
         loop {
             let mut result = self.execute_instruction()?;
 
+            // If we're not already done, ensure that we don't have a shard boundary.
             if !result.is_done() && self.shape_checker.check_shard_limit() {
                 result = CycleResult::ShardBoundary;
             }
@@ -185,6 +186,7 @@ impl SplicingVM<'_, UserMode> {
         loop {
             let mut result = self.execute_instruction()?;
 
+            // If we're not already done, ensure that we don't have a shard boundary.
             if !result.is_done() && self.shape_checker.check_shard_limit() {
                 result = CycleResult::ShardBoundary;
             }

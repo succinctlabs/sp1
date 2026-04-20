@@ -72,12 +72,12 @@ impl Program {
             instructions_encoded: None,
             pc_start_abs,
             pc_base,
+            trap_context: None,
             page_prot_image: HashMap::new(),
             memory_image: Arc::new(HashMap::new()),
             preprocessed_shape: None,
             enable_untrusted_programs: false,
             untrusted_memory: None,
-            trap_context: None,
             dump_elf_stack: Vec::new(),
             function_symbols: Vec::new(),
         }
