@@ -5,6 +5,7 @@ use std::{
 
 use async_scoped::TokioScope;
 use clap::Parser;
+use serde::Serialize;
 use sp1_core_executor::ExecutionError;
 use sp1_cuda::CudaClientError;
 use sp1_prover::ProverMode;
@@ -34,17 +35,30 @@ struct Args {
     /// The number of times to repeat the evaluation concurrently (using tokio tasks).
     #[arg(short, long, default_value = "1")]
     pub concurrent_repeat_count: usize,
+
+    /// Emit results as a JSON line to stdout.
+    #[arg(long)]
+    pub json: bool,
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, Serialize)]
 #[allow(dead_code)]
 struct PerfSummary {
     pub cycles: u64,
+    #[serde(serialize_with = "serialize_duration_ms")]
     pub execution_duration: Duration,
+    #[serde(serialize_with = "serialize_duration_ms")]
     pub prover_init_duration: Duration,
+    #[serde(serialize_with = "serialize_duration_ms")]
     pub setup_duration: Duration,
+    #[serde(serialize_with = "serialize_duration_ms")]
     pub prove_duration: Duration,
+    #[serde(serialize_with = "serialize_duration_ms")]
     pub verify_duration: Duration,
+}
+
+fn serialize_duration_ms<S: serde::Serializer>(d: &Duration, s: S) -> Result<S::Ok, S::Error> {
+    s.serialize_f64(d.as_secs_f64() * 1000.0)
 }
 
 #[derive(Error, Debug)]
@@ -218,6 +232,13 @@ async fn main() {
         .collect::<Vec<Result<PerfSummary, Error>>>();
 
     tracing::info!("{performance_reports:#?}");
+
+    for result in &performance_reports {
+        let summary = result.as_ref().unwrap();
+        if args.json {
+            println!("{}", serde_json::to_string(summary).unwrap());
+        }
+    }
 
     for result in performance_reports {
         result.unwrap();
