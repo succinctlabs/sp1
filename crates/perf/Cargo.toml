@@ -33,6 +33,7 @@ tracing = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 test-artifacts = { path = "../test-artifacts" }
+mimalloc = { version = "0.1", optional = true }
 
 [[bin]]
 name = "sp1-perf"
