@@ -11,16 +11,6 @@
 
 namespace cg = cooperative_groups;
 
-__device__ inline ext_t geq_eval_tail(size_t idx, uint32_t threshold, ext_t eq_coefficient) {
-    if (idx < threshold) {
-        return ext_t::zero();
-    } else if (idx == threshold) {
-        return ext_t::one() + eq_coefficient;
-    } else {
-        return ext_t::one();
-    }
-}
-
 /// Tail-round constraint evaluation kernel.
 ///
 /// One CUDA block handles one air block, with all 3 eval points fused.
@@ -97,7 +87,7 @@ __global__ void jaggedConstraintPolyEvalTail(
     for (uint32_t tid = threadIdx.x; tid < totalWork; tid += blockDim.x) {
         uint32_t rowIdx = tid / NUM_EVAL_POINTS;
         uint32_t evalPointIdx = tid % NUM_EVAL_POINTS;
-        felt_t eval_point = felt_t::from_canonical_u32(2 * evalPointIdx);
+        felt_t eval_point = get_input_point(evalPointIdx);
 
         // Initialize registers.
         for (size_t i = 0; i < MEMORY_SIZE; i++) {
@@ -116,63 +106,15 @@ __global__ void jaggedConstraintPolyEvalTail(
         folder.rowIdx = rowIdx;
         folder.eval_point = eval_point;
 
-        // Execute the instruction stream — identical to the original kernel.
-        for (size_t i = program_start_idx; i < program_end_idx; i++) {
-            Instruction instr = evalProgram[i];
-            switch (instr.opcode) {
-            case 0: break;
-            case 1:  expr_f[instr.a] = evalConstantsF[f_constant_offset + instr.b]; break;
-            case 2:  expr_f[instr.a] = folder.var_f(instr.b_variant, instr.b); break;
-            case 3:  expr_f[instr.a] = expr_f[instr.b]; break;
-            case 4:  expr_f[instr.a] = folder.var_f(instr.b_variant, instr.b) + evalConstantsF[f_constant_offset + instr.c]; break;
-            case 5:  expr_f[instr.a] = folder.var_f(instr.b_variant, instr.b) + folder.var_f(instr.c_variant, instr.c); break;
-            case 6:  expr_f[instr.a] = folder.var_f(instr.b_variant, instr.b) + expr_f[instr.c]; break;
-            case 7:  expr_f[instr.a] = expr_f[instr.b] + evalConstantsF[f_constant_offset + instr.c]; break;
-            case 8:  expr_f[instr.a] = expr_f[instr.b] + folder.var_f(instr.c_variant, instr.c); break;
-            case 9:  expr_f[instr.a] = expr_f[instr.b] + expr_f[instr.c]; break;
-            case 10: expr_f[instr.a] += expr_f[instr.b]; break;
-            case 11: expr_f[instr.a] = folder.var_f(instr.b_variant, instr.b) - evalConstantsF[f_constant_offset + instr.c]; break;
-            case 12: expr_f[instr.a] = folder.var_f(instr.b_variant, instr.b) - folder.var_f(instr.c_variant, instr.c); break;
-            case 13: expr_f[instr.a] = folder.var_f(instr.b_variant, instr.b) - expr_f[instr.c]; break;
-            case 14: expr_f[instr.a] = expr_f[instr.b] - evalConstantsF[f_constant_offset + instr.c]; break;
-            case 15: expr_f[instr.a] = expr_f[instr.b] - folder.var_f(instr.c_variant, instr.c); break;
-            case 16: expr_f[instr.a] = expr_f[instr.b] - expr_f[instr.c]; break;
-            case 17: expr_f[instr.a] -= expr_f[instr.b]; break;
-            case 18: expr_f[instr.a] = folder.var_f(instr.b_variant, instr.b) * evalConstantsF[f_constant_offset + instr.c]; break;
-            case 19: expr_f[instr.a] = folder.var_f(instr.b_variant, instr.b) * folder.var_f(instr.c_variant, instr.c); break;
-            case 20: expr_f[instr.a] = folder.var_f(instr.b_variant, instr.b) * expr_f[instr.c]; break;
-            case 21: expr_f[instr.a] = expr_f[instr.b] * evalConstantsF[f_constant_offset + instr.c]; break;
-            case 22: expr_f[instr.a] = expr_f[instr.b] * folder.var_f(instr.c_variant, instr.c); break;
-            case 23: expr_f[instr.a] = expr_f[instr.b] * expr_f[instr.c]; break;
-            case 24: expr_f[instr.a] *= expr_f[instr.b]; break;
-            case 25: expr_f[instr.a] = -expr_f[instr.b]; break;
-            case 59:
-                folder.accumulator += (folder.powersOfAlpha[folder.constraintIndex] * expr_f[instr.a]);
-                folder.constraintIndex++;
-                break;
-            }
-        }
+        executeEvalProgram<K, MEMORY_SIZE>(
+            expr_f, folder, evalProgram, program_start_idx, program_end_idx,
+            evalConstantsF, f_constant_offset);
 
-        // Post-processing: GKR correction, geq correction, eq multiplication.
-        ext_t gkr_correction = ext_t::zero();
-        ext_t geq_correction = ext_t::zero();
-
-        if (is_first_air_block) {
-            for (size_t i = 0; i < num_main_columns; i++) {
-                gkr_correction += batchingPowers[i] * folder.var_f(4, i);
-            }
-            for (size_t i = 0; i < num_preprocessed_columns; i++) {
-                gkr_correction += batchingPowers[num_main_columns + i] * folder.var_f(2, i);
-            }
-            ext_t zeroVal = geq_eval_tail(rowIdx << 1, geq_thresholds[chip_idx], eq_coefficients[chip_idx]);
-            ext_t oneVal = geq_eval_tail(rowIdx << 1 | 1, geq_thresholds[chip_idx], eq_coefficients[chip_idx]);
-            geq_correction = (zeroVal + eval_point * (oneVal - zeroVal)) * paddedRowAdjustment[chip_idx];
-        }
-
-        if (rowIdx < (1u << rest_point_dim)) {
-            ext_t eq = ext_t::load(partialLagrange, rowIdx);
-            thread_sums[evalPointIdx] += (folder.accumulator + gkr_correction - geq_correction) * eq * powersOfLambda[chip_idx];
-        }
+        thread_sums[evalPointIdx] += computeRowContribution<K>(
+            folder, chip_idx, is_first_air_block, num_main_columns, num_preprocessed_columns,
+            rowIdx, rest_point_dim, eval_point,
+            batchingPowers, partialLagrange, paddedRowAdjustment,
+            geq_thresholds, eq_coefficients, powersOfLambda);
     }
 
     // Block-level reduction: one sum per eval point.

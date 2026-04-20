@@ -44,7 +44,7 @@ use sp1_gpu_cudart::sys::v2_kernels::{
     jagged_constraint_poly_eval_tail_64_koala_bear_extension_kernel,
     jagged_constraint_poly_eval_tail_64_koala_bear_kernel,
 };
-use sp1_gpu_cudart::{args, DeviceBuffer, DevicePoint, DeviceTensor, TaskScope};
+use sp1_gpu_cudart::{args, DeviceBuffer, DeviceMle, DevicePoint, DeviceTensor, TaskScope};
 use sp1_gpu_utils::{Ext, Felt, JaggedTraceMle};
 use sp1_hypercube::air::MachineAir;
 use sp1_hypercube::prover::ZerocheckAir;
@@ -362,6 +362,7 @@ where
 
 pub trait JaggedConstraintPolyEvalKernel<K: Field> {
     fn jagged_constraint_poly_eval_kernel(memory_size: usize) -> KernelPtr;
+    fn jagged_constraint_poly_eval_tail_kernel(memory_size: usize) -> KernelPtr;
 }
 
 impl JaggedConstraintPolyEvalKernel<Felt> for TaskScope {
@@ -373,6 +374,18 @@ impl JaggedConstraintPolyEvalKernel<Felt> for TaskScope {
             129..=256 => unsafe { jagged_constraint_poly_eval_256_koala_bear_kernel() },
             257..=512 => unsafe { jagged_constraint_poly_eval_512_koala_bear_kernel() },
             513..=1024 => unsafe { jagged_constraint_poly_eval_1024_koala_bear_kernel() },
+            _ => unreachable!(),
+        }
+    }
+
+    fn jagged_constraint_poly_eval_tail_kernel(memory_size: usize) -> KernelPtr {
+        match memory_size {
+            0..=32 => unsafe { jagged_constraint_poly_eval_tail_32_koala_bear_kernel() },
+            33..=64 => unsafe { jagged_constraint_poly_eval_tail_64_koala_bear_kernel() },
+            65..=128 => unsafe { jagged_constraint_poly_eval_tail_128_koala_bear_kernel() },
+            129..=256 => unsafe { jagged_constraint_poly_eval_tail_256_koala_bear_kernel() },
+            257..=512 => unsafe { jagged_constraint_poly_eval_tail_512_koala_bear_kernel() },
+            513..=1024 => unsafe { jagged_constraint_poly_eval_tail_1024_koala_bear_kernel() },
             _ => unreachable!(),
         }
     }
@@ -390,27 +403,7 @@ impl JaggedConstraintPolyEvalKernel<Ext> for TaskScope {
             _ => unreachable!(),
         }
     }
-}
 
-pub trait JaggedConstraintPolyEvalTailKernel<K: Field> {
-    fn jagged_constraint_poly_eval_tail_kernel(memory_size: usize) -> KernelPtr;
-}
-
-impl JaggedConstraintPolyEvalTailKernel<Felt> for TaskScope {
-    fn jagged_constraint_poly_eval_tail_kernel(memory_size: usize) -> KernelPtr {
-        match memory_size {
-            0..=32 => unsafe { jagged_constraint_poly_eval_tail_32_koala_bear_kernel() },
-            33..=64 => unsafe { jagged_constraint_poly_eval_tail_64_koala_bear_kernel() },
-            65..=128 => unsafe { jagged_constraint_poly_eval_tail_128_koala_bear_kernel() },
-            129..=256 => unsafe { jagged_constraint_poly_eval_tail_256_koala_bear_kernel() },
-            257..=512 => unsafe { jagged_constraint_poly_eval_tail_512_koala_bear_kernel() },
-            513..=1024 => unsafe { jagged_constraint_poly_eval_tail_1024_koala_bear_kernel() },
-            _ => unreachable!(),
-        }
-    }
-}
-
-impl JaggedConstraintPolyEvalTailKernel<Ext> for TaskScope {
     fn jagged_constraint_poly_eval_tail_kernel(memory_size: usize) -> KernelPtr {
         match memory_size {
             0..=32 => unsafe { jagged_constraint_poly_eval_tail_32_koala_bear_extension_kernel() },
@@ -432,13 +425,71 @@ impl JaggedConstraintPolyEvalTailKernel<Ext> for TaskScope {
     }
 }
 
+/// Device-side inputs shared by both `evaluate_zerocheck` variants. The owned
+/// buffers must outlive the kernel launch, so callers hold onto this struct
+/// until the launch is enqueued.
+struct ZeroCheckPrelude {
+    last: Ext,
+    partial_lagrange: DeviceMle<Ext>,
+    thresholds: Buffer<u32, TaskScope>,
+    eq_coefficients: Buffer<Ext, TaskScope>,
+    rest_point_dim: u32,
+}
+
+fn build_zerocheck_prelude<K: Field>(input: &ZeroCheckJaggedPoly<'_, K>) -> ZeroCheckPrelude {
+    let backend = input.data.backend();
+    let (rest, last) = input.zeta.split_at(input.zeta.dimension() - 1);
+    let last = *last[0];
+    let thresholds = input.virtual_geq.iter().map(|geq| geq.threshold).collect::<Buffer<_>>();
+    let eq_coefficients =
+        input.virtual_geq.iter().map(|geq| geq.eq_coefficient).collect::<Buffer<_>>();
+
+    let rest_point = DevicePoint::from_host(&rest, backend).unwrap();
+    let thresholds = DeviceBuffer::from_host(&thresholds, backend).unwrap().into_inner();
+    let eq_coefficients = DeviceBuffer::from_host(&eq_coefficients, backend).unwrap().into_inner();
+    let partial_lagrange = rest_point.partial_lagrange();
+    let rest_point_dim = rest.dimension() as u32;
+
+    ZeroCheckPrelude { last, partial_lagrange, thresholds, eq_coefficients, rest_point_dim }
+}
+
+/// Finish a per-round zerocheck polynomial from the 3 kernel-returned sums at
+/// `xs = {0, 2, 4}`, reconstructing the full univariate via the claim at
+/// `x = 1` and the zero at `(last-1) / (2*last-1)`.
+fn finalize_zerocheck_poly(
+    sums: &[Ext],
+    last: Ext,
+    claim: Ext,
+    eq_adjustment: Ext,
+) -> UnivariatePolynomial<Ext> {
+    let mut xs =
+        vec![Ext::from_canonical_u32(0), Ext::from_canonical_u32(2), Ext::from_canonical_u32(4)];
+
+    let mut ys = sums
+        .iter()
+        .zip_eq(xs.iter())
+        .map(|(&sum, &x)| {
+            let last_var_eq = (Ext::one() - x) * (Ext::one() - last) + x * last;
+            sum * last_var_eq * eq_adjustment
+        })
+        .collect::<Vec<_>>();
+
+    xs.push(Ext::from_canonical_u32(1));
+    ys.push(claim - ys[0]);
+
+    xs.push((last - Ext::one()) / (last + last - Ext::one()));
+    ys.push(Ext::zero());
+
+    interpolate_univariate_polynomial(&xs, &ys)
+}
+
 /// Tail-round zerocheck evaluation. One CUDA block per air block, 3 eval points fused.
 /// Used when totalLen is small enough that the main kernel underutilizes the GPU.
 pub fn evaluate_zerocheck_tail<'b, K: Field>(
     input: &'b ZeroCheckJaggedPoly<'b, K>,
 ) -> UnivariatePolynomial<Ext>
 where
-    TaskScope: JaggedConstraintPolyEvalTailKernel<K>,
+    TaskScope: JaggedConstraintPolyEvalKernel<K>,
 {
     let backend = input.data.backend();
     const BLOCK_SIZE: usize = 256;
@@ -453,18 +504,7 @@ where
     let mut output: Tensor<Ext, TaskScope> =
         Tensor::with_sizes_in([NUM_EVAL_POINT, num_air_blocks], backend.clone());
 
-    let (rest, last) = input.zeta.split_at(input.zeta.dimension() - 1);
-    let last = *last[0];
-    let thresholds = input.virtual_geq.iter().map(|geq| geq.threshold).collect::<Buffer<_>>();
-    let eq_coefficients =
-        input.virtual_geq.iter().map(|geq| geq.eq_coefficient).collect::<Buffer<_>>();
-
-    let rest_point = DevicePoint::from_host(&rest, backend).unwrap();
-    let thresholds = DeviceBuffer::from_host(&thresholds, backend).unwrap().into_inner();
-    let eq_coefficients = DeviceBuffer::from_host(&eq_coefficients, backend).unwrap().into_inner();
-
-    let partial_lagrange = rest_point.partial_lagrange();
-    let rest_point_dim = rest.dimension() as u32;
+    let prelude = build_zerocheck_prelude(input);
 
     unsafe {
         output.assume_init();
@@ -478,9 +518,9 @@ where
             input.program.ef_constants_indices.as_ptr(),
             input.data.as_raw(),
             input.info.as_raw(),
-            partial_lagrange.as_ptr(),
-            thresholds.as_ptr(),
-            eq_coefficients.as_ptr(),
+            prelude.partial_lagrange.as_ptr(),
+            prelude.thresholds.as_ptr(),
+            prelude.eq_coefficients.as_ptr(),
             input.padded_row_adjustment.as_ptr(),
             input.public_values.as_ptr(),
             input.powers_of_alpha.as_ptr(),
@@ -489,13 +529,13 @@ where
             input.preprocessed_column.as_ptr(),
             input.main_column.as_ptr(),
             input.total_num_preprocessed_column,
-            rest_point_dim,
+            prelude.rest_point_dim,
             num_air_blocks as u32,
             output.as_mut_ptr()
         );
         backend
             .launch_kernel(
-                <TaskScope as JaggedConstraintPolyEvalTailKernel<K>>::jagged_constraint_poly_eval_tail_kernel(
+                <TaskScope as JaggedConstraintPolyEvalKernel<K>>::jagged_constraint_poly_eval_tail_kernel(
                     input.program.f_ctr as usize,
                 ),
                 grid_size,
@@ -509,25 +549,7 @@ where
     let output_eval = DeviceTensor::from_raw(output).sum_dim(1);
     let result = output_eval.to_host().unwrap().into_buffer().into_vec();
 
-    let mut xs =
-        vec![Ext::from_canonical_u32(0), Ext::from_canonical_u32(2), Ext::from_canonical_u32(4)];
-
-    let mut ys = result
-        .iter()
-        .zip_eq(xs.iter())
-        .map(|(&result, &x)| {
-            let last_var_eq = (Ext::one() - x) * (Ext::one() - last) + x * last;
-            result * last_var_eq * input.eq_adjustment
-        })
-        .collect::<Vec<_>>();
-
-    xs.push(Ext::from_canonical_u32(1));
-    ys.push(input.claim - ys[0]);
-
-    xs.push((last - Ext::one()) / (last + last - Ext::one()));
-    ys.push(Ext::zero());
-
-    interpolate_univariate_polynomial(&xs, &ys)
+    finalize_zerocheck_poly(&result, prelude.last, input.claim, input.eq_adjustment)
 }
 
 /// Threshold (totalLen / 2) below which we switch to the tail kernel.
@@ -553,18 +575,7 @@ where
     let mut output: Tensor<Ext, TaskScope> =
         Tensor::with_sizes_in([NUM_EVAL_POINT, grid_size_x], backend.clone());
 
-    let (rest, last) = input.zeta.split_at(input.zeta.dimension() - 1);
-    let last = *last[0];
-    let thresholds = input.virtual_geq.iter().map(|geq| geq.threshold).collect::<Buffer<_>>();
-    let eq_coefficients =
-        input.virtual_geq.iter().map(|geq| geq.eq_coefficient).collect::<Buffer<_>>();
-
-    let rest_point = DevicePoint::from_host(&rest, backend).unwrap();
-    let thresholds = DeviceBuffer::from_host(&thresholds, backend).unwrap().into_inner();
-    let eq_coefficients = DeviceBuffer::from_host(&eq_coefficients, backend).unwrap().into_inner();
-
-    let partial_lagrange = rest_point.partial_lagrange();
-    let rest_point_dim = rest.dimension() as u32;
+    let prelude = build_zerocheck_prelude(input);
 
     unsafe {
         output.assume_init();
@@ -578,9 +589,9 @@ where
             input.program.ef_constants_indices.as_ptr(),
             input.data.as_raw(),
             input.info.as_raw(),
-            partial_lagrange.as_ptr(),
-            thresholds.as_ptr(),
-            eq_coefficients.as_ptr(),
+            prelude.partial_lagrange.as_ptr(),
+            prelude.thresholds.as_ptr(),
+            prelude.eq_coefficients.as_ptr(),
             (input.total_len / 2) as u32,
             input.padded_row_adjustment.as_ptr(),
             input.public_values.as_ptr(),
@@ -591,7 +602,7 @@ where
             input.main_column.as_ptr(),
             input.total_num_preprocessed_column,
             output.as_mut_ptr(),
-            rest_point_dim
+            prelude.rest_point_dim
         );
         backend
             .launch_kernel(
@@ -609,25 +620,7 @@ where
     let output_eval = DeviceTensor::from_raw(output).sum_dim(1);
     let result = output_eval.to_host().unwrap().into_buffer().into_vec();
 
-    let mut xs =
-        vec![Ext::from_canonical_u32(0), Ext::from_canonical_u32(2), Ext::from_canonical_u32(4)];
-
-    let mut ys = result
-        .iter()
-        .zip_eq(xs.iter())
-        .map(|(&result, &x)| {
-            let last_var_eq = (Ext::one() - x) * (Ext::one() - last) + x * last;
-            result * last_var_eq * input.eq_adjustment
-        })
-        .collect::<Vec<_>>();
-
-    xs.push(Ext::from_canonical_u32(1));
-    ys.push(input.claim - ys[0]);
-
-    xs.push((last - Ext::one()) / (last + last - Ext::one()));
-    ys.push(Ext::zero());
-
-    interpolate_univariate_polynomial(&xs, &ys)
+    finalize_zerocheck_poly(&result, prelude.last, input.claim, input.eq_adjustment)
 }
 
 pub fn zerocheck_fix_last_variable<'b, K: Field>(

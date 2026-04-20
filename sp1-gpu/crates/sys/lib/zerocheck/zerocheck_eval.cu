@@ -11,28 +11,6 @@
 
 namespace cg = cooperative_groups;
 
-#define DEBUG_FLAG 0 // Set this to 0 or 1
-
-#if DEBUG_FLAG == 1
-#define DEBUG(...) printf(__VA_ARGS__)
-#else
-#define DEBUG(...) // Do nothing
-#endif
-
-__device__ inline felt_t get_input_point(size_t idx) {
-    return felt_t::from_canonical_u32(2 * idx);
-}
-
-__device__ inline ext_t geq_eval(size_t idx, uint32_t threshold, ext_t eq_coefficient) {
-    if (idx < threshold) {
-        return ext_t::zero();
-    } else if (idx == threshold) {
-        return ext_t::one() + eq_coefficient;
-    } else {
-        return ext_t::one();
-    }
-}
-
 template <typename K, size_t MEMORY_SIZE>
 __global__ void jaggedConstraintPolyEval(
     const uint32_t* __restrict__ constraintIndices,
@@ -88,8 +66,7 @@ __global__ void jaggedConstraintPolyEval(
         size_t program_start_idx = evalProgramIndices[airBlockIdx];
         size_t program_end_idx = evalProgramIndices[airBlockIdx + 1];
         size_t f_constant_offset = evalConstantsFIndices[airBlockIdx];
-        size_t ef_constant_offset = evalConstantsEFIndices[airBlockIdx];
-        
+
         for (size_t i = 0; i < MEMORY_SIZE; i++) {
             expr_f[i] = K::zero();
         }
@@ -105,205 +82,15 @@ __global__ void jaggedConstraintPolyEval(
         folder.rowIdx = rowIdx;
         folder.eval_point = eval_point;
 
-        for (size_t i = program_start_idx; i < program_end_idx; i++) {
-            Instruction instr = evalProgram[i];
-            switch (instr.opcode) {
-            case 0:
-                DEBUG("EMPTY\n");
-                break;
+        executeEvalProgram<K, MEMORY_SIZE>(
+            expr_f, folder, evalProgram, program_start_idx, program_end_idx,
+            evalConstantsF, f_constant_offset);
 
-            case 1:
-                DEBUG("FAssignC: %d <- %d\n", instr.a, instr.b);
-                expr_f[instr.a] = evalConstantsF[f_constant_offset + instr.b];
-                break;
-            case 2:
-                DEBUG("FAssignV: %d <- (%d, %d)\n", instr.a, instr.b_variant, instr.b);
-                expr_f[instr.a] = folder.var_f(instr.b_variant, instr.b);
-                break;
-            case 3:
-                DEBUG("FAssignE: %d <- %d\n", instr.a, instr.b);
-                expr_f[instr.a] = expr_f[instr.b];
-                break;
-            case 4:
-                DEBUG("FAddVC: %d <- %d + %d\n", instr.a, instr.b_variant, instr.b);
-                expr_f[instr.a] = folder.var_f(instr.b_variant, instr.b) +
-                                    evalConstantsF[f_constant_offset + instr.c];
-                break;
-            case 5:
-                DEBUG(
-                    "FAddVV: %d <- (%d, %d) + (%d, %d)\n",
-                    instr.a,
-                    instr.b_variant,
-                    instr.b,
-                    instr.c_variant,
-                    instr.c);
-                expr_f[instr.a] = folder.var_f(instr.b_variant, instr.b) +
-                                    folder.var_f(instr.c_variant, instr.c);
-                break;
-            case 6:
-                DEBUG(
-                    "FAddVE: %d <- (%d, %d) + %d\n",
-                    instr.a,
-                    instr.b_variant,
-                    instr.b,
-                    instr.c);
-                expr_f[instr.a] = folder.var_f(instr.b_variant, instr.b) + expr_f[instr.c];
-                break;
-
-            case 7:
-                DEBUG("FAddEC: %d <- %d + %d\n", instr.a, instr.b_variant, instr.b);
-                expr_f[instr.a] = expr_f[instr.b] + evalConstantsF[f_constant_offset + instr.c];
-                break;
-            case 8:
-                DEBUG(
-                    "FAddEV: %d <- %d + (%d, %d)\n",
-                    instr.a,
-                    instr.b,
-                    instr.c_variant,
-                    instr.c);
-                expr_f[instr.a] = expr_f[instr.b] + folder.var_f(instr.c_variant, instr.c);
-                break;
-            case 9:
-                DEBUG("FAddEE: %d <- %d + %d\n", instr.a, instr.b, instr.c);
-                expr_f[instr.a] = expr_f[instr.b] + expr_f[instr.c];
-                break;
-            case 10:
-                DEBUG("FAddAssignE: %d <- %d\n", instr.a, instr.b);
-                expr_f[instr.a] += expr_f[instr.b];
-                break;
-
-            case 11:
-                DEBUG("FSubVC: %d <- %d - %d\n", instr.a, instr.b_variant, instr.b);
-                expr_f[instr.a] = folder.var_f(instr.b_variant, instr.b) -
-                                    evalConstantsF[f_constant_offset + instr.c];
-                break;
-            case 12:
-                DEBUG(
-                    "FSubVV: %d <- (%d, %d) - (%d, %d)\n",
-                    instr.a,
-                    instr.b_variant,
-                    instr.b,
-                    instr.c_variant,
-                    instr.c);
-                expr_f[instr.a] = folder.var_f(instr.b_variant, instr.b) -
-                                    folder.var_f(instr.c_variant, instr.c);
-                break;
-            case 13:
-                DEBUG(
-                    "FSubVE: %d <- (%d, %d) - %d\n",
-                    instr.a,
-                    instr.b_variant,
-                    instr.b,
-                    instr.c);
-                expr_f[instr.a] = folder.var_f(instr.b_variant, instr.b) - expr_f[instr.c];
-                break;
-
-            case 14:
-                DEBUG("FSubEC: %d <- %d - %d\n", instr.a, instr.b, instr.c);
-                expr_f[instr.a] = expr_f[instr.b] - evalConstantsF[f_constant_offset + instr.c];
-                break;
-            case 15:
-                DEBUG(
-                    "FSubEV: %d <- %d - (%d, %d)\n",
-                    instr.a,
-                    instr.b,
-                    instr.c_variant,
-                    instr.c);
-                expr_f[instr.a] = expr_f[instr.b] - folder.var_f(instr.c_variant, instr.c);
-                break;
-            case 16:
-                DEBUG("FSubEE: %d <- %d - %d\n", instr.a, instr.b, instr.c);
-                expr_f[instr.a] = expr_f[instr.b] - expr_f[instr.c];
-                break;
-            case 17:
-                DEBUG("FSubAssignE: %d <- %d\n", instr.a, instr.b);
-                expr_f[instr.a] -= expr_f[instr.b];
-                break;
-
-            case 18:
-                DEBUG("FMulVC: %d <- %d * %d\n", instr.a, instr.b_variant, instr.b);
-                expr_f[instr.a] = folder.var_f(instr.b_variant, instr.b) *
-                                    evalConstantsF[f_constant_offset + instr.c];
-                break;
-            case 19:
-                DEBUG(
-                    "FMulVV: %d <- (%d, %d) * (%d, %d)\n",
-                    instr.a,
-                    instr.b_variant,
-                    instr.b,
-                    instr.c_variant,
-                    instr.c);
-                expr_f[instr.a] = folder.var_f(instr.b_variant, instr.b) *
-                                    folder.var_f(instr.c_variant, instr.c);
-                break;
-            case 20:
-                DEBUG(
-                    "FMulVE: %d <- (%d, %d) * %d\n",
-                    instr.a,
-                    instr.b_variant,
-                    instr.b,
-                    instr.c);
-                expr_f[instr.a] = folder.var_f(instr.b_variant, instr.b) * expr_f[instr.c];
-                break;
-
-            case 21:
-                DEBUG("FMulEC: %d <- %d * %d\n", instr.a, instr.b_variant, instr.b);
-                expr_f[instr.a] = expr_f[instr.b] * evalConstantsF[f_constant_offset + instr.c];
-                break;
-            case 22:
-                DEBUG(
-                    "FMulEV: %d <- %d * (%d, %d)\n",
-                    instr.a,
-                    instr.b,
-                    instr.c_variant,
-                    instr.c);
-                expr_f[instr.a] = expr_f[instr.b] * folder.var_f(instr.c_variant, instr.c);
-                break;
-            case 23:
-                DEBUG("FMulEE: %d <- %d * %d\n", instr.a, instr.b, instr.c);
-                DEBUG("FMulEE Input: %d, %d\n", expr_f[instr.b], expr_f[instr.c]);
-                expr_f[instr.a] = expr_f[instr.b] * expr_f[instr.c];
-                DEBUG("FMulEE Output: %d\n", expr_f[instr.a]);
-                break;
-            case 24:
-                DEBUG("FMulAssignE: %d <- %d\n", instr.a, instr.b);
-                expr_f[instr.a] *= expr_f[instr.b];
-                break;
-
-            case 25:
-                DEBUG("FNegE: %d <- -%d\n", instr.a, instr.b);
-                expr_f[instr.a] = -expr_f[instr.b];
-                break;
-
-            case 59:
-                DEBUG("FAssertZero: %d\n", instr.a);
-                folder.accumulator +=
-                    (folder.powersOfAlpha[folder.constraintIndex] *
-                        expr_f[instr.a]);
-                folder.constraintIndex++;
-                break;
-            }
-        }
-
-        ext_t gkr_correction = ext_t::zero();
-        ext_t geq_correction = ext_t::zero();
-
-        if (is_first_air_block) {
-            for (size_t i = 0; i < num_main_columns; i++) {
-                gkr_correction += batchingPowers[i] * folder.var_f(4, i);
-            }
-            for (size_t i = 0; i < num_preprocessed_columns ; i++) {
-                gkr_correction += batchingPowers[num_main_columns + i] * folder.var_f(2, i);
-            }
-            ext_t zeroVal = geq_eval(rowIdx << 1, geq_thresholds[chip_idx], eq_coefficients[chip_idx]);
-            ext_t oneVal = geq_eval(rowIdx << 1 | 1, geq_thresholds[chip_idx], eq_coefficients[chip_idx]);
-            geq_correction = (zeroVal + eval_point * (oneVal - zeroVal)) * paddedRowAdjustment[chip_idx];
-        }
-
-        if (rowIdx < (1 << rest_point_dim)) {
-            ext_t eq = ext_t::load(partialLagrange, rowIdx);
-            thread_sum += (folder.accumulator + gkr_correction - geq_correction) * eq * powersOfLambda[chip_idx];
-        }
+        thread_sum += computeRowContribution<K>(
+            folder, chip_idx, is_first_air_block, num_main_columns, num_preprocessed_columns,
+            rowIdx, rest_point_dim, eval_point,
+            batchingPowers, partialLagrange, paddedRowAdjustment,
+            geq_thresholds, eq_coefficients, powersOfLambda);
     }
 
     extern __shared__ unsigned char memory[];
