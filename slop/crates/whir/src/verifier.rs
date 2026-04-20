@@ -146,6 +146,20 @@ where
     GC::F: TwoAdicField,
     GC::Challenger: VariableLengthChallenger<GC::F, GC::Digest>,
 {
+    /// Construct a new WHIR verifier for a given proof shape and number of commitments.
+    ///
+    /// It is important to call this function *before* absorbing the WHIR commitments into the challenger.
+    /// This ensures that the challenger is correctly seeded with protocol shape before the main protocol starts.
+    /// The Fiat-Shamir challenger passed here by reference should then be used as the challenger for the main protocol.
+    ///
+    /// An example of unsound usage: observe a slice of `commitments` into a `challenger` -> pass that
+    /// challenger to the `Verifier::new` function -> call `Self::verify` with that challenger and
+    /// that slice of `commitments`. The first two steps must be swapped for correct Fiat-Shamir seeding.
+    ///
+    /// # Panics
+    ///
+    /// - Panics if `num_expected_commitments` is zero or larger than or equal to 4096 (this is a somewhat large bound that provides some DOS protection).
+    /// - Panics if the field order is smaller than 2^12 because `num_expected_commitments` should not exceed the field size for the challenger observation.
     pub fn new(
         merkle_verifier: MerkleTreeTcs<GC>,
         config: WhirProofShape<GC::F, GC::EF>,
