@@ -1003,7 +1003,10 @@ impl<T> Buffer<T, CpuBackend> {
         T: Field,
         E: ExtensionField<T>,
     {
-        self.into_vec().chunks_exact(E::D).map(E::from_base_slice).collect()
+        let self_vec = self.into_vec();
+        let iter = self_vec.chunks_exact(E::D);
+        assert!(iter.clone().remainder().is_empty());
+        iter.map(E::from_base_slice).collect()
     }
 
     /// Reinterprets the buffer's elements as base field elements.
@@ -1274,6 +1277,9 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for Buffer<T, CpuBackend> {
 
 #[cfg(test)]
 mod tests {
+    use slop_algebra::{extension::BinomialExtensionField, AbstractField};
+    use slop_koala_bear::KoalaBear;
+
     use super::*;
 
     #[test]
@@ -1334,5 +1340,14 @@ mod tests {
         assert_eq!(buffer.len(), 11);
         assert_eq!(*buffer[4], 4);
         assert_eq!(*buffer[5], 4);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_into_extension() {
+        let buffer = buffer![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+        let felt_buffer =
+            buffer.iter().copied().map(KoalaBear::from_canonical_usize).collect::<Buffer<_>>();
+        let _ = felt_buffer.into_extension::<BinomialExtensionField<KoalaBear, 4>>();
     }
 }

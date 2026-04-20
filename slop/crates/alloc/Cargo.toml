@@ -15,5 +15,8 @@ slop-algebra = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
 
+[dev-dependencies]
+slop-koala-bear = { workspace = true }
+
 [lints]
 workspace = true
