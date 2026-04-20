@@ -200,32 +200,22 @@ impl<F: AbstractField + 'static + Send + Sync> JaggedLittlePolynomialVerifierPar
         // Iterate over all columns. For each column, we need to know the total length of all the
         // columns up to the current one, this number - 1, and the
         // number of rows in the current column.
-        let mut branching_program_evals = Vec::with_capacity(self.col_prefix_sums.len() - 1);
-        #[allow(clippy::uninit_vec)]
-        unsafe {
-            branching_program_evals.set_len(self.col_prefix_sums.len() - 1);
-        }
-        let next_col_prefix_sums = self.col_prefix_sums.iter().skip(1);
-        let res = self
-            .col_prefix_sums
-            .iter()
-            .zip(next_col_prefix_sums)
-            .zip(branching_program_evals.iter_mut())
-            .enumerate()
-            .par_bridge()
-            .map(|(col_num, ((prefix_sum, next_prefix_sum), branching_program_eval))| {
-                // For `z_col` on the Boolean hypercube, this is the delta function to pick out
-                // the right column for the current index.
+        let num_cols = self.col_prefix_sums.len() - 1;
+        let res = (0..num_cols)
+            .into_par_iter()
+            .map(|col_num| {
+                let prefix_sum = &self.col_prefix_sums[col_num];
+                let next_prefix_sum = &self.col_prefix_sums[col_num + 1];
                 let z_col_correction = z_col_partial_lagrange[col_num].clone();
 
                 let prefix_sum_ef =
                     prefix_sum.iter().map(|x| EF::from(x.clone())).collect::<Point<EF>>();
                 let next_prefix_sum_ef =
                     next_prefix_sum.iter().map(|x| EF::from(x.clone())).collect::<Point<EF>>();
-                *branching_program_eval =
+                let branching_program_eval =
                     branching_program.eval(&prefix_sum_ef, &next_prefix_sum_ef);
 
-                z_col_correction.clone() * branching_program_eval.clone()
+                z_col_correction * branching_program_eval
             })
             .sum::<EF>();
 
@@ -278,32 +268,30 @@ impl JaggedLittlePolynomialProverParams {
 
         let result_chunk_size = max(total_area / num_cpus::get(), 1);
         tracing::debug_span!("compute jagged values").in_scope(|| {
-            (result.chunks_mut(result_chunk_size).enumerate().par_bridge()).for_each(
-                |(chunk_idx, chunk)| {
-                    let i = chunk_idx * result_chunk_size;
-                    let mut col_range_iter = col_ranges.get_col_range(i).peekable();
-                    let mut current_col_range = col_range_iter.next().unwrap();
-                    let mut current_row = i - current_col_range.start_i;
+            result.par_chunks_mut(result_chunk_size).enumerate().for_each(|(chunk_idx, chunk)| {
+                let i = chunk_idx * result_chunk_size;
+                let mut col_range_iter = col_ranges.get_col_range(i).peekable();
+                let mut current_col_range = col_range_iter.next().unwrap();
+                let mut current_row = i - current_col_range.start_i;
 
-                    chunk.iter_mut().for_each(|val| {
-                        *val = if current_col_range.is_last {
-                            K::zero()
-                        } else {
-                            col_eq.guts().as_slice()[current_col_range.col_idx]
-                                * row_eq.guts().as_slice()[current_row]
-                        };
+                chunk.iter_mut().for_each(|val| {
+                    *val = if current_col_range.is_last {
+                        K::zero()
+                    } else {
+                        col_eq.guts().as_slice()[current_col_range.col_idx]
+                            * row_eq.guts().as_slice()[current_row]
+                    };
 
-                        current_row += 1;
-                        while current_row == current_col_range.col_size {
-                            if col_range_iter.peek().is_none() {
-                                break;
-                            }
-                            current_col_range = col_range_iter.next().unwrap();
-                            current_row = 0;
+                    current_row += 1;
+                    while current_row == current_col_range.col_size {
+                        if col_range_iter.peek().is_none() {
+                            break;
                         }
-                    });
-                },
-            );
+                        current_col_range = col_range_iter.next().unwrap();
+                        current_row = 0;
+                    }
+                });
+            });
         });
 
         result.into()

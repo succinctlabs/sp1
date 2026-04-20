@@ -5,7 +5,7 @@ use std::{
 };
 
 use itertools::Itertools;
-use rayon::iter::{ParallelBridge, ParallelIterator};
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use slop_air::Air;
 use slop_algebra::{
@@ -85,12 +85,17 @@ where
             // Handle the case when the zerocheck polynomial has non-padded variables.
             let eq_guts = eq_guts[0..num_non_padded_terms].to_vec();
 
-            let cumul_ys = eq_guts
-                .chunks(eq_chunk_size)
-                .zip(main_values.chunks(values_chunk_size * num_main_columns))
-                .enumerate()
-                .par_bridge()
-                .map(|(i, (eq_chunk, main_chunk))| {
+            let num_chunks = eq_guts.len().div_ceil(eq_chunk_size);
+            let cumul_ys = (0..num_chunks)
+                .into_par_iter()
+                .map(|i| {
+                    let eq_start = i * eq_chunk_size;
+                    let eq_end = (eq_start + eq_chunk_size).min(eq_guts.len());
+                    let eq_chunk = &eq_guts[eq_start..eq_end];
+                    let main_start = i * values_chunk_size * num_main_columns;
+                    let main_end =
+                        (main_start + values_chunk_size * num_main_columns).min(main_values.len());
+                    let main_chunk = &main_values[main_start..main_end];
                     // Evaluate the constraint polynomial at the points 0, 2, and 4, and
                     // add the results to the y_0, y_2, and y_4 accumulators.
                     let mut cumul_y_0 = EF::zero();

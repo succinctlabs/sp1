@@ -30,29 +30,25 @@ where
 
     let result_chunk_size =
         max(num_non_zero_elements_out / num_cpus::get() * num_polynomials, num_polynomials);
-    let mle_chunk_size = 2 * result_chunk_size;
+    let mle_slice = mle.as_slice();
 
-    mle.as_slice()
-        .chunks(mle_chunk_size)
-        .zip(result.chunks_mut(result_chunk_size))
-        .par_bridge()
-        .for_each(|(mle_chunk, result_chunk)| {
-            let num_result_rows = result_chunk.len() / num_polynomials;
+    result.par_chunks_mut(result_chunk_size).enumerate().for_each(|(chunk_idx, result_chunk)| {
+        let mle_offset = chunk_idx * result_chunk_size * 2;
+        let num_result_rows = result_chunk.len() / num_polynomials;
 
-            (0..num_result_rows).for_each(|i| {
-                (0..num_polynomials).for_each(|j| {
-                    let x = mle_chunk[(2 * i) * num_polynomials + j];
-                    let y = mle_chunk
-                        .get((2 * i + 1) * num_polynomials + j)
-                        .copied()
-                        .unwrap_or_else(|| padding_values[j]);
-                    // return alpha * y + (EF::one() - alpha) * x, but in a more efficient
-                    // way that minimizes extension field
-                    // multiplications.
-                    result_chunk[i * num_polynomials + j] = alpha * (y - x) + x;
-                });
+        (0..num_result_rows).for_each(|i| {
+            (0..num_polynomials).for_each(|j| {
+                let x = mle_slice[mle_offset + (2 * i) * num_polynomials + j];
+                let y = mle_slice
+                    .get(mle_offset + (2 * i + 1) * num_polynomials + j)
+                    .copied()
+                    .unwrap_or_else(|| padding_values[j]);
+                // return alpha * y + (EF::one() - alpha) * x, but in a more efficient
+                // way that minimizes extension field multiplications.
+                result_chunk[i * num_polynomials + j] = alpha * (y - x) + x;
             });
         });
+    });
 
     Tensor::from(result).reshape([num_non_zero_elements_out, num_polynomials])
 }
