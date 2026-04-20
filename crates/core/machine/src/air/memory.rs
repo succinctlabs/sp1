@@ -222,7 +222,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         clk_low: impl Into<Self::Expr> + Clone,
         addr_slice: &[[Self::Expr; 3]],
         memory_access_slice: &[MemoryAccessCols<E>],
-        verify_memory_access: impl Into<Self::Expr> + Copy,
+        verify_memory_access: impl Into<Self::Expr> + Clone,
     ) {
         for (access_slice, addr) in memory_access_slice.iter().zip(addr_slice) {
             self.eval_memory_access_read(
@@ -230,7 +230,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
                 clk_low.clone(),
                 addr,
                 *access_slice,
-                verify_memory_access,
+                verify_memory_access.clone(),
             );
         }
     }
@@ -243,7 +243,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         addr_slice: &[[Self::Expr; 3]],
         memory_access_slice: &[MemoryAccessCols<E>],
         write_values: Vec<Word<impl Into<Self::Expr>>>,
-        verify_memory_access: impl Into<Self::Expr> + Copy,
+        verify_memory_access: impl Into<Self::Expr> + Clone,
     ) {
         for ((access_slice, addr), write_value) in
             memory_access_slice.iter().zip_eq(addr_slice).zip_eq(write_values)
@@ -254,7 +254,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
                 addr,
                 *access_slice,
                 write_value,
-                verify_memory_access,
+                verify_memory_access.clone(),
             );
         }
     }

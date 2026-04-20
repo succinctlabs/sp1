@@ -4,14 +4,18 @@ use std::mem::size_of;
 use crate::{
     adapter::{register::i_type::ITypeReader, state::CPUState},
     operations::LtOperationSigned,
+    SupervisorMode, TrustMode, UserMode,
 };
 
-pub const NUM_BRANCH_COLS: usize = size_of::<BranchColumns<u8>>();
+/// The number of main trace columns for `BranchChip` in Supervisor mode.
+pub const NUM_BRANCH_COLS_SUPERVISOR: usize = size_of::<BranchColumns<u8, SupervisorMode>>();
+/// The number of main trace columns for `BranchChip` in User mode.
+pub const NUM_BRANCH_COLS_USER: usize = size_of::<BranchColumns<u8, UserMode>>();
 
 /// The column layout for branching.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct BranchColumns<T> {
+pub struct BranchColumns<T, M: TrustMode> {
     /// The current shard, timestamp, program counter of the CPU.
     pub state: CPUState<T>,
 
@@ -39,4 +43,7 @@ pub struct BranchColumns<T> {
 
     /// The comparison between `a` and `b`.
     pub compare_operation: LtOperationSigned<T>,
+
+    /// Adapter columns for trust mode specific data.
+    pub adapter_cols: M::AdapterCols<T>,
 }

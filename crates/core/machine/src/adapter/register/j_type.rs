@@ -49,6 +49,24 @@ impl<T> JTypeReader<T> {
     }
 }
 
+impl<T: Copy> JTypeReader<T> {
+    pub fn instruction<AB>(&self, opcode: impl Into<AB::Expr> + Clone) -> InstructionCols<AB::Expr>
+    where
+        AB: SP1AirBuilder<Var = T>,
+        T: Into<AB::Expr>,
+    {
+        InstructionCols {
+            opcode: opcode.clone().into(),
+            op_a: self.op_a.into(),
+            op_b: self.op_b_imm.map(Into::into),
+            op_c: self.op_c_imm.map(Into::into),
+            op_a_0: self.op_a_0.into(),
+            imm_b: AB::Expr::one(),
+            imm_c: AB::Expr::one(),
+        }
+    }
+}
+
 impl<F: Field> JTypeReader<F> {
     #[allow(clippy::too_many_arguments)]
     pub fn eval<AB: SP1AirBuilder + MemoryAirBuilder + ProgramAirBuilder>(
@@ -57,24 +75,15 @@ impl<F: Field> JTypeReader<F> {
         clk_low: AB::Expr,
         pc: [AB::Var; 3],
         opcode: impl Into<AB::Expr> + Clone,
-        _instr_field_consts: [AB::Expr; 4],
         op_a_write_value: Word<impl Into<AB::Expr> + Clone>,
         cols: JTypeReader<AB::Var>,
         is_real: AB::Expr,
+        is_trusted: AB::Expr,
     ) {
         builder.assert_bool(is_real.clone());
 
-        let instruction = InstructionCols {
-            opcode: opcode.clone().into(),
-            op_a: cols.op_a.into(),
-            op_b: cols.op_b_imm.map(Into::into),
-            op_c: cols.op_c_imm.map(Into::into),
-            op_a_0: cols.op_a_0.into(),
-            imm_b: AB::Expr::one(),
-            imm_c: AB::Expr::one(),
-        };
-
-        builder.send_program(pc, instruction.clone(), is_real.clone());
+        let instruction = cols.instruction::<AB>(opcode.clone());
+        builder.send_program(pc, instruction.clone(), is_trusted);
 
         // Assert that `op_a` is zero if `op_a_0` is true.
         builder.when(cols.op_a_0).assert_word_eq(op_a_write_value.clone(), Word::zero::<AB>());
@@ -95,9 +104,9 @@ impl<F: Field> JTypeReader<F> {
         clk_low: AB::Expr,
         pc: [AB::Var; 3],
         opcode: impl Into<AB::Expr> + Clone,
-        instr_field_consts: [AB::Expr; 4],
         cols: JTypeReader<AB::Var>,
         is_real: AB::Expr,
+        is_trusted: AB::Expr,
     ) {
         Self::eval(
             builder,
@@ -105,10 +114,10 @@ impl<F: Field> JTypeReader<F> {
             clk_low,
             pc,
             opcode,
-            instr_field_consts,
             cols.op_a_memory.prev_value,
             cols,
             is_real,
+            is_trusted,
         );
     }
 }
@@ -120,10 +129,10 @@ pub struct JTypeReaderInput<AB: SP1AirBuilder, T: Into<AB::Expr> + Clone> {
     clk_low: AB::Expr,
     pc: [AB::Var; 3],
     opcode: AB::Expr,
-    instr_field_consts: [AB::Expr; 4],
     op_a_write_value: Word<T>,
     cols: JTypeReader<AB::Var>,
     is_real: AB::Expr,
+    is_trusted: AB::Expr,
 }
 
 impl<AB: SP1AirBuilder> SP1Operation<AB> for JTypeReader<AB::F> {
@@ -137,10 +146,10 @@ impl<AB: SP1AirBuilder> SP1Operation<AB> for JTypeReader<AB::F> {
             input.clk_low,
             input.pc,
             input.opcode,
-            input.instr_field_consts,
             input.op_a_write_value,
             input.cols,
             input.is_real,
+            input.is_trusted,
         )
     }
 }

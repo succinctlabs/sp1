@@ -6,7 +6,7 @@ use slop_maybe_rayon::prelude::{
 };
 use sp1_core_executor::{
     events::{ByteLookupEvent, ByteRecord, MemoryRecordEnum, PrecompileEvent, ShaExtendEvent},
-    ByteOpcode, ExecutionRecord, Program, SyscallCode,
+    ByteOpcode, ExecutionRecord, Program, SyscallCode, TrapError,
 };
 use sp1_hypercube::air::MachineAir;
 use std::{borrow::BorrowMut, mem::MaybeUninit};
@@ -64,7 +64,7 @@ impl<F: PrimeField32> MachineAir<F> for ShaExtendChip {
             unsafe {
                 core::ptr::write_bytes(row.as_mut_ptr(), 0, NUM_SHA_EXTEND_COLS * 48);
             }
-            self.event_to_rows(event, row, &mut blu);
+            self.event_to_rows(event, &events[idx].0.trap_error, row, &mut blu);
         });
     }
 
@@ -77,13 +77,13 @@ impl<F: PrimeField32> MachineAir<F> for ShaExtendChip {
             .map(|events| {
                 let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
                 let mut row = vec![F::zero(); NUM_SHA_EXTEND_COLS * 48];
-                events.iter().for_each(|(_, event)| {
+                events.iter().for_each(|(syscall_event, event)| {
                     let event = if let PrecompileEvent::ShaExtend(event) = event {
                         event
                     } else {
                         unreachable!()
                     };
-                    self.event_to_rows::<F>(event, &mut row, &mut blu);
+                    self.event_to_rows::<F>(event, &syscall_event.trap_error, &mut row, &mut blu);
                 });
                 blu
             })
@@ -105,9 +105,14 @@ impl ShaExtendChip {
     fn event_to_rows<F: PrimeField32>(
         &self,
         event: &ShaExtendEvent,
+        trap_error: &Option<TrapError>,
         rows: &mut [F],
         blu: &mut impl ByteRecord,
     ) {
+        if trap_error.is_some() {
+            return;
+        }
+
         // Extend now begins one cycle after the actual syscall itself, therefore need to use
         // a bumped clk.
         let bumped_clk = event.clk + 1;

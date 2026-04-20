@@ -56,6 +56,24 @@ impl<T> ITypeReader<T> {
     }
 }
 
+impl<T: Copy> ITypeReader<T> {
+    pub fn instruction<AB>(&self, opcode: impl Into<AB::Expr> + Clone) -> InstructionCols<AB::Expr>
+    where
+        AB: SP1AirBuilder<Var = T>,
+        T: Into<AB::Expr>,
+    {
+        InstructionCols {
+            opcode: opcode.clone().into(),
+            op_a: self.op_a.into(),
+            op_b: Word::extend_expr::<AB>(self.op_b.into()),
+            op_c: self.op_c_imm.map(Into::into),
+            op_a_0: self.op_a_0.into(),
+            imm_b: AB::Expr::zero(),
+            imm_c: AB::Expr::one(),
+        }
+    }
+}
+
 impl<F: Field> ITypeReader<F> {
     #[allow(clippy::too_many_arguments)]
     pub fn eval<AB: SP1AirBuilder + ProgramAirBuilder + MemoryAirBuilder>(
@@ -64,24 +82,15 @@ impl<F: Field> ITypeReader<F> {
         clk_low: AB::Expr,
         pc: [AB::Var; 3],
         opcode: impl Into<AB::Expr> + Clone,
-        _instr_field_consts: [AB::Expr; 4],
         op_a_write_value: Word<impl Into<AB::Expr> + Clone>,
         cols: ITypeReader<AB::Var>,
         is_real: AB::Expr,
+        is_trusted: AB::Expr,
     ) {
         builder.assert_bool(is_real.clone());
 
-        let instruction = InstructionCols {
-            opcode: opcode.clone().into(),
-            op_a: cols.op_a.into(),
-            op_b: Word::extend_expr::<AB>(cols.op_b.into()),
-            op_c: cols.op_c_imm.map(Into::into),
-            op_a_0: cols.op_a_0.into(),
-            imm_b: AB::Expr::zero(),
-            imm_c: AB::Expr::one(),
-        };
-
-        builder.send_program(pc, instruction.clone(), is_real.clone());
+        let instruction = cols.instruction::<AB>(opcode.clone());
+        builder.send_program(pc, instruction.clone(), is_trusted);
 
         // Assert that `op_a` is zero if `op_a_0` is true.
         builder.when(cols.op_a_0).assert_word_eq(op_a_write_value.clone(), Word::zero::<AB>());
@@ -109,9 +118,9 @@ impl<F: Field> ITypeReader<F> {
         clk_low: AB::Expr,
         pc: [AB::Var; 3],
         opcode: impl Into<AB::Expr> + Clone,
-        instr_field_consts: [AB::Expr; 4],
         cols: ITypeReader<AB::Var>,
         is_real: AB::Expr,
+        is_trusted: AB::Expr,
     ) {
         Self::eval(
             builder,
@@ -119,10 +128,10 @@ impl<F: Field> ITypeReader<F> {
             clk_low,
             pc,
             opcode,
-            instr_field_consts,
             cols.op_a_memory.prev_value,
             cols,
             is_real,
+            is_trusted,
         );
     }
 }
@@ -133,10 +142,10 @@ pub struct ITypeReaderInput<AB: SP1AirBuilder, T: Into<AB::Expr> + Clone> {
     pub clk_low: AB::Expr,
     pub pc: [AB::Var; 3],
     pub opcode: T,
-    pub instr_field_consts: [AB::Expr; 4],
     pub op_a_write_value: Word<T>,
     pub cols: ITypeReader<AB::Var>,
     pub is_real: AB::Expr,
+    pub is_trusted: AB::Expr,
 }
 
 impl<AB: SP1AirBuilder, T: Into<AB::Expr> + Clone> ITypeReaderInput<AB, T> {
@@ -146,12 +155,12 @@ impl<AB: SP1AirBuilder, T: Into<AB::Expr> + Clone> ITypeReaderInput<AB, T> {
         clk_low: AB::Expr,
         pc: [AB::Var; 3],
         opcode: T,
-        instr_field_consts: [AB::Expr; 4],
         op_a_write_value: Word<T>,
         cols: ITypeReader<AB::Var>,
         is_real: AB::Expr,
+        is_trusted: AB::Expr,
     ) -> Self {
-        Self { clk_high, clk_low, pc, opcode, instr_field_consts, op_a_write_value, cols, is_real }
+        Self { clk_high, clk_low, pc, opcode, op_a_write_value, cols, is_real, is_trusted }
     }
 }
 
@@ -168,9 +177,9 @@ impl ITypeReaderInput<ConstraintCompiler, <ConstraintCompiler as AirBuilder>::Ex
             Expr::input_arg(ctx),
             core::array::from_fn(|_| Expr::input_arg(ctx)),
             Expr::input_arg(ctx),
-            core::array::from_fn(|_| Expr::input_arg(ctx)),
+            sp1_hypercube::Word(core::array::from_fn(|_| Expr::input_arg(ctx))),
             Expr::input_from_struct(ctx),
-            Expr::input_from_struct(ctx),
+            Expr::input_arg(ctx),
             Expr::input_arg(ctx),
         )
     }
@@ -195,14 +204,10 @@ impl<T: Into<<ConstraintCompiler as AirBuilder>::Expr> + Clone>
             ("clk_low".to_string(), Attribute::default(), self.clk_low.into()),
             ("pc".to_string(), Attribute::default(), self.pc.into()),
             ("opcode".to_string(), Attribute::default(), self.opcode.into().into()),
-            (
-                "instr_field_consts".to_string(),
-                Attribute::default(),
-                self.instr_field_consts.into(),
-            ),
             ("op_a_write_value".to_string(), Attribute::default(), self.op_a_write_value.into()),
             ("cols".to_string(), Attribute::default(), self.cols.into()),
             ("is_real".to_string(), Attribute::default(), self.is_real.into()),
+            ("is_trusted".to_string(), Attribute::default(), self.is_trusted.into()),
         ]
     }
 }
@@ -219,10 +224,10 @@ impl<AB: SP1AirBuilder> SP1Operation<AB> for ITypeReader<AB::F> {
             input.clk_low,
             input.pc,
             input.opcode,
-            input.instr_field_consts,
             input.op_a_write_value,
             input.cols,
             input.is_real,
+            input.is_trusted,
         );
     }
 }
@@ -233,9 +238,9 @@ pub struct ITypeReaderImmutableInput<AB: SP1AirBuilder, T: Into<AB::Expr> + Clon
     pub clk_low: AB::Expr,
     pub pc: [AB::Var; 3],
     pub opcode: T,
-    pub instr_field_consts: [AB::Expr; 4],
     pub cols: ITypeReader<AB::Var>,
     pub is_real: AB::Expr,
+    pub is_trusted: AB::Expr,
 }
 
 impl<AB: SP1AirBuilder, T: Into<AB::Expr> + Clone> ITypeReaderImmutableInput<AB, T> {
@@ -244,11 +249,11 @@ impl<AB: SP1AirBuilder, T: Into<AB::Expr> + Clone> ITypeReaderImmutableInput<AB,
         clk_low: AB::Expr,
         pc: [AB::Var; 3],
         opcode: T,
-        instr_field_consts: [AB::Expr; 4],
         cols: ITypeReader<AB::Var>,
         is_real: AB::Expr,
+        is_trusted: AB::Expr,
     ) -> Self {
-        Self { clk_high, clk_low, pc, opcode, instr_field_consts, cols, is_real }
+        Self { clk_high, clk_low, pc, opcode, cols, is_real, is_trusted }
     }
 }
 
@@ -269,8 +274,8 @@ impl ITypeReaderImmutableInput<ConstraintCompiler, <ConstraintCompiler as AirBui
             Expr::input_arg(ctx),
             core::array::from_fn(|_| Expr::input_arg(ctx)),
             Expr::input_arg(ctx),
-            core::array::from_fn(|_| Expr::input_arg(ctx)),
             Expr::input_from_struct(ctx),
+            Expr::input_arg(ctx),
             Expr::input_arg(ctx),
         )
     }
@@ -295,13 +300,9 @@ impl<T: Into<<ConstraintCompiler as AirBuilder>::Expr> + Clone>
             ("clk_low".to_string(), Attribute::default(), self.clk_low.into()),
             ("pc".to_string(), Attribute::default(), self.pc.into()),
             ("opcode".to_string(), Attribute::default(), self.opcode.into().into()),
-            (
-                "instr_field_consts".to_string(),
-                Attribute::default(),
-                self.instr_field_consts.into(),
-            ),
             ("cols".to_string(), Attribute::default(), self.cols.into()),
             ("is_real".to_string(), Attribute::default(), self.is_real.into()),
+            ("is_trusted".to_string(), Attribute::default(), self.is_trusted.into()),
         ]
     }
 }
@@ -317,9 +318,9 @@ impl<AB: SP1AirBuilder> SP1Operation<AB> for ITypeReaderImmutable {
             input.clk_low,
             input.pc,
             input.opcode,
-            input.instr_field_consts,
             input.cols,
             input.is_real,
+            input.is_trusted,
         );
     }
 }

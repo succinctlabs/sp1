@@ -1,15 +1,29 @@
-use crate::events::{EllipticCurveDoubleEvent, PrecompileEvent};
+use crate::events::{EllipticCurveDoubleEvent, MemoryWriteRecord, PageProtRecord, PrecompileEvent};
 use sp1_curves::{params::NumWords, CurveType, EllipticCurve};
 
-use crate::{vm::syscall::SyscallRuntime, SyscallCode};
+use crate::{vm::syscall::SyscallRuntime, ExecutionMode, SyscallCode, TrapError};
 use typenum::Unsigned;
 
-pub(crate) fn weierstrass_double<'a, RT: SyscallRuntime<'a>, E: EllipticCurve>(
+/// Check page permissions for weierstrass double. Returns early if permission check fails.
+fn trap_weierstrass_double<'a, M: ExecutionMode, RT: SyscallRuntime<'a, M>, E: EllipticCurve>(
+    rt: &mut RT,
+    p_ptr: u64,
+) -> (Vec<PageProtRecord>, Option<TrapError>) {
+    let num_words = <E::BaseField as NumWords>::WordsCurvePoint::USIZE;
+    rt.read_write_slice_check(p_ptr, num_words)
+}
+
+pub(crate) fn weierstrass_double<
+    'a,
+    M: ExecutionMode,
+    RT: SyscallRuntime<'a, M>,
+    E: EllipticCurve,
+>(
     rt: &mut RT,
     syscall_code: SyscallCode,
     arg1: u64,
     arg2: u64,
-) -> Option<u64> {
+) -> Result<Option<u64>, TrapError> {
     let p_ptr: u64 = arg1;
     assert!(p_ptr.is_multiple_of(8), "p_ptr must be 8-byte aligned");
 
@@ -17,18 +31,29 @@ pub(crate) fn weierstrass_double<'a, RT: SyscallRuntime<'a>, E: EllipticCurve>(
 
     let num_words = <E::BaseField as NumWords>::WordsCurvePoint::USIZE;
 
-    let p = rt.mr_slice_unsafe(num_words);
+    let (p_page_prot_records, is_trap) = trap_weierstrass_double::<M, RT, E>(rt, p_ptr);
 
-    let p_memory_records = rt.mw_slice(p_ptr, num_words);
+    // Default values if trap occurs
+    let mut p = Vec::new();
+    let mut p_memory_records: Vec<MemoryWriteRecord> = Vec::new();
 
+    if is_trap.is_none() {
+        p = rt.mr_slice_unsafe(num_words);
+        p_memory_records = rt.mw_slice_without_prot(p_ptr, num_words);
+    }
+
+    rt.reset_clk(clk);
     if RT::TRACING {
+        let (local_mem_access, local_page_prot_access) = rt.postprocess_precompile();
+
         let event = EllipticCurveDoubleEvent {
             clk,
             p_ptr,
             p,
             p_memory_records,
-            local_mem_access: rt.postprocess_precompile(),
-            ..Default::default()
+            local_mem_access,
+            write_slice_page_prot_access: p_page_prot_records,
+            local_page_prot_access,
         };
 
         let syscall_event = rt.syscall_event(
@@ -36,9 +61,11 @@ pub(crate) fn weierstrass_double<'a, RT: SyscallRuntime<'a>, E: EllipticCurve>(
             syscall_code,
             arg1,
             arg2,
-            false,
             rt.core().next_pc(),
             rt.core().exit_code(),
+            None,
+            None,
+            is_trap,
         );
 
         match E::CURVE_TYPE {
@@ -72,5 +99,9 @@ pub(crate) fn weierstrass_double<'a, RT: SyscallRuntime<'a>, E: EllipticCurve>(
         }
     }
 
-    None
+    if let Some(err) = is_trap {
+        return Err(err);
+    }
+
+    Ok(None)
 }

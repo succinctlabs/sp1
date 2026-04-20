@@ -17,6 +17,7 @@ uuid = { workspace = true, features = ["v4"] }
 hashbrown = { workspace = true }
 memmap2 = { workspace = true }
 libc = { workspace = true }
+sp1-primitives = { workspace = true }
 
 [dev-dependencies]
 bincode = { workspace = true }

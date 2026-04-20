@@ -57,7 +57,17 @@ where
         challenger.observe_slice(builder, vk.pc_start);
         challenger.observe_slice(builder, vk.initial_global_cumulative_sum.0.x.0);
         challenger.observe_slice(builder, vk.initial_global_cumulative_sum.0.y.0);
-        challenger.observe(builder, vk.enable_untrusted_programs);
+        challenger.observe(builder, vk.untrusted_config.enable_untrusted_programs);
+        #[cfg(feature = "mprotect")]
+        {
+            challenger.observe(builder, vk.untrusted_config.enable_trap_handler);
+            for trap_context_addr in vk.untrusted_config.trap_context.into_iter() {
+                challenger.observe_slice(builder, trap_context_addr);
+            }
+            for untrusted_memory_addr in vk.untrusted_config.untrusted_memory.into_iter() {
+                challenger.observe_slice(builder, untrusted_memory_addr);
+            }
+        }
 
         // Observe the padding.
         let zero: Felt<_> = builder.eval(SP1Field::zero());

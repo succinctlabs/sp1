@@ -61,6 +61,7 @@ tokio = { workspace = true, features = ["macros", "rt"] }
 [features]
 # Enables debug features in dependencies.
 debug = ["sp1-core-machine/debug", "sp1-recursion-compiler/debug"]
+mprotect = ["sp1-core-machine/mprotect", "sp1-hypercube/mprotect", "sp1-recursion-executor/mprotect"]
 
 [lints]
 workspace = true

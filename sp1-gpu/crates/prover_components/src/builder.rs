@@ -96,6 +96,9 @@ pub async fn cuda_worker_builder(scope: TaskScope) -> SP1WorkerBuilder<SP1CudaPr
 
     #[cfg(feature = "experimental")]
     {
+        if cfg!(feature = "mprotect") {
+            return base_builder.without_vk_verification();
+        }
         if let Ok(setting) = std::env::var("WITHOUT_VK_VERIFICATION") {
             if setting == "1" || setting == "true" {
                 return base_builder.without_vk_verification();

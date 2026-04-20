@@ -5,8 +5,7 @@ edition = { workspace = true }
 publish = false
 
 [dependencies]
-sp1-sdk = { workspace = true }
-sp1-core-executor = { workspace = true }
+sp1-sdk = { workspace = true, features = ["mprotect"] }
 tokio = { workspace = true }
 
 [build-dependencies]

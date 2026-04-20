@@ -31,14 +31,6 @@ pub fn main() {
     println!("Setting page 3 to NONE (guard page)");
     mprotect((aligned_ptr as usize + 2 * PAGE_SIZE) as *mut u8, PAGE_SIZE, PROT_NONE);
 
-    // Page 4: Full permissions (read/write/execute)
-    println!("Setting page 4 to READ|WRITE|EXEC");
-    mprotect(
-        (aligned_ptr as usize + 3 * PAGE_SIZE) as *mut u8,
-        PAGE_SIZE,
-        PROT_READ | PROT_WRITE | PROT_EXEC,
-    );
-
     // Test basic memory access on the read/write page
     println!("Testing memory access on page 1 (read/write)");
     let page1_ptr = aligned_ptr as *mut u32;

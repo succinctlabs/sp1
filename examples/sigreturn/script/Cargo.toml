@@ -1,0 +1,23 @@
+[package]
+name = "sigreturn-script"
+version = { workspace = true }
+edition = { workspace = true }
+default-run = "sigreturn-script"
+publish = false
+
+[dependencies]
+sp1-sdk = { workspace = true, default-features = true, features = ["mprotect"]}
+tokio = { workspace = true }
+sp1-prover = { workspace = true, features = ["mprotect"] }
+sp1-core-executor = { workspace = true, features = ["mprotect"] }
+sp1-build = { workspace = true }
+sp1-core-machine = { workspace = true, features = ["mprotect"] }
+sp1-primitives = { workspace = true }
+tracing = "0.1"
+
+[build-dependencies]
+sp1-build = { workspace = true }
+
+[[bin]]
+name = "sigreturn-script"
+path = "src/main.rs"

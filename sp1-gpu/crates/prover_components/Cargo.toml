@@ -49,6 +49,15 @@ slop-jagged = { workspace = true }
 default = []
 experimental = ["sp1-prover/experimental"]
 bigint-rug = ["sp1-core-machine/bigint-rug"]
+mprotect = [
+    "experimental",
+    "sp1-core-executor/mprotect",
+    "sp1-core-machine/mprotect",
+    "sp1-hypercube/mprotect",
+    "sp1-prover/mprotect",
+    "sp1-gpu-air/mprotect",
+    "sp1-gpu-shard-prover/mprotect",
+]
 
 [lints]
 workspace = true

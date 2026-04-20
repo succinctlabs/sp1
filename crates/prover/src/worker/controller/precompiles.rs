@@ -191,7 +191,8 @@ pub fn precompile_channel(
     program: &Program,
     opts: &SP1CoreOpts,
 ) -> (mpsc::UnboundedSender<DeferredMessage>, PrecompileHandler) {
-    let split_opts = SplitOpts::new(opts, program.instructions.len(), false);
+    let split_opts =
+        SplitOpts::new(opts, program.instructions.len(), program.enable_untrusted_programs);
     let (deferred_marker_tx, deferred_marker_rx) = mpsc::unbounded_channel();
     (deferred_marker_tx, PrecompileHandler { split_opts, deferred_marker_rx })
 }

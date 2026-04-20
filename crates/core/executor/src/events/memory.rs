@@ -321,9 +321,14 @@ pub struct MemoryLocalEvent {
 #[repr(C)]
 pub struct PageProtRecord {
     /// The external flag.
+    // TODO: in native executor design, shape checker actually relies on outside data
+    // to determine if the page prot event is external. So maybe when the legacy executor
+    // is removed, we don't really need this flag.
     pub external_flag: bool,
     /// The timestamp.
     pub timestamp: u64,
+    /// The page index.
+    pub page_idx: u64,
     /// The page prot.
     pub page_prot: u8,
 }
