@@ -375,8 +375,5 @@ pub fn get_complexity_mapping() -> EnumMap<RiscvAirId, u64> {
     let json = include_str!("../artifacts/rv64im_complexity_mprotect.json");
 
     let complexity: HashMap<String, u64> = serde_json::from_str(json).unwrap();
-    complexity
-        .into_iter()
-        .map(|(k, v)| (RiscvAirId::from_str(&k).unwrap(), v))
-        .collect()
+    complexity.into_iter().map(|(k, v)| (RiscvAirId::from_str(&k).unwrap(), v)).collect()
 }

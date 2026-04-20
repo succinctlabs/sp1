@@ -117,8 +117,7 @@ fn verify_deferred_proofs(proofs: &[DeferredProofInput]) -> anyhow::Result<()> {
         return Ok(());
     }
     #[cfg(feature = "mprotect")]
-    let verifier_vks =
-        RecursionVks::new(None, DEFAULT_MAX_COMPOSE_ARITY, false).to_verifier_vks();
+    let verifier_vks = RecursionVks::new(None, DEFAULT_MAX_COMPOSE_ARITY, false).to_verifier_vks();
     #[cfg(not(feature = "mprotect"))]
     let verifier_vks = crate::verify::VerifierRecursionVks::default();
     let verifier = SP1Verifier::new(verifier_vks);

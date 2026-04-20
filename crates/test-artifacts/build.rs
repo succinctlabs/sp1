@@ -37,9 +37,9 @@ fn main() -> Result<()> {
             .canonicalize()?;
 
         build_program_with_args(
-            trap_path.to_str().ok_or_else(|| {
-                Error::other(format!("expected {trap_path:?} to be valid UTF-8"))
-            })?,
+            trap_path
+                .to_str()
+                .ok_or_else(|| Error::other(format!("expected {trap_path:?} to be valid UTF-8")))?,
             Default::default(),
         );
     }

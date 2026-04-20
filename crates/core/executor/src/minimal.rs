@@ -221,9 +221,7 @@ impl MinimalExecutorEnum {
 
     /// Calls `try_execute_chunk` to respective `MinimalExecutor` (portable executor only).
     #[cfg(sp1_use_portable_executor)]
-    pub fn try_execute_chunk(
-        &mut self,
-    ) -> Result<Option<TraceChunkRaw>, crate::ExecutionError> {
+    pub fn try_execute_chunk(&mut self) -> Result<Option<TraceChunkRaw>, crate::ExecutionError> {
         match self {
             Self::Supervisor(e) => e.try_execute_chunk(),
             Self::User(e) => e.try_execute_chunk(),
@@ -232,18 +230,13 @@ impl MinimalExecutorEnum {
 
     /// Calls `try_execute_chunk` (native executor fallback — infallible).
     #[cfg(not(sp1_use_portable_executor))]
-    pub fn try_execute_chunk(
-        &mut self,
-    ) -> Result<Option<TraceChunkRaw>, crate::ExecutionError> {
+    pub fn try_execute_chunk(&mut self) -> Result<Option<TraceChunkRaw>, crate::ExecutionError> {
         Ok(self.execute_chunk())
     }
 
     /// Calls `get_page_prot_record` to respective `MinimalExecutor`.
     #[must_use]
-    pub fn get_page_prot_record(
-        &self,
-        page_idx: u64,
-    ) -> Option<sp1_jit::PageProtValue> {
+    pub fn get_page_prot_record(&self, page_idx: u64) -> Option<sp1_jit::PageProtValue> {
         match self {
             Self::Supervisor(e) => e.get_page_prot_record(page_idx),
             Self::User(e) => e.get_page_prot_record(page_idx),
@@ -253,9 +246,7 @@ impl MinimalExecutorEnum {
     /// Take the cycle tracker totals, consuming them.
     #[cfg(feature = "profiling")]
     #[must_use]
-    pub fn take_cycle_tracker_totals(
-        &mut self,
-    ) -> hashbrown::HashMap<String, u64> {
+    pub fn take_cycle_tracker_totals(&mut self) -> hashbrown::HashMap<String, u64> {
         match self {
             Self::Supervisor(e) => e.take_cycle_tracker_totals(),
             Self::User(e) => e.take_cycle_tracker_totals(),
@@ -265,9 +256,7 @@ impl MinimalExecutorEnum {
     /// Take the invocation tracker, consuming it.
     #[cfg(feature = "profiling")]
     #[must_use]
-    pub fn take_invocation_tracker(
-        &mut self,
-    ) -> hashbrown::HashMap<String, u64> {
+    pub fn take_invocation_tracker(&mut self) -> hashbrown::HashMap<String, u64> {
         match self {
             Self::Supervisor(e) => e.take_invocation_tracker(),
             Self::User(e) => e.take_invocation_tracker(),

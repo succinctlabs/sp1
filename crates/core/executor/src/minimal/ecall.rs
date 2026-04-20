@@ -136,8 +136,11 @@ pub fn ecall_handler(ctx: &mut impl SyscallContext, code: SyscallCode) -> Result
         SyscallCode::BLS12381_FP2_MUL => unsafe {
             fp2_mul_syscall::<Bls12381BaseField>(ctx, arg1, arg2)
         },
-        SyscallCode::BN254_FP_ADD | SyscallCode::BN254_FP_SUB | SyscallCode::BN254_FP_MUL => 
-            unsafe { fp_op_syscall::<Bn254BaseField>(ctx, arg1, arg2, code.fp_op_map()) }
+        SyscallCode::BN254_FP_ADD
+        | SyscallCode::BN254_FP_SUB
+        | SyscallCode::BN254_FP_MUL => unsafe {
+            fp_op_syscall::<Bn254BaseField>(ctx, arg1, arg2, code.fp_op_map())
+        },
         SyscallCode::BN254_FP2_ADD | SyscallCode::BN254_FP2_SUB => unsafe {
             fp2_addsub_syscall::<Bn254BaseField>(ctx, arg1, arg2, code.fp_op_map())
         },
