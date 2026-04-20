@@ -182,7 +182,7 @@ where
     pub _config: PhantomData<C>,
 }
 
-impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> RecursiveWhirVerifier<C, SC> {
+impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C, F = SP1Field>> RecursiveWhirVerifier<C, SC> {
     pub(crate) fn observe_commitment(
         &self,
         builder: &mut Builder<C>,
@@ -201,8 +201,13 @@ impl<C: CircuitConfig, SC: SP1FieldConfigVariable<C>> RecursiveWhirVerifier<C, S
         num_variables: usize,
         proof: &RecursiveWhirProof<C, SC>,
         challenger: &mut SC::FriChallengerVariable,
-    ) -> PointAndEval<Ext<SP1Field, SP1ExtensionField>> {
+    ) -> PointAndEval<Ext<SP1Field, SP1ExtensionField>>
+where {
         let n_rounds = self.config.round_parameters().len();
+        let num_variables_felt: Felt<_> =
+            builder.constant(SC::F::from_canonical_usize(num_variables));
+
+        challenger.observe(builder, num_variables_felt);
 
         let ood_points: Vec<Point<Ext<SP1Field, SP1ExtensionField>>> =
             (0..self.config.starting_ood_samples())
