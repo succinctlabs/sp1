@@ -25,6 +25,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: patch-testing-results
+          path: patch-testing
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
