@@ -7,7 +7,9 @@ static GLOBAL: Jemalloc = Jemalloc;
 
 use clap::Parser;
 use server::Server;
+use sp1_cuda::client::socket_path;
 use sp1_gpu_cudart::run_in_place;
+use tokio::net::UnixListener;
 
 mod server;
 
@@ -34,9 +36,26 @@ async fn main() {
         .parse()
         .expect("Expected only one CUDA device as a u32");
 
+    eprintln!(
+        "Running sp1-gpu-server {} with device {}",
+        sp1_primitives::SP1_CRATE_VERSION,
+        cuda_device_id
+    );
+
+    // Bind the socket *before* CUDA init. CUDA context creation can take
+    // several seconds on cold GPUs; if the listener isn't ready by then the
+    // sp1-cuda client's 1s reconnect window fires and panics the parent.
+    let socket_path = socket_path(cuda_device_id);
+    if let Err(e) = std::fs::remove_file(&socket_path) {
+        tracing::warn!("Failed to remove orphaned socket: {}", e);
+    }
+    let listener =
+        UnixListener::bind(&socket_path).expect("Failed to bind to socket addr");
+    tracing::info!("Server listening @ {}", socket_path.display());
+
     let server = Server { cuda_device_id };
 
-    if let Err(e) = run_in_place(|scope| server.run(scope)).await.await {
+    if let Err(e) = run_in_place(|scope| server.run(scope, listener, socket_path)).await.await {
         eprintln!("Error running server: {e}");
     }
 }

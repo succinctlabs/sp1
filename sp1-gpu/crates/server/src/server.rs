@@ -1,14 +1,12 @@
 use sp1_core_executor::SP1Context;
-use sp1_cuda::{
-    api::{Request, Response},
-    client::socket_path,
-};
+use sp1_cuda::api::{Request, Response};
 use sp1_gpu_cudart::TaskScope;
 use sp1_gpu_prover::cuda_worker_builder;
 use sp1_primitives::Elf;
 use sp1_prover::worker::{SP1LocalNode, SP1LocalNodeBuilder};
 use sp1_prover::SP1VerifyingKey;
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 use std::io;
 use std::sync::Arc;
@@ -37,21 +35,11 @@ struct ConnectionCtx {
 
 impl Server {
     /// Run the server, indefinitely.
-    pub async fn run(self, task_scope: TaskScope) {
-        eprintln!(
-            "Running sp1-gpu-server {} with device {}",
-            sp1_primitives::SP1_CRATE_VERSION,
-            self.cuda_device_id
-        );
-        let socket_path = socket_path(self.cuda_device_id);
-
-        // Try to remove the socket file socket incase the file was never cleaned up.
-        if let Err(e) = std::fs::remove_file(&socket_path) {
-            tracing::warn!("Failed to remove orphaned socket: {}", e);
-        }
-
-        let listener = UnixListener::bind(&socket_path).expect("Failed to bind to socket addr");
-
+    ///
+    /// The listener is bound in `main` before CUDA init so that the sp1-cuda
+    /// client can connect to the socket immediately. Accept requests enqueue in
+    /// the kernel's backlog and are drained once the prover is ready below.
+    pub async fn run(self, task_scope: TaskScope, listener: UnixListener, socket_path: PathBuf) {
         let prover = Arc::new(
             SP1LocalNodeBuilder::from_worker_client_builder(
                 cuda_worker_builder(task_scope.clone()).await,
@@ -61,7 +49,7 @@ impl Server {
             .unwrap(),
         );
 
-        tracing::info!("Server listening @ {}", socket_path.display());
+        tracing::info!("CUDA prover ready, accepting connections @ {}", socket_path.display());
         loop {
             tokio::select! {
                 res = listener.accept() => {
