@@ -88,7 +88,8 @@ impl<
         A: PointBackend<EF>
             + PointBackend<F>
             + CanCopyFrom<Buffer<EF>, CpuBackend, Output = Buffer<EF, A>>
-            + CanCopyFrom<Buffer<F>, CpuBackend, Output = Buffer<F, A>>,
+            + CanCopyFrom<Buffer<F>, CpuBackend, Output = Buffer<F, A>>
+            + PartialLagrangeBackend,
     {
         let log_m = log2_ceil_usize(*prefix_sums.last().unwrap());
         let col_prefix_sums: Vec<Point<F>> =
@@ -104,16 +105,10 @@ impl<
             })
             .collect_vec();
 
-        // let z_col_device = backend.copy_to(&z_col).unwrap();
+        let z_col_device = backend.copy_to(&z_col).unwrap();
 
         // Generate all of the z_col partial lagrange mle.
-        let z_col_eq_vals = Mle::blocking_partial_lagrange(&z_col)
-            .into_guts()
-            .into_buffer()
-            .into_iter()
-            .copied()
-            .take(merged_prefix_sums.len())
-            .collect::<Vec<EF>>();
+        let z_col_eq_vals = Mle::<EF, A>::partial_lagrange(&z_col_device);
 
         // // Condense the merged_prefix_sums and z_col_eq_vals for empty tables.
         // let (merged_prefix_sums, z_col_eq_vals): (Vec<Point<F>>, Vec<EF>) = merged_prefix_sums
