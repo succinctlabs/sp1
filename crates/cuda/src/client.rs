@@ -144,8 +144,10 @@ impl CudaClientInner {
     async fn connect_inner(cuda_id: u32) -> Result<UnixStream, CudaClientError> {
         let socket_path = socket_path(cuda_id);
 
-        // Retry a few times, just in case the server hasnt started yet.
-        for _ in 0..10 {
+        // One-shot wait at first connect; zero cost after the socket appears.
+        // Cold `sp1-gpu-server` exec loads CUDA/icicle .so via /dev/nvidia*
+        // ioctls (~3s), done twice per spawn (--version + real child).
+        for _ in 0..600 {
             let Ok(this) = Self::connect_once(&socket_path).await else {
                 tokio::time::sleep(Duration::from_millis(100)).await;
                 continue;
