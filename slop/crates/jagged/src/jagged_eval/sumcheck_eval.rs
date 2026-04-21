@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 use slop_algebra::{ExtensionField, Field};
-use slop_alloc::{Buffer, CanCopyFrom, CpuBackend};
+use slop_alloc::{Buffer, CanCopyFrom, CanCopyFromRef, CpuBackend};
 use slop_challenger::{FieldChallenger, FromChallenger, VariableLengthChallenger};
-use slop_multilinear::{Mle, Point, PointBackend};
+use slop_multilinear::{Mle, PartialLagrangeBackend, Point, PointBackend};
 use slop_sumcheck::{partially_verify_sumcheck_proof, PartialSumcheckProof, SumcheckError};
 use slop_tensor::Tensor;
 use slop_utils::log2_ceil_usize;
@@ -177,7 +177,9 @@ where
     A: PointBackend<EF>
         + PointBackend<F>
         + CanCopyFrom<Buffer<EF>, CpuBackend, Output = Buffer<EF, A>>
-        + CanCopyFrom<Buffer<F>, CpuBackend, Output = Buffer<F, A>>,
+        + CanCopyFrom<Buffer<F>, CpuBackend, Output = Buffer<F, A>>
+        + CanCopyFromRef<Buffer<EF, A>, A, Output = Buffer<EF>>
+        + PartialLagrangeBackend<EF>,
 {
     type A = A;
 

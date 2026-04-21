@@ -2,9 +2,10 @@ use std::{marker::PhantomData, sync::Arc};
 
 use itertools::Itertools;
 use slop_algebra::{ExtensionField, Field};
-use slop_alloc::{Backend, Buffer, CanCopyFrom, CpuBackend};
+use slop_alloc::{Backend, Buffer, CanCopyFrom, CanCopyFromRef, CpuBackend, ToGlobal};
 use slop_challenger::FieldChallenger;
-use slop_multilinear::{Mle, Point, PointBackend};
+use slop_multilinear::{Mle, PartialLagrangeBackend, Point, PointBackend};
+use slop_tensor::Tensor;
 use slop_utils::log2_ceil_usize;
 
 use super::JaggedAssistSumAsPoly;
@@ -89,7 +90,8 @@ impl<
             + PointBackend<F>
             + CanCopyFrom<Buffer<EF>, CpuBackend, Output = Buffer<EF, A>>
             + CanCopyFrom<Buffer<F>, CpuBackend, Output = Buffer<F, A>>
-            + PartialLagrangeBackend,
+            + CanCopyFromRef<Buffer<EF, A>, A, Output = Buffer<EF>>
+            + PartialLagrangeBackend<EF>,
     {
         let log_m = log2_ceil_usize(*prefix_sums.last().unwrap());
         let col_prefix_sums: Vec<Point<F>> =
@@ -108,20 +110,22 @@ impl<
         let z_col_device = backend.copy_to(&z_col).unwrap();
 
         // Generate all of the z_col partial lagrange mle.
-        let z_col_eq_vals = Mle::<EF, A>::partial_lagrange(&z_col_device);
+        let z_col_eq_vals = A::partial_lagrange(&z_col_device);
 
-        // // Condense the merged_prefix_sums and z_col_eq_vals for empty tables.
-        // let (merged_prefix_sums, z_col_eq_vals): (Vec<Point<F>>, Vec<EF>) = merged_prefix_sums
-        //     .iter()
-        //     .zip(z_col_partial_lagrange.guts().as_slice())
-        //     .chunk_by(|(merged_prefix_sum, _)| *merged_prefix_sum)
-        //     .into_iter()
-        //     .map(|(merged_prefix_sum, group)| {
-        //         let group_elements =
-        //             group.into_iter().map(|(_, z_col_eq_val)| *z_col_eq_val).collect_vec();
-        //         (merged_prefix_sum.clone(), group_elements.into_iter().sum::<EF>())
-        //     })
-        //     .unzip();
+        let z_col_eq_vals_host: Buffer<EF, CpuBackend> =
+            backend.copy_to(z_col_eq_vals.as_buffer()).unwrap();
+        // Condense the merged_prefix_sums and z_col_eq_vals for empty tables.
+        let (merged_prefix_sums, z_col_eq_vals): (Vec<Point<F>>, Vec<EF>) = merged_prefix_sums
+            .iter()
+            .zip(z_col_eq_vals_host.as_slice())
+            .chunk_by(|(merged_prefix_sum, _)| *merged_prefix_sum)
+            .into_iter()
+            .map(|(merged_prefix_sum, group)| {
+                let group_elements =
+                    group.into_iter().map(|(_, z_col_eq_val)| *z_col_eq_val).collect_vec();
+                (merged_prefix_sum.clone(), group_elements.into_iter().sum::<EF>())
+            })
+            .unzip();
 
         let merged_prefix_sums_len = merged_prefix_sums.len();
         let num_variables = merged_prefix_sums[0].dimension();
@@ -131,16 +135,8 @@ impl<
         let z_col_device = backend.copy_to(&z_col).unwrap();
 
         let half = EF::two().inverse();
-        let bp_batch_eval = BPE::new(
-            z_row,
-            z_index,
-            merged_prefix_sums.clone(),
-            z_col_eq_vals.clone(),
-            backend.clone(),
-        );
-
-        let z_col_eq_vals_device: Buffer<EF, A> =
-            backend.copy_into(Buffer::<EF>::from(z_col_eq_vals)).unwrap();
+        let bp_batch_eval = BPE::new(z_row, z_index, merged_prefix_sums.clone(), backend.clone());
+        let z_col_eq_vals = backend.copy_into(Buffer::from(z_col_eq_vals)).unwrap();
 
         let merged_prefix_sums_device = backend
             .copy_into(
@@ -162,7 +158,7 @@ impl<
             z_col: z_col_device,
             merged_prefix_sums: merged_prefix_sums_device,
             round_num: 0,
-            z_col_eq_vals: z_col_eq_vals_device,
+            z_col_eq_vals,
             intermediate_eq_full_evals: intermediate_eq_full_evals_device,
             half,
             prefix_sum_dimension: num_variables as u32,

@@ -35,7 +35,6 @@ where
         z_row: Point<EF>,
         z_index: Point<EF>,
         merged_prefix_sums: &[Point<F>],
-        _z_col_eq_vals: &[EF],
         t: &TaskScope,
     ) -> Self {
         // Convert z_row and z_index to device
@@ -220,16 +219,9 @@ where
         z_row: Point<EF>,
         z_index: Point<EF>,
         merged_prefix_sums: Arc<Vec<Point<F>>>,
-        z_col_eq_vals: Vec<EF>,
         backend: TaskScope,
     ) -> Self {
-        JaggedAssistSumAsPolyGPUImpl::new(
-            z_row,
-            z_index,
-            &merged_prefix_sums,
-            &z_col_eq_vals,
-            &backend,
-        )
+        JaggedAssistSumAsPolyGPUImpl::new(z_row, z_index, &merged_prefix_sums, &backend)
     }
 
     fn sum_as_poly_and_sample_into_point(

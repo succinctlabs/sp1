@@ -100,13 +100,8 @@ where
     let half = EF::two().inverse();
 
     // Create the GPU implementation sync
-    let bp_batch_eval = JaggedAssistSumAsPolyGPUImpl::new(
-        z_row,
-        z_index,
-        &merged_prefix_sums,
-        &z_col_eq_vals,
-        backend,
-    );
+    let bp_batch_eval =
+        JaggedAssistSumAsPolyGPUImpl::new(z_row, z_index, &merged_prefix_sums, backend);
 
     // Sync device copies
     let z_col_eq_vals_buffer = Buffer::<EF>::from(z_col_eq_vals);

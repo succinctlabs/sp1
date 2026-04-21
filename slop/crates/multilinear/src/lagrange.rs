@@ -1,8 +1,18 @@
 use slop_algebra::AbstractField;
-use slop_alloc::CpuBackend;
+use slop_alloc::{Backend, CpuBackend};
 use slop_tensor::Tensor;
 
 use crate::{Basis, Point};
+
+pub trait PartialLagrangeBackend<F>: Backend {
+    fn partial_lagrange(point: &Point<F, Self>) -> Tensor<F, Self>;
+}
+
+impl<F: AbstractField> PartialLagrangeBackend<F> for CpuBackend {
+    fn partial_lagrange(point: &Point<F, CpuBackend>) -> Tensor<F, CpuBackend> {
+        partial_lagrange(point)
+    }
+}
 
 /// Computes the partial lagrange polynomial eq(z, -) for a fixed z.
 pub fn partial_lagrange<F: AbstractField>(point: &Point<F, CpuBackend>) -> Tensor<F, CpuBackend> {

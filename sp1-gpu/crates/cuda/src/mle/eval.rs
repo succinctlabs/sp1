@@ -1,6 +1,6 @@
 use slop_algebra::{ExtensionField, Field};
 use slop_alloc::{mem::CopyError, CpuBackend};
-use slop_multilinear::{MleBaseBackend, MleEval, Point};
+use slop_multilinear::{MleBaseBackend, MleEval, PartialLagrangeBackend, Point};
 use slop_tensor::Tensor;
 use sp1_gpu_sys::{
     mle::{
@@ -87,6 +87,16 @@ impl<F: DeviceCopy + Field> DevicePoint<F> {
                 .unwrap();
         }
         DeviceMle::new(eq)
+    }
+}
+
+impl<F: DeviceCopy + Field> PartialLagrangeBackend<F> for TaskScope
+where
+    TaskScope: PartialLagrangeKernel<F>,
+{
+    fn partial_lagrange(point: &Point<F, Self>) -> Tensor<F, Self> {
+        let device_point = DevicePoint::new(point.clone());
+        device_point.partial_lagrange().into_guts().into_inner()
     }
 }
 

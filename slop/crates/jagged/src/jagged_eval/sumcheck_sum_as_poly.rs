@@ -28,7 +28,6 @@ pub trait JaggedAssistSumAsPoly<
         z_row: Point<EF>,
         z_index: Point<EF>,
         merged_prefix_sums: Arc<Vec<Point<F>>>,
-        z_col_eq_vals: Vec<EF>,
         backend: A,
     ) -> Self;
 
@@ -117,7 +116,6 @@ impl<F: Field, EF: ExtensionField<F>, Challenger: FieldChallenger<F> + Send + Sy
         z_row: Point<EF>,
         z_index: Point<EF>,
         merged_prefix_sums: Arc<Vec<Point<F>>>,
-        _z_col_eq_vals: Vec<EF>,
         _backend: CpuBackend,
     ) -> Self {
         let branching_program = BranchingProgram::new(z_row, z_index);
