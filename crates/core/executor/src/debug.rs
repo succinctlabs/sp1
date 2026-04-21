@@ -16,14 +16,14 @@ pub fn render_current_instruction(program: &Program, state: &State) -> String {
     } else {
         let index = instruction.op_b as usize;
         let value = state.registers[index];
-        format!("0x{value:016x} (%x{index:02})",)
+        format!("0x{value:016x} (%x{index:02})")
     };
     let c = if instruction.imm_c {
         format!("0x{:016x} (imm) ", instruction.op_c as i32)
     } else {
         let index = instruction.op_c as usize;
         let value = state.registers[index];
-        format!("0x{value:016x} (%x{index:02})",)
+        format!("0x{value:016x} (%x{index:02})")
     };
 
     let rd = if instruction.is_ecall_instruction() {

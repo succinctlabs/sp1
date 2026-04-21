@@ -217,12 +217,10 @@ impl<C: Config> CircuitV2Builder<C> for Builder<C> {
         digest: SepticDigest<Felt<SP1Field>>,
     ) {
         let zero = SepticDigest::<SymbolicFelt<SP1Field>>::zero();
-        for (digest_limb_x, zero_limb_x) in digest.0.x.0.into_iter().zip_eq(zero.0.x.0.into_iter())
-        {
+        for (digest_limb_x, zero_limb_x) in digest.0.x.0.into_iter().zip_eq(zero.0.x.0) {
             self.assert_felt_eq(is_real * digest_limb_x, is_real * zero_limb_x);
         }
-        for (digest_limb_y, zero_limb_y) in digest.0.y.0.into_iter().zip_eq(zero.0.y.0.into_iter())
-        {
+        for (digest_limb_y, zero_limb_y) in digest.0.y.0.into_iter().zip_eq(zero.0.y.0) {
             self.assert_felt_eq(is_real * digest_limb_y, is_real * zero_limb_y);
         }
     }
