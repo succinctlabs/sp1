@@ -99,6 +99,19 @@
 - PGO is a build-time optimization: it changes how LLVM compiles the code, not what code runs
 - Could be integrated into CI for release builds or the prover docker image
 
+## E8. Remove par_bridge from hot paths
+
+**Status:** ✅ COMPLETE — PR #2729
+**Hypothesis:** `par_bridge()` uses a mutex internally for work distribution, causing `Mutex::lock_contended` (1.3% in profile). Replacing with `par_chunks_mut` / `into_par_iter` removes the mutex.
+**Expected delta:** 1-3%
+**Actual delta:** -6.8% fib, -7.6% keccak, -7.1% big (on top of E1+E2)
+
+### Changed files
+- `slop/crates/multilinear/src/restrict.rs` — `mle_fix_last_variable`: `.chunks().zip().par_bridge()` → `.par_chunks_mut().enumerate()`
+- `slop/crates/jagged/src/poly.rs` — `eval`: `.iter().zip().enumerate().par_bridge()` → `(0..N).into_par_iter()`
+- `slop/crates/jagged/src/poly.rs` — `partial_jagged_little_polynomial_evaluation`: `.chunks_mut().enumerate().par_bridge()` → `.par_chunks_mut().enumerate()`
+- `crates/hypercube/src/prover/zerocheck/sum_as_poly.rs` — `.chunks().zip().enumerate().par_bridge()` → `(0..N).into_par_iter()` with manual indexing
+
 ## ~~E7. SIMD feature gates~~
 
 **Status:** ELIMINATED — AVX-512 confirmed active in Phase 1 profile
