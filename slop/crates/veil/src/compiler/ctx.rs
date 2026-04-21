@@ -147,6 +147,16 @@ pub trait SendingCtx: ConstraintCtx {
     /// Send multiple values to the verifier (adds them to the proof transcript).
     fn send_values(&mut self, values: &[Self::Extension]) -> Vec<Self::Expr>;
 
+    /// Evaluate an expression to its underlying extension-field value.
+    ///
+    /// Prover-only operation: on the prover side, every `Expr` carries (or can
+    /// recompute) its concrete value. This is the inverse of `send_value` /
+    /// the `Algebra<Extension>` lifting — it lets protocols extract the concrete
+    /// value from an Expr that was built earlier (e.g. an upstream protocol's
+    /// output claim, or a claim constructed via `Expr::one() * value`) without
+    /// re-transmitting it on the transcript.
+    fn to_value(&self, expr: &Self::Expr) -> Self::Extension;
+
     /// Sample a Fiat-Shamir challenge from the transcript.
     fn sample(&mut self) -> Self::Challenge;
 

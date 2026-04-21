@@ -16,7 +16,10 @@
       "Bash(xargs sed:*)",
       "Bash(for i:*)",
       "Bash(do cargo:*)",
-      "Bash(ls -d /Users/rdalalsuccinct/Documents/sp1-wip/.claude/worktrees/*/)"
+      "Bash(ls -d /Users/rdalalsuccinct/Documents/sp1-wip/.claude/worktrees/*/)",
+      "Read(//Users/rdalalsuccinct/Desktop/6941cd3f5306739e6e76741f/**)",
+      "Read(//Users/rdalalsuccinct/Documents/zkifyer-formal-verification/**)",
+      "WebFetch(domain:github.com)"
     ],
     "additionalDirectories": [
       "/Users/rdalalsuccinct/Documents/sp1-wip-veil-independent/slop/crates/veil/examples"

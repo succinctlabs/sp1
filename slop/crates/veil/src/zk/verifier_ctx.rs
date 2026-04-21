@@ -50,6 +50,7 @@ impl<GC: ZkIopCtx> ZkVerifierCtx<GC> {
 pub type TranscriptElement<GC: ZkIopCtx> =
     Dorroh<GC::EF, ExpressionIndex<GC::EF, ZkVerificationContext<GC>>>;
 
+#[derive(Clone, Copy)]
 pub struct MleCommit {
     pub(crate) inner: MleCommitmentIndex,
 }

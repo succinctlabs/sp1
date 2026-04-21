@@ -149,6 +149,13 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> SendingCtx for ZkProverCtx<GC, PC> {
         self.inner.add_values(values).into_iter().map(Dorroh::Element).collect()
     }
 
+    fn to_value(&self, expr: &ProverTranscriptElement<GC, PC>) -> GC::EF {
+        match expr {
+            Dorroh::Constant(f) => *f,
+            Dorroh::Element(e) => e.value(),
+        }
+    }
+
     fn sample(&mut self) -> GC::EF {
         self.inner.challenger().sample_ext_element()
     }

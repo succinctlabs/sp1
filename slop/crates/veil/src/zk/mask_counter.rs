@@ -107,28 +107,3 @@ impl<GC: ZkIopCtx> ReadingCtx for MaskCounter<GC> {
         self.inner.challenger().sample_ext_element()
     }
 }
-
-// ============================================================================
-// SendingCtx impl
-// ============================================================================
-
-impl<GC: ZkIopCtx> SendingCtx for MaskCounter<GC> {
-    fn send_value(&mut self, _value: GC::EF) -> MaskCounterExpr<GC> {
-        use crate::zk::inner::ZkCnstrAndReadingCtxInner;
-        // Increment counter by 1
-        let values = self.inner.read_next(1).unwrap();
-        Dorroh::Element(values.into_iter().next().unwrap())
-    }
-
-    fn send_values(&mut self, values: &[GC::EF]) -> Vec<MaskCounterExpr<GC>> {
-        use crate::zk::inner::ZkCnstrAndReadingCtxInner;
-        // Increment counter by values.len()
-        let inner_values = self.inner.read_next(values.len()).unwrap();
-        inner_values.into_iter().map(Dorroh::Element).collect()
-    }
-
-    fn sample(&mut self) -> GC::EF {
-        use crate::zk::inner::ZkCnstrAndReadingCtxInner;
-        self.inner.challenger().sample_ext_element()
-    }
-}

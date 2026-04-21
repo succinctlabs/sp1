@@ -22,7 +22,7 @@ use slop_merkle_tree::Poseidon2KoalaBear16Prover;
 use slop_multilinear::{Mle, Point};
 use slop_sumcheck::{ComponentPoly, SumcheckPoly, SumcheckPolyBase, SumcheckPolyFirstRound};
 use slop_veil::compiler::{ConstraintCtx, ReadingCtx, SendingCtx};
-use slop_veil::protocols::sumcheck::{SumcheckParam, SumcheckView};
+use slop_veil::protocols::sumcheck::{SumcheckInputClaim, SumcheckParam, SumcheckView};
 use slop_veil::zk::stacked_pcs::{initialize_zk_prover_and_verifier, StackedPcsZkProverCtx};
 use slop_veil::zk::{compute_mask_length, ZkProverCtx, ZkVerifierCtx};
 
@@ -215,14 +215,14 @@ fn zerocheck_read<C: ReadingCtx>(ctx: &mut C) -> ZerocheckView<C> {
 }
 
 fn zerocheck_build_constraints<C: ConstraintCtx<Challenge = EF>>(
-    ctx: &mut C,
     view: ZerocheckView<C>,
+    ctx: &mut C,
 ) {
-    let z = Point::from(view.sumcheck_view.point.clone());
+    let z = Point::from(view.sumcheck_view.out_claim.point.clone());
 
-    let p_eval = view.sumcheck_view.component_evals[0].clone();
-    let q_eval = view.sumcheck_view.component_evals[1].clone();
-    let r_eval = view.sumcheck_view.component_evals[2].clone();
+    let p_eval = view.sumcheck_view.out_claim.component_evals[0].clone();
+    let q_eval = view.sumcheck_view.out_claim.component_evals[1].clone();
+    let r_eval = view.sumcheck_view.out_claim.component_evals[2].clone();
 
     // Constraint: claimed_eval == eq(z, z_0) * (p(z) * q(z) - r(z))
     //
@@ -233,7 +233,7 @@ fn zerocheck_build_constraints<C: ConstraintCtx<Challenge = EF>>(
     // Express as a single polynomial constraint:
     //   eq(z, z_0) * (p(z) * q(z) - r(z)) - claimed_eval = 0
     let pq_minus_r = p_eval.clone() * q_eval.clone() - r_eval.clone();
-    let constraint = pq_minus_r * eq_eval - view.sumcheck_view.claimed_eval.clone();
+    let constraint = pq_minus_r * eq_eval - view.sumcheck_view.out_claim.claimed_eval.clone();
     ctx.assert_zero(constraint);
 
     // Constraint 3: PCS evaluation claims for p, q, r at point z
@@ -242,8 +242,10 @@ fn zerocheck_build_constraints<C: ConstraintCtx<Challenge = EF>>(
         z,
     );
 
-    // Emit sumcheck round-consistency constraints
-    view.sumcheck_view.build_constraints(ctx).unwrap();
+    // Emit sumcheck round-consistency constraints. The zerocheck's input claim to
+    // sumcheck is the constant zero (sum of `eq(z_0, x) * (p*q - r)` over the hypercube).
+    let sumcheck_in_claim = SumcheckInputClaim::zero();
+    view.sumcheck_view.build_constraints(&sumcheck_in_claim, ctx).unwrap();
 }
 
 // ============================================================================
@@ -261,10 +263,7 @@ fn main() {
     let r_ef = pointwise_product(&p_ef, &q_ef);
     let r_base = ef_mle_to_base(&r_ef);
 
-    // Compute mask length
-    let mask_length = compute_mask_length::<GC, _>(zerocheck_read, |data, ctx| {
-        zerocheck_build_constraints(ctx, data)
-    });
+    let mask_length = compute_mask_length::<GC, _>(zerocheck_read, zerocheck_build_constraints);
     eprintln!("Mask length: {mask_length}");
 
     // Initialize PCS (3 commitments)
@@ -294,11 +293,12 @@ fn main() {
 
         // Run sumcheck on f(x) = eq(z_0, x) * (p(x) * q(x) - r(x)) with claim = 0
         let param = SumcheckParam::with_component_evals(NUM_VARIABLES, 3, 3);
-        let sumcheck_view = param.prove(zerocheck_poly, &mut ctx, EF::zero());
+        let sumcheck_in_claim = SumcheckInputClaim::zero();
+        let sumcheck_view = param.prove(&sumcheck_in_claim, zerocheck_poly, &mut ctx);
 
         // Build constraints using the shared function
         let full_prover_view = ZerocheckView { p_oracle, q_oracle, r_oracle, z_0, sumcheck_view };
-        zerocheck_build_constraints(&mut ctx, full_prover_view);
+        zerocheck_build_constraints(full_prover_view, &mut ctx);
 
         let proof = ctx.prove(&mut rng);
         eprintln!("Prover time: {:?}", now.elapsed());
@@ -312,7 +312,7 @@ fn main() {
 
         let mut ctx = ZkVerifierCtx::init(proof, Some(pcs_verifier));
         let verifier_view = zerocheck_read(&mut ctx);
-        zerocheck_build_constraints(&mut ctx, verifier_view);
+        zerocheck_build_constraints(verifier_view, &mut ctx);
         ctx.verify().expect("verification failed");
 
         eprintln!("Verifier time: {:?}", now.elapsed());
