@@ -297,6 +297,10 @@ impl<C: SP1ProverComponents, A, W> SP1WorkerBuilder<C, A, W> {
 
 /// Create a [SP1WorkerBuilder] for a CPU worker.
 pub fn cpu_worker_builder() -> SP1WorkerBuilder<CpuSP1ProverComponents> {
+    // Initialize the rayon thread pool before any parallel work.
+    // Defaults to physical cores (not logical/SMT) to avoid work-stealing contention.
+    slop_futures::rayon::init_global_pool();
+
     // Create the prover permits, setting it to having 4 provers.
     let prover_permits = ProverSemaphore::new(4);
 

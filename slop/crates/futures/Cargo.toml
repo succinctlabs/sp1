@@ -14,6 +14,7 @@ rayon = { workspace = true }
 tokio = { workspace = true, features = ["sync", "rt"] }
 futures = { workspace = true }
 thiserror = { workspace = true }
+num_cpus = { workspace = true }
 
 crossbeam = { workspace = true }
 pin-project = { workspace = true }

@@ -9,8 +9,34 @@ use crate::handle::TaskHandle;
 
 static GLOBAL_POOL: OnceLock<()> = OnceLock::new();
 
-fn init_global_pool() {
-    rayon::ThreadPoolBuilder::new().panic_handler(panic_handler).build_global().ok();
+/// Initialize the rayon global thread pool.
+///
+/// Thread count selection (when `RAYON_NUM_THREADS` is not set):
+/// - Uses `min(available_parallelism, physical_cores)` to avoid both
+///   SMT oversubscription (crossbeam contention) and container overcommit.
+/// - `available_parallelism` respects cgroup CPU quotas (K8s `resources.limits.cpu`,
+///   `docker --cpus=N`) and affinity masks, so this works in containers.
+/// - `get_physical()` caps it to avoid SMT siblings on bare metal.
+///
+/// Must be called before any rayon work (par_iter, spawn, etc.) to take effect.
+/// Safe to call multiple times — only the first call configures the pool.
+pub fn init_global_pool() {
+    GLOBAL_POOL.get_or_init(|| {
+        let mut builder = rayon::ThreadPoolBuilder::new().panic_handler(panic_handler);
+
+        if std::env::var("RAYON_NUM_THREADS").is_err() {
+            let cgroup_aware =
+                std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1);
+            let physical = num_cpus::get_physical();
+            let threads = cgroup_aware.min(physical);
+            tracing::info!(
+                "rayon pool: using {threads} threads (available_parallelism={cgroup_aware}, physical={physical})"
+            );
+            builder = builder.num_threads(threads);
+        }
+
+        builder.build_global().ok();
+    });
 }
 
 fn panic_handler(panic_payload: Box<dyn Any + Send>) {
@@ -40,7 +66,7 @@ where
     F: FnOnce() -> R + Send + 'static,
     R: Send + 'static,
 {
-    GLOBAL_POOL.get_or_init(init_global_pool);
+    init_global_pool();
     let (tx, rx) = oneshot::channel();
     let (abort_handle, _) = AbortHandle::new_pair();
     rayon::spawn(move || {
@@ -56,7 +82,7 @@ where
     F: FnOnce(AbortHandle) -> R + Send + 'static,
     R: Send + 'static,
 {
-    GLOBAL_POOL.get_or_init(init_global_pool);
+    init_global_pool();
     let (tx, rx) = oneshot::channel();
     let (abort_handle, abort_registration) = AbortHandle::new_pair();
     rayon::spawn(move || {
