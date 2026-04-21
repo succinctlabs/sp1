@@ -1164,8 +1164,9 @@ mod tests {
             NoVk,
         }
 
-        let mut per_shape: Vec<(String, Status, Option<[SP1Field; DIGEST_SIZE]>, Vec<usize>)> =
-            Vec::with_capacity(selected_indices.len());
+        type PerShapeInfo = (String, Status, Option<[SP1Field; DIGEST_SIZE]>, Vec<usize>);
+
+        let mut per_shape: Vec<PerShapeInfo> = Vec::with_capacity(selected_indices.len());
 
         for (idx, label) in selected_indices.iter().zip(selected_labels.iter()) {
             let result = node
