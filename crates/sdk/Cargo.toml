@@ -90,6 +90,7 @@ rstest = { workspace = true }
 [features]
 default = []
 native-gnark = ["dep:sp1-recursion-gnark-ffi", "sp1-prover/native-gnark"]
+apc = ["sp1-prover/apc"]
 # TODO: Once alloy has a 1.* release, we can likely remove this feature flag, as there will be less
 # dependency resolution issues.
 network = [

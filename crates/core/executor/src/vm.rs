@@ -10,9 +10,10 @@ use crate::{
         },
         syscall::{sp1_ecall_handler, SyscallRuntime},
     },
-    ExecutionError, Instruction, Opcode, Program, Register, RetainedEventsPreset, SP1CoreOpts,
+    Apc, ExecutionError, Instruction, Opcode, Program, Register, RetainedEventsPreset, SP1CoreOpts,
     SyscallCode, CLK_INC as CLK_INC_32, HALT_PC, PC_INC as PC_INC_32,
 };
+use powdr_autoprecompiles::execution::{ApcCall, ApcCandidates, ExecutionState};
 use sp1_hypercube::air::{PROOF_NONCE_NUM_WORDS, PV_DIGEST_NUM_WORDS};
 use sp1_jit::{MemReads, MinimalTrace};
 use std::{mem::MaybeUninit, num::Wrapping, ptr::addr_of_mut, sync::Arc};
@@ -27,7 +28,7 @@ const CLK_INC: u64 = CLK_INC_32 as u64;
 const PC_INC: u64 = PC_INC_32 as u64;
 
 /// A RISC-V VM that uses a [`MinimalTrace`] to oracle memory access.
-pub struct CoreVM<'a> {
+pub struct CoreVM<'a, S> {
     registers: [MemoryRecord; 32],
     /// The current clock of the VM.
     clk: u64,
@@ -55,9 +56,41 @@ pub struct CoreVM<'a> {
     pub public_value_digest: [u32; PV_DIGEST_NUM_WORDS],
     /// The nonce associated with the proof.
     pub proof_nonce: [u32; PROOF_NONCE_NUM_WORDS],
+    /// The candidate tracker
+    pub apc_candidates: ApcCandidates<CoreExecutionState, Apc, S>,
 }
 
-impl<'a> CoreVM<'a> {
+/// The execution state which is passed to the candidate checker
+pub struct CoreExecutionState {
+    pc: u64,
+    registers: [MemoryRecord; 32],
+    global_clk: u64,
+}
+
+impl ExecutionState for CoreExecutionState {
+    type RegisterAddress = u8;
+
+    type Value = u64;
+
+    fn pc(&self) -> Self::Value {
+        self.pc
+    }
+
+    fn reg(&self, addr: &Self::RegisterAddress) -> Self::Value {
+        self.registers[*addr as usize].value
+    }
+
+    fn value_limb(value: Self::Value, limb_index: usize) -> Self::Value {
+        // SP1 uses 16-bit limbs
+        value >> (limb_index * 16) & 0xffff
+    }
+
+    fn global_clk(&self) -> usize {
+        self.global_clk as usize
+    }
+}
+
+impl<'a, S> CoreVM<'a, S> {
     /// Create a [`CoreVM`] from a [`MinimalTrace`] and a [`Program`].
     pub fn new<T: MinimalTrace>(
         trace: &'a T,
@@ -96,6 +129,9 @@ impl<'a> CoreVM<'a> {
             assert_eq!(trace.pc_start(), program.pc_start_abs);
         }
 
+        let apc_candidates: ApcCandidates<CoreExecutionState, Apc, S> =
+            ApcCandidates::new(program.apcs.apc_by_index.clone());
+
         Self {
             registers,
             global_clk: 0,
@@ -111,20 +147,38 @@ impl<'a> CoreVM<'a> {
             clk_end: trace.clk_end(),
             public_value_digest: [0; PV_DIGEST_NUM_WORDS],
             proof_nonce,
+            apc_candidates,
         }
     }
 
     /// Fetch the next instruction from the program.
     #[inline]
-    pub fn fetch(&mut self) -> Option<&Instruction> {
+    pub fn fetch(&mut self, snapshot_callback: impl Fn() -> S) -> Option<&Instruction> {
         // todo: mprotect / kernel mode logic.
-        self.program.fetch(self.pc)
+        let snapshot_callback = &snapshot_callback;
+        self.program.fetch_with_apcs(self.pc).map(|(i, apc_indices)| {
+            if let Some(apc_indices) = apc_indices {
+                // We are at the start of an APC range, so we add it as a candidate
+                for apc in apc_indices {
+                    let _ = self.apc_candidates.try_insert(
+                        &CoreExecutionState {
+                            pc: self.pc,
+                            registers: self.registers,
+                            global_clk: self.global_clk,
+                        },
+                        *apc,
+                        snapshot_callback,
+                    );
+                }
+            }
+            i
+        })
     }
 
     #[inline]
     /// Increment the state of the VM by one cycle.
     /// Calling this method will update the pc and the clk to the next cycle.
-    pub fn advance(&mut self) -> CycleResult {
+    pub fn advance(&mut self, snapshot_callback: impl Fn() -> S) -> (CycleResult, Vec<ApcCall<S>>) {
         self.clk = self.next_clk;
         self.pc = self.next_pc;
 
@@ -133,18 +187,29 @@ impl<'a> CoreVM<'a> {
         self.next_pc = self.pc.wrapping_add(PC_INC);
         self.global_clk = self.global_clk.wrapping_add(1);
 
+        self.apc_candidates.check_conditions(
+            &CoreExecutionState {
+                pc: self.pc,
+                registers: self.registers,
+                global_clk: self.global_clk,
+            },
+            &snapshot_callback,
+        );
+
+        let outputs = self.apc_candidates.extract_calls();
+
         // Check if the program has halted.
         if self.pc == HALT_PC {
-            return CycleResult::Done(true);
+            return (CycleResult::Done(true), outputs);
         }
 
         // Check if the shard limit has been reached.
         if self.is_trace_end() {
-            return CycleResult::TraceEnd;
+            return (CycleResult::TraceEnd, outputs);
         }
 
         // Return that the program is still running.
-        CycleResult::Done(false)
+        (CycleResult::Done(false), outputs)
     }
 
     /// Execute a load instruction.
@@ -337,13 +402,7 @@ impl<'a> CoreVM<'a> {
                     (b as i64).wrapping_div(c as i64) as u64
                 }
             }
-            Opcode::DIVU => {
-                if c == 0 {
-                    u64::MAX
-                } else {
-                    b / c
-                }
-            }
+            Opcode::DIVU => b.checked_div(c).unwrap_or(u64::MAX),
             Opcode::REM => {
                 if c == 0 {
                     b
@@ -558,7 +617,19 @@ impl<'a> CoreVM<'a> {
     }
 }
 
-impl CoreVM<'_> {
+impl<S> CoreVM<'_, S> {
+    /// If two timestamps are in different epochs, abort all candidates.
+    #[inline]
+    fn abort_if_epoch_changed(
+        candidates: &mut ApcCandidates<CoreExecutionState, Apc, S>,
+        t0: u64,
+        t1: u64,
+    ) {
+        if t0 >> 24 != t1 >> 24 {
+            candidates.abort_in_progress();
+        }
+    }
+
     /// Read the next required memory read from the trace.
     #[inline]
     fn mr(&mut self, addr: u64) -> MemoryReadRecord {
@@ -570,9 +641,12 @@ impl CoreVM<'_> {
             }
         };
 
+        let timestamp = self.timestamp(MemoryAccessPosition::Memory);
+        Self::abort_if_epoch_changed(&mut self.apc_candidates, record.clk, timestamp);
+
         MemoryReadRecord {
             value: record.value,
-            timestamp: self.timestamp(MemoryAccessPosition::Memory),
+            timestamp,
             prev_timestamp: record.clk,
             prev_page_prot_record: None,
         }
@@ -588,10 +662,13 @@ impl CoreVM<'_> {
     #[inline]
     pub(crate) fn mr_slice(&mut self, _addr: u64, len: usize) -> Vec<MemoryReadRecord> {
         let current_clk = self.clk();
-        let mem_reads = self.mem_reads();
+        let mem_reads = &mut self.mem_reads;
 
         let records: Vec<MemoryReadRecord> = mem_reads
             .take(len)
+            .inspect(|value| {
+                Self::abort_if_epoch_changed(&mut self.apc_candidates, value.clk, current_clk);
+            })
             .map(|value| MemoryReadRecord {
                 value: value.value,
                 timestamp: current_clk,
@@ -617,6 +694,8 @@ impl CoreVM<'_> {
                     _ => unreachable!("Precompile memory write out of bounds"),
                 };
 
+                Self::abort_if_epoch_changed(&mut self.apc_candidates, old.clk, new.clk);
+
                 MemoryWriteRecord {
                     prev_timestamp: old.clk,
                     prev_value: old.value,
@@ -632,10 +711,17 @@ impl CoreVM<'_> {
 
     #[inline]
     fn mw(&mut self, read_record: MemoryReadRecord, value: u64) -> MemoryWriteRecord {
+        let timestamp = self.timestamp(MemoryAccessPosition::Memory);
+        Self::abort_if_epoch_changed(
+            &mut self.apc_candidates,
+            read_record.prev_timestamp,
+            timestamp,
+        );
+
         MemoryWriteRecord {
             prev_timestamp: read_record.prev_timestamp,
             prev_value: read_record.value,
-            timestamp: self.timestamp(MemoryAccessPosition::Memory),
+            timestamp,
             value,
             prev_page_prot_record: None,
         }
@@ -647,6 +733,12 @@ impl CoreVM<'_> {
         let prev_record = self.registers[register as usize];
         let new_record =
             MemoryRecord { timestamp: self.timestamp(position), value: prev_record.value };
+
+        Self::abort_if_epoch_changed(
+            &mut self.apc_candidates,
+            prev_record.timestamp,
+            new_record.timestamp,
+        );
 
         self.registers[register as usize] = new_record;
 
@@ -666,6 +758,12 @@ impl CoreVM<'_> {
         let prev_record = self.registers[register];
         let new_record = MemoryRecord { timestamp: self.clk(), value: prev_record.value };
 
+        Self::abort_if_epoch_changed(
+            &mut self.apc_candidates,
+            prev_record.timestamp,
+            new_record.timestamp,
+        );
+
         self.registers[register] = new_record;
 
         MemoryReadRecord {
@@ -678,7 +776,7 @@ impl CoreVM<'_> {
 
     /// Touch all the registers in the VM, bumping thier clock to `self.clk - 1`.
     pub fn register_refresh(&mut self) -> [MemoryReadRecord; 32] {
-        fn bump_register(vm: &mut CoreVM, register: usize) -> MemoryReadRecord {
+        fn bump_register<SS>(vm: &mut CoreVM<SS>, register: usize) -> MemoryReadRecord {
             let prev_record = vm.registers[register];
             let new_record = MemoryRecord { timestamp: vm.clk - 1, value: prev_record.value };
 
@@ -693,6 +791,9 @@ impl CoreVM<'_> {
         }
 
         tracing::trace!("register refresh to: {}", self.clk - 1);
+
+        // APCs are not compatible with register refreshing, so we abort all in progress candidates
+        self.apc_candidates.abort_in_progress();
 
         let mut out = [MaybeUninit::uninit(); 32];
         for (i, record) in out.iter_mut().enumerate() {
@@ -714,6 +815,12 @@ impl CoreVM<'_> {
         let prev_record = self.registers[register as usize];
         let new_record = MemoryRecord { timestamp: self.timestamp(MemoryAccessPosition::A), value };
 
+        Self::abort_if_epoch_changed(
+            &mut self.apc_candidates,
+            prev_record.timestamp,
+            new_record.timestamp,
+        );
+
         self.registers[register as usize] = new_record;
 
         // if SHAPE_CHECKING {
@@ -734,7 +841,7 @@ impl CoreVM<'_> {
     }
 }
 
-impl CoreVM<'_> {
+impl<S> CoreVM<'_, S> {
     /// Get the current timestamp for a given memory access position.
     #[inline]
     #[must_use]
@@ -764,9 +871,16 @@ impl CoreVM<'_> {
 
         bump1 || bump2
     }
+
+    /// If any bump is required, abort all candidates in progress
+    pub fn check_bump(&mut self, instruction: &Instruction) {
+        if self.needs_bump_clk_high() || self.needs_state_bump(instruction) {
+            self.apc_candidates.abort_in_progress();
+        }
+    }
 }
 
-impl<'a> CoreVM<'a> {
+impl<'a, S> CoreVM<'a, S> {
     #[inline]
     #[must_use]
     /// Get the current clock, this clock is incremented by [`CLK_INC`] each cycle.

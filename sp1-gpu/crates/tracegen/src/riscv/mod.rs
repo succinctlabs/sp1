@@ -1,12 +1,55 @@
 mod global;
 
 use slop_alloc::mem::CopyError;
-use sp1_core_machine::riscv::RiscvAir;
+use sp1_core_machine::riscv::{air::RiscvAir as RiscvAirWithoutApcs, RiscvAir};
 use sp1_gpu_cudart::{DeviceMle, TaskScope};
 
 use crate::{CudaTracegenAir, F};
 
 impl CudaTracegenAir<F> for RiscvAir<F> {
+    fn supports_device_preprocessed_tracegen(&self) -> bool {
+        match self {
+            RiscvAir::Riscv(riscv_air) => riscv_air.supports_device_preprocessed_tracegen(),
+            RiscvAir::Apc(_) => false,
+        }
+    }
+
+    async fn generate_preprocessed_trace_device(
+        &self,
+        program: &Self::Program,
+        scope: &TaskScope,
+    ) -> Result<Option<DeviceMle<F>>, CopyError> {
+        match self {
+            RiscvAir::Riscv(riscv_air) => {
+                riscv_air.generate_preprocessed_trace_device(program, scope).await
+            }
+            RiscvAir::Apc(_) => unimplemented!(),
+        }
+    }
+
+    fn supports_device_main_tracegen(&self) -> bool {
+        match self {
+            RiscvAir::Riscv(riscv_air) => riscv_air.supports_device_main_tracegen(),
+            RiscvAir::Apc(_) => false,
+        }
+    }
+
+    async fn generate_trace_device(
+        &self,
+        input: &Self::Record,
+        output: &mut Self::Record,
+        scope: &TaskScope,
+    ) -> Result<DeviceMle<F>, CopyError> {
+        match self {
+            RiscvAir::Riscv(riscv_air) => {
+                riscv_air.generate_trace_device(input, output, scope).await
+            }
+            RiscvAir::Apc(_) => unimplemented!(),
+        }
+    }
+}
+
+impl CudaTracegenAir<F> for RiscvAirWithoutApcs<F> {
     fn supports_device_main_tracegen(&self) -> bool {
         match self {
             Self::Global(chip) => chip.supports_device_main_tracegen(),

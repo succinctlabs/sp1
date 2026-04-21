@@ -5,7 +5,7 @@ use std::sync::Arc;
 use crate::{
     events::{MemoryReadRecord, MemoryWriteRecord},
     vm::{
-        gas::ReportGenerator,
+        gas::{ReportGenerator, ReportGeneratorSnapshot},
         results::{
             AluResult, BranchResult, CycleResult, JumpResult, LoadResult, MaybeImmediate,
             StoreResult, UTypeResult,
@@ -20,7 +20,7 @@ use crate::{
 /// A RISC-V VM that uses a [`MinimalTrace`] to create a [`ExecutionReport`].
 pub struct GasEstimatingVM<'a> {
     /// The core VM.
-    pub core: CoreVM<'a>,
+    pub core: CoreVM<'a, ReportGeneratorSnapshot>,
     /// The gas calculator for the VM.
     pub gas_calculator: ReportGenerator,
     /// The index of the hint lens the next shard will use.
@@ -46,7 +46,7 @@ impl GasEstimatingVM<'_> {
 
     /// Execute the next instruction at the current PC.
     pub fn execute_instruction(&mut self) -> Result<CycleResult, ExecutionError> {
-        let instruction = self.core.fetch();
+        let instruction = self.core.fetch(|| self.gas_calculator.snapshot());
         if instruction.is_none() {
             unreachable!("Fetching the next instruction failed");
         }
@@ -111,7 +111,15 @@ impl GasEstimatingVM<'_> {
             }
         }
 
-        Ok(self.core.advance())
+        self.core.check_bump(&instruction);
+
+        let (res, calls) = self.core.advance(|| self.gas_calculator.snapshot());
+
+        if !calls.is_empty() {
+            tracing::error!("Apc call application is not implemented for the `GasEstimatingVM`. Execution report will NOT take apcs into account");
+        }
+
+        Ok(res)
     }
 }
 
@@ -257,7 +265,7 @@ impl<'a> GasEstimatingVM<'a> {
     pub fn execute_ecall(&mut self, instruction: &Instruction) -> Result<(), ExecutionError> {
         let code = self.core.read_code();
 
-        let result = CoreVM::execute_ecall(self, instruction, code)?;
+        let result = CoreVM::<ReportGeneratorSnapshot>::execute_ecall(self, instruction, code)?;
 
         if code == SyscallCode::HINT_LEN {
             self.hint_lens_idx += 1;
@@ -288,12 +296,13 @@ impl<'a> GasEstimatingVM<'a> {
 
 impl<'a> SyscallRuntime<'a> for GasEstimatingVM<'a> {
     const TRACING: bool = false;
+    type Snapshot = ReportGeneratorSnapshot;
 
-    fn core(&self) -> &CoreVM<'a> {
+    fn core(&self) -> &CoreVM<'a, Self::Snapshot> {
         &self.core
     }
 
-    fn core_mut(&mut self) -> &mut CoreVM<'a> {
+    fn core_mut(&mut self) -> &mut CoreVM<'a, Self::Snapshot> {
         &mut self.core
     }
 

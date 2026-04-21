@@ -224,13 +224,21 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                 }
             });
 
+            let customize_program_arms = variants.iter().map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) =>
+                        <#field_ty as sp1_hypercube::air::MachineAir<F>>::customize_program(x, program)
+                }
+            });
+
             let machine_air = quote! {
                 impl #impl_generics sp1_hypercube::air::MachineAir<F> for #name #ty_generics #where_clause {
                     type Record = #execution_record_path;
 
                     type Program = #program_path;
 
-                    fn name(&self) -> &'static str {
+                    fn name(&self) -> &str {
                         match self {
                             #(#name_arms,)*
                         }
@@ -314,6 +322,10 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                         match self {
                             #(#num_rows_arms,)*
                         }
+                    }
+
+                    fn customize_program(&self, program: <Self as MachineAir<F>>::Program) -> <Self as MachineAir<F>>::Program {
+                        match self { #(#customize_program_arms,)* }
                     }
                 }
             };

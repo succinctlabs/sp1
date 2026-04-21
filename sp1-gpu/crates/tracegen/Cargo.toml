@@ -37,3 +37,6 @@ sp1-core-executor = { workspace = true }
 
 [lints]
 workspace = true
+
+[features]
+apc = ["sp1-core-machine/apc"]

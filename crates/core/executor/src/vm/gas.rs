@@ -1,6 +1,6 @@
 use crate::{
-    events::MemoryRecord, vm::shapes::riscv_air_id_from_opcode, CompressedMemory, ExecutionReport,
-    Instruction, Opcode, RiscvAirId, SyscallCode,
+    events::MemoryRecord, vm::shapes::riscv_air_id_from_opcode, ApcCount, CompressedMemory,
+    ExecutionReport, Instruction, Opcode, RiscvAirId, SyscallCode,
 };
 use enum_map::EnumMap;
 use hashbrown::{HashMap, HashSet};
@@ -20,9 +20,15 @@ pub struct ReportGenerator {
     is_last_read_external: CompressedMemory,
 
     trace_cost_lookup: EnumMap<RiscvAirId, u64>,
+    apc_counts: Box<HashMap<u64, ApcCount>>,
 
     shard_start_clk: u64,
     exit_code: u64,
+}
+
+#[derive(Debug)]
+pub struct ReportGeneratorSnapshot {
+    pub opcode_counts: EnumMap<Opcode, u64>,
 }
 
 impl ReportGenerator {
@@ -43,7 +49,12 @@ impl ReportGenerator {
             is_last_read_external: CompressedMemory::new(),
             shard_start_clk,
             exit_code: 0,
+            apc_counts: Box::default(),
         }
+    }
+
+    pub fn snapshot(&self) -> ReportGeneratorSnapshot {
+        ReportGeneratorSnapshot { opcode_counts: self.opcode_counts }
     }
 
     /// Set the start clock of the shard.
@@ -91,6 +102,7 @@ impl ReportGenerator {
             touched_memory_addresses: 0,
             gas: Some(gas),
             exit_code: self.exit_code,
+            apc_counts: self.apc_counts.clone(),
         }
     }
 

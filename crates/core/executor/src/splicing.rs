@@ -9,12 +9,14 @@ use crate::{
     vm::{
         memory::CompressedMemory,
         results::{CycleResult, LoadResult, StoreResult},
-        shapes::{ShapeChecker, HALT_AREA, HALT_HEIGHT},
+        shapes::{ShapeChecker, ShapeCheckerSnapshot, HALT_AREA, HALT_HEIGHT},
         syscall::SyscallRuntime,
         CoreVM,
     },
     ExecutionError, Instruction, Opcode, Program, SP1CoreOpts, ShardingThreshold, SyscallCode,
 };
+
+use super::program::Apc;
 
 /// A RISC-V VM that uses a [`MinimalTrace`] to create multiple [`SplicedMinimalTrace`]s.
 ///
@@ -23,7 +25,7 @@ use crate::{
 /// Note that this is the only time we account for trace area throught the execution pipeline.
 pub struct SplicingVM<'a> {
     /// The core VM.
-    pub core: CoreVM<'a>,
+    pub core: CoreVM<'a, ShapeCheckerSnapshot>,
     /// The shape checker, responsible for cutting the execution when a shard limit is reached.
     pub shape_checker: ShapeChecker,
     /// The addresses that have been touched.
@@ -60,7 +62,7 @@ impl SplicingVM<'_> {
 
     /// Execute the next instruction at the current PC.
     pub fn execute_instruction(&mut self) -> Result<CycleResult, ExecutionError> {
-        let instruction = self.core.fetch();
+        let instruction = self.core.fetch(|| self.shape_checker.snapshot());
         if instruction.is_none() {
             unreachable!("Fetching the next instruction failed");
         }
@@ -125,6 +127,8 @@ impl SplicingVM<'_> {
             }
         }
 
+        self.core.check_bump(&instruction);
+
         self.shape_checker.handle_instruction(
             &instruction,
             self.core.needs_bump_clk_high(),
@@ -133,7 +137,10 @@ impl SplicingVM<'_> {
             self.core.needs_state_bump(&instruction),
         );
 
-        Ok(self.core.advance())
+        let (res, calls) = self.core.advance(|| self.shape_checker.snapshot());
+        self.shape_checker.apply_apc_calls(&calls);
+
+        Ok(res)
     }
 
     /// Splice a minimal trace, outputting a minimal trace for the NEXT shard.
@@ -171,6 +178,7 @@ impl<'a> SplicingVM<'a> {
         opts: SP1CoreOpts,
     ) -> Self {
         let program_len = program.instructions.len() as u64;
+        let apc_costs = program.apcs.apc_by_index.iter().map(Apc::cost).collect();
         let ShardingThreshold { element_threshold, height_threshold } = opts.sharding_threshold;
         assert!(
             element_threshold >= HALT_AREA && height_threshold >= HALT_HEIGHT,
@@ -181,6 +189,7 @@ impl<'a> SplicingVM<'a> {
             touched_addresses,
             shape_checker: ShapeChecker::new(
                 program_len,
+                apc_costs,
                 trace.clk_start(),
                 ShardingThreshold {
                     element_threshold: element_threshold - HALT_AREA,
@@ -267,7 +276,7 @@ impl<'a> SplicingVM<'a> {
             self.shape_checker.handle_commit();
         }
 
-        let _ = CoreVM::execute_ecall(self, instruction, code)?;
+        let _ = CoreVM::<ShapeCheckerSnapshot>::execute_ecall(self, instruction, code)?;
 
         Ok(())
     }
@@ -275,12 +284,13 @@ impl<'a> SplicingVM<'a> {
 
 impl<'a> SyscallRuntime<'a> for SplicingVM<'a> {
     const TRACING: bool = false;
+    type Snapshot = ShapeCheckerSnapshot;
 
-    fn core(&self) -> &CoreVM<'a> {
+    fn core(&self) -> &CoreVM<'a, Self::Snapshot> {
         &self.core
     }
 
-    fn core_mut(&mut self) -> &mut CoreVM<'a> {
+    fn core_mut(&mut self) -> &mut CoreVM<'a, Self::Snapshot> {
         &mut self.core
     }
 
@@ -452,9 +462,16 @@ impl<T: MinimalTrace> Serialize for SplicedMinimalTrace<T> {
 
 #[cfg(test)]
 mod tests {
+    use std::{iter::repeat_n, sync::Arc};
+
+    use powdr_autoprecompiles::execution::OptimisticConstraints;
     use sp1_jit::MemValue;
 
     use super::*;
+    use crate::{
+        utils::add_halt, Apc, Instruction, MinimalExecutor, Opcode, Program, SP1Context,
+        SP1CoreOpts,
+    };
 
     #[test]
     fn test_serialize_spliced_minimal_trace() {
@@ -482,5 +499,51 @@ mod tests {
         };
 
         assert_eq!(deserialized, expected);
+    }
+
+    #[test]
+    fn test_apc_segmentation_error() {
+        // This test verifies that when segmentation occurs while an APC is in progress,
+        // the APC is properly aborted and a segmentation_error is recorded.
+        //
+        // Note: This complements `test_add_apc_prove_segment` in riscv/mod.rs which tests
+        // small APCs that complete before segmentation. This test specifically verifies
+        // that large APCs are properly aborted when segmentation interrupts them.
+
+        // Create a program of 100 instructions, each of which increases the height by 1
+        let mut instructions: Vec<Instruction> =
+            repeat_n(Instruction::new(Opcode::ADDI, 29, 0, 5, false, true), 100).collect();
+
+        add_halt(&mut instructions);
+
+        let program_without_apcs = Program::new(instructions, 0, 0);
+
+        // Create a large APC covering instructions 0..100
+        let apc_range_and_cost =
+            vec![Apc::new(&(0, 100), 1, OptimisticConstraints::from_constraints(vec![]))];
+
+        let program = program_without_apcs.with_apcs(apc_range_and_cost);
+
+        let program = Arc::new(program);
+        let mut minimal = MinimalExecutor::tracing(program.clone(), 256);
+        let chunk = minimal.execute_chunk().expect("trace chunk");
+
+        let proof_nonce = SP1Context::default().proof_nonce;
+        let mut opts = SP1CoreOpts::default();
+
+        // Force the trace to end early so the APC is interrupted mid-execution. The whole block
+        // would require 100 rows in the ADDI table but we segment at an effective height of 90
+        // (after reserving HALT_HEIGHT for the halt area).
+        opts.sharding_threshold = crate::ShardingThreshold {
+            element_threshold: 10000000,
+            height_threshold: HALT_HEIGHT + 90,
+        };
+
+        let mut touched_addresses = CompressedMemory::new();
+        let mut vm = SplicingVM::new(&chunk, program, &mut touched_addresses, proof_nonce, opts);
+        let status = vm.execute().unwrap();
+
+        assert!(status.is_shard_boundry(), "Expected trace end to stop execution");
+        assert_eq!(vm.shape_checker.count_apc_events(), 0);
     }
 }

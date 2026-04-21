@@ -106,6 +106,7 @@ path = "scripts/gen_soundcalc_toml.rs"
 native-gnark = ["sp1-recursion-gnark-ffi/native"]
 debug = ["sp1-core-machine/debug"]
 bigint-rug = ["sp1-core-machine/bigint-rug"]
+apc = ["sp1-core-machine/apc"]
 experimental = []
 profiling = ["sp1-core-executor/profiling", "sp1-jit/profiling"]
 
