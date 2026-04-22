@@ -162,8 +162,8 @@ pub fn sumcheck_hadamard_build_constraints<C: ConstraintCtx>(
 ) {
     let SumcheckHadamardView { oracle_base, oracle_ext, sumcheck_view } = view;
     let point = Point::from(sumcheck_view.out_claim.point.clone());
-    let base_eval = sumcheck_view.out_claim.component_evals[0].clone();
-    let ext_eval = sumcheck_view.out_claim.component_evals[1].clone();
+    let base_eval = sumcheck_view.out_claim.component_evals[0][0].clone();
+    let ext_eval = sumcheck_view.out_claim.component_evals[0][1].clone();
     let claimed_eval = sumcheck_view.out_claim.claimed_eval.clone();
     let in_claim = SumcheckInputClaim::from_value(claim);
 
@@ -272,18 +272,18 @@ pub fn sumcheck_triple_hadamard_build_constraints<C>(
     } = view;
 
     // Extract evals and points before consuming each sumcheck view.
-    let f_at_p1 = sumcheck_fg.out_claim.component_evals[0].clone();
-    let g_at_p1 = sumcheck_fg.out_claim.component_evals[1].clone();
+    let f_at_p1 = sumcheck_fg.out_claim.component_evals[0][0].clone();
+    let g_at_p1 = sumcheck_fg.out_claim.component_evals[0][1].clone();
     let point_p1 = Point::from(sumcheck_fg.out_claim.point.clone());
     let claimed_eval_fg = sumcheck_fg.out_claim.claimed_eval.clone();
 
-    let g_at_p2 = sumcheck_gh.out_claim.component_evals[0].clone();
-    let h_at_p2 = sumcheck_gh.out_claim.component_evals[1].clone();
+    let g_at_p2 = sumcheck_gh.out_claim.component_evals[0][0].clone();
+    let h_at_p2 = sumcheck_gh.out_claim.component_evals[0][1].clone();
     let point_p2 = Point::from(sumcheck_gh.out_claim.point.clone());
     let claimed_eval_gh = sumcheck_gh.out_claim.claimed_eval.clone();
 
-    let h_at_p3 = sumcheck_hf.out_claim.component_evals[0].clone();
-    let f_at_p3 = sumcheck_hf.out_claim.component_evals[1].clone();
+    let h_at_p3 = sumcheck_hf.out_claim.component_evals[0][0].clone();
+    let f_at_p3 = sumcheck_hf.out_claim.component_evals[0][1].clone();
     let point_p3 = Point::from(sumcheck_hf.out_claim.point.clone());
     let claimed_eval_hf = sumcheck_hf.out_claim.claimed_eval.clone();
 
@@ -348,14 +348,96 @@ where
 }
 
 // ============================================================================
-// Skipped: Scenario #4 (RLC-batched single-MLE sumcheck).
+// Scenario #4: RLC-batched single-MLE sumcheck + N PCS evals at the same point.
 //
-// The old `zk_reduce_sumcheck_to_evaluation_general` batches N independent
-// single-MLE sumchecks via a random linear combination drawn from the
-// challenger. Porting it requires a batched-prove entry point on
-// `crate::protocols::sumcheck::SumcheckParam` that isn't there yet — tracked
-// separately.
+// Commit N independent MLEs, batch their individual hypercube sums into one
+// sumcheck via `SumcheckParam::prove_batched` with a challenger-sampled
+// `lambda`, and discharge the N per-MLE eval claims together through a single
+// `assert_mle_multi_eval` at the shared sumcheck point.
 // ============================================================================
+
+pub struct SumcheckBatchedSingleMlesView<C: ConstraintCtx> {
+    pub oracles: Vec<C::MleOracle>,
+    pub lambda: C::Challenge,
+    pub sumcheck_view: SumcheckView<C>,
+}
+
+pub fn sumcheck_batched_single_mles_read<C: ReadingCtx>(
+    ctx: &mut C,
+    num_encoding_variables: u32,
+    log_num_polynomials: u32,
+    num_claims: usize,
+) -> SumcheckBatchedSingleMlesView<C> {
+    let oracles: Vec<_> = (0..num_claims)
+        .map(|_| {
+            ctx.read_oracle(num_encoding_variables, log_num_polynomials)
+                .expect("read_oracle failed")
+        })
+        .collect();
+    // Sample the RLC coefficient *after* all oracle commits have been observed.
+    let lambda = ctx.sample();
+    let num_vars = num_encoding_variables + log_num_polynomials;
+    let param = SumcheckParam::with_poly_component_counts(num_vars, 1, vec![1; num_claims]);
+    let sumcheck_view = param.read(ctx).expect("sumcheck read failed");
+    SumcheckBatchedSingleMlesView { oracles, lambda, sumcheck_view }
+}
+
+pub fn sumcheck_batched_single_mles_build_constraints<C: ConstraintCtx>(
+    view: SumcheckBatchedSingleMlesView<C>,
+    ctx: &mut C,
+    claims: &[C::Extension],
+) {
+    let SumcheckBatchedSingleMlesView { oracles, lambda, sumcheck_view } = view;
+    assert_eq!(oracles.len(), claims.len());
+
+    let point = Point::from(sumcheck_view.out_claim.point.clone());
+    let per_mle_evals: Vec<C::Expr> =
+        sumcheck_view.out_claim.component_evals.iter().map(|v| v[0].clone()).collect();
+
+    let in_claims: Vec<SumcheckInputClaim<C>> =
+        claims.iter().map(|c| SumcheckInputClaim::from_value(*c)).collect();
+    sumcheck_view
+        .build_constraints_batched(&in_claims, lambda, ctx)
+        .expect("sumcheck build_constraints failed");
+
+    // Batch all MLE evals at the shared point in one multi-eval group.
+    let claims_vec: Vec<_> = oracles.into_iter().zip(per_mle_evals).collect();
+    ctx.assert_mle_multi_eval(claims_vec, point);
+}
+
+pub fn sumcheck_batched_single_mles_prove<C, RNG>(
+    ctx: &mut C,
+    num_encoding_variables: u32,
+    log_num_polynomials: u32,
+    originals: Vec<Mle<C::Field>>,
+    mles_ef: Vec<Mle<C::Extension>>,
+    claims: &[C::Extension],
+    rng: &mut RNG,
+) -> SumcheckBatchedSingleMlesView<C>
+where
+    C: SendingCtx,
+    RNG: rand::CryptoRng + rand::Rng,
+    rand::distributions::Standard: rand::distributions::Distribution<C::Field>,
+{
+    assert_eq!(originals.len(), mles_ef.len());
+    assert_eq!(originals.len(), claims.len());
+
+    let oracles: Vec<_> = originals
+        .into_iter()
+        .map(|mle| ctx.commit_mle(mle, log_num_polynomials, rng).expect("commit failed"))
+        .collect();
+    // Sample the RLC coefficient *after* all oracle commits have been observed.
+    let lambda = ctx.sample();
+    let num_vars = num_encoding_variables + log_num_polynomials;
+    let num_claims = claims.len();
+    let param = SumcheckParam::with_poly_component_counts(num_vars, 1, vec![1; num_claims]);
+
+    let in_claims: Vec<SumcheckInputClaim<C>> =
+        claims.iter().map(|c| SumcheckInputClaim::from_value(*c)).collect();
+    let sumcheck_view = param.prove_batched(&in_claims, lambda.into(), mles_ef, ctx);
+
+    SumcheckBatchedSingleMlesView { oracles, lambda, sumcheck_view }
+}
 
 // ============================================================================
 // Shared test-data generators

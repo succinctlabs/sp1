@@ -22,24 +22,37 @@ pub struct TransparentVerifierOracle {
     idx: usize,
 }
 
+/// One asserted polynomial constraint: an expression that must evaluate to zero.
+struct ZeroClaim<EF> {
+    expr: Expr<EF>,
+    name: String,
+}
+
 /// One pending MLE-eval claim group: all oracles are opened at the same point.
 /// Paired with one [`StackedBasefoldProof`] from the prover.
 struct MleClaimGroup<EF> {
     oracles: Vec<TransparentVerifierOracle>,
     eval_exprs: Vec<Expr<EF>>,
     point: Point<EF>,
+    name: String,
+}
+
+/// Which constraint list was appended to most recently. Used by
+/// [`ConstraintCtx::name_last_constraint`] to know where to write the override.
+#[derive(Clone, Copy, Debug)]
+enum LastConstraintKind {
+    Zero,
+    Mle,
 }
 
 #[derive(Debug, Error)]
 pub enum VerifyError {
-    #[error("assertion failed: asserted expression did not evaluate to zero")]
-    AssertZeroFailed,
+    #[error("constraint(s) failed: {}", .0.join(", "))]
+    ConstraintsFailed(Vec<String>),
     #[error("number of PCS proofs ({expected}) does not match number of MLE eval claim groups ({actual})")]
     PcsProofCountMismatch { expected: usize, actual: usize },
     #[error("MLE claim group {group_idx}: proof has {actual} per-oracle batch_evaluations but group has {expected} oracles")]
     GroupOracleCountMismatch { group_idx: usize, expected: usize, actual: usize },
-    #[error("MLE claim group {group_idx}, oracle {oracle_idx}: user-claimed eval does not match the proof's recovered eval")]
-    EvalClaimMismatch { group_idx: usize, oracle_idx: usize },
     #[error(transparent)]
     PcsError(
         StackedVerifierError<
@@ -75,8 +88,11 @@ pub struct TransparentVerifierCtx<GC: IopCtx> {
     pool: Rc<RefCell<ExpressionPool<GC::EF>>>,
 
     // ---- constraint claims ----
-    zero_claims: Vec<Expr<GC::EF>>,
+    zero_claims: Vec<ZeroClaim<GC::EF>>,
     mle_claims: Vec<MleClaimGroup<GC::EF>>,
+    /// Tracks which constraint list received the most recent push, so
+    /// `name_last_constraint` knows where to write its override.
+    last_constraint_kind: Option<LastConstraintKind>,
 
     // ---- PCS verifier (optional: `None` if the protocol emitted no MLE claims) ----
     pcs_verifier: Option<StackedPcsVerifier<GC>>,
@@ -96,6 +112,7 @@ impl<GC: IopCtx> TransparentVerifierCtx<GC> {
             pool: Rc::new(RefCell::new(ExpressionPool::default())),
             zero_claims: Vec::new(),
             mle_claims: Vec::new(),
+            last_constraint_kind: None,
             pcs_verifier,
         }
     }

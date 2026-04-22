@@ -21,6 +21,13 @@ pub trait ConstraintCtx {
         self.assert_zero(a * b - c);
     }
 
+    /// Overwrite the name of the most recently asserted constraint.
+    ///
+    /// Contexts that do not track constraint names (provers, zk verifiers) ignore this.
+    /// The transparent verifier uses these names to report which specific constraints
+    /// failed during verification. Defaults to a no-op.
+    fn name_last_constraint(&mut self, _name: String) {}
+
     /// Creates an expression from a polynomial evaluation: `poly(point)`.
     ///
     /// Computes: `coeff_0 + point * coeff_1 + ... + point^{n-1} * coeff_n`

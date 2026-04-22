@@ -10,9 +10,11 @@ use slop_merkle_tree::Poseidon2KoalaBear16Prover;
 
 use crate::integration_tests::examples::{
     generate_random_hadamard_product, generate_random_single_mle,
-    sumcheck_hadamard_build_constraints, sumcheck_hadamard_prove, sumcheck_hadamard_read,
-    sumcheck_no_pcs_build_constraints, sumcheck_no_pcs_prove, sumcheck_no_pcs_read,
-    sumcheck_single_mle_build_constraints, sumcheck_single_mle_prove, sumcheck_single_mle_read,
+    sumcheck_batched_single_mles_build_constraints, sumcheck_batched_single_mles_prove,
+    sumcheck_batched_single_mles_read, sumcheck_hadamard_build_constraints,
+    sumcheck_hadamard_prove, sumcheck_hadamard_read, sumcheck_no_pcs_build_constraints,
+    sumcheck_no_pcs_prove, sumcheck_no_pcs_read, sumcheck_single_mle_build_constraints,
+    sumcheck_single_mle_prove, sumcheck_single_mle_read,
     sumcheck_triple_hadamard_build_constraints, sumcheck_triple_hadamard_prove,
     sumcheck_triple_hadamard_read,
 };
@@ -143,6 +145,75 @@ fn test_sumcheck_hadamard_with_pcs() {
         let mut vctx = ZkVerifierCtx::init(proof, Some(zk_pcs_verifier));
         let view = sumcheck_hadamard_read(&mut vctx, NUM_ENCODING_VARIABLES, LOG_NUM_POLYNOMIALS);
         sumcheck_hadamard_build_constraints(view, &mut vctx, claim);
+        vctx.verify().expect("zk verification failed");
+    }
+}
+
+// ============================================================================
+// #4: RLC-batched N single-MLE sumchecks + N PCS evals at a shared point.
+// ============================================================================
+
+#[test]
+fn test_sumcheck_batched_single_mles_with_pcs() {
+    let mut rng = ChaCha20Rng::from_entropy();
+    const NUM_ENCODING_VARIABLES: u32 = 16;
+    const LOG_NUM_POLYNOMIALS: u32 = 8;
+    const NUM_VARIABLES: u32 = NUM_ENCODING_VARIABLES + LOG_NUM_POLYNOMIALS;
+    const NUM_CLAIMS: usize = 3;
+
+    let mut originals = Vec::with_capacity(NUM_CLAIMS);
+    let mut mles_ef = Vec::with_capacity(NUM_CLAIMS);
+    let mut claims = Vec::with_capacity(NUM_CLAIMS);
+    for _ in 0..NUM_CLAIMS {
+        let (orig, ef, claim) = generate_random_single_mle::<F, EF>(&mut rng, NUM_VARIABLES);
+        originals.push(orig);
+        mles_ef.push(ef);
+        claims.push(claim);
+    }
+
+    // All N MLEs are batched into one multi-eval group → one N-commit PCS proof.
+    let (zk_pcs_prover, zk_pcs_verifier) =
+        initialize_zk_prover_and_verifier::<GC, MK>(NUM_CLAIMS, NUM_ENCODING_VARIABLES);
+
+    let proof = {
+        let claims_for_build = claims.clone();
+        let mask_length = compute_mask_length::<GC, _>(
+            |ctx| {
+                sumcheck_batched_single_mles_read(
+                    ctx,
+                    NUM_ENCODING_VARIABLES,
+                    LOG_NUM_POLYNOMIALS,
+                    NUM_CLAIMS,
+                )
+            },
+            |view, ctx| {
+                sumcheck_batched_single_mles_build_constraints(view, ctx, &claims_for_build)
+            },
+        );
+        let mut pctx: StackedPcsZkProverCtx<GC, MK> =
+            ZkProverCtx::initialize_with_pcs_only_lin(mask_length, zk_pcs_prover, &mut rng);
+        let view = sumcheck_batched_single_mles_prove(
+            &mut pctx,
+            NUM_ENCODING_VARIABLES,
+            LOG_NUM_POLYNOMIALS,
+            originals,
+            mles_ef,
+            &claims,
+            &mut rng,
+        );
+        sumcheck_batched_single_mles_build_constraints(view, &mut pctx, &claims);
+        pctx.prove(&mut rng)
+    };
+
+    {
+        let mut vctx = ZkVerifierCtx::init(proof, Some(zk_pcs_verifier));
+        let view = sumcheck_batched_single_mles_read(
+            &mut vctx,
+            NUM_ENCODING_VARIABLES,
+            LOG_NUM_POLYNOMIALS,
+            NUM_CLAIMS,
+        );
+        sumcheck_batched_single_mles_build_constraints(view, &mut vctx, &claims);
         vctx.verify().expect("zk verification failed");
     }
 }

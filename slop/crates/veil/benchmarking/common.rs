@@ -250,8 +250,8 @@ fn hadamard_build_constraints<C: ConstraintCtx>(
     data: HadamardReadData<C>,
 ) {
     let point: Point<C::Challenge> = Point::from(data.view.out_claim.point.clone());
-    let base_eval = data.view.out_claim.component_evals[0].clone();
-    let ext_eval = data.view.out_claim.component_evals[1].clone();
+    let base_eval = data.view.out_claim.component_evals[0][0].clone();
+    let ext_eval = data.view.out_claim.component_evals[0][1].clone();
     ctx.assert_a_times_b_equals_c(
         base_eval.clone(),
         ext_eval.clone(),

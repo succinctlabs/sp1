@@ -276,9 +276,9 @@ fn zerocheck_build_constraints<C: ConstraintCtx<Challenge = EF>>(
 ) {
     let z = Point::from(view.sumcheck_view.out_claim.point.clone());
 
-    let p_eval = view.sumcheck_view.out_claim.component_evals[0].clone();
-    let q_eval = view.sumcheck_view.out_claim.component_evals[1].clone();
-    let r_eval = view.sumcheck_view.out_claim.component_evals[2].clone();
+    let p_eval = view.sumcheck_view.out_claim.component_evals[0][0].clone();
+    let q_eval = view.sumcheck_view.out_claim.component_evals[0][1].clone();
+    let r_eval = view.sumcheck_view.out_claim.component_evals[0][2].clone();
 
     // Constraint: claimed_eval == eq(z, z_0) * (p(z) * q(z) - r(z))
     //

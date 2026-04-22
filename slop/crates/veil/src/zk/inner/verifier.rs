@@ -483,8 +483,8 @@ pub struct ZKProtocolShapeError;
 
 /// Trait for protocol parameters that know how to read proof values from transcript.
 ///
-/// This trait is implemented on parameter structs (e.g., `ZkPartialSumcheckParameters`)
-/// and produces self-contained proof structs that include the parameters.
+/// This trait is implemented on protocol parameter structs and produces
+/// self-contained proof structs that include the parameters.
 ///
 /// The returned proof contains `VerifierElement<GC>` since `read_proof_from_transcript`
 /// reads from the verifier context.
