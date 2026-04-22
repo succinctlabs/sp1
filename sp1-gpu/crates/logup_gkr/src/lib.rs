@@ -310,7 +310,7 @@ mod tests {
         CORE_MAX_TRACE_SIZE,
     };
     use sp1_gpu_utils::TestGC;
-    use sp1_hypercube::SP1SC;
+    use sp1_hypercube::{prover::ProverSemaphore, SP1SC};
     use std::sync::Arc;
 
     use crate::execution::{extract_outputs, gkr_transition, layer_transition};
@@ -571,7 +571,7 @@ mod tests {
                     LOG_STACKING_HEIGHT,
                     CORE_MAX_LOG_ROW_COUNT,
                     &scope,
-                    sp1_hypercube::prover::ProverSemaphore::new(1),
+                    ProverSemaphore::new(1),
                     true,
                 ));
 
