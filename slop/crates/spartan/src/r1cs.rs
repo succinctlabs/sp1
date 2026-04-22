@@ -100,7 +100,7 @@ where
         let a = self.a() * witness;
         let b = self.b() * witness;
         let c = self.c() * witness;
-        for (row, ((a, b), c)) in a.into_iter().zip(b.into_iter()).zip(c.into_iter()).enumerate() {
+        for (row, ((a, b), c)) in a.into_iter().zip(b).zip(c).enumerate() {
             assert_eq!(a * b, c, "Constraint {row} failed");
         }
         Some(())

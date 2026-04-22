@@ -100,7 +100,7 @@ struct JaggedMle {
         size_t zeroIdx = i << 1;
         size_t restrictedIndex = (output.startIndices[colIdx] << 1) + rowIdx;
 
-        uint32_t info = this->denseData.fixLastVariable(output.denseData, restrictedIndex, zeroIdx);
+        uint64_t info = this->denseData.fixLastVariable(output.denseData, restrictedIndex, zeroIdx);
 
         // If this row does not have a length that is a multiple of four, the next row will have an
         // odd length. So we need to add some extra padding to the next row.

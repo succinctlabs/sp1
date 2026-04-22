@@ -62,7 +62,7 @@ impl DeferredEvents {
         // Build futures with pre-created artifacts and run uploads in parallel
         let futures = chunk_data
             .into_iter()
-            .zip(artifacts.into_iter())
+            .zip(artifacts)
             .map(|((code, chunk), artifact)| {
                 let client = client.clone();
                 async move {

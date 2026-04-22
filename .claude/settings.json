@@ -5,10 +5,6 @@
       "Bash(git merge:*)",
       "Bash(git checkout:*)",
       "Bash(git pull:*)",
-      "Read(//Users/rdalalsuccinct/Documents/sp1-wip-veil-independent/slop/crates/veil/src/zk/example_zk_sumcheck/**)",
-      "Read(//Users/rdalalsuccinct/Documents/sp1-wip-veil-independent/slop/crates/veil/**)",
-      "Read(//Users/rdalalsuccinct/Documents/sp1-wip-veil-independent/slop/**)",
-      "Read(//Users/rdalalsuccinct/Documents/sp1-wip-veil-independent/**)",
       "Bash(RUSTFLAGS=\"--cfg sp1_debug_constraints\" cargo build -p slop-veil)",
       "Bash(RUSTFLAGS=\"--cfg sp1_debug_constraints\" cargo test --release -p slop-veil --lib)",
       "Bash(RUSTFLAGS=\"--cfg sp1_debug_constraints\" cargo build -p slop-veil --tests)",
@@ -16,10 +12,7 @@
       "Bash(xargs sed:*)",
       "Bash(for i:*)",
       "Bash(do cargo:*)",
-      "Bash(ls -d /Users/rdalalsuccinct/Documents/sp1-wip/.claude/worktrees/*/)"
+      "Bash(git worktree *)"
     ],
-    "additionalDirectories": [
-      "/Users/rdalalsuccinct/Documents/sp1-wip-veil-independent/slop/crates/veil/examples"
-    ]
   }
 }

@@ -110,7 +110,7 @@ where
         // v_c
         let batched_lincheck_poly = BatchedLincheckPoly::<_, CpuBackend>::new(
             &witness,
-            [&self.r1cs.a, &self.r1cs.b, &self.r1cs.c].into_iter(),
+            [&self.r1cs.a, &self.r1cs.b, &self.r1cs.c],
             &alpha,
             lambda,
         );

@@ -263,7 +263,7 @@ where
     let mut preprocessed_so_far = 0;
 
     challenger.observe(Felt::from_canonical_usize(chips.len()));
-    for (chip, main_evals) in chips.iter().zip_eq(main.into_iter()) {
+    for (chip, main_evals) in chips.iter().zip_eq(main) {
         let openings = ChipEvaluation {
             main_trace_evaluations: main_evals,
             preprocessed_trace_evaluations: if chip.preprocessed_width() != 0 {
