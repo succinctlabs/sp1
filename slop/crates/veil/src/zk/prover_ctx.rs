@@ -141,6 +141,10 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ConstraintCtx for ZkProverCtx<GC, PC
 // ============================================================================
 
 impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> SendingCtx for ZkProverCtx<GC, PC> {
+    type Proof = ZkProof<GC>;
+    type CommitError = PcsCommitError;
+    type ProveError = std::convert::Infallible;
+
     fn send_value(&mut self, value: GC::EF) -> ProverTranscriptElement<GC, PC> {
         Dorroh::Element(self.inner.add_value(value))
     }
@@ -158,6 +162,33 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> SendingCtx for ZkProverCtx<GC, PC> {
 
     fn sample(&mut self) -> GC::EF {
         self.inner.challenger().sample_ext_element()
+    }
+
+    fn commit_mle<RNG: rand::CryptoRng + rand::Rng>(
+        &mut self,
+        mle: slop_multilinear::Mle<GC::F>,
+        log_num_polynomials: u32,
+        rng: &mut RNG,
+    ) -> Result<MleCommit, PcsCommitError>
+    where
+        rand::distributions::Standard: rand::distributions::Distribution<GC::F>,
+    {
+        let pcs_prover = self.pcs_prover.as_ref().ok_or(PcsCommitError::NoPcsProver)?;
+        let commit = self
+            .inner
+            .commit_mle(mle, log_num_polynomials as usize, pcs_prover, rng)
+            .map(|idx| MleCommit { inner: idx })?;
+        Ok(commit)
+    }
+
+    fn prove<RNG: rand::CryptoRng + rand::Rng>(
+        self,
+        rng: &mut RNG,
+    ) -> Result<ZkProof<GC>, std::convert::Infallible>
+    where
+        rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
+    {
+        Ok(self.inner.prove(rng, self.pcs_prover.as_ref()))
     }
 }
 

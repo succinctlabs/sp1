@@ -2,7 +2,7 @@ use core::slice;
 
 use itertools::Itertools;
 use slop_algebra::{Algebra, ExtensionField, Field};
-use slop_multilinear::Point;
+use slop_multilinear::{Mle, Point};
 use thiserror::Error;
 
 pub trait ConstraintCtx {
@@ -139,8 +139,26 @@ pub trait ReadingCtx: ConstraintCtx {
     }
 }
 
-/// Extension of `ConstraintCtx` for the prover side: sending values and sampling challenges.
+/// Extension of `ConstraintCtx` for the prover side: everything the proof-producing
+/// path needs over the verifier-reading path.
+///
+/// Implementors drive a veil protocol through to a finalized proof. Concrete backends
+/// decide what "proof" means (the ZK backend's `ZkProof<GC>`, the transparent backend's
+/// raw transcript + PCS openings, etc.) via the `Proof` associated type.
+///
+/// The `commit_mle` and `prove` methods carry `Standard: Distribution<...>` where
+/// clauses — these are only required at call sites that actually use randomness, so
+/// protocol code that only touches the send/sample/to_value surface does not need to
+/// propagate them.
 pub trait SendingCtx: ConstraintCtx {
+    /// The finalized proof object produced by [`Self::prove`].
+    type Proof;
+    /// Error returned by [`Self::commit_mle`].
+    type CommitError: std::error::Error;
+    /// Error returned by [`Self::prove`]. Use [`std::convert::Infallible`] for backends
+    /// whose finalization cannot fail.
+    type ProveError: std::error::Error;
+
     /// Send a single value to the verifier (adds it to the proof transcript).
     fn send_value(&mut self, value: Self::Extension) -> Self::Expr;
 
@@ -159,6 +177,33 @@ pub trait SendingCtx: ConstraintCtx {
 
     /// Sample a Fiat-Shamir challenge from the transcript.
     fn sample(&mut self) -> Self::Challenge;
+
+    /// Commit to an MLE via the backend's configured polynomial-commitment scheme.
+    ///
+    /// The returned [`ConstraintCtx::MleOracle`] handle can be passed to
+    /// [`ConstraintCtx::assert_mle_eval`] / [`ConstraintCtx::assert_mle_multi_eval`]
+    /// later in the protocol.
+    ///
+    /// `log_num_polynomials` specifies how many stacked polynomials this MLE commit
+    /// represents; backends using the stacked PCS must have been constructed to
+    /// match this value.
+    fn commit_mle<RNG: rand::CryptoRng + rand::Rng>(
+        &mut self,
+        mle: Mle<Self::Field>,
+        log_num_polynomials: u32,
+        rng: &mut RNG,
+    ) -> Result<Self::MleOracle, Self::CommitError>
+    where
+        rand::distributions::Standard: rand::distributions::Distribution<Self::Field>;
+
+    /// Finalize the proof. Consumes the context and produces the backend's
+    /// [`Self::Proof`], discharging any pending MLE-eval claims along the way.
+    fn prove<RNG: rand::CryptoRng + rand::Rng>(
+        self,
+        rng: &mut RNG,
+    ) -> Result<Self::Proof, Self::ProveError>
+    where
+        rand::distributions::Standard: rand::distributions::Distribution<Self::Extension>;
 
     /// Sample a multilinear point
     fn sample_point(&mut self, dimension: u32) -> Point<Self::Challenge> {

@@ -1,14 +1,12 @@
-//! Example: ZK proof of knowledge of a polynomial root.
+//! Example: proof of knowledge of a polynomial root, run against two backends.
 //!
 //! Proves that the prover knows a root of a public polynomial p(x) without revealing
 //! it. No PCS is needed — this is a pure constraint-based proof.
 //!
-//! The example follows the standard two-function verifier shape:
-//!
-//! - `root_read`: reads the sent root expression into a `RootView`.
-//! - `root_build_constraints`: evaluates the public polynomial at the sent root
-//!   via Horner and asserts zero. Captures the public polynomial coefficients
-//!   via closure where needed.
+//! The protocol is written once, generically over `SendingCtx` / `ReadingCtx`, then
+//! run first with the zero-knowledge backend (`ZkProverCtx` / `ZkVerifierCtx`) and
+//! afterwards with the transparent backend (`TransparentProverCtx` /
+//! `TransparentVerifierCtx`).
 
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
@@ -17,11 +15,16 @@ use slop_challenger::IopCtx;
 use slop_koala_bear::KoalaBearDegree4Duplex;
 use slop_merkle_tree::Poseidon2KoalaBear16Prover;
 use slop_veil::compiler::{ConstraintCtx, ReadingCtx, SendingCtx};
+use slop_veil::transparent::{TransparentProverCtx, TransparentVerifierCtx};
 use slop_veil::zk::{compute_mask_length, NoPcsConfig, ZkProverCtx, ZkVerifierCtx};
 
 type GC = KoalaBearDegree4Duplex;
 type MK = Poseidon2KoalaBear16Prover;
 type EF = <GC as IopCtx>::EF;
+
+// ============================================================================
+// Generic protocol code
+// ============================================================================
 
 struct RootView<C: ConstraintCtx> {
     root: C::Expr,
@@ -50,6 +53,26 @@ fn horner_eval<C: ConstraintCtx>(coeffs: &[C::Extension], point: C::Expr) -> C::
     iter.fold(init, |acc, &c| acc * point.clone() + c)
 }
 
+/// The full prover-side flow, generic over any `SendingCtx`: consume the ctx,
+/// send the secret root, build the Horner constraint, and finalize.
+fn run_prover<C: SendingCtx, RNG: rand::CryptoRng + rand::Rng>(
+    mut ctx: C,
+    secret_root: C::Extension,
+    coeffs: &[C::Extension],
+    rng: &mut RNG,
+) -> C::Proof
+where
+    rand::distributions::Standard: rand::distributions::Distribution<C::Extension>,
+{
+    let root = ctx.send_value(secret_root);
+    root_build_constraints(coeffs, RootView { root }, &mut ctx);
+    ctx.prove(rng).expect("prove failed")
+}
+
+// ============================================================================
+// Shared setup
+// ============================================================================
+
 /// Construct a polynomial with a known root: p(x) = (x - root) * q(x).
 fn make_polynomial_with_root(root: EF, degree: usize) -> Vec<EF> {
     let q = UnivariatePolynomial::new(vec![EF::one(); degree]);
@@ -74,34 +97,49 @@ fn main() {
     assert_eq!(poly.eval_at_point(secret_root), EF::zero(), "polynomial should vanish at root");
     eprintln!("Public polynomial degree: {}", poly_coeffs.len() - 1);
 
+    // ------------------------------------------------------------------
+    // ZK backend
+    // ------------------------------------------------------------------
+    eprintln!("\n=== ZK BACKEND ===");
     let mask_length = compute_mask_length::<GC, _>(root_read, |view, ctx| {
         root_build_constraints(&poly_coeffs, view, ctx)
     });
     eprintln!("Mask length: {mask_length}");
 
-    // === PROVER ===
-    eprintln!("\n=== PROVER ===");
-    let proof = {
+    let zk_proof = {
         let now = std::time::Instant::now();
-        let mut ctx: ZkProverCtx<GC, NoPcsConfig<MK>> =
+        let ctx: ZkProverCtx<GC, NoPcsConfig<MK>> =
             ZkProverCtx::initialize_without_pcs(mask_length, &mut rng);
-
-        let root = ctx.send_value(secret_root);
-        root_build_constraints(&poly_coeffs, RootView { root }, &mut ctx);
-
-        let proof = ctx.prove(&mut rng);
+        let proof = run_prover(ctx, secret_root, &poly_coeffs, &mut rng);
         eprintln!("Prover time: {:?}", now.elapsed());
         proof
     };
-
-    // === VERIFIER ===
-    eprintln!("\n=== VERIFIER ===");
     {
-        let mut ctx = ZkVerifierCtx::init(proof, None);
+        let mut ctx = ZkVerifierCtx::init(zk_proof, None);
         let view = root_read(&mut ctx);
         root_build_constraints(&poly_coeffs, view, &mut ctx);
-        ctx.verify().expect("verification failed");
+        ctx.verify().expect("zk verification failed");
     }
+    eprintln!("ZK backend: PASSED");
 
-    eprintln!("\n=== PASSED ===");
+    // ------------------------------------------------------------------
+    // Transparent backend
+    // ------------------------------------------------------------------
+    eprintln!("\n=== TRANSPARENT BACKEND ===");
+    let transparent_proof = {
+        let now = std::time::Instant::now();
+        let ctx: TransparentProverCtx<GC, MK> = TransparentProverCtx::new_without_pcs();
+        let proof = run_prover(ctx, secret_root, &poly_coeffs, &mut rng);
+        eprintln!("Prover time: {:?}", now.elapsed());
+        proof
+    };
+    {
+        let mut ctx = TransparentVerifierCtx::<GC>::new(transparent_proof, None);
+        let view = root_read(&mut ctx);
+        root_build_constraints(&poly_coeffs, view, &mut ctx);
+        ctx.verify().expect("transparent verification failed");
+    }
+    eprintln!("Transparent backend: PASSED");
+
+    eprintln!("\n=== ALL PASSED ===");
 }
