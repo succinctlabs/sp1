@@ -103,7 +103,10 @@ impl SumcheckParam {
         poly: impl SumcheckPolyFirstRound<C::Extension>,
         ctx: &mut C,
         claim: C::Extension,
-    ) -> SumcheckView<C> {
+    ) -> SumcheckView<C>
+    where
+        C::Challenge: Into<C::Extension>,
+    {
         assert!(self.num_variables >= 1);
 
         let mut point = Vec::new();

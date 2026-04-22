@@ -10,7 +10,12 @@ pub trait ConstraintCtx {
     type Extension: ExtensionField<Self::Field>;
 
     type Expr: Algebra<Self::Extension> + Algebra<Self::Challenge>;
-    type Challenge: Clone + Algebra<Self::Extension> + Into<Self::Extension>;
+    // `Into<Self::Extension>` lives on `SendingCtx` where it is actually
+    // exercised (see `SumcheckParam::prove`). Keeping it off `ConstraintCtx`
+    // lets authoring-only frontends — notably `IrBuilder` whose `Challenge`
+    // is an arena-backed handle — implement this trait without needing a
+    // concrete-ext conversion that would be meaningless at build time.
+    type Challenge: Clone + Algebra<Self::Extension>;
     type MleOracle;
 
     fn assert_zero(&mut self, expr: Self::Expr);
@@ -140,7 +145,15 @@ pub trait ReadingCtx: ConstraintCtx {
 }
 
 /// Extension of `ConstraintCtx` for the prover side: sending values and sampling challenges.
-pub trait SendingCtx: ConstraintCtx {
+///
+/// Requires `Challenge: Into<Extension>` — the prover needs to consume
+/// concrete challenge values to drive the underlying polynomial evaluations
+/// (see `SumcheckParam::prove`). Verifier-only frontends (e.g. `IrBuilder`)
+/// do not need this conversion and therefore do not implement `SendingCtx`.
+pub trait SendingCtx: ConstraintCtx
+where
+    Self::Challenge: Into<Self::Extension>,
+{
     /// Send a single value to the verifier (adds it to the proof transcript).
     fn send_value(&mut self, value: Self::Extension) -> Self::Expr;
 
