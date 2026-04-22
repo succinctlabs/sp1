@@ -39,19 +39,19 @@ struct InfoBuffer {
 
   public:
     /// data
-    uint32_t* data;
-    
-    __forceinline__ __device__ uint32_t fixLastVariable(
+    uint64_t* data;
+
+    __forceinline__ __device__ uint64_t fixLastVariable(
         InfoBuffer& other,
         size_t restrictedIdx,
         size_t zeroIdx
     ) const {
-        uint32_t info = data[zeroIdx];
+        uint64_t info = data[zeroIdx];
         other.data[restrictedIdx] = info;
         return info;
     }
 
-    __forceinline__ __device__ void pad_const(InfoBuffer& other, size_t restrictedIdx, uint32_t value) const {
+    __forceinline__ __device__ void pad_const(InfoBuffer& other, size_t restrictedIdx, uint64_t value) const {
         other.data[restrictedIdx] = value;
     }
 };
