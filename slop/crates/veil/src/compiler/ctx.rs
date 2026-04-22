@@ -139,25 +139,23 @@ pub trait ReadingCtx: ConstraintCtx {
     }
 }
 
-/// Extension of `ConstraintCtx` for the prover side: everything the proof-producing
-/// path needs over the verifier-reading path.
+/// Extension of `ConstraintCtx` for the prover side: everything a protocol needs
+/// to drive a veil protocol through to (but not including) finalization.
 ///
-/// Implementors drive a veil protocol through to a finalized proof. Concrete backends
-/// decide what "proof" means (the ZK backend's `ZkProof<GC>`, the transparent backend's
-/// raw transcript + PCS openings, etc.) via the `Proof` associated type.
+/// This surface is what protocol code (`param.prove`, inline prover flows in
+/// examples) actually calls: sending values to the transcript, sampling challenges,
+/// committing MLEs. The finalization step — producing the backend-specific `Proof`
+/// from the context — is an inherent method on each concrete ctx, not a trait
+/// method, so that the main driver calls `ctx.prove(rng)` alongside `ctx.verify()`
+/// symmetrically and each backend is free to pick its own return type.
 ///
-/// The `commit_mle` and `prove` methods carry `Standard: Distribution<...>` where
-/// clauses — these are only required at call sites that actually use randomness, so
-/// protocol code that only touches the send/sample/to_value surface does not need to
-/// propagate them.
+/// The `commit_mle` method carries a `Standard: Distribution<Self::Field>` where
+/// clause — only required at call sites that actually commit, so protocol code
+/// that only touches the send / sample / to_value surface does not need to
+/// propagate it.
 pub trait SendingCtx: ConstraintCtx {
-    /// The finalized proof object produced by [`Self::prove`].
-    type Proof;
     /// Error returned by [`Self::commit_mle`].
     type CommitError: std::error::Error;
-    /// Error returned by [`Self::prove`]. Use [`std::convert::Infallible`] for backends
-    /// whose finalization cannot fail.
-    type ProveError: std::error::Error;
 
     /// Send a single value to the verifier (adds it to the proof transcript).
     fn send_value(&mut self, value: Self::Extension) -> Self::Expr;
@@ -195,15 +193,6 @@ pub trait SendingCtx: ConstraintCtx {
     ) -> Result<Self::MleOracle, Self::CommitError>
     where
         rand::distributions::Standard: rand::distributions::Distribution<Self::Field>;
-
-    /// Finalize the proof. Consumes the context and produces the backend's
-    /// [`Self::Proof`], discharging any pending MLE-eval claims along the way.
-    fn prove<RNG: rand::CryptoRng + rand::Rng>(
-        self,
-        rng: &mut RNG,
-    ) -> Result<Self::Proof, Self::ProveError>
-    where
-        rand::distributions::Standard: rand::distributions::Distribution<Self::Extension>;
 
     /// Sample a multilinear point
     fn sample_point(&mut self, dimension: u32) -> Point<Self::Challenge> {

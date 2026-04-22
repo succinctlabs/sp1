@@ -7,6 +7,18 @@
 //! run first with the zero-knowledge backend (`ZkProverCtx` / `ZkVerifierCtx`) and
 //! afterwards with the transparent backend (`TransparentProverCtx` /
 //! `TransparentVerifierCtx`).
+//!
+//! Shape:
+//!
+//! - `root_read` / `root_prove`: mirror entry points — one reads the transcript on
+//!   the verifier side, the other writes on the prover side. Both return a
+//!   [`RootView`].
+//! - `root_build_constraints`: the shared constraint-building pass used by both
+//!   sides.
+//!
+//! `main` then runs `init → prove → build_constraints → ctx.prove()` on the prover
+//! side and `init(proof) → read → build_constraints → ctx.verify()` on the verifier
+//! side.
 
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
@@ -30,11 +42,21 @@ struct RootView<C: ConstraintCtx> {
     root: C::Expr,
 }
 
+/// Verifier-side entry point: read the prover's sent root out of the transcript.
 fn root_read<C: ReadingCtx>(ctx: &mut C) -> RootView<C> {
     let root = ctx.read_one().unwrap();
     RootView { root }
 }
 
+/// Prover-side entry point: send the secret root through the transcript and
+/// return the matching [`RootView`] for the caller to feed into
+/// [`root_build_constraints`].
+fn root_prove<C: SendingCtx>(ctx: &mut C, secret_root: C::Extension) -> RootView<C> {
+    let root = ctx.send_value(secret_root);
+    RootView { root }
+}
+
+/// Shared constraint-building pass used by both sides.
 fn root_build_constraints<C: ConstraintCtx>(
     coeffs: &[C::Extension],
     view: RootView<C>,
@@ -51,22 +73,6 @@ fn horner_eval<C: ConstraintCtx>(coeffs: &[C::Extension], point: C::Expr) -> C::
     let first = *iter.next().expect("polynomial must be non-empty");
     let init = C::Expr::one() * first;
     iter.fold(init, |acc, &c| acc * point.clone() + c)
-}
-
-/// The full prover-side flow, generic over any `SendingCtx`: consume the ctx,
-/// send the secret root, build the Horner constraint, and finalize.
-fn run_prover<C: SendingCtx, RNG: rand::CryptoRng + rand::Rng>(
-    mut ctx: C,
-    secret_root: C::Extension,
-    coeffs: &[C::Extension],
-    rng: &mut RNG,
-) -> C::Proof
-where
-    rand::distributions::Standard: rand::distributions::Distribution<C::Extension>,
-{
-    let root = ctx.send_value(secret_root);
-    root_build_constraints(coeffs, RootView { root }, &mut ctx);
-    ctx.prove(rng).expect("prove failed")
 }
 
 // ============================================================================
@@ -108,9 +114,11 @@ fn main() {
 
     let zk_proof = {
         let now = std::time::Instant::now();
-        let ctx: ZkProverCtx<GC, NoPcsConfig<MK>> =
+        let mut ctx: ZkProverCtx<GC, NoPcsConfig<MK>> =
             ZkProverCtx::initialize_without_pcs(mask_length, &mut rng);
-        let proof = run_prover(ctx, secret_root, &poly_coeffs, &mut rng);
+        let view = root_prove(&mut ctx, secret_root);
+        root_build_constraints(&poly_coeffs, view, &mut ctx);
+        let proof = ctx.prove(&mut rng);
         eprintln!("Prover time: {:?}", now.elapsed());
         proof
     };
@@ -128,8 +136,10 @@ fn main() {
     eprintln!("\n=== TRANSPARENT BACKEND ===");
     let transparent_proof = {
         let now = std::time::Instant::now();
-        let ctx: TransparentProverCtx<GC, MK> = TransparentProverCtx::new_without_pcs();
-        let proof = run_prover(ctx, secret_root, &poly_coeffs, &mut rng);
+        let mut ctx: TransparentProverCtx<GC, MK> = TransparentProverCtx::new_without_pcs();
+        let view = root_prove(&mut ctx, secret_root);
+        root_build_constraints(&poly_coeffs, view, &mut ctx);
+        let proof = ctx.prove(&mut rng).expect("transparent prove failed");
         eprintln!("Prover time: {:?}", now.elapsed());
         proof
     };

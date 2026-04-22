@@ -105,6 +105,48 @@ where
             pending_eval_claims: Vec::new(),
         }
     }
+
+    /// Finalize the proof: consume the context and emit the raw transcript, oracle
+    /// commits, and one stacked-basefold opening proof per `assert_mle_multi_eval`
+    /// call group. `rng` is unused — transparent mode doesn't mask.
+    pub fn prove<RNG: rand::CryptoRng + rand::Rng>(
+        mut self,
+        _rng: &mut RNG,
+    ) -> Result<TransparentProof<GC>, BasefoldProverError<MK::ProverError>>
+    where
+        rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
+    {
+        let pcs_proofs = if self.pending_eval_claims.is_empty() {
+            Vec::new()
+        } else {
+            let pcs_prover = self
+                .pcs_prover
+                .as_ref()
+                .expect("MLE-eval claims exist but transparent prover has no PCS backend");
+            // `prove_trusted_evaluation` ignores its `evaluation_claim` argument — the
+            // per-oracle claims are checked by the verifier against the proof's embedded
+            // batch evaluations — but we still need to pass something.
+            let placeholder_eval = <GC::EF as slop_algebra::AbstractField>::zero();
+            self.pending_eval_claims
+                .into_iter()
+                .map(|group| {
+                    let rounds = Rounds { rounds: group.prover_datas };
+                    pcs_prover.prove_trusted_evaluation(
+                        group.point,
+                        placeholder_eval,
+                        rounds,
+                        &mut self.challenger,
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()?
+        };
+
+        Ok(TransparentProof {
+            transcript: self.transcript,
+            oracle_commits: self.oracle_commits,
+            pcs_proofs,
+        })
+    }
 }
 
 // ============================================================================
@@ -152,9 +194,7 @@ where
     GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>,
     MK: ComputeTcsOpenings<GC, CpuBackend>,
 {
-    type Proof = TransparentProof<GC>;
     type CommitError = BasefoldProverError<MK::ProverError>;
-    type ProveError = BasefoldProverError<MK::ProverError>;
 
     fn send_value(&mut self, value: GC::EF) -> GC::EF {
         self.challenger.observe_ext_element(value);
@@ -204,47 +244,5 @@ where
         self.challenger.observe(commitment);
         self.oracle_commits.push(commitment);
         Ok(TransparentMleOracle { commitment, prover_data })
-    }
-
-    /// Discharges each pending MLE-eval claim group into its own stacked-basefold
-    /// opening and returns the raw transcript + oracle commits + PCS proofs.
-    /// `rng` is unused.
-    fn prove<RNG: rand::CryptoRng + rand::Rng>(
-        mut self,
-        _rng: &mut RNG,
-    ) -> Result<Self::Proof, Self::ProveError>
-    where
-        rand::distributions::Standard: rand::distributions::Distribution<GC::EF>,
-    {
-        let pcs_proofs = if self.pending_eval_claims.is_empty() {
-            Vec::new()
-        } else {
-            let pcs_prover = self
-                .pcs_prover
-                .as_ref()
-                .expect("MLE-eval claims exist but transparent prover has no PCS backend");
-            // `prove_trusted_evaluation` ignores its `evaluation_claim` argument — the
-            // per-oracle claims are checked by the verifier against the proof's embedded
-            // batch evaluations — but we still need to pass something.
-            let placeholder_eval = <GC::EF as slop_algebra::AbstractField>::zero();
-            self.pending_eval_claims
-                .into_iter()
-                .map(|group| {
-                    let rounds = Rounds { rounds: group.prover_datas };
-                    pcs_prover.prove_trusted_evaluation(
-                        group.point,
-                        placeholder_eval,
-                        rounds,
-                        &mut self.challenger,
-                    )
-                })
-                .collect::<Result<Vec<_>, _>>()?
-        };
-
-        Ok(TransparentProof {
-            transcript: self.transcript,
-            oracle_commits: self.oracle_commits,
-            pcs_proofs,
-        })
     }
 }
