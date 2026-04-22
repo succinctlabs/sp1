@@ -7,13 +7,11 @@
 //! against which the ZK backend's behaviour can be compared, and as the simplest
 //! point of comparison when generating soundness statements.
 
-mod expression;
 mod prover;
 mod verifier;
 
 #[cfg(test)]
 mod tests;
 
-pub use expression::*;
 pub use prover::*;
 pub use verifier::*;

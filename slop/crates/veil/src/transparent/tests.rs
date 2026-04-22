@@ -20,8 +20,7 @@ use crate::integration_tests::examples::{
     sumcheck_triple_hadamard_read,
 };
 use crate::transparent::{
-    initialize_transparent_prover_and_verifier, TransparentProof, TransparentProverCtx,
-    TransparentVerifierCtx, VerifyError,
+    initialize_transparent_prover_and_verifier, TransparentProverCtx, TransparentVerifierCtx,
 };
 
 type GC = KoalaBearDegree4Duplex;
@@ -281,71 +280,4 @@ fn test_sumcheck_triple_hadamard_multi_point() {
         sumcheck_triple_hadamard_build_constraints(view, &mut vctx, claim_fg, claim_gh, claim_hf);
         vctx.verify().expect("transparent verification failed");
     }
-}
-
-// ============================================================================
-// #6: Named-constraint failure reporting.
-//
-// Assert several polynomial constraints directly against a trivial empty proof;
-// some pass, some fail, and some are renamed via `name_last_constraint`. Verify
-// that the error lists exactly the failed constraints by their (default or
-// renamed) names.
-// ============================================================================
-
-#[test]
-fn test_named_constraint_failure_reporting() {
-    use crate::compiler::ConstraintCtx;
-    use crate::transparent::Expr;
-    use slop_algebra::AbstractField;
-
-    let proof: TransparentProof<GC> = TransparentProof {
-        transcript: Vec::new(),
-        oracle_commits: Vec::new(),
-        pcs_proofs: Vec::new(),
-    };
-    let mut vctx = TransparentVerifierCtx::<GC>::new(proof, None);
-
-    // 1: passes (zero), default name "poly constraint 1".
-    vctx.assert_zero(Expr::Const(EF::zero()));
-    // 2: fails, default name "poly constraint 2".
-    vctx.assert_zero(Expr::Const(EF::one()));
-    // 3: fails, renamed to "custom-named failing constraint".
-    vctx.assert_zero(Expr::Const(EF::from_canonical_u32(7)));
-    vctx.name_last_constraint("custom-named failing constraint".to_string());
-    // 4: passes, renamed name should not appear in the error.
-    vctx.assert_zero(Expr::Const(EF::zero()));
-    vctx.name_last_constraint("this one passes".to_string());
-
-    match vctx.verify() {
-        Err(VerifyError::ConstraintsFailed(names)) => {
-            assert_eq!(
-                names,
-                vec![
-                    "poly constraint 2".to_string(),
-                    "custom-named failing constraint".to_string(),
-                ],
-            );
-            let rendered = format!("{}", VerifyError::ConstraintsFailed(names));
-            assert!(
-                rendered.contains("poly constraint 2")
-                    && rendered.contains("custom-named failing constraint"),
-                "rendered error does not contain expected names: {rendered}",
-            );
-        }
-        other => panic!("expected ConstraintsFailed, got {other:?}"),
-    }
-}
-
-#[test]
-#[should_panic(expected = "name_last_constraint called before any constraint was asserted")]
-fn test_name_last_constraint_panics_before_any_assertion() {
-    use crate::compiler::ConstraintCtx;
-
-    let proof: TransparentProof<GC> = TransparentProof {
-        transcript: Vec::new(),
-        oracle_commits: Vec::new(),
-        pcs_proofs: Vec::new(),
-    };
-    let mut vctx = TransparentVerifierCtx::<GC>::new(proof, None);
-    vctx.name_last_constraint("nope".to_string());
 }

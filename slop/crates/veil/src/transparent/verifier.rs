@@ -1,7 +1,4 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
-use slop_algebra::{AbstractField, Field, TwoAdicField};
+use slop_algebra::{Field, TwoAdicField};
 use slop_basefold::BasefoldVerifier;
 use slop_challenger::{CanObserve, FieldChallenger, IopCtx};
 use slop_multilinear::{Mle, Point};
@@ -9,9 +6,6 @@ use slop_stacked::{StackedBasefoldProof, StackedPcsVerifier, StackedVerifierErro
 use thiserror::Error;
 
 use crate::compiler::{ConstraintCtx, ReadingCtx, TranscriptExhaustedError};
-use crate::transparent::expression::{
-    evaluate_expr, evaluate_pool, Element, Expr, ExprNode, ExpressionPool,
-};
 use crate::transparent::prover::TransparentProof;
 
 /// Opaque handle the verifier hands out for each committed oracle. The digest and
@@ -20,39 +14,36 @@ use crate::transparent::prover::TransparentProof;
 pub struct TransparentVerifierOracle {
     /// Index into `TransparentVerifierCtx::oracle_commits`.
     idx: usize,
+    num_encoding_variables: u32,
+    log_num_polynomials: u32,
 }
 
-/// One asserted polynomial constraint: an expression that must evaluate to zero.
-struct ZeroClaim<EF> {
-    expr: Expr<EF>,
-    name: String,
+impl TransparentVerifierOracle {
+    fn num_variables(&self) -> u32 {
+        self.num_encoding_variables + self.log_num_polynomials
+    }
 }
 
 /// One pending MLE-eval claim group: all oracles are opened at the same point.
 /// Paired with one [`StackedBasefoldProof`] from the prover.
 struct MleClaimGroup<EF> {
     oracles: Vec<TransparentVerifierOracle>,
-    eval_exprs: Vec<Expr<EF>>,
+    /// User-claimed evaluation for each oracle at `point`. Cross-checked against
+    /// the proof's `batch_evaluations` at `verify()` time.
+    evals: Vec<EF>,
     point: Point<EF>,
-    name: String,
-}
-
-/// Which constraint list was appended to most recently. Used by
-/// [`ConstraintCtx::name_last_constraint`] to know where to write the override.
-#[derive(Clone, Copy, Debug)]
-enum LastConstraintKind {
-    Zero,
-    Mle,
 }
 
 #[derive(Debug, Error)]
 pub enum VerifyError {
-    #[error("constraint(s) failed: {}", .0.join(", "))]
-    ConstraintsFailed(Vec<String>),
+    #[error("assertion failed: asserted expression did not evaluate to zero")]
+    AssertZeroFailed,
     #[error("number of PCS proofs ({expected}) does not match number of MLE eval claim groups ({actual})")]
     PcsProofCountMismatch { expected: usize, actual: usize },
     #[error("MLE claim group {group_idx}: proof has {actual} per-oracle batch_evaluations but group has {expected} oracles")]
     GroupOracleCountMismatch { group_idx: usize, expected: usize, actual: usize },
+    #[error("MLE claim group {group_idx}, oracle {oracle_idx}: user-claimed eval does not match the proof's recovered eval")]
+    EvalClaimMismatch { group_idx: usize, oracle_idx: usize },
     #[error(transparent)]
     PcsError(
         StackedVerifierError<
@@ -63,9 +54,12 @@ pub enum VerifyError {
 
 /// Transparent verifier context.
 ///
-/// Stores the incoming transcript + oracle commitments + PCS proofs, tracks an
-/// expression AST for any constraints the protocol emits, and records MLE-eval
-/// claim groups for PCS-level verification at the end.
+/// There is no masking and no compiled constraint language in the transparent
+/// backend — `Expr` is just the underlying extension-field element. Every
+/// `assert_*` call evaluates its argument eagerly and records a single "an
+/// assertion failed" flag; MLE-eval claims are queued (together with their
+/// concrete claimed values) and discharged against the stacked-basefold PCS
+/// proofs at [`Self::verify`] time.
 pub struct TransparentVerifierCtx<GC: IopCtx> {
     // ---- from the proof ----
     transcript: Vec<Vec<GC::EF>>,
@@ -84,15 +78,13 @@ pub struct TransparentVerifierCtx<GC: IopCtx> {
     // ---- Fiat-Shamir ----
     challenger: GC::Challenger,
 
-    // ---- expression AST ----
-    pool: Rc<RefCell<ExpressionPool<GC::EF>>>,
+    // ---- eager assertion state ----
+    /// Set to true the first time an `assert_zero` call sees a non-zero argument.
+    /// Surfaced as an error at `verify()` time.
+    assert_zero_failed: bool,
 
-    // ---- constraint claims ----
-    zero_claims: Vec<ZeroClaim<GC::EF>>,
+    // ---- pending PCS claim groups ----
     mle_claims: Vec<MleClaimGroup<GC::EF>>,
-    /// Tracks which constraint list received the most recent push, so
-    /// `name_last_constraint` knows where to write its override.
-    last_constraint_kind: Option<LastConstraintKind>,
 
     // ---- PCS verifier (optional: `None` if the protocol emitted no MLE claims) ----
     pcs_verifier: Option<StackedPcsVerifier<GC>>,
@@ -109,10 +101,8 @@ impl<GC: IopCtx> TransparentVerifierCtx<GC> {
             read_cursor: (0, 0),
             oracle_cursor: 0,
             challenger: GC::default_challenger(),
-            pool: Rc::new(RefCell::new(ExpressionPool::default())),
-            zero_claims: Vec::new(),
+            assert_zero_failed: false,
             mle_claims: Vec::new(),
-            last_constraint_kind: None,
             pcs_verifier,
         }
     }
@@ -131,14 +121,6 @@ impl<GC: IopCtx> TransparentVerifierCtx<GC> {
         }
         panic!("transcript exhausted");
     }
-
-    /// Advance the cursor, push a `Var` node for that transcript slot, and return
-    /// both the fresh pool handle and the slot it reads from.
-    fn push_var(&mut self) -> (Element<GC::EF>, (usize, usize)) {
-        let (g, l) = self.advance_read_cursor();
-        let idx = self.pool.borrow_mut().push(ExprNode::Var(g, l));
-        (Element::new(self.pool.clone(), idx), (g, l))
-    }
 }
 
 // ============================================================================
@@ -148,14 +130,14 @@ impl<GC: IopCtx> TransparentVerifierCtx<GC> {
 impl<GC: IopCtx> ConstraintCtx for TransparentVerifierCtx<GC> {
     type Field = GC::F;
     type Extension = GC::EF;
-    type Expr = Expr<GC::EF>;
+    type Expr = GC::EF;
     type Challenge = GC::EF;
     type MleOracle = TransparentVerifierOracle;
 
     fn assert_zero(&mut self, expr: Self::Expr) {
-        let default_name = format!("poly constraint {}", self.zero_claims.len() + 1);
-        self.zero_claims.push(ZeroClaim { expr, name: default_name });
-        self.last_constraint_kind = Some(LastConstraintKind::Zero);
+        if !expr.is_zero() {
+            self.assert_zero_failed = true;
+        }
     }
 
     fn assert_mle_multi_eval(
@@ -164,32 +146,12 @@ impl<GC: IopCtx> ConstraintCtx for TransparentVerifierCtx<GC> {
         point: Point<Self::Challenge>,
     ) {
         let mut oracles = Vec::with_capacity(claims.len());
-        let mut eval_exprs = Vec::with_capacity(claims.len());
+        let mut evals = Vec::with_capacity(claims.len());
         for (oracle, eval) in claims {
             oracles.push(oracle);
-            eval_exprs.push(eval);
+            evals.push(eval);
         }
-        let default_name = format!("MLE eval {}", self.mle_claims.len() + 1);
-        self.mle_claims.push(MleClaimGroup { oracles, eval_exprs, point, name: default_name });
-        self.last_constraint_kind = Some(LastConstraintKind::Mle);
-    }
-
-    fn name_last_constraint(&mut self, name: String) {
-        match self.last_constraint_kind {
-            Some(LastConstraintKind::Zero) => {
-                self.zero_claims
-                    .last_mut()
-                    .expect("last_constraint_kind points to an empty zero_claims list")
-                    .name = name;
-            }
-            Some(LastConstraintKind::Mle) => {
-                self.mle_claims
-                    .last_mut()
-                    .expect("last_constraint_kind points to an empty mle_claims list")
-                    .name = name;
-            }
-            None => panic!("name_last_constraint called before any constraint was asserted"),
-        }
+        self.mle_claims.push(MleClaimGroup { oracles, evals, point });
     }
 }
 
@@ -200,9 +162,10 @@ impl<GC: IopCtx> ConstraintCtx for TransparentVerifierCtx<GC> {
 impl<GC: IopCtx> ReadingCtx for TransparentVerifierCtx<GC> {
     fn read_exact(&mut self, buf: &mut [Self::Expr]) -> Result<(), TranscriptExhaustedError> {
         for slot in buf.iter_mut() {
-            let (elem, (g, l)) = self.push_var();
-            *slot = Expr::Node(elem);
-            self.challenger.observe_ext_element(self.transcript[g][l]);
+            let (g, l) = self.advance_read_cursor();
+            let value = self.transcript[g][l];
+            self.challenger.observe_ext_element(value);
+            *slot = value;
         }
         Ok(())
     }
@@ -219,7 +182,7 @@ impl<GC: IopCtx> ReadingCtx for TransparentVerifierCtx<GC> {
         }
         self.oracle_cursor += 1;
         self.challenger.observe(digest);
-        Some(TransparentVerifierOracle { idx })
+        Some(TransparentVerifierOracle { idx, num_encoding_variables, log_num_polynomials })
     }
 
     fn sample(&mut self) -> Self::Challenge {
@@ -234,30 +197,17 @@ impl<GC: IopCtx> ReadingCtx for TransparentVerifierCtx<GC> {
 impl<GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>> TransparentVerifierCtx<GC> {
     /// Run the full verification pass:
     ///
-    /// 1. Evaluate every node in the expression pool (single linear sweep).
-    /// 2. Check every `assert_zero` claim evaluates to zero. (`a*b=c` claims are
-    ///    lowered to `assert_zero(a*b - c)` via the trait default, so there's no
-    ///    separate list for them.)
-    /// 3. For each recorded MLE-eval claim group, dispatch to the stacked-basefold
-    ///    PCS verifier using the matching `pcs_proofs[i]`.
+    /// 1. Surface any `assert_zero` failure recorded eagerly during
+    ///    `build_constraints`. (`a*b=c` claims lower to `assert_zero(a*b - c)`
+    ///    via the trait default, so they fold into the same flag.)
+    /// 2. For each recorded MLE-eval claim group, cross-check each user-claimed
+    ///    eval against the proof's per-oracle `batch_evaluations`, then dispatch
+    ///    to the stacked-basefold PCS verifier using the matching `pcs_proofs[i]`.
     pub fn verify(mut self) -> Result<(), VerifyError> {
-        // 1. Flat evaluation of the expression pool.
-        let pool = self.pool.borrow();
-        let values = evaluate_pool(&pool, &self.transcript);
-        drop(pool);
-
-        // 2. Check asserted-zero claims — collect names of every claim that fails
-        //    rather than short-circuiting on the first one.
-        let mut failed_names: Vec<String> = Vec::new();
-        for claim in &self.zero_claims {
-            let v = evaluate_expr(&claim.expr, &values);
-            if !v.is_zero() {
-                failed_names.push(claim.name.clone());
-            }
+        if self.assert_zero_failed {
+            return Err(VerifyError::AssertZeroFailed);
         }
 
-        // 3. MLE-eval claim groups: first validate structural shape, then do the
-        //    per-oracle eval binding check, accumulating failures by group name.
         if !self.mle_claims.is_empty() {
             if self.pcs_proofs.len() != self.mle_claims.len() {
                 return Err(VerifyError::PcsProofCountMismatch {
@@ -273,65 +223,13 @@ impl<GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>> TransparentVerifierCtx<GC> {
             for (group_idx, (group, pcs_proof)) in
                 self.mle_claims.iter().zip(&self.pcs_proofs).enumerate()
             {
-                if pcs_proof.batch_evaluations.len() != group.oracles.len() {
-                    return Err(VerifyError::GroupOracleCountMismatch {
-                        group_idx,
-                        expected: group.oracles.len(),
-                        actual: pcs_proof.batch_evaluations.len(),
-                    });
-                }
-
-                // Per-oracle cross-check of user claim vs. proof-recovered eval:
-                // the proof's `batch_evaluations[i]` carries oracle `i`'s stacked
-                // column-evaluations at the stack_point prefix of `eval_point`.
-                // Folding them at `batch_point` (the remaining coordinates of
-                // `eval_point`) recovers oracle `i`'s evaluation at the full point.
-                // We tie that to the protocol's claim by comparing against the
-                // user's `eval_expr[i]` evaluated through the expression pool.
-                //
-                // The stacked PCS's own `verify_trusted_evaluation` only checks
-                // this binding for the first oracle (via `[0]` on a flattened MLE)
-                // — so for multi-oracle groups this per-oracle loop is what closes
-                // the soundness loop. The trailing PCS call below then runs the
-                // FRI + Merkle + stacking layers to confirm `batch_evaluations`
-                // really came from the committed MLEs.
-                let log_stack = pcs_verifier.log_stacking_height as usize;
-                let (batch_point, _) =
-                    group.point.clone().split_at(group.point.dimension() - log_stack);
-                let mut group_failed = false;
-                for (oracle_idx, eval_expr) in group.eval_exprs.iter().enumerate() {
-                    let per_oracle_mle: Mle<GC::EF> =
-                        pcs_proof.batch_evaluations[oracle_idx].to_vec().into();
-                    let proof_eval = per_oracle_mle.blocking_eval_at(&batch_point)[0];
-                    let user_eval = evaluate_expr(eval_expr, &values);
-                    if proof_eval != user_eval {
-                        group_failed = true;
-                        break;
-                    }
-                }
-                if group_failed {
-                    failed_names.push(group.name.clone());
-                }
-            }
-        }
-
-        if !failed_names.is_empty() {
-            return Err(VerifyError::ConstraintsFailed(failed_names));
-        }
-
-        // 4. All user-level constraints passed — run the PCS verifier per group.
-        if !self.mle_claims.is_empty() {
-            let pcs_verifier = self.pcs_verifier.as_ref().expect("checked above");
-            for (group, pcs_proof) in self.mle_claims.iter().zip(&self.pcs_proofs) {
-                // Assemble the inputs that `verify_trusted_evaluation` expects.
                 let commits: Vec<GC::Digest> =
                     group.oracles.iter().map(|o| self.oracle_commits[o.idx].0).collect();
                 let round_areas: Vec<usize> = group
                     .oracles
                     .iter()
                     .map(|o| {
-                        let (_, num_enc, log_num) = self.oracle_commits[o.idx];
-                        (1usize << (num_enc + log_num))
+                        (1usize << o.num_variables())
                             .next_multiple_of(1usize << pcs_verifier.log_stacking_height)
                     })
                     .collect();
@@ -340,10 +238,28 @@ impl<GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>> TransparentVerifierCtx<GC> {
                 let log_stack = pcs_verifier.log_stacking_height as usize;
                 let (batch_point, _) = eval_point.split_at(eval_point.dimension() - log_stack);
 
-                // Flattened eval_claim for the stacked PCS layer. This is the form
-                // `verify_trusted_evaluation` expects; it's self-consistent with the
-                // proof's `batch_evaluations`, but the per-oracle loop above has
-                // already bound user claims to those `batch_evaluations`.
+                // Per-oracle cross-check: user's claim vs. proof-recovered eval.
+                // Since `Expr = EF` in this backend, the user's claim is already a
+                // concrete field element — just compare directly.
+                if pcs_proof.batch_evaluations.len() != group.oracles.len() {
+                    return Err(VerifyError::GroupOracleCountMismatch {
+                        group_idx,
+                        expected: group.oracles.len(),
+                        actual: pcs_proof.batch_evaluations.len(),
+                    });
+                }
+                for (oracle_idx, user_eval) in group.evals.iter().enumerate() {
+                    let per_oracle_mle: Mle<GC::EF> =
+                        pcs_proof.batch_evaluations[oracle_idx].to_vec().into();
+                    let proof_eval = per_oracle_mle.blocking_eval_at(&batch_point)[0];
+                    if proof_eval != *user_eval {
+                        return Err(VerifyError::EvalClaimMismatch { group_idx, oracle_idx });
+                    }
+                }
+
+                // Flattened eval_claim for the stacked PCS layer. Self-consistent
+                // with the proof's `batch_evaluations`; the per-oracle loop above
+                // already binds user claims to those `batch_evaluations`.
                 let batch_evals_mle: Mle<GC::EF> =
                     pcs_proof.batch_evaluations.iter().flatten().cloned().collect();
                 let eval_claim = batch_evals_mle.blocking_eval_at(&batch_point)[0];
