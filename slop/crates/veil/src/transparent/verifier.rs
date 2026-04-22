@@ -153,7 +153,9 @@ impl<GC: IopCtx> ConstraintCtx for TransparentVerifierCtx<GC> {
     type MleOracle = TransparentVerifierOracle;
 
     fn assert_zero(&mut self, expr: Self::Expr) {
-        self.zero_claims.push(expr);
+        let default_name = format!("poly constraint {}", self.zero_claims.len() + 1);
+        self.zero_claims.push(ZeroClaim { expr, name: default_name });
+        self.last_constraint_kind = Some(LastConstraintKind::Zero);
     }
 
     fn assert_mle_multi_eval(
@@ -167,7 +169,27 @@ impl<GC: IopCtx> ConstraintCtx for TransparentVerifierCtx<GC> {
             oracles.push(oracle);
             eval_exprs.push(eval);
         }
-        self.mle_claims.push(MleClaimGroup { oracles, eval_exprs, point });
+        let default_name = format!("MLE eval {}", self.mle_claims.len() + 1);
+        self.mle_claims.push(MleClaimGroup { oracles, eval_exprs, point, name: default_name });
+        self.last_constraint_kind = Some(LastConstraintKind::Mle);
+    }
+
+    fn name_last_constraint(&mut self, name: String) {
+        match self.last_constraint_kind {
+            Some(LastConstraintKind::Zero) => {
+                self.zero_claims
+                    .last_mut()
+                    .expect("last_constraint_kind points to an empty zero_claims list")
+                    .name = name;
+            }
+            Some(LastConstraintKind::Mle) => {
+                self.mle_claims
+                    .last_mut()
+                    .expect("last_constraint_kind points to an empty mle_claims list")
+                    .name = name;
+            }
+            None => panic!("name_last_constraint called before any constraint was asserted"),
+        }
     }
 }
 
@@ -224,15 +246,18 @@ impl<GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>> TransparentVerifierCtx<GC> {
         let values = evaluate_pool(&pool, &self.transcript);
         drop(pool);
 
-        // 2. Check asserted-zero claims.
-        for expr in &self.zero_claims {
-            let v = evaluate_expr(expr, &values);
+        // 2. Check asserted-zero claims — collect names of every claim that fails
+        //    rather than short-circuiting on the first one.
+        let mut failed_names: Vec<String> = Vec::new();
+        for claim in &self.zero_claims {
+            let v = evaluate_expr(&claim.expr, &values);
             if !v.is_zero() {
-                return Err(VerifyError::AssertZeroFailed);
+                failed_names.push(claim.name.clone());
             }
         }
 
-        // 3. MLE-eval claim groups → PCS checks.
+        // 3. MLE-eval claim groups: first validate structural shape, then do the
+        //    per-oracle eval binding check, accumulating failures by group name.
         if !self.mle_claims.is_empty() {
             if self.pcs_proofs.len() != self.mle_claims.len() {
                 return Err(VerifyError::PcsProofCountMismatch {
@@ -248,18 +273,13 @@ impl<GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>> TransparentVerifierCtx<GC> {
             for (group_idx, (group, pcs_proof)) in
                 self.mle_claims.iter().zip(&self.pcs_proofs).enumerate()
             {
-                // Assemble the inputs that `verify_trusted_evaluation` expects.
-                let commits: Vec<GC::Digest> =
-                    group.oracles.iter().map(|o| self.oracle_commits[o.idx].0).collect();
-                let round_areas: Vec<usize> = group
-                    .oracles
-                    .iter()
-                    .map(|o| {
-                        let (_, num_enc, log_num) = self.oracle_commits[o.idx];
-                        (1usize << (num_enc + log_num))
-                            .next_multiple_of(1usize << pcs_verifier.log_stacking_height)
-                    })
-                    .collect();
+                if pcs_proof.batch_evaluations.len() != group.oracles.len() {
+                    return Err(VerifyError::GroupOracleCountMismatch {
+                        group_idx,
+                        expected: group.oracles.len(),
+                        actual: pcs_proof.batch_evaluations.len(),
+                    });
+                }
 
                 // Per-oracle cross-check of user claim vs. proof-recovered eval:
                 // the proof's `batch_evaluations[i]` carries oracle `i`'s stacked
@@ -275,25 +295,50 @@ impl<GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>> TransparentVerifierCtx<GC> {
                 // the soundness loop. The trailing PCS call below then runs the
                 // FRI + Merkle + stacking layers to confirm `batch_evaluations`
                 // really came from the committed MLEs.
-                if pcs_proof.batch_evaluations.len() != group.oracles.len() {
-                    return Err(VerifyError::GroupOracleCountMismatch {
-                        group_idx,
-                        expected: group.oracles.len(),
-                        actual: pcs_proof.batch_evaluations.len(),
-                    });
-                }
-                let eval_point = group.point.clone();
                 let log_stack = pcs_verifier.log_stacking_height as usize;
-                let (batch_point, _) = eval_point.split_at(eval_point.dimension() - log_stack);
+                let (batch_point, _) =
+                    group.point.clone().split_at(group.point.dimension() - log_stack);
+                let mut group_failed = false;
                 for (oracle_idx, eval_expr) in group.eval_exprs.iter().enumerate() {
                     let per_oracle_mle: Mle<GC::EF> =
                         pcs_proof.batch_evaluations[oracle_idx].to_vec().into();
                     let proof_eval = per_oracle_mle.blocking_eval_at(&batch_point)[0];
                     let user_eval = evaluate_expr(eval_expr, &values);
                     if proof_eval != user_eval {
-                        return Err(VerifyError::EvalClaimMismatch { group_idx, oracle_idx });
+                        group_failed = true;
+                        break;
                     }
                 }
+                if group_failed {
+                    failed_names.push(group.name.clone());
+                }
+            }
+        }
+
+        if !failed_names.is_empty() {
+            return Err(VerifyError::ConstraintsFailed(failed_names));
+        }
+
+        // 4. All user-level constraints passed — run the PCS verifier per group.
+        if !self.mle_claims.is_empty() {
+            let pcs_verifier = self.pcs_verifier.as_ref().expect("checked above");
+            for (group, pcs_proof) in self.mle_claims.iter().zip(&self.pcs_proofs) {
+                // Assemble the inputs that `verify_trusted_evaluation` expects.
+                let commits: Vec<GC::Digest> =
+                    group.oracles.iter().map(|o| self.oracle_commits[o.idx].0).collect();
+                let round_areas: Vec<usize> = group
+                    .oracles
+                    .iter()
+                    .map(|o| {
+                        let (_, num_enc, log_num) = self.oracle_commits[o.idx];
+                        (1usize << (num_enc + log_num))
+                            .next_multiple_of(1usize << pcs_verifier.log_stacking_height)
+                    })
+                    .collect();
+
+                let eval_point = group.point.clone();
+                let log_stack = pcs_verifier.log_stacking_height as usize;
+                let (batch_point, _) = eval_point.split_at(eval_point.dimension() - log_stack);
 
                 // Flattened eval_claim for the stacked PCS layer. This is the form
                 // `verify_trusted_evaluation` expects; it's self-consistent with the
