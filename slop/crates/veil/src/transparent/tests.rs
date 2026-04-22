@@ -110,10 +110,9 @@ fn test_sumcheck_hadamard_with_pcs() {
     let (mle_base, mle_ext, product, claim) =
         generate_random_hadamard_product::<F, EF>(&mut rng, NUM_VARIABLES);
 
-    // Each `assert_mle_eval` call becomes its own 1-commit group in the transparent
-    // prover, so every PCS proof carries exactly one commit.
+    // Both oracles are batched into one multi-eval group → one 2-commit PCS proof.
     let (stacked_prover, stacked_verifier) = initialize_transparent_prover_and_verifier::<GC, MK>(
-        1,
+        2,
         NUM_ENCODING_VARIABLES,
         LOG_NUM_POLYNOMIALS,
     );

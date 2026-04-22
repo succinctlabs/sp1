@@ -40,11 +40,12 @@ struct PendingEvalClaims<GC: IopCtx, MK: ComputeTcsOpenings<GC, CpuBackend>> {
     point: Point<GC::EF>,
 }
 
-/// Finalized transparent proof: raw transcript, oracle digests, and one
-/// stacked-basefold opening proof per `assert_mle_multi_eval` call.
+/// Finalized transparent proof: raw transcript, oracle digests paired with their
+/// shape `(num_encoding_variables, log_num_polynomials)`, and one stacked-basefold
+/// opening proof per `assert_mle_multi_eval` call.
 pub struct TransparentProof<GC: IopCtx> {
     pub transcript: Vec<Vec<GC::EF>>,
-    pub oracle_commits: Vec<GC::Digest>,
+    pub oracle_commits: Vec<(GC::Digest, u32, u32)>,
     pub pcs_proofs: Vec<StackedBasefoldProof<GC>>,
 }
 
@@ -75,8 +76,9 @@ where
 {
     /// All sent extension-field messages, grouped by `send_value` / `send_values` call.
     transcript: Vec<Vec<GC::EF>>,
-    /// All oracle commitments in send order.
-    oracle_commits: Vec<GC::Digest>,
+    /// All oracle commitments in send order, paired with their shape
+    /// `(num_encoding_variables, log_num_polynomials)`.
+    oracle_commits: Vec<(GC::Digest, u32, u32)>,
     /// Fiat-Shamir challenger; observes every sent message and oracle commitment.
     challenger: GC::Challenger,
     /// Configured stacked-basefold prover used to commit MLEs and produce openings;
@@ -282,10 +284,11 @@ where
             pcs_prover.batch_size,
             "log_num_polynomials must match the stacked PCS's batch_size",
         );
+        let num_encoding_variables = pcs_prover.log_stacking_height;
         let message = Message::from(vec![mle]);
         let (commitment, prover_data, _num_added_vals) = pcs_prover.commit_multilinears(message)?;
         self.challenger.observe(commitment);
-        self.oracle_commits.push(commitment);
+        self.oracle_commits.push((commitment, num_encoding_variables, log_num_polynomials));
         Ok(TransparentMleOracle { commitment, prover_data })
     }
 }

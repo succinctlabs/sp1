@@ -114,8 +114,9 @@ fn test_sumcheck_hadamard_with_pcs() {
     let (mle_base, mle_ext, product, claim) =
         generate_random_hadamard_product::<F, EF>(&mut rng, NUM_VARIABLES);
 
+    // Both oracles are batched into one multi-eval group → one 2-commit PCS proof.
     let (zk_pcs_prover, zk_pcs_verifier) =
-        initialize_zk_prover_and_verifier::<GC, MK>(1, NUM_ENCODING_VARIABLES);
+        initialize_zk_prover_and_verifier::<GC, MK>(2, NUM_ENCODING_VARIABLES);
 
     let proof = {
         let mask_length = compute_mask_length::<GC, _>(

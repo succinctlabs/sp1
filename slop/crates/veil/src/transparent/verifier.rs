@@ -14,21 +14,12 @@ use crate::transparent::expression::{
 };
 use crate::transparent::prover::TransparentProof;
 
-/// Opaque handle the verifier hands out for each committed oracle. Carries enough
-/// shape information to look up the commitment and compute the PCS "round area" at
-/// verify time.
+/// Opaque handle the verifier hands out for each committed oracle. The digest and
+/// shape live in [`TransparentVerifierCtx::oracle_commits`]; this is just an index.
 #[derive(Clone, Copy, Debug)]
 pub struct TransparentVerifierOracle {
     /// Index into `TransparentVerifierCtx::oracle_commits`.
     idx: usize,
-    num_encoding_variables: u32,
-    log_num_polynomials: u32,
-}
-
-impl TransparentVerifierOracle {
-    fn num_variables(&self) -> u32 {
-        self.num_encoding_variables + self.log_num_polynomials
-    }
 }
 
 /// One pending MLE-eval claim group: all oracles are opened at the same point.
@@ -45,6 +36,10 @@ pub enum VerifyError {
     AssertZeroFailed,
     #[error("number of PCS proofs ({expected}) does not match number of MLE eval claim groups ({actual})")]
     PcsProofCountMismatch { expected: usize, actual: usize },
+    #[error("MLE claim group {group_idx}: proof has {actual} per-oracle batch_evaluations but group has {expected} oracles")]
+    GroupOracleCountMismatch { group_idx: usize, expected: usize, actual: usize },
+    #[error("MLE claim group {group_idx}, oracle {oracle_idx}: user-claimed eval does not match the proof's recovered eval")]
+    EvalClaimMismatch { group_idx: usize, oracle_idx: usize },
     #[error(transparent)]
     PcsError(
         StackedVerifierError<
@@ -61,7 +56,10 @@ pub enum VerifyError {
 pub struct TransparentVerifierCtx<GC: IopCtx> {
     // ---- from the proof ----
     transcript: Vec<Vec<GC::EF>>,
-    oracle_commits: Vec<GC::Digest>,
+    /// One entry per committed oracle: `(digest, num_encoding_variables, log_num_polynomials)`.
+    /// Shapes come from the proof; `read_oracle` checks them against the caller's
+    /// requested shape.
+    oracle_commits: Vec<(GC::Digest, u32, u32)>,
     pcs_proofs: Vec<StackedBasefoldProof<GC>>,
 
     // ---- traversal cursors ----
@@ -79,9 +77,6 @@ pub struct TransparentVerifierCtx<GC: IopCtx> {
     // ---- constraint claims ----
     zero_claims: Vec<Expr<GC::EF>>,
     mle_claims: Vec<MleClaimGroup<GC::EF>>,
-
-    // ---- oracle shapes (parallel to oracle_commits) ----
-    oracle_shapes: Vec<(u32, u32)>,
 
     // ---- PCS verifier (optional: `None` if the protocol emitted no MLE claims) ----
     pcs_verifier: Option<StackedPcsVerifier<GC>>,
@@ -101,7 +96,6 @@ impl<GC: IopCtx> TransparentVerifierCtx<GC> {
             pool: Rc::new(RefCell::new(ExpressionPool::default())),
             zero_claims: Vec::new(),
             mle_claims: Vec::new(),
-            oracle_shapes: Vec::new(),
             pcs_verifier,
         }
     }
@@ -179,14 +173,14 @@ impl<GC: IopCtx> ReadingCtx for TransparentVerifierCtx<GC> {
         num_encoding_variables: u32,
         log_num_polynomials: u32,
     ) -> Option<Self::MleOracle> {
-        if self.oracle_cursor >= self.oracle_commits.len() {
+        let idx = self.oracle_cursor;
+        let (digest, proof_num_enc, proof_log_num) = *self.oracle_commits.get(idx)?;
+        if proof_num_enc != num_encoding_variables || proof_log_num != log_num_polynomials {
             return None;
         }
-        let idx = self.oracle_cursor;
         self.oracle_cursor += 1;
-        self.challenger.observe(self.oracle_commits[idx]);
-        self.oracle_shapes.push((num_encoding_variables, log_num_polynomials));
-        Some(TransparentVerifierOracle { idx, num_encoding_variables, log_num_polynomials })
+        self.challenger.observe(digest);
+        Some(TransparentVerifierOracle { idx })
     }
 
     fn sample(&mut self) -> Self::Challenge {
@@ -234,26 +228,60 @@ impl<GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>> TransparentVerifierCtx<GC> {
                 .as_ref()
                 .expect("MLE-eval claims exist but no PCS verifier was configured");
 
-            for (group, pcs_proof) in self.mle_claims.iter().zip(&self.pcs_proofs) {
+            for (group_idx, (group, pcs_proof)) in
+                self.mle_claims.iter().zip(&self.pcs_proofs).enumerate()
+            {
                 // Assemble the inputs that `verify_trusted_evaluation` expects.
                 let commits: Vec<GC::Digest> =
-                    group.oracles.iter().map(|o| self.oracle_commits[o.idx]).collect();
+                    group.oracles.iter().map(|o| self.oracle_commits[o.idx].0).collect();
                 let round_areas: Vec<usize> = group
                     .oracles
                     .iter()
                     .map(|o| {
-                        (1usize << o.num_variables())
+                        let (_, num_enc, log_num) = self.oracle_commits[o.idx];
+                        (1usize << (num_enc + log_num))
                             .next_multiple_of(1usize << pcs_verifier.log_stacking_height)
                     })
                     .collect();
 
-                // The batched `evaluation_claim` is the combined MLE of the proof's
-                // `batch_evaluations`, evaluated at `batch_point` — the prefix of
-                // `eval_point` that addresses across stacked polys (see
-                // `benchmarking/common.rs::run_standard_hadamard`).
+                // Per-oracle cross-check of user claim vs. proof-recovered eval:
+                // the proof's `batch_evaluations[i]` carries oracle `i`'s stacked
+                // column-evaluations at the stack_point prefix of `eval_point`.
+                // Folding them at `batch_point` (the remaining coordinates of
+                // `eval_point`) recovers oracle `i`'s evaluation at the full point.
+                // We tie that to the protocol's claim by comparing against the
+                // user's `eval_expr[i]` evaluated through the expression pool.
+                //
+                // The stacked PCS's own `verify_trusted_evaluation` only checks
+                // this binding for the first oracle (via `[0]` on a flattened MLE)
+                // — so for multi-oracle groups this per-oracle loop is what closes
+                // the soundness loop. The trailing PCS call below then runs the
+                // FRI + Merkle + stacking layers to confirm `batch_evaluations`
+                // really came from the committed MLEs.
+                if pcs_proof.batch_evaluations.len() != group.oracles.len() {
+                    return Err(VerifyError::GroupOracleCountMismatch {
+                        group_idx,
+                        expected: group.oracles.len(),
+                        actual: pcs_proof.batch_evaluations.len(),
+                    });
+                }
                 let eval_point = group.point.clone();
                 let log_stack = pcs_verifier.log_stacking_height as usize;
                 let (batch_point, _) = eval_point.split_at(eval_point.dimension() - log_stack);
+                for (oracle_idx, eval_expr) in group.eval_exprs.iter().enumerate() {
+                    let per_oracle_mle: Mle<GC::EF> =
+                        pcs_proof.batch_evaluations[oracle_idx].to_vec().into();
+                    let proof_eval = per_oracle_mle.blocking_eval_at(&batch_point)[0];
+                    let user_eval = evaluate_expr(eval_expr, &values);
+                    if proof_eval != user_eval {
+                        return Err(VerifyError::EvalClaimMismatch { group_idx, oracle_idx });
+                    }
+                }
+
+                // Flattened eval_claim for the stacked PCS layer. This is the form
+                // `verify_trusted_evaluation` expects; it's self-consistent with the
+                // proof's `batch_evaluations`, but the per-oracle loop above has
+                // already bound user claims to those `batch_evaluations`.
                 let batch_evals_mle: Mle<GC::EF> =
                     pcs_proof.batch_evaluations.iter().flatten().cloned().collect();
                 let eval_claim = batch_evals_mle.blocking_eval_at(&batch_point)[0];

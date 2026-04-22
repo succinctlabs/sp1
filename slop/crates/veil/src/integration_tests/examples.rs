@@ -126,8 +126,9 @@ where
 //
 // Commit two MLEs (a base-field and an "ext" one), run a degree-2 Hadamard
 // sumcheck on their elementwise product, then emit `a*b=c` tying the two
-// component evals to the sumcheck's claimed eval, plus two `assert_mle_eval`
-// calls — one per commit — at the shared sumcheck point.
+// component evals to the sumcheck's claimed eval, plus one
+// `assert_mle_multi_eval` call that batches both oracles at the shared
+// sumcheck point into a single PCS proof.
 // ============================================================================
 
 pub struct SumcheckHadamardView<C: ConstraintCtx> {
@@ -165,10 +166,12 @@ pub fn sumcheck_hadamard_build_constraints<C: ConstraintCtx>(
     let ext_eval = sumcheck_view.out_claim.component_evals[1].clone();
     let claimed_eval = sumcheck_view.out_claim.claimed_eval.clone();
     let in_claim = SumcheckInputClaim::from_value(claim);
+
     sumcheck_view.build_constraints(&in_claim, ctx).expect("sumcheck build_constraints failed");
     ctx.assert_a_times_b_equals_c(base_eval.clone(), ext_eval.clone(), claimed_eval);
-    ctx.assert_mle_eval(oracle_base, point.clone(), base_eval);
-    ctx.assert_mle_eval(oracle_ext, point, ext_eval);
+    // Batch both oracles at the shared sumcheck point into a single multi-eval
+    // group → one PCS proof covering both commits.
+    ctx.assert_mle_multi_eval(vec![(oracle_base, base_eval), (oracle_ext, ext_eval)], point);
 }
 
 #[allow(clippy::too_many_arguments)]
