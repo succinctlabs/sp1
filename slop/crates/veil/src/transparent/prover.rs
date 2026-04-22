@@ -86,13 +86,13 @@ where
     GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>,
     MK: ComputeTcsOpenings<GC, CpuBackend>,
 {
-    pub fn new(pcs_prover: StackedPcsProver<MK, GC>) -> Self {
+    pub fn initialize(pcs_prover: StackedPcsProver<MK, GC>) -> Self {
         Self::new_inner(Some(pcs_prover))
     }
 
     /// Construct a transparent prover with no PCS backend. `commit_mle` will then
     /// panic, and `prove` succeeds trivially (no MLE openings to produce).
-    pub fn new_without_pcs() -> Self {
+    pub fn initialize_without_pcs() -> Self {
         Self::new_inner(None)
     }
 

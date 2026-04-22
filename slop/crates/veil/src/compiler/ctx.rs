@@ -15,9 +15,11 @@ pub trait ConstraintCtx {
 
     fn assert_zero(&mut self, expr: Self::Expr);
 
-    /// assert_zero(a * b - c) materializes the product of a and b. This is unnecessary specifically
-    /// for constraints of the form a * b = c. Use this instead to avoid the extra materialization.
-    fn assert_a_times_b_equals_c(&mut self, a: Self::Expr, b: Self::Expr, c: Self::Expr);
+    /// For contexts internally using R1CS-style constraints, there may be more efficient ways
+    /// to do this beyond just assert_zero(a * b - c). Overwrite if needed.
+    fn assert_a_times_b_equals_c(&mut self, a: Self::Expr, b: Self::Expr, c: Self::Expr) {
+        self.assert_zero(a * b - c);
+    }
 
     /// Creates an expression from a polynomial evaluation: `poly(point)`.
     ///

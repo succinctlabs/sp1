@@ -83,7 +83,6 @@ pub struct TransparentVerifierCtx<GC: IopCtx> {
 
     // ---- constraint claims ----
     zero_claims: Vec<Expr<GC::EF>>,
-    mul_claims: Vec<MulClaim<GC::EF>>,
     mle_claims: Vec<MleClaimGroup<GC::EF>>,
 
     // ---- oracle shapes (parallel to oracle_commits) ----
@@ -106,7 +105,6 @@ impl<GC: IopCtx> TransparentVerifierCtx<GC> {
             challenger: GC::default_challenger(),
             pool: Rc::new(RefCell::new(ExpressionPool::default())),
             zero_claims: Vec::new(),
-            mul_claims: Vec::new(),
             mle_claims: Vec::new(),
             oracle_shapes: Vec::new(),
             pcs_verifier,
@@ -148,10 +146,6 @@ impl<GC: IopCtx> ConstraintCtx for TransparentVerifierCtx<GC> {
 
     fn assert_zero(&mut self, expr: Self::Expr) {
         self.zero_claims.push(expr);
-    }
-
-    fn assert_a_times_b_equals_c(&mut self, a: Self::Expr, b: Self::Expr, c: Self::Expr) {
-        self.mul_claims.push((a, b, c));
     }
 
     fn assert_mle_multi_eval(
@@ -233,16 +227,6 @@ impl<GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>> TransparentVerifierCtx<GC> {
             let v = evaluate_expr(expr, &values);
             if !v.is_zero() {
                 return Err(VerifyError::AssertZeroFailed);
-            }
-        }
-
-        // 3. Check `a*b=c` claims.
-        for (a, b, c) in &self.mul_claims {
-            let av = evaluate_expr(a, &values);
-            let bv = evaluate_expr(b, &values);
-            let cv = evaluate_expr(c, &values);
-            if av * bv != cv {
-                return Err(VerifyError::AssertMulFailed);
             }
         }
 

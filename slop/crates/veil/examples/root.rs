@@ -114,19 +114,19 @@ fn main() {
 
     let zk_proof = {
         let now = std::time::Instant::now();
-        let mut ctx: ZkProverCtx<GC, NoPcsConfig<MK>> =
+        let mut pctx: ZkProverCtx<GC, NoPcsConfig<MK>> =
             ZkProverCtx::initialize_without_pcs(mask_length, &mut rng);
-        let view = root_prove(&mut ctx, secret_root);
-        root_build_constraints(&poly_coeffs, view, &mut ctx);
-        let proof = ctx.prove(&mut rng);
+        let view = root_prove(&mut pctx, secret_root);
+        root_build_constraints(&poly_coeffs, view, &mut pctx);
+        let proof = pctx.prove(&mut rng);
         eprintln!("Prover time: {:?}", now.elapsed());
         proof
     };
     {
-        let mut ctx = ZkVerifierCtx::init(zk_proof, None);
-        let view = root_read(&mut ctx);
-        root_build_constraints(&poly_coeffs, view, &mut ctx);
-        ctx.verify().expect("zk verification failed");
+        let mut vctx = ZkVerifierCtx::init(zk_proof, None);
+        let view = root_read(&mut vctx);
+        root_build_constraints(&poly_coeffs, view, &mut vctx);
+        vctx.verify().expect("zk verification failed");
     }
     eprintln!("ZK backend: PASSED");
 
@@ -136,18 +136,18 @@ fn main() {
     eprintln!("\n=== TRANSPARENT BACKEND ===");
     let transparent_proof = {
         let now = std::time::Instant::now();
-        let mut ctx: TransparentProverCtx<GC, MK> = TransparentProverCtx::new_without_pcs();
-        let view = root_prove(&mut ctx, secret_root);
-        root_build_constraints(&poly_coeffs, view, &mut ctx);
-        let proof = ctx.prove(&mut rng).expect("transparent prove failed");
+        let mut pctx: TransparentProverCtx<GC, MK> = TransparentProverCtx::initialize_without_pcs();
+        let view = root_prove(&mut pctx, secret_root);
+        root_build_constraints(&poly_coeffs, view, &mut pctx);
+        let proof = pctx.prove(&mut rng).expect("transparent prove failed");
         eprintln!("Prover time: {:?}", now.elapsed());
         proof
     };
     {
-        let mut ctx = TransparentVerifierCtx::<GC>::new(transparent_proof, None);
-        let view = root_read(&mut ctx);
-        root_build_constraints(&poly_coeffs, view, &mut ctx);
-        ctx.verify().expect("transparent verification failed");
+        let mut vctx = TransparentVerifierCtx::<GC>::new(transparent_proof, None);
+        let view = root_read(&mut vctx);
+        root_build_constraints(&poly_coeffs, view, &mut vctx);
+        vctx.verify().expect("transparent verification failed");
     }
     eprintln!("Transparent backend: PASSED");
 
