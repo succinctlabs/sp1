@@ -7,6 +7,9 @@ mod prover_ctx;
 mod sumcheck_integration_tests;
 mod verifier_ctx;
 
+#[cfg(test)]
+mod tests;
+
 pub use inner::{ZkPcsProver, ZkPcsVerifier, ZkProof};
 pub mod stacked_pcs;
 

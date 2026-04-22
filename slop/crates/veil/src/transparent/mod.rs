@@ -2,14 +2,17 @@
 //!
 //! The prover produces a plain transcript (sent extension-field messages and oracle
 //! commitments) and the verifier re-derives Fiat-Shamir challenges from it, just as
-//! the protocol specifies — no masking, no partial-ZK wrapper, no stacked PCS.
-//! Useful as a debug/reference backend against which the ZK backend's behaviour can
-//! be compared, and as the simplest point of comparison when generating soundness
-//! statements.
+//! the protocol specifies — no masking, no partial-ZK wrapper. MLE commits still go
+//! through the stock stacked-basefold PCS. Useful as a debug/reference backend
+//! against which the ZK backend's behaviour can be compared, and as the simplest
+//! point of comparison when generating soundness statements.
 
 mod expression;
 mod prover;
 mod verifier;
+
+#[cfg(test)]
+mod tests;
 
 pub use expression::*;
 pub use prover::*;

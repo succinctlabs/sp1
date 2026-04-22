@@ -10,7 +10,7 @@ pub trait ConstraintCtx {
     type Extension: ExtensionField<Self::Field>;
 
     type Expr: Algebra<Self::Extension> + Algebra<Self::Challenge>;
-    type Challenge: Clone + Algebra<Self::Extension> + Into<Self::Extension>;
+    type Challenge: ExtensionField<Self::Field> + Algebra<Self::Extension> + Into<Self::Extension>;
     type MleOracle;
 
     fn assert_zero(&mut self, expr: Self::Expr);
@@ -27,7 +27,7 @@ pub trait ConstraintCtx {
     fn poly_eval(poly: &[Self::Expr], point: Self::Challenge) -> Self::Expr {
         let mut iter = poly.iter().rev();
         let first = iter.next().expect("poly_eval requires non-empty polynomial").clone();
-        iter.fold(first, |acc, term| acc * point.clone() + term.clone())
+        iter.fold(first, |acc, term| acc * point + term.clone())
     }
 
     /// Creates an expression from `eval(1) + eval(0)` of a polynomial.

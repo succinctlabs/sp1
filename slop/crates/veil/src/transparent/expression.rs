@@ -1,15 +1,15 @@
 //! Flattened-AST expression pool for the transparent verifier.
 //!
 //! Every operation on a verifier [`Expr`] either folds at construction (constant ⋆
-//! constant → constant) or pushes one or two nodes into a shared pool and returns a
-//! fresh [`Expr::Node`]. `verify()` walks the pool linearly (one pass, no recursion)
-//! to evaluate claims.
+//! constant → constant) or pushes one node into a shared pool and returns a fresh
+//! [`Expr::Node`]. `verify()` walks the pool linearly (one pass, no recursion) to
+//! evaluate claims.
 //!
 //! `Expr` is a two-variant enum: [`Expr::Const`] holds a bare field element off-pool;
-//! [`Expr::Node`] holds a pool handle. When a constant must interact with a pooled
-//! node (and can't be folded away), a [`ExprNode::Const`] pool node is appended on
-//! the fly. This keeps the pool node enum tight (no `AddConst` / `MulConst` variants)
-//! at the cost of an extra pool entry per "mixed" scalar op.
+//! [`Expr::Node`] holds a pool handle. Constants only ever live in `Expr` itself — the
+//! pool never carries a standalone `Const` node. Binary pool nodes take [`Operand`]s
+//! that are either a pool index or an inlined constant, so a mixed "Const ⋆ Node"
+//! construction costs exactly one pool entry.
 
 use std::{
     cell::RefCell,
@@ -21,17 +21,23 @@ use std::{
 
 use slop_algebra::{AbstractField, Field};
 
+/// Operand of a binary [`ExprNode`]: either another pool entry or an inlined
+/// constant.
+#[derive(Clone, Copy, Debug)]
+pub enum Operand<EF> {
+    Node(usize),
+    Const(EF),
+}
+
 /// A single node in the verifier's expression pool.
 #[derive(Clone, Copy, Debug)]
 pub enum ExprNode<EF> {
-    /// A field-element literal.
-    Const(EF),
     /// A transcript element at `(group_idx, local_idx)` in the verifier's
     /// `Vec<Vec<EF>>` transcript.
     Var(usize, usize),
-    Add(usize, usize),
-    Sub(usize, usize),
-    Mul(usize, usize),
+    Add(Operand<EF>, Operand<EF>),
+    Sub(Operand<EF>, Operand<EF>),
+    Mul(Operand<EF>, Operand<EF>),
 }
 
 /// Append-only pool of expression nodes. A node at index `i` may reference only
@@ -119,52 +125,38 @@ impl<EF> From<EF> for Expr<EF> {
 // ============================================================================
 // Operator impls. The pattern everywhere:
 //   - (Const, Const) → fold immediately.
-//   - (Const, Node) or (Node, Const) → push the Const into the pool, then push
-//     the binary node.
-//   - (Node, Node) → push the binary node (pool-equality debug-asserted).
+//   - otherwise → convert each side to an `Operand` and push a single pool node.
 // ============================================================================
 
 impl<EF: Field> Expr<EF> {
-    /// Materialize any `Const` side into the pool so that both operands live in
-    /// the same pool, and return `(pool, lhs_idx, rhs_idx)`. Panics if both sides
-    /// are already `Const` (callers fold those before calling this).
-    fn materialize_pair(self, rhs: Self) -> (Rc<RefCell<ExpressionPool<EF>>>, usize, usize) {
-        match (self, rhs) {
-            (Expr::Node(a), Expr::Node(b)) => {
-                debug_assert!(
-                    Rc::ptr_eq(&a.pool, &b.pool),
-                    "operands come from different expression pools",
-                );
-                (a.pool, a.idx, b.idx)
-            }
-            (Expr::Const(a), Expr::Node(b)) => {
-                let pool = b.pool;
-                let a_idx = pool.borrow_mut().push(ExprNode::Const(a));
-                (pool, a_idx, b.idx)
-            }
-            (Expr::Node(a), Expr::Const(b)) => {
-                let pool = a.pool;
-                let b_idx = pool.borrow_mut().push(ExprNode::Const(b));
-                (pool, a.idx, b_idx)
-            }
-            (Expr::Const(_), Expr::Const(_)) => {
-                unreachable!("Const-Const should be folded before materialize_pair")
-            }
-        }
-    }
-
     /// Helper: apply a binary pool-op, folding Const-Const into a bare `Const`.
     fn binop<F: Fn(EF, EF) -> EF>(
         self,
         rhs: Self,
         scalar_op: F,
-        make_node: fn(usize, usize) -> ExprNode<EF>,
+        make_node: fn(Operand<EF>, Operand<EF>) -> ExprNode<EF>,
     ) -> Self {
         match (self, rhs) {
             (Expr::Const(a), Expr::Const(b)) => Expr::Const(scalar_op(a, b)),
             (a, b) => {
-                let (pool, a_idx, b_idx) = a.materialize_pair(b);
-                let idx = pool.borrow_mut().push(make_node(a_idx, b_idx));
+                let pool = match (&a, &b) {
+                    (Expr::Node(x), Expr::Node(y)) => {
+                        debug_assert!(
+                            Rc::ptr_eq(&x.pool, &y.pool),
+                            "operands come from different expression pools",
+                        );
+                        x.pool.clone()
+                    }
+                    (Expr::Node(x), Expr::Const(_)) | (Expr::Const(_), Expr::Node(x)) => {
+                        x.pool.clone()
+                    }
+                    (Expr::Const(_), Expr::Const(_)) => unreachable!(),
+                };
+                let to_operand = |e: Expr<EF>| match e {
+                    Expr::Const(c) => Operand::Const(c),
+                    Expr::Node(n) => Operand::Node(n.idx),
+                };
+                let idx = pool.borrow_mut().push(make_node(to_operand(a), to_operand(b)));
                 Expr::Node(Element::new(pool, idx))
             }
         }
@@ -323,13 +315,16 @@ impl<EF: Field> AbstractField for Expr<EF> {
 /// `transcript[g][l]`.
 pub fn evaluate_pool<EF: Field>(pool: &ExpressionPool<EF>, transcript: &[Vec<EF>]) -> Vec<EF> {
     let mut values = Vec::with_capacity(pool.len());
+    let eval_operand = |op: Operand<EF>, values: &[EF]| match op {
+        Operand::Node(i) => values[i],
+        Operand::Const(c) => c,
+    };
     for node in pool.nodes() {
         let v = match *node {
-            ExprNode::Const(c) => c,
             ExprNode::Var(g, l) => transcript[g][l],
-            ExprNode::Add(a, b) => values[a] + values[b],
-            ExprNode::Sub(a, b) => values[a] - values[b],
-            ExprNode::Mul(a, b) => values[a] * values[b],
+            ExprNode::Add(a, b) => eval_operand(a, &values) + eval_operand(b, &values),
+            ExprNode::Sub(a, b) => eval_operand(a, &values) - eval_operand(b, &values),
+            ExprNode::Mul(a, b) => eval_operand(a, &values) * eval_operand(b, &values),
         };
         values.push(v);
     }

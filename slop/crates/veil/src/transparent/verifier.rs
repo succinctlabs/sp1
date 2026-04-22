@@ -39,15 +39,10 @@ struct MleClaimGroup<EF> {
     point: Point<EF>,
 }
 
-/// A pending `a * b = c` claim, stored between `assert_a_times_b_equals_c` and `verify`.
-type MulClaim<EF> = (Expr<EF>, Expr<EF>, Expr<EF>);
-
 #[derive(Debug, Error)]
 pub enum VerifyError {
     #[error("assertion failed: asserted expression did not evaluate to zero")]
     AssertZeroFailed,
-    #[error("a * b = c assertion failed")]
-    AssertMulFailed,
     #[error("number of PCS proofs ({expected}) does not match number of MLE eval claim groups ({actual})")]
     PcsProofCountMismatch { expected: usize, actual: usize },
     #[error(transparent)]
@@ -126,10 +121,12 @@ impl<GC: IopCtx> TransparentVerifierCtx<GC> {
         panic!("transcript exhausted");
     }
 
-    fn push_var(&mut self) -> Element<GC::EF> {
+    /// Advance the cursor, push a `Var` node for that transcript slot, and return
+    /// both the fresh pool handle and the slot it reads from.
+    fn push_var(&mut self) -> (Element<GC::EF>, (usize, usize)) {
         let (g, l) = self.advance_read_cursor();
         let idx = self.pool.borrow_mut().push(ExprNode::Var(g, l));
-        Element::new(self.pool.clone(), idx)
+        (Element::new(self.pool.clone(), idx), (g, l))
     }
 }
 
@@ -170,15 +167,8 @@ impl<GC: IopCtx> ConstraintCtx for TransparentVerifierCtx<GC> {
 impl<GC: IopCtx> ReadingCtx for TransparentVerifierCtx<GC> {
     fn read_exact(&mut self, buf: &mut [Self::Expr]) -> Result<(), TranscriptExhaustedError> {
         for slot in buf.iter_mut() {
-            *slot = Expr::Node(self.push_var());
-            // Observe the value the prover committed to at that slot in the challenger.
-            let (g, l) = {
-                // Grab the just-pushed Var node to get its (g, l).
-                match self.pool.borrow().nodes().last() {
-                    Some(ExprNode::Var(g, l)) => (*g, *l),
-                    _ => unreachable!("push_var pushed a non-Var node"),
-                }
-            };
+            let (elem, (g, l)) = self.push_var();
+            *slot = Expr::Node(elem);
             self.challenger.observe_ext_element(self.transcript[g][l]);
         }
         Ok(())
@@ -212,9 +202,10 @@ impl<GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>> TransparentVerifierCtx<GC> {
     /// Run the full verification pass:
     ///
     /// 1. Evaluate every node in the expression pool (single linear sweep).
-    /// 2. Check every `assert_zero` claim evaluates to zero.
-    /// 3. Check every `a*b=c` claim is consistent.
-    /// 4. For each recorded MLE-eval claim group, dispatch to the stacked-basefold
+    /// 2. Check every `assert_zero` claim evaluates to zero. (`a*b=c` claims are
+    ///    lowered to `assert_zero(a*b - c)` via the trait default, so there's no
+    ///    separate list for them.)
+    /// 3. For each recorded MLE-eval claim group, dispatch to the stacked-basefold
     ///    PCS verifier using the matching `pcs_proofs[i]`.
     pub fn verify(mut self) -> Result<(), VerifyError> {
         // 1. Flat evaluation of the expression pool.
@@ -230,7 +221,7 @@ impl<GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>> TransparentVerifierCtx<GC> {
             }
         }
 
-        // 4. MLE-eval claim groups → PCS checks.
+        // 3. MLE-eval claim groups → PCS checks.
         if !self.mle_claims.is_empty() {
             if self.pcs_proofs.len() != self.mle_claims.len() {
                 return Err(VerifyError::PcsProofCountMismatch {

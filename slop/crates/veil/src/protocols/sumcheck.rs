@@ -147,17 +147,17 @@ impl SumcheckParam {
         let mut uni_poly = poly.sum_as_poly_in_last_t_variables(Some(claim), 1);
         univariate_poly_coeffs.push(ctx.send_values(&uni_poly.coefficients));
         let mut alpha: C::Challenge = ctx.sample();
-        point.push(alpha.clone());
-        let mut cursor = poly.fix_t_variables(alpha.clone().into(), 1);
+        point.push(alpha);
+        let mut cursor = poly.fix_t_variables(alpha.into(), 1);
 
         // Remaining rounds
         for _ in 1..self.num_variables {
-            let round_claim = uni_poly.eval_at_point(alpha.clone().into());
+            let round_claim = uni_poly.eval_at_point(alpha.into());
             uni_poly = cursor.sum_as_poly_in_last_variable(Some(round_claim));
             univariate_poly_coeffs.push(ctx.send_values(&uni_poly.coefficients));
             alpha = ctx.sample();
-            point.push(alpha.clone());
-            cursor = cursor.fix_last_variable(alpha.clone().into());
+            point.push(alpha);
+            cursor = cursor.fix_last_variable(alpha.into());
         }
 
         // Point was collected outer-to-inner, reverse to match convention
@@ -219,14 +219,14 @@ impl<C: ConstraintCtx> SumcheckView<C> {
 
         // Intermediate rounds: poly_{i-1}(alpha_{i-1}) == eval(0) + eval(1) of poly_i.
         for i in 1..num_variables {
-            let alpha = self.out_claim.point[num_variables - i].clone();
+            let alpha = self.out_claim.point[num_variables - i];
             let lhs = C::poly_eval(&self.univariate_poly_coeffs[i - 1], alpha);
             let rhs = C::eval_one_plus_eval_zero(&self.univariate_poly_coeffs[i]);
             ctx.assert_zero(lhs - rhs);
         }
 
         // Final round: last poly evaluated at alpha == claimed_eval.
-        let alpha = self.out_claim.point[0].clone();
+        let alpha = self.out_claim.point[0];
         let final_eval = C::poly_eval(&self.univariate_poly_coeffs[num_variables - 1], alpha);
         ctx.assert_zero(final_eval - self.out_claim.claimed_eval);
 

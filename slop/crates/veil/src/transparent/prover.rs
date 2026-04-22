@@ -1,11 +1,14 @@
 use slop_algebra::TwoAdicField;
 use slop_alloc::CpuBackend;
-use slop_basefold_prover::BasefoldProverError;
+use slop_basefold::{BasefoldVerifier, FriConfig};
+use slop_basefold_prover::{BasefoldProver, BasefoldProverError};
 use slop_challenger::{CanObserve, FieldChallenger, IopCtx};
 use slop_commit::{Message, Rounds};
 use slop_merkle_tree::ComputeTcsOpenings;
 use slop_multilinear::{Mle, MultilinearPcsProver, Point};
-use slop_stacked::{StackedBasefoldProof, StackedBasefoldProverData, StackedPcsProver};
+use slop_stacked::{
+    StackedBasefoldProof, StackedBasefoldProverData, StackedPcsProver, StackedPcsVerifier,
+};
 
 use crate::compiler::{ConstraintCtx, SendingCtx};
 
@@ -19,6 +22,10 @@ pub type TransparentProverData<GC: IopCtx, MK: ComputeTcsOpenings<GC, CpuBackend
 ///
 /// Holds both the commitment (observable on the transcript) and the stacked-basefold
 /// prover data, which the prover needs on hand to later answer openings.
+/// `Clone` is supported so protocols that open the same commit at multiple points
+/// can pass the oracle to `assert_mle_eval` more than once; it's a deep copy of
+/// the stacked PCS prover data (not cheap — one copy per reuse).
+#[derive(Clone)]
 pub struct TransparentMleOracle<GC: IopCtx, MK: ComputeTcsOpenings<GC, CpuBackend>> {
     pub commitment: GC::Digest,
     pub prover_data: TransparentProverData<GC, MK>,
@@ -147,6 +154,42 @@ where
             pcs_proofs,
         })
     }
+}
+
+/// Construct a matched stacked-basefold prover / verifier pair with a default FRI
+/// configuration. Mirror of
+/// [`initialize_zk_prover_and_verifier`](crate::zk::stacked_pcs::initialize_zk_prover_and_verifier),
+/// but with no zero-knowledge wrapper.
+///
+/// # Arguments
+/// * `num_expected_commitments` — upper bound on the number of MLE commitments made
+///   during the protocol (passed through to the underlying `BasefoldVerifier`).
+/// * `num_encoding_variables` — number of variables per stacked polynomial (encoding
+///   width). Every subsequent [`commit_mle`](crate::compiler::SendingCtx::commit_mle)
+///   / [`read_oracle`](crate::compiler::ReadingCtx::read_oracle) call must use a
+///   matching `num_encoding_variables`.
+/// * `log_num_polynomials` — log2 of the number of stacked polynomials per commit.
+///   Fixes the prover's `batch_size` at `1 << log_num_polynomials`; all commits must
+///   use this value.
+pub fn initialize_transparent_prover_and_verifier<GC, MK>(
+    num_expected_commitments: usize,
+    num_encoding_variables: u32,
+    log_num_polynomials: u32,
+) -> (StackedPcsProver<MK, GC>, StackedPcsVerifier<GC>)
+where
+    GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>,
+    MK: ComputeTcsOpenings<GC, CpuBackend> + Default,
+{
+    let basefold_verifier =
+        BasefoldVerifier::<GC>::new(FriConfig::default_fri_config(), num_expected_commitments);
+    let basefold_prover = BasefoldProver::<GC, MK>::new(&basefold_verifier);
+    let stacked_prover = StackedPcsProver::new(
+        basefold_prover,
+        num_encoding_variables,
+        1usize << log_num_polynomials,
+    );
+    let stacked_verifier = StackedPcsVerifier::new(basefold_verifier, num_encoding_variables);
+    (stacked_prover, stacked_verifier)
 }
 
 // ============================================================================
