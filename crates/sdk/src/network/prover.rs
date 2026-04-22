@@ -315,28 +315,26 @@ impl NetworkProver {
 
         let maybe_proof = maybe_proof.map(Into::into);
 
-        // Check if current time exceeds deadline. If so, the proof has timed out.
+        let execution_status = ExecutionStatus::try_from(status.execution_status()).unwrap();
+        let fulfillment_status = FulfillmentStatus::try_from(status.fulfillment_status()).unwrap();
+
+        // Check fulfillment before the deadline — a fulfilled proof should be
+        // returned even if polled after the deadline has passed.
+        if fulfillment_status == FulfillmentStatus::Fulfilled {
+            return Ok((maybe_proof, fulfillment_status));
+        }
+        if execution_status == ExecutionStatus::Unexecutable {
+            return Err(Error::RequestUnexecutable { request_id: request_id.to_vec() }.into());
+        }
+        if fulfillment_status == FulfillmentStatus::Unfulfillable {
+            return Err(Error::RequestUnfulfillable { request_id: request_id.to_vec() }.into());
+        }
+
+        // Only check the deadline for requests that are still in progress.
         let current_time =
             std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
         if current_time > status.deadline() {
             return Err(Error::RequestTimedOut { request_id: request_id.to_vec() }.into());
-        }
-
-        // Get the execution and fulfillment statuses.
-        let execution_status = ExecutionStatus::try_from(status.execution_status()).unwrap();
-        let fulfillment_status = FulfillmentStatus::try_from(status.fulfillment_status()).unwrap();
-
-        // Check the execution status.
-        if execution_status == ExecutionStatus::Unexecutable {
-            return Err(Error::RequestUnexecutable { request_id: request_id.to_vec() }.into());
-        }
-
-        // Check the fulfillment status.
-        if fulfillment_status == FulfillmentStatus::Fulfilled {
-            return Ok((maybe_proof, fulfillment_status));
-        }
-        if fulfillment_status == FulfillmentStatus::Unfulfillable {
-            return Err(Error::RequestUnfulfillable { request_id: request_id.to_vec() }.into());
         }
 
         Ok((None, fulfillment_status))
