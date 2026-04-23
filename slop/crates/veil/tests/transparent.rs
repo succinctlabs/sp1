@@ -1,15 +1,20 @@
-//! Transparent-backend facade for the integration tests in
-//! [`crate::integration_tests`]. Each `#[test]` wires concrete transparent
-//! contexts to the generic flows in
-//! [`abstract_sumcheck_flows`](crate::integration_tests::abstract_sumcheck_flows).
+//! Transparent-backend facade for the shared integration-test scenarios.
+//! Each `#[test]` wires concrete transparent contexts to the generic flows in
+//! [`abstract_sumcheck_flows`].
+
+mod abstract_sumcheck_flows;
 
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 use slop_challenger::IopCtx;
 use slop_koala_bear::KoalaBearDegree4Duplex;
 use slop_merkle_tree::Poseidon2KoalaBear16Prover;
+use slop_veil::transparent::{
+    initialize_transparent_prover_and_verifier, TransparentProof, TransparentProverCtx,
+    TransparentVerifierCtx,
+};
 
-use crate::integration_tests::abstract_sumcheck_flows::{
+use crate::abstract_sumcheck_flows::{
     generate_random_hadamard_product, generate_random_single_mle,
     sumcheck_batched_single_mles_build_constraints, sumcheck_batched_single_mles_prove,
     sumcheck_batched_single_mles_read, sumcheck_hadamard_build_constraints,
@@ -18,10 +23,6 @@ use crate::integration_tests::abstract_sumcheck_flows::{
     sumcheck_single_mle_prove, sumcheck_single_mle_read,
     sumcheck_triple_hadamard_build_constraints, sumcheck_triple_hadamard_prove,
     sumcheck_triple_hadamard_read,
-};
-use crate::transparent::{
-    initialize_transparent_prover_and_verifier, TransparentProof, TransparentProverCtx,
-    TransparentVerifierCtx,
 };
 
 type GC = KoalaBearDegree4Duplex;

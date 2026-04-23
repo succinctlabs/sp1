@@ -8,10 +8,10 @@
 //! - `*_read`    — verifier side: read transcript, return the view.
 //! - `*_build_constraints` — shared: emit constraints from the view.
 //!
-//! The concrete `tests.rs` files call them as `prove / read → build_constraints
-//! → ctx.prove() / verify()` on each side. The ZK backend's
-//! [`compute_mask_length`](crate::zk::compute_mask_length) also consumes the
-//! `*_read` / `*_build_constraints` pair on the verifier side.
+//! The concrete per-backend test files call them as `prove / read →
+//! build_constraints → ctx.prove() / verify()` on each side. The ZK backend's
+//! [`compute_mask_length`](slop_veil::zk::compute_mask_length) also consumes
+//! the `*_read` / `*_build_constraints` pair on the verifier side.
 
 use slop_algebra::{AbstractExtensionField, AbstractField, Field};
 use slop_jagged::{HadamardProduct, LongMle};
@@ -19,8 +19,8 @@ use slop_matrix::dense::RowMajorMatrix;
 use slop_multilinear::{Mle, Point};
 use slop_sumcheck::SumcheckPolyFirstRound;
 
-use crate::compiler::{ConstraintCtx, ReadingCtx, SendingCtx};
-use crate::protocols::sumcheck::{SumcheckInputClaim, SumcheckParam, SumcheckView};
+use slop_veil::compiler::{ConstraintCtx, ReadingCtx, SendingCtx};
+use slop_veil::protocols::sumcheck::{SumcheckInputClaim, SumcheckParam, SumcheckView};
 
 // ============================================================================
 // Scenario #1: Hadamard-product sumcheck, no PCS.

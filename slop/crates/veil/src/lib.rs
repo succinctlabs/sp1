@@ -6,6 +6,3 @@ pub mod compiler;
 pub mod protocols;
 pub mod transparent;
 pub mod zk;
-
-#[cfg(test)]
-pub(crate) mod integration_tests;

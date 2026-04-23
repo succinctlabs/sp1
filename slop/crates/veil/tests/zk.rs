@@ -1,14 +1,18 @@
-//! ZK-backend facade for the integration tests in [`crate::integration_tests`].
-//! Each `#[test]` wires concrete ZK contexts to the generic flows in
-//! [`abstract_sumcheck_flows`](crate::integration_tests::abstract_sumcheck_flows).
+//! ZK-backend facade for the shared integration-test scenarios. Each
+//! `#[test]` wires concrete ZK contexts to the generic flows in
+//! [`abstract_sumcheck_flows`].
+
+mod abstract_sumcheck_flows;
 
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 use slop_challenger::IopCtx;
 use slop_koala_bear::KoalaBearDegree4Duplex;
 use slop_merkle_tree::Poseidon2KoalaBear16Prover;
+use slop_veil::zk::stacked_pcs::{initialize_zk_prover_and_verifier, StackedPcsZkProverCtx};
+use slop_veil::zk::{compute_mask_length, NoPcsConfig, ZkProverCtx, ZkVerifierCtx};
 
-use crate::integration_tests::abstract_sumcheck_flows::{
+use crate::abstract_sumcheck_flows::{
     generate_random_hadamard_product, generate_random_single_mle,
     sumcheck_batched_single_mles_build_constraints, sumcheck_batched_single_mles_prove,
     sumcheck_batched_single_mles_read, sumcheck_hadamard_build_constraints,
@@ -18,8 +22,6 @@ use crate::integration_tests::abstract_sumcheck_flows::{
     sumcheck_triple_hadamard_build_constraints, sumcheck_triple_hadamard_prove,
     sumcheck_triple_hadamard_read,
 };
-use crate::zk::stacked_pcs::{initialize_zk_prover_and_verifier, StackedPcsZkProverCtx};
-use crate::zk::{compute_mask_length, NoPcsConfig, ZkProverCtx, ZkVerifierCtx};
 
 type GC = KoalaBearDegree4Duplex;
 type F = <GC as IopCtx>::F;
