@@ -256,7 +256,8 @@ fn hadamard_build_constraints<C: ConstraintCtx>(
         base_eval.clone(),
         ext_eval.clone(),
         data.view.out_claim.claimed_eval.clone(),
-    );
+    )
+    .unwrap();
     ctx.assert_mle_multi_eval(vec![(data.ci_base, base_eval), (data.ci_ext, ext_eval)], point);
     let in_claim = SumcheckInputClaim::from_value(claim);
     data.view.build_constraints(&in_claim, ctx).unwrap();

@@ -59,10 +59,11 @@ impl<GC: ZkIopCtx> ConstraintCtx for MaskCounter<GC> {
     type Expr = MaskCounterExpr<GC>;
     type Challenge = GC::EF;
     type MleOracle = MleCommit;
+    type AssertError = std::convert::Infallible;
 
-    fn assert_zero(&mut self, _expr: Self::Expr) {}
-
-    fn assert_a_times_b_equals_c(&mut self, _a: Self::Expr, _b: Self::Expr, _c: Self::Expr) {}
+    fn assert_zero(&mut self, _expr: Self::Expr) -> Result<(), Self::AssertError> {
+        Ok(())
+    }
 
     fn assert_mle_multi_eval(
         &mut self,

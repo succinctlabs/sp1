@@ -10,8 +10,5 @@
 mod prover;
 mod verifier;
 
-#[cfg(test)]
-mod tests;
-
 pub use prover::*;
 pub use verifier::*;

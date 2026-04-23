@@ -20,7 +20,8 @@
       "Read(//Users/rdalalsuccinct/Desktop/6941cd3f5306739e6e76741f/**)",
       "Read(//Users/rdalalsuccinct/Documents/zkifyer-formal-verification/**)",
       "WebFetch(domain:github.com)",
-      "Read(//Users/rdalalsuccinct/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/p3-field-0.3.2-succinct/src/**)"
+      "Read(//Users/rdalalsuccinct/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/p3-field-0.3.2-succinct/src/**)",
+      "Bash(git mv *)"
     ],
     "additionalDirectories": [
       "/Users/rdalalsuccinct/Documents/sp1-wip-veil-independent/slop/crates/veil/examples"

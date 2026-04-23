@@ -5,6 +5,20 @@ use slop_algebra::{Algebra, ExtensionField, Field};
 use slop_multilinear::{Mle, Point};
 use thiserror::Error;
 
+/// Error returned by `assert_zero` when eagerly-checking contexts (e.g. the
+/// transparent verifier) encounter a non-zero argument. Carries the failing
+/// expression so callers / panic messages can identify what failed.
+#[derive(Debug)]
+pub struct AssertZeroError<E: std::fmt::Debug>(pub E);
+
+impl<E: std::fmt::Debug> std::fmt::Display for AssertZeroError<E> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "assertion failed: expression did not evaluate to zero (got {:?})", self.0)
+    }
+}
+
+impl<E: std::fmt::Debug + 'static> std::error::Error for AssertZeroError<E> {}
+
 pub trait ConstraintCtx {
     type Field: Field;
     type Extension: ExtensionField<Self::Field>;
@@ -13,12 +27,28 @@ pub trait ConstraintCtx {
     type Challenge: ExtensionField<Self::Field> + Algebra<Self::Extension> + Into<Self::Extension>;
     type MleOracle;
 
-    fn assert_zero(&mut self, expr: Self::Expr);
+    /// Error returned by `assert_zero` / `assert_a_times_b_equals_c`.
+    ///
+    /// Eager contexts (the transparent verifier) use a real error type like
+    /// [`AssertZeroError`] that identifies the failing constraint. Deferred
+    /// contexts (provers, ZK verifiers, mask counters) use
+    /// [`std::convert::Infallible`] — they only queue claims for later
+    /// discharge, so the assertion itself cannot fail at call time. Generic
+    /// protocol code typically `.unwrap()`s the result: a no-op on `Infallible`,
+    /// a panic with the failing expression on transparent failures.
+    type AssertError: std::error::Error;
+
+    fn assert_zero(&mut self, expr: Self::Expr) -> Result<(), Self::AssertError>;
 
     /// For contexts internally using R1CS-style constraints, there may be more efficient ways
     /// to do this beyond just assert_zero(a * b - c). Overwrite if needed.
-    fn assert_a_times_b_equals_c(&mut self, a: Self::Expr, b: Self::Expr, c: Self::Expr) {
-        self.assert_zero(a * b - c);
+    fn assert_a_times_b_equals_c(
+        &mut self,
+        a: Self::Expr,
+        b: Self::Expr,
+        c: Self::Expr,
+    ) -> Result<(), Self::AssertError> {
+        self.assert_zero(a * b - c)
     }
 
     /// Creates an expression from a polynomial evaluation: `poly(point)`.

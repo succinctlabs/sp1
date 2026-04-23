@@ -102,10 +102,15 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ConstraintCtx for ZkProverCtx<GC, PC
     type Expr = ProverTranscriptElement<GC, PC>;
     type Challenge = GC::EF;
     type MleOracle = MleCommit;
+    type AssertError = std::convert::Infallible;
 
-    fn assert_zero(&mut self, expr: ProverTranscriptElement<GC, PC>) {
+    fn assert_zero(
+        &mut self,
+        expr: ProverTranscriptElement<GC, PC>,
+    ) -> Result<(), Self::AssertError> {
         let idx = into_prover_value::<GC, PC>(expr, &mut self.inner);
         self.inner.assert_zero(idx);
+        Ok(())
     }
 
     fn assert_a_times_b_equals_c(
@@ -113,11 +118,12 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ConstraintCtx for ZkProverCtx<GC, PC
         a: ProverTranscriptElement<GC, PC>,
         b: ProverTranscriptElement<GC, PC>,
         c: ProverTranscriptElement<GC, PC>,
-    ) {
+    ) -> Result<(), Self::AssertError> {
         let ai = into_prover_value::<GC, PC>(a, &mut self.inner);
         let bi = into_prover_value::<GC, PC>(b, &mut self.inner);
         let ci = into_prover_value::<GC, PC>(c, &mut self.inner);
         self.inner.assert_a_times_b_equals_c(ai, bi, ci);
+        Ok(())
     }
 
     fn assert_mle_multi_eval(

@@ -288,7 +288,7 @@ fn zerocheck_build_constraints<C: ConstraintCtx<Challenge = EF>>(
 
     let pq_minus_r = p_eval.clone() * q_eval.clone() - r_eval.clone();
     let constraint = pq_minus_r * eq_eval - view.sumcheck_view.out_claim.claimed_eval.clone();
-    ctx.assert_zero(constraint);
+    ctx.assert_zero(constraint).unwrap();
 
     // PCS evaluation claims for p, q, r at the shared point z (one multi-eval group).
     ctx.assert_mle_multi_eval(

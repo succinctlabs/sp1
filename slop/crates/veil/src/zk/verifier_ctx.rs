@@ -79,10 +79,12 @@ impl<GC: ZkIopCtx> ConstraintCtx for ZkVerifierCtx<GC> {
     type Expr = TranscriptElement<GC>;
     type Challenge = GC::EF;
     type MleOracle = MleCommit;
+    type AssertError = std::convert::Infallible;
 
-    fn assert_zero(&mut self, expr: TranscriptElement<GC>) {
+    fn assert_zero(&mut self, expr: TranscriptElement<GC>) -> Result<(), Self::AssertError> {
         let idx = into_verifier_value(expr, &mut self.inner);
         self.inner.assert_zero(idx);
+        Ok(())
     }
 
     fn assert_a_times_b_equals_c(
@@ -90,11 +92,12 @@ impl<GC: ZkIopCtx> ConstraintCtx for ZkVerifierCtx<GC> {
         a: TranscriptElement<GC>,
         b: TranscriptElement<GC>,
         c: TranscriptElement<GC>,
-    ) {
+    ) -> Result<(), Self::AssertError> {
         let ai = into_verifier_value(a, &mut self.inner);
         let bi = into_verifier_value(b, &mut self.inner);
         let ci = into_verifier_value(c, &mut self.inner);
         self.inner.assert_a_times_b_equals_c(ai, bi, ci);
+        Ok(())
     }
 
     fn assert_mle_multi_eval(

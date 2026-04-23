@@ -5,7 +5,7 @@ use slop_multilinear::{Mle, Point};
 use slop_stacked::{StackedBasefoldProof, StackedPcsVerifier, StackedVerifierError};
 use thiserror::Error;
 
-use crate::compiler::{ConstraintCtx, ReadingCtx, TranscriptExhaustedError};
+use crate::compiler::{AssertZeroError, ConstraintCtx, ReadingCtx, TranscriptExhaustedError};
 use crate::transparent::prover::TransparentProof;
 
 /// Opaque handle the verifier hands out for each committed oracle. The digest and
@@ -36,8 +36,6 @@ struct MleClaimGroup<EF> {
 
 #[derive(Debug, Error)]
 pub enum VerifyError {
-    #[error("assertion failed: asserted expression did not evaluate to zero")]
-    AssertZeroFailed,
     #[error("number of PCS proofs ({expected}) does not match number of MLE eval claim groups ({actual})")]
     PcsProofCountMismatch { expected: usize, actual: usize },
     #[error("MLE claim group {group_idx}: proof has {actual} per-oracle batch_evaluations but group has {expected} oracles")]
@@ -56,10 +54,10 @@ pub enum VerifyError {
 ///
 /// There is no masking and no compiled constraint language in the transparent
 /// backend — `Expr` is just the underlying extension-field element. Every
-/// `assert_*` call evaluates its argument eagerly and records a single "an
-/// assertion failed" flag; MLE-eval claims are queued (together with their
-/// concrete claimed values) and discharged against the stacked-basefold PCS
-/// proofs at [`Self::verify`] time.
+/// `assert_zero` / `assert_a_times_b_equals_c` call eagerly evaluates its
+/// argument and returns [`AssertZeroError`] on a non-zero value; MLE-eval
+/// claims are queued (together with their concrete claimed values) and
+/// discharged against the stacked-basefold PCS proofs at [`Self::verify`] time.
 pub struct TransparentVerifierCtx<GC: IopCtx> {
     // ---- from the proof ----
     transcript: Vec<Vec<GC::EF>>,
@@ -77,11 +75,6 @@ pub struct TransparentVerifierCtx<GC: IopCtx> {
 
     // ---- Fiat-Shamir ----
     challenger: GC::Challenger,
-
-    // ---- eager assertion state ----
-    /// Set to true the first time an `assert_zero` call sees a non-zero argument.
-    /// Surfaced as an error at `verify()` time.
-    assert_zero_failed: bool,
 
     // ---- pending PCS claim groups ----
     mle_claims: Vec<MleClaimGroup<GC::EF>>,
@@ -101,7 +94,6 @@ impl<GC: IopCtx> TransparentVerifierCtx<GC> {
             read_cursor: (0, 0),
             oracle_cursor: 0,
             challenger: GC::default_challenger(),
-            assert_zero_failed: false,
             mle_claims: Vec::new(),
             pcs_verifier,
         }
@@ -133,10 +125,13 @@ impl<GC: IopCtx> ConstraintCtx for TransparentVerifierCtx<GC> {
     type Expr = GC::EF;
     type Challenge = GC::EF;
     type MleOracle = TransparentVerifierOracle;
+    type AssertError = AssertZeroError<GC::EF>;
 
-    fn assert_zero(&mut self, expr: Self::Expr) {
-        if !expr.is_zero() {
-            self.assert_zero_failed = true;
+    fn assert_zero(&mut self, expr: Self::Expr) -> Result<(), Self::AssertError> {
+        if expr.is_zero() {
+            Ok(())
+        } else {
+            Err(AssertZeroError(expr))
         }
     }
 
@@ -195,19 +190,15 @@ impl<GC: IopCtx> ReadingCtx for TransparentVerifierCtx<GC> {
 // ============================================================================
 
 impl<GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>> TransparentVerifierCtx<GC> {
-    /// Run the full verification pass:
+    /// Discharge all pending MLE-eval claim groups against the stacked-basefold
+    /// PCS proofs. Polynomial `assert_zero` / `a*b=c` constraints are already
+    /// checked eagerly at call time (returning [`AssertZeroError`]), so by the
+    /// time this runs, all remaining work is PCS verification.
     ///
-    /// 1. Surface any `assert_zero` failure recorded eagerly during
-    ///    `build_constraints`. (`a*b=c` claims lower to `assert_zero(a*b - c)`
-    ///    via the trait default, so they fold into the same flag.)
-    /// 2. For each recorded MLE-eval claim group, cross-check each user-claimed
-    ///    eval against the proof's per-oracle `batch_evaluations`, then dispatch
-    ///    to the stacked-basefold PCS verifier using the matching `pcs_proofs[i]`.
+    /// For each claim group: cross-check each user-claimed eval against the
+    /// proof's per-oracle `batch_evaluations`, then dispatch to the stacked-
+    /// basefold PCS verifier using the matching `pcs_proofs[i]`.
     pub fn verify(mut self) -> Result<(), VerifyError> {
-        if self.assert_zero_failed {
-            return Err(VerifyError::AssertZeroFailed);
-        }
-
         if !self.mle_claims.is_empty() {
             if self.pcs_proofs.len() != self.mle_claims.len() {
                 return Err(VerifyError::PcsProofCountMismatch {

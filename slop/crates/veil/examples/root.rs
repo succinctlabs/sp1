@@ -63,7 +63,7 @@ fn root_build_constraints<C: ConstraintCtx>(
     ctx: &mut C,
 ) {
     let eval = horner_eval::<C>(coeffs, view.root);
-    ctx.assert_zero(eval);
+    ctx.assert_zero(eval).unwrap();
 }
 
 /// Horner's method: evaluate a polynomial with public extension-field coefficients

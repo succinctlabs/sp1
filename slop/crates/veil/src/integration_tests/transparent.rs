@@ -1,6 +1,7 @@
-//! ZK-backend facade for the integration tests in [`crate::integration_tests`].
-//! Each `#[test]` wires concrete ZK contexts to the generic flows in
-//! [`examples`](crate::integration_tests::examples).
+//! Transparent-backend facade for the integration tests in
+//! [`crate::integration_tests`]. Each `#[test]` wires concrete transparent
+//! contexts to the generic flows in
+//! [`abstract_sumcheck_flows`](crate::integration_tests::abstract_sumcheck_flows).
 
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
@@ -8,7 +9,7 @@ use slop_challenger::IopCtx;
 use slop_koala_bear::KoalaBearDegree4Duplex;
 use slop_merkle_tree::Poseidon2KoalaBear16Prover;
 
-use crate::integration_tests::examples::{
+use crate::integration_tests::abstract_sumcheck_flows::{
     generate_random_hadamard_product, generate_random_single_mle,
     sumcheck_batched_single_mles_build_constraints, sumcheck_batched_single_mles_prove,
     sumcheck_batched_single_mles_read, sumcheck_hadamard_build_constraints,
@@ -18,8 +19,10 @@ use crate::integration_tests::examples::{
     sumcheck_triple_hadamard_build_constraints, sumcheck_triple_hadamard_prove,
     sumcheck_triple_hadamard_read,
 };
-use crate::zk::stacked_pcs::{initialize_zk_prover_and_verifier, StackedPcsZkProverCtx};
-use crate::zk::{compute_mask_length, NoPcsConfig, ZkProverCtx, ZkVerifierCtx};
+use crate::transparent::{
+    initialize_transparent_prover_and_verifier, TransparentProof, TransparentProverCtx,
+    TransparentVerifierCtx,
+};
 
 type GC = KoalaBearDegree4Duplex;
 type F = <GC as IopCtx>::F;
@@ -38,22 +41,17 @@ fn test_sumcheck_no_pcs() {
     let (_, _, product, claim) = generate_random_hadamard_product::<F, EF>(&mut rng, NUM_VARIABLES);
 
     let proof = {
-        let mask_length = compute_mask_length::<GC, _>(
-            |ctx| sumcheck_no_pcs_read(ctx, NUM_VARIABLES),
-            |view, ctx| sumcheck_no_pcs_build_constraints(view, ctx, claim),
-        );
-        let mut pctx: ZkProverCtx<GC, NoPcsConfig<MK>> =
-            ZkProverCtx::initialize_without_pcs_only_lin(mask_length, &mut rng);
+        let mut pctx: TransparentProverCtx<GC, MK> = TransparentProverCtx::initialize_without_pcs();
         let view = sumcheck_no_pcs_prove(&mut pctx, NUM_VARIABLES, product, claim);
         sumcheck_no_pcs_build_constraints(view, &mut pctx, claim);
-        pctx.prove(&mut rng)
+        pctx.prove(&mut rng).expect("transparent prove failed")
     };
 
     {
-        let mut vctx = ZkVerifierCtx::init(proof, None);
+        let mut vctx = TransparentVerifierCtx::<GC>::new(proof, None);
         let view = sumcheck_no_pcs_read(&mut vctx, NUM_VARIABLES);
         sumcheck_no_pcs_build_constraints(view, &mut vctx, claim);
-        vctx.verify().expect("zk verification failed");
+        vctx.verify().expect("transparent verification failed");
     }
 }
 
@@ -71,16 +69,15 @@ fn test_sumcheck_single_mle_with_pcs() {
     let (original_mle, mle_ef, claim) =
         generate_random_single_mle::<F, EF>(&mut rng, NUM_VARIABLES);
 
-    let (zk_pcs_prover, zk_pcs_verifier) =
-        initialize_zk_prover_and_verifier::<GC, MK>(1, NUM_ENCODING_VARIABLES);
+    let (stacked_prover, stacked_verifier) = initialize_transparent_prover_and_verifier::<GC, MK>(
+        1,
+        NUM_ENCODING_VARIABLES,
+        LOG_NUM_POLYNOMIALS,
+    );
 
     let proof = {
-        let mask_length = compute_mask_length::<GC, _>(
-            |ctx| sumcheck_single_mle_read(ctx, NUM_ENCODING_VARIABLES, LOG_NUM_POLYNOMIALS),
-            |view, ctx| sumcheck_single_mle_build_constraints(view, ctx, claim),
-        );
-        let mut pctx: StackedPcsZkProverCtx<GC, MK> =
-            ZkProverCtx::initialize_with_pcs_only_lin(mask_length, zk_pcs_prover, &mut rng);
+        let mut pctx: TransparentProverCtx<GC, MK> =
+            TransparentProverCtx::initialize(stacked_prover);
         let view = sumcheck_single_mle_prove(
             &mut pctx,
             NUM_ENCODING_VARIABLES,
@@ -91,14 +88,14 @@ fn test_sumcheck_single_mle_with_pcs() {
             &mut rng,
         );
         sumcheck_single_mle_build_constraints(view, &mut pctx, claim);
-        pctx.prove(&mut rng)
+        pctx.prove(&mut rng).expect("transparent prove failed")
     };
 
     {
-        let mut vctx = ZkVerifierCtx::init(proof, Some(zk_pcs_verifier));
+        let mut vctx = TransparentVerifierCtx::<GC>::new(proof, Some(stacked_verifier));
         let view = sumcheck_single_mle_read(&mut vctx, NUM_ENCODING_VARIABLES, LOG_NUM_POLYNOMIALS);
         sumcheck_single_mle_build_constraints(view, &mut vctx, claim);
-        vctx.verify().expect("zk verification failed");
+        vctx.verify().expect("transparent verification failed");
     }
 }
 
@@ -117,16 +114,15 @@ fn test_sumcheck_hadamard_with_pcs() {
         generate_random_hadamard_product::<F, EF>(&mut rng, NUM_VARIABLES);
 
     // Both oracles are batched into one multi-eval group → one 2-commit PCS proof.
-    let (zk_pcs_prover, zk_pcs_verifier) =
-        initialize_zk_prover_and_verifier::<GC, MK>(2, NUM_ENCODING_VARIABLES);
+    let (stacked_prover, stacked_verifier) = initialize_transparent_prover_and_verifier::<GC, MK>(
+        2,
+        NUM_ENCODING_VARIABLES,
+        LOG_NUM_POLYNOMIALS,
+    );
 
     let proof = {
-        let mask_length = compute_mask_length::<GC, _>(
-            |ctx| sumcheck_hadamard_read(ctx, NUM_ENCODING_VARIABLES, LOG_NUM_POLYNOMIALS),
-            |view, ctx| sumcheck_hadamard_build_constraints(view, ctx, claim),
-        );
-        let mut pctx: StackedPcsZkProverCtx<GC, MK> =
-            ZkProverCtx::initialize_with_pcs(mask_length, zk_pcs_prover, &mut rng);
+        let mut pctx: TransparentProverCtx<GC, MK> =
+            TransparentProverCtx::initialize(stacked_prover);
         let view = sumcheck_hadamard_prove(
             &mut pctx,
             NUM_ENCODING_VARIABLES,
@@ -138,14 +134,14 @@ fn test_sumcheck_hadamard_with_pcs() {
             &mut rng,
         );
         sumcheck_hadamard_build_constraints(view, &mut pctx, claim);
-        pctx.prove(&mut rng)
+        pctx.prove(&mut rng).expect("transparent prove failed")
     };
 
     {
-        let mut vctx = ZkVerifierCtx::init(proof, Some(zk_pcs_verifier));
+        let mut vctx = TransparentVerifierCtx::<GC>::new(proof, Some(stacked_verifier));
         let view = sumcheck_hadamard_read(&mut vctx, NUM_ENCODING_VARIABLES, LOG_NUM_POLYNOMIALS);
         sumcheck_hadamard_build_constraints(view, &mut vctx, claim);
-        vctx.verify().expect("zk verification failed");
+        vctx.verify().expect("transparent verification failed");
     }
 }
 
@@ -172,26 +168,15 @@ fn test_sumcheck_batched_single_mles_with_pcs() {
     }
 
     // All N MLEs are batched into one multi-eval group → one N-commit PCS proof.
-    let (zk_pcs_prover, zk_pcs_verifier) =
-        initialize_zk_prover_and_verifier::<GC, MK>(NUM_CLAIMS, NUM_ENCODING_VARIABLES);
+    let (stacked_prover, stacked_verifier) = initialize_transparent_prover_and_verifier::<GC, MK>(
+        NUM_CLAIMS,
+        NUM_ENCODING_VARIABLES,
+        LOG_NUM_POLYNOMIALS,
+    );
 
     let proof = {
-        let claims_for_build = claims.clone();
-        let mask_length = compute_mask_length::<GC, _>(
-            |ctx| {
-                sumcheck_batched_single_mles_read(
-                    ctx,
-                    NUM_ENCODING_VARIABLES,
-                    LOG_NUM_POLYNOMIALS,
-                    NUM_CLAIMS,
-                )
-            },
-            |view, ctx| {
-                sumcheck_batched_single_mles_build_constraints(view, ctx, &claims_for_build)
-            },
-        );
-        let mut pctx: StackedPcsZkProverCtx<GC, MK> =
-            ZkProverCtx::initialize_with_pcs_only_lin(mask_length, zk_pcs_prover, &mut rng);
+        let mut pctx: TransparentProverCtx<GC, MK> =
+            TransparentProverCtx::initialize(stacked_prover);
         let view = sumcheck_batched_single_mles_prove(
             &mut pctx,
             NUM_ENCODING_VARIABLES,
@@ -202,11 +187,11 @@ fn test_sumcheck_batched_single_mles_with_pcs() {
             &mut rng,
         );
         sumcheck_batched_single_mles_build_constraints(view, &mut pctx, &claims);
-        pctx.prove(&mut rng)
+        pctx.prove(&mut rng).expect("transparent prove failed")
     };
 
     {
-        let mut vctx = ZkVerifierCtx::init(proof, Some(zk_pcs_verifier));
+        let mut vctx = TransparentVerifierCtx::<GC>::new(proof, Some(stacked_verifier));
         let view = sumcheck_batched_single_mles_read(
             &mut vctx,
             NUM_ENCODING_VARIABLES,
@@ -214,16 +199,15 @@ fn test_sumcheck_batched_single_mles_with_pcs() {
             NUM_CLAIMS,
         );
         sumcheck_batched_single_mles_build_constraints(view, &mut vctx, &claims);
-        vctx.verify().expect("zk verification failed");
+        vctx.verify().expect("transparent verification failed");
     }
 }
 
 // ============================================================================
-// #5: Triple Hadamard, multi-point (known ZK limitation — panics).
+// #5: Triple Hadamard, multi-point. ZK panics; transparent handles it.
 // ============================================================================
 
 #[test]
-#[should_panic(expected = "Multiple eval claims on the same PCS commitment")]
 fn test_sumcheck_triple_hadamard_multi_point() {
     use slop_multilinear::Mle;
 
@@ -261,18 +245,16 @@ fn test_sumcheck_triple_hadamard_multi_point() {
     let claim_gh = compute_claim(&mle_g, &mle_h);
     let claim_hf = compute_claim(&mle_h, &mle_f);
 
-    let (zk_pcs_prover, zk_pcs_verifier) =
-        initialize_zk_prover_and_verifier::<GC, MK>(1, NUM_ENCODING_VARIABLES);
+    // Same reasoning as #3: six `assert_mle_eval` calls → six 1-commit groups.
+    let (stacked_prover, stacked_verifier) = initialize_transparent_prover_and_verifier::<GC, MK>(
+        1,
+        NUM_ENCODING_VARIABLES,
+        LOG_NUM_POLYNOMIALS,
+    );
 
     let proof = {
-        let mask_length = compute_mask_length::<GC, _>(
-            |ctx| sumcheck_triple_hadamard_read(ctx, NUM_ENCODING_VARIABLES, LOG_NUM_POLYNOMIALS),
-            |view, ctx| {
-                sumcheck_triple_hadamard_build_constraints(view, ctx, claim_fg, claim_gh, claim_hf)
-            },
-        );
-        let mut pctx: StackedPcsZkProverCtx<GC, MK> =
-            ZkProverCtx::initialize_with_pcs(mask_length, zk_pcs_prover, &mut rng);
+        let mut pctx: TransparentProverCtx<GC, MK> =
+            TransparentProverCtx::initialize(stacked_prover);
         let view = sumcheck_triple_hadamard_prove(
             &mut pctx,
             NUM_ENCODING_VARIABLES,
@@ -289,14 +271,14 @@ fn test_sumcheck_triple_hadamard_multi_point() {
             &mut rng,
         );
         sumcheck_triple_hadamard_build_constraints(view, &mut pctx, claim_fg, claim_gh, claim_hf);
-        pctx.prove(&mut rng)
+        pctx.prove(&mut rng).expect("transparent prove failed")
     };
 
     {
-        let mut vctx = ZkVerifierCtx::init(proof, Some(zk_pcs_verifier));
+        let mut vctx = TransparentVerifierCtx::<GC>::new(proof, Some(stacked_verifier));
         let view =
             sumcheck_triple_hadamard_read(&mut vctx, NUM_ENCODING_VARIABLES, LOG_NUM_POLYNOMIALS);
         sumcheck_triple_hadamard_build_constraints(view, &mut vctx, claim_fg, claim_gh, claim_hf);
-        vctx.verify().expect("zk verification failed");
+        vctx.verify().expect("transparent verification failed");
     }
 }

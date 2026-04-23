@@ -6,9 +6,6 @@ mod mask_counter;
 mod prover_ctx;
 mod verifier_ctx;
 
-#[cfg(test)]
-mod tests;
-
 pub use inner::{ZkPcsProver, ZkPcsVerifier, ZkProof};
 pub mod stacked_pcs;
 

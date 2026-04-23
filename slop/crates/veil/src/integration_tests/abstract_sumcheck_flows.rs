@@ -168,7 +168,7 @@ pub fn sumcheck_hadamard_build_constraints<C: ConstraintCtx>(
     let in_claim = SumcheckInputClaim::from_value(claim);
 
     sumcheck_view.build_constraints(&in_claim, ctx).expect("sumcheck build_constraints failed");
-    ctx.assert_a_times_b_equals_c(base_eval.clone(), ext_eval.clone(), claimed_eval);
+    ctx.assert_a_times_b_equals_c(base_eval.clone(), ext_eval.clone(), claimed_eval).unwrap();
     // Batch both oracles at the shared sumcheck point into a single multi-eval
     // group → one PCS proof covering both commits.
     ctx.assert_mle_multi_eval(vec![(oracle_base, base_eval), (oracle_ext, ext_eval)], point);
@@ -295,9 +295,9 @@ pub fn sumcheck_triple_hadamard_build_constraints<C>(
     sumcheck_hf.build_constraints(&in_hf, ctx).expect("sumcheck hf build_constraints failed");
 
     // Multiplicative constraints: f(p_i) * g/h(p_i) = claimed_eval_i.
-    ctx.assert_a_times_b_equals_c(f_at_p1.clone(), g_at_p1.clone(), claimed_eval_fg);
-    ctx.assert_a_times_b_equals_c(g_at_p2.clone(), h_at_p2.clone(), claimed_eval_gh);
-    ctx.assert_a_times_b_equals_c(h_at_p3.clone(), f_at_p3.clone(), claimed_eval_hf);
+    ctx.assert_a_times_b_equals_c(f_at_p1.clone(), g_at_p1.clone(), claimed_eval_fg).unwrap();
+    ctx.assert_a_times_b_equals_c(g_at_p2.clone(), h_at_p2.clone(), claimed_eval_gh).unwrap();
+    ctx.assert_a_times_b_equals_c(h_at_p3.clone(), f_at_p3.clone(), claimed_eval_hf).unwrap();
 
     // Per-commit multi-point openings: f at {p1, p3}, g at {p1, p2}, h at {p2, p3}.
     ctx.assert_mle_eval(oracle_f.clone(), point_p1.clone(), f_at_p1);
