@@ -14,14 +14,6 @@ use crate::transparent::prover::TransparentProof;
 pub struct TransparentVerifierOracle {
     /// Index into `TransparentVerifierCtx::oracle_commits`.
     idx: usize,
-    num_encoding_variables: u32,
-    log_num_polynomials: u32,
-}
-
-impl TransparentVerifierOracle {
-    fn num_variables(&self) -> u32 {
-        self.num_encoding_variables + self.log_num_polynomials
-    }
 }
 
 /// One pending MLE-eval claim group: all oracles are opened at the same point.
@@ -177,7 +169,7 @@ impl<GC: IopCtx> ReadingCtx for TransparentVerifierCtx<GC> {
         }
         self.oracle_cursor += 1;
         self.challenger.observe(digest);
-        Some(TransparentVerifierOracle { idx, num_encoding_variables, log_num_polynomials })
+        Some(TransparentVerifierOracle { idx })
     }
 
     fn sample(&mut self) -> Self::Challenge {
@@ -220,7 +212,8 @@ impl<GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>> TransparentVerifierCtx<GC> {
                     .oracles
                     .iter()
                     .map(|o| {
-                        (1usize << o.num_variables())
+                        let (_, num_enc, log_num_poly) = self.oracle_commits[o.idx];
+                        (1usize << (num_enc + log_num_poly))
                             .next_multiple_of(1usize << pcs_verifier.log_stacking_height)
                     })
                     .collect();
