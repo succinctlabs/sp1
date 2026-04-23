@@ -10,8 +10,7 @@ use slop_challenger::IopCtx;
 use slop_koala_bear::KoalaBearDegree4Duplex;
 use slop_merkle_tree::Poseidon2KoalaBear16Prover;
 use slop_veil::transparent::{
-    initialize_transparent_prover_and_verifier, TransparentProof, TransparentProverCtx,
-    TransparentVerifierCtx,
+    initialize_transparent_prover_and_verifier, TransparentProverCtx, TransparentVerifierCtx,
 };
 
 use crate::abstract_sumcheck_flows::{
