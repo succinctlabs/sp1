@@ -8,7 +8,7 @@ use rayon::prelude::*;
 use slop_algebra::{AbstractExtensionField, AbstractField, TwoAdicField};
 use slop_basefold::BaseFoldVerifierError;
 use slop_challenger::{FieldChallenger, IopCtx};
-use slop_merkle_tree::MerkleTreeTcsError;
+use slop_merkle_tree::{MerkleTreeOpeningAndProof, MerkleTreeTcsError};
 use slop_multilinear::{partial_lagrange_blocking, Point};
 use slop_utils::reverse_bits_len;
 use thiserror::Error;
@@ -143,70 +143,62 @@ where
         let eq_evals = partial_lagrange_blocking(&rlc_point).into_buffer().into_vec();
         let num_original = 1 << log_num_polys;
 
-        // Step 5: Compute expected combined evals from all commitments' query openings
-        // For each query index q:
-        //   combined_eval[q] = Σ_j α^j * data_rlc_j[q] + α^k * mask_0[q]
-        let num_queries =
-            rlc_eval_proof.component_polynomials_query_openings_and_proofs[0].values.sizes()[0];
-        let expected_combined_eval: Vec<GC::EF> = (0..num_queries)
-            .into_par_iter()
-            .map(|q| {
-                let mut combined = GC::EF::zero();
-                for (j, opening_and_proof) in rlc_eval_proof
-                    .component_polynomials_query_openings_and_proofs
-                    .iter()
-                    .enumerate()
-                {
-                    let opening_tensor = &opening_and_proof.values;
-                    let row_width = opening_tensor.sizes()[1];
-                    let row = &opening_tensor.as_slice()[q * row_width..(q + 1) * row_width];
-
-                    let eq_sum: GC::EF = eq_evals
-                        .iter()
-                        .zip_eq(row[..num_original].iter())
-                        .map(|(eq_val, &mle_val)| *eq_val * GC::EF::from(mle_val))
-                        .sum();
-                    combined += alpha_powers[j] * eq_sum;
-
-                    // Only include the mask from commitment 0
-                    if j == 0 {
-                        combined += alpha_powers[num_claims]
-                            * GC::EF::from_base_slice(&row[num_original..]);
-                    }
-                }
-                combined
-            })
-            .collect();
-
-        // Step 6: Define virtual oracle with combined padding correction
+        // Step 5: Define the virtual oracle. For each query index q, this combines the raw
+        // per-commitment openings into
+        //     combined_eval[q] = Σ_j α^j * data_rlc_j[q] + α^k * mask_0[q]
+        // and subtracts the RLC padding correction to produce the value of the virtual
+        // oracle at the corresponding FRI domain point.
         let (eval_point, _) = point.split_at(point.dimension() - log_num_polys);
         let point_dim = eval_point.dimension();
-        let compute_batch_evals = |query_indices: &[usize], log_tensor_height: usize| {
+        let to_virtual_oracle = |openings: &[MerkleTreeOpeningAndProof<GC>],
+                                 query_indices: &[usize]|
+         -> Vec<GC::EF> {
+            let log_tensor_height = openings[0].proof.log_tensor_height;
             let root = GC::EF::two_adic_generator(log_tensor_height);
-            let corrections = query_indices.iter().map(|&i| {
-                let x = root.exp_u64(reverse_bits_len(i, log_tensor_height) as u64);
-                let padding_eval = rlc_padding_vec
-                    .iter()
-                    .rev()
-                    .fold(GC::EF::zero(), |acc, &coeff| acc * x + coeff);
-                let x_to_unpadded_size = x.exp_u64(1 << point_dim);
-                padding_eval * x_to_unpadded_size
-            });
-            expected_combined_eval
-                .into_iter()
-                .zip(corrections)
-                .map(|(eval, correction)| eval - correction)
+            query_indices
+                .par_iter()
+                .enumerate()
+                .map(|(q, &query_idx)| {
+                    let mut combined = GC::EF::zero();
+                    for (j, opening_and_proof) in openings.iter().enumerate() {
+                        let opening_tensor = &opening_and_proof.values;
+                        let row_width = opening_tensor.sizes()[1];
+                        let row = &opening_tensor.as_slice()[q * row_width..(q + 1) * row_width];
+
+                        let eq_sum: GC::EF = eq_evals
+                            .iter()
+                            .zip_eq(row[..num_original].iter())
+                            .map(|(eq_val, &mle_val)| *eq_val * GC::EF::from(mle_val))
+                            .sum();
+                        combined += alpha_powers[j] * eq_sum;
+
+                        // Only include the mask from commitment 0
+                        if j == 0 {
+                            combined += alpha_powers[num_claims]
+                                * GC::EF::from_base_slice(&row[num_original..]);
+                        }
+                    }
+
+                    let x = root.exp_u64(reverse_bits_len(query_idx, log_tensor_height) as u64);
+                    let padding_eval = rlc_padding_vec
+                        .iter()
+                        .rev()
+                        .fold(GC::EF::zero(), |acc, &coeff| acc * x + coeff);
+                    let correction = padding_eval * x.exp_u64(1 << point_dim);
+
+                    combined - correction
+                })
                 .collect()
         };
 
-        // Step 7: Verify basefold proof with all commitments
+        // Step 6: Verify basefold proof with all commitments
         let commitments: Vec<GC::Digest> = commitments_and_claims.iter().map(|(c, _)| *c).collect();
         if let Err(e) = self.verify_trusted_ext_mle_evaluation(
             &commitments,
             eval_point,
             rlc_eval_claim,
             &rlc_eval_proof,
-            compute_batch_evals,
+            to_virtual_oracle,
             &mut context.challenger(),
         ) {
             return Err(ZkStackedVerifierError::PcsError(e));
