@@ -13,6 +13,6 @@
       "Bash(for i:*)",
       "Bash(do cargo:*)",
       "Bash(git worktree *)"
-    ],
+    ]
   }
 }
