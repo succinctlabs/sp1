@@ -270,10 +270,6 @@ where
             backend,
         );
 
-    // Compute expected sum
-    let verifier_params = params.clone().into_verifier_params();
-
-
     let log_m = log2_ceil_usize(*params.col_prefix_sums_usize.last().unwrap());
 
     let mut sum_values = Tensor::zeros_in([3, 2 * (log_m + 1)], backend.clone()).into_buffer();
