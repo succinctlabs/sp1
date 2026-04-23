@@ -103,9 +103,7 @@ fn main() {
     assert_eq!(poly.eval_at_point(secret_root), EF::zero(), "polynomial should vanish at root");
     eprintln!("Public polynomial degree: {}", poly_coeffs.len() - 1);
 
-    // ------------------------------------------------------------------
-    // ZK backend
-    // ------------------------------------------------------------------
+    // ZK backend.
     eprintln!("\n=== ZK BACKEND ===");
     let mask_length = compute_mask_length::<GC, _>(root_read, |view, ctx| {
         root_build_constraints(&poly_coeffs, view, ctx)
@@ -130,9 +128,7 @@ fn main() {
     }
     eprintln!("ZK backend: PASSED");
 
-    // ------------------------------------------------------------------
-    // Transparent backend
-    // ------------------------------------------------------------------
+    // Transparent backend.
     eprintln!("\n=== TRANSPARENT BACKEND ===");
     let transparent_proof = {
         let now = std::time::Instant::now();

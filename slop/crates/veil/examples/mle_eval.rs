@@ -85,9 +85,7 @@ fn main() {
 
     let p = Mle::<F>::rand(&mut rng, 1, NUM_VARIABLES);
 
-    // ------------------------------------------------------------------
-    // ZK backend
-    // ------------------------------------------------------------------
+    // ZK backend.
     eprintln!("\n=== ZK BACKEND ===");
     let (zk_pcs_prover, zk_pcs_verifier) =
         initialize_zk_prover_and_verifier(1, NUM_ENCODING_VARIABLES);
@@ -114,9 +112,7 @@ fn main() {
     }
     eprintln!("ZK backend: PASSED");
 
-    // ------------------------------------------------------------------
-    // Transparent backend
-    // ------------------------------------------------------------------
+    // Transparent backend.
     eprintln!("\n=== TRANSPARENT BACKEND ===");
     let (stacked_prover, stacked_verifier) = initialize_transparent_prover_and_verifier::<GC, MK>(
         1,

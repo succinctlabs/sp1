@@ -186,7 +186,7 @@ impl SumcheckParam {
         let mut point = Vec::new();
         let mut univariate_poly_coeffs = Vec::new();
 
-        // ---- First round ----
+        // First round.
         let mut per_poly_unis: Vec<_> = polys
             .iter()
             .zip(claim_values.iter())
@@ -199,7 +199,7 @@ impl SumcheckParam {
         let mut cursors: Vec<_> =
             polys.into_iter().map(|poly| poly.fix_t_variables(alpha.into(), 1)).collect();
 
-        // ---- Remaining rounds ----
+        // Remaining rounds.
         for _ in 1..self.num_variables {
             let round_claims: Vec<_> =
                 per_poly_unis.iter().map(|u| u.eval_at_point(alpha.into())).collect();

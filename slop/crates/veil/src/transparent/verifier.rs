@@ -51,7 +51,7 @@ pub enum VerifyError {
 /// claims are queued (together with their concrete claimed values) and
 /// discharged against the stacked-basefold PCS proofs at [`Self::verify`] time.
 pub struct TransparentVerifierCtx<GC: IopCtx> {
-    // ---- from the proof ----
+    // From the proof.
     transcript: Vec<Vec<GC::EF>>,
     /// One entry per committed oracle: `(digest, num_encoding_variables, log_num_polynomials)`.
     /// Shapes come from the proof; `read_oracle` checks them against the caller's
@@ -59,19 +59,19 @@ pub struct TransparentVerifierCtx<GC: IopCtx> {
     oracle_commits: Vec<(GC::Digest, u32, u32)>,
     pcs_proofs: Vec<StackedBasefoldProof<GC>>,
 
-    // ---- traversal cursors ----
+    // Traversal cursors.
     /// Next transcript element to read, as `(group_idx, local_idx)`.
     read_cursor: (usize, usize),
     /// Next commitment to hand out as an oracle.
     oracle_cursor: usize,
 
-    // ---- Fiat-Shamir ----
+    // Fiat-Shamir.
     challenger: GC::Challenger,
 
-    // ---- pending PCS claim groups ----
+    // Pending PCS claim groups.
     mle_claims: Vec<MleClaimGroup<GC::EF>>,
 
-    // ---- PCS verifier (optional: `None` if the protocol emitted no MLE claims) ----
+    // PCS verifier (`None` if the protocol emitted no MLE claims).
     pcs_verifier: Option<StackedPcsVerifier<GC>>,
 }
 
