@@ -119,41 +119,28 @@ impl<GC: IopCtx> BasefoldVerifier<GC>
 where
     GC::F: TwoAdicField,
 {
-    pub fn verify_mle_evaluations(
+    /// Verify an already-batched MLE claim.
+    ///
+    /// # Parameters
+    /// - `commitment`: Merkle root of the committed (base-field) tensor
+    /// - `point`: Evaluation point in the extension field
+    /// - `eval_claim`: Claimed evaluation of the batched MLE at `point`
+    /// - `proof`: The Basefold proof to verify
+    /// - `to_virtual_oracle`: Closure called with the raw per-commitment Merkle openings and
+    ///   the sampled query indices; it returns the virtual oracle values to feed into the
+    ///   FRI query phase.
+    /// - `challenger`: Fiat-Shamir challenger (state must match the prover's)
+    pub fn verify_from_prebatched_inputs(
         &self,
         commitments: &[GC::Digest],
         mut point: Point<GC::EF>,
-        evaluation_claims: &[MleEval<GC::EF>],
+        eval_claim: GC::EF,
         proof: &BasefoldProof<GC>,
+        to_virtual_oracle: impl FnOnce(&[MerkleTreeOpeningAndProof<GC>], &[usize]) -> Vec<GC::EF>,
         challenger: &mut GC::Challenger,
     ) -> Result<(), BaseFoldVerifierError<MerkleTreeTcsError>> {
-        // Check batch grinding witness.
-        if !challenger.check_witness(BATCH_GRINDING_BITS, proof.batch_grinding_witness) {
-            return Err(BaseFoldVerifierError::BatchPow);
-        }
-
-        // Sample the challenge used to batch all the different polynomials.
-        let total_len = evaluation_claims
-            .iter()
-            .map(|batch_claims| batch_claims.num_polynomials())
-            .sum::<usize>();
-
-        let num_batching_variables = total_len.next_power_of_two().ilog2();
-        let batching_point = challenger.sample_point::<GC::EF>(num_batching_variables);
-        let batching_coefficients = partial_lagrange_blocking(&batching_point);
-
-        // Compute the batched evaluation claim.
-        let eval_claim = evaluation_claims
-            .iter()
-            .flat_map(|batch_claims| batch_claims.iter())
-            .zip(batching_coefficients.as_slice())
-            .map(|(eval, batch_power)| *eval * *batch_power)
-            .sum::<GC::EF>();
-
-        if evaluation_claims.len() != commitments.len()
-            || commitments.len() != proof.component_polynomials_query_openings_and_proofs.len()
-            || commitments.len() != self.num_expected_commitments
-        {
+        // number of oracle opening proofs matches number of oracles
+        if proof.component_polynomials_query_openings_and_proofs.len() != commitments.len() {
             return Err(BaseFoldVerifierError::IncorrectShape);
         }
 
@@ -236,59 +223,47 @@ where
             .map(|_| challenger.sample_bits(log_len + self.fri_config.log_blowup()))
             .collect::<Vec<_>>();
 
-        // Compute the batch evaluations from the openings of the component polynomials.
-        let mut batch_evals = vec![GC::EF::zero(); query_indices.len()];
-        let mut batch_idx = 0;
-        for (round_idx, opening_and_proof) in
-            proof.component_polynomials_query_openings_and_proofs.iter().enumerate()
+        // Shape-check and verify Merkle openings for each committed polynomial
+        let log_tensor_height = log_len + self.fri_config.log_blowup();
+        for (opening_and_proof, commitment) in
+            proof.component_polynomials_query_openings_and_proofs.iter().zip_eq(commitments)
         {
-            let values = &opening_and_proof.values;
-            let total_columns = evaluation_claims[round_idx].num_polynomials();
-            if values.dimensions.sizes().len() != 2 {
+            let initial_opening_values = &opening_and_proof.values;
+            if initial_opening_values.dimensions.sizes().len() != 2 {
                 return Err(BaseFoldVerifierError::IncorrectShape);
             }
-            if values.dimensions.sizes()[0] != query_indices.len() {
+            if initial_opening_values.dimensions.sizes()[0] != query_indices.len() {
                 return Err(BaseFoldVerifierError::IncorrectShape);
             }
-            if values.dimensions.sizes()[1] != total_columns {
+            if opening_and_proof.proof.log_tensor_height != log_tensor_height {
                 return Err(BaseFoldVerifierError::IncorrectShape);
             }
-            let round_coefficients =
-                &batching_coefficients.as_slice()[batch_idx..batch_idx + total_columns];
-            for (batch_eval, values) in batch_evals.iter_mut().zip_eq(values.split()) {
-                for (value, batching_coefficient) in
-                    values.as_slice().iter().zip(round_coefficients)
-                {
-                    *batch_eval += *batching_coefficient * *value;
-                }
-            }
-            batch_idx += total_columns;
-        }
 
-        // Verify the proof of the claimed values of the original commitments at the query indices.
-        for (commit, opening_and_proof) in
-            commitments.iter().zip_eq(proof.component_polynomials_query_openings_and_proofs.iter())
-        {
-            // Sizes is checked to have at least two dimensions above.
-            let width = opening_and_proof.values.sizes()[1];
             self.tcs
                 .verify_tensor_openings(
-                    commit,
+                    commitment,
                     &query_indices,
                     &opening_and_proof.values,
-                    width,
-                    log_len + self.fri_config.log_blowup(),
+                    initial_opening_values.sizes()[1],
+                    log_tensor_height,
                     &opening_and_proof.proof,
                 )
                 .map_err(BaseFoldVerifierError::TcsError)?;
         }
+
+        // Turn the raw per-commitment openings into virtual oracle values via the
+        // caller-provided closure.
+        let virtual_oracle_evals = to_virtual_oracle(
+            &proof.component_polynomials_query_openings_and_proofs,
+            &query_indices,
+        );
 
         // Check that the query openings are consistent as FRI messages.
         self.verify_queries(
             &proof.fri_commitments,
             &query_indices,
             proof.final_poly,
-            batch_evals,
+            virtual_oracle_evals,
             &proof.query_phase_openings_and_proofs,
             &betas,
         )?;
@@ -302,6 +277,76 @@ where
         }
 
         Ok(())
+    }
+
+    pub fn verify_mle_evaluations(
+        &self,
+        commitments: &[GC::Digest],
+        point: Point<GC::EF>,
+        evaluation_claims: &[MleEval<GC::EF>],
+        proof: &BasefoldProof<GC>,
+        challenger: &mut GC::Challenger,
+    ) -> Result<(), BaseFoldVerifierError<MerkleTreeTcsError>> {
+        // Check batch grinding witness.
+        if !challenger.check_witness(BATCH_GRINDING_BITS, proof.batch_grinding_witness) {
+            return Err(BaseFoldVerifierError::BatchPow);
+        }
+
+        // Sample the challenge used to batch all the different polynomials.
+        let total_len = evaluation_claims
+            .iter()
+            .map(|batch_claims| batch_claims.num_polynomials())
+            .sum::<usize>();
+
+        let num_batching_variables = total_len.next_power_of_two().ilog2();
+        let batching_point = challenger.sample_point::<GC::EF>(num_batching_variables);
+        let batching_coefficients = partial_lagrange_blocking(&batching_point);
+
+        // Compute the batched evaluation claim.
+        let eval_claim = evaluation_claims
+            .iter()
+            .flat_map(|batch_claims| batch_claims.iter())
+            .zip(batching_coefficients.as_slice())
+            .map(|(eval, batch_power)| *eval * *batch_power)
+            .sum::<GC::EF>();
+
+        if evaluation_claims.len() != commitments.len()
+            || commitments.len() != proof.component_polynomials_query_openings_and_proofs.len()
+            || commitments.len() != self.num_expected_commitments
+        {
+            return Err(BaseFoldVerifierError::IncorrectShape);
+        }
+
+        // How to compute the virtual batch commitment from the openings of the component polynomials.
+        let to_virtual_oracle =
+            |openings: &[MerkleTreeOpeningAndProof<GC>], _query_indices: &[usize]| -> Vec<GC::EF> {
+                let mut batch_evals = vec![GC::EF::zero(); self.fri_config.num_queries];
+                let mut batch_idx = 0;
+                for (round_idx, opening_and_proof) in openings.iter().enumerate() {
+                    let values = &opening_and_proof.values;
+                    let total_columns = evaluation_claims[round_idx].num_polynomials();
+                    let round_coefficients =
+                        &batching_coefficients.as_slice()[batch_idx..batch_idx + total_columns];
+                    for (batch_eval, values) in batch_evals.iter_mut().zip_eq(values.split()) {
+                        for (value, batching_coefficient) in
+                            values.as_slice().iter().zip(round_coefficients)
+                        {
+                            *batch_eval += *batching_coefficient * *value;
+                        }
+                    }
+                    batch_idx += total_columns;
+                }
+                batch_evals
+            };
+
+        self.verify_from_prebatched_inputs(
+            commitments,
+            point,
+            eval_claim,
+            proof,
+            to_virtual_oracle,
+            challenger,
+        )
     }
 
     /// The FRI verifier for a single query. We modify this from Plonky3 to be compatible with

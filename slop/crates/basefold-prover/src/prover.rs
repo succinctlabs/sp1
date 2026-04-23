@@ -97,7 +97,7 @@ impl<GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>, P: ComputeTcsOpenings<GC, Cp
     }
 
     #[allow(clippy::type_complexity)]
-    pub fn prove_from_batched_inputs(
+    pub fn prove_from_prebatched_inputs(
         &self,
         mut eval_point: Point<GC::EF>,
         batched_mle: Mle<GC::EF, CpuBackend>,
@@ -260,7 +260,7 @@ impl<GC: IopCtx<F: TwoAdicField, EF: TwoAdicField>, P: ComputeTcsOpenings<GC, Cp
         // Run the BaseFold protocol on the random linear combination codeword,
         // the random linear combination multilinear, and the random linear combination of the
         // evaluation claims.
-        let mut proof = self.prove_from_batched_inputs(
+        let mut proof = self.prove_from_prebatched_inputs(
             eval_point,
             mle_batch,
             batched_eval_claim,
