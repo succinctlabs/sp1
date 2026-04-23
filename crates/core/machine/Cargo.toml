@@ -28,7 +28,7 @@ sp1-derive = { workspace = true }
 sp1-primitives = { workspace = true }
 sp1-jit = { workspace = true }
 
-struct-reflection = { git = "https://github.com/powdr-labs/struct-reflection-rs.git", rev = "b763b1b" }
+struct-reflection = { workspace = true }
 
 slop-futures = { workspace = true }
 futures = { workspace = true }

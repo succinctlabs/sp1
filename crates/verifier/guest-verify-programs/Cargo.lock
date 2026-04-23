@@ -2208,7 +2208,8 @@ checksum = "fe895eb47f22e2ddd4dabc02bce419d2e643c8e3b585c78158b349195bc24d82"
 [[package]]
 name = "struct-reflection"
 version = "0.1.0"
-source = "git+https://github.com/powdr-labs/struct-reflection-rs.git?rev=b763b1b#b763b1be4e83d07669f263650517ef889ee8327d"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "701b671d1ad68e250e05718f95dae3014a17f4e69cbe51842531c30495ff3301"
 dependencies = [
  "struct-reflection-derive",
 ]
@@ -2216,7 +2217,8 @@ dependencies = [
 [[package]]
 name = "struct-reflection-derive"
 version = "0.1.0"
-source = "git+https://github.com/powdr-labs/struct-reflection-rs.git?rev=b763b1b#b763b1be4e83d07669f263650517ef889ee8327d"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "59ab74230a0592602e361bd63c645413fa8cbe4500d10274e849179e5c72548f"
 dependencies = [
  "proc-macro2",
  "quote",
