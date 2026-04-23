@@ -566,6 +566,11 @@ pub(super) async fn create_core_proving_task<A: ArtifactClient, W: WorkerClient>
         TraceData::Memory(_) | TraceData::Precompile(_, _) => None,
     };
 
+    // Block if the artifact store is near capacity — the distributed analog of the
+    // local node's `ProverSemaphore` backpressure. Advisory (returns `()`, cannot
+    // fail the proof). No-op for S3 / in-memory stores.
+    artifact_client.wait_for_upload_headroom(&record_artifact).await;
+
     artifact_client
         .upload(&record_artifact, trace_data)
         .await
