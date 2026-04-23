@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.30)
+cmake_minimum_required(VERSION 3.24)
 project(sp1-gpu-cuda LANGUAGES CXX CUDA)
 
 # Require CUDA 12.0+
@@ -19,16 +19,16 @@ set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_INCLUDES OFF)
 
 # Architecture flags
+# sm_100 / sm_120 (Blackwell) require CUDA 12.8+; older toolchains can't compile them.
 if(DEFINED CUDA_ARCHS)
     # Convert comma-separated string to CMake list (semicolon-separated)
     string(REPLACE "," ";" CUDA_ARCHS_LIST "${CUDA_ARCHS}")
     set(CMAKE_CUDA_ARCHITECTURES ${CUDA_ARCHS_LIST})
-elseif(CUDA_VERSION_MAJOR EQUAL 12 AND CUDA_VERSION_MINOR GREATER_EQUAL 8)
-    set(CMAKE_CUDA_ARCHITECTURES 80 86 89 90 100 120)
-elseif(CUDA_VERSION_MAJOR GREATER_EQUAL 13)
+elseif((CUDA_VERSION_MAJOR EQUAL 12 AND CUDA_VERSION_MINOR GREATER_EQUAL 8)
+        OR CUDA_VERSION_MAJOR GREATER_EQUAL 13)
     set(CMAKE_CUDA_ARCHITECTURES 80 86 89 90 100 120)
 else()
-    set(CMAKE_CUDA_ARCHITECTURES 80 86 89)
+    set(CMAKE_CUDA_ARCHITECTURES 80 86 89 90)
 endif()
 
 # Build type defaults to Release
@@ -39,22 +39,25 @@ endif()
 # Common CUDA flags
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -default-stream=per-thread")
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-relaxed-constexpr")
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --use_fast_math")
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -lineinfo")
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler -fopenmp")
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler -fPIE")
+# -fPIC (not -fPIE): the static archive may be linked into a cdylib downstream.
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler -fPIC")
 
-# Enable relocatable device code for cross-file device function calls
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -rdc=true")
+# Relocatable device code (-rdc=true) for cross-file device function calls.
+# Setting the variable here initializes CUDA_SEPARABLE_COMPILATION on every
+# target created afterwards (including the per-module OBJECT libraries),
+# so each .cu file is compiled with -dc and the final STATIC target performs
+# device linking.
+set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
 
-# Debug flags
+# Debug build: -G implies -O0 device-side; nvcc warns when combined with -O.
 if(PROFILE_DEBUG_DATA)
-    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -G")
+    set(CMAKE_CUDA_FLAGS_DEBUG "-O0 -G")
+else()
+    set(CMAKE_CUDA_FLAGS_DEBUG "-O3")
 endif()
-
-# Release optimization
 set(CMAKE_CUDA_FLAGS_RELEASE "-O3")
-set(CMAKE_CUDA_FLAGS_DEBUG "-O3")  # Currently both use O3 per original Makefile
 
 # Get the actual source directory (where this CMakeLists.txt lives)
 set(CSL_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
