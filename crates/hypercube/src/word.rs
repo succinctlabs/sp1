@@ -11,13 +11,24 @@ use slop_algebra::{AbstractField, Field};
 use sp1_derive::AlignedBorrow;
 use sp1_primitives::consts::WORD_SIZE;
 use std::array::IntoIter;
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 /// An array of four u16 limbs to represent a 64-bit value.
 ///
 /// We use the generic type `T` to represent the different representations of a u16 limb, ranging
 /// from a `u16` to a `AB::Var` or `AB::Expr`.
 #[derive(
-    AlignedBorrow, Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize,
+    AlignedBorrow,
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+    StructReflection,
 )]
 #[repr(C)]
 pub struct Word<T>(pub [T; WORD_SIZE]);

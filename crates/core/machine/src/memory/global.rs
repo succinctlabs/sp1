@@ -28,6 +28,7 @@ use sp1_hypercube::{
 };
 use sp1_primitives::consts::u64_to_u16_limbs;
 use std::iter::once;
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 /// A memory chip that can initialize or finalize values in memory.
 pub struct MemoryGlobalChip {
@@ -244,9 +245,13 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
             }
         }
     }
+
+    fn column_names(&self) -> Vec<String> {
+        MemoryInitCols::<F>::struct_reflection().unwrap()
+    }
 }
 
-#[derive(AlignedBorrow, Clone, Copy)]
+#[derive(AlignedBorrow, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct MemoryInitCols<T: Copy> {
     /// The top bits of the timestamp of the memory access.

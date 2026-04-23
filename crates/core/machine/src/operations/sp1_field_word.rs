@@ -7,6 +7,7 @@ use sp1_hypercube::{
     Word,
 };
 use sp1_primitives::SP1Field;
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 const_assert!((SP1Field::ORDER_U32 - 1).is_multiple_of(1 << 16));
 
@@ -20,7 +21,7 @@ use crate::{
 use super::U16CompareOperation;
 
 /// A set of columns needed to range check a SP1Field word.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, StructReflection, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct SP1FieldWordRangeChecker<T> {
     /// Most significant limb is less than 127 * 2^8 = 32512.

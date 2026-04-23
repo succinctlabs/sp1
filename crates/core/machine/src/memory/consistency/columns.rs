@@ -2,10 +2,12 @@ use serde::{Deserialize, Serialize};
 use sp1_derive::{AlignedBorrow, IntoShape};
 use sp1_hypercube::Word;
 
+use struct_reflection::{StructReflection, StructReflectionHelper};
+
 use crate::operations::U16toU8Operation;
 
 /// Memory Access Timestamp
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, StructReflection, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MemoryAccessTimestamp<T> {
     /// The previous timestamp's high 24 bits that this memory access is being read from.
@@ -25,7 +27,7 @@ pub struct MemoryAccessTimestamp<T> {
 }
 
 /// Memory Access Columns
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, StructReflection, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MemoryAccessCols<T> {
     pub prev_value: Word<T>,
@@ -45,7 +47,9 @@ pub struct MemoryAccessColsU8<T> {
 /// For optimization, we ensure that all register accesses have the high limb of the timestamp and
 /// previous timestamp to be equal. This is done through adding in a "shadow" read, through the
 /// `MemoryBump` chip. Therefore, only the columns for low limb comparison is needed here.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy, Serialize, Deserialize, IntoShape)]
+#[derive(
+    AlignedBorrow, StructReflection, Default, Debug, Clone, Copy, Serialize, Deserialize, IntoShape,
+)]
 #[repr(C)]
 pub struct RegisterAccessTimestamp<T> {
     /// The previous timestamp that this memory access is being read from.
@@ -55,15 +59,16 @@ pub struct RegisterAccessTimestamp<T> {
 }
 
 /// Register Access Columns
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy, Serialize, Deserialize, IntoShape)]
-#[repr(C)]
+#[derive(
+    AlignedBorrow, StructReflection, Default, Debug, Clone, Copy, Serialize, Deserialize, IntoShape,
+)]
 pub struct RegisterAccessCols<T> {
     pub prev_value: Word<T>,
     pub access_timestamp: RegisterAccessTimestamp<T>,
 }
 
 /// Page Permission Access Columns, when the shard and previous shard are known to be equal
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, StructReflection, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct PageProtAccessCols<T> {
     pub prev_prot_bitmap: T,

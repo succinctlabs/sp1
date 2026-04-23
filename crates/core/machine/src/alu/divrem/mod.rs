@@ -16,6 +16,7 @@ use sp1_core_executor::{
 use sp1_derive::AlignedBorrow;
 use sp1_hypercube::{air::MachineAir, Word};
 use sp1_primitives::consts::WORD_SIZE;
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     adapter::{
@@ -43,7 +44,7 @@ const LONG_WORD_SIZE: usize = 2 * WORD_SIZE;
 pub struct DivRemChip;
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, StructReflection, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct DivRemCols<T> {
     /// The current shard, timestamp, program counter of the CPU.
@@ -198,6 +199,10 @@ impl<F: PrimeField32> MachineAir<F> for DivRemChip {
 
     fn name(&self) -> &'static str {
         "DivRem"
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        DivRemCols::<F>::struct_reflection().unwrap()
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
