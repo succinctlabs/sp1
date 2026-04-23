@@ -247,6 +247,7 @@ pub fn prove_jagged_evaluation_sync<F, EF, HostChallenger, DeviceChallenger>(
     z_col: &Point<EF>,
     z_trace: &Point<EF>,
     challenger: &mut HostChallenger,
+    expected_sum: EF,
     backend: &TaskScope,
 ) -> JaggedSumcheckEvalProof<EF>
 where
@@ -271,8 +272,7 @@ where
 
     // Compute expected sum
     let verifier_params = params.clone().into_verifier_params();
-    let expected_sum =
-        verifier_params.full_jagged_little_polynomial_evaluation(z_row, z_col, z_trace);
+
 
     let log_m = log2_ceil_usize(*params.col_prefix_sums_usize.last().unwrap());
 

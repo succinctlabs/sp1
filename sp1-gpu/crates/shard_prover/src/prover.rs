@@ -528,6 +528,7 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
                 &z_col,
                 &final_eval_point,
                 challenger,
+                component_poly_evals[1],
                 &backend,
             )
         });
