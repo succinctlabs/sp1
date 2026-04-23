@@ -210,19 +210,22 @@ where
 }
 
 /// The format is `is_first || chip_idx || prep_start || main_start` in little endian.
-/// `is_first` is a bit, `chip_idx` is 7 bits, `prep_start` is 10 bits, and `main_start` is 14 bits.
-pub fn pack_info(is_first: bool, chip_idx: u32, prep_start: u32, main_start: u32) -> u32 {
-    (is_first as u32) + (chip_idx << 1) + (prep_start << 8) + (main_start << 18)
+/// `is_first` is 1 bit, `chip_idx` is 15 bits, `prep_start` is 16 bits, and `main_start` is 32 bits.
+pub fn pack_info(is_first: bool, chip_idx: u32, prep_start: u32, main_start: u32) -> u64 {
+    (is_first as u64)
+        + ((chip_idx as u64) << 1)
+        + ((prep_start as u64) << 16)
+        + ((main_start as u64) << 32)
 }
 
 /// The `packed_info` is `is_first || chip_idx || prep_start || main_start` in little endian.
-/// `is_first` is a bit, `chip_idx` is 7 bits, `prep_start` is 10 bits, and `main_start` is 14 bits.
-pub fn unpack_info(packed_info: u32) -> (u32, u32, u32, u32) {
+/// `is_first` is 1 bit, `chip_idx` is 15 bits, `prep_start` is 16 bits, and `main_start` is 32 bits.
+pub fn unpack_info(packed_info: u64) -> (u32, u32, u32, u32) {
     (
-        (packed_info & 1),
-        ((packed_info >> 1) & 0x7F),
-        (packed_info >> 8) & 0x3FF,
-        (packed_info >> 18) & 0x3FFF,
+        (packed_info & 1) as u32,
+        ((packed_info >> 1) & 0x7FFF) as u32,
+        ((packed_info >> 16) & 0xFFFF) as u32,
+        ((packed_info >> 32) & 0xFFFFFFFF) as u32,
     )
 }
 
@@ -735,6 +738,7 @@ pub mod tests {
 
     use sp1_gpu_air::codegen_cuda_eval;
     use sp1_primitives::SP1Field;
+
     use std::collections::{BTreeMap, BTreeSet};
     use std::marker::PhantomData;
     use std::ops::Deref;

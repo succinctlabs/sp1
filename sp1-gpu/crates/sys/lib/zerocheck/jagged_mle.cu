@@ -17,7 +17,7 @@ __global__ void fixLastVariableJagged(
 
 __global__ void initializeJaggedInfo(
     JaggedMle<InfoBuffer> jaggedMle,
-    const uint32_t* values,
+    const uint64_t* values,
     uint32_t length,
     uint32_t num_info) {
     for (size_t i = blockIdx.x * blockDim.x + threadIdx.x; i < length;
