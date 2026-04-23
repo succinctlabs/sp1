@@ -275,7 +275,7 @@ mod differential_tests {
                 let mut expected_prev: Option<debug::State> = None;
 
                 for (cycle, (portable_msg, native_msg)) in
-                    portable_rx.into_iter().zip(native_rx.into_iter()).enumerate()
+                    portable_rx.into_iter().zip(native_rx).enumerate()
                 {
                     let (portable_msg, native_msg) = match (portable_msg, native_msg) {
                         (Some(portable), Some(native)) => (portable, native),

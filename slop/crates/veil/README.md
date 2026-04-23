@@ -4,7 +4,7 @@
 
 ## Overview
 
-VEIL is a zero-knowledge wrapper for multilinear interactive oracle proofs (MIOPs). It takes an existing IOP (such as sumcheck) and adds zero-knowledge with low overhead, without modifying the underlying protocol. See the paper in [paper/veil.pdf](paper/veil.pdf) for details.
+VEIL is a zero-knowledge wrapper for multilinear interactive oracle proofs (MIOPs). It takes an existing IOP (such as sumcheck) and adds zero-knowledge with low overhead, without modifying the underlying protocol. See the [paper](https://eprint.iacr.org/2026/683) for the full technical details.
 
 The key idea: queries to multilinear oracles are dealt with using a zk-PCS. The prover in addition masks all non-oracle transcript values with random "veil" elements, then proves via a R1CS-ish constraint system that the masked values satisfy the original protocol's checks. The verifier never sees the raw transcript — only the masked version plus a proof of correctness.
 

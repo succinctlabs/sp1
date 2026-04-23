@@ -166,7 +166,7 @@ pub fn evaluate_jagged_columns(
 
 pub fn initialize_jagged_dense_info(
     heights: Vec<u32>,
-    values: Vec<u32>,
+    values: Vec<u64>,
     backend: &TaskScope,
 ) -> JaggedDenseInfo<TaskScope> {
     let buffer_start_idx = once(0)
@@ -184,7 +184,7 @@ pub fn initialize_jagged_dense_info(
 
     let total_len = buffer_start_idx.last().unwrap() * 2;
     let info_buffer =
-        Buffer::<u32, TaskScope>::with_capacity_in(total_len as usize, backend.clone());
+        Buffer::<u64, TaskScope>::with_capacity_in(total_len as usize, backend.clone());
     let info_cols_buffer =
         Buffer::<u32, TaskScope>::with_capacity_in(total_len as usize / 2, backend.clone());
 
@@ -228,7 +228,7 @@ pub fn evaluate_jagged_info_fix_last_variable(
     let output_start_idx =
         DeviceBuffer::from_host(&buffer_start_idx, backend).unwrap().into_inner();
     let new_data =
-        Buffer::<u32, TaskScope>::with_capacity_in(new_total_length as usize, backend.clone());
+        Buffer::<u64, TaskScope>::with_capacity_in(new_total_length as usize, backend.clone());
     let new_cols = Buffer::<u32, TaskScope>::with_capacity_in(
         (new_total_length / 2) as usize,
         backend.clone(),

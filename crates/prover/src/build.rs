@@ -707,6 +707,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires AWS credentials for the sp1-circuit-artifacts-dev bucket; run with `--ignored` when validating dev artifact uploads"]
     async fn test_dev_artifacts_uploaded_to_s3() {
         use crate::build::DEV_CIRCUIT_ARTIFACTS_S3_BUCKET;
 

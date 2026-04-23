@@ -404,7 +404,7 @@ where
                 .collect();
             let merkle_proof = merkle_proof
                 .into_iter()
-                .zip(merkle_openings.into_iter())
+                .zip(merkle_openings)
                 .map(|(proof, opening)| MerkleTreeOpeningAndProof { values: opening, proof })
                 .collect::<Vec<_>>();
             let merkle_read_values: Vec<Mle<GC::EF>> = if round_index != 0 {
@@ -1098,7 +1098,7 @@ mod tests {
         let polynomial_concat: Mle<F> =
             Mle::new(interleave(polynomial_1.guts().clone(), polynomial_2.guts().clone()));
 
-        let num_non_zero_entries = polynomial_concat.guts().total_len() as usize;
+        let num_non_zero_entries = polynomial_concat.guts().total_len();
         let inner_evals = polynomial_concat
             .guts()
             .clone()
