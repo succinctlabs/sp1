@@ -28,11 +28,6 @@ sp1-derive = { workspace = true }
 sp1-primitives = { workspace = true }
 sp1-jit = { workspace = true }
 struct-reflection = { workspace = true }
-# Powdr CLI dependencies
-clap = { version = "^4.3", features = ["derive"] }
-eyre = "0.6.12"
-serde_cbor = "0.11.2"
-metrics-tracing-context = "0.16.0"
 powdr-autoprecompiles.workspace = true
 powdr-number = { workspace = true }
 powdr-expression = { workspace = true }
@@ -97,10 +92,6 @@ apc = []
 [lib]
 path = "src/lib.rs"
 bench = false
-
-[[bin]]
-name = "powdr_sp1"
-path = "src/autoprecompiles/bin/cli.rs"
 
 [lints]
 workspace = true
