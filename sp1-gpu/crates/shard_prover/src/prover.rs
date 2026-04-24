@@ -810,7 +810,7 @@ mod tests {
             let buffer = PinnedBuffer::<Felt>::with_capacity(capacity);
             let queue = Arc::new(WorkerQueue::new(vec![buffer]));
             let buffer = queue.pop().await.unwrap();
-            let (_public_values, jagged_trace_data, _shard_chips, _permit) = full_tracegen(
+            let (_public_values, jagged_trace_data, shard_chips, _permit) = full_tracegen(
                 &machine,
                 program.clone(),
                 Arc::new(record),
