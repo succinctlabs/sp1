@@ -7,6 +7,7 @@ use slop_challenger::IopCtx;
 
 use super::constraints::{ConstraintContextInnerExt, ZkCnstrAndReadingCtxInner};
 use super::ZkIopCtx;
+use crate::compiler::TranscriptReadError;
 
 /// Computes the mask length by running the protocol's read and constraint
 /// building logic on a counting context.
@@ -179,12 +180,13 @@ impl<GC: ZkIopCtx> ConstraintContextInnerExt<GC::EF> for MaskCounterContext<GC> 
 }
 
 impl<GC: ZkIopCtx> ZkCnstrAndReadingCtxInner<GC> for MaskCounterContext<GC> {
-    fn read_next(&mut self, num: usize) -> Option<Vec<Self::Expr>> {
+    fn read_next(&mut self, num: usize) -> Result<Vec<Self::Expr>, TranscriptReadError> {
         // Increment the counter by the number of elements read
         *self.counter.borrow_mut() += num;
 
-        // Return placeholder expressions
-        Some(vec![self.clone(); num])
+        // Return placeholder expressions. The counter never fails — it isn't bounded by
+        // any real transcript — so this is infallible.
+        Ok(vec![self.clone(); num])
     }
 
     fn challenger(&mut self) -> std::cell::RefMut<'_, GC::Challenger> {

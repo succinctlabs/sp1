@@ -1,6 +1,7 @@
 use std::cell::{Ref, RefCell, RefMut};
 use std::rc::Rc;
 
+use crate::compiler::TranscriptReadError;
 use crate::zk::dot_product::{dot_product, verify_zk_dot_product, ZkDotProductError};
 use crate::zk::error_correcting_code::RsFromCoefficients;
 use crate::zk::hadamard_product::{verify_zk_hadamard_and_dots, ZkHadamardAndDotsError};
@@ -107,7 +108,7 @@ impl<GC: ZkIopCtx> ConstraintContextInner<GC::EF> for ZkVerificationContext<GC> 
         a: VerifierLinExpression<GC::EF>,
         b: VerifierLinExpression<GC::EF>,
     ) -> Option<VerifierElement<GC::EF>> {
-        let index: VerifierElement<GC::EF> = self.read_one_raw()?.into();
+        let index: VerifierElement<GC::EF> = self.read_one_raw().ok()?.into();
         self.constrain_mul_triple(a, b, index);
         Some(index)
     }
@@ -181,28 +182,33 @@ impl<GC: ZkIopCtx> ZkVerificationContext<GC> {
     }
 
     // Read the next message of expected length, observe it, and return its block index and length.
-    // The expected length must match the length of the message in the proof, otherwise returns `None`.
-    fn read_raw(&mut self, expected_length: usize) -> Option<(usize, usize)> {
+    // Returns `TranscriptExhausted` if there is no next message, or `TranscriptReadMismatch` if
+    // the next message's length doesn't match `expected_length`.
+    fn read_raw(&mut self, expected_length: usize) -> Result<(usize, usize), TranscriptReadError> {
         let mut inner = self.borrow_mut();
         let ZkVerificationContextInner { transcript, challenger, values_current_index, .. } =
             &mut *inner;
         let block_index = *values_current_index;
-        let vals = transcript.get_values(block_index)?;
+        let vals =
+            transcript.get_values(block_index).ok_or(TranscriptReadError::TranscriptExhausted)?;
         if vals.len() != expected_length {
-            return None;
+            return Err(TranscriptReadError::TranscriptReadMismatch {
+                expected: expected_length,
+                got: vals.len(),
+            });
         }
 
         challenger.observe_ext_element_slice(vals);
         *values_current_index += 1;
 
-        Some((block_index, expected_length))
+        Ok((block_index, expected_length))
     }
 
-    // Read the next message of length 1, observe it, and returns its index in the transcript.
-    // The expected length must be 1, otherwise returns `None`.
-    fn read_one_raw(&mut self) -> Option<[usize; 2]> {
+    // Read the next message of length 1, observe it, and return its index in the transcript.
+    // The expected length must be 1, otherwise returns `TranscriptReadMismatch`.
+    fn read_one_raw(&mut self) -> Result<[usize; 2], TranscriptReadError> {
         let (block_index, _) = self.read_raw(1)?;
-        Some([block_index, 0])
+        Ok([block_index, 0])
     }
 
     /// Returns the index of the next block to be read.
@@ -342,10 +348,10 @@ impl<GC: ZkIopCtx> ZkVerificationContext<GC> {
         for _ in 0..2 {
             let [a, b] = self
                 .read_next(2)
-                .ok_or(ZkVerifierError::InvalidMulConstrProofShape)?
+                .map_err(|_| ZkVerifierError::InvalidMulConstrProofShape)?
                 .try_into()
                 .unwrap();
-            let c = self.read_one().ok_or(ZkVerifierError::InvalidMulConstrProofShape)?;
+            let c = self.read_one().map_err(|_| ZkVerifierError::InvalidMulConstrProofShape)?;
             // Add in the multiplicative constraint the padding should satisfy
             self.constrain_mul_triple(
                 a.try_into_index().unwrap(),
@@ -430,21 +436,23 @@ impl<GC: ZkIopCtx> ZkVerificationContext<GC> {
 impl<GC: ZkIopCtx> ZkCnstrAndReadingCtxInner<GC> for ZkVerificationContext<GC> {
     /// Receives the next message of length 1, observes it, and outputs a single [`ExpressionIndex`].
     ///
-    /// The expected length must be 1, otherwise returns `None`.
-    fn read_one(&mut self) -> Option<<Self as ConstraintContextInnerExt<GC::EF>>::Expr> {
+    /// Errors if the transcript is exhausted or the message length isn't 1.
+    fn read_one(
+        &mut self,
+    ) -> Result<<Self as ConstraintContextInnerExt<GC::EF>>::Expr, TranscriptReadError> {
         let idx = self.read_one_raw()?;
-        Some(self.add_expr(idx.into()))
+        Ok(self.add_expr(idx.into()))
     }
 
     /// Receives the next message, observes it, and outputs [`ExpressionIndex`]es.
     ///
-    /// The expected length must match the length of the message in the proof, otherwise returns `None`.
+    /// Errors if the transcript is exhausted or the message length doesn't match `num`.
     fn read_next(
         &mut self,
         num: usize,
-    ) -> Option<Vec<<Self as ConstraintContextInnerExt<GC::EF>>::Expr>> {
+    ) -> Result<Vec<<Self as ConstraintContextInnerExt<GC::EF>>::Expr>, TranscriptReadError> {
         let (block_index, len) = self.read_raw(num)?;
-        Some((0..len).map(|i| self.add_expr([block_index, i].into())).collect())
+        Ok((0..len).map(|i| self.add_expr([block_index, i].into())).collect())
     }
 
     fn challenger(&mut self) -> RefMut<'_, GC::Challenger> {
@@ -483,8 +491,8 @@ pub struct ZKProtocolShapeError;
 
 /// Trait for protocol parameters that know how to read proof values from transcript.
 ///
-/// This trait is implemented on parameter structs (e.g., `ZkPartialSumcheckParameters`)
-/// and produces self-contained proof structs that include the parameters.
+/// This trait is implemented on protocol parameter structs and produces
+/// self-contained proof structs that include the parameters.
 ///
 /// The returned proof contains `VerifierElement<GC>` since `read_proof_from_transcript`
 /// reads from the verifier context.
