@@ -476,7 +476,7 @@ impl<M: ExecutionMode> MinimalExecutor<M> {
     /// - `TRACE_SAMPLE_RATE`: The period between clock cycles where samples are taken. Defaults to
     ///   1.
     #[inline]
-    #[allow(unused_variables)]
+    #[allow(unused_variables, clippy::unused_self)]
     fn maybe_setup_profiler(&mut self) {
         #[cfg(feature = "profiling")]
         {

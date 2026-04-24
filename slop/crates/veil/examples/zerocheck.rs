@@ -1,13 +1,26 @@
-//! Example: ZK zerocheck proving that the pointwise product of two MLEs equals a third.
+//! Example: zerocheck proving the pointwise product of two MLEs equals a third,
+//! run against two backends.
 //!
 //! Protocol:
-//! 1. Generate random extension field MLEs p, q and compute r = p * q pointwise
-//! 2. Commit p, q, r via PCS
-//! 3. Verifier samples a random point z_0
-//! 4. Build the composition f(x) = eq(x, z_0) * (p(x) * q(x) - r(x))
-//! 5. Use sumcheck to prove sum of f over the hypercube is 0, producing eval claims at z
-//! 6. Verify eq(z, z_0) (cheap for verifier)
-//! 7. Prove p(z), q(z), r(z) via PCS
+//! 1. Generate random extension-field MLEs p, q and compute r = p * q pointwise.
+//! 2. Commit p, q, r via PCS.
+//! 3. Sample a random point z_0.
+//! 4. Build the composition f(x) = eq(x, z_0) * (p(x) * q(x) - r(x)).
+//! 5. Sumcheck over f with input claim 0, producing component evals at point z.
+//! 6. Tie the component evals to p(z), q(z), r(z) via PCS openings.
+//!
+//! The protocol is written once, generically over `SendingCtx` / `ReadingCtx`,
+//! then run first against the zero-knowledge backend (`ZkProverCtx` /
+//! `ZkVerifierCtx`) and afterwards against the transparent backend
+//! (`TransparentProverCtx` / `TransparentVerifierCtx`).
+//!
+//! Shape:
+//!
+//! - `zerocheck_read` / `zerocheck_prove`: mirror entry points — one reads the
+//!   transcript on the verifier side, the other commits + samples + sends on
+//!   the prover side. Both return a [`ZerocheckView`].
+//! - `zerocheck_build_constraints`: the shared constraint-building pass used by
+//!   both sides.
 
 use itertools::Itertools;
 use rand::{Rng, SeedableRng};
@@ -22,7 +35,10 @@ use slop_merkle_tree::Poseidon2KoalaBear16Prover;
 use slop_multilinear::{Mle, Point};
 use slop_sumcheck::{ComponentPoly, SumcheckPoly, SumcheckPolyBase, SumcheckPolyFirstRound};
 use slop_veil::compiler::{ConstraintCtx, ReadingCtx, SendingCtx};
-use slop_veil::protocols::sumcheck::{SumcheckParam, SumcheckView};
+use slop_veil::protocols::sumcheck::{SumcheckInputClaim, SumcheckParam, SumcheckView};
+use slop_veil::transparent::{
+    initialize_transparent_prover_and_verifier, TransparentProverCtx, TransparentVerifierCtx,
+};
 use slop_veil::zk::stacked_pcs::{initialize_zk_prover_and_verifier, StackedPcsZkProverCtx};
 use slop_veil::zk::{compute_mask_length, ZkProverCtx, ZkVerifierCtx};
 
@@ -186,7 +202,7 @@ fn ef_mle_to_base(mle: &Mle<EF>) -> Mle<F> {
 }
 
 // ============================================================================
-// Protocol read/constrain functions (shared by prover, verifier, and mask counter)
+// Generic protocol code
 // ============================================================================
 
 struct ZerocheckView<C: ConstraintCtx> {
@@ -197,32 +213,72 @@ struct ZerocheckView<C: ConstraintCtx> {
     sumcheck_view: SumcheckView<C>,
 }
 
+/// Verifier-side entry point: read the three committed oracles, sample `z_0`,
+/// and read the sumcheck proof.
 fn zerocheck_read<C: ReadingCtx>(ctx: &mut C) -> ZerocheckView<C> {
-    // Read the three PCS commitments
     let p_oracle = ctx.read_oracle(LOG_ENCODING_VARS, LOG_NUM_POLYNOMIALS).unwrap();
     let q_oracle = ctx.read_oracle(LOG_ENCODING_VARS, LOG_NUM_POLYNOMIALS).unwrap();
     let r_oracle = ctx.read_oracle(LOG_ENCODING_VARS, LOG_NUM_POLYNOMIALS).unwrap();
 
-    // Read the zerocheck random point z_0
     let z_0 = ctx.sample_point(NUM_VARIABLES);
 
-    // Read the sumcheck proof.
-    // f(x) = eq(z_0, x) * (p(x) * q(x) - r(x)) has degree 3, with 3 component evals (p, q, r).
-    let param = SumcheckParam::with_component_evals(NUM_VARIABLES, 3, 3);
-    let sumcheck_view = param.read(ctx).unwrap();
+    // f(x) = eq(z_0, x) * (p(x) * q(x) - r(x)) has degree 3 with 3 component evals (p, q, r).
+    let sumcheck_view = SumcheckParam::with_component_evals(NUM_VARIABLES, 3, 3)
+        .read(ctx)
+        .expect("sumcheck read failed");
 
     ZerocheckView { p_oracle, q_oracle, r_oracle, z_0, sumcheck_view }
 }
 
-fn zerocheck_build_constraints<C: ConstraintCtx<Challenge = EF>>(
+/// Prover-side mirror of [`zerocheck_read`]: commit p, q, r; sample `z_0`;
+/// build the zerocheck composition polynomial; run sumcheck with the constant-
+/// zero input claim; return the view for the caller to feed into
+/// [`zerocheck_build_constraints`].
+#[allow(clippy::too_many_arguments)]
+fn zerocheck_prove<C, RNG>(
     ctx: &mut C,
-    view: ZerocheckView<C>,
-) {
-    let z = Point::from(view.sumcheck_view.point.clone());
+    p_base: Mle<C::Field>,
+    q_base: Mle<C::Field>,
+    r_base: Mle<C::Field>,
+    p_ef: Mle<EF>,
+    q_ef: Mle<EF>,
+    r_ef: Mle<EF>,
+    rng: &mut RNG,
+) -> ZerocheckView<C>
+where
+    C: SendingCtx<Challenge = EF, Extension = EF>,
+    RNG: rand::CryptoRng + rand::Rng,
+    rand::distributions::Standard: rand::distributions::Distribution<C::Field>,
+{
+    let p_oracle = ctx.commit_mle(p_base, LOG_NUM_POLYNOMIALS, rng).expect("commit p failed");
+    let q_oracle = ctx.commit_mle(q_base, LOG_NUM_POLYNOMIALS, rng).expect("commit q failed");
+    let r_oracle = ctx.commit_mle(r_base, LOG_NUM_POLYNOMIALS, rng).expect("commit r failed");
 
-    let p_eval = view.sumcheck_view.component_evals[0].clone();
-    let q_eval = view.sumcheck_view.component_evals[1].clone();
-    let r_eval = view.sumcheck_view.component_evals[2].clone();
+    let z_0: Point<EF> = ctx.sample_point(NUM_VARIABLES);
+
+    let eq_z0 = Mle::<EF>::partial_lagrange(&z_0);
+    let zerocheck_poly = ZerocheckPoly { eq_z0, p: p_ef, q: q_ef, r: r_ef };
+
+    let sumcheck_in_claim = SumcheckInputClaim::zero();
+    let sumcheck_view = SumcheckParam::with_component_evals(NUM_VARIABLES, 3, 3).prove(
+        &sumcheck_in_claim,
+        zerocheck_poly,
+        ctx,
+    );
+
+    ZerocheckView { p_oracle, q_oracle, r_oracle, z_0, sumcheck_view }
+}
+
+/// Shared constraint-building pass used by both sides.
+fn zerocheck_build_constraints<C: ConstraintCtx<Challenge = EF>>(
+    view: ZerocheckView<C>,
+    ctx: &mut C,
+) {
+    let z = Point::from(view.sumcheck_view.out_claim.point.clone());
+
+    let p_eval = view.sumcheck_view.out_claim.component_evals[0][0].clone();
+    let q_eval = view.sumcheck_view.out_claim.component_evals[0][1].clone();
+    let r_eval = view.sumcheck_view.out_claim.component_evals[0][2].clone();
 
     // Constraint: claimed_eval == eq(z, z_0) * (p(z) * q(z) - r(z))
     //
@@ -230,20 +286,20 @@ fn zerocheck_build_constraints<C: ConstraintCtx<Challenge = EF>>(
     // and z_0 (Fiat-Shamir) are both known field elements.
     let eq_eval = Mle::<EF>::full_lagrange_eval(&view.z_0, &z);
 
-    // Express as a single polynomial constraint:
-    //   eq(z, z_0) * (p(z) * q(z) - r(z)) - claimed_eval = 0
     let pq_minus_r = p_eval.clone() * q_eval.clone() - r_eval.clone();
-    let constraint = pq_minus_r * eq_eval - view.sumcheck_view.claimed_eval.clone();
-    ctx.assert_zero(constraint);
+    let constraint = pq_minus_r * eq_eval - view.sumcheck_view.out_claim.claimed_eval.clone();
+    ctx.assert_zero(constraint).unwrap();
 
-    // Constraint 3: PCS evaluation claims for p, q, r at point z
+    // PCS evaluation claims for p, q, r at the shared point z (one multi-eval group).
     ctx.assert_mle_multi_eval(
         vec![(view.p_oracle, p_eval), (view.q_oracle, q_eval), (view.r_oracle, r_eval)],
         z,
     );
 
-    // Emit sumcheck round-consistency constraints
-    view.sumcheck_view.build_constraints(ctx).unwrap();
+    // Sumcheck round-consistency. The input claim to sumcheck is the constant zero
+    // (sum of `eq(z_0, x) * (p*q - r)` over the hypercube is zero by construction).
+    let sumcheck_in_claim = SumcheckInputClaim::zero();
+    view.sumcheck_view.build_constraints(&sumcheck_in_claim, ctx).unwrap();
 }
 
 // ============================================================================
@@ -254,69 +310,70 @@ fn main() {
     let mut rng = ChaCha20Rng::from_entropy();
 
     eprintln!("Generating random MLEs (num_variables = {NUM_VARIABLES})...");
-
-    // Generate random EF MLEs p, q and compute r = p * q pointwise
     let (p_base, p_ef) = generate_random_ef_mle(&mut rng, NUM_VARIABLES);
     let (q_base, q_ef) = generate_random_ef_mle(&mut rng, NUM_VARIABLES);
     let r_ef = pointwise_product(&p_ef, &q_ef);
     let r_base = ef_mle_to_base(&r_ef);
 
-    // Compute mask length
-    let mask_length = compute_mask_length::<GC, _>(zerocheck_read, |data, ctx| {
-        zerocheck_build_constraints(ctx, data)
-    });
-    eprintln!("Mask length: {mask_length}");
-
-    // Initialize PCS (3 commitments)
-    let (pcs_prover, pcs_verifier) =
+    // ZK backend.
+    eprintln!("\n=== ZK BACKEND ===");
+    let (zk_pcs_prover, zk_pcs_verifier) =
         initialize_zk_prover_and_verifier::<GC, MK>(3, LOG_ENCODING_VARS);
 
-    // === PROVER ===
-    eprintln!("\n=== PROVER ===");
-    let proof = {
+    let zk_proof = {
         let now = std::time::Instant::now();
-
-        let mut ctx: StackedPcsZkProverCtx<GC, MK> =
-            ZkProverCtx::initialize_with_pcs(mask_length, pcs_prover, &mut rng);
-
-        // Commit p, q, r
-        let p_oracle = ctx.commit_mle(p_base, LOG_NUM_POLYNOMIALS, &mut rng).unwrap();
-        let q_oracle = ctx.commit_mle(q_base, LOG_NUM_POLYNOMIALS, &mut rng).unwrap();
-        let r_oracle = ctx.commit_mle(r_base, LOG_NUM_POLYNOMIALS, &mut rng).unwrap();
-
-        // Sample the zerocheck random point z_0
-        let z_0: Point<EF> = ctx.sample_point(NUM_VARIABLES);
-
-        // Build the zerocheck composition polynomial
-        let eq_z0 = Mle::<EF>::partial_lagrange(&z_0);
-        let zerocheck_poly =
-            ZerocheckPoly { eq_z0, p: p_ef.clone(), q: q_ef.clone(), r: r_ef.clone() };
-
-        // Run sumcheck on f(x) = eq(z_0, x) * (p(x) * q(x) - r(x)) with claim = 0
-        let param = SumcheckParam::with_component_evals(NUM_VARIABLES, 3, 3);
-        let sumcheck_view = param.prove(zerocheck_poly, &mut ctx, EF::zero());
-
-        // Build constraints using the shared function
-        let full_prover_view = ZerocheckView { p_oracle, q_oracle, r_oracle, z_0, sumcheck_view };
-        zerocheck_build_constraints(&mut ctx, full_prover_view);
-
-        let proof = ctx.prove(&mut rng);
+        let mask_length = compute_mask_length::<GC, _>(zerocheck_read, zerocheck_build_constraints);
+        eprintln!("Mask length: {mask_length}");
+        let mut pctx: StackedPcsZkProverCtx<GC, MK> =
+            ZkProverCtx::initialize_with_pcs(mask_length, zk_pcs_prover, &mut rng);
+        let view = zerocheck_prove(
+            &mut pctx,
+            p_base.clone(),
+            q_base.clone(),
+            r_base.clone(),
+            p_ef.clone(),
+            q_ef.clone(),
+            r_ef.clone(),
+            &mut rng,
+        );
+        zerocheck_build_constraints(view, &mut pctx);
+        let proof = pctx.prove(&mut rng);
         eprintln!("Prover time: {:?}", now.elapsed());
         proof
     };
-
-    // === VERIFIER ===
-    eprintln!("\n=== VERIFIER ===");
     {
-        let now = std::time::Instant::now();
-
-        let mut ctx = ZkVerifierCtx::init(proof, Some(pcs_verifier));
-        let verifier_view = zerocheck_read(&mut ctx);
-        zerocheck_build_constraints(&mut ctx, verifier_view);
-        ctx.verify().expect("verification failed");
-
-        eprintln!("Verifier time: {:?}", now.elapsed());
+        let mut vctx = ZkVerifierCtx::init(zk_proof, Some(zk_pcs_verifier));
+        let view = zerocheck_read(&mut vctx);
+        zerocheck_build_constraints(view, &mut vctx);
+        vctx.verify().expect("zk verification failed");
     }
+    eprintln!("ZK backend: PASSED");
 
-    eprintln!("\n=== PASSED ===");
+    // Transparent backend.
+    eprintln!("\n=== TRANSPARENT BACKEND ===");
+    let (stacked_prover, stacked_verifier) = initialize_transparent_prover_and_verifier::<GC, MK>(
+        3,
+        LOG_ENCODING_VARS,
+        LOG_NUM_POLYNOMIALS,
+    );
+
+    let transparent_proof = {
+        let now = std::time::Instant::now();
+        let mut pctx: TransparentProverCtx<GC, MK> =
+            TransparentProverCtx::initialize(stacked_prover);
+        let view = zerocheck_prove(&mut pctx, p_base, q_base, r_base, p_ef, q_ef, r_ef, &mut rng);
+        zerocheck_build_constraints(view, &mut pctx);
+        let proof = pctx.prove(&mut rng).expect("transparent prove failed");
+        eprintln!("Prover time: {:?}", now.elapsed());
+        proof
+    };
+    {
+        let mut vctx = TransparentVerifierCtx::<GC>::new(transparent_proof, Some(stacked_verifier));
+        let view = zerocheck_read(&mut vctx);
+        zerocheck_build_constraints(view, &mut vctx);
+        vctx.verify().expect("transparent verification failed");
+    }
+    eprintln!("Transparent backend: PASSED");
+
+    eprintln!("\n=== ALL PASSED ===");
 }

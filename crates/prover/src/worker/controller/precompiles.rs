@@ -10,8 +10,9 @@ use tokio::{sync::mpsc, task::JoinSet};
 use tracing::Instrument;
 
 use crate::worker::{
-    controller::create_core_proving_task, MessageSender, ProofData, SpawnProveOutput, TaskContext,
-    TaskError, TaskId, TraceData, WorkerClient,
+    controller::{create_core_proving_task, ProveShardGate},
+    MessageSender, ProofData, SpawnProveOutput, TaskContext, TaskError, TaskId, TraceData,
+    WorkerClient,
 };
 
 /// String used as key for add_ref to ensure precompile artifacts are not cleaned up before they
@@ -211,6 +212,7 @@ impl PrecompileHandler {
         prove_shard_tx: MessageSender<W, ProofData>,
         artifact_client: A,
         worker_client: W,
+        gate: ProveShardGate<A, W>,
         context: TaskContext,
     ) -> Result<(), TaskError> {
         let precompile_range = ShardRange::precompile();
@@ -292,6 +294,7 @@ impl PrecompileHandler {
                                     shard,
                                     worker_client.clone(),
                                     artifact_client.clone(),
+                                    &gate,
                                 )
                                 .await
                                 .map_err(|e| TaskError::Fatal(e.into()))?;
@@ -329,6 +332,7 @@ impl PrecompileHandler {
                             shard,
                             worker_client.clone(),
                             artifact_client.clone(),
+                            &gate,
                         )
                         .await
                         .map_err(|e| TaskError::Fatal(e.into()))?;

@@ -30,7 +30,7 @@ pub async fn post_to_github_pr(
     let comments_url = format!("{base_url}/issues/{pr_number}/comments");
     let comments_response = client
         .get(&comments_url)
-        .header("Authorization", format!("token {token}",))
+        .header("Authorization", format!("token {token}"))
         .header("User-Agent", "sp1-perf-bot")
         .send()
         .await?;
