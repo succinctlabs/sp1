@@ -1,8 +1,8 @@
 //! ZK-backend facade for the shared integration-test scenarios. Each
 //! `#[test]` wires concrete ZK contexts to the generic flows in
-//! [`abstract_sumcheck_flows`].
+//! [`sumcheck_test_primitives`].
 
-mod abstract_sumcheck_flows;
+mod sumcheck_test_primitives;
 
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
@@ -12,7 +12,7 @@ use slop_merkle_tree::Poseidon2KoalaBear16Prover;
 use slop_veil::zk::stacked_pcs::{initialize_zk_prover_and_verifier, StackedPcsZkProverCtx};
 use slop_veil::zk::{compute_mask_length, NoPcsConfig, ZkProverCtx, ZkVerifierCtx};
 
-use crate::abstract_sumcheck_flows::{
+use crate::sumcheck_test_primitives::{
     generate_random_hadamard_product, generate_random_single_mle,
     sumcheck_batched_single_mles_build_constraints, sumcheck_batched_single_mles_prove,
     sumcheck_batched_single_mles_read, sumcheck_hadamard_build_constraints,

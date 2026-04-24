@@ -1,8 +1,8 @@
 //! Transparent-backend facade for the shared integration-test scenarios.
 //! Each `#[test]` wires concrete transparent contexts to the generic flows in
-//! [`abstract_sumcheck_flows`].
+//! [`sumcheck_test_primitives`].
 
-mod abstract_sumcheck_flows;
+mod sumcheck_test_primitives;
 
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
@@ -13,7 +13,7 @@ use slop_veil::transparent::{
     initialize_transparent_prover_and_verifier, TransparentProverCtx, TransparentVerifierCtx,
 };
 
-use crate::abstract_sumcheck_flows::{
+use crate::sumcheck_test_primitives::{
     generate_random_hadamard_product, generate_random_single_mle,
     sumcheck_batched_single_mles_build_constraints, sumcheck_batched_single_mles_prove,
     sumcheck_batched_single_mles_read, sumcheck_hadamard_build_constraints,
