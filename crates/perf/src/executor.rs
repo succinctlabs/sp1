@@ -9,9 +9,9 @@ use sp1_hypercube::{septic_digest::SepticDigest, MachineVerifyingKey};
 use sp1_primitives::{Elf, SP1Field};
 use sp1_prover::{
     worker::{
-        CommonProverInput, MessageReceiver, MessageSender, ProofData, ProofId, RequesterId,
-        SP1CoreExecutor, SplicingEngine, SplicingWorker, TaskContext, TaskId, TrivialWorkerClient,
-        WorkerClient,
+        CommonProverInput, MessageReceiver, MessageSender, ProofData, ProofId, ProveShardGate,
+        RequesterId, SP1CoreExecutor, SplicingEngine, SplicingWorker, TaskContext, TaskId,
+        TrivialWorkerClient, WorkerClient,
     },
     SP1VerifyingKey,
 };
@@ -53,11 +53,18 @@ async fn execute_node(args: Args, elf: Vec<u8>, stdin: SP1Stdin) {
     let artifact_client = InMemoryArtifactClient::new();
     let worker_client = TrivialWorkerClient::new(args.task_capacity, artifact_client.clone());
 
+    let proof_id = ProofId::new("bench_pure_execution");
+    let gate =
+        ProveShardGate::new(artifact_client.clone(), worker_client.clone(), proof_id.clone())
+            .await
+            .expect("failed to create gate");
+
     let splicing_workers = (0..args.splice_workers)
         .map(|_| {
             SplicingWorker::new(
                 artifact_client.clone(),
                 worker_client.clone(),
+                gate.clone(),
                 args.send_workers,
                 args.send_buffer_size,
             )
@@ -66,7 +73,6 @@ async fn execute_node(args: Args, elf: Vec<u8>, stdin: SP1Stdin) {
 
     let splicing_engine = Arc::new(SplicingEngine::new(splicing_workers, args.splice_buffer));
 
-    let proof_id = ProofId::new("bench_pure_execution");
     let parent_id = None;
     let parent_context = None;
     let requester_id = RequesterId::new("bench_pure_execution");
@@ -126,6 +132,7 @@ async fn execute_node(args: Args, elf: Vec<u8>, stdin: SP1Stdin) {
         sender,
         artifact_client,
         worker_client,
+        gate,
         None,
         args.cycle_limit,
     );
