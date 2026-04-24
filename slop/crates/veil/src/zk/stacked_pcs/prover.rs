@@ -363,15 +363,16 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>> ZkBasefoldProver<GC, MK> {
         let rlc_mle_extension = Mle::new(RowMajorMatrix::new(combined_mle_vec, 1).into());
         let rlc_eval_proof = {
             let mut challenger = zkbuilder.challenger();
-            self.prove_with_batched_ef_inputs(
-                eval_point_inner,
-                rlc_mle_extension,
-                rlc_codeword,
-                rlc_eval_claim,
-                full_pcs_datas,
-                &mut challenger,
-            )
-            .map_err(ZkStackedPcsProverError::BasefoldError)?
+            self.inner
+                .prove_from_prebatched_inputs(
+                    eval_point_inner,
+                    rlc_mle_extension,
+                    rlc_eval_claim,
+                    rlc_codeword,
+                    full_pcs_datas.into_iter().collect(),
+                    &mut challenger,
+                )
+                .map_err(ZkStackedPcsProverError::BasefoldError)?
         };
 
         // Build constraint data (shared with verifier)

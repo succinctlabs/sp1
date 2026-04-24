@@ -10,7 +10,6 @@ type MK = Poseidon2KoalaBear16Prover;
 use crate::zk::stacked_pcs::{
     basefold_prover_wrapper::ZkBasefoldProver, initialize_zk_prover_and_verifier,
     prover::StackedPcsZkProverContext, verifier::StackedPcsZkVerificationContext,
-    ZkStackedPcsVerifier,
 };
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha20Rng;
@@ -19,6 +18,7 @@ use slop_jagged::{HadamardProduct, LongMle};
 use slop_koala_bear::KoalaBearDegree4Duplex;
 use slop_matrix::dense::RowMajorMatrix;
 use slop_multilinear::Mle;
+use slop_stacked::StackedPcsVerifier;
 
 use super::{
     verifier::ZkPartialSumcheckParameters, zk_reduce_sumcheck_to_evaluation,
@@ -164,7 +164,7 @@ fn test_zk_sumcheck() {
         build_all_constraints(sumcheck_data, &mut context);
 
         // Verify (no PCS used, but need to specify verifier type)
-        context.verify::<ZkStackedPcsVerifier<GC>>(None).unwrap();
+        context.verify::<StackedPcsVerifier<GC>>(None).unwrap();
         eprintln!("Verification time {:?}", now.elapsed());
     }
 }
