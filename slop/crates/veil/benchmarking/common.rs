@@ -19,7 +19,7 @@ use slop_multilinear::{Mle, MultilinearPcsProver, Point};
 use slop_stacked::{StackedPcsProver, StackedPcsVerifier};
 use slop_sumcheck::{partially_verify_sumcheck_proof, reduce_sumcheck_to_evaluation};
 use slop_veil::compiler::{ConstraintCtx, ReadingCtx};
-use slop_veil::protocols::sumcheck::{SumcheckInputClaim, SumcheckParam};
+use slop_veil::protocols::sumcheck::SumcheckParam;
 use slop_veil::zk::stacked_pcs::{initialize_zk_prover_and_verifier, StackedPcsZkProverCtx};
 use slop_veil::zk::{compute_mask_length, ZkProverCtx, ZkVerifierCtx};
 
@@ -84,13 +84,11 @@ fn single_mle_read<C: ReadingCtx>(
 fn single_mle_build_constraints<C: ConstraintCtx>(
     ctx: &mut C,
     oracle: C::MleOracle,
-    claim: C::Extension,
     view: slop_veil::protocols::sumcheck::SumcheckView<C>,
 ) {
-    let point: Point<C::Challenge> = Point::from(view.out_claim.point.clone());
-    ctx.assert_mle_eval(oracle, point, view.out_claim.claimed_eval.clone());
-    let in_claim = SumcheckInputClaim::from_value(claim);
-    view.build_constraints(&in_claim, ctx).unwrap();
+    let point: Point<C::Challenge> = Point::from(view.point.clone());
+    ctx.assert_mle_eval(oracle, point, view.claimed_eval.clone());
+    view.build_constraints(ctx).unwrap();
 }
 
 fn run_standard_single(
@@ -190,7 +188,7 @@ fn run_zk_single(
 
         let masks_length = compute_mask_length::<GC, _>(
             |ctx| single_mle_read(ctx, num_encoding_variables, log_num_polynomials, num_variables),
-            |(oracle, view), ctx| single_mle_build_constraints(ctx, oracle, claim, view),
+            |(oracle, view), ctx| single_mle_build_constraints(ctx, oracle, view),
         );
 
         let mut ctx: StackedPcsZkProverCtx<GC, MK> =
@@ -198,9 +196,10 @@ fn run_zk_single(
 
         let commit = ctx.commit_mle(original_mle.clone(), log_num_polynomials, rng).unwrap();
 
-        let in_claim = SumcheckInputClaim::from_value(claim);
-        let view = param.prove(&in_claim, mle_ef.clone(), &mut ctx);
-        single_mle_build_constraints(&mut ctx, commit, claim, view);
+        let view = param.prove(mle_ef.clone(), &mut ctx, claim);
+        let point: Point<EF> = Point::from(view.point.clone());
+        ctx.assert_mle_eval(commit, point, view.claimed_eval.clone());
+        view.build_constraints(&mut ctx).unwrap();
 
         let zkproof = ctx.prove(rng);
         (zkproof, prover_start.elapsed())
@@ -212,7 +211,7 @@ fn run_zk_single(
         let mut ctx = ZkVerifierCtx::init(zkproof, Some(zk_stacked_verifier));
         let (oracle, view) =
             single_mle_read(&mut ctx, num_encoding_variables, log_num_polynomials, num_variables);
-        single_mle_build_constraints(&mut ctx, oracle, claim, view);
+        single_mle_build_constraints(&mut ctx, oracle, view);
         ctx.verify().expect("Failed to verify");
 
         verifier_start.elapsed()
@@ -244,23 +243,17 @@ fn hadamard_read<C: ReadingCtx>(
     HadamardReadData { ci_base, ci_ext, view }
 }
 
-fn hadamard_build_constraints<C: ConstraintCtx>(
-    ctx: &mut C,
-    claim: C::Extension,
-    data: HadamardReadData<C>,
-) {
-    let point: Point<C::Challenge> = Point::from(data.view.out_claim.point.clone());
-    let base_eval = data.view.out_claim.component_evals[0][0].clone();
-    let ext_eval = data.view.out_claim.component_evals[0][1].clone();
+fn hadamard_build_constraints<C: ConstraintCtx>(ctx: &mut C, data: HadamardReadData<C>) {
+    let point: Point<C::Challenge> = Point::from(data.view.point.clone());
+    let base_eval = data.view.component_evals[0].clone();
+    let ext_eval = data.view.component_evals[1].clone();
     ctx.assert_a_times_b_equals_c(
         base_eval.clone(),
         ext_eval.clone(),
-        data.view.out_claim.claimed_eval.clone(),
-    )
-    .unwrap();
+        data.view.claimed_eval.clone(),
+    );
     ctx.assert_mle_multi_eval(vec![(data.ci_base, base_eval), (data.ci_ext, ext_eval)], point);
-    let in_claim = SumcheckInputClaim::from_value(claim);
-    data.view.build_constraints(&in_claim, ctx).unwrap();
+    data.view.build_constraints(ctx).unwrap();
 }
 
 fn run_standard_hadamard(
@@ -392,7 +385,7 @@ fn run_zk_hadamard(
 
         let masks_length = compute_mask_length::<GC, _>(
             |ctx| hadamard_read(ctx, num_encoding_variables, log_num_polynomials, num_variables),
-            |data, ctx| hadamard_build_constraints(ctx, claim, data),
+            |data, ctx| hadamard_build_constraints(ctx, data),
         );
 
         let mut ctx: StackedPcsZkProverCtx<GC, MK> =
@@ -401,10 +394,9 @@ fn run_zk_hadamard(
         let ci_base = ctx.commit_mle(mle_1.clone(), log_num_polynomials, rng).unwrap();
         let ci_ext = ctx.commit_mle(mle_2.clone(), log_num_polynomials, rng).unwrap();
 
-        let in_claim = SumcheckInputClaim::from_value(claim);
-        let view = param.prove(&in_claim, hadamard_product, &mut ctx);
+        let view = param.prove(hadamard_product, &mut ctx, claim);
         let data = HadamardReadData { ci_base, ci_ext, view };
-        hadamard_build_constraints(&mut ctx, claim, data);
+        hadamard_build_constraints(&mut ctx, data);
 
         let zkproof = ctx.prove(rng);
         (zkproof, prover_start.elapsed())
@@ -418,7 +410,7 @@ fn run_zk_hadamard(
         let mut ctx = ZkVerifierCtx::init(zkproof, Some(zk_stacked_verifier));
         let data =
             hadamard_read(&mut ctx, num_encoding_variables, log_num_polynomials, num_variables);
-        hadamard_build_constraints(&mut ctx, claim, data);
+        hadamard_build_constraints(&mut ctx, data);
         ctx.verify().expect("Failed to verify");
 
         verifier_start.elapsed()

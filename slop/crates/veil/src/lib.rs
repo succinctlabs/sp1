@@ -4,5 +4,4 @@
 
 pub mod compiler;
 pub mod protocols;
-pub mod transparent;
 pub mod zk;
