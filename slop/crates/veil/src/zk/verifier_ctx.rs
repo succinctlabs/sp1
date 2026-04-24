@@ -124,18 +124,11 @@ impl<GC: ZkIopCtx> ReadingCtx for ZkVerifierCtx<GC> {
     fn read_exact(&mut self, buf: &mut [Self::Expr]) -> Result<(), TranscriptReadError> {
         // If we only want one element, use a more efficient method that avoids allocations.
         if buf.len() == 1 {
-            buf[0] = self
-                .inner
-                .read_one()
-                .map(Dorroh::Element)
-                .ok_or(TranscriptReadError::TranscriptReadUnspecified)?;
+            buf[0] = Dorroh::Element(self.inner.read_one()?);
             return Ok(());
         }
         // Otherwise, read a vector and copy.
-        let values = self
-            .inner
-            .read_next(buf.len())
-            .ok_or(TranscriptReadError::TranscriptReadUnspecified)?;
+        let values = self.inner.read_next(buf.len())?;
         for (b, value) in buf.iter_mut().zip(values) {
             *b = Dorroh::Element(value);
         }

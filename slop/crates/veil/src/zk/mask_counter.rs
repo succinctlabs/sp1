@@ -85,10 +85,7 @@ impl<GC: ZkIopCtx> ConstraintCtx for MaskCounter<GC> {
 impl<GC: ZkIopCtx> ReadingCtx for MaskCounter<GC> {
     fn read_exact(&mut self, buf: &mut [Self::Expr]) -> Result<(), TranscriptReadError> {
         use crate::zk::inner::ZkCnstrAndReadingCtxInner;
-        let values = self
-            .inner
-            .read_next(buf.len())
-            .ok_or(TranscriptReadError::TranscriptReadUnspecified)?;
+        let values = self.inner.read_next(buf.len())?;
         for (b, v) in buf.iter_mut().zip(values) {
             *b = Dorroh::Element(v);
         }
