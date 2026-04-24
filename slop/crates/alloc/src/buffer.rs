@@ -327,7 +327,7 @@ where
     /// unsafe {
     ///     // Initialize all 4 bytes
     ///     buffer.as_mut_ptr().write_bytes(0, 4);
-    ///     
+    ///
     ///     // Now we can safely assume all memory is initialized
     ///     buffer.assume_init();
     /// }
@@ -686,76 +686,6 @@ where
 
         Ok(())
     }
-
-    /// Reinterprets the buffer's elements as base field elements.
-    ///
-    /// This method consumes the buffer and returns a new buffer where each
-    /// extension field element is reinterpreted as `D` base field elements,
-    /// where `D` is the degree of the extension.
-    ///
-    /// # Type Parameters
-    ///
-    /// - `E`: The base field type
-    /// - `T`: Must implement `ExtensionField<E>`
-    ///
-    /// # Examples
-    ///
-    /// ```rust,ignore
-    /// // If T is a degree-4 extension over E
-    /// let buffer: Buffer<ExtField> = buffer![ext1, ext2, ext3];
-    /// let base_buffer: Buffer<BaseField> = buffer.flatten_to_base();
-    /// assert_eq!(base_buffer.len(), 12); // 3 * 4 = 12
-    /// ```
-    pub fn flatten_to_base<E>(self) -> Buffer<E, A>
-    where
-        T: ExtensionField<E>,
-        E: Field,
-    {
-        let mut buffer = ManuallyDrop::new(self);
-        let (original_ptr, original_len, original_cap, allocator) =
-            (buffer.as_mut_ptr(), buffer.len(), buffer.capacity(), buffer.allocator().clone());
-        let ptr = original_ptr as *mut E;
-        let len = original_len * T::D;
-        let cap = original_cap * T::D;
-        unsafe { Buffer::from_raw_parts(ptr, len, cap, allocator) }
-    }
-
-    /// Reinterprets the buffer's base field elements as extension field elements.
-    ///
-    /// This method consumes the buffer and returns a new buffer where every `D`
-    /// base field elements are reinterpreted as one extension field element,
-    /// where `D` is the degree of the extension.
-    ///
-    /// # Type Parameters
-    ///
-    /// - `T`: The base field type
-    /// - `E`: Must implement `ExtensionField<T>`
-    ///
-    /// # Panics
-    ///
-    /// Panics if the buffer length is not divisible by the extension degree.
-    ///
-    /// # Examples
-    ///
-    /// ```rust,ignore
-    /// // If E is a degree-4 extension over T
-    /// let buffer: Buffer<BaseField> = buffer![b1, b2, b3, b4, b5, b6, b7, b8];
-    /// let ext_buffer: Buffer<ExtField> = buffer.into_extension();
-    /// assert_eq!(ext_buffer.len(), 2); // 8 / 4 = 2
-    /// ```
-    pub fn into_extension<E>(self) -> Buffer<E, A>
-    where
-        T: Field,
-        E: ExtensionField<T>,
-    {
-        let mut buffer = ManuallyDrop::new(self);
-        let (original_ptr, original_len, original_cap, allocator) =
-            (buffer.as_mut_ptr(), buffer.len(), buffer.capacity(), buffer.allocator().clone());
-        let ptr = original_ptr as *mut E;
-        let len = original_len.checked_div(E::D).unwrap();
-        let cap = original_cap.checked_div(E::D).unwrap();
-        unsafe { Buffer::from_raw_parts(ptr, len, cap, allocator) }
-    }
 }
 
 impl<T, A: Backend> HasBackend for Buffer<T, A> {
@@ -1044,6 +974,67 @@ impl<T> Buffer<T, CpuBackend> {
         vec.insert(index, value);
         *self = Self::from(vec);
     }
+
+    /// Reinterprets the buffer's base field elements as extension field elements.
+    ///
+    /// This method consumes the buffer and returns a new buffer where every `D`
+    /// base field elements are reinterpreted as one extension field element,
+    /// where `D` is the degree of the extension.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `T`: The base field type
+    /// - `E`: Must implement `ExtensionField<T>`
+    ///
+    /// # Panics
+    ///
+    /// Panics if the buffer length is not divisible by the extension degree.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,ignore
+    /// // If E is a degree-4 extension over T
+    /// let buffer: Buffer<BaseField> = buffer![b1, b2, b3, b4, b5, b6, b7, b8];
+    /// let ext_buffer: Buffer<ExtField> = buffer.into_extension();
+    /// assert_eq!(ext_buffer.len(), 2); // 8 / 4 = 2
+    /// ```
+    pub fn into_extension<E>(self) -> Buffer<E, CpuBackend>
+    where
+        T: Field,
+        E: ExtensionField<T>,
+    {
+        let self_vec = self.into_vec();
+        let iter = self_vec.chunks_exact(E::D);
+        assert!(iter.clone().remainder().is_empty());
+        iter.map(E::from_base_slice).collect()
+    }
+
+    /// Reinterprets the buffer's elements as base field elements.
+    ///
+    /// This method consumes the buffer and returns a new buffer where each
+    /// extension field element is reinterpreted as `D` base field elements,
+    /// where `D` is the degree of the extension.
+    ///
+    /// # Type Parameters
+    ///
+    /// - `E`: The base field type
+    /// - `T`: Must implement `ExtensionField<E>`
+    ///
+    /// # Examples
+    ///
+    /// ```rust,ignore
+    /// // If T is a degree-4 extension over E
+    /// let buffer: Buffer<ExtField> = buffer![ext1, ext2, ext3];
+    /// let base_buffer: Buffer<BaseField> = buffer.flatten_to_base();
+    /// assert_eq!(base_buffer.len(), 12); // 3 * 4 = 12
+    /// ```
+    pub fn flatten_to_base<E>(self) -> Buffer<E>
+    where
+        T: ExtensionField<E>,
+        E: Field,
+    {
+        self.into_vec().iter().flat_map(T::as_base_slice).copied().collect()
+    }
 }
 
 impl<T> From<Vec<T>> for Buffer<T, CpuBackend> {
@@ -1286,6 +1277,9 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for Buffer<T, CpuBackend> {
 
 #[cfg(test)]
 mod tests {
+    use slop_algebra::{extension::BinomialExtensionField, AbstractField};
+    use slop_koala_bear::KoalaBear;
+
     use super::*;
 
     #[test]
@@ -1346,5 +1340,14 @@ mod tests {
         assert_eq!(buffer.len(), 11);
         assert_eq!(*buffer[4], 4);
         assert_eq!(*buffer[5], 4);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_into_extension() {
+        let buffer = buffer![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+        let felt_buffer =
+            buffer.iter().copied().map(KoalaBear::from_canonical_usize).collect::<Buffer<_>>();
+        let _ = felt_buffer.into_extension::<BinomialExtensionField<KoalaBear, 4>>();
     }
 }

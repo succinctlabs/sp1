@@ -1,8 +1,10 @@
-use itertools::Itertools;
 use std::iter::once;
 
+use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
-use slop_algebra::{AbstractExtensionField, AbstractField, UnivariatePolynomial};
+use slop_algebra::{
+    AbstractExtensionField, AbstractField, Field, TwoAdicField, UnivariatePolynomial,
+};
 use slop_challenger::{
     CanObserve, CanSampleBits, FieldChallenger, GrindingChallenger, IopCtx,
     VariableLengthChallenger,
@@ -10,7 +12,7 @@ use slop_challenger::{
 use slop_commit::Rounds;
 use slop_merkle_tree::{MerkleTreeOpeningAndProof, MerkleTreeTcs};
 use slop_multilinear::{Mle, MultilinearPcsVerifier, Point};
-use slop_utils::reverse_bits_len;
+use slop_utils::{log2_ceil_usize, reverse_bits_len};
 use thiserror::Error;
 
 use crate::{config::WhirProofShape, interleave_chain};
@@ -20,7 +22,7 @@ pub struct Verifier<GC>
 where
     GC: IopCtx,
 {
-    pub config: WhirProofShape<GC::F>,
+    pub config: WhirProofShape<GC::F, GC::EF>,
     merkle_verifier: MerkleTreeTcs<GC>,
     pub num_expected_commitments: usize,
 }
@@ -103,6 +105,10 @@ pub enum WhirProofError {
     InvalidNumberOfCommitments(usize, usize),
     #[error("proof has incorrect shape")]
     IncorrectShape,
+    #[error("number of variables does not exceed starting_interleaved_log_height")]
+    StartingInterleavedLogHeightExceedsNumVariables,
+    #[error("the total area overflows usize")]
+    AreaOverflow,
 }
 
 impl From<(SumcheckError, usize)> for WhirProofError {
@@ -137,31 +143,35 @@ pub fn map_to_pow<F: AbstractField>(mut elem: F, len: usize) -> Point<F> {
 impl<GC> Verifier<GC>
 where
     GC: IopCtx,
+    GC::F: TwoAdicField,
     GC::Challenger: VariableLengthChallenger<GC::F, GC::Digest>,
 {
+    /// Construct a new WHIR verifier for a given proof shape and number of commitments.
+    ///
+    /// It is important to call this function *before* absorbing the WHIR commitments into the challenger.
+    /// This ensures that the challenger is correctly seeded with protocol shape before the main protocol starts.
+    /// The Fiat-Shamir challenger passed here by reference should then be used as the challenger for the main protocol.
+    ///
+    /// An example of unsound usage: observe a slice of `commitments` into a `challenger` -> pass that
+    /// challenger to the `Verifier::new` function -> call `Self::verify` with that challenger and
+    /// that slice of `commitments`. The first two steps must be swapped for correct Fiat-Shamir seeding.
+    ///
+    /// # Panics
+    ///
+    /// - Panics if `num_expected_commitments` is zero or larger than or equal to 4096 (this is a somewhat large bound that provides some DOS protection).
+    /// - Panics if the field order is smaller than 2^12 because `num_expected_commitments` should not exceed the field size for the challenger observation.
     pub fn new(
         merkle_verifier: MerkleTreeTcs<GC>,
-        config: WhirProofShape<GC::F>,
+        config: WhirProofShape<GC::F, GC::EF>,
         num_expected_commitments: usize,
         challenger: &mut GC::Challenger,
     ) -> Self {
         assert_ne!(num_expected_commitments, 0, "commitment must exist");
+        assert!(GC::F::order() >= BigUint::from((1 << 12) as u64), "field order too small");
+        assert!(num_expected_commitments < 1 << 12, "too many commitments");
+        challenger.observe(GC::F::from_canonical_usize(num_expected_commitments));
         config.write_to_challenger::<GC::Digest, GC::Challenger>(challenger);
         Self { merkle_verifier, config, num_expected_commitments }
-    }
-
-    pub fn observe_commitment(
-        &self,
-        commitment: &[GC::Digest],
-        challenger: &mut GC::Challenger,
-        expected_length: usize,
-    ) -> Result<(), WhirProofError> {
-        if commitment.len() != expected_length {
-            Err(WhirProofError::InvalidNumberOfCommitments(expected_length, commitment.len()))
-        } else {
-            challenger.observe_constant_length_digest_slice(commitment);
-            Ok(())
-        }
     }
 
     /// The claim is that < f, v > = claim.
@@ -170,13 +180,24 @@ where
         &self,
         commitments: &[GC::Digest],
         round_areas: &[usize],
-        num_variables: usize,
         claim: GC::EF,
         proof: &WhirProof<GC>,
         challenger: &mut GC::Challenger,
     ) -> Result<(Point<GC::EF>, GC::EF), WhirProofError> {
         let config = &self.config;
-        let n_rounds = config.round_parameters.len();
+        let n_rounds = config.round_parameters().len();
+
+        let mut total_area: usize = 0;
+        for area in round_areas {
+            total_area = total_area.checked_add(*area).ok_or(WhirProofError::AreaOverflow)?;
+        }
+
+        let num_variables = log2_ceil_usize(total_area);
+        challenger.observe(GC::F::from_canonical_usize(num_variables));
+
+        if num_variables < config.starting_interleaved_log_height() {
+            return Err(WhirProofError::StartingInterleavedLogHeightExceedsNumVariables);
+        }
 
         if n_rounds == 0
             || proof.merkle_proofs.len() != n_rounds - 1
@@ -196,25 +217,19 @@ where
             ));
         }
 
-        let expected_widths = round_areas
+        if !round_areas
             .iter()
-            .map(|area| (*area) >> self.config.starting_interleaved_log_height)
-            .collect::<Vec<_>>();
-
-        for (merkle_proof, area) in proof.initial_merkle_proof.iter().zip_eq(round_areas.iter()) {
-            if merkle_proof.proof.width << self.config.starting_interleaved_log_height != *area {
-                println!(
-                    "proof width: {}, proof log height: {}, expected area {}, area: {}",
-                    merkle_proof.proof.width,
-                    merkle_proof.proof.log_tensor_height,
-                    area,
-                    merkle_proof.proof.width << merkle_proof.proof.log_tensor_height
-                );
-                return Err(WhirProofError::IncorrectShape);
-            }
+            .all(|area| area.is_multiple_of(1 << self.config.starting_interleaved_log_height()))
+        {
+            return Err(WhirProofError::IncorrectShape);
         }
 
-        let ood_points: Vec<Point<GC::EF>> = (0..config.starting_ood_samples)
+        let expected_widths = round_areas
+            .iter()
+            .map(|area| (*area) >> self.config.starting_interleaved_log_height())
+            .collect::<Vec<_>>();
+
+        let ood_points: Vec<Point<GC::EF>> = (0..config.starting_ood_samples())
             .map(|_| {
                 (0..num_variables)
                     .map(|_| challenger.sample_ext_element())
@@ -236,9 +251,9 @@ where
         }
 
         // Check that the number of OOD answers in the proof matches the expected value.
-        if commitment.ood_answers.len() != config.starting_ood_samples {
+        if commitment.ood_answers.len() != config.starting_ood_samples() {
             return Err(WhirProofError::InvalidNumberOfOODSamples(
-                config.starting_ood_samples,
+                config.starting_ood_samples(),
                 commitment.ood_answers.len(),
             ));
         }
@@ -262,8 +277,8 @@ where
             .verify_sumcheck(
                 &proof.initial_sumcheck_polynomials,
                 claimed_sum,
-                num_variables - config.starting_interleaved_log_height,
-                &config.starting_folding_pow_bits,
+                num_variables - config.starting_interleaved_log_height(),
+                config.starting_folding_pow_bits(),
                 challenger,
             )
             .map_err(|err| (err, 0))?;
@@ -277,15 +292,16 @@ where
 
         // This is relative to the previous commitment (i.e. prev_commitment has a domain size of
         // this size)
-        let mut domain_size = config.starting_interleaved_log_height + config.starting_log_inv_rate;
-        let mut generator = config.domain_generator;
+        let mut domain_size = config.starting_domain_log_size();
+
+        let mut generator = config.domain_generator();
         let mut prev_commitment = commitment;
 
-        let mut prev_folding_factor = num_variables - config.starting_interleaved_log_height;
-        let mut num_variables = config.starting_interleaved_log_height;
+        let mut prev_folding_factor = num_variables - config.starting_interleaved_log_height();
+        let mut num_variables = config.starting_interleaved_log_height();
 
         for round_index in 0..n_rounds {
-            let round_params = &config.round_parameters[round_index];
+            let round_params = &config.round_parameters()[round_index];
             // Because of the length checks at the start of the verification, the checked access isn't
             // expected to produce an error.
             let new_commitment =
@@ -295,6 +311,10 @@ where
                     round_params.ood_samples,
                     new_commitment.ood_answers.len(),
                 ));
+            }
+
+            if new_commitment.commitment.len() != 1 {
+                return Err(WhirProofError::IncorrectShape);
             }
 
             // Observe the commitments
@@ -352,14 +372,10 @@ where
                 let expected_width = if round_index == 0 {
                     expected_widths[i]
                 } else {
-                    (1 << config.round_parameters[round_index - 1].folding_factor) * GC::EF::D
+                    (1 << config.round_parameters()[round_index - 1].folding_factor) * GC::EF::D
                 };
 
-                let expected_log_height = if round_index == 0 {
-                    config.starting_interleaved_log_height + config.starting_log_inv_rate
-                } else {
-                    config.round_parameters[round_index - 1].evaluation_domain_log_size
-                };
+                let expected_log_height = domain_size;
                 self.merkle_verifier
                     .verify_tensor_openings(
                         merkle_commitment,
@@ -384,9 +400,8 @@ where
                         proof
                             .values
                             .clone()
-                            .into_buffer()
                             .into_extension::<GC::EF>()
-                            .to_vec()
+                            .into_buffer()
                             .chunks_exact(1 << prev_folding_factor)
                             .map(|v| Mle::new(v.to_vec().into()))
                             .collect::<Vec<_>>()
@@ -448,20 +463,17 @@ where
                 .concat(),
             );
 
-            domain_size = round_params.evaluation_domain_log_size;
             prev_commitment = new_commitment;
             prev_folding_factor = round_params.folding_factor;
             generator = generator.square();
             num_variables -= round_params.folding_factor;
-            if prev_commitment.commitment.len() != 1 {
-                return Err(WhirProofError::IncorrectShape);
-            }
+            domain_size -= 1;
         }
 
         // Now, we want to verify the final evaluations
-        if proof.final_polynomial.len() != 1 << config.final_poly_log_degree {
+        if proof.final_polynomial.len() != 1 << config.final_poly_log_degree() {
             return Err(WhirProofError::InvalidDegreeFinalPolynomial(
-                1 << config.final_poly_log_degree,
+                1 << config.final_poly_log_degree(),
                 proof.final_polynomial.len(),
             ));
         }
@@ -471,11 +483,11 @@ where
         let final_poly = proof.final_polynomial.clone();
         let final_poly_uv = UnivariatePolynomial::new(final_poly.clone());
 
-        if !challenger.check_witness(config.final_pow_bits, proof.final_pow) {
+        if !challenger.check_witness(config.final_pow_bits(), proof.final_pow) {
             return Err(WhirProofError::PowError);
         }
 
-        let final_id_indices = (0..config.final_queries)
+        let final_id_indices = (0..config.final_queries())
             .map(|_| challenger.sample_bits(domain_size))
             .collect::<Vec<_>>();
         let final_id_values: Vec<GC::F> = final_id_indices
@@ -489,8 +501,8 @@ where
                 &prev_commitment.commitment[0],
                 &final_id_indices,
                 &proof.final_merkle_opening_and_proof.values,
-                (1 << config.round_parameters[n_rounds - 1].folding_factor) * GC::EF::D,
-                config.round_parameters[n_rounds - 1].evaluation_domain_log_size,
+                (1 << config.round_parameters()[n_rounds - 1].folding_factor) * GC::EF::D,
+                domain_size,
                 &proof.final_merkle_opening_and_proof.proof,
             )
             .map_err(|_| WhirProofError::InvalidMerkleAuthentication)?;
@@ -501,7 +513,6 @@ where
             .clone()
             .into_buffer()
             .into_extension::<GC::EF>()
-            .to_vec()
             .chunks_exact(1 << prev_folding_factor)
             .map(|v| Mle::new(v.to_vec().into()))
             .collect();
@@ -525,8 +536,8 @@ where
             .verify_sumcheck(
                 &proof.final_sumcheck_polynomials,
                 claimed_sum,
-                config.final_poly_log_degree,
-                &config.final_folding_pow_bits,
+                config.final_poly_log_degree(),
+                config.final_folding_pow_bits(),
                 challenger,
             )
             .map_err(|err| (err, n_rounds + 1))?;
@@ -607,6 +618,7 @@ where
 impl<GC> MultilinearPcsVerifier<GC> for Verifier<GC>
 where
     GC: IopCtx,
+    GC::F: TwoAdicField,
 {
     type Proof = WhirProof<GC>;
 
@@ -625,16 +637,10 @@ where
         proof: &Self::Proof,
         challenger: &mut <GC as IopCtx>::Challenger,
     ) -> Result<(), Self::VerifierError> {
-        let (randomness, claimed_value) = self.verify(
-            commitments,
-            round_polynomial_sizes,
-            point.dimension(),
-            evaluation_claims,
-            proof,
-            challenger,
-        )?;
+        let (randomness, claimed_value) =
+            self.verify(commitments, round_polynomial_sizes, evaluation_claims, proof, challenger)?;
         let (folding_point, stacking_point) =
-            point.split_at(point.dimension() - self.config.starting_interleaved_log_height);
+            point.split_at(point.dimension() - self.config.starting_interleaved_log_height());
         let point = stacking_point
             .iter()
             .copied()
@@ -649,7 +655,7 @@ where
     /// The jagged verifier will assume that the underlying PCS will pad commitments to a multiple
     /// of `1<<log.stacking_height(verifier)`.
     fn log_stacking_height(verifier: &Self) -> u32 {
-        verifier.config.starting_interleaved_log_height as u32
+        verifier.config.starting_interleaved_log_height() as u32
     }
 }
 

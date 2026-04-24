@@ -7,6 +7,7 @@ use itertools::Itertools;
 use slop_air::BaseAir;
 use slop_algebra::AbstractField;
 use slop_challenger::GrindingChallenger;
+use slop_challenger::USizeOutOfFieldBounds;
 use slop_challenger::{CanObserve, FieldChallenger, IopCtx, VariableLengthChallenger};
 use slop_multilinear::{
     full_geq, partial_lagrange_blocking, Mle, MleEval, MultilinearPcsChallenger, Point,
@@ -63,6 +64,9 @@ pub enum LogupGkrVerificationError<EF> {
     /// The public values verification failed.
     #[error("public values verification failed")]
     InvalidPublicValues,
+    /// A variable length slice observation can produce this error.
+    #[error("slice length out of field bounds")]
+    SliceLengthOutOfFieldBounds(#[from] USizeOutOfFieldBounds),
 }
 
 /// Verifier for `LogUp` GKR.
@@ -157,8 +161,8 @@ impl<GC: IopCtx, SC: ShardContext<GC>> LogUpGkrVerifier<GC, SC> {
         }
 
         // Observe the output claims.
-        challenger.observe_variable_length_extension_slice(numerator.guts().as_slice());
-        challenger.observe_variable_length_extension_slice(denominator.guts().as_slice());
+        challenger.observe_variable_length_extension_slice(numerator.guts().as_slice())?;
+        challenger.observe_variable_length_extension_slice(denominator.guts().as_slice())?;
 
         if denominator.guts().as_slice().iter().any(slop_algebra::Field::is_zero) {
             return Err(LogupGkrVerificationError::ZeroDenominator);
@@ -277,14 +281,14 @@ impl<GC: IopCtx, SC: ShardContext<GC>> LogUpGkrVerifier<GC, SC> {
         {
             // Observe the opening
             if let Some(prep_eval) = openings.preprocessed_trace_evaluations.as_ref() {
-                challenger.observe_variable_length_extension_slice(prep_eval);
+                challenger.observe_variable_length_extension_slice(prep_eval)?;
                 if prep_eval.evaluations().sizes() != [chip.air.preprocessed_width()] {
                     return Err(LogupGkrVerificationError::InvalidShape);
                 }
             } else if chip.air.preprocessed_width() != 0 {
                 return Err(LogupGkrVerificationError::InvalidShape);
             }
-            challenger.observe_variable_length_extension_slice(&openings.main_trace_evaluations);
+            challenger.observe_variable_length_extension_slice(&openings.main_trace_evaluations)?;
             if openings.main_trace_evaluations.evaluations().sizes() != [chip.air.width()] {
                 return Err(LogupGkrVerificationError::InvalidShape);
             }

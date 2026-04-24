@@ -226,26 +226,6 @@ impl<T, A: Backend> Tensor<T, A> {
     pub unsafe fn assume_init(&mut self) {
         self.storage.set_len(self.storage.capacity());
     }
-
-    pub fn flatten_to_base<F: Field>(self) -> Tensor<F, A>
-    where
-        T: ExtensionField<F>,
-    {
-        let [height, width]: [usize; 2] = self.sizes().try_into().unwrap();
-        let dimensions = Dimensions::try_from([height, T::D * width]).unwrap();
-        let data_storage = self.into_buffer().flatten_to_base();
-        Tensor { storage: data_storage, dimensions }
-    }
-
-    pub fn into_extension<ET: ExtensionField<T>>(self) -> Tensor<ET, A>
-    where
-        T: Field,
-    {
-        let [height, width]: [usize; 2] = self.sizes().try_into().unwrap();
-        let dimensions = Dimensions::try_from([height, width / ET::D]).unwrap();
-        let extension_storage = self.into_buffer().into_extension();
-        Tensor { storage: extension_storage, dimensions }
-    }
 }
 
 impl<T, A: Backend, I: AsRef<[usize]>> Index<I> for Tensor<T, A> {
@@ -352,6 +332,26 @@ impl<T> Tensor<T, CpuBackend> {
     #[inline]
     pub fn as_mut_slice(&mut self) -> &mut [T] {
         &mut self.storage[..]
+    }
+
+    pub fn into_extension<ET: ExtensionField<T>>(self) -> Tensor<ET>
+    where
+        T: Field,
+    {
+        let [height, width]: [usize; 2] = self.sizes().try_into().unwrap();
+        let dimensions = Dimensions::try_from([height, width / ET::D]).unwrap();
+        let extension_storage = self.into_buffer().into_extension();
+        Tensor { storage: extension_storage, dimensions }
+    }
+
+    pub fn flatten_to_base<F: Field>(self) -> Tensor<F>
+    where
+        T: ExtensionField<F>,
+    {
+        let [height, width]: [usize; 2] = self.sizes().try_into().unwrap();
+        let dimensions = Dimensions::try_from([height, T::D * width]).unwrap();
+        let data_storage = self.into_buffer().flatten_to_base();
+        Tensor { storage: data_storage, dimensions }
     }
 }
 

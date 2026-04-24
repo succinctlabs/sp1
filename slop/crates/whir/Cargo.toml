@@ -33,6 +33,7 @@ derive-where = { workspace = true }
 rayon = { workspace = true }
 futures = { workspace = true }
 itertools = { workspace = true }
+num-bigint = { workspace = true }
 
 [dev-dependencies]
 slop-baby-bear = { workspace = true }

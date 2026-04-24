@@ -11,7 +11,7 @@ use crate::{
 };
 use derive_where::derive_where;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
-use slop_algebra::{AbstractField, ExtensionField, Field};
+use slop_algebra::{AbstractField, ExtensionField, Field, TwoAdicField};
 use slop_alloc::CpuBackend;
 use slop_challenger::{
     CanObserve, CanSampleBits, FieldChallenger, GrindingChallenger, IopCtx,
@@ -89,7 +89,7 @@ where
 {
     dft: D,
     merkle_prover: MerkleProver,
-    config: WhirProofShape<GC::F>,
+    config: WhirProofShape<GC::F, GC::EF>,
     _marker: std::marker::PhantomData<GC>,
 }
 
@@ -148,17 +148,18 @@ impl<GC, MerkleProver, D> Prover<GC, MerkleProver, D>
 where
     GC: IopCtx,
     D: Dft<GC::F>,
+    GC::F: TwoAdicField,
     GC::Challenger: VariableLengthChallenger<GC::F, GC::Digest>,
     MerkleProver: TensorCsProver<GC, CpuBackend> + ComputeTcsOpenings<GC, CpuBackend>,
 {
-    pub fn new(dft: D, merkle_prover: MerkleProver, config: WhirProofShape<GC::F>) -> Self {
+    pub fn new(dft: D, merkle_prover: MerkleProver, config: WhirProofShape<GC::F, GC::EF>) -> Self {
         Self { dft, merkle_prover, config, _marker: std::marker::PhantomData }
     }
 
     pub fn parse_commitment_data(
         &self,
         challenger: &mut GC::Challenger,
-        config: &WhirProofShape<GC::F>,
+        config: &WhirProofShape<GC::F, GC::EF>,
         rounds: Rounds<WhirProverData<GC, MerkleProver>>,
     ) -> WitnessData<GC, MerkleProver> {
         let num_variables = rounds
@@ -170,7 +171,7 @@ where
 
         let num_non_zero_entries: usize =
             rounds.iter().map(|r| r.polynomial.guts().as_slice().len()).sum();
-        let ood_points: Vec<Point<GC::EF>> = (0..config.starting_ood_samples)
+        let ood_points: Vec<Point<GC::EF>> = (0..config.starting_ood_samples())
             .map(|_| {
                 (0..num_variables)
                     .map(|_| challenger.sample_ext_element())
@@ -187,30 +188,29 @@ where
                     .iter()
                     .map(|r| {
                         let num_entries = r.polynomial.guts().total_len();
-                        assert!(
-                            num_entries.is_multiple_of(1 << config.starting_interleaved_log_height)
-                        );
+                        assert!(num_entries
+                            .is_multiple_of(1 << config.starting_interleaved_log_height()));
                         r.polynomial.guts().clone().reshape([
-                            1 << config.starting_interleaved_log_height,
-                            num_entries / (1 << config.starting_interleaved_log_height),
+                            1 << config.starting_interleaved_log_height(),
+                            num_entries / (1 << config.starting_interleaved_log_height()),
                         ])
                     })
                     .chain(once(Tensor::from(vec![GC::F::zero(); num_to_add]).reshape([
-                        1 << config.starting_interleaved_log_height,
-                        num_to_add / (1 << config.starting_interleaved_log_height),
+                        1 << config.starting_interleaved_log_height(),
+                        num_to_add / (1 << config.starting_interleaved_log_height()),
                     ]))),
             )
             .into_buffer()
             .to_vec();
 
             assert_eq!(result.len(), 1 << num_variables);
-            for i in 0..(num_to_add >> config.starting_interleaved_log_height) {
-                for j in 0..(1 << config.starting_interleaved_log_height) {
+            for i in 0..(num_to_add >> config.starting_interleaved_log_height()) {
+                for j in 0..(1 << config.starting_interleaved_log_height()) {
                     assert_eq!(
-                        result[(num_non_zero_entries >> config.starting_interleaved_log_height)
+                        result[(num_non_zero_entries >> config.starting_interleaved_log_height())
                             + i
                             + (j << (num_variables
-                                - config.starting_interleaved_log_height as u32))],
+                                - config.starting_interleaved_log_height() as u32))],
                         GC::F::zero()
                     );
                 }
@@ -221,8 +221,8 @@ where
             interleave_chain(rounds.iter().map(|r| {
                 let num_entries = r.polynomial.guts().total_len();
                 r.polynomial.guts().clone().reshape([
-                    1 << config.starting_interleaved_log_height,
-                    num_entries / (1 << config.starting_interleaved_log_height),
+                    1 << config.starting_interleaved_log_height(),
+                    num_entries / (1 << config.starting_interleaved_log_height()),
                 ])
             }))
             .into_buffer()
@@ -266,9 +266,12 @@ where
         witness_data: Rounds<WhirProverData<GC, MerkleProver>>,
         claim: GC::EF,
         challenger: &mut GC::Challenger,
-        config: &WhirProofShape<GC::F>,
+        config: &WhirProofShape<GC::F, GC::EF>,
     ) -> WhirProof<GC> {
-        let n_rounds = config.round_parameters.len();
+        let n_rounds = config.round_parameters().len();
+        let num_variables = query_vector.num_variables() as usize;
+
+        challenger.observe(GC::F::from_canonical_usize(num_variables));
 
         let witness_data = self.parse_commitment_data(challenger, config, witness_data);
 
@@ -282,8 +285,6 @@ where
 
         parsed_commitments.push(witness_data.parsed_commitment.clone());
 
-        let num_variables = query_vector.num_variables() as usize;
-
         let mut sumcheck_prover = SumcheckProver::<GC, GC::F>::new(
             witness_data.polynomial.clone(),
             query_vector,
@@ -294,25 +295,27 @@ where
         let (initial_sumcheck_polynomials, mut folding_randomness, mut claimed_sum) =
             sumcheck_prover.compute_sumcheck_polynomials(
                 claimed_sum,
-                num_variables - config.starting_interleaved_log_height,
-                &config.starting_folding_pow_bits,
+                num_variables - config.starting_interleaved_log_height(),
+                config.starting_folding_pow_bits(),
                 challenger,
             );
 
-        let mut generator = config.domain_generator;
+        let mut generator = config.domain_generator();
         let mut merkle_proofs = Vec::with_capacity(n_rounds);
         let mut query_proof_of_works = Vec::with_capacity(n_rounds);
         let mut sumcheck_polynomials = Vec::with_capacity(n_rounds);
 
-        let mut prev_domain_log_size = config.starting_domain_log_size;
-        let mut prev_folding_factor = num_variables - config.starting_interleaved_log_height;
+        let mut prev_domain_log_size = config.starting_domain_log_size();
+        let mut prev_folding_factor = num_variables - config.starting_interleaved_log_height();
         let (mut prev_prover_data, mut prev_committed_data) = (
             witness_data.commitment_data,
             witness_data.committed_data.into_iter().map(Arc::new).collect::<Rounds<_>>(),
         );
 
+        let mut num_remaining_variables = config.starting_interleaved_log_height();
+
         for round_index in 0..n_rounds {
-            let round_params = &config.round_parameters[round_index];
+            let round_params = &config.round_parameters()[round_index];
 
             let num_nonzero_entries = match &sumcheck_prover.f_vec {
                 KOrEfMle::K(mle) => mle.inner().as_ref().unwrap().num_non_zero_entries(),
@@ -326,8 +329,16 @@ where
                 ]),
             };
 
-            let encoding =
-                batch_dft::<_, GC::F, GC::EF>(&self.dft, inner_evals, round_params.log_inv_rate);
+            // We encode via a log inverse rate such that there are `1 << round_params.folding_factor`
+            // messages each of height `1<<(num_remaining_variables - round_params.folding_factor)`
+            // and the codewords have height `prev_domain_log_size -1`.
+            // Hence the log inverse rate is `prev_domain_log_size - 1 - (num_remaining_variables - round_params.folding_factor)`.
+            let log_inv_rate =
+                prev_domain_log_size - 1 - (num_remaining_variables - round_params.folding_factor);
+            // Update the number of remaining variables.
+            num_remaining_variables -= round_params.folding_factor;
+
+            let encoding = batch_dft::<_, GC::F, GC::EF>(&self.dft, inner_evals, log_inv_rate);
 
             let encoding_base = encoding.flatten_to_base();
 
@@ -393,8 +404,6 @@ where
                 .collect();
 
             let num_openings: usize = merkle_openings.iter().map(|o| o.sizes()[1]).sum();
-
-            // assert!(num_openings <= 1 << prev_folding_factor);
 
             let merkle_proof: Vec<_> = prev_prover_data
                 .into_iter()
@@ -469,7 +478,7 @@ where
             // Update
             generator = generator.square();
             prev_folding_factor = round_params.folding_factor;
-            prev_domain_log_size = round_params.evaluation_domain_log_size;
+            prev_domain_log_size -= 1;
             (prev_prover_data, prev_committed_data) = (
                 vec![prover_data].into_iter().collect(),
                 vec![Arc::new(encoding_base)].into_iter().collect(),
@@ -484,13 +493,13 @@ where
         let mut final_polynomial =
             f_vec.inner().as_ref().unwrap().guts().clone().into_buffer().to_vec();
 
-        final_polynomial.resize(1 << config.final_poly_log_degree, GC::EF::zero());
+        final_polynomial.resize(1 << config.final_poly_log_degree(), GC::EF::zero());
 
         challenger.observe_constant_length_extension_slice(&final_polynomial);
 
-        let final_pow = challenger.grind(config.final_pow_bits);
+        let final_pow = challenger.grind(config.final_pow_bits());
 
-        let final_id_indices = (0..config.final_queries)
+        let final_id_indices = (0..config.final_queries())
             .map(|_| challenger.sample_bits(prev_domain_log_size))
             .collect::<Vec<_>>();
 
@@ -509,8 +518,8 @@ where
 
         let (final_sumcheck_polynomials, _, _) = sumcheck_prover.compute_sumcheck_polynomials(
             claimed_sum,
-            config.final_poly_log_degree,
-            &config.final_folding_pow_bits,
+            config.final_poly_log_degree(),
+            config.final_folding_pow_bits(),
             challenger,
         );
 
@@ -538,6 +547,7 @@ impl<GC, MerkleProver, D> MultilinearPcsProver<GC, WhirProof<GC>> for Prover<GC,
 where
     GC: IopCtx,
     D: Dft<GC::F>,
+    GC::F: TwoAdicField,
     MerkleProver: TensorCsProver<GC, CpuBackend> + ComputeTcsOpenings<GC, CpuBackend>,
 {
     type ProverData = WhirProverData<GC, MerkleProver>;
@@ -550,7 +560,7 @@ where
     ) -> Result<(<GC as IopCtx>::Digest, Self::ProverData, usize), Self::ProverError> {
         let len: usize = mles.iter().map(|mle| mle.guts().as_slice().len()).sum();
         let added_zeroes =
-            len.next_multiple_of(1 << self.config.starting_interleaved_log_height) - len;
+            len.next_multiple_of(1 << self.config.starting_interleaved_log_height()) - len;
         let tensor: Tensor<GC::F, CpuBackend> = mles
             .iter()
             .flat_map(|mle| mle.guts().transpose().as_slice().to_vec())
@@ -559,7 +569,7 @@ where
             .reshape([len + added_zeroes, 1]);
         let concatenated_mles = Mle::new(tensor);
 
-        let starting_interleaved_height = self.config.starting_interleaved_log_height;
+        let starting_interleaved_height = self.config.starting_interleaved_log_height();
         let num_non_zero_entries = concatenated_mles.num_non_zero_entries();
 
         let inner_evals = concatenated_mles
@@ -571,7 +581,8 @@ where
             ])
             .transpose();
 
-        let encoding = batch_dft(&self.dft, inner_evals.clone(), self.config.starting_log_inv_rate);
+        let encoding =
+            batch_dft(&self.dft, inner_evals.clone(), self.config.starting_log_inv_rate());
 
         let (commitment, prover_data) =
             self.merkle_prover.commit_tensors(encoding.clone().into()).unwrap();
@@ -594,7 +605,7 @@ where
         challenger: &mut <GC as IopCtx>::Challenger,
     ) -> Result<WhirProof<GC>, Self::ProverError> {
         let (folding_point, stacked_point) = eval_point
-            .split_at(eval_point.dimension() - self.config.starting_interleaved_log_height);
+            .split_at(eval_point.dimension() - self.config.starting_interleaved_log_height());
         let eval_point = stacked_point
             .iter()
             .copied()
@@ -610,7 +621,7 @@ where
     }
 
     fn log_max_padding_amount(&self) -> u32 {
-        self.config.starting_interleaved_log_height as u32
+        self.config.starting_interleaved_log_height() as u32
     }
 }
 
@@ -818,7 +829,7 @@ mod tests {
 
     use rand::{distributions::Standard, prelude::Distribution, thread_rng, Rng, SeedableRng};
     use slop_algebra::{extension::BinomialExtensionField, TwoAdicField, UnivariatePolynomial};
-    use slop_baby_bear::BabyBear;
+    use slop_baby_bear::{baby_bear_poseidon2::BabyBearDegree4Duplex, BabyBear};
     use slop_commit::Rounds;
     use slop_dft::p3::Radix2DitParallel;
     use slop_jagged::{JaggedEvalSumcheckProver, JaggedPcsVerifier, JaggedProver};
@@ -831,7 +842,7 @@ mod tests {
     use slop_utils::setup_logger;
 
     use super::*;
-    use crate::{config::WhirProofShape, verifier::Verifier};
+    use crate::{config::WhirProofShape, verifier::Verifier, UncheckedWhirProofShape};
 
     type F = KoalaBear;
     type EF = BinomialExtensionField<F, 4>;
@@ -1137,7 +1148,7 @@ mod tests {
         GC: IopCtx<F: TwoAdicField, EF: TwoAdicField + ExtensionField<GC::F>>,
         MerkleProver: TensorCsProver<GC, CpuBackend> + ComputeTcsOpenings<GC, CpuBackend>,
     >(
-        config: WhirProofShape<GC::F>,
+        config: WhirProofShape<GC::F, GC::EF>,
         merkle_prover: MerkleProver,
         rounds: Rounds<Message<Mle<GC::F>>>,
     ) where
@@ -1152,7 +1163,7 @@ mod tests {
                     .iter()
                     .map(|m| m.guts().as_slice().len())
                     .sum::<usize>()
-                    .next_multiple_of(1 << config.starting_interleaved_log_height)
+                    .next_multiple_of(1 << config.starting_interleaved_log_height())
             })
             .collect::<Vec<_>>();
         let num_variables = round_areas.iter().sum::<usize>().next_power_of_two().ilog2() as usize;
@@ -1160,6 +1171,7 @@ mod tests {
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
 
         let mut challenger_prover = GC::default_challenger();
+        challenger_prover.observe(GC::F::from_canonical_usize(rounds.len()));
         config.write_to_challenger(&mut challenger_prover);
         let mut challenger_verifier = GC::default_challenger();
 
@@ -1213,9 +1225,9 @@ mod tests {
             rounds.iter().count(),
             &mut challenger_verifier,
         );
-        verifier
-            .observe_commitment(&commitments, &mut challenger_verifier, rounds.iter().count())
-            .unwrap();
+
+        challenger_verifier.observe_constant_length_digest_slice(&commitments);
+
         verifier
             .verify_trusted_evaluation(
                 &commitments,
@@ -1232,7 +1244,7 @@ mod tests {
         GC: IopCtx<F: TwoAdicField, EF: TwoAdicField + ExtensionField<GC::F>>,
         MerkleProver: TensorCsProver<GC, CpuBackend> + ComputeTcsOpenings<GC, CpuBackend>,
     >(
-        config: WhirProofShape<GC::F>,
+        config: WhirProofShape<GC::F, GC::EF>,
         num_variables: usize,
         merkle_prover: MerkleProver,
     ) where
@@ -1258,7 +1270,7 @@ mod tests {
         GC: IopCtx<F: TwoAdicField, EF: TwoAdicField + ExtensionField<GC::F>>,
         MerkleProver: TensorCsProver<GC, CpuBackend> + ComputeTcsOpenings<GC, CpuBackend>,
     >(
-        config: WhirProofShape<GC::F>,
+        config: WhirProofShape<GC::F, GC::EF>,
         num_variables: usize,
         merkle_prover: MerkleProver,
     ) where
@@ -1283,7 +1295,8 @@ mod tests {
 
     #[test]
     fn whir_test_multi_round_koala_bear() {
-        let config = WhirProofShape::default_whir_config();
+        let config = UncheckedWhirProofShape::<KoalaBear>::default_whir_config();
+        let config = WhirProofShape::<KoalaBear, BinomialExtensionField<KoalaBear, 4>>::new(config);
         let merkle_prover: Poseidon2KoalaBear16Prover = FieldMerkleTreeProver::default();
 
         whir_test_multi_round::<_, _>(config, 16, merkle_prover);
@@ -1291,7 +1304,8 @@ mod tests {
 
     #[test]
     fn whir_test_e2e_koala_bear() {
-        let config = WhirProofShape::default_whir_config();
+        let config = UncheckedWhirProofShape::<KoalaBear>::default_whir_config();
+        let config = WhirProofShape::<KoalaBear, BinomialExtensionField<KoalaBear, 4>>::new(config);
         let merkle_prover: Poseidon2KoalaBear16Prover = FieldMerkleTreeProver::default();
         whir_test_single_round::<_, _>(config, 16, merkle_prover);
     }
@@ -1299,29 +1313,33 @@ mod tests {
     #[test]
     #[ignore = "test used for benchmarking"]
     fn whir_test_realistic_koala_bear() {
-        let config = WhirProofShape::<KoalaBear>::big_beautiful_whir_config();
+        let config = UncheckedWhirProofShape::<KoalaBear>::big_beautiful_whir_config();
+        let config = WhirProofShape::<KoalaBear, BinomialExtensionField<KoalaBear, 4>>::new(config);
         let merkle_prover: Poseidon2KoalaBear16Prover = FieldMerkleTreeProver::default();
         whir_test_single_round::<_, _>(config, 28, merkle_prover);
     }
 
     #[test]
     fn whir_test_e2e_baby_bear() {
-        let config = WhirProofShape::default_whir_config();
+        let config = UncheckedWhirProofShape::<BabyBear>::default_whir_config();
+        let config = WhirProofShape::<BabyBear, BinomialExtensionField<BabyBear, 4>>::new(config);
         let merkle_prover: Poseidon2BabyBear16Prover = FieldMerkleTreeProver::default();
-        whir_test_single_round::<_, _>(config, 16, merkle_prover);
+        whir_test_single_round::<BabyBearDegree4Duplex, _>(config, 16, merkle_prover);
     }
 
     #[test]
     #[ignore = "test used for benchmarking"]
     fn whir_test_realistic_baby_bear() {
-        let config = WhirProofShape::big_beautiful_whir_config();
+        let config = UncheckedWhirProofShape::<BabyBear>::big_beautiful_whir_config();
+        let config = WhirProofShape::<BabyBear, BinomialExtensionField<BabyBear, 4>>::new(config);
         let merkle_prover: Poseidon2BabyBear16Prover = FieldMerkleTreeProver::default();
         whir_test_single_round::<_, _>(config, 28, merkle_prover);
     }
 
     #[test]
     fn jagged_whir_test_baby_bear() {
-        let config = WhirProofShape::default_whir_config();
+        let config = UncheckedWhirProofShape::<BabyBear>::default_whir_config();
+        let config = WhirProofShape::<BabyBear, BinomialExtensionField<BabyBear, 4>>::new(config);
         let merkle_prover: Poseidon2BabyBear16Prover = FieldMerkleTreeProver::default();
 
         test_jagged_whir_generic::<_, _>(config, merkle_prover);
@@ -1331,7 +1349,7 @@ mod tests {
         GC: IopCtx<F: TwoAdicField, EF: TwoAdicField + ExtensionField<GC::F>>,
         MerkleProver: TensorCsProver<GC, CpuBackend> + ComputeTcsOpenings<GC, CpuBackend>,
     >(
-        config: WhirProofShape<GC::F>,
+        config: WhirProofShape<GC::F, GC::EF>,
         merkle_prover: MerkleProver,
     ) where
         rand::distributions::Standard: rand::distributions::Distribution<GC::F>,
@@ -1385,6 +1403,7 @@ mod tests {
 
         let mut challenger_prover = jagged_verifier.challenger();
         // Write the config to the challenger before proving.
+        challenger_prover.observe(GC::F::from_canonical_usize(num_rounds));
         config.write_to_challenger(&mut challenger_prover);
 
         let jagged_prover =
