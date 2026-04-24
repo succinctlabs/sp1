@@ -4,7 +4,7 @@ use slop_algebra::{Dorroh, TwoAdicField};
 use slop_challenger::{FieldChallenger, IopCtx};
 use slop_multilinear::Point;
 
-use crate::compiler::{ConstraintCtx, ReadingCtx, TranscriptExhaustedError};
+use crate::compiler::{ConstraintCtx, ReadingCtx, TranscriptReadError};
 use crate::zk::inner::{
     ConstraintContextInnerExt, ExpressionIndex, MleCommitmentIndex, ZkCnstrAndReadingCtxInner,
     ZkPcsVerifier, ZkVerificationContext, ZkVerifierError,
@@ -121,15 +121,21 @@ impl<GC: ZkIopCtx> ConstraintCtx for ZkVerifierCtx<GC> {
 // ============================================================================
 
 impl<GC: ZkIopCtx> ReadingCtx for ZkVerifierCtx<GC> {
-    fn read_exact(&mut self, buf: &mut [Self::Expr]) -> Result<(), TranscriptExhaustedError> {
+    fn read_exact(&mut self, buf: &mut [Self::Expr]) -> Result<(), TranscriptReadError> {
         // If we only want one element, use a more efficient method that avoids allocations.
         if buf.len() == 1 {
-            buf[0] =
-                self.inner.read_one().map(Dorroh::Element).ok_or(TranscriptExhaustedError(1))?;
+            buf[0] = self
+                .inner
+                .read_one()
+                .map(Dorroh::Element)
+                .ok_or(TranscriptReadError::TranscriptReadUnspecified)?;
             return Ok(());
         }
         // Otherwise, read a vector and copy.
-        let values = self.inner.read_next(buf.len()).ok_or(TranscriptExhaustedError(buf.len()))?;
+        let values = self
+            .inner
+            .read_next(buf.len())
+            .ok_or(TranscriptReadError::TranscriptReadUnspecified)?;
         for (b, value) in buf.iter_mut().zip(values) {
             *b = Dorroh::Element(value);
         }

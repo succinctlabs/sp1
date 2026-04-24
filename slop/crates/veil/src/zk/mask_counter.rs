@@ -1,7 +1,7 @@
 use slop_algebra::Dorroh;
 use slop_challenger::FieldChallenger;
 
-use crate::compiler::{ConstraintCtx, ReadingCtx, SendingCtx, TranscriptExhaustedError};
+use crate::compiler::{ConstraintCtx, ReadingCtx, SendingCtx, TranscriptReadError};
 use crate::zk::inner::MaskCounterContext;
 use crate::zk::verifier_ctx::MleCommit;
 use crate::zk::ZkIopCtx;
@@ -83,9 +83,12 @@ impl<GC: ZkIopCtx> ConstraintCtx for MaskCounter<GC> {
 // ============================================================================
 
 impl<GC: ZkIopCtx> ReadingCtx for MaskCounter<GC> {
-    fn read_exact(&mut self, buf: &mut [Self::Expr]) -> Result<(), TranscriptExhaustedError> {
+    fn read_exact(&mut self, buf: &mut [Self::Expr]) -> Result<(), TranscriptReadError> {
         use crate::zk::inner::ZkCnstrAndReadingCtxInner;
-        let values = self.inner.read_next(buf.len()).ok_or(TranscriptExhaustedError(buf.len()))?;
+        let values = self
+            .inner
+            .read_next(buf.len())
+            .ok_or(TranscriptReadError::TranscriptReadUnspecified)?;
         for (b, v) in buf.iter_mut().zip(values) {
             *b = Dorroh::Element(v);
         }

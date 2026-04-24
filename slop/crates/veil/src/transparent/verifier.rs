@@ -5,7 +5,7 @@ use slop_multilinear::{Mle, Point};
 use slop_stacked::{StackedBasefoldProof, StackedPcsVerifier, StackedVerifierError};
 use thiserror::Error;
 
-use crate::compiler::{AssertZeroError, ConstraintCtx, ReadingCtx, TranscriptExhaustedError};
+use crate::compiler::{AssertZeroError, ConstraintCtx, ReadingCtx, TranscriptReadError};
 use crate::transparent::prover::TransparentProof;
 
 /// Opaque handle the verifier hands out for each committed oracle. The digest and
@@ -60,8 +60,8 @@ pub struct TransparentVerifierCtx<GC: IopCtx> {
     pcs_proofs: Vec<StackedBasefoldProof<GC>>,
 
     // Traversal cursors.
-    /// Next transcript element to read, as `(group_idx, local_idx)`.
-    read_cursor: (usize, usize),
+    /// Next transcript message to read.
+    read_cursor: usize,
     /// Next commitment to hand out as an oracle.
     oracle_cursor: usize,
 
@@ -83,7 +83,7 @@ impl<GC: IopCtx> TransparentVerifierCtx<GC> {
             transcript: proof.transcript,
             oracle_commits: proof.oracle_commits,
             pcs_proofs: proof.pcs_proofs,
-            read_cursor: (0, 0),
+            read_cursor: 0,
             oracle_cursor: 0,
             challenger: GC::default_challenger(),
             mle_claims: Vec::new(),
@@ -91,20 +91,22 @@ impl<GC: IopCtx> TransparentVerifierCtx<GC> {
         }
     }
 
-    /// Advance the read cursor by one and return the position that was read.
-    /// Panics if the transcript is exhausted.
-    fn advance_read_cursor(&mut self) -> (usize, usize) {
-        while self.read_cursor.0 < self.transcript.len() {
-            let (g, l) = self.read_cursor;
-            if l < self.transcript[g].len() {
-                self.read_cursor.1 += 1;
-                return (g, l);
-            }
-            self.read_cursor.0 += 1;
-            self.read_cursor.1 = 0;
-        }
-        panic!("transcript exhausted");
-    }
+    // /// Advance the read cursor by one and return the position that was read.
+    // /// If the read cursor has overrun the transcript, do not advance.
+    // /// The error will be caught by read_exact
+    // fn advance_read_cursor(&mut self) -> (usize, usize) {
+    //     let (g, l) = self.read_cursor;
+    //     if l < self.transcript[g].len() {
+    //         self.read_cursor.1 += 1;
+    //         return (g, l);
+    //     }
+    //     if g < self.transcript.len() - 1 {
+    //         self.read_cursor.0 += 1;
+    //         self.read_cursor.1 = 0;
+    //         return self.read_cursor;
+    //     }
+    //     self.read_cursor
+    // }
 }
 
 // ============================================================================
@@ -147,13 +149,26 @@ impl<GC: IopCtx> ConstraintCtx for TransparentVerifierCtx<GC> {
 // ============================================================================
 
 impl<GC: IopCtx> ReadingCtx for TransparentVerifierCtx<GC> {
-    fn read_exact(&mut self, buf: &mut [Self::Expr]) -> Result<(), TranscriptExhaustedError> {
-        for slot in buf.iter_mut() {
-            let (g, l) = self.advance_read_cursor();
-            let value = self.transcript[g][l];
-            self.challenger.observe_ext_element(value);
-            *slot = value;
+    fn read_exact(&mut self, buf: &mut [Self::Expr]) -> Result<(), TranscriptReadError> {
+        let message = self
+            .transcript
+            .get(self.read_cursor)
+            .ok_or(TranscriptReadError::TranscriptExhausted)?;
+        if message.len() != buf.len() {
+            return Err(TranscriptReadError::TranscriptReadMismatch {
+                expected: buf.len(),
+                got: message.len(),
+            });
         }
+
+        //If everything is shaped well, copy the message into the buffer, observe each
+        // value on the challenger (mirroring the prover's `send_value[s]`), and advance
+        // the cursor.
+        for (b, v) in buf.iter_mut().zip(message) {
+            *b = *v;
+            self.challenger.observe_ext_element(*v);
+        }
+        self.read_cursor += 1;
         Ok(())
     }
 

@@ -2,7 +2,7 @@ use slop_algebra::{rlc_univariate_polynomials, AbstractField};
 use slop_sumcheck::{ComponentPoly, SumcheckPoly, SumcheckPolyFirstRound};
 use thiserror::Error;
 
-use crate::compiler::{ConstraintCtx, ReadingCtx, SendingCtx, TranscriptExhaustedError};
+use crate::compiler::{ConstraintCtx, ReadingCtx, SendingCtx, TranscriptReadError};
 
 /// Sumcheck verification errors, shaped to mirror
 /// [`slop_sumcheck::verifier::SumcheckError`]. The specific round-failure
@@ -19,7 +19,7 @@ pub enum SumcheckError {
     #[error("inconsistency of proof with evaluation claim")]
     InconsistencyWithEval,
     #[error("unexpected end of transcript")]
-    TranscriptExhausted(#[from] TranscriptExhaustedError),
+    TranscriptExhausted(#[from] TranscriptReadError),
 }
 
 /// Static shape of a sumcheck instance. `poly_component_counts.len()` is the

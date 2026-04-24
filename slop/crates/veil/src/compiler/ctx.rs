@@ -118,8 +118,14 @@ pub trait ConstraintCtx {
 }
 
 #[derive(Clone, Copy, Debug, Error)]
-#[error("transcript exhausted, message size {0} too large")]
-pub struct TranscriptExhaustedError(pub usize);
+pub enum TranscriptReadError {
+    #[error("transcript exhausted")]
+    TranscriptExhausted,
+    #[error("transcript read mismatch: expected {expected}, got {got}")]
+    TranscriptReadMismatch { expected: usize, got: usize },
+    #[error("unspecified transcript read error")]
+    TranscriptReadUnspecified,
+}
 
 /// Extension of `ConstraintCtx` that can read from the proof transcript and sample challenges.
 ///
@@ -128,7 +134,7 @@ pub struct TranscriptExhaustedError(pub usize);
 /// is needed.
 pub trait ReadingCtx: ConstraintCtx {
     /// Read a message from the transcript into a slice of expressions.
-    fn read_exact(&mut self, buf: &mut [Self::Expr]) -> Result<(), TranscriptExhaustedError>;
+    fn read_exact(&mut self, buf: &mut [Self::Expr]) -> Result<(), TranscriptReadError>;
 
     /// Read a PCS commitment from the transcript, returning an opaque oracle handle.
     ///
@@ -152,13 +158,13 @@ pub trait ReadingCtx: ConstraintCtx {
     /// Sample a Fiat-Shamir challenge from the transcript.
     fn sample(&mut self) -> Self::Challenge;
 
-    fn read_one(&mut self) -> Result<Self::Expr, TranscriptExhaustedError> {
+    fn read_one(&mut self) -> Result<Self::Expr, TranscriptReadError> {
         let mut expr = Self::Expr::default();
         self.read_exact(slice::from_mut(&mut expr))?;
         Ok(expr)
     }
 
-    fn read_next(&mut self, count: usize) -> Result<Vec<Self::Expr>, TranscriptExhaustedError> {
+    fn read_next(&mut self, count: usize) -> Result<Vec<Self::Expr>, TranscriptReadError> {
         let mut values = vec![Self::Expr::default(); count];
         self.read_exact(&mut values)?;
         Ok(values)

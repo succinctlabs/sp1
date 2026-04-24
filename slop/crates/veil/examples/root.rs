@@ -96,7 +96,7 @@ fn main() {
     let mut rng = ChaCha20Rng::from_entropy();
 
     let secret_root = EF::from_canonical_u32(42);
-    let poly_coeffs = make_polynomial_with_root(secret_root, 5);
+    let poly_coeffs = make_polynomial_with_root(secret_root, 50);
 
     // Sanity check: p(root) = 0
     let poly = UnivariatePolynomial::new(poly_coeffs.clone());
