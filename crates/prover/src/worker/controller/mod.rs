@@ -1,6 +1,7 @@
 mod compress;
 mod core;
 mod deferred;
+mod gate;
 mod global;
 mod precompiles;
 mod splicing;
@@ -9,6 +10,7 @@ mod vk_tree;
 pub use compress::*;
 pub use core::*;
 pub use deferred::*;
+pub use gate::*;
 pub use global::*;
 pub use precompiles::*;
 pub use splicing::*;
@@ -116,12 +118,16 @@ where
         self.config.global_memory_buffer_size
     }
 
-    pub fn initialize_splicing_engine(&self) -> Arc<SplicingEngine<A, W>> {
+    pub fn initialize_splicing_engine(
+        &self,
+        gate: ProveShardGate<A, W>,
+    ) -> Arc<SplicingEngine<A, W>> {
         let splicing_workers = (0..self.config.num_splicing_workers)
             .map(|_| {
                 SplicingWorker::new(
                     self.artifact_client.clone(),
                     self.worker_client.clone(),
+                    gate.clone(),
                     self.config.number_of_send_splice_workers_per_splice,
                     self.config.send_splice_input_buffer_size_per_splice,
                 )
@@ -143,7 +149,16 @@ where
         let deferred_proofs = stdin.proofs.iter().map(|(proof, _)| proof.clone());
         let deferred_inputs = DeferredInputs::new(deferred_proofs);
 
-        let splicing_engine = self.initialize_splicing_engine();
+        // Per-proof backpressure gate; permit pool lives in the artifact store.
+        let gate = ProveShardGate::new(
+            self.artifact_client.clone(),
+            self.worker_client.clone(),
+            request.context.proof_id.clone(),
+        )
+        .await
+        .map_err(TaskError::Fatal)?;
+
+        let splicing_engine = self.initialize_splicing_engine(gate.clone());
         let proof_data_sender =
             MessageSender::<W, ProofData>::new(self.worker_client.clone(), task_id);
         let executor = SP1CoreExecutor::new(
@@ -158,6 +173,7 @@ where
             proof_data_sender.clone(),
             self.artifact_client.clone(),
             self.worker_client.clone(),
+            gate,
             self.minimal_executor_cache.clone(),
             request.cycle_limit,
         );

@@ -152,7 +152,7 @@ pub struct CommonProverInput {
     pub nonce: [u32; PROOF_NONCE_NUM_WORDS],
 }
 
-pub struct SP1CoreExecutor<A, W: WorkerClient> {
+pub struct SP1CoreExecutor<A: ArtifactClient, W: WorkerClient> {
     splicing_engine: Arc<SplicingEngine<A, W>>,
     global_memory_buffer_size: usize,
     elf: Artifact,
@@ -164,11 +164,12 @@ pub struct SP1CoreExecutor<A, W: WorkerClient> {
     sender: MessageSender<W, ProofData>,
     artifact_client: A,
     worker_client: W,
+    gate: super::ProveShardGate<A, W>,
     minimal_executor_cache: Option<MinimalExecutorCache>,
     cycle_limit: Option<u64>,
 }
 
-impl<A, W: WorkerClient> SP1CoreExecutor<A, W> {
+impl<A: ArtifactClient, W: WorkerClient> SP1CoreExecutor<A, W> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         splicing_engine: Arc<SplicingEngine<A, W>>,
@@ -182,6 +183,7 @@ impl<A, W: WorkerClient> SP1CoreExecutor<A, W> {
         sender: MessageSender<W, ProofData>,
         artifact_client: A,
         worker_client: W,
+        gate: super::ProveShardGate<A, W>,
         minimal_executor_cache: Option<MinimalExecutorCache>,
         cycle_limit: Option<u64>,
     ) -> Self {
@@ -197,6 +199,7 @@ impl<A, W: WorkerClient> SP1CoreExecutor<A, W> {
             sender,
             artifact_client,
             worker_client,
+            gate,
             minimal_executor_cache,
             cycle_limit,
         }
@@ -405,6 +408,7 @@ where
             {
                 let artifact_client = self.artifact_client.clone();
                 let worker_client = self.worker_client.clone();
+                let gate = self.gate.clone();
                 let num_deferred_proofs = self.num_deferred_proofs;
                 let sender = self.sender.clone();
                 let elf = self.elf.clone();
@@ -427,6 +431,7 @@ where
                             num_deferred_proofs,
                             artifact_client,
                             worker_client,
+                            gate,
                             minimal_executor_cache,
                         )
                         .await?;
@@ -440,6 +445,7 @@ where
         join_set.spawn({
             let artifact_client = self.artifact_client.clone();
             let worker_client = self.worker_client.clone();
+            let gate = self.gate.clone();
             let sender = self.sender.clone();
             let elf = self.elf.clone();
             let common_input = self.common_input.clone();
@@ -452,6 +458,7 @@ where
                         sender,
                         artifact_client,
                         worker_client,
+                        gate,
                         context,
                     )
                     .await?;
@@ -526,6 +533,7 @@ pub struct SpawnProveOutput {
     pub proof_data: ProofData,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) async fn create_core_proving_task<A: ArtifactClient, W: WorkerClient>(
     elf_artifact: Artifact,
     common_input_artifact: Artifact,
@@ -534,9 +542,13 @@ pub(super) async fn create_core_proving_task<A: ArtifactClient, W: WorkerClient>
     trace_data: TraceData,
     worker_client: W,
     artifact_client: A,
+    gate: &super::ProveShardGate<A, W>,
 ) -> Result<SpawnProveOutput, ExecutionError> {
     let record_artifact =
         artifact_client.create_artifact().map_err(|e| ExecutionError::Other(e.to_string()))?;
+
+    // Reserve before upload; held across upload + submit + task completion.
+    let shard_permit = gate.acquire(&record_artifact).await;
 
     // Make a deferred marker task. This is used for the worker to send
     // its deferred record back to the controller.
@@ -599,6 +611,9 @@ pub(super) async fn create_core_proving_task<A: ArtifactClient, W: WorkerClient>
         .submit_task(TaskType::ProveShard, task)
         .await
         .map_err(|e| ExecutionError::Other(e.to_string()))?;
+
+    gate.schedule_release(task_id.clone(), shard_permit);
+
     let proof_data = ProofData { task_id, range, proof: proof_artifact };
     Ok(SpawnProveOutput { deferred_message, proof_data })
 }
