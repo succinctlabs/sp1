@@ -22,6 +22,20 @@ pub enum Error {
         request_id: Vec<u8>,
     },
 
+    /// The proof request was soft-reverted by the vApp STF (terminal; no balance impact).
+    #[error("Proof request 0x{} was soft-reverted by the vApp STF", hex::encode(.request_id))]
+    RequestReverted {
+        /// The ID of the request that was soft-reverted.
+        request_id: Vec<u8>,
+    },
+
+    /// The proof request expired at its deadline without a proof being submitted (terminal).
+    #[error("Proof request 0x{} expired before a proof was submitted", hex::encode(.request_id))]
+    RequestExpired {
+        /// The ID of the request that expired.
+        request_id: Vec<u8>,
+    },
+
     /// The proof request timed out.
     #[error("Proof request 0x{} timed out", hex::encode(.request_id))]
     RequestTimedOut {
