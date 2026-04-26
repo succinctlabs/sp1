@@ -4466,10 +4466,9 @@ pub enum FulfillmentStatus {
     Fulfilled = 3,
     /// The request cannot be fulfilled.
     Unfulfillable = 4,
-    /// The Clear was soft-reverted by the vApp STF. Terminal; no balance impact.
+    /// The request failed during settlement. Terminal; no proof is recorded.
     Reverted = 5,
-    /// Request sat at ASSIGNED past its deadline without the prover ever submitting
-    /// a proof. Terminal; STF never received a Clear for it. No balance impact.
+    /// The request expired at its deadline without a proof being submitted. Terminal.
     Expired = 6,
 }
 impl FulfillmentStatus {
