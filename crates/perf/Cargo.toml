@@ -34,15 +34,19 @@ test-artifacts = { path = "../test-artifacts" }
 
 [[bin]]
 name = "sp1-perf"
-path = "src/perf.rs"
+path = "src/bin/perf.rs"
 
 [[bin]]
 name = "sp1-perf-executor"
-path = "src/executor.rs"
+path = "src/bin/executor.rs"
 
 [[bin]]
 name = "sp1-perf-setup"
-path = "src/setup.rs"
+path = "src/bin/setup.rs"
+
+[[bin]]
+name = "sp1-perf-prover"
+path = "src/bin/prover.rs"
 
 [features]
 bigint-rug = ["sp1-core-executor/bigint-rug"]
