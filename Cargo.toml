@@ -6,7 +6,7 @@ repository = "https://github.com/succinctlabs/sp1"
 keywords = ["sp1", "succinct", "zero-knowledge", "zkvm"]
 categories = ["cryptography"]
 include = ["SP1_CIRCUIT_VERSION"]
-rust-version = "1.91"
+rust-version = "1.88"
 
 [workspace]
 members = [
@@ -152,23 +152,23 @@ sp1-gpu-tracing = { version = "6.1.0", path = "sp1-gpu/crates/tracing" }
 sp1-gpu-utils = { version = "6.1.0", path = "sp1-gpu/crates/utils" }
 sp1-gpu-zerocheck = { version = "6.1.0", path = "sp1-gpu/crates/zerocheck" }
 
-p3-air = "0.3.2-succinct"
-p3-baby-bear = "0.3.2-succinct"
-p3-bn254-fr = "0.3.2-succinct"
-p3-challenger = "0.3.2-succinct"
-p3-commit = "0.3.2-succinct"
-p3-dft = "0.3.2-succinct"
-p3-field = "0.3.2-succinct"
-p3-fri = "0.3.2-succinct"
-p3-keccak-air = "0.3.2-succinct"
-p3-koala-bear = "0.3.2-succinct"
-p3-matrix = "0.3.2-succinct"
-p3-maybe-rayon = { version = "0.3.2-succinct", features = ["parallel"] }
-p3-merkle-tree = "0.3.2-succinct"
-p3-poseidon2 = "0.3.2-succinct"
-p3-symmetric = "0.3.2-succinct"
-p3-uni-stark = "0.3.2-succinct"
-p3-util = "0.3.2-succinct"
+p3-air = "0.3.3-succinct"
+p3-baby-bear = "0.3.3-succinct"
+p3-bn254-fr = "0.3.3-succinct"
+p3-challenger = "0.3.3-succinct"
+p3-commit = "0.3.3-succinct"
+p3-dft = "0.3.3-succinct"
+p3-field = "0.3.3-succinct"
+p3-fri = "0.3.3-succinct"
+p3-keccak-air = "0.3.3-succinct"
+p3-koala-bear = "0.3.3-succinct"
+p3-matrix = "0.3.3-succinct"
+p3-maybe-rayon = { version = "0.3.3-succinct", features = ["parallel"] }
+p3-merkle-tree = "0.3.3-succinct"
+p3-poseidon2 = "0.3.3-succinct"
+p3-symmetric = "0.3.3-succinct"
+p3-uni-stark = "0.3.3-succinct"
+p3-util = "0.3.3-succinct"
 
 slop-air = { version = "6.1.0", path = "./slop/crates/air" }
 slop-algebra = { version = "6.1.0", path = "./slop/crates/algebra" }
