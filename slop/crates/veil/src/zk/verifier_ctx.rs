@@ -4,7 +4,7 @@ use slop_algebra::{Dorroh, TwoAdicField};
 use slop_challenger::{FieldChallenger, IopCtx};
 use slop_multilinear::Point;
 
-use crate::compiler::{ConstraintCtx, ReadingCtx, TranscriptExhaustedError};
+use crate::compiler::{ConstraintCtx, ReadingCtx, TranscriptReadError};
 use crate::zk::inner::{
     ConstraintContextInnerExt, ExpressionIndex, MleCommitmentIndex, ZkCnstrAndReadingCtxInner,
     ZkPcsVerifier, ZkVerificationContext, ZkVerifierError,
@@ -50,6 +50,7 @@ impl<GC: ZkIopCtx> ZkVerifierCtx<GC> {
 pub type TranscriptElement<GC: ZkIopCtx> =
     Dorroh<GC::EF, ExpressionIndex<GC::EF, ZkVerificationContext<GC>>>;
 
+#[derive(Clone, Copy)]
 pub struct MleCommit {
     pub(crate) inner: MleCommitmentIndex,
 }
@@ -78,10 +79,12 @@ impl<GC: ZkIopCtx> ConstraintCtx for ZkVerifierCtx<GC> {
     type Expr = TranscriptElement<GC>;
     type Challenge = GC::EF;
     type MleOracle = MleCommit;
+    type AssertError = std::convert::Infallible;
 
-    fn assert_zero(&mut self, expr: TranscriptElement<GC>) {
+    fn assert_zero(&mut self, expr: TranscriptElement<GC>) -> Result<(), Self::AssertError> {
         let idx = into_verifier_value(expr, &mut self.inner);
         self.inner.assert_zero(idx);
+        Ok(())
     }
 
     fn assert_a_times_b_equals_c(
@@ -89,11 +92,12 @@ impl<GC: ZkIopCtx> ConstraintCtx for ZkVerifierCtx<GC> {
         a: TranscriptElement<GC>,
         b: TranscriptElement<GC>,
         c: TranscriptElement<GC>,
-    ) {
+    ) -> Result<(), Self::AssertError> {
         let ai = into_verifier_value(a, &mut self.inner);
         let bi = into_verifier_value(b, &mut self.inner);
         let ci = into_verifier_value(c, &mut self.inner);
         self.inner.assert_a_times_b_equals_c(ai, bi, ci);
+        Ok(())
     }
 
     fn assert_mle_multi_eval(
@@ -117,15 +121,14 @@ impl<GC: ZkIopCtx> ConstraintCtx for ZkVerifierCtx<GC> {
 // ============================================================================
 
 impl<GC: ZkIopCtx> ReadingCtx for ZkVerifierCtx<GC> {
-    fn read_exact(&mut self, buf: &mut [Self::Expr]) -> Result<(), TranscriptExhaustedError> {
+    fn read_exact(&mut self, buf: &mut [Self::Expr]) -> Result<(), TranscriptReadError> {
         // If we only want one element, use a more efficient method that avoids allocations.
         if buf.len() == 1 {
-            buf[0] =
-                self.inner.read_one().map(Dorroh::Element).ok_or(TranscriptExhaustedError(1))?;
+            buf[0] = Dorroh::Element(self.inner.read_one()?);
             return Ok(());
         }
         // Otherwise, read a vector and copy.
-        let values = self.inner.read_next(buf.len()).ok_or(TranscriptExhaustedError(buf.len()))?;
+        let values = self.inner.read_next(buf.len())?;
         for (b, value) in buf.iter_mut().zip(values) {
             *b = Dorroh::Element(value);
         }
