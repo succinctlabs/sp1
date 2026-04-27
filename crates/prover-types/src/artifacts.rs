@@ -6,10 +6,33 @@ use futures_util::future::FutureExt;
 use hashbrown::{HashMap, HashSet};
 use mti::prelude::{MagicTypeIdExt, V7};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::{Mutex, OwnedSemaphorePermit, RwLock};
 use tracing::Instrument;
 
 use crate::utils::{await_blocking, await_scoped_vec};
+
+/// Reservation of space in the artifact store for one in-flight shard.
+///
+/// Held from `upload()` until the downstream consumer deletes the artifact;
+/// dropping releases the reservation. Stores without a memory ceiling (S3,
+/// in-memory) return [`ShardPermit::noop`] so producers can call
+/// `acquire_shard_permit` uniformly.
+pub struct ShardPermit {
+    // Dropping releases the underlying semaphore slot.
+    _guard: Option<OwnedSemaphorePermit>,
+}
+
+impl ShardPermit {
+    /// Zero-cost permit for stores without a memory ceiling.
+    pub const fn noop() -> Self {
+        Self { _guard: None }
+    }
+
+    /// Wrap a real semaphore permit from a memory-bounded store.
+    pub const fn new(guard: OwnedSemaphorePermit) -> Self {
+        Self { _guard: Some(guard) }
+    }
+}
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ArtifactType {
@@ -151,6 +174,17 @@ pub trait ArtifactClient: Send + Sync + Clone + 'static {
         artifacts: &[impl ArtifactId],
         artifact_type: ArtifactType,
     ) -> impl Future<Output = Result<()>> + Send;
+
+    /// Reserve space for an in-flight shard artifact. Default: no-op.
+    /// Memory-bounded stores (Redis) override to return a real permit sized
+    /// from their memory ceiling; hold it until the consumer deletes the
+    /// artifact, then drop to release.
+    fn acquire_shard_permit(
+        &self,
+        _artifact: &impl ArtifactId,
+    ) -> impl Future<Output = ShardPermit> + Send {
+        async { ShardPermit::noop() }
+    }
 
     fn try_delete(
         &self,

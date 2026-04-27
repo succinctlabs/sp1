@@ -13,9 +13,9 @@ use tokio::{sync::mpsc, task::JoinSet};
 use tracing::Instrument;
 
 use crate::worker::{
-    controller::create_core_proving_task, CommonProverInput, DeferredMessage, FinalVmState,
-    FinalVmStateLock, MessageSender, ProofData, SpawnProveOutput, TaskContext, TouchedAddresses,
-    TraceData, WorkerClient,
+    controller::{create_core_proving_task, ProveShardGate},
+    CommonProverInput, DeferredMessage, FinalVmState, FinalVmStateLock, MessageSender, ProofData,
+    SpawnProveOutput, TaskContext, TouchedAddresses, TraceData, WorkerClient,
 };
 
 pub type SplicingEngine<A, W> =
@@ -36,10 +36,11 @@ pub struct SplicingTask<W: WorkerClient> {
     pub deferred_marker_tx: mpsc::UnboundedSender<DeferredMessage>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub struct SplicingWorker<A, W> {
+#[derive(Debug, Clone)]
+pub struct SplicingWorker<A: ArtifactClient, W: WorkerClient> {
     artifact_client: A,
     worker_client: W,
+    gate: ProveShardGate<A, W>,
     number_of_send_splice_workers: usize,
     send_splice_input_buffer_size: usize,
 }
@@ -52,12 +53,14 @@ where
     pub fn new(
         artifact_client: A,
         worker_client: W,
+        gate: ProveShardGate<A, W>,
         number_of_send_splice_workers: usize,
         send_splice_input_buffer_size: usize,
     ) -> Self {
         Self {
             artifact_client,
             worker_client,
+            gate,
             number_of_send_splice_workers,
             send_splice_input_buffer_size,
         }
@@ -75,6 +78,7 @@ where
             .map(|_| SendSpliceWorker {
                 artifact_client: self.artifact_client.clone(),
                 worker_client: self.worker_client.clone(),
+                gate: self.gate.clone(),
                 elf_artifact: elf_artifact.clone(),
                 common_input_artifact: common_input_artifact.clone(),
                 context: context.clone(),
@@ -309,9 +313,10 @@ pub struct SendSpliceTask {
     pub range: ShardRange,
 }
 
-struct SendSpliceWorker<A, W: WorkerClient> {
+struct SendSpliceWorker<A: ArtifactClient, W: WorkerClient> {
     artifact_client: A,
     worker_client: W,
+    gate: ProveShardGate<A, W>,
     context: TaskContext,
     elf_artifact: Artifact,
     common_input_artifact: Artifact,
@@ -340,6 +345,7 @@ where
             data,
             self.worker_client.clone(),
             self.artifact_client.clone(),
+            &self.gate,
         )
         .await
         .map_err(|e| ExecutionError::Other(format!("error in create_core_proving_task: {}", e)))?;

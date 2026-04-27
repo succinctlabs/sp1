@@ -2,22 +2,54 @@ use core::slice;
 
 use itertools::Itertools;
 use slop_algebra::{Algebra, ExtensionField, Field};
-use slop_multilinear::Point;
+use slop_multilinear::{Mle, Point};
 use thiserror::Error;
+
+/// Error returned by `assert_zero` when eagerly-checking contexts (e.g. the
+/// transparent verifier) encounter a non-zero argument. Carries the failing
+/// expression so callers / panic messages can identify what failed.
+#[derive(Debug)]
+pub struct AssertZeroError<E: std::fmt::Debug>(pub E);
+
+impl<E: std::fmt::Debug> std::fmt::Display for AssertZeroError<E> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "assertion failed: expression did not evaluate to zero (got {:?})", self.0)
+    }
+}
+
+impl<E: std::fmt::Debug + 'static> std::error::Error for AssertZeroError<E> {}
 
 pub trait ConstraintCtx {
     type Field: Field;
     type Extension: ExtensionField<Self::Field>;
 
     type Expr: Algebra<Self::Extension> + Algebra<Self::Challenge>;
-    type Challenge: Clone + Algebra<Self::Extension> + Into<Self::Extension>;
+    type Challenge: ExtensionField<Self::Field> + Algebra<Self::Extension> + Into<Self::Extension>;
     type MleOracle;
 
-    fn assert_zero(&mut self, expr: Self::Expr);
+    /// Error returned by `assert_zero` / `assert_a_times_b_equals_c`.
+    ///
+    /// Eager contexts (the transparent verifier) use a real error type like
+    /// [`AssertZeroError`] that identifies the failing constraint. Deferred
+    /// contexts (provers, ZK verifiers, mask counters) use
+    /// [`std::convert::Infallible`] — they only queue claims for later
+    /// discharge, so the assertion itself cannot fail at call time. Generic
+    /// protocol code typically `.unwrap()`s the result: a no-op on `Infallible`,
+    /// a panic with the failing expression on transparent failures.
+    type AssertError: std::error::Error;
 
-    /// assert_zero(a * b - c) materializes the product of a and b. This is unnecessary specifically
-    /// for constraints of the form a * b = c. Use this instead to avoid the extra materialization.
-    fn assert_a_times_b_equals_c(&mut self, a: Self::Expr, b: Self::Expr, c: Self::Expr);
+    fn assert_zero(&mut self, expr: Self::Expr) -> Result<(), Self::AssertError>;
+
+    /// For contexts internally using R1CS-style constraints, there may be more efficient ways
+    /// to do this beyond just assert_zero(a * b - c). Overwrite if needed.
+    fn assert_a_times_b_equals_c(
+        &mut self,
+        a: Self::Expr,
+        b: Self::Expr,
+        c: Self::Expr,
+    ) -> Result<(), Self::AssertError> {
+        self.assert_zero(a * b - c)
+    }
 
     /// Creates an expression from a polynomial evaluation: `poly(point)`.
     ///
@@ -25,7 +57,7 @@ pub trait ConstraintCtx {
     fn poly_eval(poly: &[Self::Expr], point: Self::Challenge) -> Self::Expr {
         let mut iter = poly.iter().rev();
         let first = iter.next().expect("poly_eval requires non-empty polynomial").clone();
-        iter.fold(first, |acc, term| acc * point.clone() + term.clone())
+        iter.fold(first, |acc, term| acc * point + term.clone())
     }
 
     /// Creates an expression from `eval(1) + eval(0)` of a polynomial.
@@ -86,8 +118,14 @@ pub trait ConstraintCtx {
 }
 
 #[derive(Clone, Copy, Debug, Error)]
-#[error("transcript exhausted, message size {0} too large")]
-pub struct TranscriptExhaustedError(pub usize);
+pub enum TranscriptReadError {
+    #[error("transcript exhausted")]
+    TranscriptExhausted,
+    #[error("transcript read mismatch: expected {expected}, got {got}")]
+    TranscriptReadMismatch { expected: usize, got: usize },
+    #[error("unspecified transcript read error")]
+    TranscriptReadUnspecified,
+}
 
 /// Extension of `ConstraintCtx` that can read from the proof transcript and sample challenges.
 ///
@@ -96,7 +134,7 @@ pub struct TranscriptExhaustedError(pub usize);
 /// is needed.
 pub trait ReadingCtx: ConstraintCtx {
     /// Read a message from the transcript into a slice of expressions.
-    fn read_exact(&mut self, buf: &mut [Self::Expr]) -> Result<(), TranscriptExhaustedError>;
+    fn read_exact(&mut self, buf: &mut [Self::Expr]) -> Result<(), TranscriptReadError>;
 
     /// Read a PCS commitment from the transcript, returning an opaque oracle handle.
     ///
@@ -120,13 +158,13 @@ pub trait ReadingCtx: ConstraintCtx {
     /// Sample a Fiat-Shamir challenge from the transcript.
     fn sample(&mut self) -> Self::Challenge;
 
-    fn read_one(&mut self) -> Result<Self::Expr, TranscriptExhaustedError> {
+    fn read_one(&mut self) -> Result<Self::Expr, TranscriptReadError> {
         let mut expr = Self::Expr::default();
         self.read_exact(slice::from_mut(&mut expr))?;
         Ok(expr)
     }
 
-    fn read_next(&mut self, count: usize) -> Result<Vec<Self::Expr>, TranscriptExhaustedError> {
+    fn read_next(&mut self, count: usize) -> Result<Vec<Self::Expr>, TranscriptReadError> {
         let mut values = vec![Self::Expr::default(); count];
         self.read_exact(&mut values)?;
         Ok(values)
@@ -139,16 +177,60 @@ pub trait ReadingCtx: ConstraintCtx {
     }
 }
 
-/// Extension of `ConstraintCtx` for the prover side: sending values and sampling challenges.
+/// Extension of `ConstraintCtx` for the prover side: everything a protocol needs
+/// to drive a veil protocol through to (but not including) finalization.
+///
+/// This surface is what protocol code (`param.prove`, inline prover flows in
+/// examples) actually calls: sending values to the transcript, sampling challenges,
+/// committing MLEs. The finalization step — producing the backend-specific `Proof`
+/// from the context — is an inherent method on each concrete ctx, not a trait
+/// method, so that the main driver calls `ctx.prove(rng)` alongside `ctx.verify()`
+/// symmetrically and each backend is free to pick its own return type.
+///
+/// The `commit_mle` method carries a `Standard: Distribution<Self::Field>` where
+/// clause — only required at call sites that actually commit, so protocol code
+/// that only touches the send / sample / to_value surface does not need to
+/// propagate it.
 pub trait SendingCtx: ConstraintCtx {
+    /// Error returned by [`Self::commit_mle`].
+    type CommitError: std::error::Error;
+
     /// Send a single value to the verifier (adds it to the proof transcript).
     fn send_value(&mut self, value: Self::Extension) -> Self::Expr;
 
     /// Send multiple values to the verifier (adds them to the proof transcript).
     fn send_values(&mut self, values: &[Self::Extension]) -> Vec<Self::Expr>;
 
+    /// Evaluate an expression to its underlying extension-field value.
+    ///
+    /// Prover-only operation: on the prover side, every `Expr` carries (or can
+    /// recompute) its concrete value. This is the inverse of `send_value` /
+    /// the `Algebra<Extension>` lifting — it lets protocols extract the concrete
+    /// value from an Expr that was built earlier (e.g. an upstream protocol's
+    /// output claim, or a claim constructed via `Expr::one() * value`) without
+    /// re-transmitting it on the transcript.
+    fn to_value(&self, expr: &Self::Expr) -> Self::Extension;
+
     /// Sample a Fiat-Shamir challenge from the transcript.
     fn sample(&mut self) -> Self::Challenge;
+
+    /// Commit to an MLE via the backend's configured polynomial-commitment scheme.
+    ///
+    /// The returned [`ConstraintCtx::MleOracle`] handle can be passed to
+    /// [`ConstraintCtx::assert_mle_eval`] / [`ConstraintCtx::assert_mle_multi_eval`]
+    /// later in the protocol.
+    ///
+    /// `log_num_polynomials` specifies how many stacked polynomials this MLE commit
+    /// represents; backends using the stacked PCS must have been constructed to
+    /// match this value.
+    fn commit_mle<RNG: rand::CryptoRng + rand::Rng>(
+        &mut self,
+        mle: Mle<Self::Field>,
+        log_num_polynomials: u32,
+        rng: &mut RNG,
+    ) -> Result<Self::MleOracle, Self::CommitError>
+    where
+        rand::distributions::Standard: rand::distributions::Distribution<Self::Field>;
 
     /// Sample a multilinear point
     fn sample_point(&mut self, dimension: u32) -> Point<Self::Challenge> {

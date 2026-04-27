@@ -102,10 +102,15 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ConstraintCtx for ZkProverCtx<GC, PC
     type Expr = ProverTranscriptElement<GC, PC>;
     type Challenge = GC::EF;
     type MleOracle = MleCommit;
+    type AssertError = std::convert::Infallible;
 
-    fn assert_zero(&mut self, expr: ProverTranscriptElement<GC, PC>) {
+    fn assert_zero(
+        &mut self,
+        expr: ProverTranscriptElement<GC, PC>,
+    ) -> Result<(), Self::AssertError> {
         let idx = into_prover_value::<GC, PC>(expr, &mut self.inner);
         self.inner.assert_zero(idx);
+        Ok(())
     }
 
     fn assert_a_times_b_equals_c(
@@ -113,11 +118,12 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ConstraintCtx for ZkProverCtx<GC, PC
         a: ProverTranscriptElement<GC, PC>,
         b: ProverTranscriptElement<GC, PC>,
         c: ProverTranscriptElement<GC, PC>,
-    ) {
+    ) -> Result<(), Self::AssertError> {
         let ai = into_prover_value::<GC, PC>(a, &mut self.inner);
         let bi = into_prover_value::<GC, PC>(b, &mut self.inner);
         let ci = into_prover_value::<GC, PC>(c, &mut self.inner);
         self.inner.assert_a_times_b_equals_c(ai, bi, ci);
+        Ok(())
     }
 
     fn assert_mle_multi_eval(
@@ -141,6 +147,8 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> ConstraintCtx for ZkProverCtx<GC, PC
 // ============================================================================
 
 impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> SendingCtx for ZkProverCtx<GC, PC> {
+    type CommitError = PcsCommitError;
+
     fn send_value(&mut self, value: GC::EF) -> ProverTranscriptElement<GC, PC> {
         Dorroh::Element(self.inner.add_value(value))
     }
@@ -149,8 +157,32 @@ impl<GC: ZkIopCtx, PC: PcsProverConfig<GC>> SendingCtx for ZkProverCtx<GC, PC> {
         self.inner.add_values(values).into_iter().map(Dorroh::Element).collect()
     }
 
+    fn to_value(&self, expr: &ProverTranscriptElement<GC, PC>) -> GC::EF {
+        match expr {
+            Dorroh::Constant(f) => *f,
+            Dorroh::Element(e) => e.value(),
+        }
+    }
+
     fn sample(&mut self) -> GC::EF {
         self.inner.challenger().sample_ext_element()
+    }
+
+    fn commit_mle<RNG: rand::CryptoRng + rand::Rng>(
+        &mut self,
+        mle: slop_multilinear::Mle<GC::F>,
+        log_num_polynomials: u32,
+        rng: &mut RNG,
+    ) -> Result<MleCommit, PcsCommitError>
+    where
+        rand::distributions::Standard: rand::distributions::Distribution<GC::F>,
+    {
+        let pcs_prover = self.pcs_prover.as_ref().ok_or(PcsCommitError::NoPcsProver)?;
+        let commit = self
+            .inner
+            .commit_mle(mle, log_num_polynomials as usize, pcs_prover, rng)
+            .map(|idx| MleCommit { inner: idx })?;
+        Ok(commit)
     }
 }
 

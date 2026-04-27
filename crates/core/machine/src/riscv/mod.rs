@@ -955,7 +955,7 @@ pub mod tests {
                 chip.sends()
                     .iter()
                     .chain(chip.receives().iter())
-                    .map(|interaction| (interaction.kind, interaction.values.len() as usize))
+                    .map(|interaction| (interaction.kind, interaction.values.len()))
             })
             .collect::<BTreeSet<(InteractionKind, usize)>>();
 

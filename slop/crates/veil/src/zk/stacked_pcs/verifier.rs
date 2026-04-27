@@ -113,9 +113,9 @@ where
         let mut per_claim_evals = Vec::with_capacity(num_claims);
         for j in 0..num_claims {
             let num_to_read = if j == 0 { num_polys } else { 1 << log_num_polys };
-            let Some(evals) = context.read_next(num_to_read) else {
-                return Err(ZkStackedVerifierError::IncorrectShape("Failed to get evals".into()));
-            };
+            let evals = context.read_next(num_to_read).map_err(|_| {
+                ZkStackedVerifierError::IncorrectShape("Failed to get evals".into())
+            })?;
             per_claim_evals.push(evals);
         }
 
