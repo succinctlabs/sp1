@@ -9,7 +9,6 @@ use std::{
 };
 
 use hashbrown::HashSet;
-use itertools::Itertools;
 use lru::LruCache;
 use serde::{Deserialize, Serialize};
 use slop_air::BaseAir;
@@ -186,14 +185,8 @@ impl SP1RecursionProofShape {
         machine: Machine<SP1Field, RiscvAir<SP1Field>>,
         max_arity: usize,
     ) -> SP1RecursionProofShape {
-        match machine.chips().iter().zip_eq(RiscvAir::<SP1Field>::machine().chips()).all_equal() {
-            true => {
-                tracing::info!(
-                    "Reduce shape retrieved from cache, because the machine has no apcs."
-                );
-                // return the cached shape
-                Self::compress_proof_shape_from_arity(max_arity).unwrap()
-            }
+        match machine.chips().iter().eq(RiscvAir::<SP1Field>::machine().chips()) {
+            true => Self::compress_proof_shape_from_arity(max_arity).unwrap(),
             false => {
                 unimplemented!()
             }

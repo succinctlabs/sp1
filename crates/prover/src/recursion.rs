@@ -61,7 +61,6 @@ impl RecursionVks {
     ) -> Self {
         // Pad the map to the expected number of shapes. This allows us to build partial vk maps
         // for development purposes.
-        // TODO: use apcs here
         let machine = RiscvAir::machine();
         let num_shapes = create_all_input_shapes(machine.shape(), max_compose_arity)
             .into_iter()
