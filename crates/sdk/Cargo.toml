@@ -72,7 +72,6 @@ sha2 = { workspace = true }
 # TEE Dependencies
 k256 = { workspace = true, features = ["serde"] } # Signing
 eventsource-stream = { workspace = true }         # SSE Extenstion for reqwest
-# derive-where.workspace = true
 
 [target.'cfg(target_os = "ios")'.dependencies]
 tonic = { workspace = true, features = [

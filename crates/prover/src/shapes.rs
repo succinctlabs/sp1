@@ -187,9 +187,9 @@ impl SP1RecursionProofShape {
     ) -> SP1RecursionProofShape {
         match machine.chips().iter().eq(RiscvAir::<SP1Field>::machine().chips()) {
             true => Self::compress_proof_shape_from_arity(max_arity).unwrap(),
-            false => {
-                unimplemented!()
-            }
+            false => unreachable!(
+                "All instances of `machine` are currently the same based on the test above"
+            ),
         }
     }
 

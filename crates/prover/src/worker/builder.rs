@@ -32,6 +32,12 @@ pub struct SP1WorkerBuilder<
     worker_client: Option<W>,
 }
 
+impl<C: SP1ProverComponents> Default for SP1WorkerBuilder<C> {
+    fn default() -> Self {
+        Self::new(RiscvAir::machine())
+    }
+}
+
 impl<C: SP1ProverComponents> SP1WorkerBuilder<C> {
     pub fn new(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
         // Note: the config is uniquely determined by the machine. We still cache it here.
