@@ -22,7 +22,7 @@ use slop_algebra::PrimeField32;
 
 use sp1_core_executor::SP1CoreOpts;
 use sp1_core_executor_runner::MinimalExecutorRunner;
-use sp1_core_machine::{executor::ExecutionOutput, io::SP1Stdin, riscv::RiscvAir};
+use sp1_core_machine::{executor::ExecutionOutput, io::SP1Stdin};
 use sp1_hypercube::{
     air::{PublicValues, PROOF_NONCE_NUM_WORDS},
     SP1PcsProofInner, SP1VerifyingKey, ShardProof,
@@ -176,7 +176,7 @@ where
             gate,
             self.minimal_executor_cache.clone(),
             request.cycle_limit,
-            RiscvAir::machine(),
+            request.machine,
         );
 
         let mut join_set = JoinSet::<Result<(), TaskError>>::new();
