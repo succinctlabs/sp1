@@ -14,7 +14,7 @@ use std::{
 };
 
 use chrono::Utc;
-use clap::{Parser, ValueEnum};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 use rustyline::{error::ReadlineError, history::FileHistory, Editor};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_perf::{get_input, get_program};
@@ -155,18 +155,55 @@ impl ProofModeArg {
     }
 }
 
-/// Per-request flags parsed from each REPL line.
+/// Top-level REPL parser. Each line is parsed as a subcommand.
 #[derive(Parser, Debug)]
-#[command(name = "prove", no_binary_name = true, disable_help_flag = true)]
+#[command(no_binary_name = true, disable_help_flag = true)]
+struct Cli {
+    #[command(subcommand)]
+    cmd: SubCmd,
+}
+
+#[derive(Subcommand, Debug)]
+enum SubCmd {
+    /// Run the program through execute + setup + prove + verify and log the measurement.
+    Prove(ProveArgs),
+    /// Run only the executor and report cycles, gas, and execution rate.
+    Execute(ExecuteArgs),
+    /// List benchmark programs available in s3://sp1-testing-suite/.
+    Programs {
+        /// Optional substring filter.
+        filter: Option<String>,
+    },
+    /// List input files for a benchmark program (s3://sp1-testing-suite/<program>/input/).
+    Inputs {
+        /// Program name.
+        #[arg(short, long)]
+        program: String,
+    },
+}
+
+#[derive(Args, Debug)]
 struct ProveArgs {
-    /// Program name (sp1-gpu-perf node format: 'local-<name>' or s3 path).
+    /// Program name. 'local-<name>' uses a built-in ELF (fibonacci, sha2, keccak);
+    /// anything else is loaded from s3://sp1-testing-suite/<program>/.
+    #[arg(short, long)]
     program: String,
-    /// Optional program-specific parameter.
-    #[arg(default_value = "")]
-    param: String,
+    /// Program-specific input (e.g. fibonacci length, s3 input file basename).
+    #[arg(short, long, default_value = "")]
+    input: String,
     /// Proof mode.
     #[arg(short, long, value_enum, default_value_t = ProofModeArg::Compressed)]
     mode: ProofModeArg,
+}
+
+#[derive(Args, Debug)]
+struct ExecuteArgs {
+    /// Program name (see `prove --help`).
+    #[arg(short, long)]
+    program: String,
+    /// Program-specific input.
+    #[arg(short, long, default_value = "")]
+    input: String,
 }
 
 fn csv_escape(s: &str) -> String {
@@ -204,6 +241,36 @@ impl Caches {
     }
 }
 
+fn load_program_and_input(
+    caches: &mut Caches,
+    program: &str,
+    input: &str,
+) -> Result<(Arc<Vec<u8>>, Arc<SP1Stdin>), ()> {
+    let (program_bytes, program_hit) = match caches.program(program) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("[sp1-perf] error fetching program: {e}");
+            return Err(());
+        }
+    };
+    let (stdin, input_hit) = match caches.input(program, input) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("[sp1-perf] error fetching input: {e}");
+            return Err(());
+        }
+    };
+    eprintln!(
+        "[sp1-perf] got program and input for {program} (input={input:?}): \
+         elf={} bytes [{}], stdin buffers={} [{}]",
+        program_bytes.len(),
+        if program_hit { "cached" } else { "fetched" },
+        stdin.buffer.len(),
+        if input_hit { "cached" } else { "fetched" },
+    );
+    Ok((program_bytes, stdin))
+}
+
 fn catch_panic<T>(f: impl FnOnce() -> T + std::panic::UnwindSafe) -> Result<T, String> {
     std::panic::catch_unwind(f).map_err(|e| {
         if let Some(s) = e.downcast_ref::<&str>() {
@@ -217,20 +284,81 @@ fn catch_panic<T>(f: impl FnOnce() -> T + std::panic::UnwindSafe) -> Result<T, S
 }
 
 enum Command {
-    Prove(ProveArgs),
+    Sub(SubCmd),
     Help,
     Quit,
 }
 
 fn print_help() {
     eprintln!("Commands:");
-    eprintln!("  <program> [param] [--mode <mode>]   Prove the program.");
-    eprintln!("    program:  'local-<name>' uses a built-in ELF (fibonacci, sha2, keccak),");
-    eprintln!("              otherwise loaded from s3://sp1-testing-suite/<program>/");
-    eprintln!("    param:    program-specific (e.g. fibonacci length, s3 input file).");
-    eprintln!("    --mode:   core | compressed | groth16 | plonk (default: compressed)");
-    eprintln!("  help | h | ?                         Show this help");
-    eprintln!("  quit | exit | q                      Exit");
+    eprintln!("  prove   --program <P> [--input <I>] [--mode <M>]");
+    eprintln!("            Execute + setup + prove + verify; logs to data/measurements.csv.");
+    eprintln!("            mode: core | compressed | groth16 | plonk (default: compressed)");
+    eprintln!("  execute --program <P> [--input <I>]");
+    eprintln!("            Run only the executor; report cycles, gas, execution rate.");
+    eprintln!("  programs [<filter>]");
+    eprintln!("            List benchmark programs in s3://sp1-testing-suite/.");
+    eprintln!("  inputs  --program <P>");
+    eprintln!("            List input files for a benchmark program.");
+    eprintln!();
+    eprintln!("  Program names: 'local-<name>' uses a built-in ELF (fibonacci, sha2, keccak),");
+    eprintln!("                 anything else is fetched from s3://sp1-testing-suite/<program>/.");
+    eprintln!();
+    eprintln!("  help | h | ?           Show this help");
+    eprintln!("  quit | exit | q        Exit");
+}
+
+const LOCAL_PROGRAMS: &[&str] = &["local-fibonacci", "local-sha2", "local-keccak"];
+
+fn list_programs(filter: Option<&str>) -> Result<Vec<String>, String> {
+    let output = std::process::Command::new("aws")
+        .args(["s3", "ls", "--recursive", "s3://sp1-testing-suite/"])
+        .output()
+        .map_err(|e| format!("failed to run aws: {e}"))?;
+    if !output.status.success() {
+        return Err(format!("aws s3 ls failed: {}", String::from_utf8_lossy(&output.stderr)));
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut programs: Vec<String> = stdout
+        .lines()
+        .filter_map(|line| {
+            let path = line.split_whitespace().last()?;
+            path.strip_suffix("/program.bin").map(|s| s.to_string())
+        })
+        .collect();
+    programs.sort();
+    programs.dedup();
+    for local in LOCAL_PROGRAMS {
+        programs.push((*local).to_string());
+    }
+    if let Some(f) = filter {
+        programs.retain(|p| p.contains(f));
+    }
+    Ok(programs)
+}
+
+fn list_inputs(program: &str) -> Result<Vec<String>, String> {
+    if program.starts_with("local-") {
+        return Ok(vec!["<numeric size/length passed via --input>".to_string()]);
+    }
+    let prefix = format!("s3://sp1-testing-suite/{program}/input/");
+    let output = std::process::Command::new("aws")
+        .args(["s3", "ls", &prefix])
+        .output()
+        .map_err(|e| format!("failed to run aws: {e}"))?;
+    if !output.status.success() {
+        return Err(format!("aws s3 ls failed: {}", String::from_utf8_lossy(&output.stderr)));
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut inputs: Vec<String> = stdout
+        .lines()
+        .filter_map(|line| {
+            let name = line.split_whitespace().last()?;
+            name.strip_suffix(".bin").map(|s| s.to_string())
+        })
+        .collect();
+    inputs.sort();
+    Ok(inputs)
 }
 
 fn history_path() -> Option<std::path::PathBuf> {
@@ -270,8 +398,8 @@ async fn read_command(editor: &mut Editor<(), FileHistory>) -> Option<Command> {
             _ => {}
         }
         let tokens: Vec<&str> = trimmed.split_whitespace().collect();
-        match ProveArgs::try_parse_from(tokens) {
-            Ok(args) => return Some(Command::Prove(args)),
+        match Cli::try_parse_from(tokens) {
+            Ok(cli) => return Some(Command::Sub(cli.cmd)),
             Err(e) => {
                 let _ = e.print();
                 continue;
@@ -320,31 +448,12 @@ async fn main() {
         match cmd {
             Command::Quit => break,
             Command::Help => print_help(),
-            Command::Prove(req) => {
-                let (program_bytes, program_hit) = match caches.program(&req.program) {
-                    Ok(v) => v,
-                    Err(e) => {
-                        eprintln!("[sp1-perf] error fetching program: {e}");
-                        continue;
-                    }
-                };
-                let (stdin, input_hit) = match caches.input(&req.program, &req.param) {
-                    Ok(v) => v,
-                    Err(e) => {
-                        eprintln!("[sp1-perf] error fetching input: {e}");
-                        continue;
-                    }
-                };
-                eprintln!(
-                    "[sp1-perf] got program and input for {} (param={:?}): \
-                     elf={} bytes [{}], stdin buffers={} [{}]",
-                    req.program,
-                    req.param,
-                    program_bytes.len(),
-                    if program_hit { "cached" } else { "fetched" },
-                    stdin.buffer.len(),
-                    if input_hit { "cached" } else { "fetched" },
-                );
+            Command::Sub(SubCmd::Prove(req)) => {
+                let (program_bytes, stdin) =
+                    match load_program_and_input(&mut caches, &req.program, &req.input) {
+                        Ok(v) => v,
+                        Err(()) => continue,
+                    };
                 let elf = Elf::from(program_bytes.as_slice());
                 let stdin = (*stdin).clone();
 
@@ -368,12 +477,11 @@ async fn main() {
                     .unwrap();
                 let prove_time = prove_start.elapsed();
 
-                // Verify the proof
                 client.verify(&proof, pk.verifying_key(), None).unwrap();
 
                 let measurement = Measurement {
                     program: req.program.clone(),
-                    param: req.param.clone(),
+                    param: req.input.clone(),
                     mode: req.mode,
                     cycles: report.total_instruction_count(),
                     gas: report.gas(),
@@ -388,6 +496,81 @@ async fn main() {
                     if let Err(e) = csv.append(&measurement) {
                         eprintln!("[sp1-perf] failed to append to csv: {e}");
                     }
+                }
+            }
+            Command::Sub(SubCmd::Execute(req)) => {
+                let (program_bytes, stdin) =
+                    match load_program_and_input(&mut caches, &req.program, &req.input) {
+                        Ok(v) => v,
+                        Err(()) => continue,
+                    };
+                let elf = Elf::from(program_bytes.as_slice());
+                let stdin = (*stdin).clone();
+
+                let exec_start = tokio::time::Instant::now();
+                let (_, report) = client.execute(elf, stdin).calculate_gas(true).await.unwrap();
+                let execute_time = exec_start.elapsed();
+
+                let cycles = report.total_instruction_count();
+                let gas = report.gas();
+                let secs = execute_time.as_secs_f64();
+                let mhz = if secs > 0.0 { cycles as f64 / (secs * 1_000_000.0) } else { 0.0 };
+                let mgas =
+                    gas.map(|g| if secs > 0.0 { g as f64 / (secs * 1_000_000.0) } else { 0.0 });
+                let gas_str = gas.map(|g| g.to_string()).unwrap_or_else(|| "n/a".into());
+                let mgas_str = mgas.map(|v| format!("{v:.3}")).unwrap_or_else(|| "n/a".into());
+                println!(
+                    "[sp1-perf] execute {prog} (input={input:?}):\n  \
+                     cycles : {cycles}\n  \
+                     gas    : {gas}\n  \
+                     time   : {time:?}\n  \
+                     MHz    : {mhz:.3}\n  \
+                     Mgas/s : {mgas}",
+                    prog = req.program,
+                    input = req.input,
+                    gas = gas_str,
+                    time = execute_time,
+                    mgas = mgas_str,
+                );
+            }
+            Command::Sub(SubCmd::Programs { filter }) => {
+                let filter_clone = filter.clone();
+                let res =
+                    tokio::task::spawn_blocking(move || list_programs(filter_clone.as_deref()))
+                        .await
+                        .expect("listing task panicked");
+                match res {
+                    Ok(programs) if programs.is_empty() => {
+                        eprintln!(
+                            "[sp1-perf] no programs found{}",
+                            filter.map(|f| format!(" matching {f:?}")).unwrap_or_default(),
+                        );
+                    }
+                    Ok(programs) => {
+                        println!("[sp1-perf] {} program(s):", programs.len());
+                        for p in &programs {
+                            println!("  {p}");
+                        }
+                    }
+                    Err(e) => eprintln!("[sp1-perf] error listing programs: {e}"),
+                }
+            }
+            Command::Sub(SubCmd::Inputs { program }) => {
+                let prog = program.clone();
+                let res = tokio::task::spawn_blocking(move || list_inputs(&prog))
+                    .await
+                    .expect("listing task panicked");
+                match res {
+                    Ok(inputs) if inputs.is_empty() => {
+                        eprintln!("[sp1-perf] no inputs found for {program}");
+                    }
+                    Ok(inputs) => {
+                        println!("[sp1-perf] {} input(s) for {program}:", inputs.len());
+                        for i in &inputs {
+                            println!("  {i}");
+                        }
+                    }
+                    Err(e) => eprintln!("[sp1-perf] error listing inputs: {e}"),
                 }
             }
         }
