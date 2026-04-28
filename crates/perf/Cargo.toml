@@ -29,6 +29,9 @@ rand = { workspace = true }
 async-scoped = { workspace = true }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
+dotenv = { workspace = true }
+rustyline = "14.0"
+chrono = { workspace = true, features = ["clock"] }
 tracing = { workspace = true }
 test-artifacts = { path = "../test-artifacts" }
 
