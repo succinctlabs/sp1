@@ -14,13 +14,12 @@ use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::{air::MachineAir, Machine, GKR_GRINDING_BITS, MAX_CONSTRAINT_DEGREE};
 use sp1_primitives::{
     fri_params::{
-        unique_decoding_queries, CORE_LOG_BLOWUP, RECURSION_LOG_BLOWUP, SHRINK_LOG_BLOWUP,
-        SP1_PROOF_OF_WORK_BITS, SP1_SHRINK_WRAP_POW_BITS,
+        shrink_fri_config, unique_decoding_queries, CORE_LOG_BLOWUP, RECURSION_LOG_BLOWUP,
+        SHRINK_LOG_BLOWUP, SP1_PROOF_OF_WORK_BITS, SP1_SHRINK_WRAP_POW_BITS,
     },
     SP1Field,
 };
 use sp1_prover::{
-    worker::{cpu_worker_builder, SP1LocalNode},
     CompressAir, ShrinkAir, CORE_LOG_STACKING_HEIGHT, CORE_MAX_LOG_ROW_COUNT,
     RECURSION_LOG_TRACE_AREA, SHRINK_LOG_STACKING_HEIGHT, SHRINK_LOG_TRACE_AREA,
     SHRINK_MAX_LOG_ROW_COUNT,
@@ -125,7 +124,7 @@ fn main() {
 
     let core_queries = unique_decoding_queries(CORE_LOG_BLOWUP);
     let recursion_queries = unique_decoding_queries(RECURSION_LOG_BLOWUP);
-    let shrink_queries = unique_decoding_queries(SHRINK_LOG_BLOWUP);
+    let shrink_queries = shrink_fri_config().num_queries();
 
     let core_rho = format_rho(core_blowup);
     let recursion_rho = format_rho(recursion_blowup);
@@ -225,9 +224,9 @@ name = \"shrink\"
 udr_only = true
 blowup_factor = {shrink_blowup}
 rho = {shrink_rho}
-trace_length = {shrink_trace_len} # 2^{RECURSION_MAX_LOG_ROW_COUNT}
+trace_length = {shrink_trace_len} # 2^{SHRINK_MAX_LOG_ROW_COUNT}
 trace_columns = {shrink_trace_columns}
-dense_length = {shrink_dense_len} # 2^{RECURSION_LOG_STACKING_HEIGHT}
+dense_length = {shrink_dense_len} # 2^{SHRINK_LOG_STACKING_HEIGHT}
 dense_batch = {shrink_dense_batch}
 num_constraints = {shrink_num_constraints}
 air_max_degree = {MAX_CONSTRAINT_DEGREE}
@@ -246,7 +245,7 @@ grinding_query_phase = {SP1_SHRINK_WRAP_POW_BITS}
 [[circuits.lookups]]
 name = \"lookup\"
 logup_type = \"multivariate\"
-rows_L = {recursion_trace_len}
+rows_L = {shrink_trace_len}
 rows_T = 0
 num_columns_S = {shrink_num_columns_s}
 num_lookups_M = {shrink_num_lookups_m}
