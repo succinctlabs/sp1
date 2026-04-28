@@ -18,7 +18,9 @@ use sp1_hypercube::{
 };
 use sp1_jit::MinimalTrace;
 use sp1_primitives::SP1Field;
-use sp1_prover_types::{network_base_types::ProofMode, Artifact, ArtifactClient, TaskType};
+use sp1_prover_types::{
+    network_base_types::ProofMode, Artifact, ArtifactClient, SerializableRiscvMachine, TaskType,
+};
 use tokio::{
     sync::{mpsc, oneshot},
     task::JoinSet,
@@ -60,6 +62,7 @@ impl<W: WorkerClient, T: Serialize> MessageSender<W, T> {
 struct CoreExecuteMetadata {
     num_deferred_proofs: usize,
     cycle_limit: Option<u64>,
+    machine: SerializableRiscvMachine,
 }
 
 pub struct CoreExecuteTaskRequest {
@@ -86,7 +89,7 @@ impl CoreExecuteTaskRequest {
             serde_json::from_str(&metadata.to_id()).map_err(|e| {
                 TaskError::Fatal(anyhow::anyhow!("failed to deserialize CoreExecuteMetadata: {e}"))
             })?;
-        let machine = RiscvAir::machine();
+        let machine = metadata.machine.into();
         Ok(CoreExecuteTaskRequest {
             elf,
             stdin,
@@ -103,6 +106,7 @@ impl CoreExecuteTaskRequest {
         let metadata = CoreExecuteMetadata {
             num_deferred_proofs: self.num_deferred_proofs,
             cycle_limit: self.cycle_limit,
+            machine: self.machine.into(),
         };
         let metadata_str = serde_json::to_string(&metadata).map_err(|e| {
             TaskError::Fatal(anyhow::anyhow!("failed to serialize CoreExecuteMetadata: {e}"))
