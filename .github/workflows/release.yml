@@ -114,7 +114,7 @@ jobs:
           rustup install stable
 
       - name: Install go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: "^1.22.1"
 
@@ -250,7 +250,7 @@ jobs:
           rustup install stable
 
       - name: Install CUDA
-        uses: Jimver/cuda-toolkit@v0.2.23
+        uses: Jimver/cuda-toolkit@v0.2.30
         id: cuda-toolkit
         with:
           cuda: '12.8.1'
@@ -261,7 +261,7 @@ jobs:
           log-file-suffix: "${{ matrix.platform }}-${{ matrix.arch }}.txt"
 
       - name: Install go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: "^1.22.1"
           
