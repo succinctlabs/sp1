@@ -12,7 +12,6 @@ use crate::{
     },
     RecursionSC, SP1CircuitWitness, SP1ProverComponents,
 };
-use std::io::Write;
 use slop_algebra::PrimeField32;
 use slop_algebra::{AbstractField, PrimeField};
 use slop_bn254::Bn254Fr;
