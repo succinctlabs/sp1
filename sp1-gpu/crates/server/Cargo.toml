@@ -35,4 +35,3 @@ workspace = true
 
 [features]
 groth16-cuda = ["sp1-recursion-gnark-ffi/groth16-cuda"]
-experimental = ["sp1-gpu-prover/experimental"]
