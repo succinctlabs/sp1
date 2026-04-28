@@ -17,7 +17,15 @@ slop-tensor = { workspace = true }
 slop-koala-bear = { workspace = true }
 sp1-primitives = { workspace = true }
 
+rand = { workspace = true, optional = true }
+slop-air = { workspace = true, optional = true }
+sp1-hypercube = { workspace = true, optional = true }
+
+[features]
+test-utils = ["dep:rand", "dep:slop-air", "dep:sp1-hypercube"]
+
 [dev-dependencies]
+rand = { workspace = true }
 serial_test = "3.1"
 zstd = "0.13.3"
 sp1-sdk = { workspace = true }

@@ -7296,7 +7296,9 @@ dependencies = [
 name = "sp1-gpu-utils"
 version = "6.1.0"
 dependencies = [
+ "rand 0.8.5",
  "serial_test",
+ "slop-air",
  "slop-algebra",
  "slop-alloc",
  "slop-koala-bear",
@@ -7304,6 +7306,7 @@ dependencies = [
  "slop-tensor",
  "sp1-gpu-cudart",
  "sp1-gpu-prover",
+ "sp1-hypercube",
  "sp1-primitives",
  "sp1-recursion-circuit",
  "sp1-recursion-compiler",

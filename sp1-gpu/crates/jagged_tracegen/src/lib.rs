@@ -140,6 +140,7 @@ fn sum_to_trace(dst: *mut Felt, src: *const u32, backend: &TaskScope) {
 /// Sets up the jagged traces. TODO: can use fewer arguments by packing the mutable stuff into TraceDenseData.
 ///
 /// Returns the final offset, the final number of columns, the amount of padding, and the table index.
+/// dense_data, col_index, etc. are preallocated and filled in during this function
 #[allow(clippy::too_many_arguments)]
 #[instrument(skip_all, level = "debug")]
 async fn generate_jagged_traces(

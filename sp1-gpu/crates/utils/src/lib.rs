@@ -1,5 +1,6 @@
 pub mod config;
 pub mod jagged;
+pub mod test_utils;
 pub mod traces;
 
 pub use config::*;

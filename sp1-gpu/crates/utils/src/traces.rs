@@ -149,6 +149,83 @@ impl<F: Field, B: Backend> TraceDenseData<F, B> {
     }
 }
 
+impl<F: Field> TraceDenseData<F, CpuBackend> {
+    /// Build a `TraceDenseData` over a pre-allocated `dense` buffer using a chip-layout
+    /// description as parallel slices.
+    ///
+    /// `chip_names`, `preprocessed_widths`, `main_widths`, and `heights` must all have
+    /// the same length. The `dense` buffer must be sized as
+    /// `padded_preprocessed + padded_main`, where each section is the unpadded total
+    /// rounded up to the next multiple of `2^log_stacking_height`.
+    pub fn from_chip_layout(
+        dense: Buffer<F, CpuBackend>,
+        chip_names: &[&str],
+        preprocessed_widths: &[usize],
+        main_widths: &[usize],
+        heights: &[usize],
+        log_stacking_height: u32,
+    ) -> Self {
+        let n = chip_names.len();
+        assert_eq!(preprocessed_widths.len(), n);
+        assert_eq!(main_widths.len(), n);
+        assert_eq!(heights.len(), n);
+
+        let stacking = 1usize << log_stacking_height;
+
+        let total_preprocessed: usize =
+            preprocessed_widths.iter().zip(heights).map(|(w, h)| w * h).sum();
+        let total_main: usize = main_widths.iter().zip(heights).map(|(w, h)| w * h).sum();
+
+        let padded_preprocessed = total_preprocessed.next_multiple_of(stacking);
+        let padded_main = total_main.next_multiple_of(stacking);
+
+        assert_eq!(
+            dense.len(),
+            padded_preprocessed + padded_main,
+            "dense buffer length must equal padded_preprocessed + padded_main",
+        );
+
+        let preprocessed_cols: usize = preprocessed_widths.iter().sum();
+
+        let mut preprocessed_table_index = BTreeMap::new();
+        let mut main_table_index = BTreeMap::new();
+        let mut preprocessed_ptr = 0usize;
+        let mut main_ptr = padded_preprocessed;
+        for i in 0..n {
+            let h = heights[i];
+            let prep_w = preprocessed_widths[i];
+            let main_w = main_widths[i];
+            let name = chip_names[i].to_string();
+
+            let prep_lo = preprocessed_ptr;
+            let prep_hi = prep_lo + h * prep_w;
+            preprocessed_table_index.insert(
+                name.clone(),
+                TraceOffset { dense_offset: prep_lo..prep_hi, poly_size: h, num_polys: prep_w },
+            );
+            preprocessed_ptr = prep_hi;
+
+            let main_lo = main_ptr;
+            let main_hi = main_lo + h * main_w;
+            main_table_index.insert(
+                name,
+                TraceOffset { dense_offset: main_lo..main_hi, poly_size: h, num_polys: main_w },
+            );
+            main_ptr = main_hi;
+        }
+
+        TraceDenseData {
+            dense,
+            preprocessed_offset: padded_preprocessed,
+            preprocessed_cols,
+            preprocessed_padding: padded_preprocessed - total_preprocessed,
+            main_padding: padded_main - total_main,
+            preprocessed_table_index,
+            main_table_index,
+        }
+    }
+}
+
 impl<F: Field, B: Backend> HasBackend for TraceDenseData<F, B> {
     type Backend = B;
     fn backend(&self) -> &B {
