@@ -253,7 +253,7 @@ where
     let mut alpha =
         process_univariate_polynomial(uni_poly, challenger, &mut univariate_poly_msgs, &mut point);
 
-    let mut r21evals = DeviceBuffer::with_capacity_in(1 << log_stacking_height, task);
+    let mut stacked_evals = DeviceBuffer::with_capacity_in(1 << log_stacking_height, task);
     for sc_round in 2..num_variables as usize {
         // Get the round claims from the last round's univariate poly messages.
         let round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha);
@@ -267,7 +267,7 @@ where
         );
 
         if sc_round == log_stacking_height {
-            r21evals.extend_from_device_slice(p.guts().as_buffer()).unwrap();
+            stacked_evals.extend_from_device_slice(p.guts().as_buffer()).unwrap();
         }
 
         alpha = process_univariate_polynomial(
@@ -294,7 +294,7 @@ where
     let q_eval_tensor = DeviceTensor::copy_to_host(q.guts()).unwrap();
     let q_eval = q_eval_tensor.as_slice()[0];
 
-    (proof, vec![p_eval, q_eval], r21evals)
+    (proof, vec![p_eval, q_eval], stacked_evals)
 }
 
 #[cfg(test)]
