@@ -683,12 +683,6 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
             .instrument(tracing::info_span!("prove shrink"))
             .await?;
 
-
-        let shrink_proof_bytes = bincode::serialize(&shrink_proof).unwrap();
-        tracing::warn!("shrink proof size: {}", shrink_proof_bytes.len());
-        let mut file = std::fs::File::create("shrink_proof.bin").unwrap();
-        file.write_all(&shrink_proof_bytes).unwrap();
-
         tracing::debug_span!("verify shrink proof")
             .in_scope(|| self.shrink_prover.verify(&shrink_proof))?;
 
