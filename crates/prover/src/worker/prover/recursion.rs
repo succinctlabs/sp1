@@ -12,6 +12,7 @@ use crate::{
     },
     RecursionSC, SP1CircuitWitness, SP1ProverComponents,
 };
+use std::io::Write;
 use slop_algebra::PrimeField32;
 use slop_algebra::{AbstractField, PrimeField};
 use slop_bn254::Bn254Fr;
@@ -681,6 +682,12 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
             .prove(compress_proof)
             .instrument(tracing::info_span!("prove shrink"))
             .await?;
+
+
+        let shrink_proof_bytes = bincode::serialize(&shrink_proof).unwrap();
+        tracing::warn!("shrink proof size: {}", shrink_proof_bytes.len());
+        let mut file = std::fs::File::create("shrink_proof.bin").unwrap();
+        file.write_all(&shrink_proof_bytes).unwrap();
 
         tracing::debug_span!("verify shrink proof")
             .in_scope(|| self.shrink_prover.verify(&shrink_proof))?;

@@ -4,6 +4,7 @@ use crate::SP1Field;
 
 pub const CORE_LOG_BLOWUP: usize = 2;
 pub const RECURSION_LOG_BLOWUP: usize = 2;
+pub const SP1_SHRINK_WRAP_POW_BITS: usize = 22;
 
 pub fn core_fri_config() -> FriConfig<SP1Field> {
     FriConfig::new(
@@ -27,16 +28,16 @@ pub fn recursion_fri_config() -> FriConfig<SP1Field> {
 pub fn shrink_fri_config() -> FriConfig<SP1Field> {
     FriConfig::new(
         SHRINK_LOG_BLOWUP,
-        unique_decoding_queries_with_custom_grinding(SHRINK_LOG_BLOWUP, 22),
-        22,
+        unique_decoding_queries_with_custom_grinding(SHRINK_LOG_BLOWUP, SP1_SHRINK_WRAP_POW_BITS),
+        SP1_SHRINK_WRAP_POW_BITS,
     )
 }
 
 pub fn wrap_fri_config() -> FriConfig<SP1Field> {
     FriConfig::new(
         WRAP_LOG_BLOWUP,
-        unique_decoding_queries_with_custom_grinding(WRAP_LOG_BLOWUP, 22),
-        22,
+        unique_decoding_queries_with_custom_grinding(WRAP_LOG_BLOWUP, SP1_SHRINK_WRAP_POW_BITS),
+        SP1_SHRINK_WRAP_POW_BITS,
     )
 }
 
