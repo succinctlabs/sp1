@@ -7297,6 +7297,8 @@ name = "sp1-gpu-utils"
 version = "6.1.0"
 dependencies = [
  "rand 0.8.5",
+ "serde",
+ "serde_json",
  "serial_test",
  "slop-air",
  "slop-algebra",

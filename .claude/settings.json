@@ -18,7 +18,9 @@
       "Bash(awk -F/ '{print $NF}')",
       "Bash(rust-analyzer --version)",
       "Bash(rustc --version)",
-      "Bash(cargo check *)"
+      "Bash(cargo check *)",
+      "Bash(cargo fmt *)",
+      "Bash(cargo clippy *)"
     ]
   }
 }
