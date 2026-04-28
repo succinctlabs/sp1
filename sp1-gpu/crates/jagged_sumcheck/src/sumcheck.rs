@@ -1,5 +1,3 @@
-use core::num;
-
 use sp1_gpu_cudart::{
     args,
     sys::v2_kernels::{
