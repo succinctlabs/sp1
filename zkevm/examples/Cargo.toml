@@ -17,6 +17,8 @@ members = [
   "hello-c/script",
   "fibonacci-c/script",
   "panic-c/script",
+  "assert-c/script",
+  "exit-code-c/script",
   "keccak-c/script",
   # The shared C build helper.
   "c-build",

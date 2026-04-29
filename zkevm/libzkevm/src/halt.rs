@@ -35,3 +35,17 @@ pub extern "C" fn _exit(status: i32) -> ! {
 pub extern "C" fn abort() -> ! {
     zkvm_halt(1)
 }
+
+/// glibc-style assertion failure shim. Standard `<assert.h>` expands a
+/// failed `assert(...)` into a call to `__assert_fail`; we ignore the
+/// diagnostic strings and route to `zkvm_halt(1)` so a guest using libc's
+/// `<assert.h>` halts with a non-zero exit code.
+#[no_mangle]
+pub extern "C" fn __assert_fail(
+    _assertion: *const core::ffi::c_char,
+    _file: *const core::ffi::c_char,
+    _line: u32,
+    _function: *const core::ffi::c_char,
+) -> ! {
+    zkvm_halt(1)
+}

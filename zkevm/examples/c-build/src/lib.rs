@@ -36,6 +36,7 @@ pub fn build_c_example(example_dir: &Path) -> PathBuf {
     println!("cargo:rerun-if-changed={}", main_c.display());
     println!("cargo:rerun-if-changed={}", zkvm_ld.display());
     println!("cargo:rerun-if-changed={}/zkvm_accelerators.h", include.display());
+    println!("cargo:rerun-if-changed={}/assert.h", include.display());
     println!("cargo:rerun-if-changed={}/src/lib.rs", cabi_dir.display());
 
     // 1) Build libzkevm-cabi for riscv via sp1-build.
