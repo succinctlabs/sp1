@@ -1,16 +1,16 @@
 [package]
-name = "hello-c-script"
-description = "Host-side script: builds the hello-c C-ABI guest, executes it under SP1 (with optional proving), and verifies the public output matches the input."
+name = "fibonacci-c-script"
+description = "Host driver for the fibonacci-c guest. Mirrors `fibonacci-script` but loads a C-built ELF."
 version = { workspace = true }
 edition = { workspace = true }
 publish = false
 
 [[bin]]
-name = "hello-c-execute"
+name = "fibonacci-c-execute"
 path = "src/execute.rs"
 
 [[bin]]
-name = "hello-c-prove"
+name = "fibonacci-c-prove"
 path = "src/prove.rs"
 
 [dependencies]

@@ -51,6 +51,13 @@ make example-keccak-prove         # ... and prove + verify (exercises KECCAK_PER
 make example-sha256-execute       # zkvm_sha256 precompile, against host reference
 make example-sha256-prove         # ... and prove + verify (exercises SHA_EXTEND/COMPRESS)
 
+# C-language counterparts (clang + ld.lld via the `zkevm-c-build` build helper):
+make example-fibonacci-c-execute  # arithmetic + IO from C
+make example-fibonacci-c-prove
+make example-panic-c-execute      # failed-termination via C `abort()`
+make example-keccak-c-execute     # zkvm_keccak256 from C
+make example-keccak-c-prove
+
 make clean
 ```
 
@@ -149,9 +156,13 @@ zkevm/
     ├── keccak/              # `zkvm_keccak256` precompile demo (Rust)
     │   ├── program/
     │   └── script/
-    └── sha256/              # `zkvm_sha256` precompile demo (Rust)
-        ├── program/
-        └── script/
+    ├── sha256/              # `zkvm_sha256` precompile demo (Rust)
+    │   ├── program/
+    │   └── script/
+    ├── fibonacci-c/         # C versions of the corresponding Rust demos.
+    ├── panic-c/             #   `program/main.c` is built by the script's
+    ├── keccak-c/            #   build.rs via the shared `c-build` helper.
+    └── c-build/             # `build.rs` helper crate: sp1-build + clang + ld.lld.
 ```
 
 Each example follows the same shape: `program/` is the `riscv64im-succinct-zkvm-elf`

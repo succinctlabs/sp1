@@ -3,9 +3,6 @@ resolver = "2"
 members = [
   "hello-rust/program",
   "hello-rust/script",
-  # `hello-c/program/` is a C source tree (Makefile-built); only the
-  # script is a Cargo crate.
-  "hello-c/script",
   "fibonacci/program",
   "fibonacci/script",
   "panic/program",
@@ -14,6 +11,15 @@ members = [
   "keccak/script",
   "sha256/program",
   "sha256/script",
+  # C examples — only the script is a Cargo crate; `program/` is a C
+  # source tree built by the script's `build.rs` (via the shared
+  # `zkevm-c-build` helper).
+  "hello-c/script",
+  "fibonacci-c/script",
+  "panic-c/script",
+  "keccak-c/script",
+  # The shared C build helper.
+  "c-build",
 ]
 
 [workspace.package]

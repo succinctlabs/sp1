@@ -88,6 +88,7 @@ members = [
   "sp1-gpu/crates/tracing",
   "sp1-gpu/crates/utils",
   "sp1-gpu/crates/zerocheck",
+  # zkevm environment
   "zkevm/libzkevm",
 ]
 exclude = [
