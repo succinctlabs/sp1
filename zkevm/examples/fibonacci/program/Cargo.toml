@@ -1,26 +1,13 @@
 [package]
 name = "fibonacci"
-version = "0.0.1"
-edition = "2021"
+version = { workspace = true }
+edition = { workspace = true }
 publish = false
-description = "Arithmetic + IO showcase: reads u32 n, computes fib(n) % 7919, writes the result. Same shape as SP1's `examples/fibonacci/` but driven through libzkevm's C ABI."
+description = "Arithmetic + IO showcase: reads u32 n, computes fib(n) % 7919, writes the result."
 
 [[bin]]
 name = "fibonacci"
 path = "src/main.rs"
 
 [dependencies]
-libzkevm = { path = "../../../libzkevm" }
-
-[profile.release]
-panic = "abort"
-opt-level = 3
-lto = true
-codegen-units = 1
-debug = false
-strip = true
-
-[profile.dev]
-panic = "abort"
-
-[workspace]
+libzkevm = { workspace = true }

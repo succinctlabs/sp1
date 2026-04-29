@@ -1,0 +1,38 @@
+[workspace]
+resolver = "2"
+members = [
+  "hello-rust/program",
+  "hello-rust/script",
+  # `hello-c/program/` is a C source tree (Makefile-built); only the
+  # script is a Cargo crate.
+  "hello-c/script",
+  "fibonacci/program",
+  "fibonacci/script",
+  "panic/program",
+  "panic/script",
+  "keccak/program",
+  "keccak/script",
+  "sha256/program",
+  "sha256/script",
+]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2021"
+publish = false
+
+[workspace.dependencies]
+# libzkevm lives one directory up. Path-deps work across workspaces;
+# libzkevm is still a member of the SP1 root workspace.
+libzkevm = { path = "../libzkevm" }
+
+# SP1 runtime + build + SDK, by relative path to the SP1 source tree.
+sp1-zkvm = { path = "../../crates/zkvm/entrypoint", default-features = false }
+sp1-sdk = { path = "../../crates/sdk", default-features = false }
+sp1-build = { path = "../../crates/build" }
+
+# Shared host-side deps.
+tokio = { version = "1.43", features = ["full"] }
+tracing = "0.1"
+sha2 = "0.10"
+tiny-keccak = { version = "2.0.2", features = ["keccak"] }

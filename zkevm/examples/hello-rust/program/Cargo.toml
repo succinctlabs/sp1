@@ -1,7 +1,7 @@
 [package]
 name = "hello-rust"
-version = "0.0.1"
-edition = "2021"
+version = { workspace = true }
+edition = { workspace = true }
 publish = false
 description = "Rust guest smoke test for the SP1 zkEVM SDK. Uses libzkevm via the same C ABI a C/Go consumer would."
 
@@ -10,24 +10,4 @@ name = "hello-rust"
 path = "src/main.rs"
 
 [dependencies]
-# Pull libzkevm in as an rlib (not the staticlib). We call into it via its
-# `extern "C"` exports — i.e. we exercise the same ABI a C consumer would.
-# The `#[panic_handler]` comes from libzkevm; we MUST NOT declare a
-# duplicate.
-libzkevm = { path = "../../../libzkevm" }
-
-[profile.release]
-panic = "abort"
-opt-level = 3
-lto = true
-codegen-units = 1
-debug = false
-strip = true
-
-[profile.dev]
-panic = "abort"
-
-[workspace]
-# Standalone workspace so this example builds in isolation. (It can be
-# folded back into the parent SDK workspace if desired — nothing here
-# requires the split.)
+libzkevm = { workspace = true }

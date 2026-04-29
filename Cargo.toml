@@ -89,12 +89,6 @@ members = [
   "sp1-gpu/crates/utils",
   "sp1-gpu/crates/zerocheck",
   "zkevm/libzkevm",
-  "zkevm/examples/hello-rust/script",
-  "zkevm/examples/hello-c/script",
-  "zkevm/examples/fibonacci/script",
-  "zkevm/examples/panic/script",
-  "zkevm/examples/keccak/script",
-  "zkevm/examples/sha256/script",
 ]
 exclude = [
   "examples/target",
@@ -103,13 +97,10 @@ exclude = [
   # which is a workspace-level setting in cargo. It lives in a stand-
   # alone workspace under `zkevm/`.
   "zkevm/libzkevm-cabi",
-  # Guest crates need `panic = "abort"` for the same reason and stay in
-  # their own workspaces.
-  "zkevm/examples/hello-rust/program",
-  "zkevm/examples/fibonacci/program",
-  "zkevm/examples/panic/program",
-  "zkevm/examples/keccak/program",
-  "zkevm/examples/sha256/program",
+  # All zkevm example programs + scripts live in the
+  # `zkevm/examples/` workspace (own Cargo.toml). sp1-build sets
+  # `-C panic=abort` at the rustc level for guests.
+  "zkevm/examples",
 ]
 resolver = "2"
 

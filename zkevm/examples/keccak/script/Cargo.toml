@@ -3,11 +3,6 @@ name = "keccak-script"
 description = "Host driver for the keccak guest: feeds arbitrary bytes, executes the guest, and asserts the public output digest equals a host-computed keccak256."
 version = { workspace = true }
 edition = { workspace = true }
-license = { workspace = true }
-repository = { workspace = true }
-keywords = { workspace = true }
-categories = { workspace = true }
-rust-version = { workspace = true }
 publish = false
 
 [[bin]]
@@ -20,12 +15,9 @@ path = "src/prove.rs"
 
 [dependencies]
 sp1-sdk = { workspace = true }
-tiny-keccak = { workspace = true, features = ["keccak"] }
-tokio = { workspace = true, features = ["full"] }
+tiny-keccak = { workspace = true }
+tokio = { workspace = true }
 tracing = { workspace = true }
 
 [build-dependencies]
 sp1-build = { workspace = true }
-
-[lints]
-workspace = true

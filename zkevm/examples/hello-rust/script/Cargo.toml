@@ -3,11 +3,6 @@ name = "hello-rust-script"
 description = "Host-side script: builds the hello-rust C-ABI guest, executes it under SP1 (with optional proving), and verifies the public output matches the input."
 version = { workspace = true }
 edition = { workspace = true }
-license = { workspace = true }
-repository = { workspace = true }
-keywords = { workspace = true }
-categories = { workspace = true }
-rust-version = { workspace = true }
 publish = false
 
 [[bin]]
@@ -20,12 +15,8 @@ path = "src/prove.rs"
 
 [dependencies]
 sp1-sdk = { workspace = true }
-# Workspace tokio has `default-features = false`; we need rt + macros for `#[tokio::main]`.
-tokio = { workspace = true, features = ["full"] }
+tokio = { workspace = true }
 tracing = { workspace = true }
 
 [build-dependencies]
 sp1-build = { workspace = true }
-
-[lints]
-workspace = true

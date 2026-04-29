@@ -2769,16 +2769,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fibonacci-script"
-version = "6.1.0"
-dependencies = [
- "sp1-build",
- "sp1-sdk",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "find-msvc-tools"
 version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3182,26 +3172,6 @@ name = "heck"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
-
-[[package]]
-name = "hello-c-script"
-version = "6.1.0"
-dependencies = [
- "sp1-build",
- "sp1-sdk",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "hello-rust-script"
-version = "6.1.0"
-dependencies = [
- "sp1-build",
- "sp1-sdk",
- "tokio",
- "tracing",
-]
 
 [[package]]
 name = "hermit-abi"
@@ -3782,17 +3752,6 @@ checksum = "b646a74e746cd25045aa0fd42f4f7f78aa6d119380182c7e63a5593c4ab8df6f"
 dependencies = [
  "digest 0.10.7",
  "sha3-asm",
-]
-
-[[package]]
-name = "keccak-script"
-version = "6.1.0"
-dependencies = [
- "sp1-build",
- "sp1-sdk",
- "tiny-keccak 2.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "tokio",
- "tracing",
 ]
 
 [[package]]
@@ -4650,16 +4609,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "135590d8bdba2b31346f9cd1fb2a912329f5135e832a4f422942eb6ead8b6b3b"
 dependencies = [
  "group 0.12.1",
-]
-
-[[package]]
-name = "panic-script"
-version = "6.1.0"
-dependencies = [
- "sp1-build",
- "sp1-sdk",
- "tokio",
- "tracing",
 ]
 
 [[package]]
@@ -6069,17 +6018,6 @@ dependencies = [
  "cfg-if",
  "cpufeatures",
  "digest 0.10.7",
-]
-
-[[package]]
-name = "sha256-script"
-version = "6.1.0"
-dependencies = [
- "sha2 0.10.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "sp1-build",
- "sp1-sdk",
- "tokio",
- "tracing",
 ]
 
 [[package]]

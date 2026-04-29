@@ -62,7 +62,7 @@ example-c: sdk
 	$(MAKE) -C examples/hello-c/program SDK_DIR=$(abspath $(SDK_DIR))
 
 example-rust:
-	cd examples/hello-rust/program && $(CARGO) build --release --target $(TARGET)
+	cd examples && $(CARGO) build --release --target $(TARGET) -p hello-rust
 
 # Run the host execute/prove scripts. Each script's `build.rs` builds
 # its corresponding guest ELF as a side effect, so just `cargo run` works.
@@ -74,41 +74,41 @@ example-rust:
         example-sha256-execute example-sha256-prove
 
 example-hello-rust-execute:
-	$(CARGO) run --release -p hello-rust-script --bin hello-rust-execute
+	cd examples && $(CARGO) run --release -p hello-rust-script --bin hello-rust-execute
 
 example-hello-rust-prove:
-	$(CARGO) run --release -p hello-rust-script --bin hello-rust-prove
+	cd examples && $(CARGO) run --release -p hello-rust-script --bin hello-rust-prove
 
 example-hello-c-execute:
-	$(CARGO) run --release -p hello-c-script --bin hello-c-execute
+	cd examples && $(CARGO) run --release -p hello-c-script --bin hello-c-execute
 
 example-hello-c-prove:
-	$(CARGO) run --release -p hello-c-script --bin hello-c-prove
+	cd examples && $(CARGO) run --release -p hello-c-script --bin hello-c-prove
 
 example-fibonacci-execute:
-	$(CARGO) run --release -p fibonacci-script --bin fibonacci-execute
+	cd examples && $(CARGO) run --release -p fibonacci-script --bin fibonacci-execute
 
 example-fibonacci-prove:
-	$(CARGO) run --release -p fibonacci-script --bin fibonacci-prove
+	cd examples && $(CARGO) run --release -p fibonacci-script --bin fibonacci-prove
 
 example-panic-execute:
-	$(CARGO) run --release -p panic-script --bin panic-execute
+	cd examples && $(CARGO) run --release -p panic-script --bin panic-execute
 
 example-keccak-execute:
-	$(CARGO) run --release -p keccak-script --bin keccak-execute
+	cd examples && $(CARGO) run --release -p keccak-script --bin keccak-execute
 
 example-keccak-prove:
-	$(CARGO) run --release -p keccak-script --bin keccak-prove
+	cd examples && $(CARGO) run --release -p keccak-script --bin keccak-prove
 
 example-sha256-execute:
-	$(CARGO) run --release -p sha256-script --bin sha256-execute
+	cd examples && $(CARGO) run --release -p sha256-script --bin sha256-execute
 
 example-sha256-prove:
-	$(CARGO) run --release -p sha256-script --bin sha256-prove
+	cd examples && $(CARGO) run --release -p sha256-script --bin sha256-prove
 
 clean:
 	$(CARGO) clean --manifest-path libzkevm/Cargo.toml || true
 	cd $(CABI_DIR) && $(CARGO) clean || true
-	cd examples/hello-rust/program && $(CARGO) clean || true
+	cd examples && $(CARGO) clean || true
 	rm -rf $(SDK_DIR)
 	$(MAKE) -C examples/hello-c/program clean SDK_DIR=$(abspath $(SDK_DIR)) || true
