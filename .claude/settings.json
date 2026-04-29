@@ -20,7 +20,10 @@
       "Bash(rustc --version)",
       "Bash(cargo check *)",
       "Bash(cargo fmt *)",
-      "Bash(cargo clippy *)"
+      "Bash(cargo clippy *)",
+      "Bash(echo \"exit=$?\")",
+      "Read(//tmp/**)",
+      "Bash(xxd /tmp/bench_check.log)"
     ]
   }
 }
