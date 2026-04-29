@@ -13,12 +13,13 @@ use std::{
     time::Duration,
 };
 
+use anyhow::Context;
 use chrono::Utc;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use rustyline::{error::ReadlineError, history::FileHistory, Editor};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_perf::{get_input, get_program};
-use sp1_sdk::{network::NetworkMode, prelude::*, ProverClient, SP1ProofMode};
+use sp1_sdk::{network::NetworkMode, prelude::*, NetworkProver, ProverClient, SP1ProofMode};
 use tracing::Instrument;
 
 const CSV_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/data/measurements.csv");
@@ -245,21 +246,12 @@ fn load_program_and_input(
     caches: &mut Caches,
     program: &str,
     input: &str,
-) -> Result<(Arc<Vec<u8>>, Arc<SP1Stdin>), ()> {
-    let (program_bytes, program_hit) = match caches.program(program) {
-        Ok(v) => v,
-        Err(e) => {
-            eprintln!("[sp1-perf] error fetching program: {e}");
-            return Err(());
-        }
-    };
-    let (stdin, input_hit) = match caches.input(program, input) {
-        Ok(v) => v,
-        Err(e) => {
-            eprintln!("[sp1-perf] error fetching input: {e}");
-            return Err(());
-        }
-    };
+) -> anyhow::Result<(Arc<Vec<u8>>, Arc<SP1Stdin>)> {
+    let (program_bytes, program_hit) =
+        caches.program(program).map_err(|e| anyhow::anyhow!("fetch program {program}: {e}"))?;
+    let (stdin, input_hit) = caches
+        .input(program, input)
+        .map_err(|e| anyhow::anyhow!("fetch input ({program}, {input:?}): {e}"))?;
     eprintln!(
         "[sp1-perf] got program and input for {program} (input={input:?}): \
          elf={} bytes [{}], stdin buffers={} [{}]",
@@ -269,6 +261,104 @@ fn load_program_and_input(
         if input_hit { "cached" } else { "fetched" },
     );
     Ok((program_bytes, stdin))
+}
+
+async fn do_prove(
+    client: &NetworkProver,
+    caches: &mut Caches,
+    args: &ProveArgs,
+) -> anyhow::Result<Measurement> {
+    let (program_bytes, stdin) = load_program_and_input(caches, &args.program, &args.input)?;
+    let elf = Elf::from(program_bytes.as_slice());
+    let stdin = (*stdin).clone();
+
+    let exec_start = tokio::time::Instant::now();
+    let (_, report) =
+        client.execute(elf.clone(), stdin.clone()).calculate_gas(true).await.context("execute")?;
+    let execute_time = exec_start.elapsed();
+
+    let setup_start = tokio::time::Instant::now();
+    let pk = client.setup(elf).instrument(tracing::info_span!("setup")).await.context("setup")?;
+    let setup_time = setup_start.elapsed();
+
+    let prove_start = tokio::time::Instant::now();
+    let proof = client
+        .prove(&pk, stdin)
+        .mode(args.mode.to_proof_mode())
+        .skip_simulation(true)
+        .cycle_limit(u64::MAX)
+        .gas_limit(u64::MAX)
+        .await
+        .context("prove")?;
+    let prove_time = prove_start.elapsed();
+
+    client.verify(&proof, pk.verifying_key(), None).context("verify")?;
+
+    Ok(Measurement {
+        program: args.program.clone(),
+        param: args.input.clone(),
+        mode: args.mode,
+        cycles: report.total_instruction_count(),
+        gas: report.gas(),
+        elf_bytes: program_bytes.len(),
+        execute: execute_time,
+        setup: setup_time,
+        prove: prove_time,
+    })
+}
+
+struct ExecuteSummary {
+    program: String,
+    input: String,
+    cycles: u64,
+    gas: Option<u64>,
+    elapsed: Duration,
+}
+
+impl ExecuteSummary {
+    fn print(&self) {
+        let secs = self.elapsed.as_secs_f64();
+        let mhz = if secs > 0.0 { self.cycles as f64 / (secs * 1_000_000.0) } else { 0.0 };
+        let mgas = self.gas.map(|g| if secs > 0.0 { g as f64 / (secs * 1_000_000.0) } else { 0.0 });
+        let gas_str = self.gas.map(|g| g.to_string()).unwrap_or_else(|| "n/a".into());
+        let mgas_str = mgas.map(|v| format!("{v:.3}")).unwrap_or_else(|| "n/a".into());
+        println!(
+            "[sp1-perf] execute {prog} (input={input:?}):\n  \
+             cycles : {cycles}\n  \
+             gas    : {gas}\n  \
+             time   : {time:?}\n  \
+             MHz    : {mhz:.3}\n  \
+             Mgas/s : {mgas}",
+            prog = self.program,
+            input = self.input,
+            cycles = self.cycles,
+            gas = gas_str,
+            time = self.elapsed,
+            mgas = mgas_str,
+        );
+    }
+}
+
+async fn do_execute(
+    client: &NetworkProver,
+    caches: &mut Caches,
+    args: &ExecuteArgs,
+) -> anyhow::Result<ExecuteSummary> {
+    let (program_bytes, stdin) = load_program_and_input(caches, &args.program, &args.input)?;
+    let elf = Elf::from(program_bytes.as_slice());
+    let stdin = (*stdin).clone();
+
+    let exec_start = tokio::time::Instant::now();
+    let (_, report) = client.execute(elf, stdin).calculate_gas(true).await.context("execute")?;
+    let elapsed = exec_start.elapsed();
+
+    Ok(ExecuteSummary {
+        program: args.program.clone(),
+        input: args.input.clone(),
+        cycles: report.total_instruction_count(),
+        gas: report.gas(),
+        elapsed,
+    })
 }
 
 fn catch_panic<T>(f: impl FnOnce() -> T + std::panic::UnwindSafe) -> Result<T, String> {
@@ -448,90 +538,22 @@ async fn main() {
         match cmd {
             Command::Quit => break,
             Command::Help => print_help(),
-            Command::Sub(SubCmd::Prove(req)) => {
-                let (program_bytes, stdin) =
-                    match load_program_and_input(&mut caches, &req.program, &req.input) {
-                        Ok(v) => v,
-                        Err(()) => continue,
-                    };
-                let elf = Elf::from(program_bytes.as_slice());
-                let stdin = (*stdin).clone();
-
-                let exec_start = tokio::time::Instant::now();
-                let (_, report) =
-                    client.execute(elf.clone(), stdin.clone()).calculate_gas(true).await.unwrap();
-                let execute_time = exec_start.elapsed();
-
-                let setup_start = tokio::time::Instant::now();
-                let pk = client.setup(elf).instrument(tracing::info_span!("setup")).await.unwrap();
-                let setup_time = setup_start.elapsed();
-
-                let prove_start = tokio::time::Instant::now();
-                let proof = client
-                    .prove(&pk, stdin)
-                    .mode(req.mode.to_proof_mode())
-                    .skip_simulation(true)
-                    .cycle_limit(u64::MAX)
-                    .gas_limit(u64::MAX)
-                    .await
-                    .unwrap();
-                let prove_time = prove_start.elapsed();
-
-                client.verify(&proof, pk.verifying_key(), None).unwrap();
-
-                let measurement = Measurement {
-                    program: req.program.clone(),
-                    param: req.input.clone(),
-                    mode: req.mode,
-                    cycles: report.total_instruction_count(),
-                    gas: report.gas(),
-                    elf_bytes: program_bytes.len(),
-                    execute: execute_time,
-                    setup: setup_time,
-                    prove: prove_time,
-                };
-                measurement.print();
-
-                if let Some(csv) = csv.as_mut() {
-                    if let Err(e) = csv.append(&measurement) {
-                        eprintln!("[sp1-perf] failed to append to csv: {e}");
+            Command::Sub(SubCmd::Prove(req)) => match do_prove(&client, &mut caches, &req).await {
+                Ok(measurement) => {
+                    measurement.print();
+                    if let Some(csv) = csv.as_mut() {
+                        if let Err(e) = csv.append(&measurement) {
+                            eprintln!("[sp1-perf] failed to append to csv: {e}");
+                        }
                     }
                 }
-            }
+                Err(e) => eprintln!("[sp1-perf] prove failed: {e:#}"),
+            },
             Command::Sub(SubCmd::Execute(req)) => {
-                let (program_bytes, stdin) =
-                    match load_program_and_input(&mut caches, &req.program, &req.input) {
-                        Ok(v) => v,
-                        Err(()) => continue,
-                    };
-                let elf = Elf::from(program_bytes.as_slice());
-                let stdin = (*stdin).clone();
-
-                let exec_start = tokio::time::Instant::now();
-                let (_, report) = client.execute(elf, stdin).calculate_gas(true).await.unwrap();
-                let execute_time = exec_start.elapsed();
-
-                let cycles = report.total_instruction_count();
-                let gas = report.gas();
-                let secs = execute_time.as_secs_f64();
-                let mhz = if secs > 0.0 { cycles as f64 / (secs * 1_000_000.0) } else { 0.0 };
-                let mgas =
-                    gas.map(|g| if secs > 0.0 { g as f64 / (secs * 1_000_000.0) } else { 0.0 });
-                let gas_str = gas.map(|g| g.to_string()).unwrap_or_else(|| "n/a".into());
-                let mgas_str = mgas.map(|v| format!("{v:.3}")).unwrap_or_else(|| "n/a".into());
-                println!(
-                    "[sp1-perf] execute {prog} (input={input:?}):\n  \
-                     cycles : {cycles}\n  \
-                     gas    : {gas}\n  \
-                     time   : {time:?}\n  \
-                     MHz    : {mhz:.3}\n  \
-                     Mgas/s : {mgas}",
-                    prog = req.program,
-                    input = req.input,
-                    gas = gas_str,
-                    time = execute_time,
-                    mgas = mgas_str,
-                );
+                match do_execute(&client, &mut caches, &req).await {
+                    Ok(summary) => summary.print(),
+                    Err(e) => eprintln!("[sp1-perf] execute failed: {e:#}"),
+                }
             }
             Command::Sub(SubCmd::Programs { filter }) => {
                 let filter_clone = filter.clone();
