@@ -52,5 +52,13 @@ sha2 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", tag = "patch-
 # no_std-clean.
 ripemd = { version = "0.1", default-features = false }
 
+# SP1's patched `k256`. At `target_os = "zkvm"` ECDSA verify routes
+# scalar multiplication and decompression through SP1's `SECP256K1_ADD`,
+# `SECP256K1_DOUBLE`, and `SECP256K1_DECOMPRESS` precompiles. The
+# `-sp1-6.2.0-pre` tag points the patched crate's `sp1-lib` dep at
+# `succinctlabs/sp1#tamir/no_std_zkvm` so it lines up with the rest of
+# this workspace. Used by `precompile::secp256k1::zkvm_secp256k1_verify`.
+k256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-k256-13.4-sp1-6.2.0-pre", default-features = false, features = ["ecdsa"] }
+
 [lints]
 workspace = true
