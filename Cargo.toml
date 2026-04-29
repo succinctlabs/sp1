@@ -90,6 +90,7 @@ members = [
   "sp1-gpu/crates/zerocheck",
   # zkevm environment
   "zkevm/libzkevm",
+  "zkevm/build-sdk",
 ]
 exclude = [
   "examples/target",

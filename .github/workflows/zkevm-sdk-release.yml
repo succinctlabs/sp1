@@ -1,0 +1,82 @@
+name: zkevm-sdk-release
+
+# Builds and publishes a redistributable `zkevm-sdk-vX.Y.Z.tar.gz`
+# artifact to a GitHub Release. The tarball contains:
+#
+#   zkevm-sdk-vX.Y.Z/
+#   ├── libzkevm.a              eth-act/zkvm-standards C ABI staticlib
+#   ├── zkvm.ld                 linker script
+#   ├── include/
+#   │   └── zkvm_accelerators.h
+#   └── README.md
+#
+# Triggers:
+#   * push to a tag matching `zkevm-sdk-v*` -> creates a release.
+#   * workflow_dispatch -> builds the tarball as a workflow artifact
+#     (no release), useful for testing the pipeline.
+#
+# The artifact is host-independent: `libzkevm.a` is built for
+# `riscv64im-succinct-zkvm-elf` regardless of the runner's host.
+
+on:
+  push:
+    tags:
+      - 'zkevm-sdk-v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'SDK version (without leading "v"); used in the tarball filename'
+        required: true
+        default: '0.1.0-pre'
+
+permissions:
+  contents: write   # needed for `gh release create`
+
+jobs:
+  build-and-release:
+    runs-on: [runs-on, runner=8cpu-linux-x64, "run-id=${{ github.run_id }}"]
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+
+      - name: Install SP1 toolchain (succinct)
+        run: cargo run -p sp1-cli --no-default-features -- prove install-toolchain
+
+      - name: Determine version
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            # tag is `zkevm-sdk-vX.Y.Z`; strip the `zkevm-sdk-v` prefix.
+            v="${GITHUB_REF#refs/tags/zkevm-sdk-v}"
+          else
+            v="${{ inputs.version }}"
+          fi
+          echo "v=$v" >> "$GITHUB_OUTPUT"
+          echo "Building zkevm-sdk-$v"
+
+      - name: Build SDK archive
+        run: make -C zkevm sdk-archive SDK_VERSION=${{ steps.ver.outputs.v }}
+
+      - name: Upload workflow artifact
+        # Always upload so workflow_dispatch runs leave something
+        # downloadable from the Actions UI.
+        uses: actions/upload-artifact@v4
+        with:
+          name: zkevm-sdk-${{ steps.ver.outputs.v }}
+          path: zkevm/zkevm-sdk-${{ steps.ver.outputs.v }}.tar.gz
+          retention-days: 30
+
+      - name: Create GitHub Release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.SP1_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "zkevm-sdk-v${{ steps.ver.outputs.v }}" \
+            --title "zkevm-sdk v${{ steps.ver.outputs.v }}" \
+            --generate-notes \
+            --latest=false \
+            "zkevm/zkevm-sdk-${{ steps.ver.outputs.v }}.tar.gz"

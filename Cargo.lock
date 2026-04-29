@@ -9684,6 +9684,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "zkevm-build-sdk"
+version = "6.1.0"
+dependencies = [
+ "sp1-build",
+]
+
+[[package]]
 name = "zkhash"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

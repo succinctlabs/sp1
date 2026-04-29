@@ -32,29 +32,32 @@ CABI_STATICLIB    := $(CABI_TARGET_DIR)/libzkevm.a
 
 all: sdk
 
-sdk: $(SDK_DIR)/libzkevm.a $(SDK_DIR)/zkvm.ld $(SDK_DIR)/include/zkvm_accelerators.h
+sdk:
+	cd .. && $(CARGO) run --release -p zkevm-build-sdk
 
-# 1) libzkevm.a — built from the cabi crate (separate workspace, panic=abort).
-#    The `succinct` toolchain (installed by `sp1up`) is what defines the
-#    `riscv64im-succinct-zkvm-elf` target spec; stock stable rustc doesn't
-#    know about it.
-$(CABI_STATICLIB): $(CABI_DIR)/Cargo.toml $(CABI_DIR)/src/*.rs libzkevm/Cargo.toml libzkevm/src/*.rs libzkevm/src/precompile/*.rs
-	cd $(CABI_DIR) && RUSTUP_TOOLCHAIN=succinct $(CARGO) build --release --target $(TARGET)
+# A redistributable tarball of the SDK output. Contents:
+#   zkevm-sdk-<version>/{libzkevm.a, zkvm.ld, include/zkvm_accelerators.h, README.md}
+# Override SDK_VERSION on the command line (the GitHub Actions workflow
+# sets it from the pushed tag).
+SDK_VERSION ?= 0.1.0-pre
+.PHONY: sdk-archive
+sdk-archive: sdk
+	@stage="zkevm-sdk-$(SDK_VERSION)"; \
+	rm -rf "$$stage" "$$stage.tar.gz"; \
+	mkdir -p "$$stage/include"; \
+	cp $(SDK_DIR)/libzkevm.a "$$stage/"; \
+	cp $(SDK_DIR)/zkvm.ld "$$stage/"; \
+	cp $(SDK_DIR)/include/zkvm_accelerators.h "$$stage/include/"; \
+	cp templates/sdk-archive-README.md "$$stage/README.md"; \
+	tar -czf "$$stage.tar.gz" "$$stage"; \
+	rm -rf "$$stage"; \
+	echo "wrote $$stage.tar.gz ($$(du -h $$stage.tar.gz | cut -f1))"
 
-$(SDK_DIR)/libzkevm.a: $(CABI_STATICLIB)
-	@mkdir -p $(SDK_DIR)
-	cp $< $@
-
-# 2) Linker script — copied verbatim. `ENTRY(_start)` resolves to
-#    `sp1-zkvm`'s `_start` (bundled into `libzkevm.a`).
-$(SDK_DIR)/zkvm.ld: zkvm.ld
-	@mkdir -p $(SDK_DIR)
-	cp $< $@
-
-# 3) Public headers — sourced from the eth-act standard.
-$(SDK_DIR)/include/zkvm_accelerators.h: include/zkvm_accelerators.h
-	@mkdir -p $(SDK_DIR)/include
-	cp $< $@
+# `make sdk` populates everything via the `zkevm-build-sdk` helper bin
+# (uses `sp1_build::build_program_staticlib` under the hood — the only
+# reliable way to invoke the succinct toolchain on libzkevm-cabi from a
+# Makefile, since rustup's `cargo +succinct` fallback paths look for a
+# `rust-src` component that isn't shipped).
 
 example: example-c example-rust
 
