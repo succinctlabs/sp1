@@ -18,7 +18,9 @@
       "Bash(awk -F/ '{print $NF}')",
       "Bash(cargo check *)",
       "Bash(cargo fmt *)",
-      "Bash(cargo clippy *)"
+      "Bash(cargo clippy *)",
+      "Bash(cargo build *)",
+      "Bash(cargo test *)"
     ]
   }
 }
