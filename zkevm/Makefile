@@ -69,7 +69,8 @@ example-rust:
 .PHONY: example-hello-rust-execute example-hello-rust-prove \
         example-hello-c-execute example-hello-c-prove \
         example-fibonacci-execute example-fibonacci-prove \
-        example-panic-execute
+        example-panic-execute \
+        example-keccak-execute example-keccak-prove
 
 example-hello-rust-execute:
 	$(CARGO) run --release -p hello-rust-script --bin hello-rust-execute
@@ -91,6 +92,12 @@ example-fibonacci-prove:
 
 example-panic-execute:
 	$(CARGO) run --release -p panic-script --bin panic-execute
+
+example-keccak-execute:
+	$(CARGO) run --release -p keccak-script --bin keccak-execute
+
+example-keccak-prove:
+	$(CARGO) run --release -p keccak-script --bin keccak-prove
 
 clean:
 	$(CARGO) clean --manifest-path libzkevm/Cargo.toml || true

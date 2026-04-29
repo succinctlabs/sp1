@@ -22,7 +22,7 @@ crate-type = ["rlib"]
 # Reuse SP1's no_std runtime. With default-features = false we drop the
 # `lib` (sp1-lib) and `libm` defaults; we still get the syscall number
 # constants and the high-level `syscall_halt`/`syscall_write`/`syscall_hint_*`
-# wrappers.
+# wrappers, plus `syscall_keccak_permute` for the keccak256 sponge.
 sp1-zkvm = { workspace = true, default-features = false }
 
 [lints]

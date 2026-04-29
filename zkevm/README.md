@@ -46,6 +46,8 @@ make example-hello-c-prove        # ... and prove + verify
 make example-fibonacci-execute    # arithmetic + IO (Rust)
 make example-fibonacci-prove      # ... and prove + verify
 make example-panic-execute        # failed-termination via panic! (Rust)
+make example-keccak-execute       # zkvm_keccak256 precompile, against host reference
+make example-keccak-prove         # ... and prove + verify (exercises KECCAK_PERMUTE circuit)
 
 make clean
 ```
@@ -78,6 +80,25 @@ $ make example-panic-execute
 INFO flag=0: clean termination cycles=4678 output=no panic
 INFO flag=1: executor returned Ok — guest halted with non-zero exit code cycles=8663
 ```
+
+First non-stub precompile — `zkvm_keccak256` against a host reference:
+
+```sh
+$ make example-keccak-execute
+INFO executed keccak input_len=0   cycles=4826 keccak_permute_calls=1
+INFO executed keccak input_len=11  cycles=4905 keccak_permute_calls=1
+INFO executed keccak input_len=136 cycles=5797 keccak_permute_calls=2
+INFO executed keccak input_len=200 cycles=6248 keccak_permute_calls=2
+INFO executed keccak input_len=43  cycles=5129 keccak_permute_calls=1
+INFO all digests match host-computed keccak256
+```
+
+The sponge construction (absorb / pad / squeeze) lives in
+[`libzkevm/src/precompile/hash.rs`](libzkevm/src/precompile/hash.rs);
+each call to the inner keccak-f[1600] permutation goes through SP1's
+`KECCAK_PERMUTE` syscall (`t0 = 0x00_01_01_09`). This is the general
+pattern: most accelerators wrap one or more low-level precompile
+syscalls plus some software bookkeeping.
 
 The same C-ABI path is exercised by [`hello-c`](examples/hello-c/) (a
 `int main(void)` linked through `clang` + `ld.lld` against
@@ -120,7 +141,10 @@ zkevm/
     ├── fibonacci/           # arithmetic + IO (Rust)
     │   ├── program/
     │   └── script/
-    └── panic/               # failed termination via panic (Rust)
+    ├── panic/               # failed termination via panic (Rust)
+    │   ├── program/
+    │   └── script/
+    └── keccak/              # `zkvm_keccak256` precompile demo (Rust)
         ├── program/
         └── script/
 ```

@@ -93,6 +93,7 @@ members = [
   "zkevm/examples/hello-c/script",
   "zkevm/examples/fibonacci/script",
   "zkevm/examples/panic/script",
+  "zkevm/examples/keccak/script",
 ]
 exclude = [
   "examples/target",
@@ -106,6 +107,7 @@ exclude = [
   "zkevm/examples/hello-rust/program",
   "zkevm/examples/fibonacci/program",
   "zkevm/examples/panic/program",
+  "zkevm/examples/keccak/program",
 ]
 resolver = "2"
 

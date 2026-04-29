@@ -3785,6 +3785,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "keccak-script"
+version = "6.1.0"
+dependencies = [
+ "sp1-build",
+ "sp1-sdk",
+ "tiny-keccak",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -1,0 +1,26 @@
+[package]
+name = "keccak"
+version = "0.0.1"
+edition = "2021"
+publish = false
+description = "First non-stub precompile demo: reads arbitrary bytes, computes keccak256 via libzkevm's `zkvm_keccak256`, writes the 32-byte digest."
+
+[[bin]]
+name = "keccak"
+path = "src/main.rs"
+
+[dependencies]
+libzkevm = { path = "../../../libzkevm" }
+
+[profile.release]
+panic = "abort"
+opt-level = 3
+lto = true
+codegen-units = 1
+debug = false
+strip = true
+
+[profile.dev]
+panic = "abort"
+
+[workspace]
