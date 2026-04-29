@@ -1,0 +1,29 @@
+[package]
+name = "libzkevm"
+description = "SP1 platform SDK implementing the eth-act/zkvm-standards C ABI for non-Rust guest programs (scaffolding only). The C-ABI staticlib lives in `../libzkevm-cabi`; this crate is the rlib that holds the actual implementations."
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
+rust-version = { workspace = true }
+publish = false
+
+[lib]
+name = "zkevm"
+# rlib only. The staticlib (libzkevm.a) is produced by the sibling
+# `libzkevm-cabi` crate, which lives in a separate workspace so it can set
+# `panic = "abort"` (required for `#![no_std]` staticlibs, and not
+# expressible per-package in cargo).
+crate-type = ["rlib"]
+
+[dependencies]
+# Reuse SP1's no_std runtime. With default-features = false we drop the
+# `lib` (sp1-lib) and `libm` defaults; we still get the syscall number
+# constants and the high-level `syscall_halt`/`syscall_write`/`syscall_hint_*`
+# wrappers.
+sp1-zkvm = { workspace = true, default-features = false }
+
+[lints]
+workspace = true

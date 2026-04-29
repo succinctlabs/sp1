@@ -88,8 +88,21 @@ members = [
   "sp1-gpu/crates/tracing",
   "sp1-gpu/crates/utils",
   "sp1-gpu/crates/zerocheck",
+  "zkevm/libzkevm",
+  "zkevm/examples/hello-rust/script",
+  "zkevm/examples/hello-c/script",
 ]
-exclude = ["examples/target", "crates/eval"]
+exclude = [
+  "examples/target",
+  "crates/eval",
+  # The cabi crate produces `libzkevm.a` and needs `panic = "abort"`,
+  # which is a workspace-level setting in cargo. It lives in a stand-
+  # alone workspace under `zkevm/`.
+  "zkevm/libzkevm-cabi",
+  # The hello-rust *guest* needs `panic = "abort"` for the same reason
+  # and stays in its own workspace.
+  "zkevm/examples/hello-rust/program",
+]
 resolver = "2"
 
 [profile.release]

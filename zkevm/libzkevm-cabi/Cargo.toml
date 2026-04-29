@@ -1,0 +1,35 @@
+[package]
+name = "libzkevm-cabi"
+version = "0.0.1"
+edition = "2021"
+description = "C ABI staticlib facade for libzkevm. Produces `libzkevm.a` for non-Rust guests; the actual implementations live in the sibling `libzkevm` rlib (a member of the SP1 root workspace)."
+license = "MIT OR Apache-2.0"
+publish = false
+
+[lib]
+# This crate's only output is the staticlib archive.
+name = "zkevm"
+crate-type = ["staticlib"]
+
+[dependencies]
+# `libzkevm` is a member of the SP1 root workspace; pull it in by path.
+# All the `extern "C"` symbols are defined there with `#[no_mangle]`, so
+# linking this crate as a staticlib produces an archive containing those
+# symbols (plus `sp1-zkvm`'s _start, allocator, hasher, etc.).
+libzkevm = { path = "../libzkevm" }
+
+[profile.release]
+panic = "abort"
+opt-level = 3
+lto = true
+codegen-units = 1
+debug = false
+strip = true
+
+[profile.dev]
+panic = "abort"
+
+# Standalone workspace so `panic = "abort"` (required for `#![no_std]`
+# staticlibs) doesn't conflict with the SP1 root workspace's default
+# `panic = "unwind"`. Cargo doesn't support per-package panic strategy.
+[workspace]
