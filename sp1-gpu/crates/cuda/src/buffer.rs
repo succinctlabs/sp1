@@ -61,6 +61,9 @@ impl<T: DeviceCopy> DeviceBuffer<T> {
 
     /// Split the buffer up to and including the given index, returning a new buffer containing the tail
     /// and truncating the original.
+    ///
+    /// Currently copies the tail to a new buffer so beware of inefficiencies with large buffers.
+    /// The old tail will only be dropped when the head is dropped.
     pub fn split_off(&mut self, at: usize) -> Self {
         let len = self.len();
         assert!(at <= len, "split_off index out of bounds: at {}, len {}", at, len);

@@ -474,7 +474,7 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
 
         let log_stacking_height = self.basefold_prover.log_height as usize;
 
-        let (sumcheck_proof, component_poly_evals, mut column_evals) =
+        let (sumcheck_proof, component_poly_evals, column_evals) =
             tracing::debug_span!("jagged sumcheck").in_scope(|| {
                 jagged_sumcheck(sumcheck_poly, challenger, sumcheck_claim, log_stacking_height)
             });
@@ -511,43 +511,20 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
         let (_, stack_point) =
             final_eval_point.split_at(final_eval_point.dimension() - log_stacking_height);
 
-        let preprocessed_stacked_size =
-            all_mles.dense().preprocessed_offset / (1 << log_stacking_height);
-        let main_evals_buf = column_evals.split_off(preprocessed_stacked_size);
-        // type conversion dances
-        let prep_evals = Evaluations::new(vec![MleEval::new(column_evals.into_inner().into())]);
-        let main_evals = Evaluations::new(vec![MleEval::new(main_evals_buf.into_inner().into())]);
-        let batch_evaluations = Rounds { rounds: vec![prep_evals, main_evals] };
+        // Copy column evals to host once and reuse for the challenger transcript, the basefold
+        // call, and the SP1PcsProof field.
+        let column_evals_host = column_evals.to_host().unwrap();
 
         challenger.observe_ext_element(component_poly_evals[0]);
-
-        let mut host_batch_evaluations = Rounds::new();
-        for round_evals in batch_evaluations.iter() {
-            let mut host_round_evals = vec![];
-            for eval in round_evals.iter() {
-                let host_eval =
-                    sp1_gpu_cudart::DeviceTensor::copy_to_host(eval.evaluations()).unwrap();
-                host_round_evals.extend(host_eval.into_buffer().into_vec());
-            }
-            let host_round_evals = Evaluations::new(vec![host_round_evals.into()]);
-            host_batch_evaluations.push(host_round_evals);
-        }
-
-        for round in batch_evaluations.iter() {
-            for claim in round.iter() {
-                let host_claim =
-                    sp1_gpu_cudart::DeviceTensor::copy_to_host(claim.evaluations()).unwrap();
-                for evaluation in host_claim.into_buffer().into_vec() {
-                    challenger.observe_ext_element(evaluation);
-                }
-            }
+        for &evaluation in &column_evals_host {
+            challenger.observe_ext_element(evaluation);
         }
 
         let pcs_proof = tracing::debug_span!("prove trusted evaluations basefold")
             .in_scope(|| {
                 self.basefold_prover.prove_trusted_evaluations_basefold(
                     stack_point,
-                    batch_evaluations,
+                    column_evals_host.clone(),
                     all_mles,
                     stacked_prover_data,
                     challenger,
@@ -561,10 +538,17 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>>
             .map(|(r, c)| r.into_iter().zip(c).collect())
             .collect();
 
-        let host_batch_evaluations = host_batch_evaluations
-            .into_iter()
-            .map(|round| round.into_iter().flatten().collect::<MleEval<_>>())
-            .collect::<Rounds<_>>();
+        let preprocessed_stacked_size =
+            all_mles.dense().preprocessed_offset / (1 << log_stacking_height);
+        let mut prep_evals_host = column_evals_host;
+        let main_evals_host = prep_evals_host.split_off(preprocessed_stacked_size);
+
+        let host_batch_evaluations: Rounds<MleEval<Ext>> = Rounds {
+            rounds: vec![
+                MleEval::new(prep_evals_host.into()),
+                MleEval::new(main_evals_host.into()),
+            ],
+        };
 
         let stacked_basefold_proof =
             SP1PcsProof { basefold_proof: pcs_proof, batch_evaluations: host_batch_evaluations };
