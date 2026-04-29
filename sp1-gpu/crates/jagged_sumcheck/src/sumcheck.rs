@@ -253,7 +253,8 @@ where
     let mut alpha =
         process_univariate_polynomial(uni_poly, challenger, &mut univariate_poly_msgs, &mut point);
 
-    let mut stacked_evals = DeviceBuffer::with_capacity_in(1 << log_stacking_height, task);
+    let mut stacked_evals =
+        DeviceBuffer::with_capacity_in(1 << (num_variables as usize - log_stacking_height), task);
     for sc_round in 2..num_variables as usize {
         // Get the round claims from the last round's univariate poly messages.
         let round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha);
