@@ -37,6 +37,40 @@ pub mod random {
         }
     }
 
+    /// One chip's entry in the JSON file consumed by [`read_layout_from_json`].
+    #[derive(Deserialize)]
+    struct ChipEntry {
+        name: String,
+        preprocessed_width: usize,
+        main_width: usize,
+        height: usize,
+    }
+
+    /// Read an [`AbstractChipLayout`] and matching per-chip heights from a JSON file.
+    ///
+    /// The file must be a top-level JSON array of objects, each with the fields
+    /// `name`, `preprocessed_width`, `main_width`, and `height`:
+    ///
+    /// ```json
+    /// [
+    ///   {"name": "Cpu",    "preprocessed_width": 4, "main_width": 64, "height": 1024},
+    ///   {"name": "Memory", "preprocessed_width": 0, "main_width": 32, "height": 512}
+    /// ]
+    /// ```
+    pub fn read_layout_from_json(
+        path: impl AsRef<Path>,
+    ) -> std::io::Result<(AbstractChipLayout, Vec<usize>)> {
+        let file = std::fs::File::open(path)?;
+        let reader = std::io::BufReader::new(file);
+        let entries: Vec<ChipEntry> = serde_json::from_reader(reader)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+        let layout = AbstractChipLayout(
+            entries.iter().map(|e| (e.name.clone(), e.preprocessed_width, e.main_width)).collect(),
+        );
+        let heights = entries.into_iter().map(|e| e.height).collect();
+        Ok((layout, heights))
+    }
+
     /// Randomly partition `total_area` field elements among the chips in `layout`,
     /// returning a per-chip row count.
     ///
@@ -72,40 +106,6 @@ pub mod random {
             remaining -= blocks * row_costs[i] * ALIGN as u64;
         }
         heights
-    }
-
-    /// One chip's entry in the JSON file consumed by [`read_layout_from_json`].
-    #[derive(Deserialize)]
-    struct ChipEntry {
-        name: String,
-        preprocessed_width: usize,
-        main_width: usize,
-        height: usize,
-    }
-
-    /// Read an [`AbstractChipLayout`] and matching per-chip heights from a JSON file.
-    ///
-    /// The file must be a top-level JSON array of objects, each with the fields
-    /// `name`, `preprocessed_width`, `main_width`, and `height`:
-    ///
-    /// ```json
-    /// [
-    ///   {"name": "Cpu",    "preprocessed_width": 4, "main_width": 64, "height": 1024},
-    ///   {"name": "Memory", "preprocessed_width": 0, "main_width": 32, "height": 512}
-    /// ]
-    /// ```
-    pub fn read_layout_from_json(
-        path: impl AsRef<Path>,
-    ) -> std::io::Result<(AbstractChipLayout, Vec<usize>)> {
-        let file = std::fs::File::open(path)?;
-        let reader = std::io::BufReader::new(file);
-        let entries: Vec<ChipEntry> = serde_json::from_reader(reader)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        let layout = AbstractChipLayout(
-            entries.iter().map(|e| (e.name.clone(), e.preprocessed_width, e.main_width)).collect(),
-        );
-        let heights = entries.into_iter().map(|e| e.height).collect();
-        Ok((layout, heights))
     }
 
     /// Allocate a `padded_preprocessed + padded_main`-sized buffer of `F::zero()` and
