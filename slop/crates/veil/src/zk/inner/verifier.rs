@@ -341,7 +341,11 @@ impl<GC: ZkIopCtx> ZkVerificationContext<GC> {
         mul_proof: Option<ZkMulCnstrProof<GC>>,
     ) -> Result<(), ZkVerifierError> {
         let Some(mul_proof) = mul_proof else {
-            return Ok(());
+            if self.borrow().mul_constraints.is_empty() {
+                return Ok(());
+            } else {
+                return Err(ZkVerifierError::InvalidMulConstrProofShape);
+            }
         };
 
         // Read/observe padding and add in padding constraints
