@@ -7003,6 +7003,7 @@ dependencies = [
 name = "sp1-gpu-commit"
 version = "6.1.0"
 dependencies = [
+ "criterion",
  "itertools 0.14.0",
  "rand 0.8.5",
  "serial_test",

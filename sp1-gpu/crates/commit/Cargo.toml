@@ -53,5 +53,13 @@ slop-stacked = { workspace = true }
 sp1-primitives = { workspace = true }
 slop-futures = { workspace = true }
 
+# Benchmarks
+criterion = "0.5"
+sp1-gpu-utils = { workspace = true, features = ["test-utils"] }
+
+[[bench]]
+name = "commit"
+harness = false
+
 [lints]
 workspace = true
