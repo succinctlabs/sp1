@@ -1436,6 +1436,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "blake2f-c-script"
+version = "0.0.1"
+dependencies = [
+ "hex",
+ "sp1-sdk",
+ "tokio",
+ "tracing",
+ "zkevm-c-build",
+]
+
+[[package]]
 name = "blake3"
 version = "1.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"

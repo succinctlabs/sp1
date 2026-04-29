@@ -1,0 +1,23 @@
+[package]
+name = "blake2f-c-script"
+description = "Host driver for blake2f-c. Feeds the EIP-152 canonical test vector to `zkvm_blake2f` and checks the output against the EIP-152 expected state."
+version = { workspace = true }
+edition = { workspace = true }
+publish = false
+
+[[bin]]
+name = "blake2f-c-execute"
+path = "src/execute.rs"
+
+[[bin]]
+name = "blake2f-c-prove"
+path = "src/prove.rs"
+
+[dependencies]
+sp1-sdk = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+hex = "0.4"
+
+[build-dependencies]
+zkevm-c-build = { path = "../../c-build" }
