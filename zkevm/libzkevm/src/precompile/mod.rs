@@ -19,7 +19,7 @@
 //! | `zkvm_bls12_map_fp{,2}_to_g{1,2}`| patched `bls12_381` `MapToCurve` (experimental) + `clear_cofactor`          |
 //! | `zkvm_modexp`                    | software via `num-bigint-dig::BigUint::modpow`                              |
 //! | `zkvm_blake2f`                   | software F compression vendored inline per RFC 7693 §3.2                    |
-//! | `zkvm_kzg_point_eval`            | TODO: needs the Ethereum trusted-setup `[tau]_2` constant baked in          |
+//! | `zkvm_kzg_point_eval`            | `kzg-rs` (Ethereum trusted setup baked in via `include_bytes!`)             |
 
 pub mod blake2f;
 pub mod bls12_381;

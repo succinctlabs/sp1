@@ -86,5 +86,13 @@ bls12_381 = { git = "https://github.com/sp1-patches/bls12_381", tag = "patch-0.8
 # us no_std-clean; the crate still uses `alloc` for `BigUint`.
 num-bigint-dig = { version = "0.9", default-features = false }
 
+# `kzg-rs` for `zkvm_kzg_point_eval` (Ethereum precompile 0x0a /
+# EIP-4844). The `v0.2.8-sp1-6.2.0-pre` tag repoints kzg-rs's
+# `bls12_381` dep at `sp1-patches/bls12_381#patch-0.8.0-sp1-6.2.0-pre`
+# so the KZG verifier shares the same patched curve as the rest of
+# libzkevm. The Ethereum trusted setup is baked in at build time via
+# `include_bytes!`.
+kzg-rs = { git = "https://github.com/succinctlabs/kzg-rs", tag = "v0.2.8-sp1-6.2.0-pre", default-features = false }
+
 [lints]
 workspace = true
