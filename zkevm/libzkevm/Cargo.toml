@@ -22,8 +22,20 @@ crate-type = ["rlib"]
 # Reuse SP1's no_std runtime. With default-features = false we drop the
 # `lib` (sp1-lib) and `libm` defaults; we still get the syscall number
 # constants and the high-level `syscall_halt`/`syscall_write`/`syscall_hint_*`
-# wrappers, plus `syscall_keccak_permute` for the keccak256 sponge.
+# wrappers.
 sp1-zkvm = { workspace = true, default-features = false }
+
+# SP1's patched `tiny-keccak`. The `patch-2.0.2-sp1-6.2.0-pre` tag points
+# `sp1-lib` at the `tamir/no_std_zkvm` branch on succinctlabs/sp1 (the
+# pre-merge home of the no_std refactor); when 6.2.0 ships we'll cut
+# `patch-2.0.2-sp1-6.2.0` against `sp1-lib = "6.2.0"` from crates.io and
+# repoint here.
+#
+# At `target_os = "zkvm"`, the inner keccakf permutation routes to SP1's
+# `KECCAK_PERMUTE` syscall via `sp1_lib::syscall_keccak_permute`; on host
+# it falls back to the stock software implementation. Used by
+# `precompile::hash::zkvm_keccak256`.
+tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", tag = "patch-2.0.2-sp1-6.2.0-pre", features = ["keccak"] }
 
 [lints]
 workspace = true
