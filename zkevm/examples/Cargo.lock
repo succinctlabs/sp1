@@ -2399,6 +2399,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "ecrecover-c-script"
+version = "0.0.1"
+dependencies = [
+ "k256 0.13.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rand 0.8.6",
+ "sha2 0.10.9 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp1-sdk",
+ "tokio",
+ "tracing",
+ "zkevm-c-build",
+]
+
+[[package]]
 name = "educe"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

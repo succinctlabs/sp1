@@ -1,10 +1,9 @@
 //! secp256k1: signature verification (precompile-less helper) and ECRECOVER (0x01).
 
-use crate::ecall;
 use crate::precompile::types::{Secp256k1Hash, Secp256k1Pubkey, Secp256k1Signature};
 use crate::status::{ZKVM_EFAIL, ZKVM_EOK};
 use k256::ecdsa::signature::hazmat::PrehashVerifier;
-use k256::ecdsa::{Signature, VerifyingKey};
+use k256::ecdsa::{RecoveryId, Signature, VerifyingKey};
 
 /// `zkvm_status zkvm_secp256k1_verify(...)` — non-precompile helper.
 ///
@@ -56,8 +55,15 @@ pub unsafe extern "C" fn zkvm_secp256k1_verify(
 
 /// `zkvm_status zkvm_secp256k1_ecrecover(...)` — Ethereum precompile 0x01.
 ///
-/// SP1 path: ask the host for a recovered pubkey via `FD_ECRECOVER_HOOK`,
-/// then verify it in-circuit using `SECP256K1_ADD`/`SECP256K1_DOUBLE`.
+/// Recovers the SEC1 uncompressed public key (without the leading `0x04`
+/// tag) from a 32-byte message hash, a 64-byte `r || s` signature, and a
+/// 1-byte recovery id. At `target_os = "zkvm"` the patched `k256` crate
+/// fast-paths recovery through SP1's `FD_ECRECOVER_HOOK` and verifies
+/// the recovered point with `SECP256K1_ADD`/`SECP256K1_DOUBLE`.
+///
+/// `recid` is the standard ECDSA recovery id (0..=3); higher values are
+/// rejected. Output layout matches `zkvm_secp256k1_pubkey`: 64 bytes
+/// uncompressed `x || y`.
 #[no_mangle]
 pub unsafe extern "C" fn zkvm_secp256k1_ecrecover(
     msg: *const Secp256k1Hash,
@@ -68,13 +74,30 @@ pub unsafe extern "C" fn zkvm_secp256k1_ecrecover(
     if msg.is_null() || sig.is_null() || output.is_null() {
         return ZKVM_EFAIL;
     }
-    // TODO: implementation
-    ecall::ecall4(
-        ecall::placeholder::TODO_ECRECOVER,
-        msg as usize,
-        sig as usize,
-        recid as usize,
-        output as usize,
-    );
-    ZKVM_EFAIL
+
+    let msg_bytes = &(*msg).data;
+    let sig_bytes = &(*sig).data;
+
+    let signature = match Signature::from_slice(sig_bytes) {
+        Ok(s) => s,
+        Err(_) => return ZKVM_EFAIL,
+    };
+
+    let recovery_id = match RecoveryId::try_from(recid) {
+        Ok(r) => r,
+        Err(_) => return ZKVM_EFAIL,
+    };
+
+    let vk = match VerifyingKey::recover_from_prehash(msg_bytes, &signature, recovery_id) {
+        Ok(v) => v,
+        Err(_) => return ZKVM_EFAIL,
+    };
+
+    let encoded = vk.to_encoded_point(false);
+    let bytes = encoded.as_bytes();
+    if bytes.len() != 65 || bytes[0] != 0x04 {
+        return ZKVM_EFAIL;
+    }
+    (*output).data.copy_from_slice(&bytes[1..]);
+    ZKVM_EOK
 }

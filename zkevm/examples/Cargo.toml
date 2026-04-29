@@ -27,6 +27,7 @@ members = [
   "bn254-c/script",
   "bls12-c/script",
   "modexp-c/script",
+  "ecrecover-c/script",
   # The shared C build helper.
   "c-build",
 ]
