@@ -32,36 +32,62 @@ ld.lld -nostdlib -static -T sdk/zkvm.ld -L sdk \
 ## Building
 
 ```sh
-make                       # produces sdk/{libzkevm.a, zkvm.ld, headers}
-make example               # builds both hello-c and hello-rust guests
-make example-c             # just the C example (clang + ld.lld)
-make example-rust          # just the Rust example guest (cargo)
-make example-rust-execute  # build + run the Rust guest under SP1's executor
-make example-rust-prove    # build + run the Rust guest, generate + verify a CPU proof
+make                              # produces sdk/{libzkevm.a, zkvm.ld, headers}
+make example                      # builds both hello-c and hello-rust guests
+make example-c                    # just the C example (clang + ld.lld)
+make example-rust                 # just the Rust example guest (cargo)
+
+# Per-example execute / prove scripts (each script's build.rs handles
+# the guest build via sp1-build, so no `make sdk` step is required):
+make example-hello-rust-execute   # IO + termination round-trip (Rust)
+make example-hello-rust-prove     # ... and prove + verify
+make example-hello-c-execute      # IO + termination round-trip (C)
+make example-hello-c-prove        # ... and prove + verify
+make example-fibonacci-execute    # arithmetic + IO (Rust)
+make example-fibonacci-prove      # ... and prove + verify
+make example-panic-execute        # failed-termination via panic! (Rust)
+
 make clean
 ```
 
 Default target: `riscv64im-succinct-zkvm-elf` (SP1's tier-3 triple,
 installed by `sp1up`).
 
-### End-to-end smoke test
+### End-to-end smoke tests
+
+Successful termination (compute + IO):
 
 ```sh
-$ make example-rust-execute
-Executed: 4674 cycles (4674 instructions + 0 syscalls)
-Public output: "hello from the host"
-Output matches input.
+$ make example-hello-rust-execute
+INFO executed hello-rust cycles=4674 ...
+INFO public output output=hello from the host
+INFO output matches input
 
-$ make example-rust-prove
-Generated core proof.
-Public output: "hello from the host"
-Proof verified.
+$ make example-fibonacci-execute
+INFO executed fibonacci cycles=18726 n=1000 fib_mod_7919=5965
+
+$ make example-fibonacci-prove
+INFO generated core proof n=1000 fib_mod_7919=5965
+INFO proof verified
 ```
 
-This validates the full pipeline: `sp1-zkvm`'s `_start` → `__start` (now
-forwarding `main`'s exit code) → C-ABI `main` → libzkevm's
-`read_input`/`write_output` against SP1's hint stream and public-values
-hasher → `syscall_halt` → digest commit → STARK proof → verification.
+Failed termination (panic):
+
+```sh
+$ make example-panic-execute
+INFO flag=0: clean termination cycles=4678 output=no panic
+INFO flag=1: executor returned Ok — guest halted with non-zero exit code cycles=8663
+```
+
+The same C-ABI path is exercised by [`hello-c`](examples/hello-c/) (a
+`int main(void)` linked through `clang` + `ld.lld` against
+`libzkevm.a`).
+
+Together these validate the full pipeline: `sp1-zkvm`'s `_start` →
+`__start` (forwarding `main`'s `i32` exit code) → C-ABI `main` →
+libzkevm's `read_input`/`write_output` against SP1's hint stream and
+public-values hasher → `syscall_halt` → digest commit → STARK proof →
+verification.
 
 ## Layout
 
@@ -85,21 +111,25 @@ zkevm/
 │   ├── Cargo.toml
 │   └── src/lib.rs          #   re-exports libzkevm + supplies panic_handler
 └── examples/
-    ├── hello-c/             # C smoke test (links sdk/libzkevm.a)
-    │   ├── Makefile
-    │   └── main.c
-    └── hello-rust/
-        ├── program/         # `#![no_std] #![no_main]` guest, calls into libzkevm
-        │   ├── Cargo.toml   #   own workspace, panic = "abort"
-        │   ├── .cargo/      #   default --target = riscv64im-succinct-zkvm-elf
-        │   └── src/main.rs
-        └── script/          # host: builds the guest, executes + proves it
-            ├── Cargo.toml   #   member of SP1 root workspace
-            ├── build.rs     #   sp1_build::build_program("../program")
-            └── src/
-                ├── execute.rs  # `cargo run -p hello-rust-script --bin hello-rust-execute`
-                └── prove.rs    # `cargo run -p hello-rust-script --bin hello-rust-prove`
+    ├── hello-c/             # IO + termination round-trip (C)
+    │   ├── program/         #   freestanding C, links sdk/libzkevm.a
+    │   └── script/          #   build.rs runs sp1-build + clang + ld.lld
+    ├── hello-rust/          # IO + termination round-trip (Rust)
+    │   ├── program/         #   `#![no_main]` guest using zkevm::entrypoint!
+    │   └── script/          #   execute + prove
+    ├── fibonacci/           # arithmetic + IO (Rust)
+    │   ├── program/
+    │   └── script/
+    └── panic/               # failed termination via panic (Rust)
+        ├── program/
+        └── script/
 ```
+
+Each example follows the same shape: `program/` is the `riscv64im-succinct-zkvm-elf`
+guest (its own workspace, `panic = "abort"`); `script/` is a member of
+the SP1 root workspace whose `build.rs` builds the guest via
+`sp1_build::build_program("../program")` and whose binaries drive
+`client.execute(...)` / `client.prove(...)`.
 
 ### Why three workspaces?
 

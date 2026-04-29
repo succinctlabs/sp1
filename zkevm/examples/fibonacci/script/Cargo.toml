@@ -1,0 +1,30 @@
+[package]
+name = "fibonacci-script"
+description = "Host driver for the fibonacci guest: builds the ELF via sp1-build, executes (and optionally proves) it under SP1, decodes the public output."
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
+rust-version = { workspace = true }
+publish = false
+
+[[bin]]
+name = "fibonacci-execute"
+path = "src/execute.rs"
+
+[[bin]]
+name = "fibonacci-prove"
+path = "src/prove.rs"
+
+[dependencies]
+sp1-sdk = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+tracing = { workspace = true }
+
+[build-dependencies]
+sp1-build = { workspace = true }
+
+[lints]
+workspace = true

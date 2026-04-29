@@ -1,0 +1,26 @@
+[package]
+name = "panic"
+version = "0.0.1"
+edition = "2021"
+publish = false
+description = "Failed-termination showcase: reads a single byte; if non-zero, panics. Demonstrates panic -> syscall_halt(1) on the libzkevm path."
+
+[[bin]]
+name = "panic"
+path = "src/main.rs"
+
+[dependencies]
+libzkevm = { path = "../../../libzkevm" }
+
+[profile.release]
+panic = "abort"
+opt-level = 3
+lto = true
+codegen-units = 1
+debug = false
+strip = true
+
+[profile.dev]
+panic = "abort"
+
+[workspace]

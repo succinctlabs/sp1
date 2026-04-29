@@ -91,6 +91,8 @@ members = [
   "zkevm/libzkevm",
   "zkevm/examples/hello-rust/script",
   "zkevm/examples/hello-c/script",
+  "zkevm/examples/fibonacci/script",
+  "zkevm/examples/panic/script",
 ]
 exclude = [
   "examples/target",
@@ -99,9 +101,11 @@ exclude = [
   # which is a workspace-level setting in cargo. It lives in a stand-
   # alone workspace under `zkevm/`.
   "zkevm/libzkevm-cabi",
-  # The hello-rust *guest* needs `panic = "abort"` for the same reason
-  # and stays in its own workspace.
+  # Guest crates need `panic = "abort"` for the same reason and stay in
+  # their own workspaces.
   "zkevm/examples/hello-rust/program",
+  "zkevm/examples/fibonacci/program",
+  "zkevm/examples/panic/program",
 ]
 resolver = "2"
 

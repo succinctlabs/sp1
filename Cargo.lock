@@ -2769,6 +2769,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "fibonacci-script"
+version = "6.1.0"
+dependencies = [
+ "sp1-build",
+ "sp1-sdk",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "find-msvc-tools"
 version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4627,6 +4637,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "135590d8bdba2b31346f9cd1fb2a912329f5135e832a4f422942eb6ead8b6b3b"
 dependencies = [
  "group 0.12.1",
+]
+
+[[package]]
+name = "panic-script"
+version = "6.1.0"
+dependencies = [
+ "sp1-build",
+ "sp1-sdk",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

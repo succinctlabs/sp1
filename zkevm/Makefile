@@ -66,18 +66,31 @@ example-rust:
 
 # Run the host execute/prove scripts. Each script's `build.rs` builds
 # its corresponding guest ELF as a side effect, so just `cargo run` works.
-.PHONY: example-rust-execute example-rust-prove example-c-execute example-c-prove
-example-rust-execute:
+.PHONY: example-hello-rust-execute example-hello-rust-prove \
+        example-hello-c-execute example-hello-c-prove \
+        example-fibonacci-execute example-fibonacci-prove \
+        example-panic-execute
+
+example-hello-rust-execute:
 	$(CARGO) run --release -p hello-rust-script --bin hello-rust-execute
 
-example-rust-prove:
+example-hello-rust-prove:
 	$(CARGO) run --release -p hello-rust-script --bin hello-rust-prove
 
-example-c-execute:
+example-hello-c-execute:
 	$(CARGO) run --release -p hello-c-script --bin hello-c-execute
 
-example-c-prove:
+example-hello-c-prove:
 	$(CARGO) run --release -p hello-c-script --bin hello-c-prove
+
+example-fibonacci-execute:
+	$(CARGO) run --release -p fibonacci-script --bin fibonacci-execute
+
+example-fibonacci-prove:
+	$(CARGO) run --release -p fibonacci-script --bin fibonacci-prove
+
+example-panic-execute:
+	$(CARGO) run --release -p panic-script --bin panic-execute
 
 clean:
 	$(CARGO) clean --manifest-path libzkevm/Cargo.toml || true
