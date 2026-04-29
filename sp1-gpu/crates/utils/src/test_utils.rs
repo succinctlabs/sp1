@@ -16,7 +16,9 @@ pub mod random {
 
     use crate::{AbstractChipLayout, JaggedTraceMle};
 
-    // ----- Helpers -----
+    //
+    // Helpers
+    //
 
     impl AbstractChipLayout {
         /// Build an `AbstractChipLayout` from a slice of `Chip`s, reading each chip's
@@ -144,7 +146,9 @@ pub mod random {
 
     /// Generate a random [`JaggedTraceMle`] for the given `layout` and per-chip row
     /// counts. The dense buffer is filled with uniformly-random field elements in
-    /// the unpadded regions; padding regions are zero.
+    /// the unpadded regions; padding regions are zero.   
+    ///
+    /// Requires log_stacking_height as an input to compute padding for the preprocessed and main regions.
     pub fn random_jagged_trace_mle_from_layout<F, R>(
         rng: &mut R,
         layout: &AbstractChipLayout,
@@ -163,6 +167,8 @@ pub mod random {
     /// Generate a random [`JaggedTraceMle`] whose total dense size (preprocessed +
     /// main, before stacking-height padding) is approximately `total_area` field
     /// elements, partitioned randomly among `chips` via [`generate_random_heights`].
+    ///
+    /// Requires log_stacking_height as an input to compute padding for the preprocessed and main regions.
     pub fn random_jagged_trace_mle<F, A, R>(
         rng: &mut R,
         chips: &[Chip<F, A>],
@@ -185,6 +191,8 @@ pub mod random {
     /// Read a chip layout and per-chip heights from a JSON file (see
     /// [`read_layout_from_json`] for the schema) and produce a random
     /// [`JaggedTraceMle`] with that shape.
+    ///
+    /// Requires log_stacking_height as an input to compute padding for the preprocessed and main regions.
     pub fn random_jagged_trace_mle_from_json<F, R>(
         rng: &mut R,
         path: impl AsRef<Path>,
