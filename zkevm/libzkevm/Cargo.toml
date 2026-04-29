@@ -80,5 +80,11 @@ substrate-bn = { git = "https://github.com/sp1-patches/bn", tag = "patch-0.6.0-s
 # `precompile::bls12_381::*` (Ethereum precompiles 0x0b–0x11, EIP-2537).
 bls12_381 = { git = "https://github.com/sp1-patches/bls12_381", tag = "patch-0.8.0-sp1-6.2.0-pre", default-features = false, features = ["groups", "pairings", "alloc"] }
 
+# Arbitrary-precision modular exponentiation for `zkvm_modexp`
+# (Ethereum precompile 0x05). SP1 has no syscall for this; we use the
+# stock `num-bigint-dig` software impl. `default-features = false` keeps
+# us no_std-clean; the crate still uses `alloc` for `BigUint`.
+num-bigint-dig = { version = "0.9", default-features = false }
+
 [lints]
 workspace = true
