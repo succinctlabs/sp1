@@ -1,0 +1,54 @@
+name: zkevm-sdk-build
+
+# Builds the redistributable `zkevm-sdk-vX.Y.Z.tar.gz` artifact.
+# Contents (host-independent — `libzkevm.a` is always built for
+# `riscv64im-succinct-zkvm-elf`):
+#
+#   zkevm-sdk-vX.Y.Z/
+#   ├── libzkevm.a
+#   ├── zkvm.ld
+#   ├── include/zkvm_accelerators.h
+#   └── README.md
+#
+# This workflow only builds + uploads the tarball as a workflow
+# artifact. Downloading it requires opening the workflow run in the
+# Actions UI.
+#
+# Future integration: when an SP1 release is cut, this build will
+# move into the main `release.yml` as a job analogous to
+# `sp1-gpu-server-release` — same shape (one linux runner, one
+# tarball), but `gh release upload`-ing to the release tag created
+# by the `prepare` job. At that point this standalone workflow can
+# either stay (as a manual-trigger sanity check) or be removed.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'SDK version (without leading "v"); used in the tarball filename'
+        required: true
+        default: '0.1.0-pre'
+
+jobs:
+  build:
+    runs-on: [runs-on, runner=8cpu-linux-x64, "run-id=${{ github.run_id }}"]
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+
+      - name: Install SP1 toolchain (succinct)
+        run: cargo run -p sp1-cli --no-default-features -- prove install-toolchain
+
+      - name: Build SDK archive
+        run: make -C zkevm sdk-archive SDK_VERSION=${{ inputs.version }}
+
+      - name: Upload tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: zkevm-sdk-${{ inputs.version }}
+          path: zkevm/zkevm-sdk-${{ inputs.version }}.tar.gz
+          retention-days: 30
