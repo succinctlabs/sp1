@@ -1,32 +1,25 @@
-//! Precompile stubs implementing the eth-act `zkvm_accelerators.h` ABI.
+//! Precompile bodies implementing the eth-act `zkvm_accelerators.h` ABI.
 //!
-//! Layout: one module per accelerator family.
+//! Layout: one module per accelerator family. Each export has a signature
+//! *exactly* matching the C header. **A wrong precompile is worse than no
+//! precompile** — do not "fix" a stub by inventing crypto here.
 //!
-//! Every export has signature *exactly* matching the C header. Bodies are
-//! stubs — they validate input pointers, then either issue a placeholder
-//! `ecall` (`0xDEAD_xxxx`, see [`crate::ecall::placeholder`]) or fall through
-//! to returning `ZKVM_EFAIL`. **A wrong precompile is worse than no
-//! precompile**, so do not "fix" a stub by inventing crypto here — replace
-//! it with a correct dispatch over real SP1 syscalls instead.
-//!
-//! Suggested mapping (informational, not implemented):
-//!
-//! | C function                       | Likely SP1 path                                                              |
+//! | C function                       | SP1 path                                                                    |
 //! |----------------------------------|------------------------------------------------------------------------------|
-//! | `zkvm_keccak256`                 | loop over `KECCAK_PERMUTE` with sponge padding                              |
-//! | `zkvm_sha256`                    | loop over `SHA_EXTEND` + `SHA_COMPRESS` with MD padding                     |
-//! | `zkvm_secp256k1_ecrecover`       | host hook (see SP1's `FD_ECRECOVER_HOOK`) + `SECP256K1_ADD/DOUBLE` verify   |
-//! | `zkvm_secp256k1_verify`          | scalar mul via `SECP256K1_ADD/DOUBLE`, no new syscall needed                |
-//! | `zkvm_secp256r1_verify`          | scalar mul via `SECP256R1_ADD/DOUBLE`                                       |
-//! | `zkvm_bn254_g1_add`/`mul`        | direct dispatch to `BN254_ADD`/`BN254_DOUBLE` with windowed scalar mul      |
-//! | `zkvm_bn254_pairing`             | composed from `BN254_FP{2}_*` precompiles + Miller loop in software        |
-//! | `zkvm_bls12_g1_add`/`g1_msm`/...| direct dispatch to `BLS12381_*` precompiles                                 |
-//! | `zkvm_bls12_pairing`             | composed from `BLS12381_FP{2}_*` precompiles                                |
-//! | `zkvm_bls12_map_fp{,2}_to_g{1,2}`| no SP1 syscall — needs new runtime support (or sw impl on top of FP ops)   |
-//! | `zkvm_modexp`                    | no SP1 syscall — needs new runtime support (or sw bigint)                  |
-//! | `zkvm_blake2f`                   | no SP1 syscall — needs new runtime support                                 |
-//! | `zkvm_kzg_point_eval`            | composed from `BLS12381_*` precompiles + KZG verifier in software          |
-//! | `zkvm_ripemd160`                 | no SP1 syscall — software impl is acceptable; not perf-critical for L1 STF |
+//! | `zkvm_keccak256`                 | patched `tiny-keccak`: routes `keccakf` to `KECCAK_PERMUTE`                 |
+//! | `zkvm_sha256`                    | patched `sha2`: `SHA_EXTEND` + `SHA_COMPRESS`                               |
+//! | `zkvm_ripemd160`                 | software via stock `ripemd` crate                                           |
+//! | `zkvm_secp256k1_ecrecover`       | patched `k256` `recover_from_prehash` (uses `FD_ECRECOVER_HOOK` in zkvm)    |
+//! | `zkvm_secp256k1_verify`          | patched `k256` ECDSA verify; routes through `SECP256K1_*` syscalls          |
+//! | `zkvm_secp256r1_verify`          | patched `p256` ECDSA verify; routes through `SECP256R1_*` syscalls          |
+//! | `zkvm_bn254_g1_add`/`mul`        | patched `substrate-bn`; routes through `BN254_ADD`/`DOUBLE`                 |
+//! | `zkvm_bn254_pairing`             | patched `substrate-bn` `pairing_batch`                                      |
+//! | `zkvm_bls12_g{1,2}_{add,msm}`    | patched `bls12_381` over `BLS12381_*` syscalls                              |
+//! | `zkvm_bls12_pairing`             | patched `bls12_381` `multi_miller_loop` + `final_exponentiation`            |
+//! | `zkvm_bls12_map_fp{,2}_to_g{1,2}`| patched `bls12_381` `MapToCurve` (experimental) + `clear_cofactor`          |
+//! | `zkvm_modexp`                    | software via `num-bigint-dig::BigUint::modpow`                              |
+//! | `zkvm_blake2f`                   | software F compression vendored inline per RFC 7693 §3.2                    |
+//! | `zkvm_kzg_point_eval`            | TODO: needs the Ethereum trusted-setup `[tau]_2` constant baked in          |
 
 pub mod blake2f;
 pub mod bls12_381;
