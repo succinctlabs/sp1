@@ -23,6 +23,8 @@
 #![no_std]
 #![allow(clippy::missing_safety_doc)]
 
+extern crate alloc;
+
 pub mod ecall;
 pub mod halt;
 pub mod io;

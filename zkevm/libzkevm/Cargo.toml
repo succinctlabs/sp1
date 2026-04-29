@@ -66,5 +66,14 @@ k256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-k2
 # 0x100 / EIP-7212).
 p256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-p256-13.2-sp1-6.2.0-pre", default-features = false, features = ["ecdsa"] }
 
+# SP1's patched `substrate-bn`. At `target_os = "zkvm"` BN254 curve and
+# field operations route through SP1's `BN254_*` precompile syscalls
+# (`BN254_ADD`, `BN254_DOUBLE`, `BN254_FP*`). The
+# `-sp1-6.2.0-pre-substrate-bn` tag is the substrate-bn variant of the
+# crate (lib name = `substrate-bn`) repointed at the no_std sp1 branch.
+# Used by `precompile::bn254::*` (Ethereum precompiles 0x06–0x08,
+# EIP-196 / EIP-197).
+substrate-bn = { git = "https://github.com/sp1-patches/bn", tag = "patch-0.6.0-sp1-6.2.0-pre-substrate-bn", default-features = false }
+
 [lints]
 workspace = true
