@@ -9,6 +9,7 @@
 
 use std::path::PathBuf;
 
+#[allow(clippy::print_stdout)]
 fn main() {
     let zkevm_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
