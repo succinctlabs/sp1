@@ -9,6 +9,10 @@ publish = false
 name = "panic-c-execute"
 path = "src/execute.rs"
 
+[[bin]]
+name = "panic-c-prove"
+path = "src/prove.rs"
+
 [dependencies]
 sp1-sdk = { workspace = true }
 tokio = { workspace = true }
