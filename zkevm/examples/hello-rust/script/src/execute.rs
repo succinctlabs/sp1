@@ -17,7 +17,7 @@ async fn main() {
     let mut stdin = SP1Stdin::new();
     stdin.write_slice(input);
 
-    let client = ProverClient::from_env().await;
+    let client = ProverClient::builder().light().build().await;
 
     let (public_values, report) = client.execute(ELF, stdin).await.unwrap();
     info!(
