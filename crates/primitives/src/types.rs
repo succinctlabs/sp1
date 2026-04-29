@@ -1,3 +1,4 @@
+use alloc::{sync::Arc, vec::Vec};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy)]
@@ -70,13 +71,13 @@ pub enum Elf {
     /// The ELF binary for the program.
     Static(&'static [u8]),
     /// The ELF binary for the test program.
-    Dynamic(std::sync::Arc<[u8]>),
+    Dynamic(Arc<[u8]>),
 }
 
 // todo!(n): implement serde for the ELF type.
 
-impl From<std::sync::Arc<[u8]>> for Elf {
-    fn from(elf: std::sync::Arc<[u8]>) -> Self {
+impl From<Arc<[u8]>> for Elf {
+    fn from(elf: Arc<[u8]>) -> Self {
         Self::Dynamic(elf)
     }
 }
@@ -93,7 +94,7 @@ impl From<&[u8]> for Elf {
     }
 }
 
-impl std::ops::Deref for Elf {
+impl core::ops::Deref for Elf {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {

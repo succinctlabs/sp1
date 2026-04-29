@@ -16,7 +16,9 @@ pub fn syscall_enter_unconstrained() -> bool {
 
     #[cfg(not(target_os = "zkvm"))]
     {
-        eprintln!("Entering unconstrained execution block");
+        // Host-only no-op (sp1-zkvm is `#![no_std]` so eprintln! is not
+        // available; the only consumer of this code path on host is
+        // type-check, not actual execution).
         continue_unconstrained = 1;
     }
 
@@ -34,6 +36,7 @@ pub fn syscall_exit_unconstrained() {
         unreachable!()
     }
 
+    // Host-only no-op (see comment in `syscall_enter_unconstrained`).
     #[cfg(not(target_os = "zkvm"))]
-    eprintln!("Exiting unconstrained execution block");
+    {}
 }
