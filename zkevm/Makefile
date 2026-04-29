@@ -70,7 +70,8 @@ example-rust:
         example-hello-c-execute example-hello-c-prove \
         example-fibonacci-execute example-fibonacci-prove \
         example-panic-execute \
-        example-keccak-execute example-keccak-prove
+        example-keccak-execute example-keccak-prove \
+        example-sha256-execute example-sha256-prove
 
 example-hello-rust-execute:
 	$(CARGO) run --release -p hello-rust-script --bin hello-rust-execute
@@ -98,6 +99,12 @@ example-keccak-execute:
 
 example-keccak-prove:
 	$(CARGO) run --release -p keccak-script --bin keccak-prove
+
+example-sha256-execute:
+	$(CARGO) run --release -p sha256-script --bin sha256-execute
+
+example-sha256-prove:
+	$(CARGO) run --release -p sha256-script --bin sha256-prove
 
 clean:
 	$(CARGO) clean --manifest-path libzkevm/Cargo.toml || true

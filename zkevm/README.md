@@ -48,6 +48,8 @@ make example-fibonacci-prove      # ... and prove + verify
 make example-panic-execute        # failed-termination via panic! (Rust)
 make example-keccak-execute       # zkvm_keccak256 precompile, against host reference
 make example-keccak-prove         # ... and prove + verify (exercises KECCAK_PERMUTE circuit)
+make example-sha256-execute       # zkvm_sha256 precompile, against host reference
+make example-sha256-prove         # ... and prove + verify (exercises SHA_EXTEND/COMPRESS)
 
 make clean
 ```
@@ -144,7 +146,10 @@ zkevm/
     ├── panic/               # failed termination via panic (Rust)
     │   ├── program/
     │   └── script/
-    └── keccak/              # `zkvm_keccak256` precompile demo (Rust)
+    ├── keccak/              # `zkvm_keccak256` precompile demo (Rust)
+    │   ├── program/
+    │   └── script/
+    └── sha256/              # `zkvm_sha256` precompile demo (Rust)
         ├── program/
         └── script/
 ```

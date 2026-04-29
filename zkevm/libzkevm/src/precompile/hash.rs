@@ -10,6 +10,7 @@
 
 use crate::precompile::types::{Keccak256Hash, Ripemd160Hash, Sha256Hash};
 use crate::status::{ZKVM_EFAIL, ZKVM_EOK};
+use sha2::Digest;
 use tiny_keccak::{Hasher, Keccak};
 
 /// `zkvm_status zkvm_keccak256(const uint8_t* data, size_t len, zkvm_keccak256_hash* output)`.
@@ -39,7 +40,11 @@ pub unsafe extern "C" fn zkvm_keccak256(
 
 /// `zkvm_status zkvm_sha256(const uint8_t* data, size_t len, zkvm_sha256_hash* output)`.
 ///
-/// SP1 path: loop over `SHA_EXTEND` + `SHA_COMPRESS` with FIPS-180 padding.
+/// Feed `data[..len]` into `sha2::Sha256` and write the 32-byte digest
+/// to `*output`. The patched `sha2`'s `compress256` calls
+/// `syscall_sha256_extend` + `syscall_sha256_compress` at
+/// `target_os = "zkvm"`, dispatching to SP1's `SHA_EXTEND`
+/// (`0x00_30_01_05`) + `SHA_COMPRESS` (`0x00_01_01_06`) precompiles.
 #[no_mangle]
 pub unsafe extern "C" fn zkvm_sha256(data: *const u8, len: usize, output: *mut Sha256Hash) -> i32 {
     if data.is_null() && len != 0 {
@@ -48,14 +53,12 @@ pub unsafe extern "C" fn zkvm_sha256(data: *const u8, len: usize, output: *mut S
     if output.is_null() {
         return ZKVM_EFAIL;
     }
-    // TODO: implementation
-    crate::ecall::ecall3(
-        crate::ecall::placeholder::TODO_SHA256,
-        data as usize,
-        len,
-        output as usize,
-    );
-    ZKVM_EFAIL
+    let input = if len == 0 { &[] } else { core::slice::from_raw_parts(data, len) };
+    let mut hasher = sha2::Sha256::new();
+    hasher.update(input);
+    let digest = hasher.finalize();
+    (*output).data.copy_from_slice(&digest);
+    ZKVM_EOK
 }
 
 /// `zkvm_status zkvm_ripemd160(const uint8_t* data, size_t len, zkvm_ripemd160_hash* output)`.

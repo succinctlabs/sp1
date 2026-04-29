@@ -363,13 +363,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fibonacci"
-version = "0.0.1"
-dependencies = [
- "libzkevm",
-]
-
-[[package]]
 name = "find-msvc-tools"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1063,6 +1056,13 @@ dependencies = [
  "cfg-if",
  "cpufeatures 0.2.17",
  "digest",
+]
+
+[[package]]
+name = "sha256"
+version = "0.0.1"
+dependencies = [
+ "libzkevm",
 ]
 
 [[package]]
