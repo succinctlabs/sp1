@@ -75,5 +75,10 @@ p256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-p2
 # EIP-196 / EIP-197).
 substrate-bn = { git = "https://github.com/sp1-patches/bn", tag = "patch-0.6.0-sp1-6.2.0-pre-substrate-bn", default-features = false }
 
+# SP1's patched `bls12_381` (zkcrypto fork). At `target_os = "zkvm"` G1
+# and G2 arithmetic route through SP1's `BLS12381_*` syscalls. Used by
+# `precompile::bls12_381::*` (Ethereum precompiles 0x0b–0x11, EIP-2537).
+bls12_381 = { git = "https://github.com/sp1-patches/bls12_381", tag = "patch-0.8.0-sp1-6.2.0-pre", default-features = false, features = ["groups", "pairings", "alloc"] }
+
 [lints]
 workspace = true
