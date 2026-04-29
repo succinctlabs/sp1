@@ -1482,7 +1482,7 @@ dependencies = [
 name = "bls12-c-script"
 version = "0.0.1"
 dependencies = [
- "bls12_381 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "bls12_381 0.8.0",
  "ff 0.13.1",
  "group 0.13.0",
  "rand 0.8.6",
@@ -1508,24 +1508,13 @@ dependencies = [
 [[package]]
 name = "bls12_381"
 version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7bc6d6292be3a19e6379786dac800f551e5865a5bb51ebbe3064ab80433f403"
-dependencies = [
- "ff 0.13.1",
- "group 0.13.0",
- "pairing 0.23.0",
- "rand_core 0.6.4",
- "subtle",
-]
-
-[[package]]
-name = "bls12_381"
-version = "0.8.0"
 source = "git+https://github.com/sp1-patches/bls12_381?tag=patch-0.8.0-sp1-6.2.0-pre#1ba1154349366c6b0f2353851efe0e2db8ee12ac"
 dependencies = [
  "cfg-if",
+ "digest 0.10.7",
  "ff 0.13.1",
  "group 0.13.0",
+ "hex",
  "pairing 0.23.0",
  "rand_core 0.6.4",
  "sp1-lib",
@@ -3743,7 +3732,7 @@ dependencies = [
 name = "libzkevm"
 version = "6.1.0"
 dependencies = [
- "bls12_381 0.8.0 (git+https://github.com/sp1-patches/bls12_381?tag=patch-0.8.0-sp1-6.2.0-pre)",
+ "bls12_381 0.8.0",
  "k256 0.13.4 (git+https://github.com/sp1-patches/elliptic-curves?tag=patch-k256-13.4-sp1-6.2.0-pre)",
  "num-bigint-dig",
  "p256 0.13.2 (git+https://github.com/sp1-patches/elliptic-curves?tag=patch-p256-13.2-sp1-6.2.0-pre)",

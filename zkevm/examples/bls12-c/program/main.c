@@ -5,6 +5,8 @@
  * Mode 1: g2_add — input 384 bytes (p1 192 || p2 192), output 192 bytes.
  * Mode 2: pairing — input num_pairs * (96 + 192) bytes after the mode
  *          byte, output 1 byte (verified).
+ * Mode 3: map_fp_to_g1 — input 48 bytes Fp, output 96 bytes G1.
+ * Mode 4: map_fp2_to_g2 — input 96 bytes Fp2, output 192 bytes G2.
  */
 
 #include <stdbool.h>
@@ -45,6 +47,22 @@ int main(void) {
       p2.data[i] = payload[192 + i];
     }
     status = zkvm_bls12_g2_add(&p1, &p2, &result);
+    if (status != ZKVM_EOK) return 1;
+    write_output(result.data, sizeof result.data);
+  } else if (mode == 3) {
+    if (payload_size != 48) return 1;
+    zkvm_bls12_381_fp fp;
+    zkvm_bls12_381_g1_point result = {0};
+    for (size_t i = 0; i < 48; ++i) fp.data[i] = payload[i];
+    status = zkvm_bls12_map_fp_to_g1(&fp, &result);
+    if (status != ZKVM_EOK) return 1;
+    write_output(result.data, sizeof result.data);
+  } else if (mode == 4) {
+    if (payload_size != 96) return 1;
+    zkvm_bls12_381_fp2 fp2;
+    zkvm_bls12_381_g2_point result = {0};
+    for (size_t i = 0; i < 96; ++i) fp2.data[i] = payload[i];
+    status = zkvm_bls12_map_fp2_to_g2(&fp2, &result);
     if (status != ZKVM_EOK) return 1;
     write_output(result.data, sizeof result.data);
   } else if (mode == 2) {

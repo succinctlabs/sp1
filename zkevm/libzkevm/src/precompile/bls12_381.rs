@@ -4,12 +4,12 @@
 //! `zkvm_accelerators.h`: G1 = 96 bytes (Fp x || Fp y, BE), G2 = 192
 //! bytes (Fp2 x || Fp2 y, BE; Fp2 = c1 || c0). Scalar = 32 BE bytes.
 
-use crate::ecall;
 use crate::precompile::types::{
     Bls12381Fp, Bls12381Fp2, Bls12381G1MsmPair, Bls12381G1Point, Bls12381G2MsmPair,
     Bls12381G2Point, Bls12381PairingPair,
 };
 use crate::status::{ZKVM_EFAIL, ZKVM_EOK};
+use bls12_381::hash_to_curve::MapToCurve;
 use bls12_381::{
     multi_miller_loop, G1Affine, G1Projective, G2Affine, G2Prepared, G2Projective, Gt, Scalar,
 };
@@ -159,8 +159,13 @@ pub unsafe extern "C" fn zkvm_bls12_pairing(
     ZKVM_EOK
 }
 
-/// SP1 has no precompile yet for the SSWU map; would need software
-/// `map_to_curve` + clear-cofactor over the patched Fp ops. Stub for now.
+fn fp_from_be(bytes: &[u8; 48]) -> Option<bls12_381::fp::Fp> {
+    bls12_381::fp::Fp::from_bytes(bytes).into_option()
+}
+
+/// `zkvm_status zkvm_bls12_map_fp_to_g1(...)` — Ethereum precompile 0x10
+/// (EIP-2537). Maps an Fp element to G1 via the SWU base map and clears
+/// the cofactor (multiply by `1 - z`).
 #[no_mangle]
 pub unsafe extern "C" fn zkvm_bls12_map_fp_to_g1(
     field_element: *const Bls12381Fp,
@@ -169,14 +174,17 @@ pub unsafe extern "C" fn zkvm_bls12_map_fp_to_g1(
     if field_element.is_null() || result.is_null() {
         return ZKVM_EFAIL;
     }
-    ecall::ecall2(
-        ecall::placeholder::TODO_BLS12_MAP_FP_TO_G1,
-        field_element as usize,
-        result as usize,
-    );
-    ZKVM_EFAIL
+    let fp = match fp_from_be(&(*field_element).data) {
+        Some(f) => f,
+        None => return ZKVM_EFAIL,
+    };
+    let p = G1Projective::map_to_curve(&fp).clear_cofactor();
+    encode_g1(p, &mut (*result).data);
+    ZKVM_EOK
 }
 
+/// `zkvm_status zkvm_bls12_map_fp2_to_g2(...)` — Ethereum precompile 0x11
+/// (EIP-2537). Same as above for Fp2 → G2.
 #[no_mangle]
 pub unsafe extern "C" fn zkvm_bls12_map_fp2_to_g2(
     field_element: *const Bls12381Fp2,
@@ -185,10 +193,18 @@ pub unsafe extern "C" fn zkvm_bls12_map_fp2_to_g2(
     if field_element.is_null() || result.is_null() {
         return ZKVM_EFAIL;
     }
-    ecall::ecall2(
-        ecall::placeholder::TODO_BLS12_MAP_FP2_TO_G2,
-        field_element as usize,
-        result as usize,
-    );
-    ZKVM_EFAIL
+    let bytes = &(*field_element).data;
+    // Fp2 layout per zkvm_accelerators.h: 96 bytes = c1 (48 BE) || c0 (48 BE).
+    let c1 = match fp_from_be(bytes[0..48].try_into().unwrap()) {
+        Some(f) => f,
+        None => return ZKVM_EFAIL,
+    };
+    let c0 = match fp_from_be(bytes[48..96].try_into().unwrap()) {
+        Some(f) => f,
+        None => return ZKVM_EFAIL,
+    };
+    let fp2 = bls12_381::fp2::Fp2 { c0, c1 };
+    let p = G2Projective::map_to_curve(&fp2).clear_cofactor();
+    encode_g2(p, &mut (*result).data);
+    ZKVM_EOK
 }
