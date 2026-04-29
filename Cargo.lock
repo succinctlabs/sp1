@@ -7417,6 +7417,7 @@ dependencies = [
  "memfd",
  "memmap2",
  "serde",
+ "tempfile",
  "tracing",
  "uuid",
 ]

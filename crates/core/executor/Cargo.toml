@@ -66,6 +66,10 @@ profiling = [
   "dep:indicatif",
   "sp1-jit/profiling",
 ]
+## Enable building a `MinimalExecutor` directly from statically linked JIT
+## symbols (produced by assembling the `.S` file from `CompiledCode::write_asm`).
+## Activates `MinimalExecutor::from_static_link`.
+static-link = ["sp1-jit/static-link"]
 
 [lints]
 workspace = true

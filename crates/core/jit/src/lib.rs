@@ -4,6 +4,7 @@
 compile_error!("This crate is only supported on little endian targets.");
 
 pub mod backends;
+pub mod compiled;
 pub mod context;
 pub mod debug;
 pub mod instructions;
@@ -11,6 +12,8 @@ mod macros;
 pub mod memory;
 pub mod risc;
 pub mod shm;
+#[cfg(feature = "static-link")]
+pub mod static_link;
 
 use dynasmrt::ExecutableBuffer;
 use hashbrown::HashMap;
@@ -24,6 +27,7 @@ use std::{
 };
 
 pub use backends::*;
+pub use compiled::CompiledCode;
 pub use context::*;
 pub use instructions::*;
 pub use risc::*;
@@ -61,18 +65,18 @@ pub type DebugFn = extern "C" fn(u64);
 /// ```rust,no_run,ignore
 /// pub fn add_program() {
 ///     let mut transpiler = SP1RiscvTranspiler::new(program_size, memory_size, trace_buf_size, 100, 100).unwrap();
-///      
+///
 ///     // Transpile the first instruction.
 ///     transpiler.start_instr();
 ///     transpiler.add(RiscOperand::Reg(RiscRegister::A), RiscOperand::Reg(RiscRegister::B), RiscRegister::C);
 ///     transpiler.end_instr();
-///     
+///
 ///     // Transpile the second instruction.
 ///     transpiler.start_instr();
 ///
 ///     transpiler.add(RiscOperand::Reg(RiscRegister::A), RiscOperand::Reg(RiscRegister::B), RiscRegister::C);
 ///     transpiler.end_instr();
-///     
+///
 ///     let mut func = transpiler.finalize();
 ///
 ///     // Call the function.
@@ -200,7 +204,17 @@ pub struct JitFunction<M> {
 #[cfg(sp1_native_executor_available)]
 pub struct JitFunction<M> {
     jump_table: Vec<*const u8>,
-    code: ExecutableBuffer,
+    /// Owned executable buffer.  `None` when the code lives in a statically-linked
+    /// object (see the `static-link` feature) — in that case the buffer is part of
+    /// the binary's own text segment and has its own lifetime.
+    ///
+    /// Kept purely for ownership / drop semantics; `entry_fn` holds the actual
+    /// pointer used at call time.
+    #[allow(dead_code)]
+    code: Option<ExecutableBuffer>,
+    /// Cached entry-point pointer derived from `code` or from a linker symbol.
+    /// This is what [`Self::call`] actually invokes.
+    entry_fn: fn(*mut JitContext),
 
     /// The initial memory image.
     initial_memory_image: Arc<HashMap<u64, u64>>,
@@ -230,6 +244,47 @@ unsafe impl<M: Send> Send for JitFunction<M> {}
 
 #[cfg(sp1_native_executor_available)]
 impl<M: JitMemory> JitFunction<M> {
+    /// Reconstruct a [`JitFunction`] from a previously saved [`CompiledCode`] blob,
+    /// skipping the transpilation step entirely.
+    ///
+    /// The raw x86-64 bytes in `compiled` are copied into a writable buffer.
+    /// Before marking the buffer executable:
+    /// - Every offset in [`CompiledCode::ecall_ptr_offsets`] is overwritten with
+    ///   the address of `ecall_handler`.
+    /// - Every offset in [`CompiledCode::unimp_ptr_offsets`] is overwritten with
+    ///   the address of `unimp_handler`.
+    ///
+    /// This ensures the restored code calls the correct live functions regardless
+    /// of which process or ASLR layout compiled the blob.
+    pub fn from_compiled_code(
+        compiled: &CompiledCode,
+        ecall_handler: EcallHandler,
+        unimp_handler: ExternFn,
+    ) -> io::Result<Self> {
+        use dynasmrt::mmap::MutableBuffer;
+
+        let code_len = compiled.code.len();
+        let mut buf = MutableBuffer::new(code_len)?;
+        buf.set_len(code_len);
+        buf[..].copy_from_slice(&compiled.code);
+
+        // Patch each ECALL handler pointer with the live address.
+        let ecall_bytes = (ecall_handler as usize as u64).to_le_bytes();
+        for &offset in &compiled.ecall_ptr_offsets {
+            buf[offset..offset + 8].copy_from_slice(&ecall_bytes);
+        }
+
+        // Patch each UNIMP handler pointer with the live address.
+        let unimp_bytes = (unimp_handler as usize as u64).to_le_bytes();
+        for &offset in &compiled.unimp_ptr_offsets {
+            buf[offset..offset + 8].copy_from_slice(&unimp_bytes);
+        }
+
+        let exec_buf = buf.make_exec()?;
+
+        Self::new(exec_buf, compiled.jump_table.clone(), compiled.memory_size, compiled.pc_start)
+    }
+
     pub(crate) fn new(
         code: ExecutableBuffer,
         jump_table: Vec<usize>,
@@ -241,11 +296,17 @@ impl<M: JitMemory> JitFunction<M> {
         let jump_table =
             jump_table.into_iter().map(|offset| unsafe { buf_ptr.add(offset) }).collect();
 
+        // Cache the entry-point function pointer so that `call` doesn't need to
+        // reach into the buffer on every invocation.
+        let entry_fn: fn(*mut JitContext) =
+            unsafe { std::mem::transmute::<*const u8, fn(*mut JitContext)>(buf_ptr) };
+
         let memory = M::new(memory_size);
 
         Ok(Self {
             jump_table,
-            code,
+            code: Some(code),
+            entry_fn,
             memory,
             pc: pc_start,
             clk: 1,
@@ -320,7 +381,7 @@ impl<M: JitMemory> JitFunction<M> {
             return;
         }
 
-        let as_fn = std::mem::transmute::<*const u8, fn(*mut JitContext)>(self.code.as_ptr());
+        let as_fn = self.entry_fn;
 
         // Ensure the memory pointer is aligned to the alignment of the u64.
         let align_offset = self.memory.as_ptr().align_offset(std::mem::align_of::<u64>());
@@ -403,5 +464,73 @@ impl<M: JitResetableMemory> JitFunction<M> {
         self.memory.reset();
 
         self.insert_memory_image();
+    }
+}
+
+/// Static-link constructor — only available with the `static-link` feature.
+///
+/// Builds a [`JitFunction`] entirely from linker symbols that were produced by
+/// assembling the `.S` file emitted by [`CompiledCode::write_asm`].  No runtime
+/// deserialization or code copying is needed; the JIT code and its metadata live
+/// directly in the binary's own text / rodata segments.
+///
+/// See [`crate::static_link`] for the full list of required linker symbols and
+/// the assembly / linking workflow.
+#[cfg(all(sp1_native_executor_available, feature = "static-link"))]
+impl<M: JitMemory> JitFunction<M> {
+    /// Reconstruct a [`JitFunction`] from statically linked symbols.
+    ///
+    /// # Safety
+    /// The caller must ensure that the binary was linked against an object file
+    /// produced from the `.S` file generated by [`CompiledCode::write_asm`] for
+    /// the same program.  Linking against an incompatible object will result in
+    /// undefined behaviour at execution time.
+    pub unsafe fn from_static_link() -> io::Result<(Self, u64)> {
+        use crate::static_link::*;
+
+        // Each jump-table entry is a byte offset from `sp1_jit_code`, stored as
+        // a plain u64 constant with no relocation (see write_asm docs).
+        // We recover the absolute pointer by adding the runtime address of
+        // sp1_jit_code — identical arithmetic to JitFunction::new().
+        let code_base = sp1_jit_code as *const u8;
+        let jt_len = sp1_jump_table_len as usize;
+        let jt_offsets: &[u64] = std::slice::from_raw_parts(sp1_jump_table.as_ptr(), jt_len);
+        let jump_table: Vec<*const u8> =
+            jt_offsets.iter().map(|&off| code_base.add(off as usize)).collect();
+
+        let pc_start = sp1_pc_start;
+        let memory_size = sp1_memory_size as usize;
+
+        // The entry function is the JIT prologue in the linked .text section.
+        // The extern "C" fn must be transmuted to the plain fn pointer type used
+        // by JitFunction — the calling convention is identical (System V AMD64).
+        let entry_fn: fn(*mut JitContext) = std::mem::transmute::<
+            unsafe extern "C" fn(*mut JitContext),
+            fn(*mut JitContext),
+        >(sp1_jit_code);
+
+        let memory = M::new(memory_size);
+
+        Ok((
+            Self {
+                jump_table,
+                // No owned buffer: the code lives in the binary's own text segment.
+                code: None,
+                entry_fn,
+                memory,
+                pc: pc_start,
+                clk: 1,
+                global_clk: 0,
+                registers: [0; 32],
+                initial_memory_image: Arc::new(HashMap::new()),
+                pc_start,
+                input_buffer: VecDeque::new(),
+                hints: Vec::new(),
+                public_values_stream: Vec::new(),
+                debug_sender: None,
+                exit_code: 0,
+            },
+            sp1_max_trace_size,
+        ))
     }
 }

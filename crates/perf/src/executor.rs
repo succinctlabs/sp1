@@ -195,11 +195,12 @@ fn execute_minimal(elf: Vec<u8>, stdin: SP1Stdin, trace: bool) {
     println!("MinimalExecutor creation time: {:?}", time);
 
     let now = std::time::Instant::now();
-    while executor.execute_chunk().is_some() {}
+    let chunks = executor.run_till_end();
     let time = now.elapsed();
 
     println!("exit code: {}, cycles: {}", executor.exit_code(), executor.global_clk());
     println!("execution time: {:?}", time);
+    println!("chunks: {chunks}");
     println!("mhz: {}", executor.global_clk() as f64 / (time.as_secs_f64() * 1_000_000.0));
 }
 

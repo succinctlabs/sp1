@@ -3,8 +3,9 @@
 use crate::{memory::MAX_LOG_ADDR, Instruction, Opcode, Program, Register, HALT_PC};
 use memmap2::MmapMut;
 use sp1_jit::{
-    debug, memory::AnonymousMemory, trace_capacity, DebugBackend, JitFunction, JitMemory, MemValue,
-    RiscOperand, RiscRegister, RiscvTranspiler, TraceChunkHeader, TraceChunkRaw, TranspilerBackend,
+    debug, memory::AnonymousMemory, trace_capacity, CompiledCode, DebugBackend, JitFunction,
+    JitMemory, MemValue, RiscOperand, RiscRegister, RiscvTranspiler, TraceChunkHeader,
+    TraceChunkRaw, TranspilerBackend,
 };
 use std::{
     collections::VecDeque,
@@ -55,6 +56,86 @@ impl MinimalExecutor {
             compiled,
             input: VecDeque::new(),
             trace_buf_size: trace_capacity(max_trace_size),
+        }
+    }
+
+    /// Restore a [`MinimalExecutor`] from a previously saved [`CompiledCode`] blob,
+    /// skipping the transpilation step.
+    ///
+    /// `max_trace_size` must match the value that was active when the code was
+    /// compiled (it determines the trace-buffer allocation, not the compiled
+    /// code itself).
+    ///
+    /// The ECALL handler pointer embedded in the blob is replaced with the live
+    /// address of [`crate::minimal::ecall::sp1_ecall_handler`] before the buffer
+    /// is made executable, so the restored code works correctly regardless of
+    /// which process or ASLR layout compiled the blob.
+    #[must_use]
+    pub fn from_compiled(program: Arc<Program>, compiled: &CompiledCode) -> Self {
+        tracing::debug!("restoring JIT function from compiled code cache");
+
+        let mut jit_fn: JitFunction<AnonymousMemory> = JitFunction::from_compiled_code(
+            compiled,
+            crate::minimal::ecall::sp1_ecall_handler,
+            crate::minimal::ecall::sp1_unimp_handler,
+        )
+        .expect("Failed to restore JIT function");
+        jit_fn.with_initial_memory_image(program.memory_image.clone());
+
+        Self {
+            program,
+            compiled: jit_fn,
+            input: VecDeque::new(),
+            trace_buf_size: trace_capacity(Some(compiled.max_trace_size)),
+        }
+    }
+
+    /// Build a [`MinimalExecutor`] entirely from statically linked JIT symbols.
+    ///
+    /// This is the second construction path alongside [`Self::from_compiled`].
+    /// Instead of deserialising a [`CompiledCode`] blob at runtime, it reads the
+    /// JIT code and metadata directly from the linker symbols produced by
+    /// assembling the `.S` file emitted by [`CompiledCode::write_asm`]:
+    ///
+    /// ```sh
+    /// # 1. (build step) write the .S file:
+    /// #    compiled_code.write_asm_to_file("out.S", "sp1_ecall_handler", "sp1_unimp_handler")
+    ///
+    /// # 2. Assemble into an object file:
+    /// as -o out.o out.S          # or: clang -c -o out.o out.S
+    ///
+    /// # 3. Link out.o together with your binary (e.g. via build.rs / linker script).
+    ///
+    /// # 4. Enable the feature and call this constructor at runtime:
+    /// #    MinimalExecutor::from_static_link(program, max_trace_size)
+    /// ```
+    ///
+    /// Because the jump table in the object file already contains linker-resolved
+    /// absolute addresses, no pointer patching is performed.  The ECALL and UNIMP
+    /// handlers are likewise resolved by the linker via the `R_X86_64_64`
+    /// relocations the assembler emits for the `.quad sp1_ecall_handler` /
+    /// `.quad sp1_unimp_handler` directives in the `.text` section.
+    ///
+    /// # Safety
+    /// The binary must have been linked against an object file produced from the
+    /// `.S` file for *this exact program*.  Mismatches cause undefined behaviour.
+    #[cfg(feature = "static-link")]
+    #[must_use]
+    pub fn from_static_link(program: Arc<Program>) -> Self {
+        tracing::debug!("restoring JIT function from statically linked symbols");
+
+        let (mut jit_fn, max_trace_size): (JitFunction<AnonymousMemory>, u64) =
+            // SAFETY: the caller guarantees the binary is linked against the
+            // correct object file for `program`.
+            unsafe { JitFunction::from_static_link() }
+                .expect("Failed to build JIT function from static linked data");
+        jit_fn.with_initial_memory_image(program.memory_image.clone());
+
+        Self {
+            program,
+            compiled: jit_fn,
+            input: VecDeque::new(),
+            trace_buf_size: sp1_jit::trace_capacity(Some(max_trace_size)),
         }
     }
 
@@ -159,7 +240,9 @@ impl MinimalExecutor {
                 self.compiled.call(trace_buf_ptr);
             }
 
-            count += 1;
+            if trace_buf.is_some() {
+                count += 1;
+            }
         }
 
         count
@@ -356,6 +439,7 @@ impl MinimalTranspiler {
         .expect("Failed to create transpiler backend");
 
         backend.register_ecall_handler(crate::minimal::ecall::sp1_ecall_handler);
+        backend.register_unimp_handler(crate::minimal::ecall::sp1_unimp_handler);
 
         if self.is_debug {
             self.transpile_instructions(DebugBackend::new(backend), program)
@@ -364,11 +448,45 @@ impl MinimalTranspiler {
         }
     }
 
-    fn transpile_instructions<B: RiscvTranspiler, M: JitMemory>(
-        &self,
-        mut backend: B,
-        program: &Program,
-    ) -> JitFunction<M> {
+    /// Transpile the program and return a serialisable [`CompiledCode`] snapshot
+    /// rather than a live [`JitFunction`].
+    ///
+    /// Use this to persist the compiled code to disk and restore it later via
+    /// [`MinimalExecutor::from_compiled`], avoiding the transpilation cost on
+    /// subsequent runs.
+    ///
+    /// Debug mode is not supported; if `self.is_debug` is set it is silently
+    /// ignored (debug backends cannot be serialised).
+    #[tracing::instrument(
+        name = "MinimalTranspiler::transpile_to_compiled",
+        level = "debug",
+        skip(program)
+    )]
+    pub fn transpile_to_compiled(&self, program: &Program) -> std::io::Result<CompiledCode> {
+        let mut backend = TranspilerBackend::new(
+            program.instructions.len(),
+            self.memory_buffer_size(),
+            self.max_trace_size,
+            program.pc_start_abs,
+            program.pc_base,
+            8,
+        )
+        .expect("Failed to create transpiler backend");
+
+        backend.register_ecall_handler(crate::minimal::ecall::sp1_ecall_handler);
+        backend.register_unimp_handler(crate::minimal::ecall::sp1_unimp_handler);
+
+        // Emit all instructions into the backend (same logic as transpile_instructions).
+        self.fill_backend(&mut backend, program);
+
+        backend.into_compiled_code()
+    }
+
+    /// Emit all RISC-V instructions from `program` into `backend`.
+    ///
+    /// This is the shared core used by both [`Self::transpile`] (generic over
+    /// backend type) and [`Self::transpile_to_compiled`] (concrete backend).
+    fn fill_backend<B: RiscvTranspiler>(&self, backend: &mut B, program: &Program) {
         for instruction in program.instructions.iter() {
             backend.start_instr();
 
@@ -380,10 +498,10 @@ impl MinimalTranspiler {
                 | Opcode::LHU
                 | Opcode::LD
                 | Opcode::LWU => {
-                    self.transpile_load_instruction(&mut backend, instruction);
+                    self.transpile_load_instruction(backend, instruction);
                 }
                 Opcode::SB | Opcode::SH | Opcode::SW | Opcode::SD => {
-                    self.transpile_store_instruction(&mut backend, instruction);
+                    self.transpile_store_instruction(backend, instruction);
                 }
                 Opcode::BEQ
                 | Opcode::BNE
@@ -391,10 +509,10 @@ impl MinimalTranspiler {
                 | Opcode::BGE
                 | Opcode::BLTU
                 | Opcode::BGEU => {
-                    Self::transpile_branch_instruction(&mut backend, instruction);
+                    Self::transpile_branch_instruction(backend, instruction);
                 }
                 Opcode::JAL | Opcode::JALR => {
-                    Self::transpile_jump_instruction(&mut backend, instruction);
+                    Self::transpile_jump_instruction(backend, instruction);
                 }
                 Opcode::ADD
                 | Opcode::ADDI
@@ -427,7 +545,7 @@ impl MinimalTranspiler {
                 | Opcode::REMW
                     if instruction.is_alu_instruction() =>
                 {
-                    Self::transpile_alu_instruction(&mut backend, instruction);
+                    Self::transpile_alu_instruction(backend, instruction);
                 }
                 Opcode::AUIPC => {
                     let (rd, imm) = instruction.u_type();
@@ -448,7 +566,14 @@ impl MinimalTranspiler {
 
             backend.end_instr();
         }
+    }
 
+    fn transpile_instructions<B: RiscvTranspiler, M: JitMemory>(
+        &self,
+        mut backend: B,
+        program: &Program,
+    ) -> JitFunction<M> {
+        self.fill_backend(&mut backend, program);
         backend.finalize().expect("Failed to finalize function")
     }
 

@@ -3,8 +3,7 @@
 use super::{TranspilerBackend, CONTEXT, MEMORY_PTR, PC_OFFSET, TEMP_A, TEMP_B};
 use crate::{
     impl_alu32_imm_opt, impl_alu_imm_opt, impl_risc_alu, impl_shift32_imm_opt, ComputeInstructions,
-    ControlFlowInstructions, JitContext, MemoryInstructions, RiscOperand, RiscRegister,
-    RiscvTranspiler, SystemInstructions,
+    ControlFlowInstructions, MemoryInstructions, RiscOperand, RiscRegister, SystemInstructions,
 };
 use dynasmrt::{dynasm, x64::Rq, DynasmApi, DynasmLabelApi};
 
@@ -1680,7 +1679,9 @@ impl SystemInstructions for TranspilerBackend {
         // to set current PC.
         self.update_pc(TEMP_A, self.pc_current);
 
-        self.call_extern_fn_raw(self.ecall_handler as _);
+        // Record the offset so the handler pointer can be patched at restore time.
+        let ptr_offset = self.call_extern_fn_raw(self.ecall_handler as _);
+        self.ecall_ptr_offsets.push(ptr_offset);
 
         // The ecall returns a u64 in RAX.
         self.emit_risc_register_store(Rq::RAX as u8, None, RiscRegister::X5);
@@ -1692,12 +1693,13 @@ impl SystemInstructions for TranspilerBackend {
     }
 
     fn unimp(&mut self) {
-        extern "C" fn unimp(ctx: *mut JitContext) {
-            let ctx = unsafe { &mut *ctx };
-            eprintln!("Unimplemented instruction at pc: {}", ctx.pc);
-        }
+        // Load the JitContext pointer into the argument register.
+        dynasm! { self; .arch x64; mov rdi, Rq(CONTEXT) };
 
         self.update_pc(TEMP_A, self.pc_current);
-        self.call_extern_fn(unimp);
+
+        // Record the offset so the handler pointer can be patched at restore time.
+        let ptr_offset = self.call_extern_fn_raw(self.unimp_handler as _);
+        self.unimp_ptr_offsets.push(ptr_offset);
     }
 }

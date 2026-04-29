@@ -1,13 +1,13 @@
 #![allow(clippy::fn_to_numeric_cast)]
 
 use crate::{
-    do_load_imm_var, do_opt_imm_var, EcallHandler, JitContext, RiscOperand, RiscRegister,
+    do_load_imm_var, do_opt_imm_var, EcallHandler, ExternFn, JitContext, RiscOperand, RiscRegister,
     TraceChunkHeader, TraceCollector,
 };
 use dynasmrt::{
     dynasm,
-    x64::{Assembler, Rq},
-    AssemblyOffset, DynamicLabel, DynasmApi, DynasmLabelApi,
+    x64::{Rq, X64Relocation},
+    AssemblyOffset, DynamicLabel, DynasmApi, DynasmLabelApi, VecAssembler,
 };
 use hashbrown::HashMap;
 use std::{
@@ -168,7 +168,7 @@ const REG_LOOKUP: [Location; 32] = [
 /// The x86 backend for JIT transpipling RISC-V instructions to x86-64, according to the
 /// [crate::SP1RiscvTranspiler] trait.
 pub struct TranspilerBackend {
-    inner: Assembler,
+    inner: VecAssembler<X64Relocation>,
     /// A mapping of pc - pc_base => offset in the code buffer.
     jump_table: Vec<usize>,
     /// The size of the memory buffer to allocate.
@@ -201,6 +201,33 @@ pub struct TranspilerBackend {
     labels: HashMap<usize, DynamicLabel>,
     /// Program size, or instruction count
     program_size: usize,
+    /// Locations of embedded function-pointer immediates, used for cache invalidation
+    /// and patching when restoring compiled code in a different address space.
+    /// Byte offsets within the code buffer where the ECALL handler pointer is embedded
+    /// as a 64-bit immediate (`mov rax, imm64`).
+    ///
+    /// These are patched with the live handler address when restoring a [`CompiledCode`]
+    /// blob via [`crate::JitFunction::from_compiled_code`].
+    pub(crate) ecall_ptr_offsets: Vec<usize>,
+
+    /// Byte offsets within the code buffer where the UNIMP handler address is embedded
+    /// as a 64-bit immediate (`mov rax, imm64`).
+    ///
+    /// Like [`Self::ecall_ptr_offsets`], these are patched at restore time because
+    /// the handler is a known function in the same binary.
+    pub(crate) unimp_ptr_offsets: Vec<usize>,
+
+    /// The UNIMP handler called when an `unimp` instruction is executed.
+    pub(crate) unimp_handler: ExternFn,
+
+    /// Set to `true` if any external function call other than the ECALL or UNIMP handler
+    /// has been emitted (e.g. from [`crate::RiscvTranspiler::call_extern_fn`] or the
+    /// debug inspection helpers).
+    ///
+    /// When this flag is set, [`TranspilerBackend::into_compiled_code`] will
+    /// return an error because those embedded function pointers are unknown at
+    /// restore time and cannot be patched.
+    pub(crate) has_non_ecall_extern_calls: bool,
 }
 
 impl TraceCollector for TranspilerBackend {
@@ -668,8 +695,20 @@ impl TranspilerBackend {
     }
 
     /// Call an external function, assumes that the arguments are already in the correct registers.
+    ///
+    /// The function pointer is embedded as a 64-bit immediate (`mov rax, imm64`).
+    ///
+    /// Returns the byte offset within the code buffer where the 8-byte pointer immediate
+    /// was written.  The x86-64 encoding is: `REX.W` (1 byte) + `B8+rd` (1 byte) + imm64
+    /// (8 bytes), so the immediate lives at `(instruction_start + 2)`.
+    ///
+    /// Callers are responsible for deciding how to record this offset:
+    /// - ECALL-handler calls → push into [`Self::ecall_ptr_offsets`].
+    /// - UNIMP-handler calls → push into [`Self::unimp_ptr_offsets`].
+    /// - All other calls → set [`Self::has_non_ecall_extern_calls`].
     #[inline]
-    fn call_extern_fn_raw(&mut self, fn_ptr: usize) {
+    #[must_use = "callers must record the returned offset or set the non-ecall flag"]
+    fn call_extern_fn_raw(&mut self, fn_ptr: usize) -> usize {
         // Before the call, save all the registers to the context.
         self.save_registers_to_context();
         if self.tracing() {
@@ -677,8 +716,8 @@ impl TranspilerBackend {
         }
         self.write_back_clock();
 
-        // We need to save the caller-saved registers before we make any calls,
-        // then restore them after the call.
+        // Emit the stack-alignment preamble in a separate block so we can capture
+        // the assembler offset right before the `mov rax, imm64` instruction.
         dynasm! {
             self;
             .arch x64;
@@ -687,10 +726,19 @@ impl TranspilerBackend {
             mov Rq(CLOCK_OR_SAVED_STACK_PTR), rsp;
 
             // Align the stack to 16 bytes for the call
-            lea rsp, [rsp - 8]; // sub 8 from the rsp
-            mov rax, rsp; // copy
-            and rax, 15; // compute rsp % 16
-            sub rsp, rax; // sub that from the rsp to ensure 16 byte alignment
+            lea rsp, [rsp - 8];
+            mov rax, rsp;
+            and rax, 15;
+            sub rsp, rax
+        }
+
+        // The x86-64 encoding is: REX.W prefix (0x48) + B8+rd (0xB8 for rax) + 8-byte imm.
+        // So the 8-byte function-pointer lives at (instruction start + 2).
+        let ptr_offset = self.inner.offset().0 + 2;
+
+        dynasm! {
+            self;
+            .arch x64;
 
             // Call the external function
             mov rax, QWORD fn_ptr as _;
@@ -706,6 +754,8 @@ impl TranspilerBackend {
         self.hoist_clock();
         self.load_memory_ptr();
         self.load_registers_from_context();
+
+        ptr_offset
     }
 
     /// Load the pc from the context into the given register.
@@ -912,7 +962,7 @@ impl TranspilerBackend {
 }
 
 impl Deref for TranspilerBackend {
-    type Target = Assembler;
+    type Target = VecAssembler<X64Relocation>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
@@ -930,6 +980,12 @@ impl DerefMut for TranspilerBackend {
 /// If this is not the case, we throw an error at compile time.
 #[cfg(not(target_feature = "sse"))]
 compile_error!("SSE is required for the x86 backend");
+
+/// A dummy unimp handler that can be called by the JIT.
+extern "C" fn unimpk(ctx: *mut JitContext) {
+    let ctx = unsafe { &mut *ctx };
+    eprintln!("dummy unimp handler called at pc: 0x{:x}", ctx.pc);
+}
 
 /// A dummy ecall handler that can be called by the JIT.
 extern "C" fn ecallk(ctx: *mut JitContext) -> u64 {

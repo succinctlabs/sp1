@@ -371,6 +371,20 @@ impl MinimalExecutor {
         self.try_execute_chunk().expect("execute chunk")
     }
 
+    /// Run `MinimalExecutor` till the end, returns the count of trace chunks generated.
+    /// For portable executor this is not very needed, we don't need to profile portable
+    /// executor as hard as we do for native executor. But it's good to have this method
+    /// so we can simplify code supporting both executors.
+    pub fn run_till_end(&mut self) -> usize {
+        let mut count = 0;
+        loop {
+            if self.execute_chunk().is_none() {
+                return count;
+            }
+            count += 1;
+        }
+    }
+
     /// Execute the program. Returning a trace chunk if the program has not completed.
     #[allow(clippy::redundant_closure_for_method_calls)]
     pub fn try_execute_chunk(&mut self) -> Result<Option<TraceChunkRaw>, ExecutionError> {
