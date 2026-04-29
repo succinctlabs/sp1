@@ -46,7 +46,11 @@ sp1-core-machine = { workspace = true }
 sp1-hypercube = { workspace = true }
 
 [[bench]]
-name = "sumcheck"
+name = "jagged"
+harness = false
+
+[[bench]]
+name = "hadamard"
 harness = false
 
 [lints]
