@@ -1,0 +1,7 @@
+# Fixture binaries (fetched via fetch.sh, not committed)
+fixtures/fib/
+fixtures/keccak/
+fixtures/big/
+
+# Profile outputs
+profile-*.json

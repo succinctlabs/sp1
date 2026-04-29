@@ -6207,6 +6207,7 @@ version = "6.1.0"
 dependencies = [
  "crossbeam",
  "futures",
+ "num_cpus",
  "pin-project",
  "rand 0.8.5",
  "rayon",
@@ -7440,6 +7441,8 @@ dependencies = [
  "bincode",
  "clap",
  "rand 0.8.5",
+ "serde",
+ "serde_json",
  "slop-algebra",
  "sp1-core-executor",
  "sp1-core-machine",
