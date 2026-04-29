@@ -60,5 +60,11 @@ ripemd = { version = "0.1", default-features = false }
 # this workspace. Used by `precompile::secp256k1::zkvm_secp256k1_verify`.
 k256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-k256-13.4-sp1-6.2.0-pre", default-features = false, features = ["ecdsa"] }
 
+# SP1's patched `p256`. Same pattern as `k256` but for the secp256r1
+# (NIST P-256) curve; routes through `SECP256R1_*` syscalls. Used by
+# `precompile::secp256r1::zkvm_secp256r1_verify` (Ethereum precompile
+# 0x100 / EIP-7212).
+p256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-p256-13.2-sp1-6.2.0-pre", default-features = false, features = ["ecdsa"] }
+
 [lints]
 workspace = true

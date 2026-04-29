@@ -23,6 +23,7 @@ members = [
   "ripemd-c/script",
   "blake2f-c/script",
   "secp256k1-c/script",
+  "secp256r1-c/script",
   # The shared C build helper.
   "c-build",
 ]

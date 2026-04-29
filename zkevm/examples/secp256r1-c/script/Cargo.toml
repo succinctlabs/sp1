@@ -1,0 +1,25 @@
+[package]
+name = "secp256r1-c-script"
+description = "Host driver for secp256r1-c. Generates a P-256 keypair, signs a message, and checks the guest accepts a valid signature and rejects a tampered one."
+version = { workspace = true }
+edition = { workspace = true }
+publish = false
+
+[[bin]]
+name = "secp256r1-c-execute"
+path = "src/execute.rs"
+
+[[bin]]
+name = "secp256r1-c-prove"
+path = "src/prove.rs"
+
+[dependencies]
+sp1-sdk = { workspace = true }
+p256 = { version = "0.13", default-features = false, features = ["ecdsa", "std"] }
+sha2 = { version = "0.10", default-features = false }
+rand = "0.8"
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[build-dependencies]
+zkevm-c-build = { path = "../../c-build" }
