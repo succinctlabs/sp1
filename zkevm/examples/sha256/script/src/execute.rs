@@ -16,7 +16,7 @@ fn sha256_host(data: &[u8]) -> [u8; 32] {
 async fn main() {
     utils::setup_logger();
 
-    let client = ProverClient::from_env().await;
+    let client = ProverClient::builder().light().build().await;
 
     // SHA-256's block size is 64 bytes. Cover the same shapes as keccak:
     // empty, short, exactly one block, more than one block, arbitrary.

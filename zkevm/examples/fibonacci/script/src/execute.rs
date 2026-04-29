@@ -13,7 +13,7 @@ async fn main() {
     let mut stdin = SP1Stdin::new();
     stdin.write_slice(&N.to_le_bytes());
 
-    let client = ProverClient::from_env().await;
+    let client = ProverClient::builder().light().build().await;
     let (public_values, report) = client.execute(ELF, stdin).await.unwrap();
 
     let bytes = public_values.as_slice();

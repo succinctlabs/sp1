@@ -10,7 +10,7 @@ const ELF: Elf = Elf::Static(ELF_BYTES);
 async fn main() {
     utils::setup_logger();
 
-    let client = ProverClient::from_env().await;
+    let client = ProverClient::builder().light().build().await;
 
     {
         let mut stdin = SP1Stdin::new();

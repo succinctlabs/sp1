@@ -18,7 +18,7 @@ fn keccak256_host(data: &[u8]) -> [u8; 32] {
 async fn main() {
     utils::setup_logger();
 
-    let client = ProverClient::from_env().await;
+    let client = ProverClient::builder().light().build().await;
 
     // Try a few shapes: empty, short (< rate), exactly rate, > rate.
     for input in &[

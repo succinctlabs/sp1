@@ -10,7 +10,7 @@ const ELF: Elf = include_elf!("panic");
 async fn main() {
     utils::setup_logger();
 
-    let client = ProverClient::from_env().await;
+    let client = ProverClient::builder().light().build().await;
 
     // -------- success path: flag = 0 --------
     {
