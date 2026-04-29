@@ -10,6 +10,7 @@
 
 use crate::precompile::types::{Keccak256Hash, Ripemd160Hash, Sha256Hash};
 use crate::status::{ZKVM_EFAIL, ZKVM_EOK};
+use ripemd::Ripemd160;
 use sha2::Digest;
 use tiny_keccak::{Hasher, Keccak};
 
@@ -63,9 +64,9 @@ pub unsafe extern "C" fn zkvm_sha256(data: *const u8, len: usize, output: *mut S
 
 /// `zkvm_status zkvm_ripemd160(const uint8_t* data, size_t len, zkvm_ripemd160_hash* output)`.
 ///
-/// SP1 path: no precompile; software impl is acceptable since RIPEMD-160 is
-/// not on the L1 STF hot path. Output is 20 hash bytes followed by 12 zero
-/// bytes (header docs).
+/// SP1 path: no precompile; software impl via the stock RustCrypto `ripemd`
+/// crate. Output layout per the header is 20 hash bytes followed by 12 zero
+/// bytes — the 12-byte tail is zeroed before writing the digest.
 #[no_mangle]
 pub unsafe extern "C" fn zkvm_ripemd160(
     data: *const u8,
@@ -78,12 +79,12 @@ pub unsafe extern "C" fn zkvm_ripemd160(
     if output.is_null() {
         return ZKVM_EFAIL;
     }
-    // TODO: implementation (likely software, padded to 32 bytes).
-    crate::ecall::ecall3(
-        crate::ecall::placeholder::TODO_RIPEMD160,
-        data as usize,
-        len,
-        output as usize,
-    );
-    ZKVM_EFAIL
+    let input = if len == 0 { &[] } else { core::slice::from_raw_parts(data, len) };
+    let mut hasher = Ripemd160::new();
+    hasher.update(input);
+    let digest = hasher.finalize();
+    let out = &mut (*output).data;
+    *out = [0u8; 32];
+    out[..20].copy_from_slice(&digest);
+    ZKVM_EOK
 }

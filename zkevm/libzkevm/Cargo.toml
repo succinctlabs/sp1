@@ -46,5 +46,11 @@ tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", tag = "patch
 # `std` feature so libzkevm stays no_std-clean.
 sha2 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", tag = "patch-sha2-0.10.9-sp1-6.2.0-pre", default-features = false }
 
+# RIPEMD-160. No SP1 syscall and not on the L1 STF hot path, so we use the
+# stock RustCrypto `ripemd` crate as a software implementation. Used by
+# `precompile::hash::zkvm_ripemd160`. `default-features = false` keeps it
+# no_std-clean.
+ripemd = { version = "0.1", default-features = false }
+
 [lints]
 workspace = true

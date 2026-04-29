@@ -20,6 +20,7 @@ members = [
   "assert-c/script",
   "exit-code-c/script",
   "keccak-c/script",
+  "ripemd-c/script",
   # The shared C build helper.
   "c-build",
 ]
@@ -44,3 +45,4 @@ tokio = { version = "1.43", features = ["full"] }
 tracing = "0.1"
 sha2 = "0.10"
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
+ripemd = "0.1"

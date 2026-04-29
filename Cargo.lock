@@ -3823,6 +3823,7 @@ dependencies = [
 name = "libzkevm"
 version = "6.1.0"
 dependencies = [
+ "ripemd",
  "sha2 0.10.9 (git+https://github.com/sp1-patches/RustCrypto-hashes?tag=patch-sha2-0.10.9-sp1-6.2.0-pre)",
  "sp1-zkvm",
  "tiny-keccak 2.0.2 (git+https://github.com/sp1-patches/tiny-keccak?tag=patch-2.0.2-sp1-6.2.0-pre)",
@@ -5367,6 +5368,15 @@ dependencies = [
  "libc",
  "untrusted",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "ripemd"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bd124222d17ad93a644ed9d011a40f4fb64aa54275c08cc216524a9ea82fb09f"
+dependencies = [
+ "digest 0.10.7",
 ]
 
 [[package]]

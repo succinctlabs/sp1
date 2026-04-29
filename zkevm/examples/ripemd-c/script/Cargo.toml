@@ -1,0 +1,23 @@
+[package]
+name = "ripemd-c-script"
+description = "Host driver for ripemd-c. Verifies the guest's `zkvm_ripemd160` output against host-computed RIPEMD-160."
+version = { workspace = true }
+edition = { workspace = true }
+publish = false
+
+[[bin]]
+name = "ripemd-c-execute"
+path = "src/execute.rs"
+
+[[bin]]
+name = "ripemd-c-prove"
+path = "src/prove.rs"
+
+[dependencies]
+sp1-sdk = { workspace = true }
+ripemd = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[build-dependencies]
+zkevm-c-build = { path = "../../c-build" }
