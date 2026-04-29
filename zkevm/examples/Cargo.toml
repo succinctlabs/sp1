@@ -34,7 +34,7 @@ libzkevm = { path = "../libzkevm" }
 
 # SP1 runtime + build + SDK, by relative path to the SP1 source tree.
 sp1-zkvm = { path = "../../crates/zkvm/entrypoint", default-features = false }
-sp1-sdk = { path = "../../crates/sdk", default-features = false, features = ["cuda"] }
+sp1-sdk = { path = "../../crates/sdk", default-features = false, features = ["cuda", "network"] }
 sp1-build = { path = "../../crates/build" }
 
 # Shared host-side deps.
