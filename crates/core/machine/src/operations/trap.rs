@@ -12,10 +12,11 @@ use sp1_hypercube::air::BaseAirBuilder;
 
 use sp1_hypercube::air::SP1AirBuilder;
 use sp1_hypercube::Word;
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::memory::MemoryAccessCols;
 
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct TrapOperation<T> {
     pub next_pc_reader: MemoryAccessCols<T>,

@@ -164,7 +164,7 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for StoreWordChip<M> {
     }
 
     fn column_names(&self) -> Vec<String> {
-        StoreWordColumns::<F>::struct_reflection().unwrap()
+        StoreWordColumns::<F, M>::struct_reflection().unwrap()
     }
 }
 

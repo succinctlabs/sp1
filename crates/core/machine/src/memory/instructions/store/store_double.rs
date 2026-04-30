@@ -160,7 +160,7 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for StoreDoubleChip<M> {
     }
 
     fn column_names(&self) -> Vec<String> {
-        StoreDoubleColumns::<F>::struct_reflection().unwrap()
+        StoreDoubleColumns::<F, M>::struct_reflection().unwrap()
     }
 }
 

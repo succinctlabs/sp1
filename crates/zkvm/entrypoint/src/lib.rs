@@ -210,7 +210,7 @@ mod zkvm {
         name_padding: [0u8; NOTE_NAME_PADDING_SIZE],
         desc_header: NOTE_DESC_HEADER,
         // The linker should use target encoding, so we should be fine here.
-        heap_start: std::ptr::addr_of!(_end) as *const u8,
+        heap_start: core::ptr::addr_of!(_end) as *const u8,
         heap_end: HEAP_END.to_le_bytes(),
         desc_padding: [0u8; NOTE_DESC_PADDING_SIZE],
     };

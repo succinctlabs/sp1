@@ -178,7 +178,5 @@ mod dump_elf {
 #[cfg(not(all(target_os = "zkvm", feature = "may_dump_elf")))]
 /// Executes the dump_elf syscall
 pub extern "C" fn syscall_dump_elf() {
-    eprintln!(
-        "WARNING: dump_elf is noop when feature may_dump_elf is not enabled, or on native target."
-    );
+    // dump_elf is noop when feature may_dump_elf is not enabled, or on native target.
 }

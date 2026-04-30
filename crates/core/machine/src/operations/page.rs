@@ -9,11 +9,12 @@ use sp1_hypercube::air::{BaseAirBuilder, SP1AirBuilder};
 use sp1_primitives::consts::{
     split_page_idx, PAGE_SIZE, PROT_FAILURE_READ, PROT_FAILURE_WRITE, PROT_READ, PROT_WRITE,
 };
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{air::MemoryAirBuilder, memory::PageProtAccessCols};
 
 /// A set of columns needed to compute the page_idx from an address.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct PageOperation<T> {
     /// Split that least significant limb into a 4 bit limb and a 12 bit limb.
@@ -69,7 +70,7 @@ impl<F: Field> PageOperation<F> {
 }
 
 /// A set of columns needed to retrieve the page permissions from an address.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct PageProtOperation<T> {
     /// The page operation to calculate page idx from address.
@@ -118,7 +119,7 @@ impl<F: Field> PageProtOperation<F> {
 }
 
 /// A set of columns needed to check if two page indices are equal or adjacent.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct PageIsEqualOrAdjacentOperation<T> {
     pub is_overflow: T,
@@ -211,7 +212,7 @@ impl<F: Field> PageIsEqualOrAdjacentOperation<F> {
 }
 
 /// A set of columns needed to check the page prot permissions and return the trap code.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct TrapPageProtOperation<T> {
     pub page_prot_access: PageProtAccessCols<T>,
@@ -345,7 +346,7 @@ impl<F: Field> TrapPageProtOperation<F> {
 
 /// A set of columns needed to check the page prot permissions for a range of addrs.
 /// This operation only supports an addr range that spans at most 2 pages.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct AddressSlicePageProtOperation<T> {
     pub page_is_equal_or_adjacent: PageIsEqualOrAdjacentOperation<T>,

@@ -84,7 +84,7 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for BitwiseChip<M> {
     }
 
     fn column_names(&self) -> Vec<String> {
-        BitwiseCols::<F>::struct_reflection().unwrap()
+        BitwiseCols::<F, M>::struct_reflection().unwrap()
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {

@@ -162,7 +162,7 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for LoadDoubleChip<M> {
     }
 
     fn column_names(&self) -> Vec<String> {
-        LoadDoubleColumns::<F>::struct_reflection().unwrap()
+        LoadDoubleColumns::<F, M>::struct_reflection().unwrap()
     }
 }
 

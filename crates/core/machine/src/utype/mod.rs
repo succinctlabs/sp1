@@ -297,7 +297,7 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for UTypeChip<M> {
     }
 
     fn column_names(&self) -> Vec<String> {
-        UTypeColumns::<F>::struct_reflection().unwrap()
+        UTypeColumns::<F, M>::struct_reflection().unwrap()
     }
 }
 

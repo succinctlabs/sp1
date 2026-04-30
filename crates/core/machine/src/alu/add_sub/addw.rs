@@ -79,7 +79,7 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for AddwChip<M> {
     }
 
     fn column_names(&self) -> Vec<String> {
-        AddwCols::<F>::struct_reflection().unwrap()
+        AddwCols::<F, M>::struct_reflection().unwrap()
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {

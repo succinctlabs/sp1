@@ -179,7 +179,7 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for StoreByteChip<M> {
     }
 
     fn column_names(&self) -> Vec<String> {
-        StoreByteColumns::<F>::struct_reflection().unwrap()
+        StoreByteColumns::<F, M>::struct_reflection().unwrap()
     }
 }
 

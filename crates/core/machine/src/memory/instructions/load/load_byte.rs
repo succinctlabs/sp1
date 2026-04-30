@@ -181,7 +181,7 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for LoadByteChip<M> {
     }
 
     fn column_names(&self) -> Vec<String> {
-        LoadByteColumns::<F>::struct_reflection().unwrap()
+        LoadByteColumns::<F, M>::struct_reflection().unwrap()
     }
 }
 

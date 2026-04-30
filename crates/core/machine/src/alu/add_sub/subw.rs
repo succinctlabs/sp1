@@ -75,7 +75,7 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for SubwChip<M> {
     }
 
     fn column_names(&self) -> Vec<String> {
-        SubwCols::<F>::struct_reflection().unwrap()
+        SubwCols::<F, M>::struct_reflection().unwrap()
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {

@@ -41,33 +41,47 @@ use slop_air::AirBuilder;
 use slop_algebra::AbstractField;
 pub use sp1_core_executor::{SupervisorMode, UserMode};
 use sp1_derive::AlignedBorrow;
-use std::fmt::Debug;
+use std::{fmt::Debug, marker::PhantomData};
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 pub trait TrustMode: Send + Sync + 'static {
     const IS_TRUSTED: bool;
-    type AdapterCols<T>;
-    type SyscallInstrCols<T>;
-    type SliceProtCols<T>;
-    type AluX0SelectorCols<T>;
-    type TrapCodeCols<T>;
+    type AdapterCols<T>: StructReflectionHelper;
+    type SyscallInstrCols<T>: StructReflectionHelper;
+    type SliceProtCols<T>: StructReflectionHelper;
+    type AluX0SelectorCols<T>: StructReflectionHelper;
+    type TrapCodeCols<T>: StructReflectionHelper;
+}
+
+#[derive(AlignedBorrow, Default, Clone, Copy)]
+#[repr(C)]
+/// Strcut that represents an empty set of columns for a given type `T`.
+///
+/// The struct existis to facilitate the implementation traits needed for columns.
+pub struct EmptyCols<T>(PhantomData<T>);
+
+impl<T> StructReflection for EmptyCols<T> {
+    fn struct_reflection() -> Option<Vec<String>> {
+        None
+    }
 }
 
 impl TrustMode for SupervisorMode {
     const IS_TRUSTED: bool = true;
-    type AdapterCols<T> = ();
-    type SyscallInstrCols<T> = ();
-    type SliceProtCols<T> = ();
-    type AluX0SelectorCols<T> = ();
-    type TrapCodeCols<T> = ();
+    type AdapterCols<T> = EmptyCols<T>;
+    type SyscallInstrCols<T> = EmptyCols<T>;
+    type SliceProtCols<T> = EmptyCols<T>;
+    type AluX0SelectorCols<T> = EmptyCols<T>;
+    type TrapCodeCols<T> = EmptyCols<T>;
 }
 
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct UserModeReaderCols<T> {
     pub is_trusted: T,
 }
 
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct UserModeSyscallInstrCols<T> {
     pub is_sig_return: IsZeroOperation<T>,
@@ -82,7 +96,7 @@ pub struct UserModeSyscallInstrCols<T> {
 /// Selector columns for the AluX0 chip in User mode.
 ///
 /// Each field is a boolean selector for one ALU opcode. Exactly one must be set per real row.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct AluX0OpcodeSelectors<T> {
     pub instr_type: T,
@@ -120,7 +134,7 @@ pub struct AluX0OpcodeSelectors<T> {
     pub is_remuw: T,
 }
 
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct UserModeTrapCodeCols<T> {
     pub trap_code: T,

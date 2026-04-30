@@ -136,6 +136,6 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for JalChip<M> {
     }
 
     fn column_names(&self) -> Vec<String> {
-        JalColumns::<F>::struct_reflection().unwrap()
+        JalColumns::<F, M>::struct_reflection().unwrap()
     }
 }

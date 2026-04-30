@@ -112,7 +112,7 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for ShiftLeftChip<M> {
     }
 
     fn column_names(&self) -> Vec<String> {
-        ShiftLeftCols::<F>::struct_reflection().unwrap()
+        ShiftLeftCols::<F, M>::struct_reflection().unwrap()
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {

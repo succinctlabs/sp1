@@ -288,7 +288,7 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for SyscallChip<M> {
     }
 
     fn column_names(&self) -> Vec<String> {
-        SyscallCols::<F>::struct_reflection().unwrap()
+        SyscallCols::<F, M>::struct_reflection().unwrap()
     }
 }
 
