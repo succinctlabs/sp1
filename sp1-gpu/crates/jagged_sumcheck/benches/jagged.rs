@@ -44,11 +44,16 @@ fn bench_jagged_sumcheck(c: &mut Criterion) {
                     let eq_z_row = DevicePoint::new(z_row_device.clone()).partial_lagrange();
                     let eq_z_col = DevicePoint::new(z_col_device.clone()).partial_lagrange();
                     let challenger = TestGC::default_challenger();
+                    // Drain pending GPU work before the timer starts.
+                    scope.synchronize_blocking().unwrap();
                     (eq_z_row, eq_z_col, challenger)
                 },
                 |(eq_z_row, eq_z_col, mut challenger)| {
                     let poly = generate_jagged_sumcheck_poly(&device_mle, eq_z_col, eq_z_row);
-                    black_box(jagged_sumcheck(poly, &mut challenger, claim))
+                    let result = jagged_sumcheck(poly, &mut challenger, claim);
+                    // Wait for any GPU work left enqueued before stopping the timer.
+                    scope.synchronize_blocking().unwrap();
+                    black_box(result)
                 },
                 BatchSize::PerIteration,
             );

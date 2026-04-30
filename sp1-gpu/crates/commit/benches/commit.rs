@@ -49,16 +49,17 @@ fn bench_commit(c: &mut Criterion) {
         group.sample_size(10);
         group.bench_function("main_total_area_2^25", |b| {
             b.iter(|| {
-                black_box(
-                    commit_multilinears::<TestGC, _>(
-                        &device_mle,
-                        CORE_MAX_LOG_ROW_COUNT,
-                        false, // use_preprocessed
-                        false, // drop_main_traces
-                        &basefold_prover,
-                    )
-                    .unwrap(),
+                let result = commit_multilinears::<TestGC, _>(
+                    &device_mle,
+                    CORE_MAX_LOG_ROW_COUNT,
+                    false, // use_preprocessed
+                    false, // drop_main_traces
+                    &basefold_prover,
                 )
+                .unwrap();
+                // Wait for any GPU work left enqueued before stopping the timer.
+                scope.synchronize_blocking().unwrap();
+                black_box(result)
             });
         });
         group.finish();

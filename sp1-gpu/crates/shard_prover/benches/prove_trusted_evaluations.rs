@@ -151,20 +151,23 @@ fn bench_prove_trusted_evaluations(c: &mut Criterion) {
                             &preprocessed_prover_data,
                             &main_prover_data,
                         ]);
+                        // Drain pending H2D copies before the timer starts.
+                        scope.synchronize_blocking().unwrap();
                         (eval_point.clone(), claims, prover_data, challenger.clone())
                     },
                     |(pt, claims, prover_data, mut chal)| {
-                        black_box(
-                            shard_prover
-                                .prove_trusted_evaluations(
-                                    pt,
-                                    claims,
-                                    jagged_trace_data.as_ref(),
-                                    prover_data,
-                                    &mut chal,
-                                )
-                                .unwrap(),
-                        )
+                        let proof = shard_prover
+                            .prove_trusted_evaluations(
+                                pt,
+                                claims,
+                                jagged_trace_data.as_ref(),
+                                prover_data,
+                                &mut chal,
+                            )
+                            .unwrap();
+                        // Wait for any GPU work the prove call left enqueued before stopping the timer.
+                        scope.synchronize_blocking().unwrap();
+                        black_box(proof)
                     },
                     BatchSize::PerIteration,
                 );

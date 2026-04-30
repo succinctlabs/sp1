@@ -48,10 +48,15 @@ fn bench_hadamard_sumcheck(c: &mut Criterion) {
                     let base = upload_mle(&base_host, &scope);
                     let ext = upload_mle(&ext_host, &scope);
                     let challenger = TestGC::default_challenger();
+                    // Drain pending H2D copies before the timer starts.
+                    scope.synchronize_blocking().unwrap();
                     (base, ext, challenger)
                 },
                 |(base, ext, challenger)| {
-                    black_box(simple_hadamard_sumcheck(base, ext, challenger, claim))
+                    let result = simple_hadamard_sumcheck(base, ext, challenger, claim);
+                    // Wait for any GPU work left enqueued before stopping the timer.
+                    scope.synchronize_blocking().unwrap();
+                    black_box(result)
                 },
                 BatchSize::PerIteration,
             );
