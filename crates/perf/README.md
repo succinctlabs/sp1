@@ -86,6 +86,69 @@ samply record ./target/profiling/sp1-perf-executor \
     --executor-mode $kind
 ```
 
+## Interactive prover (`sp1-perf-prover`)
+
+`sp1-perf-prover` is a REPL that initialises the prover client once and then loops on
+user input, so you can submit many proof or execution requests in a single session
+without paying the prover-init cost each time.
+
+### Run
+
+```sh
+cargo run -p sp1-perf --bin sp1-perf-prover
+```
+
+A `.env` in the working directory (or any parent) is loaded automatically, so use it for
+`SP1_PROVER`, `RUST_LOG`, `NETWORK_PRIVATE_KEY`, AWS credentials, etc.
+
+The REPL has full readline editing — `↑`/`↓` for history, `Ctrl-R` for reverse search,
+`Ctrl-A` / `Ctrl-E` / etc. History persists in `~/.sp1-perf-history` across sessions.
+
+### Commands
+
+```text
+prove   --program <P> [--input <I>] [--mode <M>]
+            Execute + setup + prove + verify; appends a row to data/measurements.csv.
+            mode: core | compressed | groth16 | plonk (default: compressed)
+
+execute --program <P> [--input <I>]
+            Run only the executor; report cycles, gas, MHz, Mgas/s.
+
+programs [<filter>]
+            List benchmark programs in s3://sp1-testing-suite/, optionally filtered.
+
+inputs  --program <P>
+            List input files for a benchmark program.
+
+help | h | ?       Show help.
+quit | exit | q    Exit (Ctrl-D / Ctrl-C also work).
+```
+
+Program names follow the same convention as `sp1-gpu-perf node`:
+
+- `local-<name>` — built-in ELF from `test-artifacts` (`fibonacci`, `sha2`, `keccak`).
+- anything else — fetched via `aws s3 cp` from `s3://sp1-testing-suite/<program>/`.
+
+### Examples
+
+```text
+sp1-perf> programs fib
+sp1-perf> execute --program v6/fibonacci-200m
+sp1-perf> prove   --program v6/fibonacci-200m --mode compressed
+sp1-perf> prove   -p local-fibonacci -i 1000 -m core
+sp1-perf> inputs  --program v6/rsp
+sp1-perf> prove   --program v6/rsp --input 17106222 --mode groth16
+```
+
+### Caching and measurements
+
+- Programs and inputs are cached in-memory by name (and by `(program, input)` for
+  inputs) for the lifetime of the session, so repeating a request is free of S3
+  round-trips.
+- Each successful `prove` appends a row to `crates/perf/data/measurements.csv` with
+  columns `timestamp,program,param,mode,cycles,gas,elf_bytes,execute_secs,setup_secs,
+  prove_secs,khz,mgas_per_s`. The `data/` directory is gitignored.
+
 ## View the results of a testing suite run
 
 Visit the [actions](https://github.com/succinctlabs/sp1/actions) tab on GitHub to view the results.

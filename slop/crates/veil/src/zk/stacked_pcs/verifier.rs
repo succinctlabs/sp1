@@ -80,15 +80,19 @@ where
         let num_claims = commitments_and_claims.len();
         assert!(num_claims > 0, "must have at least one claim");
 
-        let ZkStackedPcsProof { rlc_eval_proof, rlc_eval_claim, rlc_padding_vec, log_num_polys } =
-            proof;
+        let ZkStackedPcsProof {
+            rlc_eval_proof,
+            rlc_eval_claim,
+            rlc_padding_vec,
+            log_num_data_cols,
+        } = proof;
 
         let verifier = &self.inner.basefold_verifier;
         let num_encoding_variables = self.inner.log_stacking_height as usize;
-        let num_polys = (1 << log_num_polys) + GC::EF::D; // +deg(EF/F) for mask
+        let num_polys = (1 << log_num_data_cols) + GC::EF::D; // +deg(EF/F) for mask
 
         // Shape check: point must have the right dimension
-        if log_num_polys + num_encoding_variables != point.dimension() {
+        if log_num_data_cols + num_encoding_variables != point.dimension() {
             return Err(ZkStackedVerifierError::IncorrectShape("Inconsistent dimensions".into()));
         }
 
@@ -99,12 +103,10 @@ where
             ));
         }
 
-        // Enough padding for the needed query count
+        // Padding matches expected query count
         let query_count = verifier.fri_config.num_queries;
-        if query_count > rlc_padding_vec.len() {
-            return Err(ZkStackedVerifierError::IncorrectShape(
-                "Not enough padding for RLC eval".into(),
-            ));
+        if rlc_padding_vec.len() != query_count {
+            return Err(ZkStackedVerifierError::IncorrectShape("padding length wrong".into()));
         }
 
         // Step 1: Read evals from context for each commitment.
@@ -112,18 +114,18 @@ where
         // the others only have data column evaluations.
         let mut per_claim_evals = Vec::with_capacity(num_claims);
         for j in 0..num_claims {
-            let num_to_read = if j == 0 { num_polys } else { 1 << log_num_polys };
+            let num_to_read = if j == 0 { num_polys } else { 1 << log_num_data_cols };
             let evals = context.read_next(num_to_read).map_err(|_| {
                 ZkStackedVerifierError::IncorrectShape("Failed to get evals".into())
             })?;
             per_claim_evals.push(evals);
         }
 
-        // Step 2: Sample shared RLC point (dimension = log_num_polys)
+        // Step 2: Sample shared RLC point (dimension = log_num_data_cols)
         let rlc_point = {
             let mut challenger = context.challenger();
             let coords: Vec<GC::EF> =
-                (0..log_num_polys).map(|_| challenger.sample_ext_element()).collect();
+                (0..log_num_data_cols).map(|_| challenger.sample_ext_element()).collect();
             Point::new(coords.into())
         };
 
@@ -141,7 +143,7 @@ where
         let alpha_powers: Vec<GC::EF> = batching_challenge.powers().take(num_claims + 1).collect();
 
         let eq_evals = partial_lagrange_blocking(&rlc_point).into_buffer().into_vec();
-        let num_original = 1 << log_num_polys;
+        let num_original = 1 << log_num_data_cols;
 
         // Step 5: Compute expected combined evals from all commitments' query openings
         // For each query index q:
@@ -179,7 +181,7 @@ where
             .collect();
 
         // Step 6: Define virtual oracle with combined padding correction
-        let (eval_point, _) = point.split_at(point.dimension() - log_num_polys);
+        let (eval_point, _) = point.split_at(point.dimension() - log_num_data_cols);
         let point_dim = eval_point.dimension();
         let compute_batch_evals = |query_indices: &[usize], log_tensor_height: usize| {
             let root = GC::EF::two_adic_generator(log_tensor_height);
@@ -224,7 +226,7 @@ where
             .collect();
 
         let constraint_data = ZkStackedPcsConstraintData {
-            log_num_cols: log_num_polys,
+            log_num_cols: log_num_data_cols,
             rlc_point,
             batching_challenge,
             combined_rlc_eval_claim: rlc_eval_claim,

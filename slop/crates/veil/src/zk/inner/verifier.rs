@@ -341,24 +341,35 @@ impl<GC: ZkIopCtx> ZkVerificationContext<GC> {
         mul_proof: Option<ZkMulCnstrProof<GC>>,
     ) -> Result<(), ZkVerifierError> {
         let Some(mul_proof) = mul_proof else {
-            return Ok(());
+            if self.borrow().mul_constraints.is_empty() {
+                return Ok(());
+            } else {
+                return Err(ZkVerifierError::InvalidMulConstrProofShape);
+            }
         };
 
-        // Read/observe padding and add in padding constraints
-        for _ in 0..2 {
-            let [a, b] = self
-                .read_next(2)
-                .map_err(|_| ZkVerifierError::InvalidMulConstrProofShape)?
-                .try_into()
-                .unwrap();
-            let c = self.read_one().map_err(|_| ZkVerifierError::InvalidMulConstrProofShape)?;
-            // Add in the multiplicative constraint the padding should satisfy
-            self.constrain_mul_triple(
-                a.try_into_index().unwrap(),
-                b.try_into_index().unwrap(),
-                c.try_into_index().unwrap(),
-            );
-        }
+        // Read/observe the 6 padding values and enforce the two tautological mul
+        // constraints. The honest prover populates this block with
+        // `(r, s, rs, r-1, t, (r-1)t)` for i.i.d. uniform `r, s, t`; we only enforce
+        // `r * s = rs` and `(r-1) * t = (r-1)t`, which is all that soundness
+        // requires. The structural relation between the two `a` entries (the second
+        // equals the first minus one) is needed only for the simulator's bijection
+        // in the zero-knowledge argument.
+        let [a1, b1, c1, a2, b2, c2]: [_; 6] = self
+            .read_next(6)
+            .map_err(|_| ZkVerifierError::InvalidMulConstrProofShape)?
+            .try_into()
+            .unwrap();
+        self.constrain_mul_triple(
+            a1.try_into_index().unwrap(),
+            b1.try_into_index().unwrap(),
+            c1.try_into_index().unwrap(),
+        );
+        self.constrain_mul_triple(
+            a2.try_into_index().unwrap(),
+            b2.try_into_index().unwrap(),
+            c2.try_into_index().unwrap(),
+        );
 
         let mul_len = self.borrow().mul_constraints.len();
 

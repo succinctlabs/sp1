@@ -1,5 +1,5 @@
+use core::ops::{Add, Mul};
 use itertools::Itertools;
-use std::ops::{Add, Mul};
 
 use p3_field::{AbstractField, Field};
 use serde::{Deserialize, Serialize};

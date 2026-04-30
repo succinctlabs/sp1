@@ -1,3 +1,7 @@
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
 use elf::abi::{PF_NONE, PF_R, PF_W, PF_X};
 
 /// The maximum size of the memory in bytes.
