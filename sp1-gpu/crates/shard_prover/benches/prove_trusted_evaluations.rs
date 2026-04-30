@@ -109,9 +109,10 @@ fn bench_prove_trusted_evaluations(c: &mut Criterion) {
                 all_zerocheck_programs.insert(chip.name().to_string(), result);
             }
 
-            let trace_buffers = Arc::new(WorkerQueue::new(vec![PinnedBuffer::<Felt>::with_capacity(
-                CORE_MAX_TRACE_SIZE as usize,
-            )]));
+            let trace_buffers =
+                Arc::new(WorkerQueue::new(vec![PinnedBuffer::<Felt>::with_capacity(
+                    CORE_MAX_TRACE_SIZE as usize,
+                )]));
 
             let shard_prover = CudaShardProver::<TestGC, BenchProverComponents>::new(
                 trace_buffers,
@@ -147,10 +148,8 @@ fn bench_prove_trusted_evaluations(c: &mut Criterion) {
                             new_evaluation_claims.push(Evaluations::new(round_claims));
                         }
                         let claims: Rounds<_> = new_evaluation_claims.into_iter().collect();
-                        let prover_data = Rounds::from_iter([
-                            &preprocessed_prover_data,
-                            &main_prover_data,
-                        ]);
+                        let prover_data =
+                            Rounds::from_iter([&preprocessed_prover_data, &main_prover_data]);
                         // Drain pending H2D copies before the timer starts.
                         scope.synchronize_blocking().unwrap();
                         (eval_point.clone(), claims, prover_data, challenger.clone())
