@@ -3,11 +3,12 @@ use crate::{
 };
 use itertools::Itertools;
 use slop_air::{Air, AirBuilder, PairBuilder};
-use slop_algebra::AbstractField;
+use slop_algebra::{AbstractExtensionField, AbstractField};
 use slop_matrix::Matrix;
 use sp1_core_executor::events::FieldOperation;
-use sp1_core_executor::SyscallCode;
-use sp1_core_machine::air::{MemoryAirBuilder, SP1CoreAirBuilder};
+use sp1_core_executor::{ByteOpcode, SyscallCode};
+use sp1_core_machine::air::{MemoryAirBuilder, SP1CoreAirBuilder, WordAirBuilder};
+use sp1_core_machine::global::{GlobalChip, GlobalCols};
 use sp1_core_machine::operations::{AddrAddOperation, SyscallAddrOperation};
 use sp1_core_machine::riscv::{WeierstrassAddAssignChip, WeierstrassDoubleAssignChip};
 use sp1_core_machine::syscall::precompiles::weierstrass::{
@@ -23,9 +24,12 @@ use sp1_curves::params::FieldParameters;
 use sp1_curves::params::{Limbs, NumLimbs};
 use sp1_curves::weierstrass::WeierstrassParameters;
 use sp1_curves::{BigUint, CurveType, EllipticCurve};
-use sp1_hypercube::air::InstructionAirBuilder;
+use sp1_hypercube::air::{ByteAirBuilder, InstructionAirBuilder, SepticExtensionAirBuilder};
 use sp1_hypercube::operations::poseidon2::air::{eval_external_round, eval_internal_rounds};
+use sp1_hypercube::operations::poseidon2::permutation::Poseidon2Cols;
 use sp1_hypercube::operations::poseidon2::WIDTH;
+use sp1_hypercube::septic_curve::SepticCurve;
+use sp1_hypercube::septic_extension::SepticExtension;
 use sp1_hypercube::Word;
 use sp1_hypercube::{
     air::{AirInteraction, InteractionScope, MachineAir, MessageBuilder},
@@ -56,6 +60,7 @@ impl<'a> BlockAir<SymbolicProverFolder<'a>> for RiscvAir<F> {
             RiscvAir::KeccakP(keccak) => keccak.num_blocks(),
             RiscvAir::Secp256k1Add(secp256k1_add) => secp256k1_add.num_blocks(),
             RiscvAir::Secp256k1Double(secp256k1_double) => secp256k1_double.num_blocks(),
+            RiscvAir::Global(global) => global.num_blocks(),
             _ => 1,
         }
     }
@@ -67,6 +72,7 @@ impl<'a> BlockAir<SymbolicProverFolder<'a>> for RiscvAir<F> {
             RiscvAir::Secp256k1Double(secp256k1_double) => {
                 secp256k1_double.eval_block(builder, index)
             }
+            RiscvAir::Global(global) => global.eval_block(builder, index),
             _ => {
                 assert!(index == 0);
                 self.eval(builder);
@@ -755,4 +761,283 @@ impl<'a, const DEGREE: usize> BlockAir<SymbolicProverFolder<'a>> for Poseidon2Wi
             _ => unreachable!(),
         }
     }
+}
+
+impl<'a> BlockAir<SymbolicProverFolder<'a>> for GlobalChip {
+    fn num_blocks(&self) -> usize {
+        14
+    }
+
+    fn eval_block(&self, builder: &mut SymbolicProverFolder<'a>, index: usize) {
+        let main = builder.main();
+        let local = main.row_slice(0);
+        let local: &GlobalCols<SymbolicVarF> = (*local).borrow();
+
+        let perm = &local.interaction.permutation.permutation;
+
+        match index {
+            0 => {
+                // Top-level: `is_real` is boolean.
+                builder.assert_bool(local.is_real);
+
+                // `eval_single_digest` starts here: duplicate `assert_bool(is_real)`, then
+                // `is_receive + is_send == 1` when is_real, and bool checks on the flags.
+                // The order must match `Air::eval` since constraints fold via Horner.
+                builder.assert_bool(local.is_real);
+                builder.when(local.is_real).assert_eq(
+                    SymbolicExprF::from(local.is_receive) + SymbolicExprF::from(local.is_send),
+                    SymbolicExprF::one(),
+                );
+                builder.assert_bool(local.is_receive);
+                builder.assert_bool(local.is_send);
+
+                // `message[0]` == message_0_16bit_limb + message_0_8bit_limb * 2^16.
+                builder.when(local.is_real).assert_eq(
+                    SymbolicExprF::from(local.message[0]),
+                    SymbolicExprF::from(local.message_0_16bit_limb)
+                        + SymbolicExprF::from(local.message_0_8bit_limb)
+                            * F::from_canonical_u32(1 << 16),
+                );
+
+                // Constrain the input of the permutation to be the message.
+                let m_trial: [SymbolicExprF; WIDTH] = [
+                    SymbolicExprF::from(local.message[0])
+                        + SymbolicExprF::from_canonical_u32(1 << 24) * local.kind,
+                    local.message[1].into(),
+                    local.message[2].into(),
+                    local.message[3].into(),
+                    local.message[4].into(),
+                    local.message[5].into(),
+                    local.message[6].into(),
+                    SymbolicExprF::from(local.message[7])
+                        + SymbolicExprF::from_canonical_u32(1 << 16) * local.interaction.offset,
+                    SymbolicExprF::zero(),
+                    SymbolicExprF::zero(),
+                    SymbolicExprF::zero(),
+                    SymbolicExprF::zero(),
+                    SymbolicExprF::zero(),
+                    SymbolicExprF::zero(),
+                    SymbolicExprF::zero(),
+                    SymbolicExprF::zero(),
+                ];
+                for (i, m_trial_i) in m_trial.iter().enumerate() {
+                    builder
+                        .when(local.is_real)
+                        .assert_eq(perm.external_rounds_state()[0][i], *m_trial_i);
+                }
+
+                // External round 0.
+                eval_external_round(builder, perm, 0);
+            }
+            1..=7 => {
+                // External rounds 1..=7.
+                eval_external_round(builder, perm, index);
+            }
+            8 => {
+                // Internal rounds.
+                eval_internal_rounds(builder, perm);
+
+                // `x_coordinate[i] == m_hash[i]` when `is_real`.
+                let m_hash = perm.perm_output();
+                for (i, &m_hash_i) in m_hash.iter().enumerate().take(7) {
+                    builder
+                        .when(local.is_real)
+                        .assert_eq(local.interaction.x_coordinate[i], m_hash_i);
+                }
+            }
+            9 => {
+                // Curve formula: y^2 == x^3 + 2x + 26z^5 (septic-ext).
+                let x = SepticExtension::<SymbolicExprF>::from_base_fn(|i| {
+                    SymbolicExprF::from(local.interaction.x_coordinate[i])
+                });
+                let y = SepticExtension::<SymbolicExprF>::from_base_fn(|i| {
+                    SymbolicExprF::from(local.interaction.y_coordinate[i])
+                });
+                let y2 = y.square();
+                let curve_rhs = SepticCurve::<SymbolicExprF>::curve_formula(x);
+                builder.assert_septic_ext_eq(y2, curve_rhs);
+            }
+            10 => {
+                // y6 byte decomposition + sign constraint.
+                let mut y6_value = SymbolicExprF::zero();
+                for i in 0..3 {
+                    y6_value = y6_value
+                        + local.interaction.y6_byte_decomp[i]
+                            * SymbolicExprF::from_canonical_u32(1 << (8 * i));
+                }
+                y6_value = y6_value
+                    + local.interaction.y6_byte_decomp[3]
+                        * SymbolicExprF::from_canonical_u32(1 << 24);
+
+                let y = SepticExtension::<SymbolicExprF>::from_base_fn(|i| {
+                    SymbolicExprF::from(local.interaction.y_coordinate[i])
+                });
+
+                let y6 = y.0[6];
+                // If it's a receive: y_6 == 1 + y6_value.
+                builder.when(local.is_receive).assert_eq(y6, SymbolicExprF::one() + y6_value);
+                // If it's a send: y_6 + 1 + y6_value == 0.
+                builder.when(local.is_send).assert_zero(y6 + SymbolicExprF::one() + y6_value);
+            }
+            11 => {
+                // `eval_accumulation` starts here: duplicate `assert_bool(is_real)` (keeps the
+                // constraint count/order aligned with `Air::eval`), then `sum_checker_x == 0`.
+                builder.assert_bool(local.is_real);
+
+                let (initial_digest, point_to_add, cumulative_sum) =
+                    global_accumulation_points(local);
+                let sum_checker_x = SepticCurve::<SymbolicExprF>::sum_checker_x(
+                    initial_digest,
+                    point_to_add,
+                    cumulative_sum,
+                );
+                builder
+                    .assert_septic_ext_eq(sum_checker_x, SepticExtension::<SymbolicExprF>::zero());
+            }
+            12 => {
+                // sum_checker_y == 0 when is_real.
+                let (initial_digest, point_to_add, cumulative_sum) =
+                    global_accumulation_points(local);
+                let sum_checker_y = SepticCurve::<SymbolicExprF>::sum_checker_y(
+                    initial_digest,
+                    point_to_add,
+                    cumulative_sum,
+                );
+                builder
+                    .when(local.is_real)
+                    .assert_septic_ext_eq(sum_checker_y, SepticExtension::<SymbolicExprF>::zero());
+            }
+            13 => {
+                // All interactions.
+                // Receive the global-interaction message.
+                builder.receive(
+                    AirInteraction::<SymbolicExprF>::new(
+                        vec![
+                            local.message[0].into(),
+                            local.message[1].into(),
+                            local.message[2].into(),
+                            local.message[3].into(),
+                            local.message[4].into(),
+                            local.message[5].into(),
+                            local.message[6].into(),
+                            local.message[7].into(),
+                            local.is_send.into(),
+                            local.is_receive.into(),
+                            local.kind.into(),
+                        ],
+                        local.is_real.into(),
+                        InteractionKind::Global,
+                    ),
+                    InteractionScope::Local,
+                );
+
+                // Offset is a byte.
+                builder.send_byte(
+                    SymbolicExprF::from_canonical_u32(ByteOpcode::U8Range as u32),
+                    SymbolicExprF::zero(),
+                    SymbolicExprF::zero(),
+                    local.interaction.offset,
+                    local.is_real,
+                );
+
+                // message[0] limbs + message[7] range checks (u16 / u8).
+                let u16_slice: [SymbolicExprF; 2] = [
+                    SymbolicExprF::from(local.message_0_16bit_limb),
+                    SymbolicExprF::from(local.message[7]),
+                ];
+                builder.slice_range_check_u16(&u16_slice, local.is_real);
+                let u8_slice: [SymbolicExprF; 1] = [SymbolicExprF::from(local.message_0_8bit_limb)];
+                builder.slice_range_check_u8(&u8_slice, local.is_real);
+
+                // kind is at most 6 bits.
+                builder.send_byte(
+                    SymbolicExprF::from_canonical_u32(ByteOpcode::Range as u32),
+                    local.kind,
+                    SymbolicExprF::from_canonical_u32(6),
+                    SymbolicExprF::zero(),
+                    local.is_real,
+                );
+
+                // y6 byte-decomp byte range checks.
+                for i in 0..3 {
+                    builder.send_byte(
+                        SymbolicExprF::from_canonical_u32(ByteOpcode::U8Range as u32),
+                        SymbolicExprF::zero(),
+                        SymbolicExprF::zero(),
+                        local.interaction.y6_byte_decomp[i],
+                        local.is_real,
+                    );
+                }
+                // Last byte must be < 63.
+                builder.send_byte(
+                    SymbolicExprF::from_canonical_u32(ByteOpcode::LTU as u32),
+                    SymbolicExprF::one(),
+                    local.interaction.y6_byte_decomp[3],
+                    SymbolicExprF::from_canonical_u8(63),
+                    local.is_real,
+                );
+
+                // Global accumulation: receive the initial digest.
+                builder.receive(
+                    AirInteraction::<SymbolicExprF>::new(
+                        std::iter::once(SymbolicExprF::from(local.index))
+                            .chain(local.accumulation.initial_digest.iter().flat_map(|septic| {
+                                septic.0.iter().map(|&v| SymbolicExprF::from(v))
+                            }))
+                            .collect(),
+                        local.is_real.into(),
+                        InteractionKind::GlobalAccumulation,
+                    ),
+                    InteractionScope::Local,
+                );
+
+                // Global accumulation: send the next digest with incremented index.
+                builder.send(
+                    AirInteraction::<SymbolicExprF>::new(
+                        std::iter::once(SymbolicExprF::from(local.index) + SymbolicExprF::one())
+                            .chain(local.accumulation.cumulative_sum.iter().flat_map(|septic| {
+                                septic.0.iter().map(|&v| SymbolicExprF::from(v))
+                            }))
+                            .collect(),
+                        local.is_real.into(),
+                        InteractionKind::GlobalAccumulation,
+                    ),
+                    InteractionScope::Local,
+                );
+            }
+            _ => unreachable!(),
+        }
+    }
+}
+
+/// Helper: build the three septic curve points used by the `GlobalAccumulation` `sum_checker_*`
+/// constraints (initial digest, point-to-add, cumulative sum).
+fn global_accumulation_points(
+    local: &GlobalCols<SymbolicVarF>,
+) -> (SepticCurve<SymbolicExprF>, SepticCurve<SymbolicExprF>, SepticCurve<SymbolicExprF>) {
+    let initial_digest = SepticCurve::<SymbolicExprF> {
+        x: SepticExtension::<SymbolicExprF>::from_base_fn(|i| {
+            SymbolicExprF::from(local.accumulation.initial_digest[0][i])
+        }),
+        y: SepticExtension::<SymbolicExprF>::from_base_fn(|i| {
+            SymbolicExprF::from(local.accumulation.initial_digest[1][i])
+        }),
+    };
+    let cumulative_sum = SepticCurve::<SymbolicExprF> {
+        x: SepticExtension::<SymbolicExprF>::from_base_fn(|i| {
+            SymbolicExprF::from(local.accumulation.cumulative_sum[0].0[i])
+        }),
+        y: SepticExtension::<SymbolicExprF>::from_base_fn(|i| {
+            SymbolicExprF::from(local.accumulation.cumulative_sum[1].0[i])
+        }),
+    };
+    let point_to_add = SepticCurve::<SymbolicExprF> {
+        x: SepticExtension::<SymbolicExprF>::from_base_fn(|i| {
+            SymbolicExprF::from(local.interaction.x_coordinate.0[i])
+        }),
+        y: SepticExtension::<SymbolicExprF>::from_base_fn(|i| {
+            SymbolicExprF::from(local.interaction.y_coordinate.0[i])
+        }),
+    };
+    (initial_digest, point_to_add, cumulative_sum)
 }
