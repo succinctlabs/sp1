@@ -87,3 +87,7 @@ path = "src/bin/replay_shards.rs"
 [[bin]]
 name = "download-shards"
 path = "src/bin/download_shards.rs"
+
+[[bin]]
+name = "composed-workflow"
+path = "src/bin/composed_workflow.rs"

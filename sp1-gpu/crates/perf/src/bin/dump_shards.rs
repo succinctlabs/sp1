@@ -108,7 +108,7 @@ async fn main() {
     }
 
     // Upload vk.bin at the program level (common to all inputs).
-    let vk_src = dump_path.join("vk_0000.bin");
+    let vk_src = dump_path.join("vk.bin");
     let vk_dst = format!("s3://{}/{}/vk.bin", args.bucket, args.program);
     tracing::info!("Uploading vk to {vk_dst}");
 
