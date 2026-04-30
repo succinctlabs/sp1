@@ -31,6 +31,8 @@ mod machine;
 pub mod operations;
 pub mod prover;
 mod record;
+/// Public values for recursion proofs.
+pub mod recursion_public_values;
 pub mod septic_curve;
 pub mod septic_digest;
 pub mod septic_extension;
@@ -45,6 +47,10 @@ pub use logup_gkr::*;
 pub use lookup::*;
 pub use machine::*;
 pub use record::*;
+pub use recursion_public_values::{
+    RecursionPublicValues, NUM_PV_ELMS_TO_HASH, PV_DIGEST_NUM_WORDS,
+    RECURSION_PUBLIC_VALUES_COL_MAP, RECURSIVE_PROOF_NUM_PV_ELTS,
+};
 pub use util::*;
 pub use verifier::*;
 pub use word::*;

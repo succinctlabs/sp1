@@ -9,8 +9,8 @@ use sp1_hypercube::{
     verify_merkle_proof, HashableKey, InnerSC, MachineVerifier, MachineVerifierError,
     SP1RecursionProof, ShardVerifier, DIGEST_SIZE, PROOF_MAX_NUM_PVS,
 };
+use sp1_hypercube::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH};
 use sp1_primitives::{fri_params::recursion_fri_config, poseidon2_hasher, SP1Field};
-use sp1_recursion_executor::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH};
 
 use super::CompressedError;
 use crate::{
