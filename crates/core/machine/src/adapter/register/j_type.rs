@@ -4,6 +4,7 @@ use sp1_core_executor::{
     JTypeRecord,
 };
 use sp1_derive::{AlignedBorrow, InputExpr, InputParams, IntoShape, SP1OperationBuilder};
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use sp1_hypercube::{air::SP1AirBuilder, Word};
 
@@ -15,7 +16,9 @@ use crate::{
 
 /// A set of columns to read operations with op_a being a register and op_b and op_c being
 /// immediates.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy, IntoShape, SP1OperationBuilder)]
+#[derive(
+    AlignedBorrow, Default, Debug, Clone, Copy, IntoShape, SP1OperationBuilder, StructReflection,
+)]
 #[repr(C)]
 pub struct JTypeReader<T> {
     pub op_a: T,

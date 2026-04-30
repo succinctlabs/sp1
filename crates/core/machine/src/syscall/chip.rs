@@ -19,6 +19,8 @@ use std::{
     marker::PhantomData,
     mem::{size_of, MaybeUninit},
 };
+use struct_reflection::{StructReflection, StructReflectionHelper};
+
 /// The number of main trace columns for `SyscallChip` in supervisor mode.
 pub const NUM_SYSCALL_COLS_SUPERVISOR: usize = size_of::<SyscallCols<u8, SupervisorMode>>();
 /// The number of main trace columns for `SyscallChip` in user mode.
@@ -55,7 +57,7 @@ impl<M: TrustMode> SyscallChip<M> {
 }
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Clone, Copy)]
+#[derive(AlignedBorrow, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct SyscallCols<T: Copy, M: TrustMode> {
     /// The high bits of the clk of the syscall.
@@ -283,6 +285,10 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for SyscallChip<M> {
                 }
             }
         }
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        SyscallCols::<F>::struct_reflection().unwrap()
     }
 }
 

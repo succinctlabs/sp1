@@ -8,6 +8,7 @@ use sp1_core_executor::{
 use sp1_derive::{AlignedBorrow, InputExpr, InputParams, IntoShape, SP1OperationBuilder};
 
 use sp1_hypercube::{air::SP1AirBuilder, Word};
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     air::{MemoryAirBuilder, ProgramAirBuilder, SP1Operation, WordAirBuilder},
@@ -19,6 +20,7 @@ use crate::{
 /// or immediate.
 #[derive(
     AlignedBorrow,
+    StructReflection,
     Default,
     Debug,
     Clone,

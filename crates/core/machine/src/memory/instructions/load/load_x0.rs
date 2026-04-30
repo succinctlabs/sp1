@@ -28,6 +28,7 @@ use std::{
     marker::PhantomData,
     mem::{size_of, MaybeUninit},
 };
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 #[derive(Default)]
 pub struct LoadX0Chip<M: TrustMode> {
@@ -38,7 +39,7 @@ pub const NUM_LOAD_X0_COLS_SUPERVISOR: usize = size_of::<LoadX0Columns<u8, Super
 pub const NUM_LOAD_X0_COLS_USER: usize = size_of::<LoadX0Columns<u8, UserMode>>();
 
 /// The column layout for memory load instructions with `op_a = x0`.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct LoadX0Columns<T, M: TrustMode> {
     /// The current shard, timestamp, program counter of the CPU.
@@ -175,6 +176,9 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for LoadX0Chip<M> {
             !shard.memory_load_x0_events.is_empty()
                 && (M::IS_TRUSTED != shard.program.enable_untrusted_programs)
         }
+    }
+    fn column_names(&self) -> Vec<String> {
+        LoadX0Columns::<F>::struct_reflection().unwrap()
     }
 }
 

@@ -11,6 +11,7 @@ use sp1_core_executor::{
 };
 use sp1_hypercube::{addr_to_limbs, air::MachineAir, Word};
 use sp1_primitives::consts::u64_to_u16_limbs;
+use struct_reflection::StructReflectionHelper;
 
 use crate::{
     operations::SP1FieldWordRangeChecker, utils::next_multiple_of_32, TrustMode, UserMode,
@@ -135,6 +136,10 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for SyscallInstrsChip<M> {
             !shard.syscall_events.is_empty()
                 && (M::IS_TRUSTED != shard.program.enable_untrusted_programs)
         }
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        SyscallInstrColumns::<F>::struct_reflection().unwrap()
     }
 }
 

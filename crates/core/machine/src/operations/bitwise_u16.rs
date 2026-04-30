@@ -9,10 +9,12 @@ use slop_algebra::{AbstractField, Field};
 use sp1_core_executor::{events::ByteRecord, Opcode};
 use sp1_derive::{AlignedBorrow, InputExpr, InputParams, IntoShape, SP1OperationBuilder};
 use sp1_hypercube::{air::SP1AirBuilder, Word};
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 /// A set of columns needed to compute the bitwise operation over `Word` of u16 limbs.
 #[derive(
     AlignedBorrow,
+    StructReflection,
     Default,
     Debug,
     Clone,

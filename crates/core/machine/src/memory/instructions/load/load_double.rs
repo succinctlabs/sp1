@@ -30,6 +30,7 @@ use sp1_core_executor::{
 };
 
 use sp1_hypercube::air::MachineAir;
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 #[derive(Default)]
 pub struct LoadDoubleChip<M: TrustMode> {
@@ -41,7 +42,7 @@ pub const NUM_LOAD_DOUBLE_COLS_SUPERVISOR: usize =
 pub const NUM_LOAD_DOUBLE_COLS_USER: usize = size_of::<LoadDoubleColumns<u8, UserMode>>();
 
 /// The column layout for memory load double instructions.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct LoadDoubleColumns<T, M: TrustMode> {
     /// The current shard, timestamp, program counter of the CPU.
@@ -158,6 +159,10 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for LoadDoubleChip<M> {
             !shard.memory_load_double_events.is_empty()
                 && (M::IS_TRUSTED != shard.program.enable_untrusted_programs)
         }
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        LoadDoubleColumns::<F>::struct_reflection().unwrap()
     }
 }
 

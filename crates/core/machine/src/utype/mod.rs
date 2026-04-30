@@ -17,6 +17,7 @@ use std::{
     marker::PhantomData,
     mem::{size_of, MaybeUninit},
 };
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     adapter::{
@@ -49,7 +50,7 @@ impl<F, M: TrustMode> BaseAir<F> for UTypeChip<M> {
 }
 
 /// The column layout for UType instructions.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct UTypeColumns<T, M: TrustMode> {
     /// The current shard, timestamp, program counter of the CPU.
@@ -293,6 +294,10 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for UTypeChip<M> {
             !shard.utype_events.is_empty()
                 && (M::IS_TRUSTED != shard.program.enable_untrusted_programs)
         }
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        UTypeColumns::<F>::struct_reflection().unwrap()
     }
 }
 

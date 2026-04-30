@@ -10,6 +10,7 @@ use sp1_core_executor::{
     ExecutionRecord, Program,
 };
 use sp1_hypercube::{air::MachineAir, Word};
+use struct_reflection::StructReflectionHelper;
 
 use crate::{utils::next_multiple_of_32, TrustMode, UserMode};
 
@@ -132,5 +133,9 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for JalChip<M> {
             !shard.jal_events.is_empty()
                 && (M::IS_TRUSTED != shard.program.enable_untrusted_programs)
         }
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        JalColumns::<F>::struct_reflection().unwrap()
     }
 }

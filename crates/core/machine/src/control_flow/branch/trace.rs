@@ -10,6 +10,7 @@ use sp1_core_executor::{
     ExecutionRecord, Opcode, Program,
 };
 use sp1_hypercube::air::MachineAir;
+use struct_reflection::StructReflectionHelper;
 
 use crate::{utils::next_multiple_of_32, TrustMode, UserMode};
 
@@ -121,6 +122,10 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for BranchChip<M> {
             !shard.branch_events.is_empty()
                 && (M::IS_TRUSTED != shard.program.enable_untrusted_programs)
         }
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        BranchColumns::<F>::struct_reflection().unwrap()
     }
 }
 

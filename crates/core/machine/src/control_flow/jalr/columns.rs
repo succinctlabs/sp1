@@ -2,6 +2,7 @@ use crate::adapter::{register::i_type::ITypeReader, state::CPUState};
 use crate::{SupervisorMode, TrustMode, UserMode};
 use sp1_derive::AlignedBorrow;
 use std::mem::size_of;
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::operations::AddOperation;
 
@@ -10,7 +11,7 @@ pub const NUM_JALR_COLS_SUPERVISOR: usize = size_of::<JalrColumns<u8, Supervisor
 /// The number of main trace columns for `JalrChip` in User mode.
 pub const NUM_JALR_COLS_USER: usize = size_of::<JalrColumns<u8, UserMode>>();
 
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct JalrColumns<T, M: TrustMode> {
     /// The current shard, timestamp, program counter of the CPU.

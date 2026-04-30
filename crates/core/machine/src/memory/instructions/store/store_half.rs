@@ -28,6 +28,7 @@ use std::{
     marker::PhantomData,
     mem::{size_of, MaybeUninit},
 };
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 #[derive(Default)]
 pub struct StoreHalfChip<M: TrustMode> {
@@ -38,7 +39,7 @@ pub const NUM_STORE_HALF_COLS_SUPERVISOR: usize = size_of::<StoreHalfColumns<u8,
 pub const NUM_STORE_HALF_COLS_USER: usize = size_of::<StoreHalfColumns<u8, UserMode>>();
 
 /// The column layout for memory store half instructions.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct StoreHalfColumns<T, M: TrustMode> {
     /// The current shard, timestamp, program counter of the CPU.
@@ -160,6 +161,10 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for StoreHalfChip<M> {
             !shard.memory_store_half_events.is_empty()
                 && (M::IS_TRUSTED != shard.program.enable_untrusted_programs)
         }
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        StoreHalfColumns::<F>::struct_reflection().unwrap()
     }
 }
 

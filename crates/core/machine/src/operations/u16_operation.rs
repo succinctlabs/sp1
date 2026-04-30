@@ -2,13 +2,16 @@ use serde::{Deserialize, Serialize};
 use sp1_core_executor::events::ByteRecord;
 use sp1_hypercube::air::SP1AirBuilder;
 use sp1_primitives::consts::{u64_to_u16_limbs, WORD_BYTE_SIZE, WORD_SIZE};
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::air::{SP1Operation, WordAirBuilder};
 use slop_algebra::{AbstractField, Field};
 use sp1_derive::{AlignedBorrow, InputExpr, InputParams, IntoShape, SP1OperationBuilder};
 
 /// A set of columns for a u16 to u8 adapter to convert a `Word` to u8 limbs.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy, Serialize, Deserialize, IntoShape)]
+#[derive(
+    AlignedBorrow, StructReflection, Default, Debug, Clone, Copy, Serialize, Deserialize, IntoShape,
+)]
 #[repr(C)]
 pub struct U16toU8Operation<T> {
     low_bytes: [T; WORD_SIZE],

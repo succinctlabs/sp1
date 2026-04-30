@@ -31,6 +31,7 @@ use sp1_core_executor::{
 };
 use sp1_derive::AlignedBorrow;
 use sp1_hypercube::air::MachineAir;
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 /// The number of main trace columns for `BitwiseChip` in Supervisor mode.
 pub const NUM_BITWISE_COLS_SUPERVISOR: usize = size_of::<BitwiseCols<u8, SupervisorMode>>();
@@ -44,7 +45,7 @@ pub struct BitwiseChip<M: TrustMode> {
 }
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Default, Clone, Copy)]
+#[derive(AlignedBorrow, StructReflection, Default, Clone, Copy)]
 #[repr(C)]
 pub struct BitwiseCols<T, M: TrustMode> {
     /// The current shard, timestamp, program counter of the CPU.
@@ -80,6 +81,10 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for BitwiseChip<M> {
         } else {
             "BitwiseUser"
         }
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        BitwiseCols::<F>::struct_reflection().unwrap()
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {

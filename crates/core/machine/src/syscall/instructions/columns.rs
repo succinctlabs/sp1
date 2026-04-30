@@ -1,6 +1,7 @@
 use sp1_derive::AlignedBorrow;
 use sp1_hypercube::{air::PV_DIGEST_NUM_WORDS, Word};
 use std::mem::size_of;
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     adapter::{register::r_type::RTypeReader, state::CPUState},
@@ -12,7 +13,7 @@ pub const NUM_SYSCALL_INSTR_COLS_USER: usize = size_of::<SyscallInstrColumns<u8,
 pub const NUM_SYSCALL_INSTR_COLS_SUPERVISOR: usize =
     size_of::<SyscallInstrColumns<u8, SupervisorMode>>();
 
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct SyscallInstrColumns<T, M: TrustMode> {
     /// The current shard, timestamp, program counter of the CPU.

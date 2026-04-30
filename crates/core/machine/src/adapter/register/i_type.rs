@@ -11,6 +11,7 @@ use sp1_hypercube::{
     ir::{Attribute, ConstraintCompiler, FuncCtx, Shape},
     Word,
 };
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     air::{MemoryAirBuilder, ProgramAirBuilder, SP1Operation, WordAirBuilder},
@@ -20,7 +21,9 @@ use crate::{
 
 /// A set of columns to read operations with op_a and op_b being registers and op_c being an
 /// immediate.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy, IntoShape, SP1OperationBuilder)]
+#[derive(
+    AlignedBorrow, Default, Debug, Clone, Copy, IntoShape, SP1OperationBuilder, StructReflection,
+)]
 #[repr(C)]
 pub struct ITypeReader<T> {
     pub op_a: T,

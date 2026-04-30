@@ -22,6 +22,7 @@ use sp1_core_executor::{
 };
 use sp1_derive::AlignedBorrow;
 use sp1_hypercube::{air::MachineAir, Word};
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     adapter::{
@@ -45,7 +46,7 @@ pub struct AddwChip<M: TrustMode> {
 }
 
 /// The column layout for the `AddwChip`.
-#[derive(AlignedBorrow, Default, Clone, Copy)]
+#[derive(AlignedBorrow, StructReflection, Default, Clone, Copy)]
 #[repr(C)]
 pub struct AddwCols<T, M: TrustMode> {
     /// The current shard, timestamp, program counter of the CPU.
@@ -75,6 +76,10 @@ impl<F: PrimeField32, M: TrustMode> MachineAir<F> for AddwChip<M> {
         } else {
             "AddwUser"
         }
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        AddwCols::<F>::struct_reflection().unwrap()
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
