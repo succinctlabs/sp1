@@ -24,6 +24,7 @@ use std::{
     borrow::{Borrow, BorrowMut},
     mem::{size_of, MaybeUninit},
 };
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 #[derive(Default)]
 pub struct StoreWordChip;
@@ -31,7 +32,7 @@ pub struct StoreWordChip;
 pub const NUM_STORE_WORD_COLUMNS: usize = size_of::<StoreWordColumns<u8>>();
 
 /// The column layout for memory store word instructions.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct StoreWordColumns<T> {
     /// The current shard, timestamp, program counter of the CPU.
@@ -132,6 +133,10 @@ impl<F: PrimeField32> MachineAir<F> for StoreWordChip {
         } else {
             !shard.memory_store_word_events.is_empty()
         }
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        StoreWordColumns::<F>::struct_reflection().unwrap()
     }
 }
 

@@ -24,6 +24,7 @@ use std::{
     borrow::{Borrow, BorrowMut},
     mem::{size_of, MaybeUninit},
 };
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 #[derive(Default)]
 pub struct StoreDoubleChip;
@@ -31,7 +32,7 @@ pub struct StoreDoubleChip;
 pub const NUM_STORE_DOUBLE_COLUMNS: usize = size_of::<StoreDoubleColumns<u8>>();
 
 /// The column layout for memory store double instructions.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct StoreDoubleColumns<T> {
     /// The current shard, timestamp, program counter of the CPU.
@@ -127,6 +128,10 @@ impl<F: PrimeField32> MachineAir<F> for StoreDoubleChip {
         } else {
             !shard.memory_store_double_events.is_empty()
         }
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        StoreDoubleColumns::<F>::struct_reflection().unwrap()
     }
 }
 

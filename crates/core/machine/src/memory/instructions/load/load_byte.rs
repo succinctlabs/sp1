@@ -6,6 +6,7 @@ use std::{
     borrow::{Borrow, BorrowMut},
     mem::{size_of, MaybeUninit},
 };
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     adapter::{
@@ -34,7 +35,7 @@ pub struct LoadByteChip;
 pub const NUM_LOAD_BYTE_COLUMNS: usize = size_of::<LoadByteColumns<u8>>();
 
 /// The column layout for memory load byte instructions.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct LoadByteColumns<T> {
     /// The current shard, timestamp, program counter of the CPU.
@@ -147,6 +148,10 @@ impl<F: PrimeField32> MachineAir<F> for LoadByteChip {
         } else {
             !shard.memory_load_byte_events.is_empty()
         }
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        LoadByteColumns::<F>::struct_reflection().unwrap()
     }
 }
 

@@ -1,4 +1,5 @@
 use crate::types::Buffer;
+use alloc::{format, string::String, vec::Vec};
 use num_bigint::BigUint;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sha2::{Digest, Sha256};

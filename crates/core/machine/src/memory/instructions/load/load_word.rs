@@ -27,6 +27,7 @@ use sp1_core_executor::{
 };
 
 use sp1_hypercube::{air::MachineAir, Word};
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 #[derive(Default)]
 pub struct LoadWordChip;
@@ -34,7 +35,7 @@ pub struct LoadWordChip;
 pub const NUM_LOAD_WORD_COLUMNS: usize = size_of::<LoadWordColumns<u8>>();
 
 /// The column layout for memory load word instructions.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct LoadWordColumns<T> {
     /// The current shard, timestamp, program counter of the CPU.
@@ -141,6 +142,10 @@ impl<F: PrimeField32> MachineAir<F> for LoadWordChip {
         } else {
             !shard.memory_load_word_events.is_empty()
         }
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        LoadWordColumns::<F>::struct_reflection().unwrap()
     }
 }
 

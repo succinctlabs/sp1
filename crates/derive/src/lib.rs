@@ -154,6 +154,13 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                 }
             });
 
+            let column_names_arms = variants.iter().map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) => <#field_ty as sp1_hypercube::air::MachineAir<F>>::column_names(x)
+                }
+            });
+
             let preprocessed_num_rows_arms = variants.iter().map(|(variant_name, field)| {
                 let field_ty = &field.ty;
                 quote! {
@@ -229,6 +236,12 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                         }
                     }
 
+                    fn column_names(&self) -> Vec<String> {
+                        match self {
+                            #(#column_names_arms,)*
+                        }
+                    }
+
                     fn preprocessed_width(&self) -> usize {
                         match self {
                             #(#preprocessed_width_arms,)*
@@ -300,8 +313,8 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
                         match self {
                             #(#num_rows_arms,)*
+                        }
                     }
-                }
                 }
             };
 

@@ -628,19 +628,34 @@ impl<GC: ZkIopCtx, MK: ZkMerkleizer<GC>, PD> ZkProverContext<GC, MK, PD> {
     {
         self.borrow().mul_constraints.as_ref()?;
 
-        // Add padding needed to mask intermediate computed dot products
-        for _ in 0..2 {
-            let current_index = self.next_block_index();
-            let padding: [GC::EF; 2] = rng.gen::<[GC::EF; 2]>();
-            self.add_values_raw(&padding[..]);
-            let padding_prod = padding[0] * padding[1];
-            self.add_values_raw(&[padding_prod]);
-            self.constrain_mul_triple(
-                TranscriptIndex::<GC::EF>::from([current_index, 0]),
-                TranscriptIndex::<GC::EF>::from([current_index, 1]),
-                TranscriptIndex::<GC::EF>::from([current_index + 1, 0]),
-            );
-        }
+        // Pad the R1CS witness used by the Hadamard check by `(r, s, rs, r-1, t, (r-1)t)`
+        // for i.i.d. uniform `r, s, t`, realizing the two tautological multiplicative
+        // relations `r * s = rs` and `(r-1) * t = (r-1)t`.
+        //
+        // Note: the simulator's bijection requires `rlc_coeff ≠ 0` and `rlc_coeff ≠ -1`
+        // (where `rlc_coeff` is sampled below). We do not condition the proof on these
+        // holding, so the protocol is only statistically zero-knowledge against an
+        // honest verifier. Because `rlc_coeff` is derived via Fiat-Shamir from the
+        // transcript hash, the verifier behaves as honest and this does not affect
+        // deployment.
+        let r: GC::EF = rng.gen();
+        let s: GC::EF = rng.gen();
+        let t: GC::EF = rng.gen();
+        let r_minus_1 = r - GC::EF::one();
+
+        let padding_block = self.next_block_index();
+        self.add_values_raw(&[r, s, r * s, r_minus_1, t, r_minus_1 * t]);
+
+        self.constrain_mul_triple(
+            TranscriptIndex::<GC::EF>::from([padding_block, 0]),
+            TranscriptIndex::<GC::EF>::from([padding_block, 1]),
+            TranscriptIndex::<GC::EF>::from([padding_block, 2]),
+        );
+        self.constrain_mul_triple(
+            TranscriptIndex::<GC::EF>::from([padding_block, 3]),
+            TranscriptIndex::<GC::EF>::from([padding_block, 4]),
+            TranscriptIndex::<GC::EF>::from([padding_block, 5]),
+        );
 
         // Extract mul_vecs and mul_len from the inner context
         let (mul_vecs, mul_len) = {

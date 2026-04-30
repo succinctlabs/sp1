@@ -1,3 +1,5 @@
+#![no_std]
+
 #[cfg(target_os = "zkvm")]
 use {
     cfg_if::cfg_if,
@@ -77,7 +79,7 @@ pub extern "C" fn read_vec_raw() -> ReadVecResult {
 
         // If the length is u32::MAX, then the input stream is exhausted.
         if len == usize::MAX {
-            return ReadVecResult { ptr: std::ptr::null_mut(), len: 0, capacity: 0 };
+            return ReadVecResult { ptr: core::ptr::null_mut(), len: 0, capacity: 0 };
         }
 
         // Round up to multiple of 8 for whole-word alignment.
@@ -104,10 +106,10 @@ pub extern "C" fn read_vec_raw() -> ReadVecResult {
                 ReadVecResult { ptr: ptr as *mut u8, len, capacity }
             } else {
                 // Allocate a buffer of the required length that is 8 byte aligned.
-                let layout = std::alloc::Layout::from_size_align(capacity, 8).expect("vec is too large");
+                let layout = core::alloc::Layout::from_size_align(capacity, 8).expect("vec is too large");
 
                 // SAFETY: The layout was made through the checked constructor.
-                let ptr = unsafe { std::alloc::alloc(layout) };
+                let ptr = unsafe { alloc::alloc::alloc(layout) };
 
                 // Read the vec into uninitialized memory. The syscall assumes the memory is
                 // uninitialized, which is true because the bump allocator does not dealloc, so a new
@@ -194,31 +196,33 @@ mod zkvm {
 
     #[no_mangle]
     unsafe extern "C" fn __start() {
-        {
-            #[cfg(all(target_os = "zkvm", not(feature = "bump")))]
-            crate::allocators::init();
+        #[cfg(all(target_os = "zkvm", not(feature = "bump")))]
+        crate::allocators::init();
 
-            cfg_if::cfg_if! {
-                if #[cfg(feature = "blake3")] {
-                    PUBLIC_VALUES_HASHER = Some(blake3::Hasher::new());
-                }
-                else {
-                    PUBLIC_VALUES_HASHER = Some(Sha256::new());
-                }
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "blake3")] {
+                PUBLIC_VALUES_HASHER = Some(blake3::Hasher::new());
             }
-
-            #[cfg(feature = "verify")]
-            {
-                DEFERRED_PROOFS_DIGEST = Some([SP1Field::zero(); 8]);
+            else {
+                PUBLIC_VALUES_HASHER = Some(Sha256::new());
             }
-
-            extern "C" {
-                fn main();
-            }
-            main()
         }
 
-        syscall_halt(0);
+        #[cfg(feature = "verify")]
+        {
+            DEFERRED_PROOFS_DIGEST = Some([SP1Field::zero(); 8]);
+        }
+
+        extern "C" {
+            fn main() -> i32;
+        }
+        // Forward `main`'s return value as the exit code per the
+        // eth-act standard-termination spec. The `entrypoint!` macro
+        // wraps Rust guests' `fn() -> ()` entry into a C-ABI
+        // `fn() -> i32 { ...; 0 }` so this read is well-defined for
+        // both Rust and C consumers.
+        let exit_code = main();
+        syscall_halt((exit_code & 0xff) as u8);
     }
 
     // core::arch::global_asm!(include_str!("memset.s"));
@@ -272,8 +276,14 @@ macro_rules! entrypoint {
 
         mod zkvm_generated_main {
 
+            // C ABI + `-> i32` so `__start` (in `sp1-zkvm`) can read the
+            // exit code out of `a0` and forward it to `syscall_halt`. Rust
+            // guests' user fn is `fn()` (no return value), so we always
+            // return 0 here — `panic!` already routes through
+            // `syscall_halt(1)`, so non-zero exit semantics are preserved
+            // for failure paths.
             #[no_mangle]
-            fn main() {
+            extern "C" fn main() -> i32 {
                 // Link to the actual entrypoint only when compiling for zkVM, otherwise run a
                 // simple noop. Doing this avoids compilation errors when building for the host
                 // target.
@@ -283,10 +293,9 @@ macro_rules! entrypoint {
                 // result in an error, which can happen when building a Cargo workspace containing
                 // zkVM program crates.
                 if cfg!(target_os = "zkvm") {
-                    super::ZKVM_ENTRY()
-                } else {
-                    eprintln!("Not running in zkVM, skipping entrypoint");
+                    super::ZKVM_ENTRY();
                 }
+                0
             }
         }
     };
