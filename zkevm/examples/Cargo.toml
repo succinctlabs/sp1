@@ -31,6 +31,8 @@ members = [
   "kzg-c/script",
   # The shared C build helper.
   "c-build",
+  # Vendored cryptographic test fixtures used by example execute scripts.
+  "fixtures",
 ]
 
 [workspace.package]

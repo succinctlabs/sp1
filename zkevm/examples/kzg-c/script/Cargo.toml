@@ -15,6 +15,7 @@ path = "src/prove.rs"
 
 [dependencies]
 sp1-sdk = { workspace = true }
+zkevm-fixtures = { path = "../../fixtures" }
 hex = "0.4"
 tokio = { workspace = true }
 tracing = { workspace = true }
