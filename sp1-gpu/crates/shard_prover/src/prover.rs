@@ -95,6 +95,39 @@ impl<GC: IopCtx, PC: CudaShardProverComponents<GC>> CudaShardProver<GC, PC> {
     }
 }
 
+impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>> CudaShardProver<GC, PC> {
+    /// Prove trusted evaluations for a shard.
+    #[allow(clippy::type_complexity)]
+    pub fn prove_trusted_evaluations(
+        &self,
+        eval_point: Point<Ext>,
+        evaluation_claims: Rounds<Evaluations<Ext, TaskScope>>,
+        all_mles: &JaggedTraceMle<Felt, TaskScope>,
+        prover_data: Rounds<&JaggedProverData<GC, CudaStackedPcsProverData<GC>>>,
+        challenger: &mut GC::Challenger,
+    ) -> Result<
+        JaggedPcsProof<GC, <PC::C as MultilinearPcsVerifier<GC>>::Proof>,
+        JaggedProverError<CudaShardProverError>,
+    >
+    where
+        GC::Challenger: DeviceGrindingChallenger<Witness = GC::F>,
+        GC::Challenger: slop_challenger::FieldChallenger<
+            <GC::Challenger as slop_challenger::GrindingChallenger>::Witness,
+        >,
+        SP1PcsProof<GC>: Into<<PC::C as MultilinearPcsVerifier<GC>>::Proof>,
+        TaskScope:
+            sp1_gpu_jagged_assist::BranchingProgramKernel<GC::F, GC::EF, PC::DeviceChallenger>,
+    {
+        self.inner.prove_trusted_evaluations(
+            eval_point,
+            evaluation_claims,
+            all_mles,
+            prover_data,
+            challenger,
+        )
+    }
+}
+
 /// A prover for the hypercube STARK, given a configuration.
 pub(crate) struct CudaShardProverInner<GC: IopCtx, PC: CudaShardProverComponents<GC>> {
     #[allow(clippy::type_complexity)]

@@ -7339,6 +7339,7 @@ dependencies = [
 name = "sp1-gpu-shard-prover"
 version = "6.1.0"
 dependencies = [
+ "criterion",
  "serial_test",
  "slop-algebra",
  "slop-alloc",
