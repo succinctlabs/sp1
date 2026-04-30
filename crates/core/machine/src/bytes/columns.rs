@@ -1,5 +1,6 @@
 use sp1_derive::AlignedBorrow;
 use std::mem::size_of;
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use super::NUM_BYTE_OPS;
 
@@ -9,7 +10,7 @@ pub const NUM_BYTE_PREPROCESSED_COLS: usize = size_of::<BytePreprocessedCols<u8>
 /// The number of multiplicity columns for `ByteChip`.
 pub const NUM_BYTE_MULT_COLS: usize = size_of::<ByteMultCols<u8>>();
 
-#[derive(Debug, Clone, Copy, AlignedBorrow)]
+#[derive(Debug, Clone, Copy, AlignedBorrow, StructReflection)]
 #[repr(C)]
 pub struct BytePreprocessedCols<T> {
     /// The first byte operand.

@@ -15,6 +15,7 @@ use sp1_core_executor::{
 };
 use sp1_derive::AlignedBorrow;
 use sp1_hypercube::{air::MachineAir, Word};
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     adapter::{
@@ -34,7 +35,7 @@ pub const NUM_LT_COLS: usize = size_of::<LtCols<u8>>();
 pub struct LtChip;
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Default, Clone, Copy)]
+#[derive(AlignedBorrow, StructReflection, Default, Clone, Copy)]
 #[repr(C)]
 pub struct LtCols<T> {
     /// The current shard, timestamp, program counter of the CPU.
@@ -68,6 +69,10 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
 
     fn name(&self) -> &'static str {
         "Lt"
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        LtCols::<F>::struct_reflection().unwrap()
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {

@@ -25,6 +25,12 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
     /// A unique identifier for this AIR as part of a machine.
     fn name(&self) -> &'static str;
 
+    /// A list of column names. The length should equal `self.width()`.
+    fn column_names(&self) -> Vec<String> {
+        // Default implementation returns generic column names.
+        (0..self.width()).map(|i| format!("col_{i}")).collect()
+    }
+
     /// The number of rows in the trace, if the chip is included.
     ///
     /// **Warning**:: if the chip is not included, `num_rows` is allowed to return anything.

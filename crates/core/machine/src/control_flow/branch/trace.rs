@@ -9,6 +9,7 @@ use sp1_core_executor::{
     ExecutionRecord, Opcode, Program,
 };
 use sp1_hypercube::air::MachineAir;
+use struct_reflection::StructReflectionHelper;
 
 use crate::utils::next_multiple_of_32;
 
@@ -102,6 +103,10 @@ impl<F: PrimeField32> MachineAir<F> for BranchChip {
         } else {
             !shard.branch_events.is_empty()
         }
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        BranchColumns::<F>::struct_reflection().unwrap()
     }
 }
 

@@ -14,6 +14,7 @@ use sp1_core_executor::{
 };
 use sp1_derive::AlignedBorrow;
 use sp1_hypercube::{air::MachineAir, Word};
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{
     adapter::{
@@ -33,7 +34,7 @@ pub const NUM_MUL_COLS: usize = size_of::<MulCols<u8>>();
 pub struct MulChip;
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, StructReflection, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MulCols<T> {
     /// The current shard, timestamp, program counter of the CPU.
@@ -71,6 +72,10 @@ impl<F: PrimeField32> MachineAir<F> for MulChip {
 
     fn name(&self) -> &'static str {
         "Mul"
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        MulCols::<F>::struct_reflection().unwrap()
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
