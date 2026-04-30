@@ -6,3 +6,4 @@
 //! state.
 
 pub mod kzg;
+pub mod wycheproof_ecdsa;

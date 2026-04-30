@@ -5642,6 +5642,7 @@ dependencies = [
  "tokio",
  "tracing",
  "zkevm-c-build",
+ "zkevm-fixtures",
 ]
 
 [[package]]
@@ -8752,7 +8753,9 @@ version = "0.0.1"
 dependencies = [
  "hex",
  "serde",
+ "serde_json",
  "serde_yaml",
+ "sha2 0.10.9 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
