@@ -2398,6 +2398,7 @@ dependencies = [
  "tokio",
  "tracing",
  "zkevm-c-build",
+ "zkevm-fixtures",
 ]
 
 [[package]]
