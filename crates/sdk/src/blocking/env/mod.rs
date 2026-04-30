@@ -7,7 +7,10 @@
 use crate::blocking::NetworkProver;
 #[cfg(feature = "cuda")]
 use crate::blocking::{cuda::builder::CudaProverBuilder, CudaProver};
-use crate::blocking::{prover::BaseProveRequest, CpuProver, LightProver, MockProver, Prover};
+use crate::{
+    blocking::{prover::BaseProveRequest, CpuProver, LightProver, MockProver, Prover},
+    SP1ProofWithPublicValues, SP1VerificationError, StatusCode,
+};
 use sp1_core_executor::SP1CoreOpts;
 
 pub mod pk;
@@ -17,7 +20,7 @@ pub use pk::EnvProvingKey;
 use prove::EnvProveRequest;
 use sp1_core_machine::io::SP1Stdin;
 use sp1_primitives::Elf;
-use sp1_prover::worker::SP1NodeCore;
+use sp1_prover::{worker::SP1NodeCore, SP1VerifyingKey};
 
 /// A prover that can execute programs and generate proofs with a different implementation based on
 /// the value of the `SP1_PROVER` environment variable.
@@ -151,5 +154,63 @@ impl Prover for EnvProver {
 
     fn prove<'a>(&'a self, pk: &'a Self::ProvingKey, stdin: SP1Stdin) -> Self::ProveRequest<'a> {
         EnvProveRequest { base: BaseProveRequest::new(self, pk, stdin) }
+    }
+
+    fn verify(
+        &self,
+        proof: &SP1ProofWithPublicValues,
+        vkey: &SP1VerifyingKey,
+        status_code: Option<StatusCode>,
+    ) -> Result<(), SP1VerificationError> {
+        match self {
+            Self::Cpu(prover) => prover.verify(proof, vkey, status_code),
+            #[cfg(feature = "cuda")]
+            Self::Cuda(prover) => prover.verify(proof, vkey, status_code),
+            Self::Mock(prover) => prover.verify(proof, vkey, status_code),
+            Self::Light(prover) => prover.verify(proof, vkey, status_code),
+            #[cfg(feature = "network")]
+            Self::Network(prover) => prover.verify(proof, vkey, status_code),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        blocking::{
+            prover::{ProveRequest, Prover},
+            MockProver,
+        },
+        utils::setup_logger,
+        SP1Stdin,
+    };
+
+    use super::EnvProver;
+
+    /// Regression: `EnvProver::Mock(...)` must delegate `verify` to the inner `MockProver`
+    /// for Plonk and Groth16 proofs. Before the dispatch fix, the trait default routed mock
+    /// proofs through the real verifier and failed parsing the formatted BN254 vkey hash
+    /// string with `invalid digit found in string`.
+    #[test]
+    fn test_envprover_mock_verifies_plonk_and_groth16() {
+        setup_logger();
+        let mock = MockProver::new();
+        let pk = mock.setup(test_artifacts::FIBONACCI_ELF).expect("failed to setup proving key");
+
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&10usize);
+        let plonk_proof =
+            mock.prove(&pk, stdin).plonk().run().expect("failed to create mock Plonk proof");
+
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&10usize);
+        let groth16_proof =
+            mock.prove(&pk, stdin).groth16().run().expect("failed to create mock Groth16 proof");
+
+        let env = EnvProver::Mock(mock);
+        env.verify(&plonk_proof, &pk.vk, None)
+            .expect("EnvProver::Mock must verify a mock Plonk proof");
+        env.verify(&groth16_proof, &pk.vk, None)
+            .expect("EnvProver::Mock must verify a mock Groth16 proof");
     }
 }
