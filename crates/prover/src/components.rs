@@ -28,9 +28,14 @@ pub type CompressAir<F> = RecursionAir<F, COMPRESS_DEGREE, 2>;
 pub type ShrinkAir<F> = RecursionAir<F, SHRINK_DEGREE, 2>;
 pub type WrapAir<F> = RecursionAir<F, WRAP_DEGREE, 1>;
 
+// NOTE: This constant is not bound deterministically to the trace area of the compress shape used in
+// the prover. If dramatic changes to the compress shape are made, this constant may need to be updated.
 pub const RECURSION_LOG_TRACE_AREA: usize = 27;
-const SHRINK_LOG_STACKING_HEIGHT: u32 = 18;
-pub(crate) const SHRINK_MAX_LOG_ROW_COUNT: usize = 19;
+// NOTE: This constant is not bound deterministically to the trace area of the shrink shape used in
+// the prover. If dramatic changes to the shrink shape are made, this constant may need to be updated.
+pub const SHRINK_LOG_TRACE_AREA: usize = 25;
+pub const SHRINK_LOG_STACKING_HEIGHT: u32 = 18;
+pub const SHRINK_MAX_LOG_ROW_COUNT: usize = 19;
 
 pub(crate) const WRAP_LOG_STACKING_HEIGHT: u32 = 21;
 

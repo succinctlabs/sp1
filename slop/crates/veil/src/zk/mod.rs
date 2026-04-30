@@ -4,7 +4,6 @@ mod hadamard_product;
 mod inner;
 mod mask_counter;
 mod prover_ctx;
-mod sumcheck_integration_tests;
 mod verifier_ctx;
 
 pub use inner::{ZkPcsProver, ZkPcsVerifier, ZkProof};
