@@ -2,6 +2,7 @@ use num::BigUint;
 
 use crate::{events::Uint256Operation, SyscallCode};
 use sp1_jit::{
+    Interrupt,
     RiscRegister::{X12, X13, X14, X5},
     SyscallContext,
 };
@@ -16,7 +17,11 @@ const U256_NUM_WORDS: usize = 4;
 /// - X12: address of c (uint256)
 /// - X13: address of d (uint256, output low)
 /// - X14: address of e (uint256, output high)
-pub unsafe fn uint256_ops(ctx: &mut impl SyscallContext, arg1: u64, arg2: u64) -> Option<u64> {
+pub unsafe fn uint256_ops(
+    ctx: &mut impl SyscallContext,
+    arg1: u64,
+    arg2: u64,
+) -> Result<Option<u64>, Interrupt> {
     // Get the operation from the syscall code
     let syscall_id = ctx.rr(X5);
     let syscall_code = SyscallCode::from_u32(syscall_id as u32);
@@ -29,9 +34,21 @@ pub unsafe fn uint256_ops(ctx: &mut impl SyscallContext, arg1: u64, arg2: u64) -
     let d_ptr = ctx.rr(X13);
     let e_ptr = ctx.rr(X14);
 
+    let clk = ctx.get_current_clk();
+    ctx.read_slice_check(a_ptr, U256_NUM_WORDS)?;
+    ctx.bump_memory_clk();
+    ctx.read_slice_check(b_ptr, U256_NUM_WORDS)?;
+    ctx.bump_memory_clk();
+    ctx.read_slice_check(c_ptr, U256_NUM_WORDS)?;
+    ctx.bump_memory_clk();
+    ctx.write_slice_check(d_ptr, 4)?;
+    ctx.bump_memory_clk();
+    ctx.write_slice_check(e_ptr, 4)?;
+
+    ctx.set_clk(clk);
     // Read input values (8 words = 32 bytes each for uint256) and convert to BigUint
     let uint256_a = {
-        let a = ctx.mr_slice(a_ptr, U256_NUM_WORDS);
+        let a = ctx.mr_slice_without_prot(a_ptr, U256_NUM_WORDS);
         BigUint::from_slice(
             &a.into_iter().flat_map(|&x| [x as u32, (x >> 32) as u32]).collect::<Vec<_>>(),
         )
@@ -39,7 +56,7 @@ pub unsafe fn uint256_ops(ctx: &mut impl SyscallContext, arg1: u64, arg2: u64) -
     ctx.bump_memory_clk();
 
     let uint256_b = {
-        let b = ctx.mr_slice(b_ptr, U256_NUM_WORDS);
+        let b = ctx.mr_slice_without_prot(b_ptr, U256_NUM_WORDS);
         BigUint::from_slice(
             &b.into_iter().flat_map(|&x| [x as u32, (x >> 32) as u32]).collect::<Vec<_>>(),
         )
@@ -47,7 +64,7 @@ pub unsafe fn uint256_ops(ctx: &mut impl SyscallContext, arg1: u64, arg2: u64) -
     ctx.bump_memory_clk();
 
     let uint256_c = {
-        let c = ctx.mr_slice(c_ptr, U256_NUM_WORDS);
+        let c = ctx.mr_slice_without_prot(c_ptr, U256_NUM_WORDS);
         BigUint::from_slice(
             &c.into_iter().flat_map(|&x| [x as u32, (x >> 32) as u32]).collect::<Vec<_>>(),
         )
@@ -64,10 +81,10 @@ pub unsafe fn uint256_ops(ctx: &mut impl SyscallContext, arg1: u64, arg2: u64) -
 
     // Write results
     ctx.bump_memory_clk();
-    ctx.mw_slice(d_ptr, &u64_result[0..4]);
+    ctx.mw_slice_without_prot(d_ptr, &u64_result[0..4]);
 
     ctx.bump_memory_clk();
-    ctx.mw_slice(e_ptr, &u64_result[4..8]);
+    ctx.mw_slice_without_prot(e_ptr, &u64_result[4..8]);
 
-    None
+    Ok(None)
 }

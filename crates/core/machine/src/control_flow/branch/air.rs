@@ -10,7 +10,9 @@ use crate::{
         state::{CPUState, CPUStateInput},
     },
     air::{SP1CoreAirBuilder, SP1Operation},
+    eval_untrusted_program,
     operations::{LtOperationSigned, LtOperationSignedInput},
+    TrustMode, UserMode,
 };
 use sp1_core_executor::{ByteOpcode, Opcode, CLK_INC, PC_INC};
 
@@ -22,16 +24,17 @@ use super::{BranchChip, BranchColumns};
 /// 1. It verifies that the next pc is correct based on the branching column.  That column is a
 ///    boolean that indicates whether the branch condition is true.
 /// 2. It verifies the correct value of branching based on the opcode and the comparison operation.
-impl<AB> Air<AB> for BranchChip
+impl<AB, M> Air<AB> for BranchChip<M>
 where
     AB: SP1CoreAirBuilder,
     AB::Var: Sized,
+    M: TrustMode,
 {
     #[inline(never)]
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local = main.row_slice(0);
-        let local: &BranchColumns<AB::Var> = (*local).borrow();
+        let local: &BranchColumns<AB::Var, M> = (*local).borrow();
 
         // SAFETY: All selectors `is_beq`, `is_bne`, `is_blt`, `is_bge`, `is_bltu`, `is_bgeu` are
         // checked to be boolean. Each "real" row has exactly one selector turned on, as
@@ -100,6 +103,36 @@ where
             ),
         );
 
+        let mut is_trusted: AB::Expr = is_real.clone();
+
+        #[cfg(feature = "mprotect")]
+        builder.assert_eq(
+            builder.extract_public_values().is_untrusted_programs_enabled,
+            AB::Expr::from_bool(!M::IS_TRUSTED),
+        );
+
+        if !M::IS_TRUSTED {
+            let local = main.row_slice(0);
+            let local: &BranchColumns<AB::Var, UserMode> = (*local).borrow();
+
+            let instruction = local.adapter.instruction::<AB>(opcode.clone());
+
+            #[cfg(not(feature = "mprotect"))]
+            builder.assert_zero(is_real.clone());
+
+            eval_untrusted_program(
+                builder,
+                local.state.pc,
+                instruction,
+                [instr_type, base_opcode, funct3, funct7],
+                [local.state.clk_high::<AB>(), local.state.clk_low::<AB>()],
+                is_real.clone(),
+                local.adapter_cols,
+            );
+
+            is_trusted = local.adapter_cols.is_trusted.into();
+        }
+
         // Constrain the program and register reads.
         <ITypeReaderImmutable as SP1Operation<AB>>::eval(
             builder,
@@ -108,9 +141,9 @@ where
                 local.state.clk_low::<AB>(),
                 local.state.pc,
                 opcode,
-                [instr_type, base_opcode, funct3, funct7],
                 local.adapter,
                 is_real.clone(),
+                is_trusted,
             ),
         );
 

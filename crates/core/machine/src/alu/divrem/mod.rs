@@ -2,7 +2,7 @@ use core::{
     borrow::{Borrow, BorrowMut},
     mem::{size_of, MaybeUninit},
 };
-use std::num::Wrapping;
+use std::{marker::PhantomData, num::Wrapping};
 
 use slop_air::{Air, AirBuilder, BaseAir};
 use slop_algebra::{AbstractField, PrimeField32};
@@ -24,6 +24,7 @@ use crate::{
         state::{CPUState, CPUStateInput},
     },
     air::{SP1CoreAirBuilder, SP1Operation, WordAirBuilder},
+    eval_untrusted_program,
     operations::{
         AddOperation, AddOperationInput, IsEqualWordOperation, IsEqualWordOperationInput,
         IsZeroWordOperation, IsZeroWordOperationInput, LtOperationUnsigned,
@@ -31,22 +32,28 @@ use crate::{
         U16MSBOperationInput,
     },
     utils::next_multiple_of_32,
+    SupervisorMode, TrustMode, UserMode,
 };
 
-/// The number of main trace columns for `DivRemChip`.
-pub const NUM_DIVREM_COLS: usize = size_of::<DivRemCols<u8>>();
+/// The number of main trace columns for `DivRemChip` in supervisor mode.
+pub const NUM_DIVREM_COLS_SUPERVISOR: usize = size_of::<DivRemCols<u8, SupervisorMode>>();
+
+/// The number of main trace columns for `DivRemChip` in user mode.
+pub const NUM_DIVREM_COLS_USER: usize = size_of::<DivRemCols<u8, UserMode>>();
 
 /// The size of a 128-bit in limbs.
 const LONG_WORD_SIZE: usize = 2 * WORD_SIZE;
 
 /// A chip that implements division for the opcodes DIV/REM.
 #[derive(Default)]
-pub struct DivRemChip;
+pub struct DivRemChip<M: TrustMode> {
+    pub _phantom: PhantomData<M>,
+}
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, StructReflection, Default, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct DivRemCols<T> {
+pub struct DivRemCols<T, M: TrustMode> {
     /// The current shard, timestamp, program counter of the CPU.
     pub state: CPUState<T>,
 
@@ -190,22 +197,32 @@ pub struct DivRemCols<T> {
 
     /// Column to modify multiplicity for remainder range check event.
     pub remainder_check_multiplicity: T,
+
+    /// Adapter columns for trust mode specific data.
+    pub adapter_cols: M::AdapterCols<T>,
 }
 
-impl<F: PrimeField32> MachineAir<F> for DivRemChip {
+impl<F: PrimeField32, M: TrustMode> MachineAir<F> for DivRemChip<M> {
     type Record = ExecutionRecord;
 
     type Program = Program;
 
     fn name(&self) -> &'static str {
-        "DivRem"
+        if M::IS_TRUSTED {
+            "DivRem"
+        } else {
+            "DivRemUser"
+        }
     }
 
     fn column_names(&self) -> Vec<String> {
-        DivRemCols::<F>::struct_reflection().unwrap()
+        DivRemCols::<F, M>::struct_reflection().unwrap()
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
+        if input.program.enable_untrusted_programs == M::IS_TRUSTED {
+            return Some(0);
+        }
         let nb_rows =
             next_multiple_of_32(input.divrem_events.len(), input.fixed_log2_rows::<F, _>(self));
         Some(nb_rows)
@@ -217,13 +234,15 @@ impl<F: PrimeField32> MachineAir<F> for DivRemChip {
         output: &mut ExecutionRecord,
         buffer: &mut [MaybeUninit<F>],
     ) {
+        if input.program.enable_untrusted_programs == M::IS_TRUSTED {
+            return;
+        }
         // Generate the trace rows for each event.
-        let padded_nb_rows = <DivRemChip as MachineAir<F>>::num_rows(self, input).unwrap();
+        let padded_nb_rows = <DivRemChip<M> as MachineAir<F>>::num_rows(self, input).unwrap();
+        let width = <DivRemChip<M> as BaseAir<F>>::width(self);
 
         let buffer_ptr = buffer.as_mut_ptr() as *mut F;
-        let values = unsafe {
-            core::slice::from_raw_parts_mut(buffer_ptr, padded_nb_rows * NUM_DIVREM_COLS)
-        };
+        let values = unsafe { core::slice::from_raw_parts_mut(buffer_ptr, padded_nb_rows * width) };
 
         let divrem_events = input.divrem_events.clone();
         for (row_idx, event_record) in divrem_events.iter().enumerate() {
@@ -241,15 +260,15 @@ impl<F: PrimeField32> MachineAir<F> for DivRemChip {
                     || event.opcode == Opcode::REMUW
             );
 
-            let row_start = row_idx * NUM_DIVREM_COLS;
-            let row = &mut values[row_start..row_start + NUM_DIVREM_COLS];
+            let row_start = row_idx * width;
+            let row = &mut values[row_start..row_start + width];
 
             // Zero-initialize the row here.
             unsafe {
-                core::ptr::write_bytes(row.as_mut_ptr(), 0, NUM_DIVREM_COLS);
+                core::ptr::write_bytes(row.as_mut_ptr(), 0, width);
             }
 
-            let cols: &mut DivRemCols<F> = row.borrow_mut();
+            let cols: &mut DivRemCols<F, M> = row.borrow_mut();
 
             {
                 let mut blu = vec![];
@@ -520,13 +539,24 @@ impl<F: PrimeField32> MachineAir<F> for DivRemChip {
                     output.add_u16_range_checks(&c_times_quotient_u16);
                 }
             }
+
+            if !M::IS_TRUSTED {
+                let cols: &mut DivRemCols<F, UserMode> = row.borrow_mut();
+                cols.adapter_cols.is_trusted = F::from_bool(!r_record.is_untrusted);
+            }
         }
 
-        // Create the template for the padded rows. These are fake rows that don't fail on some
-        // sanity checks.
-        let padded_row_template = {
-            let mut row = [F::zero(); NUM_DIVREM_COLS];
-            let cols: &mut DivRemCols<F> = row.as_mut_slice().borrow_mut();
+        // Create the padded rows. These are fake rows that don't fail on some sanity checks.
+        for row_idx in input.divrem_events.len()..padded_nb_rows {
+            let row_start = row_idx * width;
+            let row = &mut values[row_start..row_start + width];
+
+            // Zero-initialize
+            unsafe {
+                core::ptr::write_bytes(row.as_mut_ptr(), 0, width);
+            }
+
+            let cols: &mut DivRemCols<F, M> = row.borrow_mut();
             // 0 divided by 1. quotient = remainder = 0.
             cols.is_divu = F::one();
             cols.adapter.op_c_memory.prev_value = Word::from(1u64);
@@ -536,14 +566,6 @@ impl<F: PrimeField32> MachineAir<F> for DivRemChip {
             cols.b_not_neg_not_overflow = F::one();
 
             cols.is_c_0.populate(1);
-
-            row
-        };
-
-        debug_assert!(padded_row_template.len() == NUM_DIVREM_COLS);
-        for row_idx in input.divrem_events.len()..padded_nb_rows {
-            let row_start = row_idx * NUM_DIVREM_COLS;
-            values[row_start..row_start + NUM_DIVREM_COLS].copy_from_slice(&padded_row_template);
         }
     }
 
@@ -552,24 +574,30 @@ impl<F: PrimeField32> MachineAir<F> for DivRemChip {
             shape.included::<F, _>(self)
         } else {
             !shard.divrem_events.is_empty()
+                && (M::IS_TRUSTED != shard.program.enable_untrusted_programs)
         }
     }
 }
 
-impl<F> BaseAir<F> for DivRemChip {
+impl<F, M: TrustMode> BaseAir<F> for DivRemChip<M> {
     fn width(&self) -> usize {
-        NUM_DIVREM_COLS
+        if M::IS_TRUSTED {
+            NUM_DIVREM_COLS_SUPERVISOR
+        } else {
+            NUM_DIVREM_COLS_USER
+        }
     }
 }
 
-impl<AB> Air<AB> for DivRemChip
+impl<AB, M> Air<AB> for DivRemChip<M>
 where
     AB: SP1CoreAirBuilder,
+    M: TrustMode,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local = main.row_slice(0);
-        let local: &DivRemCols<AB::Var> = (*local).borrow();
+        let local: &DivRemCols<AB::Var, M> = (*local).borrow();
         let base = AB::F::from_canonical_u32(1 << 16);
         let one: AB::Expr = AB::F::one().into();
         let zero: AB::Expr = AB::F::zero().into();
@@ -1231,6 +1259,41 @@ where
                 },
             );
 
+            let mut is_trusted: AB::Expr = local.is_real.into();
+
+            #[cfg(feature = "mprotect")]
+            builder.assert_eq(
+                builder.extract_public_values().is_untrusted_programs_enabled,
+                AB::Expr::from_bool(!M::IS_TRUSTED),
+            );
+
+            if !M::IS_TRUSTED {
+                let local = main.row_slice(0);
+                let local: &DivRemCols<AB::Var, UserMode> = (*local).borrow();
+
+                let instruction = local.adapter.instruction::<AB>(opcode.clone());
+
+                #[cfg(not(feature = "mprotect"))]
+                builder.assert_zero(local.is_real);
+
+                eval_untrusted_program(
+                    builder,
+                    local.state.pc,
+                    instruction,
+                    [
+                        calculated_instr_type.clone(),
+                        calculated_base_opcode.clone(),
+                        funct3.clone(),
+                        funct7.clone(),
+                    ],
+                    [local.state.clk_high::<AB>(), local.state.clk_low::<AB>()],
+                    local.is_real.into(),
+                    local.adapter_cols,
+                );
+
+                is_trusted = local.adapter_cols.is_trusted.into();
+            }
+
             // This chip is for the case `rd != x0`.
             builder.assert_zero(local.adapter.op_a_0);
 
@@ -1240,10 +1303,10 @@ where
                 local.state.clk_low::<AB>(),
                 local.state.pc,
                 opcode,
-                [calculated_instr_type, calculated_base_opcode, funct3, funct7],
                 local.a.map(|x| x.into()),
                 local.adapter,
                 local.is_real.into(),
+                is_trusted,
             );
             <RTypeReader<AB::F> as SP1Operation<AB>>::eval(builder, r_reader_input);
         }

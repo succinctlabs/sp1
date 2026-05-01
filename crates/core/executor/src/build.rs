@@ -11,7 +11,8 @@ pub fn detect_executor() {
         target_arch = "x86_64",
         target_endian = "little",
         target_os = "linux",
-        not(feature = "profiling")
+        not(feature = "profiling"),
+        not(feature = "mprotect")
     ))]
     println!("cargo:rustc-cfg=sp1_use_native_executor");
 
@@ -19,7 +20,8 @@ pub fn detect_executor() {
         target_arch = "x86_64",
         target_endian = "little",
         target_os = "linux",
-        not(feature = "profiling")
+        not(feature = "profiling"),
+        not(feature = "mprotect")
     )))]
     println!("cargo:rustc-cfg=sp1_use_portable_executor");
 }

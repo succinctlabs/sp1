@@ -4,6 +4,7 @@ use std::time::Instant;
 use clap::Parser;
 use serde::Deserialize;
 use sp1_core_executor::{ExecutionRecord, Program};
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_gpu_prover::{
     local_gpu_opts, new_cuda_prover, CudaProverCoreComponents, CudaShardProver,
     SP1CudaProverComponents,
@@ -155,7 +156,7 @@ async fn main() {
         let num_elts =
             opts.sharding_threshold.element_threshold as usize + (1 << CORE_LOG_STACKING_HEIGHT);
 
-        let core_verifier = SP1CudaProverComponents::core_verifier();
+        let core_verifier = SP1CudaProverComponents::core_verifier(RiscvAir::machine());
         let core_prover: Arc<CudaShardProver<_, CudaProverCoreComponents>> = Arc::new(
             new_cuda_prover(core_verifier.clone(), num_elts, 4, recompute_first_layer, t.clone())
                 .await,

@@ -24,3 +24,10 @@ sp1-primitives = { workspace = true }
 itertools = { workspace = true }
 
 lazy_static = "1.4.0"
+
+[features]
+mprotect = [
+    "sp1-core-machine/mprotect",
+    "sp1-core-executor/mprotect",
+    "sp1-hypercube/mprotect",
+]

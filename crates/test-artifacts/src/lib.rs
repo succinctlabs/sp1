@@ -93,3 +93,7 @@ pub const PLONK_ELF: Elf = include_elf!("plonk_verify");
 pub const PLONK_BLAKE3_ELF: Elf = include_elf!("plonk_verify_blake3");
 
 pub const MEMORY_TESTER_ELF: Elf = include_elf!("memory-tester");
+
+pub const TRAP_EXEC_ELF: Elf = include_elf!("trap-exec-program");
+
+pub const TRAP_LOAD_STORE_ELF: Elf = include_elf!("trap-load-store-program");

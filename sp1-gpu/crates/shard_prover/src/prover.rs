@@ -190,7 +190,7 @@ where
     ) {
         // Get the initial global cumulative sum and pc start.
         let pc_start = program.pc_start();
-        let enable_untrusted_programs = program.enable_untrusted_programs();
+        let untrusted_config = program.untrusted_config();
         let initial_global_cumulative_sum = if let Some(vk) = vk {
             vk.initial_global_cumulative_sum
         } else {
@@ -230,7 +230,7 @@ where
                     pc_start,
                     initial_global_cumulative_sum,
                     trace_data,
-                    enable_untrusted_programs,
+                    untrusted_config,
                 )
             }
         })

@@ -26,7 +26,7 @@ pub fn main() {
     }
 
     // Set the first page to be executable.
-    let mut execute_page_flags = PROT_EXEC;
+    let mut execute_page_flags = PROT_READ | PROT_EXEC;
 
     // Disable the execute flag if the test flag is set.
     if execute_prot_should_fail {

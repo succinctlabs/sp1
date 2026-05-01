@@ -2,6 +2,7 @@ use core::{
     borrow::{Borrow, BorrowMut},
     mem::{size_of, MaybeUninit},
 };
+use std::marker::PhantomData;
 
 use hashbrown::HashMap;
 use itertools::Itertools;
@@ -24,24 +25,30 @@ use crate::{
         state::{CPUState, CPUStateInput},
     },
     air::{SP1CoreAirBuilder, SP1Operation},
+    eval_untrusted_program,
     operations::{U16MSBOperation, U16MSBOperationInput},
     utils::next_multiple_of_32,
+    SupervisorMode, TrustMode, UserMode,
 };
 
-/// The number of main trace columns for `ShiftLeft`.
-pub const NUM_SHIFT_LEFT_COLS: usize = size_of::<ShiftLeftCols<u8>>();
+/// The number of main trace columns for `ShiftLeft` in Supervisor mode.
+pub const NUM_SHIFT_LEFT_COLS_SUPERVISOR: usize = size_of::<ShiftLeftCols<u8, SupervisorMode>>();
+/// The number of main trace columns for `ShiftLeft` in User mode.
+pub const NUM_SHIFT_LEFT_COLS_USER: usize = size_of::<ShiftLeftCols<u8, UserMode>>();
 
 /// The number of bits in a byte.
 pub const BYTE_SIZE: usize = 8;
 
 /// A chip that implements bitwise operations for the opcodes SLL and SLLI.
 #[derive(Default)]
-pub struct ShiftLeft;
+pub struct ShiftLeftChip<M: TrustMode> {
+    pub _phantom: PhantomData<M>,
+}
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, StructReflection, Default, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct ShiftLeftCols<T> {
+pub struct ShiftLeftCols<T, M: TrustMode> {
     /// The current shard, timestamp, program counter of the CPU.
     pub state: CPUState<T>,
 
@@ -86,22 +93,32 @@ pub struct ShiftLeftCols<T> {
 
     /// If the opcode is SLLW and immediate.
     pub is_sllw_imm: T,
+
+    /// Adapter columns for trust mode specific data.
+    pub adapter_cols: M::AdapterCols<T>,
 }
 
-impl<F: PrimeField32> MachineAir<F> for ShiftLeft {
+impl<F: PrimeField32, M: TrustMode> MachineAir<F> for ShiftLeftChip<M> {
     type Record = ExecutionRecord;
 
     type Program = Program;
 
     fn name(&self) -> &'static str {
-        "ShiftLeft"
+        if M::IS_TRUSTED {
+            "ShiftLeft"
+        } else {
+            "ShiftLeftUser"
+        }
     }
 
     fn column_names(&self) -> Vec<String> {
-        ShiftLeftCols::<F>::struct_reflection().unwrap()
+        ShiftLeftCols::<F, M>::struct_reflection().unwrap()
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
+        if input.program.enable_untrusted_programs == M::IS_TRUSTED {
+            return Some(0);
+        }
         let nb_rows =
             next_multiple_of_32(input.shift_left_events.len(), input.fixed_log2_rows::<F, _>(self));
         Some(nb_rows)
@@ -113,55 +130,65 @@ impl<F: PrimeField32> MachineAir<F> for ShiftLeft {
         _output: &mut ExecutionRecord,
         buffer: &mut [MaybeUninit<F>],
     ) {
+        if input.program.enable_untrusted_programs == M::IS_TRUSTED {
+            return;
+        }
+
         // Generate the trace rows for each event.
-        let padded_nb_rows = <ShiftLeft as MachineAir<F>>::num_rows(self, input).unwrap();
+        let padded_nb_rows = <ShiftLeftChip<M> as MachineAir<F>>::num_rows(self, input).unwrap();
         let nb_rows = input.shift_left_events.len();
         let chunk_size = std::cmp::max((padded_nb_rows + 1) / num_cpus::get(), 1);
+        let width = <ShiftLeftChip<M> as BaseAir<F>>::width(self);
 
         unsafe {
-            let padding_start = nb_rows * NUM_SHIFT_LEFT_COLS;
-            let padding_size = (padded_nb_rows - nb_rows) * NUM_SHIFT_LEFT_COLS;
+            let padding_start = nb_rows * width;
+            let padding_size = (padded_nb_rows - nb_rows) * width;
             if padding_size > 0 {
                 core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
             }
         }
 
         let buffer_ptr = buffer.as_mut_ptr() as *mut F;
-        let values = unsafe {
-            core::slice::from_raw_parts_mut(buffer_ptr, padded_nb_rows * NUM_SHIFT_LEFT_COLS)
-        };
+        let values = unsafe { core::slice::from_raw_parts_mut(buffer_ptr, padded_nb_rows * width) };
 
         let padded_row_template = {
-            let mut row = [F::zero(); NUM_SHIFT_LEFT_COLS];
-            let cols: &mut ShiftLeftCols<F> = row.as_mut_slice().borrow_mut();
+            let mut row = vec![F::zero(); width];
+            let cols: &mut ShiftLeftCols<F, M> = row.as_mut_slice().borrow_mut();
             cols.v_01 = F::one();
             cols.v_012 = F::one();
             cols.v_0123 = F::one();
             row
         };
 
-        values.chunks_mut(chunk_size * NUM_SHIFT_LEFT_COLS).enumerate().par_bridge().for_each(
-            |(i, rows)| {
-                rows.chunks_mut(NUM_SHIFT_LEFT_COLS).enumerate().for_each(|(j, row)| {
-                    let idx = i * chunk_size + j;
-                    let cols: &mut ShiftLeftCols<F> = row.borrow_mut();
+        values.chunks_mut(chunk_size * width).enumerate().par_bridge().for_each(|(i, rows)| {
+            rows.chunks_mut(width).enumerate().for_each(|(j, row)| {
+                let idx = i * chunk_size + j;
+                let cols: &mut ShiftLeftCols<F, M> = row.borrow_mut();
 
-                    if idx < nb_rows {
-                        let mut blu = Vec::new();
-                        let event = &input.shift_left_events[idx];
-                        cols.adapter.populate(&mut blu, event.1);
-                        self.event_to_row(&event.0, &event.1, cols, &mut blu);
-                        cols.state.populate(&mut blu, event.0.clk, event.0.pc);
-                    } else {
-                        row.copy_from_slice(&padded_row_template);
+                if idx < nb_rows {
+                    let mut blu = Vec::new();
+                    let event = &input.shift_left_events[idx];
+                    cols.adapter.populate(&mut blu, event.1);
+                    self.event_to_row(&event.0, &event.1, cols, &mut blu);
+                    cols.state.populate(&mut blu, event.0.clk, event.0.pc);
+                    if !M::IS_TRUSTED {
+                        let cols: &mut ShiftLeftCols<F, UserMode> = row.borrow_mut();
+                        cols.adapter_cols.is_trusted = F::from_bool(!event.1.is_untrusted);
                     }
-                });
-            },
-        );
+                } else {
+                    row.copy_from_slice(&padded_row_template);
+                }
+            });
+        });
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
+        if input.program.enable_untrusted_programs == M::IS_TRUSTED {
+            return;
+        }
+
         let chunk_size = std::cmp::max(input.shift_left_events.len() / num_cpus::get(), 1);
+        let width = <ShiftLeftChip<M> as BaseAir<F>>::width(self);
 
         let blu_batches = input
             .shift_left_events
@@ -169,8 +196,8 @@ impl<F: PrimeField32> MachineAir<F> for ShiftLeft {
             .map(|events| {
                 let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
                 events.iter().for_each(|event| {
-                    let mut row = [F::zero(); NUM_SHIFT_LEFT_COLS];
-                    let cols: &mut ShiftLeftCols<F> = row.as_mut_slice().borrow_mut();
+                    let mut row = vec![F::zero(); width];
+                    let cols: &mut ShiftLeftCols<F, M> = row.as_mut_slice().borrow_mut();
                     cols.adapter.populate(&mut blu, event.1);
                     self.event_to_row(&event.0, &event.1, cols, &mut blu);
                     cols.state.populate(&mut blu, event.0.clk, event.0.pc);
@@ -187,17 +214,18 @@ impl<F: PrimeField32> MachineAir<F> for ShiftLeft {
             shape.included::<F, _>(self)
         } else {
             !shard.shift_left_events.is_empty()
+                && (M::IS_TRUSTED != shard.program.enable_untrusted_programs)
         }
     }
 }
 
-impl ShiftLeft {
+impl<M: TrustMode> ShiftLeftChip<M> {
     /// Create a row from an event.
     fn event_to_row<F: PrimeField>(
         &self,
         event: &AluEvent,
         record: &ALUTypeRecord,
-        cols: &mut ShiftLeftCols<F>,
+        cols: &mut ShiftLeftCols<F, M>,
         blu: &mut impl ByteRecord,
     ) {
         let c = u64_to_u16_limbs(event.c)[0];
@@ -258,20 +286,25 @@ impl ShiftLeft {
     }
 }
 
-impl<F> BaseAir<F> for ShiftLeft {
+impl<F, M: TrustMode> BaseAir<F> for ShiftLeftChip<M> {
     fn width(&self) -> usize {
-        NUM_SHIFT_LEFT_COLS
+        if M::IS_TRUSTED {
+            NUM_SHIFT_LEFT_COLS_SUPERVISOR
+        } else {
+            NUM_SHIFT_LEFT_COLS_USER
+        }
     }
 }
 
-impl<AB> Air<AB> for ShiftLeft
+impl<AB, M> Air<AB> for ShiftLeftChip<M>
 where
     AB: SP1CoreAirBuilder,
+    M: TrustMode,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local = main.row_slice(0);
-        let local: &ShiftLeftCols<AB::Var> = (*local).borrow();
+        let local: &ShiftLeftCols<AB::Var, M> = (*local).borrow();
 
         // SAFETY: All selectors `is_sll`, `is_sllw` are checked to be boolean.
         // Each "real" row has exactly one selector turned on, as `is_real = is_sll + is_sllw` is
@@ -461,18 +494,49 @@ where
             ),
         );
 
+        let mut is_trusted: AB::Expr = is_real.clone();
+
+        #[cfg(feature = "mprotect")]
+        builder.assert_eq(
+            builder.extract_public_values().is_untrusted_programs_enabled,
+            AB::Expr::from_bool(!M::IS_TRUSTED),
+        );
+
+        if !M::IS_TRUSTED {
+            let local = main.row_slice(0);
+            let local: &ShiftLeftCols<AB::Var, UserMode> = (*local).borrow();
+
+            let instruction = local.adapter.instruction::<AB>(opcode.clone());
+
+            #[cfg(not(feature = "mprotect"))]
+            builder.assert_zero(is_real.clone());
+
+            eval_untrusted_program(
+                builder,
+                local.state.pc,
+                instruction,
+                [calculated_instr_type, calculated_base_opcode, funct3, funct7],
+                [local.state.clk_high::<AB>(), local.state.clk_low::<AB>()],
+                is_real.clone(),
+                local.adapter_cols,
+            );
+
+            is_trusted = local.adapter_cols.is_trusted.into();
+        }
+
         // This chip is for the case `rd != x0`.
         builder.assert_zero(local.adapter.op_a_0);
+
         // Constrain the program and register reads.
         let alu_reader_input = ALUTypeReaderInput::<AB, AB::Expr>::new(
             local.state.clk_high::<AB>(),
             local.state.clk_low::<AB>(),
             local.state.pc,
             opcode,
-            [calculated_instr_type, calculated_base_opcode, funct3, funct7],
             local.a.map(|x| x.into()),
             local.adapter,
             is_real.clone(),
+            is_trusted,
         );
         ALUTypeReader::<AB::F>::eval(builder, alu_reader_input);
     }

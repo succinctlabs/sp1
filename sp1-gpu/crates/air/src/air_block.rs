@@ -8,7 +8,9 @@ use slop_matrix::Matrix;
 use sp1_core_executor::events::FieldOperation;
 use sp1_core_executor::SyscallCode;
 use sp1_core_machine::air::{MemoryAirBuilder, SP1CoreAirBuilder};
-use sp1_core_machine::operations::{AddrAddOperation, SyscallAddrOperation};
+use sp1_core_machine::operations::{
+    AddrAddOperation, AddressSlicePageProtOperation, SyscallAddrOperation,
+};
 use sp1_core_machine::riscv::{WeierstrassAddAssignChip, WeierstrassDoubleAssignChip};
 use sp1_core_machine::syscall::precompiles::weierstrass::{
     WeierstrassAddAssignCols, WeierstrassDoubleAssignCols,
@@ -18,12 +20,15 @@ use sp1_core_machine::{
     riscv::{KeccakPermuteChip, RiscvAir},
     syscall::precompiles::keccak256::{columns::KeccakMemCols, constants::rc_value_bit},
 };
+use sp1_core_machine::{TrustMode, UserMode};
 use sp1_curves::k256::elliptic_curve::generic_array::typenum::Unsigned;
 use sp1_curves::params::FieldParameters;
 use sp1_curves::params::{Limbs, NumLimbs};
 use sp1_curves::weierstrass::WeierstrassParameters;
 use sp1_curves::{BigUint, CurveType, EllipticCurve};
 use sp1_hypercube::air::InstructionAirBuilder;
+#[cfg(feature = "mprotect")]
+use sp1_hypercube::air::MachineAirBuilder;
 use sp1_hypercube::operations::poseidon2::air::{eval_external_round, eval_internal_rounds};
 use sp1_hypercube::operations::poseidon2::WIDTH;
 use sp1_hypercube::Word;
@@ -31,6 +36,7 @@ use sp1_hypercube::{
     air::{AirInteraction, InteractionScope, MachineAir, MessageBuilder},
     InteractionKind,
 };
+use sp1_primitives::consts::{PROT_READ, PROT_WRITE};
 use sp1_primitives::polynomial::Polynomial;
 use sp1_primitives::SP1Field;
 use sp1_recursion_machine::builder::RecursionAirBuilder;
@@ -55,7 +61,9 @@ impl<'a> BlockAir<SymbolicProverFolder<'a>> for RiscvAir<F> {
         match self {
             RiscvAir::KeccakP(keccak) => keccak.num_blocks(),
             RiscvAir::Secp256k1Add(secp256k1_add) => secp256k1_add.num_blocks(),
+            RiscvAir::Secp256k1AddUser(secp256k1_add) => secp256k1_add.num_blocks(),
             RiscvAir::Secp256k1Double(secp256k1_double) => secp256k1_double.num_blocks(),
+            RiscvAir::Secp256k1DoubleUser(secp256k1_double) => secp256k1_double.num_blocks(),
             _ => 1,
         }
     }
@@ -64,7 +72,11 @@ impl<'a> BlockAir<SymbolicProverFolder<'a>> for RiscvAir<F> {
         match self {
             RiscvAir::KeccakP(keccak) => keccak.eval_block(builder, index),
             RiscvAir::Secp256k1Add(secp256k1_add) => secp256k1_add.eval_block(builder, index),
+            RiscvAir::Secp256k1AddUser(secp256k1_add) => secp256k1_add.eval_block(builder, index),
             RiscvAir::Secp256k1Double(secp256k1_double) => {
+                secp256k1_double.eval_block(builder, index)
+            }
+            RiscvAir::Secp256k1DoubleUser(secp256k1_double) => {
                 secp256k1_double.eval_block(builder, index)
             }
             _ => {
@@ -292,8 +304,8 @@ impl<'a> BlockAir<SymbolicProverFolder<'a>> for KeccakPermuteChip {
     }
 }
 
-impl<'a, E: EllipticCurve + WeierstrassParameters> BlockAir<SymbolicProverFolder<'a>>
-    for WeierstrassAddAssignChip<E>
+impl<'a, E: EllipticCurve + WeierstrassParameters, M: TrustMode> BlockAir<SymbolicProverFolder<'a>>
+    for WeierstrassAddAssignChip<E, M>
 where
     Limbs<SymbolicVarF, <E::BaseField as NumLimbs>::Limbs>: Copy,
 {
@@ -304,8 +316,16 @@ where
     fn eval_block(&self, builder: &mut SymbolicProverFolder<'a>, index: usize) {
         let main = builder.main();
         let local = main.row_slice(0);
-        let local: &WeierstrassAddAssignCols<SymbolicVarF, E::BaseField> = (*local).borrow();
+        let local: &WeierstrassAddAssignCols<SymbolicVarF, E::BaseField, M> = (*local).borrow();
 
+        // Fetch the syscall id for the curve type.
+        let syscall_id_felt = match E::CURVE_TYPE {
+            CurveType::Secp256k1 => F::from_canonical_u32(SyscallCode::SECP256K1_ADD.syscall_id()),
+            CurveType::Secp256r1 => F::from_canonical_u32(SyscallCode::SECP256R1_ADD.syscall_id()),
+            CurveType::Bn254 => F::from_canonical_u32(SyscallCode::BN254_ADD.syscall_id()),
+            CurveType::Bls12381 => F::from_canonical_u32(SyscallCode::BLS12381_ADD.syscall_id()),
+            _ => panic!("Unsupported curve"),
+        };
         let num_words_field_element = <E::BaseField as NumLimbs>::Limbs::USIZE / 8;
 
         // It's very important that the `generate_limbs` function do not call `assert_zero`.
@@ -326,8 +346,89 @@ where
         let q_y: Limbs<SymbolicExprF, <E::BaseField as NumLimbs>::Limbs> =
             Limbs(q_y_limbs.try_into().expect("failed to convert limbs"));
 
+        let is_not_trap: SymbolicExprF = local.is_real.into();
+        let trap_code = SymbolicExprF::zero();
+
         match index {
             0 => {
+                let mut is_not_trap = local.is_real.into();
+                let mut trap_code = SymbolicExprF::zero();
+
+                #[cfg(feature = "mprotect")]
+                builder.assert_eq(
+                    builder.extract_public_values().is_untrusted_programs_enabled,
+                    SymbolicExprF::from_bool(!M::IS_TRUSTED),
+                );
+
+                if !M::IS_TRUSTED {
+                    let local = main.row_slice(0);
+                    let local: &WeierstrassAddAssignCols<SymbolicVarF, E::BaseField, UserMode> =
+                        (*local).borrow();
+
+                    #[cfg(not(feature = "mprotect"))]
+                    builder.assert_zero(local.is_real);
+
+                    AddressSlicePageProtOperation::<F>::eval(
+                        builder,
+                        local.clk_high.into(),
+                        local.clk_low.into(),
+                        &local.q_ptr.addr.map(Into::into),
+                        &local.q_addrs[local.q_addrs.len() - 1].value.map(Into::into),
+                        PROT_READ,
+                        &local.read_slice_page_prot_access,
+                        &mut is_not_trap,
+                        &mut trap_code,
+                    );
+
+                    let clk_low: SymbolicExprF = local.clk_low.into();
+
+                    AddressSlicePageProtOperation::<F>::eval(
+                        builder,
+                        local.clk_high.into(),
+                        clk_low + SymbolicExprF::one(),
+                        &local.p_ptr.addr.map(Into::into),
+                        &local.p_addrs[local.p_addrs.len() - 1].value.map(Into::into),
+                        PROT_READ | PROT_WRITE,
+                        &local.write_slice_page_prot_access,
+                        &mut is_not_trap,
+                        &mut trap_code,
+                    );
+
+                    let x3_result_words =
+                        limbs_to_words::<SymbolicProverFolder>(local.x3_ins.result.0.to_vec());
+                    let y3_result_words =
+                        limbs_to_words::<SymbolicProverFolder>(local.y3_ins.result.0.to_vec());
+                    let result_words =
+                        x3_result_words.into_iter().chain(y3_result_words).collect_vec();
+
+                    builder.eval_memory_access_slice_read(
+                        local.clk_high,
+                        local.clk_low,
+                        &local.q_addrs.iter().map(|addr| addr.value.map(Into::into)).collect_vec(),
+                        &local.q_access.iter().map(|access| access.memory_access).collect_vec(),
+                        is_not_trap,
+                    );
+                    // We read p at +1 since p, q could be the same.
+                    builder.eval_memory_access_slice_write(
+                        local.clk_high,
+                        local.clk_low + F::from_canonical_u32(1),
+                        &local.p_addrs.iter().map(|addr| addr.value.map(Into::into)).collect_vec(),
+                        &local.p_access.iter().map(|access| access.memory_access).collect_vec(),
+                        result_words,
+                        is_not_trap,
+                    );
+                    builder.receive_syscall(
+                        local.clk_high,
+                        local.clk_low,
+                        syscall_id_felt,
+                        trap_code,
+                        local.p_ptr.addr.map(Into::into),
+                        local.q_ptr.addr.map(Into::into),
+                        local.is_real,
+                        InteractionScope::Local,
+                    );
+                }
+
                 local.slope_numerator.eval(builder, &q_y, &p_y, FieldOperation::Sub, local.is_real);
             }
             1 => {
@@ -467,56 +568,43 @@ where
                     );
                 }
 
-                builder.eval_memory_access_slice_read(
-                    local.clk_high,
-                    local.clk_low,
-                    &local.q_addrs.iter().map(|addr| addr.value.map(Into::into)).collect_vec(),
-                    &local.q_access.iter().map(|access| access.memory_access).collect_vec(),
-                    local.is_real,
-                );
-                // We read p at +1 since p, q could be the same.
-                builder.eval_memory_access_slice_write(
-                    local.clk_high,
-                    local.clk_low + F::from_canonical_u32(1),
-                    &local.p_addrs.iter().map(|addr| addr.value.map(Into::into)).collect_vec(),
-                    &local.p_access.iter().map(|access| access.memory_access).collect_vec(),
-                    result_words,
-                    local.is_real,
-                );
+                if M::IS_TRUSTED {
+                    builder.eval_memory_access_slice_read(
+                        local.clk_high,
+                        local.clk_low,
+                        &local.q_addrs.iter().map(|addr| addr.value.map(Into::into)).collect_vec(),
+                        &local.q_access.iter().map(|access| access.memory_access).collect_vec(),
+                        is_not_trap,
+                    );
+                    // We read p at +1 since p, q could be the same.
+                    builder.eval_memory_access_slice_write(
+                        local.clk_high,
+                        local.clk_low + F::from_canonical_u32(1),
+                        &local.p_addrs.iter().map(|addr| addr.value.map(Into::into)).collect_vec(),
+                        &local.p_access.iter().map(|access| access.memory_access).collect_vec(),
+                        result_words,
+                        is_not_trap,
+                    );
 
-                // Fetch the syscall id for the curve type.
-                let syscall_id_felt = match E::CURVE_TYPE {
-                    CurveType::Secp256k1 => {
-                        F::from_canonical_u32(SyscallCode::SECP256K1_ADD.syscall_id())
-                    }
-                    CurveType::Secp256r1 => {
-                        F::from_canonical_u32(SyscallCode::SECP256R1_ADD.syscall_id())
-                    }
-                    CurveType::Bn254 => F::from_canonical_u32(SyscallCode::BN254_ADD.syscall_id()),
-                    CurveType::Bls12381 => {
-                        F::from_canonical_u32(SyscallCode::BLS12381_ADD.syscall_id())
-                    }
-                    _ => panic!("Unsupported curve"),
-                };
-
-                builder.receive_syscall(
-                    local.clk_high,
-                    local.clk_low,
-                    syscall_id_felt,
-                    p_ptr.map(Into::into),
-                    q_ptr.map(Into::into),
-                    local.is_real,
-                    InteractionScope::Local,
-                );
+                    builder.receive_syscall(
+                        local.clk_high,
+                        local.clk_low,
+                        syscall_id_felt,
+                        trap_code,
+                        p_ptr.map(Into::into),
+                        q_ptr.map(Into::into),
+                        local.is_real,
+                        InteractionScope::Local,
+                    );
+                }
             }
-
             _ => unreachable!(),
         };
     }
 }
 
-impl<'a, E: EllipticCurve + WeierstrassParameters> BlockAir<SymbolicProverFolder<'a>>
-    for WeierstrassDoubleAssignChip<E>
+impl<'a, E: EllipticCurve + WeierstrassParameters, M: TrustMode> BlockAir<SymbolicProverFolder<'a>>
+    for WeierstrassDoubleAssignChip<E, M>
 where
     Limbs<SymbolicVarF, <E::BaseField as NumLimbs>::Limbs>: Copy,
 {
@@ -527,9 +615,22 @@ where
     fn eval_block(&self, builder: &mut SymbolicProverFolder<'a>, index: usize) {
         let main = builder.main();
         let local = main.row_slice(0);
-        let local: &WeierstrassDoubleAssignCols<SymbolicVarF, E::BaseField> = (*local).borrow();
+        let local: &WeierstrassDoubleAssignCols<SymbolicVarF, E::BaseField, M> = (*local).borrow();
 
         let num_words_field_element = <E::BaseField as NumLimbs>::Limbs::USIZE / 8;
+
+        // Fetch the syscall id for the curve type.
+        let syscall_id_felt = match E::CURVE_TYPE {
+            CurveType::Secp256k1 => {
+                F::from_canonical_u32(SyscallCode::SECP256K1_DOUBLE.syscall_id())
+            }
+            CurveType::Secp256r1 => {
+                F::from_canonical_u32(SyscallCode::SECP256R1_DOUBLE.syscall_id())
+            }
+            CurveType::Bn254 => F::from_canonical_u32(SyscallCode::BN254_DOUBLE.syscall_id()),
+            CurveType::Bls12381 => F::from_canonical_u32(SyscallCode::BLS12381_DOUBLE.syscall_id()),
+            _ => panic!("Unsupported curve"),
+        };
 
         // It's very important that the `generate_limbs` function do not call `assert_zero`.
         let p_x_limbs = builder
@@ -543,8 +644,66 @@ where
         // `a` in the Weierstrass form: y^2 = x^3 + a * x + b.
         let a = E::BaseField::to_limbs_field::<SymbolicExprF, F>(&E::a_int());
 
+        let is_not_trap: SymbolicExprF = local.is_real.into();
+        let trap_code = SymbolicExprF::zero();
+
         match index {
             0 => {
+                let mut is_not_trap = local.is_real.into();
+                let mut trap_code = SymbolicExprF::zero();
+
+                #[cfg(feature = "mprotect")]
+                builder.assert_eq(
+                    builder.extract_public_values().is_untrusted_programs_enabled,
+                    SymbolicExprF::from_bool(!M::IS_TRUSTED),
+                );
+
+                if !M::IS_TRUSTED {
+                    let local = main.row_slice(0);
+                    let local: &WeierstrassDoubleAssignCols<SymbolicVarF, E::BaseField, UserMode> =
+                        (*local).borrow();
+
+                    #[cfg(not(feature = "mprotect"))]
+                    builder.assert_zero(local.is_real);
+                    AddressSlicePageProtOperation::<F>::eval(
+                        builder,
+                        local.clk_high.into(),
+                        local.clk_low.into(),
+                        &local.p_ptr.addr.map(Into::into),
+                        &local.p_addrs[local.p_addrs.len() - 1].value.map(Into::into),
+                        PROT_READ | PROT_WRITE,
+                        &local.write_slice_page_prot_access,
+                        &mut is_not_trap,
+                        &mut trap_code,
+                    );
+
+                    let x3_result_words =
+                        limbs_to_words::<SymbolicProverFolder>(local.x3_ins.result.0.to_vec());
+                    let y3_result_words =
+                        limbs_to_words::<SymbolicProverFolder>(local.y3_ins.result.0.to_vec());
+                    let result_words =
+                        x3_result_words.into_iter().chain(y3_result_words).collect_vec();
+
+                    builder.eval_memory_access_slice_write(
+                        local.clk_high,
+                        local.clk_low,
+                        &local.p_addrs.iter().map(|addr| addr.value.map(Into::into)).collect_vec(),
+                        &local.p_access.iter().map(|access| access.memory_access).collect_vec(),
+                        result_words,
+                        is_not_trap,
+                    );
+
+                    builder.receive_syscall(
+                        local.clk_high,
+                        local.clk_low,
+                        syscall_id_felt,
+                        trap_code,
+                        local.p_ptr.addr.map(Into::into),
+                        [SymbolicExprF::zero(), SymbolicExprF::zero(), SymbolicExprF::zero()],
+                        local.is_real,
+                        InteractionScope::Local,
+                    );
+                }
                 local.p_x_squared.eval(builder, &p_x, &p_x, FieldOperation::Mul, local.is_real);
             }
             1 => {
@@ -666,41 +825,27 @@ where
                     );
                 }
 
-                builder.eval_memory_access_slice_write(
-                    local.clk_high,
-                    local.clk_low,
-                    &local.p_addrs.iter().map(|addr| addr.value.map(Into::into)).collect_vec(),
-                    &local.p_access.iter().map(|access| access.memory_access).collect_vec(),
-                    result_words,
-                    local.is_real,
-                );
+                if M::IS_TRUSTED {
+                    builder.eval_memory_access_slice_write(
+                        local.clk_high,
+                        local.clk_low,
+                        &local.p_addrs.iter().map(|addr| addr.value.map(Into::into)).collect_vec(),
+                        &local.p_access.iter().map(|access| access.memory_access).collect_vec(),
+                        result_words,
+                        is_not_trap,
+                    );
 
-                // Fetch the syscall id for the curve type.
-                let syscall_id_felt = match E::CURVE_TYPE {
-                    CurveType::Secp256k1 => {
-                        F::from_canonical_u32(SyscallCode::SECP256K1_DOUBLE.syscall_id())
-                    }
-                    CurveType::Secp256r1 => {
-                        F::from_canonical_u32(SyscallCode::SECP256R1_DOUBLE.syscall_id())
-                    }
-                    CurveType::Bn254 => {
-                        F::from_canonical_u32(SyscallCode::BN254_DOUBLE.syscall_id())
-                    }
-                    CurveType::Bls12381 => {
-                        F::from_canonical_u32(SyscallCode::BLS12381_DOUBLE.syscall_id())
-                    }
-                    _ => panic!("Unsupported curve"),
-                };
-
-                builder.receive_syscall(
-                    local.clk_high,
-                    local.clk_low,
-                    syscall_id_felt,
-                    p_ptr.map(Into::into),
-                    [SymbolicExprF::zero(), SymbolicExprF::zero(), SymbolicExprF::zero()],
-                    local.is_real,
-                    InteractionScope::Local,
-                );
+                    builder.receive_syscall(
+                        local.clk_high,
+                        local.clk_low,
+                        syscall_id_felt,
+                        trap_code,
+                        p_ptr.map(Into::into),
+                        [SymbolicExprF::zero(), SymbolicExprF::zero(), SymbolicExprF::zero()],
+                        local.is_real,
+                        InteractionScope::Local,
+                    );
+                }
             }
 
             _ => unreachable!(),

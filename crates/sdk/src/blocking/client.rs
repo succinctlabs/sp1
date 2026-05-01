@@ -6,6 +6,9 @@ use crate::blocking::{
     cpu::builder::CpuProverBuilder, env::EnvProver, light::builder::LightProverBuilder,
     mock::builder::MockProverBuilder,
 };
+use sp1_core_machine::riscv::RiscvAir;
+use sp1_hypercube::Machine;
+use sp1_primitives::SP1Field;
 
 #[cfg(feature = "cuda")]
 use crate::blocking::cuda::builder::CudaProverBuilder;
@@ -45,15 +48,31 @@ impl ProverClient {
         EnvProver::new()
     }
 
+    /// Same as `from_env` but with a custom machine.
+    #[must_use]
+    pub fn from_env_with_machine(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> EnvProver {
+        EnvProver::new_with_machine(machine)
+    }
+
     /// Creates a new [`ProverClientBuilder`] so that you can configure the prover client.
     #[must_use]
     pub fn builder() -> ProverClientBuilder {
-        ProverClientBuilder
+        Self::builder_with_machine(RiscvAir::machine())
+    }
+
+    /// Creates a new [`ProverClientBuilder`] so that you can configure the prover client.
+    #[must_use]
+    pub fn builder_with_machine(
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+    ) -> ProverClientBuilder {
+        ProverClientBuilder { machine }
     }
 }
 
 /// A builder to define which proving client to use.
-pub struct ProverClientBuilder;
+pub struct ProverClientBuilder {
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+}
 
 impl ProverClientBuilder {
     /// Builds a [`CpuProver`] specifically for local CPU proving.
@@ -72,7 +91,7 @@ impl ProverClientBuilder {
     #[must_use]
     #[allow(clippy::unused_self)]
     pub fn cpu(&self) -> CpuProverBuilder {
-        CpuProverBuilder::new()
+        CpuProverBuilder::new_with_machine(self.machine.clone())
     }
 
     /// Builds a [`CudaProver`] specifically for local proving on NVIDIA GPUs.
@@ -92,21 +111,21 @@ impl ProverClientBuilder {
     #[must_use]
     #[allow(clippy::unused_self)]
     pub fn cuda(&self) -> CudaProverBuilder {
-        CudaProverBuilder::default()
+        CudaProverBuilder::new_with_machine(self.machine.clone())
     }
 
     /// Builds a [`MockProver`] for testing without real proving or verification.
     #[must_use]
     #[allow(clippy::unused_self)]
     pub fn mock(&self) -> MockProverBuilder {
-        MockProverBuilder::new()
+        MockProverBuilder::new_with_machine(self.machine.clone())
     }
 
     /// Builds a [`LightProver`] that only executes and verifies but does not generate proofs.
     #[must_use]
     #[allow(clippy::unused_self)]
     pub fn light(&self) -> LightProverBuilder {
-        LightProverBuilder::new()
+        LightProverBuilder::new_with_machine(self.machine.clone())
     }
 
     /// Builds a [`NetworkProver`] specifically for proving on the network.
@@ -126,7 +145,7 @@ impl ProverClientBuilder {
     #[must_use]
     #[allow(clippy::unused_self)]
     pub fn network(&self) -> NetworkProverBuilder {
-        NetworkProverBuilder::new()
+        NetworkProverBuilder::new_with_machine(self.machine.clone())
     }
 
     /// Builds a [`NetworkProver`] specifically for proving on the network with a specified mode.
@@ -152,6 +171,7 @@ impl ProverClientBuilder {
             rpc_url: None,
             tee_signers: None,
             network_mode: Some(mode),
+            machine: self.machine.clone(),
         }
     }
 }

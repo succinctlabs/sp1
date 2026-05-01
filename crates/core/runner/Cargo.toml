@@ -41,3 +41,4 @@ workspace = true
 [features]
 default = []
 profiling = ["sp1-core-executor/profiling"]
+mprotect = ["sp1-core-executor/mprotect", "sp1-core-executor-runner-binary/mprotect"]

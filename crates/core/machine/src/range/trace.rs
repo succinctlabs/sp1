@@ -77,6 +77,22 @@ impl<F: PrimeField32> MachineAir<F> for RangeChip<F> {
             output.add_bit_range_check(limb_1, 16);
             output.add_bit_range_check(limb_2, 16);
         }
+
+        #[cfg(feature = "mprotect")]
+        for addr in [
+            input.public_values.trap_context[0],
+            input.public_values.trap_context[1],
+            input.public_values.trap_context[2],
+            input.public_values.untrusted_memory[0],
+            input.public_values.untrusted_memory[1],
+        ] {
+            let limb_0 = (addr & 0xFFFF) as u16;
+            let limb_1 = ((addr >> 16) & 0xFFFF) as u16;
+            let limb_2 = ((addr >> 32) & 0xFFFF) as u16;
+            output.add_bit_range_check(limb_0, 16);
+            output.add_bit_range_check(limb_1, 16);
+            output.add_bit_range_check(limb_2, 16);
+        }
     }
 
     fn generate_trace_into(

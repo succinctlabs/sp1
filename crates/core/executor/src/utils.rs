@@ -119,17 +119,19 @@ pub fn cost_and_height_per_syscall(
     costs: &HashMap<RiscvAirId, usize>,
     page_protect: bool,
 ) -> (usize, usize) {
-    assert!(!page_protect, "page protect turned off");
+    let air_id = if page_protect {
+        syscall_code.as_air_id_user().unwrap()
+    } else {
+        syscall_code.as_air_id().unwrap()
+    };
 
-    let air_id = syscall_code.as_air_id().unwrap();
     let rows_per_event = air_id.rows_per_event();
-
     let mut cost_per_syscall = 0;
     let mut max_height_per_syscall = rows_per_event;
 
     cost_per_syscall += rows_per_event * costs[&air_id];
     if rows_per_event > 1 {
-        let control_air_id = air_id.control_air_id().unwrap();
+        let control_air_id = air_id.control_air_id(page_protect).unwrap();
         cost_per_syscall += costs[&control_air_id];
     }
 
@@ -139,6 +141,14 @@ pub fn cost_and_height_per_syscall(
     cost_per_syscall += costs[&RiscvAirId::SyscallPrecompile];
     cost_per_syscall += costs[&RiscvAirId::Global];
     max_height_per_syscall = max_height_per_syscall.max(2 * touched_addresses + 1);
+
+    if page_protect {
+        let touched_pages = syscall_code.touched_pages();
+        cost_per_syscall += touched_pages * costs[&RiscvAirId::PageProtLocal];
+        cost_per_syscall += 2 * touched_pages * costs[&RiscvAirId::Global];
+        max_height_per_syscall =
+            max_height_per_syscall.max(2 * touched_addresses + 2 * touched_pages + 1);
+    }
 
     (cost_per_syscall, max_height_per_syscall)
 }

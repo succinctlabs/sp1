@@ -4,13 +4,17 @@ use crate::{
         state::{CPUState, CPUStateInput},
     },
     air::{SP1CoreAirBuilder, SP1Operation},
+    eval_untrusted_program,
     operations::{BitwiseU16Operation, BitwiseU16OperationInput},
     utils::next_multiple_of_32,
+    SupervisorMode, TrustMode, UserMode,
 };
 use core::{
     borrow::{Borrow, BorrowMut},
     mem::{size_of, MaybeUninit},
 };
+use std::marker::PhantomData;
+
 use hashbrown::HashMap;
 use itertools::Itertools;
 use rayon::{
@@ -29,17 +33,21 @@ use sp1_derive::AlignedBorrow;
 use sp1_hypercube::air::MachineAir;
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
-/// The number of main trace columns for `BitwiseChip`.
-pub const NUM_BITWISE_COLS: usize = size_of::<BitwiseCols<u8>>();
+/// The number of main trace columns for `BitwiseChip` in Supervisor mode.
+pub const NUM_BITWISE_COLS_SUPERVISOR: usize = size_of::<BitwiseCols<u8, SupervisorMode>>();
+/// The number of main trace columns for `BitwiseChip` in User mode.
+pub const NUM_BITWISE_COLS_USER: usize = size_of::<BitwiseCols<u8, UserMode>>();
 
 /// A chip that implements bitwise operations for the opcodes XOR, OR, and AND.
 #[derive(Default)]
-pub struct BitwiseChip;
+pub struct BitwiseChip<M: TrustMode> {
+    pub _phantom: PhantomData<M>,
+}
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, StructReflection, Default, Clone, Copy)]
 #[repr(C)]
-pub struct BitwiseCols<T> {
+pub struct BitwiseCols<T, M: TrustMode> {
     /// The current shard, timestamp, program counter of the CPU.
     pub state: CPUState<T>,
 
@@ -57,22 +65,32 @@ pub struct BitwiseCols<T> {
 
     /// If the opcode is AND.
     pub is_and: T,
+
+    /// Adapter columns for trust mode specific data.
+    pub adapter_cols: M::AdapterCols<T>,
 }
 
-impl<F: PrimeField32> MachineAir<F> for BitwiseChip {
+impl<F: PrimeField32, M: TrustMode> MachineAir<F> for BitwiseChip<M> {
     type Record = ExecutionRecord;
 
     type Program = Program;
 
     fn name(&self) -> &'static str {
-        "Bitwise"
+        if M::IS_TRUSTED {
+            "Bitwise"
+        } else {
+            "BitwiseUser"
+        }
     }
 
     fn column_names(&self) -> Vec<String> {
-        BitwiseCols::<F>::struct_reflection().unwrap()
+        BitwiseCols::<F, M>::struct_reflection().unwrap()
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
+        if input.program.enable_untrusted_programs == M::IS_TRUSTED {
+            return Some(0);
+        }
         let nb_rows =
             next_multiple_of_32(input.bitwise_events.len(), input.fixed_log2_rows::<F, _>(self));
         Some(nb_rows)
@@ -84,37 +102,49 @@ impl<F: PrimeField32> MachineAir<F> for BitwiseChip {
         _output: &mut ExecutionRecord,
         buffer: &mut [MaybeUninit<F>],
     ) {
-        let padded_nb_rows = <BitwiseChip as MachineAir<F>>::num_rows(self, input).unwrap();
+        if input.program.enable_untrusted_programs == M::IS_TRUSTED {
+            return;
+        }
+
+        let padded_nb_rows = <BitwiseChip<M> as MachineAir<F>>::num_rows(self, input).unwrap();
         let nb_rows = input.bitwise_events.len();
+        let width = <BitwiseChip<M> as BaseAir<F>>::width(self);
 
         unsafe {
-            let padding_start = nb_rows * NUM_BITWISE_COLS;
-            let padding_size = (padded_nb_rows - nb_rows) * NUM_BITWISE_COLS;
+            let padding_start = nb_rows * width;
+            let padding_size = (padded_nb_rows - nb_rows) * width;
             if padding_size > 0 {
                 core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
             }
         }
 
         let buffer_ptr = buffer.as_mut_ptr() as *mut F;
-        let values = unsafe {
-            core::slice::from_raw_parts_mut(buffer_ptr, padded_nb_rows * NUM_BITWISE_COLS)
-        };
+        let values = unsafe { core::slice::from_raw_parts_mut(buffer_ptr, padded_nb_rows * width) };
 
-        values[..nb_rows * NUM_BITWISE_COLS]
-            .par_chunks_exact_mut(NUM_BITWISE_COLS)
+        values[..nb_rows * width]
+            .par_chunks_exact_mut(width)
             .zip(input.bitwise_events.par_iter())
             .for_each(|(row, event)| {
-                let cols: &mut BitwiseCols<F> = row.borrow_mut();
+                let cols: &mut BitwiseCols<F, M> = row.borrow_mut();
 
                 let mut blu = Vec::new();
                 cols.adapter.populate(&mut blu, event.1);
                 self.event_to_row(&event.0, cols, &mut blu);
                 cols.state.populate(&mut blu, event.0.clk, event.0.pc);
+                if !M::IS_TRUSTED {
+                    let cols: &mut BitwiseCols<F, UserMode> = row.borrow_mut();
+                    cols.adapter_cols.is_trusted = F::from_bool(!event.1.is_untrusted);
+                }
             });
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
+        if input.program.enable_untrusted_programs == M::IS_TRUSTED {
+            return;
+        }
+
         let chunk_size = std::cmp::max(input.bitwise_events.len() / num_cpus::get(), 1);
+        let width = <BitwiseChip<M> as BaseAir<F>>::width(self);
 
         let blu_batches = input
             .bitwise_events
@@ -122,8 +152,8 @@ impl<F: PrimeField32> MachineAir<F> for BitwiseChip {
             .map(|events| {
                 let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
                 events.iter().for_each(|event| {
-                    let mut row = [F::zero(); NUM_BITWISE_COLS];
-                    let cols: &mut BitwiseCols<F> = row.as_mut_slice().borrow_mut();
+                    let mut row = vec![F::zero(); width];
+                    let cols: &mut BitwiseCols<F, M> = row.as_mut_slice().borrow_mut();
                     cols.adapter.populate(&mut blu, event.1);
                     self.event_to_row(&event.0, cols, &mut blu);
                     cols.state.populate(&mut blu, event.0.clk, event.0.pc);
@@ -140,16 +170,17 @@ impl<F: PrimeField32> MachineAir<F> for BitwiseChip {
             shape.included::<F, _>(self)
         } else {
             !shard.bitwise_events.is_empty()
+                && (M::IS_TRUSTED != shard.program.enable_untrusted_programs)
         }
     }
 }
 
-impl BitwiseChip {
+impl<M: TrustMode> BitwiseChip<M> {
     /// Create a row from an event.
     fn event_to_row<F: PrimeField>(
         &self,
         event: &AluEvent,
-        cols: &mut BitwiseCols<F>,
+        cols: &mut BitwiseCols<F, M>,
         blu: &mut impl ByteRecord,
     ) {
         cols.bitwise_operation.populate_bitwise(blu, event.a, event.b, event.c, event.opcode);
@@ -160,20 +191,25 @@ impl BitwiseChip {
     }
 }
 
-impl<F> BaseAir<F> for BitwiseChip {
+impl<F, M: TrustMode> BaseAir<F> for BitwiseChip<M> {
     fn width(&self) -> usize {
-        NUM_BITWISE_COLS
+        if M::IS_TRUSTED {
+            NUM_BITWISE_COLS_SUPERVISOR
+        } else {
+            NUM_BITWISE_COLS_USER
+        }
     }
 }
 
-impl<AB> Air<AB> for BitwiseChip
+impl<AB, M> Air<AB> for BitwiseChip<M>
 where
     AB: SP1CoreAirBuilder,
+    M: TrustMode,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local = main.row_slice(0);
-        let local: &BitwiseCols<AB::Var> = (*local).borrow();
+        let local: &BitwiseCols<AB::Var, M> = (*local).borrow();
 
         // SAFETY: All selectors `is_xor`, `is_or`, `is_and` are checked to be boolean.
         // Each "real" row has exactly one selector turned on, as `is_real`, the sum of the three
@@ -273,127 +309,52 @@ where
         );
         <CPUState<AB::F> as SP1Operation<AB>>::eval(builder, cpu_state_input);
 
+        let mut is_trusted: AB::Expr = is_real.clone();
+
+        #[cfg(feature = "mprotect")]
+        builder.assert_eq(
+            builder.extract_public_values().is_untrusted_programs_enabled,
+            AB::Expr::from_bool(!M::IS_TRUSTED),
+        );
+
+        if !M::IS_TRUSTED {
+            let local = main.row_slice(0);
+            let local: &BitwiseCols<AB::Var, UserMode> = (*local).borrow();
+
+            let instruction = local.adapter.instruction::<AB>(cpu_opcode.clone());
+
+            #[cfg(not(feature = "mprotect"))]
+            builder.assert_zero(is_real.clone());
+
+            eval_untrusted_program(
+                builder,
+                local.state.pc,
+                instruction,
+                [
+                    calculated_instr_type.clone(),
+                    calculated_base_opcode.clone(),
+                    funct3.clone(),
+                    funct7.clone(),
+                ],
+                [local.state.clk_high::<AB>(), local.state.clk_low::<AB>()],
+                is_real.clone(),
+                local.adapter_cols,
+            );
+
+            is_trusted = local.adapter_cols.is_trusted.into();
+        }
+
         // Constrain the program and register reads.
         let alu_reader_input = ALUTypeReaderInput::<AB, AB::Expr>::new(
             local.state.clk_high::<AB>(),
             local.state.clk_low::<AB>(),
             local.state.pc,
             cpu_opcode,
-            [calculated_instr_type, calculated_base_opcode, funct3, funct7],
             result,
             local.adapter,
             is_real,
+            is_trusted,
         );
         <ALUTypeReader<AB::F> as SP1Operation<AB>>::eval(builder, alu_reader_input);
     }
 }
-
-// #[cfg(test)]
-// mod tests {
-//     #![allow(clippy::print_stdout)]
-
-//     use sp1_primitives::SP1Field;
-//     use slop_matrix::dense::RowMajorMatrix;
-//     use sp1_core_executor::{events::AluEvent, ExecutionRecord, Opcode};
-//     use sp1_hypercube::{
-//         air::{MachineAir, SP1_PROOF_NUM_PV_ELTS},
-//         koala_bear_poseidon2::SP1InnerPcs,
-//         Chip, StarkMachine,
-//     };
-
-//     use crate::utils::{run_test_machine, setup_test_machine};
-
-//     use super::BitwiseChip;
-
-//     #[test]
-//     fn generate_trace() {
-//         let mut shard = ExecutionRecord::default();
-//         shard.bitwise_events = vec![AluEvent::new(0, Opcode::XOR, 25, 10, 19, false)];
-//         let chip = BitwiseChip::default();
-//         let trace: RowMajorMatrix<SP1Field> =
-//             chip.generate_trace(&shard, &mut ExecutionRecord::default());
-//         println!("{:?}", trace.values)
-//     }
-
-//     #[test]
-//     fn prove_koalabear() {
-//         let mut shard = ExecutionRecord::default();
-//         shard.bitwise_events = [
-//             AluEvent::new(0, Opcode::XOR, 25, 10, 19, false),
-//             AluEvent::new(0, Opcode::OR, 27, 10, 19, false),
-//             AluEvent::new(0, Opcode::AND, 2, 10, 19, false),
-//         ]
-//         .repeat(1000);
-
-//         // Run setup.
-//         let air = BitwiseChip::default();
-//         let config = SP1InnerPcs::new();
-//         let chip = Chip::new(air);
-//         let (pk, vk) = setup_test_machine(StarkMachine::new(
-//             config.clone(),
-//             vec![chip],
-//             SP1_PROOF_NUM_PV_ELTS,
-//             true,
-//         ));
-
-//         // Run the test.
-//         let air = BitwiseChip::default();
-//         let chip: Chip<SP1Field, BitwiseChip> = Chip::new(air);
-//         let machine = StarkMachine::new(config.clone(), vec![chip], SP1_PROOF_NUM_PV_ELTS, true);
-//         run_test_machine::<SP1InnerPcs, BitwiseChip>(vec![shard], machine, pk,
-// vk).unwrap();     }
-
-//     // TODO: Re-enable when we LOGUP-GKR working.
-//     // #[test]
-//     // fn test_malicious_bitwise() {
-//     //     const NUM_TESTS: usize = 5;
-
-//     //     for opcode in [Opcode::XOR, Opcode::OR, Opcode::AND] {
-//     //         for _ in 0..NUM_TESTS {
-//     //             let op_a = thread_rng().gen_range(0..u32::MAX);
-//     //             let op_b = thread_rng().gen_range(0..u32::MAX);
-//     //             let op_c = thread_rng().gen_range(0..u32::MAX);
-
-//     //             let correct_op_a = if opcode == Opcode::XOR {
-//     //                 op_b ^ op_c
-//     //             } else if opcode == Opcode::OR {
-//     //                 op_b | op_c
-//     //             } else {
-//     //                 op_b & op_c
-//     //             };
-
-//     //             assert!(op_a != correct_op_a);
-
-//     //             let instructions = vec![
-//     //                 Instruction::new(opcode, 5, op_b, op_c, true, true),
-//     //                 Instruction::new(Opcode::ADD, 10, 0, 0, false, false),
-//     //             ];
-//     //             let program = Program::new(instructions, 0, 0);
-//     //             let stdin = SP1Stdin::new();
-
-//     //             type P = CpuProver<SP1InnerPcs, RiscvAir<SP1Field>>;
-
-//     //             let malicious_trace_pv_generator = move |prover: &P,
-//     //                                                      record: &mut ExecutionRecord|
-//     //                   -> Vec<(
-//     //                 String,
-//     //                 RowMajorMatrix<Val<SP1InnerPcs>>,
-//     //             )> {
-//     //                 let mut malicious_record = record.clone();
-//     //                 malicious_record.cpu_events[0].a = op_a;
-//     //                 if let Some(MemoryRecordEnum::Write(mut write_record)) =
-//     //                     malicious_record.cpu_events[0].a_record
-//     //                 {
-//     //                     write_record.value = op_a;
-//     //                 }
-//     //                 malicious_record.bitwise_events[0].a = op_a;
-//     //                 prover.generate_traces(&malicious_record)
-//     //             };
-
-//     //             let result =
-//     //                 run_malicious_test::<P>(program, stdin,
-// Box::new(malicious_trace_pv_generator));     //             assert!(result.is_err() &&
-// result.unwrap_err().is_local_cumulative_sum_failing());     //         }
-//     //     }
-//     // }
-// }

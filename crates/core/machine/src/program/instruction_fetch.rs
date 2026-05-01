@@ -18,7 +18,7 @@ use sp1_core_executor::{
 };
 use sp1_derive::AlignedBorrow;
 use sp1_hypercube::air::MachineAir;
-use sp1_primitives::consts::{u64_to_u16_limbs, PROT_EXEC};
+use sp1_primitives::consts::{u64_to_u16_limbs, PROT_EXEC, PROT_READ};
 
 /// The number of program columns.
 pub const NUM_INSTRUCTION_FETCH_COLS: usize = size_of::<InstructionFetchCols<u8>>();
@@ -247,7 +247,14 @@ where
         let clk_high = local.clk_high.into();
         let clk_low = local.clk_low.into();
 
+        #[cfg(not(feature = "mprotect"))]
+        builder.assert_zero(local.is_real);
+
         builder.assert_bool(local.is_real.into());
+        builder.assert_eq(
+            builder.extract_public_values().is_untrusted_programs_enabled,
+            AB::Expr::one(),
+        );
 
         // Verify and calculate aligned address
         builder.slice_range_check_u16(&local.pc, local.is_real);
@@ -325,7 +332,7 @@ where
             clk_high,
             clk_low,
             &aligned_addr.map(Into::into),
-            AB::Expr::from_canonical_u8(PROT_EXEC),
+            AB::Expr::from_canonical_u8(PROT_READ | PROT_EXEC),
             local.is_real.into(),
         );
     }

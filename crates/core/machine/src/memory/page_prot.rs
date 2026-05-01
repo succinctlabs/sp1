@@ -165,7 +165,7 @@ impl<F: PrimeField32> MachineAir<F> for PageProtChip {
                 .chain(input.instruction_fetch_events.iter().map(|e| {
                     let (mem_access, _) = e.1.untrusted_instruction.unwrap();
                     Self::generate_fetch_instruction_page_prot_event(
-                        &e.0, mem_access, false, false, true,
+                        &e.0, mem_access, true, false, true,
                     )
                 }))
                 .collect_vec();
@@ -224,7 +224,7 @@ impl<F: PrimeField32> MachineAir<F> for PageProtChip {
         if let Some(shape) = shard.shape.as_ref() {
             shape.included::<F, _>(self)
         } else {
-            shard.memory_load_byte_events.len()
+            (shard.memory_load_byte_events.len()
                 + shard.memory_store_byte_events.len()
                 + shard.memory_load_word_events.len()
                 + shard.memory_store_word_events.len()
@@ -234,7 +234,8 @@ impl<F: PrimeField32> MachineAir<F> for PageProtChip {
                 + shard.memory_store_half_events.len()
                 + shard.memory_load_x0_events.len()
                 + shard.instruction_fetch_events.len()
-                > 0
+                > 0)
+                && shard.program.enable_untrusted_programs
         }
     }
 }
@@ -250,9 +251,17 @@ where
         let local = main.row_slice(0);
         let local: &PageProtCols<AB::Var> = (*local).borrow();
 
+        builder.assert_eq(
+            builder.extract_public_values().is_untrusted_programs_enabled,
+            AB::Expr::one(),
+        );
+
         for local in local.page_prot_entries.iter() {
             // Assert that `is_real` is boolean.
             builder.assert_bool(local.is_real);
+
+            #[cfg(not(feature = "mprotect"))]
+            builder.assert_zero(local.is_real);
 
             // Ensure requested permission matches the set permission.
             builder.send_byte(

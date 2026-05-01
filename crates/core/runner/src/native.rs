@@ -343,6 +343,13 @@ impl MinimalExecutorRunner {
         self.output().hints.iter().map(|(_, hint)| hint.len()).collect()
     }
 
+    /// Get the page protection record for a specific page index.
+    /// The native executor does not track page protection, so this always returns None.
+    #[must_use]
+    pub fn get_page_prot_record(&self, _page_idx: u64) -> Option<sp1_jit::PageProtValue> {
+        None
+    }
+
     /// Get an unsafe memory view of the JIT function.
     ///
     /// This allows reading without lifetime and mutability constraints.

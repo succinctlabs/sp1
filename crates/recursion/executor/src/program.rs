@@ -1,7 +1,7 @@
 use crate::{analyzed::AnalyzedInstruction, shape::RecursionShape, *};
 use serde::{Deserialize, Serialize};
 use slop_algebra::Field;
-use sp1_hypercube::{air::MachineProgram, septic_digest::SepticDigest};
+use sp1_hypercube::{air::MachineProgram, septic_digest::SepticDigest, UntrustedConfig};
 use std::ops::{Deref, DerefMut};
 
 pub use basic_block::BasicBlock;
@@ -77,8 +77,8 @@ impl<F: Field> MachineProgram<F> for RecursionProgram<F> {
         SepticDigest::<F>::zero()
     }
 
-    fn enable_untrusted_programs(&self) -> F {
-        F::zero()
+    fn untrusted_config(&self) -> UntrustedConfig<F> {
+        UntrustedConfig::zero()
     }
 }
 

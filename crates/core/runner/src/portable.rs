@@ -1,14 +1,14 @@
 #[cfg(feature = "profiling")]
 use hashbrown::HashMap;
 use sp1_core_executor::{
-    ExecutionError, MinimalExecutor, Program, UnsafeMemory, DEFAULT_MEMORY_LIMIT,
+    ExecutionError, MinimalExecutorEnum, Program, UnsafeMemory, DEFAULT_MEMORY_LIMIT,
 };
 use sp1_jit::{MemValue, TraceChunkRaw};
 use std::sync::Arc;
 
 /// Minimal trace portable executor that caps memory entries
 pub struct MinimalExecutorRunner {
-    inner: MinimalExecutor,
+    inner: MinimalExecutorEnum,
 }
 
 impl MinimalExecutorRunner {
@@ -33,7 +33,7 @@ impl MinimalExecutorRunner {
         _shm_slot_size: usize,
     ) -> Self {
         Self {
-            inner: MinimalExecutor::new_with_limit(
+            inner: MinimalExecutorEnum::new_with_limit(
                 program,
                 is_debug,
                 max_trace_size,
@@ -183,6 +183,13 @@ impl MinimalExecutorRunner {
     #[inline]
     pub fn unsafe_memory(&self) -> UnsafeMemory {
         self.inner.unsafe_memory()
+    }
+
+    /// Get the page protection record for a specific page index.
+    #[must_use]
+    #[inline]
+    pub fn get_page_prot_record(&self, page_idx: u64) -> Option<sp1_jit::PageProtValue> {
+        self.inner.get_page_prot_record(page_idx)
     }
 
     #[inline]

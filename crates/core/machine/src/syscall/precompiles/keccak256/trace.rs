@@ -36,9 +36,11 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
                 // The blu map stores shard -> map(byte lookup event -> multiplicity).
                 let mut blu = Vec::new();
                 let mut chunk = zeroed_f_vec::<F>(NUM_KECCAK_MEM_COLS * NUM_ROUNDS);
-                ops.iter().for_each(|(_, op)| {
+                ops.iter().for_each(|(syscall_event, op)| {
                     if let PrecompileEvent::KeccakPermute(event) = op {
-                        Self::populate_chunk(event, &mut chunk, &mut blu);
+                        if syscall_event.trap_error.is_none() {
+                            Self::populate_chunk(event, &mut chunk, &mut blu);
+                        }
                     } else {
                         unreachable!();
                     }
@@ -103,7 +105,15 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
                         if idx < num_events {
                             let mut new_byte_lookup_events = Vec::new();
                             if let PrecompileEvent::KeccakPermute(event) = &events[idx].1 {
-                                Self::populate_chunk(event, rounds, &mut new_byte_lookup_events);
+                                if events[idx].0.trap_error.is_none() {
+                                    Self::populate_chunk(
+                                        event,
+                                        rounds,
+                                        &mut new_byte_lookup_events,
+                                    );
+                                } else {
+                                    rounds.copy_from_slice(&dummy_chunk[..rounds.len()]);
+                                }
                             } else {
                                 unreachable!();
                             }

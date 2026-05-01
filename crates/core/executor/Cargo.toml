@@ -46,6 +46,7 @@ serde_arrays = { workspace = true }
 deepsize2 = { workspace = true }
 memmap2 = { workspace = true }
 cfg-if = { workspace = true }
+object = { workspace = true }
 
 # profiling
 rustc-demangle = { workspace = true, optional = true }
@@ -66,6 +67,7 @@ profiling = [
   "dep:indicatif",
   "sp1-jit/profiling",
 ]
+mprotect = ["sp1-hypercube/mprotect"]
 
 [lints]
 workspace = true
