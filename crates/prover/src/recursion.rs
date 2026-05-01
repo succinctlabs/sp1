@@ -35,6 +35,8 @@ use sp1_recursion_compiler::{
     ir::{Builder, DslIrProgram},
 };
 use sp1_recursion_executor::{RecursionProgram, DIGEST_SIZE};
+#[cfg(feature = "mprotect")]
+use sp1_verifier::VerifierRecursionVks;
 
 use crate::{
     shapes::{create_all_input_shapes, SP1RecursionProofShape},
@@ -123,6 +125,17 @@ impl RecursionVks {
     /// Whether to verify the recursion vks.
     pub fn vk_verification(&self) -> bool {
         self.vk_verification
+    }
+
+    /// Build a [`VerifierRecursionVks`] whose `root`, `num_keys`, and
+    /// `vk_verification` match this prover-side instance.
+    #[cfg(feature = "mprotect")]
+    pub fn to_verifier_vks(&self) -> VerifierRecursionVks {
+        VerifierRecursionVks {
+            root: self.root,
+            vk_verification: self.vk_verification,
+            num_keys: self.map.len(),
+        }
     }
 
     pub fn open(

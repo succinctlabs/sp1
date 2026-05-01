@@ -18,10 +18,16 @@ impl KeccakPermuteChip {
     }
 }
 
+use std::marker::PhantomData;
+
+use crate::TrustMode;
+
 /// Implements the controller for the KeccakPermuteChip, which receives the syscalls and sends it to
 /// the chip.
 #[derive(Default)]
-pub struct KeccakPermuteControlChip;
+pub struct KeccakPermuteControlChip<M: TrustMode> {
+    _marker: PhantomData<M>,
+}
 
 #[cfg(test)]
 mod permute_tests {

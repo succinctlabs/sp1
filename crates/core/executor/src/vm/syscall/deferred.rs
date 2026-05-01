@@ -1,6 +1,6 @@
-use crate::{vm::syscall::SyscallRuntime, SyscallCode};
+use crate::{vm::syscall::SyscallRuntime, ExecutionMode, SyscallCode};
 
-pub(crate) fn commit_deferred_proofs_syscall<'a, RT: SyscallRuntime<'a>>(
+pub(crate) fn commit_deferred_proofs_syscall<'a, M: ExecutionMode, RT: SyscallRuntime<'a, M>>(
     rt: &mut RT,
     _: SyscallCode,
     word_idx: u64,

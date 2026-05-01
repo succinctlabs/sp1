@@ -17,7 +17,7 @@ use slop_sumcheck::PartialSumcheckProof;
 
 use sp1_hypercube::{
     air::MachineAir, septic_digest::SepticDigest, GenericVerifierPublicValuesConstraintFolder,
-    LogupGkrProof, Machine, ShardOpenedValues,
+    LogupGkrProof, Machine, ShardOpenedValues, UntrustedConfig,
 };
 use sp1_primitives::{SP1ExtensionField, SP1Field};
 use sp1_recursion_compiler::{
@@ -50,8 +50,8 @@ pub struct MachineVerifyingKeyVariable<C: CircuitConfig, SC: SP1FieldConfigVaria
     pub initial_global_cumulative_sum: SepticDigest<Felt<SP1Field>>,
     /// The preprocessed commitments.
     pub preprocessed_commit: SC::DigestVariable,
-    /// Flag indicating if untrusted programs are allowed.
-    pub enable_untrusted_programs: Felt<SP1Field>,
+    /// Metadata on configuration regarding untrusted programs.
+    pub untrusted_config: UntrustedConfig<Felt<SP1Field>>,
 }
 impl<C, SC> MachineVerifyingKeyVariable<C, SC>
 where
@@ -65,13 +65,22 @@ where
     where
         SC::DigestVariable: IntoIterator<Item = Felt<SP1Field>>,
     {
+        #[cfg(not(feature = "mprotect"))]
         let num_inputs = DIGEST_SIZE + 3 + 14 + 1;
+        #[cfg(feature = "mprotect")]
+        let num_inputs = DIGEST_SIZE + 3 + 14 + 1 + 1 + 9 + 6;
         let mut inputs = Vec::with_capacity(num_inputs);
         inputs.extend(self.preprocessed_commit);
         inputs.extend(self.pc_start);
         inputs.extend(self.initial_global_cumulative_sum.0.x.0);
         inputs.extend(self.initial_global_cumulative_sum.0.y.0);
-        inputs.push(self.enable_untrusted_programs);
+        inputs.push(self.untrusted_config.enable_untrusted_programs);
+        #[cfg(feature = "mprotect")]
+        {
+            inputs.push(self.untrusted_config.enable_trap_handler);
+            inputs.extend(self.untrusted_config.trap_context.as_flattened());
+            inputs.extend(self.untrusted_config.untrusted_memory.as_flattened());
+        }
 
         SC::hash(builder, &inputs)
     }

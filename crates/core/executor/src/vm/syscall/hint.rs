@@ -1,7 +1,7 @@
 use super::SyscallRuntime;
-use crate::SyscallCode;
+use crate::{ExecutionMode, SyscallCode};
 
-pub(crate) fn hint_len_syscall<'a, RT: SyscallRuntime<'a>>(
+pub(crate) fn hint_len_syscall<'a, M: ExecutionMode, RT: SyscallRuntime<'a, M>>(
     ctx: &mut RT,
     _: SyscallCode,
     _: u64,

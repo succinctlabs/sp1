@@ -43,7 +43,7 @@ async fn main() {
 
     // Generate the proof
     println!("Generating proof...");
-    let proof = client.prove(&pk, stdin.clone()).core().await.expect("Failed to generate proof");
+    let proof = client.prove(&pk, stdin.clone()).compressed().await.expect("Failed to generate proof");
 
     println!("Proof generated successfully!");
 

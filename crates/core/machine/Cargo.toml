@@ -87,6 +87,11 @@ sp1-primitives = { workspace = true }
 default = []
 debug = []
 bigint-rug = ["sp1-curves/bigint-rug"]
+mprotect = [
+  "sp1-core-executor/mprotect",
+  "sp1-core-executor-runner/mprotect",
+  "sp1-hypercube/mprotect",
+]
 apc = []
 
 [lib]

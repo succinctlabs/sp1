@@ -1,3 +1,9 @@
+use crate::{
+    air::{SP1CoreAirBuilder, SP1Operation},
+    memory::PageProtAccessCols,
+    operations::{LtOperationUnsigned, LtOperationUnsignedInput},
+    utils::next_multiple_of_32,
+};
 use core::borrow::Borrow;
 use slop_air::{Air, AirBuilder, BaseAir};
 use slop_algebra::{AbstractField, PrimeField32};
@@ -7,11 +13,14 @@ use sp1_core_executor::{
     ByteOpcode, ExecutionRecord, Program, SyscallCode,
 };
 use sp1_derive::AlignedBorrow;
-use sp1_hypercube::air::{InteractionScope, MachineAir};
+#[cfg(feature = "mprotect")]
+use sp1_hypercube::{addr_to_limbs, air::BaseAirBuilder};
+use sp1_hypercube::{
+    air::{InteractionScope, MachineAir},
+    Word,
+};
 use sp1_primitives::consts::{PROT_EXEC, PROT_READ, PROT_WRITE};
 use std::{borrow::BorrowMut, mem::MaybeUninit};
-
-use crate::{air::SP1CoreAirBuilder, memory::PageProtAccessCols, utils::next_multiple_of_32};
 
 /// The number of columns in the MProtectCols.
 const NUM_COLS: usize = size_of::<MProtectCols<u8>>();
@@ -53,6 +62,12 @@ pub struct MProtectCols<T> {
 
     /// Interaction with page protection table
     pub page_prot_access: PageProtAccessCols<T>,
+
+    /// The untrusted memory region from public values.
+    pub untrusted_memory: [[T; 3]; 2],
+
+    /// Comparison with untrusted memory.
+    pub addr_range_check: [LtOperationUnsigned<T>; 2],
 }
 
 impl<F> BaseAir<F> for MProtectChip {
@@ -159,6 +174,26 @@ impl<F: PrimeField32> MachineAir<F> for MProtectChip {
             );
 
             cols.is_real = F::one();
+            #[cfg(feature = "mprotect")]
+            {
+                cols.untrusted_memory[0] = addr_to_limbs(input.public_values.untrusted_memory[0]);
+                cols.untrusted_memory[1] = addr_to_limbs(input.public_values.untrusted_memory[1]);
+
+                // Check that `addr < mem[0]` is false.
+                cols.addr_range_check[0].populate_unsigned(
+                    &mut blu_events,
+                    0,
+                    event.addr,
+                    input.public_values.untrusted_memory[0],
+                );
+                // Check that `addr < mem[1]` is true.
+                cols.addr_range_check[1].populate_unsigned(
+                    &mut blu_events,
+                    1,
+                    event.addr,
+                    input.public_values.untrusted_memory[1],
+                );
+            }
         });
 
         // Add byte lookup events to output
@@ -183,7 +218,67 @@ where
         let local = main.row_slice(0);
         let local: &MProtectCols<AB::Var> = (*local).borrow();
 
+        let public_values = builder.extract_public_values();
+
         builder.assert_bool(local.is_real);
+        builder.assert_eq(public_values.is_untrusted_programs_enabled, AB::Expr::one());
+        #[cfg(feature = "mprotect")]
+        {
+            builder
+                .when(local.is_real)
+                .assert_all_eq(public_values.untrusted_memory[0], local.untrusted_memory[0]);
+            builder
+                .when(local.is_real)
+                .assert_all_eq(public_values.untrusted_memory[1], local.untrusted_memory[1]);
+        }
+        #[cfg(not(feature = "mprotect"))]
+        builder.assert_zero(local.is_real);
+
+        // Check that `addr < untrusted_memory[0]` is false, so `addr >= untrusted_memory[0]`.
+        <LtOperationUnsigned<AB::F> as SP1Operation<AB>>::eval(
+            builder,
+            LtOperationUnsignedInput::<AB>::new(
+                Word([
+                    local.addr[0].into(),
+                    local.addr[1].into(),
+                    local.addr[2].into(),
+                    AB::Expr::zero(),
+                ]),
+                Word([
+                    local.untrusted_memory[0][0].into(),
+                    local.untrusted_memory[0][1].into(),
+                    local.untrusted_memory[0][2].into(),
+                    AB::Expr::zero(),
+                ]),
+                local.addr_range_check[0],
+                local.is_real.into(),
+            ),
+        );
+        builder
+            .when(local.is_real)
+            .assert_zero(local.addr_range_check[0].u16_compare_operation.bit);
+
+        // Check that `addr < untrusted_memory[1]` is true.
+        <LtOperationUnsigned<AB::F> as SP1Operation<AB>>::eval(
+            builder,
+            LtOperationUnsignedInput::<AB>::new(
+                Word([
+                    local.addr[0].into(),
+                    local.addr[1].into(),
+                    local.addr[2].into(),
+                    AB::Expr::zero(),
+                ]),
+                Word([
+                    local.untrusted_memory[1][0].into(),
+                    local.untrusted_memory[1][1].into(),
+                    local.untrusted_memory[1][2].into(),
+                    AB::Expr::zero(),
+                ]),
+                local.addr_range_check[1],
+                local.is_real.into(),
+            ),
+        );
+        builder.when(local.is_real).assert_one(local.addr_range_check[1].u16_compare_operation.bit);
 
         // Constrain address decomposition - addr[0] should equal addr_12_bits + addr_4_bits * 4096
         builder.when(local.is_real).assert_eq(
@@ -229,6 +324,7 @@ where
             local.clk_high,
             local.clk_low,
             AB::F::from_canonical_u32(SyscallCode::MPROTECT.syscall_id()),
+            AB::Expr::zero(),
             local.addr.map(Into::into),
             [local.prot.into(), AB::Expr::zero(), AB::Expr::zero()],
             local.is_real,
