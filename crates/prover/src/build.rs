@@ -573,16 +573,18 @@ pub async fn download_file(
 
 #[cfg(test)]
 mod tests {
+    #[cfg(not(feature = "mprotect"))]
+    use crate::build::hex_prefix;
     use sp1_core_executor::SP1Context;
-    use sp1_core_machine::utils::setup_logger;
+    use sp1_core_machine::{riscv::RiscvAir, utils::setup_logger};
+    #[cfg(not(feature = "mprotect"))]
     use sp1_primitives::io::sha256_hash;
     use sp1_prover_types::network_base_types::ProofMode;
     use tokio::process::Command;
 
     use crate::{
-        build::hex_prefix,
         verify::WRAP_VK_BYTES,
-        worker::{cpu_worker_builder, SP1LocalNodeBuilder},
+        worker::{cpu_worker_builder_with_machine, SP1LocalNodeBuilder},
     };
 
     /// Uploads the dev artifact directory matching `{prefix}-{suffix}` to S3, where
@@ -663,10 +665,13 @@ mod tests {
         let elf = test_artifacts::FIBONACCI_ELF;
 
         tracing::info!("initializing prover");
-        let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder())
-            .build()
-            .await
-            .expect("failed to build client");
+        let machine = RiscvAir::machine();
+        let client = SP1LocalNodeBuilder::from_worker_client_builder(
+            cpu_worker_builder_with_machine(machine),
+        )
+        .build()
+        .await
+        .expect("failed to build client");
 
         tracing::info!("prove compressed");
         let stdin = sp1_core_machine::io::SP1Stdin::new();
@@ -684,9 +689,15 @@ mod tests {
         let wrap_vk_bytes = bincode::serialize(&wrap_vk).expect("failed to serialize wrap_vk");
         let wrapped_proof_bytes =
             bincode::serialize(&wrapped_proof).expect("failed to serialize wrapped_proof");
-        std::fs::write("wrap_vk.bin", wrap_vk_bytes).expect("failed to write wrap_vk.bin");
-        std::fs::write("wrapped_proof.bin", wrapped_proof_bytes)
-            .expect("failed to write wrapped_proof.bin");
+
+        #[cfg(feature = "mprotect")]
+        let (vk_path, proof_path) = ("wrap_vk_mprotect.bin", "wrapped_proof_mprotect.bin");
+        #[cfg(not(feature = "mprotect"))]
+        let (vk_path, proof_path) = ("wrap_vk.bin", "wrapped_proof.bin");
+
+        std::fs::write(vk_path, wrap_vk_bytes).expect("failed to write wrap_vk bytes");
+        std::fs::write(proof_path, wrapped_proof_bytes)
+            .expect("failed to write wrapped_proof bytes");
     }
 
     #[tokio::test]
@@ -694,10 +705,13 @@ mod tests {
         setup_logger();
 
         tracing::info!("initializing prover");
-        let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder())
-            .build()
-            .await
-            .expect("failed to build client");
+        let machine = RiscvAir::machine();
+        let client = SP1LocalNodeBuilder::from_worker_client_builder(
+            cpu_worker_builder_with_machine(machine),
+        )
+        .build()
+        .await
+        .expect("failed to build client");
 
         // Check that the wrap vk is the same as the one included in the binary.
         let client_wrap_vk = client.wrap_vk().clone();
@@ -708,6 +722,7 @@ mod tests {
 
     #[tokio::test]
     #[ignore = "requires AWS credentials for the sp1-circuit-artifacts-dev bucket; run with `--ignored` when validating dev artifact uploads"]
+    #[cfg(not(feature = "mprotect"))]
     async fn test_dev_artifacts_uploaded_to_s3() {
         use crate::build::DEV_CIRCUIT_ARTIFACTS_S3_BUCKET;
 

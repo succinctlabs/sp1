@@ -1,7 +1,9 @@
 use deepsize2::DeepSizeOf;
 use serde::{Deserialize, Serialize};
 
-use crate::SyscallCode;
+use crate::{SyscallCode, TrapError, TrapResult};
+
+use super::MemoryReadRecord;
 
 /// Syscall Event.
 ///
@@ -16,8 +18,6 @@ pub struct SyscallEvent {
     pub next_pc: u64,
     /// The clock cycle.
     pub clk: u64,
-    /// Whether the first operand is register 0.
-    pub op_a_0: bool,
     /// Whether this syscall should be sent.
     pub should_send: bool,
     /// The syscall code.
@@ -30,4 +30,10 @@ pub struct SyscallEvent {
     pub arg2: u64,
     /// The exit code.
     pub exit_code: u32,
+    /// The memory record to read the next pc, if a `SIG_RETURN` is called.
+    pub sig_return_pc_record: Option<MemoryReadRecord>,
+    /// The trap result, if the syscall event leads to a trap.
+    pub trap_result: Option<TrapResult>,
+    /// The trap error, if the syscall event leads to a trap.
+    pub trap_error: Option<TrapError>,
 }

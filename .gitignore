@@ -24,6 +24,7 @@ examples/fibonacci/fibonacci-plonk.bin
 
 # Benchmark
 benchmark.csv
+crates/perf/data/
 
 # Environment
 .env

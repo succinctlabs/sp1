@@ -324,6 +324,8 @@ pub struct PageProtRecord {
     pub external_flag: bool,
     /// The timestamp.
     pub timestamp: u64,
+    /// The page index.
+    pub page_idx: u64,
     /// The page prot.
     pub page_prot: u8,
 }

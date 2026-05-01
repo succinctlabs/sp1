@@ -4,7 +4,7 @@ use sp1_core_executor::HEIGHT_THRESHOLD;
 use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::{
     prover::{AirProver, CpuShardProver, SP1InnerPcsProver, SP1OuterPcsProver},
-    MachineVerifier, SP1InnerPcs, SP1OuterPcs, SP1Pcs, ShardContextImpl, ShardVerifier,
+    Machine, MachineVerifier, SP1InnerPcs, SP1OuterPcs, SP1Pcs, ShardContextImpl, ShardVerifier,
 };
 use sp1_primitives::{
     fri_params::{core_fri_config, recursion_fri_config, shrink_fri_config, wrap_fri_config},
@@ -53,11 +53,11 @@ pub trait CoreProver: AirProver<SP1GlobalContext, CoreSC> {
     /// The default verifier for the core prover.
     ///
     /// The verifier fixes the parameters of the underlying proof system.
-    fn verifier() -> MachineVerifier<SP1GlobalContext, CoreSC> {
+    fn verifier(
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+    ) -> MachineVerifier<SP1GlobalContext, CoreSC> {
         let core_log_stacking_height = CORE_LOG_STACKING_HEIGHT;
         let core_max_log_row_count = CORE_MAX_LOG_ROW_COUNT;
-
-        let machine = RiscvAir::machine();
 
         let core_verifier = ShardVerifier::from_basefold_parameters(
             core_fri_config(),
@@ -153,8 +153,10 @@ pub trait SP1ProverComponents: Send + Sync + 'static + Sized {
     type WrapProver: WrapProver;
     type WrapProverBuilder: WrapProverBuilder<Self>;
 
-    fn core_verifier() -> MachineVerifier<SP1GlobalContext, CoreSC> {
-        <Self::CoreProver as CoreProver>::verifier()
+    fn core_verifier(
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+    ) -> MachineVerifier<SP1GlobalContext, CoreSC> {
+        <Self::CoreProver as CoreProver>::verifier(machine)
     }
 
     fn compress_verifier() -> MachineVerifier<SP1GlobalContext, RecursionSC> {

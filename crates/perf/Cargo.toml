@@ -29,22 +29,36 @@ rand = { workspace = true }
 async-scoped = { workspace = true }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
+dotenv = { workspace = true }
+rustyline = "14.0"
+chrono = { workspace = true, features = ["clock"] }
 tracing = { workspace = true }
 test-artifacts = { path = "../test-artifacts" }
 
 [[bin]]
 name = "sp1-perf"
-path = "src/perf.rs"
+path = "src/bin/perf.rs"
 
 [[bin]]
 name = "sp1-perf-executor"
-path = "src/executor.rs"
+path = "src/bin/executor.rs"
 
 [[bin]]
 name = "sp1-perf-setup"
-path = "src/setup.rs"
+path = "src/bin/setup.rs"
+
+[[bin]]
+name = "sp1-perf-prover"
+path = "src/bin/prover.rs"
 
 [features]
 bigint-rug = ["sp1-core-executor/bigint-rug"]
 native-gnark = ["sp1-sdk/native-gnark"]
 network = ["sp1-sdk/network"]
+mprotect = [
+  "sp1-core-executor/mprotect",
+  "sp1-core-machine/mprotect",
+  "sp1-hypercube/mprotect",
+  "sp1-prover/mprotect",
+  "sp1-sdk/mprotect",
+]

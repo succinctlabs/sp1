@@ -439,11 +439,18 @@ impl InstructionProcessor for InstructionTranspiler {
 ///
 /// This function will return an error if the [`Instruction`] cannot be processed.
 #[must_use]
-pub(crate) fn transpile(instructions_u32: &[u32]) -> Vec<(Instruction, u32)> {
+pub(crate) fn transpile(
+    instructions_u32: &[u32],
+    skip_undecodable: bool,
+) -> Vec<(Instruction, u32)> {
     let mut instructions: Vec<(Instruction, u32)> = Vec::new();
     let mut transpiler = InstructionTranspiler;
     for instruction_u32 in instructions_u32 {
-        let instruction = process_instruction(&mut transpiler, *instruction_u32).unwrap();
+        let instruction = match process_instruction(&mut transpiler, *instruction_u32) {
+            Some(instruction) => instruction,
+            None if skip_undecodable => Instruction::unimp(),
+            None => panic!("Cannot decode instruction: 0x{instruction_u32:x}"),
+        };
         instructions.push((instruction, *instruction_u32));
     }
     instructions

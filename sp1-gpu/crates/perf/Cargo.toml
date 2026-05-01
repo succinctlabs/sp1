@@ -62,6 +62,16 @@ bigint-rug = [
 native-gnark = ["sp1-prover/native-gnark"]
 groth16-cuda = ["sp1-recursion-gnark-ffi/groth16-cuda"]
 experimental = ["sp1-prover/experimental", "sp1-gpu-prover/experimental"]
+mprotect = [
+    "experimental",
+    "sp1-core-executor/mprotect",
+    "sp1-core-machine/mprotect",
+    "sp1-hypercube/mprotect",
+    "sp1-prover/mprotect",
+    "sp1-sdk/mprotect",
+    "sp1-gpu-prover/mprotect",
+    "sp1-gpu-shard-prover/mprotect",
+]
 tokio-blocked = ["dep:tokio-blocked", "tokio/tracing"]
 
 [lints]

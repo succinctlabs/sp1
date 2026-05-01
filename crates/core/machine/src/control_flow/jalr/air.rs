@@ -4,7 +4,9 @@ use crate::{
         state::{CPUState, CPUStateInput},
     },
     air::{SP1CoreAirBuilder, SP1Operation},
+    eval_untrusted_program,
     operations::AddOperationInput,
+    TrustMode, UserMode,
 };
 use slop_air::{Air, AirBuilder};
 use slop_algebra::{AbstractField, Field};
@@ -17,16 +19,17 @@ use crate::operations::AddOperation;
 
 use super::{JalrChip, JalrColumns};
 
-impl<AB> Air<AB> for JalrChip
+impl<AB, M> Air<AB> for JalrChip<M>
 where
     AB: SP1CoreAirBuilder,
     AB::Var: Sized,
+    M: TrustMode,
 {
     #[inline(never)]
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local = main.row_slice(0);
-        let local: &JalrColumns<AB::Var> = (*local).borrow();
+        let local: &JalrColumns<AB::Var, M> = (*local).borrow();
 
         builder.assert_bool(local.is_real);
 
@@ -75,6 +78,36 @@ where
             ),
         );
 
+        let mut is_trusted: AB::Expr = local.is_real.into();
+
+        #[cfg(feature = "mprotect")]
+        builder.assert_eq(
+            builder.extract_public_values().is_untrusted_programs_enabled,
+            AB::Expr::from_bool(!M::IS_TRUSTED),
+        );
+
+        if !M::IS_TRUSTED {
+            let local = main.row_slice(0);
+            let local: &JalrColumns<AB::Var, UserMode> = (*local).borrow();
+
+            let instruction = local.adapter.instruction::<AB>(opcode);
+
+            #[cfg(not(feature = "mprotect"))]
+            builder.assert_zero(local.is_real);
+
+            eval_untrusted_program(
+                builder,
+                local.state.pc,
+                instruction,
+                [instr_type, base_opcode, funct3, funct7],
+                [local.state.clk_high::<AB>(), local.state.clk_low::<AB>()],
+                local.is_real.into(),
+                local.adapter_cols,
+            );
+
+            is_trusted = local.adapter_cols.is_trusted.into();
+        }
+
         // Constrain the program and register reads.
         <ITypeReader<AB::F> as SP1Operation<AB>>::eval(
             builder,
@@ -82,11 +115,11 @@ where
                 local.state.clk_high::<AB>(),
                 local.state.clk_low::<AB>(),
                 local.state.pc,
-                opcode.into(),
-                [instr_type, base_opcode, funct3, funct7],
+                Opcode::JALR.as_field::<AB::F>().into(),
                 local.op_a_operation.value.map(|x| x.into()),
                 local.adapter,
                 local.is_real.into(),
+                is_trusted,
             ),
         );
 

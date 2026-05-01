@@ -5,8 +5,8 @@ use slop_basefold::{BasefoldVerifier, FriConfig};
 use slop_multilinear::Point;
 use sp1_hypercube::{
     air::MachineAir, septic_digest::SepticDigest, AirOpenedValues, Chip, ChipOpenedValues,
-    MachineVerifyingKey, SP1PcsProofInner, ShardOpenedValues, ShardProof, NUM_SP1_COMMITMENTS,
-    PROOF_MAX_NUM_PVS,
+    MachineVerifyingKey, SP1PcsProofInner, ShardOpenedValues, ShardProof, UntrustedConfig,
+    NUM_SP1_COMMITMENTS, PROOF_MAX_NUM_PVS,
 };
 use sp1_primitives::{SP1ExtensionField, SP1Field, SP1GlobalContext};
 
@@ -21,7 +21,7 @@ pub fn dummy_vk() -> MachineVerifyingKey<SP1GlobalContext> {
         pc_start: [SP1Field::zero(); 3],
         initial_global_cumulative_sum: SepticDigest::zero(),
         preprocessed_commit: [SP1Field::zero(); 8],
-        enable_untrusted_programs: SP1Field::zero(),
+        untrusted_config: UntrustedConfig::zero(),
     }
 }
 

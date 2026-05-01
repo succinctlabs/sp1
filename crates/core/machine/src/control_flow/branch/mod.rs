@@ -4,13 +4,22 @@ mod trace;
 
 pub use columns::*;
 use slop_air::BaseAir;
+use std::marker::PhantomData;
+
+use crate::TrustMode;
 
 #[derive(Default)]
-pub struct BranchChip;
+pub struct BranchChip<M: TrustMode> {
+    pub _phantom: PhantomData<M>,
+}
 
-impl<F> BaseAir<F> for BranchChip {
+impl<F, M: TrustMode> BaseAir<F> for BranchChip<M> {
     fn width(&self) -> usize {
-        NUM_BRANCH_COLS
+        if M::IS_TRUSTED {
+            NUM_BRANCH_COLS_SUPERVISOR
+        } else {
+            NUM_BRANCH_COLS_USER
+        }
     }
 }
 /*

@@ -8,13 +8,13 @@ use std::{
 };
 
 use anyhow::anyhow;
-use slop_algebra::AbstractField;
 use slop_futures::pipeline::{AsyncEngine, AsyncWorker, Pipeline, SubmitError, SubmitHandle};
 use sp1_core_executor::{
     events::{PrecompileEvent, SyscallEvent},
     ExecutionRecord, Program, SP1CoreOpts, SplitOpts,
 };
-use sp1_core_machine::{executor::trace_chunk, riscv::RiscvAir};
+use sp1_core_machine::executor::trace_chunk;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::{
     prover::{shape_from_record, CoreProofShape, ProverSemaphore, ProvingKey},
     Machine, MachineProof, MachineVerifier, SP1VerifyingKey,
@@ -31,6 +31,7 @@ use tokio::sync::OnceCell;
 use tracing::Instrument;
 
 use crate::{
+    components::CoreSC,
     recursion::{normalize_program_from_input, recursive_verifier},
     shapes::{SP1NormalizeCache, SP1NormalizeInputShape, SP1RecursionProofShape},
     worker::{
@@ -38,7 +39,7 @@ use crate::{
         PrecompileArtifactSlice, ProofId, ProverMetrics, RawTaskRequest, SP1RecursionProver,
         TaskContext, TaskError, TaskId, TaskMetadata, TraceData, WorkerClient,
     },
-    CoreSC, SP1CircuitWitness, SP1ProverComponents,
+    SP1CircuitWitness, SP1ProverComponents,
 };
 
 pub struct SetupTask {
@@ -312,6 +313,8 @@ where
                                 final_state,
                                 initialize_events,
                                 finalize_events,
+                                page_prot_initialize_events,
+                                page_prot_finalize_events,
                                 previous_init_addr,
                                 previous_finalize_addr,
                                 previous_init_page_idx,
@@ -328,9 +331,17 @@ where
                             );
                             record.global_memory_initialize_events = initialize_events;
                             record.global_memory_finalize_events = finalize_events;
+                            record.global_page_prot_initialize_events = page_prot_initialize_events;
+                            record.global_page_prot_finalize_events = page_prot_finalize_events;
 
-                            let enable_untrusted_programs =
-                                common_input.vk.vk.enable_untrusted_programs == SP1Field::one();
+                            let enable_untrusted_programs = program.enable_untrusted_programs;
+                            let enable_trap_handler = program.trap_context.is_some() as u32;
+                            let trap_context = program
+                                .trap_context
+                                .map_or([0, 0, 0], |addr| [addr, addr + 8, addr + 16]);
+                            let untrusted_memory = program
+                                .untrusted_memory
+                                .map_or([0, 0], |(start, end)| [start, end]);
 
                             // Update the public values
                             record.public_values.update_finalized_state(
@@ -338,6 +349,9 @@ where
                                 final_state.pc,
                                 final_state.exit_code,
                                 enable_untrusted_programs as u32,
+                                enable_trap_handler,
+                                trap_context,
+                                untrusted_memory,
                                 final_state.public_value_digest,
                                 common_input.deferred_digest,
                                 final_state.proof_nonce,
@@ -427,6 +441,8 @@ where
                             main_record.public_values.update_initialized_state(
                                 program.pc_start_abs,
                                 program.enable_untrusted_programs,
+                                program.trap_context,
+                                program.untrusted_memory,
                             );
 
                             (main_record, None, true)
@@ -452,8 +468,9 @@ where
                 async move {
                     // SplitOpts::new() parses JSON and builds lookup tables - run in spawn_blocking
                     let program_len = program.instructions.len();
+                    let enable_untrusted_programs = program.enable_untrusted_programs;
                     let split_opts = tokio::task::spawn_blocking(move || {
-                        SplitOpts::new(&opts, program_len, false)
+                        SplitOpts::new(&opts, program_len, enable_untrusted_programs)
                     })
                     .await
                     .map_err(|e| TaskError::Fatal(e.into()))?;
@@ -579,10 +596,11 @@ where
 
         if self.verify_intermediates {
             let parent = tracing::Span::current();
+            let machine = self.machine().clone();
             tokio::task::spawn_blocking(move || {
                 let _guard = parent.enter();
                 let machine_proof = MachineProof::from(vec![proof_clone]);
-                C::core_verifier()
+                C::core_verifier(machine)
                     .verify(&vk_clone, &machine_proof)
                     .map_err(|e| TaskError::Retryable(anyhow!("shard verification failed: {e}")))
             })
@@ -782,6 +800,7 @@ pub struct SP1CoreProverConfig {
 }
 
 impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1CoreProver<A, W, C> {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         config: SP1CoreProverConfig,
         opts: SP1CoreOpts,
@@ -790,9 +809,10 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1CoreProver<A
         air_prover: Arc<C::CoreProver>,
         permits: ProverSemaphore,
         recursion_prover: SP1RecursionProver<A, C>,
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     ) -> Self {
         // Initialize the normalize program compiler
-        let core_verifier = C::core_verifier();
+        let core_verifier = C::core_verifier(machine);
 
         let normalize_program_cache = SP1NormalizeCache::new(config.normalize_program_cache_size);
 

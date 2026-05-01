@@ -41,11 +41,56 @@ pub const PROT_WRITE: u8 = PF_W as u8;
 pub const PROT_EXEC: u8 = PF_X as u8;
 pub const DEFAULT_PAGE_PROT: u8 = PROT_READ | PROT_WRITE;
 
+/// Permitted page protection combinations:
+/// * Inaccessible: not readable, not writable, not executable
+/// * Read-write: readable, writable, not executable
+/// * Read-execute: readable, not writable, executable
+/// * Read: readable, not writable, not executable
+pub const PERMITTED_PROTS: [u8; 4] =
+    [PROT_NONE, PROT_READ | PROT_WRITE, PROT_READ | PROT_EXEC, PROT_READ];
+
+/// The values here are chosen based on RISC-V's specifications.
+pub const PROT_FAILURE_EXEC: u64 = 1;
+pub const PROT_FAILURE_READ: u64 = 5;
+pub const PROT_FAILURE_WRITE: u64 = 7;
+
+/// ELF segment flag indicating untrusted code.
+pub const PF_UNTRUSTED: u32 = 0x0010_0000;
+
+/// The name of the note section for enabling untrusted programs.
+pub const NOTE_NAME: [u8; 9] = *b"SUCCINCT\0";
 /// The type for the ELF note for enabling untrusted programs.
 pub const NOTE_UNTRUSTED_PROGRAM_ENABLED: u32 = 1;
+/// The ELF note header for untrusted programs.
+pub const NOTE_DESC_HEADER: [u8; 4] = [b'1', 0, 0, 0];
+/// In current version the full desc holds a 4 byte header, and 2 64-bit integers
+/// denoting heap start/end. This is also the memory region mprotect can work on.
+pub const NOTE_DESC_SIZE: usize = NOTE_DESC_HEADER.len() + 8 + 8;
+/// Padding size for note name.
+pub const NOTE_NAME_PADDING_SIZE: usize = (4 - NOTE_NAME.len() % 4) % 4;
+/// Padding size for note desc.
+pub const NOTE_DESC_PADDING_SIZE: usize = (4 - NOTE_DESC_SIZE % 4) % 4;
+
+/// The name of the custom ELF section for the profiler stack.
+pub const PROFILER_STACK_CUSTOM_SECTION_NAME: &str = "__sp1_profiler_stack";
 
 /// The stack top for the 64-bit zkvm.
-pub const STACK_TOP: u64 = 0x78000000;
+/// Programs which might dump elf will have an extra 16MB area used as stack.
+pub const DUMP_ELF_EXTRA_STACK: u64 = 0x100_0000;
+pub const STACK_TOP: u64 = 0x7800_0000;
+
+/// The maximum number of distinct page permission regions generated
+/// in `DUMP_ELF` syscall.
+pub const MAXIMUM_DUMPED_PERMISSIONS: usize = 128;
+
+/// The length of permission array used in `DUMP_ELF` syscall (counting raw u64).
+pub const PERMISSION_ARRAY_LENGTH: usize = MAXIMUM_DUMPED_PERMISSIONS * 3 + 1;
+/// The size of permission array (in bytes) used in `DUMP_ELF` syscall.
+/// It is aligned to 16 bytes so stack can be aligned.
+pub const PERMISSION_BUFFER_SIZE: usize = (PERMISSION_ARRAY_LENGTH * 8).div_ceil(16) * 16;
+
+/// The maximum number of LOAD segments accepted by SP1.
+pub const MAXIMUM_ELF_SEGMENTS: usize = 256;
 
 pub mod fd {
     /// The minimum file descriptor.

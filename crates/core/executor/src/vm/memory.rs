@@ -85,6 +85,144 @@ impl CompressedMemory {
     }
 }
 
+/// A structure that stores a single bit for each page index.
+///
+/// Similar to `CompressedMemory`, but for tracking touched page indices (2^12 byte pages).
+///
+/// Note that the default value is falsy.
+pub struct CompressedPages {
+    index: Vec<u32>,
+    bits: Vec<PageBits>,
+}
+
+#[allow(clippy::new_without_default)]
+impl CompressedPages {
+    /// The address space is 40 bits, and pages are 2^12 bytes.
+    const LOG_MAX_ADDR: usize = 40;
+    /// Each page is 2^12 = 4096 bytes.
+    const LOG_PAGE_SIZE: usize = 12;
+    /// The number of bitset pages in the index.
+    const MAX_NUM_BITSET_PAGES: usize =
+        (1 << (Self::LOG_MAX_ADDR - Self::LOG_PAGE_SIZE)) / Self::BITSET_PAGE_SIZE;
+    /// The size of a bitset page in terms of page index representatives.
+    const BITSET_PAGE_SIZE: usize = 1 << 14;
+
+    /// Create a new compressed pages tracker, preallocating all the index slots.
+    #[must_use]
+    pub fn new() -> Self {
+        Self { index: vec![u32::MAX; Self::MAX_NUM_BITSET_PAGES], bits: Vec::new() }
+    }
+
+    /// Set/clear the bit at `page_idx`. Returns the previous bit value.
+    #[inline]
+    pub fn insert(&mut self, page_idx: u64, value: bool) -> bool {
+        let (upper, lower) = Self::indices(page_idx);
+        debug_assert!(upper < Self::MAX_NUM_BITSET_PAGES, "page index exceeds 28-bit range");
+
+        let bitset_page_id = match self.index[upper] {
+            u32::MAX => {
+                let id = self.bits.len() as u32;
+                self.bits.push(PageBits::new());
+                self.index[upper] = id;
+                id
+            }
+            id => id,
+        };
+
+        self.bits[bitset_page_id as usize].set(lower, value)
+    }
+
+    /// Read the bit at `page_idx`.
+    #[inline]
+    #[must_use]
+    pub fn get(&self, page_idx: u64) -> bool {
+        let (upper, lower) = Self::indices(page_idx);
+        if upper >= self.index.len() {
+            return false;
+        }
+        match self.index[upper] {
+            u32::MAX => false,
+            id => self.bits[id as usize].get(lower),
+        }
+    }
+
+    #[inline]
+    fn indices(page_idx: u64) -> (usize, usize) {
+        let idx = page_idx as usize;
+        let upper = idx / Self::BITSET_PAGE_SIZE; // bitset page number
+        let lower = idx % Self::BITSET_PAGE_SIZE; // offset within bitset page
+        (upper, lower)
+    }
+
+    /// Return all page indices whose bit is set (ascending).
+    #[must_use]
+    pub fn is_set(&self) -> Vec<u64> {
+        let mut out = Vec::new();
+        for (upper, &pid) in self.index.iter().enumerate() {
+            if pid == u32::MAX {
+                continue;
+            }
+            let base = upper * Self::BITSET_PAGE_SIZE;
+            for lower in self.bits[pid as usize].iter_set_indices() {
+                out.push((base + lower) as u64);
+            }
+        }
+        out
+    }
+}
+
+/// A bitset page for `CompressedPages`.
+struct PageBits {
+    bits: Vec<u64>,
+}
+
+impl PageBits {
+    fn new() -> Self {
+        Self { bits: vec![0; CompressedPages::BITSET_PAGE_SIZE / 64] }
+    }
+
+    #[inline]
+    fn word_mask(idx: usize) -> (usize, u64) {
+        let w = idx >> 6;
+        let m = 1u64 << (idx & 63);
+        (w, m)
+    }
+
+    #[inline]
+    fn set(&mut self, idx: usize, value: bool) -> bool {
+        let (w, m) = Self::word_mask(idx);
+        let prev = (self.bits[w] & m) != 0;
+        if value {
+            self.bits[w] |= m;
+        } else {
+            self.bits[w] &= !m;
+        }
+        prev
+    }
+
+    #[inline]
+    fn get(&self, idx: usize) -> bool {
+        let (w, m) = Self::word_mask(idx);
+        (self.bits[w] & m) != 0
+    }
+
+    #[inline]
+    fn iter_set_indices(&self) -> impl Iterator<Item = usize> + '_ {
+        self.bits.iter().enumerate().flat_map(|(w_i, &word0)| {
+            let mut word = word0;
+            std::iter::from_fn(move || {
+                if word == 0 {
+                    return None;
+                }
+                let tz = word.trailing_zeros() as usize;
+                let idx = (w_i << 6) | tz;
+                word &= word - 1;
+                Some(idx)
+            })
+        })
+    }
+}
+
 /// A page of memory.
 pub struct Page {
     bits: Vec<u64>,
