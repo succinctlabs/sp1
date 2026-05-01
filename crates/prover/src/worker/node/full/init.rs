@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
 use slop_futures::pipeline::TaskJoinError;
-use sp1_hypercube::prover::ProverSemaphore;
+use sp1_core_machine::riscv::RiscvAir;
+use sp1_hypercube::{prover::ProverSemaphore, Machine};
+use sp1_primitives::SP1Field;
 use sp1_prover_types::{
     ArtifactClient, ArtifactType, InMemoryArtifactClient, TaskStatus, TaskType,
 };
@@ -18,6 +20,7 @@ use crate::{
 };
 
 pub struct SP1LocalNodeBuilder<C: SP1ProverComponents> {
+    pub machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     pub worker_builder: SP1WorkerBuilder<C, InMemoryArtifactClient, LocalWorkerClient>,
     pub channels: LocalWorkerClientChannels,
 }
@@ -31,7 +34,12 @@ impl<C: SP1ProverComponents> Default for SP1LocalNodeBuilder<C> {
 impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
     /// Creates a new local node builder with a default worker client builder.
     pub fn new() -> Self {
-        Self::from_worker_client_builder(SP1WorkerBuilder::new())
+        Self::new_with_machine(RiscvAir::machine())
+    }
+
+    /// Creates a new local node builder with a custom machine.
+    pub fn new_with_machine(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
+        Self::from_worker_client_builder(SP1WorkerBuilder::new_with_machine(machine))
     }
 
     /// Creates a new local node builder from a worker client builder.
@@ -41,9 +49,10 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
     pub fn from_worker_client_builder(builder: SP1WorkerBuilder<C>) -> Self {
         let artifact_client = InMemoryArtifactClient::new();
         let (worker_client, channels) = LocalWorkerClient::init();
+        let machine = builder.machine().clone();
         let worker_builder =
             builder.with_artifact_client(artifact_client).with_worker_client(worker_client);
-        Self { worker_builder, channels }
+        Self { machine, worker_builder, channels }
     }
 
     /// Sets the core air prover to the worker client builder.
@@ -89,7 +98,7 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
 
     pub async fn build(self) -> anyhow::Result<SP1LocalNode> {
         // Destructure the builder.
-        let Self { worker_builder, mut channels } = self;
+        let Self { machine, worker_builder, mut channels } = self;
         // Get the core options from the worker builder.
         let opts = worker_builder.core_opts().clone();
 
@@ -273,7 +282,8 @@ impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
                     tokio::select! {
                         Some((id, request)) = core_prover_rx.recv() => {
                             let proof_id = request.context.proof_id.clone();
-                        let handle = run_vk_generation::<_,_>(vk_worker, request, worker.artifact_client().clone());
+                        let handle =
+                            run_vk_generation(vk_worker, request, worker.artifact_client().clone(), machine.clone());
                             let tx = task_tx.clone();
                             let task_id = id;
                             task_set.spawn(async move {

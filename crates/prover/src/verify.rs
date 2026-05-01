@@ -7,10 +7,10 @@ use anyhow::{anyhow, Result};
 use num_bigint::BigUint;
 use slop_algebra::{AbstractField, PrimeField};
 use sp1_core_executor::SP1RecursionProof;
-use sp1_core_machine::riscv::MAX_LOG_NUMBER_OF_SHARDS;
+use sp1_core_machine::riscv::{RiscvAir, MAX_LOG_NUMBER_OF_SHARDS};
 use sp1_hypercube::{
     air::{PublicValues, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
-    koalabears_to_bn254, HashableKey, MachineVerifier, MachineVerifierConfigError,
+    koalabears_to_bn254, HashableKey, Machine, MachineVerifier, MachineVerifierConfigError,
     MachineVerifierError, MachineVerifyingKey, SP1InnerPcs, SP1OuterPcs, SP1PcsProofInner,
     SP1PcsProofOuter, SP1VerifyingKey, SP1WrapProof, PROOF_MAX_NUM_PVS,
 };
@@ -73,8 +73,15 @@ pub struct SP1Verifier {
 
 impl SP1Verifier {
     pub fn new(recursion_vks: VerifierRecursionVks) -> Self {
+        Self::new_with_machine(recursion_vks, RiscvAir::machine())
+    }
+
+    pub fn new_with_machine(
+        recursion_vks: VerifierRecursionVks,
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+    ) -> Self {
         // Get the verifiers from the components.
-        let core = CpuSP1ProverComponents::core_verifier();
+        let core = CpuSP1ProverComponents::core_verifier(machine);
         let compress = CpuSP1ProverComponents::compress_verifier();
         let shrink = CpuSP1ProverComponents::shrink_verifier();
         let wrap = CpuSP1ProverComponents::wrap_verifier();

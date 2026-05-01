@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use sp1_prover::{worker::ProofFromNetwork, SP1VerifyingKey};
-
-use sp1_prover_types::network_base_types::ProofMode;
+use sp1_prover_types::{network_base_types::ProofMode, SerializableRiscvMachine};
 
 use crate::CudaClientError;
 use sp1_core_machine::io::SP1Stdin;
@@ -9,7 +8,7 @@ use sp1_core_machine::io::SP1Stdin;
 #[derive(Serialize, Deserialize)]
 pub enum Request {
     /// Tell the server to create a new proving key.
-    Setup { elf: Vec<u8> },
+    Setup { elf: Vec<u8>, machine: SerializableRiscvMachine },
 
     /// Tell the server to create a proof with the given mode.
     ProveWithMode { mode: ProofMode, key: [u8; 32], stdin: SP1Stdin, proof_nonce: [u32; 4] },

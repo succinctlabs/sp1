@@ -17,6 +17,9 @@ hashbrown.workspace = true
 mti.workspace = true
 prost.workspace = true
 serde = { workspace = true, features = ["derive"] }
+sp1-core-machine = { workspace = true }
+sp1-hypercube = { workspace = true }
+sp1-primitives = { workspace = true }
 tokio = { workspace = true, features = ["sync", "rt"] }
 tonic = { version = "0.12.3", features = ["tls"] }
 tracing.workspace = true

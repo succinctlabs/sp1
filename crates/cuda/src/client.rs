@@ -1,6 +1,8 @@
 use sp1_core_executor::SP1Context;
 use sp1_core_machine::io::SP1Stdin;
-use sp1_primitives::Elf;
+use sp1_core_machine::riscv::RiscvAir;
+use sp1_hypercube::Machine;
+use sp1_primitives::{Elf, SP1Field};
 use sp1_prover::worker::ProofFromNetwork;
 use sp1_prover_types::network_base_types::ProofMode;
 use std::{
@@ -35,8 +37,12 @@ pub(crate) struct CudaClient {
 
 impl CudaClient {
     /// Setup a new proving key.
-    pub(crate) async fn setup(&self, elf: Elf) -> Result<CudaProvingKey, CudaClientError> {
-        let request = Request::Setup { elf: elf.as_ref().into() };
+    pub(crate) async fn setup(
+        &self,
+        elf: Elf,
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+    ) -> Result<CudaProvingKey, CudaClientError> {
+        let request = Request::Setup { elf: elf.as_ref().into(), machine: machine.into() };
         let response = self.send_and_recv(request).await?.into_result()?;
         match response {
             Response::Setup { id, vk } => Ok(CudaProvingKey::new(id, elf, vk, self.clone())),

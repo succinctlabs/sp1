@@ -1,16 +1,20 @@
 use std::sync::Arc;
 
 use sp1_core_executor::SP1CoreOpts;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::prover::{CpuShardProver, ProverSemaphore};
+use sp1_hypercube::Machine;
+use sp1_primitives::SP1Field;
 use sp1_prover_types::{ArtifactClient, InMemoryArtifactClient};
 
 use crate::{
+    components::SP1ProverComponents,
     verify::{SP1Verifier, VerifierRecursionVks},
     worker::{
         LocalWorkerClient, SP1Controller, SP1ProverEngine, SP1Worker, SP1WorkerConfig,
         WorkerClient, WrapAirProverInit,
     },
-    CpuSP1ProverComponents, CpuWrapProverBuilder, SP1ProverComponents,
+    CpuSP1ProverComponents, CpuWrapProverBuilder,
 };
 
 pub struct SP1WorkerBuilder<
@@ -18,6 +22,7 @@ pub struct SP1WorkerBuilder<
     A = InMemoryArtifactClient,
     W = LocalWorkerClient,
 > {
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     config: SP1WorkerConfig,
     core_air_prover_and_permits: Option<(Arc<C::CoreProver>, ProverSemaphore)>,
     compress_air_prover_and_permits: Option<(Arc<C::RecursionProver>, ProverSemaphore)>,
@@ -34,11 +39,16 @@ impl<C: SP1ProverComponents> Default for SP1WorkerBuilder<C> {
 }
 
 impl<C: SP1ProverComponents> SP1WorkerBuilder<C> {
-    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
-        let config = SP1WorkerConfig::default();
+        Self::new_with_machine(RiscvAir::machine())
+    }
+
+    pub fn new_with_machine(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
+        // Note: the config is uniquely determined by the machine. We still cache it here.
+        let config = SP1WorkerConfig::new(machine.clone());
 
         Self {
+            machine,
             config,
             core_air_prover_and_permits: None,
             compress_air_prover_and_permits: None,
@@ -47,6 +57,10 @@ impl<C: SP1ProverComponents> SP1WorkerBuilder<C> {
             artifact_client: None,
             worker_client: None,
         }
+    }
+
+    pub fn machine(&self) -> &Machine<SP1Field, RiscvAir<SP1Field>> {
+        &self.machine
     }
 }
 
@@ -58,6 +72,7 @@ impl<C: SP1ProverComponents, A, W> SP1WorkerBuilder<C, A, W> {
         artifact_client: B,
     ) -> SP1WorkerBuilder<C, B, W> {
         let SP1WorkerBuilder {
+            machine,
             config,
             core_air_prover_and_permits,
             compress_air_prover_and_permits,
@@ -68,6 +83,7 @@ impl<C: SP1ProverComponents, A, W> SP1WorkerBuilder<C, A, W> {
         } = self;
 
         SP1WorkerBuilder {
+            machine,
             config,
             core_air_prover_and_permits,
             compress_air_prover_and_permits,
@@ -85,6 +101,7 @@ impl<C: SP1ProverComponents, A, W> SP1WorkerBuilder<C, A, W> {
         worker_client: V,
     ) -> SP1WorkerBuilder<C, A, V> {
         let SP1WorkerBuilder {
+            machine,
             config,
             core_air_prover_and_permits,
             compress_air_prover_and_permits,
@@ -95,6 +112,7 @@ impl<C: SP1ProverComponents, A, W> SP1WorkerBuilder<C, A, W> {
         } = self;
 
         SP1WorkerBuilder {
+            machine,
             config,
             core_air_prover_and_permits,
             compress_air_prover_and_permits,
@@ -176,6 +194,7 @@ impl<C: SP1ProverComponents, A, W> SP1WorkerBuilder<C, A, W> {
     {
         // Destructure the builder.
         let Self {
+            machine,
             config,
             core_air_prover_and_permits,
             compress_air_prover_and_permits,
@@ -213,6 +232,7 @@ impl<C: SP1ProverComponents, A, W> SP1WorkerBuilder<C, A, W> {
             compress_air_prover_and_permits,
             shrink_air_prover_and_permits,
             wrap_air_prover_and_permits,
+            machine.clone(),
         )
         .await;
 
@@ -226,7 +246,7 @@ impl<C: SP1ProverComponents, A, W> SP1WorkerBuilder<C, A, W> {
             num_keys: recursion_vks.num_keys(),
         };
 
-        let mut verifier = SP1Verifier::new(verifier_vks);
+        let mut verifier = SP1Verifier::new_with_machine(verifier_vks, machine);
         verifier.set_shrink_vk(shrink_vk);
 
         let controller = SP1Controller::new(
@@ -244,6 +264,7 @@ impl<C: SP1ProverComponents, A, W> SP1WorkerBuilder<C, A, W> {
     #[cfg(feature = "experimental")]
     pub fn with_vk_map_path(self, vk_map_path: String) -> SP1WorkerBuilder<C, A, W> {
         let SP1WorkerBuilder {
+            machine,
             mut config,
             core_air_prover_and_permits,
             compress_air_prover_and_permits,
@@ -264,6 +285,7 @@ impl<C: SP1ProverComponents, A, W> SP1WorkerBuilder<C, A, W> {
             wrap_air_prover_and_permits,
             artifact_client,
             worker_client,
+            machine,
         }
     }
 
@@ -271,6 +293,7 @@ impl<C: SP1ProverComponents, A, W> SP1WorkerBuilder<C, A, W> {
     #[cfg(feature = "experimental")]
     pub fn without_vk_verification(self) -> SP1WorkerBuilder<C, A, W> {
         let SP1WorkerBuilder {
+            machine,
             mut config,
             core_air_prover_and_permits,
             compress_air_prover_and_permits,
@@ -284,6 +307,7 @@ impl<C: SP1ProverComponents, A, W> SP1WorkerBuilder<C, A, W> {
             config.prover_config.recursion_prover_config.without_vk_verification();
 
         SP1WorkerBuilder {
+            machine,
             config,
             core_air_prover_and_permits,
             compress_air_prover_and_permits,
@@ -295,15 +319,22 @@ impl<C: SP1ProverComponents, A, W> SP1WorkerBuilder<C, A, W> {
     }
 }
 
-/// Create a [SP1WorkerBuilder] for a CPU worker.
+/// Create a [SP1WorkerBuilder] for a CPU worker with default components.
 pub fn cpu_worker_builder() -> SP1WorkerBuilder<CpuSP1ProverComponents> {
+    cpu_worker_builder_with_machine(RiscvAir::machine())
+}
+
+/// Same as [`cpu_worker_builder`] but with a custom machine.
+pub fn cpu_worker_builder_with_machine(
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+) -> SP1WorkerBuilder<CpuSP1ProverComponents> {
     // Create the prover permits, setting it to having 4 provers.
     let prover_permits = ProverSemaphore::new(4);
 
     // Get the core options.
     let opts = SP1CoreOpts::default();
 
-    let core_verifier = CpuSP1ProverComponents::core_verifier();
+    let core_verifier = CpuSP1ProverComponents::core_verifier(machine.clone());
     let core_air_prover = Arc::new(CpuShardProver::new(core_verifier.shard_verifier().clone()));
 
     let recursion_verifier = CpuSP1ProverComponents::compress_verifier();
@@ -318,7 +349,7 @@ pub fn cpu_worker_builder() -> SP1WorkerBuilder<CpuSP1ProverComponents> {
 
     let wrap_prover = CpuWrapProverBuilder;
 
-    let base_builder = SP1WorkerBuilder::new()
+    let base_builder = SP1WorkerBuilder::new_with_machine(machine)
         .with_artifact_client(artifact_client)
         .with_worker_client(worker_client)
         .with_core_opts(opts)

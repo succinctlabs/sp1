@@ -2,11 +2,12 @@ use std::sync::Arc;
 
 use sp1_core_executor::{ExecutionReport, Program, SP1Context, SP1CoreOpts};
 use sp1_core_machine::io::SP1Stdin;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::{
     prover::{CpuShardProver, ProverSemaphore},
-    SP1VerifyingKey,
+    Machine, SP1VerifyingKey,
 };
-use sp1_primitives::io::SP1PublicValues;
+use sp1_primitives::{io::SP1PublicValues, SP1Field};
 use sp1_verifier::SP1Proof;
 
 use crate::{
@@ -36,21 +37,35 @@ impl Clone for SP1LightNode {
 
 impl SP1LightNode {
     pub async fn new() -> Self {
-        Self::with_opts(SP1CoreOpts::default()).await
+        Self::new_with_machine(RiscvAir::machine()).await
     }
 
-    /// Create a new light node
+    pub async fn new_with_machine(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
+        Self::with_opts_and_machine(machine, SP1CoreOpts::default()).await
+    }
+
+    /// Create a new light node with custom options.
     pub async fn with_opts(opts: SP1CoreOpts) -> Self {
+        Self::with_opts_and_machine(RiscvAir::machine(), opts).await
+    }
+
+    /// Create a new light node with custom options and a given machine.
+    pub async fn with_opts_and_machine(
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+        opts: SP1CoreOpts,
+    ) -> Self {
         // Initializing the merkle tree is blocking, so we need to spawn in on a blocking task.
-        tokio::task::spawn_blocking(|| {
+        tokio::task::spawn_blocking(move || {
             // Get a core prover for the light node to be able to do the setup step
-            let core_verifier = CpuSP1ProverComponents::core_verifier();
+            let core_verifier = CpuSP1ProverComponents::core_verifier(machine.clone());
             let core_air_prover =
                 Arc::new(CpuShardProver::new(core_verifier.shard_verifier().clone()));
             let permits = ProverSemaphore::new(1);
 
-            // Get a new verifier for the light(( node.
-            let verifier = SP1Verifier::new(VerifierRecursionVks::default());
+            // Get a new verifier for the light node.
+            let recursion_vks = VerifierRecursionVks::default();
+
+            let verifier = SP1Verifier::new_with_machine(recursion_vks, machine);
             // Create a new core node for the light node
             let core = SP1NodeCore::new(verifier, opts);
 
@@ -96,7 +111,7 @@ mod tests {
     use sp1_hypercube::HashableKey;
     use tracing::Instrument;
 
-    use crate::worker::{cpu_worker_builder, SP1LocalNodeBuilder};
+    use crate::worker::{cpu_worker_builder_with_machine, SP1LocalNodeBuilder};
 
     use super::*;
 
@@ -104,14 +119,18 @@ mod tests {
     async fn test_light_node() {
         setup_logger();
 
-        let light_node =
-            SP1LightNode::new().instrument(tracing::info_span!("initialize light node")).await;
+        let machine = RiscvAir::machine();
+        let light_node = SP1LightNode::new_with_machine(machine.clone())
+            .instrument(tracing::info_span!("initialize light node"))
+            .await;
 
-        let node = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder())
-            .build()
-            .instrument(tracing::info_span!("initialize full node"))
-            .await
-            .unwrap();
+        let node = SP1LocalNodeBuilder::from_worker_client_builder(
+            cpu_worker_builder_with_machine(machine),
+        )
+        .build()
+        .instrument(tracing::info_span!("initialize full node"))
+        .await
+        .unwrap();
 
         let elf = test_artifacts::FIBONACCI_ELF;
         let stdin = SP1Stdin::default();
