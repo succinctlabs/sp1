@@ -3,10 +3,14 @@ use sp1_core_executor::{events::ByteRecord, ByteOpcode, ExecutionRecord, Program
 use sp1_hypercube::air::MachineAir;
 use std::mem::MaybeUninit;
 
+use crate::range::columns::RangePreprocessedCols;
+
 use super::{
     columns::{NUM_RANGE_MULT_COLS, NUM_RANGE_PREPROCESSED_COLS},
     RangeChip,
 };
+
+use struct_reflection::StructReflectionHelper;
 
 pub const NUM_ROWS: usize = 1 << 17;
 
@@ -99,5 +103,9 @@ impl<F: PrimeField32> MachineAir<F> for RangeChip<F> {
 
     fn included(&self, _shard: &Self::Record) -> bool {
         true
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        RangePreprocessedCols::<F>::struct_reflection().unwrap()
     }
 }

@@ -7,7 +7,8 @@ use sp1_core_executor::{
     events::{PrecompileEvent, SyscallEvent},
     ExecutionRecord, Program, SP1CoreOpts, SplitOpts,
 };
-use sp1_core_machine::{executor::trace_chunk, riscv::RiscvAir};
+use sp1_core_machine::executor::trace_chunk;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::{
     prover::{shape_from_record, CoreProofShape, ProverSemaphore, ProvingKey},
     Machine, MachineProof, MachineVerifier, SP1VerifyingKey,
@@ -24,6 +25,7 @@ use tokio::sync::OnceCell;
 use tracing::Instrument;
 
 use crate::{
+    components::CoreSC,
     recursion::{normalize_program_from_input, recursive_verifier},
     shapes::{SP1NormalizeCache, SP1NormalizeInputShape, SP1RecursionProofShape},
     worker::{
@@ -31,7 +33,7 @@ use crate::{
         PrecompileArtifactSlice, ProofId, ProverMetrics, RawTaskRequest, SP1RecursionProver,
         TaskContext, TaskError, TaskId, TaskMetadata, TraceData, WorkerClient,
     },
-    CoreSC, SP1CircuitWitness, SP1ProverComponents,
+    SP1CircuitWitness, SP1ProverComponents,
 };
 
 pub struct SetupTask {
@@ -559,10 +561,11 @@ where
 
         if self.verify_intermediates {
             let parent = tracing::Span::current();
+            let machine = self.machine().clone();
             tokio::task::spawn_blocking(move || {
                 let _guard = parent.enter();
                 let machine_proof = MachineProof::from(vec![proof_clone]);
-                C::core_verifier()
+                C::core_verifier(machine)
                     .verify(&vk_clone, &machine_proof)
                     .map_err(|e| TaskError::Retryable(anyhow!("shard verification failed: {e}")))
             })
@@ -762,6 +765,7 @@ pub struct SP1CoreProverConfig {
 }
 
 impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1CoreProver<A, W, C> {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         config: SP1CoreProverConfig,
         opts: SP1CoreOpts,
@@ -770,9 +774,10 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1CoreProver<A
         air_prover: Arc<C::CoreProver>,
         permits: ProverSemaphore,
         recursion_prover: SP1RecursionProver<A, C>,
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     ) -> Self {
         // Initialize the normalize program compiler
-        let core_verifier = C::core_verifier();
+        let core_verifier = C::core_verifier(machine);
 
         let normalize_program_cache = SP1NormalizeCache::new(config.normalize_program_cache_size);
 

@@ -307,12 +307,14 @@ impl SP1LocalNode {
 #[cfg(test)]
 mod tests {
     use serial_test::serial;
-    use sp1_core_machine::utils::setup_logger;
+    use sp1_core_machine::{riscv::RiscvAir, utils::setup_logger};
 
     use crate::CpuSP1ProverComponents;
     use sp1_hypercube::HashableKey;
 
-    use crate::worker::{cpu_worker_builder, SP1LocalNodeBuilder, SP1WorkerBuilder};
+    use crate::worker::{
+        cpu_worker_builder, cpu_worker_builder_with_machine, SP1LocalNodeBuilder, SP1WorkerBuilder,
+    };
 
     use super::*;
 
@@ -408,10 +410,13 @@ mod tests {
         let stdin = SP1Stdin::default();
         let mode = ProofMode::Groth16;
 
-        let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder())
-            .build()
-            .await
-            .unwrap();
+        let machine = RiscvAir::machine();
+        let client = SP1LocalNodeBuilder::from_worker_client_builder(
+            cpu_worker_builder_with_machine(machine),
+        )
+        .build()
+        .await
+        .unwrap();
 
         let time = tokio::time::Instant::now();
         let context = SP1Context::default();

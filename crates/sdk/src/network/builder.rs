@@ -3,6 +3,9 @@
 //! This module provides a builder for the [`NetworkProver`].
 
 use alloy_primitives::Address;
+use sp1_core_machine::riscv::RiscvAir;
+use sp1_hypercube::Machine;
+use sp1_primitives::SP1Field;
 
 use crate::{
     network::{signer::NetworkSigner, NetworkMode, TEE_NETWORK_RPC_URL},
@@ -12,25 +15,38 @@ use crate::{
 /// A builder for the [`NetworkProver`].
 ///
 /// The builder is used to configure the [`NetworkProver`] before it is built.
-#[derive(Default)]
 pub struct NetworkProverBuilder {
     pub(crate) private_key: Option<String>,
     pub(crate) rpc_url: Option<String>,
     pub(crate) tee_signers: Option<Vec<Address>>,
     pub(crate) signer: Option<NetworkSigner>,
     pub(crate) network_mode: Option<NetworkMode>,
+    pub(crate) machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+}
+
+impl Default for NetworkProverBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl NetworkProverBuilder {
     /// Creates a new [`NetworkProverBuilder`].
     #[must_use]
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
+        Self::new_with_machine(RiscvAir::machine())
+    }
+
+    /// Creates a new [`NetworkProverBuilder`] with a given machine.
+    #[must_use]
+    pub const fn new_with_machine(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
         Self {
             private_key: None,
             rpc_url: None,
             tee_signers: None,
             signer: None,
             network_mode: None,
+            machine,
         }
     }
 
@@ -205,6 +221,8 @@ impl NetworkProverBuilder {
             None => vec![],
         };
 
-        NetworkProver::new(signer, &rpc_url, network_mode).await.with_tee_signers(tee_signers)
+        NetworkProver::new_with_machine(signer, &rpc_url, network_mode, self.machine)
+            .await
+            .with_tee_signers(tee_signers)
     }
 }

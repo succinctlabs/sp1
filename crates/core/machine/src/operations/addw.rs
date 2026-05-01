@@ -1,6 +1,7 @@
 use sp1_core_executor::events::ByteRecord;
 use sp1_hypercube::{air::SP1AirBuilder, Word};
 use sp1_primitives::consts::{u32_to_u16_limbs, WORD_SIZE};
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use slop_air::AirBuilder;
 use slop_algebra::{AbstractField, Field};
@@ -12,7 +13,9 @@ use crate::{
 };
 
 /// A set of columns needed to compute the ADDW of two words.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy, IntoShape, SP1OperationBuilder)]
+#[derive(
+    AlignedBorrow, StructReflection, Default, Debug, Clone, Copy, IntoShape, SP1OperationBuilder,
+)]
 #[repr(C)]
 pub struct AddwOperation<T> {
     /// The result of the ADDW operation.

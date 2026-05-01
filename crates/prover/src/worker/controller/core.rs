@@ -11,13 +11,16 @@ use sp1_core_executor::{
     CoreVM, ExecutionError, Program, SP1CoreOpts, SyscallCode, UnsafeMemory,
 };
 use sp1_core_executor_runner::MinimalExecutorRunner;
-use sp1_core_machine::{executor::ExecutionOutput, io::SP1Stdin};
+use sp1_core_machine::{executor::ExecutionOutput, io::SP1Stdin, riscv::RiscvAir};
 use sp1_hypercube::{
     air::{ShardRange, PROOF_NONCE_NUM_WORDS, PV_DIGEST_NUM_WORDS},
-    SP1VerifyingKey, DIGEST_SIZE,
+    Machine, SP1VerifyingKey, DIGEST_SIZE,
 };
 use sp1_jit::MinimalTrace;
-use sp1_prover_types::{network_base_types::ProofMode, Artifact, ArtifactClient, TaskType};
+use sp1_primitives::SP1Field;
+use sp1_prover_types::{
+    network_base_types::ProofMode, Artifact, ArtifactClient, SerializableRiscvMachine, TaskType,
+};
 use tokio::{
     sync::{mpsc, oneshot},
     task::JoinSet,
@@ -59,6 +62,7 @@ impl<W: WorkerClient, T: Serialize> MessageSender<W, T> {
 struct CoreExecuteMetadata {
     num_deferred_proofs: usize,
     cycle_limit: Option<u64>,
+    machine: SerializableRiscvMachine,
 }
 
 pub struct CoreExecuteTaskRequest {
@@ -69,6 +73,7 @@ pub struct CoreExecuteTaskRequest {
     pub num_deferred_proofs: usize,
     pub cycle_limit: Option<u64>,
     pub context: TaskContext,
+    pub machine: Machine<SP1Field, RiscvAir<SP1Field>>,
 }
 
 impl CoreExecuteTaskRequest {
@@ -84,6 +89,7 @@ impl CoreExecuteTaskRequest {
             serde_json::from_str(&metadata.to_id()).map_err(|e| {
                 TaskError::Fatal(anyhow::anyhow!("failed to deserialize CoreExecuteMetadata: {e}"))
             })?;
+        let machine = metadata.machine.into();
         Ok(CoreExecuteTaskRequest {
             elf,
             stdin,
@@ -92,6 +98,7 @@ impl CoreExecuteTaskRequest {
             num_deferred_proofs: metadata.num_deferred_proofs,
             cycle_limit: metadata.cycle_limit,
             context,
+            machine,
         })
     }
 
@@ -99,6 +106,7 @@ impl CoreExecuteTaskRequest {
         let metadata = CoreExecuteMetadata {
             num_deferred_proofs: self.num_deferred_proofs,
             cycle_limit: self.cycle_limit,
+            machine: self.machine.into(),
         };
         let metadata_str = serde_json::to_string(&metadata).map_err(|e| {
             TaskError::Fatal(anyhow::anyhow!("failed to serialize CoreExecuteMetadata: {e}"))
@@ -167,6 +175,7 @@ pub struct SP1CoreExecutor<A: ArtifactClient, W: WorkerClient> {
     gate: super::ProveShardGate<A, W>,
     minimal_executor_cache: Option<MinimalExecutorCache>,
     cycle_limit: Option<u64>,
+    _machine: Machine<SP1Field, RiscvAir<SP1Field>>,
 }
 
 impl<A: ArtifactClient, W: WorkerClient> SP1CoreExecutor<A, W> {
@@ -186,6 +195,7 @@ impl<A: ArtifactClient, W: WorkerClient> SP1CoreExecutor<A, W> {
         gate: super::ProveShardGate<A, W>,
         minimal_executor_cache: Option<MinimalExecutorCache>,
         cycle_limit: Option<u64>,
+        _machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     ) -> Self {
         Self {
             splicing_engine,
@@ -202,6 +212,7 @@ impl<A: ArtifactClient, W: WorkerClient> SP1CoreExecutor<A, W> {
             gate,
             minimal_executor_cache,
             cycle_limit,
+            _machine,
         }
     }
 }

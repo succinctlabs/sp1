@@ -12,7 +12,9 @@ pub mod builder;
 use std::pin::Pin;
 
 use sp1_core_executor::SP1CoreOpts;
-use sp1_core_machine::io::SP1Stdin;
+use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAir};
+use sp1_hypercube::Machine;
+use sp1_primitives::SP1Field;
 use sp1_prover::worker::{SP1LightNode, SP1NodeCore};
 
 use crate::{
@@ -31,14 +33,29 @@ impl LightProver {
     /// Create a new light prover.
     #[must_use]
     pub async fn new() -> Self {
+        Self::new_with_machine(RiscvAir::machine()).await
+    }
+
+    /// Create a new light prover with a given machine.
+    #[must_use]
+    pub async fn new_with_machine(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
         tracing::info!("initializing light prover");
-        Self { inner: SP1LightNode::new().await }
+        Self { inner: SP1LightNode::new_with_machine(machine).await }
     }
 
     /// Create a new light prover with custom options.
     #[must_use]
     pub async fn new_with_opts(opts: SP1CoreOpts) -> Self {
-        Self { inner: SP1LightNode::with_opts(opts).await }
+        Self::new_with_opts_and_machine(RiscvAir::machine(), opts).await
+    }
+
+    /// Create a new light prover with custom options and a given machine.
+    #[must_use]
+    pub async fn new_with_opts_and_machine(
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+        opts: SP1CoreOpts,
+    ) -> Self {
+        Self { inner: SP1LightNode::with_opts_and_machine(machine, opts).await }
     }
 }
 

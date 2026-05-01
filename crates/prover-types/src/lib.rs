@@ -3,6 +3,9 @@ use anyhow::{anyhow, Result};
 mod artifacts;
 pub use artifacts::*;
 
+mod machine;
+pub use machine::*;
+
 pub mod cluster {
     tonic::include_proto!("cluster");
 }
