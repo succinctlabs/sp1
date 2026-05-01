@@ -74,12 +74,16 @@ pub mod random {
     /// Randomly partition `total_area` field elements among the chips in `layout`,
     /// returning a per-chip row count.
     ///
+    /// Every chip is guaranteed at least one 4-row block; downstream consumers like
+    /// `round_batch_evaluations` walk the column index expecting one evaluation per
+    /// non-zero-height column and underflow if any chip is left empty. Panics if
+    /// `total_area` is too small to give every chip its minimum allocation.
+    ///
     /// Heights are multiples of 4 (required so that `column_heights = height/2` is
     /// even and matches the `height.div_ceil(4) * 2` pattern in
-    /// `next_start_indices_and_column_heights`). Allocation greedily picks a random
-    /// fitting chip and assigns it a random number of 4-row blocks until no chip
-    /// fits in the remaining budget; the remainder (bounded by the smallest chip's
-    /// row cost) is discarded.
+    /// `next_start_indices_and_column_heights`). After the floor allocation, the
+    /// remaining budget is distributed greedily: pick a random fitting chip and
+    /// give it a random number of 4-row blocks until no chip fits in the leftover.
     pub fn generate_random_heights<R: Rng>(
         rng: &mut R,
         layout: &AbstractChipLayout,
@@ -91,8 +95,16 @@ pub mod random {
         // elements to the dense buffer.
         let row_costs: Vec<u64> = layout.0.iter().map(|(_, p, m)| (p + m) as u64).collect();
 
-        let mut heights = vec![0usize; layout.0.len()];
-        let mut remaining = total_area;
+        // Floor: every chip gets one 4-row block up front so no chip is left at h=0.
+        let min_total: u64 = row_costs.iter().sum::<u64>() * ALIGN as u64;
+        assert!(
+            total_area >= min_total,
+            "total_area = {total_area} is too small to give every chip {ALIGN} rows \
+             (need at least {min_total})",
+        );
+
+        let mut heights = vec![ALIGN; layout.0.len()];
+        let mut remaining = total_area - min_total;
         loop {
             let candidates: Vec<usize> =
                 (0..layout.0.len()).filter(|&i| row_costs[i] * ALIGN as u64 <= remaining).collect();

@@ -7605,6 +7605,7 @@ name = "sp1-gpu-shard-prover"
 version = "6.1.0"
 dependencies = [
  "criterion",
+ "rand 0.8.6",
  "serial_test",
  "slop-algebra",
  "slop-alloc",
@@ -7720,6 +7721,7 @@ dependencies = [
 name = "sp1-gpu-zerocheck"
 version = "6.1.0"
 dependencies = [
+ "criterion",
  "itertools 0.14.0",
  "rand 0.8.6",
  "serial_test",
