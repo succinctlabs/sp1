@@ -174,6 +174,9 @@ extern "C" {
     /// Executes the mprotect syscall.
     pub fn syscall_mprotect(addr: *const u8, prot: u8);
 
+    /// Flushes all pending mprotect changes.
+    pub fn syscall_mprotect_flush();
+
     /// Reads a buffer from the input stream.
     pub fn read_vec_raw() -> ReadVecResult;
 

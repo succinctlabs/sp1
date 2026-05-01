@@ -81,6 +81,11 @@ sp1-primitives = { workspace = true }
 [features]
 debug = []
 bigint-rug = ["sp1-curves/bigint-rug"]
+mprotect = [
+  "sp1-core-executor/mprotect",
+  "sp1-core-executor-runner/mprotect",
+  "sp1-hypercube/mprotect",
+]
 
 [lib]
 path = "src/lib.rs"

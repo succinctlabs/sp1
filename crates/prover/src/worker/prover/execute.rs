@@ -1,20 +1,23 @@
 use futures::{stream::FuturesUnordered, StreamExt};
 use slop_futures::pipeline::{AsyncEngine, AsyncWorker, Pipeline, SubmitHandle};
 use sp1_core_executor::{
-    ExecutionError, ExecutionReport, GasEstimatingVM, Program, SP1Context, SP1CoreOpts,
+    ExecutionError, ExecutionReport, GasEstimatingVMEnum, Program, SP1Context, SP1CoreOpts,
     SP1RecursionProof,
 };
 use sp1_core_executor_runner::MinimalExecutorRunner;
 use sp1_core_machine::io::SP1Stdin;
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::air::PROOF_NONCE_NUM_WORDS;
-use sp1_hypercube::{MachineVerifyingKey, SP1PcsProofInner, SP1VerifyingKey};
+use sp1_hypercube::{Machine, MachineVerifyingKey, SP1PcsProofInner, SP1VerifyingKey};
 use sp1_jit::TraceChunkRaw;
 use sp1_primitives::io::SP1PublicValues;
-use sp1_primitives::SP1GlobalContext;
+use sp1_primitives::{SP1Field, SP1GlobalContext};
 use std::sync::Arc;
 use tracing::Instrument;
 
 use crate::verify::SP1Verifier;
+#[cfg(feature = "mprotect")]
+use crate::{recursion::RecursionVks, worker::DEFAULT_MAX_COMPOSE_ARITY};
 
 type DeferredProofInput =
     (SP1RecursionProof<SP1GlobalContext, SP1PcsProofInner>, MachineVerifyingKey<SP1GlobalContext>);
@@ -95,12 +98,12 @@ impl AsyncWorker<GasExecutingTask, Result<ExecutionReport, ExecutionError>> for 
             return Ok(ExecutionReport::default());
         }
         let mut gas_estimating_vm =
-            GasEstimatingVM::new(&chunk, self.program.clone(), self.nonce, self.opts.clone());
+            GasEstimatingVMEnum::new(&chunk, self.program.clone(), self.nonce, self.opts.clone());
         let report = gas_estimating_vm.execute()?;
 
         // If the VM has completed execution, set the final state.
-        if gas_estimating_vm.core.is_done() {
-            let final_state = FinalVmState::new(&gas_estimating_vm.core);
+        if gas_estimating_vm.is_done() {
+            let final_state = FinalVmState::from_gas_estimating_vm_enum(&gas_estimating_vm);
             final_vm_state.set(final_state).map_err(|e| {
                 ExecutionError::Other(format!("failed to set final vm state: {}", e))
             })?;
@@ -110,11 +113,18 @@ impl AsyncWorker<GasExecutingTask, Result<ExecutionReport, ExecutionError>> for 
     }
 }
 
-fn verify_deferred_proofs(proofs: &[DeferredProofInput]) -> anyhow::Result<()> {
+fn verify_deferred_proofs(
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+    proofs: &[DeferredProofInput],
+) -> anyhow::Result<()> {
     if proofs.is_empty() {
         return Ok(());
     }
-    let verifier = SP1Verifier::new(crate::verify::VerifierRecursionVks::default());
+    #[cfg(feature = "mprotect")]
+    let verifier_vks = RecursionVks::new(None, DEFAULT_MAX_COMPOSE_ARITY, false).to_verifier_vks();
+    #[cfg(not(feature = "mprotect"))]
+    let verifier_vks = crate::verify::VerifierRecursionVks::default();
+    let verifier = SP1Verifier::new_with_machine(verifier_vks, machine.clone());
     for (index, (proof, vk)) in proofs.iter().enumerate() {
         let sp1_vk = SP1VerifyingKey { vk: vk.clone() };
         verifier
@@ -130,6 +140,26 @@ pub async fn execute_with_options(
     context: SP1Context<'static>,
     opts: SP1CoreOpts,
     executor_config: SP1ExecutorConfig,
+) -> anyhow::Result<(SP1PublicValues, [u8; 32], ExecutionReport)> {
+    execute_with_options_and_machine(
+        program,
+        stdin,
+        context,
+        opts,
+        executor_config,
+        RiscvAir::machine(),
+    )
+    .await
+}
+
+/// Same as [`execute_with_options`] but with a custom machine.
+pub async fn execute_with_options_and_machine(
+    program: Arc<Program>,
+    stdin: SP1Stdin,
+    context: SP1Context<'static>,
+    opts: SP1CoreOpts,
+    executor_config: SP1ExecutorConfig,
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
 ) -> anyhow::Result<(SP1PublicValues, [u8; 32], ExecutionReport)> {
     // The return values of the spawned tasks.
     enum ExecutorOutput {
@@ -159,7 +189,7 @@ pub async fn execute_with_options(
 
     if context.deferred_proof_verification {
         join_set.spawn_blocking(move || {
-            verify_deferred_proofs(&proofs)?;
+            verify_deferred_proofs(machine, &proofs)?;
             Ok::<_, anyhow::Error>(ExecutorOutput::VerifyDone)
         });
     }

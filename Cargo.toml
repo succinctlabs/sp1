@@ -269,6 +269,7 @@ memfd = "0.6.4"
 memmap2 = "0.9.8"
 num = "0.4.3"
 num_cpus = "1.16.0"
+object = { version = "0.37.3", features = ["write"] }
 num-bigint = { version = "0.4.6", default-features = false }
 num-traits = "0.2.19"
 p256 = "0.13.2"

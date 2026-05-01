@@ -2,6 +2,7 @@ use core::{
     borrow::{Borrow, BorrowMut},
     mem::{size_of, MaybeUninit},
 };
+use std::marker::PhantomData;
 
 use hashbrown::HashMap;
 use itertools::Itertools;
@@ -23,21 +24,27 @@ use crate::{
         state::{CPUState, CPUStateInput},
     },
     air::{SP1CoreAirBuilder, SP1Operation},
+    eval_untrusted_program,
     operations::{AddOperation, AddOperationInput},
     utils::next_multiple_of_32,
+    SupervisorMode, TrustMode, UserMode,
 };
 
-/// The number of main trace columns for `AddiChip`.
-pub const NUM_ADDI_COLS: usize = size_of::<AddiCols<u8>>();
+/// The number of main trace columns for `AddiChip` in Supervisor mode.
+pub const NUM_ADDI_COLS_SUPERVISOR: usize = size_of::<AddiCols<u8, SupervisorMode>>();
+/// The number of main trace columns for `AddiChip` in User mode.
+pub const NUM_ADDI_COLS_USER: usize = size_of::<AddiCols<u8, UserMode>>();
 
 /// A chip that implements addition for the opcode ADDI.
 #[derive(Default)]
-pub struct AddiChip;
+pub struct AddiChip<M: TrustMode> {
+    pub _phantom: PhantomData<M>,
+}
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, StructReflection, Default, Clone, Copy)]
 #[repr(C)]
-pub struct AddiCols<T> {
+pub struct AddiCols<T, M: TrustMode> {
     /// The current shard, timestamp, program counter of the CPU.
     pub state: CPUState<T>,
 
@@ -49,22 +56,32 @@ pub struct AddiCols<T> {
 
     /// Boolean to indicate whether the row is not a padding row.
     pub is_real: T,
+
+    /// Adapter columns for trust mode specific data.
+    pub adapter_cols: M::AdapterCols<T>,
 }
 
-impl<F: PrimeField32> MachineAir<F> for AddiChip {
+impl<F: PrimeField32, M: TrustMode> MachineAir<F> for AddiChip<M> {
     type Record = ExecutionRecord;
 
     type Program = Program;
 
     fn name(&self) -> &'static str {
-        "Addi"
+        if M::IS_TRUSTED {
+            "Addi"
+        } else {
+            "AddiUser"
+        }
     }
 
     fn column_names(&self) -> Vec<String> {
-        AddiCols::<F>::struct_reflection().unwrap()
+        AddiCols::<F, M>::struct_reflection().unwrap()
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
+        if input.program.enable_untrusted_programs == M::IS_TRUSTED {
+            return Some(0);
+        }
         let nb_rows =
             next_multiple_of_32(input.addi_events.len(), input.fixed_log2_rows::<F, _>(self));
         Some(nb_rows)
@@ -76,54 +93,63 @@ impl<F: PrimeField32> MachineAir<F> for AddiChip {
         _output: &mut ExecutionRecord,
         buffer: &mut [MaybeUninit<F>],
     ) {
+        if input.program.enable_untrusted_programs == M::IS_TRUSTED {
+            return;
+        }
+
         // Generate the rows for the trace.
         let chunk_size = std::cmp::max(input.addi_events.len() / num_cpus::get(), 1);
-        let padded_nb_rows = <AddiChip as MachineAir<F>>::num_rows(self, input).unwrap();
-
+        let padded_nb_rows = <AddiChip<M> as MachineAir<F>>::num_rows(self, input).unwrap();
         let num_event_rows = input.addi_events.len();
+        let width = <AddiChip<M> as BaseAir<F>>::width(self);
 
         unsafe {
-            let padding_start = num_event_rows * NUM_ADDI_COLS;
-            let padding_size = (padded_nb_rows - num_event_rows) * NUM_ADDI_COLS;
+            let padding_start = num_event_rows * width;
+            let padding_size = (padded_nb_rows - num_event_rows) * width;
             if padding_size > 0 {
                 core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
             }
         }
 
         let buffer_ptr = buffer.as_mut_ptr() as *mut F;
-        let values =
-            unsafe { core::slice::from_raw_parts_mut(buffer_ptr, num_event_rows * NUM_ADDI_COLS) };
+        let values = unsafe { core::slice::from_raw_parts_mut(buffer_ptr, num_event_rows * width) };
 
-        values.chunks_mut(chunk_size * NUM_ADDI_COLS).enumerate().par_bridge().for_each(
-            |(i, rows)| {
-                rows.chunks_mut(NUM_ADDI_COLS).enumerate().for_each(|(j, row)| {
-                    let idx = i * chunk_size + j;
-                    let cols: &mut AddiCols<F> = row.borrow_mut();
+        values.chunks_mut(chunk_size * width).enumerate().par_bridge().for_each(|(i, rows)| {
+            rows.chunks_mut(width).enumerate().for_each(|(j, row)| {
+                let idx = i * chunk_size + j;
+                let cols: &mut AddiCols<F, M> = row.borrow_mut();
 
-                    if idx < input.addi_events.len() {
-                        let mut byte_lookup_events = Vec::new();
-                        let event = input.addi_events[idx];
-                        self.event_to_row(&event.0, cols, &mut byte_lookup_events);
-                        cols.state.populate(&mut byte_lookup_events, event.0.clk, event.0.pc);
-                        cols.adapter.populate(&mut byte_lookup_events, event.1);
+                if idx < input.addi_events.len() {
+                    let mut byte_lookup_events = Vec::new();
+                    let event = input.addi_events[idx];
+                    self.event_to_row(&event.0, cols, &mut byte_lookup_events);
+                    cols.state.populate(&mut byte_lookup_events, event.0.clk, event.0.pc);
+                    cols.adapter.populate(&mut byte_lookup_events, event.1);
+                    if !M::IS_TRUSTED {
+                        let cols: &mut AddiCols<F, UserMode> = row.borrow_mut();
+                        cols.adapter_cols.is_trusted = F::from_bool(!event.1.is_untrusted);
                     }
-                });
-            },
-        );
+                }
+            });
+        });
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
-        let chunk_size = std::cmp::max(input.addi_events.len() / num_cpus::get(), 1);
+        if input.program.enable_untrusted_programs == M::IS_TRUSTED {
+            return;
+        }
 
+        let chunk_size = std::cmp::max(input.addi_events.len() / num_cpus::get(), 1);
         let event_iter = input.addi_events.chunks(chunk_size);
+        let width = <AddiChip<M> as BaseAir<F>>::width(self);
 
         let blu_batches = event_iter
             .par_bridge()
             .map(|events| {
                 let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
                 events.iter().for_each(|event| {
-                    let mut row = [F::zero(); NUM_ADDI_COLS];
-                    let cols: &mut AddiCols<F> = row.as_mut_slice().borrow_mut();
+                    let mut row = vec![F::zero(); width];
+                    let cols: &mut AddiCols<F, M> = row.as_mut_slice().borrow_mut();
                     self.event_to_row(&event.0, cols, &mut blu);
                     cols.state.populate(&mut blu, event.0.clk, event.0.pc);
                     cols.adapter.populate(&mut blu, event.1);
@@ -140,16 +166,17 @@ impl<F: PrimeField32> MachineAir<F> for AddiChip {
             shape.included::<F, _>(self)
         } else {
             !shard.addi_events.is_empty()
+                && (M::IS_TRUSTED != shard.program.enable_untrusted_programs)
         }
     }
 }
 
-impl AddiChip {
+impl<M: TrustMode> AddiChip<M> {
     /// Create a row from an event.
     fn event_to_row<F: PrimeField>(
         &self,
         event: &AluEvent,
-        cols: &mut AddiCols<F>,
+        cols: &mut AddiCols<F, M>,
         blu: &mut impl ByteRecord,
     ) {
         cols.is_real = F::one();
@@ -157,20 +184,25 @@ impl AddiChip {
     }
 }
 
-impl<F> BaseAir<F> for AddiChip {
+impl<F, M: TrustMode> BaseAir<F> for AddiChip<M> {
     fn width(&self) -> usize {
-        NUM_ADDI_COLS
+        if M::IS_TRUSTED {
+            NUM_ADDI_COLS_SUPERVISOR
+        } else {
+            NUM_ADDI_COLS_USER
+        }
     }
 }
 
-impl<AB> Air<AB> for AddiChip
+impl<AB, M> Air<AB> for AddiChip<M>
 where
     AB: SP1CoreAirBuilder,
+    M: TrustMode,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local = main.row_slice(0);
-        let local: &AddiCols<AB::Var> = (*local).borrow();
+        let local: &AddiCols<AB::Var, M> = (*local).borrow();
 
         builder.assert_bool(local.is_real);
 
@@ -210,6 +242,36 @@ where
             ),
         );
 
+        let mut is_trusted: AB::Expr = local.is_real.into();
+
+        #[cfg(feature = "mprotect")]
+        builder.assert_eq(
+            builder.extract_public_values().is_untrusted_programs_enabled,
+            AB::Expr::from_bool(!M::IS_TRUSTED),
+        );
+
+        if !M::IS_TRUSTED {
+            let local = main.row_slice(0);
+            let local: &AddiCols<AB::Var, UserMode> = (*local).borrow();
+
+            #[cfg(not(feature = "mprotect"))]
+            builder.assert_zero(local.is_real);
+
+            let instruction = local.adapter.instruction::<AB>(opcode.clone());
+
+            eval_untrusted_program(
+                builder,
+                local.state.pc,
+                instruction,
+                [instr_type, base_opcode, funct3, funct7],
+                [local.state.clk_high::<AB>(), local.state.clk_low::<AB>()],
+                local.is_real.into(),
+                local.adapter_cols,
+            );
+
+            is_trusted = local.adapter_cols.is_trusted.into();
+        }
+
         // Constrain the program and register reads.
         <ITypeReader<AB::F> as SP1Operation<AB>>::eval(
             builder,
@@ -218,10 +280,10 @@ where
                 local.state.clk_low::<AB>(),
                 local.state.pc,
                 opcode,
-                [instr_type, base_opcode, funct3, funct7],
                 local.add_operation.value.map(|x| x.into()),
                 local.adapter,
                 local.is_real.into(),
+                is_trusted,
             ),
         );
     }

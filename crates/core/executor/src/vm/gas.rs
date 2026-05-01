@@ -1,10 +1,12 @@
 use crate::{
-    events::MemoryRecord, vm::shapes::riscv_air_id_from_opcode, CompressedMemory, ExecutionReport,
-    Instruction, Opcode, RiscvAirId, SyscallCode,
+    events::{MemoryRecord, NUM_PAGE_PROT_ENTRIES_PER_ROW_EXEC},
+    CompressedMemory, ExecutionReport, Instruction, Opcode, RiscvAirId, SyscallCode,
 };
 use enum_map::EnumMap;
 use hashbrown::{HashMap, HashSet};
 use std::str::FromStr;
+
+use super::shapes::riscv_air_id_from_opcode_flag;
 
 // Trusted gas estimation calculator
 // For a given executor, calculate the total complexity and trace area
@@ -17,16 +19,24 @@ pub struct ReportGenerator {
 
     pub(crate) syscall_sent: bool,
     pub(crate) local_mem_counts: u64,
+    /// The number of local page prot accesses during this cycle.
+    pub(crate) local_page_prot_counts: u64,
     is_last_read_external: CompressedMemory,
+    /// Whether the last page prot access was external, ie: it was read from a deferred precompile.
+    is_last_page_prot_access_external: HashMap<u64, bool>,
 
     trace_cost_lookup: EnumMap<RiscvAirId, u64>,
+
+    /// Running count of page prot entries.
+    page_prot_entry_count: u64,
+    enable_untrusted_programs: bool,
 
     shard_start_clk: u64,
     exit_code: u64,
 }
 
 impl ReportGenerator {
-    pub fn new(shard_start_clk: u64) -> Self {
+    pub fn new(shard_start_clk: u64, enable_untrusted_programs: bool) -> Self {
         let costs: HashMap<String, usize> =
             serde_json::from_str(include_str!("../artifacts/rv64im_costs.json")).unwrap();
         let costs: EnumMap<RiscvAirId, u64> =
@@ -40,7 +50,11 @@ impl ReportGenerator {
             system_chips_counts: EnumMap::default(),
             syscall_sent: false,
             local_mem_counts: 0,
+            local_page_prot_counts: 0,
             is_last_read_external: CompressedMemory::new(),
+            is_last_page_prot_access_external: HashMap::new(),
+            page_prot_entry_count: 0,
+            enable_untrusted_programs,
             shard_start_clk,
             exit_code: 0,
         }
@@ -49,7 +63,7 @@ impl ReportGenerator {
     /// Set the start clock of the shard.
     #[inline]
     pub fn reset(&mut self, clk: u64) {
-        *self = Self::new(clk);
+        *self = Self::new(clk, self.enable_untrusted_programs);
     }
 
     pub fn get_costs(&self) -> (u64, u64) {
@@ -110,14 +124,18 @@ impl ReportGenerator {
     fn sum_total_complexity(&self) -> u64 {
         self.filtered_opcode_counts()
             .map(|(opcode, count)| {
-                get_complexity_mapping()[riscv_air_id_from_opcode(opcode)] * count
+                get_complexity_mapping()
+                    [riscv_air_id_from_opcode_flag(opcode, self.enable_untrusted_programs)]
+                    * count
             })
             .sum::<u64>()
             + self
                 .syscall_counts
                 .iter()
                 .map(|(syscall_code, count)| {
-                    if let Some(syscall_air_id) = syscall_code.as_air_id() {
+                    if let Some(syscall_air_id) =
+                        syscall_code.as_air_id_flag(self.enable_untrusted_programs)
+                    {
                         get_complexity_mapping()[syscall_air_id] * count
                     } else {
                         0
@@ -128,7 +146,9 @@ impl ReportGenerator {
                 .deferred_syscall_counts
                 .iter()
                 .map(|(syscall_code, count)| {
-                    if let Some(syscall_air_id) = syscall_code.as_air_id() {
+                    if let Some(syscall_air_id) =
+                        syscall_code.as_air_id_flag(self.enable_untrusted_programs)
+                    {
                         get_complexity_mapping()[syscall_air_id] * count
                     } else {
                         0
@@ -144,13 +164,19 @@ impl ReportGenerator {
 
     fn sum_total_trace_area(&self) -> u64 {
         self.filtered_opcode_counts()
-            .map(|(opcode, count)| self.trace_cost_lookup[riscv_air_id_from_opcode(opcode)] * count)
+            .map(|(opcode, count)| {
+                self.trace_cost_lookup
+                    [riscv_air_id_from_opcode_flag(opcode, self.enable_untrusted_programs)]
+                    * count
+            })
             .sum::<u64>()
             + self
                 .syscall_counts
                 .iter()
                 .map(|(syscall_code, count)| {
-                    if let Some(syscall_air_id) = syscall_code.as_air_id() {
+                    if let Some(syscall_air_id) =
+                        syscall_code.as_air_id_flag(self.enable_untrusted_programs)
+                    {
                         self.trace_cost_lookup[syscall_air_id] * count
                     } else {
                         0
@@ -161,7 +187,9 @@ impl ReportGenerator {
                 .deferred_syscall_counts
                 .iter()
                 .map(|(syscall_code, count)| {
-                    if let Some(syscall_air_id) = syscall_code.as_air_id() {
+                    if let Some(syscall_air_id) =
+                        syscall_code.as_air_id_flag(self.enable_untrusted_programs)
+                    {
                         self.trace_cost_lookup[syscall_air_id] * count
                     } else {
                         0
@@ -191,12 +219,66 @@ impl ReportGenerator {
     }
 
     #[inline]
+    pub fn local_mem_syscall_rr(&mut self) {
+        self.local_mem_counts += self.syscall_sent as u64;
+    }
+
+    #[inline]
+    pub fn handle_page_prot_event(&mut self, page_idx: u64, clk: u64) {
+        let is_external = self.syscall_sent;
+        let is_first_read_this_shard = self.shard_start_clk > clk;
+        let is_last_page_prot_access_external =
+            self.is_last_page_prot_access_external.insert(page_idx, is_external).unwrap_or(false);
+
+        self.local_page_prot_counts += (is_first_read_this_shard
+            || (is_last_page_prot_access_external && !is_external))
+            as u64;
+    }
+
+    #[inline]
+    pub fn handle_page_prot_check(&mut self) {
+        self.page_prot_entry_count += 1;
+        self.system_chips_counts[RiscvAirId::PageProt] =
+            self.page_prot_entry_count.div_ceil(NUM_PAGE_PROT_ENTRIES_PER_ROW_EXEC as u64);
+    }
+
+    #[inline]
+    pub fn handle_trap_exec_event(&mut self) {
+        self.system_chips_counts[RiscvAirId::TrapExec] += 1;
+    }
+
+    #[inline]
+    pub fn handle_trap_mem_event(&mut self) {
+        self.system_chips_counts[RiscvAirId::TrapMem] += 1;
+    }
+
+    #[inline]
+    pub fn handle_trap_events(&mut self, bump_clk_high: bool) {
+        self.update_system_chip_counts(bump_clk_high, bump_clk_high);
+    }
+
+    #[inline]
+    pub fn handle_untrusted_instruction(&mut self) {
+        self.system_chips_counts[RiscvAirId::InstructionFetch] += 1;
+    }
+
+    #[inline]
     pub fn handle_retained_syscall(&mut self, syscall_code: SyscallCode) {
         if let Some(syscall_air_id) = syscall_code.as_air_id() {
             let rows_per_event = syscall_air_id.rows_per_event() as u64;
 
             self.syscall_counts[syscall_code] += rows_per_event;
         }
+    }
+
+    #[inline]
+    pub fn get_syscall_sent(&self) -> bool {
+        self.syscall_sent
+    }
+
+    #[inline]
+    pub fn set_syscall_sent(&mut self, syscall_sent: bool) {
+        self.syscall_sent = syscall_sent;
     }
 
     #[inline]
@@ -236,13 +318,9 @@ impl ReportGenerator {
     /// # Arguments
     ///
     /// * `instruction`: The instruction that is being handled.
-    /// * `syscall_sent`: Whether a syscall was sent during this cycle.
     /// * `bump_clk_high`: Whether the clk's top 24 bits incremented during this cycle.
     /// * `is_load_x0`: Whether the instruction is a load of x0, if so the riscv air id is `LoadX0`.
-    ///
-    /// # Returns
-    ///
-    /// Whether the shard limit has been reached.
+    /// * `needs_state_bump`: Whether this cycle induced a state bump.
     #[inline]
     #[allow(clippy::fn_params_excessive_bools)]
     pub fn handle_instruction(
@@ -252,22 +330,28 @@ impl ReportGenerator {
         _is_load_x0: bool,
         needs_state_bump: bool,
     ) {
+        self.opcode_counts[instruction.opcode] += 1;
+        self.update_system_chip_counts(bump_clk_high, needs_state_bump);
+    }
+
+    /// Update system chip counts based on the current cycle's state.
+    fn update_system_chip_counts(&mut self, bump_clk_high: bool, needs_state_bump: bool) {
         let touched_addresses: u64 = std::mem::take(&mut self.local_mem_counts);
         let syscall_sent = std::mem::take(&mut self.syscall_sent);
 
-        // Increment for opcode
-        self.opcode_counts[instruction.opcode] += 1;
-
-        // Increment system chips
-        // Increment by if bump_clk_high is needed
         let bump_clk_high_num_events = 32 * bump_clk_high as u64;
         self.system_chips_counts[RiscvAirId::MemoryBump] += bump_clk_high_num_events;
         self.system_chips_counts[RiscvAirId::MemoryLocal] += touched_addresses;
         self.system_chips_counts[RiscvAirId::StateBump] += needs_state_bump as u64;
         self.system_chips_counts[RiscvAirId::Global] += 2 * touched_addresses + syscall_sent as u64;
-
-        // Increment if the syscall is retained
         self.system_chips_counts[RiscvAirId::SyscallCore] += syscall_sent as u64;
+    }
+
+    /// Update system chip counts based on the current cycle's page count state.
+    pub fn update_page_chip_counts(&mut self) {
+        let touched_pages: u64 = std::mem::take(&mut self.local_page_prot_counts);
+        self.system_chips_counts[RiscvAirId::Global] += 2 * touched_pages;
+        self.system_chips_counts[RiscvAirId::PageProtLocal] += touched_pages;
     }
 
     #[inline]
@@ -285,101 +369,11 @@ impl ReportGenerator {
 /// This provides the complexity cost for each AIR component in the system.
 #[must_use]
 pub fn get_complexity_mapping() -> EnumMap<RiscvAirId, u64> {
-    let mut mapping = EnumMap::<RiscvAirId, u64>::default();
+    #[cfg(not(feature = "mprotect"))]
+    let json = include_str!("../artifacts/rv64im_complexity.json");
+    #[cfg(feature = "mprotect")]
+    let json = include_str!("../artifacts/rv64im_complexity_mprotect.json");
 
-    // Core program and system components
-    mapping[RiscvAirId::Program] = 0;
-    mapping[RiscvAirId::SyscallCore] = 2;
-    mapping[RiscvAirId::SyscallPrecompile] = 2;
-
-    // SHA components
-    mapping[RiscvAirId::ShaExtend] = 80;
-    mapping[RiscvAirId::ShaExtendControl] = 21;
-    mapping[RiscvAirId::ShaCompress] = 300;
-    mapping[RiscvAirId::ShaCompressControl] = 21;
-
-    // Elliptic curve operations
-    mapping[RiscvAirId::EdAddAssign] = 792;
-    mapping[RiscvAirId::EdDecompress] = 755;
-
-    // Secp256k1 operations
-    mapping[RiscvAirId::Secp256k1AddAssign] = 918;
-    mapping[RiscvAirId::Secp256k1DoubleAssign] = 904;
-
-    // Secp256r1 operations
-    mapping[RiscvAirId::Secp256r1AddAssign] = 918;
-    mapping[RiscvAirId::Secp256r1DoubleAssign] = 904;
-
-    // Keccak operations
-    mapping[RiscvAirId::KeccakPermute] = 2859;
-    mapping[RiscvAirId::KeccakPermuteControl] = 331;
-
-    // Bn254 operations
-    mapping[RiscvAirId::Bn254AddAssign] = 918;
-    mapping[RiscvAirId::Bn254DoubleAssign] = 904;
-
-    // BLS12-381 operations
-    mapping[RiscvAirId::Bls12381AddAssign] = 1374;
-    mapping[RiscvAirId::Bls12381DoubleAssign] = 1356;
-
-    // Uint256 operations
-    mapping[RiscvAirId::Uint256MulMod] = 253;
-    mapping[RiscvAirId::Uint256Ops] = 297;
-
-    // Field operations
-    mapping[RiscvAirId::Bls12381FpOpAssign] = 317;
-    mapping[RiscvAirId::Bls12381Fp2AddSubAssign] = 615;
-    mapping[RiscvAirId::Bls12381Fp2MulAssign] = 994;
-    mapping[RiscvAirId::Bn254FpOpAssign] = 217;
-    mapping[RiscvAirId::Bn254Fp2AddSubAssign] = 415;
-    mapping[RiscvAirId::Bn254Fp2MulAssign] = 666;
-
-    // System operations
-    mapping[RiscvAirId::Poseidon2] = 497;
-
-    // RISC-V instruction costs
-    mapping[RiscvAirId::DivRem] = 348;
-    mapping[RiscvAirId::Add] = 16;
-    mapping[RiscvAirId::Addi] = 15;
-    mapping[RiscvAirId::Addw] = 21;
-    mapping[RiscvAirId::Sub] = 16;
-    mapping[RiscvAirId::Subw] = 16;
-    mapping[RiscvAirId::Bitwise] = 20;
-    mapping[RiscvAirId::Mul] = 61;
-    mapping[RiscvAirId::ShiftRight] = 78;
-    mapping[RiscvAirId::ShiftLeft] = 69;
-    mapping[RiscvAirId::Lt] = 42;
-    mapping[RiscvAirId::AluX0] = 17;
-
-    // Memory operations
-    mapping[RiscvAirId::LoadByte] = 32;
-    mapping[RiscvAirId::LoadHalf] = 33;
-    mapping[RiscvAirId::LoadWord] = 33;
-    mapping[RiscvAirId::LoadDouble] = 24;
-    mapping[RiscvAirId::LoadX0] = 35;
-    mapping[RiscvAirId::StoreByte] = 32;
-    mapping[RiscvAirId::StoreHalf] = 27;
-    mapping[RiscvAirId::StoreWord] = 27;
-    mapping[RiscvAirId::StoreDouble] = 23;
-
-    // Control flow
-    mapping[RiscvAirId::UType] = 19;
-    mapping[RiscvAirId::Branch] = 49;
-    mapping[RiscvAirId::Jal] = 24;
-    mapping[RiscvAirId::Jalr] = 26;
-
-    // System components
-    mapping[RiscvAirId::SyscallInstrs] = 93;
-    mapping[RiscvAirId::MemoryBump] = 5;
-    mapping[RiscvAirId::StateBump] = 8;
-    mapping[RiscvAirId::MemoryGlobalInit] = 31;
-    mapping[RiscvAirId::MemoryGlobalFinalize] = 31;
-    mapping[RiscvAirId::MemoryLocal] = 4;
-    mapping[RiscvAirId::Global] = 216;
-
-    // Memory types
-    mapping[RiscvAirId::Byte] = 0;
-    mapping[RiscvAirId::Range] = 0;
-
-    mapping
+    let complexity: HashMap<String, u64> = serde_json::from_str(json).unwrap();
+    complexity.into_iter().map(|(k, v)| (RiscvAirId::from_str(&k).unwrap(), v)).collect()
 }

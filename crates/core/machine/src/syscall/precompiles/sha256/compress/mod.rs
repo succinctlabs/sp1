@@ -30,10 +30,16 @@ impl ShaCompressChip {
     }
 }
 
+use std::marker::PhantomData;
+
+use crate::TrustMode;
+
 /// Implements the controller for the ShaCompressChip, which receives the syscalls and sends it to
 /// the chip.
 #[derive(Default)]
-pub struct ShaCompressControlChip;
+pub struct ShaCompressControlChip<M: TrustMode> {
+    _marker: PhantomData<M>,
+}
 
 #[cfg(test)]
 pub mod compress_tests {

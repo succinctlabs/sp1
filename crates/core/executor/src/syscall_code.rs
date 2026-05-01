@@ -173,6 +173,22 @@ pub enum SyscallCode {
 
     /// Executes the `POSEIDON2` syscall.
     POSEIDON2 = 0x00_00_01_33,
+
+    /// Executes the `SIG_RETURN` syscall.
+    #[allow(clippy::mistyped_literal_suffixes)]
+    SIG_RETURN = 0x00_00_01_34,
+
+    /// Executes the `HINT_MPROTECT_FLUSH` syscall.
+    HINT_MPROTECT_FLUSH = 0x00_00_00_35,
+
+    /// Executes the `DUMP_ELF` syscall (debug).
+    DUMP_ELF = 0x00_00_00_40,
+
+    /// Executes the `INSERT_PROFILER_SYMBOLS` syscall (debug).
+    INSERT_PROFILER_SYMBOLS = 0x00_00_00_41,
+
+    /// Executes the `DELETE_PROFILER_SYMBOLS` syscall (debug).
+    DELETE_PROFILER_SYMBOLS = 0x00_00_00_42,
 }
 
 impl SyscallCode {
@@ -224,6 +240,12 @@ impl SyscallCode {
             #[allow(clippy::mistyped_literal_suffixes)]
             0x00_00_01_32 => SyscallCode::MPROTECT,
             0x00_00_01_33 => SyscallCode::POSEIDON2,
+            #[allow(clippy::mistyped_literal_suffixes)]
+            0x00_00_01_34 => SyscallCode::SIG_RETURN,
+            0x00_00_00_35 => SyscallCode::HINT_MPROTECT_FLUSH,
+            0x00_00_00_40 => SyscallCode::DUMP_ELF,
+            0x00_00_00_41 => SyscallCode::INSERT_PROFILER_SYMBOLS,
+            0x00_00_00_42 => SyscallCode::DELETE_PROFILER_SYMBOLS,
             _ => panic!("invalid syscall number: {value}"),
         }
     }
@@ -285,6 +307,16 @@ impl SyscallCode {
         }
     }
 
+    /// Get the ID of the AIR used in the syscall implementation, dispatching based on
+    /// whether untrusted programs are enabled.
+    #[must_use]
+    pub fn as_air_id_flag(self, enable_untrusted_programs: bool) -> Option<RiscvAirId> {
+        if enable_untrusted_programs {
+            return self.as_air_id_user();
+        }
+        self.as_air_id()
+    }
+
     /// Get the ID of the AIR used in the syscall implementation.
     #[must_use]
     pub fn as_air_id(self) -> Option<RiscvAirId> {
@@ -320,8 +352,71 @@ impl SyscallCode {
             SyscallCode::UINT256_ADD_CARRY | SyscallCode::UINT256_MUL_CARRY => {
                 RiscvAirId::Uint256Ops
             }
+            SyscallCode::MPROTECT => RiscvAirId::Mprotect,
             SyscallCode::POSEIDON2 => RiscvAirId::Poseidon2,
-            SyscallCode::MPROTECT
+            SyscallCode::SIG_RETURN => RiscvAirId::SigReturn,
+            SyscallCode::HINT_MPROTECT_FLUSH
+            | SyscallCode::DUMP_ELF
+            | SyscallCode::INSERT_PROFILER_SYMBOLS
+            | SyscallCode::DELETE_PROFILER_SYMBOLS
+            | SyscallCode::U256XU2048_MUL
+            | SyscallCode::SECP256K1_DECOMPRESS
+            | SyscallCode::BLS12381_DECOMPRESS
+            | SyscallCode::SECP256R1_DECOMPRESS
+            | SyscallCode::HALT
+            | SyscallCode::WRITE
+            | SyscallCode::ENTER_UNCONSTRAINED
+            | SyscallCode::EXIT_UNCONSTRAINED
+            | SyscallCode::COMMIT
+            | SyscallCode::COMMIT_DEFERRED_PROOFS
+            | SyscallCode::VERIFY_SP1_PROOF
+            | SyscallCode::HINT_LEN
+            | SyscallCode::HINT_READ => return None,
+        })
+    }
+
+    /// Get the ID of the AIR used in the syscall implementation in user mode.
+    #[must_use]
+    pub fn as_air_id_user(self) -> Option<RiscvAirId> {
+        Some(match self {
+            SyscallCode::SHA_EXTEND => RiscvAirId::ShaExtend,
+            SyscallCode::SHA_COMPRESS => RiscvAirId::ShaCompress,
+            SyscallCode::ED_ADD => RiscvAirId::EdAddAssignUser,
+            SyscallCode::ED_DECOMPRESS => RiscvAirId::EdDecompressUser,
+            SyscallCode::KECCAK_PERMUTE => RiscvAirId::KeccakPermute,
+            SyscallCode::SECP256K1_ADD => RiscvAirId::Secp256k1AddAssignUser,
+            SyscallCode::SECP256K1_DOUBLE => RiscvAirId::Secp256k1DoubleAssignUser,
+            SyscallCode::BN254_ADD => RiscvAirId::Bn254AddAssignUser,
+            SyscallCode::BN254_DOUBLE => RiscvAirId::Bn254DoubleAssignUser,
+            SyscallCode::UINT256_MUL => RiscvAirId::Uint256MulModUser,
+            SyscallCode::BLS12381_ADD => RiscvAirId::Bls12381AddAssignUser,
+            SyscallCode::BLS12381_DOUBLE => RiscvAirId::Bls12381DoubleAssignUser,
+            SyscallCode::BLS12381_FP_ADD
+            | SyscallCode::BLS12381_FP_SUB
+            | SyscallCode::BLS12381_FP_MUL => RiscvAirId::Bls12381FpOpAssignUser,
+            SyscallCode::BLS12381_FP2_ADD | SyscallCode::BLS12381_FP2_SUB => {
+                RiscvAirId::Bls12381Fp2AddSubAssignUser
+            }
+            SyscallCode::BLS12381_FP2_MUL => RiscvAirId::Bls12381Fp2MulAssignUser,
+            SyscallCode::BN254_FP_ADD | SyscallCode::BN254_FP_SUB | SyscallCode::BN254_FP_MUL => {
+                RiscvAirId::Bn254FpOpAssignUser
+            }
+            SyscallCode::BN254_FP2_ADD | SyscallCode::BN254_FP2_SUB => {
+                RiscvAirId::Bn254Fp2AddSubAssignUser
+            }
+            SyscallCode::BN254_FP2_MUL => RiscvAirId::Bn254Fp2MulAssignUser,
+            SyscallCode::SECP256R1_ADD => RiscvAirId::Secp256r1AddAssignUser,
+            SyscallCode::SECP256R1_DOUBLE => RiscvAirId::Secp256r1DoubleAssignUser,
+            SyscallCode::UINT256_ADD_CARRY | SyscallCode::UINT256_MUL_CARRY => {
+                RiscvAirId::Uint256OpsUser
+            }
+            SyscallCode::MPROTECT => RiscvAirId::Mprotect,
+            SyscallCode::SIG_RETURN => RiscvAirId::SigReturn,
+            SyscallCode::POSEIDON2 => RiscvAirId::Poseidon2User,
+            SyscallCode::HINT_MPROTECT_FLUSH
+            | SyscallCode::DUMP_ELF
+            | SyscallCode::INSERT_PROFILER_SYMBOLS
+            | SyscallCode::DELETE_PROFILER_SYMBOLS
             | SyscallCode::U256XU2048_MUL
             | SyscallCode::SECP256K1_DECOMPRESS
             | SyscallCode::BLS12381_DECOMPRESS

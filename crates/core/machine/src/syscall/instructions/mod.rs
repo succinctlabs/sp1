@@ -1,16 +1,26 @@
-use columns::NUM_SYSCALL_INSTR_COLS;
+use std::marker::PhantomData;
+
+use columns::{NUM_SYSCALL_INSTR_COLS_SUPERVISOR, NUM_SYSCALL_INSTR_COLS_USER};
 use slop_air::BaseAir;
+
+use crate::TrustMode;
 
 pub mod air;
 pub mod columns;
 pub mod trace;
 
 #[derive(Default)]
-pub struct SyscallInstrsChip;
+pub struct SyscallInstrsChip<M: TrustMode> {
+    pub _phantom: PhantomData<M>,
+}
 
-impl<F> BaseAir<F> for SyscallInstrsChip {
+impl<F, M: TrustMode> BaseAir<F> for SyscallInstrsChip<M> {
     fn width(&self) -> usize {
-        NUM_SYSCALL_INSTR_COLS
+        if M::IS_TRUSTED {
+            NUM_SYSCALL_INSTR_COLS_SUPERVISOR
+        } else {
+            NUM_SYSCALL_INSTR_COLS_USER
+        }
     }
 }
 

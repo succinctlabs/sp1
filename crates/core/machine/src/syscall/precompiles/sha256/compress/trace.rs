@@ -8,7 +8,7 @@ use slop_maybe_rayon::prelude::{
 };
 use sp1_core_executor::{
     events::{ByteLookupEvent, ByteRecord, MemoryRecordEnum, PrecompileEvent, ShaCompressEvent},
-    ExecutionRecord, Program, SyscallCode,
+    ExecutionRecord, Program, SyscallCode, TrapError,
 };
 use sp1_hypercube::air::MachineAir;
 
@@ -71,7 +71,7 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
             unsafe {
                 core::ptr::write_bytes(row.as_mut_ptr(), 0, compress_area);
             }
-            self.event_to_rows(event, row, &mut blu);
+            self.event_to_rows(event, &events[idx].0.trap_error, row, &mut blu);
         });
 
         // Set the octet_num and octet columns for the padded rows.
@@ -114,13 +114,13 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
             .map(|events| {
                 let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
                 let mut row = vec![F::zero(); NUM_SHA_COMPRESS_COLS * 80];
-                events.iter().for_each(|(_, event)| {
+                events.iter().for_each(|(syscall_event, event)| {
                     let event = if let PrecompileEvent::ShaCompress(event) = event {
                         event
                     } else {
                         unreachable!()
                     };
-                    self.event_to_rows::<F>(event, &mut row, &mut blu);
+                    self.event_to_rows::<F>(event, &syscall_event.trap_error, &mut row, &mut blu);
                 });
                 blu
             })
@@ -142,9 +142,31 @@ impl ShaCompressChip {
     fn event_to_rows<F: PrimeField32>(
         &self,
         event: &ShaCompressEvent,
+        trap_error: &Option<TrapError>,
         rows: &mut [F],
         blu: &mut impl ByteRecord,
     ) {
+        if trap_error.is_some() {
+            for i in 0..80 {
+                let octet_num = i / 8;
+                let octet = i % 8;
+                let start = i * NUM_SHA_COMPRESS_COLS;
+                let end = (i + 1) * NUM_SHA_COMPRESS_COLS;
+                let cols: &mut ShaCompressCols<F> = rows[start..end].borrow_mut();
+                cols.octet_num[octet_num] = F::one();
+                cols.octet[octet] = F::one();
+                cols.index = F::from_canonical_u32((8 * octet_num + octet) as u32);
+
+                // If in the compression phase, set the k value.
+                if octet_num != 0 && octet_num != 9 {
+                    let compression_idx = octet_num - 1;
+                    let k_idx = compression_idx * 8 + octet;
+                    cols.k = u32_to_half_word(SHA_COMPRESS_K[k_idx]);
+                }
+            }
+            return;
+        }
+
         let og_h = event.h;
 
         let mut octet_num_idx = 0;

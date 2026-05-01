@@ -1,19 +1,24 @@
-use std::sync::Arc;
+use std::{marker::PhantomData, sync::Arc};
 
 use serde::Serialize;
 use sp1_hypercube::air::PROOF_NONCE_NUM_WORDS;
 use sp1_jit::{MemReads, MemValue, MinimalTrace, TraceChunk};
+use sp1_primitives::consts::LOG_PAGE_SIZE;
 
 use crate::{
-    events::{MemoryReadRecord, MemoryWriteRecord},
+    events::{MemoryReadRecord, MemoryRecord, MemoryWriteRecord, PageProtRecord},
     vm::{
-        memory::CompressedMemory,
-        results::{CycleResult, LoadResult, StoreResult},
+        memory::{CompressedMemory, CompressedPages},
+        results::{
+            CycleResult, FetchResult, LoadResult, LoadResultSupervisor, StoreResult,
+            StoreResultSupervisor, TrapResult,
+        },
         shapes::{ShapeChecker, HALT_AREA, HALT_HEIGHT},
         syscall::SyscallRuntime,
         CoreVM,
     },
-    ExecutionError, Instruction, Opcode, Program, SP1CoreOpts, ShardingThreshold, SyscallCode,
+    ExecutionError, ExecutionMode, Instruction, Opcode, Program, SP1CoreOpts, ShardingThreshold,
+    SupervisorMode, SyscallCode, TrapError, UserMode,
 };
 
 /// A RISC-V VM that uses a [`MinimalTrace`] to create multiple [`SplicedMinimalTrace`]s.
@@ -21,16 +26,22 @@ use crate::{
 /// These new [`SplicedMinimalTrace`]s correspond to exactly 1 execuction shard to be proved.
 ///
 /// Note that this is the only time we account for trace area throught the execution pipeline.
-pub struct SplicingVM<'a> {
+///
+/// The type parameter `M` determines whether page protection checks are enabled.
+pub struct SplicingVM<'a, M: ExecutionMode> {
     /// The core VM.
-    pub core: CoreVM<'a>,
+    pub core: CoreVM<'a, M>,
     /// The shape checker, responsible for cutting the execution when a shard limit is reached.
-    pub shape_checker: ShapeChecker,
+    pub shape_checker: ShapeChecker<M>,
     /// The addresses that have been touched.
     pub touched_addresses: &'a mut CompressedMemory,
+    /// The page indices that have been touched (for page protection tracking).
+    pub touched_pages: &'a mut CompressedPages,
+    /// Phantom data for the execution mode.
+    _mode: PhantomData<M>,
 }
 
-impl SplicingVM<'_> {
+impl SplicingVM<'_, SupervisorMode> {
     /// Execute the program until it halts.
     pub fn execute(&mut self) -> Result<CycleResult, ExecutionError> {
         if self.core.is_done() {
@@ -40,7 +51,7 @@ impl SplicingVM<'_> {
         loop {
             let mut result = self.execute_instruction()?;
 
-            // If were not already done, ensure that we dont have a shard boundary.
+            // If we're not already done, ensure that we don't have a shard boundary.
             if !result.is_done() && self.shape_checker.check_shard_limit() {
                 result = CycleResult::ShardBoundary;
             }
@@ -61,12 +72,6 @@ impl SplicingVM<'_> {
     /// Execute the next instruction at the current PC.
     pub fn execute_instruction(&mut self) -> Result<CycleResult, ExecutionError> {
         let instruction = self.core.fetch();
-        if instruction.is_none() {
-            unreachable!("Fetching the next instruction failed");
-        }
-
-        // SAFETY: The instruction is guaranteed to be valid as we checked for `is_none` above.
-        let instruction = unsafe { *instruction.unwrap_unchecked() };
 
         match &instruction.opcode {
             Opcode::ADD
@@ -135,7 +140,240 @@ impl SplicingVM<'_> {
 
         Ok(self.core.advance())
     }
+}
 
+impl SplicingVM<'_, SupervisorMode> {
+    /// Execute a load instruction.
+    ///
+    /// This method will update the local memory access for the memory read, the register read,
+    /// and the register write.
+    ///
+    /// It will also emit the memory instruction event and the events for the load instruction.
+    #[inline]
+    pub fn execute_load(&mut self, instruction: &Instruction) -> Result<(), ExecutionError> {
+        let LoadResultSupervisor { addr, mr_record, .. } = self.core.execute_load(instruction)?;
+
+        self.touched_addresses.insert(addr & !0b111, true);
+        self.shape_checker.handle_mem_event(addr, mr_record.prev_timestamp);
+
+        Ok(())
+    }
+
+    /// Execute a store instruction.
+    ///
+    /// This method will update the local memory access for the memory read, the register read,
+    /// and the register write.
+    ///
+    /// It will also emit the memory instruction event and the events for the store instruction.
+    #[inline]
+    pub fn execute_store(&mut self, instruction: &Instruction) -> Result<(), ExecutionError> {
+        let StoreResultSupervisor { addr, mw_record, .. } = self.core.execute_store(instruction)?;
+
+        self.touched_addresses.insert(addr & !0b111, true);
+        self.shape_checker.handle_mem_event(addr, mw_record.prev_timestamp);
+
+        Ok(())
+    }
+}
+
+impl SplicingVM<'_, UserMode> {
+    /// Execute the program until it halts.
+    pub fn execute(&mut self) -> Result<CycleResult, ExecutionError> {
+        if self.core.is_done() {
+            return Ok(CycleResult::Done(true));
+        }
+
+        loop {
+            let mut result = self.execute_instruction()?;
+
+            // If we're not already done, ensure that we don't have a shard boundary.
+            if !result.is_done() && self.shape_checker.check_shard_limit() {
+                result = CycleResult::ShardBoundary;
+            }
+
+            match result {
+                CycleResult::Done(false) => {}
+                CycleResult::ShardBoundary | CycleResult::TraceEnd => {
+                    self.start_new_shard();
+                    return Ok(CycleResult::ShardBoundary);
+                }
+                CycleResult::Done(true) => {
+                    return Ok(CycleResult::Done(true));
+                }
+            }
+        }
+    }
+
+    /// Execute the next instruction at the current PC.
+    pub fn execute_instruction(&mut self) -> Result<CycleResult, ExecutionError> {
+        let FetchResult { instruction, mr_record, pc, error } = self.core.fetch()?;
+        let mut num_page_prot_accesses = 0;
+
+        if let Some(error) = error {
+            self.handle_error(error)?;
+            let page_idx = pc >> LOG_PAGE_SIZE;
+            self.shape_checker.handle_page_prot_event(
+                page_idx,
+                mr_record.unwrap().prev_page_prot_record.unwrap().timestamp,
+            );
+            self.touched_pages.insert(page_idx, true);
+            num_page_prot_accesses += 1;
+            self.shape_checker.handle_trap_exec_event();
+            self.shape_checker
+                .handle_trap_events(self.core().needs_bump_clk_high(), num_page_prot_accesses);
+            return Ok(self.core.advance());
+        }
+
+        if instruction.is_none() {
+            unreachable!("Fetching the next instruction failed");
+        }
+
+        if let Some(mr_record) = mr_record {
+            let instruction_value = (mr_record.value >> ((pc % 8) * 8)) as u32;
+            self.touched_addresses.insert(pc & !0b111, true);
+            self.shape_checker.handle_untrusted_instruction(instruction_value);
+            self.shape_checker.handle_mem_event(pc & !0b111, mr_record.prev_timestamp);
+            let page_idx = pc >> LOG_PAGE_SIZE;
+            self.shape_checker.handle_page_prot_event(
+                page_idx,
+                mr_record.prev_page_prot_record.unwrap().timestamp,
+            );
+            self.touched_pages.insert(page_idx, true);
+            num_page_prot_accesses += 1;
+        }
+
+        // SAFETY: The instruction is guaranteed to be valid as we checked for `is_none` above.
+        let instruction = unsafe { instruction.unwrap_unchecked() };
+
+        match &instruction.opcode {
+            Opcode::ADD
+            | Opcode::ADDI
+            | Opcode::SUB
+            | Opcode::XOR
+            | Opcode::OR
+            | Opcode::AND
+            | Opcode::SLL
+            | Opcode::SLLW
+            | Opcode::SRL
+            | Opcode::SRA
+            | Opcode::SRLW
+            | Opcode::SRAW
+            | Opcode::SLT
+            | Opcode::SLTU
+            | Opcode::MUL
+            | Opcode::MULHU
+            | Opcode::MULHSU
+            | Opcode::MULH
+            | Opcode::MULW
+            | Opcode::DIVU
+            | Opcode::REMU
+            | Opcode::DIV
+            | Opcode::REM
+            | Opcode::DIVW
+            | Opcode::ADDW
+            | Opcode::SUBW
+            | Opcode::DIVUW
+            | Opcode::REMUW
+            | Opcode::REMW => {
+                self.execute_alu(&instruction);
+            }
+            Opcode::LB
+            | Opcode::LBU
+            | Opcode::LH
+            | Opcode::LHU
+            | Opcode::LW
+            | Opcode::LWU
+            | Opcode::LD => self.execute_load(&instruction)?,
+            Opcode::SB | Opcode::SH | Opcode::SW | Opcode::SD => {
+                self.execute_store(&instruction)?;
+            }
+            Opcode::JAL | Opcode::JALR => {
+                self.execute_jump(&instruction);
+            }
+            Opcode::BEQ | Opcode::BNE | Opcode::BLT | Opcode::BGE | Opcode::BLTU | Opcode::BGEU => {
+                self.execute_branch(&instruction);
+            }
+            Opcode::LUI | Opcode::AUIPC => {
+                self.execute_utype(&instruction);
+            }
+            Opcode::ECALL => self.execute_ecall(&instruction)?,
+            Opcode::EBREAK | Opcode::UNIMP => {
+                unreachable!("Invalid opcode for `execute_instruction`: {:?}", instruction.opcode)
+            }
+        }
+
+        if instruction.is_memory_load_instruction() || instruction.is_memory_store_instruction() {
+            num_page_prot_accesses += 1;
+        }
+
+        self.shape_checker.handle_instruction(
+            &instruction,
+            self.core.needs_bump_clk_high(),
+            instruction.is_alu_instruction() && instruction.op_a == 0,
+            instruction.is_memory_load_instruction() && instruction.op_a == 0,
+            self.core.needs_state_bump(&instruction),
+            num_page_prot_accesses,
+        );
+
+        Ok(self.core.advance())
+    }
+}
+
+impl SplicingVM<'_, UserMode> {
+    /// Execute a load instruction.
+    ///
+    /// This method will update the local memory access for the memory read, the register read,
+    /// and the register write.
+    ///
+    /// It will also emit the memory instruction event and the events for the load instruction.
+    #[inline]
+    pub fn execute_load(&mut self, instruction: &Instruction) -> Result<(), ExecutionError> {
+        let LoadResult { addr, mr_record, error, .. } = self.core.execute_load(instruction)?;
+
+        if let Some(error) = error {
+            self.handle_error(error)?;
+            self.shape_checker.handle_trap_mem_event();
+        } else {
+            self.touched_addresses.insert(addr & !0b111, true);
+            self.shape_checker.handle_mem_event(addr, mr_record.prev_timestamp);
+        }
+
+        if let Some(record) = mr_record.prev_page_prot_record {
+            self.shape_checker.handle_page_prot_event(record.page_idx, record.timestamp);
+            self.touched_pages.insert(record.page_idx, true);
+        }
+
+        Ok(())
+    }
+
+    /// Execute a store instruction.
+    ///
+    /// This method will update the local memory access for the memory read, the register read,
+    /// and the register write.
+    ///
+    /// It will also emit the memory instruction event and the events for the store instruction.
+    #[inline]
+    pub fn execute_store(&mut self, instruction: &Instruction) -> Result<(), ExecutionError> {
+        let StoreResult { addr, mw_record, error, .. } = self.core.execute_store(instruction)?;
+
+        if let Some(error) = error {
+            self.handle_error(error)?;
+            self.shape_checker.handle_trap_mem_event();
+        } else {
+            self.touched_addresses.insert(addr & !0b111, true);
+            self.shape_checker.handle_mem_event(addr, mw_record.prev_timestamp);
+        }
+
+        if let Some(record) = mw_record.prev_page_prot_record {
+            self.shape_checker.handle_page_prot_event(record.page_idx, record.timestamp);
+            self.touched_pages.insert(record.page_idx, true);
+        }
+
+        Ok(())
+    }
+}
+
+impl<M: ExecutionMode> SplicingVM<'_, M> {
     /// Splice a minimal trace, outputting a minimal trace for the NEXT shard.
     pub fn splice<T: MinimalTrace>(&self, trace: T) -> Option<SplicedMinimalTrace<T>> {
         // If the trace has been exhausted, then the last splice is all thats needed.
@@ -161,12 +399,13 @@ impl SplicingVM<'_> {
     }
 }
 
-impl<'a> SplicingVM<'a> {
+impl<'a, M: ExecutionMode> SplicingVM<'a, M> {
     /// Create a new full-tracing VM from a minimal trace.
     pub fn new<T: MinimalTrace>(
         trace: &'a T,
         program: Arc<Program>,
         touched_addresses: &'a mut CompressedMemory,
+        touched_pages: &'a mut CompressedPages,
         proof_nonce: [u32; PROOF_NONCE_NUM_WORDS],
         opts: SP1CoreOpts,
     ) -> Self {
@@ -176,9 +415,11 @@ impl<'a> SplicingVM<'a> {
             element_threshold >= HALT_AREA && height_threshold >= HALT_HEIGHT,
             "invalid sharding threshold"
         );
+
         Self {
             core: CoreVM::new(trace, program, opts, proof_nonce),
             touched_addresses,
+            touched_pages,
             shape_checker: ShapeChecker::new(
                 program_len,
                 trace.clk_start(),
@@ -187,41 +428,22 @@ impl<'a> SplicingVM<'a> {
                     height_threshold: height_threshold - HALT_HEIGHT,
                 },
             ),
+            _mode: PhantomData,
         }
     }
 
-    /// Execute a load instruction.
-    ///
-    /// This method will update the local memory access for the memory read, the register read,
-    /// and the register write.
-    ///
-    /// It will also emit the memory instruction event and the events for the load instruction.
-    #[inline]
-    pub fn execute_load(&mut self, instruction: &Instruction) -> Result<(), ExecutionError> {
-        let LoadResult { addr, mr_record, .. } = self.core.execute_load(instruction)?;
+    /// Handles recoverable errors such as traps.
+    pub fn handle_error(&mut self, e: TrapError) -> Result<(), ExecutionError> {
+        let TrapResult { context, code_record, pc_record, handler_record } =
+            self.core.handle_error(e)?;
 
-        // Ensure the address is aligned to 8 bytes.
-        self.touched_addresses.insert(addr & !0b111, true);
+        self.touched_addresses.insert(context & !0b111, true);
+        self.touched_addresses.insert((context + 8) & !0b111, true);
+        self.touched_addresses.insert((context + 16) & !0b111, true);
 
-        self.shape_checker.handle_mem_event(addr, mr_record.prev_timestamp);
-
-        Ok(())
-    }
-
-    /// Execute a store instruction.
-    ///
-    /// This method will update the local memory access for the memory read, the register read,
-    /// and the register write.
-    ///
-    /// It will also emit the memory instruction event and the events for the store instruction.
-    #[inline]
-    pub fn execute_store(&mut self, instruction: &Instruction) -> Result<(), ExecutionError> {
-        let StoreResult { addr, mw_record, .. } = self.core.execute_store(instruction)?;
-
-        // Ensure the address is aligned to 8 bytes.
-        self.touched_addresses.insert(addr & !0b111, true);
-
-        self.shape_checker.handle_mem_event(addr, mw_record.prev_timestamp);
+        self.shape_checker.handle_mem_event(context, handler_record.prev_timestamp);
+        self.shape_checker.handle_mem_event(context + 8, code_record.prev_timestamp);
+        self.shape_checker.handle_mem_event(context + 16, pc_record.prev_timestamp);
 
         Ok(())
     }
@@ -267,48 +489,86 @@ impl<'a> SplicingVM<'a> {
             self.shape_checker.handle_commit();
         }
 
-        let _ = CoreVM::execute_ecall(self, instruction, code)?;
+        let result = CoreVM::execute_ecall(self, instruction, code)?;
+
+        let syscall_sent = self.shape_checker.get_syscall_sent();
+        self.shape_checker.set_syscall_sent(false);
+
+        if let Some(error) = result.error {
+            self.handle_error(error)?;
+        }
+
+        if let Some(record) = result.sig_return_pc_record {
+            self.shape_checker.handle_mem_event(result.b, record.prev_timestamp);
+        }
+        self.shape_checker.set_syscall_sent(syscall_sent);
 
         Ok(())
     }
 }
 
-impl<'a> SyscallRuntime<'a> for SplicingVM<'a> {
+impl<'a, M: ExecutionMode> SyscallRuntime<'a, M> for SplicingVM<'a, M> {
     const TRACING: bool = false;
 
-    fn core(&self) -> &CoreVM<'a> {
+    fn core(&self) -> &CoreVM<'a, M> {
         &self.core
     }
 
-    fn core_mut(&mut self) -> &mut CoreVM<'a> {
+    fn core_mut(&mut self) -> &mut CoreVM<'a, M> {
         &mut self.core
     }
 
     fn rr(&mut self, register: usize) -> MemoryReadRecord {
         let record = SyscallRuntime::rr(self.core_mut(), register);
-
+        self.shape_checker.local_mem_syscall_rr();
         record
     }
 
-    fn mw(&mut self, addr: u64) -> MemoryWriteRecord {
-        let record = SyscallRuntime::mw(self.core_mut(), addr);
+    fn rw(&mut self, register: usize, value: u64) -> MemoryWriteRecord {
+        let record = SyscallRuntime::rw(self.core_mut(), register, value);
+        self.shape_checker.local_mem_syscall_rr();
+        record
+    }
 
+    fn page_prot_write(&mut self, page_idx: u64, prot: u8) -> PageProtRecord {
+        let prev_page_prot_record = self.core_mut().page_prot_write(page_idx, prot);
+        self.shape_checker.handle_page_prot_event(
+            prev_page_prot_record.page_idx,
+            prev_page_prot_record.timestamp,
+        );
+        self.touched_pages.insert(prev_page_prot_record.page_idx, true);
+        prev_page_prot_record
+    }
+
+    fn page_prot_range_check(
+        &mut self,
+        start_page_idx: u64,
+        end_page_idx: u64,
+        page_prot_bitmap: u8,
+    ) -> (Vec<PageProtRecord>, Option<TrapError>) {
+        let (page_prot_records, error) =
+            self.core_mut().page_prot_range_check(start_page_idx, end_page_idx, page_prot_bitmap);
+        for record in page_prot_records.iter() {
+            self.shape_checker.handle_page_prot_event(record.page_idx, record.timestamp);
+            self.touched_pages.insert(record.page_idx, true);
+        }
+        (page_prot_records, error)
+    }
+
+    fn mr_without_prot(&mut self, addr: u64) -> MemoryReadRecord {
+        let record = self.core_mut().mr_without_prot(addr);
         self.shape_checker.handle_mem_event(addr, record.prev_timestamp);
-
         record
     }
 
-    fn mr(&mut self, addr: u64) -> MemoryReadRecord {
-        let record = SyscallRuntime::mr(self.core_mut(), addr);
-
+    fn mw_without_prot(&mut self, addr: u64) -> MemoryWriteRecord {
+        let record = self.core_mut().mw_without_prot(addr);
         self.shape_checker.handle_mem_event(addr, record.prev_timestamp);
-
         record
     }
 
-    fn mr_slice(&mut self, addr: u64, len: usize) -> Vec<MemoryReadRecord> {
-        let records = SyscallRuntime::mr_slice(self.core_mut(), addr, len);
-
+    fn mr_slice_without_prot(&mut self, addr: u64, len: usize) -> Vec<MemoryReadRecord> {
+        let records = self.core_mut().mr_slice_without_prot(addr, len);
         for (i, record) in records.iter().enumerate() {
             self.shape_checker.handle_mem_event(addr + i as u64 * 8, record.prev_timestamp);
         }
@@ -316,9 +576,8 @@ impl<'a> SyscallRuntime<'a> for SplicingVM<'a> {
         records
     }
 
-    fn mw_slice(&mut self, addr: u64, len: usize) -> Vec<MemoryWriteRecord> {
-        let records = SyscallRuntime::mw_slice(self.core_mut(), addr, len);
-
+    fn mw_slice_without_prot(&mut self, addr: u64, len: usize) -> Vec<MemoryWriteRecord> {
+        let records = self.core_mut().mw_slice_without_prot(addr, len);
         for (i, record) in records.iter().enumerate() {
             self.shape_checker.handle_mem_event(addr + i as u64 * 8, record.prev_timestamp);
         }
@@ -447,6 +706,143 @@ impl<T: MinimalTrace> Serialize for SplicedMinimalTrace<T> {
         };
 
         trace.serialize(serializer)
+    }
+}
+
+/// Wrapper enum to handle `SplicingVM` with different execution modes at runtime.
+pub enum SplicingVMEnum<'a> {
+    /// `SplicingVM` for `SupervisorMode`.
+    Supervisor(SplicingVM<'a, SupervisorMode>),
+    /// `SplicingVM` for `UserMode`.
+    User(SplicingVM<'a, UserMode>),
+}
+
+impl<'a> SplicingVMEnum<'a> {
+    /// Create a new `SplicingVMEnum` based on program's `enable_untrusted_programs` flag.
+    pub fn new<T: MinimalTrace>(
+        trace: &'a T,
+        program: Arc<Program>,
+        touched_addresses: &'a mut CompressedMemory,
+        touched_pages: &'a mut CompressedPages,
+        proof_nonce: [u32; PROOF_NONCE_NUM_WORDS],
+        opts: SP1CoreOpts,
+    ) -> Self {
+        if program.enable_untrusted_programs {
+            Self::User(SplicingVM::<UserMode>::new(
+                trace,
+                program,
+                touched_addresses,
+                touched_pages,
+                proof_nonce,
+                opts,
+            ))
+        } else {
+            Self::Supervisor(SplicingVM::<SupervisorMode>::new(
+                trace,
+                program,
+                touched_addresses,
+                touched_pages,
+                proof_nonce,
+                opts,
+            ))
+        }
+    }
+
+    /// Execute the program until it halts or reaches a shard boundary.
+    pub fn execute(&mut self) -> Result<CycleResult, ExecutionError> {
+        match self {
+            Self::Supervisor(vm) => vm.execute(),
+            Self::User(vm) => vm.execute(),
+        }
+    }
+
+    /// Splice a minimal trace, outputting a minimal trace for the NEXT shard.
+    pub fn splice<T: MinimalTrace>(&self, trace: T) -> Option<SplicedMinimalTrace<T>> {
+        match self {
+            Self::Supervisor(vm) => vm.splice(trace),
+            Self::User(vm) => vm.splice(trace),
+        }
+    }
+
+    /// Get the current clock.
+    #[must_use]
+    pub fn clk(&self) -> u64 {
+        match self {
+            Self::Supervisor(vm) => vm.core.clk(),
+            Self::User(vm) => vm.core.clk(),
+        }
+    }
+
+    /// Get the global clock.
+    #[must_use]
+    pub fn global_clk(&self) -> u64 {
+        match self {
+            Self::Supervisor(vm) => vm.core.global_clk(),
+            Self::User(vm) => vm.core.global_clk(),
+        }
+    }
+
+    /// Get the current PC.
+    #[must_use]
+    pub fn pc(&self) -> u64 {
+        match self {
+            Self::Supervisor(vm) => vm.core.pc(),
+            Self::User(vm) => vm.core.pc(),
+        }
+    }
+
+    /// Get the number of remaining memory reads.
+    #[must_use]
+    pub fn mem_reads_len(&self) -> usize {
+        match self {
+            Self::Supervisor(vm) => vm.core.mem_reads.len(),
+            Self::User(vm) => vm.core.mem_reads.len(),
+        }
+    }
+
+    /// Get the registers.
+    #[must_use]
+    pub fn registers(&self) -> [MemoryRecord; 32] {
+        match self {
+            Self::Supervisor(vm) => *vm.core.registers(),
+            Self::User(vm) => *vm.core.registers(),
+        }
+    }
+
+    /// Get the exit code.
+    #[must_use]
+    pub fn exit_code(&self) -> u32 {
+        match self {
+            Self::Supervisor(vm) => vm.core.exit_code(),
+            Self::User(vm) => vm.core.exit_code(),
+        }
+    }
+
+    /// Check if done.
+    #[must_use]
+    pub fn is_done(&self) -> bool {
+        match self {
+            Self::Supervisor(vm) => vm.core.is_done(),
+            Self::User(vm) => vm.core.is_done(),
+        }
+    }
+
+    /// Get the public value digest.
+    #[must_use]
+    pub fn public_value_digest(&self) -> [u32; sp1_hypercube::air::PV_DIGEST_NUM_WORDS] {
+        match self {
+            Self::Supervisor(vm) => vm.core.public_value_digest,
+            Self::User(vm) => vm.core.public_value_digest,
+        }
+    }
+
+    /// Get the proof nonce.
+    #[must_use]
+    pub fn proof_nonce(&self) -> [u32; sp1_hypercube::air::PROOF_NONCE_NUM_WORDS] {
+        match self {
+            Self::Supervisor(vm) => vm.core.proof_nonce,
+            Self::User(vm) => vm.core.proof_nonce,
+        }
     }
 }
 

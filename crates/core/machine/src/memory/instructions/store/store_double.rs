@@ -4,9 +4,11 @@ use crate::{
         state::{CPUState, CPUStateInput},
     },
     air::{SP1CoreAirBuilder, SP1Operation},
+    eval_untrusted_program,
     memory::MemoryAccessCols,
     operations::{AddressOperation, AddressOperationInput},
     utils::next_multiple_of_32,
+    SupervisorMode, TrustMode, UserMode,
 };
 use hashbrown::HashMap;
 use itertools::Itertools;
@@ -20,21 +22,27 @@ use sp1_core_executor::{
 };
 use sp1_derive::AlignedBorrow;
 use sp1_hypercube::air::MachineAir;
+use sp1_primitives::consts::PROT_WRITE;
 use std::{
     borrow::{Borrow, BorrowMut},
+    marker::PhantomData,
     mem::{size_of, MaybeUninit},
 };
 use struct_reflection::{StructReflection, StructReflectionHelper};
 
 #[derive(Default)]
-pub struct StoreDoubleChip;
+pub struct StoreDoubleChip<M: TrustMode> {
+    pub _phantom: PhantomData<M>,
+}
 
-pub const NUM_STORE_DOUBLE_COLUMNS: usize = size_of::<StoreDoubleColumns<u8>>();
+pub const NUM_STORE_DOUBLE_COLS_SUPERVISOR: usize =
+    size_of::<StoreDoubleColumns<u8, SupervisorMode>>();
+pub const NUM_STORE_DOUBLE_COLS_USER: usize = size_of::<StoreDoubleColumns<u8, UserMode>>();
 
 /// The column layout for memory store double instructions.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
-pub struct StoreDoubleColumns<T> {
+pub struct StoreDoubleColumns<T, M: TrustMode> {
     /// The current shard, timestamp, program counter of the CPU.
     pub state: CPUState<T>,
 
@@ -49,24 +57,38 @@ pub struct StoreDoubleColumns<T> {
 
     /// Whether this is a real store word instruction.
     pub is_real: T,
+
+    /// Adapter columns for trust mode specific data.
+    pub adapter_cols: M::AdapterCols<T>,
 }
 
-impl<F> BaseAir<F> for StoreDoubleChip {
+impl<F, M: TrustMode> BaseAir<F> for StoreDoubleChip<M> {
     fn width(&self) -> usize {
-        NUM_STORE_DOUBLE_COLUMNS
+        if M::IS_TRUSTED {
+            NUM_STORE_DOUBLE_COLS_SUPERVISOR
+        } else {
+            NUM_STORE_DOUBLE_COLS_USER
+        }
     }
 }
 
-impl<F: PrimeField32> MachineAir<F> for StoreDoubleChip {
+impl<F: PrimeField32, M: TrustMode> MachineAir<F> for StoreDoubleChip<M> {
     type Record = ExecutionRecord;
 
     type Program = Program;
 
     fn name(&self) -> &'static str {
-        "StoreDouble"
+        if M::IS_TRUSTED {
+            "StoreDouble"
+        } else {
+            "StoreDoubleUser"
+        }
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
+        if input.program.enable_untrusted_programs == M::IS_TRUSTED {
+            return Some(0);
+        }
         let nb_rows = next_multiple_of_32(
             input.memory_store_double_events.len(),
             input.fixed_log2_rows::<F, _>(self),
@@ -80,39 +102,45 @@ impl<F: PrimeField32> MachineAir<F> for StoreDoubleChip {
         output: &mut ExecutionRecord,
         buffer: &mut [MaybeUninit<F>],
     ) {
+        if input.program.enable_untrusted_programs == M::IS_TRUSTED {
+            return;
+        }
         let chunk_size =
             std::cmp::max((input.memory_store_double_events.len()) / num_cpus::get(), 1);
-        let padded_nb_rows = <StoreDoubleChip as MachineAir<F>>::num_rows(self, input).unwrap();
+        let padded_nb_rows = <StoreDoubleChip<M> as MachineAir<F>>::num_rows(self, input).unwrap();
         let num_event_rows = input.memory_store_double_events.len();
+        let width = <Self as BaseAir<F>>::width(self);
 
         unsafe {
-            let padding_start = num_event_rows * NUM_STORE_DOUBLE_COLUMNS;
-            let padding_size = (padded_nb_rows - num_event_rows) * NUM_STORE_DOUBLE_COLUMNS;
+            let padding_start = num_event_rows * width;
+            let padding_size = (padded_nb_rows - num_event_rows) * width;
             if padding_size > 0 {
                 core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
             }
         }
 
         let buffer_ptr = buffer.as_mut_ptr() as *mut F;
-        let values = unsafe {
-            core::slice::from_raw_parts_mut(buffer_ptr, padded_nb_rows * NUM_STORE_DOUBLE_COLUMNS)
-        };
+        let values = unsafe { core::slice::from_raw_parts_mut(buffer_ptr, padded_nb_rows * width) };
 
         let blu_events = values
-            .chunks_mut(chunk_size * NUM_STORE_DOUBLE_COLUMNS)
+            .chunks_mut(chunk_size * width)
             .enumerate()
             .par_bridge()
             .map(|(i, rows)| {
                 let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
-                rows.chunks_mut(NUM_STORE_DOUBLE_COLUMNS).enumerate().for_each(|(j, row)| {
+                rows.chunks_mut(width).enumerate().for_each(|(j, row)| {
                     let idx = i * chunk_size + j;
-                    let cols: &mut StoreDoubleColumns<F> = row.borrow_mut();
+                    let cols: &mut StoreDoubleColumns<F, M> = row.borrow_mut();
 
                     if idx < input.memory_store_double_events.len() {
                         let event = &input.memory_store_double_events[idx];
                         self.event_to_row(&event.0, cols, &mut blu);
                         cols.state.populate(&mut blu, event.0.clk, event.0.pc);
                         cols.adapter.populate(&mut blu, event.1);
+                        if !M::IS_TRUSTED {
+                            let cols: &mut StoreDoubleColumns<F, UserMode> = row.borrow_mut();
+                            cols.adapter_cols.is_trusted = F::from_bool(!event.1.is_untrusted);
+                        }
                     }
                 });
                 blu
@@ -127,19 +155,20 @@ impl<F: PrimeField32> MachineAir<F> for StoreDoubleChip {
             shape.included::<F, _>(self)
         } else {
             !shard.memory_store_double_events.is_empty()
+                && (M::IS_TRUSTED != shard.program.enable_untrusted_programs)
         }
     }
 
     fn column_names(&self) -> Vec<String> {
-        StoreDoubleColumns::<F>::struct_reflection().unwrap()
+        StoreDoubleColumns::<F, M>::struct_reflection().unwrap()
     }
 }
 
-impl StoreDoubleChip {
+impl<M: TrustMode> StoreDoubleChip<M> {
     fn event_to_row<F: PrimeField32>(
         &self,
         event: &MemInstrEvent,
-        cols: &mut StoreDoubleColumns<F>,
+        cols: &mut StoreDoubleColumns<F, M>,
         blu: &mut HashMap<ByteLookupEvent, usize>,
     ) {
         // Populate memory accesses for reading from memory.
@@ -149,16 +178,17 @@ impl StoreDoubleChip {
     }
 }
 
-impl<AB> Air<AB> for StoreDoubleChip
+impl<AB, M> Air<AB> for StoreDoubleChip<M>
 where
     AB: SP1CoreAirBuilder,
     AB::Var: Sized,
+    M: TrustMode,
 {
     #[inline(never)]
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local = main.row_slice(0);
-        let local: &StoreDoubleColumns<AB::Var> = (*local).borrow();
+        let local: &StoreDoubleColumns<AB::Var, M> = (*local).borrow();
 
         let clk_high = local.state.clk_high::<AB>();
         let clk_low = local.state.clk_low::<AB>();
@@ -210,6 +240,44 @@ where
             ),
         );
 
+        let mut is_trusted: AB::Expr = local.is_real.into();
+
+        #[cfg(feature = "mprotect")]
+        builder.assert_eq(
+            builder.extract_public_values().is_untrusted_programs_enabled,
+            AB::Expr::from_bool(!M::IS_TRUSTED),
+        );
+
+        if !M::IS_TRUSTED {
+            let local = main.row_slice(0);
+            let local: &StoreDoubleColumns<AB::Var, UserMode> = (*local).borrow();
+
+            let instruction = local.adapter.instruction::<AB>(opcode.clone());
+
+            #[cfg(not(feature = "mprotect"))]
+            builder.assert_zero(local.is_real);
+
+            eval_untrusted_program(
+                builder,
+                local.state.pc,
+                instruction,
+                [instr_type, base_opcode, funct3, funct7],
+                [local.state.clk_high::<AB>(), local.state.clk_low::<AB>()],
+                local.is_real.into(),
+                local.adapter_cols,
+            );
+
+            builder.send_page_prot(
+                clk_high.clone(),
+                clk_low.clone() + AB::Expr::from_canonical_u32(MemoryAccessPosition::Memory as u32),
+                &aligned_addr.map(Into::into),
+                AB::Expr::from_canonical_u8(PROT_WRITE),
+                local.is_real.into(),
+            );
+
+            is_trusted = local.adapter_cols.is_trusted.into();
+        }
+
         // Constrain the program and register reads.
         <ITypeReaderImmutable as SP1Operation<AB>>::eval(
             builder,
@@ -218,9 +286,9 @@ where
                 clk_low,
                 local.state.pc,
                 opcode,
-                [instr_type, base_opcode, funct3, funct7],
                 local.adapter,
                 local.is_real.into(),
+                is_trusted,
             ),
         );
     }

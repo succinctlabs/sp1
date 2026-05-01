@@ -4,6 +4,7 @@ use sp1_derive::AlignedBorrow;
 use sp1_hypercube::{air::BaseAirBuilder, Word};
 use std::{
     borrow::{Borrow, BorrowMut},
+    marker::PhantomData,
     mem::{size_of, MaybeUninit},
 };
 use struct_reflection::{StructReflection, StructReflectionHelper};
@@ -14,9 +15,11 @@ use crate::{
         state::{CPUState, CPUStateInput},
     },
     air::{SP1CoreAirBuilder, SP1Operation},
+    eval_untrusted_program,
     memory::MemoryAccessCols,
     operations::{AddressOperation, AddressOperationInput},
     utils::next_multiple_of_32,
+    SupervisorMode, TrustMode, UserMode,
 };
 use hashbrown::HashMap;
 use itertools::Itertools;
@@ -27,17 +30,22 @@ use sp1_core_executor::{
     ByteOpcode, ExecutionRecord, Opcode, Program, CLK_INC, PC_INC,
 };
 use sp1_hypercube::air::MachineAir;
-use sp1_primitives::consts::u64_to_u16_limbs;
+use sp1_primitives::consts::{u64_to_u16_limbs, PROT_READ};
 
 #[derive(Default)]
-pub struct LoadByteChip;
+pub struct LoadByteChip<M: TrustMode> {
+    pub _phantom: PhantomData<M>,
+}
 
-pub const NUM_LOAD_BYTE_COLUMNS: usize = size_of::<LoadByteColumns<u8>>();
+/// The number of main trace columns for `LoadByteChip` in Supervisor mode.
+pub const NUM_LOAD_BYTE_COLS_SUPERVISOR: usize = size_of::<LoadByteColumns<u8, SupervisorMode>>();
+/// The number of main trace columns for `LoadByteChip` in User mode.
+pub const NUM_LOAD_BYTE_COLS_USER: usize = size_of::<LoadByteColumns<u8, UserMode>>();
 
 /// The column layout for memory load byte instructions.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
-pub struct LoadByteColumns<T> {
+pub struct LoadByteColumns<T, M: TrustMode> {
     /// The current shard, timestamp, program counter of the CPU.
     pub state: CPUState<T>,
 
@@ -70,24 +78,38 @@ pub struct LoadByteColumns<T> {
 
     /// Whether this is a load byte unsigned instruction.
     pub is_lbu: T,
+
+    /// Adapter columns for trust mode specific data.
+    pub adapter_cols: M::AdapterCols<T>,
 }
 
-impl<F> BaseAir<F> for LoadByteChip {
+impl<F, M: TrustMode> BaseAir<F> for LoadByteChip<M> {
     fn width(&self) -> usize {
-        NUM_LOAD_BYTE_COLUMNS
+        if M::IS_TRUSTED {
+            NUM_LOAD_BYTE_COLS_SUPERVISOR
+        } else {
+            NUM_LOAD_BYTE_COLS_USER
+        }
     }
 }
 
-impl<F: PrimeField32> MachineAir<F> for LoadByteChip {
+impl<F: PrimeField32, M: TrustMode> MachineAir<F> for LoadByteChip<M> {
     type Record = ExecutionRecord;
 
     type Program = Program;
 
     fn name(&self) -> &'static str {
-        "LoadByte"
+        if M::IS_TRUSTED {
+            "LoadByte"
+        } else {
+            "LoadByteUser"
+        }
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
+        if input.program.enable_untrusted_programs == M::IS_TRUSTED {
+            return Some(0);
+        }
         let nb_rows = next_multiple_of_32(
             input.memory_load_byte_events.len(),
             input.fixed_log2_rows::<F, _>(self),
@@ -101,38 +123,45 @@ impl<F: PrimeField32> MachineAir<F> for LoadByteChip {
         output: &mut ExecutionRecord,
         buffer: &mut [MaybeUninit<F>],
     ) {
+        if input.program.enable_untrusted_programs == M::IS_TRUSTED {
+            return;
+        }
+
         let chunk_size = std::cmp::max((input.memory_load_byte_events.len()) / num_cpus::get(), 1);
-        let padded_nb_rows = <LoadByteChip as MachineAir<F>>::num_rows(self, input).unwrap();
+        let padded_nb_rows = <LoadByteChip<M> as MachineAir<F>>::num_rows(self, input).unwrap();
+        let width = <LoadByteChip<M> as BaseAir<F>>::width(self);
         let num_event_rows = input.memory_load_byte_events.len();
 
         unsafe {
-            let padding_start = num_event_rows * NUM_LOAD_BYTE_COLUMNS;
-            let padding_size = (padded_nb_rows - num_event_rows) * NUM_LOAD_BYTE_COLUMNS;
+            let padding_start = num_event_rows * width;
+            let padding_size = (padded_nb_rows - num_event_rows) * width;
             if padding_size > 0 {
                 core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
             }
         }
 
         let buffer_ptr = buffer.as_mut_ptr() as *mut F;
-        let values = unsafe {
-            core::slice::from_raw_parts_mut(buffer_ptr, padded_nb_rows * NUM_LOAD_BYTE_COLUMNS)
-        };
+        let values = unsafe { core::slice::from_raw_parts_mut(buffer_ptr, padded_nb_rows * width) };
 
         let blu_events = values
-            .chunks_mut(chunk_size * NUM_LOAD_BYTE_COLUMNS)
+            .chunks_mut(chunk_size * width)
             .enumerate()
             .par_bridge()
             .map(|(i, rows)| {
                 let mut blu: HashMap<ByteLookupEvent, usize> = HashMap::new();
-                rows.chunks_mut(NUM_LOAD_BYTE_COLUMNS).enumerate().for_each(|(j, row)| {
+                rows.chunks_mut(width).enumerate().for_each(|(j, row)| {
                     let idx = i * chunk_size + j;
-                    let cols: &mut LoadByteColumns<F> = row.borrow_mut();
+                    let cols: &mut LoadByteColumns<F, M> = row.borrow_mut();
 
                     if idx < input.memory_load_byte_events.len() {
                         let event = &input.memory_load_byte_events[idx];
                         self.event_to_row(&event.0, cols, &mut blu);
                         cols.state.populate(&mut blu, event.0.clk, event.0.pc);
                         cols.adapter.populate(&mut blu, event.1);
+                        if !M::IS_TRUSTED {
+                            let cols: &mut LoadByteColumns<F, UserMode> = row.borrow_mut();
+                            cols.adapter_cols.is_trusted = F::from_bool(!event.1.is_untrusted);
+                        }
                     }
                 });
                 blu
@@ -147,19 +176,20 @@ impl<F: PrimeField32> MachineAir<F> for LoadByteChip {
             shape.included::<F, _>(self)
         } else {
             !shard.memory_load_byte_events.is_empty()
+                && (M::IS_TRUSTED != shard.program.enable_untrusted_programs)
         }
     }
 
     fn column_names(&self) -> Vec<String> {
-        LoadByteColumns::<F>::struct_reflection().unwrap()
+        LoadByteColumns::<F, M>::struct_reflection().unwrap()
     }
 }
 
-impl LoadByteChip {
+impl<M: TrustMode> LoadByteChip<M> {
     fn event_to_row<F: PrimeField32>(
         &self,
         event: &MemInstrEvent,
-        cols: &mut LoadByteColumns<F>,
+        cols: &mut LoadByteColumns<F, M>,
         blu: &mut HashMap<ByteLookupEvent, usize>,
     ) {
         // Populate memory accesses for reading from memory.
@@ -200,16 +230,17 @@ impl LoadByteChip {
     }
 }
 
-impl<AB> Air<AB> for LoadByteChip
+impl<AB, M> Air<AB> for LoadByteChip<M>
 where
     AB: SP1CoreAirBuilder,
     AB::Var: Sized,
+    M: TrustMode,
 {
     #[inline(never)]
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local = main.row_slice(0);
-        let local: &LoadByteColumns<AB::Var> = (*local).borrow();
+        let local: &LoadByteColumns<AB::Var, M> = (*local).borrow();
 
         let clk_high = local.state.clk_high::<AB>();
         let clk_low = local.state.clk_low::<AB>();
@@ -322,6 +353,44 @@ where
         let limb2 = AB::Expr::from_canonical_u32((1 << 16) - 1) * local.msb;
         let limb3 = AB::Expr::from_canonical_u32((1 << 16) - 1) * local.msb;
 
+        let mut is_trusted: AB::Expr = is_real.clone();
+
+        #[cfg(feature = "mprotect")]
+        builder.assert_eq(
+            builder.extract_public_values().is_untrusted_programs_enabled,
+            AB::Expr::from_bool(!M::IS_TRUSTED),
+        );
+
+        if !M::IS_TRUSTED {
+            let local = main.row_slice(0);
+            let local: &LoadByteColumns<AB::Var, UserMode> = (*local).borrow();
+
+            let instruction = local.adapter.instruction::<AB>(opcode.clone());
+
+            #[cfg(not(feature = "mprotect"))]
+            builder.assert_zero(is_real.clone());
+
+            eval_untrusted_program(
+                builder,
+                local.state.pc,
+                instruction,
+                [instr_type, base_opcode, funct3, funct7],
+                [local.state.clk_high::<AB>(), local.state.clk_low::<AB>()],
+                is_real.clone(),
+                local.adapter_cols,
+            );
+
+            builder.send_page_prot(
+                clk_high.clone(),
+                clk_low.clone() + AB::Expr::from_canonical_u32(MemoryAccessPosition::Memory as u32),
+                &aligned_addr.map(Into::into),
+                AB::Expr::from_canonical_u8(PROT_READ),
+                is_real.clone(),
+            );
+
+            is_trusted = local.adapter_cols.is_trusted.into();
+        }
+
         // Constrain the program and register reads.
         <ITypeReader<AB::F> as SP1Operation<AB>>::eval(
             builder,
@@ -330,10 +399,10 @@ where
                 clk_low,
                 local.state.pc,
                 opcode,
-                [instr_type, base_opcode, funct3, funct7],
                 Word([limb0, limb1, limb2, limb3]),
                 local.adapter,
                 is_real.clone(),
+                is_trusted,
             ),
         );
     }

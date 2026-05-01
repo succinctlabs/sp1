@@ -113,6 +113,15 @@ reserved-capacity = ["network"]
 cuda = ["dep:sp1-cuda"]
 bigint-rug = ["sp1-core-machine/bigint-rug"]
 experimental = ["sp1-prover/experimental"]
+mprotect = [
+  "experimental",
+  "sp1-core-executor/mprotect",
+  "sp1-core-executor-runner/mprotect",
+  "sp1-core-machine/mprotect",
+  "sp1-hypercube/mprotect",
+  "sp1-prover/mprotect",
+  "sp1-recursion-executor/mprotect",
+]
 profiling = [
   "sp1-core-executor/profiling",
   "sp1-core-executor-runner/profiling",
