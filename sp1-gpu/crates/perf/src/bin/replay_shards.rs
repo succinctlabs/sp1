@@ -134,7 +134,8 @@ async fn main() {
 
         let mut records = list_records_local(&record_dir);
 
-        // Shuffle and truncate records for this combo. Split evenly across combos.
+        // Shuffle and truncate records for this combo. Take at most `num_shards_per_run` records
+        // per combo.
         records.shuffle(&mut rand::rngs::StdRng::seed_from_u64(args.seed));
         records.truncate(args.num_shards_per_run);
 
