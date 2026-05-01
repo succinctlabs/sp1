@@ -255,7 +255,7 @@ where
             None
         };
 
-        static SHARD_IDX: AtomicUsize = AtomicUsize::new(0);
+        let shard_idx: AtomicUsize = AtomicUsize::new(0);
 
         let span = tracing::debug_span!("into_record");
         let (program, mut record, deferred_record, is_precompile) = tokio::task::spawn_blocking({
@@ -506,7 +506,7 @@ where
 
         // Optionally dump the shard record and vk to disk for benchmarking/replay.
         if let Some(dir) = self.record_write_dir.as_ref() {
-            let idx = SHARD_IDX.fetch_add(1, Ordering::SeqCst);
+            let idx = shard_idx.fetch_add(1, Ordering::SeqCst);
             let path = std::path::PathBuf::from(&dir);
             std::fs::create_dir_all(&path).ok();
 
@@ -520,7 +520,7 @@ where
                 if idx == 0 {
                     let vk_bytes =
                         bincode::serialize(&common_input.vk.vk).expect("failed to serialize vk");
-                    std::fs::write(path.join(format!("vk.bin")), &vk_bytes)
+                    std::fs::write(path.join("vk.bin".to_string()), &vk_bytes)
                         .expect("failed to write vk");
                 }
 
