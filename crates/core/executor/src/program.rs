@@ -16,10 +16,13 @@ use sp1_hypercube::{
     septic_curve::{SepticCurve, SepticCurveComplete},
     septic_digest::SepticDigest,
     shape::Shape,
-    InteractionKind,
+    InteractionKind, UntrustedConfig,
 };
 use sp1_primitives::consts::split_page_idx;
 use std::sync::Arc;
+
+#[cfg(feature = "mprotect")]
+use sp1_hypercube::addr_to_limbs;
 
 /// The maximum number of instructions in a program.
 pub const MAX_PROGRAM_SIZE: usize = 1 << 22;
@@ -38,6 +41,8 @@ pub struct Program {
     pub pc_start_abs: u64,
     /// The base address of the program.
     pub pc_base: u64,
+    /// The trap context address of the program.
+    pub trap_context: Option<u64>,
     /// The initial page protection image, mapping page indices to protection flags.
     pub page_prot_image: HashMap<u64, u8>,
     /// The initial memory image, useful for global constants
@@ -48,6 +53,11 @@ pub struct Program {
     pub enable_untrusted_programs: bool,
     /// Function symbols for profiling & debugging. In the form of (name, start address, size)
     pub function_symbols: Vec<(String, u64, u64)>,
+    /// The memory region where untrusted program could live in. It is also the
+    /// memory region mprotect works on.
+    pub untrusted_memory: Option<(u64, u64)>,
+    /// The profiler stack from a dump-elf/bootloader session.
+    pub dump_elf_stack: Vec<u64>,
 }
 
 impl Program {
@@ -62,10 +72,13 @@ impl Program {
             instructions_encoded: None,
             pc_start_abs,
             pc_base,
+            trap_context: None,
             page_prot_image: HashMap::new(),
             memory_image: Arc::new(HashMap::new()),
             preprocessed_shape: None,
             enable_untrusted_programs: false,
+            untrusted_memory: None,
+            dump_elf_stack: Vec::new(),
             function_symbols: Vec::new(),
         }
     }
@@ -87,7 +100,7 @@ impl Program {
         }
 
         // Transpile the RV64IM instructions.
-        let instruction_pair = transpile(&elf.instructions);
+        let instruction_pair = transpile(&elf.instructions, false);
         let (instructions, instructions_encoded): (Vec<Instruction>, Vec<u32>) =
             instruction_pair.into_iter().unzip();
 
@@ -98,17 +111,21 @@ impl Program {
             eyre::bail!("elf has too many instructions");
         }
 
+        let enable_untrusted_programs = elf.untrusted_memory.is_some();
         // Return the program.
         Ok(Program {
             instructions,
             instructions_encoded: Some(instructions_encoded),
             pc_start_abs: elf.pc_start,
             pc_base: elf.pc_base,
+            trap_context: elf.trap_context,
             memory_image: elf.memory_image,
             page_prot_image: elf.page_prot_image,
             preprocessed_shape: None,
-            enable_untrusted_programs: elf.enable_untrusted_programs,
+            enable_untrusted_programs,
             function_symbols: elf.function_symbols,
+            untrusted_memory: elf.untrusted_memory,
+            dump_elf_stack: elf.dump_elf_stack,
         })
     }
 
@@ -212,7 +229,19 @@ impl<F: PrimeField32> MachineProgram<F> for Program {
         )
     }
 
-    fn enable_untrusted_programs(&self) -> F {
-        F::from_bool(self.enable_untrusted_programs)
+    fn untrusted_config(&self) -> UntrustedConfig<F> {
+        UntrustedConfig {
+            enable_untrusted_programs: F::from_bool(self.enable_untrusted_programs),
+            #[cfg(feature = "mprotect")]
+            enable_trap_handler: F::from_bool(self.trap_context.is_some()),
+            #[cfg(feature = "mprotect")]
+            trap_context: self.trap_context.map_or([[F::zero(); 3]; 3], |addr| {
+                [addr_to_limbs(addr), addr_to_limbs(addr + 8), addr_to_limbs(addr + 16)]
+            }),
+            #[cfg(feature = "mprotect")]
+            untrusted_memory: self.untrusted_memory.map_or([[F::zero(); 3]; 2], |(start, end)| {
+                [addr_to_limbs(start), addr_to_limbs(end)]
+            }),
+        }
     }
 }

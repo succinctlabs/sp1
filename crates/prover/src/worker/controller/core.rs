@@ -7,17 +7,20 @@ use futures::{prelude::*, stream::FuturesUnordered};
 use serde::{Deserialize, Serialize};
 use slop_futures::pipeline::Pipeline;
 use sp1_core_executor::{
-    events::{MemoryInitializeFinalizeEvent, MemoryRecord},
+    events::{MemoryInitializeFinalizeEvent, MemoryRecord, PageProtInitializeFinalizeEvent},
     CoreVM, ExecutionError, Program, SP1CoreOpts, SyscallCode, UnsafeMemory,
 };
 use sp1_core_executor_runner::MinimalExecutorRunner;
-use sp1_core_machine::{executor::ExecutionOutput, io::SP1Stdin};
+use sp1_core_machine::{executor::ExecutionOutput, io::SP1Stdin, riscv::RiscvAir};
 use sp1_hypercube::{
     air::{ShardRange, PROOF_NONCE_NUM_WORDS, PV_DIGEST_NUM_WORDS},
-    SP1VerifyingKey, DIGEST_SIZE,
+    Machine, SP1VerifyingKey, DIGEST_SIZE,
 };
 use sp1_jit::MinimalTrace;
-use sp1_prover_types::{network_base_types::ProofMode, Artifact, ArtifactClient, TaskType};
+use sp1_primitives::SP1Field;
+use sp1_prover_types::{
+    network_base_types::ProofMode, Artifact, ArtifactClient, SerializableRiscvMachine, TaskType,
+};
 use tokio::{
     sync::{mpsc, oneshot},
     task::JoinSet,
@@ -59,6 +62,7 @@ impl<W: WorkerClient, T: Serialize> MessageSender<W, T> {
 struct CoreExecuteMetadata {
     num_deferred_proofs: usize,
     cycle_limit: Option<u64>,
+    machine: SerializableRiscvMachine,
 }
 
 pub struct CoreExecuteTaskRequest {
@@ -69,6 +73,7 @@ pub struct CoreExecuteTaskRequest {
     pub num_deferred_proofs: usize,
     pub cycle_limit: Option<u64>,
     pub context: TaskContext,
+    pub machine: Machine<SP1Field, RiscvAir<SP1Field>>,
 }
 
 impl CoreExecuteTaskRequest {
@@ -84,6 +89,7 @@ impl CoreExecuteTaskRequest {
             serde_json::from_str(&metadata.to_id()).map_err(|e| {
                 TaskError::Fatal(anyhow::anyhow!("failed to deserialize CoreExecuteMetadata: {e}"))
             })?;
+        let machine = metadata.machine.into();
         Ok(CoreExecuteTaskRequest {
             elf,
             stdin,
@@ -92,6 +98,7 @@ impl CoreExecuteTaskRequest {
             num_deferred_proofs: metadata.num_deferred_proofs,
             cycle_limit: metadata.cycle_limit,
             context,
+            machine,
         })
     }
 
@@ -99,6 +106,7 @@ impl CoreExecuteTaskRequest {
         let metadata = CoreExecuteMetadata {
             num_deferred_proofs: self.num_deferred_proofs,
             cycle_limit: self.cycle_limit,
+            machine: self.machine.into(),
         };
         let metadata_str = serde_json::to_string(&metadata).map_err(|e| {
             TaskError::Fatal(anyhow::anyhow!("failed to serialize CoreExecuteMetadata: {e}"))
@@ -126,6 +134,8 @@ pub struct GlobalMemoryShard {
     pub final_state: FinalVmState,
     pub initialize_events: Vec<MemoryInitializeFinalizeEvent>,
     pub finalize_events: Vec<MemoryInitializeFinalizeEvent>,
+    pub page_prot_initialize_events: Vec<PageProtInitializeFinalizeEvent>,
+    pub page_prot_finalize_events: Vec<PageProtInitializeFinalizeEvent>,
     pub previous_init_addr: u64,
     pub previous_finalize_addr: u64,
     pub previous_init_page_idx: u64,
@@ -167,6 +177,7 @@ pub struct SP1CoreExecutor<A: ArtifactClient, W: WorkerClient> {
     gate: super::ProveShardGate<A, W>,
     minimal_executor_cache: Option<MinimalExecutorCache>,
     cycle_limit: Option<u64>,
+    _machine: Machine<SP1Field, RiscvAir<SP1Field>>,
 }
 
 impl<A: ArtifactClient, W: WorkerClient> SP1CoreExecutor<A, W> {
@@ -186,6 +197,7 @@ impl<A: ArtifactClient, W: WorkerClient> SP1CoreExecutor<A, W> {
         gate: super::ProveShardGate<A, W>,
         minimal_executor_cache: Option<MinimalExecutorCache>,
         cycle_limit: Option<u64>,
+        _machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     ) -> Self {
         Self {
             splicing_engine,
@@ -202,6 +214,7 @@ impl<A: ArtifactClient, W: WorkerClient> SP1CoreExecutor<A, W> {
             gate,
             minimal_executor_cache,
             cycle_limit,
+            _machine,
         }
     }
 }
@@ -225,7 +238,7 @@ where
         })?);
 
         // Initialize the touched addresses map.
-        let (all_touched_addresses, global_memory_handler) =
+        let (all_touched_addresses, all_touched_pages, global_memory_handler) =
             global_memory(self.global_memory_buffer_size);
         let (deferred_marker_tx, precompile_handler) = precompile_channel(&program, &opts);
         // Initialize the final vm state.
@@ -324,6 +337,7 @@ where
                         common_input_artifact: common_input_artifact.clone(),
                         num_deferred_proofs: self.num_deferred_proofs,
                         all_touched_addresses: all_touched_addresses.clone(),
+                        all_touched_pages: all_touched_pages.clone(),
                         final_vm_state: final_vm_state.clone(),
                         prove_shard_tx: sender.clone(),
                         context: context.clone(),
@@ -489,7 +503,7 @@ pub struct FinalVmState {
 }
 
 impl FinalVmState {
-    pub fn new<'a, 'b>(vm: &'a CoreVM<'b>) -> Self {
+    pub fn new<'a, 'b, M: sp1_core_executor::ExecutionMode>(vm: &'a CoreVM<'b, M>) -> Self {
         let registers = *vm.registers();
         let timestamp = vm.clk();
         let pc = vm.pc();
@@ -498,6 +512,18 @@ impl FinalVmState {
         let proof_nonce = vm.proof_nonce;
 
         Self { registers, timestamp, pc, exit_code, public_value_digest, proof_nonce }
+    }
+
+    /// Create from a `GasEstimatingVMEnum`.
+    pub fn from_gas_estimating_vm_enum(vm: &sp1_core_executor::GasEstimatingVMEnum<'_>) -> Self {
+        Self {
+            registers: vm.registers(),
+            timestamp: vm.clk(),
+            pc: vm.pc(),
+            exit_code: vm.exit_code(),
+            public_value_digest: vm.public_value_digest(),
+            proof_nonce: vm.proof_nonce(),
+        }
     }
 }
 

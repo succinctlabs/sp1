@@ -20,13 +20,14 @@ use clap::Parser;
 use either::Either;
 use sp1_core_executor::SP1Context;
 use sp1_gpu_perf::get_program_and_input;
-use sp1_gpu_prover::cuda_worker_builder;
+use sp1_gpu_prover::cuda_worker_builder_with_machine;
 use sp1_prover::{
     shapes::{SP1RecursionProgramShape, DEFAULT_ARITY},
     worker::{SP1LocalNodeBuilder, SP1Proof},
     CpuSP1ProverComponents, SP1ProverComponents,
 };
 use sp1_prover_types::network_base_types::ProofMode;
+use sp1_sdk::RiscvAir;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -40,6 +41,7 @@ struct Args {
 #[tokio::main]
 #[allow(clippy::field_reassign_with_default)]
 async fn main() {
+    let machine = RiscvAir::machine();
     let args = Args::parse();
 
     // Load the environment variables.
@@ -51,11 +53,12 @@ async fn main() {
 
     // Initialize the AirProver and permits
     sp1_gpu_cudart::spawn(move |t| async move {
-        let node =
-            SP1LocalNodeBuilder::from_worker_client_builder(cuda_worker_builder(t.clone()).await)
-                .build()
-                .await
-                .unwrap();
+        let node = SP1LocalNodeBuilder::from_worker_client_builder(
+            cuda_worker_builder_with_machine(t.clone(), machine.clone()).await,
+        )
+        .build()
+        .await
+        .unwrap();
 
         // Use a temporary directory for the vk_map file to avoid conflicts
         let temp_dir = std::env::current_dir().unwrap();
@@ -71,7 +74,10 @@ async fn main() {
 
         // Create all circuit shapes.
         let shapes = sp1_prover::shapes::create_all_input_shapes(
-            CpuSP1ProverComponents::core_verifier().shard_verifier().machine().shape(),
+            CpuSP1ProverComponents::core_verifier(machine.clone())
+                .shard_verifier()
+                .machine()
+                .shape(),
             DEFAULT_ARITY,
         );
 
@@ -85,7 +91,7 @@ async fn main() {
 
         for proof in &core_proof {
             let shape = SP1RecursionProgramShape::Normalize(
-                CpuSP1ProverComponents::core_verifier().shape_from_proof(proof),
+                CpuSP1ProverComponents::core_verifier(machine.clone()).shape_from_proof(proof),
             );
 
             let index = shapes.iter().position(|s| *s == shape).expect("Shape not found in shapes");
@@ -115,7 +121,7 @@ async fn main() {
 
         // Build a new prover that performs the vk verification check using the built vk map.
         let node = SP1LocalNodeBuilder::from_worker_client_builder(
-            cuda_worker_builder(t.clone())
+            cuda_worker_builder_with_machine(t.clone(), machine.clone())
                 .await
                 .with_vk_map_path(vk_map_path.to_str().unwrap().to_string()),
         )

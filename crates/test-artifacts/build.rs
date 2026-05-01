@@ -28,6 +28,22 @@ fn main() -> Result<()> {
         Default::default(),
     );
 
+    // Build trap test programs separately because they enable the `untrusted_programs` feature
+    // on sp1-zkvm. Building them in the main workspace would enable this feature for all programs.
+    for trap_program in ["trap-exec", "trap-load-store"] {
+        let trap_path = [env!("CARGO_MANIFEST_DIR"), "programs", trap_program]
+            .iter()
+            .collect::<PathBuf>()
+            .canonicalize()?;
+
+        build_program_with_args(
+            trap_path
+                .to_str()
+                .ok_or_else(|| Error::other(format!("expected {trap_path:?} to be valid UTF-8")))?,
+            Default::default(),
+        );
+    }
+
     build_program_with_args(
         "../verifier/guest-verify-programs",
         BuildArgs {

@@ -44,6 +44,10 @@ thiserror = "1.0"
 tracing = { workspace = true }
 tokio = { workspace = true }
 
+[features]
+default = []
+mprotect = ["sp1-hypercube/mprotect"]
+
 [dev-dependencies]
 serial_test = "3.1"
 zstd = "0.13.3"

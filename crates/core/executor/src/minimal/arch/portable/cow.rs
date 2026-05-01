@@ -2,6 +2,11 @@ use crate::{
     memory::{Entry, PagedMemory, MAX_LOG_ADDR},
     ExecutionError, Opcode,
 };
+use hashbrown::{
+    hash_map::{DefaultHashBuilder, Entry as HBEntry},
+    HashMap,
+};
+use sp1_jit::PageProtValue;
 use std::cell::RefCell;
 
 /// A memory backed by [`PagedMemory`], which can be in either owned or COW mode.
@@ -50,6 +55,14 @@ impl<T: Copy> MaybeCowMemory<T> {
         match self {
             Self::Cow { copy, original } => copy.get(addr).or_else(|| original.get(addr)),
             Self::Owned { memory } => memory.get(addr),
+        }
+    }
+
+    /// Get a view of the keys of the memory.
+    pub fn keys(&self) -> impl Iterator<Item = u64> + '_ {
+        match self {
+            Self::Cow { copy: _, original: _ } => unreachable!("Can't get keys of a cow memory"),
+            Self::Owned { memory } => memory.keys(),
         }
     }
 
@@ -192,6 +205,20 @@ impl<T: Copy + Default> LimitedMemory<T> {
         self.memory.get(addr)
     }
 
+    /// Get a view of the keys of the memory.
+    pub fn keys(&self) -> impl Iterator<Item = u64> + '_ {
+        self.memory.keys()
+    }
+
+    /// Get a value from the memory without bounds checking or error tracking.
+    ///
+    /// This bypasses the `RefCell`-based error tracking, making it safe to call
+    /// concurrently from `UnsafeMemory` while the executor is running on another thread.
+    #[inline]
+    pub fn get_raw(&self, addr: u64) -> Option<&T> {
+        self.memory.get(addr)
+    }
+
     /// Insert a value into the memory.
     #[inline]
     pub fn insert(&mut self, addr: u64, value: T) {
@@ -239,5 +266,94 @@ impl<T: Copy + Default> LimitedMemory<T> {
             c(&self.last_error, self.limiter.increase());
         }
         entry.or_default()
+    }
+}
+
+/// A page prot, which can be in either owned or COW mode.
+pub enum MaybeCowPageProt {
+    /// `HashMap` for page protection in COW mode.
+    Cow {
+        /// The copy of the `HashMap`.
+        copy: HashMap<u64, PageProtValue>,
+        /// The original `HashMap`.
+        original: HashMap<u64, PageProtValue>,
+    },
+    /// `HashMap` for page protection in owned mode.
+    Owned {
+        /// The page protection status for each page.
+        page_prot: HashMap<u64, PageProtValue>,
+    },
+}
+
+impl MaybeCowPageProt {
+    /// Create a new cow page prot.
+    #[must_use]
+    pub fn new_cow(original: HashMap<u64, PageProtValue>) -> Self {
+        Self::Cow { copy: HashMap::default(), original }
+    }
+
+    /// Initialize the cow page prot.
+    ///
+    /// If the page prot is already in COW mode, this is a no-op.
+    pub fn copy_on_write(&mut self) {
+        match self {
+            Self::Cow { .. } => {}
+            Self::Owned { page_prot } => {
+                *self = Self::new_cow(std::mem::take(page_prot));
+            }
+        }
+    }
+
+    /// Convert the page prot to owned mode, discarding any of the page prot in the COW.
+    pub fn owned(&mut self) {
+        match self {
+            Self::Cow { copy: _, original } => {
+                *self = Self::Owned { page_prot: std::mem::take(original) };
+            }
+            Self::Owned { .. } => {}
+        }
+    }
+
+    /// Get an entry for the given page index.
+    pub fn entry(&mut self, page_idx: u64) -> HBEntry<'_, u64, PageProtValue, DefaultHashBuilder> {
+        // First we ensure that the copy has the value, if it exists in the original.
+        match self {
+            Self::Cow { copy, original } => {
+                if let HBEntry::Vacant(entry) = copy.entry(page_idx) {
+                    if let Some(value) = original.get(&page_idx) {
+                        entry.insert(*value);
+                    }
+                }
+            }
+            Self::Owned { .. } => {}
+        }
+
+        match self {
+            Self::Cow { copy, original: _ } => copy.entry(page_idx),
+            Self::Owned { page_prot } => page_prot.entry(page_idx),
+        }
+    }
+
+    /// Get a value from the page prot.
+    #[must_use]
+    pub fn get(&self, page_idx: u64) -> Option<&PageProtValue> {
+        match self {
+            Self::Cow { copy, original } => copy.get(&page_idx).or_else(|| original.get(&page_idx)),
+            Self::Owned { page_prot } => page_prot.get(&page_idx),
+        }
+    }
+
+    /// Insert a value into the page prot.
+    pub fn insert(&mut self, page_idx: u64, value: PageProtValue) -> Option<PageProtValue> {
+        match self {
+            Self::Cow { copy, original: _ } => copy.insert(page_idx, value),
+            Self::Owned { page_prot } => page_prot.insert(page_idx, value),
+        }
+    }
+}
+
+impl From<HashMap<u64, PageProtValue>> for MaybeCowPageProt {
+    fn from(page_prot: HashMap<u64, PageProtValue>) -> Self {
+        Self::Owned { page_prot }
     }
 }

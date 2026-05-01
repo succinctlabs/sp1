@@ -1,11 +1,12 @@
 //! Native executor implementation
 
-use crate::{memory::MAX_LOG_ADDR, Instruction, Opcode, Program, Register, HALT_PC};
+use crate::{memory::MAX_LOG_ADDR, ExecutionMode, Instruction, Opcode, Program, Register, HALT_PC};
 use memmap2::MmapMut;
 use sp1_jit::{
     debug, memory::AnonymousMemory, trace_capacity, DebugBackend, JitFunction, JitMemory, MemValue,
     RiscOperand, RiscRegister, RiscvTranspiler, TraceChunkHeader, TraceChunkRaw, TranspilerBackend,
 };
+use std::marker::PhantomData;
 use std::{
     collections::VecDeque,
     ptr::NonNull,
@@ -22,14 +23,15 @@ mod tests;
 /// * VM memory is one flat region of memory, there is no out-of-bound checks.
 ///   As a result, it is only suitable for known programs. Please refer to
 ///   `sp1_core_executor_runner::MinimalExecutorRunner` for running arbitrary SP1 programs.
-pub struct MinimalExecutor {
+pub struct MinimalExecutor<M: ExecutionMode> {
     program: Arc<Program>,
     compiled: JitFunction<AnonymousMemory>,
     input: VecDeque<Vec<u8>>,
     trace_buf_size: usize,
+    _mode: PhantomData<M>,
 }
 
-impl MinimalExecutor {
+impl<M: ExecutionMode> MinimalExecutor<M> {
     /// Create a new minimal executor and transpile the program.
     ///
     /// # Arguments
@@ -55,6 +57,7 @@ impl MinimalExecutor {
             compiled,
             input: VecDeque::new(),
             trace_buf_size: trace_capacity(max_trace_size),
+            _mode: PhantomData,
         }
     }
 
@@ -144,7 +147,7 @@ impl MinimalExecutor {
                 Some(ref mut trace_buf) => {
                     let p = trace_buf.as_mut_ptr();
                     // We are reusing trace buffer, it's imperative to reset counter
-                    // befor each iteration.
+                    // before each iteration.
                     // trace_buf_ptr is page aligned, so casting it is fine.
                     #[allow(clippy::cast_ptr_alignment)]
                     unsafe {
@@ -241,6 +244,13 @@ impl MinimalExecutor {
         self.compiled.hints.iter().map(|(_, hint)| hint.len()).collect()
     }
 
+    /// Get the page protection record for a specific page index.
+    /// The JIT executor does not track page protection, so this always returns None.
+    #[must_use]
+    pub fn get_page_prot_record(&self, _page_idx: u64) -> Option<sp1_jit::PageProtValue> {
+        None
+    }
+
     /// Get an unsafe memory view of the JIT function.
     ///
     /// This allows reading without lifetime and mutability constraints.
@@ -259,7 +269,7 @@ impl MinimalExecutor {
     }
 }
 
-impl debug::DebugState for MinimalExecutor {
+impl<M: ExecutionMode> debug::DebugState for MinimalExecutor<M> {
     fn current_state(&self) -> debug::State {
         let registers = self.registers();
         debug::State { pc: self.pc(), clk: self.clk(), global_clk: self.global_clk(), registers }

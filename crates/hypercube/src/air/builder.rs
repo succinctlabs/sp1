@@ -202,6 +202,7 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
         clk_high: impl Into<Self::Expr> + Clone,
         clk_low: impl Into<Self::Expr> + Clone,
         syscall_id: impl Into<Self::Expr> + Clone,
+        trap_code: impl Into<Self::Expr> + Clone,
         arg1: [impl Into<Self::Expr>; 3],
         arg2: [impl Into<Self::Expr>; 3],
         multiplicity: impl Into<Self::Expr>,
@@ -210,6 +211,7 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
         let values = once(clk_high.into())
             .chain(once(clk_low.into()))
             .chain(once(syscall_id.into()))
+            .chain(cfg!(feature = "mprotect").then(|| trap_code.into()))
             .chain(arg1.map(Into::into))
             .chain(arg2.map(Into::into))
             .collect::<Vec<_>>();
@@ -227,6 +229,7 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
         clk_high: impl Into<Self::Expr> + Clone,
         clk_low: impl Into<Self::Expr> + Clone,
         syscall_id: impl Into<Self::Expr> + Clone,
+        trap_code: impl Into<Self::Expr> + Clone,
         arg1: [Self::Expr; 3],
         arg2: [Self::Expr; 3],
         multiplicity: impl Into<Self::Expr>,
@@ -235,6 +238,7 @@ pub trait InstructionAirBuilder: BaseAirBuilder {
         let values = once(clk_high.into())
             .chain(once(clk_low.into()))
             .chain(once(syscall_id.into()))
+            .chain(cfg!(feature = "mprotect").then(|| trap_code.into()))
             .chain(arg1)
             .chain(arg2)
             .collect::<Vec<_>>();

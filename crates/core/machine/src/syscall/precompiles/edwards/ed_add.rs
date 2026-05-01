@@ -7,8 +7,9 @@ use std::{fmt::Debug, marker::PhantomData};
 use crate::{
     air::SP1CoreAirBuilder,
     memory::MemoryAccessColsU8,
-    operations::{AddrAddOperation, SyscallAddrOperation},
+    operations::{AddrAddOperation, AddressSlicePageProtOperation, SyscallAddrOperation},
     utils::{limbs_to_words, next_multiple_of_32},
+    SupervisorMode, TrustMode, UserMode,
 };
 use hashbrown::HashMap;
 use itertools::Itertools;
@@ -36,20 +37,22 @@ use sp1_hypercube::{
     air::{InteractionScope, MachineAir},
     Word,
 };
+use sp1_primitives::consts::{PROT_READ, PROT_WRITE};
 
 use crate::operations::field::{
     field_den::FieldDenCols, field_inner_product::FieldInnerProductCols, field_op::FieldOpCols,
     range::FieldLtCols,
 };
 
-pub const NUM_ED_ADD_COLS: usize = size_of::<EdAddAssignCols<u8>>();
+pub const NUM_ED_ADD_COLS_SUPERVISOR: usize = size_of::<EdAddAssignCols<u8, SupervisorMode>>();
+pub const NUM_ED_ADD_COLS_USER: usize = size_of::<EdAddAssignCols<u8, UserMode>>();
 
 /// A set of columns to compute `EdAdd` where a, b are field elements.
 /// Right now the number of limbs is assumed to be a constant, although this could be macro-ed
 /// or made generic in the future.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct EdAddAssignCols<T> {
+pub struct EdAddAssignCols<T, M: TrustMode> {
     pub is_real: T,
     pub clk_high: T,
     pub clk_low: T,
@@ -69,14 +72,16 @@ pub struct EdAddAssignCols<T> {
     pub(crate) y3_ins: FieldDenCols<T, Ed25519BaseField>,
     pub(crate) x3_range: FieldLtCols<T, Ed25519BaseField>,
     pub(crate) y3_range: FieldLtCols<T, Ed25519BaseField>,
+    pub read_slice_page_prot_access: M::SliceProtCols<T>,
+    pub write_slice_page_prot_access: M::SliceProtCols<T>,
 }
 
 #[derive(Default)]
-pub struct EdAddAssignChip<E> {
-    _marker: PhantomData<E>,
+pub struct EdAddAssignChip<E, M: TrustMode> {
+    _marker: PhantomData<(E, M)>,
 }
 
-impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
+impl<E: EllipticCurve + EdwardsParameters, M: TrustMode> EdAddAssignChip<E, M> {
     pub const fn new() -> Self {
         Self { _marker: PhantomData }
     }
@@ -84,7 +89,7 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
     #[allow(clippy::too_many_arguments)]
     fn populate_field_ops<F: PrimeField32>(
         record: &mut impl ByteRecord,
-        cols: &mut EdAddAssignCols<F>,
+        cols: &mut EdAddAssignCols<F, M>,
         p_x: BigUint,
         p_y: BigUint,
         q_x: BigUint,
@@ -115,16 +120,25 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
     }
 }
 
-impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for EdAddAssignChip<E> {
+impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters, M: TrustMode> MachineAir<F>
+    for EdAddAssignChip<E, M>
+{
     type Record = ExecutionRecord;
 
     type Program = Program;
 
     fn name(&self) -> &'static str {
-        "EdAddAssign"
+        if M::IS_TRUSTED {
+            "EdAddAssign"
+        } else {
+            "EdAddAssignUser"
+        }
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
+        if input.program.enable_untrusted_programs == M::IS_TRUSTED {
+            return Some(0);
+        }
         let nb_rows = input.get_precompile_events(SyscallCode::ED_ADD).len();
         let size_log2 = input.fixed_log2_rows::<F, _>(self);
         let padded_nb_rows = next_multiple_of_32(nb_rows, size_log2);
@@ -137,24 +151,28 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
         _output: &mut ExecutionRecord,
         buffer: &mut [MaybeUninit<F>],
     ) {
-        let padded_nb_rows = <EdAddAssignChip<E> as MachineAir<F>>::num_rows(self, input).unwrap();
+        if input.program.enable_untrusted_programs == M::IS_TRUSTED {
+            return;
+        }
+
+        let width = <EdAddAssignChip<E, M> as BaseAir<F>>::width(self);
+        let padded_nb_rows =
+            <EdAddAssignChip<E, M> as MachineAir<F>>::num_rows(self, input).unwrap();
         let events = input.get_precompile_events(SyscallCode::ED_ADD);
         let num_event_rows = events.len();
 
         unsafe {
-            let padding_start = num_event_rows * NUM_ED_ADD_COLS;
-            let padding_size = (padded_nb_rows - num_event_rows) * NUM_ED_ADD_COLS;
+            let padding_start = num_event_rows * width;
+            let padding_size = (padded_nb_rows - num_event_rows) * width;
             if padding_size > 0 {
                 core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
             }
         }
 
         let buffer_ptr = buffer.as_mut_ptr() as *mut F;
-        let values = unsafe {
-            core::slice::from_raw_parts_mut(buffer_ptr, num_event_rows * NUM_ED_ADD_COLS)
-        };
+        let values = unsafe { core::slice::from_raw_parts_mut(buffer_ptr, num_event_rows * width) };
 
-        values.par_chunks_mut(NUM_ED_ADD_COLS).enumerate().for_each(|(idx, row)| {
+        values.par_chunks_mut(width).enumerate().for_each(|(idx, row)| {
             if idx < events.len() {
                 let (_, event) = &events[idx];
                 let event = if let PrecompileEvent::EdAdd(event) = event {
@@ -162,26 +180,18 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
                 } else {
                     unreachable!();
                 };
-                let cols: &mut EdAddAssignCols<F> = row.borrow_mut();
+                let cols: &mut EdAddAssignCols<F, M> = row.borrow_mut();
                 let mut blu = Vec::new();
-                self.event_to_row(
-                    event,
-                    cols,
-                    input.public_values.is_untrusted_programs_enabled,
-                    &mut blu,
-                );
+                self.event_to_row(event, cols, &mut blu);
             }
         });
 
         for idx in num_event_rows..padded_nb_rows {
-            let row_start = idx * NUM_ED_ADD_COLS;
+            let row_start = idx * width;
             let row = unsafe {
-                core::slice::from_raw_parts_mut(
-                    buffer[row_start..].as_mut_ptr() as *mut F,
-                    NUM_ED_ADD_COLS,
-                )
+                core::slice::from_raw_parts_mut(buffer[row_start..].as_mut_ptr() as *mut F, width)
             };
-            let cols: &mut EdAddAssignCols<F> = row.borrow_mut();
+            let cols: &mut EdAddAssignCols<F, M> = row.borrow_mut();
             let zero = BigUint::zero();
             Self::populate_field_ops(
                 &mut vec![],
@@ -195,6 +205,11 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
+        if input.program.enable_untrusted_programs == M::IS_TRUSTED {
+            return;
+        }
+
+        let width = <EdAddAssignChip<E, M> as BaseAir<F>>::width(self);
         let events = input.get_precompile_events(SyscallCode::ED_ADD);
         let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
 
@@ -209,14 +224,9 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
                         unreachable!();
                     };
 
-                    let mut row = [F::zero(); NUM_ED_ADD_COLS];
-                    let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
-                    self.event_to_row(
-                        event,
-                        cols,
-                        input.public_values.is_untrusted_programs_enabled,
-                        &mut blu,
-                    );
+                    let mut row = vec![F::zero(); width];
+                    let cols: &mut EdAddAssignCols<F, M> = row.as_mut_slice().borrow_mut();
+                    self.event_to_row(event, cols, &mut blu);
                 });
                 blu
             })
@@ -230,17 +240,17 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
             shape.included::<F, _>(self)
         } else {
             !shard.get_precompile_events(SyscallCode::ED_ADD).is_empty()
+                && (M::IS_TRUSTED != shard.program.enable_untrusted_programs)
         }
     }
 }
 
-impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
+impl<E: EllipticCurve + EdwardsParameters, M: TrustMode> EdAddAssignChip<E, M> {
     /// Create a row from an event.
     fn event_to_row<F: PrimeField32>(
         &self,
         event: &EllipticCurveAddEvent,
-        cols: &mut EdAddAssignCols<F>,
-        _page_prot_enabled: u32,
+        cols: &mut EdAddAssignCols<F, M>,
         blu: &mut impl ByteRecord,
     ) {
         // Decode affine points.
@@ -261,45 +271,116 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
 
         Self::populate_field_ops(blu, cols, p_x, p_y, q_x, q_y);
 
+        let mut is_not_trap = true;
+        let mut trap_code = 0;
+
+        if !M::IS_TRUSTED {
+            let cols: &mut EdAddAssignCols<F, UserMode> =
+                unsafe { &mut *(cols as *mut _ as *mut _) };
+            cols.read_slice_page_prot_access.populate(
+                blu,
+                event.q_ptr,
+                event.q_ptr + 8 * (WORDS_CURVE_POINT - 1) as u64,
+                event.clk,
+                PROT_READ,
+                &event.page_prot_records.read_page_prot_records,
+                &mut is_not_trap,
+                &mut trap_code,
+            );
+
+            cols.write_slice_page_prot_access.populate(
+                blu,
+                event.p_ptr,
+                event.p_ptr + 8 * (WORDS_CURVE_POINT - 1) as u64,
+                event.clk + 1,
+                PROT_READ | PROT_WRITE,
+                &event.page_prot_records.write_page_prot_records,
+                &mut is_not_trap,
+                &mut trap_code,
+            );
+        }
+
         // Populate the memory access columns.
         for i in 0..WORDS_CURVE_POINT {
-            let record = MemoryRecordEnum::Read(event.q_memory_records[i]);
             cols.q_addrs_add[i].populate(blu, event.q_ptr, i as u64 * 8);
-            cols.q_access[i].populate(record, blu);
-        }
-        for i in 0..WORDS_CURVE_POINT {
-            let record = MemoryRecordEnum::Write(event.p_memory_records[i]);
             cols.p_addrs_add[i].populate(blu, event.p_ptr, i as u64 * 8);
-            cols.p_access[i].populate(record, blu);
+            if is_not_trap {
+                let q_record = MemoryRecordEnum::Read(event.q_memory_records[i]);
+                cols.q_access[i].populate(q_record, blu);
+                let p_record = MemoryRecordEnum::Write(event.p_memory_records[i]);
+                cols.p_access[i].populate(p_record, blu);
+            } else {
+                cols.q_access[i] = MemoryAccessColsU8::default();
+                cols.p_access[i] = MemoryAccessColsU8::default();
+            }
         }
     }
 }
 
-impl<F, E: EllipticCurve + EdwardsParameters> BaseAir<F> for EdAddAssignChip<E> {
+impl<F, E: EllipticCurve + EdwardsParameters, M: TrustMode> BaseAir<F> for EdAddAssignChip<E, M> {
     fn width(&self) -> usize {
-        NUM_ED_ADD_COLS
+        if M::IS_TRUSTED {
+            NUM_ED_ADD_COLS_SUPERVISOR
+        } else {
+            NUM_ED_ADD_COLS_USER
+        }
     }
 }
 
-impl<AB, E: EllipticCurve + EdwardsParameters> Air<AB> for EdAddAssignChip<E>
+impl<AB, E: EllipticCurve + EdwardsParameters, M: TrustMode> Air<AB> for EdAddAssignChip<E, M>
 where
     AB: SP1CoreAirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local = main.row_slice(0);
-        let local: &EdAddAssignCols<AB::Var> = (*local).borrow();
+        let local: &EdAddAssignCols<AB::Var, M> = (*local).borrow();
 
-        let x1_limbs = builder.generate_limbs(&local.p_access[0..4], local.is_real.into());
+        let mut is_not_trap = local.is_real.into();
+        let mut trap_code = AB::Expr::zero();
+
+        if !M::IS_TRUSTED {
+            let local = main.row_slice(0);
+            let local: &EdAddAssignCols<AB::Var, UserMode> = (*local).borrow();
+
+            #[cfg(not(feature = "mprotect"))]
+            builder.assert_zero(local.is_real);
+
+            AddressSlicePageProtOperation::<AB::F>::eval(
+                builder,
+                local.clk_high.into(),
+                local.clk_low.into(),
+                &local.q_ptr.addr.map(Into::into),
+                &local.q_addrs_add[WORDS_CURVE_POINT - 1].value.map(Into::into),
+                PROT_READ,
+                &local.read_slice_page_prot_access,
+                &mut is_not_trap,
+                &mut trap_code,
+            );
+
+            AddressSlicePageProtOperation::<AB::F>::eval(
+                builder,
+                local.clk_high.into(),
+                local.clk_low.into() + AB::Expr::one(),
+                &local.p_ptr.addr.map(Into::into),
+                &local.p_addrs_add[WORDS_CURVE_POINT - 1].value.map(Into::into),
+                PROT_READ | PROT_WRITE,
+                &local.write_slice_page_prot_access,
+                &mut is_not_trap,
+                &mut trap_code,
+            );
+        }
+
+        let x1_limbs = builder.generate_limbs(&local.p_access[0..4], is_not_trap.clone());
         let x1: Limbs<AB::Expr, <Ed25519BaseField as NumLimbs>::Limbs> =
             Limbs(x1_limbs.try_into().expect("failed to convert limbs"));
-        let x2_limbs = builder.generate_limbs(&local.q_access[0..4], local.is_real.into());
+        let x2_limbs = builder.generate_limbs(&local.q_access[0..4], is_not_trap.clone());
         let x2: Limbs<AB::Expr, <Ed25519BaseField as NumLimbs>::Limbs> =
             Limbs(x2_limbs.try_into().expect("failed to convert limbs"));
-        let y1_limbs = builder.generate_limbs(&local.p_access[4..8], local.is_real.into());
+        let y1_limbs = builder.generate_limbs(&local.p_access[4..8], is_not_trap.clone());
         let y1: Limbs<AB::Expr, <Ed25519BaseField as NumLimbs>::Limbs> =
             Limbs(y1_limbs.try_into().expect("failed to convert limbs"));
-        let y2_limbs = builder.generate_limbs(&local.q_access[4..8], local.is_real.into());
+        let y2_limbs = builder.generate_limbs(&local.q_access[4..8], is_not_trap.clone());
         let y2: Limbs<AB::Expr, <Ed25519BaseField as NumLimbs>::Limbs> =
             Limbs(y2_limbs.try_into().expect("failed to convert limbs"));
 
@@ -384,7 +465,7 @@ where
             local.clk_low,
             &local.q_addrs_add.map(|addr| addr.value.map(Into::into)),
             &local.q_access.iter().map(|access| access.memory_access).collect_vec(),
-            local.is_real,
+            is_not_trap.clone(),
         );
 
         builder.eval_memory_access_slice_write(
@@ -393,17 +474,24 @@ where
             &local.p_addrs_add.map(|addr| addr.value.map(Into::into)),
             &local.p_access.iter().map(|access| access.memory_access).collect_vec(),
             result_words,
-            local.is_real,
+            is_not_trap.clone(),
         );
 
         builder.receive_syscall(
             local.clk_high,
             local.clk_low,
             AB::F::from_canonical_u32(SyscallCode::ED_ADD.syscall_id()),
+            trap_code.clone(),
             p_ptr.map(Into::into),
             q_ptr.map(Into::into),
             local.is_real,
             InteractionScope::Local,
+        );
+
+        #[cfg(feature = "mprotect")]
+        builder.assert_eq(
+            builder.extract_public_values().is_untrusted_programs_enabled,
+            AB::Expr::from_bool(!M::IS_TRUSTED),
         );
     }
 }

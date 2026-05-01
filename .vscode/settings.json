@@ -10,7 +10,7 @@
     ],
     "rust-analyzer.server.path": "rust-analyzer",
     "rust-analyzer.check.extraEnv": {
-      "RUSTFLAGS": "--cfg sp1_debug_constraints"
+        "RUSTFLAGS": "--cfg sp1_debug_constraints"
     },
     "rust-analyzer.check.overrideCommand": [
         "cargo",
@@ -95,5 +95,5 @@
         "type_traits": "cpp",
         "utility": "cpp",
         "cmath": "cpp"
-    },
+    }
 }

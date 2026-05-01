@@ -19,8 +19,8 @@ use sp1_core_executor::{SP1CoreOpts, SplitOpts};
 use sp1_core_executor::{
     chunked_memory_init_events,
     events::{MemoryInitializeFinalizeEvent, MemoryRecord},
-    CompressedMemory, CycleResult, ExecutionError, ExecutionRecord, Program, SP1Context,
-    SplicedMinimalTrace, SplicingVM,
+    CompressedMemory, CompressedPages, CycleResult, ExecutionError, ExecutionRecord, Program,
+    SP1Context, SplicedMinimalTrace, SplicingVMEnum,
 };
 use sp1_core_executor_runner::MinimalExecutorRunner;
 use sp1_jit::{MinimalTrace, TraceChunk};
@@ -70,6 +70,7 @@ where
     let mut deferred =
         ExecutionRecord::new(program.clone(), proof_nonce, opts.global_dependencies_opt);
     let mut touched_addresses = HashSet::new();
+    let mut touched_pages = HashSet::new();
 
     for chunk in trace_chunks {
         // Splice the chunk into shards
@@ -79,6 +80,7 @@ where
             proof_nonce,
             opts.clone(),
             &mut touched_addresses,
+            &mut touched_pages,
         );
 
         // Trace each spliced chunk to generate execution records
@@ -96,6 +98,7 @@ where
                     &mut record,
                     final_registers,
                     touched_addresses.clone(),
+                    touched_pages.clone(),
                 );
             }
 
@@ -134,6 +137,7 @@ pub fn emit_globals(
     record: &mut ExecutionRecord,
     final_registers: [MemoryRecord; 32],
     mut touched_addresses: HashSet<u64>,
+    _touched_pages: HashSet<u64>,
 ) {
     // Add all the finalize addresses to the touched addresses.
     touched_addresses.extend(minimal_executor.program().memory_image.keys().copied());
@@ -252,11 +256,19 @@ fn splice_chunk_sequential<T: MinimalTrace>(
     proof_nonce: [u32; sp1_hypercube::air::PROOF_NONCE_NUM_WORDS],
     opts: SP1CoreOpts,
     touched_addresses: &mut HashSet<u64>,
+    touched_pages: &mut HashSet<u64>,
 ) -> Vec<(bool, SplicedMinimalTrace<T>)> {
     let mut result = Vec::new();
     let mut compressed_touched = CompressedMemory::new();
-    let mut vm =
-        SplicingVM::new(&chunk, program.clone(), &mut compressed_touched, proof_nonce, opts);
+    let mut compressed_touched_pages = CompressedPages::new();
+    let mut vm = SplicingVMEnum::new(
+        &chunk,
+        program.clone(),
+        &mut compressed_touched,
+        &mut compressed_touched_pages,
+        proof_nonce,
+        opts,
+    );
 
     let mut last_splice = SplicedMinimalTrace::new_full_trace(chunk.clone());
     let start_num_mem_reads = chunk.num_mem_reads();
@@ -265,23 +277,21 @@ fn splice_chunk_sequential<T: MinimalTrace>(
         match vm.execute().expect("splicing execution failed") {
             CycleResult::ShardBoundary => {
                 if let Some(spliced) = vm.splice(chunk.clone()) {
-                    last_splice.set_last_clk(vm.core.clk());
-                    last_splice.set_last_mem_reads_idx(
-                        start_num_mem_reads as usize - vm.core.mem_reads.len(),
-                    );
+                    last_splice.set_last_clk(vm.clk());
+                    last_splice
+                        .set_last_mem_reads_idx(start_num_mem_reads as usize - vm.mem_reads_len());
                     let splice_to_emit = std::mem::replace(&mut last_splice, spliced);
                     result.push((false, splice_to_emit));
                 } else {
-                    last_splice.set_last_clk(vm.core.clk());
-                    last_splice.set_last_mem_reads_idx(
-                        start_num_mem_reads as usize - vm.core.mem_reads.len(),
-                    );
+                    last_splice.set_last_clk(vm.clk());
+                    last_splice
+                        .set_last_mem_reads_idx(start_num_mem_reads as usize - vm.mem_reads_len());
                     result.push((true, last_splice));
                     break;
                 }
             }
             CycleResult::Done(true) => {
-                last_splice.set_last_clk(vm.core.clk());
+                last_splice.set_last_clk(vm.clk());
                 last_splice.set_last_mem_reads_idx(chunk.num_mem_reads() as usize);
                 result.push((true, last_splice));
                 break;
@@ -293,6 +303,7 @@ fn splice_chunk_sequential<T: MinimalTrace>(
     }
 
     touched_addresses.extend(compressed_touched.is_set());
+    touched_pages.extend(compressed_touched_pages.is_set());
     result
 }
 

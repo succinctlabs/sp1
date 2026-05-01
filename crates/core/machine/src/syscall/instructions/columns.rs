@@ -6,13 +6,16 @@ use struct_reflection::{StructReflection, StructReflectionHelper};
 use crate::{
     adapter::{register::r_type::RTypeReader, state::CPUState},
     operations::{IsZeroOperation, SP1FieldWordRangeChecker, U16toU8Operation},
+    SupervisorMode, TrustMode, UserMode,
 };
 
-pub const NUM_SYSCALL_INSTR_COLS: usize = size_of::<SyscallInstrColumns<u8>>();
+pub const NUM_SYSCALL_INSTR_COLS_USER: usize = size_of::<SyscallInstrColumns<u8, UserMode>>();
+pub const NUM_SYSCALL_INSTR_COLS_SUPERVISOR: usize =
+    size_of::<SyscallInstrColumns<u8, SupervisorMode>>();
 
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
-pub struct SyscallInstrColumns<T> {
+pub struct SyscallInstrColumns<T, M: TrustMode> {
     /// The current shard, timestamp, program counter of the CPU.
     pub state: CPUState<T>,
 
@@ -62,4 +65,7 @@ pub struct SyscallInstrColumns<T> {
 
     /// Whether the current instruction is a real instruction.
     pub is_real: T,
+
+    /// Columns for handling syscall instructions in user mode.
+    pub user_mode_cols: M::SyscallInstrCols<T>,
 }

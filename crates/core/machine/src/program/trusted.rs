@@ -246,6 +246,10 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
             let pc = event.0.pc;
             instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
         });
+        input.trap_load_store_events.iter().for_each(|event| {
+            let pc = event.0.pc;
+            instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
+        });
 
         // Note: The program table should only count trusted (i.e. not untrusted instructions.)
         // However, untrusted instructions are also included in the events vectors.

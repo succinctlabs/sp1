@@ -25,7 +25,7 @@ async fn main() {
     // Execute the program.
     let (_, execution_report) = client.execute(ELF, stdin.clone()).await.unwrap();
 
-    let proof = client.prove(&pk, stdin.clone()).await.expect("proving failed");
+    let proof = client.prove(&pk, stdin.clone()).compressed().await.expect("proving failed");
 
     // Verify proof.
     client.verify(&proof, pk.verifying_key(), None).expect("verification failed");

@@ -39,6 +39,12 @@ pub enum ArtifactType {
     Stdin = 2,
     /// A proof artifact.
     Proof = 3,
+    /// A transaction artifact.
+    Transaction = 4,
+    /// A state artifact.
+    State = 5,
+    /// An export artifact.
+    Export = 6,
 }
 impl ArtifactType {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -51,6 +57,9 @@ impl ArtifactType {
             Self::Program => "PROGRAM",
             Self::Stdin => "STDIN",
             Self::Proof => "PROOF",
+            Self::Transaction => "TRANSACTION",
+            Self::State => "STATE",
+            Self::Export => "EXPORT",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -60,17 +69,24 @@ impl ArtifactType {
             "PROGRAM" => Some(Self::Program),
             "STDIN" => Some(Self::Stdin),
             "PROOF" => Some(Self::Proof),
+            "TRANSACTION" => Some(Self::Transaction),
+            "STATE" => Some(Self::State),
+            "EXPORT" => Some(Self::Export),
             _ => None,
         }
     }
 }
 /// Generated client implementations.
 pub mod artifact_store_client {
-    #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
+    #![allow(
+        unused_variables,
+        dead_code,
+        missing_docs,
+        clippy::wildcard_imports,
+        clippy::let_unit_value
+    )]
     use tonic::codegen::http::Uri;
-    use tonic::codegen::{
-        http, Body, Bytes, CompressionEncoding, GrpcMethod, InterceptedService, StdError,
-    };
+    use tonic::codegen::*;
     #[derive(Debug, Clone)]
     pub struct ArtifactStoreClient<T> {
         inner: tonic::client::Grpc<T>,
@@ -109,11 +125,11 @@ pub mod artifact_store_client {
             F: tonic::service::Interceptor,
             T::ResponseBody: Default,
             T: tonic::codegen::Service<
-                    http::Request<tonic::body::BoxBody>,
-                    Response = http::Response<
-                        <T as tonic::client::GrpcService<tonic::body::BoxBody>>::ResponseBody,
-                    >,
+                http::Request<tonic::body::BoxBody>,
+                Response = http::Response<
+                    <T as tonic::client::GrpcService<tonic::body::BoxBody>>::ResponseBody,
                 >,
+            >,
             <T as tonic::codegen::Service<http::Request<tonic::body::BoxBody>>>::Error:
                 Into<StdError> + std::marker::Send + std::marker::Sync,
         {
@@ -157,10 +173,7 @@ pub mod artifact_store_client {
         ) -> std::result::Result<tonic::Response<super::CreateArtifactResponse>, tonic::Status>
         {
             self.inner.ready().await.map_err(|e| {
-                tonic::Status::new(
-                    tonic::Code::Unknown,
-                    format!("Service was not ready: {}", e.into()),
-                )
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
             })?;
             let codec = tonic::codec::ProstCodec::default();
             let path =
@@ -174,11 +187,14 @@ pub mod artifact_store_client {
 }
 /// Generated server implementations.
 pub mod artifact_store_server {
-    #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
-    use tonic::codegen::{
-        async_trait, empty_body, http, Arc, Body, BoxFuture, CompressionEncoding, Context,
-        EnabledCompressionEncodings, InterceptedService, Poll, StdError,
-    };
+    #![allow(
+        unused_variables,
+        dead_code,
+        missing_docs,
+        clippy::wildcard_imports,
+        clippy::let_unit_value
+    )]
+    use tonic::codegen::*;
     /// Generated trait containing gRPC methods that should be implemented for use with ArtifactStoreServer.
     #[async_trait]
     pub trait ArtifactStore: std::marker::Send + std::marker::Sync + 'static {
@@ -303,12 +319,14 @@ pub mod artifact_store_server {
                     Box::pin(fut)
                 }
                 _ => Box::pin(async move {
-                    Ok(http::Response::builder()
-                        .status(200)
-                        .header("grpc-status", tonic::Code::Unimplemented as i32)
-                        .header(http::header::CONTENT_TYPE, tonic::metadata::GRPC_CONTENT_TYPE)
-                        .body(empty_body())
-                        .unwrap())
+                    let mut response = http::Response::new(empty_body());
+                    let headers = response.headers_mut();
+                    headers.insert(
+                        tonic::Status::GRPC_STATUS,
+                        (tonic::Code::Unimplemented as i32).into(),
+                    );
+                    headers.insert(http::header::CONTENT_TYPE, tonic::metadata::GRPC_CONTENT_TYPE);
+                    Ok(response)
                 }),
             }
         }

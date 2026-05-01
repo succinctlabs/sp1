@@ -1,16 +1,18 @@
 use slop_algebra::{AbstractField, PrimeField32};
 use slop_symmetric::Permutation;
 use sp1_hypercube::inner_perm;
-use sp1_jit::SyscallContext;
+use sp1_jit::{Interrupt, SyscallContext};
 use sp1_primitives::SP1Field;
 
 pub(crate) unsafe fn poseidon2(
     ctx: &mut impl SyscallContext,
     arg1: u64,
     _arg2: u64,
-) -> Option<u64> {
+) -> Result<Option<u64>, Interrupt> {
     let ptr = arg1;
     assert!(ptr.is_multiple_of(8));
+
+    ctx.read_write_slice_check(ptr, 8)?;
 
     // Read 8 u64 words (16 u32 words) from memory
     let input: Vec<u64> = ctx.mr_slice_unsafe(ptr, 8).into_iter().copied().collect();
@@ -32,7 +34,7 @@ pub(crate) unsafe fn poseidon2(
     assert!(u64_result.len() == 8);
 
     // Write result back to memory
-    ctx.mw_slice(ptr, &u64_result);
+    ctx.mw_slice_without_prot(ptr, &u64_result);
 
-    None
+    Ok(None)
 }
