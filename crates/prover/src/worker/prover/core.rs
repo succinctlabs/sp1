@@ -1,6 +1,10 @@
-use std::sync::{
-    atomic::{AtomicUsize, Ordering},
-    Arc,
+use std::{
+    io::Write,
+    path::PathBuf,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
 };
 
 use anyhow::anyhow;
@@ -237,6 +241,12 @@ where
             self.artifact_client.download::<TraceData>(&input.record),
         )?;
 
+        if let Some(dir) = self.dump_shard_dir.as_ref() {
+            let dir = PathBuf::from(dir);
+            let mut file = std::fs::File::create(dir.join("program.bin"))
+                .expect("failed to create program.bin");
+            file.write_all(&elf).expect("failed to write program.bin");
+        }
         // Extract precompile artifacts before moving input
         let precompile_artifacts = if let TraceData::Precompile(ref artifacts, _) = record {
             Some(artifacts.clone())
@@ -483,21 +493,25 @@ where
             let path = std::path::PathBuf::from(&dir);
             std::fs::create_dir_all(&path).ok();
 
-            let record_bytes = bincode::serialize(&record).expect("failed to serialize record");
-            std::fs::write(path.join(format!("record_{idx:04}.bin")), &record_bytes)
-                .expect("failed to write record");
+            if idx.is_multiple_of(
+                std::env::var("RECORD_WRITE_FREQUENCY").map_or(5, |v| v.parse().unwrap_or(5)),
+            ) {
+                let record_bytes = bincode::serialize(&record).expect("failed to serialize record");
+                std::fs::write(path.join(format!("record_{idx:04}.bin")), &record_bytes)
+                    .expect("failed to write record");
 
-            if idx == 0 {
-                let vk_bytes =
-                    bincode::serialize(&common_input.vk.vk).expect("failed to serialize vk");
-                std::fs::write(path.join(format!("vk.bin")), &vk_bytes)
-                    .expect("failed to write vk");
+                if idx == 0 {
+                    let vk_bytes =
+                        bincode::serialize(&common_input.vk.vk).expect("failed to serialize vk");
+                    std::fs::write(path.join(format!("vk.bin")), &vk_bytes)
+                        .expect("failed to write vk");
+                }
+
+                tracing::info!(
+                    "Dumped shard {idx} record ({} bytes) and vk to {dir}",
+                    record_bytes.len()
+                );
             }
-
-            tracing::info!(
-                "Dumped shard {idx} record ({} bytes) and vk to {dir}",
-                record_bytes.len()
-            );
         }
 
         // If this is not a Core proof request, spawn a task to get the recursion program.

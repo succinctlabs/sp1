@@ -1,6 +1,14 @@
 [
     {
-        "program": "v6/fibonacci-20m",
+        "program": "v6/fibonacci-200m",
+        "inputs": []
+    },
+    {
+        "program": "v6/dec4-failures/rsp",
+        "inputs": ["23843375"]
+    },
+    {
+        "program": "v6/rsp",
         "inputs": []
     }
 ]

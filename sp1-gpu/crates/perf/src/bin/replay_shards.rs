@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use clap::Parser;
+use rand::{seq::SliceRandom, SeedableRng};
 use serde::Deserialize;
 use sp1_core_executor::{ExecutionRecord, Program};
 use sp1_gpu_prover::{
@@ -21,6 +22,12 @@ struct Args {
     /// Local directory with pre-downloaded shard data
     #[arg(long)]
     pub local_dir: String,
+    /// Number of shards to replay
+    #[arg(long, default_value = "5")]
+    pub num_shards_per_run: usize,
+    /// Random seed for shuffling shards
+    #[arg(long, default_value = "42")]
+    pub seed: u64,
 }
 
 #[derive(Deserialize)]
@@ -124,7 +131,12 @@ async fn main() {
         let vk_path = program_dir.join("vk.bin");
         let elf_path = program_dir.join("program.bin");
 
-        let records = list_records_local(&record_dir);
+        let mut records = list_records_local(&record_dir);
+
+        // Shuffle and truncate records for this combo. Split evenly across combos.
+        records.shuffle(&mut rand::rngs::StdRng::seed_from_u64(args.seed));
+        records.truncate(args.num_shards_per_run);
+
         tracing::info!("{}: {} records found", combo.label(), records.len());
 
         for rec_file in &records {
@@ -163,7 +175,7 @@ async fn main() {
 
         let mut timings: Vec<(String, f64)> = Vec::new();
 
-        for job in &jobs {
+        for (i, job) in jobs.iter().enumerate() {
             // Deserialize the record.
             let record_bytes = std::fs::read(&job.record_path).expect("failed to read record file");
             let record: ExecutionRecord =
@@ -178,6 +190,21 @@ async fn main() {
             let elf_bytes = std::fs::read(&job.elf_path).expect("failed to read elf file");
             let program =
                 Arc::new(Program::from(&elf_bytes).expect("failed to parse ELF into Program"));
+
+            if i == 0 {
+                tracing::info!("Warm up run: {}", job.label);
+                let start = Instant::now();
+                let (_vk, _proof, _permit) = core_prover
+                    .setup_and_prove_shard(
+                        program.clone(),
+                        record.clone(),
+                        Some(vk.clone()),
+                        permits.clone(),
+                    )
+                    .await;
+                let elapsed = start.elapsed().as_secs_f64();
+                tracing::info!("Warm up run: {} proved in {:.3}s", job.label, elapsed);
+            }
 
             tracing::info!("Proving shard: {}", job.label);
             let start = Instant::now();
@@ -195,12 +222,12 @@ async fn main() {
     .unwrap();
 
     // Print summary.
-    println!("\n=== Shard Replay Results ===");
+    tracing::info!("\n=== Shard Replay Results ===");
     let mut total = 0.0;
     for (label, secs) in &timings {
-        println!("  {label}: {secs:.3}s");
+        tracing::info!("  {label}: {secs:.3}s");
         total += secs;
     }
-    println!("  Total: {total:.3}s ({} shards)", timings.len());
-    println!("  Average: {:.3}s per shard", total / timings.len() as f64);
+    tracing::info!("  Total: {total:.3}s ({} shards)", timings.len());
+    tracing::info!("  Average: {:.3}s per shard", total / timings.len() as f64);
 }

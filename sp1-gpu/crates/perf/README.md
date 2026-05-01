@@ -14,99 +14,75 @@ Runs the full proving pipeline for a program.
 cargo run --release -p sp1-gpu-perf --bin node -- --program v6/fibonacci-200m --mode core
 ```
 
-### `dump_shards` — Dump shard records to S3
+#### Dumping shard records locally
 
-Executes a program and proves it in core mode, then uploads the serialized shard records and verifying key to S3. This is the first step in the shard replay workflow — it captures the intermediate shard data so that individual shards can be re-proved later without re-executing the program.
+The `node` binary honors two environment variables that cause it to write shard records and the verifying key to disk as it runs. This is the supported way to capture inputs for `replay_shards` without going through S3.
 
-```bash
-# Dump all shards
-cargo run --release -p sp1-gpu-perf --bin dump_shards -- --program v6/fibonacci-200m
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SP1_DUMP_SHARD_DIR` | *(unset — disabled)* | Directory to write shard records to. When set, each emitted shard record is serialized to `<dir>/record_NNNN.bin`, and the verifying key is written to `<dir>/vk.bin` on the first dumped shard. The directory is created if it does not exist. |
+| `RECORD_WRITE_FREQUENCY` | `5` | Only dump every Nth shard record (shard index 0, N, 2N, ...). Set to `1` to dump every shard. Has no effect unless `SP1_DUMP_SHARD_DIR` is also set. |
 
-# Dump a random subset of 10 shards
-cargo run --release -p sp1-gpu-perf --bin dump_shards -- --program v6/fibonacci-200m --k 10
-
-# Dump shards for a program with a specific input
-cargo run --release -p sp1-gpu-perf --bin dump_shards -- --program v6/dec4-failures/rsp --param 23843375
-```
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--program` | *(required)* | S3 path for the program (e.g. `v6/fibonacci-200m`) |
-| `--param` | `""` | Optional parameter for program input |
-| `--bucket` | `sp1-gpu-shard-dumps` | S3 bucket to upload to |
-| `--k` | *(all)* | Only upload a random selection of k shards |
-
-### `download_shards` — Download shard records from S3
-
-Downloads shard records, verifying keys, and ELF binaries from S3 to a local directory. Uses a JSON config file to specify which programs (and optionally which inputs) to download from. Distributes the requested number of records across all program/input combinations.
-
-
-
+Example — dump every shard record for fibonacci into `/tmp/shards/fib`:
 
 ```bash
-# Download 15 records (default) using a config file
-cargo run --release -p sp1-gpu-perf --bin download_shards -- --config config.json
-
-# Download 30 records with a specific seed and output directory
-cargo run --release -p sp1-gpu-perf --bin download_shards -- \
-    --config config.json --k 30 --seed 123 --output-dir ./my-shards
+SP1_DUMP_SHARD_DIR=/tmp/shards/fib RECORD_WRITE_FREQUENCY=1 \
+    cargo run --release -p sp1-gpu-perf --bin node -- \
+        --program v6/fibonacci-200m --mode core
 ```
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--config` | *(required)* | Path to JSON config file |
-| `--k` | `15` | Total number of records to download |
-| `--seed` | `42` | RNG seed for record selection |
-| `--bucket` | `sp1-gpu-shard-dumps` | S3 bucket for shard dumps |
-| `--output-dir` | system temp dir | Local output directory |
-
-The config file is a JSON array of program entries:
-
-```json
-[
-  {
-    "program": "program_a",
-    "inputs": ["input_0"]
-  },
-  {
-    "program": "program_b",
-    "inputs": []
-  },
-  {
-    "program": "program_c",
-    "inputs": ["input_0", "input_1" ]
-  }
-]
-```
-
-The output directory path is printed to stdout on completion.
 
 ### `replay_shards` — Replay shard records through the GPU prover
 
 Re-proves previously dumped shard records through the GPU prover and reports per-shard timing. This is useful for benchmarking shard proving performance in isolation, without re-executing programs or running the full proving pipeline.
 
 ```bash
-cargo run --release -p sp1-gpu-perf --bin replay_shards -- \
+cargo run --release -p sp1-gpu-perf --bin replay-shards -- \
     --config config.json --local-dir /tmp/shard-replay
 ```
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--config` | *(required)* | Path to JSON config file (same format as `download_shards`) |
-| `--local-dir` | *(required)* | Local directory containing pre-downloaded shard data (output of `download_shards`) |
+| `--config` | *(required)* | Path to JSON config file (see schema below) |
+| `--local-dir` | *(required)* | Local directory containing pre-dumped shard data, laid out as `<local-dir>/<program>/{vk.bin,program.bin,record_NNNN.bin}` (records under `input/<input>/` when the combo has an input) |
+| `--num-shards-per-run` | `5` | Number of shards to replay per program/input combo |
+| `--seed` | `42` | RNG seed for shard selection |
 
-### Typical workflow
+The config file is a JSON array of program entries:
+
+```json
+[
+  {
+    "program": "v6/fibonacci-200m",
+    "inputs": []
+  },
+  {
+    "program": "v6/dec4-failures/rsp",
+    "inputs": ["23843375"]
+  }
+]
+```
+
+### `composed_workflow` — Dump-then-replay in one shot
+
+Drives `node` and `replay-shards` end-to-end against a persistent root directory, populating it with shard records and then replaying from it. This replaces the previous `dump_shards` + `download_shards` flow: records stay on the local machine and never round-trip through S3.
 
 ```bash
-# 1. Dump shards for your programs of interest
-cargo run --release -p sp1-gpu-perf --bin dump_shards -- --program v6/fibonacci-200m
+# First run: dump records via `node`, then replay them.
+cargo run --release -p sp1-gpu-perf --bin composed-workflow -- \
+    --mode local --dir /tmp/shard-replay --config config.json
 
-# 2. Download a subset of shards locally
-LOCAL_DIR=$(cargo run --release -p sp1-gpu-perf --bin download_shards -- --config config.json --k 15)
-
-# 3. Replay the shards through the GPU prover
-cargo run --release -p sp1-gpu-perf --bin replay_shards -- --config config.json --local-dir "$LOCAL_DIR"
+# Subsequent runs: skip the dump and reuse the records already in --dir.
+cargo run --release -p sp1-gpu-perf --bin composed-workflow -- \
+    --mode local-with-cache --dir /tmp/shard-replay --config config.json
 ```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--mode` | *(required)* | `local` runs `node` for each combo (with `SP1_DUMP_SHARD_DIR` pointed at `--dir`) before replaying. `local-with-cache` skips the dump and assumes `--dir` already contains records. |
+| `--dir` | *(required)* | Persistent root directory used for dumps and replay. Created if missing; never deleted, so it can be reused across runs. |
+| `--config` | *(required)* | Path to JSON config file (same schema as `replay-shards`) |
+| `--k` | *(all)* | Forwarded to `replay-shards` as `--num-shards-per-run` |
+| `--nsys-tracing` | `false` | If set, runs `replay-shards` under `nsys profile` |
 
 ---
 

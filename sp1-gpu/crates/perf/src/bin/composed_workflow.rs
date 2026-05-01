@@ -7,10 +7,6 @@ use sp1_gpu_perf::get_program_and_input;
 
 #[derive(Copy, Clone, Debug, ValueEnum)]
 enum Mode {
-    /// Dump shards locally, upload to S3, then download from S3 into `dir`, then replay.
-    S3Roundtrip,
-    /// Download shards from S3 into `dir`, then replay.
-    S3Download,
     /// Run the `node` binary locally with `SP1_DUMP_SHARD_DIR` pointing into `dir`,
     /// then replay from `dir`.
     Local,
@@ -136,38 +132,14 @@ fn locate_target_dir() -> PathBuf {
 }
 
 fn run_or_panic(label: &str, mut cmd: Command) {
-    eprintln!("[composed-workflow] {label}: {cmd:?}");
+    tracing::info!("[composed-workflow] {label}: {cmd:?}");
     let status = cmd.status().unwrap_or_else(|e| panic!("failed to spawn {label}: {e}"));
     if !status.success() {
         panic!("{label} exited with {status}");
     }
 }
 
-fn run_dump_shards(bin: &Path, combo: &Combo, bucket: &str) {
-    let mut cmd = Command::new(bin);
-    cmd.arg("--program").arg(&combo.program).arg("--bucket").arg(bucket);
-    if let Some(input) = &combo.input {
-        cmd.arg("--param").arg(input);
-    }
-    run_or_panic(&format!("dump-shards[{}]", combo.label()), cmd);
-}
-
-fn run_download_shards(
-    bin: &Path,
-    config: &str,
-    bucket: &str,
-    output_dir: &Path,
-    k: Option<usize>,
-) {
-    let mut cmd = Command::new(bin);
-    cmd.arg("--config").arg(config).arg("--bucket").arg(bucket).arg("--output-dir").arg(output_dir);
-    if let Some(k) = k {
-        cmd.arg("--k").arg(k.to_string());
-    }
-    run_or_panic("download-shards", cmd);
-}
-
-fn run_replay_shards(bin: &Path, config: &str, local_dir: &Path, nsys: bool) {
+fn run_replay_shards(bin: &Path, config: &str, local_dir: &Path, nsys: bool, k: Option<usize>) {
     let mut cmd = if nsys {
         let mut c = Command::new("nsys");
         c.arg("profile").arg(bin);
@@ -176,6 +148,9 @@ fn run_replay_shards(bin: &Path, config: &str, local_dir: &Path, nsys: bool) {
         Command::new(bin)
     };
     cmd.arg("--config").arg(config).arg("--local-dir").arg(local_dir);
+    if let Some(k) = k {
+        cmd.arg("--num-shards-per-run").arg(k.to_string());
+    }
     let label = if nsys { "nsys profile replay-shards" } else { "replay-shards" };
     run_or_panic(label, cmd);
 }
@@ -218,6 +193,8 @@ fn run_node_for_combo(node_bin: &Path, combo: &Combo, root: &Path) {
     }
 
     // Write program.bin from the elf bytes. replay-shards reads it from <program>/program.bin.
+    // If the path does not exist, download the program from S3, or copy it from the local cache,
+    // according to the logic in `get_program_and_input`.
     let elf_path = program_dir.join("program.bin");
     if !elf_path.exists() {
         let (elf, _stdin) =
@@ -233,27 +210,10 @@ fn main() {
     tracing_subscriber::fmt::init();
 
     let combos = parse_combos(&args.config);
-    eprintln!("[composed-workflow] {} combos in config", combos.len());
-
-    // Validate s3_bucket presence for modes that need it.
-    let s3_bucket = match args.mode {
-        Mode::S3Roundtrip | Mode::S3Download => Some(
-            args.s3_bucket
-                .as_deref()
-                .expect("--s3-bucket is required for s3-roundtrip and s3-download modes"),
-        ),
-        Mode::Local | Mode::LocalWithCache => {
-            if args.s3_bucket.is_some() {
-                eprintln!("[composed-workflow] --s3-bucket is ignored in {:?} mode", args.mode);
-            }
-            None
-        }
-    };
+    tracing::info!("[composed-workflow] {} combos in config", combos.len());
 
     // Decide which binaries to build based on mode.
     let bins_needed: &[&str] = match args.mode {
-        Mode::S3Roundtrip => &["dump-shards", "download-shards", "replay-shards"],
-        Mode::S3Download => &["download-shards", "replay-shards"],
         Mode::Local => &["node", "replay-shards"],
         Mode::LocalWithCache => &["replay-shards"],
     };
@@ -269,18 +229,6 @@ fn main() {
 
     // Populate `root` according to mode.
     match args.mode {
-        Mode::S3Roundtrip => {
-            let bucket = s3_bucket.unwrap();
-            let dump_bin = bin("dump-shards");
-            for combo in &combos {
-                run_dump_shards(&dump_bin, combo, bucket);
-            }
-            run_download_shards(&bin("download-shards"), &args.config, bucket, &root, args.k);
-        }
-        Mode::S3Download => {
-            let bucket = s3_bucket.unwrap();
-            run_download_shards(&bin("download-shards"), &args.config, bucket, &root, args.k);
-        }
         Mode::Local => {
             let node_bin = bin("node");
             for combo in &combos {
@@ -292,7 +240,7 @@ fn main() {
         }
     }
 
-    run_replay_shards(&bin("replay-shards"), &args.config, &root, args.nsys_tracing);
+    run_replay_shards(&bin("replay-shards"), &args.config, &root, args.nsys_tracing, args.k);
 
-    println!("[composed-workflow] done; replay dir: {}", root.display());
+    tracing::info!("[composed-workflow] done; replay dir: {}", root.display());
 }

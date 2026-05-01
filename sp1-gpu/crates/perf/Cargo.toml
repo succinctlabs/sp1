@@ -77,16 +77,8 @@ path = "src/bin/vk_gen.rs"
 required-features = ["experimental"]
 
 [[bin]]
-name = "dump-shards"
-path = "src/bin/dump_shards.rs"
-
-[[bin]]
 name = "replay-shards"
 path = "src/bin/replay_shards.rs"
-
-[[bin]]
-name = "download-shards"
-path = "src/bin/download_shards.rs"
 
 [[bin]]
 name = "composed-workflow"
