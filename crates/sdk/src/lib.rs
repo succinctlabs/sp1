@@ -66,14 +66,15 @@ pub use sp1_core_executor::{ExecutionReport, HookEnv, SP1Context, SP1ContextBuil
 
 // Re-export the machine/prover primitives.
 pub use sp1_core_machine::io::SP1Stdin;
+pub use sp1_core_machine::riscv::RiscvAir;
 pub use sp1_primitives::{io::SP1PublicValues, Elf};
 pub use sp1_prover::{HashableKey, ProverMode, SP1VerifyingKey, SP1_CIRCUIT_VERSION};
 
 /// A prelude, including all the types and traits that are commonly used.
 pub mod prelude {
     pub use super::{
-        include_elf, Elf, HashableKey, ProveRequest, Prover, ProvingKey, SP1ProofWithPublicValues,
-        SP1Stdin,
+        include_elf, Elf, HashableKey, ProveRequest, Prover, ProvingKey, RiscvAir,
+        SP1ProofWithPublicValues, SP1Stdin,
     };
 }
 

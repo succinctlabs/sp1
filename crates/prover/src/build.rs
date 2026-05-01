@@ -576,7 +576,7 @@ mod tests {
     #[cfg(not(feature = "mprotect"))]
     use crate::build::hex_prefix;
     use sp1_core_executor::SP1Context;
-    use sp1_core_machine::utils::setup_logger;
+    use sp1_core_machine::{riscv::RiscvAir, utils::setup_logger};
     #[cfg(not(feature = "mprotect"))]
     use sp1_primitives::io::sha256_hash;
     use sp1_prover_types::network_base_types::ProofMode;
@@ -584,7 +584,7 @@ mod tests {
 
     use crate::{
         verify::WRAP_VK_BYTES,
-        worker::{cpu_worker_builder, SP1LocalNodeBuilder},
+        worker::{cpu_worker_builder_with_machine, SP1LocalNodeBuilder},
     };
 
     /// Uploads the dev artifact directory matching `{prefix}-{suffix}` to S3, where
@@ -665,10 +665,13 @@ mod tests {
         let elf = test_artifacts::FIBONACCI_ELF;
 
         tracing::info!("initializing prover");
-        let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder())
-            .build()
-            .await
-            .expect("failed to build client");
+        let machine = RiscvAir::machine();
+        let client = SP1LocalNodeBuilder::from_worker_client_builder(
+            cpu_worker_builder_with_machine(machine),
+        )
+        .build()
+        .await
+        .expect("failed to build client");
 
         tracing::info!("prove compressed");
         let stdin = sp1_core_machine::io::SP1Stdin::new();
@@ -702,10 +705,13 @@ mod tests {
         setup_logger();
 
         tracing::info!("initializing prover");
-        let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder())
-            .build()
-            .await
-            .expect("failed to build client");
+        let machine = RiscvAir::machine();
+        let client = SP1LocalNodeBuilder::from_worker_client_builder(
+            cpu_worker_builder_with_machine(machine),
+        )
+        .build()
+        .await
+        .expect("failed to build client");
 
         // Check that the wrap vk is the same as the one included in the binary.
         let client_wrap_vk = client.wrap_vk().clone();

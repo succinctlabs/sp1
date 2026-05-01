@@ -40,7 +40,7 @@ use sp1_verifier::VerifierRecursionVks;
 
 use crate::{
     shapes::{create_all_input_shapes, SP1RecursionProofShape},
-    worker::{TaskError, DEFAULT_MAX_COMPOSE_ARITY},
+    worker::TaskError,
     CompressAir, RecursionSC,
 };
 
@@ -50,12 +50,6 @@ pub struct RecursionVks {
     map: BTreeMap<<SP1GlobalContext as IopCtx>::Digest, usize>,
     tree: MerkleTree<SP1GlobalContext>,
     vk_verification: bool,
-}
-
-impl Default for RecursionVks {
-    fn default() -> Self {
-        Self::new(None, DEFAULT_MAX_COMPOSE_ARITY, true)
-    }
 }
 
 impl RecursionVks {
@@ -69,7 +63,8 @@ impl RecursionVks {
     ) -> Self {
         // Pad the map to the expected number of shapes. This allows us to build partial vk maps
         // for development purposes.
-        let num_shapes = create_all_input_shapes(RiscvAir::machine().shape(), max_compose_arity)
+        let machine = RiscvAir::machine();
+        let num_shapes = create_all_input_shapes(machine.shape(), max_compose_arity)
             .into_iter()
             .collect::<BTreeSet<_>>()
             .len();

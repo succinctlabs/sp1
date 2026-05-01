@@ -2,6 +2,10 @@
 //!
 //! This module provides a builder for the [`CpuProver`].
 
+use sp1_core_machine::riscv::RiscvAir;
+use sp1_hypercube::Machine;
+use sp1_primitives::SP1Field;
+
 use super::CpuProver;
 use sp1_core_executor::SP1CoreOpts;
 
@@ -11,6 +15,7 @@ use sp1_core_executor::SP1CoreOpts;
 pub struct CpuProverBuilder {
     /// Optional core options to configure the prover.
     core_opts: Option<SP1CoreOpts>,
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
 }
 
 impl Default for CpuProverBuilder {
@@ -22,8 +27,14 @@ impl Default for CpuProverBuilder {
 impl CpuProverBuilder {
     /// Creates a new [`CpuProverBuilder`] with default settings.
     #[must_use]
-    pub const fn new() -> Self {
-        Self { core_opts: None }
+    pub fn new() -> Self {
+        Self::new_with_machine(RiscvAir::machine())
+    }
+
+    /// Creates a new [`CpuProverBuilder`] with a given machine.
+    #[must_use]
+    pub const fn new_with_machine(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
+        Self { core_opts: None, machine }
     }
 
     /// Sets the core options for the prover.
@@ -79,6 +90,6 @@ impl CpuProverBuilder {
     /// ```
     #[must_use]
     pub async fn build(self) -> CpuProver {
-        CpuProver::new_with_opts(self.core_opts).await
+        CpuProver::new_with_opts_and_machine(self.core_opts, self.machine).await
     }
 }

@@ -22,7 +22,9 @@ pub mod prove;
 pub use pk::EnvProvingKey;
 use prove::EnvProveRequest;
 use sp1_core_machine::io::SP1Stdin;
-use sp1_primitives::Elf;
+use sp1_core_machine::riscv::RiscvAir;
+use sp1_hypercube::Machine;
+use sp1_primitives::{Elf, SP1Field};
 use sp1_prover::{worker::SP1NodeCore, SP1VerifyingKey};
 
 /// A prover that can execute programs and generate proofs with a different implementation based on
@@ -52,7 +54,12 @@ impl EnvProver {
     ///
     /// If the prover is a network prover, the `NETWORK_PRIVATE_KEY` variable must be set.
     pub async fn new() -> Self {
-        Self::from_env_with_opts(None).await
+        Self::new_with_machine(RiscvAir::machine()).await
+    }
+
+    /// Same as [`Self::new`] but with a custom machine.
+    pub async fn new_with_machine(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
+        Self::from_env_with_opts_and_machine(None, machine).await
     }
 
     /// Updates the core options for this prover.
@@ -82,19 +89,27 @@ impl EnvProver {
     ///
     /// If the prover is a network prover, the `NETWORK_PRIVATE_KEY` variable must be set.
     pub async fn from_env_with_opts(core_opts: Option<SP1CoreOpts>) -> Self {
+        Self::from_env_with_opts_and_machine(core_opts, RiscvAir::machine()).await
+    }
+
+    /// Same as [`Self::from_env_with_opts`] but with a custom machine.
+    pub async fn from_env_with_opts_and_machine(
+        core_opts: Option<SP1CoreOpts>,
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+    ) -> Self {
         let prover = match std::env::var("SP1_PROVER") {
             Ok(prover) => prover,
             Err(_) => "cpu".to_string(),
         };
 
         match prover.as_str() {
-            "cpu" => Self::Cpu(CpuProver::new_with_opts(core_opts).await),
+            "cpu" => Self::Cpu(CpuProver::new_with_opts_and_machine(core_opts, machine).await),
             #[cfg(feature = "cuda")]
-            "cuda" => Self::Cuda(CudaProverBuilder::default().build().await),
+            "cuda" => Self::Cuda(CudaProverBuilder::new_with_machine(machine).build().await),
             #[cfg(not(feature = "cuda"))]
             "cuda" => panic!("The CUDA prover requires the `cuda` feature to be enabled"),
-            "mock" => Self::Mock(MockProver::new().await),
-            "light" => Self::Light(LightProver::new().await),
+            "mock" => Self::Mock(MockProver::new_with_machine(machine).await),
+            "light" => Self::Light(LightProver::new_with_machine(machine).await),
             #[cfg(feature = "network")]
             "network" => {
                 let private_key =
@@ -104,7 +119,8 @@ impl EnvProver {
                     );
 
                 let network_builder =
-                    crate::network::builder::NetworkProverBuilder::new().private_key(&private_key);
+                    crate::network::builder::NetworkProverBuilder::new_with_machine(machine)
+                        .private_key(&private_key);
 
                 Self::Network(network_builder.build().await)
             }

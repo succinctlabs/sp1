@@ -1,9 +1,11 @@
 use std::sync::Arc;
 
+use sp1_core_machine::riscv::RiscvAir;
 use sp1_gpu_cudart::{cuda_memory_info, TaskScope};
 
 use sp1_core_executor::{SP1CoreOpts, ELEMENT_THRESHOLD};
-use sp1_hypercube::prover::ProverSemaphore;
+use sp1_hypercube::{prover::ProverSemaphore, Machine};
+use sp1_primitives::SP1Field;
 use sp1_prover::{
     worker::SP1WorkerBuilder, ReadyWrapProverBuilder, SP1ProverComponents, CORE_LOG_STACKING_HEIGHT,
 };
@@ -45,8 +47,16 @@ pub fn local_gpu_opts() -> (SP1CoreOpts, bool) {
     (opts, gpu_memory_gb <= 30)
 }
 
-/// Create a [SP1CudaProverWorkerBuilder]
+/// Create a [SP1CudaProverWorkerBuilder] with a default machine.
 pub async fn cuda_worker_builder(scope: TaskScope) -> SP1WorkerBuilder<SP1CudaProverComponents> {
+    cuda_worker_builder_with_machine(scope, RiscvAir::machine()).await
+}
+
+/// Same as [`cuda_worker_builder`] but with a custom machine.
+pub async fn cuda_worker_builder_with_machine(
+    scope: TaskScope,
+    machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+) -> SP1WorkerBuilder<SP1CudaProverComponents> {
     // Create a prover permits, assuming a single proof happens at a time.
     let prover_permits = ProverSemaphore::new(1);
 
@@ -56,7 +66,7 @@ pub async fn cuda_worker_builder(scope: TaskScope) -> SP1WorkerBuilder<SP1CudaPr
     let num_elts =
         opts.sharding_threshold.element_threshold as usize + (1 << CORE_LOG_STACKING_HEIGHT);
 
-    let core_verifier = SP1CudaProverComponents::core_verifier();
+    let core_verifier = SP1CudaProverComponents::core_verifier(machine.clone());
     let core_prover = Arc::new(
         new_cuda_prover(core_verifier.clone(), num_elts, 4, recompute_first_layer, scope.clone())
             .await,
@@ -87,7 +97,7 @@ pub async fn cuda_worker_builder(scope: TaskScope) -> SP1WorkerBuilder<SP1CudaPr
             .await,
     );
 
-    let base_builder = SP1WorkerBuilder::new()
+    let base_builder = SP1WorkerBuilder::new_with_machine(machine)
         .with_core_opts(opts)
         .with_core_air_prover(core_prover, prover_permits.clone())
         .with_compress_air_prover(recursion_prover, prover_permits.clone())

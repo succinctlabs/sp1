@@ -10,9 +10,11 @@ use std::sync::Arc;
 use prove::CpuProveBuilder;
 use sp1_core_executor::ExecutionError;
 use sp1_core_machine::io::SP1Stdin;
-use sp1_primitives::Elf;
+use sp1_core_machine::riscv::RiscvAir;
+use sp1_hypercube::Machine;
+use sp1_primitives::{Elf, SP1Field};
 use sp1_prover::worker::{
-    cpu_worker_builder, SP1LocalNode, SP1LocalNodeBuilder, SP1NodeCore, TaskError,
+    cpu_worker_builder_with_machine, SP1LocalNode, SP1LocalNodeBuilder, SP1NodeCore, TaskError,
 };
 
 use crate::{
@@ -69,14 +71,30 @@ impl CpuProver {
     /// Creates a new [`CpuProver`], using the default [`LocalProverOpts`].
     #[must_use]
     pub async fn new() -> Self {
-        Self::new_with_opts(None).await
+        Self::new_with_machine(RiscvAir::machine()).await
+    }
+
+    /// Creates a new [`CpuProver`], using the default [`LocalProverOpts`] and a given machine.
+    #[must_use]
+    pub async fn new_with_machine(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
+        Self::new_with_opts_and_machine(None, machine).await
     }
 
     /// Creates a new [`CpuProver`] with optional custom [`SP1CoreOpts`].
     #[must_use]
     pub async fn new_with_opts(core_opts: Option<sp1_core_executor::SP1CoreOpts>) -> Self {
+        Self::new_with_opts_and_machine(core_opts, RiscvAir::machine()).await
+    }
+
+    /// Creates a new [`CpuProver`] with optional custom [`SP1CoreOpts`] and a given machine.
+    #[must_use]
+    pub async fn new_with_opts_and_machine(
+        core_opts: Option<sp1_core_executor::SP1CoreOpts>,
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+    ) -> Self {
         tracing::info!("initializing cpu prover");
-        let worker_builder = cpu_worker_builder().with_core_opts(core_opts.unwrap_or_default());
+        let worker_builder =
+            cpu_worker_builder_with_machine(machine).with_core_opts(core_opts.unwrap_or_default());
         Self {
             prover: Arc::new(
                 SP1LocalNodeBuilder::from_worker_client_builder(worker_builder)
@@ -96,6 +114,15 @@ impl CpuProver {
     #[cfg(feature = "experimental")]
     #[must_use]
     pub async fn new_experimental() -> Self {
-        Self::new_with_opts(None).await
+        Self::new_experimental_with_machine(RiscvAir::machine()).await
+    }
+
+    /// Same as [`Self::new_experimental`] but with a custom machine.
+    #[cfg(feature = "experimental")]
+    #[must_use]
+    pub async fn new_experimental_with_machine(
+        machine: Machine<SP1Field, RiscvAir<SP1Field>>,
+    ) -> Self {
+        Self::new_with_opts_and_machine(None, machine).await
     }
 }
