@@ -4,7 +4,7 @@ use crate::{
         compose_program_from_input, deferred_program_from_input, dummy_deferred_input,
         recursive_verifier, shrink_program_from_input, wrap_program_from_input, RecursionVks,
     },
-    shapes::SP1RecursionProofShape,
+    shapes::{SP1RecursionProofShape, DEFAULT_ARITY},
     verify::WRAP_VK_BYTES,
     worker::{
         CommonProverInput, DeferredInputs, ProverMetrics, RangeProofs, RawTaskRequest, TaskContext,
@@ -198,12 +198,7 @@ pub struct RecursionExecutorWorker<C: SP1ProverComponents> {
     prover_data: Arc<RecursionProverData<C>>,
 }
 
-static RECORDS_WRITTEN: [AtomicBool; 4] = [
-    AtomicBool::new(false),
-    AtomicBool::new(false),
-    AtomicBool::new(false),
-    AtomicBool::new(false),
-];
+static RECORDS_WRITTEN: AtomicBool = AtomicBool::new(false);
 
 impl<C: SP1ProverComponents>
     BlockingWorker<Result<RecursionTask, TaskError>, Result<ProveRecursionTask<C>, TaskError>>
@@ -244,16 +239,14 @@ impl<C: SP1ProverComponents>
                 let (pk, vk) = self.prover_data.compose_keys.get(&arity).cloned().ok_or(
                     TaskError::Fatal(anyhow::anyhow!("Compose key not found for arity {}", arity)),
                 )?;
-                let arity_present =
-                    RECORDS_WRITTEN[arity].load(std::sync::atomic::Ordering::Relaxed);
-                if !arity_present {
-                    let mut file = std::fs::File::create(format!(
-                        "/home/eugene/sp1/sp1-gpu/crates/perf/recursion_records/arity_{}.bin",
-                        arity
-                    ))?;
-                    let record_bytes = bincode::serialize(&record)?;
-                    file.write_all(&record_bytes)?;
-                    RECORDS_WRITTEN[arity].store(true, std::sync::atomic::Ordering::Relaxed);
+                if arity == DEFAULT_ARITY
+                    && !RECORDS_WRITTEN.load(std::sync::atomic::Ordering::Relaxed)
+                {
+                    let mut file = std::fs::File::create(
+                        "/home/eugene/sp1/sp1-gpu/crates/perf/recursion_records/max_arity_input.bin".to_string())?;
+                    let input_bytes = bincode::serialize(&input)?;
+                    file.write_all(&input_bytes)?;
+                    RECORDS_WRITTEN.store(true, std::sync::atomic::Ordering::Relaxed);
                 }
                 anyhow::Ok(RecursionKeys::Exists(pk, vk))
             }
