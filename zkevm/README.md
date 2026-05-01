@@ -158,10 +158,6 @@ when needed.
 
 ## Limitations / future work
 
-- **`read_input` is single-chunk.** Multi-chunk input would need a
-  helper that drains the SP1 hint stream into a single contiguous
-  buffer — non-trivial because chunks can be 8-byte-padded
-  individually.
 - **`__start` ignores host-side feature gates.** The exit-code
   propagation handles success/failure correctly, but more nuanced
   termination metadata (e.g., distinct "verification failed" vs "proof
