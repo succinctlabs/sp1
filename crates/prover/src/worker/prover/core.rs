@@ -187,7 +187,7 @@ pub struct CoreWorker<A, W, C: SP1ProverComponents> {
     /// Optional fixed PK cache shared across workers.
     pk: Option<CoreProvingKeyCache<C>>,
     verify_intermediates: bool,
-    dump_shard_dir: Option<String>,
+    record_write_dir: Option<String>,
 }
 
 impl<A, W, C: SP1ProverComponents> CoreWorker<A, W, C> {
@@ -202,7 +202,7 @@ impl<A, W, C: SP1ProverComponents> CoreWorker<A, W, C> {
         permits: ProverSemaphore,
         pk: Option<CoreProvingKeyCache<C>>,
         verify_intermediates: bool,
-        dump_shard_dir: Option<String>,
+        record_write_dir: Option<String>,
     ) -> Self {
         Self {
             normalize_program_compiler,
@@ -214,7 +214,7 @@ impl<A, W, C: SP1ProverComponents> CoreWorker<A, W, C> {
             permits,
             pk,
             verify_intermediates,
-            dump_shard_dir,
+            record_write_dir,
         }
     }
 
@@ -242,7 +242,7 @@ where
             self.artifact_client.download::<TraceData>(&input.record),
         )?;
 
-        if let Some(dir) = self.dump_shard_dir.as_ref() {
+        if let Some(dir) = self.record_write_dir.as_ref() {
             let dir = PathBuf::from(dir);
             let mut file = std::fs::File::create(dir.join("program.bin"))
                 .expect("failed to create program.bin");
@@ -505,7 +505,7 @@ where
         .map_err(|e| TaskError::Fatal(e.into()))?;
 
         // Optionally dump the shard record and vk to disk for benchmarking/replay.
-        if let Some(dir) = self.dump_shard_dir.as_ref() {
+        if let Some(dir) = self.record_write_dir.as_ref() {
             let idx = SHARD_IDX.fetch_add(1, Ordering::SeqCst);
             let path = std::path::PathBuf::from(&dir);
             std::fs::create_dir_all(&path).ok();
@@ -796,7 +796,7 @@ pub struct SP1CoreProverConfig {
     /// Whether to verify intermediates.
     pub verify_intermediates: bool,
     /// Optional directory to dump shard records and vks for benchmarking/replay.
-    pub dump_shard_dir: Option<String>,
+    pub record_write_dir: Option<String>,
 }
 
 impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1CoreProver<A, W, C> {
@@ -844,7 +844,7 @@ impl<A: ArtifactClient, W: WorkerClient, C: SP1ProverComponents> SP1CoreProver<A
                     permits.clone(),
                     pk_cache.clone(),
                     config.verify_intermediates,
-                    config.dump_shard_dir.clone(),
+                    config.record_write_dir.clone(),
                 )
             })
             .collect::<Vec<_>>();

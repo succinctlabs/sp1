@@ -7,7 +7,7 @@ use sp1_gpu_perf::get_program_and_input;
 
 #[derive(Copy, Clone, Debug, ValueEnum)]
 enum Mode {
-    /// Run the `node` binary locally with `SP1_DUMP_SHARD_DIR` pointing into `dir`,
+    /// Run the `node` binary locally with `SP1_RECORD_WRITE_DIR` pointing into `dir`,
     /// then replay from `dir`.
     Local,
     /// Skip dumping — assume `dir` already contains shard records — and just replay.
@@ -161,7 +161,7 @@ fn run_node_for_combo(node_bin: &Path, combo: &Combo, root: &Path) {
     let record_dir = combo.record_dir(root);
     std::fs::create_dir_all(&record_dir).expect("failed to create record dir");
 
-    // Run `node` with SP1_DUMP_SHARD_DIR pointing at the per-combo record dir.
+    // Run `node` with SP1_RECORD_WRITE_DIR pointing at the per-combo record dir.
     // Use core mode and a single iteration so we just dump records once.
     let mut cmd = Command::new(node_bin);
     cmd.arg("--program")
@@ -175,10 +175,10 @@ fn run_node_for_combo(node_bin: &Path, combo: &Combo, root: &Path) {
     } else {
         cmd.arg("--param").arg("");
     }
-    cmd.env("SP1_DUMP_SHARD_DIR", &record_dir);
+    cmd.env("SP1_RECORD_WRITE_DIR", &record_dir);
     run_or_panic(&format!("node[{}]", combo.label()), cmd);
 
-    // The prover writes vk.bin into SP1_DUMP_SHARD_DIR. replay-shards expects it at
+    // The prover writes vk.bin into SP1_RECORD_WRITE_DIR. replay-shards expects it at
     // <root>/<program>/vk.bin (program level). When the combo has an input, move it up.
     let program_dir = combo.program_dir(root);
     std::fs::create_dir_all(&program_dir).expect("failed to create program dir");
