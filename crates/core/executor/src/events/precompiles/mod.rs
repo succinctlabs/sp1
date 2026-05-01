@@ -6,6 +6,7 @@ mod mprotect;
 mod poseidon2;
 mod sha256_compress;
 mod sha256_extend;
+mod sig_return;
 mod u256x2048_mul;
 mod uint256;
 mod uint256_ops;
@@ -23,6 +24,7 @@ pub use poseidon2::*;
 use serde::{Deserialize, Serialize};
 pub use sha256_compress::*;
 pub use sha256_extend::*;
+pub use sig_return::*;
 use strum::{EnumIter, IntoEnumIterator};
 pub use u256x2048_mul::*;
 pub use uint256::*;
@@ -89,6 +91,8 @@ pub enum PrecompileEvent {
     Mprotect(MProtectEvent),
     /// POSEIDON2 precompile event.
     POSEIDON2(Poseidon2PrecompileEvent),
+    /// `SigReturn` precompile event.
+    SigReturn(SigReturnEvent),
 }
 
 /// Trait to retrieve all the local memory events from a vec of precompile events.
@@ -161,6 +165,9 @@ impl PrecompileLocalMemory for Vec<(SyscallEvent, PrecompileEvent)> {
                 PrecompileEvent::Mprotect(_) => {
                     // Mprotect doesn't have local memory access events
                 }
+                PrecompileEvent::SigReturn(e) => {
+                    iterators.push(e.local_mem_access.iter());
+                }
             }
         }
 
@@ -225,6 +232,9 @@ impl PrecompileLocalMemory for Vec<(SyscallEvent, PrecompileEvent)> {
                     iterators.push(e.local_page_prot_access.iter());
                 }
                 PrecompileEvent::EdDecompress(e) => {
+                    iterators.push(e.local_page_prot_access.iter());
+                }
+                PrecompileEvent::SigReturn(e) => {
                     iterators.push(e.local_page_prot_access.iter());
                 }
             }

@@ -13,8 +13,6 @@
       "Bash(for i:*)",
       "Bash(do cargo:*)",
       "Bash(git worktree *)",
-      "Bash(find /Users/rdalalsuccinct/Documents/sp1-wip/slop/crates/*/tests -maxdepth 2 -type d)",
-      "Bash(find /Users/rdalalsuccinct/Documents/sp1-wip/slop/crates/*/src -mindepth 1 -maxdepth 2 -type d)",
       "Bash(awk -F/ '{print $NF}')",
       "Bash(cargo check *)",
       "Bash(cargo fmt *)",

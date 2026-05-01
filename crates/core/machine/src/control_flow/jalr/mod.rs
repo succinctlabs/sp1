@@ -4,13 +4,22 @@ mod trace;
 
 pub use columns::*;
 use slop_air::BaseAir;
+use std::marker::PhantomData;
+
+use crate::TrustMode;
 
 #[derive(Default)]
-pub struct JalrChip;
+pub struct JalrChip<M: TrustMode> {
+    pub _phantom: PhantomData<M>,
+}
 
-impl<F> BaseAir<F> for JalrChip {
+impl<F, M: TrustMode> BaseAir<F> for JalrChip<M> {
     fn width(&self) -> usize {
-        NUM_JALR_COLS
+        if M::IS_TRUSTED {
+            NUM_JALR_COLS_SUPERVISOR
+        } else {
+            NUM_JALR_COLS_USER
+        }
     }
 }
 

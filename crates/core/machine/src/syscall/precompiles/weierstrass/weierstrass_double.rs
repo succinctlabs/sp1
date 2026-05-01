@@ -3,9 +3,10 @@ use crate::{
     memory::MemoryAccessColsU8,
     operations::{
         field::{field_op::FieldOpCols, range::FieldLtCols},
-        AddrAddOperation, SyscallAddrOperation,
+        AddrAddOperation, AddressSlicePageProtOperation, SyscallAddrOperation,
     },
     utils::{limbs_to_words, next_multiple_of_32, zeroed_f_vec},
+    SupervisorMode, TrustMode, UserMode,
 };
 use core::{
     borrow::{Borrow, BorrowMut},
@@ -35,10 +36,15 @@ use sp1_hypercube::{
     air::{InteractionScope, MachineAir},
     Word,
 };
+use sp1_primitives::consts::{PROT_READ, PROT_WRITE};
 use std::{fmt::Debug, marker::PhantomData, mem::MaybeUninit};
 
-pub const fn num_weierstrass_double_cols<P: FieldParameters + NumWords>() -> usize {
-    size_of::<WeierstrassDoubleAssignCols<u8, P>>()
+pub const fn num_weierstrass_double_cols_supervisor<P: FieldParameters + NumWords>() -> usize {
+    size_of::<WeierstrassDoubleAssignCols<u8, P, SupervisorMode>>()
+}
+
+pub const fn num_weierstrass_double_cols_user<P: FieldParameters + NumWords>() -> usize {
+    size_of::<WeierstrassDoubleAssignCols<u8, P, UserMode>>()
 }
 
 /// A set of columns to double a point on a Weierstrass curve.
@@ -47,7 +53,7 @@ pub const fn num_weierstrass_double_cols<P: FieldParameters + NumWords>() -> usi
 /// made generic in the future.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct WeierstrassDoubleAssignCols<T, P: FieldParameters + NumWords> {
+pub struct WeierstrassDoubleAssignCols<T, P: FieldParameters + NumWords, M: TrustMode> {
     pub is_real: T,
     pub clk_high: T,
     pub clk_low: T,
@@ -67,21 +73,22 @@ pub struct WeierstrassDoubleAssignCols<T, P: FieldParameters + NumWords> {
     pub slope_times_p_x_minus_x: FieldOpCols<T, P>,
     pub x3_range: FieldLtCols<T, P>,
     pub y3_range: FieldLtCols<T, P>,
+    pub write_slice_page_prot_access: M::SliceProtCols<T>,
 }
 
 #[derive(Default)]
-pub struct WeierstrassDoubleAssignChip<E> {
-    _marker: PhantomData<E>,
+pub struct WeierstrassDoubleAssignChip<E, M: TrustMode> {
+    _marker: PhantomData<(E, M)>,
 }
 
-impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDoubleAssignChip<E> {
+impl<E: EllipticCurve + WeierstrassParameters, M: TrustMode> WeierstrassDoubleAssignChip<E, M> {
     pub const fn new() -> Self {
         Self { _marker: PhantomData }
     }
 
     fn populate_field_ops<F: PrimeField32>(
         blu_events: &mut Vec<ByteLookupEvent>,
-        cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField>,
+        cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField, M>,
         p_x: BigUint,
         p_y: BigUint,
     ) {
@@ -159,23 +166,30 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDoubleAssignChip<E> {
     }
 }
 
-impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
-    for WeierstrassDoubleAssignChip<E>
+impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters, M: TrustMode> MachineAir<F>
+    for WeierstrassDoubleAssignChip<E, M>
 {
     type Record = ExecutionRecord;
     type Program = Program;
 
     fn name(&self) -> &'static str {
-        match E::CURVE_TYPE {
-            CurveType::Secp256k1 => "Secp256k1DoubleAssign",
-            CurveType::Secp256r1 => "Secp256r1DoubleAssign",
-            CurveType::Bn254 => "Bn254DoubleAssign",
-            CurveType::Bls12381 => "Bls12381DoubleAssign",
+        match (E::CURVE_TYPE, M::IS_TRUSTED) {
+            (CurveType::Secp256k1, true) => "Secp256k1DoubleAssign",
+            (CurveType::Secp256k1, false) => "Secp256k1DoubleAssignUser",
+            (CurveType::Secp256r1, true) => "Secp256r1DoubleAssign",
+            (CurveType::Secp256r1, false) => "Secp256r1DoubleAssignUser",
+            (CurveType::Bn254, true) => "Bn254DoubleAssign",
+            (CurveType::Bn254, false) => "Bn254DoubleAssignUser",
+            (CurveType::Bls12381, true) => "Bls12381DoubleAssign",
+            (CurveType::Bls12381, false) => "Bls12381DoubleAssignUser",
             _ => panic!("Unsupported curve"),
         }
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
+        if input.program.enable_untrusted_programs == M::IS_TRUSTED {
+            return Some(0);
+        }
         let nb_rows = match E::CURVE_TYPE {
             CurveType::Secp256k1 => {
                 input.get_precompile_events(SyscallCode::SECP256K1_DOUBLE).len()
@@ -193,6 +207,9 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     }
 
     fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
+        if input.program.enable_untrusted_programs == M::IS_TRUSTED {
+            return;
+        }
         let events = match E::CURVE_TYPE {
             CurveType::Secp256k1 => &input.get_precompile_events(SyscallCode::SECP256K1_DOUBLE),
             CurveType::Secp256r1 => &input.get_precompile_events(SyscallCode::SECP256R1_DOUBLE),
@@ -201,7 +218,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             _ => panic!("Unsupported curve"),
         };
 
-        let num_cols = num_weierstrass_double_cols::<E::BaseField>();
+        let num_cols = <WeierstrassDoubleAssignChip<E, M> as BaseAir<F>>::width(self);
         let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
 
         let blu_events: Vec<Vec<ByteLookupEvent>> = events
@@ -215,14 +232,9 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                     | PrecompileEvent::Bn254Double(event)
                     | PrecompileEvent::Bls12381Double(event) => {
                         let mut row = zeroed_f_vec(num_cols);
-                        let cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField> =
+                        let cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField, M> =
                             row.as_mut_slice().borrow_mut();
-                        Self::populate_row(
-                            event,
-                            cols,
-                            &mut blu,
-                            input.public_values.is_untrusted_programs_enabled,
-                        );
+                        Self::populate_row(event, cols, &mut blu);
                     }
                     _ => unreachable!(),
                 });
@@ -241,8 +253,11 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         _output: &mut ExecutionRecord,
         buffer: &mut [MaybeUninit<F>],
     ) {
+        if input.program.enable_untrusted_programs == M::IS_TRUSTED {
+            return;
+        }
         let padded_nb_rows =
-            <WeierstrassDoubleAssignChip<E> as MachineAir<F>>::num_rows(self, input).unwrap();
+            <WeierstrassDoubleAssignChip<E, M> as MachineAir<F>>::num_rows(self, input).unwrap();
         let events = match E::CURVE_TYPE {
             CurveType::Secp256k1 => input.get_precompile_events(SyscallCode::SECP256K1_DOUBLE),
             CurveType::Secp256r1 => input.get_precompile_events(SyscallCode::SECP256R1_DOUBLE),
@@ -252,7 +267,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         };
 
         let num_event_rows = events.len();
-        let num_cols = num_weierstrass_double_cols::<E::BaseField>();
+        let num_cols = <WeierstrassDoubleAssignChip<E, M> as BaseAir<F>>::width(self);
         let chunk_size = 64;
 
         unsafe {
@@ -269,7 +284,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
         let num_words_field_element = E::BaseField::NB_LIMBS / 8;
         let mut dummy_row = zeroed_f_vec(num_cols);
-        let cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField> =
+        let cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField, M> =
             dummy_row.as_mut_slice().borrow_mut();
         let dummy_memory_record = MemoryWriteRecord {
             value: 1,
@@ -289,18 +304,14 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                 let idx = i * chunk_size + j;
                 if idx < events.len() {
                     let mut new_byte_lookup_events = Vec::new();
-                    let cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField> = row.borrow_mut();
+                    let cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField, M> =
+                        row.borrow_mut();
                     match &events[idx].1 {
                         PrecompileEvent::Secp256k1Double(event)
                         | PrecompileEvent::Secp256r1Double(event)
                         | PrecompileEvent::Bn254Double(event)
                         | PrecompileEvent::Bls12381Double(event) => {
-                            Self::populate_row(
-                                event,
-                                cols,
-                                &mut new_byte_lookup_events,
-                                input.public_values.is_untrusted_programs_enabled,
-                            );
+                            Self::populate_row(event, cols, &mut new_byte_lookup_events);
                         }
                         _ => unreachable!(),
                     }
@@ -315,7 +326,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         if let Some(shape) = shard.shape.as_ref() {
             shape.included::<F, _>(self)
         } else {
-            match E::CURVE_TYPE {
+            let has_events = match E::CURVE_TYPE {
                 CurveType::Secp256k1 => {
                     !shard.get_precompile_events(SyscallCode::SECP256K1_DOUBLE).is_empty()
                 }
@@ -329,22 +340,26 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                     !shard.get_precompile_events(SyscallCode::BLS12381_DOUBLE).is_empty()
                 }
                 _ => panic!("Unsupported curve"),
-            }
+            };
+            has_events && (M::IS_TRUSTED != shard.program.enable_untrusted_programs)
         }
     }
 }
 
-impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDoubleAssignChip<E> {
+impl<E: EllipticCurve + WeierstrassParameters, M: TrustMode> WeierstrassDoubleAssignChip<E, M> {
     pub fn populate_row<F: PrimeField32>(
         event: &EllipticCurveDoubleEvent,
-        cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField>,
+        cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField, M>,
         new_byte_lookup_events: &mut Vec<ByteLookupEvent>,
-        _page_prot_enabled: u32,
     ) {
         // Decode affine points.
         let p = &event.p;
-        let p = AffinePoint::<E>::from_words_le(p);
-        let (p_x, p_y) = (p.x, p.y);
+        let (p_x, p_y) = if p.is_empty() {
+            (BigUint::zero(), BigUint::one())
+        } else {
+            let p = AffinePoint::<E>::from_words_le(p);
+            (p.x, p.y)
+        };
 
         // Populate basic columns.
         cols.is_real = F::one();
@@ -354,22 +369,63 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDoubleAssignChip<E> {
 
         Self::populate_field_ops(new_byte_lookup_events, cols, p_x, p_y);
 
+        let mut is_not_trap = true;
+        let mut trap_code = 0u8;
+
+        if !M::IS_TRUSTED {
+            let cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField, UserMode> =
+                unsafe { &mut *(cols as *mut _ as *mut _) };
+            cols.write_slice_page_prot_access.populate(
+                new_byte_lookup_events,
+                event.p_ptr,
+                event.p_ptr + 8 * (cols.p_addrs.len() - 1) as u64,
+                event.clk,
+                PROT_READ | PROT_WRITE,
+                &event.write_slice_page_prot_access,
+                &mut is_not_trap,
+                &mut trap_code,
+            );
+        }
+
         // Populate the memory access columns.
         for i in 0..cols.p_access.len() {
-            let record = MemoryRecordEnum::Write(event.p_memory_records[i]);
-            cols.p_access[i].populate(record, new_byte_lookup_events);
             cols.p_addrs[i].populate(new_byte_lookup_events, event.p_ptr, 8 * i as u64);
+            if is_not_trap {
+                let record = MemoryRecordEnum::Write(event.p_memory_records[i]);
+                cols.p_access[i].populate(record, new_byte_lookup_events);
+            } else {
+                cols.p_access[i] = MemoryAccessColsU8::default();
+            }
+        }
+
+        if !is_not_trap {
+            let num_words_field_element = E::BaseField::NB_LIMBS / 8;
+            let dummy_memory_record = MemoryRecordEnum::Write(MemoryWriteRecord {
+                value: 1,
+                timestamp: 1,
+                prev_value: 1,
+                prev_timestamp: 0,
+                prev_page_prot_record: None,
+            });
+            cols.p_access[num_words_field_element].populate(dummy_memory_record, &mut vec![]);
         }
     }
 }
 
-impl<F, E: EllipticCurve + WeierstrassParameters> BaseAir<F> for WeierstrassDoubleAssignChip<E> {
+impl<F, E: EllipticCurve + WeierstrassParameters, M: TrustMode> BaseAir<F>
+    for WeierstrassDoubleAssignChip<E, M>
+{
     fn width(&self) -> usize {
-        num_weierstrass_double_cols::<E::BaseField>()
+        if M::IS_TRUSTED {
+            num_weierstrass_double_cols_supervisor::<E::BaseField>()
+        } else {
+            num_weierstrass_double_cols_user::<E::BaseField>()
+        }
     }
 }
 
-impl<AB, E: EllipticCurve + WeierstrassParameters> Air<AB> for WeierstrassDoubleAssignChip<E>
+impl<AB, E: EllipticCurve + WeierstrassParameters, M: TrustMode> Air<AB>
+    for WeierstrassDoubleAssignChip<E, M>
 where
     AB: SP1CoreAirBuilder,
     Limbs<AB::Var, <E::BaseField as NumLimbs>::Limbs>: Copy,
@@ -377,13 +433,81 @@ where
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local = main.row_slice(0);
-        let local: &WeierstrassDoubleAssignCols<AB::Var, E::BaseField> = (*local).borrow();
+        let local: &WeierstrassDoubleAssignCols<AB::Var, E::BaseField, M> = (*local).borrow();
+
+        let mut is_not_trap = local.is_real.into();
+        let mut trap_code = AB::Expr::zero();
+
+        // Fetch the syscall id for the curve type.
+        let syscall_id_felt = match E::CURVE_TYPE {
+            CurveType::Secp256k1 => {
+                AB::F::from_canonical_u32(SyscallCode::SECP256K1_DOUBLE.syscall_id())
+            }
+            CurveType::Secp256r1 => {
+                AB::F::from_canonical_u32(SyscallCode::SECP256R1_DOUBLE.syscall_id())
+            }
+            CurveType::Bn254 => AB::F::from_canonical_u32(SyscallCode::BN254_DOUBLE.syscall_id()),
+            CurveType::Bls12381 => {
+                AB::F::from_canonical_u32(SyscallCode::BLS12381_DOUBLE.syscall_id())
+            }
+            _ => panic!("Unsupported curve"),
+        };
+
+        #[cfg(feature = "mprotect")]
+        builder.assert_eq(
+            builder.extract_public_values().is_untrusted_programs_enabled,
+            AB::Expr::from_bool(!M::IS_TRUSTED),
+        );
+
+        if !M::IS_TRUSTED {
+            let local = main.row_slice(0);
+            let local: &WeierstrassDoubleAssignCols<AB::Var, E::BaseField, UserMode> =
+                (*local).borrow();
+
+            #[cfg(not(feature = "mprotect"))]
+            builder.assert_zero(local.is_real);
+
+            AddressSlicePageProtOperation::<AB::F>::eval(
+                builder,
+                local.clk_high.into(),
+                local.clk_low.into(),
+                &local.p_ptr.addr.map(Into::into),
+                &local.p_addrs[local.p_addrs.len() - 1].value.map(Into::into),
+                PROT_READ | PROT_WRITE,
+                &local.write_slice_page_prot_access,
+                &mut is_not_trap,
+                &mut trap_code,
+            );
+
+            let x3_result_words = limbs_to_words::<AB>(local.x3_ins.result.0.to_vec());
+            let y3_result_words = limbs_to_words::<AB>(local.y3_ins.result.0.to_vec());
+            let result_words = x3_result_words.into_iter().chain(y3_result_words).collect_vec();
+            builder.eval_memory_access_slice_write(
+                local.clk_high,
+                local.clk_low.into(),
+                &local.p_addrs.iter().map(|addr| addr.value.map(Into::into)).collect_vec(),
+                &local.p_access.iter().map(|access| access.memory_access).collect_vec(),
+                result_words,
+                is_not_trap.clone(),
+            );
+
+            builder.receive_syscall(
+                local.clk_high,
+                local.clk_low,
+                syscall_id_felt,
+                trap_code.clone(),
+                local.p_ptr.addr.map(Into::into),
+                [AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero()].map(Into::into),
+                local.is_real,
+                InteractionScope::Local,
+            );
+        }
 
         let num_words_field_element = E::BaseField::NB_LIMBS / 8;
         let p_x_limbs = builder
-            .generate_limbs(&local.p_access[0..num_words_field_element], local.is_real.into());
-        let p_y_limbs = builder
-            .generate_limbs(&local.p_access[num_words_field_element..], local.is_real.into());
+            .generate_limbs(&local.p_access[0..num_words_field_element], is_not_trap.clone());
+        let p_y_limbs =
+            builder.generate_limbs(&local.p_access[num_words_field_element..], is_not_trap.clone());
         let p_x: Limbs<AB::Expr, <E::BaseField as NumLimbs>::Limbs> =
             Limbs(p_x_limbs.try_into().expect("failed to convert limbs"));
         let p_y: Limbs<AB::Expr, <E::BaseField as NumLimbs>::Limbs> =
@@ -494,39 +618,27 @@ where
             );
         }
 
-        builder.eval_memory_access_slice_write(
-            local.clk_high,
-            local.clk_low.into(),
-            &local.p_addrs.iter().map(|addr| addr.value.map(Into::into)).collect_vec(),
-            &local.p_access.iter().map(|access| access.memory_access).collect_vec(),
-            result_words,
-            local.is_real,
-        );
+        if M::IS_TRUSTED {
+            builder.eval_memory_access_slice_write(
+                local.clk_high,
+                local.clk_low.into(),
+                &local.p_addrs.iter().map(|addr| addr.value.map(Into::into)).collect_vec(),
+                &local.p_access.iter().map(|access| access.memory_access).collect_vec(),
+                result_words,
+                is_not_trap.clone(),
+            );
 
-        // Fetch the syscall id for the curve type.
-        let syscall_id_felt = match E::CURVE_TYPE {
-            CurveType::Secp256k1 => {
-                AB::F::from_canonical_u32(SyscallCode::SECP256K1_DOUBLE.syscall_id())
-            }
-            CurveType::Secp256r1 => {
-                AB::F::from_canonical_u32(SyscallCode::SECP256R1_DOUBLE.syscall_id())
-            }
-            CurveType::Bn254 => AB::F::from_canonical_u32(SyscallCode::BN254_DOUBLE.syscall_id()),
-            CurveType::Bls12381 => {
-                AB::F::from_canonical_u32(SyscallCode::BLS12381_DOUBLE.syscall_id())
-            }
-            _ => panic!("Unsupported curve"),
-        };
-
-        builder.receive_syscall(
-            local.clk_high,
-            local.clk_low,
-            syscall_id_felt,
-            p_ptr.map(Into::into),
-            [AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero()].map(Into::into),
-            local.is_real,
-            InteractionScope::Local,
-        );
+            builder.receive_syscall(
+                local.clk_high,
+                local.clk_low,
+                syscall_id_felt,
+                trap_code,
+                p_ptr.map(Into::into),
+                [AB::Expr::zero(), AB::Expr::zero(), AB::Expr::zero()].map(Into::into),
+                local.is_real,
+                InteractionScope::Local,
+            );
+        }
     }
 }
 

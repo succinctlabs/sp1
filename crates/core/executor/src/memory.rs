@@ -1,5 +1,6 @@
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use vec_map::VecMap;
+
 /// A memory.
 ///
 /// Consists of registers, as well as a page table for main memory.

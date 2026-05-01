@@ -148,7 +148,13 @@ where
         challenger.observe_slice(builder, vk.pc_start);
         challenger.observe_slice(builder, vk.initial_global_cumulative_sum.0.x.0);
         challenger.observe_slice(builder, vk.initial_global_cumulative_sum.0.y.0);
-        challenger.observe(builder, vk.enable_untrusted_programs);
+        challenger.observe(builder, vk.untrusted_config.enable_untrusted_programs);
+        #[cfg(feature = "mprotect")]
+        {
+            challenger.observe(builder, vk.untrusted_config.enable_trap_handler);
+            challenger.observe_slice(builder, vk.untrusted_config.trap_context);
+            challenger.observe_slice(builder, vk.untrusted_config.untrusted_memory);
+        }
         // Observe the padding.
         let zero: Felt<_> = builder.eval(SP1Field::zero());
         for _ in 0..6 {
@@ -162,8 +168,35 @@ where
         // Assert that the `is_untrusted_programs_enabled` is equal to the vkey one.
         builder.assert_felt_eq(
             public_values.is_untrusted_programs_enabled,
-            vk.enable_untrusted_programs,
+            vk.untrusted_config.enable_untrusted_programs,
         );
+
+        #[cfg(feature = "mprotect")]
+        {
+            // Assert that the `trap_context` is equal to the vkey one.
+            for (pv_addr, vk_addr) in
+                (public_values.trap_context.iter()).zip_eq(vk.untrusted_config.trap_context.iter())
+            {
+                for idx in 0..3 {
+                    builder.assert_felt_eq(pv_addr[idx], vk_addr[idx]);
+                }
+            }
+
+            // Assert that the `untrusted_memory` is equal to the vkey one.
+            for (pv_addr, vk_addr) in (public_values.untrusted_memory.iter())
+                .zip_eq(vk.untrusted_config.untrusted_memory.iter())
+            {
+                for idx in 0..3 {
+                    builder.assert_felt_eq(pv_addr[idx], vk_addr[idx]);
+                }
+            }
+
+            // Assert that the `enable_trap_handler` is equal to the vkey one.
+            builder.assert_felt_eq(
+                public_values.enable_trap_handler,
+                vk.untrusted_config.enable_trap_handler,
+            );
+        }
 
         // We add the global cumulative sum of the shard.
         global_cumulative_sums.push(public_values.global_cumulative_sum);

@@ -1,7 +1,31 @@
+use deepsize2::DeepSizeOf;
+use serde::{Deserialize, Serialize};
+
 use crate::{
     events::{MemoryReadRecord, MemoryWriteRecord},
-    Register,
+    Instruction, Register, TrapError,
 };
+
+/// For untrusted programs, fetching an instruction might lead to a memory read
+/// and a decoding phase. It's likely we will need new records here.
+pub struct FetchResult {
+    pub pc: u64,
+    pub instruction: Option<Instruction>,
+    pub mr_record: Option<MemoryReadRecord>,
+    pub error: Option<TrapError>,
+}
+
+pub struct LoadResultSupervisor {
+    pub a: u64,
+    pub b: u64,
+    pub c: u64,
+    pub addr: u64,
+    pub rs1: Register,
+    pub mr_record: MemoryReadRecord,
+    pub rd: Register,
+    pub rr_record: MemoryReadRecord,
+    pub rw_record: MemoryWriteRecord,
+}
 
 pub struct LoadResult {
     pub a: u64,
@@ -13,6 +37,19 @@ pub struct LoadResult {
     pub rd: Register,
     pub rr_record: MemoryReadRecord,
     pub rw_record: MemoryWriteRecord,
+    pub error: Option<TrapError>,
+}
+
+pub struct StoreResultSupervisor {
+    pub a: u64,
+    pub b: u64,
+    pub c: u64,
+    pub addr: u64,
+    pub rs1: Register,
+    pub rs1_record: MemoryReadRecord,
+    pub rs2: Register,
+    pub rs2_record: MemoryReadRecord,
+    pub mw_record: MemoryWriteRecord,
 }
 
 pub struct StoreResult {
@@ -25,6 +62,7 @@ pub struct StoreResult {
     pub rs2: Register,
     pub rs2_record: MemoryReadRecord,
     pub mw_record: MemoryWriteRecord,
+    pub error: Option<TrapError>,
 }
 
 pub struct AluResult {
@@ -85,6 +123,8 @@ pub struct EcallResult {
     pub b_record: MemoryReadRecord,
     pub c: u64,
     pub c_record: MemoryReadRecord,
+    pub error: Option<TrapError>,
+    pub sig_return_pc_record: Option<MemoryReadRecord>,
 }
 
 /// The result of a cycle.
@@ -116,4 +156,18 @@ impl CycleResult {
     pub fn is_trace_end(self) -> bool {
         matches!(self, CycleResult::TraceEnd)
     }
+}
+
+/// The result of the trap handling.
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize, DeepSizeOf)]
+#[repr(C)]
+pub struct TrapResult {
+    /// The trap context.
+    pub context: u64,
+    /// The memory record for writing the trap code.
+    pub code_record: MemoryWriteRecord,
+    /// The memory record for writing the program counter.
+    pub pc_record: MemoryWriteRecord,
+    /// The memory record for reading the next program counter.
+    pub handler_record: MemoryReadRecord,
 }

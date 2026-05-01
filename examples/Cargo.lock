@@ -1385,6 +1385,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19d374276b40fb8bbdee95aef7c7fa6b5316ec764510eb64b8dd0e2ed0d7e7f5"
 
 [[package]]
+name = "crc32fast"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9481c1c90cbf2ac953f07c8d4a58aa3945c425b7185c9154d67a65e4230da511"
+dependencies = [
+ "cfg-if",
+]
+
+[[package]]
 name = "critical-section"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2248,6 +2257,16 @@ name = "fixedbitset"
 version = "0.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d674e81391d1e1ab681a28d99df07927c6d4aa5b027d7da16ba32d1d21ecd99"
+
+[[package]]
+name = "flate2"
+version = "1.1.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "843fba2746e448b37e26a819579957415c8cef339bf08564fe8b7ddbd959573c"
+dependencies = [
+ "crc32fast",
+ "miniz_oxide",
+]
 
 [[package]]
 name = "flex-error"
@@ -3293,6 +3312,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "many-traps-program"
+version = "1.1.0"
+dependencies = [
+ "rand 0.8.5",
+ "sp1-primitives",
+ "sp1-zkvm",
+]
+
+[[package]]
+name = "many-traps-script"
+version = "1.1.0"
+dependencies = [
+ "sp1-build",
+ "sp1-core-executor",
+ "sp1-core-machine",
+ "sp1-primitives",
+ "sp1-prover",
+ "sp1-sdk",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "matchers"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3366,6 +3408,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1fa76a2c86f704bdb222d66965fb3d63269ce38518b83cb0575fca855ebb6316"
 dependencies = [
  "adler2",
+ "simd-adler32",
 ]
 
 [[package]]
@@ -3678,7 +3721,12 @@ version = "0.37.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff76201f031d8863c38aa7f905eca4f53abbfa15f609db4277d44cd8938f33fe"
 dependencies = [
+ "crc32fast",
+ "flate2",
+ "hashbrown 0.15.5",
+ "indexmap 2.13.0",
  "memchr",
+ "ruzstd",
 ]
 
 [[package]]
@@ -4431,7 +4479,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "be769465445e8c1474e9c5dac2018218498557af32d9ed057325ec9a41ae81bf"
 dependencies = [
  "heck",
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "log",
  "multimap",
  "once_cell",
@@ -4464,7 +4512,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a56d757972c98b346a9b766e3f02746cde6dd1cd1d1d563472929fdd74bec4d"
 dependencies = [
  "anyhow",
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "proc-macro2",
  "quote",
  "syn 2.0.114",
@@ -5764,6 +5812,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ruzstd"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e5ff0cc5e135c8870a775d3320910cd9b564ec036b4dc0b8741629020be63f01"
+dependencies = [
+ "twox-hash",
+]
+
+[[package]]
 name = "ryu"
 version = "1.0.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6208,6 +6265,35 @@ dependencies = [
  "digest 0.10.7",
  "rand_core 0.6.4",
 ]
+
+[[package]]
+name = "sigreturn-program"
+version = "1.1.0"
+dependencies = [
+ "rand 0.8.5",
+ "sp1-primitives",
+ "sp1-zkvm",
+]
+
+[[package]]
+name = "sigreturn-script"
+version = "1.1.0"
+dependencies = [
+ "sp1-build",
+ "sp1-core-executor",
+ "sp1-core-machine",
+ "sp1-primitives",
+ "sp1-prover",
+ "sp1-sdk",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "simd-adler32"
+version = "0.3.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "703d5c7ef118737c72f1af64ad2f6f8c5e1921f818cdcb97b8fe6fc69bf66214"
 
 [[package]]
 name = "slab"
@@ -6664,6 +6750,7 @@ dependencies = [
  "itertools 0.14.0",
  "memmap2",
  "num",
+ "object",
  "rrs-succinct",
  "serde",
  "serde_arrays",
@@ -6867,6 +6954,7 @@ dependencies = [
  "memfd",
  "memmap2",
  "serde",
+ "sp1-primitives",
  "tracing",
  "uuid",
 ]
@@ -8083,10 +8171,39 @@ dependencies = [
 ]
 
 [[package]]
+name = "trap-program"
+version = "1.1.0"
+dependencies = [
+ "rand 0.8.5",
+ "sp1-primitives",
+ "sp1-zkvm",
+]
+
+[[package]]
+name = "trap-script"
+version = "1.1.0"
+dependencies = [
+ "sp1-build",
+ "sp1-core-executor",
+ "sp1-core-machine",
+ "sp1-primitives",
+ "sp1-prover",
+ "sp1-sdk",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "try-lock"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
+
+[[package]]
+name = "twox-hash"
+version = "2.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ea3136b675547379c4bd395ca6b938e5ad3c3d20fad76e7fe85f9e0d011419c"
 
 [[package]]
 name = "typeid_prefix"
@@ -8226,7 +8343,6 @@ name = "untrusted-program-script"
 version = "1.1.0"
 dependencies = [
  "sp1-build",
- "sp1-core-executor",
  "sp1-sdk",
  "tokio",
 ]

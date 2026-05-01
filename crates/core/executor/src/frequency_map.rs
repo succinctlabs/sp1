@@ -7,6 +7,7 @@ use sp1_jit::MinimalTrace;
 
 use crate::{
     CoreVM, CycleResult, ExecutionError, MinimalExecutor, Opcode, Program, SP1Context, SP1CoreOpts,
+    SupervisorMode,
 };
 
 /// Execute a program and count how many times each program counter is visited.
@@ -17,8 +18,10 @@ pub fn execute_for_frequency_map<'a>(
     let opts = SP1CoreOpts::default();
     let proof_nonce = SP1Context::default().proof_nonce;
 
-    let mut minimal_executor =
-        MinimalExecutor::tracing(program.clone(), opts.minimal_trace_chunk_threshold);
+    let mut minimal_executor = MinimalExecutor::<SupervisorMode>::tracing(
+        program.clone(),
+        opts.minimal_trace_chunk_threshold,
+    );
 
     for buf in input {
         minimal_executor.with_input(buf);
@@ -64,7 +67,7 @@ pub fn execute_for_frequency_map<'a>(
 }
 
 struct PcListVm<'a> {
-    core: CoreVM<'a, ()>,
+    core: CoreVM<'a, SupervisorMode, ()>,
 }
 
 impl<'a> PcListVm<'a> {
@@ -84,12 +87,6 @@ impl<'a> PcListVm<'a> {
         pc_list.push(self.core.pc());
 
         let instruction = self.core.fetch(|| ());
-        if instruction.is_none() {
-            unreachable!("Fetching the next instruction failed");
-        }
-
-        // SAFETY: The instruction is guaranteed to be valid as we checked for `is_none` above.
-        let instruction = unsafe { *instruction.unwrap_unchecked() };
 
         match instruction.opcode {
             Opcode::ADD
@@ -146,7 +143,11 @@ impl<'a> PcListVm<'a> {
             }
             Opcode::ECALL => {
                 let code = self.core.read_code();
-                let _ = CoreVM::<()>::execute_ecall(&mut self.core, &instruction, code)?;
+                let _ = CoreVM::<SupervisorMode, ()>::execute_ecall(
+                    &mut self.core,
+                    &instruction,
+                    code,
+                )?;
             }
             Opcode::EBREAK | Opcode::UNIMP => {
                 unreachable!("Invalid opcode for `execute_instruction`: {:?}", instruction.opcode)

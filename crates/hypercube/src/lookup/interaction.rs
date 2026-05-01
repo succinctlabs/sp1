@@ -109,7 +109,11 @@ impl InteractionKind {
     /// The number of `values` sent and received for each interaction kind.
     pub fn num_values(&self) -> usize {
         match self {
-            InteractionKind::Memory | InteractionKind::Syscall => 9,
+            InteractionKind::Memory => 9,
+            #[cfg(feature = "mprotect")]
+            InteractionKind::Syscall => 10,
+            #[cfg(not(feature = "mprotect"))]
+            InteractionKind::Syscall => 9,
             InteractionKind::Program => 16,
             InteractionKind::Byte => 4,
             InteractionKind::Global => 11,

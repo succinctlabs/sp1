@@ -1,8 +1,9 @@
 use crate::{
     air::SP1CoreAirBuilder,
     memory::MemoryAccessColsU8,
-    operations::{AddrAddOperation, SyscallAddrOperation},
+    operations::{AddrAddOperation, AddressSlicePageProtOperation, SyscallAddrOperation},
     utils::{limbs_to_words, next_multiple_of_32},
+    SupervisorMode, TrustMode, UserMode,
 };
 use generic_array::GenericArray;
 use itertools::Itertools;
@@ -23,11 +24,14 @@ use sp1_hypercube::{
     air::{InteractionScope, MachineAir},
     Word,
 };
-use sp1_primitives::polynomial::Polynomial;
+use sp1_primitives::{
+    consts::{PROT_READ, PROT_WRITE},
+    polynomial::Polynomial,
+};
 use std::{
     borrow::{Borrow, BorrowMut},
     marker::PhantomData,
-    mem::{size_of, MaybeUninit},
+    mem::MaybeUninit,
 };
 use typenum::Unsigned;
 
@@ -36,14 +40,18 @@ use crate::{
     utils::words_to_bytes_le_vec,
 };
 
-pub const fn num_fp2_addsub_cols<P: FpOpField>() -> usize {
-    size_of::<Fp2AddSubAssignCols<u8, P>>()
+pub const fn num_fp2_addsub_cols_supervisor<P: FpOpField>() -> usize {
+    std::mem::size_of::<Fp2AddSubAssignCols<u8, P, SupervisorMode>>()
+}
+
+pub const fn num_fp2_addsub_cols_user<P: FpOpField>() -> usize {
+    std::mem::size_of::<Fp2AddSubAssignCols<u8, P, UserMode>>()
 }
 
 /// A set of columns for the Fp2AddSub operation.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct Fp2AddSubAssignCols<T, P: FpOpField> {
+pub struct Fp2AddSubAssignCols<T, P: FpOpField, M: TrustMode> {
     pub is_real: T,
     pub clk_high: T,
     pub clk_low: T,
@@ -54,17 +62,19 @@ pub struct Fp2AddSubAssignCols<T, P: FpOpField> {
     pub y_addrs: GenericArray<AddrAddOperation<T>, P::WordsCurvePoint>,
     pub x_access: GenericArray<MemoryAccessColsU8<T>, P::WordsCurvePoint>,
     pub y_access: GenericArray<MemoryAccessColsU8<T>, P::WordsCurvePoint>,
+    pub read_slice_page_prot_access: M::SliceProtCols<T>,
+    pub write_slice_page_prot_access: M::SliceProtCols<T>,
     pub(crate) c0: FieldOpCols<T, P>,
     pub(crate) c1: FieldOpCols<T, P>,
     pub(crate) c0_range: FieldLtCols<T, P>,
     pub(crate) c1_range: FieldLtCols<T, P>,
 }
 
-pub struct Fp2AddSubAssignChip<P> {
-    _marker: PhantomData<P>,
+pub struct Fp2AddSubAssignChip<P, M: TrustMode> {
+    _marker: PhantomData<(P, M)>,
 }
 
-impl<P: FpOpField> Fp2AddSubAssignChip<P> {
+impl<P: FpOpField, M: TrustMode> Fp2AddSubAssignChip<P, M> {
     pub const fn new() -> Self {
         Self { _marker: PhantomData }
     }
@@ -72,7 +82,7 @@ impl<P: FpOpField> Fp2AddSubAssignChip<P> {
     #[allow(clippy::too_many_arguments)]
     fn populate_field_ops<F: PrimeField32>(
         blu_events: &mut Vec<ByteLookupEvent>,
-        cols: &mut Fp2AddSubAssignCols<F, P>,
+        cols: &mut Fp2AddSubAssignCols<F, P, M>,
         p_x: BigUint,
         p_y: BigUint,
         q_x: BigUint,
@@ -88,19 +98,24 @@ impl<P: FpOpField> Fp2AddSubAssignChip<P> {
     }
 }
 
-impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
+impl<F: PrimeField32, P: FpOpField, M: TrustMode> MachineAir<F> for Fp2AddSubAssignChip<P, M> {
     type Record = ExecutionRecord;
 
     type Program = Program;
 
     fn name(&self) -> &'static str {
-        match P::FIELD_TYPE {
-            FieldType::Bn254 => "Bn254Fp2AddSubAssign",
-            FieldType::Bls12381 => "Bls12381Fp2AddSubAssign",
+        match (P::FIELD_TYPE, M::IS_TRUSTED) {
+            (FieldType::Bn254, true) => "Bn254Fp2AddSubAssign",
+            (FieldType::Bn254, false) => "Bn254Fp2AddSubAssignUser",
+            (FieldType::Bls12381, true) => "Bls12381Fp2AddSubAssign",
+            (FieldType::Bls12381, false) => "Bls12381Fp2AddSubAssignUser",
         }
     }
 
     fn num_rows(&self, input: &Self::Record) -> Option<usize> {
+        if input.program.enable_untrusted_programs == M::IS_TRUSTED {
+            return Some(0);
+        }
         let nb_rows = match P::FIELD_TYPE {
             FieldType::Bn254 => input.get_precompile_events(SyscallCode::BN254_FP2_ADD).len(),
             FieldType::Bls12381 => input.get_precompile_events(SyscallCode::BLS12381_FP2_ADD).len(),
@@ -116,8 +131,13 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
         output: &mut ExecutionRecord,
         buffer: &mut [MaybeUninit<F>],
     ) {
+        if input.program.enable_untrusted_programs == M::IS_TRUSTED {
+            return;
+        }
+
+        let width = <Fp2AddSubAssignChip<P, M> as BaseAir<F>>::width(self);
         let padded_nb_rows =
-            <Fp2AddSubAssignChip<P> as MachineAir<F>>::num_rows(self, input).unwrap();
+            <Fp2AddSubAssignChip<P, M> as MachineAir<F>>::num_rows(self, input).unwrap();
 
         let events = match P::FIELD_TYPE {
             FieldType::Bn254 => input.get_precompile_events(SyscallCode::BN254_FP2_ADD),
@@ -128,19 +148,17 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
         let mut new_byte_lookup_events = Vec::new();
 
         let buffer_ptr = buffer.as_mut_ptr() as *mut F;
-        let values = unsafe {
-            core::slice::from_raw_parts_mut(buffer_ptr, num_event_rows * num_fp2_addsub_cols::<P>())
-        };
+        let values = unsafe { core::slice::from_raw_parts_mut(buffer_ptr, num_event_rows * width) };
 
         unsafe {
-            let padding_start = num_event_rows * num_fp2_addsub_cols::<P>();
-            let padding_size = (padded_nb_rows - num_event_rows) * num_fp2_addsub_cols::<P>();
+            let padding_start = num_event_rows * width;
+            let padding_size = (padded_nb_rows - num_event_rows) * width;
             if padding_size > 0 {
                 core::ptr::write_bytes(buffer[padding_start..].as_mut_ptr(), 0, padding_size);
             }
         }
 
-        values.chunks_mut(num_fp2_addsub_cols::<P>()).enumerate().for_each(|(idx, row)| {
+        values.chunks_mut(width).enumerate().for_each(|(idx, row)| {
             let (_, event) = &events[idx];
             let event = match (P::FIELD_TYPE, event) {
                 (FieldType::Bn254, PrecompileEvent::Bn254Fp2AddSub(event)) => event,
@@ -148,7 +166,7 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
                 _ => unreachable!(),
             };
 
-            let cols: &mut Fp2AddSubAssignCols<F, P> = row.borrow_mut();
+            let cols: &mut Fp2AddSubAssignCols<F, P, M> = row.borrow_mut();
 
             let p = &event.x;
             let q = &event.y;
@@ -175,30 +193,69 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
                 event.op,
             );
 
+            let mut is_not_trap = true;
+            let mut trap_code = 0u8;
+
+            if !M::IS_TRUSTED {
+                let cols: &mut Fp2AddSubAssignCols<F, P, UserMode> = row.borrow_mut();
+                cols.read_slice_page_prot_access.populate(
+                    &mut new_byte_lookup_events,
+                    event.y_ptr,
+                    event.y_ptr + 8 * (cols.y_addrs.len() - 1) as u64,
+                    event.clk,
+                    PROT_READ,
+                    &event.page_prot_records.read_page_prot_records,
+                    &mut is_not_trap,
+                    &mut trap_code,
+                );
+
+                cols.write_slice_page_prot_access.populate(
+                    &mut new_byte_lookup_events,
+                    event.x_ptr,
+                    event.x_ptr + 8 * (cols.x_addrs.len() - 1) as u64,
+                    event.clk + 1,
+                    PROT_READ | PROT_WRITE,
+                    &event.page_prot_records.write_page_prot_records,
+                    &mut is_not_trap,
+                    &mut trap_code,
+                );
+            }
+
             // Populate the memory access columns.
-            for i in 0..cols.y_access.len() {
-                let record = MemoryRecordEnum::Read(event.y_memory_records[i]);
-                cols.y_access[i].populate(record, &mut new_byte_lookup_events);
+            let cols: &mut Fp2AddSubAssignCols<F, P, M> = row.borrow_mut();
+            for i in 0..cols.y_addrs.len() {
                 cols.y_addrs[i].populate(&mut new_byte_lookup_events, event.y_ptr, i as u64 * 8);
             }
-            for i in 0..cols.x_access.len() {
-                let record = MemoryRecordEnum::Write(event.x_memory_records[i]);
-                cols.x_access[i].populate(record, &mut new_byte_lookup_events);
+            for i in 0..cols.x_addrs.len() {
                 cols.x_addrs[i].populate(&mut new_byte_lookup_events, event.x_ptr, i as u64 * 8);
+            }
+            if is_not_trap {
+                for i in 0..cols.y_access.len() {
+                    let record = MemoryRecordEnum::Read(event.y_memory_records[i]);
+                    cols.y_access[i].populate(record, &mut new_byte_lookup_events);
+                }
+                for i in 0..cols.x_access.len() {
+                    let record = MemoryRecordEnum::Write(event.x_memory_records[i]);
+                    cols.x_access[i].populate(record, &mut new_byte_lookup_events);
+                }
+            } else {
+                for i in 0..cols.y_access.len() {
+                    cols.y_access[i] = MemoryAccessColsU8::default();
+                }
+                for i in 0..cols.x_access.len() {
+                    cols.x_access[i] = MemoryAccessColsU8::default();
+                }
             }
         });
 
         output.add_byte_lookup_events(new_byte_lookup_events);
 
         for idx in num_event_rows..padded_nb_rows {
-            let row_start = idx * num_fp2_addsub_cols::<P>();
+            let row_start = idx * width;
             let row = unsafe {
-                core::slice::from_raw_parts_mut(
-                    buffer[row_start..].as_mut_ptr() as *mut F,
-                    num_fp2_addsub_cols::<P>(),
-                )
+                core::slice::from_raw_parts_mut(buffer[row_start..].as_mut_ptr() as *mut F, width)
             };
-            let cols: &mut Fp2AddSubAssignCols<F, P> = row.borrow_mut();
+            let cols: &mut Fp2AddSubAssignCols<F, P, M> = row.borrow_mut();
             cols.is_add = F::one();
             let zero = BigUint::zero();
             Self::populate_field_ops(
@@ -214,6 +271,10 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
+        if M::IS_TRUSTED == shard.program.enable_untrusted_programs {
+            return false;
+        }
+
         // All the fp2 sub and add events for a given curve are coalesce to the curve's Add
         // operation.  Only retrieve precompile events for that operation.
         // TODO:  Fix this.
@@ -238,13 +299,17 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for Fp2AddSubAssignChip<P> {
     }
 }
 
-impl<F, P: FpOpField> BaseAir<F> for Fp2AddSubAssignChip<P> {
+impl<F, P: FpOpField, M: TrustMode> BaseAir<F> for Fp2AddSubAssignChip<P, M> {
     fn width(&self) -> usize {
-        num_fp2_addsub_cols::<P>()
+        if M::IS_TRUSTED {
+            num_fp2_addsub_cols_supervisor::<P>()
+        } else {
+            num_fp2_addsub_cols_user::<P>()
+        }
     }
 }
 
-impl<AB, P: FpOpField> Air<AB> for Fp2AddSubAssignChip<P>
+impl<AB, P: FpOpField, M: TrustMode> Air<AB> for Fp2AddSubAssignChip<P, M>
 where
     AB: SP1CoreAirBuilder,
     Limbs<AB::Var, <P as NumLimbs>::Limbs>: Copy,
@@ -252,27 +317,62 @@ where
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local = main.row_slice(0);
-        let local: &Fp2AddSubAssignCols<AB::Var, P> = (*local).borrow();
+        let local: &Fp2AddSubAssignCols<AB::Var, P, M> = (*local).borrow();
 
         // Constrain the `is_add` flag to be boolean.
         builder.assert_bool(local.is_add);
 
+        let mut is_not_trap = local.is_real.into();
+        let mut trap_code = AB::Expr::zero();
+
+        if !M::IS_TRUSTED {
+            let local = main.row_slice(0);
+            let local: &Fp2AddSubAssignCols<AB::Var, P, UserMode> = (*local).borrow();
+
+            #[cfg(not(feature = "mprotect"))]
+            builder.assert_zero(local.is_real);
+
+            AddressSlicePageProtOperation::<AB::F>::eval(
+                builder,
+                local.clk_high.into(),
+                local.clk_low.into(),
+                &local.y_ptr.addr.map(Into::into),
+                &local.y_addrs[local.y_addrs.len() - 1].value.map(Into::into),
+                PROT_READ,
+                &local.read_slice_page_prot_access,
+                &mut is_not_trap,
+                &mut trap_code,
+            );
+
+            AddressSlicePageProtOperation::<AB::F>::eval(
+                builder,
+                local.clk_high.into(),
+                local.clk_low.into() + AB::Expr::one(),
+                &local.x_ptr.addr.map(Into::into),
+                &local.x_addrs[local.x_addrs.len() - 1].value.map(Into::into),
+                PROT_READ | PROT_WRITE,
+                &local.write_slice_page_prot_access,
+                &mut is_not_trap,
+                &mut trap_code,
+            );
+        }
+
         let num_words_field_element = <P as NumLimbs>::Limbs::USIZE / 8;
 
         let p_x_limbs = builder
-            .generate_limbs(&local.x_access[0..num_words_field_element], local.is_real.into());
+            .generate_limbs(&local.x_access[0..num_words_field_element], is_not_trap.clone());
         let p_x: Limbs<AB::Expr, <P as NumLimbs>::Limbs> =
             Limbs(p_x_limbs.try_into().expect("failed to convert limbs"));
         let q_x_limbs = builder
-            .generate_limbs(&local.y_access[0..num_words_field_element], local.is_real.into());
+            .generate_limbs(&local.y_access[0..num_words_field_element], is_not_trap.clone());
         let q_x: Limbs<AB::Expr, <P as NumLimbs>::Limbs> =
             Limbs(q_x_limbs.try_into().expect("failed to convert limbs"));
-        let p_y_limbs = builder
-            .generate_limbs(&local.x_access[num_words_field_element..], local.is_real.into());
+        let p_y_limbs =
+            builder.generate_limbs(&local.x_access[num_words_field_element..], is_not_trap.clone());
         let p_y: Limbs<AB::Expr, <P as NumLimbs>::Limbs> =
             Limbs(p_y_limbs.try_into().expect("failed to convert limbs"));
-        let q_y_limbs = builder
-            .generate_limbs(&local.y_access[num_words_field_element..], local.is_real.into());
+        let q_y_limbs =
+            builder.generate_limbs(&local.y_access[num_words_field_element..], is_not_trap.clone());
         let q_y: Limbs<AB::Expr, <P as NumLimbs>::Limbs> =
             Limbs(q_y_limbs.try_into().expect("failed to convert limbs"));
 
@@ -354,7 +454,7 @@ where
             local.clk_low,
             &local.y_addrs.iter().map(|addr| addr.value.map(Into::into)).collect_vec(),
             &local.y_access.iter().map(|access| access.memory_access).collect_vec(),
-            local.is_real,
+            is_not_trap.clone(),
         );
 
         // We read p at +1 since p, q could be the same.
@@ -364,7 +464,7 @@ where
             &local.x_addrs.iter().map(|addr| addr.value.map(Into::into)).collect_vec(),
             &local.x_access.iter().map(|access| access.memory_access).collect_vec(),
             result_words,
-            local.is_real,
+            is_not_trap.clone(),
         );
 
         let (add_syscall_id, sub_syscall_id) = match P::FIELD_TYPE {
@@ -385,10 +485,17 @@ where
             local.clk_high,
             local.clk_low,
             syscall_id_felt,
+            trap_code.clone(),
             x_ptr.map(Into::into),
             y_ptr.map(Into::into),
             local.is_real,
             InteractionScope::Local,
+        );
+
+        #[cfg(feature = "mprotect")]
+        builder.assert_eq(
+            builder.extract_public_values().is_untrusted_programs_enabled,
+            AB::Expr::from_bool(!M::IS_TRUSTED),
         );
     }
 }

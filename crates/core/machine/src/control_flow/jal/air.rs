@@ -1,7 +1,9 @@
 use crate::{
     adapter::{register::j_type::JTypeReader, state::CPUState},
     air::{SP1CoreAirBuilder, SP1Operation},
+    eval_untrusted_program,
     operations::{AddOperation, AddOperationInput},
+    TrustMode, UserMode,
 };
 use slop_air::{Air, AirBuilder};
 use slop_algebra::{AbstractField, Field};
@@ -12,16 +14,17 @@ use std::borrow::Borrow;
 
 use super::{JalChip, JalColumns};
 
-impl<AB> Air<AB> for JalChip
+impl<AB, M> Air<AB> for JalChip<M>
 where
     AB: SP1CoreAirBuilder,
     AB::Var: Sized,
+    M: TrustMode,
 {
     #[inline(never)]
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local = main.row_slice(0);
-        let local: &JalColumns<AB::Var> = (*local).borrow();
+        let local: &JalColumns<AB::Var, M> = (*local).borrow();
 
         builder.assert_bool(local.is_real);
 
@@ -92,6 +95,36 @@ where
             builder.when(local.adapter.op_a_0).assert_zero(local.op_a_operation.value[i]);
         }
 
+        let mut is_trusted: AB::Expr = local.is_real.into();
+
+        #[cfg(feature = "mprotect")]
+        builder.assert_eq(
+            builder.extract_public_values().is_untrusted_programs_enabled,
+            AB::Expr::from_bool(!M::IS_TRUSTED),
+        );
+
+        if !M::IS_TRUSTED {
+            let local = main.row_slice(0);
+            let local: &JalColumns<AB::Var, UserMode> = (*local).borrow();
+
+            let instruction = local.adapter.instruction::<AB>(opcode);
+
+            #[cfg(not(feature = "mprotect"))]
+            builder.assert_zero(local.is_real);
+
+            eval_untrusted_program(
+                builder,
+                local.state.pc,
+                instruction,
+                [instr_type, base_opcode, funct3, funct7],
+                [local.state.clk_high::<AB>(), local.state.clk_low::<AB>()],
+                local.is_real.into(),
+                local.adapter_cols,
+            );
+
+            is_trusted = local.adapter_cols.is_trusted.into();
+        }
+
         // Constrain the program and register reads.
         // Verify that the local.pc + 4 is saved in op_a for both jump instructions.
         // When op_a is set to register X0, the RISC-V spec states that the jump instruction will
@@ -102,11 +135,11 @@ where
             local.state.clk_high::<AB>(),
             local.state.clk_low::<AB>(),
             local.state.pc,
-            opcode,
-            [instr_type, base_opcode, funct3, funct7],
+            Opcode::JAL.as_field::<AB::F>(),
             local.op_a_operation.value,
             local.adapter,
             local.is_real.into(),
+            is_trusted,
         );
     }
 }

@@ -6,12 +6,15 @@ use sp1_core_executor::{
 };
 use sp1_derive::AlignedBorrow;
 use sp1_hypercube::air::{BaseAirBuilder, SP1AirBuilder};
-use sp1_primitives::consts::{split_page_idx, PAGE_SIZE};
+use sp1_primitives::consts::{
+    split_page_idx, PAGE_SIZE, PROT_FAILURE_READ, PROT_FAILURE_WRITE, PROT_READ, PROT_WRITE,
+};
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::{air::MemoryAirBuilder, memory::PageProtAccessCols};
 
 /// A set of columns needed to compute the page_idx from an address.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct PageOperation<T> {
     /// Split that least significant limb into a 4 bit limb and a 12 bit limb.
@@ -67,7 +70,7 @@ impl<F: Field> PageOperation<F> {
 }
 
 /// A set of columns needed to retrieve the page permissions from an address.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct PageProtOperation<T> {
     /// The page operation to calculate page idx from address.
@@ -116,7 +119,7 @@ impl<F: Field> PageProtOperation<F> {
 }
 
 /// A set of columns needed to check if two page indices are equal or adjacent.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct PageIsEqualOrAdjacentOperation<T> {
     pub is_overflow: T,
@@ -208,17 +211,147 @@ impl<F: Field> PageIsEqualOrAdjacentOperation<F> {
     }
 }
 
+/// A set of columns needed to check the page prot permissions and return the trap code.
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
+#[repr(C)]
+pub struct TrapPageProtOperation<T> {
+    pub page_prot_access: PageProtAccessCols<T>,
+    pub is_read_fail: T,
+    pub is_write_fail: T,
+    pub is_now_trap: T,
+}
+
+#[allow(clippy::too_many_arguments)]
+impl<F: PrimeField32> TrapPageProtOperation<F> {
+    #[allow(clippy::too_many_arguments)]
+    pub fn populate(
+        &mut self,
+        record: &mut impl ByteRecord,
+        clk: u64,
+        permissions: u8,
+        page_prot_access: PageProtRecord,
+        is_not_trap: &mut bool,
+        trap_code: &mut u8,
+    ) {
+        assert!(*is_not_trap);
+        self.page_prot_access.populate(&page_prot_access, clk, record);
+        let perm = page_prot_access.page_prot;
+        if permissions == PROT_READ {
+            self.is_read_fail = F::from_bool((perm & PROT_READ) == 0);
+            self.is_write_fail = F::zero();
+            self.is_now_trap = self.is_read_fail;
+            if self.is_now_trap == F::one() {
+                *trap_code = PROT_FAILURE_READ as u8;
+            }
+        }
+        if permissions == PROT_WRITE {
+            self.is_read_fail = F::zero();
+            self.is_write_fail = F::from_bool((perm & PROT_WRITE) == 0);
+            self.is_now_trap = self.is_write_fail;
+            if self.is_now_trap == F::one() {
+                *trap_code = PROT_FAILURE_WRITE as u8;
+            }
+        }
+        if permissions == (PROT_READ | PROT_WRITE) {
+            self.is_read_fail = F::from_bool((perm & PROT_READ) == 0);
+            self.is_write_fail = F::from_bool((perm & PROT_WRITE) == 0);
+            self.is_now_trap = F::from_bool((perm & permissions) != permissions);
+            if self.is_read_fail == F::one() {
+                *trap_code = PROT_FAILURE_READ as u8;
+            } else if self.is_write_fail == F::one() {
+                *trap_code = PROT_FAILURE_WRITE as u8;
+            }
+        }
+        record.add_byte_lookup_event(ByteLookupEvent {
+            opcode: ByteOpcode::AND,
+            a: (perm & permissions) as u16,
+            b: perm,
+            c: permissions,
+        });
+        if self.is_now_trap == F::one() {
+            *is_not_trap = false;
+        }
+    }
+}
+
+impl<F: Field> TrapPageProtOperation<F> {
+    #[allow(clippy::too_many_arguments)]
+    pub fn eval<AB: SP1AirBuilder>(
+        builder: &mut AB,
+        clk_high: AB::Expr,
+        clk_low: AB::Expr,
+        page_idx: &[AB::Expr; 3],
+        permissions: u8,
+        cols: &TrapPageProtOperation<AB::Var>,
+        is_real: AB::Expr,
+        is_not_trap: &mut AB::Expr,
+        trap_code: &mut AB::Expr,
+    ) {
+        builder.assert_bool(is_real.clone());
+        builder.when(is_real.clone()).assert_one(is_not_trap.clone());
+        builder.eval_page_prot_access_read(
+            clk_high.clone(),
+            clk_low.clone(),
+            page_idx,
+            cols.page_prot_access,
+            is_real.clone(),
+        );
+
+        let perm = cols.page_prot_access.prev_prot_bitmap;
+
+        let mut permission_and = AB::Expr::zero();
+
+        if permissions == PROT_READ {
+            permission_and =
+                (AB::Expr::one() - cols.is_read_fail) * AB::Expr::from_canonical_u8(PROT_READ);
+            builder.assert_zero(cols.is_write_fail);
+        }
+        if permissions == PROT_WRITE {
+            permission_and =
+                (AB::Expr::one() - cols.is_write_fail) * AB::Expr::from_canonical_u8(PROT_WRITE);
+            builder.assert_zero(cols.is_read_fail);
+        }
+        if permissions == (PROT_READ | PROT_WRITE) {
+            permission_and = permission_and.clone()
+                + (AB::Expr::one() - cols.is_read_fail) * AB::Expr::from_canonical_u8(PROT_READ);
+            permission_and = permission_and.clone()
+                + (AB::Expr::one() - cols.is_write_fail) * AB::Expr::from_canonical_u8(PROT_WRITE);
+        }
+
+        builder.send_byte(
+            AB::Expr::from_canonical_u8(ByteOpcode::AND as u8),
+            permission_and.clone(),
+            perm.into(),
+            AB::Expr::from_canonical_u8(permissions),
+            is_real.clone(),
+        );
+
+        builder.when_not(is_real.clone()).assert_zero(cols.is_now_trap);
+        builder.when_not(is_not_trap.clone()).assert_zero(cols.is_now_trap);
+        builder.assert_bool(cols.is_now_trap);
+        builder.assert_bool(cols.is_read_fail);
+        builder.assert_bool(cols.is_write_fail);
+        builder.assert_eq(
+            cols.is_now_trap,
+            cols.is_read_fail + cols.is_write_fail - cols.is_read_fail * cols.is_write_fail,
+        );
+
+        *is_not_trap = is_not_trap.clone() - cols.is_now_trap.into();
+        *trap_code = trap_code.clone()
+            + cols.is_read_fail * AB::Expr::from_canonical_u64(PROT_FAILURE_READ)
+            + (cols.is_now_trap - cols.is_read_fail)
+                * AB::Expr::from_canonical_u64(PROT_FAILURE_WRITE);
+    }
+}
+
 /// A set of columns needed to check the page prot permissions for a range of addrs.
 /// This operation only supports an addr range that spans at most 2 pages.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct AddressSlicePageProtOperation<T> {
     pub page_is_equal_or_adjacent: PageIsEqualOrAdjacentOperation<T>,
-
     pub page_operations: [PageOperation<T>; 2],
-    pub page_prot_accesses: [PageProtAccessCols<T>; 2],
-
-    pub is_page_protect_active: T,
+    pub trap_page_operations: [TrapPageProtOperation<T>; 2],
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -231,10 +364,16 @@ impl<F: PrimeField32> AddressSlicePageProtOperation<F> {
         end_addr: u64,
         clk: u64,
         permissions: u8,
-        first_page_prot_access: &PageProtRecord,
-        second_page_prot_access: &Option<PageProtRecord>,
-        is_page_protect_active: u32,
+        page_prot_access: &[PageProtRecord],
+        is_not_trap: &mut bool,
+        trap_code: &mut u8,
     ) {
+        if !(*is_not_trap) {
+            assert_eq!(page_prot_access.len(), 0);
+            *self = AddressSlicePageProtOperation::<F>::default();
+            return;
+        }
+
         let start_page_idx = start_addr / (PAGE_SIZE as u64);
         let end_page_idx = end_addr / (PAGE_SIZE as u64);
         assert!(start_page_idx == end_page_idx || start_page_idx + 1 == end_page_idx);
@@ -242,28 +381,39 @@ impl<F: PrimeField32> AddressSlicePageProtOperation<F> {
         self.page_operations[0].populate(record, start_addr);
         self.page_operations[1].populate(record, end_addr);
 
-        self.page_is_equal_or_adjacent.populate(start_page_idx, end_page_idx);
+        assert!(!page_prot_access.is_empty());
 
-        self.page_prot_accesses[0].populate(first_page_prot_access, clk, record);
-        record.add_byte_lookup_event(ByteLookupEvent {
-            opcode: ByteOpcode::AND,
-            a: permissions as u16,
-            b: permissions,
-            c: first_page_prot_access.page_prot,
-        });
+        // Populate the first slice.
+        self.trap_page_operations[0].populate(
+            record,
+            clk,
+            permissions,
+            page_prot_access[0],
+            is_not_trap,
+            trap_code,
+        );
 
-        if let Some(second_page_prot_access) = second_page_prot_access {
-            assert!(start_page_idx + 1 == end_page_idx);
-            self.page_prot_accesses[1].populate(second_page_prot_access, clk, record);
-            record.add_byte_lookup_event(ByteLookupEvent {
-                opcode: ByteOpcode::AND,
-                a: permissions as u16,
-                b: permissions,
-                c: second_page_prot_access.page_prot,
-            });
+        if !(*is_not_trap) {
+            self.trap_page_operations[1] = TrapPageProtOperation::<F>::default();
+            self.page_is_equal_or_adjacent = PageIsEqualOrAdjacentOperation::<F>::default();
+            return;
         }
 
-        self.is_page_protect_active = F::from_canonical_u32(is_page_protect_active);
+        self.page_is_equal_or_adjacent.populate(start_page_idx, end_page_idx);
+
+        if end_page_idx == start_page_idx + 1 {
+            assert!(page_prot_access.len() == 2);
+            self.trap_page_operations[1].populate(
+                record,
+                clk,
+                permissions,
+                page_prot_access[1],
+                is_not_trap,
+                trap_code,
+            );
+        } else {
+            self.trap_page_operations[1] = TrapPageProtOperation::<F>::default();
+        }
     }
 }
 
@@ -275,46 +425,37 @@ impl<F: Field> AddressSlicePageProtOperation<F> {
         clk_low: AB::Expr,
         start_addr: &[AB::Expr; 3],
         end_addr: &[AB::Expr; 3],
-        permissions: AB::Expr,
+        permissions: u8,
         cols: &AddressSlicePageProtOperation<AB::Var>,
-        is_real: AB::Expr,
+        is_not_trap: &mut AB::Expr,
+        trap_code: &mut AB::Expr,
     ) {
-        // Check page protect active is set correctly based on public value and is_real
-        builder.assert_bool(is_real.clone());
-        let public_values = builder.extract_public_values();
-        let expected_page_protect_active =
-            public_values.is_untrusted_programs_enabled.into() * is_real.clone();
-        builder.assert_eq(cols.is_page_protect_active, expected_page_protect_active);
+        builder.assert_bool(is_not_trap.clone());
 
         let start_page_idx = PageOperation::<AB::F>::eval(
             builder,
             start_addr,
             cols.page_operations[0],
-            cols.is_page_protect_active.into(),
+            is_not_trap.clone(),
         );
 
         let end_page_idx = PageOperation::<AB::F>::eval(
             builder,
             &end_addr.clone(),
             cols.page_operations[1],
-            cols.is_page_protect_active.into(),
+            is_not_trap.clone(),
         );
 
-        builder.eval_page_prot_access_read(
+        TrapPageProtOperation::<AB::F>::eval(
+            builder,
             clk_high.clone(),
             clk_low.clone(),
             &start_page_idx.clone(),
-            cols.page_prot_accesses[0],
-            cols.is_page_protect_active.into(),
-        );
-
-        // Ensure requested permission matches the set permission.
-        builder.send_byte(
-            AB::Expr::from_canonical_u8(ByteOpcode::AND as u8),
-            permissions.clone(),
-            permissions.clone(),
-            cols.page_prot_accesses[0].prev_prot_bitmap,
-            cols.is_page_protect_active.into(),
+            permissions,
+            &cols.trap_page_operations[0],
+            is_not_trap.clone(),
+            is_not_trap,
+            trap_code,
         );
 
         PageIsEqualOrAdjacentOperation::<AB::F>::eval(
@@ -322,29 +463,19 @@ impl<F: Field> AddressSlicePageProtOperation<F> {
             start_page_idx.map(Into::into),
             end_page_idx.clone().map(Into::into),
             cols.page_is_equal_or_adjacent,
-            cols.is_page_protect_active.into(),
+            is_not_trap.clone(),
         );
 
-        // Ensure that if adjacent is true, then page protect is active
-        builder
-            .when(cols.page_is_equal_or_adjacent.is_adjacent)
-            .assert_one(cols.is_page_protect_active);
-
-        builder.eval_page_prot_access_read(
+        TrapPageProtOperation::<AB::F>::eval(
+            builder,
             clk_high.clone(),
             clk_low.clone(),
             &end_page_idx.clone(),
-            cols.page_prot_accesses[1],
-            cols.page_is_equal_or_adjacent.is_adjacent,
-        );
-
-        // Ensure requested permission matches the set permission.
-        builder.send_byte(
-            AB::Expr::from_canonical_u8(ByteOpcode::AND as u8),
-            permissions.clone(),
-            permissions.clone(),
-            cols.page_prot_accesses[1].prev_prot_bitmap,
-            cols.page_is_equal_or_adjacent.is_adjacent,
+            permissions,
+            &cols.trap_page_operations[1],
+            cols.page_is_equal_or_adjacent.is_adjacent.into(),
+            is_not_trap,
+            trap_code,
         );
     }
 }
