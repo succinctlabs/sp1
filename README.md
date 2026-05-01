@@ -17,8 +17,12 @@ To get started, make sure you have [Rust](https://www.rust-lang.org/tools/instal
 
 ## Security
 
+### Audits
 SP1 has undergone audits from [Veridise](https://www.veridise.com/), [Cantina](https://cantina.xyz/), [Zellic](https://www.zellic.io/),
 and [KALOS](https://kalos.xyz/) and is recommended for production use. The audit reports are available [here](./audits).
+
+### Experimental features
+The `sp1-sdk` crate contains some experimental features gates under the `experimental` feature flag. These features are not yet fully audited and are not recommended for production use. 
 
 ## Supported Rust Versions (MSRV)
 
