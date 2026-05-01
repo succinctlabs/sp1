@@ -1037,7 +1037,7 @@ mod tests {
         use sp1_prover_types::network_base_types::ProofMode;
         use sp1_verifier::SP1Proof;
 
-        use crate::worker::{cpu_worker_builder, SP1LocalNodeBuilder};
+        use crate::worker::{cpu_worker_builder_with_machine, SP1LocalNodeBuilder};
 
         setup_logger();
 
@@ -1049,11 +1049,12 @@ mod tests {
         let _ = std::fs::remove_file(&vk_map_path);
 
         let machine = RiscvAir::machine();
-        let node =
-            SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder(machine.clone()))
-                .build()
-                .await
-                .unwrap();
+        let node = SP1LocalNodeBuilder::from_worker_client_builder(
+            cpu_worker_builder_with_machine(machine.clone()),
+        )
+        .build()
+        .await
+        .unwrap();
 
         let elf = test_artifacts::FIBONACCI_ELF;
 
@@ -1100,7 +1101,7 @@ mod tests {
 
         // Build a new prover that performs the vk verification check using the built vk map.
         let node = SP1LocalNodeBuilder::from_worker_client_builder(
-            cpu_worker_builder(machine.clone())
+            cpu_worker_builder_with_machine(machine.clone())
                 .with_vk_map_path(vk_map_path.to_str().unwrap().to_string()),
         )
         .build()

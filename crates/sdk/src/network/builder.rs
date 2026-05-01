@@ -26,14 +26,20 @@ pub struct NetworkProverBuilder {
 
 impl Default for NetworkProverBuilder {
     fn default() -> Self {
-        Self::new(RiscvAir::machine())
+        Self::new()
     }
 }
 
 impl NetworkProverBuilder {
     /// Creates a new [`NetworkProverBuilder`].
     #[must_use]
-    pub const fn new(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
+    pub fn new() -> Self {
+        Self::new_with_machine(RiscvAir::machine())
+    }
+
+    /// Creates a new [`NetworkProverBuilder`] with a given machine.
+    #[must_use]
+    pub const fn new_with_machine(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
         Self {
             private_key: None,
             rpc_url: None,

@@ -3,7 +3,7 @@ use std::time::Duration;
 use clap::Parser;
 use sp1_core_executor::SP1Context;
 use sp1_gpu_perf::{get_program_and_input, Measurement};
-use sp1_gpu_prover::cuda_worker_builder;
+use sp1_gpu_prover::cuda_worker_builder_with_machine;
 use sp1_prover::worker::{SP1LocalNodeBuilder, SP1Proof};
 use sp1_prover_types::network_base_types::ProofMode;
 use sp1_sdk::RiscvAir;
@@ -77,7 +77,7 @@ async fn main() {
 
     // Initialize the AirProver and permits
     let measurements = sp1_gpu_cudart::spawn(move |t| async move {
-        let worker_builder = cuda_worker_builder(t.clone(), machine).await;
+        let worker_builder = cuda_worker_builder_with_machine(t.clone(), machine).await;
         let client =
             SP1LocalNodeBuilder::from_worker_client_builder(worker_builder).build().await.unwrap();
 

@@ -4,7 +4,7 @@ use sp1_cuda::{
     client::socket_path,
 };
 use sp1_gpu_cudart::TaskScope;
-use sp1_gpu_prover::cuda_worker_builder;
+use sp1_gpu_prover::cuda_worker_builder_with_machine;
 use sp1_primitives::Elf;
 use sp1_prover::worker::{SP1LocalNode, SP1LocalNodeBuilder};
 use sp1_prover::SP1VerifyingKey;
@@ -136,7 +136,7 @@ impl Server {
                     .get_or_try_init(|| async {
                         let machine = machine.into();
                         SP1LocalNodeBuilder::from_worker_client_builder(
-                            cuda_worker_builder(task_scope, machine).await,
+                            cuda_worker_builder_with_machine(task_scope, machine).await,
                         )
                         .build()
                         .await

@@ -19,10 +19,22 @@ pub struct MockProverBuilder {
     machine: Machine<SP1Field, RiscvAir<SP1Field>>,
 }
 
+impl Default for MockProverBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MockProverBuilder {
     /// Creates a new [`MockProverBuilder`] with default settings.
     #[must_use]
-    pub const fn new(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
+    pub fn new() -> Self {
+        Self::new_with_machine(RiscvAir::machine())
+    }
+
+    /// Creates a new [`MockProverBuilder`] with a given machine.
+    #[must_use]
+    pub const fn new_with_machine(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
         Self { core_opts: None, machine }
     }
 
@@ -44,7 +56,7 @@ impl MockProverBuilder {
     pub fn build(self) -> MockProver {
         tracing::info!("initializing mock prover");
         let node = match self.core_opts {
-            Some(opts) => block_on(SP1LightNode::with_opts(self.machine, opts)),
+            Some(opts) => block_on(SP1LightNode::with_opts_and_machine(self.machine, opts)),
             None => block_on(SP1LightNode::new_with_machine(self.machine)),
         };
         MockProver::from_node(node)

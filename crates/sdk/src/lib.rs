@@ -83,7 +83,6 @@ pub use utils::setup_logger;
 
 #[cfg(all(test, feature = "slow-tests"))]
 mod tests {
-    use sp1_core_machine::riscv::RiscvAir;
     use sp1_primitives::io::SP1PublicValues;
 
     use crate::{utils, MockProver, Prover, ProverClient, SP1Stdin};
@@ -218,7 +217,7 @@ mod tests {
         let mut opts = SP1CoreOpts::default();
         opts.minimal_trace_chunk_threshold = 1000;
 
-        let client = MockProver::new_with_opts(RiscvAir::machine(), opts).await;
+        let client = MockProver::new_with_opts(opts).await;
         let elf = test_artifacts::CYCLE_TRACKER_ELF;
         let stdin = SP1Stdin::new();
 

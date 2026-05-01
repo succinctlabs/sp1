@@ -41,7 +41,12 @@ impl CudaProver {
     }
 
     /// Setup a new proving key.
-    pub async fn setup(
+    pub async fn setup(&self, elf: Elf) -> Result<CudaProvingKey, CudaClientError> {
+        self.setup_with_machine(elf, RiscvAir::machine()).await
+    }
+
+    /// Same as [`Self::setup`] but with a custom machine.
+    pub async fn setup_with_machine(
         &self,
         elf: Elf,
         machine: Machine<SP1Field, RiscvAir<SP1Field>>,

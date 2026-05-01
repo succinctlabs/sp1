@@ -27,6 +27,12 @@ impl Default for CudaProverBuilder {
 }
 
 impl CudaProverBuilder {
+    /// Creates a new [`CudaProverBuilder`] with default settings.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::new_with_machine(RiscvAir::machine())
+    }
+
     /// Creates a new builder from a machine.
     #[must_use]
     pub fn new_with_machine(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
@@ -103,7 +109,8 @@ impl CudaProverBuilder {
     pub async fn build(self) -> CudaProver {
         tracing::info!("initializing cuda prover");
         let machine = self.machine;
-        let node = SP1LightNode::with_opts(machine, self.core_opts.unwrap_or_default()).await;
+        let node =
+            SP1LightNode::with_opts_and_machine(machine, self.core_opts.unwrap_or_default()).await;
         let cuda_prover = match self.cuda_device_id {
             Some(id) => CudaProverImpl::new_with_id(id).await,
             None => CudaProverImpl::new().await,

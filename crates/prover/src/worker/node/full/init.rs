@@ -25,10 +25,21 @@ pub struct SP1LocalNodeBuilder<C: SP1ProverComponents> {
     pub channels: LocalWorkerClientChannels,
 }
 
+impl<C: SP1ProverComponents> Default for SP1LocalNodeBuilder<C> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<C: SP1ProverComponents> SP1LocalNodeBuilder<C> {
     /// Creates a new local node builder with a default worker client builder.
-    pub fn new(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
-        Self::from_worker_client_builder(SP1WorkerBuilder::new(machine))
+    pub fn new() -> Self {
+        Self::new_with_machine(RiscvAir::machine())
+    }
+
+    /// Creates a new local node builder with a custom machine.
+    pub fn new_with_machine(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
+        Self::from_worker_client_builder(SP1WorkerBuilder::new_with_machine(machine))
     }
 
     /// Creates a new local node builder from a worker client builder.

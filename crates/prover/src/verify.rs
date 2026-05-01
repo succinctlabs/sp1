@@ -72,7 +72,11 @@ pub struct SP1Verifier {
 }
 
 impl SP1Verifier {
-    pub fn new(
+    pub fn new(recursion_vks: VerifierRecursionVks) -> Self {
+        Self::new_with_machine(recursion_vks, RiscvAir::machine())
+    }
+
+    pub fn new_with_machine(
         recursion_vks: VerifierRecursionVks,
         machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     ) -> Self {

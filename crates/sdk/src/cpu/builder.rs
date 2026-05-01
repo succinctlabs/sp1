@@ -20,14 +20,20 @@ pub struct CpuProverBuilder {
 
 impl Default for CpuProverBuilder {
     fn default() -> Self {
-        Self::new(RiscvAir::machine())
+        Self::new()
     }
 }
 
 impl CpuProverBuilder {
     /// Creates a new [`CpuProverBuilder`] with default settings.
     #[must_use]
-    pub const fn new(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
+    pub fn new() -> Self {
+        Self::new_with_machine(RiscvAir::machine())
+    }
+
+    /// Creates a new [`CpuProverBuilder`] with a given machine.
+    #[must_use]
+    pub const fn new_with_machine(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
         Self { core_opts: None, machine }
     }
 
@@ -84,6 +90,6 @@ impl CpuProverBuilder {
     /// ```
     #[must_use]
     pub async fn build(self) -> CpuProver {
-        CpuProver::new_with_opts(self.core_opts, self.machine).await
+        CpuProver::new_with_opts_and_machine(self.core_opts, self.machine).await
     }
 }

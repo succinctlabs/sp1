@@ -45,13 +45,13 @@ impl ProverClient {
     /// ```
     #[must_use]
     pub fn from_env() -> EnvProver {
-        EnvProver::new(RiscvAir::machine())
+        EnvProver::new()
     }
 
     /// Same as `from_env` but with a custom machine.
     #[must_use]
     pub fn from_env_with_machine(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> EnvProver {
-        EnvProver::new(machine)
+        EnvProver::new_with_machine(machine)
     }
 
     /// Creates a new [`ProverClientBuilder`] so that you can configure the prover client.
@@ -91,7 +91,7 @@ impl ProverClientBuilder {
     #[must_use]
     #[allow(clippy::unused_self)]
     pub fn cpu(&self) -> CpuProverBuilder {
-        CpuProverBuilder::new(self.machine.clone())
+        CpuProverBuilder::new_with_machine(self.machine.clone())
     }
 
     /// Builds a [`CudaProver`] specifically for local proving on NVIDIA GPUs.
@@ -111,21 +111,21 @@ impl ProverClientBuilder {
     #[must_use]
     #[allow(clippy::unused_self)]
     pub fn cuda(&self) -> CudaProverBuilder {
-        CudaProverBuilder::new(self.machine.clone())
+        CudaProverBuilder::new_with_machine(self.machine.clone())
     }
 
     /// Builds a [`MockProver`] for testing without real proving or verification.
     #[must_use]
     #[allow(clippy::unused_self)]
     pub fn mock(&self) -> MockProverBuilder {
-        MockProverBuilder::new(self.machine.clone())
+        MockProverBuilder::new_with_machine(self.machine.clone())
     }
 
     /// Builds a [`LightProver`] that only executes and verifies but does not generate proofs.
     #[must_use]
     #[allow(clippy::unused_self)]
     pub fn light(&self) -> LightProverBuilder {
-        LightProverBuilder::new(self.machine.clone())
+        LightProverBuilder::new_with_machine(self.machine.clone())
     }
 
     /// Builds a [`NetworkProver`] specifically for proving on the network.
@@ -145,7 +145,7 @@ impl ProverClientBuilder {
     #[must_use]
     #[allow(clippy::unused_self)]
     pub fn network(&self) -> NetworkProverBuilder {
-        NetworkProverBuilder::new(self.machine.clone())
+        NetworkProverBuilder::new_with_machine(self.machine.clone())
     }
 
     /// Builds a [`NetworkProver`] specifically for proving on the network with a specified mode.

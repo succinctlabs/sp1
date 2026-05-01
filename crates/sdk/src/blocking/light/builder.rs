@@ -19,10 +19,22 @@ pub struct LightProverBuilder {
     machine: Machine<SP1Field, RiscvAir<SP1Field>>,
 }
 
+impl Default for LightProverBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LightProverBuilder {
     /// Creates a new [`LightProverBuilder`] with default settings.
     #[must_use]
-    pub const fn new(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
+    pub fn new() -> Self {
+        Self::new_with_machine(RiscvAir::machine())
+    }
+
+    /// Creates a new [`LightProverBuilder`] with a given machine.
+    #[must_use]
+    pub const fn new_with_machine(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
         Self { core_opts: None, machine }
     }
 
@@ -44,7 +56,7 @@ impl LightProverBuilder {
     pub fn build(self) -> LightProver {
         tracing::info!("initializing light prover");
         let node = match self.core_opts {
-            Some(opts) => block_on(SP1LightNode::with_opts(self.machine, opts)),
+            Some(opts) => block_on(SP1LightNode::with_opts_and_machine(self.machine, opts)),
             None => block_on(SP1LightNode::new_with_machine(self.machine)),
         };
         LightProver::from_node(node)

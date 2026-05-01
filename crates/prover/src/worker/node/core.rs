@@ -10,7 +10,7 @@ use tracing::instrument;
 
 use crate::{
     verify::{SP1Verifier, VerifierRecursionVks},
-    worker::{execute_with_options, SP1ExecutorConfig},
+    worker::{execute_with_options_and_machine, SP1ExecutorConfig},
     SP1CoreProofData,
 };
 
@@ -48,7 +48,7 @@ impl SP1NodeCore {
         let program = Program::from(elf)
             .map_err(|e| anyhow::anyhow!("failed to dissassemble program: {}", e))?;
         let program = Arc::new(program);
-        let (public_values, public_value_digest, report) = execute_with_options(
+        let (public_values, public_value_digest, report) = execute_with_options_and_machine(
             program,
             stdin,
             context,

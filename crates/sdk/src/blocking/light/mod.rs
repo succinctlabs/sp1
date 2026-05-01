@@ -27,14 +27,20 @@ pub struct LightProver {
 
 impl Default for LightProver {
     fn default() -> Self {
-        Self::new(RiscvAir::machine())
+        Self::new()
     }
 }
 
 impl LightProver {
     /// Create a new light prover.
     #[must_use]
-    pub fn new(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
+    pub fn new() -> Self {
+        Self::new_with_machine(RiscvAir::machine())
+    }
+
+    /// Create a new light prover with a given machine.
+    #[must_use]
+    pub fn new_with_machine(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
         tracing::info!("initializing light prover");
         let node = block_on(SP1LightNode::new_with_machine(machine));
         Self { inner: node }
@@ -96,16 +102,13 @@ mod tests {
         SP1Stdin,
     };
 
-    use sp1_core_machine::riscv::RiscvAir;
-
     use super::LightProver;
 
     /// Test that execute works and prove errors.
     #[test]
     fn test_light_execute_and_prove() {
         setup_logger();
-        let machine = RiscvAir::machine();
-        let prover = LightProver::new(machine);
+        let prover = LightProver::new();
         let pk = prover.setup(test_artifacts::FIBONACCI_ELF).expect("failed to setup proving key");
 
         // Execute should succeed.

@@ -34,12 +34,16 @@ pub struct SP1WorkerBuilder<
 
 impl<C: SP1ProverComponents> Default for SP1WorkerBuilder<C> {
     fn default() -> Self {
-        Self::new(RiscvAir::machine())
+        Self::new()
     }
 }
 
 impl<C: SP1ProverComponents> SP1WorkerBuilder<C> {
-    pub fn new(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
+    pub fn new() -> Self {
+        Self::new_with_machine(RiscvAir::machine())
+    }
+
+    pub fn new_with_machine(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
         // Note: the config is uniquely determined by the machine. We still cache it here.
         let config = SP1WorkerConfig::new(machine.clone());
 
@@ -242,7 +246,7 @@ impl<C: SP1ProverComponents, A, W> SP1WorkerBuilder<C, A, W> {
             num_keys: recursion_vks.num_keys(),
         };
 
-        let mut verifier = SP1Verifier::new(verifier_vks, machine);
+        let mut verifier = SP1Verifier::new_with_machine(verifier_vks, machine);
         verifier.set_shrink_vk(shrink_vk);
 
         let controller = SP1Controller::new(
@@ -316,7 +320,12 @@ impl<C: SP1ProverComponents, A, W> SP1WorkerBuilder<C, A, W> {
 }
 
 /// Create a [SP1WorkerBuilder] for a CPU worker with default components.
-pub fn cpu_worker_builder(
+pub fn cpu_worker_builder() -> SP1WorkerBuilder<CpuSP1ProverComponents> {
+    cpu_worker_builder_with_machine(RiscvAir::machine())
+}
+
+/// Same as [`cpu_worker_builder`] but with a custom machine.
+pub fn cpu_worker_builder_with_machine(
     machine: Machine<SP1Field, RiscvAir<SP1Field>>,
 ) -> SP1WorkerBuilder<CpuSP1ProverComponents> {
     // Create the prover permits, setting it to having 4 provers.
@@ -340,7 +349,7 @@ pub fn cpu_worker_builder(
 
     let wrap_prover = CpuWrapProverBuilder;
 
-    let base_builder = SP1WorkerBuilder::new(machine)
+    let base_builder = SP1WorkerBuilder::new_with_machine(machine)
         .with_artifact_client(artifact_client)
         .with_worker_client(worker_client)
         .with_core_opts(opts)

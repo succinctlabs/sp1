@@ -312,7 +312,9 @@ mod tests {
     use crate::CpuSP1ProverComponents;
     use sp1_hypercube::HashableKey;
 
-    use crate::worker::{cpu_worker_builder, SP1LocalNodeBuilder, SP1WorkerBuilder};
+    use crate::worker::{
+        cpu_worker_builder, cpu_worker_builder_with_machine, SP1LocalNodeBuilder, SP1WorkerBuilder,
+    };
 
     use super::*;
 
@@ -369,7 +371,7 @@ mod tests {
     #[serial]
     async fn test_e2e_node() -> anyhow::Result<()> {
         setup_logger();
-        run_e2e_node_test(cpu_worker_builder(RiscvAir::machine())).await
+        run_e2e_node_test(cpu_worker_builder()).await
     }
 
     #[tokio::test]
@@ -377,7 +379,7 @@ mod tests {
     #[serial]
     async fn test_e2e_node_experimental() -> anyhow::Result<()> {
         setup_logger();
-        run_e2e_node_test(cpu_worker_builder(RiscvAir::machine()).without_vk_verification()).await
+        run_e2e_node_test(cpu_worker_builder().without_vk_verification()).await
     }
 
     #[tokio::test]
@@ -386,12 +388,10 @@ mod tests {
     async fn make_verifier_vks() -> anyhow::Result<()> {
         setup_logger();
 
-        let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder(
-            RiscvAir::machine(),
-        ))
-        .build()
-        .await
-        .unwrap();
+        let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder())
+            .build()
+            .await
+            .unwrap();
 
         let recursion_vks = client.core().recursion_vks();
 
@@ -411,10 +411,12 @@ mod tests {
         let mode = ProofMode::Groth16;
 
         let machine = RiscvAir::machine();
-        let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder(machine))
-            .build()
-            .await
-            .unwrap();
+        let client = SP1LocalNodeBuilder::from_worker_client_builder(
+            cpu_worker_builder_with_machine(machine),
+        )
+        .build()
+        .await
+        .unwrap();
 
         let time = tokio::time::Instant::now();
         let context = SP1Context::default();
@@ -492,8 +494,8 @@ mod tests {
         tracing::info!("wrote modified vk_map to {:?}", vk_map_path);
 
         // Step 3: Build the prover with the modified vk_map (vk_verification stays ON).
-        let builder = cpu_worker_builder(RiscvAir::machine())
-            .with_vk_map_path(vk_map_path.to_str().unwrap().to_string());
+        let builder =
+            cpu_worker_builder().with_vk_map_path(vk_map_path.to_str().unwrap().to_string());
 
         let elf = test_artifacts::FIBONACCI_ELF;
         let stdin = SP1Stdin::default();
@@ -533,12 +535,10 @@ mod tests {
     async fn test_node_deferred_compress() -> anyhow::Result<()> {
         setup_logger();
 
-        let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder(
-            RiscvAir::machine(),
-        ))
-        .build()
-        .await
-        .unwrap();
+        let client = SP1LocalNodeBuilder::from_worker_client_builder(cpu_worker_builder())
+            .build()
+            .await
+            .unwrap();
 
         // Test program which proves the Keccak-256 hash of various inputs.
         let keccak_elf = test_artifacts::KECCAK256_ELF;

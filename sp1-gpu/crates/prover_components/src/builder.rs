@@ -47,8 +47,13 @@ pub fn local_gpu_opts() -> (SP1CoreOpts, bool) {
     (opts, gpu_memory_gb <= 30)
 }
 
-/// Create a [SP1CudaProverWorkerBuilder]
-pub async fn cuda_worker_builder(
+/// Create a [SP1CudaProverWorkerBuilder] with a default machine.
+pub async fn cuda_worker_builder(scope: TaskScope) -> SP1WorkerBuilder<SP1CudaProverComponents> {
+    cuda_worker_builder_with_machine(scope, RiscvAir::machine()).await
+}
+
+/// Same as [`cuda_worker_builder`] but with a custom machine.
+pub async fn cuda_worker_builder_with_machine(
     scope: TaskScope,
     machine: Machine<SP1Field, RiscvAir<SP1Field>>,
 ) -> SP1WorkerBuilder<SP1CudaProverComponents> {
@@ -92,7 +97,7 @@ pub async fn cuda_worker_builder(
             .await,
     );
 
-    let base_builder = SP1WorkerBuilder::new(machine)
+    let base_builder = SP1WorkerBuilder::new_with_machine(machine)
         .with_core_opts(opts)
         .with_core_air_prover(core_prover, prover_permits.clone())
         .with_compress_air_prover(recursion_prover, prover_permits.clone())

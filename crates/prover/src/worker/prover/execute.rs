@@ -118,8 +118,10 @@ fn verify_deferred_proofs(
     if proofs.is_empty() {
         return Ok(());
     }
-    let verifier =
-        SP1Verifier::new(crate::verify::VerifierRecursionVks::default(), machine.clone());
+    let verifier = SP1Verifier::new_with_machine(
+        crate::verify::VerifierRecursionVks::default(),
+        machine.clone(),
+    );
     for (index, (proof, vk)) in proofs.iter().enumerate() {
         let sp1_vk = SP1VerifyingKey { vk: vk.clone() };
         verifier
@@ -130,6 +132,25 @@ fn verify_deferred_proofs(
 }
 
 pub async fn execute_with_options(
+    program: Arc<Program>,
+    stdin: SP1Stdin,
+    context: SP1Context<'static>,
+    opts: SP1CoreOpts,
+    executor_config: SP1ExecutorConfig,
+) -> anyhow::Result<(SP1PublicValues, [u8; 32], ExecutionReport)> {
+    execute_with_options_and_machine(
+        program,
+        stdin,
+        context,
+        opts,
+        executor_config,
+        RiscvAir::machine(),
+    )
+    .await
+}
+
+/// Same as [`execute_with_options`] but with a custom machine.
+pub async fn execute_with_options_and_machine(
     program: Arc<Program>,
     stdin: SP1Stdin,
     context: SP1Context<'static>,
@@ -333,7 +354,7 @@ mod tests {
     use std::sync::Arc;
 
     use sp1_core_executor::{Program, SP1Context, SP1CoreOpts};
-    use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAir};
+    use sp1_core_machine::io::SP1Stdin;
 
     use super::{execute_with_options, SP1ExecutorConfig};
 
@@ -347,16 +368,8 @@ mod tests {
         let executor_config = SP1ExecutorConfig::default();
 
         let context = SP1Context::default();
-        let (pv, digest, report) = execute_with_options(
-            program,
-            stdin,
-            context,
-            opts,
-            executor_config,
-            RiscvAir::machine(),
-        )
-        .await
-        .unwrap();
+        let (pv, digest, report) =
+            execute_with_options(program, stdin, context, opts, executor_config).await.unwrap();
 
         assert!(pv.hash() == digest.to_vec() || pv.blake3_hash() == digest.to_vec());
         assert_eq!(report.exit_code, 0);

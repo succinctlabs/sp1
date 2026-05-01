@@ -55,7 +55,7 @@ impl ProverClient {
     pub async fn from_env_with_machine(
         machine: Machine<SP1Field, RiscvAir<SP1Field>>,
     ) -> EnvProver {
-        EnvProver::new(machine).await
+        EnvProver::new_with_machine(machine).await
     }
 
     /// Creates a new [`ProverClientBuilder`] so that you can configure the prover client.
@@ -100,7 +100,7 @@ impl ProverClientBuilder {
     /// ```
     #[must_use]
     pub fn cpu(&self) -> CpuProverBuilder {
-        CpuProverBuilder::new(self.machine.clone())
+        CpuProverBuilder::new_with_machine(self.machine.clone())
     }
 
     /// Builds a [`CudaProver`] specifically for local proving on NVIDIA GPUs.
@@ -141,7 +141,7 @@ impl ProverClientBuilder {
     /// ```
     #[must_use]
     pub fn mock(&self) -> MockProverBuilder {
-        MockProverBuilder::new(self.machine.clone())
+        MockProverBuilder::new_with_machine(self.machine.clone())
     }
 
     /// Builds a [`LightProver`] that only executes and verifies but does not generate proofs.
@@ -161,7 +161,7 @@ impl ProverClientBuilder {
     /// ```
     #[must_use]
     pub fn light(&self) -> LightProverBuilder {
-        LightProverBuilder::new(self.machine.clone())
+        LightProverBuilder::new_with_machine(self.machine.clone())
     }
 
     /// Builds a [`NetworkProver`] specifically for proving on the network.
@@ -182,7 +182,7 @@ impl ProverClientBuilder {
     #[cfg(feature = "network")]
     #[must_use]
     pub fn network(&self) -> NetworkProverBuilder {
-        NetworkProverBuilder::new(self.machine.clone())
+        NetworkProverBuilder::new_with_machine(self.machine.clone())
     }
 
     /// Builds a [`NetworkProver`] specifically for proving on the network with a specified mode.

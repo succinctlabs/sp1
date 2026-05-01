@@ -45,11 +45,17 @@ impl MockProver {
 
     /// Create a new mock prover with custom options.
     #[must_use]
-    pub async fn new_with_opts(
+    pub async fn new_with_opts(opts: SP1CoreOpts) -> Self {
+        Self::new_with_opts_and_machine(RiscvAir::machine(), opts).await
+    }
+
+    /// Create a new mock prover with custom options and a given machine.
+    #[must_use]
+    pub async fn new_with_opts_and_machine(
         machine: Machine<SP1Field, RiscvAir<SP1Field>>,
         opts: SP1CoreOpts,
     ) -> Self {
-        Self { inner: SP1LightNode::with_opts(machine, opts).await }
+        Self { inner: SP1LightNode::with_opts_and_machine(machine, opts).await }
     }
 }
 

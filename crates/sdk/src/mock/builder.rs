@@ -18,10 +18,22 @@ pub struct MockProverBuilder {
     machine: Machine<SP1Field, RiscvAir<SP1Field>>,
 }
 
+impl Default for MockProverBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MockProverBuilder {
     /// Creates a new [`MockProverBuilder`] with default settings.
     #[must_use]
-    pub const fn new(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
+    pub fn new() -> Self {
+        Self::new_with_machine(RiscvAir::machine())
+    }
+
+    /// Creates a new [`MockProverBuilder`] with a given machine.
+    #[must_use]
+    pub const fn new_with_machine(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
         Self { core_opts: None, machine }
     }
 
@@ -42,7 +54,7 @@ impl MockProverBuilder {
     #[must_use]
     pub async fn build(self) -> MockProver {
         match self.core_opts {
-            Some(opts) => MockProver::new_with_opts(self.machine, opts).await,
+            Some(opts) => MockProver::new_with_opts_and_machine(self.machine, opts).await,
             None => MockProver::new_with_machine(self.machine).await,
         }
     }

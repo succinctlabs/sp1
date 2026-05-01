@@ -23,10 +23,22 @@ pub struct CudaProverBuilder {
     machine: Machine<SP1Field, RiscvAir<SP1Field>>,
 }
 
+impl Default for CudaProverBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CudaProverBuilder {
     /// Creates a new [`CudaProverBuilder`] with default settings.
     #[must_use]
-    pub const fn new(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
+    pub fn new() -> Self {
+        Self::new_with_machine(RiscvAir::machine())
+    }
+
+    /// Creates a new [`CudaProverBuilder`] with a given machine.
+    #[must_use]
+    pub const fn new_with_machine(machine: Machine<SP1Field, RiscvAir<SP1Field>>) -> Self {
         Self { cuda_device_id: None, core_opts: None, machine }
     }
 
@@ -95,8 +107,10 @@ impl CudaProverBuilder {
     #[must_use]
     pub fn build(self) -> CudaProver {
         tracing::info!("initializing cuda prover");
-        let node =
-            block_on(SP1LightNode::with_opts(self.machine, self.core_opts.unwrap_or_default()));
+        let node = block_on(SP1LightNode::with_opts_and_machine(
+            self.machine,
+            self.core_opts.unwrap_or_default(),
+        ));
         let cuda_prover = match self.cuda_device_id {
             Some(id) => crate::blocking::block_on(CudaProverImpl::new_with_id(id)),
             None => crate::blocking::block_on(CudaProverImpl::new()),

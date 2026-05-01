@@ -20,7 +20,7 @@ use clap::Parser;
 use either::Either;
 use sp1_core_executor::SP1Context;
 use sp1_gpu_perf::get_program_and_input;
-use sp1_gpu_prover::cuda_worker_builder;
+use sp1_gpu_prover::cuda_worker_builder_with_machine;
 use sp1_prover::{
     shapes::{SP1RecursionProgramShape, DEFAULT_ARITY},
     worker::{SP1LocalNodeBuilder, SP1Proof},
@@ -54,7 +54,7 @@ async fn main() {
     // Initialize the AirProver and permits
     sp1_gpu_cudart::spawn(move |t| async move {
         let node = SP1LocalNodeBuilder::from_worker_client_builder(
-            cuda_worker_builder(t.clone(), machine.clone()).await,
+            cuda_worker_builder_with_machine(t.clone(), machine.clone()).await,
         )
         .build()
         .await
@@ -121,7 +121,7 @@ async fn main() {
 
         // Build a new prover that performs the vk verification check using the built vk map.
         let node = SP1LocalNodeBuilder::from_worker_client_builder(
-            cuda_worker_builder(t.clone(), machine.clone())
+            cuda_worker_builder_with_machine(t.clone(), machine.clone())
                 .await
                 .with_vk_map_path(vk_map_path.to_str().unwrap().to_string()),
         )
