@@ -12,6 +12,7 @@ use crate::{
     },
     RecursionSC, SP1CircuitWitness, SP1ProverComponents,
 };
+use core::sync::atomic::AtomicBool;
 use slop_algebra::PrimeField32;
 use slop_algebra::{AbstractField, PrimeField};
 use slop_bn254::Bn254Fr;
@@ -43,6 +44,7 @@ use sp1_recursion_executor::{
     RecursionPublicValues,
 };
 use sp1_recursion_gnark_ffi::{Groth16Bn254Prover, PlonkBn254Prover};
+use std::io::Write;
 use std::{
     borrow::Borrow,
     collections::{BTreeMap, BTreeSet, VecDeque},
@@ -196,6 +198,13 @@ pub struct RecursionExecutorWorker<C: SP1ProverComponents> {
     prover_data: Arc<RecursionProverData<C>>,
 }
 
+static RECORDS_WRITTEN: [AtomicBool; 4] = [
+    AtomicBool::new(false),
+    AtomicBool::new(false),
+    AtomicBool::new(false),
+    AtomicBool::new(false),
+];
+
 impl<C: SP1ProverComponents>
     BlockingWorker<Result<RecursionTask, TaskError>, Result<ProveRecursionTask<C>, TaskError>>
     for RecursionExecutorWorker<C>
@@ -235,6 +244,17 @@ impl<C: SP1ProverComponents>
                 let (pk, vk) = self.prover_data.compose_keys.get(&arity).cloned().ok_or(
                     TaskError::Fatal(anyhow::anyhow!("Compose key not found for arity {}", arity)),
                 )?;
+                let arity_present =
+                    RECORDS_WRITTEN[arity].load(std::sync::atomic::Ordering::Relaxed);
+                if !arity_present {
+                    let mut file = std::fs::File::create(format!(
+                        "/home/eugene/sp1/sp1-gpu/crates/perf/recursion_records/arity_{}.bin",
+                        arity
+                    ))?;
+                    let record_bytes = bincode::serialize(&record)?;
+                    file.write_all(&record_bytes)?;
+                    RECORDS_WRITTEN[arity].store(true, std::sync::atomic::Ordering::Relaxed);
+                }
                 anyhow::Ok(RecursionKeys::Exists(pk, vk))
             }
             SP1CircuitWitness::Deferred(_) => {
@@ -534,6 +554,7 @@ impl<A: ArtifactClient, C: SP1ProverComponents> SP1RecursionProver<A, C> {
                 prepare_reduce_workers,
                 config.prepare_reduce_buffer_size,
             ));
+
 
             // Initialize the executor engine.
             let executor_workers = (0..config.num_recursion_executor_workers)
