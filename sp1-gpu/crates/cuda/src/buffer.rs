@@ -1,6 +1,6 @@
 use std::mem::MaybeUninit;
 
-use slop_alloc::{mem::CopyError, Buffer, HasBackend};
+use slop_alloc::{mem::CopyError, Buffer, HasBackend, Slice};
 
 use crate::{DeviceCopy, TaskScope};
 
@@ -52,6 +52,28 @@ impl<T: DeviceCopy> DeviceBuffer<T> {
     /// See [Buffer::extend_from_host_slice]
     pub unsafe fn extend_from_host_slice(&mut self, src: &[T]) -> Result<(), CopyError> {
         self.buf.extend_from_host_slice(src)
+    }
+
+    /// Extend the device buffer by copying data from the device slice `src`.
+    pub fn extend_from_device_slice(&mut self, src: &Slice<T, TaskScope>) -> Result<(), CopyError> {
+        self.buf.extend_from_device_slice(src)
+    }
+
+    /// Split the buffer up to and including the given index, returning a new buffer containing the tail
+    /// and truncating the original.
+    ///
+    /// Currently copies the tail to a new buffer so beware of inefficiencies with large buffers.
+    /// The old tail will only be dropped when the head is dropped.
+    pub fn split_off(&mut self, at: usize) -> Self {
+        let len = self.len();
+        assert!(at <= len, "split_off index out of bounds: at {}, len {}", at, len);
+
+        let mut tail = DeviceBuffer::with_capacity_in(len - at, self.backend().clone());
+        tail.extend_from_device_slice(&self.buf[at..]).unwrap();
+        unsafe {
+            self.buf.set_len(at);
+        }
+        tail
     }
 
     pub fn to_host(&self) -> Result<Vec<T>, CopyError> {
