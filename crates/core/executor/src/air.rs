@@ -190,6 +190,14 @@ pub enum RiscvAirId {
     /// The ALU x0 chip (all ALU ops with rd = x0).
     #[subenum(CoreAirId)]
     AluX0 = 61,
+    /// The septic curve add assign chip.
+    SepticAddAssign = 62,
+    /// The septic curve double assign chip.
+    SepticDoubleAssign = 63,
+    /// The septic curve scalar mul assign chip.
+    SepticScalarMulAssign = 64,
+    /// The septic curve Schnorr verify chip (Shamir's trick).
+    SepticVerify = 65,
 }
 
 impl RiscvAirId {
@@ -274,6 +282,10 @@ impl RiscvAirId {
                 | RiscvAirId::Bn254Fp2AddSubAssign
                 | RiscvAirId::Bn254Fp2MulAssign
                 | RiscvAirId::Poseidon2
+                | RiscvAirId::SepticAddAssign
+                | RiscvAirId::SepticDoubleAssign
+                | RiscvAirId::SepticScalarMulAssign
+                | RiscvAirId::SepticVerify
         )
     }
 

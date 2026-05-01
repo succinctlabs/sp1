@@ -12,6 +12,7 @@ mod mprotect;
 mod poseidon2;
 mod secp256k1;
 mod secp256r1;
+mod septic;
 mod sha_compress;
 mod sha_extend;
 mod sys;
@@ -39,6 +40,7 @@ pub use mprotect::*;
 pub use poseidon2::*;
 pub use secp256k1::*;
 pub use secp256r1::*;
+pub use septic::*;
 pub use sha_compress::*;
 pub use sha_extend::*;
 pub use sys::*;
@@ -181,3 +183,19 @@ pub const MPROTECT: u32 = 0x00_00_01_32;
 
 /// Executes the `POSEIDON2` permutation syscall.
 pub const POSEIDON2: u32 = 0x00_00_01_33;
+
+/// Executes the `SEPTIC_ADD` precompile.
+#[allow(clippy::mistyped_literal_suffixes)]
+pub const SEPTIC_ADD: u32 = 0x00_00_01_34;
+
+/// Executes the `SEPTIC_DOUBLE` precompile.
+#[allow(clippy::mistyped_literal_suffixes)]
+pub const SEPTIC_DOUBLE: u32 = 0x00_00_01_35;
+
+/// Executes the `SEPTIC_SCALAR_MUL` precompile.
+#[allow(clippy::mistyped_literal_suffixes)]
+pub const SEPTIC_SCALAR_MUL: u32 = 0x00_00_01_36;
+
+/// Executes the `SEPTIC_VERIFY` precompile (Shamir's trick: `s*G + e*A`).
+#[allow(clippy::mistyped_literal_suffixes)]
+pub const SEPTIC_VERIFY: u32 = 0x00_00_01_37;

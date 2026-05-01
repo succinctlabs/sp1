@@ -15,6 +15,7 @@ pub mod mprotect;
 pub mod poseidon2;
 pub mod secp256k1;
 pub mod secp256r1;
+pub mod septic;
 pub mod unconstrained;
 pub mod utils;
 
@@ -179,6 +180,23 @@ extern "C" {
 
     /// Executes the Poseidon2 permutation on the given state buffer in-place.
     pub fn syscall_poseidon2(inout: &mut crate::poseidon2::Poseidon2State);
+
+    /// Executes a septic curve addition on the given points.
+    pub fn syscall_septic_add(p: *mut [u64; 7], q: *const [u64; 7]);
+
+    /// Executes a septic curve doubling on the given point.
+    pub fn syscall_septic_double(p: *mut [u64; 7]);
+
+    /// Executes a septic curve scalar multiplication on the given point and scalar.
+    /// The result is written back to `p`. The scalar is a 256-bit little-endian
+    /// integer (the upper bits should be zero for valid scalars on the 217-bit
+    /// group order).
+    pub fn syscall_septic_scalar_mul(p: *mut [u64; 7], scalar: *const [u64; 4]);
+
+    /// Computes `s*G + e*A` on the septic curve using Shamir's trick, where `G`
+    /// is the standard hardcoded generator. The 15-u64 buffer is laid out as
+    /// `[A(7), s(4), e(4)]`; the result overwrites the first 7 u64 words.
+    pub fn syscall_septic_verify(buf: *mut [u64; 15]);
 }
 
 #[repr(C)]

@@ -173,6 +173,18 @@ pub enum SyscallCode {
 
     /// Executes the `POSEIDON2` syscall.
     POSEIDON2 = 0x00_00_01_33,
+
+    /// Executes the `SEPTIC_ADD` precompile.
+    SEPTIC_ADD = 0x00_00_01_34,
+
+    /// Executes the `SEPTIC_DOUBLE` precompile.
+    SEPTIC_DOUBLE = 0x00_00_01_35,
+
+    /// Executes the `SEPTIC_SCALAR_MUL` precompile.
+    SEPTIC_SCALAR_MUL = 0x00_00_01_36,
+
+    /// Executes the `SEPTIC_VERIFY` precompile (Shamir's trick: `s*G + e*A`).
+    SEPTIC_VERIFY = 0x00_00_01_37,
 }
 
 impl SyscallCode {
@@ -224,6 +236,10 @@ impl SyscallCode {
             #[allow(clippy::mistyped_literal_suffixes)]
             0x00_00_01_32 => SyscallCode::MPROTECT,
             0x00_00_01_33 => SyscallCode::POSEIDON2,
+            0x00_00_01_34 => SyscallCode::SEPTIC_ADD,
+            0x00_00_01_35 => SyscallCode::SEPTIC_DOUBLE,
+            0x00_00_01_36 => SyscallCode::SEPTIC_SCALAR_MUL,
+            0x00_00_01_37 => SyscallCode::SEPTIC_VERIFY,
             _ => panic!("invalid syscall number: {value}"),
         }
     }
@@ -321,6 +337,10 @@ impl SyscallCode {
                 RiscvAirId::Uint256Ops
             }
             SyscallCode::POSEIDON2 => RiscvAirId::Poseidon2,
+            SyscallCode::SEPTIC_ADD => RiscvAirId::SepticAddAssign,
+            SyscallCode::SEPTIC_DOUBLE => RiscvAirId::SepticDoubleAssign,
+            SyscallCode::SEPTIC_SCALAR_MUL => RiscvAirId::SepticScalarMulAssign,
+            SyscallCode::SEPTIC_VERIFY => RiscvAirId::SepticVerify,
             SyscallCode::MPROTECT
             | SyscallCode::U256XU2048_MUL
             | SyscallCode::SECP256K1_DECOMPRESS
@@ -379,6 +399,10 @@ impl SyscallCode {
             SyscallCode::U256XU2048_MUL => 72,
             SyscallCode::MPROTECT => 0,
             SyscallCode::POSEIDON2 => 8,
+            SyscallCode::SEPTIC_ADD => 14,
+            SyscallCode::SEPTIC_DOUBLE => 14,
+            SyscallCode::SEPTIC_SCALAR_MUL => 14,
+            SyscallCode::SEPTIC_VERIFY => 14,
             _ => 0,
         }
     }
@@ -427,6 +451,10 @@ impl SyscallCode {
             SyscallCode::U256XU2048_MUL => 4 * 2,
             SyscallCode::MPROTECT => 1,
             SyscallCode::POSEIDON2 => 2,
+            SyscallCode::SEPTIC_ADD => 2 * 2,
+            SyscallCode::SEPTIC_DOUBLE => 2,
+            SyscallCode::SEPTIC_SCALAR_MUL => 2 * 2,
+            SyscallCode::SEPTIC_VERIFY => 2,
             _ => 0,
         }
     }
