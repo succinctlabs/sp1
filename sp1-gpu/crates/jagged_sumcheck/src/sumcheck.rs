@@ -4,7 +4,7 @@ use sp1_gpu_cudart::{
         jagged_fix_and_sum, jagged_sum_as_poly,
         mle_fix_last_variable_koala_bear_ext_ext_zero_padding, padded_hadamard_fix_and_sum,
     },
-    DeviceMle, DeviceTensor, TaskScope,
+    DeviceBuffer, DeviceMle, DeviceTensor, TaskScope,
 };
 
 use itertools::Itertools;
@@ -218,15 +218,19 @@ where
     alpha
 }
 
+/// Runs the jagged sumcheck. In addition to the sumcheck proof, also returns intermediately-computed
+/// evals needed for the later stacked PCS. This requires passing in the log stacking height
 pub fn jagged_sumcheck<C>(
     poly: JaggedFirstRoundPoly<'_>,
     challenger: &mut C,
     claim: Ext,
-) -> (PartialSumcheckProof<Ext>, Vec<Ext>)
+    log_stacking_height: usize,
+) -> (PartialSumcheckProof<Ext>, Vec<Ext>, DeviceBuffer<Ext>)
 where
     C: FieldChallenger<Felt>,
 {
     let num_variables = poly.total_number_of_variables;
+    let task = poly.base.backend().clone();
 
     // The first round will process the first t variables, so we need to ensure that there are at least t variables.
     assert!(num_variables >= 1_u32);
@@ -243,12 +247,15 @@ where
         process_univariate_polynomial(uni_poly, challenger, &mut univariate_poly_msgs, &mut point);
     let round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha);
 
+    // The data polynomial is p and the jagged polynomial is q
     let (mut uni_poly, mut p, mut q) = fix_and_sum_first_round(poly, alpha, round_claim);
 
     let mut alpha =
         process_univariate_polynomial(uni_poly, challenger, &mut univariate_poly_msgs, &mut point);
 
-    for _ in 2..num_variables as usize {
+    let mut stacked_evals =
+        DeviceBuffer::with_capacity_in(1 << (num_variables as usize - log_stacking_height), task);
+    for sc_round in 2..num_variables as usize {
         // Get the round claims from the last round's univariate poly messages.
         let round_claim = univariate_poly_msgs.last().unwrap().eval_at_point(alpha);
 
@@ -259,6 +266,10 @@ where
             round_claim,
             padded_hadamard_fix_and_sum,
         );
+
+        if sc_round == log_stacking_height {
+            stacked_evals.extend_from_device_slice(p.guts().as_buffer()).unwrap();
+        }
 
         alpha = process_univariate_polynomial(
             uni_poly,
@@ -284,7 +295,7 @@ where
     let q_eval_tensor = DeviceTensor::copy_to_host(q.guts()).unwrap();
     let q_eval = q_eval_tensor.as_slice()[0];
 
-    (proof, vec![p_eval, q_eval])
+    (proof, vec![p_eval, q_eval], stacked_evals)
 }
 
 #[cfg(test)]
