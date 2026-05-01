@@ -8,6 +8,7 @@ use slop_algebra::Field;
 use sp1_derive::{AlignedBorrow, InputExpr, InputParams, IntoShape, SP1OperationBuilder};
 use sp1_hypercube::{air::SP1AirBuilder, Word};
 use sp1_primitives::consts::WORD_SIZE;
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 use crate::air::{SP1Operation, SP1OperationBuilder};
 
@@ -24,6 +25,7 @@ use super::{IsZeroOperation, IsZeroOperationInput};
     Deserialize,
     IntoShape,
     SP1OperationBuilder,
+    StructReflection,
 )]
 #[repr(C)]
 pub struct IsZeroWordOperation<T> {

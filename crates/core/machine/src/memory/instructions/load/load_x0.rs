@@ -24,6 +24,7 @@ use std::{
     borrow::{Borrow, BorrowMut},
     mem::{size_of, MaybeUninit},
 };
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 #[derive(Default)]
 pub struct LoadX0Chip;
@@ -31,7 +32,7 @@ pub struct LoadX0Chip;
 pub const NUM_LOAD_X0_COLUMNS: usize = size_of::<LoadX0Columns<u8>>();
 
 /// The column layout for memory load instructions with `op_a = x0`.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct LoadX0Columns<T> {
     /// The current shard, timestamp, program counter of the CPU.
@@ -147,6 +148,9 @@ impl<F: PrimeField32> MachineAir<F> for LoadX0Chip {
         } else {
             !shard.memory_load_x0_events.is_empty()
         }
+    }
+    fn column_names(&self) -> Vec<String> {
+        LoadX0Columns::<F>::struct_reflection().unwrap()
     }
 }
 

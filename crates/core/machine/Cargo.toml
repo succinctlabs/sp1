@@ -28,6 +28,7 @@ sp1-derive = { workspace = true }
 sp1-primitives = { workspace = true }
 sp1-jit = { workspace = true }
 
+struct-reflection = { workspace = true }
 
 slop-futures = { workspace = true }
 futures = { workspace = true }

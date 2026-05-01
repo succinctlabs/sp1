@@ -14,12 +14,15 @@ use sp1_core_machine::riscv::RiscvAir;
 use sp1_hypercube::{air::MachineAir, Machine, GKR_GRINDING_BITS, MAX_CONSTRAINT_DEGREE};
 use sp1_primitives::{
     fri_params::{
-        unique_decoding_queries, CORE_LOG_BLOWUP, RECURSION_LOG_BLOWUP, SP1_PROOF_OF_WORK_BITS,
+        shrink_fri_config, unique_decoding_queries, CORE_LOG_BLOWUP, RECURSION_LOG_BLOWUP,
+        SHRINK_LOG_BLOWUP, SP1_PROOF_OF_WORK_BITS, SP1_SHRINK_WRAP_POW_BITS,
     },
     SP1Field,
 };
 use sp1_prover::{
-    CompressAir, CORE_LOG_STACKING_HEIGHT, CORE_MAX_LOG_ROW_COUNT, RECURSION_LOG_TRACE_AREA,
+    CompressAir, ShrinkAir, CORE_LOG_STACKING_HEIGHT, CORE_MAX_LOG_ROW_COUNT,
+    RECURSION_LOG_TRACE_AREA, SHRINK_LOG_STACKING_HEIGHT, SHRINK_LOG_TRACE_AREA,
+    SHRINK_MAX_LOG_ROW_COUNT,
 };
 use sp1_verifier::compressed::{RECURSION_LOG_STACKING_HEIGHT, RECURSION_MAX_LOG_ROW_COUNT};
 use tracing_subscriber::EnvFilter;
@@ -105,22 +108,37 @@ fn main() {
 
     let core = get_circuit_data(RiscvAir::<SP1Field>::machine());
     let compress = get_circuit_data(CompressAir::<SP1Field>::compress_machine());
+    let shrink = get_circuit_data(ShrinkAir::<SP1Field>::shrink_machine());
 
     let core_blowup = 1u32 << CORE_LOG_BLOWUP;
     let recursion_blowup = 1u32 << RECURSION_LOG_BLOWUP;
+    let shrink_blowup = 1u32 << SHRINK_LOG_BLOWUP;
+
     let core_trace_len: u64 = 1u64 << CORE_MAX_LOG_ROW_COUNT;
     let recursion_trace_len: u64 = 1u64 << RECURSION_MAX_LOG_ROW_COUNT;
+    let shrink_trace_len: u64 = 1u64 << SHRINK_MAX_LOG_ROW_COUNT;
+
     let core_dense_len: u64 = 1u64 << CORE_LOG_STACKING_HEIGHT;
     let recursion_dense_len: u64 = 1u64 << RECURSION_LOG_STACKING_HEIGHT;
+    let shrink_dense_len: u64 = 1u64 << SHRINK_LOG_STACKING_HEIGHT;
+
     let core_queries = unique_decoding_queries(CORE_LOG_BLOWUP);
     let recursion_queries = unique_decoding_queries(RECURSION_LOG_BLOWUP);
+    let shrink_queries = shrink_fri_config().num_queries();
+
     let core_rho = format_rho(core_blowup);
     let recursion_rho = format_rho(recursion_blowup);
+    let shrink_rho = format_rho(shrink_blowup);
+
     let core_folding = folding_factors(CORE_LOG_STACKING_HEIGHT);
     let recursion_folding = folding_factors(RECURSION_LOG_STACKING_HEIGHT);
+    let shrink_folding = folding_factors(SHRINK_LOG_STACKING_HEIGHT);
+
     let core_dense_batch: u64 = ELEMENT_THRESHOLD / (1u64 << CORE_LOG_STACKING_HEIGHT) + 1;
     let recursion_dense_batch: u64 =
         (1u64 << RECURSION_LOG_TRACE_AREA) / (1u64 << RECURSION_LOG_STACKING_HEIGHT);
+    let shrink_dense_batch: u64 =
+        (1u64 << SHRINK_LOG_TRACE_AREA) / (1u64 << SHRINK_LOG_STACKING_HEIGHT);
 
     let toml = format!(
         "\
@@ -200,6 +218,39 @@ num_columns_S = {recursion_num_columns_s}
 num_lookups_M = {recursion_num_lookups_m}
 grinding_bits_lookup = {GKR_GRINDING_BITS}
 multilinear_fingerprint = true
+
+[[circuits]]
+name = \"shrink\"
+udr_only = true
+blowup_factor = {shrink_blowup}
+rho = {shrink_rho}
+trace_length = {shrink_trace_len} # 2^{SHRINK_MAX_LOG_ROW_COUNT}
+trace_columns = {shrink_trace_columns}
+dense_length = {shrink_dense_len} # 2^{SHRINK_LOG_STACKING_HEIGHT}
+dense_batch = {shrink_dense_batch}
+num_constraints = {shrink_num_constraints}
+air_max_degree = {MAX_CONSTRAINT_DEGREE}
+# SP1 has no \"next row\" constraints.
+opening_points = 1
+# We batch using the random `eq` polynomials.
+power_batching = false
+multilinear_batching = true
+multilinear_zerocheck = true
+num_queries = {shrink_queries}
+fri_folding_factors = {shrink_folding}
+fri_early_stop_degree = {shrink_blowup}
+grinding_batching_phase = {BATCH_GRINDING_BITS}
+grinding_query_phase = {SP1_SHRINK_WRAP_POW_BITS}
+
+[[circuits.lookups]]
+name = \"lookup\"
+logup_type = \"multivariate\"
+rows_L = {shrink_trace_len}
+rows_T = 0
+num_columns_S = {shrink_num_columns_s}
+num_lookups_M = {shrink_num_lookups_m}
+grinding_bits_lookup = {GKR_GRINDING_BITS}
+multilinear_fingerprint = true
 ",
         core_trace_columns = core.trace_columns,
         core_num_constraints = core.num_constraints,
@@ -209,6 +260,10 @@ multilinear_fingerprint = true
         recursion_num_constraints = compress.num_constraints,
         recursion_num_lookups_m = compress.num_lookups_m,
         recursion_num_columns_s = compress.num_columns_s,
+        shrink_trace_columns = shrink.trace_columns,
+        shrink_num_constraints = shrink.num_constraints,
+        shrink_num_lookups_m = shrink.num_lookups_m,
+        shrink_num_columns_s = shrink.num_columns_s,
     );
 
     if let Some(parent) = args.output.parent() {

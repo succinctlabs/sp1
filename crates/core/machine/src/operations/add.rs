@@ -8,10 +8,12 @@ use slop_algebra::{AbstractField, Field};
 use sp1_derive::{AlignedBorrow, InputExpr, InputParams, IntoShape, SP1OperationBuilder};
 
 use crate::air::{SP1Operation, WordAirBuilder};
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 /// A set of columns needed to compute the add of two `Words`.
 #[derive(
     AlignedBorrow,
+    StructReflection,
     Default,
     Debug,
     Clone,

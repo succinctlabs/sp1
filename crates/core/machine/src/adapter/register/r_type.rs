@@ -8,6 +8,8 @@ use sp1_derive::{AlignedBorrow, InputExpr, InputParams, IntoShape, SP1OperationB
 
 use sp1_hypercube::{air::SP1AirBuilder, Word};
 
+use struct_reflection::{StructReflection, StructReflectionHelper};
+
 use crate::{
     air::{MemoryAirBuilder, ProgramAirBuilder, SP1Operation, WordAirBuilder},
     memory::RegisterAccessCols,
@@ -17,6 +19,7 @@ use crate::{
 /// A set of columns to read operations with op_a, op_b, op_c being registers.
 #[derive(
     AlignedBorrow,
+    StructReflection,
     Default,
     Debug,
     Clone,

@@ -18,6 +18,7 @@ use std::{
     borrow::{Borrow, BorrowMut},
     mem::{size_of, MaybeUninit},
 };
+use struct_reflection::{StructReflection, StructReflectionHelper};
 /// The number of main trace columns for `SyscallChip`.
 pub const NUM_SYSCALL_COLS: usize = size_of::<SyscallCols<u8>>();
 
@@ -51,7 +52,7 @@ impl SyscallChip {
 }
 
 /// The column layout for the chip.
-#[derive(AlignedBorrow, Clone, Copy)]
+#[derive(AlignedBorrow, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct SyscallCols<T: Copy> {
     /// The high bits of the clk of the syscall.
@@ -237,6 +238,10 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
                 }
             }
         }
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        SyscallCols::<F>::struct_reflection().unwrap()
     }
 }
 

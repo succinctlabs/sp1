@@ -24,6 +24,7 @@ use std::{
     borrow::{Borrow, BorrowMut},
     mem::{size_of, MaybeUninit},
 };
+use struct_reflection::{StructReflection, StructReflectionHelper};
 
 #[derive(Default)]
 pub struct StoreHalfChip;
@@ -31,7 +32,7 @@ pub struct StoreHalfChip;
 pub const NUM_STORE_HALF_COLUMNS: usize = size_of::<StoreHalfColumns<u8>>();
 
 /// The column layout for memory store half instructions.
-#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy, StructReflection)]
 #[repr(C)]
 pub struct StoreHalfColumns<T> {
     /// The current shard, timestamp, program counter of the CPU.
@@ -132,6 +133,10 @@ impl<F: PrimeField32> MachineAir<F> for StoreHalfChip {
         } else {
             !shard.memory_store_half_events.is_empty()
         }
+    }
+
+    fn column_names(&self) -> Vec<String> {
+        StoreHalfColumns::<F>::struct_reflection().unwrap()
     }
 }
 

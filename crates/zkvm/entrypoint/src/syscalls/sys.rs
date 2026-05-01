@@ -1,6 +1,3 @@
-use std::sync::Mutex;
-
-use lazy_static::lazy_static;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 
 use crate::syscalls::{syscall_halt, syscall_write};
@@ -10,13 +7,10 @@ use crate::syscalls::{syscall_halt, syscall_write};
 /// In the future, we can pass in this seed from the host or have the verifier generate it.
 const PRNG_SEED: u64 = 0x123456789abcdef0;
 
-lazy_static! {
-    /// A lazy static to generate a global random number generator.
-    static ref RNG: Mutex<StdRng> = Mutex::new(StdRng::seed_from_u64(PRNG_SEED));
-}
-
-/// A lazy static to print a warning once for using the `sys_rand` system call.
-static SYS_RAND_WARNING: std::sync::Once = std::sync::Once::new();
+// Single-threaded RNG state — the SP1 zkVM is single-threaded by construction
+// so we don't need a Mutex. `static mut` access is gated by the
+// `target_os = "zkvm"` cfg on `sys_rand` below.
+static mut RNG: Option<StdRng> = None;
 
 /// Generates random bytes.
 ///
@@ -25,10 +19,32 @@ static SYS_RAND_WARNING: std::sync::Once = std::sync::Once::new();
 /// Make sure that `buf` has at least `nwords` words.
 #[no_mangle]
 pub unsafe extern "C" fn sys_rand(recv_buf: *mut u8, words: usize) {
-    SYS_RAND_WARNING.call_once(|| {
-        eprintln!("WARNING: Using insecure random number generator.");
-    });
-    let mut rng = RNG.lock().unwrap();
+    // Print the insecure-RNG warning to fd 2 (stderr) at most once per
+    // program. zkVM is single-threaded so a `static mut` flag is fine; on
+    // host targets `syscall_write` is `unreachable!()` so we skip the
+    // print there (host builds of sp1-zkvm don't actually run `sys_rand`
+    // in practice — they exist for `cargo check` only).
+    static mut WARNED: bool = false;
+    unsafe {
+        let warned_ptr = core::ptr::addr_of_mut!(WARNED);
+        if !*warned_ptr {
+            *warned_ptr = true;
+            #[cfg(target_os = "zkvm")]
+            {
+                const WARNING: &[u8] = b"WARNING: Using insecure random number generator.\n";
+                syscall_write(2, WARNING.as_ptr(), WARNING.len());
+            }
+        }
+    }
+
+    // SAFETY: zkVM is single-threaded.
+    let rng = unsafe {
+        let rng_ptr = core::ptr::addr_of_mut!(RNG);
+        if (*rng_ptr).is_none() {
+            *rng_ptr = Some(StdRng::seed_from_u64(PRNG_SEED));
+        }
+        (*rng_ptr).as_mut().unwrap()
+    };
     for i in 0..words {
         let element = recv_buf.add(i);
         *element = rng.gen();
