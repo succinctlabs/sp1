@@ -70,7 +70,8 @@ fn run_zerocheck<R: Rng>(
             preprocessed_trace_evaluations: match preprocessed_width {
                 0 => None,
                 _ => Some(MleEval::new(Tensor::from(
-                    individual_column_evals[preprocessed_ptr..preprocessed_ptr + preprocessed_width]
+                    individual_column_evals
+                        [preprocessed_ptr..preprocessed_ptr + preprocessed_width]
                         .to_vec(),
                 ))),
             },
@@ -92,11 +93,11 @@ fn run_zerocheck<R: Rng>(
         b.iter_batched(
             || {
                 let pv = public_values.to_vec();
-                let chal = challenger_prover.clone();
+                let challenger = challenger_prover.clone();
                 scope.synchronize_blocking().unwrap();
-                (pv, chal)
+                (pv, challenger)
             },
-            |(pv, mut chal)| {
+            |(pv, mut challenger)| {
                 let result = zerocheck(
                     chips,
                     &cache,
@@ -105,7 +106,7 @@ fn run_zerocheck<R: Rng>(
                     gkr_opening_batch_randomness,
                     &logup_evaluations,
                     pv,
-                    &mut chal,
+                    &mut challenger,
                     max_log_row_count,
                 );
                 scope.synchronize_blocking().unwrap();

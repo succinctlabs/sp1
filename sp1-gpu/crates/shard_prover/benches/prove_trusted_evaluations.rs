@@ -134,8 +134,7 @@ fn run_prove_trusted_evaluations<R: Rng>(
                     new_evaluation_claims.push(MleEval::new(device_tensor.into_inner()));
                 }
                 let claims: Rounds<_> = new_evaluation_claims.into_iter().collect();
-                let prover_data =
-                    Rounds::from_iter([&preprocessed_prover_data, &main_prover_data]);
+                let prover_data = Rounds::from_iter([&preprocessed_prover_data, &main_prover_data]);
                 scope.synchronize_blocking().unwrap();
                 (eval_point.clone(), claims, prover_data, challenger.clone())
             },
