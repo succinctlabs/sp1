@@ -7441,6 +7441,7 @@ dependencies = [
 name = "sp1-gpu-jagged-tracegen"
 version = "6.1.0"
 dependencies = [
+ "criterion",
  "futures",
  "itertools 0.14.0",
  "rand 0.8.6",
