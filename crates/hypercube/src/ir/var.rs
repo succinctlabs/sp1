@@ -14,6 +14,17 @@ pub enum IrVar<F> {
     Main(usize),
     /// Constants.
     Constant(F),
+    /// Symbolic inverse of a small canonical-u32 base. The inverse `value` is
+    /// pre-computed so that any downstream IR optimization keeps seeing a
+    /// concrete field element, but Lean emission renders it as the symbolic
+    /// `(base : Fin KB)⁻¹` form (so the auto-generated Lean output is not
+    /// pinned to KoalaBear's specific inverse literals).
+    InverseConstant {
+        /// The pre-image — Lean emission writes `(base : Fin KB)⁻¹`.
+        base: u32,
+        /// The eagerly-computed inverse field element (used by IR optimization).
+        value: F,
+    },
     /// Inputs to function calls.
     InputArg(usize),
     /// Outputs to function calls.
@@ -27,6 +38,7 @@ impl<F: Field> Display for IrVar<F> {
             IrVar::Preprocessed(i) => write!(f, "Preprocessed({i})"),
             IrVar::Main(i) => write!(f, "Main({i})"),
             IrVar::Constant(c) => write!(f, "{c}"),
+            IrVar::InverseConstant { base, .. } => write!(f, "({base} : Fin KB)⁻¹"),
             IrVar::InputArg(i) => write!(f, "Input({i})"),
             IrVar::OutputArg(i) => write!(f, "Output({i})"),
         }
@@ -47,6 +59,7 @@ impl<F: Field> IrVar<F> {
                 }
             }
             IrVar::Constant(c) => format!("{c}"),
+            IrVar::InverseConstant { base, .. } => format!("(({base} : Fin KB)⁻¹)"),
             IrVar::Public(i) => format!("Public[{i}]"),
             IrVar::Preprocessed(i) => format!("Preprocessed[{i}]"),
             IrVar::OutputArg(i) => format!("Output[{i}]"),

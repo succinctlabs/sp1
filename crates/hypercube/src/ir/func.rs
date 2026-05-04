@@ -74,8 +74,8 @@ impl<F: Field, EF: ExtensionField<F>> FuncDecl<ExprRef<F>, ExprExtRef<EF>> {
     /// The function output's corresponding Lean type in sp1-lean.
     pub fn to_output_lean_type(&self) -> String {
         match self.output {
-            Shape::Unit => "SP1ConstraintList".to_string(),
-            _ => format!("{} × SP1ConstraintList", self.output.to_lean_type()),
+            Shape::Unit => "SP1ConstraintList (Fin KB)".to_string(),
+            _ => format!("{} × SP1ConstraintList (Fin KB)", self.output.to_lean_type()),
         }
     }
 }

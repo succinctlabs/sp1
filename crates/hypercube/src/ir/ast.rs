@@ -247,7 +247,9 @@ impl<F: Field, EF: ExtensionField<F>> Ast<ExprRef<F>, ExprExtRef<EF>> {
                     let mut step = String::new();
                     match decl.output {
                         Shape::Unit => {
-                            step.push_str(&format!("let CS{calls} : SP1ConstraintList := "));
+                            step.push_str(&format!(
+                                "let CS{calls} : SP1ConstraintList (Fin KB) := "
+                            ));
                         }
                         _ => {
                             step.push_str(&format!(
