@@ -245,7 +245,7 @@ pub(crate) fn deferred_program_from_input(
 }
 
 /// The "compose" program, which verifies some number of normalized shard proofs.
-pub(crate) fn compose_program_from_input(
+pub fn compose_program_from_input(
     recursive_verifier: &RecursiveShardVerifier<
         SP1GlobalContext,
         CompressAir<InnerVal>,
@@ -282,7 +282,7 @@ pub(crate) fn compose_program_from_input(
 }
 
 /// The "shrink" program, which only verifies the single root shard.
-pub(crate) fn shrink_program_from_input(
+pub fn shrink_program_from_input(
     recursive_verifier: &RecursiveShardVerifier<
         SP1GlobalContext,
         CompressAir<InnerVal>,
@@ -412,7 +412,7 @@ pub(crate) fn dummy_deferred_input(
     }
 }
 
-pub(crate) fn recursive_verifier<GC, A, C>(
+pub fn recursive_verifier<GC, A, C>(
     shard_verifier: &ShardVerifier<GC, SP1SC<GC, A>>,
 ) -> RecursiveShardVerifier<GC, A, C>
 where

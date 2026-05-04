@@ -199,6 +199,7 @@ pub struct RecursionExecutorWorker<C: SP1ProverComponents> {
 }
 
 static RECORDS_WRITTEN: AtomicBool = AtomicBool::new(false);
+static SHRINK_RECORDS_WRITTEN: AtomicBool = AtomicBool::new(false);
 
 impl<C: SP1ProverComponents>
     BlockingWorker<Result<RecursionTask, TaskError>, Result<ProveRecursionTask<C>, TaskError>>
@@ -240,7 +241,8 @@ impl<C: SP1ProverComponents>
                     TaskError::Fatal(anyhow::anyhow!("Compose key not found for arity {}", arity)),
                 )?;
                 if arity == DEFAULT_ARITY
-                    && !RECORDS_WRITTEN.load(std::sync::atomic::Ordering::Relaxed)
+                && !RECORDS_WRITTEN.load(std::sync::atomic::Ordering::Relaxed)
+                && std::env::var("SP1_RECORD_MAX_ARITY_INPUT").map(|v| v == "1" || v == "true" || v=="TRUE").unwrap_or(false)
                 {
                     let mut file = std::fs::File::create(
                         "/home/eugene/sp1/sp1-gpu/crates/perf/recursion_records/max_arity_input.bin".to_string())?;
@@ -1066,15 +1068,32 @@ impl<C: SP1ProverComponents> ShrinkProver<C> {
         let execution_record = {
             let mut runtime =
                 Executor::<SP1Field, SP1ExtensionField, _>::new(self.program.clone(), inner_perm());
-            runtime.witness_stream = self.prover_data.witness_stream(&{
-                let SP1RecursionProof { vk, proof, vk_merkle_proof } = compressed_proof;
-                let input =
-                    SP1ShapedWitnessValues { vks_and_proofs: vec![(vk, proof)], is_complete: true };
-                SP1CircuitWitness::Shrink(
-                    self.prover_data
-                        .append_merkle_proofs_to_witness(input, vec![vk_merkle_proof])?,
-                )
-            })?;
+            let SP1RecursionProof { vk, proof, vk_merkle_proof } = compressed_proof;
+            let shaped_input =
+                SP1ShapedWitnessValues { vks_and_proofs: vec![(vk, proof)], is_complete: true };
+            let shrink_input = self
+                .prover_data
+                .append_merkle_proofs_to_witness(shaped_input, vec![vk_merkle_proof])?;
+
+            if !SHRINK_RECORDS_WRITTEN.load(std::sync::atomic::Ordering::Relaxed)
+                && std::env::var("SP1_RECORD_SHRINK_INPUT")
+                    .map(|v| v == "1" || v == "true" || v == "TRUE")
+                    .unwrap_or(false)
+            {
+                (|| -> anyhow::Result<()> {
+                    let mut file = std::fs::File::create(
+                        "/home/eugene/sp1/sp1-gpu/crates/perf/recursion_records/shrink_input.bin",
+                    )?;
+                    let input_bytes = bincode::serialize(&shrink_input)?;
+                    file.write_all(&input_bytes)?;
+                    Ok(())
+                })()
+                .map_err(TaskError::Fatal)?;
+                SHRINK_RECORDS_WRITTEN.store(true, std::sync::atomic::Ordering::Relaxed);
+            }
+
+            runtime.witness_stream =
+                self.prover_data.witness_stream(&SP1CircuitWitness::Shrink(shrink_input))?;
             runtime.run().map_err(|e| TaskError::Fatal(e.into()))?;
             runtime.record
         };
