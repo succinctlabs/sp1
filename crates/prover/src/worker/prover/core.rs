@@ -520,8 +520,7 @@ where
                 if idx == 0 {
                     let vk_bytes =
                         bincode::serialize(&common_input.vk.vk).expect("failed to serialize vk");
-                    std::fs::write(path.join("vk.bin".to_string()), &vk_bytes)
-                        .expect("failed to write vk");
+                    std::fs::write(path.join("vk.bin"), &vk_bytes).expect("failed to write vk");
                 }
 
                 tracing::info!(

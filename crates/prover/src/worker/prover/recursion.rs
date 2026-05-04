@@ -44,12 +44,12 @@ use sp1_recursion_executor::{
     RecursionPublicValues,
 };
 use sp1_recursion_gnark_ffi::{Groth16Bn254Prover, PlonkBn254Prover};
-use std::io::Write;
 use std::{
     borrow::Borrow,
     collections::{BTreeMap, BTreeSet, VecDeque},
     sync::Arc,
 };
+use std::{io::Write, path::PathBuf};
 use tokio::sync::{oneshot, OnceCell};
 use tracing::Instrument;
 
@@ -241,11 +241,16 @@ impl<C: SP1ProverComponents>
                     TaskError::Fatal(anyhow::anyhow!("Compose key not found for arity {}", arity)),
                 )?;
                 if arity == DEFAULT_ARITY
-                && !RECORDS_WRITTEN.load(std::sync::atomic::Ordering::Relaxed)
-                && std::env::var("SP1_RECORD_MAX_ARITY_INPUT").map(|v| v == "1" || v == "true" || v=="TRUE").unwrap_or(false)
+                    && !RECORDS_WRITTEN.load(std::sync::atomic::Ordering::Relaxed)
+                    && std::env::var("SP1_RECORD_MAX_ARITY_INPUT")
+                        .map(|v| v == "1" || v == "true" || v == "TRUE")
+                        .unwrap_or(false)
                 {
+                    let cargo_manifest_dir = env!("CARGO_MANIFEST_DIR");
                     let mut file = std::fs::File::create(
-                        "/home/eugene/sp1/sp1-gpu/crates/perf/recursion_records/max_arity_input.bin".to_string())?;
+                        PathBuf::from(cargo_manifest_dir)
+                            .join("sp1-gpu/crates/perf/recursion_records/max_arity_input.bin"),
+                    )?;
                     let input_bytes = bincode::serialize(&input)?;
                     file.write_all(&input_bytes)?;
                     RECORDS_WRITTEN.store(true, std::sync::atomic::Ordering::Relaxed);
@@ -1081,8 +1086,10 @@ impl<C: SP1ProverComponents> ShrinkProver<C> {
                     .unwrap_or(false)
             {
                 (|| -> anyhow::Result<()> {
+                    let cargo_manifest_dir = env!("CARGO_MANIFEST_DIR");
                     let mut file = std::fs::File::create(
-                        "/home/eugene/sp1/sp1-gpu/crates/perf/recursion_records/shrink_input.bin",
+                        PathBuf::from(cargo_manifest_dir)
+                            .join("sp1-gpu/crates/perf/recursion_records/shrink_input.bin"),
                     )?;
                     let input_bytes = bincode::serialize(&shrink_input)?;
                     file.write_all(&input_bytes)?;
