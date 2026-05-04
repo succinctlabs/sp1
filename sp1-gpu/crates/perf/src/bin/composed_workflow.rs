@@ -97,13 +97,27 @@ fn parse_combos(config_path: &str) -> Vec<Combo> {
     combos
 }
 
+/// Strip env vars that `cargo run` injects into the spawned binary's env. Those vars
+/// (CARGO_MANIFEST_DIR, CARGO_PKG_*, CARGO_BIN_NAME, …) leak into the nested `cargo build`
+/// invocation here and poison build-script fingerprints (e.g. ring's), making the inner
+/// build's fingerprint differ from a direct shell `cargo build`.
+fn strip_cargo_run_env(cmd: &mut Command) {
+    cmd.env_remove("CARGO");
+    cmd.env_remove("CARGO_MANIFEST_DIR");
+    cmd.env_remove("CARGO_MANIFEST_PATH");
+    cmd.env_remove("CARGO_BIN_NAME");
+    cmd.env_remove("CARGO_CRATE_NAME");
+    for (k, _) in std::env::vars() {
+        if k.starts_with("CARGO_PKG_") {
+            cmd.env_remove(&k);
+        }
+    }
+}
+
 /// Build the listed binaries via `cargo build --release` and return their executable paths.
 fn build_binaries(bins: &[&str]) -> Vec<PathBuf> {
     let mut cmd = Command::new("cargo");
-    // Strip CARGO_MANIFEST_DIR inherited from the outer `cargo run` so build-script
-    // fingerprints (e.g. ring's) match what a direct shell `cargo build` sees and
-    // don't churn between the two invocation contexts.
-    cmd.env_remove("CARGO_MANIFEST_DIR");
+    strip_cargo_run_env(&mut cmd);
     cmd.arg("build").arg("--release").arg("-p").arg("sp1-gpu-perf");
     for bin in bins {
         cmd.arg("--bin").arg(bin);
