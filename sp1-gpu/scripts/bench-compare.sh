@@ -83,7 +83,8 @@
 #
 # Pick a trace source for the benches that support multiple ones (commit,
 # jagged, prove_trusted_evaluations, zerocheck). Default per bench: random
-# for the any-source ones, real/fibonacci for zerocheck.
+# for the any-source ones, real/fibonacci for zerocheck. Supported real
+# programs: fibonacci, ed25519, keccak256, sha2.
 #
 #     sp1-gpu/scripts/bench-compare.sh --source real/keccak256
 #     sp1-gpu/scripts/bench-compare.sh --source /tmp/layout.json main jagged
@@ -155,6 +156,10 @@ Options:
                   --source random              # synthetic random trace
                   --source real/<program>      # e.g. real/keccak256
                   --source /path/to/layout.json
+
+                Supported real programs: fibonacci, ed25519, keccak256,
+                sha2. (Add entries to `real_programs()` in
+                sp1-gpu-jagged-tracegen test_utils to extend.)
 
                 Without this flag, each bench picks its own default
                 (random for the any-source benches, real/fibonacci for
