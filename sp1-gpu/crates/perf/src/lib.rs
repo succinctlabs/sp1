@@ -102,6 +102,7 @@ pub fn get_program_and_input(program: String, param: String) -> (Vec<u8>, SP1Std
     (program, stdin)
 }
 
+#[cfg(test)]
 mod tests {
     use sp1_hypercube::SP1PcsProofInner;
     use sp1_recursion_circuit::machine::SP1CompressWithVKeyWitnessValues;
