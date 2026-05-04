@@ -283,8 +283,8 @@ impl NetworkProveBuilder<'_> {
     /// assigned fulfiller can download it via the authenticated `GetStdinUri`
     /// RPC.
     ///
-    /// This is independent of [`NetworkProveBuilder::whitelist`] — either can
-    /// be used without the other.
+    /// This can be used together with [`NetworkProveBuilder::whitelist`] to limit
+    /// which fulfillers that will be able to win the auction and download stdin.
     ///
     /// # Example
     /// ```rust,no_run

@@ -98,7 +98,10 @@ impl NetworkProveBuilder<'_> {
     /// the public URI is redacted from `ProofRequest` broadcasts. Only the
     /// requester, the network's execution oracle, and (post-settlement) the
     /// assigned fulfiller can download it via the authenticated `GetStdinUri`
-    /// RPC. Independent of [`NetworkProveBuilder::whitelist`].
+    /// RPC.
+    ///
+    /// This can be used together with [`NetworkProveBuilder::whitelist`] to limit
+    /// which fulfillers that will be able to win the auction and download stdin.
     #[must_use]
     pub fn private_stdin(mut self, enabled: bool) -> Self {
         self.private_stdin = enabled;
