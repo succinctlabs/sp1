@@ -7417,6 +7417,7 @@ dependencies = [
  "slop-algebra",
  "slop-alloc",
  "slop-challenger",
+ "slop-futures",
  "slop-jagged",
  "slop-multilinear",
  "slop-stacked",
@@ -7431,6 +7432,7 @@ dependencies = [
  "sp1-recursion-circuit",
  "sp1-recursion-compiler",
  "sp1-sdk",
+ "test-artifacts",
  "tokio",
  "zstd",
 ]

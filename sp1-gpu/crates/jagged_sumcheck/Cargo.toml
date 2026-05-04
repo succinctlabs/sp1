@@ -44,6 +44,8 @@ sp1-gpu-utils = { workspace = true, features = ["test-utils"] }
 sp1-gpu-jagged-tracegen = { workspace = true, features = ["test-utils"] }
 sp1-core-machine = { workspace = true }
 sp1-hypercube = { workspace = true }
+slop-futures = { workspace = true }
+test-artifacts = { workspace = true }
 
 [[bench]]
 name = "jagged"

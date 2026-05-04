@@ -16,7 +16,7 @@ use slop_basefold::BasefoldVerifier;
 use slop_challenger::IopCtx;
 use slop_commit::Rounds;
 use slop_futures::queue::WorkerQueue;
-use slop_multilinear::{Evaluations, MleEval, MultilinearPcsChallenger};
+use slop_multilinear::{MleEval, MultilinearPcsChallenger};
 use sp1_core_machine::io::SP1Stdin;
 use sp1_core_machine::riscv::RiscvAir;
 use sp1_gpu_air::codegen_cuda_eval;
@@ -31,7 +31,7 @@ use sp1_gpu_logup_gkr::Interactions;
 use sp1_gpu_merkle_tree::{CudaTcsProver, Poseidon2SP1Field16CudaProver};
 use sp1_gpu_shard_prover::{CudaShardProver, CudaShardProverComponents};
 use sp1_gpu_utils::test_utils::random::random_jagged_trace_mle;
-use sp1_gpu_utils::{Felt, TestGC};
+use sp1_gpu_utils::{Ext, Felt, TestGC};
 use sp1_gpu_zerocheck::primitives::round_batch_evaluations;
 use sp1_hypercube::air::MachineAir;
 use sp1_hypercube::prover::ProverSemaphore;
@@ -141,13 +141,16 @@ fn bench_prove_trusted_evaluations(c: &mut Criterion) {
                     || {
                         let mut new_evaluation_claims = Vec::new();
                         for round_evals in evaluation_claims.iter() {
-                            let mut round_claims = Vec::new();
+                            let mut round_host: Vec<Ext> = Vec::new();
                             for eval in round_evals.iter() {
-                                let device_tensor =
-                                    DeviceTensor::from_host(eval.evaluations(), &scope).unwrap();
-                                round_claims.push(MleEval::new(device_tensor.into_inner()));
+                                round_host.extend_from_slice(eval.to_vec().as_slice());
                             }
-                            new_evaluation_claims.push(Evaluations::new(round_claims));
+                            let device_tensor = DeviceTensor::from_host(
+                                &MleEval::from(round_host).into_evaluations(),
+                                &scope,
+                            )
+                            .unwrap();
+                            new_evaluation_claims.push(MleEval::new(device_tensor.into_inner()));
                         }
                         let claims: Rounds<_> = new_evaluation_claims.into_iter().collect();
                         let prover_data =
@@ -191,12 +194,8 @@ fn bench_prove_trusted_evaluations_random(c: &mut Criterion) {
         let machine = RiscvAir::<Felt>::machine();
         let chips = machine.chips();
 
-        let host_mle = random_jagged_trace_mle::<Felt, _, _>(
-            &mut rng,
-            chips,
-            TOTAL_AREA,
-            LOG_STACKING_HEIGHT,
-        );
+        let host_mle =
+            random_jagged_trace_mle::<Felt, _, _>(&mut rng, chips, TOTAL_AREA, LOG_STACKING_HEIGHT);
         let jagged_trace_data = Arc::new(host_mle.into_device(&scope));
 
         let verifier = BasefoldVerifier::<TestGC>::new(core_fri_config(), 2);
@@ -206,15 +205,14 @@ fn bench_prove_trusted_evaluations_random(c: &mut Criterion) {
             LOG_STACKING_HEIGHT,
         );
 
-        let (_preprocessed_digest, preprocessed_prover_data) =
-            commit_multilinears::<TestGC, _>(
-                &jagged_trace_data,
-                CORE_MAX_LOG_ROW_COUNT,
-                true,
-                false,
-                &basefold_prover,
-            )
-            .unwrap();
+        let (_preprocessed_digest, preprocessed_prover_data) = commit_multilinears::<TestGC, _>(
+            &jagged_trace_data,
+            CORE_MAX_LOG_ROW_COUNT,
+            true,
+            false,
+            &basefold_prover,
+        )
+        .unwrap();
 
         let (_main_digest, main_prover_data) = commit_multilinears::<TestGC, _>(
             &jagged_trace_data,
@@ -257,8 +255,7 @@ fn bench_prove_trusted_evaluations_random(c: &mut Criterion) {
 
         let mut challenger = TestGC::default_challenger();
         let eval_point = challenger.sample_point(CORE_MAX_LOG_ROW_COUNT);
-        let evaluation_claims =
-            round_batch_evaluations(&eval_point, jagged_trace_data.as_ref());
+        let evaluation_claims = round_batch_evaluations(&eval_point, jagged_trace_data.as_ref());
 
         let mut group = c.benchmark_group("prove_trusted_evaluations");
         group.sample_size(10);
@@ -267,13 +264,16 @@ fn bench_prove_trusted_evaluations_random(c: &mut Criterion) {
                 || {
                     let mut new_evaluation_claims = Vec::new();
                     for round_evals in evaluation_claims.iter() {
-                        let mut round_claims = Vec::new();
+                        let mut round_host: Vec<Ext> = Vec::new();
                         for eval in round_evals.iter() {
-                            let device_tensor =
-                                DeviceTensor::from_host(eval.evaluations(), &scope).unwrap();
-                            round_claims.push(MleEval::new(device_tensor.into_inner()));
+                            round_host.extend_from_slice(eval.to_vec().as_slice());
                         }
-                        new_evaluation_claims.push(Evaluations::new(round_claims));
+                        let device_tensor = DeviceTensor::from_host(
+                            &MleEval::from(round_host).into_evaluations(),
+                            &scope,
+                        )
+                        .unwrap();
+                        new_evaluation_claims.push(MleEval::new(device_tensor.into_inner()));
                     }
                     let claims: Rounds<_> = new_evaluation_claims.into_iter().collect();
                     let prover_data =
@@ -302,9 +302,5 @@ fn bench_prove_trusted_evaluations_random(c: &mut Criterion) {
     .unwrap();
 }
 
-criterion_group!(
-    benches,
-    bench_prove_trusted_evaluations,
-    bench_prove_trusted_evaluations_random
-);
+criterion_group!(benches, bench_prove_trusted_evaluations, bench_prove_trusted_evaluations_random);
 criterion_main!(benches);

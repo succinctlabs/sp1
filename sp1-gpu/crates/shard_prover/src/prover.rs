@@ -102,7 +102,7 @@ impl<GC: IopCtx<F = Felt, EF = Ext>, PC: CudaShardProverComponents<GC>> CudaShar
     pub fn prove_trusted_evaluations(
         &self,
         eval_point: Point<Ext>,
-        evaluation_claims: Rounds<Evaluations<Ext, TaskScope>>,
+        evaluation_claims: Rounds<MleEval<Ext, TaskScope>>,
         all_mles: &JaggedTraceMle<Felt, TaskScope>,
         prover_data: Rounds<&JaggedProverData<GC, CudaStackedPcsProverData<GC>>>,
         challenger: &mut GC::Challenger,
