@@ -81,6 +81,33 @@
 #     sp1-gpu/scripts/bench-compare.sh --repeat 3
 #     sp1-gpu/scripts/bench-compare.sh --repeat 3 main jagged
 #
+# Pick a trace source for the benches that support multiple ones (commit,
+# jagged, prove_trusted_evaluations, zerocheck). Default per bench: random
+# for the any-source ones, real/fibonacci for zerocheck.
+#
+#     sp1-gpu/scripts/bench-compare.sh --source real/keccak256
+#     sp1-gpu/scripts/bench-compare.sh --source /tmp/layout.json main jagged
+#
+# FULLY EXPLICIT FORMS (every option supplied; nothing left to defaults).
+# The argument order is: [flags...] [ref] [bench_name].
+#
+#   # Compare current vs `some-branch`, run only `commit`, 3 alternating
+#   # rounds, with the keccak256 real trace as the input.
+#   sp1-gpu/scripts/bench-compare.sh --repeat 3 --source real/keccak256 \
+#       some-branch commit
+#
+#   # Same flags, against an explicit SHA, against the `jagged` bench.
+#   sp1-gpu/scripts/bench-compare.sh --repeat 5 --source random \
+#       21aa2f468 jagged
+#
+#   # `zerocheck` vs `main`, 1 round (the default), with the sha2 real trace.
+#   sp1-gpu/scripts/bench-compare.sh --repeat 1 --source real/sha2 \
+#       main zerocheck
+#
+#   # JSON-layout source spelled out explicitly.
+#   sp1-gpu/scripts/bench-compare.sh --repeat 1 --source /tmp/layout.json \
+#       main jagged
+#
 # ----------------------------------------------------------------------------
 # 4) CACHE MANAGEMENT
 #
@@ -104,7 +131,7 @@ usage() {
     local prog
     prog="$(basename "$0")"
     cat <<EOF
-Usage: $prog [--repeat N] [ref] [bench_name]
+Usage: $prog [--repeat N] [--source ARG] [ref] [bench_name]
        $prog clear [label]
 
 Compare your current working state against another git ref.
@@ -120,12 +147,28 @@ Options:
                 pooled before the t-test, which both tightens the CI
                 and de-biases against run-order effects. Default: 1.
 
+  --source ARG  Pick a trace source for benches that support multiple
+                ones (commit / jagged / prove_trusted_evaluations /
+                zerocheck). Forwarded as the first positional arg to
+                each bench, so it doubles as Criterion's filter:
+
+                  --source random              # synthetic random trace
+                  --source real/<program>      # e.g. real/keccak256
+                  --source /path/to/layout.json
+
+                Without this flag, each bench picks its own default
+                (random for the any-source benches, real/fibonacci for
+                zerocheck). hadamard ignores the flag entirely (its
+                inputs aren't a trace) and always runs its single fixed
+                config.
+
 Forms:
   $prog                          # current vs main, all benches
   $prog <bench>                  # current vs main, one bench
   $prog <ref>                    # current vs <ref>, all benches
   $prog <ref> <bench>            # current vs <ref>, one bench
   $prog --repeat 3 <ref>         # 3 alternating rounds, all benches
+  $prog --source real/sha2 <ref> # all benches with sha2 real trace
 
   $prog clear                    # remove all bench worktrees
   $prog clear <label>            # remove one worktree (e.g. "main")
@@ -135,11 +178,11 @@ your working tree right now, committed or not. The other ref runs in a
 persistent worktree that is reused across invocations.
 
 Available benches:
-  zerocheck                  (sp1-gpu-zerocheck)
-  prove_trusted_evaluations  (sp1-gpu-shard-prover)
-  jagged                     (sp1-gpu-jagged-sumcheck)
-  hadamard                   (sp1-gpu-jagged-sumcheck)
-  commit                     (sp1-gpu-commit)
+  zerocheck                  (sp1-gpu-zerocheck)         real-only
+  prove_trusted_evaluations  (sp1-gpu-shard-prover)      any source
+  jagged                     (sp1-gpu-jagged-sumcheck)   any source
+  hadamard                   (sp1-gpu-jagged-sumcheck)   single config
+  commit                     (sp1-gpu-commit)            any source
 
 Worktree cache: <repo>/sp1-gpu/.bench-worktrees/
 Requires:       python3
@@ -179,6 +222,7 @@ CURRENT_LABEL="current"
 # only the positional arguments.
 # ----------------------------------------------------------------------------
 REPEAT=1
+SOURCE_ARG=""
 NEW_ARGS=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -191,6 +235,13 @@ while [[ $# -gt 0 ]]; do
             REPEAT="$2"; shift 2 ;;
         --repeat=*|-r=*)
             REPEAT="${1#*=}"; shift ;;
+        --source|-s)
+            if [[ $# -lt 2 ]]; then
+                echo "error: $1 requires a value" >&2; exit 1
+            fi
+            SOURCE_ARG="$2"; shift 2 ;;
+        --source=*|-s=*)
+            SOURCE_ARG="${1#*=}"; shift ;;
         --)
             shift; NEW_ARGS+=("$@"); break ;;
         *)
@@ -335,6 +386,7 @@ git -C "$REPO_ROOT" worktree prune
 
 echo "Comparing: $CURRENT_LABEL  vs  $REF  (rounds: $REPEAT)"
 [[ -n "$BENCH_FILTER" ]] && echo "Bench filter: $BENCH_FILTER"
+[[ -n "$SOURCE_ARG" ]]   && echo "Source:       $SOURCE_ARG"
 
 # ----------------------------------------------------------------------------
 # Helpers.
@@ -356,7 +408,13 @@ build_cargo_args() {
     for entry in "${BENCHES[@]}"; do
         out_args+=( --bench "${entry##*:}" )
     done
-    out_args+=( -- --save-baseline "$baseline" )
+    # Args after `--` go to each bench harness. SOURCE_ARG is read positionally
+    # by the trace-source helpers and also serves as Criterion's filter (they
+    # build bench IDs that contain the same string). --save-baseline is a
+    # Criterion flag.
+    out_args+=( -- )
+    [[ -n "$SOURCE_ARG" ]] && out_args+=( "$SOURCE_ARG" )
+    out_args+=( --save-baseline "$baseline" )
 }
 
 # Ensure a worktree at $wt_path is checked out to a commit whose tree is

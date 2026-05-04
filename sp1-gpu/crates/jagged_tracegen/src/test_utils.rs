@@ -9,7 +9,7 @@ pub mod bench_utils {
 
     use std::collections::BTreeSet;
 
-    use criterion::{BenchmarkId, Criterion};
+    use criterion::{BenchmarkFilter, BenchmarkId, Criterion};
     use rand::Rng;
     use slop_futures::queue::WorkerQueue;
     use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAir};
@@ -208,6 +208,19 @@ pub mod bench_utils {
         with_real(c, name, elf, rng, f);
     }
 
+    /// For benches whose inputs don't fit the trace-source machinery (e.g. `hadamard`, which
+    /// runs on flat `Mle`s rather than a `JaggedTraceMle`). Overrides Criterion's CLI filter to
+    /// accept every bench in this binary so the bench runs no matter what `--source` arg the
+    /// caller passed — without this, any positional like `random` / `real/...` / `*.json` would
+    /// be applied as a filter and silently drop benches whose IDs don't contain it.
+    pub fn with_default_trace_source<F>(c: &mut Criterion, f: F)
+    where
+        F: FnOnce(&mut Criterion),
+    {
+        *c = std::mem::take(c).with_benchmark_filter(BenchmarkFilter::AcceptAll);
+        f(c);
+    }
+
     fn with_real<R, F>(c: &mut Criterion, name: &'static str, elf: &'static [u8], rng: &mut R, f: F)
     where
         R: Rng,
@@ -233,6 +246,11 @@ pub mod bench_utils {
                     true,
                 )
                 .await;
+                let area = jagged_trace_data.dense().dense.len();
+                eprintln!(
+                    "real/{name} trace area: 2^{:.2} ({area} field elements)",
+                    (area as f64).log2(),
+                );
                 let id = BenchmarkId::new("real", name);
                 let data = RealTraceData {
                     machine: &machine,
