@@ -24,19 +24,19 @@ struct Args {
     /// Created if it does not exist; never deleted (so the dir can be reused later).
     #[arg(long)]
     pub dir: String,
-    /// S3 bucket — required for `s3-roundtrip` (upload + download) and `s3-download` (download).
-    /// Ignored for `local` and `local-with-cache`.
-    #[arg(long, default_value = "sp1-gpu-shard-dumps")]
-    pub s3_bucket: Option<String>,
     /// Path to JSON config file (same schema as download-shards / replay-shards).
     #[arg(long)]
     pub config: String,
-    /// Optional shard subset size, forwarded to download-shards.
+    /// Optional number of shards per "program/input" pair to replay.
     #[arg(long)]
     pub k: Option<usize>,
     /// If set, run `replay-shards` under `nsys profile`.
     #[arg(long, default_value_t = false)]
     pub nsys_tracing: bool,
+    /// If set, forward `--normalize` to `replay-shards` so it runs the normalize phase
+    /// for each shard after core proving.
+    #[arg(long, default_value_t = false)]
+    pub normalize: bool,
 }
 
 #[derive(Deserialize)]
@@ -100,6 +100,10 @@ fn parse_combos(config_path: &str) -> Vec<Combo> {
 /// Build the listed binaries via `cargo build --release` and return their executable paths.
 fn build_binaries(bins: &[&str]) -> Vec<PathBuf> {
     let mut cmd = Command::new("cargo");
+    // Strip CARGO_MANIFEST_DIR inherited from the outer `cargo run` so build-script
+    // fingerprints (e.g. ring's) match what a direct shell `cargo build` sees and
+    // don't churn between the two invocation contexts.
+    cmd.env_remove("CARGO_MANIFEST_DIR");
     cmd.arg("build").arg("--release").arg("-p").arg("sp1-gpu-perf");
     for bin in bins {
         cmd.arg("--bin").arg(bin);
@@ -139,7 +143,14 @@ fn run_or_panic(label: &str, mut cmd: Command) {
     }
 }
 
-fn run_replay_shards(bin: &Path, config: &str, local_dir: &Path, nsys: bool, k: Option<usize>) {
+fn run_replay_shards(
+    bin: &Path,
+    config: &str,
+    local_dir: &Path,
+    nsys: bool,
+    k: Option<usize>,
+    normalize: bool,
+) {
     let mut cmd = if nsys {
         let mut c = Command::new("nsys");
         c.arg("profile").arg(bin);
@@ -150,6 +161,9 @@ fn run_replay_shards(bin: &Path, config: &str, local_dir: &Path, nsys: bool, k: 
     cmd.arg("--config").arg(config).arg("--local-dir").arg(local_dir);
     if let Some(k) = k {
         cmd.arg("--num-shards-per-run").arg(k.to_string());
+    }
+    if normalize {
+        cmd.arg("--normalize");
     }
     let label = if nsys { "nsys profile replay-shards" } else { "replay-shards" };
     run_or_panic(label, cmd);
@@ -240,7 +254,14 @@ fn main() {
         }
     }
 
-    run_replay_shards(&bin("replay-shards"), &args.config, &root, args.nsys_tracing, args.k);
+    run_replay_shards(
+        &bin("replay-shards"),
+        &args.config,
+        &root,
+        args.nsys_tracing,
+        args.k,
+        args.normalize,
+    );
 
     tracing::info!("[composed-workflow] done; replay dir: {}", root.display());
 }

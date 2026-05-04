@@ -223,6 +223,8 @@ impl<A, W, C: SP1ProverComponents> CoreWorker<A, W, C> {
     }
 }
 
+static SHARD_IDX: AtomicUsize = AtomicUsize::new(0);
+
 impl<A, W, C> AsyncWorker<CoreProvingTask, Result<TaskMetadata, TaskError>> for CoreWorker<A, W, C>
 where
     A: ArtifactClient,
@@ -254,8 +256,6 @@ where
         } else {
             None
         };
-
-        let shard_idx: AtomicUsize = AtomicUsize::new(0);
 
         let span = tracing::debug_span!("into_record");
         let (program, mut record, deferred_record, is_precompile) = tokio::task::spawn_blocking({
@@ -506,7 +506,7 @@ where
 
         // Optionally dump the shard record and vk to disk for benchmarking/replay.
         if let Some(dir) = self.record_write_dir.as_ref() {
-            let idx = shard_idx.fetch_add(1, Ordering::SeqCst);
+            let idx = SHARD_IDX.fetch_add(1, Ordering::Relaxed);
             let path = std::path::PathBuf::from(&dir);
             std::fs::create_dir_all(&path).ok();
 
