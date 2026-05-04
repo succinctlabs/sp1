@@ -14,7 +14,7 @@ pub mod random {
     use slop_alloc::{Buffer, CpuBackend};
     use sp1_hypercube::{air::MachineAir, Chip};
 
-    use crate::{AbstractChipLayout, JaggedTraceMle};
+    use crate::{AbstractChipLayout, AbstractChipLayoutWithHeights, JaggedTraceMle};
 
     //
     // Helpers
@@ -46,7 +46,7 @@ pub mod random {
         height: usize,
     }
 
-    /// Read an [`AbstractChipLayout`] and matching per-chip heights from a JSON file.
+    /// Read an [`AbstractChipLayoutWithHeights`] from a JSON file.
     ///
     /// The file must be a top-level JSON array of objects, each with the fields
     /// `name`, `preprocessed_width`, `main_width`, and `height`:
@@ -59,16 +59,17 @@ pub mod random {
     /// ```
     pub fn read_layout_from_json(
         path: impl AsRef<Path>,
-    ) -> std::io::Result<(AbstractChipLayout, Vec<usize>)> {
+    ) -> std::io::Result<AbstractChipLayoutWithHeights> {
         let file = std::fs::File::open(path)?;
         let reader = std::io::BufReader::new(file);
         let entries: Vec<ChipEntry> = serde_json::from_reader(reader)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        let layout = AbstractChipLayout(
-            entries.iter().map(|e| (e.name.clone(), e.preprocessed_width, e.main_width)).collect(),
-        );
-        let heights = entries.into_iter().map(|e| e.height).collect();
-        Ok((layout, heights))
+        Ok(AbstractChipLayoutWithHeights(
+            entries
+                .into_iter()
+                .map(|e| (e.name, e.preprocessed_width, e.main_width, e.height))
+                .collect(),
+        ))
     }
 
     /// Randomly partition `total_area` field elements among the chips in `layout`,
@@ -88,7 +89,7 @@ pub mod random {
         rng: &mut R,
         layout: &AbstractChipLayout,
         total_area: u64,
-    ) -> Vec<usize> {
+    ) -> AbstractChipLayoutWithHeights {
         const ALIGN: usize = 4;
 
         // Cost per row: each row contributes `preprocessed_width + width` field
@@ -117,7 +118,10 @@ pub mod random {
             heights[i] += blocks as usize * ALIGN;
             remaining -= blocks * row_costs[i] * ALIGN as u64;
         }
-        heights
+
+        AbstractChipLayoutWithHeights(
+            layout.0.iter().zip(heights).map(|((n, p, m), h)| (n.clone(), *p, *m, h)).collect(),
+        )
     }
 
     /// Allocate a `padded_preprocessed + padded_main`-sized buffer of `F::zero()` and
@@ -126,8 +130,7 @@ pub mod random {
     /// any chip's AIR — this is purely structural.
     pub fn random_dense_buffer<F, R>(
         rng: &mut R,
-        layout: &AbstractChipLayout,
-        heights: &[usize],
+        layout: &AbstractChipLayoutWithHeights,
         log_stacking_height: u32,
     ) -> Vec<F>
     where
@@ -136,9 +139,8 @@ pub mod random {
         R: Rng,
     {
         let stacking = 1usize << log_stacking_height;
-        let total_preprocessed: usize =
-            layout.0.iter().zip(heights).map(|((_, p, _), h)| p * h).sum();
-        let total_main: usize = layout.0.iter().zip(heights).map(|((_, _, m), h)| m * h).sum();
+        let total_preprocessed: usize = layout.0.iter().map(|(_, p, _, h)| p * h).sum();
+        let total_main: usize = layout.0.iter().map(|(_, _, m, h)| m * h).sum();
         let padded_preprocessed = total_preprocessed.next_multiple_of(stacking);
         let padded_main = total_main.next_multiple_of(stacking);
 
@@ -163,8 +165,7 @@ pub mod random {
     /// Requires log_stacking_height as an input to compute padding for the preprocessed and main regions.
     pub fn random_jagged_trace_mle_from_layout<F, R>(
         rng: &mut R,
-        layout: &AbstractChipLayout,
-        heights: &[usize],
+        layout: &AbstractChipLayoutWithHeights,
         log_stacking_height: u32,
     ) -> JaggedTraceMle<F, CpuBackend>
     where
@@ -172,8 +173,8 @@ pub mod random {
         Standard: Distribution<F>,
         R: Rng,
     {
-        let data = random_dense_buffer(rng, layout, heights, log_stacking_height);
-        JaggedTraceMle::from_chip_layout(Buffer::from(data), layout, heights, log_stacking_height)
+        let data = random_dense_buffer(rng, layout, log_stacking_height);
+        JaggedTraceMle::from_chip_layout(Buffer::from(data), layout, log_stacking_height)
     }
 
     /// Generate a random [`JaggedTraceMle`] whose total dense size (preprocessed +
@@ -196,8 +197,8 @@ pub mod random {
         assert!(!chips.is_empty(), "must have at least one chip");
 
         let layout = AbstractChipLayout::from_chips(chips);
-        let heights = generate_random_heights(rng, &layout, total_area);
-        random_jagged_trace_mle_from_layout(rng, &layout, &heights, log_stacking_height)
+        let layout_with_heights = generate_random_heights(rng, &layout, total_area);
+        random_jagged_trace_mle_from_layout(rng, &layout_with_heights, log_stacking_height)
     }
 
     /// Read a chip layout and per-chip heights from a JSON file (see
@@ -215,7 +216,7 @@ pub mod random {
         Standard: Distribution<F>,
         R: Rng,
     {
-        let (layout, heights) = read_layout_from_json(path)?;
-        Ok(random_jagged_trace_mle_from_layout(rng, &layout, &heights, log_stacking_height))
+        let layout_with_heights = read_layout_from_json(path)?;
+        Ok(random_jagged_trace_mle_from_layout(rng, &layout_with_heights, log_stacking_height))
     }
 }

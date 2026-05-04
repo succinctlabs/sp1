@@ -151,28 +151,28 @@ impl<F: Field, B: Backend> TraceDenseData<F, B> {
 
 /// Abstract description of a chip layout used to build [`TraceDenseData`] / [`JaggedTraceMle`].
 /// Each tuple is`(chip_name, preprocessed_width, main_width)` for one chip;
-pub struct AbstractChipLayout(pub Vec<(String, usize, usize)>);
+pub struct AbstractChipLayout(pub(crate) Vec<(String, usize, usize)>);
+
+/// Like [`AbstractChipLayout`], but with a per-chip row count attached to each entry.
+/// Each tuple is `(chip_name, preprocessed_width, main_width, height)` for one chip.
+pub struct AbstractChipLayoutWithHeights(pub(crate) Vec<(String, usize, usize, usize)>);
 
 impl<F: Field> TraceDenseData<F, CpuBackend> {
     /// Build a `TraceDenseData` over a pre-allocated `dense` buffer using an
-    /// [`AbstractChipLayout`] and per-chip row counts.
+    /// [`AbstractChipLayoutWithHeights`].
     ///
-    /// `heights.len()` must equal `layout.0.len()`. The `dense` buffer must be sized
-    /// as `padded_preprocessed + padded_main`, where each section is the unpadded
-    /// total rounded up to the next multiple of `2^log_stacking_height`.
+    /// The `dense` buffer must be sized as `padded_preprocessed + padded_main`, where
+    /// each section is the unpadded total rounded up to the next multiple of
+    /// `2^log_stacking_height`.
     pub fn from_chip_layout(
         dense: Buffer<F, CpuBackend>,
-        layout: &AbstractChipLayout,
-        heights: &[usize],
+        layout: &AbstractChipLayoutWithHeights,
         log_stacking_height: u32,
     ) -> Self {
-        assert_eq!(heights.len(), layout.0.len(), "heights and layout must be the same length");
-
         let stacking = 1usize << log_stacking_height;
 
-        let total_preprocessed: usize =
-            layout.0.iter().zip(heights).map(|((_, p, _), h)| p * h).sum();
-        let total_main: usize = layout.0.iter().zip(heights).map(|((_, _, m), h)| m * h).sum();
+        let total_preprocessed: usize = layout.0.iter().map(|(_, p, _, h)| p * h).sum();
+        let total_main: usize = layout.0.iter().map(|(_, _, m, h)| m * h).sum();
 
         let padded_preprocessed = total_preprocessed.next_multiple_of(stacking);
         let padded_main = total_main.next_multiple_of(stacking);
@@ -183,18 +183,18 @@ impl<F: Field> TraceDenseData<F, CpuBackend> {
             "dense buffer length must equal padded_preprocessed + padded_main",
         );
 
-        let preprocessed_cols: usize = layout.0.iter().map(|(_, p, _)| p).sum();
+        let preprocessed_cols: usize = layout.0.iter().map(|(_, p, _, _)| p).sum();
 
         let mut preprocessed_table_index = BTreeMap::new();
         let mut main_table_index = BTreeMap::new();
         let mut preprocessed_ptr = 0usize;
         let mut main_ptr = padded_preprocessed;
-        for ((name, prep_w, main_w), &h) in layout.0.iter().zip(heights) {
+        for (name, prep_w, main_w, h) in layout.0.iter() {
             let prep_lo = preprocessed_ptr;
             let prep_hi = prep_lo + h * prep_w;
             preprocessed_table_index.insert(
                 name.clone(),
-                TraceOffset { dense_offset: prep_lo..prep_hi, poly_size: h, num_polys: *prep_w },
+                TraceOffset { dense_offset: prep_lo..prep_hi, poly_size: *h, num_polys: *prep_w },
             );
             preprocessed_ptr = prep_hi;
 
@@ -202,7 +202,7 @@ impl<F: Field> TraceDenseData<F, CpuBackend> {
             let main_hi = main_lo + h * main_w;
             main_table_index.insert(
                 name.clone(),
-                TraceOffset { dense_offset: main_lo..main_hi, poly_size: h, num_polys: *main_w },
+                TraceOffset { dense_offset: main_lo..main_hi, poly_size: *h, num_polys: *main_w },
             );
             main_ptr = main_hi;
         }
@@ -244,24 +244,22 @@ impl<F: Field> JaggedTraceMle<F, CpuBackend> {
     /// metadata: one logical column per chip column for both preprocessed and main,
     /// plus one padding column per section that has nonzero padding.
     ///
-    /// All `heights[i]` must be even, since column heights and column-index entries
+    /// All heights must be even, since column heights and column-index entries
     /// are stored at half-element granularity.
     pub fn from_chip_layout(
         dense: Buffer<F, CpuBackend>,
-        layout: &AbstractChipLayout,
-        heights: &[usize],
+        layout: &AbstractChipLayoutWithHeights,
         log_stacking_height: u32,
     ) -> Self {
-        assert!(heights.iter().all(|h| h % 2 == 0), "heights must be even");
+        assert!(layout.0.iter().all(|(_, _, _, h)| h % 2 == 0), "heights must be even");
 
-        let dense_data =
-            TraceDenseData::from_chip_layout(dense, layout, heights, log_stacking_height);
+        let dense_data = TraceDenseData::from_chip_layout(dense, layout, log_stacking_height);
 
         let total_dense = dense_data.dense.len();
         let preprocessed_padding = dense_data.preprocessed_padding;
         let main_padding = dense_data.main_padding;
 
-        let num_data_cols: usize = layout.0.iter().map(|(_, p, m)| p + m).sum();
+        let num_data_cols: usize = layout.0.iter().map(|(_, p, m, _)| p + m).sum();
         let num_cols =
             num_data_cols + (preprocessed_padding > 0) as usize + (main_padding > 0) as usize;
 
@@ -283,14 +281,14 @@ impl<F: Field> JaggedTraceMle<F, CpuBackend> {
             }
         };
 
-        for ((_, prep_w, _), &h) in layout.0.iter().zip(heights) {
-            emit(*prep_w, h, &mut col, &mut cnt);
+        for (_, prep_w, _, h) in layout.0.iter() {
+            emit(*prep_w, *h, &mut col, &mut cnt);
         }
         if preprocessed_padding > 0 {
             emit(1, preprocessed_padding, &mut col, &mut cnt);
         }
-        for ((_, _, main_w), &h) in layout.0.iter().zip(heights) {
-            emit(*main_w, h, &mut col, &mut cnt);
+        for (_, _, main_w, h) in layout.0.iter() {
+            emit(*main_w, *h, &mut col, &mut cnt);
         }
         if main_padding > 0 {
             emit(1, main_padding, &mut col, &mut cnt);
