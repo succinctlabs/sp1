@@ -30,6 +30,52 @@ pub struct GetTransferParamsResponse {
     #[prost(string, tag = "2")]
     pub fee: ::prost::alloc::string::String,
 }
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct GetProvePriceRequest {}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetProvePriceResponse {
+    /// The current price of PROVE token in USD.
+    #[prost(string, tag = "1")]
+    pub price: ::prost::alloc::string::String,
+    /// The timestamp when the price was last updated.
+    #[prost(int64, tag = "2")]
+    pub last_updated: i64,
+    /// The 24-hour price change percentage.
+    #[prost(string, tag = "3")]
+    pub percent_change_24h: ::prost::alloc::string::String,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct GetPriceInfoRequest {}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetPriceInfoResponse {
+    /// Base fee for core proof mode in wei.
+    #[prost(string, tag = "1")]
+    pub base_fee_core: ::prost::alloc::string::String,
+    /// Base fee for compressed proof mode in wei.
+    #[prost(string, tag = "2")]
+    pub base_fee_compressed: ::prost::alloc::string::String,
+    /// Base fee for plonk proof mode in wei.
+    #[prost(string, tag = "3")]
+    pub base_fee_plonk: ::prost::alloc::string::String,
+    /// Base fee for groth16 proof mode in wei.
+    #[prost(string, tag = "4")]
+    pub base_fee_groth16: ::prost::alloc::string::String,
+    /// Minimum price per PGU from recent fulfilled requests.
+    #[prost(string, tag = "5")]
+    pub min_price_per_pgu: ::prost::alloc::string::String,
+    /// Average price per PGU from recent fulfilled requests.
+    #[prost(string, tag = "6")]
+    pub avg_price_per_pgu: ::prost::alloc::string::String,
+    /// Maximum price per PGU from recent fulfilled requests.
+    #[prost(string, tag = "7")]
+    pub max_price_per_pgu: ::prost::alloc::string::String,
+    /// Number of samples used for price statistics.
+    #[prost(uint64, tag = "8")]
+    pub sample_count: u64,
+    /// Time window in seconds for price statistics.
+    #[prost(uint32, tag = "9")]
+    pub time_window_seconds: u32,
+}
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct WithdrawRequest {
     /// The message format of the body.
@@ -462,6 +508,9 @@ pub struct ProofRequest {
     /// The proof request error, if any.
     #[prost(enumeration = "ProofRequestError", tag = "36")]
     pub error: i32,
+    /// Whether the request has been canceled.
+    #[prost(bool, tag = "37")]
+    pub is_canceled: bool,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct GetProofRequestStatusRequest {
@@ -566,6 +615,12 @@ pub struct GetFilteredProofRequestsRequest {
     /// The optional proof request error.
     #[prost(enumeration = "ProofRequestError", optional, tag = "16")]
     pub error: ::core::option::Option<i32>,
+    /// Whether to filter for cancelled requests only.
+    #[prost(bool, optional, tag = "17")]
+    pub is_canceled: ::core::option::Option<bool>,
+    /// Whether to filter for timed out requests only.
+    #[prost(bool, optional, tag = "18")]
+    pub is_timed_out: ::core::option::Option<bool>,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct GetFilteredProofRequestsResponse {
@@ -1594,6 +1649,121 @@ pub struct GetProverStatsDetailResponse {
     pub stats: ::core::option::Option<ProverStats>,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct UpdateStakerFeeRequest {
+    /// The message format of the body.
+    #[prost(enumeration = "MessageFormat", tag = "1")]
+    pub format: i32,
+    /// The signature of the sender.
+    #[prost(bytes = "vec", tag = "2")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the request.
+    #[prost(message, optional, tag = "3")]
+    pub body: ::core::option::Option<UpdateStakerFeeRequestBody>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct UpdateStakerFeeRequestBody {
+    /// The account nonce of the sender.
+    #[prost(uint64, tag = "1")]
+    pub nonce: u64,
+    /// The prover address that the staker fee update applies to.
+    #[prost(bytes = "vec", tag = "2")]
+    pub prover: ::prost::alloc::vec::Vec<u8>,
+    /// The domain separator bytes for the request.
+    #[prost(bytes = "vec", tag = "3")]
+    pub domain: ::prost::alloc::vec::Vec<u8>,
+    /// The variant of the transaction.
+    #[prost(enumeration = "TransactionVariant", tag = "4")]
+    pub variant: i32,
+    /// The new staker fee bips to update the prover with.
+    #[prost(uint32, tag = "5")]
+    pub new_staker_fee_bips: u32,
+    /// The auctioneer address that will receive the fee for performing this operation.
+    #[prost(bytes = "vec", tag = "6")]
+    pub auctioneer: ::prost::alloc::vec::Vec<u8>,
+    /// The fee to pay for performing this operation.
+    #[prost(string, tag = "7")]
+    pub fee: ::prost::alloc::string::String,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct UpdateStakerFeeResponse {
+    /// The transaction hash.
+    #[prost(bytes = "vec", tag = "1")]
+    pub tx_hash: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the response.
+    #[prost(message, optional, tag = "2")]
+    pub body: ::core::option::Option<UpdateStakerFeeResponseBody>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct UpdateStakerFeeResponseBody {}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetStakerFeeUpdateTimeRequest {
+    /// The prover address to check fee update timing for.
+    #[prost(bytes = "vec", tag = "1")]
+    pub prover: ::prost::alloc::vec::Vec<u8>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetStakerFeeUpdateTimeResponse {
+    /// The timestamp when the next fee update is allowed (Unix timestamp).
+    /// If null/unset, the prover can update their fee immediately.
+    #[prost(uint64, optional, tag = "1")]
+    pub next_allowed_update_time: ::core::option::Option<u64>,
+    /// Current staker fee in basis points (0-10000). Null = prover not found.
+    #[prost(string, optional, tag = "2")]
+    pub current_staker_fee_bips: ::core::option::Option<::prost::alloc::string::String>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct GetUpdateStakerFeeParamsRequest {}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetUpdateStakerFeeParamsResponse {
+    /// The auctioneer address for staker fee updates.
+    #[prost(bytes = "vec", tag = "1")]
+    pub auctioneer: ::prost::alloc::vec::Vec<u8>,
+    /// The fee required to update staker fee bips.
+    #[prost(string, tag = "2")]
+    pub fee: ::prost::alloc::string::String,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct UpdateDelegatorFeeRequest {
+    /// The message format of the body.
+    #[prost(enumeration = "MessageFormat", tag = "1")]
+    pub format: i32,
+    /// The signature of the sender.
+    #[prost(bytes = "vec", tag = "2")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the request.
+    #[prost(message, optional, tag = "3")]
+    pub body: ::core::option::Option<UpdateDelegatorFeeRequestBody>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct UpdateDelegatorFeeRequestBody {
+    /// The account nonce of the sender.
+    #[prost(uint64, tag = "1")]
+    pub nonce: u64,
+    /// The domain separator bytes for the request.
+    #[prost(bytes = "vec", tag = "2")]
+    pub domain: ::prost::alloc::vec::Vec<u8>,
+    /// The variant of the transaction.
+    #[prost(enumeration = "TransactionVariant", tag = "3")]
+    pub variant: i32,
+    /// The prover address that the delegator fee update applies to.
+    #[prost(bytes = "vec", tag = "4")]
+    pub prover: ::prost::alloc::vec::Vec<u8>,
+    /// The new delegator fee bips to update the prover with.
+    #[prost(uint32, tag = "5")]
+    pub new_delegator_fee_bips: u32,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct UpdateDelegatorFeeResponse {
+    /// The transaction hash.
+    #[prost(bytes = "vec", tag = "1")]
+    pub tx_hash: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the response.
+    #[prost(message, optional, tag = "2")]
+    pub body: ::core::option::Option<UpdateDelegatorFeeResponseBody>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct UpdateDelegatorFeeResponseBody {}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct Prover {
     /// The address of the prover.
     #[prost(bytes = "vec", tag = "1")]
@@ -1729,6 +1899,87 @@ pub struct GetFilteredProverStakeBalanceLogsResponse {
     #[prost(message, repeated, tag = "1")]
     pub logs: ::prost::alloc::vec::Vec<StakeBalanceLog>,
 }
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct StakerLeaderboardEntry {
+    /// The staker's address.
+    #[prost(bytes = "vec", tag = "1")]
+    pub address: ::prost::alloc::vec::Vec<u8>,
+    /// The total staked amount by this staker.
+    #[prost(string, tag = "2")]
+    pub staked_amount: ::prost::alloc::string::String,
+    /// The timestamp when the staker first staked to their current prover.
+    #[prost(uint64, tag = "3")]
+    pub staked_since: u64,
+    /// The address of the prover this staker is staked to.
+    #[prost(bytes = "vec", tag = "4")]
+    pub prover_address: ::prost::alloc::vec::Vec<u8>,
+    /// The prover's name (if available).
+    #[prost(string, optional, tag = "5")]
+    pub prover_name: ::core::option::Option<::prost::alloc::string::String>,
+    /// The prover's image URL (if available).
+    #[prost(string, optional, tag = "6")]
+    pub prover_image: ::core::option::Option<::prost::alloc::string::String>,
+    /// The rank of this staker (based on staked amount descending).
+    #[prost(uint32, tag = "7")]
+    pub rank: u32,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetNetworkFilteredStakerLeaderboardRequest {
+    /// The optional maximum number of stakers to return (default is 20, maximum is 100).
+    #[prost(uint32, optional, tag = "1")]
+    pub limit: ::core::option::Option<u32>,
+    /// The optional page number to return (default is 1).
+    #[prost(uint32, optional, tag = "2")]
+    pub page: ::core::option::Option<u32>,
+    /// The sort order for the leaderboard.
+    #[prost(enumeration = "StakerLeaderboardSort", optional, tag = "3")]
+    pub sort: ::core::option::Option<i32>,
+    /// Filter by whitelisted provers only.
+    #[prost(bool, optional, tag = "4")]
+    pub whitelisted_provers_only: ::core::option::Option<bool>,
+    /// Filter by specific prover address.
+    #[prost(bytes = "vec", optional, tag = "5")]
+    pub prover_address: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetNetworkFilteredStakerLeaderboardResponse {
+    /// The staker leaderboard entries.
+    #[prost(message, repeated, tag = "1")]
+    pub entries: ::prost::alloc::vec::Vec<StakerLeaderboardEntry>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetNetworkStakerLeaderboardDashboardRequest {
+    /// The user's account address to get dashboard data for.
+    #[prost(bytes = "vec", tag = "1")]
+    pub account: ::prost::alloc::vec::Vec<u8>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetNetworkStakerLeaderboardDashboardResponse {
+    /// The user's global rank among all stakers.
+    #[prost(uint32, optional, tag = "1")]
+    pub global_rank: ::core::option::Option<u32>,
+    /// The user's global percentile (0-100, higher is better).
+    #[prost(double, optional, tag = "2")]
+    pub global_rank_percentile: ::core::option::Option<f64>,
+    /// The user's rank within their current prover's stakers.
+    #[prost(uint32, optional, tag = "3")]
+    pub prover_rank: ::core::option::Option<u32>,
+    /// The user's percentile within their current prover (0-100, higher is better).
+    #[prost(double, optional, tag = "4")]
+    pub prover_rank_percentile: ::core::option::Option<f64>,
+    /// The timestamp when the user first staked to their current prover.
+    #[prost(uint64, optional, tag = "5")]
+    pub staked_since: ::core::option::Option<u64>,
+    /// The address of the prover the user is currently staked to.
+    #[prost(bytes = "vec", optional, tag = "6")]
+    pub prover_address: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
+    /// The name of the prover the user is currently staked to.
+    #[prost(string, optional, tag = "7")]
+    pub prover_name: ::core::option::Option<::prost::alloc::string::String>,
+    /// The image URL of the prover the user is currently staked to.
+    #[prost(string, optional, tag = "8")]
+    pub prover_image: ::core::option::Option<::prost::alloc::string::String>,
+}
 #[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
 pub struct GetDelegationParamsRequest {}
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
@@ -1739,6 +1990,20 @@ pub struct GetDelegationParamsResponse {
     /// The default delegation fee.
     #[prost(string, tag = "2")]
     pub fee: ::prost::alloc::string::String,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct GetTitanConfigParamsRequest {}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetTitanConfigParamsResponse {
+    /// The minimum USDC required to join the Titan queue.
+    #[prost(string, tag = "1")]
+    pub min_queue_usdc: ::prost::alloc::string::String,
+    /// The work per slot ratio in PGUs.
+    #[prost(string, tag = "2")]
+    pub work_per_slot: ::prost::alloc::string::String,
+    /// The maximum delegation limit for Titan provers.
+    #[prost(string, tag = "3")]
+    pub max_delegation_limit: ::prost::alloc::string::String,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
 pub struct SetDelegationRequest {
@@ -1887,6 +2152,1336 @@ pub struct GetStakingPointsResponse {
     #[prost(message, repeated, tag = "1")]
     pub partners: ::prost::alloc::vec::Vec<PointsPartner>,
 }
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct EpochDetails {
+    /// The epoch ID.
+    #[prost(int64, tag = "1")]
+    pub id: i64,
+    /// The epoch start unix timestamp.
+    #[prost(uint64, tag = "2")]
+    pub start_time: u64,
+    /// The epoch end unix timestamp.
+    #[prost(uint64, tag = "3")]
+    pub end_time: u64,
+    /// The status of the epoch.
+    #[prost(enumeration = "EpochStatus", tag = "4")]
+    pub status: i32,
+    /// The merkle root of the epoch's rewards tree (if set).
+    #[prost(bytes = "vec", optional, tag = "5")]
+    pub root: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct GetEpochRequest {
+    /// The optional epoch ID to get details for (if not specified, defaults to the active epoch).
+    #[prost(int64, optional, tag = "1")]
+    pub id: ::core::option::Option<i64>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetEpochResponse {
+    /// The details for the epoch.
+    #[prost(message, optional, tag = "1")]
+    pub details: ::core::option::Option<EpochDetails>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct ProverWorkDetails {
+    /// The epoch ID.
+    #[prost(int64, tag = "1")]
+    pub epoch_id: i64,
+    /// The address of the prover.
+    #[prost(bytes = "vec", tag = "2")]
+    pub prover: ::prost::alloc::vec::Vec<u8>,
+    /// The prover's completed work for the epoch (in PGUs).
+    #[prost(string, tag = "3")]
+    pub completed_work: ::prost::alloc::string::String,
+    /// The prover's work capacity for the epoch (in PGUs) - if the epoch is not finalized, this
+    /// number can fluctuate based on the prover's stake balance.
+    #[prost(string, tag = "4")]
+    pub work_capacity: ::prost::alloc::string::String,
+    /// The raw amount of rewards earned in this epoch (immedieate + pending).
+    #[prost(string, tag = "5")]
+    pub earned_amount: ::prost::alloc::string::String,
+    /// The cumulative rewardamount that can be claimed in this epoch (includes new immediate rewards
+    /// from this epoch + unclaimed amounts that rolled over from previous epochs + vested amount
+    /// from the previous epoch).
+    #[prost(string, tag = "6")]
+    pub claimable_amount: ::prost::alloc::string::String,
+    /// The cumulative reward amount that is pending in this epoch and is subject to 180-day vesting
+    /// (includes new pending rewards from this epoch + unvested rewards from previous epochs).
+    #[prost(string, tag = "7")]
+    pub pending_amount: ::prost::alloc::string::String,
+    /// Whether rewards were claimed in this epoch.
+    #[prost(bool, tag = "8")]
+    pub claimed: bool,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetProverWorkRequest {
+    /// The optional epoch ID to get details for (if not specified, defaults to the active epoch).
+    #[prost(int64, optional, tag = "1")]
+    pub epoch_id: ::core::option::Option<i64>,
+    /// The address of the prover to get work details for.
+    #[prost(bytes = "vec", tag = "2")]
+    pub prover: ::prost::alloc::vec::Vec<u8>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetProverWorkResponse {
+    /// The work details for the specified prover and epoch. If the specified epoch is ACTIVE or
+    /// FINALIZING, the reward details correspond to the most recently finalized epoch.
+    #[prost(message, optional, tag = "1")]
+    pub work_details: ::core::option::Option<ProverWorkDetails>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct GetProversWithWorkRequest {
+    /// The epoch ID to get provers for.
+    #[prost(int64, tag = "1")]
+    pub epoch_id: i64,
+    /// The optional page number to return (default is 1).
+    #[prost(uint32, optional, tag = "2")]
+    pub page: ::core::option::Option<u32>,
+    /// The optional maximum number of results to return (default is 10).
+    #[prost(uint32, optional, tag = "3")]
+    pub limit: ::core::option::Option<u32>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetProversWithWorkResponse {
+    /// List of provers with their work details for the epoch. If the specified epoch is ACTIVE or
+    /// FINALIZING, the reward details correspond to the most recently finalized epoch.
+    #[prost(message, repeated, tag = "1")]
+    pub provers: ::prost::alloc::vec::Vec<ProverWorkDetails>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetRewardsDashboardRequest {
+    /// The account to get rewards dashboard for.
+    #[prost(bytes = "vec", tag = "1")]
+    pub account: ::prost::alloc::vec::Vec<u8>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetRewardsDashboardResponse {
+    /// Today's earned reward amount.
+    #[prost(string, optional, tag = "1")]
+    pub todays_earned_amount: ::core::option::Option<::prost::alloc::string::String>,
+    /// Most recent claimable reward amount.
+    #[prost(string, optional, tag = "2")]
+    pub recent_claimable_amount: ::core::option::Option<::prost::alloc::string::String>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetRecentRewardsGraphRequest {
+    /// The account to get rewards graph for.
+    #[prost(bytes = "vec", tag = "1")]
+    pub account: ::prost::alloc::vec::Vec<u8>,
+    /// The date range to filter the graph data.
+    #[prost(enumeration = "DateRange", tag = "2")]
+    pub date_range: i32,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct RewardsGraphData {
+    /// The timestamp of the data point.
+    #[prost(string, tag = "1")]
+    pub timestamp: ::prost::alloc::string::String,
+    /// The claimed amount at this timestamp.
+    #[prost(string, tag = "2")]
+    pub claimed_amount: ::prost::alloc::string::String,
+    /// The pending amount at this timestamp.
+    #[prost(string, tag = "3")]
+    pub pending_amount: ::prost::alloc::string::String,
+    /// The total earned amount at this timestamp.
+    #[prost(string, tag = "4")]
+    pub earned_amount: ::prost::alloc::string::String,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetRecentRewardsGraphResponse {
+    /// The time series data points for earned rewards with claimed/pending breakdown.
+    #[prost(message, repeated, tag = "1")]
+    pub data: ::prost::alloc::vec::Vec<RewardsGraphData>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetRecentPerformanceGraphRequest {
+    /// The account to get performance graph for.
+    #[prost(bytes = "vec", tag = "1")]
+    pub account: ::prost::alloc::vec::Vec<u8>,
+    /// The date range to filter the graph data.
+    #[prost(enumeration = "DateRange", tag = "2")]
+    pub date_range: i32,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct PerformanceGraphData {
+    /// The timestamp of the data point.
+    #[prost(string, tag = "1")]
+    pub timestamp: ::prost::alloc::string::String,
+    /// The work efficiency at this timestamp (completed / capacity).
+    #[prost(double, tag = "2")]
+    pub efficiency: f64,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetRecentPerformanceGraphResponse {
+    /// The time series data points for work efficiency.
+    #[prost(message, repeated, tag = "1")]
+    pub data: ::prost::alloc::vec::Vec<PerformanceGraphData>,
+}
+/// GetTitan1RewardsData - Get Titan 1 rewards dashboard data
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetTitan1RewardsDataRequest {
+    /// The account to get rewards data for.
+    #[prost(bytes = "vec", tag = "1")]
+    pub account: ::prost::alloc::vec::Vec<u8>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetTitan1RewardsDataResponse {
+    /// Today's earned reward amount (from most recent non-final, fallback to final).
+    #[prost(string, optional, tag = "1")]
+    pub todays_reward: ::core::option::Option<::prost::alloc::string::String>,
+    /// Today's work completed (from most recent non-final, fallback to final).
+    #[prost(string, optional, tag = "2")]
+    pub todays_work_completed: ::core::option::Option<::prost::alloc::string::String>,
+    /// Today's work capacity (from most recent non-final, fallback to final).
+    #[prost(string, optional, tag = "3")]
+    pub todays_work_capacity: ::core::option::Option<::prost::alloc::string::String>,
+    /// Most recent claimable reward amount (from most recent final record).
+    #[prost(string, optional, tag = "4")]
+    pub claimable_amount: ::core::option::Option<::prost::alloc::string::String>,
+    /// Most recent pending reward amount (from most recent final record).
+    #[prost(string, optional, tag = "5")]
+    pub pending_amount: ::core::option::Option<::prost::alloc::string::String>,
+    /// Yesterday's earned reward amount (most recent final record).
+    #[prost(string, optional, tag = "6")]
+    pub yesterdays_reward: ::core::option::Option<::prost::alloc::string::String>,
+    /// Delta between today's reward and yesterday's reward.
+    #[prost(string, optional, tag = "7")]
+    pub todays_delta: ::core::option::Option<::prost::alloc::string::String>,
+}
+/// GetTitan1WorkGraph - Get Titan 1 work capacity and completion over time
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetTitan1WorkGraphRequest {
+    /// The account to get work graph for.
+    #[prost(bytes = "vec", tag = "1")]
+    pub account: ::prost::alloc::vec::Vec<u8>,
+    /// The date range to filter the graph data.
+    #[prost(enumeration = "DateRange", tag = "2")]
+    pub date_range: i32,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct WorkGraphData {
+    /// The timestamp of the data point.
+    #[prost(string, tag = "1")]
+    pub timestamp: ::prost::alloc::string::String,
+    /// The work capacity at this timestamp.
+    #[prost(string, tag = "2")]
+    pub work_capacity: ::prost::alloc::string::String,
+    /// The work completed at this timestamp.
+    #[prost(string, tag = "3")]
+    pub work_completed: ::prost::alloc::string::String,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetTitan1WorkGraphResponse {
+    /// The time series data points for work capacity and completion.
+    #[prost(message, repeated, tag = "1")]
+    pub data: ::prost::alloc::vec::Vec<WorkGraphData>,
+}
+/// GetTitan1ClaimProof - Get claimable proof for a specific reward root
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetTitan1ClaimProofRequest {
+    /// The account to get the claimable proof for.
+    #[prost(bytes = "vec", tag = "1")]
+    pub account: ::prost::alloc::vec::Vec<u8>,
+    /// The reward root from the contract to match against.
+    #[prost(bytes = "vec", tag = "2")]
+    pub reward_root: ::prost::alloc::vec::Vec<u8>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetTitan1ClaimProofResponse {
+    /// The account address (hex encoded with 0x prefix).
+    #[prost(bytes = "vec", optional, tag = "1")]
+    pub account: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
+    /// The epoch ID for this reward.
+    #[prost(uint64, optional, tag = "2")]
+    pub epoch_id: ::core::option::Option<u64>,
+    /// The leaf index for the merkle proof.
+    #[prost(uint64, optional, tag = "3")]
+    pub leaf_index: ::core::option::Option<u64>,
+    /// Array of merkle proof hashes (hex encoded with 0x prefix).
+    #[prost(string, repeated, tag = "4")]
+    pub proof: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    /// The claimable amount in wei.
+    #[prost(string, optional, tag = "5")]
+    pub claimable_amount: ::core::option::Option<::prost::alloc::string::String>,
+    /// The epoch root (hex encoded with 0x prefix).
+    #[prost(bytes = "vec", optional, tag = "6")]
+    pub epoch_root: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
+    /// Whether this proof has been claimed.
+    #[prost(bool, optional, tag = "7")]
+    pub claimed: ::core::option::Option<bool>,
+}
+/// Request to get Titan whitelist allocation for a minter address.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetTitan1WhitelistAllocationRequest {
+    /// The minter address to query.
+    #[prost(bytes = "vec", tag = "1")]
+    pub address: ::prost::alloc::vec::Vec<u8>,
+}
+/// Response containing Titan whitelist allocation details.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetTitan1WhitelistAllocationResponse {
+    /// The allocation details, or null if no allocation exists.
+    #[prost(message, optional, tag = "1")]
+    pub allocation: ::core::option::Option<Titan1WhitelistAllocation>,
+}
+/// Titan whitelist allocation details.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct Titan1WhitelistAllocation {
+    /// Number of NFTs allocated to this address.
+    #[prost(int64, tag = "1")]
+    pub allocation: i64,
+    /// Number of NFTs minted by this address.
+    #[prost(int64, tag = "2")]
+    pub minted: i64,
+    /// Transaction hash of latest allocation update.
+    #[prost(bytes = "vec", tag = "3")]
+    pub tx_hash: ::prost::alloc::vec::Vec<u8>,
+    /// Block number of latest allocation update.
+    #[prost(int64, tag = "4")]
+    pub block_number: i64,
+    /// Timestamp of latest allocation update (Unix seconds).
+    #[prost(int64, tag = "5")]
+    pub updated_at: i64,
+}
+/// Request to get filtered Titan NFTs with pagination.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetFilteredTitan1NftsRequest {
+    /// The optional owner address to filter for.
+    #[prost(bytes = "vec", optional, tag = "1")]
+    pub owner: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
+    /// The optional prover address to filter NFTs delegated to this prover.
+    #[prost(bytes = "vec", optional, tag = "2")]
+    pub prover: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
+    /// The optional delegation status filter. If true, only returns delegated NFTs. If false, only returns non-delegated NFTs. If unspecified, returns both.
+    #[prost(bool, optional, tag = "3")]
+    pub is_delegated: ::core::option::Option<bool>,
+    /// The optional maximum number of NFTs to return (default is 10, maximum is 100).
+    #[prost(uint32, optional, tag = "4")]
+    pub limit: ::core::option::Option<u32>,
+    /// The optional page number to return (default is 1).
+    #[prost(uint32, optional, tag = "5")]
+    pub page: ::core::option::Option<u32>,
+}
+/// Response containing filtered array of Titan NFTs.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetFilteredTitan1NftsResponse {
+    /// Array of NFTs matching the filter criteria.
+    #[prost(message, repeated, tag = "1")]
+    pub nfts: ::prost::alloc::vec::Vec<Titan1Nft>,
+}
+/// Individual Titan NFT details.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct Titan1Nft {
+    /// Unique token identifier.
+    #[prost(string, tag = "1")]
+    pub token_id: ::prost::alloc::string::String,
+    /// Sale ID that the NFT was minted in.
+    #[prost(string, tag = "2")]
+    pub sale_id: ::prost::alloc::string::String,
+    /// Sale type (0=WHITELIST, 1=FCFS, 2=AUCTION).
+    #[prost(int32, tag = "3")]
+    pub sale_type: i32,
+    /// Mint price in USDC.
+    #[prost(string, tag = "4")]
+    pub price: ::prost::alloc::string::String,
+    /// Transaction hash of the mint.
+    #[prost(bytes = "vec", tag = "5")]
+    pub tx_hash: ::prost::alloc::vec::Vec<u8>,
+    /// Block number of the mint.
+    #[prost(int64, tag = "6")]
+    pub block_number: i64,
+    /// Timestamp of the mint (Unix seconds).
+    #[prost(int64, tag = "7")]
+    pub created_at: i64,
+    /// The prover this NFT is delegated to (optional).
+    #[prost(bytes = "vec", optional, tag = "8")]
+    pub delegate: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
+    /// The delegation status of this NFT.
+    #[prost(enumeration = "DelegationStatus", tag = "9")]
+    pub delegation_status: i32,
+    /// Timestamp of the last update (Unix seconds).
+    #[prost(int64, tag = "10")]
+    pub updated_at: i64,
+}
+/// Request to set Titan 1 NFT delegation.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct SetTitan1DelegationRequest {
+    /// The message format of the body.
+    #[prost(enumeration = "MessageFormat", tag = "1")]
+    pub format: i32,
+    /// The signature of the sender.
+    #[prost(bytes = "vec", tag = "2")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the request.
+    #[prost(message, optional, tag = "3")]
+    pub body: ::core::option::Option<SetTitan1DelegationRequestBody>,
+}
+/// Delegation mapping for a specific prover.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct ProverDelegation {
+    /// The prover address to delegate to.
+    #[prost(bytes = "vec", tag = "1")]
+    pub prover: ::prost::alloc::vec::Vec<u8>,
+    /// The token IDs to delegate to this prover.
+    #[prost(string, repeated, tag = "2")]
+    pub token_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+}
+/// Body of set Titan 1 NFT delegation request.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct SetTitan1DelegationRequestBody {
+    /// The account nonce of the sender.
+    #[prost(uint64, tag = "1")]
+    pub nonce: u64,
+    /// The delegations to set, grouped by prover.
+    #[prost(message, repeated, tag = "2")]
+    pub delegations: ::prost::alloc::vec::Vec<ProverDelegation>,
+    /// The domain separator bytes for the request.
+    #[prost(bytes = "vec", tag = "3")]
+    pub domain: ::prost::alloc::vec::Vec<u8>,
+}
+/// Response for set Titan 1 NFT delegation.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct SetTitan1DelegationResponse {
+    /// The transaction hash.
+    #[prost(bytes = "vec", tag = "1")]
+    pub tx_hash: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the response.
+    #[prost(message, optional, tag = "2")]
+    pub body: ::core::option::Option<SetTitan1DelegationResponseBody>,
+}
+/// Per-prover delegation result.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct ProverDelegationResult {
+    /// The prover address.
+    #[prost(bytes = "vec", tag = "1")]
+    pub prover: ::prost::alloc::vec::Vec<u8>,
+    /// The number of tokens successfully processed for this prover.
+    #[prost(uint64, tag = "2")]
+    pub processed: u64,
+    /// The number of tokens automatically accepted for this prover.
+    #[prost(uint64, tag = "3")]
+    pub auto_accepted: u64,
+    /// Whether this prover has auto_accept enabled.
+    #[prost(bool, tag = "4")]
+    pub auto_accept_enabled: bool,
+}
+/// Body of set Titan 1 NFT delegation response.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct SetTitan1DelegationResponseBody {
+    /// The total number of tokens that were successfully processed across all provers.
+    #[prost(uint64, tag = "1")]
+    pub total_processed: u64,
+    /// Per-prover delegation results.
+    #[prost(message, repeated, tag = "2")]
+    pub prover_results: ::prost::alloc::vec::Vec<ProverDelegationResult>,
+}
+/// Request to set Titan 1 delegation limit.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct SetTitan1DelegationLimitRequest {
+    /// The message format of the body.
+    #[prost(enumeration = "MessageFormat", tag = "1")]
+    pub format: i32,
+    /// The signature of the sender.
+    #[prost(bytes = "vec", tag = "2")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the request.
+    #[prost(message, optional, tag = "3")]
+    pub body: ::core::option::Option<SetTitan1DelegationLimitRequestBody>,
+}
+/// Body of set Titan 1 delegation limit request.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct SetTitan1DelegationLimitRequestBody {
+    /// The account nonce of the sender.
+    #[prost(uint64, tag = "1")]
+    pub nonce: u64,
+    /// The prover address to set the limit for.
+    #[prost(bytes = "vec", tag = "2")]
+    pub prover: ::prost::alloc::vec::Vec<u8>,
+    /// The new delegation limit.
+    #[prost(uint64, tag = "3")]
+    pub limit: u64,
+    /// The domain separator bytes for the request.
+    #[prost(bytes = "vec", tag = "4")]
+    pub domain: ::prost::alloc::vec::Vec<u8>,
+}
+/// Response for set Titan 1 delegation limit.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct SetTitan1DelegationLimitResponse {
+    /// The transaction hash.
+    #[prost(bytes = "vec", tag = "1")]
+    pub tx_hash: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the response.
+    #[prost(message, optional, tag = "2")]
+    pub body: ::core::option::Option<SetTitan1DelegationLimitResponseBody>,
+}
+/// Body of set Titan 1 delegation limit response.
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct SetTitan1DelegationLimitResponseBody {}
+/// Request to set Titan 1 auto-accept setting.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct SetTitan1AutoAcceptRequest {
+    /// The message format of the body.
+    #[prost(enumeration = "MessageFormat", tag = "1")]
+    pub format: i32,
+    /// The signature of the sender.
+    #[prost(bytes = "vec", tag = "2")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the request.
+    #[prost(message, optional, tag = "3")]
+    pub body: ::core::option::Option<SetTitan1AutoAcceptRequestBody>,
+}
+/// Body of set Titan 1 auto-accept request.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct SetTitan1AutoAcceptRequestBody {
+    /// The account nonce of the sender.
+    #[prost(uint64, tag = "1")]
+    pub nonce: u64,
+    /// The prover address to set auto-accept for.
+    #[prost(bytes = "vec", tag = "2")]
+    pub prover: ::prost::alloc::vec::Vec<u8>,
+    /// Whether to enable auto-accept.
+    #[prost(bool, tag = "3")]
+    pub auto_accept: bool,
+    /// The domain separator bytes for the request.
+    #[prost(bytes = "vec", tag = "4")]
+    pub domain: ::prost::alloc::vec::Vec<u8>,
+}
+/// Response for set Titan 1 auto-accept.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct SetTitan1AutoAcceptResponse {
+    /// The transaction hash.
+    #[prost(bytes = "vec", tag = "1")]
+    pub tx_hash: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the response.
+    #[prost(message, optional, tag = "2")]
+    pub body: ::core::option::Option<SetTitan1AutoAcceptResponseBody>,
+}
+/// Body of set Titan 1 auto-accept response.
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct SetTitan1AutoAcceptResponseBody {}
+/// Request to get Titan 1 delegation settings.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetTitan1DelegationSettingsRequest {
+    /// The address of the prover.
+    #[prost(bytes = "vec", tag = "1")]
+    pub prover: ::prost::alloc::vec::Vec<u8>,
+}
+/// Response for get Titan 1 delegation settings.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetTitan1DelegationSettingsResponse {
+    /// The prover's current delegation limit.
+    #[prost(uint64, tag = "1")]
+    pub delegation_limit: u64,
+    /// The prover's delegation fee in basis points (1% = 100 bips).
+    #[prost(uint64, tag = "2")]
+    pub delegation_fee_bips: u64,
+    /// Whether the prover has auto-accept enabled.
+    #[prost(bool, tag = "3")]
+    pub auto_accept: bool,
+    /// The number of active delegations (slots currently delegated to this prover).
+    #[prost(uint64, tag = "4")]
+    pub active_delegations: u64,
+    /// The prover's starting price for delegation (e.g., "$20/hour" or "10 USDC/month").
+    #[prost(string, optional, tag = "5")]
+    pub starting_price: ::core::option::Option<::prost::alloc::string::String>,
+}
+/// Request to set Titan 1 delegation settings.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct SetTitan1DelegationSettingsRequest {
+    /// The message format of the body.
+    #[prost(enumeration = "MessageFormat", tag = "1")]
+    pub format: i32,
+    /// The signature of the sender.
+    #[prost(bytes = "vec", tag = "2")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the request.
+    #[prost(message, optional, tag = "3")]
+    pub body: ::core::option::Option<SetTitan1DelegationSettingsRequestBody>,
+}
+/// Body of set Titan 1 delegation settings request.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct SetTitan1DelegationSettingsRequestBody {
+    /// The account nonce of the sender.
+    #[prost(uint64, tag = "1")]
+    pub nonce: u64,
+    /// The prover address to set settings for.
+    #[prost(bytes = "vec", tag = "2")]
+    pub prover: ::prost::alloc::vec::Vec<u8>,
+    /// The domain separator bytes for the request.
+    #[prost(bytes = "vec", tag = "3")]
+    pub domain: ::prost::alloc::vec::Vec<u8>,
+    /// The delegation limit to set.
+    #[prost(uint64, tag = "4")]
+    pub delegation_limit: u64,
+    /// The delegation fee in basis points to set.
+    #[prost(uint64, tag = "5")]
+    pub delegation_fee_bips: u64,
+    /// The auto-accept setting to set.
+    #[prost(bool, tag = "6")]
+    pub auto_accept: bool,
+    /// Optional node pricing fields.
+    #[prost(string, optional, tag = "7")]
+    pub delegation_price: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "8")]
+    pub delegation_currency: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "9")]
+    pub delegation_period: ::core::option::Option<::prost::alloc::string::String>,
+}
+/// Response for set Titan 1 delegation settings.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct SetTitan1DelegationSettingsResponse {
+    /// The transaction hash.
+    #[prost(bytes = "vec", tag = "1")]
+    pub tx_hash: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the response.
+    #[prost(message, optional, tag = "2")]
+    pub body: ::core::option::Option<SetTitan1DelegationSettingsResponseBody>,
+}
+/// Body of set Titan 1 delegation settings response.
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct SetTitan1DelegationSettingsResponseBody {}
+/// Get paginated recent Titan 1 NFT sales.
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct GetTitan1RecentSalesRequest {
+    /// The optional maximum number of sales to return (default is 10, max is 100).
+    #[prost(uint32, optional, tag = "1")]
+    pub limit: ::core::option::Option<u32>,
+    /// The optional page number to return (default is 1).
+    #[prost(uint32, optional, tag = "2")]
+    pub page: ::core::option::Option<u32>,
+}
+/// Response containing Titan 1 recent sales.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetTitan1RecentSalesResponse {
+    /// The recent finalized sales.
+    #[prost(message, repeated, tag = "1")]
+    pub sales: ::prost::alloc::vec::Vec<Titan1Sale>,
+}
+/// Individual Titan 1 NFT Sale details.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct Titan1Sale {
+    /// Unique sale identifier.
+    #[prost(string, tag = "1")]
+    pub sale_id: ::prost::alloc::string::String,
+    /// The sale type (0=WHITELIST, 1=FCFS, 2=AUCTION).
+    #[prost(int32, tag = "2")]
+    pub sale_type: i32,
+    /// The start price of the sale.
+    #[prost(string, tag = "3")]
+    pub start_price: ::prost::alloc::string::String,
+    /// The end price of the sale (always the same as start_price for WHITELIST and FCFS).
+    #[prost(string, tag = "4")]
+    pub end_price: ::prost::alloc::string::String,
+    /// The Unix timestamp of when the sale started.
+    #[prost(int64, tag = "5")]
+    pub start_time: i64,
+    /// The Unix timestamp of when the sale ended (only matters for AUCTION).
+    #[prost(int64, tag = "6")]
+    pub end_time: i64,
+    /// The bath size of the sale.
+    #[prost(uint64, tag = "7")]
+    pub batch_size: u64,
+    /// The amount of Titan 1 NFTs sold during this sale.
+    #[prost(uint64, tag = "8")]
+    pub sold: u64,
+    /// The amount of Titan 1 NFTs out of the batch that were not sold during this sale.
+    #[prost(uint64, tag = "9")]
+    pub unsold: u64,
+    /// Whether the sale is active or not.
+    #[prost(bool, tag = "10")]
+    pub is_active: bool,
+    /// The Unix timestamp of when the sale finalized, if it already ended.
+    #[prost(int64, tag = "11")]
+    pub finalized_at: i64,
+    /// The transaction hash of the sale (when SaleStart event was indexed).
+    #[prost(bytes = "vec", tag = "12")]
+    pub tx_hash: ::prost::alloc::vec::Vec<u8>,
+    /// The block number of the sale.
+    #[prost(int64, tag = "13")]
+    pub block_number: i64,
+    /// The Unix timestamp of when the sale was created.
+    #[prost(int64, tag = "14")]
+    pub created_at: i64,
+}
+/// Get filtered Titan 1 delegates for a prover and owner.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetFilteredTitan1DelegatesRequest {
+    /// The prover address.
+    #[prost(bytes = "vec", tag = "1")]
+    pub prover: ::prost::alloc::vec::Vec<u8>,
+    /// The slot owner address to query delegates for.
+    #[prost(bytes = "vec", tag = "2")]
+    pub slot_owner: ::prost::alloc::vec::Vec<u8>,
+    /// The optional status filter (default shows all statuses).
+    #[prost(enumeration = "DelegateAcceptanceStatus", optional, tag = "3")]
+    pub status_filter: ::core::option::Option<i32>,
+    /// The optional maximum number of delegates to return (default is 10,
+    /// maximum is 100).
+    #[prost(uint32, optional, tag = "4")]
+    pub limit: ::core::option::Option<u32>,
+    /// The optional page number to return (default is 1).
+    #[prost(uint32, optional, tag = "5")]
+    pub page: ::core::option::Option<u32>,
+}
+/// Get filtered Titan 1 delegate requests with flexible filtering options.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetFilteredTitan1DelegateRequestsRequest {
+    /// The optional slot owner address to filter requests for.
+    #[prost(bytes = "vec", optional, tag = "1")]
+    pub slot_owner: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
+    /// The optional prover address to filter requests for.
+    #[prost(bytes = "vec", optional, tag = "2")]
+    pub prover: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
+    /// The optional status filter (default shows all statuses).
+    #[prost(enumeration = "DelegateAcceptanceStatus", optional, tag = "3")]
+    pub status: ::core::option::Option<i32>,
+    /// The optional maximum number of requests to return (default is 10, maximum is 100).
+    #[prost(uint32, optional, tag = "4")]
+    pub limit: ::core::option::Option<u32>,
+    /// The optional page number to return (default is 1).
+    #[prost(uint32, optional, tag = "5")]
+    pub page: ::core::option::Option<u32>,
+}
+/// Response containing filtered Titan 1 delegates.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetFilteredTitan1DelegatesResponse {
+    /// The delegate requests matching the criteria.
+    #[prost(message, repeated, tag = "1")]
+    pub requests: ::prost::alloc::vec::Vec<Titan1DelegateRequest>,
+}
+/// Response containing filtered Titan 1 delegate requests.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetFilteredTitan1DelegateRequestsResponse {
+    /// The delegate requests matching the criteria.
+    #[prost(message, repeated, tag = "1")]
+    pub requests: ::prost::alloc::vec::Vec<Titan1DelegateRequest>,
+}
+/// Get filtered Titan 1 delegate removals with pagination and filtering options.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetFilteredTitan1DelegateRemovalsRequest {
+    /// The optional token ID to filter removals for a specific NFT.
+    #[prost(string, optional, tag = "1")]
+    pub token_id: ::core::option::Option<::prost::alloc::string::String>,
+    /// The optional prover address to filter removals for a specific prover.
+    #[prost(bytes = "vec", optional, tag = "2")]
+    pub prover: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
+    /// The optional slot owner address to filter removals for NFTs owned by this address.
+    #[prost(bytes = "vec", optional, tag = "3")]
+    pub slot_owner: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
+    /// The optional maximum number of removals to return (default is 10, maximum is 100).
+    #[prost(uint32, optional, tag = "4")]
+    pub limit: ::core::option::Option<u32>,
+    /// The optional page number to return (default is 1).
+    #[prost(uint32, optional, tag = "5")]
+    pub page: ::core::option::Option<u32>,
+}
+/// Response containing filtered Titan 1 delegate removals.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetFilteredTitan1DelegateRemovalsResponse {
+    /// The delegate removals matching the criteria.
+    #[prost(message, repeated, tag = "1")]
+    pub removals: ::prost::alloc::vec::Vec<Titan1DelegateRemoval>,
+}
+/// Individual delegate removal record.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct Titan1DelegateRemoval {
+    /// The token ID of the NFT.
+    #[prost(string, tag = "1")]
+    pub token_id: ::prost::alloc::string::String,
+    /// The prover address that was removed as delegate.
+    #[prost(bytes = "vec", tag = "2")]
+    pub prover: ::prost::alloc::vec::Vec<u8>,
+    /// The Unix timestamp of when the removal occurred.
+    #[prost(int64, tag = "3")]
+    pub created_at: i64,
+}
+/// Individual Titan 1 delegate request details.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct Titan1DelegateRequest {
+    /// The token ID.
+    #[prost(string, tag = "1")]
+    pub token_id: ::prost::alloc::string::String,
+    /// The NFT owner address.
+    #[prost(bytes = "vec", tag = "2")]
+    pub owner: ::prost::alloc::vec::Vec<u8>,
+    /// The prover address.
+    #[prost(bytes = "vec", tag = "3")]
+    pub prover: ::prost::alloc::vec::Vec<u8>,
+    /// The acceptance status.
+    #[prost(enumeration = "DelegateAcceptanceStatus", tag = "4")]
+    pub status: i32,
+    /// The last update timestamp (Unix seconds).
+    #[prost(int64, tag = "5")]
+    pub updated_at: i64,
+}
+/// Request to get recent activity for a slot owner.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetTitan1RecentActivityRequest {
+    /// The slot owner address (required).
+    #[prost(bytes = "vec", tag = "1")]
+    pub slot_owner: ::prost::alloc::vec::Vec<u8>,
+    /// The optional prover address filter.
+    #[prost(bytes = "vec", optional, tag = "2")]
+    pub prover: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
+    /// The maximum number of activities to return (default 10, max 100).
+    #[prost(uint32, optional, tag = "3")]
+    pub limit: ::core::option::Option<u32>,
+    /// The page number (default 1).
+    #[prost(uint32, optional, tag = "4")]
+    pub page: ::core::option::Option<u32>,
+}
+/// Response containing recent activity (requests and removals combined).
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetTitan1RecentActivityResponse {
+    /// The list of recent activities.
+    #[prost(message, repeated, tag = "1")]
+    pub activities: ::prost::alloc::vec::Vec<Titan1RecentActivity>,
+}
+/// Individual recent activity record combining requests and removals.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct Titan1RecentActivity {
+    /// Activity type: request or removal.
+    #[prost(enumeration = "TitanDelegateOperation", tag = "1")]
+    pub r#type: i32,
+    /// Status (only for request type).
+    #[prost(enumeration = "DelegateAcceptanceStatus", optional, tag = "2")]
+    pub status: ::core::option::Option<i32>,
+    /// Prover address.
+    #[prost(bytes = "vec", tag = "3")]
+    pub prover: ::prost::alloc::vec::Vec<u8>,
+    /// Prover name (from titan_cloud_provers or accounts).
+    #[prost(string, optional, tag = "4")]
+    pub prover_name: ::core::option::Option<::prost::alloc::string::String>,
+    /// Token ID.
+    #[prost(string, tag = "5")]
+    pub token_id: ::prost::alloc::string::String,
+    /// Timestamp (Unix seconds).
+    #[prost(int64, tag = "6")]
+    pub timestamp: i64,
+    /// Initial prover address (only for removal type with request_id).
+    #[prost(bytes = "vec", optional, tag = "7")]
+    pub initial_prover: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
+    /// Initial prover name (only for removal type with request_id).
+    #[prost(string, optional, tag = "8")]
+    pub initial_prover_name: ::core::option::Option<::prost::alloc::string::String>,
+}
+/// Request to accept Titan 1 delegates.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct AcceptTitan1DelegatesRequest {
+    /// The message format of the body.
+    #[prost(enumeration = "MessageFormat", tag = "1")]
+    pub format: i32,
+    /// The signature of the sender.
+    #[prost(bytes = "vec", tag = "2")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the request.
+    #[prost(message, optional, tag = "3")]
+    pub body: ::core::option::Option<AcceptTitan1DelegatesRequestBody>,
+}
+/// Body of accept Titan 1 delegates request.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct AcceptTitan1DelegatesRequestBody {
+    /// The account nonce of the sender.
+    #[prost(uint64, tag = "1")]
+    pub nonce: u64,
+    /// The domain separator bytes for the request.
+    #[prost(bytes = "vec", tag = "2")]
+    pub domain: ::prost::alloc::vec::Vec<u8>,
+    /// The prover address.
+    #[prost(bytes = "vec", tag = "3")]
+    pub prover: ::prost::alloc::vec::Vec<u8>,
+    /// The token IDs to accept.
+    #[prost(string, repeated, tag = "4")]
+    pub token_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+}
+/// Response for accept Titan 1 delegates.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct AcceptTitan1DelegatesResponse {
+    /// The transaction hash.
+    #[prost(bytes = "vec", tag = "1")]
+    pub tx_hash: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the response.
+    #[prost(message, optional, tag = "2")]
+    pub body: ::core::option::Option<AcceptTitan1DelegatesResponseBody>,
+}
+/// Body of accept Titan 1 delegates response.
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct AcceptTitan1DelegatesResponseBody {
+    /// The number of delegates that were successfully processed.
+    #[prost(uint64, tag = "1")]
+    pub processed: u64,
+}
+/// Request to reject Titan 1 delegates.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct RejectTitan1DelegatesRequest {
+    /// The message format of the body.
+    #[prost(enumeration = "MessageFormat", tag = "1")]
+    pub format: i32,
+    /// The signature of the sender.
+    #[prost(bytes = "vec", tag = "2")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the request.
+    #[prost(message, optional, tag = "3")]
+    pub body: ::core::option::Option<RejectTitan1DelegatesRequestBody>,
+}
+/// Body of reject Titan 1 delegates request.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct RejectTitan1DelegatesRequestBody {
+    /// The account nonce of the sender.
+    #[prost(uint64, tag = "1")]
+    pub nonce: u64,
+    /// The domain separator bytes for the request.
+    #[prost(bytes = "vec", tag = "2")]
+    pub domain: ::prost::alloc::vec::Vec<u8>,
+    /// The prover address.
+    #[prost(bytes = "vec", tag = "3")]
+    pub prover: ::prost::alloc::vec::Vec<u8>,
+    /// The token IDs to reject.
+    #[prost(string, repeated, tag = "4")]
+    pub token_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+}
+/// Response for reject Titan 1 delegates.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct RejectTitan1DelegatesResponse {
+    /// The transaction hash.
+    #[prost(bytes = "vec", tag = "1")]
+    pub tx_hash: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the response.
+    #[prost(message, optional, tag = "2")]
+    pub body: ::core::option::Option<RejectTitan1DelegatesResponseBody>,
+}
+/// Body of reject Titan 1 delegates response.
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct RejectTitan1DelegatesResponseBody {
+    /// The number of delegates that were successfully processed.
+    #[prost(uint64, tag = "1")]
+    pub processed: u64,
+}
+/// Request to remove Titan 1 delegates.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct RemoveTitan1DelegatesRequest {
+    /// The message format of the body.
+    #[prost(enumeration = "MessageFormat", tag = "1")]
+    pub format: i32,
+    /// The signature of the sender.
+    #[prost(bytes = "vec", tag = "2")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the request.
+    #[prost(message, optional, tag = "3")]
+    pub body: ::core::option::Option<RemoveTitan1DelegatesRequestBody>,
+}
+/// Body of remove Titan 1 delegates request.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct RemoveTitan1DelegatesRequestBody {
+    /// The account nonce of the sender.
+    #[prost(uint64, tag = "1")]
+    pub nonce: u64,
+    /// The domain separator bytes for the request.
+    #[prost(bytes = "vec", tag = "2")]
+    pub domain: ::prost::alloc::vec::Vec<u8>,
+    /// The prover address.
+    #[prost(bytes = "vec", tag = "3")]
+    pub prover: ::prost::alloc::vec::Vec<u8>,
+    /// The token IDs to remove delegation from.
+    #[prost(string, repeated, tag = "4")]
+    pub token_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+}
+/// Response for remove Titan 1 delegates.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct RemoveTitan1DelegatesResponse {
+    /// The transaction hash.
+    #[prost(bytes = "vec", tag = "1")]
+    pub tx_hash: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the response.
+    #[prost(message, optional, tag = "2")]
+    pub body: ::core::option::Option<RemoveTitan1DelegatesResponseBody>,
+}
+/// Body of remove Titan 1 delegates response.
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct RemoveTitan1DelegatesResponseBody {
+    /// The number of delegates that were successfully processed.
+    #[prost(uint64, tag = "1")]
+    pub processed: u64,
+}
+/// Request to check if a user is in the Titan whitelist.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct CheckTitanWhitelistRequest {
+    /// The social handle to check (optional if address provided).
+    #[prost(string, optional, tag = "2")]
+    pub social_handle: ::core::option::Option<::prost::alloc::string::String>,
+    /// The address to check (optional if social_handle provided).
+    #[prost(bytes = "vec", optional, tag = "3")]
+    pub address: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
+}
+/// Response for checking Titan whitelist status.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct CheckTitanWhitelistResponse {
+    /// Whether the user is whitelisted.
+    #[prost(bool, tag = "1")]
+    pub is_whitelisted: bool,
+    /// The twitter ID if found and whitelisted.
+    #[prost(string, optional, tag = "2")]
+    pub twitter_id: ::core::option::Option<::prost::alloc::string::String>,
+    /// The address associated with the whitelist entry if one exists.
+    #[prost(bytes = "vec", optional, tag = "3")]
+    pub address: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
+}
+/// Request to get Titan whitelist details for an address.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetTitanWhitelistDetailsRequest {
+    /// The address to check.
+    #[prost(bytes = "vec", tag = "1")]
+    pub address: ::prost::alloc::vec::Vec<u8>,
+}
+/// Response for getting Titan whitelist details.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetTitanWhitelistDetailsResponse {
+    /// The whitelist status (0 = not found, 1 = queue, 2 = whitelist).
+    #[prost(enumeration = "TitanWhitelistStatus", tag = "1")]
+    pub status: i32,
+    /// The timestamp when joined (either queue or whitelist).
+    #[prost(int64, optional, tag = "2")]
+    pub joined_at: ::core::option::Option<i64>,
+    /// The display number (queue position or whitelist display_position).
+    #[prost(int32, optional, tag = "3")]
+    pub display_number: ::core::option::Option<i32>,
+    /// The address associated with the whitelist or queue entry if one exists.
+    #[prost(bytes = "vec", optional, tag = "4")]
+    pub address: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
+}
+/// Request to join the Titan queue.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct JoinTitanQueueRequest {
+    /// The message format of the body.
+    #[prost(enumeration = "MessageFormat", tag = "1")]
+    pub format: i32,
+    /// The signature of the sender.
+    #[prost(bytes = "vec", tag = "2")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the request.
+    #[prost(message, optional, tag = "3")]
+    pub body: ::core::option::Option<JoinTitanQueueRequestBody>,
+}
+/// Body of join Titan queue request.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct JoinTitanQueueRequestBody {
+    /// The account nonce of the sender.
+    #[prost(uint64, tag = "1")]
+    pub nonce: u64,
+    /// The domain separator bytes for the request.
+    #[prost(bytes = "vec", tag = "2")]
+    pub domain: ::prost::alloc::vec::Vec<u8>,
+}
+/// Response for joining the Titan queue.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct JoinTitanQueueResponse {
+    /// The transaction hash.
+    #[prost(bytes = "vec", tag = "1")]
+    pub tx_hash: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the response.
+    #[prost(message, optional, tag = "2")]
+    pub body: ::core::option::Option<JoinTitanQueueResponseBody>,
+}
+/// Body of join Titan queue response.
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct JoinTitanQueueResponseBody {
+    /// The queue position.
+    #[prost(int32, tag = "1")]
+    pub position: i32,
+}
+/// Request to claim a Titan whitelist spot.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct ClaimTitanWhitelistSpotRequest {
+    /// The message format of the body.
+    #[prost(enumeration = "MessageFormat", tag = "1")]
+    pub format: i32,
+    /// The signature of the sender.
+    #[prost(bytes = "vec", tag = "2")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the request.
+    #[prost(message, optional, tag = "3")]
+    pub body: ::core::option::Option<ClaimTitanWhitelistSpotRequestBody>,
+}
+/// Body of claim Titan whitelist spot request.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct ClaimTitanWhitelistSpotRequestBody {
+    /// The account nonce of the sender.
+    #[prost(uint64, tag = "1")]
+    pub nonce: u64,
+    /// The OAuth authorization code from Twitter.
+    #[prost(string, tag = "2")]
+    pub code: ::prost::alloc::string::String,
+    /// The PKCE code verifier for OAuth security.
+    #[prost(string, tag = "3")]
+    pub code_verifier: ::prost::alloc::string::String,
+    /// The OAuth callback URI.
+    #[prost(string, tag = "4")]
+    pub callback_uri: ::prost::alloc::string::String,
+    /// The domain separator bytes for the request.
+    #[prost(bytes = "vec", tag = "5")]
+    pub domain: ::prost::alloc::vec::Vec<u8>,
+}
+/// Response for claiming a Titan whitelist spot.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct ClaimTitanWhitelistSpotResponse {
+    /// The transaction hash.
+    #[prost(bytes = "vec", tag = "1")]
+    pub tx_hash: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the response.
+    #[prost(message, optional, tag = "2")]
+    pub body: ::core::option::Option<ClaimTitanWhitelistSpotResponseBody>,
+}
+/// Body of claim Titan whitelist spot response.
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct ClaimTitanWhitelistSpotResponseBody {
+    /// The whitelist claim position.
+    #[prost(int32, tag = "1")]
+    pub position: i32,
+}
+/// Request to claim a Titan whitelist spot by address.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct ClaimTitanWhitelistSpotByAddressRequest {
+    /// The message format of the body.
+    #[prost(enumeration = "MessageFormat", tag = "1")]
+    pub format: i32,
+    /// The signature of the sender.
+    #[prost(bytes = "vec", tag = "2")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the request.
+    #[prost(message, optional, tag = "3")]
+    pub body: ::core::option::Option<ClaimTitanWhitelistSpotByAddressRequestBody>,
+}
+/// Body of claim Titan whitelist spot by address request.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct ClaimTitanWhitelistSpotByAddressRequestBody {
+    /// The account nonce of the sender.
+    #[prost(uint64, tag = "1")]
+    pub nonce: u64,
+    /// The domain separator bytes for the request.
+    #[prost(bytes = "vec", tag = "2")]
+    pub domain: ::prost::alloc::vec::Vec<u8>,
+}
+/// Response for claiming a Titan whitelist spot by address.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct ClaimTitanWhitelistSpotByAddressResponse {
+    /// The transaction hash.
+    #[prost(bytes = "vec", tag = "1")]
+    pub tx_hash: ::prost::alloc::vec::Vec<u8>,
+    /// The body of the response.
+    #[prost(message, optional, tag = "2")]
+    pub body: ::core::option::Option<ClaimTitanWhitelistSpotByAddressResponseBody>,
+}
+/// Body of claim Titan whitelist spot by address response.
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct ClaimTitanWhitelistSpotByAddressResponseBody {
+    /// The whitelist claim position.
+    #[prost(int32, tag = "1")]
+    pub position: i32,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetProverDelegatedSlotBalanceRequest {
+    /// The address of the prover.
+    #[prost(bytes = "vec", tag = "1")]
+    pub prover: ::prost::alloc::vec::Vec<u8>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct GetProverDelegatedSlotBalanceResponse {
+    /// The prover's delegated slot balance (self delegated + externally delegated slots).
+    #[prost(uint64, tag = "1")]
+    pub delegated_slot_balance: u64,
+    /// The number of slots that were delegated by this prover's owner.
+    #[prost(uint64, tag = "2")]
+    pub self_delegated_slots: u64,
+    /// The number of slots that were delegated by slot holders that are not the prover owner.
+    #[prost(uint64, tag = "3")]
+    pub externally_delegated_slots: u64,
+    /// The maximum number of slots that can be delegated to this prover.
+    #[prost(uint64, tag = "4")]
+    pub delegation_limit: u64,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetSlotDelegationDetailsRequest {
+    /// The address of the slot owner.
+    #[prost(bytes = "vec", tag = "1")]
+    pub slot_owner: ::prost::alloc::vec::Vec<u8>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct GetSlotDelegationDetailsResponse {
+    /// The slot owner's delegation details.
+    #[prost(message, optional, tag = "1")]
+    pub delegation_details: ::core::option::Option<DelegationDetails>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct DelegationDetails {
+    /// The number of slots owned.
+    #[prost(uint64, tag = "1")]
+    pub slots_owned: u64,
+    /// The number of slots with no delegate.
+    #[prost(uint64, tag = "2")]
+    pub undelegated_slots: u64,
+    /// The number of slots with a delegate.
+    #[prost(uint64, tag = "3")]
+    pub delegated_slots: u64,
+    /// The number of pending delegations (delegate requests with PENDING status).
+    #[prost(uint64, tag = "4")]
+    pub pending_delegations: u64,
+    /// The number of delegated slots that are self delegated (delegate is the owner's prover).
+    #[prost(uint64, tag = "5")]
+    pub self_delegated_slots: u64,
+    /// The number of delegated slots that are externally delegated (delegate is someone else's prover).
+    #[prost(uint64, tag = "6")]
+    pub externally_delegated_slots: u64,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetTitan1DelegationLimitRequest {
+    /// The address of the prover.
+    #[prost(bytes = "vec", tag = "1")]
+    pub prover: ::prost::alloc::vec::Vec<u8>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct GetTitan1DelegationLimitResponse {
+    /// The prover's current delegation limit.
+    #[prost(uint64, tag = "1")]
+    pub delegation_limit: u64,
+}
+/// Request to add a referral visit for Titan creator tracking.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct AddRefVisitRequest {
+    /// The visitor ID (format: "vid_{nanoid}_end").
+    #[prost(string, tag = "1")]
+    pub visitor_id: ::prost::alloc::string::String,
+    /// The creator code.
+    #[prost(string, tag = "2")]
+    pub creator_code: ::prost::alloc::string::String,
+}
+/// Response for adding a referral visit.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct AddRefVisitResponse {
+    /// The cryptographically signed visit ID.
+    #[prost(string, tag = "1")]
+    pub signed_visit_id: ::prost::alloc::string::String,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetProverDelegateRequestCountRequest {
+    /// The address of the prover.
+    #[prost(bytes = "vec", tag = "1")]
+    pub prover: ::prost::alloc::vec::Vec<u8>,
+    /// The optional status filter (default shows all statuses).
+    #[prost(enumeration = "DelegateAcceptanceStatus", optional, tag = "2")]
+    pub status_filter: ::core::option::Option<i32>,
+}
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct GetProverDelegateRequestCountResponse {
+    /// The delegate request count that matched the filter criteria.
+    #[prost(uint64, tag = "1")]
+    pub count: u64,
+}
+/// Individual Titan cloud prover details.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct TitanCloudProver {
+    /// The prover address.
+    #[prost(bytes = "vec", tag = "1")]
+    pub prover: ::prost::alloc::vec::Vec<u8>,
+    /// The cloud prover name.
+    #[prost(string, optional, tag = "2")]
+    pub name: ::core::option::Option<::prost::alloc::string::String>,
+    /// The starting price for the cloud prover.
+    #[prost(string, optional, tag = "3")]
+    pub starting_price: ::core::option::Option<::prost::alloc::string::String>,
+    /// The delegator fee in basis points (0-10000).
+    #[prost(string, tag = "4")]
+    pub delegator_fee_bips: ::prost::alloc::string::String,
+    /// The maximum delegation limit for this cloud prover.
+    #[prost(int64, tag = "5")]
+    pub delegate_limit: i64,
+    /// The website URL for the cloud prover.
+    #[prost(string, optional, tag = "6")]
+    pub website: ::core::option::Option<::prost::alloc::string::String>,
+    /// The Unix timestamp when the cloud prover joined.
+    #[prost(int64, tag = "7")]
+    pub joined_at: i64,
+    /// Whether the cloud prover automatically accepts delegation requests.
+    #[prost(bool, tag = "8")]
+    pub auto_accept: bool,
+    /// The number of remaining delegation slots available (delegate_limit - active delegations).
+    #[prost(int64, tag = "9")]
+    pub spots_remaining: i64,
+}
+/// Request to get Titan cloud provers with pagination.
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct GetTitanCloudProversRequest {
+    /// The optional maximum number of cloud provers to return (default is 10, maximum is 100).
+    #[prost(uint32, optional, tag = "1")]
+    pub limit: ::core::option::Option<u32>,
+    /// The optional page number to return (default is 1).
+    #[prost(uint32, optional, tag = "2")]
+    pub page: ::core::option::Option<u32>,
+}
+/// Response containing Titan cloud provers.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetTitanCloudProversResponse {
+    /// Array of cloud provers.
+    #[prost(message, repeated, tag = "1")]
+    pub cloud_provers: ::prost::alloc::vec::Vec<TitanCloudProver>,
+}
+/// Request to get filtered Titan 1 token IDs for the authenticated user.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetFilteredTitan1IdsRequest {
+    /// Optional prover address to filter by delegate.
+    #[prost(bytes = "vec", optional, tag = "1")]
+    pub prover_address: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
+    /// Optional delegation status to filter by.
+    #[prost(enumeration = "DelegationStatus", optional, tag = "2")]
+    pub delegation_status: ::core::option::Option<i32>,
+}
+/// Response containing filtered Titan 1 token IDs.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetFilteredTitan1IdsResponse {
+    /// Array of token IDs.
+    #[prost(string, repeated, tag = "1")]
+    pub token_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+}
+/// Request to get filtered Titan 1 slots grouped by prover and status.
+///
+/// Owner is extracted from JWT authentication.
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, PartialEq, ::prost::Message)]
+pub struct GetFilteredTitan1SlotsRequest {}
+/// Response containing Titan 1 slots grouped by prover and delegation status.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct GetFilteredTitan1SlotsResponse {
+    /// Array of provers with their slots.
+    #[prost(message, repeated, tag = "1")]
+    pub provers: ::prost::alloc::vec::Vec<ProverSlots>,
+}
+/// Represents slots for a specific prover, grouped by delegation status.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct ProverSlots {
+    /// The prover's address.
+    #[prost(bytes = "vec", tag = "1")]
+    pub prover: ::prost::alloc::vec::Vec<u8>,
+    /// The prover's name (if available).
+    #[prost(string, optional, tag = "2")]
+    pub name: ::core::option::Option<::prost::alloc::string::String>,
+    /// Total number of slots for this prover.
+    #[prost(int64, tag = "3")]
+    pub total: i64,
+    /// Slots grouped by delegation status.
+    #[prost(message, repeated, tag = "4")]
+    pub slots: ::prost::alloc::vec::Vec<SlotStatusGroup>,
+}
+/// Represents a group of slots with the same delegation status.
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, ::prost::Message)]
+pub struct SlotStatusGroup {
+    /// The delegation status.
+    #[prost(enumeration = "DelegationStatus", tag = "1")]
+    pub status: i32,
+    /// Total number of slots with this status.
+    #[prost(int64, tag = "2")]
+    pub total: i64,
+    /// Array of token IDs with this status.
+    #[prost(string, repeated, tag = "3")]
+    pub token_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+}
 /// Format to help decode signature in backend.
 #[derive(
     serde::Serialize,
@@ -1955,6 +3550,8 @@ pub enum TransactionVariant {
     DelegateVariant = 5,
     TransferVariant = 6,
     WithdrawVariant = 7,
+    UpdateStakerFeeVariant = 8,
+    UpdateDelegatorFeeVariant = 9,
 }
 impl TransactionVariant {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -1971,6 +3568,8 @@ impl TransactionVariant {
             Self::DelegateVariant => "DELEGATE_VARIANT",
             Self::TransferVariant => "TRANSFER_VARIANT",
             Self::WithdrawVariant => "WITHDRAW_VARIANT",
+            Self::UpdateStakerFeeVariant => "UPDATE_STAKER_FEE_VARIANT",
+            Self::UpdateDelegatorFeeVariant => "UPDATE_DELEGATOR_FEE_VARIANT",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -1984,6 +3583,125 @@ impl TransactionVariant {
             "DELEGATE_VARIANT" => Some(Self::DelegateVariant),
             "TRANSFER_VARIANT" => Some(Self::TransferVariant),
             "WITHDRAW_VARIANT" => Some(Self::WithdrawVariant),
+            "UPDATE_STAKER_FEE_VARIANT" => Some(Self::UpdateStakerFeeVariant),
+            "UPDATE_DELEGATOR_FEE_VARIANT" => Some(Self::UpdateDelegatorFeeVariant),
+            _ => None,
+        }
+    }
+}
+/// Sorting options for staker leaderboard.
+#[derive(
+    serde::Serialize,
+    serde::Deserialize,
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    ::prost::Enumeration,
+)]
+#[repr(i32)]
+pub enum StakerLeaderboardSort {
+    UnspecifiedStakerLeaderboardSort = 0,
+    /// Sort by staked amount descending (default).
+    StakedAmountDesc = 1,
+    /// Sort by staked amount ascending.
+    StakedAmountAsc = 2,
+    /// Sort by staked since descending (most recent first).
+    StakedSinceDesc = 3,
+    /// Sort by staked since ascending (oldest first).
+    StakedSinceAsc = 4,
+    /// Sort by prover address alphabetically.
+    ProverAddressAsc = 5,
+    /// Sort by prover address reverse alphabetically.
+    ProverAddressDesc = 6,
+}
+impl StakerLeaderboardSort {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::UnspecifiedStakerLeaderboardSort => "UNSPECIFIED_STAKER_LEADERBOARD_SORT",
+            Self::StakedAmountDesc => "STAKED_AMOUNT_DESC",
+            Self::StakedAmountAsc => "STAKED_AMOUNT_ASC",
+            Self::StakedSinceDesc => "STAKED_SINCE_DESC",
+            Self::StakedSinceAsc => "STAKED_SINCE_ASC",
+            Self::ProverAddressAsc => "PROVER_ADDRESS_ASC",
+            Self::ProverAddressDesc => "PROVER_ADDRESS_DESC",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "UNSPECIFIED_STAKER_LEADERBOARD_SORT" => Some(Self::UnspecifiedStakerLeaderboardSort),
+            "STAKED_AMOUNT_DESC" => Some(Self::StakedAmountDesc),
+            "STAKED_AMOUNT_ASC" => Some(Self::StakedAmountAsc),
+            "STAKED_SINCE_DESC" => Some(Self::StakedSinceDesc),
+            "STAKED_SINCE_ASC" => Some(Self::StakedSinceAsc),
+            "PROVER_ADDRESS_ASC" => Some(Self::ProverAddressAsc),
+            "PROVER_ADDRESS_DESC" => Some(Self::ProverAddressDesc),
+            _ => None,
+        }
+    }
+}
+/// Date range enum for filtering historical data.
+#[derive(
+    serde::Serialize,
+    serde::Deserialize,
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    ::prost::Enumeration,
+)]
+#[repr(i32)]
+pub enum DateRange {
+    /// Unspecified date range.
+    UnspecifiedDateRange = 0,
+    /// One week range.
+    OneWeek = 1,
+    /// One month range.
+    OneMonth = 2,
+    /// Three months range.
+    ThreeMonths = 3,
+    /// Year to date range.
+    YearToDate = 4,
+    /// All available data range.
+    All = 5,
+}
+impl DateRange {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::UnspecifiedDateRange => "UNSPECIFIED_DATE_RANGE",
+            Self::OneWeek => "ONE_WEEK",
+            Self::OneMonth => "ONE_MONTH",
+            Self::ThreeMonths => "THREE_MONTHS",
+            Self::YearToDate => "YEAR_TO_DATE",
+            Self::All => "ALL",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "UNSPECIFIED_DATE_RANGE" => Some(Self::UnspecifiedDateRange),
+            "ONE_WEEK" => Some(Self::OneWeek),
+            "ONE_MONTH" => Some(Self::OneMonth),
+            "THREE_MONTHS" => Some(Self::ThreeMonths),
+            "YEAR_TO_DATE" => Some(Self::YearToDate),
+            "ALL" => Some(Self::All),
             _ => None,
         }
     }
@@ -2065,7 +3783,6 @@ pub enum FulfillmentStrategy {
     /// fulfill requests.
     Auction = 3,
 }
-
 impl FulfillmentStrategy {
     /// String value of the enum field names used in the ProtoBuf definition.
     ///
@@ -2090,7 +3807,6 @@ impl FulfillmentStrategy {
         }
     }
 }
-
 /// The different fulfillment statuses that a request can be in.
 #[derive(
     serde::Serialize,
@@ -2116,8 +3832,12 @@ pub enum FulfillmentStatus {
     Fulfilled = 3,
     /// The request cannot be fulfilled.
     Unfulfillable = 4,
+    /// The Clear was soft-reverted by the vApp STF. Terminal; no balance impact.
+    Reverted = 5,
+    /// Request sat at ASSIGNED past its deadline without the prover ever submitting
+    /// a proof. Terminal; STF never received a Clear for it. No balance impact.
+    Expired = 6,
 }
-
 impl FulfillmentStatus {
     /// String value of the enum field names used in the ProtoBuf definition.
     ///
@@ -2130,6 +3850,8 @@ impl FulfillmentStatus {
             Self::Assigned => "ASSIGNED",
             Self::Fulfilled => "FULFILLED",
             Self::Unfulfillable => "UNFULFILLABLE",
+            Self::Reverted => "REVERTED",
+            Self::Expired => "EXPIRED",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -2140,6 +3862,8 @@ impl FulfillmentStatus {
             "ASSIGNED" => Some(Self::Assigned),
             "FULFILLED" => Some(Self::Fulfilled),
             "UNFULFILLABLE" => Some(Self::Unfulfillable),
+            "REVERTED" => Some(Self::Reverted),
+            "EXPIRED" => Some(Self::Expired),
             _ => None,
         }
     }
@@ -2731,6 +4455,9 @@ pub enum ProofRequestError {
     /// The public values hash provided in the request does not match the hash from the execution
     /// oracle.
     PublicValuesMismatch = 4,
+    /// The proof failed verification (e.g., invalid proof, public values hash mismatch during
+    /// verification).
+    VerificationFailure = 5,
 }
 impl ProofRequestError {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2744,6 +4471,7 @@ impl ProofRequestError {
             Self::VerificationKeyMismatch => "VERIFICATION_KEY_MISMATCH",
             Self::UnknownFailure => "UNKNOWN_FAILURE",
             Self::PublicValuesMismatch => "PUBLIC_VALUES_MISMATCH",
+            Self::VerificationFailure => "VERIFICATION_FAILURE",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -2754,6 +4482,240 @@ impl ProofRequestError {
             "VERIFICATION_KEY_MISMATCH" => Some(Self::VerificationKeyMismatch),
             "UNKNOWN_FAILURE" => Some(Self::UnknownFailure),
             "PUBLIC_VALUES_MISMATCH" => Some(Self::PublicValuesMismatch),
+            "VERIFICATION_FAILURE" => Some(Self::VerificationFailure),
+            _ => None,
+        }
+    }
+}
+/// The different types of reward epoch status.
+#[derive(
+    serde::Serialize,
+    serde::Deserialize,
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    ::prost::Enumeration,
+)]
+#[repr(i32)]
+pub enum EpochStatus {
+    UnspecifiedEpochStatus = 0,
+    /// The epoch is currently active.
+    Active = 1,
+    /// The epoch just ended is currently being finalized.
+    Finalizing = 2,
+    /// The epoch has finalized.
+    Finalized = 3,
+}
+impl EpochStatus {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::UnspecifiedEpochStatus => "UNSPECIFIED_EPOCH_STATUS",
+            Self::Active => "ACTIVE",
+            Self::Finalizing => "FINALIZING",
+            Self::Finalized => "FINALIZED",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "UNSPECIFIED_EPOCH_STATUS" => Some(Self::UnspecifiedEpochStatus),
+            "ACTIVE" => Some(Self::Active),
+            "FINALIZING" => Some(Self::Finalizing),
+            "FINALIZED" => Some(Self::Finalized),
+            _ => None,
+        }
+    }
+}
+/// The different Titan whitelist statuses.
+#[derive(
+    serde::Serialize,
+    serde::Deserialize,
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    ::prost::Enumeration,
+)]
+#[repr(i32)]
+pub enum TitanWhitelistStatus {
+    UnspecifiedStatus = 0,
+    InQueue = 1,
+    InWhitelist = 2,
+    Promoted = 3,
+}
+impl TitanWhitelistStatus {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::UnspecifiedStatus => "UNSPECIFIED_STATUS",
+            Self::InQueue => "IN_QUEUE",
+            Self::InWhitelist => "IN_WHITELIST",
+            Self::Promoted => "PROMOTED",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "UNSPECIFIED_STATUS" => Some(Self::UnspecifiedStatus),
+            "IN_QUEUE" => Some(Self::InQueue),
+            "IN_WHITELIST" => Some(Self::InWhitelist),
+            "PROMOTED" => Some(Self::Promoted),
+            _ => None,
+        }
+    }
+}
+/// Status of delegate acceptance by prover.
+#[derive(
+    serde::Serialize,
+    serde::Deserialize,
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    ::prost::Enumeration,
+)]
+#[repr(i32)]
+pub enum DelegateAcceptanceStatus {
+    Unspecified = 0,
+    Pending = 1,
+    Accepted = 2,
+    Rejected = 3,
+}
+impl DelegateAcceptanceStatus {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::Unspecified => "DELEGATE_ACCEPTANCE_STATUS_UNSPECIFIED",
+            Self::Pending => "DELEGATE_ACCEPTANCE_STATUS_PENDING",
+            Self::Accepted => "DELEGATE_ACCEPTANCE_STATUS_ACCEPTED",
+            Self::Rejected => "DELEGATE_ACCEPTANCE_STATUS_REJECTED",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "DELEGATE_ACCEPTANCE_STATUS_UNSPECIFIED" => Some(Self::Unspecified),
+            "DELEGATE_ACCEPTANCE_STATUS_PENDING" => Some(Self::Pending),
+            "DELEGATE_ACCEPTANCE_STATUS_ACCEPTED" => Some(Self::Accepted),
+            "DELEGATE_ACCEPTANCE_STATUS_REJECTED" => Some(Self::Rejected),
+            _ => None,
+        }
+    }
+}
+/// Type of delegate operation (request or removal).
+#[derive(
+    serde::Serialize,
+    serde::Deserialize,
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    ::prost::Enumeration,
+)]
+#[repr(i32)]
+pub enum TitanDelegateOperation {
+    Unspecified = 0,
+    Request = 1,
+    Removal = 2,
+}
+impl TitanDelegateOperation {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::Unspecified => "TITAN_DELEGATE_OPERATION_UNSPECIFIED",
+            Self::Request => "TITAN_DELEGATE_OPERATION_REQUEST",
+            Self::Removal => "TITAN_DELEGATE_OPERATION_REMOVAL",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "TITAN_DELEGATE_OPERATION_UNSPECIFIED" => Some(Self::Unspecified),
+            "TITAN_DELEGATE_OPERATION_REQUEST" => Some(Self::Request),
+            "TITAN_DELEGATE_OPERATION_REMOVAL" => Some(Self::Removal),
+            _ => None,
+        }
+    }
+}
+/// The delegation status of a Titan NFT.
+#[derive(
+    serde::Serialize,
+    serde::Deserialize,
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    ::prost::Enumeration,
+)]
+#[repr(i32)]
+pub enum DelegationStatus {
+    /// The Titan NFT has never been delegated.
+    UnspecifiedDelegationStatus = 0,
+    /// The Titan NFT delegation request is awaiting acceptance by the cloud prover.
+    Pending = 1,
+    /// The Titan NFT is actively delegated (delegate field is set).
+    Delegated = 2,
+    /// The cloud prover rejected the Titan NFT delegation request.
+    Rejected = 3,
+    /// The cloud prover removed the delegation.
+    Removed = 4,
+}
+impl DelegationStatus {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::UnspecifiedDelegationStatus => "UNSPECIFIED_DELEGATION_STATUS",
+            Self::Pending => "PENDING",
+            Self::Delegated => "DELEGATED",
+            Self::Rejected => "REJECTED",
+            Self::Removed => "REMOVED",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "UNSPECIFIED_DELEGATION_STATUS" => Some(Self::UnspecifiedDelegationStatus),
+            "PENDING" => Some(Self::Pending),
+            "DELEGATED" => Some(Self::Delegated),
+            "REJECTED" => Some(Self::Rejected),
+            "REMOVED" => Some(Self::Removed),
             _ => None,
         }
     }

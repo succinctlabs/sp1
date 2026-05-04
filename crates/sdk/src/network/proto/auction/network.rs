@@ -6,10 +6,10 @@ pub mod prover_network_client {
         dead_code,
         missing_docs,
         clippy::wildcard_imports,
-        clippy::let_unit_value,
+        clippy::let_unit_value
     )]
-    use tonic::codegen::*;
     use tonic::codegen::http::Uri;
+    use tonic::codegen::*;
     #[derive(Debug, Clone)]
     pub struct ProverNetworkClient<T> {
         inner: tonic::client::Grpc<T>,
@@ -53,9 +53,8 @@ pub mod prover_network_client {
                     <T as tonic::client::GrpcService<tonic::body::BoxBody>>::ResponseBody,
                 >,
             >,
-            <T as tonic::codegen::Service<
-                http::Request<tonic::body::BoxBody>,
-            >>::Error: Into<StdError> + std::marker::Send + std::marker::Sync,
+            <T as tonic::codegen::Service<http::Request<tonic::body::BoxBody>>>::Error:
+                Into<StdError> + std::marker::Send + std::marker::Sync,
         {
             ProverNetworkClient::new(InterceptedService::new(inner, interceptor))
         }
@@ -98,21 +97,13 @@ pub mod prover_network_client {
             tonic::Response<super::super::types::RequestProofResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/RequestProof",
-            );
+            let path = http::uri::PathAndQuery::from_static("/network.ProverNetwork/RequestProof");
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("network.ProverNetwork", "RequestProof"));
+            req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "RequestProof"));
             self.inner.unary(req, path, codec).await
         }
         /// Fulfills a proof request. Only callable by the assigned fulfiller.
@@ -123,21 +114,13 @@ pub mod prover_network_client {
             tonic::Response<super::super::types::FulfillProofResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/FulfillProof",
-            );
+            let path = http::uri::PathAndQuery::from_static("/network.ProverNetwork/FulfillProof");
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("network.ProverNetwork", "FulfillProof"));
+            req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "FulfillProof"));
             self.inner.unary(req, path, codec).await
         }
         /// Executes a proof request. Only callable by the execution oracle.
@@ -148,21 +131,13 @@ pub mod prover_network_client {
             tonic::Response<super::super::types::ExecuteProofResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/ExecuteProof",
-            );
+            let path = http::uri::PathAndQuery::from_static("/network.ProverNetwork/ExecuteProof");
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("network.ProverNetwork", "ExecuteProof"));
+            req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "ExecuteProof"));
             self.inner.unary(req, path, codec).await
         }
         /// Fails fulfillment. Only callable by the assigned fulfiller.
@@ -173,18 +148,12 @@ pub mod prover_network_client {
             tonic::Response<super::super::types::FailFulfillmentResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/FailFulfillment",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/FailFulfillment");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("network.ProverNetwork", "FailFulfillment"));
@@ -198,161 +167,109 @@ pub mod prover_network_client {
             tonic::Response<super::super::types::CancelRequestResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/CancelRequest",
-            );
+            let path = http::uri::PathAndQuery::from_static("/network.ProverNetwork/CancelRequest");
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("network.ProverNetwork", "CancelRequest"));
+            req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "CancelRequest"));
             self.inner.unary(req, path, codec).await
         }
         /// Get the status of a proof request.
         pub async fn get_proof_request_status(
             &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::GetProofRequestStatusRequest,
-            >,
+            request: impl tonic::IntoRequest<super::super::types::GetProofRequestStatusRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetProofRequestStatusResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/network.ProverNetwork/GetProofRequestStatus",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(
-                    GrpcMethod::new("network.ProverNetwork", "GetProofRequestStatus"),
-                );
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetProofRequestStatus"));
             self.inner.unary(req, path, codec).await
         }
         /// Get the details of a proof request.
         pub async fn get_proof_request_details(
             &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::GetProofRequestDetailsRequest,
-            >,
+            request: impl tonic::IntoRequest<super::super::types::GetProofRequestDetailsRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetProofRequestDetailsResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/network.ProverNetwork/GetProofRequestDetails",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(
-                    GrpcMethod::new("network.ProverNetwork", "GetProofRequestDetails"),
-                );
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetProofRequestDetails"));
             self.inner.unary(req, path, codec).await
         }
         /// Get the proof requests that meet the filter criteria.
         pub async fn get_filtered_proof_requests(
             &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::GetFilteredProofRequestsRequest,
-            >,
+            request: impl tonic::IntoRequest<super::super::types::GetFilteredProofRequestsRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetFilteredProofRequestsResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/network.ProverNetwork/GetFilteredProofRequests",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(
-                    GrpcMethod::new("network.ProverNetwork", "GetFilteredProofRequests"),
-                );
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetFilteredProofRequests"));
             self.inner.unary(req, path, codec).await
         }
         /// Subscribe to proof requests that meet the filter criteria.
         pub async fn subscribe_proof_requests(
             &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::GetFilteredProofRequestsRequest,
-            >,
+            request: impl tonic::IntoRequest<super::super::types::GetFilteredProofRequestsRequest>,
         ) -> std::result::Result<
             tonic::Response<tonic::codec::Streaming<super::super::types::ProofRequest>>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/network.ProverNetwork/SubscribeProofRequests",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(
-                    GrpcMethod::new("network.ProverNetwork", "SubscribeProofRequests"),
-                );
+                .insert(GrpcMethod::new("network.ProverNetwork", "SubscribeProofRequests"));
             self.inner.server_streaming(req, path, codec).await
         }
         /// Search for proof requests, programs, and requesters.
         pub async fn get_search_results(
             &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::GetSearchResultsRequest,
-            >,
+            request: impl tonic::IntoRequest<super::super::types::GetSearchResultsRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetSearchResultsResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/GetSearchResults",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetSearchResults");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("network.ProverNetwork", "GetSearchResults"));
@@ -361,83 +278,56 @@ pub mod prover_network_client {
         /// Get metrics for proof requests.
         pub async fn get_proof_request_metrics(
             &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::GetProofRequestMetricsRequest,
-            >,
+            request: impl tonic::IntoRequest<super::super::types::GetProofRequestMetricsRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetProofRequestMetricsResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/network.ProverNetwork/GetProofRequestMetrics",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(
-                    GrpcMethod::new("network.ProverNetwork", "GetProofRequestMetrics"),
-                );
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetProofRequestMetrics"));
             self.inner.unary(req, path, codec).await
         }
         /// Get time series data for proof requests.
         pub async fn get_proof_request_graph(
             &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::GetProofRequestGraphRequest,
-            >,
+            request: impl tonic::IntoRequest<super::super::types::GetProofRequestGraphRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetProofRequestGraphResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/GetProofRequestGraph",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetProofRequestGraph");
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(
-                    GrpcMethod::new("network.ProverNetwork", "GetProofRequestGraph"),
-                );
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetProofRequestGraph"));
             self.inner.unary(req, path, codec).await
         }
         /// Get analytics graphs for proof requests.
         pub async fn get_analytics_graphs(
             &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::GetAnalyticsGraphsRequest,
-            >,
+            request: impl tonic::IntoRequest<super::super::types::GetAnalyticsGraphsRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetAnalyticsGraphsResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/GetAnalyticsGraphs",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetAnalyticsGraphs");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("network.ProverNetwork", "GetAnalyticsGraphs"));
@@ -446,25 +336,17 @@ pub mod prover_network_client {
         /// Get overview graphs for proof requests.
         pub async fn get_overview_graphs(
             &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::GetOverviewGraphsRequest,
-            >,
+            request: impl tonic::IntoRequest<super::super::types::GetOverviewGraphsRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetOverviewGraphsResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/GetOverviewGraphs",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetOverviewGraphs");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("network.ProverNetwork", "GetOverviewGraphs"));
@@ -473,30 +355,21 @@ pub mod prover_network_client {
         /// Get network proof request parameters.
         pub async fn get_proof_request_params(
             &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::GetProofRequestParamsRequest,
-            >,
+            request: impl tonic::IntoRequest<super::super::types::GetProofRequestParamsRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetProofRequestParamsResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/network.ProverNetwork/GetProofRequestParams",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(
-                    GrpcMethod::new("network.ProverNetwork", "GetProofRequestParams"),
-                );
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetProofRequestParams"));
             self.inner.unary(req, path, codec).await
         }
         /// Get the nonce of the account.
@@ -507,21 +380,13 @@ pub mod prover_network_client {
             tonic::Response<super::super::types::GetNonceResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/GetNonce",
-            );
+            let path = http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetNonce");
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("network.ProverNetwork", "GetNonce"));
+            req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "GetNonce"));
             self.inner.unary(req, path, codec).await
         }
         /// Set the name of the account.
@@ -532,21 +397,14 @@ pub mod prover_network_client {
             tonic::Response<super::super::types::SetAccountNameResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/SetAccountName",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/SetAccountName");
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("network.ProverNetwork", "SetAccountName"));
+            req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "SetAccountName"));
             self.inner.unary(req, path, codec).await
         }
         /// Get the name of the account.
@@ -557,45 +415,30 @@ pub mod prover_network_client {
             tonic::Response<super::super::types::GetAccountNameResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/GetAccountName",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetAccountName");
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("network.ProverNetwork", "GetAccountName"));
+            req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "GetAccountName"));
             self.inner.unary(req, path, codec).await
         }
         /// Get whether the account has signed the terms.
         pub async fn get_terms_signature(
             &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::GetTermsSignatureRequest,
-            >,
+            request: impl tonic::IntoRequest<super::super::types::GetTermsSignatureRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetTermsSignatureResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/GetTermsSignature",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetTermsSignature");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("network.ProverNetwork", "GetTermsSignature"));
@@ -604,25 +447,17 @@ pub mod prover_network_client {
         /// Set whether the account has signed the terms.
         pub async fn set_terms_signature(
             &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::SetTermsSignatureRequest,
-            >,
+            request: impl tonic::IntoRequest<super::super::types::SetTermsSignatureRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::SetTermsSignatureResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/SetTermsSignature",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/SetTermsSignature");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("network.ProverNetwork", "SetTermsSignature"));
@@ -636,21 +471,13 @@ pub mod prover_network_client {
             tonic::Response<super::super::types::GetAccountResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/GetAccount",
-            );
+            let path = http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetAccount");
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("network.ProverNetwork", "GetAccount"));
+            req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "GetAccount"));
             self.inner.unary(req, path, codec).await
         }
         /// Get the owner of an account. Returns itself if the account is not delegated.
@@ -661,21 +488,13 @@ pub mod prover_network_client {
             tonic::Response<super::super::types::GetOwnerResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/GetOwner",
-            );
+            let path = http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetOwner");
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("network.ProverNetwork", "GetOwner"));
+            req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "GetOwner"));
             self.inner.unary(req, path, codec).await
         }
         /// Get metadata about a program.
@@ -686,21 +505,13 @@ pub mod prover_network_client {
             tonic::Response<super::super::types::GetProgramResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/GetProgram",
-            );
+            let path = http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetProgram");
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("network.ProverNetwork", "GetProgram"));
+            req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "GetProgram"));
             self.inner.unary(req, path, codec).await
         }
         /// Create a new program. Must be called before requesting proofs.
@@ -711,21 +522,13 @@ pub mod prover_network_client {
             tonic::Response<super::super::types::CreateProgramResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/CreateProgram",
-            );
+            let path = http::uri::PathAndQuery::from_static("/network.ProverNetwork/CreateProgram");
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("network.ProverNetwork", "CreateProgram"));
+            req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "CreateProgram"));
             self.inner.unary(req, path, codec).await
         }
         /// Set the name of the program. Only callable by the owner.
@@ -736,21 +539,14 @@ pub mod prover_network_client {
             tonic::Response<super::super::types::SetProgramNameResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/SetProgramName",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/SetProgramName");
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("network.ProverNetwork", "SetProgramName"));
+            req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "SetProgramName"));
             self.inner.unary(req, path, codec).await
         }
         /// Get the available balance of an account.
@@ -761,103 +557,68 @@ pub mod prover_network_client {
             tonic::Response<super::super::types::GetBalanceResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/GetBalance",
-            );
+            let path = http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetBalance");
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("network.ProverNetwork", "GetBalance"));
+            req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "GetBalance"));
             self.inner.unary(req, path, codec).await
         }
         /// Get the balance logs that meet the filter criteria.
         pub async fn get_filtered_balance_logs(
             &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::GetFilteredBalanceLogsRequest,
-            >,
+            request: impl tonic::IntoRequest<super::super::types::GetFilteredBalanceLogsRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetFilteredBalanceLogsResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/network.ProverNetwork/GetFilteredBalanceLogs",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(
-                    GrpcMethod::new("network.ProverNetwork", "GetFilteredBalanceLogs"),
-                );
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetFilteredBalanceLogs"));
             self.inner.unary(req, path, codec).await
         }
         /// Get the latest processed block in the bridge.
         pub async fn get_latest_bridge_block(
             &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::GetLatestBridgeBlockRequest,
-            >,
+            request: impl tonic::IntoRequest<super::super::types::GetLatestBridgeBlockRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetLatestBridgeBlockResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/GetLatestBridgeBlock",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetLatestBridgeBlock");
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(
-                    GrpcMethod::new("network.ProverNetwork", "GetLatestBridgeBlock"),
-                );
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetLatestBridgeBlock"));
             self.inner.unary(req, path, codec).await
         }
         /// Get the gas price estimate for a given fulfillment strategy.
         pub async fn get_gas_price_estimate(
             &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::GetGasPriceEstimateRequest,
-            >,
+            request: impl tonic::IntoRequest<super::super::types::GetGasPriceEstimateRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetGasPriceEstimateResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/GetGasPriceEstimate",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetGasPriceEstimate");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("network.ProverNetwork", "GetGasPriceEstimate"));
@@ -866,30 +627,21 @@ pub mod prover_network_client {
         /// Get the details of a transaction.
         pub async fn get_transaction_details(
             &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::GetTransactionDetailsRequest,
-            >,
+            request: impl tonic::IntoRequest<super::super::types::GetTransactionDetailsRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetTransactionDetailsResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/network.ProverNetwork/GetTransactionDetails",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(
-                    GrpcMethod::new("network.ProverNetwork", "GetTransactionDetails"),
-                );
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetTransactionDetails"));
             self.inner.unary(req, path, codec).await
         }
         /// Transfer $PROVE from one account to another.
@@ -900,45 +652,29 @@ pub mod prover_network_client {
             tonic::Response<super::super::types::TransferResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/Transfer",
-            );
+            let path = http::uri::PathAndQuery::from_static("/network.ProverNetwork/Transfer");
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("network.ProverNetwork", "Transfer"));
+            req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "Transfer"));
             self.inner.unary(req, path, codec).await
         }
         /// Get transfer parameters.
         pub async fn get_transfer_params(
             &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::GetTransferParamsRequest,
-            >,
+            request: impl tonic::IntoRequest<super::super::types::GetTransferParamsRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetTransferParamsResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/GetTransferParams",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetTransferParams");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("network.ProverNetwork", "GetTransferParams"));
@@ -947,25 +683,17 @@ pub mod prover_network_client {
         /// Get withdraw parameters.
         pub async fn get_withdraw_params(
             &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::GetWithdrawParamsRequest,
-            >,
+            request: impl tonic::IntoRequest<super::super::types::GetWithdrawParamsRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetWithdrawParamsResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/GetWithdrawParams",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetWithdrawParams");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("network.ProverNetwork", "GetWithdrawParams"));
@@ -979,21 +707,47 @@ pub mod prover_network_client {
             tonic::Response<super::super::types::WithdrawResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/Withdraw",
-            );
+            let path = http::uri::PathAndQuery::from_static("/network.ProverNetwork/Withdraw");
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("network.ProverNetwork", "Withdraw"));
+            req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "Withdraw"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Get the current price of $PROVE token.
+        pub async fn get_prove_price(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::GetProvePriceRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetProvePriceResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetProvePrice");
+            let mut req = request.into_request();
+            req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "GetProvePrice"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Get pricing information including base fees and price statistics.
+        pub async fn get_price_info(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::GetPriceInfoRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetPriceInfoResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetPriceInfo");
+            let mut req = request.into_request();
+            req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "GetPriceInfo"));
             self.inner.unary(req, path, codec).await
         }
         /// Bid for a proof request. Provers that want to be assigned this request must first
@@ -1001,22 +755,13 @@ pub mod prover_network_client {
         pub async fn bid(
             &mut self,
             request: impl tonic::IntoRequest<super::super::types::BidRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::super::types::BidResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::super::types::BidResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/Bid",
-            );
+            let path = http::uri::PathAndQuery::from_static("/network.ProverNetwork/Bid");
             let mut req = request.into_request();
             req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "Bid"));
             self.inner.unary(req, path, codec).await
@@ -1026,49 +771,31 @@ pub mod prover_network_client {
         pub async fn settle(
             &mut self,
             request: impl tonic::IntoRequest<super::super::types::SettleRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::super::types::SettleResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::super::types::SettleResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/Settle",
-            );
+            let path = http::uri::PathAndQuery::from_static("/network.ProverNetwork/Settle");
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("network.ProverNetwork", "Settle"));
+            req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "Settle"));
             self.inner.unary(req, path, codec).await
         }
         /// Get the provers that have historically had reliable uptime.
         pub async fn get_provers_by_uptime(
             &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::GetProversByUptimeRequest,
-            >,
+            request: impl tonic::IntoRequest<super::super::types::GetProversByUptimeRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetProversByUptimeResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/GetProversByUptime",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetProversByUptime");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("network.ProverNetwork", "GetProversByUptime"));
@@ -1077,65 +804,41 @@ pub mod prover_network_client {
         /// Get settleable proof requests that have passed auction period and have bids.
         pub async fn get_filtered_settleable_requests(
             &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::GetFilteredSettleableRequestsRequest,
-            >,
+            request: impl tonic::IntoRequest<super::super::types::GetFilteredSettleableRequestsRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetFilteredSettleableRequestsResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/network.ProverNetwork/GetFilteredSettleableRequests",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(
-                    GrpcMethod::new(
-                        "network.ProverNetwork",
-                        "GetFilteredSettleableRequests",
-                    ),
-                );
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetFilteredSettleableRequests"));
             self.inner.unary(req, path, codec).await
         }
         /// Get suspendable provers that have recently failed proofs.
         pub async fn get_filtered_suspendable_provers(
             &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::GetFilteredSuspendableProversRequest,
-            >,
+            request: impl tonic::IntoRequest<super::super::types::GetFilteredSuspendableProversRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetFilteredSuspendableProversResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/network.ProverNetwork/GetFilteredSuspendableProvers",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(
-                    GrpcMethod::new(
-                        "network.ProverNetwork",
-                        "GetFilteredSuspendableProvers",
-                    ),
-                );
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetFilteredSuspendableProvers"));
             self.inner.unary(req, path, codec).await
         }
         /// Suspend a prover.
@@ -1146,46 +849,28 @@ pub mod prover_network_client {
             tonic::Response<super::super::types::SuspendProverResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/SuspendProver",
-            );
+            let path = http::uri::PathAndQuery::from_static("/network.ProverNetwork/SuspendProver");
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("network.ProverNetwork", "SuspendProver"));
+            req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "SuspendProver"));
             self.inner.unary(req, path, codec).await
         }
         /// Sign in with Ethereum
         pub async fn sign_in(
             &mut self,
             request: impl tonic::IntoRequest<super::super::types::SignInRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::super::types::SignInResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::super::types::SignInResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/SignIn",
-            );
+            let path = http::uri::PathAndQuery::from_static("/network.ProverNetwork/SignIn");
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("network.ProverNetwork", "SignIn"));
+            req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "SignIn"));
             self.inner.unary(req, path, codec).await
         }
         /// Connect a Twitter account.
@@ -1196,21 +881,14 @@ pub mod prover_network_client {
             tonic::Response<super::super::types::ConnectTwitterResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/ConnectTwitter",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/ConnectTwitter");
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("network.ProverNetwork", "ConnectTwitter"));
+            req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "ConnectTwitter"));
             self.inner.unary(req, path, codec).await
         }
         /// Get metrics for a specific prover
@@ -1221,251 +899,247 @@ pub mod prover_network_client {
             tonic::Response<super::super::types::GetProverStatsResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/GetProverStats",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetProverStats");
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("network.ProverNetwork", "GetProverStats"));
+            req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "GetProverStats"));
             self.inner.unary(req, path, codec).await
         }
         /// Get statistics for all provers with pagination
         pub async fn get_filtered_prover_stats(
             &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::GetFilteredProverStatsRequest,
-            >,
+            request: impl tonic::IntoRequest<super::super::types::GetFilteredProverStatsRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetFilteredProverStatsResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/network.ProverNetwork/GetFilteredProverStats",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(
-                    GrpcMethod::new("network.ProverNetwork", "GetFilteredProverStats"),
-                );
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetFilteredProverStats"));
             self.inner.unary(req, path, codec).await
         }
         /// Get detailed statistics for a single prover by address
         pub async fn get_prover_stats_detail(
             &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::GetProverStatsDetailRequest,
-            >,
+            request: impl tonic::IntoRequest<super::super::types::GetProverStatsDetailRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetProverStatsDetailResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/GetProverStatsDetail",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetProverStatsDetail");
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(
-                    GrpcMethod::new("network.ProverNetwork", "GetProverStatsDetail"),
-                );
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetProverStatsDetail"));
             self.inner.unary(req, path, codec).await
         }
         /// Get search results for provers
         pub async fn get_prover_search_results(
             &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::GetProverSearchResultsRequest,
-            >,
+            request: impl tonic::IntoRequest<super::super::types::GetProverSearchResultsRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetProverSearchResultsResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/network.ProverNetwork/GetProverSearchResults",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(
-                    GrpcMethod::new("network.ProverNetwork", "GetProverSearchResults"),
-                );
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetProverSearchResults"));
             self.inner.unary(req, path, codec).await
         }
         /// Search provers by name or address with staking information
         pub async fn get_staking_prover_search(
             &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::GetStakingProverSearchRequest,
-            >,
+            request: impl tonic::IntoRequest<super::super::types::GetStakingProverSearchRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetStakingProverSearchResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/network.ProverNetwork/GetStakingProverSearch",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(
-                    GrpcMethod::new("network.ProverNetwork", "GetStakingProverSearch"),
-                );
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetStakingProverSearch"));
             self.inner.unary(req, path, codec).await
         }
         /// Get paginated auction history
         pub async fn get_filtered_bid_history(
             &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::GetFilteredBidHistoryRequest,
-            >,
+            request: impl tonic::IntoRequest<super::super::types::GetFilteredBidHistoryRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetFilteredBidHistoryResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/network.ProverNetwork/GetFilteredBidHistory",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(
-                    GrpcMethod::new("network.ProverNetwork", "GetFilteredBidHistory"),
-                );
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetFilteredBidHistory"));
             self.inner.unary(req, path, codec).await
         }
         /// Get filtered bid history for a prover with pagination
         pub async fn get_filtered_prover_bid_history(
             &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::GetFilteredProverBidHistoryRequest,
-            >,
+            request: impl tonic::IntoRequest<super::super::types::GetFilteredProverBidHistoryRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetFilteredProverBidHistoryResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/network.ProverNetwork/GetFilteredProverBidHistory",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(
-                    GrpcMethod::new(
-                        "network.ProverNetwork",
-                        "GetFilteredProverBidHistory",
-                    ),
-                );
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetFilteredProverBidHistory"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Update the prover's staker fee.
+        pub async fn update_staker_fee(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::UpdateStakerFeeRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::UpdateStakerFeeResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/UpdateStakerFee");
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "UpdateStakerFee"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Get the time when a prover can next update their staker fee.
+        pub async fn get_staker_fee_update_time(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::GetStakerFeeUpdateTimeRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetStakerFeeUpdateTimeResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/network.ProverNetwork/GetStakerFeeUpdateTime",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetStakerFeeUpdateTime"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Get the parameters needed to update staker fee.
+        pub async fn get_update_staker_fee_params(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::GetUpdateStakerFeeParamsRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetUpdateStakerFeeParamsResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/network.ProverNetwork/GetUpdateStakerFeeParams",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetUpdateStakerFeeParams"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Update the prover's delegator fee.
+        pub async fn update_delegator_fee(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::UpdateDelegatorFeeRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::UpdateDelegatorFeeResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/UpdateDelegatorFee");
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "UpdateDelegatorFee"));
             self.inner.unary(req, path, codec).await
         }
         /// Check if the user is whitelisted to use the TEE service.
         pub async fn get_tee_whitelist_status(
             &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::GetTeeWhitelistStatusRequest,
-            >,
+            request: impl tonic::IntoRequest<super::super::types::GetTeeWhitelistStatusRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetTeeWhitelistStatusResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/network.ProverNetwork/GetTEEWhitelistStatus",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(
-                    GrpcMethod::new("network.ProverNetwork", "GetTEEWhitelistStatus"),
-                );
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetTEEWhitelistStatus"));
             self.inner.unary(req, path, codec).await
         }
         /// Get the provers that meet the filter criteria.
         pub async fn get_filtered_provers(
             &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::GetFilteredProversRequest,
-            >,
+            request: impl tonic::IntoRequest<super::super::types::GetFilteredProversRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetFilteredProversResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/GetFilteredProvers",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetFilteredProvers");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("network.ProverNetwork", "GetFilteredProvers"));
@@ -1474,30 +1148,21 @@ pub mod prover_network_client {
         /// Get the available balance of a prover.
         pub async fn get_prover_stake_balance(
             &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::GetProverStakeBalanceRequest,
-            >,
+            request: impl tonic::IntoRequest<super::super::types::GetProverStakeBalanceRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetProverStakeBalanceResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/network.ProverNetwork/GetProverStakeBalance",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(
-                    GrpcMethod::new("network.ProverNetwork", "GetProverStakeBalance"),
-                );
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetProverStakeBalance"));
             self.inner.unary(req, path, codec).await
         }
         /// Get the staker balance logs that meet the filter criteria.
@@ -1507,31 +1172,21 @@ pub mod prover_network_client {
                 super::super::types::GetFilteredStakerStakeBalanceLogsRequest,
             >,
         ) -> std::result::Result<
-            tonic::Response<
-                super::super::types::GetFilteredStakerStakeBalanceLogsResponse,
-            >,
+            tonic::Response<super::super::types::GetFilteredStakerStakeBalanceLogsResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/network.ProverNetwork/GetFilteredStakerStakeBalanceLogs",
             );
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(
-                    GrpcMethod::new(
-                        "network.ProverNetwork",
-                        "GetFilteredStakerStakeBalanceLogs",
-                    ),
-                );
+            req.extensions_mut().insert(GrpcMethod::new(
+                "network.ProverNetwork",
+                "GetFilteredStakerStakeBalanceLogs",
+            ));
             self.inner.unary(req, path, codec).await
         }
         /// Get the prover balance logs that meet the filter criteria.
@@ -1541,85 +1196,126 @@ pub mod prover_network_client {
                 super::super::types::GetFilteredProverStakeBalanceLogsRequest,
             >,
         ) -> std::result::Result<
-            tonic::Response<
-                super::super::types::GetFilteredProverStakeBalanceLogsResponse,
-            >,
+            tonic::Response<super::super::types::GetFilteredProverStakeBalanceLogsResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/network.ProverNetwork/GetFilteredProverStakeBalanceLogs",
             );
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(
-                    GrpcMethod::new(
-                        "network.ProverNetwork",
-                        "GetFilteredProverStakeBalanceLogs",
-                    ),
-                );
+            req.extensions_mut().insert(GrpcMethod::new(
+                "network.ProverNetwork",
+                "GetFilteredProverStakeBalanceLogs",
+            ));
             self.inner.unary(req, path, codec).await
         }
         /// Get staking points for all partners for the authenticated user.
         pub async fn get_staking_points(
             &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::GetStakingPointsRequest,
-            >,
+            request: impl tonic::IntoRequest<super::super::types::GetStakingPointsRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetStakingPointsResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/GetStakingPoints",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetStakingPoints");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("network.ProverNetwork", "GetStakingPoints"));
             self.inner.unary(req, path, codec).await
         }
+        /// Get network filtered staker leaderboard with sortable columns.
+        pub async fn get_network_filtered_staker_leaderboard(
+            &mut self,
+            request: impl tonic::IntoRequest<
+                super::super::types::GetNetworkFilteredStakerLeaderboardRequest,
+            >,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetNetworkFilteredStakerLeaderboardResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/network.ProverNetwork/GetNetworkFilteredStakerLeaderboard",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut().insert(GrpcMethod::new(
+                "network.ProverNetwork",
+                "GetNetworkFilteredStakerLeaderboard",
+            ));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Get dashboard data for staker leaderboard with user-specific metrics.
+        pub async fn get_network_staker_leaderboard_dashboard(
+            &mut self,
+            request: impl tonic::IntoRequest<
+                super::super::types::GetNetworkStakerLeaderboardDashboardRequest,
+            >,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetNetworkStakerLeaderboardDashboardResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/network.ProverNetwork/GetNetworkStakerLeaderboardDashboard",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut().insert(GrpcMethod::new(
+                "network.ProverNetwork",
+                "GetNetworkStakerLeaderboardDashboard",
+            ));
+            self.inner.unary(req, path, codec).await
+        }
         /// Get the delegation parameters.
         pub async fn get_delegation_params(
             &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::GetDelegationParamsRequest,
-            >,
+            request: impl tonic::IntoRequest<super::super::types::GetDelegationParamsRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetDelegationParamsResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/GetDelegationParams",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetDelegationParams");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("network.ProverNetwork", "GetDelegationParams"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Get Titan configuration parameters.
+        pub async fn get_titan_config_params(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::GetTitanConfigParamsRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetTitanConfigParamsResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetTitanConfigParams");
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetTitanConfigParams"));
             self.inner.unary(req, path, codec).await
         }
         /// Set a delegation.
@@ -1630,21 +1326,13 @@ pub mod prover_network_client {
             tonic::Response<super::super::types::SetDelegationResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/SetDelegation",
-            );
+            let path = http::uri::PathAndQuery::from_static("/network.ProverNetwork/SetDelegation");
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("network.ProverNetwork", "SetDelegation"));
+            req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "SetDelegation"));
             self.inner.unary(req, path, codec).await
         }
         /// Get a delegation.
@@ -1655,53 +1343,764 @@ pub mod prover_network_client {
             tonic::Response<super::super::types::GetDelegationResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/network.ProverNetwork/GetDelegation",
-            );
+            let path = http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetDelegation");
             let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("network.ProverNetwork", "GetDelegation"));
+            req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "GetDelegation"));
             self.inner.unary(req, path, codec).await
         }
         /// Get the withdrawal receipts of an account.
         pub async fn get_filtered_withdrawal_receipts(
             &mut self,
-            request: impl tonic::IntoRequest<
-                super::super::types::GetFilteredWithdrawalReceiptsRequest,
-            >,
+            request: impl tonic::IntoRequest<super::super::types::GetFilteredWithdrawalReceiptsRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetFilteredWithdrawalReceiptsResponse>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/network.ProverNetwork/GetFilteredWithdrawalReceipts",
             );
             let mut req = request.into_request();
             req.extensions_mut()
-                .insert(
-                    GrpcMethod::new(
-                        "network.ProverNetwork",
-                        "GetFilteredWithdrawalReceipts",
-                    ),
-                );
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetFilteredWithdrawalReceipts"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Get details for the specified epoch.
+        pub async fn get_epoch(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::GetEpochRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetEpochResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetEpoch");
+            let mut req = request.into_request();
+            req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "GetEpoch"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Get specified prover's work details for the specified epoch.
+        pub async fn get_prover_work(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::GetProverWorkRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetProverWorkResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetProverWork");
+            let mut req = request.into_request();
+            req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "GetProverWork"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Get paginated provers that completed work for the specified epoch. If the specified epoch is
+        /// ACTIVE or FINALIZING, the reward details correspond to the most recently finalized epoch.
+        pub async fn get_provers_with_work(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::GetProversWithWorkRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetProversWithWorkResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetProversWithWork");
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetProversWithWork"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Get today's reward and most recent claimable reward for an account.
+        pub async fn get_rewards_dashboard(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::GetRewardsDashboardRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetRewardsDashboardResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetRewardsDashboard");
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetRewardsDashboard"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Get earned amounts over time with date range filtering.
+        pub async fn get_recent_rewards_graph(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::GetRecentRewardsGraphRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetRecentRewardsGraphResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/network.ProverNetwork/GetRecentRewardsGraph",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetRecentRewardsGraph"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Get work efficiency over time with date range filtering.
+        pub async fn get_recent_performance_graph(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::GetRecentPerformanceGraphRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetRecentPerformanceGraphResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/network.ProverNetwork/GetRecentPerformanceGraph",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetRecentPerformanceGraph"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Get whitelist allocation details for a minter address.
+        pub async fn get_titan1_whitelist_allocation(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::GetTitan1WhitelistAllocationRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetTitan1WhitelistAllocationResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/network.ProverNetwork/GetTitan1WhitelistAllocation",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetTitan1WhitelistAllocation"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Get filtered NFTs with pagination and optional filters.
+        pub async fn get_filtered_titan1_nfts(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::GetFilteredTitan1NftsRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetFilteredTitan1NftsResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/network.ProverNetwork/GetFilteredTitan1Nfts",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetFilteredTitan1Nfts"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Set delegation for a Titan 1 NFT.
+        pub async fn set_titan1_delegation(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::SetTitan1DelegationRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::SetTitan1DelegationResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/SetTitan1Delegation");
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "SetTitan1Delegation"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Set delegation limit for a prover.
+        pub async fn set_titan1_delegation_limit(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::SetTitan1DelegationLimitRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::SetTitan1DelegationLimitResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/network.ProverNetwork/SetTitan1DelegationLimit",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "SetTitan1DelegationLimit"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Set auto-accept setting for a prover.
+        pub async fn set_titan1_auto_accept(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::SetTitan1AutoAcceptRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::SetTitan1AutoAcceptResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/SetTitan1AutoAccept");
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "SetTitan1AutoAccept"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Get delegation settings for a prover.
+        pub async fn get_titan1_delegation_settings(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::GetTitan1DelegationSettingsRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetTitan1DelegationSettingsResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/network.ProverNetwork/GetTitan1DelegationSettings",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetTitan1DelegationSettings"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Set delegation settings for a prover.
+        pub async fn set_titan1_delegation_settings(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::SetTitan1DelegationSettingsRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::SetTitan1DelegationSettingsResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/network.ProverNetwork/SetTitan1DelegationSettings",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "SetTitan1DelegationSettings"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Get paginated recent Titan 1 NFT sales.
+        pub async fn get_titan1_recent_sales(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::GetTitan1RecentSalesRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetTitan1RecentSalesResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetTitan1RecentSales");
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetTitan1RecentSales"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Get filtered Titan 1 delegates for a prover and owner.
+        pub async fn get_filtered_titan1_delegates(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::GetFilteredTitan1DelegatesRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetFilteredTitan1DelegatesResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/network.ProverNetwork/GetFilteredTitan1Delegates",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetFilteredTitan1Delegates"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Get filtered Titan 1 delegate requests with flexible filtering.
+        pub async fn get_filtered_titan1_delegate_requests(
+            &mut self,
+            request: impl tonic::IntoRequest<
+                super::super::types::GetFilteredTitan1DelegateRequestsRequest,
+            >,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetFilteredTitan1DelegateRequestsResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/network.ProverNetwork/GetFilteredTitan1DelegateRequests",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut().insert(GrpcMethod::new(
+                "network.ProverNetwork",
+                "GetFilteredTitan1DelegateRequests",
+            ));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Get filtered Titan 1 delegate removals with pagination and filtering options.
+        pub async fn get_filtered_titan1_delegate_removals(
+            &mut self,
+            request: impl tonic::IntoRequest<
+                super::super::types::GetFilteredTitan1DelegateRemovalsRequest,
+            >,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetFilteredTitan1DelegateRemovalsResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/network.ProverNetwork/GetFilteredTitan1DelegateRemovals",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut().insert(GrpcMethod::new(
+                "network.ProverNetwork",
+                "GetFilteredTitan1DelegateRemovals",
+            ));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Get recent activity (requests and removals combined) for a slot owner.
+        pub async fn get_titan1_recent_activity(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::GetTitan1RecentActivityRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetTitan1RecentActivityResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/network.ProverNetwork/GetTitan1RecentActivity",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetTitan1RecentActivity"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Accept Titan 1 delegates for a prover.
+        pub async fn accept_titan1_delegates(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::AcceptTitan1DelegatesRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::AcceptTitan1DelegatesResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/network.ProverNetwork/AcceptTitan1Delegates",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "AcceptTitan1Delegates"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Reject Titan 1 delegates for a prover.
+        pub async fn reject_titan1_delegates(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::RejectTitan1DelegatesRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::RejectTitan1DelegatesResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/network.ProverNetwork/RejectTitan1Delegates",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "RejectTitan1Delegates"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Remove Titan 1 delegates for a prover.
+        pub async fn remove_titan1_delegates(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::RemoveTitan1DelegatesRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::RemoveTitan1DelegatesResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/network.ProverNetwork/RemoveTitan1Delegates",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "RemoveTitan1Delegates"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Check if a user is in the Titan whitelist by social handle.
+        pub async fn check_titan_whitelist(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::CheckTitanWhitelistRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::CheckTitanWhitelistResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/CheckTitanWhitelist");
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "CheckTitanWhitelist"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Get Titan whitelist or queue details for an address.
+        pub async fn get_titan_whitelist_details(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::GetTitanWhitelistDetailsRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetTitanWhitelistDetailsResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/network.ProverNetwork/GetTitanWhitelistDetails",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetTitanWhitelistDetails"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Join the Titan queue if user has sufficient USDC balance.
+        pub async fn join_titan_queue(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::JoinTitanQueueRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::JoinTitanQueueResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/JoinTitanQueue");
+            let mut req = request.into_request();
+            req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "JoinTitanQueue"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Claim a Titan whitelist spot by connecting wallet to Twitter account.
+        pub async fn claim_titan_whitelist_spot(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::ClaimTitanWhitelistSpotRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::ClaimTitanWhitelistSpotResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/network.ProverNetwork/ClaimTitanWhitelistSpot",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "ClaimTitanWhitelistSpot"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Claim a Titan whitelist spot by address (no Twitter required).
+        pub async fn claim_titan_whitelist_spot_by_address(
+            &mut self,
+            request: impl tonic::IntoRequest<
+                super::super::types::ClaimTitanWhitelistSpotByAddressRequest,
+            >,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::ClaimTitanWhitelistSpotByAddressResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/network.ProverNetwork/ClaimTitanWhitelistSpotByAddress",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut().insert(GrpcMethod::new(
+                "network.ProverNetwork",
+                "ClaimTitanWhitelistSpotByAddress",
+            ));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Get Titan delegated slot balance.
+        pub async fn get_prover_delegated_slot_balance(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::GetProverDelegatedSlotBalanceRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetProverDelegatedSlotBalanceResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/network.ProverNetwork/GetProverDelegatedSlotBalance",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetProverDelegatedSlotBalance"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Get Titan slot delegation details for a specified slot owner.
+        pub async fn get_slot_delegation_details(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::GetSlotDelegationDetailsRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetSlotDelegationDetailsResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/network.ProverNetwork/GetSlotDelegationDetails",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetSlotDelegationDetails"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Get Titan slot delegation limit for a specified prover.
+        pub async fn get_titan1_delegation_limit(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::GetTitan1DelegationLimitRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetTitan1DelegationLimitResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/network.ProverNetwork/GetTitan1DelegationLimit",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetTitan1DelegationLimit"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Add a referral visit for Titan creator tracking.
+        pub async fn add_ref_visit(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::AddRefVisitRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::AddRefVisitResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static("/network.ProverNetwork/AddRefVisit");
+            let mut req = request.into_request();
+            req.extensions_mut().insert(GrpcMethod::new("network.ProverNetwork", "AddRefVisit"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Get the count of delegate requests with the specified status for the specifed prover.
+        pub async fn get_prover_delegate_request_count(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::GetProverDelegateRequestCountRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetProverDelegateRequestCountResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/network.ProverNetwork/GetProverDelegateRequestCount",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetProverDelegateRequestCount"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Get all Titan cloud provers with pagination.
+        pub async fn get_titan_cloud_provers(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::GetTitanCloudProversRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetTitanCloudProversResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetTitanCloudProvers");
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetTitanCloudProvers"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Get filtered Titan 1 token IDs for the authenticated user.
+        pub async fn get_filtered_titan1_ids(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::GetFilteredTitan1IdsRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetFilteredTitan1IdsResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetFilteredTitan1Ids");
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetFilteredTitan1Ids"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Get filtered Titan 1 slots grouped by prover and delegation status for the authenticated user.
+        pub async fn get_filtered_titan1_slots(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::GetFilteredTitan1SlotsRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetFilteredTitan1SlotsResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/network.ProverNetwork/GetFilteredTitan1Slots",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetFilteredTitan1Slots"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Get Titan 1 rewards dashboard data for the authenticated user.
+        pub async fn get_titan1_rewards_data(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::GetTitan1RewardsDataRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetTitan1RewardsDataResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetTitan1RewardsData");
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetTitan1RewardsData"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Get Titan 1 work capacity and completion graph over time.
+        pub async fn get_titan1_work_graph(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::GetTitan1WorkGraphRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetTitan1WorkGraphResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetTitan1WorkGraph");
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetTitan1WorkGraph"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// Get claimable proof for a specific reward root.
+        pub async fn get_titan1_claim_proof(
+            &mut self,
+            request: impl tonic::IntoRequest<super::super::types::GetTitan1ClaimProofRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetTitan1ClaimProofResponse>,
+            tonic::Status,
+        > {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path =
+                http::uri::PathAndQuery::from_static("/network.ProverNetwork/GetTitan1ClaimProof");
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("network.ProverNetwork", "GetTitan1ClaimProof"));
             self.inner.unary(req, path, codec).await
         }
     }
@@ -1713,7 +2112,7 @@ pub mod prover_network_server {
         dead_code,
         missing_docs,
         clippy::wildcard_imports,
-        clippy::let_unit_value,
+        clippy::let_unit_value
     )]
     use tonic::codegen::*;
     /// Generated trait containing gRPC methods that should be implemented for use with ProverNetworkServer.
@@ -1785,21 +2184,14 @@ pub mod prover_network_server {
         >;
         /// Server streaming response type for the SubscribeProofRequests method.
         type SubscribeProofRequestsStream: tonic::codegen::tokio_stream::Stream<
-                Item = std::result::Result<
-                    super::super::types::ProofRequest,
-                    tonic::Status,
-                >,
-            >
-            + std::marker::Send
+                Item = std::result::Result<super::super::types::ProofRequest, tonic::Status>,
+            > + std::marker::Send
             + 'static;
         /// Subscribe to proof requests that meet the filter criteria.
         async fn subscribe_proof_requests(
             &self,
             request: tonic::Request<super::super::types::GetFilteredProofRequestsRequest>,
-        ) -> std::result::Result<
-            tonic::Response<Self::SubscribeProofRequestsStream>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<Self::SubscribeProofRequestsStream>, tonic::Status>;
         /// Search for proof requests, programs, and requesters.
         async fn get_search_results(
             &self,
@@ -2000,24 +2392,34 @@ pub mod prover_network_server {
             tonic::Response<super::super::types::WithdrawResponse>,
             tonic::Status,
         >;
+        /// Get the current price of $PROVE token.
+        async fn get_prove_price(
+            &self,
+            request: tonic::Request<super::super::types::GetProvePriceRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetProvePriceResponse>,
+            tonic::Status,
+        >;
+        /// Get pricing information including base fees and price statistics.
+        async fn get_price_info(
+            &self,
+            request: tonic::Request<super::super::types::GetPriceInfoRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetPriceInfoResponse>,
+            tonic::Status,
+        >;
         /// Bid for a proof request. Provers that want to be assigned this request must first
         /// bid on it.
         async fn bid(
             &self,
             request: tonic::Request<super::super::types::BidRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::super::types::BidResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::super::types::BidResponse>, tonic::Status>;
         /// Settle the bids on a proof request to choose the assigned prover. Only callable by
         /// the approved auctioneer.
         async fn settle(
             &self,
             request: tonic::Request<super::super::types::SettleRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::super::types::SettleResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::super::types::SettleResponse>, tonic::Status>;
         /// Get the provers that have historically had reliable uptime.
         async fn get_provers_by_uptime(
             &self,
@@ -2029,9 +2431,7 @@ pub mod prover_network_server {
         /// Get settleable proof requests that have passed auction period and have bids.
         async fn get_filtered_settleable_requests(
             &self,
-            request: tonic::Request<
-                super::super::types::GetFilteredSettleableRequestsRequest,
-            >,
+            request: tonic::Request<super::super::types::GetFilteredSettleableRequestsRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetFilteredSettleableRequestsResponse>,
             tonic::Status,
@@ -2039,9 +2439,7 @@ pub mod prover_network_server {
         /// Get suspendable provers that have recently failed proofs.
         async fn get_filtered_suspendable_provers(
             &self,
-            request: tonic::Request<
-                super::super::types::GetFilteredSuspendableProversRequest,
-            >,
+            request: tonic::Request<super::super::types::GetFilteredSuspendableProversRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetFilteredSuspendableProversResponse>,
             tonic::Status,
@@ -2058,10 +2456,7 @@ pub mod prover_network_server {
         async fn sign_in(
             &self,
             request: tonic::Request<super::super::types::SignInRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::super::types::SignInResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::super::types::SignInResponse>, tonic::Status>;
         /// Connect a Twitter account.
         async fn connect_twitter(
             &self,
@@ -2121,11 +2516,41 @@ pub mod prover_network_server {
         /// Get filtered bid history for a prover with pagination
         async fn get_filtered_prover_bid_history(
             &self,
-            request: tonic::Request<
-                super::super::types::GetFilteredProverBidHistoryRequest,
-            >,
+            request: tonic::Request<super::super::types::GetFilteredProverBidHistoryRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetFilteredProverBidHistoryResponse>,
+            tonic::Status,
+        >;
+        /// Update the prover's staker fee.
+        async fn update_staker_fee(
+            &self,
+            request: tonic::Request<super::super::types::UpdateStakerFeeRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::UpdateStakerFeeResponse>,
+            tonic::Status,
+        >;
+        /// Get the time when a prover can next update their staker fee.
+        async fn get_staker_fee_update_time(
+            &self,
+            request: tonic::Request<super::super::types::GetStakerFeeUpdateTimeRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetStakerFeeUpdateTimeResponse>,
+            tonic::Status,
+        >;
+        /// Get the parameters needed to update staker fee.
+        async fn get_update_staker_fee_params(
+            &self,
+            request: tonic::Request<super::super::types::GetUpdateStakerFeeParamsRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetUpdateStakerFeeParamsResponse>,
+            tonic::Status,
+        >;
+        /// Update the prover's delegator fee.
+        async fn update_delegator_fee(
+            &self,
+            request: tonic::Request<super::super::types::UpdateDelegatorFeeRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::UpdateDelegatorFeeResponse>,
             tonic::Status,
         >;
         /// Check if the user is whitelisted to use the TEE service.
@@ -2155,25 +2580,17 @@ pub mod prover_network_server {
         /// Get the staker balance logs that meet the filter criteria.
         async fn get_filtered_staker_stake_balance_logs(
             &self,
-            request: tonic::Request<
-                super::super::types::GetFilteredStakerStakeBalanceLogsRequest,
-            >,
+            request: tonic::Request<super::super::types::GetFilteredStakerStakeBalanceLogsRequest>,
         ) -> std::result::Result<
-            tonic::Response<
-                super::super::types::GetFilteredStakerStakeBalanceLogsResponse,
-            >,
+            tonic::Response<super::super::types::GetFilteredStakerStakeBalanceLogsResponse>,
             tonic::Status,
         >;
         /// Get the prover balance logs that meet the filter criteria.
         async fn get_filtered_prover_stake_balance_logs(
             &self,
-            request: tonic::Request<
-                super::super::types::GetFilteredProverStakeBalanceLogsRequest,
-            >,
+            request: tonic::Request<super::super::types::GetFilteredProverStakeBalanceLogsRequest>,
         ) -> std::result::Result<
-            tonic::Response<
-                super::super::types::GetFilteredProverStakeBalanceLogsResponse,
-            >,
+            tonic::Response<super::super::types::GetFilteredProverStakeBalanceLogsResponse>,
             tonic::Status,
         >;
         /// Get staking points for all partners for the authenticated user.
@@ -2184,12 +2601,40 @@ pub mod prover_network_server {
             tonic::Response<super::super::types::GetStakingPointsResponse>,
             tonic::Status,
         >;
+        /// Get network filtered staker leaderboard with sortable columns.
+        async fn get_network_filtered_staker_leaderboard(
+            &self,
+            request: tonic::Request<
+                super::super::types::GetNetworkFilteredStakerLeaderboardRequest,
+            >,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetNetworkFilteredStakerLeaderboardResponse>,
+            tonic::Status,
+        >;
+        /// Get dashboard data for staker leaderboard with user-specific metrics.
+        async fn get_network_staker_leaderboard_dashboard(
+            &self,
+            request: tonic::Request<
+                super::super::types::GetNetworkStakerLeaderboardDashboardRequest,
+            >,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetNetworkStakerLeaderboardDashboardResponse>,
+            tonic::Status,
+        >;
         /// Get the delegation parameters.
         async fn get_delegation_params(
             &self,
             request: tonic::Request<super::super::types::GetDelegationParamsRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetDelegationParamsResponse>,
+            tonic::Status,
+        >;
+        /// Get Titan configuration parameters.
+        async fn get_titan_config_params(
+            &self,
+            request: tonic::Request<super::super::types::GetTitanConfigParamsRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetTitanConfigParamsResponse>,
             tonic::Status,
         >;
         /// Set a delegation.
@@ -2211,11 +2656,306 @@ pub mod prover_network_server {
         /// Get the withdrawal receipts of an account.
         async fn get_filtered_withdrawal_receipts(
             &self,
-            request: tonic::Request<
-                super::super::types::GetFilteredWithdrawalReceiptsRequest,
-            >,
+            request: tonic::Request<super::super::types::GetFilteredWithdrawalReceiptsRequest>,
         ) -> std::result::Result<
             tonic::Response<super::super::types::GetFilteredWithdrawalReceiptsResponse>,
+            tonic::Status,
+        >;
+        /// Get details for the specified epoch.
+        async fn get_epoch(
+            &self,
+            request: tonic::Request<super::super::types::GetEpochRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetEpochResponse>,
+            tonic::Status,
+        >;
+        /// Get specified prover's work details for the specified epoch.
+        async fn get_prover_work(
+            &self,
+            request: tonic::Request<super::super::types::GetProverWorkRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetProverWorkResponse>,
+            tonic::Status,
+        >;
+        /// Get paginated provers that completed work for the specified epoch. If the specified epoch is
+        /// ACTIVE or FINALIZING, the reward details correspond to the most recently finalized epoch.
+        async fn get_provers_with_work(
+            &self,
+            request: tonic::Request<super::super::types::GetProversWithWorkRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetProversWithWorkResponse>,
+            tonic::Status,
+        >;
+        /// Get today's reward and most recent claimable reward for an account.
+        async fn get_rewards_dashboard(
+            &self,
+            request: tonic::Request<super::super::types::GetRewardsDashboardRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetRewardsDashboardResponse>,
+            tonic::Status,
+        >;
+        /// Get earned amounts over time with date range filtering.
+        async fn get_recent_rewards_graph(
+            &self,
+            request: tonic::Request<super::super::types::GetRecentRewardsGraphRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetRecentRewardsGraphResponse>,
+            tonic::Status,
+        >;
+        /// Get work efficiency over time with date range filtering.
+        async fn get_recent_performance_graph(
+            &self,
+            request: tonic::Request<super::super::types::GetRecentPerformanceGraphRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetRecentPerformanceGraphResponse>,
+            tonic::Status,
+        >;
+        /// Get whitelist allocation details for a minter address.
+        async fn get_titan1_whitelist_allocation(
+            &self,
+            request: tonic::Request<super::super::types::GetTitan1WhitelistAllocationRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetTitan1WhitelistAllocationResponse>,
+            tonic::Status,
+        >;
+        /// Get filtered NFTs with pagination and optional filters.
+        async fn get_filtered_titan1_nfts(
+            &self,
+            request: tonic::Request<super::super::types::GetFilteredTitan1NftsRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetFilteredTitan1NftsResponse>,
+            tonic::Status,
+        >;
+        /// Set delegation for a Titan 1 NFT.
+        async fn set_titan1_delegation(
+            &self,
+            request: tonic::Request<super::super::types::SetTitan1DelegationRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::SetTitan1DelegationResponse>,
+            tonic::Status,
+        >;
+        /// Set delegation limit for a prover.
+        async fn set_titan1_delegation_limit(
+            &self,
+            request: tonic::Request<super::super::types::SetTitan1DelegationLimitRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::SetTitan1DelegationLimitResponse>,
+            tonic::Status,
+        >;
+        /// Set auto-accept setting for a prover.
+        async fn set_titan1_auto_accept(
+            &self,
+            request: tonic::Request<super::super::types::SetTitan1AutoAcceptRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::SetTitan1AutoAcceptResponse>,
+            tonic::Status,
+        >;
+        /// Get delegation settings for a prover.
+        async fn get_titan1_delegation_settings(
+            &self,
+            request: tonic::Request<super::super::types::GetTitan1DelegationSettingsRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetTitan1DelegationSettingsResponse>,
+            tonic::Status,
+        >;
+        /// Set delegation settings for a prover.
+        async fn set_titan1_delegation_settings(
+            &self,
+            request: tonic::Request<super::super::types::SetTitan1DelegationSettingsRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::SetTitan1DelegationSettingsResponse>,
+            tonic::Status,
+        >;
+        /// Get paginated recent Titan 1 NFT sales.
+        async fn get_titan1_recent_sales(
+            &self,
+            request: tonic::Request<super::super::types::GetTitan1RecentSalesRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetTitan1RecentSalesResponse>,
+            tonic::Status,
+        >;
+        /// Get filtered Titan 1 delegates for a prover and owner.
+        async fn get_filtered_titan1_delegates(
+            &self,
+            request: tonic::Request<super::super::types::GetFilteredTitan1DelegatesRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetFilteredTitan1DelegatesResponse>,
+            tonic::Status,
+        >;
+        /// Get filtered Titan 1 delegate requests with flexible filtering.
+        async fn get_filtered_titan1_delegate_requests(
+            &self,
+            request: tonic::Request<super::super::types::GetFilteredTitan1DelegateRequestsRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetFilteredTitan1DelegateRequestsResponse>,
+            tonic::Status,
+        >;
+        /// Get filtered Titan 1 delegate removals with pagination and filtering options.
+        async fn get_filtered_titan1_delegate_removals(
+            &self,
+            request: tonic::Request<super::super::types::GetFilteredTitan1DelegateRemovalsRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetFilteredTitan1DelegateRemovalsResponse>,
+            tonic::Status,
+        >;
+        /// Get recent activity (requests and removals combined) for a slot owner.
+        async fn get_titan1_recent_activity(
+            &self,
+            request: tonic::Request<super::super::types::GetTitan1RecentActivityRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetTitan1RecentActivityResponse>,
+            tonic::Status,
+        >;
+        /// Accept Titan 1 delegates for a prover.
+        async fn accept_titan1_delegates(
+            &self,
+            request: tonic::Request<super::super::types::AcceptTitan1DelegatesRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::AcceptTitan1DelegatesResponse>,
+            tonic::Status,
+        >;
+        /// Reject Titan 1 delegates for a prover.
+        async fn reject_titan1_delegates(
+            &self,
+            request: tonic::Request<super::super::types::RejectTitan1DelegatesRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::RejectTitan1DelegatesResponse>,
+            tonic::Status,
+        >;
+        /// Remove Titan 1 delegates for a prover.
+        async fn remove_titan1_delegates(
+            &self,
+            request: tonic::Request<super::super::types::RemoveTitan1DelegatesRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::RemoveTitan1DelegatesResponse>,
+            tonic::Status,
+        >;
+        /// Check if a user is in the Titan whitelist by social handle.
+        async fn check_titan_whitelist(
+            &self,
+            request: tonic::Request<super::super::types::CheckTitanWhitelistRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::CheckTitanWhitelistResponse>,
+            tonic::Status,
+        >;
+        /// Get Titan whitelist or queue details for an address.
+        async fn get_titan_whitelist_details(
+            &self,
+            request: tonic::Request<super::super::types::GetTitanWhitelistDetailsRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetTitanWhitelistDetailsResponse>,
+            tonic::Status,
+        >;
+        /// Join the Titan queue if user has sufficient USDC balance.
+        async fn join_titan_queue(
+            &self,
+            request: tonic::Request<super::super::types::JoinTitanQueueRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::JoinTitanQueueResponse>,
+            tonic::Status,
+        >;
+        /// Claim a Titan whitelist spot by connecting wallet to Twitter account.
+        async fn claim_titan_whitelist_spot(
+            &self,
+            request: tonic::Request<super::super::types::ClaimTitanWhitelistSpotRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::ClaimTitanWhitelistSpotResponse>,
+            tonic::Status,
+        >;
+        /// Claim a Titan whitelist spot by address (no Twitter required).
+        async fn claim_titan_whitelist_spot_by_address(
+            &self,
+            request: tonic::Request<super::super::types::ClaimTitanWhitelistSpotByAddressRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::ClaimTitanWhitelistSpotByAddressResponse>,
+            tonic::Status,
+        >;
+        /// Get Titan delegated slot balance.
+        async fn get_prover_delegated_slot_balance(
+            &self,
+            request: tonic::Request<super::super::types::GetProverDelegatedSlotBalanceRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetProverDelegatedSlotBalanceResponse>,
+            tonic::Status,
+        >;
+        /// Get Titan slot delegation details for a specified slot owner.
+        async fn get_slot_delegation_details(
+            &self,
+            request: tonic::Request<super::super::types::GetSlotDelegationDetailsRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetSlotDelegationDetailsResponse>,
+            tonic::Status,
+        >;
+        /// Get Titan slot delegation limit for a specified prover.
+        async fn get_titan1_delegation_limit(
+            &self,
+            request: tonic::Request<super::super::types::GetTitan1DelegationLimitRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetTitan1DelegationLimitResponse>,
+            tonic::Status,
+        >;
+        /// Add a referral visit for Titan creator tracking.
+        async fn add_ref_visit(
+            &self,
+            request: tonic::Request<super::super::types::AddRefVisitRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::AddRefVisitResponse>,
+            tonic::Status,
+        >;
+        /// Get the count of delegate requests with the specified status for the specifed prover.
+        async fn get_prover_delegate_request_count(
+            &self,
+            request: tonic::Request<super::super::types::GetProverDelegateRequestCountRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetProverDelegateRequestCountResponse>,
+            tonic::Status,
+        >;
+        /// Get all Titan cloud provers with pagination.
+        async fn get_titan_cloud_provers(
+            &self,
+            request: tonic::Request<super::super::types::GetTitanCloudProversRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetTitanCloudProversResponse>,
+            tonic::Status,
+        >;
+        /// Get filtered Titan 1 token IDs for the authenticated user.
+        async fn get_filtered_titan1_ids(
+            &self,
+            request: tonic::Request<super::super::types::GetFilteredTitan1IdsRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetFilteredTitan1IdsResponse>,
+            tonic::Status,
+        >;
+        /// Get filtered Titan 1 slots grouped by prover and delegation status for the authenticated user.
+        async fn get_filtered_titan1_slots(
+            &self,
+            request: tonic::Request<super::super::types::GetFilteredTitan1SlotsRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetFilteredTitan1SlotsResponse>,
+            tonic::Status,
+        >;
+        /// Get Titan 1 rewards dashboard data for the authenticated user.
+        async fn get_titan1_rewards_data(
+            &self,
+            request: tonic::Request<super::super::types::GetTitan1RewardsDataRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetTitan1RewardsDataResponse>,
+            tonic::Status,
+        >;
+        /// Get Titan 1 work capacity and completion graph over time.
+        async fn get_titan1_work_graph(
+            &self,
+            request: tonic::Request<super::super::types::GetTitan1WorkGraphRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetTitan1WorkGraphResponse>,
+            tonic::Status,
+        >;
+        /// Get claimable proof for a specific reward root.
+        async fn get_titan1_claim_proof(
+            &self,
+            request: tonic::Request<super::super::types::GetTitan1ClaimProofRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::super::types::GetTitan1ClaimProofResponse>,
             tonic::Status,
         >;
     }
@@ -2240,10 +2980,7 @@ pub mod prover_network_server {
                 max_encoding_message_size: None,
             }
         }
-        pub fn with_interceptor<F>(
-            inner: T,
-            interceptor: F,
-        ) -> InterceptedService<Self, F>
+        pub fn with_interceptor<F>(inner: T, interceptor: F) -> InterceptedService<Self, F>
         where
             F: tonic::service::Interceptor,
         {
@@ -2298,21 +3035,15 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/RequestProof" => {
                     #[allow(non_camel_case_types)]
                     struct RequestProofSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::RequestProofRequest,
-                    > for RequestProofSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::RequestProofRequest>
+                        for RequestProofSvc<T>
+                    {
                         type Response = super::super::types::RequestProofResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
-                            request: tonic::Request<
-                                super::super::types::RequestProofRequest,
-                            >,
+                            request: tonic::Request<super::super::types::RequestProofRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
@@ -2346,21 +3077,15 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/FulfillProof" => {
                     #[allow(non_camel_case_types)]
                     struct FulfillProofSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::FulfillProofRequest,
-                    > for FulfillProofSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::FulfillProofRequest>
+                        for FulfillProofSvc<T>
+                    {
                         type Response = super::super::types::FulfillProofResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
-                            request: tonic::Request<
-                                super::super::types::FulfillProofRequest,
-                            >,
+                            request: tonic::Request<super::super::types::FulfillProofRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
@@ -2394,21 +3119,15 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/ExecuteProof" => {
                     #[allow(non_camel_case_types)]
                     struct ExecuteProofSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::ExecuteProofRequest,
-                    > for ExecuteProofSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::ExecuteProofRequest>
+                        for ExecuteProofSvc<T>
+                    {
                         type Response = super::super::types::ExecuteProofResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
-                            request: tonic::Request<
-                                super::super::types::ExecuteProofRequest,
-                            >,
+                            request: tonic::Request<super::super::types::ExecuteProofRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
@@ -2442,26 +3161,19 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/FailFulfillment" => {
                     #[allow(non_camel_case_types)]
                     struct FailFulfillmentSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::FailFulfillmentRequest,
-                    > for FailFulfillmentSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::FailFulfillmentRequest>
+                        for FailFulfillmentSvc<T>
+                    {
                         type Response = super::super::types::FailFulfillmentResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
-                            request: tonic::Request<
-                                super::super::types::FailFulfillmentRequest,
-                            >,
+                            request: tonic::Request<super::super::types::FailFulfillmentRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ProverNetwork>::fail_fulfillment(&inner, request)
-                                    .await
+                                <T as ProverNetwork>::fail_fulfillment(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -2491,21 +3203,15 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/CancelRequest" => {
                     #[allow(non_camel_case_types)]
                     struct CancelRequestSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::CancelRequestRequest,
-                    > for CancelRequestSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::CancelRequestRequest>
+                        for CancelRequestSvc<T>
+                    {
                         type Response = super::super::types::CancelRequestResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
-                            request: tonic::Request<
-                                super::super::types::CancelRequestRequest,
-                            >,
+                            request: tonic::Request<super::super::types::CancelRequestRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
@@ -2539,16 +3245,13 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/GetProofRequestStatus" => {
                     #[allow(non_camel_case_types)]
                     struct GetProofRequestStatusSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetProofRequestStatusRequest,
-                    > for GetProofRequestStatusSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetProofRequestStatusRequest,
+                        > for GetProofRequestStatusSvc<T>
+                    {
                         type Response = super::super::types::GetProofRequestStatusResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<
@@ -2557,10 +3260,7 @@ pub mod prover_network_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ProverNetwork>::get_proof_request_status(
-                                        &inner,
-                                        request,
-                                    )
+                                <T as ProverNetwork>::get_proof_request_status(&inner, request)
                                     .await
                             };
                             Box::pin(fut)
@@ -2591,16 +3291,13 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/GetProofRequestDetails" => {
                     #[allow(non_camel_case_types)]
                     struct GetProofRequestDetailsSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetProofRequestDetailsRequest,
-                    > for GetProofRequestDetailsSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetProofRequestDetailsRequest,
+                        > for GetProofRequestDetailsSvc<T>
+                    {
                         type Response = super::super::types::GetProofRequestDetailsResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<
@@ -2609,10 +3306,7 @@ pub mod prover_network_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ProverNetwork>::get_proof_request_details(
-                                        &inner,
-                                        request,
-                                    )
+                                <T as ProverNetwork>::get_proof_request_details(&inner, request)
                                     .await
                             };
                             Box::pin(fut)
@@ -2643,16 +3337,13 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/GetFilteredProofRequests" => {
                     #[allow(non_camel_case_types)]
                     struct GetFilteredProofRequestsSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetFilteredProofRequestsRequest,
-                    > for GetFilteredProofRequestsSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetFilteredProofRequestsRequest,
+                        > for GetFilteredProofRequestsSvc<T>
+                    {
                         type Response = super::super::types::GetFilteredProofRequestsResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<
@@ -2661,10 +3352,7 @@ pub mod prover_network_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ProverNetwork>::get_filtered_proof_requests(
-                                        &inner,
-                                        request,
-                                    )
+                                <T as ProverNetwork>::get_filtered_proof_requests(&inner, request)
                                     .await
                             };
                             Box::pin(fut)
@@ -2695,17 +3383,15 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/SubscribeProofRequests" => {
                     #[allow(non_camel_case_types)]
                     struct SubscribeProofRequestsSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::ServerStreamingService<
-                        super::super::types::GetFilteredProofRequestsRequest,
-                    > for SubscribeProofRequestsSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::ServerStreamingService<
+                            super::super::types::GetFilteredProofRequestsRequest,
+                        > for SubscribeProofRequestsSvc<T>
+                    {
                         type Response = super::super::types::ProofRequest;
                         type ResponseStream = T::SubscribeProofRequestsStream;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::ResponseStream>,
-                            tonic::Status,
-                        >;
+                        type Future =
+                            BoxFuture<tonic::Response<Self::ResponseStream>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<
@@ -2714,10 +3400,7 @@ pub mod prover_network_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ProverNetwork>::subscribe_proof_requests(
-                                        &inner,
-                                        request,
-                                    )
+                                <T as ProverNetwork>::subscribe_proof_requests(&inner, request)
                                     .await
                             };
                             Box::pin(fut)
@@ -2748,26 +3431,19 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/GetSearchResults" => {
                     #[allow(non_camel_case_types)]
                     struct GetSearchResultsSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetSearchResultsRequest,
-                    > for GetSearchResultsSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::GetSearchResultsRequest>
+                        for GetSearchResultsSvc<T>
+                    {
                         type Response = super::super::types::GetSearchResultsResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
-                            request: tonic::Request<
-                                super::super::types::GetSearchResultsRequest,
-                            >,
+                            request: tonic::Request<super::super::types::GetSearchResultsRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ProverNetwork>::get_search_results(&inner, request)
-                                    .await
+                                <T as ProverNetwork>::get_search_results(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -2797,16 +3473,13 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/GetProofRequestMetrics" => {
                     #[allow(non_camel_case_types)]
                     struct GetProofRequestMetricsSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetProofRequestMetricsRequest,
-                    > for GetProofRequestMetricsSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetProofRequestMetricsRequest,
+                        > for GetProofRequestMetricsSvc<T>
+                    {
                         type Response = super::super::types::GetProofRequestMetricsResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<
@@ -2815,10 +3488,7 @@ pub mod prover_network_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ProverNetwork>::get_proof_request_metrics(
-                                        &inner,
-                                        request,
-                                    )
+                                <T as ProverNetwork>::get_proof_request_metrics(&inner, request)
                                     .await
                             };
                             Box::pin(fut)
@@ -2849,16 +3519,13 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/GetProofRequestGraph" => {
                     #[allow(non_camel_case_types)]
                     struct GetProofRequestGraphSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetProofRequestGraphRequest,
-                    > for GetProofRequestGraphSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetProofRequestGraphRequest,
+                        > for GetProofRequestGraphSvc<T>
+                    {
                         type Response = super::super::types::GetProofRequestGraphResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<
@@ -2867,11 +3534,7 @@ pub mod prover_network_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ProverNetwork>::get_proof_request_graph(
-                                        &inner,
-                                        request,
-                                    )
-                                    .await
+                                <T as ProverNetwork>::get_proof_request_graph(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -2901,26 +3564,19 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/GetAnalyticsGraphs" => {
                     #[allow(non_camel_case_types)]
                     struct GetAnalyticsGraphsSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetAnalyticsGraphsRequest,
-                    > for GetAnalyticsGraphsSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::GetAnalyticsGraphsRequest>
+                        for GetAnalyticsGraphsSvc<T>
+                    {
                         type Response = super::super::types::GetAnalyticsGraphsResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
-                            request: tonic::Request<
-                                super::super::types::GetAnalyticsGraphsRequest,
-                            >,
+                            request: tonic::Request<super::super::types::GetAnalyticsGraphsRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ProverNetwork>::get_analytics_graphs(&inner, request)
-                                    .await
+                                <T as ProverNetwork>::get_analytics_graphs(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -2950,26 +3606,19 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/GetOverviewGraphs" => {
                     #[allow(non_camel_case_types)]
                     struct GetOverviewGraphsSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetOverviewGraphsRequest,
-                    > for GetOverviewGraphsSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::GetOverviewGraphsRequest>
+                        for GetOverviewGraphsSvc<T>
+                    {
                         type Response = super::super::types::GetOverviewGraphsResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
-                            request: tonic::Request<
-                                super::super::types::GetOverviewGraphsRequest,
-                            >,
+                            request: tonic::Request<super::super::types::GetOverviewGraphsRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ProverNetwork>::get_overview_graphs(&inner, request)
-                                    .await
+                                <T as ProverNetwork>::get_overview_graphs(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -2999,16 +3648,13 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/GetProofRequestParams" => {
                     #[allow(non_camel_case_types)]
                     struct GetProofRequestParamsSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetProofRequestParamsRequest,
-                    > for GetProofRequestParamsSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetProofRequestParamsRequest,
+                        > for GetProofRequestParamsSvc<T>
+                    {
                         type Response = super::super::types::GetProofRequestParamsResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<
@@ -3017,10 +3663,7 @@ pub mod prover_network_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ProverNetwork>::get_proof_request_params(
-                                        &inner,
-                                        request,
-                                    )
+                                <T as ProverNetwork>::get_proof_request_params(&inner, request)
                                     .await
                             };
                             Box::pin(fut)
@@ -3051,15 +3694,12 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/GetNonce" => {
                     #[allow(non_camel_case_types)]
                     struct GetNonceSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<super::super::types::GetNonceRequest>
-                    for GetNonceSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::GetNonceRequest>
+                        for GetNonceSvc<T>
+                    {
                         type Response = super::super::types::GetNonceResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::super::types::GetNonceRequest>,
@@ -3096,26 +3736,19 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/SetAccountName" => {
                     #[allow(non_camel_case_types)]
                     struct SetAccountNameSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::SetAccountNameRequest,
-                    > for SetAccountNameSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::SetAccountNameRequest>
+                        for SetAccountNameSvc<T>
+                    {
                         type Response = super::super::types::SetAccountNameResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
-                            request: tonic::Request<
-                                super::super::types::SetAccountNameRequest,
-                            >,
+                            request: tonic::Request<super::super::types::SetAccountNameRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ProverNetwork>::set_account_name(&inner, request)
-                                    .await
+                                <T as ProverNetwork>::set_account_name(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -3145,26 +3778,19 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/GetAccountName" => {
                     #[allow(non_camel_case_types)]
                     struct GetAccountNameSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetAccountNameRequest,
-                    > for GetAccountNameSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::GetAccountNameRequest>
+                        for GetAccountNameSvc<T>
+                    {
                         type Response = super::super::types::GetAccountNameResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
-                            request: tonic::Request<
-                                super::super::types::GetAccountNameRequest,
-                            >,
+                            request: tonic::Request<super::super::types::GetAccountNameRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ProverNetwork>::get_account_name(&inner, request)
-                                    .await
+                                <T as ProverNetwork>::get_account_name(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -3194,26 +3820,19 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/GetTermsSignature" => {
                     #[allow(non_camel_case_types)]
                     struct GetTermsSignatureSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetTermsSignatureRequest,
-                    > for GetTermsSignatureSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::GetTermsSignatureRequest>
+                        for GetTermsSignatureSvc<T>
+                    {
                         type Response = super::super::types::GetTermsSignatureResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
-                            request: tonic::Request<
-                                super::super::types::GetTermsSignatureRequest,
-                            >,
+                            request: tonic::Request<super::super::types::GetTermsSignatureRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ProverNetwork>::get_terms_signature(&inner, request)
-                                    .await
+                                <T as ProverNetwork>::get_terms_signature(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -3243,26 +3862,19 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/SetTermsSignature" => {
                     #[allow(non_camel_case_types)]
                     struct SetTermsSignatureSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::SetTermsSignatureRequest,
-                    > for SetTermsSignatureSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::SetTermsSignatureRequest>
+                        for SetTermsSignatureSvc<T>
+                    {
                         type Response = super::super::types::SetTermsSignatureResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
-                            request: tonic::Request<
-                                super::super::types::SetTermsSignatureRequest,
-                            >,
+                            request: tonic::Request<super::super::types::SetTermsSignatureRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ProverNetwork>::set_terms_signature(&inner, request)
-                                    .await
+                                <T as ProverNetwork>::set_terms_signature(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -3292,20 +3904,15 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/GetAccount" => {
                     #[allow(non_camel_case_types)]
                     struct GetAccountSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<super::super::types::GetAccountRequest>
-                    for GetAccountSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::GetAccountRequest>
+                        for GetAccountSvc<T>
+                    {
                         type Response = super::super::types::GetAccountResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
-                            request: tonic::Request<
-                                super::super::types::GetAccountRequest,
-                            >,
+                            request: tonic::Request<super::super::types::GetAccountRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
@@ -3339,15 +3946,12 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/GetOwner" => {
                     #[allow(non_camel_case_types)]
                     struct GetOwnerSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<super::super::types::GetOwnerRequest>
-                    for GetOwnerSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::GetOwnerRequest>
+                        for GetOwnerSvc<T>
+                    {
                         type Response = super::super::types::GetOwnerResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::super::types::GetOwnerRequest>,
@@ -3384,20 +3988,15 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/GetProgram" => {
                     #[allow(non_camel_case_types)]
                     struct GetProgramSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<super::super::types::GetProgramRequest>
-                    for GetProgramSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::GetProgramRequest>
+                        for GetProgramSvc<T>
+                    {
                         type Response = super::super::types::GetProgramResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
-                            request: tonic::Request<
-                                super::super::types::GetProgramRequest,
-                            >,
+                            request: tonic::Request<super::super::types::GetProgramRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
@@ -3431,21 +4030,15 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/CreateProgram" => {
                     #[allow(non_camel_case_types)]
                     struct CreateProgramSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::CreateProgramRequest,
-                    > for CreateProgramSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::CreateProgramRequest>
+                        for CreateProgramSvc<T>
+                    {
                         type Response = super::super::types::CreateProgramResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
-                            request: tonic::Request<
-                                super::super::types::CreateProgramRequest,
-                            >,
+                            request: tonic::Request<super::super::types::CreateProgramRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
@@ -3479,26 +4072,19 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/SetProgramName" => {
                     #[allow(non_camel_case_types)]
                     struct SetProgramNameSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::SetProgramNameRequest,
-                    > for SetProgramNameSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::SetProgramNameRequest>
+                        for SetProgramNameSvc<T>
+                    {
                         type Response = super::super::types::SetProgramNameResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
-                            request: tonic::Request<
-                                super::super::types::SetProgramNameRequest,
-                            >,
+                            request: tonic::Request<super::super::types::SetProgramNameRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ProverNetwork>::set_program_name(&inner, request)
-                                    .await
+                                <T as ProverNetwork>::set_program_name(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -3528,20 +4114,15 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/GetBalance" => {
                     #[allow(non_camel_case_types)]
                     struct GetBalanceSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<super::super::types::GetBalanceRequest>
-                    for GetBalanceSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::GetBalanceRequest>
+                        for GetBalanceSvc<T>
+                    {
                         type Response = super::super::types::GetBalanceResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
-                            request: tonic::Request<
-                                super::super::types::GetBalanceRequest,
-                            >,
+                            request: tonic::Request<super::super::types::GetBalanceRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
@@ -3575,16 +4156,13 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/GetFilteredBalanceLogs" => {
                     #[allow(non_camel_case_types)]
                     struct GetFilteredBalanceLogsSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetFilteredBalanceLogsRequest,
-                    > for GetFilteredBalanceLogsSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetFilteredBalanceLogsRequest,
+                        > for GetFilteredBalanceLogsSvc<T>
+                    {
                         type Response = super::super::types::GetFilteredBalanceLogsResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<
@@ -3593,10 +4171,7 @@ pub mod prover_network_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ProverNetwork>::get_filtered_balance_logs(
-                                        &inner,
-                                        request,
-                                    )
+                                <T as ProverNetwork>::get_filtered_balance_logs(&inner, request)
                                     .await
                             };
                             Box::pin(fut)
@@ -3627,16 +4202,13 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/GetLatestBridgeBlock" => {
                     #[allow(non_camel_case_types)]
                     struct GetLatestBridgeBlockSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetLatestBridgeBlockRequest,
-                    > for GetLatestBridgeBlockSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetLatestBridgeBlockRequest,
+                        > for GetLatestBridgeBlockSvc<T>
+                    {
                         type Response = super::super::types::GetLatestBridgeBlockResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<
@@ -3645,11 +4217,7 @@ pub mod prover_network_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ProverNetwork>::get_latest_bridge_block(
-                                        &inner,
-                                        request,
-                                    )
-                                    .await
+                                <T as ProverNetwork>::get_latest_bridge_block(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -3679,16 +4247,12 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/GetGasPriceEstimate" => {
                     #[allow(non_camel_case_types)]
                     struct GetGasPriceEstimateSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetGasPriceEstimateRequest,
-                    > for GetGasPriceEstimateSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::GetGasPriceEstimateRequest>
+                        for GetGasPriceEstimateSvc<T>
+                    {
                         type Response = super::super::types::GetGasPriceEstimateResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<
@@ -3697,11 +4261,7 @@ pub mod prover_network_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ProverNetwork>::get_gas_price_estimate(
-                                        &inner,
-                                        request,
-                                    )
-                                    .await
+                                <T as ProverNetwork>::get_gas_price_estimate(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -3731,16 +4291,13 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/GetTransactionDetails" => {
                     #[allow(non_camel_case_types)]
                     struct GetTransactionDetailsSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetTransactionDetailsRequest,
-                    > for GetTransactionDetailsSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetTransactionDetailsRequest,
+                        > for GetTransactionDetailsSvc<T>
+                    {
                         type Response = super::super::types::GetTransactionDetailsResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<
@@ -3749,11 +4306,7 @@ pub mod prover_network_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ProverNetwork>::get_transaction_details(
-                                        &inner,
-                                        request,
-                                    )
-                                    .await
+                                <T as ProverNetwork>::get_transaction_details(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -3783,15 +4336,12 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/Transfer" => {
                     #[allow(non_camel_case_types)]
                     struct TransferSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<super::super::types::TransferRequest>
-                    for TransferSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::TransferRequest>
+                        for TransferSvc<T>
+                    {
                         type Response = super::super::types::TransferResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::super::types::TransferRequest>,
@@ -3828,26 +4378,19 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/GetTransferParams" => {
                     #[allow(non_camel_case_types)]
                     struct GetTransferParamsSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetTransferParamsRequest,
-                    > for GetTransferParamsSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::GetTransferParamsRequest>
+                        for GetTransferParamsSvc<T>
+                    {
                         type Response = super::super::types::GetTransferParamsResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
-                            request: tonic::Request<
-                                super::super::types::GetTransferParamsRequest,
-                            >,
+                            request: tonic::Request<super::super::types::GetTransferParamsRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ProverNetwork>::get_transfer_params(&inner, request)
-                                    .await
+                                <T as ProverNetwork>::get_transfer_params(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -3877,26 +4420,19 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/GetWithdrawParams" => {
                     #[allow(non_camel_case_types)]
                     struct GetWithdrawParamsSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetWithdrawParamsRequest,
-                    > for GetWithdrawParamsSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::GetWithdrawParamsRequest>
+                        for GetWithdrawParamsSvc<T>
+                    {
                         type Response = super::super::types::GetWithdrawParamsResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
-                            request: tonic::Request<
-                                super::super::types::GetWithdrawParamsRequest,
-                            >,
+                            request: tonic::Request<super::super::types::GetWithdrawParamsRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ProverNetwork>::get_withdraw_params(&inner, request)
-                                    .await
+                                <T as ProverNetwork>::get_withdraw_params(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -3926,15 +4462,12 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/Withdraw" => {
                     #[allow(non_camel_case_types)]
                     struct WithdrawSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<super::super::types::WithdrawRequest>
-                    for WithdrawSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::WithdrawRequest>
+                        for WithdrawSvc<T>
+                    {
                         type Response = super::super::types::WithdrawResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::super::types::WithdrawRequest>,
@@ -3968,26 +4501,105 @@ pub mod prover_network_server {
                     };
                     Box::pin(fut)
                 }
+                "/network.ProverNetwork/GetProvePrice" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetProvePriceSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::GetProvePriceRequest>
+                        for GetProvePriceSvc<T>
+                    {
+                        type Response = super::super::types::GetProvePriceResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::super::types::GetProvePriceRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_prove_price(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetProvePriceSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/GetPriceInfo" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetPriceInfoSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::GetPriceInfoRequest>
+                        for GetPriceInfoSvc<T>
+                    {
+                        type Response = super::super::types::GetPriceInfoResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::super::types::GetPriceInfoRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_price_info(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetPriceInfoSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
                 "/network.ProverNetwork/Bid" => {
                     #[allow(non_camel_case_types)]
                     struct BidSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<super::super::types::BidRequest>
-                    for BidSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::BidRequest> for BidSvc<T>
+                    {
                         type Response = super::super::types::BidResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::super::types::BidRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
-                            let fut = async move {
-                                <T as ProverNetwork>::bid(&inner, request).await
-                            };
+                            let fut =
+                                async move { <T as ProverNetwork>::bid(&inner, request).await };
                             Box::pin(fut)
                         }
                     }
@@ -4016,23 +4628,19 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/Settle" => {
                     #[allow(non_camel_case_types)]
                     struct SettleSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<super::super::types::SettleRequest>
-                    for SettleSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::SettleRequest>
+                        for SettleSvc<T>
+                    {
                         type Response = super::super::types::SettleResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::super::types::SettleRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
-                            let fut = async move {
-                                <T as ProverNetwork>::settle(&inner, request).await
-                            };
+                            let fut =
+                                async move { <T as ProverNetwork>::settle(&inner, request).await };
                             Box::pin(fut)
                         }
                     }
@@ -4061,26 +4669,19 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/GetProversByUptime" => {
                     #[allow(non_camel_case_types)]
                     struct GetProversByUptimeSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetProversByUptimeRequest,
-                    > for GetProversByUptimeSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::GetProversByUptimeRequest>
+                        for GetProversByUptimeSvc<T>
+                    {
                         type Response = super::super::types::GetProversByUptimeResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
-                            request: tonic::Request<
-                                super::super::types::GetProversByUptimeRequest,
-                            >,
+                            request: tonic::Request<super::super::types::GetProversByUptimeRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ProverNetwork>::get_provers_by_uptime(&inner, request)
-                                    .await
+                                <T as ProverNetwork>::get_provers_by_uptime(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -4109,19 +4710,14 @@ pub mod prover_network_server {
                 }
                 "/network.ProverNetwork/GetFilteredSettleableRequests" => {
                     #[allow(non_camel_case_types)]
-                    struct GetFilteredSettleableRequestsSvc<T: ProverNetwork>(
-                        pub Arc<T>,
-                    );
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetFilteredSettleableRequestsRequest,
-                    > for GetFilteredSettleableRequestsSvc<T> {
+                    struct GetFilteredSettleableRequestsSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetFilteredSettleableRequestsRequest,
+                        > for GetFilteredSettleableRequestsSvc<T>
+                    {
                         type Response = super::super::types::GetFilteredSettleableRequestsResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<
@@ -4131,10 +4727,9 @@ pub mod prover_network_server {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
                                 <T as ProverNetwork>::get_filtered_settleable_requests(
-                                        &inner,
-                                        request,
-                                    )
-                                    .await
+                                    &inner, request,
+                                )
+                                .await
                             };
                             Box::pin(fut)
                         }
@@ -4163,19 +4758,14 @@ pub mod prover_network_server {
                 }
                 "/network.ProverNetwork/GetFilteredSuspendableProvers" => {
                     #[allow(non_camel_case_types)]
-                    struct GetFilteredSuspendableProversSvc<T: ProverNetwork>(
-                        pub Arc<T>,
-                    );
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetFilteredSuspendableProversRequest,
-                    > for GetFilteredSuspendableProversSvc<T> {
+                    struct GetFilteredSuspendableProversSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetFilteredSuspendableProversRequest,
+                        > for GetFilteredSuspendableProversSvc<T>
+                    {
                         type Response = super::super::types::GetFilteredSuspendableProversResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<
@@ -4185,10 +4775,9 @@ pub mod prover_network_server {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
                                 <T as ProverNetwork>::get_filtered_suspendable_provers(
-                                        &inner,
-                                        request,
-                                    )
-                                    .await
+                                    &inner, request,
+                                )
+                                .await
                             };
                             Box::pin(fut)
                         }
@@ -4218,21 +4807,15 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/SuspendProver" => {
                     #[allow(non_camel_case_types)]
                     struct SuspendProverSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::SuspendProverRequest,
-                    > for SuspendProverSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::SuspendProverRequest>
+                        for SuspendProverSvc<T>
+                    {
                         type Response = super::super::types::SuspendProverResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
-                            request: tonic::Request<
-                                super::super::types::SuspendProverRequest,
-                            >,
+                            request: tonic::Request<super::super::types::SuspendProverRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
@@ -4266,23 +4849,19 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/SignIn" => {
                     #[allow(non_camel_case_types)]
                     struct SignInSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<super::super::types::SignInRequest>
-                    for SignInSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::SignInRequest>
+                        for SignInSvc<T>
+                    {
                         type Response = super::super::types::SignInResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::super::types::SignInRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
-                            let fut = async move {
-                                <T as ProverNetwork>::sign_in(&inner, request).await
-                            };
+                            let fut =
+                                async move { <T as ProverNetwork>::sign_in(&inner, request).await };
                             Box::pin(fut)
                         }
                     }
@@ -4311,21 +4890,15 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/ConnectTwitter" => {
                     #[allow(non_camel_case_types)]
                     struct ConnectTwitterSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::ConnectTwitterRequest,
-                    > for ConnectTwitterSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::ConnectTwitterRequest>
+                        for ConnectTwitterSvc<T>
+                    {
                         type Response = super::super::types::ConnectTwitterResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
-                            request: tonic::Request<
-                                super::super::types::ConnectTwitterRequest,
-                            >,
+                            request: tonic::Request<super::super::types::ConnectTwitterRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
@@ -4359,26 +4932,19 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/GetProverStats" => {
                     #[allow(non_camel_case_types)]
                     struct GetProverStatsSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetProverStatsRequest,
-                    > for GetProverStatsSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::GetProverStatsRequest>
+                        for GetProverStatsSvc<T>
+                    {
                         type Response = super::super::types::GetProverStatsResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
-                            request: tonic::Request<
-                                super::super::types::GetProverStatsRequest,
-                            >,
+                            request: tonic::Request<super::super::types::GetProverStatsRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ProverNetwork>::get_prover_stats(&inner, request)
-                                    .await
+                                <T as ProverNetwork>::get_prover_stats(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -4408,16 +4974,13 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/GetFilteredProverStats" => {
                     #[allow(non_camel_case_types)]
                     struct GetFilteredProverStatsSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetFilteredProverStatsRequest,
-                    > for GetFilteredProverStatsSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetFilteredProverStatsRequest,
+                        > for GetFilteredProverStatsSvc<T>
+                    {
                         type Response = super::super::types::GetFilteredProverStatsResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<
@@ -4426,10 +4989,7 @@ pub mod prover_network_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ProverNetwork>::get_filtered_prover_stats(
-                                        &inner,
-                                        request,
-                                    )
+                                <T as ProverNetwork>::get_filtered_prover_stats(&inner, request)
                                     .await
                             };
                             Box::pin(fut)
@@ -4460,16 +5020,13 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/GetProverStatsDetail" => {
                     #[allow(non_camel_case_types)]
                     struct GetProverStatsDetailSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetProverStatsDetailRequest,
-                    > for GetProverStatsDetailSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetProverStatsDetailRequest,
+                        > for GetProverStatsDetailSvc<T>
+                    {
                         type Response = super::super::types::GetProverStatsDetailResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<
@@ -4478,11 +5035,7 @@ pub mod prover_network_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ProverNetwork>::get_prover_stats_detail(
-                                        &inner,
-                                        request,
-                                    )
-                                    .await
+                                <T as ProverNetwork>::get_prover_stats_detail(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -4512,16 +5065,13 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/GetProverSearchResults" => {
                     #[allow(non_camel_case_types)]
                     struct GetProverSearchResultsSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetProverSearchResultsRequest,
-                    > for GetProverSearchResultsSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetProverSearchResultsRequest,
+                        > for GetProverSearchResultsSvc<T>
+                    {
                         type Response = super::super::types::GetProverSearchResultsResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<
@@ -4530,10 +5080,7 @@ pub mod prover_network_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ProverNetwork>::get_prover_search_results(
-                                        &inner,
-                                        request,
-                                    )
+                                <T as ProverNetwork>::get_prover_search_results(&inner, request)
                                     .await
                             };
                             Box::pin(fut)
@@ -4564,16 +5111,13 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/GetStakingProverSearch" => {
                     #[allow(non_camel_case_types)]
                     struct GetStakingProverSearchSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetStakingProverSearchRequest,
-                    > for GetStakingProverSearchSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetStakingProverSearchRequest,
+                        > for GetStakingProverSearchSvc<T>
+                    {
                         type Response = super::super::types::GetStakingProverSearchResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<
@@ -4582,10 +5126,7 @@ pub mod prover_network_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ProverNetwork>::get_staking_prover_search(
-                                        &inner,
-                                        request,
-                                    )
+                                <T as ProverNetwork>::get_staking_prover_search(&inner, request)
                                     .await
                             };
                             Box::pin(fut)
@@ -4616,16 +5157,13 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/GetFilteredBidHistory" => {
                     #[allow(non_camel_case_types)]
                     struct GetFilteredBidHistorySvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetFilteredBidHistoryRequest,
-                    > for GetFilteredBidHistorySvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetFilteredBidHistoryRequest,
+                        > for GetFilteredBidHistorySvc<T>
+                    {
                         type Response = super::super::types::GetFilteredBidHistoryResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<
@@ -4634,10 +5172,7 @@ pub mod prover_network_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ProverNetwork>::get_filtered_bid_history(
-                                        &inner,
-                                        request,
-                                    )
+                                <T as ProverNetwork>::get_filtered_bid_history(&inner, request)
                                     .await
                             };
                             Box::pin(fut)
@@ -4668,16 +5203,13 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/GetFilteredProverBidHistory" => {
                     #[allow(non_camel_case_types)]
                     struct GetFilteredProverBidHistorySvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetFilteredProverBidHistoryRequest,
-                    > for GetFilteredProverBidHistorySvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetFilteredProverBidHistoryRequest,
+                        > for GetFilteredProverBidHistorySvc<T>
+                    {
                         type Response = super::super::types::GetFilteredProverBidHistoryResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<
@@ -4687,10 +5219,9 @@ pub mod prover_network_server {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
                                 <T as ProverNetwork>::get_filtered_prover_bid_history(
-                                        &inner,
-                                        request,
-                                    )
-                                    .await
+                                    &inner, request,
+                                )
+                                .await
                             };
                             Box::pin(fut)
                         }
@@ -4717,19 +5248,192 @@ pub mod prover_network_server {
                     };
                     Box::pin(fut)
                 }
+                "/network.ProverNetwork/UpdateStakerFee" => {
+                    #[allow(non_camel_case_types)]
+                    struct UpdateStakerFeeSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::UpdateStakerFeeRequest>
+                        for UpdateStakerFeeSvc<T>
+                    {
+                        type Response = super::super::types::UpdateStakerFeeResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::super::types::UpdateStakerFeeRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::update_staker_fee(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = UpdateStakerFeeSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/GetStakerFeeUpdateTime" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetStakerFeeUpdateTimeSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetStakerFeeUpdateTimeRequest,
+                        > for GetStakerFeeUpdateTimeSvc<T>
+                    {
+                        type Response = super::super::types::GetStakerFeeUpdateTimeResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::GetStakerFeeUpdateTimeRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_staker_fee_update_time(&inner, request)
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetStakerFeeUpdateTimeSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/GetUpdateStakerFeeParams" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetUpdateStakerFeeParamsSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetUpdateStakerFeeParamsRequest,
+                        > for GetUpdateStakerFeeParamsSvc<T>
+                    {
+                        type Response = super::super::types::GetUpdateStakerFeeParamsResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::GetUpdateStakerFeeParamsRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_update_staker_fee_params(&inner, request)
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetUpdateStakerFeeParamsSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/UpdateDelegatorFee" => {
+                    #[allow(non_camel_case_types)]
+                    struct UpdateDelegatorFeeSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::UpdateDelegatorFeeRequest>
+                        for UpdateDelegatorFeeSvc<T>
+                    {
+                        type Response = super::super::types::UpdateDelegatorFeeResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::super::types::UpdateDelegatorFeeRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::update_delegator_fee(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = UpdateDelegatorFeeSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
                 "/network.ProverNetwork/GetTEEWhitelistStatus" => {
                     #[allow(non_camel_case_types)]
                     struct GetTEEWhitelistStatusSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetTeeWhitelistStatusRequest,
-                    > for GetTEEWhitelistStatusSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetTeeWhitelistStatusRequest,
+                        > for GetTEEWhitelistStatusSvc<T>
+                    {
                         type Response = super::super::types::GetTeeWhitelistStatusResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<
@@ -4738,10 +5442,7 @@ pub mod prover_network_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ProverNetwork>::get_tee_whitelist_status(
-                                        &inner,
-                                        request,
-                                    )
+                                <T as ProverNetwork>::get_tee_whitelist_status(&inner, request)
                                     .await
                             };
                             Box::pin(fut)
@@ -4772,26 +5473,19 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/GetFilteredProvers" => {
                     #[allow(non_camel_case_types)]
                     struct GetFilteredProversSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetFilteredProversRequest,
-                    > for GetFilteredProversSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::GetFilteredProversRequest>
+                        for GetFilteredProversSvc<T>
+                    {
                         type Response = super::super::types::GetFilteredProversResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
-                            request: tonic::Request<
-                                super::super::types::GetFilteredProversRequest,
-                            >,
+                            request: tonic::Request<super::super::types::GetFilteredProversRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ProverNetwork>::get_filtered_provers(&inner, request)
-                                    .await
+                                <T as ProverNetwork>::get_filtered_provers(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -4821,16 +5515,13 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/GetProverStakeBalance" => {
                     #[allow(non_camel_case_types)]
                     struct GetProverStakeBalanceSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetProverStakeBalanceRequest,
-                    > for GetProverStakeBalanceSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetProverStakeBalanceRequest,
+                        > for GetProverStakeBalanceSvc<T>
+                    {
                         type Response = super::super::types::GetProverStakeBalanceResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<
@@ -4839,10 +5530,7 @@ pub mod prover_network_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ProverNetwork>::get_prover_stake_balance(
-                                        &inner,
-                                        request,
-                                    )
+                                <T as ProverNetwork>::get_prover_stake_balance(&inner, request)
                                     .await
                             };
                             Box::pin(fut)
@@ -4872,19 +5560,15 @@ pub mod prover_network_server {
                 }
                 "/network.ProverNetwork/GetFilteredStakerStakeBalanceLogs" => {
                     #[allow(non_camel_case_types)]
-                    struct GetFilteredStakerStakeBalanceLogsSvc<T: ProverNetwork>(
-                        pub Arc<T>,
-                    );
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetFilteredStakerStakeBalanceLogsRequest,
-                    > for GetFilteredStakerStakeBalanceLogsSvc<T> {
-                        type Response = super::super::types::GetFilteredStakerStakeBalanceLogsResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                    struct GetFilteredStakerStakeBalanceLogsSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetFilteredStakerStakeBalanceLogsRequest,
+                        > for GetFilteredStakerStakeBalanceLogsSvc<T>
+                    {
+                        type Response =
+                            super::super::types::GetFilteredStakerStakeBalanceLogsResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<
@@ -4894,10 +5578,9 @@ pub mod prover_network_server {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
                                 <T as ProverNetwork>::get_filtered_staker_stake_balance_logs(
-                                        &inner,
-                                        request,
-                                    )
-                                    .await
+                                    &inner, request,
+                                )
+                                .await
                             };
                             Box::pin(fut)
                         }
@@ -4926,19 +5609,15 @@ pub mod prover_network_server {
                 }
                 "/network.ProverNetwork/GetFilteredProverStakeBalanceLogs" => {
                     #[allow(non_camel_case_types)]
-                    struct GetFilteredProverStakeBalanceLogsSvc<T: ProverNetwork>(
-                        pub Arc<T>,
-                    );
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetFilteredProverStakeBalanceLogsRequest,
-                    > for GetFilteredProverStakeBalanceLogsSvc<T> {
-                        type Response = super::super::types::GetFilteredProverStakeBalanceLogsResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                    struct GetFilteredProverStakeBalanceLogsSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetFilteredProverStakeBalanceLogsRequest,
+                        > for GetFilteredProverStakeBalanceLogsSvc<T>
+                    {
+                        type Response =
+                            super::super::types::GetFilteredProverStakeBalanceLogsResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<
@@ -4948,10 +5627,9 @@ pub mod prover_network_server {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
                                 <T as ProverNetwork>::get_filtered_prover_stake_balance_logs(
-                                        &inner,
-                                        request,
-                                    )
-                                    .await
+                                    &inner, request,
+                                )
+                                .await
                             };
                             Box::pin(fut)
                         }
@@ -4981,26 +5659,19 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/GetStakingPoints" => {
                     #[allow(non_camel_case_types)]
                     struct GetStakingPointsSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetStakingPointsRequest,
-                    > for GetStakingPointsSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::GetStakingPointsRequest>
+                        for GetStakingPointsSvc<T>
+                    {
                         type Response = super::super::types::GetStakingPointsResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
-                            request: tonic::Request<
-                                super::super::types::GetStakingPointsRequest,
-                            >,
+                            request: tonic::Request<super::super::types::GetStakingPointsRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ProverNetwork>::get_staking_points(&inner, request)
-                                    .await
+                                <T as ProverNetwork>::get_staking_points(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -5027,19 +5698,113 @@ pub mod prover_network_server {
                     };
                     Box::pin(fut)
                 }
+                "/network.ProverNetwork/GetNetworkFilteredStakerLeaderboard" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetNetworkFilteredStakerLeaderboardSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetNetworkFilteredStakerLeaderboardRequest,
+                        > for GetNetworkFilteredStakerLeaderboardSvc<T>
+                    {
+                        type Response =
+                            super::super::types::GetNetworkFilteredStakerLeaderboardResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::GetNetworkFilteredStakerLeaderboardRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_network_filtered_staker_leaderboard(
+                                    &inner, request,
+                                )
+                                .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetNetworkFilteredStakerLeaderboardSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/GetNetworkStakerLeaderboardDashboard" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetNetworkStakerLeaderboardDashboardSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetNetworkStakerLeaderboardDashboardRequest,
+                        > for GetNetworkStakerLeaderboardDashboardSvc<T>
+                    {
+                        type Response =
+                            super::super::types::GetNetworkStakerLeaderboardDashboardResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::GetNetworkStakerLeaderboardDashboardRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_network_staker_leaderboard_dashboard(
+                                    &inner, request,
+                                )
+                                .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetNetworkStakerLeaderboardDashboardSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
                 "/network.ProverNetwork/GetDelegationParams" => {
                     #[allow(non_camel_case_types)]
                     struct GetDelegationParamsSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetDelegationParamsRequest,
-                    > for GetDelegationParamsSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::GetDelegationParamsRequest>
+                        for GetDelegationParamsSvc<T>
+                    {
                         type Response = super::super::types::GetDelegationParamsResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<
@@ -5048,8 +5813,7 @@ pub mod prover_network_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as ProverNetwork>::get_delegation_params(&inner, request)
-                                    .await
+                                <T as ProverNetwork>::get_delegation_params(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -5076,24 +5840,63 @@ pub mod prover_network_server {
                     };
                     Box::pin(fut)
                 }
-                "/network.ProverNetwork/SetDelegation" => {
+                "/network.ProverNetwork/GetTitanConfigParams" => {
                     #[allow(non_camel_case_types)]
-                    struct SetDelegationSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::SetDelegationRequest,
-                    > for SetDelegationSvc<T> {
-                        type Response = super::super::types::SetDelegationResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                    struct GetTitanConfigParamsSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetTitanConfigParamsRequest,
+                        > for GetTitanConfigParamsSvc<T>
+                    {
+                        type Response = super::super::types::GetTitanConfigParamsResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<
-                                super::super::types::SetDelegationRequest,
+                                super::super::types::GetTitanConfigParamsRequest,
                             >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_titan_config_params(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetTitanConfigParamsSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/SetDelegation" => {
+                    #[allow(non_camel_case_types)]
+                    struct SetDelegationSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::SetDelegationRequest>
+                        for SetDelegationSvc<T>
+                    {
+                        type Response = super::super::types::SetDelegationResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::super::types::SetDelegationRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
@@ -5127,21 +5930,15 @@ pub mod prover_network_server {
                 "/network.ProverNetwork/GetDelegation" => {
                     #[allow(non_camel_case_types)]
                     struct GetDelegationSvc<T: ProverNetwork>(pub Arc<T>);
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetDelegationRequest,
-                    > for GetDelegationSvc<T> {
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::GetDelegationRequest>
+                        for GetDelegationSvc<T>
+                    {
                         type Response = super::super::types::GetDelegationResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
-                            request: tonic::Request<
-                                super::super::types::GetDelegationRequest,
-                            >,
+                            request: tonic::Request<super::super::types::GetDelegationRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
@@ -5174,19 +5971,14 @@ pub mod prover_network_server {
                 }
                 "/network.ProverNetwork/GetFilteredWithdrawalReceipts" => {
                     #[allow(non_camel_case_types)]
-                    struct GetFilteredWithdrawalReceiptsSvc<T: ProverNetwork>(
-                        pub Arc<T>,
-                    );
-                    impl<
-                        T: ProverNetwork,
-                    > tonic::server::UnaryService<
-                        super::super::types::GetFilteredWithdrawalReceiptsRequest,
-                    > for GetFilteredWithdrawalReceiptsSvc<T> {
+                    struct GetFilteredWithdrawalReceiptsSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetFilteredWithdrawalReceiptsRequest,
+                        > for GetFilteredWithdrawalReceiptsSvc<T>
+                    {
                         type Response = super::super::types::GetFilteredWithdrawalReceiptsResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<
@@ -5196,10 +5988,9 @@ pub mod prover_network_server {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
                                 <T as ProverNetwork>::get_filtered_withdrawal_receipts(
-                                        &inner,
-                                        request,
-                                    )
-                                    .await
+                                    &inner, request,
+                                )
+                                .await
                             };
                             Box::pin(fut)
                         }
@@ -5226,23 +6017,1696 @@ pub mod prover_network_server {
                     };
                     Box::pin(fut)
                 }
-                _ => {
-                    Box::pin(async move {
-                        let mut response = http::Response::new(empty_body());
-                        let headers = response.headers_mut();
-                        headers
-                            .insert(
-                                tonic::Status::GRPC_STATUS,
-                                (tonic::Code::Unimplemented as i32).into(),
+                "/network.ProverNetwork/GetEpoch" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetEpochSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::GetEpochRequest>
+                        for GetEpochSvc<T>
+                    {
+                        type Response = super::super::types::GetEpochResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::super::types::GetEpochRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_epoch(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetEpochSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
                             );
-                        headers
-                            .insert(
-                                http::header::CONTENT_TYPE,
-                                tonic::metadata::GRPC_CONTENT_TYPE,
-                            );
-                        Ok(response)
-                    })
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
                 }
+                "/network.ProverNetwork/GetProverWork" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetProverWorkSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::GetProverWorkRequest>
+                        for GetProverWorkSvc<T>
+                    {
+                        type Response = super::super::types::GetProverWorkResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::super::types::GetProverWorkRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_prover_work(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetProverWorkSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/GetProversWithWork" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetProversWithWorkSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::GetProversWithWorkRequest>
+                        for GetProversWithWorkSvc<T>
+                    {
+                        type Response = super::super::types::GetProversWithWorkResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::super::types::GetProversWithWorkRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_provers_with_work(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetProversWithWorkSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/GetRewardsDashboard" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetRewardsDashboardSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::GetRewardsDashboardRequest>
+                        for GetRewardsDashboardSvc<T>
+                    {
+                        type Response = super::super::types::GetRewardsDashboardResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::GetRewardsDashboardRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_rewards_dashboard(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetRewardsDashboardSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/GetRecentRewardsGraph" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetRecentRewardsGraphSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetRecentRewardsGraphRequest,
+                        > for GetRecentRewardsGraphSvc<T>
+                    {
+                        type Response = super::super::types::GetRecentRewardsGraphResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::GetRecentRewardsGraphRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_recent_rewards_graph(&inner, request)
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetRecentRewardsGraphSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/GetRecentPerformanceGraph" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetRecentPerformanceGraphSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetRecentPerformanceGraphRequest,
+                        > for GetRecentPerformanceGraphSvc<T>
+                    {
+                        type Response = super::super::types::GetRecentPerformanceGraphResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::GetRecentPerformanceGraphRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_recent_performance_graph(&inner, request)
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetRecentPerformanceGraphSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/GetTitan1WhitelistAllocation" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetTitan1WhitelistAllocationSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetTitan1WhitelistAllocationRequest,
+                        > for GetTitan1WhitelistAllocationSvc<T>
+                    {
+                        type Response = super::super::types::GetTitan1WhitelistAllocationResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::GetTitan1WhitelistAllocationRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_titan1_whitelist_allocation(
+                                    &inner, request,
+                                )
+                                .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetTitan1WhitelistAllocationSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/GetFilteredTitan1Nfts" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetFilteredTitan1NftsSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetFilteredTitan1NftsRequest,
+                        > for GetFilteredTitan1NftsSvc<T>
+                    {
+                        type Response = super::super::types::GetFilteredTitan1NftsResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::GetFilteredTitan1NftsRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_filtered_titan1_nfts(&inner, request)
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetFilteredTitan1NftsSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/SetTitan1Delegation" => {
+                    #[allow(non_camel_case_types)]
+                    struct SetTitan1DelegationSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::SetTitan1DelegationRequest>
+                        for SetTitan1DelegationSvc<T>
+                    {
+                        type Response = super::super::types::SetTitan1DelegationResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::SetTitan1DelegationRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::set_titan1_delegation(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = SetTitan1DelegationSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/SetTitan1DelegationLimit" => {
+                    #[allow(non_camel_case_types)]
+                    struct SetTitan1DelegationLimitSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::SetTitan1DelegationLimitRequest,
+                        > for SetTitan1DelegationLimitSvc<T>
+                    {
+                        type Response = super::super::types::SetTitan1DelegationLimitResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::SetTitan1DelegationLimitRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::set_titan1_delegation_limit(&inner, request)
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = SetTitan1DelegationLimitSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/SetTitan1AutoAccept" => {
+                    #[allow(non_camel_case_types)]
+                    struct SetTitan1AutoAcceptSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::SetTitan1AutoAcceptRequest>
+                        for SetTitan1AutoAcceptSvc<T>
+                    {
+                        type Response = super::super::types::SetTitan1AutoAcceptResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::SetTitan1AutoAcceptRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::set_titan1_auto_accept(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = SetTitan1AutoAcceptSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/GetTitan1DelegationSettings" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetTitan1DelegationSettingsSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetTitan1DelegationSettingsRequest,
+                        > for GetTitan1DelegationSettingsSvc<T>
+                    {
+                        type Response = super::super::types::GetTitan1DelegationSettingsResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::GetTitan1DelegationSettingsRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_titan1_delegation_settings(
+                                    &inner, request,
+                                )
+                                .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetTitan1DelegationSettingsSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/SetTitan1DelegationSettings" => {
+                    #[allow(non_camel_case_types)]
+                    struct SetTitan1DelegationSettingsSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::SetTitan1DelegationSettingsRequest,
+                        > for SetTitan1DelegationSettingsSvc<T>
+                    {
+                        type Response = super::super::types::SetTitan1DelegationSettingsResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::SetTitan1DelegationSettingsRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::set_titan1_delegation_settings(
+                                    &inner, request,
+                                )
+                                .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = SetTitan1DelegationSettingsSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/GetTitan1RecentSales" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetTitan1RecentSalesSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetTitan1RecentSalesRequest,
+                        > for GetTitan1RecentSalesSvc<T>
+                    {
+                        type Response = super::super::types::GetTitan1RecentSalesResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::GetTitan1RecentSalesRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_titan1_recent_sales(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetTitan1RecentSalesSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/GetFilteredTitan1Delegates" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetFilteredTitan1DelegatesSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetFilteredTitan1DelegatesRequest,
+                        > for GetFilteredTitan1DelegatesSvc<T>
+                    {
+                        type Response = super::super::types::GetFilteredTitan1DelegatesResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::GetFilteredTitan1DelegatesRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_filtered_titan1_delegates(&inner, request)
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetFilteredTitan1DelegatesSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/GetFilteredTitan1DelegateRequests" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetFilteredTitan1DelegateRequestsSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetFilteredTitan1DelegateRequestsRequest,
+                        > for GetFilteredTitan1DelegateRequestsSvc<T>
+                    {
+                        type Response =
+                            super::super::types::GetFilteredTitan1DelegateRequestsResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::GetFilteredTitan1DelegateRequestsRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_filtered_titan1_delegate_requests(
+                                    &inner, request,
+                                )
+                                .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetFilteredTitan1DelegateRequestsSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/GetFilteredTitan1DelegateRemovals" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetFilteredTitan1DelegateRemovalsSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetFilteredTitan1DelegateRemovalsRequest,
+                        > for GetFilteredTitan1DelegateRemovalsSvc<T>
+                    {
+                        type Response =
+                            super::super::types::GetFilteredTitan1DelegateRemovalsResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::GetFilteredTitan1DelegateRemovalsRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_filtered_titan1_delegate_removals(
+                                    &inner, request,
+                                )
+                                .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetFilteredTitan1DelegateRemovalsSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/GetTitan1RecentActivity" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetTitan1RecentActivitySvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetTitan1RecentActivityRequest,
+                        > for GetTitan1RecentActivitySvc<T>
+                    {
+                        type Response = super::super::types::GetTitan1RecentActivityResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::GetTitan1RecentActivityRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_titan1_recent_activity(&inner, request)
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetTitan1RecentActivitySvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/AcceptTitan1Delegates" => {
+                    #[allow(non_camel_case_types)]
+                    struct AcceptTitan1DelegatesSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::AcceptTitan1DelegatesRequest,
+                        > for AcceptTitan1DelegatesSvc<T>
+                    {
+                        type Response = super::super::types::AcceptTitan1DelegatesResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::AcceptTitan1DelegatesRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::accept_titan1_delegates(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = AcceptTitan1DelegatesSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/RejectTitan1Delegates" => {
+                    #[allow(non_camel_case_types)]
+                    struct RejectTitan1DelegatesSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::RejectTitan1DelegatesRequest,
+                        > for RejectTitan1DelegatesSvc<T>
+                    {
+                        type Response = super::super::types::RejectTitan1DelegatesResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::RejectTitan1DelegatesRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::reject_titan1_delegates(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = RejectTitan1DelegatesSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/RemoveTitan1Delegates" => {
+                    #[allow(non_camel_case_types)]
+                    struct RemoveTitan1DelegatesSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::RemoveTitan1DelegatesRequest,
+                        > for RemoveTitan1DelegatesSvc<T>
+                    {
+                        type Response = super::super::types::RemoveTitan1DelegatesResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::RemoveTitan1DelegatesRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::remove_titan1_delegates(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = RemoveTitan1DelegatesSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/CheckTitanWhitelist" => {
+                    #[allow(non_camel_case_types)]
+                    struct CheckTitanWhitelistSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::CheckTitanWhitelistRequest>
+                        for CheckTitanWhitelistSvc<T>
+                    {
+                        type Response = super::super::types::CheckTitanWhitelistResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::CheckTitanWhitelistRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::check_titan_whitelist(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = CheckTitanWhitelistSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/GetTitanWhitelistDetails" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetTitanWhitelistDetailsSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetTitanWhitelistDetailsRequest,
+                        > for GetTitanWhitelistDetailsSvc<T>
+                    {
+                        type Response = super::super::types::GetTitanWhitelistDetailsResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::GetTitanWhitelistDetailsRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_titan_whitelist_details(&inner, request)
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetTitanWhitelistDetailsSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/JoinTitanQueue" => {
+                    #[allow(non_camel_case_types)]
+                    struct JoinTitanQueueSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::JoinTitanQueueRequest>
+                        for JoinTitanQueueSvc<T>
+                    {
+                        type Response = super::super::types::JoinTitanQueueResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::super::types::JoinTitanQueueRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::join_titan_queue(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = JoinTitanQueueSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/ClaimTitanWhitelistSpot" => {
+                    #[allow(non_camel_case_types)]
+                    struct ClaimTitanWhitelistSpotSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::ClaimTitanWhitelistSpotRequest,
+                        > for ClaimTitanWhitelistSpotSvc<T>
+                    {
+                        type Response = super::super::types::ClaimTitanWhitelistSpotResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::ClaimTitanWhitelistSpotRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::claim_titan_whitelist_spot(&inner, request)
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = ClaimTitanWhitelistSpotSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/ClaimTitanWhitelistSpotByAddress" => {
+                    #[allow(non_camel_case_types)]
+                    struct ClaimTitanWhitelistSpotByAddressSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::ClaimTitanWhitelistSpotByAddressRequest,
+                        > for ClaimTitanWhitelistSpotByAddressSvc<T>
+                    {
+                        type Response =
+                            super::super::types::ClaimTitanWhitelistSpotByAddressResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::ClaimTitanWhitelistSpotByAddressRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::claim_titan_whitelist_spot_by_address(
+                                    &inner, request,
+                                )
+                                .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = ClaimTitanWhitelistSpotByAddressSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/GetProverDelegatedSlotBalance" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetProverDelegatedSlotBalanceSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetProverDelegatedSlotBalanceRequest,
+                        > for GetProverDelegatedSlotBalanceSvc<T>
+                    {
+                        type Response = super::super::types::GetProverDelegatedSlotBalanceResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::GetProverDelegatedSlotBalanceRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_prover_delegated_slot_balance(
+                                    &inner, request,
+                                )
+                                .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetProverDelegatedSlotBalanceSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/GetSlotDelegationDetails" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetSlotDelegationDetailsSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetSlotDelegationDetailsRequest,
+                        > for GetSlotDelegationDetailsSvc<T>
+                    {
+                        type Response = super::super::types::GetSlotDelegationDetailsResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::GetSlotDelegationDetailsRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_slot_delegation_details(&inner, request)
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetSlotDelegationDetailsSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/GetTitan1DelegationLimit" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetTitan1DelegationLimitSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetTitan1DelegationLimitRequest,
+                        > for GetTitan1DelegationLimitSvc<T>
+                    {
+                        type Response = super::super::types::GetTitan1DelegationLimitResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::GetTitan1DelegationLimitRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_titan1_delegation_limit(&inner, request)
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetTitan1DelegationLimitSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/AddRefVisit" => {
+                    #[allow(non_camel_case_types)]
+                    struct AddRefVisitSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::AddRefVisitRequest>
+                        for AddRefVisitSvc<T>
+                    {
+                        type Response = super::super::types::AddRefVisitResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::super::types::AddRefVisitRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::add_ref_visit(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = AddRefVisitSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/GetProverDelegateRequestCount" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetProverDelegateRequestCountSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetProverDelegateRequestCountRequest,
+                        > for GetProverDelegateRequestCountSvc<T>
+                    {
+                        type Response = super::super::types::GetProverDelegateRequestCountResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::GetProverDelegateRequestCountRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_prover_delegate_request_count(
+                                    &inner, request,
+                                )
+                                .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetProverDelegateRequestCountSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/GetTitanCloudProvers" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetTitanCloudProversSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetTitanCloudProversRequest,
+                        > for GetTitanCloudProversSvc<T>
+                    {
+                        type Response = super::super::types::GetTitanCloudProversResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::GetTitanCloudProversRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_titan_cloud_provers(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetTitanCloudProversSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/GetFilteredTitan1Ids" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetFilteredTitan1IdsSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetFilteredTitan1IdsRequest,
+                        > for GetFilteredTitan1IdsSvc<T>
+                    {
+                        type Response = super::super::types::GetFilteredTitan1IdsResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::GetFilteredTitan1IdsRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_filtered_titan1_ids(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetFilteredTitan1IdsSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/GetFilteredTitan1Slots" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetFilteredTitan1SlotsSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetFilteredTitan1SlotsRequest,
+                        > for GetFilteredTitan1SlotsSvc<T>
+                    {
+                        type Response = super::super::types::GetFilteredTitan1SlotsResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::GetFilteredTitan1SlotsRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_filtered_titan1_slots(&inner, request)
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetFilteredTitan1SlotsSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/GetTitan1RewardsData" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetTitan1RewardsDataSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<
+                            super::super::types::GetTitan1RewardsDataRequest,
+                        > for GetTitan1RewardsDataSvc<T>
+                    {
+                        type Response = super::super::types::GetTitan1RewardsDataResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::GetTitan1RewardsDataRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_titan1_rewards_data(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetTitan1RewardsDataSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/GetTitan1WorkGraph" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetTitan1WorkGraphSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::GetTitan1WorkGraphRequest>
+                        for GetTitan1WorkGraphSvc<T>
+                    {
+                        type Response = super::super::types::GetTitan1WorkGraphResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::super::types::GetTitan1WorkGraphRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_titan1_work_graph(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetTitan1WorkGraphSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/network.ProverNetwork/GetTitan1ClaimProof" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetTitan1ClaimProofSvc<T: ProverNetwork>(pub Arc<T>);
+                    impl<T: ProverNetwork>
+                        tonic::server::UnaryService<super::super::types::GetTitan1ClaimProofRequest>
+                        for GetTitan1ClaimProofSvc<T>
+                    {
+                        type Response = super::super::types::GetTitan1ClaimProofResponse;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<
+                                super::super::types::GetTitan1ClaimProofRequest,
+                            >,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ProverNetwork>::get_titan1_claim_proof(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetTitan1ClaimProofSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                _ => Box::pin(async move {
+                    let mut response = http::Response::new(empty_body());
+                    let headers = response.headers_mut();
+                    headers.insert(
+                        tonic::Status::GRPC_STATUS,
+                        (tonic::Code::Unimplemented as i32).into(),
+                    );
+                    headers.insert(http::header::CONTENT_TYPE, tonic::metadata::GRPC_CONTENT_TYPE);
+                    Ok(response)
+                }),
             }
         }
     }
