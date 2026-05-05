@@ -175,6 +175,11 @@ impl AbstractChipLayoutWithHeights {
     pub(crate) fn entries(&self) -> &[(String, usize, usize, usize)] {
         &self.0
     }
+
+    /// Chip names in layout order.
+    pub fn chip_names(&self) -> impl Iterator<Item = &str> {
+        self.0.iter().map(|(name, _, _, _)| name.as_str())
+    }
 }
 
 impl<F: Field> TraceDenseData<F, CpuBackend> {
@@ -194,8 +199,9 @@ impl<F: Field> TraceDenseData<F, CpuBackend> {
         let total_preprocessed: usize = layout.0.iter().map(|(_, p, _, h)| p * h).sum();
         let total_main: usize = layout.0.iter().map(|(_, _, m, h)| m * h).sum();
 
-        let padded_preprocessed = total_preprocessed.next_multiple_of(stacking);
-        let padded_main = total_main.next_multiple_of(stacking);
+        // note that this makes sure there is always at least one main and one preprocessed column
+        let padded_preprocessed = total_preprocessed.next_multiple_of(stacking).max(stacking);
+        let padded_main = total_main.next_multiple_of(stacking).max(stacking);
 
         assert_eq!(
             dense.len(),

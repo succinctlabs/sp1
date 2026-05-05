@@ -16,28 +16,28 @@ pub mod bench_utils {
     use slop_algebra::AbstractField;
     use slop_futures::queue::WorkerQueue;
     use sp1_core_machine::{io::SP1Stdin, riscv::RiscvAir};
-    use sp1_gpu_cudart::{run_in_place, run_sync_in_place, PinnedBuffer, TaskScope};
+    use sp1_gpu_cudart::{run_sync_in_place, PinnedBuffer, TaskScope};
     use sp1_gpu_utils::test_utils::random::{
-        random_jagged_trace_mle, random_jagged_trace_mle_from_json,
+        random_jagged_trace_mle, random_jagged_trace_mle_from_layout, read_layout_from_json,
     };
     use sp1_gpu_utils::{Felt, JaggedTraceMle};
-    use sp1_hypercube::air::SP1_PROOF_NUM_PV_ELTS;
+    use sp1_hypercube::air::{MachineAir, SP1_PROOF_NUM_PV_ELTS};
     use sp1_hypercube::prover::ProverSemaphore;
     use sp1_hypercube::{Chip, Machine};
 
-    /// All the artifacts a real-trace bench gets after the helper runs setup. Beyond `device_mle`,
-    /// this exposes `machine`, the post-tracegen `chip_set`, and `public_values` — all needed by
-    /// benches like `zerocheck` that walk the chip layout.
+    /// All the artifacts a [`FullKind`] bench gets. `cluster` is the chip set the bench should
+    /// iterate when slicing per-chip evaluations — for the real source it's the program's actual
+    /// `smallest_cluster`; for synthetic sources it's the chip set the trace was built from
+    /// (sorted alphabetically to match `BTreeSet` iteration order).
     ///
-    /// For random / JSON sources the `chip_set` is synthesized as the full
-    /// `machine.chips()` set and `public_values` is a zero-filled vector of the right length.
-    /// Values don't need to be meaningful for timing (the prover doesn't validate them), but the
-    /// shapes have to be consistent.
-    pub struct RealTraceData<'a> {
-        pub machine: &'a Machine<Felt, RiscvAir<Felt>>,
-        pub chip_set: &'a BTreeSet<Chip<Felt, RiscvAir<Felt>>>,
-        pub public_values: &'a [Felt],
-        pub device_mle: &'a JaggedTraceMle<Felt, TaskScope>,
+    /// `public_values` is real for the real source and a zero-filled vector of the right length
+    /// for synthetic sources. Values don't need to be meaningful for timing (the prover doesn't
+    /// validate them), but the shape has to be consistent.
+    pub struct RealTraceData {
+        pub machine: Machine<Felt, RiscvAir<Felt>>,
+        pub cluster: BTreeSet<Chip<Felt, RiscvAir<Felt>>>,
+        pub public_values: Vec<Felt>,
+        pub device_mle: JaggedTraceMle<Felt, TaskScope>,
     }
 
     use super::tracegen_setup::{self, CORE_MAX_LOG_ROW_COUNT, LOG_STACKING_HEIGHT};
@@ -52,9 +52,16 @@ pub mod bench_utils {
     pub fn real_programs() -> Vec<(&'static str, &'static [u8])> {
         vec![
             ("fibonacci", &test_artifacts::FIBONACCI_ELF),
+            ("fibonacci_blake3", &test_artifacts::FIBONACCI_BLAKE3_ELF),
             ("ed25519", &test_artifacts::ED25519_ELF),
             ("keccak256", &test_artifacts::KECCAK256_ELF),
             ("sha2", &test_artifacts::SHA2_ELF),
+            ("ssz_withdrawals", &test_artifacts::SSZ_WITHDRAWALS_ELF),
+            ("tendermint", &test_artifacts::TENDERMINT_BENCHMARK_ELF),
+            ("groth16", &test_artifacts::GROTH16_ELF),
+            ("groth16_blake3", &test_artifacts::GROTH16_BLAKE3_ELF),
+            ("plonk", &test_artifacts::PLONK_ELF),
+            ("plonk_blake3", &test_artifacts::PLONK_BLAKE3_ELF),
         ]
     }
 
@@ -121,39 +128,114 @@ pub mod bench_utils {
         }
     }
 
-    /// Marker trait controlling the closure shape `with_trace_source` invokes the bench with.
+    /// Marker trait controlling the data shape `with_trace_source` invokes the bench with.
     /// Implementors are unit structs ([`NoneKind`], [`JaggedKind`], [`FullKind`]) so the bench
     /// declares its needs by name and the type system carries the rest.
+    ///
+    /// Each Kind provides three pure data generators (one per source). The default [`run`]
+    /// parses the CLI source enum, opens a [`TaskScope`], calls the right generator, then
+    /// invokes the user's closure with the resulting [`GeneratedData`]. Kinds that don't fit
+    /// the source-dispatch shape (currently [`NoneKind`]) override `run` directly; their
+    /// generator methods then become dead code, hence the trivial impls.
     pub trait BenchKind: Sized {
-        /// What the helper passes into the user's closure as the last argument.
-        type Input<'a>;
+        /// The owned data the helper hands to the user's closure.
+        type GeneratedData;
 
-        /// Implementation hook. Don't call directly — go through [`with_trace_source`].
-        fn run<R, F>(c: &mut Criterion, rng: &mut R, f: F)
+        fn generate_random_data<R: Rng>(
+            scope: &TaskScope,
+            log_area: u32,
+            rng: &mut R,
+        ) -> Self::GeneratedData;
+
+        fn generate_json_data<R: Rng>(
+            scope: &TaskScope,
+            path: &str,
+            rng: &mut R,
+        ) -> Self::GeneratedData;
+
+        fn generate_real_data<R: Rng>(
+            scope: &TaskScope,
+            name: &'static str,
+            elf: &'static [u8],
+            rng: &mut R,
+        ) -> Self::GeneratedData;
+
+        /// Default: parse CLI source, open a scope, generate data via the right method, call
+        /// `f`. Sweep mode loops over sizes for random. Override only if the Kind doesn't
+        /// follow source dispatch (see [`NoneKind`]).
+        fn run<R, F>(c: &mut Criterion, rng: &mut R, mut f: F)
         where
             R: Rng,
-            F: FnMut(&mut Criterion, BenchmarkId, &TaskScope, &mut R, Self::Input<'_>);
+            F: FnMut(&mut Criterion, BenchmarkId, &TaskScope, &mut R, Self::GeneratedData),
+        {
+            match TraceSource::from_cli_args() {
+                TraceSource::Random(sizes) => {
+                    // Bench IDs we register (`random/total_area_2^N`) don't contain the user's
+                    // source arg verbatim (e.g. `random:24` has a colon; sweep args have commas),
+                    // so Criterion's substring CLI filter would drop them. With Random selected,
+                    // every bench we register here is intended to run.
+                    *c = std::mem::take(c).with_benchmark_filter(BenchmarkFilter::AcceptAll);
+                    let sizes =
+                        if sizes.is_empty() { vec![DEFAULT_RANDOM_LOG_AREA] } else { sizes };
+                    for log_area in sizes {
+                        let c: &mut Criterion = &mut *c;
+                        let rng: &mut R = &mut *rng;
+                        let f: &mut F = &mut f;
+                        run_sync_in_place(move |scope| {
+                            let data = Self::generate_random_data(&scope, log_area, rng);
+                            let id =
+                                BenchmarkId::new("random", format!("total_area_2^{log_area}"));
+                            f(c, id, &scope, rng, data);
+                        })
+                        .unwrap();
+                    }
+                }
+                TraceSource::Json(path) => {
+                    run_sync_in_place(move |scope| {
+                        let data = Self::generate_json_data(&scope, &path, rng);
+                        let id = BenchmarkId::new("json", &path);
+                        f(c, id, &scope, rng, data);
+                    })
+                    .unwrap();
+                }
+                TraceSource::Real { name, elf } => {
+                    run_sync_in_place(move |scope| {
+                        let data = Self::generate_real_data(&scope, name, elf, rng);
+                        let id = BenchmarkId::new("real", name);
+                        f(c, id, &scope, rng, data);
+                    })
+                    .unwrap();
+                }
+            }
+        }
     }
 
-    /// `Input = ()`. For benches whose inputs aren't a `JaggedTraceMle` (e.g. `hadamard`).
-    /// Ignores the `--source` arg entirely; the helper just opens a `TaskScope`, overrides
-    /// Criterion's filter to accept-all so a user-passed `--source <X>` doesn't drop the bench,
-    /// and calls `f` once.
+    /// `GeneratedData = ()`. For benches whose inputs aren't a `JaggedTraceMle` (e.g. `hadamard`).
+    /// Ignores the `--source` arg entirely; overrides Criterion's filter to accept-all so a
+    /// user-passed `--source <X>` doesn't drop the bench, opens a `TaskScope`, calls `f` once.
     pub struct NoneKind;
 
-    /// `Input = &JaggedTraceMle<Felt, TaskScope>`. For benches that just need the trace.
+    /// `GeneratedData = JaggedTraceMle<Felt, TaskScope>`. For benches that just need the trace.
     /// Source picked from CLI as random / JSON / real.
     pub struct JaggedKind;
 
-    /// `Input = RealTraceData<'_>`. For benches that need the surrounding execution context
-    /// (machine, chip_set, public_values) in addition to the trace. Source picked from CLI as
-    /// random / JSON / real; for the synthetic sources the `chip_set` and `public_values` are
-    /// synthesized so the bench timing reflects the largest-cluster workload.
+    /// `GeneratedData = RealTraceData`. For benches that need the full execution context
+    /// (machine, cluster, public_values) in addition to the trace. Source picked from CLI as
+    /// random / JSON / real; for synthetic sources `cluster` and `public_values` are
+    /// synthesized.
     pub struct FullKind;
 
     impl BenchKind for NoneKind {
-        type Input<'a> = ();
+        type GeneratedData = ();
 
+        // Trivial generators — never invoked in practice because `run` is overridden, but
+        // present so the trait contract is satisfied without `unreachable!()` smell.
+        fn generate_random_data<R: Rng>(_: &TaskScope, _: u32, _: &mut R) {}
+        fn generate_json_data<R: Rng>(_: &TaskScope, _: &str, _: &mut R) {}
+        fn generate_real_data<R: Rng>(_: &TaskScope, _: &'static str, _: &'static [u8], _: &mut R) {
+        }
+
+        /// Override: bypass source dispatch entirely. AcceptAll filter + scope + call once.
         fn run<R, F>(c: &mut Criterion, rng: &mut R, mut f: F)
         where
             R: Rng,
@@ -161,8 +243,7 @@ pub mod bench_utils {
         {
             *c = std::mem::take(c).with_benchmark_filter(BenchmarkFilter::AcceptAll);
             run_sync_in_place(move |scope| {
-                // Sentinel id; the bench typically registers its own group / bench_function
-                // and ignores this.
+                // Sentinel id; the bench typically registers its own group / bench_function.
                 let id = BenchmarkId::new("default", "default");
                 f(c, id, &scope, rng, ());
             })
@@ -171,36 +252,80 @@ pub mod bench_utils {
     }
 
     impl BenchKind for JaggedKind {
-        type Input<'a> = &'a JaggedTraceMle<Felt, TaskScope>;
+        type GeneratedData = JaggedTraceMle<Felt, TaskScope>;
 
-        fn run<R, F>(c: &mut Criterion, rng: &mut R, mut f: F)
-        where
-            R: Rng,
-            F: FnMut(
-                &mut Criterion,
-                BenchmarkId,
-                &TaskScope,
-                &mut R,
-                &JaggedTraceMle<Felt, TaskScope>,
-            ),
-        {
-            // The full-data dispatcher always builds a `RealTraceData`; for `JaggedKind` we
-            // only need the MLE, so unwrap and discard the rest.
-            dispatch_full_data(c, rng, |c, id, scope, rng, data| {
-                f(c, id, scope, rng, data.device_mle);
-            });
+        fn generate_random_data<R: Rng>(
+            scope: &TaskScope,
+            log_area: u32,
+            rng: &mut R,
+        ) -> JaggedTraceMle<Felt, TaskScope> {
+            let chips = sorted_machine_chips();
+            let total_area = 1u64 << log_area;
+            random_jagged_trace_mle::<Felt, _, _>(rng, &chips, total_area, LOG_STACKING_HEIGHT)
+                .into_device(scope)
+        }
+
+        fn generate_json_data<R: Rng>(
+            scope: &TaskScope,
+            path: &str,
+            rng: &mut R,
+        ) -> JaggedTraceMle<Felt, TaskScope> {
+            let layout = read_layout_from_json(path).expect("failed to read JSON layout");
+            random_jagged_trace_mle_from_layout::<Felt, _>(rng, &layout, LOG_STACKING_HEIGHT)
+                .into_device(scope)
+        }
+
+        fn generate_real_data<R: Rng>(
+            scope: &TaskScope,
+            name: &'static str,
+            elf: &'static [u8],
+            _rng: &mut R,
+        ) -> JaggedTraceMle<Felt, TaskScope> {
+            block_on_real_trace(scope, name, elf).device_mle
         }
     }
 
     impl BenchKind for FullKind {
-        type Input<'a> = RealTraceData<'a>;
+        type GeneratedData = RealTraceData;
 
-        fn run<R, F>(c: &mut Criterion, rng: &mut R, f: F)
-        where
-            R: Rng,
-            F: FnMut(&mut Criterion, BenchmarkId, &TaskScope, &mut R, RealTraceData<'_>),
-        {
-            dispatch_full_data(c, rng, f);
+        fn generate_random_data<R: Rng>(
+            scope: &TaskScope,
+            log_area: u32,
+            rng: &mut R,
+        ) -> RealTraceData {
+            let machine = RiscvAir::<Felt>::machine();
+            let chips = sorted_machine_chips();
+            let cluster: BTreeSet<_> = chips.iter().cloned().collect();
+            let total_area = 1u64 << log_area;
+            let device_mle =
+                random_jagged_trace_mle::<Felt, _, _>(rng, &chips, total_area, LOG_STACKING_HEIGHT)
+                    .into_device(scope);
+            let public_values = vec![Felt::zero(); SP1_PROOF_NUM_PV_ELTS];
+            RealTraceData { machine, cluster, public_values, device_mle }
+        }
+
+        fn generate_json_data<R: Rng>(
+            scope: &TaskScope,
+            path: &str,
+            rng: &mut R,
+        ) -> RealTraceData {
+            let layout = read_layout_from_json(path).expect("failed to read JSON layout");
+            let machine = RiscvAir::<Felt>::machine();
+            let cluster = cluster_from_json_layout(&machine, &layout);
+            let device_mle =
+                random_jagged_trace_mle_from_layout::<Felt, _>(rng, &layout, LOG_STACKING_HEIGHT)
+                    .into_device(scope);
+            let public_values = vec![Felt::zero(); SP1_PROOF_NUM_PV_ELTS];
+            RealTraceData { machine, cluster, public_values, device_mle }
+        }
+
+        fn generate_real_data<R: Rng>(
+            scope: &TaskScope,
+            name: &'static str,
+            elf: &'static [u8],
+            _rng: &mut R,
+        ) -> RealTraceData {
+            block_on_real_trace(scope, name, elf)
         }
     }
 
@@ -218,153 +343,88 @@ pub mod bench_utils {
     where
         K: BenchKind,
         R: Rng,
-        F: FnMut(&mut Criterion, BenchmarkId, &TaskScope, &mut R, K::Input<'_>),
+        F: FnMut(&mut Criterion, BenchmarkId, &TaskScope, &mut R, K::GeneratedData),
     {
         K::run(c, rng, f);
     }
 
-    /// Inner dispatcher used by both `JaggedKind` and `FullKind`. Always produces a
-    /// `RealTraceData` for the user's closure: real sources use the actual data from
-    /// `full_tracegen`; synthetic sources synthesize `chip_set` and `public_values`.
-    fn dispatch_full_data<R, F>(c: &mut Criterion, rng: &mut R, mut f: F)
-    where
-        R: Rng,
-        F: FnMut(&mut Criterion, BenchmarkId, &TaskScope, &mut R, RealTraceData<'_>),
-    {
-        match TraceSource::from_cli_args() {
-            TraceSource::Random(sizes) => {
-                // Bench IDs we register (`random/total_area_2^N`) don't contain the user's
-                // source arg verbatim (e.g. `random:24` has a colon; sweep args have commas), so
-                // Criterion's substring CLI filter would drop them. With Random as the chosen
-                // source, every bench we register here is intended to run.
-                *c = std::mem::take(c).with_benchmark_filter(BenchmarkFilter::AcceptAll);
-                let sizes = if sizes.is_empty() { vec![DEFAULT_RANDOM_LOG_AREA] } else { sizes };
-                for log_area in sizes {
-                    let c: &mut Criterion = &mut *c;
-                    let rng: &mut R = &mut *rng;
-                    let f: &mut F = &mut f;
-                    with_random(c, log_area, rng, |c, id, scope, rng, mle| {
-                        let machine = RiscvAir::<Felt>::machine();
-                        let chip_set: BTreeSet<_> = machine.chips().iter().cloned().collect();
-                        let public_values = vec![Felt::zero(); SP1_PROOF_NUM_PV_ELTS];
-                        let data = RealTraceData {
-                            machine: &machine,
-                            chip_set: &chip_set,
-                            public_values: &public_values,
-                            device_mle: mle,
-                        };
-                        f(c, id, scope, rng, data);
-                    });
-                }
-            }
-            TraceSource::Json(path) => {
-                with_json(c, &path, rng, |c, id, scope, rng, mle| {
-                    let machine = RiscvAir::<Felt>::machine();
-                    let chip_set: BTreeSet<_> = machine.chips().iter().cloned().collect();
-                    let public_values = vec![Felt::zero(); SP1_PROOF_NUM_PV_ELTS];
-                    let data = RealTraceData {
-                        machine: &machine,
-                        chip_set: &chip_set,
-                        public_values: &public_values,
-                        device_mle: mle,
-                    };
-                    f(c, id, scope, rng, data);
-                });
-            }
-            TraceSource::Real { name, elf } => with_real(c, name, elf, rng, f),
-        }
+    // -------------------------------------------------------------------------
+    // Shared private helpers: source-agnostic building blocks.
+    // -------------------------------------------------------------------------
+
+    /// Sort `machine.chips()` by `Chip`'s `Ord` (= by name). Real tracegen lays out chips in
+    /// BTreeMap order (alphabetical); `BTreeSet<Chip>` iteration is alphabetical too. The
+    /// synthetic trace's chip layout has to match for downstream per-chip slicing to land on
+    /// the right columns.
+    fn sorted_machine_chips() -> Vec<Chip<Felt, RiscvAir<Felt>>> {
+        let mut chips = RiscvAir::<Felt>::machine().chips().to_vec();
+        chips.sort();
+        chips
     }
 
-    fn with_random<R, F>(c: &mut Criterion, log_area: u32, rng: &mut R, f: F)
-    where
-        R: Rng,
-        F: FnOnce(
-            &mut Criterion,
-            BenchmarkId,
-            &TaskScope,
-            &mut R,
-            &JaggedTraceMle<Felt, TaskScope>,
-        ),
-    {
-        run_sync_in_place(move |scope| {
-            let machine = RiscvAir::<Felt>::machine();
-            let total_area = 1u64 << log_area;
-            let device_mle = random_jagged_trace_mle::<Felt, _, _>(
-                rng,
-                machine.chips(),
-                total_area,
-                LOG_STACKING_HEIGHT,
-            )
-            .into_device(&scope);
-            let id = BenchmarkId::new("random", format!("total_area_2^{log_area}"));
-            f(c, id, &scope, rng, &device_mle);
-        })
-        .unwrap();
-    }
-
-    fn with_json<R, F>(c: &mut Criterion, path: &str, rng: &mut R, f: F)
-    where
-        R: Rng,
-        F: FnOnce(
-            &mut Criterion,
-            BenchmarkId,
-            &TaskScope,
-            &mut R,
-            &JaggedTraceMle<Felt, TaskScope>,
-        ),
-    {
-        run_sync_in_place(move |scope| {
-            let device_mle =
-                random_jagged_trace_mle_from_json::<Felt, _>(rng, path, LOG_STACKING_HEIGHT)
-                    .expect("failed to read JSON layout")
-                    .into_device(&scope);
-            let id = BenchmarkId::new("json", path);
-            f(c, id, &scope, rng, &device_mle);
-        })
-        .unwrap();
-    }
-
-    fn with_real<R, F>(c: &mut Criterion, name: &'static str, elf: &'static [u8], rng: &mut R, f: F)
-    where
-        R: Rng,
-        F: FnOnce(&mut Criterion, BenchmarkId, &TaskScope, &mut R, RealTraceData<'_>),
-    {
-        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
-        rt.block_on(async move {
-            let (machine, record, program) = tracegen_setup::setup(elf, SP1Stdin::new()).await;
-            run_in_place(|scope| async move {
-                let buffer = PinnedBuffer::<Felt>::with_capacity(CORE_MAX_TRACE_SIZE as usize);
-                let queue = Arc::new(WorkerQueue::new(vec![buffer]));
-                let buffer = queue.pop().await.unwrap();
-                let (public_values, jagged_trace_data, chip_set, _permit) = full_tracegen(
-                    &machine,
-                    program.clone(),
-                    Arc::new(record),
-                    &buffer,
-                    CORE_MAX_TRACE_SIZE as usize,
-                    LOG_STACKING_HEIGHT,
-                    CORE_MAX_LOG_ROW_COUNT,
-                    &scope,
-                    ProverSemaphore::new(1),
-                    true,
-                )
-                .await;
-                let area = jagged_trace_data.dense().dense.len();
-                eprintln!(
-                    "real/{name} trace area: 2^{:.2} ({area} field elements)",
-                    (area as f64).log2(),
-                );
-                let id = BenchmarkId::new("real", name);
-                let data = RealTraceData {
-                    machine: &machine,
-                    chip_set: &chip_set,
-                    public_values: &public_values,
-                    device_mle: &jagged_trace_data,
-                };
-                f(c, id, &scope, rng, data);
+    /// Look up each JSON chip name against the machine and return a BTreeSet of the matching
+    /// Chip values. Panics if any name is unknown.
+    fn cluster_from_json_layout(
+        machine: &Machine<Felt, RiscvAir<Felt>>,
+        layout: &sp1_gpu_utils::AbstractChipLayoutWithHeights,
+    ) -> BTreeSet<Chip<Felt, RiscvAir<Felt>>> {
+        let by_name: std::collections::HashMap<&str, &Chip<Felt, RiscvAir<Felt>>> =
+            machine.chips().iter().map(|c| (c.name(), c)).collect();
+        layout
+            .chip_names()
+            .map(|name| {
+                by_name
+                    .get(name)
+                    .copied()
+                    .unwrap_or_else(|| panic!("JSON chip `{name}` not present in RiscvAir machine"))
+                    .clone()
             })
+            .collect()
+    }
+
+    /// Drive the async real-trace tracegen against an existing `scope` and return the resulting
+    /// owned `RealTraceData`. Used by both `JaggedKind::generate_real_data` (which then drops
+    /// everything but `device_mle`) and `FullKind::generate_real_data`.
+    fn block_on_real_trace(
+        scope: &TaskScope,
+        name: &'static str,
+        elf: &'static [u8],
+    ) -> RealTraceData {
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        rt.block_on(async {
+            let (machine, record, program) = tracegen_setup::setup(elf, SP1Stdin::new()).await;
+            let buffer = PinnedBuffer::<Felt>::with_capacity(CORE_MAX_TRACE_SIZE as usize);
+            let queue = Arc::new(WorkerQueue::new(vec![buffer]));
+            let buffer = queue.pop().await.unwrap();
+            let (public_values, jagged_trace_data, chip_set, _permit) = full_tracegen(
+                &machine,
+                program.clone(),
+                Arc::new(record),
+                &buffer,
+                CORE_MAX_TRACE_SIZE as usize,
+                LOG_STACKING_HEIGHT,
+                CORE_MAX_LOG_ROW_COUNT,
+                scope,
+                ProverSemaphore::new(1),
+                true,
+            )
             .await;
-        });
+            let area = jagged_trace_data.dense().dense.len();
+            eprintln!(
+                "real/{name} trace area: 2^{:.2} ({area} field elements)",
+                (area as f64).log2(),
+            );
+            let cluster = machine
+                .smallest_cluster(&chip_set)
+                .expect("no machine cluster contains the program's chip set")
+                .clone();
+            RealTraceData {
+                machine,
+                cluster,
+                public_values,
+                device_mle: jagged_trace_data,
+            }
+        })
     }
 }
 

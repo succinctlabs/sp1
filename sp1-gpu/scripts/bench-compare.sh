@@ -117,8 +117,9 @@
 # random at log-area 25. zerocheck additionally synthesizes a full-cluster
 # chip_set + zero public_values for synthetic sources, so its random/JSON
 # timings are NOT directly comparable to its real-source timings (different
-# cluster sizes). Supported real programs: fibonacci, ed25519, keccak256,
-# sha2.
+# cluster sizes). Supported real programs: fibonacci, fibonacci_blake3,
+# ed25519, keccak256, sha2, ssz_withdrawals, tendermint, groth16,
+# groth16_blake3, plonk, plonk_blake3.
 #
 #     sp1-gpu/scripts/bench-compare.sh --source real/keccak256
 #     sp1-gpu/scripts/bench-compare.sh --source /tmp/layout.json main jagged
@@ -203,9 +204,11 @@ Options:
                   --source real/<program>      # e.g. real/keccak256
                   --source /path/to/layout.json
 
-                Supported real programs: fibonacci, ed25519, keccak256,
-                sha2. (Add entries to `real_programs()` in
-                sp1-gpu-jagged-tracegen test_utils to extend.)
+                Supported real programs: fibonacci, fibonacci_blake3,
+                ed25519, keccak256, sha2, ssz_withdrawals, tendermint,
+                groth16, groth16_blake3, plonk, plonk_blake3. (Add
+                entries to `real_programs()` in sp1-gpu-jagged-tracegen
+                test_utils to extend.)
 
                 Without this flag, every source-aware bench defaults to
                 random at 2^25. zerocheck synthesizes a full-cluster

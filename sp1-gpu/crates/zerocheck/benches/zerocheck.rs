@@ -31,11 +31,10 @@ fn run_zerocheck<R: Rng>(
     id: BenchmarkId,
     scope: &TaskScope,
     rng: &mut R,
-    data: RealTraceData<'_>,
+    data: RealTraceData,
 ) {
-    let RealTraceData { machine, chip_set, public_values, device_mle } = data;
-
-    let chips = machine.smallest_cluster(chip_set).unwrap();
+    let RealTraceData { machine: _, cluster, public_values, device_mle } = data;
+    let chips = &cluster;
 
     let mut cache = BTreeMap::new();
     for chip in chips.iter() {
